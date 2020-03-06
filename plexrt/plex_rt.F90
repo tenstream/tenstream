@@ -9,7 +9,8 @@ module m_plex_rt
     angle_between_two_vec, rad2deg, deg2rad, strF2C, get_arg, meanval, &
     vec_proj_on_plane, cross_3d, rotation_matrix_world_to_local_basis, &
     approx, swap, delta_scale, delta_scale_optprop, itoa, ftoa, cstr, &
-    imp_reduce_mean, imp_min_mean_max, rotation_matrix_around_axis_vec
+    imp_reduce_mean, imp_min_mean_max, rotation_matrix_around_axis_vec, &
+    mpi_logical_all_same
 
   use m_data_parameters, only : ireals, iintegers, mpiint, irealLUT, imp_ireals, &
     i0, i1, i2, i3, i4, i5, i6, i7, i8, default_str_len, &
@@ -53,8 +54,7 @@ module m_plex_rt
     compute_face_geometry, set_plex_rt_optprop, destroy_plexrt_solver, &
     plexrt_get_result, scale_flx
 
-  !logical, parameter :: ldebug=.False.
-  logical, parameter :: ldebug=.True.
+  logical, parameter :: ldebug=.False.
 
   contains
     subroutine init_plex_rt_solver(plex, solver)
@@ -524,28 +524,12 @@ module m_plex_rt
       real(ireals), save :: last_sundir(3) = [zero,zero,zero]
       logical :: luse_rayli, lvacuum_domain_boundary, luse_disort, lflg
 
-      if(.not.allocated(solver)) call CHKERR(1_mpiint, 'run_plex_rt_solver::solver has to be allocated')
+      call check_input_arguments()
 
-      if(.not.allocated(solver%plex)) call CHKERR(1_mpiint, 'run_plex_rt_solver::plex has to be allocated first')
       call mpi_comm_rank(solver%plex%comm, myid, ierr); call CHKERR(ierr)
 
-      if(.not.allocated(solver%plex%geom_dm)) call CHKERR(1_mpiint, 'geom_dm has to be allocated first')
-      if(.not.allocated(solver%plex%srfc_boundary_dm)) call CHKERR(1_mpiint, 'srfc_boundary_dm has to be allocated first')
-      if(.not.allocated(solver%kabs  )) call CHKERR(1_mpiint, 'kabs   has to be allocated first')
-      if(.not.allocated(solver%ksca  )) call CHKERR(1_mpiint, 'ksca   has to be allocated first')
-      if(.not.allocated(solver%g     )) call CHKERR(1_mpiint, 'g      has to be allocated first')
-      if(.not.allocated(solver%albedo)) call CHKERR(1_mpiint, 'albedo has to be allocated first')
-      if(lthermal) then
-        if(.not.allocated(solver%plck)) call CHKERR(1_mpiint, 'planck radiation vec has to be allocated first')
-      endif
-
-      if(.not.allocated(solver%plex%geom_dm))  call compute_face_geometry(solver%plex, solver%plex%geom_dm)
-      if(.not.allocated(solver%plex%edir_dm))  &
-        call CHKERR(1_mpiint, 'solver%plex%edir_dm not allocated, should have happened in init_solver?')
-      if(.not.allocated(solver%plex%ediff_dm)) &
-        call CHKERR(1_mpiint, 'solver%plex%ediff_dm not allocated, should have happened in init_solver?')
-      if(.not.allocated(solver%plex%abso_dm))  &
-        call CHKERR(1_mpiint, 'solver%plex%abso_dm not allocated, should have happened in init_solver?')
+      if(.not.allocated(solver%plex%geom_dm))  &
+        call compute_face_geometry(solver%plex, solver%plex%geom_dm)
 
       if(.not.allocated(solver%IS_diff_in_out_dof)) &
         call setup_IS_diff_in_out_dof(solver%plex, solver%plex%ediff_dm, solver%IS_diff_in_out_dof)
@@ -740,6 +724,53 @@ module m_plex_rt
       end associate
 
       contains
+        subroutine check_input_arguments()
+          real(ireals) :: minmax(2)
+          integer(iintegers) :: k
+          integer(mpiint) :: comm, myid, ierr
+          if(.not.allocated(solver)) call CHKERR(1_mpiint, 'run_plex_rt_solver::solver has to be allocated')
+          if(.not.allocated(solver%plex)) call CHKERR(1_mpiint, 'run_plex_rt_solver::plex has to be allocated first')
+
+          if(ldebug) then
+            comm = solver%plex%comm
+            call MPI_Comm_rank( comm, myid, ierr); call CHKERR(ierr)
+
+            if(.not.mpi_logical_all_same(comm, lthermal)) &
+              call CHKERR(1_mpiint, 'argument lthermal has to be the same on all processes')
+            if(.not.mpi_logical_all_same(comm, lsolar)) &
+              call CHKERR(1_mpiint, 'argument lsolar has to be the same on all processes')
+
+            do k=1,3
+              call mpi_reduce(sundir(k), minmax(1), 1_mpiint, imp_ireals, MPI_MIN, 0_mpiint, comm, ierr); call CHKERR(ierr)
+              call mpi_reduce(sundir(k), minmax(2), 1_mpiint, imp_ireals, MPI_MAX, 0_mpiint, comm, ierr); call CHKERR(ierr)
+              if(myid.eq.0 .and. .not.approx(minmax(1), minmax(2))) &
+                call CHKERR(1_mpiint, 'run_plex_rt_solver::sundir('//itoa(k)//')'// &
+                                      ' is not the same on all processes!'// &
+                                      ' min/max: '//ftoa(minmax))
+            enddo
+          endif
+
+          if(.not.allocated(solver%plex%geom_dm)) &
+            call CHKERR(1_mpiint, 'geom_dm has to be allocated first')
+          if(.not.allocated(solver%plex%srfc_boundary_dm)) &
+            call CHKERR(1_mpiint, 'srfc_boundary_dm has to be allocated first')
+
+          if(.not.allocated(solver%kabs  )) call CHKERR(1_mpiint, 'kabs   has to be allocated first')
+          if(.not.allocated(solver%ksca  )) call CHKERR(1_mpiint, 'ksca   has to be allocated first')
+          if(.not.allocated(solver%g     )) call CHKERR(1_mpiint, 'g      has to be allocated first')
+          if(.not.allocated(solver%albedo)) call CHKERR(1_mpiint, 'albedo has to be allocated first')
+
+          if(lthermal) then
+              if(.not.allocated(solver%plck)) call CHKERR(1_mpiint, 'planck radiation vec has to be allocated first')
+          endif
+
+          if(.not.allocated(solver%plex%edir_dm))  &
+            call CHKERR(1_mpiint, 'solver%plex%edir_dm not allocated, should have happened in init_solver?')
+          if(.not.allocated(solver%plex%ediff_dm)) &
+            call CHKERR(1_mpiint, 'solver%plex%ediff_dm not allocated, should have happened in init_solver?')
+          if(.not.allocated(solver%plex%abso_dm))  &
+            call CHKERR(1_mpiint, 'solver%plex%abso_dm not allocated, should have happened in init_solver?')
+        end subroutine
 
         subroutine debug_dump_vec(dm, vec, scalevec)
           type(tDM), intent(in) :: dm
