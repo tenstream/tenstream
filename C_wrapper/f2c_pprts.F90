@@ -199,7 +199,7 @@ contains
       allocate(t_solver_8_18::pprts_solver); ierr=0
       call init_pprts(comm, oNz,oNx,oNy, odx,ody, ophi0, otheta0, pprts_solver, dz1d=odz)
     case(SOLVER_ID_PLEXRT_RECTILINEAR_5_8); ierr=0
-      call pprts_plexrt_f2c_init(comm, osolver_id, oNx, oNy, oNz+1, odx, ohhl, ophi0, otheta0)
+      call plexrt_f2c_init(comm, osolver_id, oNx, oNy, oNz+1, odx, ohhl, ophi0, otheta0)
     end select
     call CHKERR(ierr, 'Could not find a suitable solver to allocate for solver_id: '//itoa(solver_id))
 
@@ -239,7 +239,7 @@ contains
     endif
 
     if(allocated(plex_solver)) then
-      call pprts_plexrt_f2c_set_global_optprop(Nz, Nx, Ny, albedo, kabs, ksca, g, planck)
+      call plexrt_f2c_set_global_optprop(Nz, Nx, Ny, albedo, kabs, ksca, g, planck)
     endif
   end subroutine
 
@@ -251,16 +251,24 @@ contains
     real(c_float), value :: edirTOA
     real(ireals) :: oedirTOA
     logical :: lthermal
+    integer(mpiint) :: myid, ierr
+    call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+
+    if(myid.eq.0) oedirTOA = real(edirTOA, ireals)
+    call imp_bcast(comm, oedirTOA, 0_mpiint)
 
     if(allocated(pprts_solver)) then
-      if(pprts_solver%myid.eq.0) oedirTOA = real(edirTOA, ireals)
-      call imp_bcast(comm, oedirTOA, 0_mpiint)
-
       call solve_pprts(pprts_solver, oedirTOA)
     endif
     if(allocated(plex_solver)) then
       lthermal = allocated(plex_solver%plck)
-      call run_plex_rt_solver(plex_solver, lthermal=lthermal, lsolar=edirTOA.gt.0, sundir=sundir)
+
+      if(ldebug) &
+        print *,'pprts_f2c_solve; '// &
+                'lthermal', lthermal, &
+                'lsolar', oedirTOA.gt.0, &
+                'sundir=', sundir
+      call run_plex_rt_solver(plex_solver, lthermal=lthermal, lsolar=oedirTOA.gt.0, sundir=sundir)
     endif
   end subroutine
 
@@ -380,7 +388,7 @@ contains
 
 
   ! --------------------- Start of PLEXRT Routines -------------------
-  subroutine pprts_plexrt_f2c_init(comm, solver_id, &
+  subroutine plexrt_f2c_init(comm, solver_id, &
       Nx_global, Ny_global, Nlev, &
       dx, hhl, phi0, theta0 )
     integer(mpiint), intent(in) :: comm
@@ -398,10 +406,15 @@ contains
     call create_2d_regular_plex(comm, Nx_global+1, Ny_global+1, dm2d, dm2d_dist, &
       opt_migration_sf=migration_sf, opt_dx=dx)
 
+    call DMPlexGetHeightStratum(dm2d, i0, fStart, fEnd, ierr); call CHKERR(ierr)
+    Ncol = fEnd - fStart
+
+    if(ldebug) print *,myid,'plexrt_f2c_init: Global Domain sizes are:', Ncol, Nlev
+
     call DMPlexGetHeightStratum(dm2d_dist, i0, fStart, fEnd, ierr); call CHKERR(ierr)
     Ncol = fEnd - fStart
 
-    if(ldebug) print *,myid,'plexrt_f2c_init: Local Domain sizes are:', Nlev, Ncol
+    if(ldebug) print *,myid,'plexrt_f2c_init: Local Domain sizes are:', Ncol, Nlev
 
     call dmplex_2D_to_3D(dm2d_dist, Nlev, hhl, dm3d, zindex, lpolar_coords=.False.)
 
@@ -412,6 +425,8 @@ contains
     select case(solver_id)
     case(SOLVER_ID_PLEXRT_RECTILINEAR_5_8)
       call allocate_plexrt_solver_from_commandline(plex_solver, 'rectilinear_5_8')
+    case default
+      call CHKERR(1_mpiint, 'unknown solver id::'//itoa(solver_id))
     end select
 
     call init_plex_rt_solver(plex, plex_solver)
@@ -420,7 +435,7 @@ contains
     if(ldebug) print *,'f2c_pprts::sundir', sundir, '(', phi0,theta0, ')'
   end subroutine
 
-  subroutine pprts_plexrt_f2c_set_global_optprop(Nz, Nx, Ny, albedo, kabs, ksca, g, planck) bind(c)
+  subroutine plexrt_f2c_set_global_optprop(Nz, Nx, Ny, albedo, kabs, ksca, g, planck) bind(c)
     integer(c_int), value :: Nx,Ny,Nz
     real(c_float),intent(in) :: albedo
     real(c_float),intent(in),dimension(Nz  ,Nx,Ny) :: kabs, ksca, g
@@ -448,6 +463,7 @@ contains
     call propagate_from_Zero_to_solver_optprop(g   , work, plex_solver%g   )
 
     if(myid.eq.0) lthermal = any(planck.gt.zero)
+    if(ldebug.and.myid.eq.0) print *,'plexrt_f2c_set_global_optprop lthermal', lthermal
     call imp_bcast(comm, lthermal, 0_mpiint)
 
     if(lthermal) then

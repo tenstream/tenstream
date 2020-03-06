@@ -1723,7 +1723,8 @@ end subroutine
     ierr = 0
     do kdim = 1,size(sample_pts)
       if(sample_pts(kdim).lt.config%dims(kdim)%vrange(1).or.sample_pts(kdim).gt.config%dims(kdim)%vrange(2)) then
-        print *,'ERROR value in dimension '//itoa(kdim)//' is outside of LUT range', &
+        print *,'ERROR value in dimension '//trim(config%dims(kdim)%dimname)// &
+                ' ('//itoa(kdim)//') is outside of LUT range', &
                 sample_pts(kdim), 'not in:', config%dims(kdim)%vrange
         ierr = ierr +1
       endif
