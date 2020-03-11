@@ -28,6 +28,7 @@ endif()
 project (tenstream C Fortran)
 enable_testing()
 set(CTEST_CMAKE_GENERATOR "Unix Makefiles")
+set(CMAKE_C_STANDARD 99)
 
 #set(CMAKE_VERBOSE_MAKEFILE ON)
 
