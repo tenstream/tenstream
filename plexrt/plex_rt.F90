@@ -650,8 +650,14 @@ module m_plex_rt
 
           ! Solve Direct Matrix
           call PetscLogEventBegin(solver%logs%solve_Mdir, ierr)
-          call solve_plex_rt(solver%plex%edir_dm, solver%dirsrc, solver%Mdir, solver%ksp_solar_dir, solution%edir, &
-            ksp_residual_history=solution%dir_ksp_residual_history, prefix='solar_dir_')
+          call solve_plex_rt(solver%plex%edir_dm, &
+            solver%dirsrc, &
+            solver%Mdir, &
+            solver%ksp_solar_dir, &
+            solution%edir, &
+            ksp_residual_history=solution%dir_ksp_residual_history, &
+            prefix='solar_dir_', &
+            ksp_iter=solution%Niter_dir)
           call PetscLogEventEnd(solver%logs%solve_Mdir, ierr)
           call PetscObjectSetName(solution%edir, 'edir', ierr); call CHKERR(ierr)
           call PetscObjectViewFromOptions(solution%edir, PETSC_NULL_VEC, &
@@ -697,11 +703,23 @@ module m_plex_rt
         ! Solve Diffuse Matrix
         call PetscLogEventBegin(solver%logs%solve_Mdiff, ierr)
         if(solution%lsolar_rad) then
-          call solve_plex_rt(solver%plex%ediff_dm, solver%diffsrc, solver%Mdiff, solver%ksp_solar_diff, solution%ediff, &
-            ksp_residual_history=solution%diff_ksp_residual_history, prefix='solar_diff_')
+          call solve_plex_rt(solver%plex%ediff_dm, &
+            solver%diffsrc, &
+            solver%Mdiff, &
+            solver%ksp_solar_diff, &
+            solution%ediff, &
+            ksp_residual_history=solution%diff_ksp_residual_history, &
+            prefix='solar_diff_', &
+            ksp_iter=solution%Niter_diff)
         else
-          call solve_plex_rt(solver%plex%ediff_dm, solver%diffsrc, solver%Mdiff, solver%ksp_thermal_diff, solution%ediff, &
-            ksp_residual_history=solution%diff_ksp_residual_history, prefix='thermal_diff_')
+          call solve_plex_rt(solver%plex%ediff_dm, &
+            solver%diffsrc, &
+            solver%Mdiff, &
+            solver%ksp_thermal_diff, &
+            solution%ediff, &
+            ksp_residual_history=solution%diff_ksp_residual_history, &
+            prefix='thermal_diff_', &
+            ksp_iter=solution%Niter_diff)
         endif
         call PetscLogEventEnd(solver%logs%solve_Mdiff, ierr)
         call PetscObjectSetName(solution%ediff, 'ediff', ierr); call CHKERR(ierr)
@@ -1641,7 +1659,7 @@ module m_plex_rt
         enddo
       end subroutine
 
-    subroutine solve_plex_rt(dm, b, A, ksp, x, ksp_residual_history, prefix)
+    subroutine solve_plex_rt(dm, b, A, ksp, x, ksp_residual_history, prefix, ksp_iter)
       type(tDM), intent(inout) :: dm
       type(tVec), allocatable, intent(in) :: b
       type(tMat), allocatable, intent(in) :: A
@@ -1649,6 +1667,7 @@ module m_plex_rt
       type(tVec), allocatable, intent(inout) :: x
       real(ireals), allocatable, intent(inout), optional :: ksp_residual_history(:)
       character(len=*),optional :: prefix
+      integer(iintegers), intent(out), optional :: ksp_iter
 
       real(ireals),parameter :: rtol=1e-6_ireals, rel_atol=1e-6_ireals
       integer(iintegers),parameter  :: maxiter=1000
@@ -1715,6 +1734,8 @@ module m_plex_rt
 
       call hegedus_trick(ksp, b, x)
       call KSPSolve(ksp, b, x, ierr); call CHKERR(ierr)
+
+      call KSPGetIterationNumber(ksp, ksp_iter, ierr); call CHKERR(ierr)
 
       call handle_diverged_solve()
 

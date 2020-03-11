@@ -1,0 +1,16 @@
+-skip_load_LUT no
+-LUT_mockup
+
+#-solar_dir_ksp_converged_reason
+#-solar_diff_ksp_converged_reason
+#-thermal_diff_ksp_converged_reason
+
+-solar_dir_ksp_rtol 1e-5
+-solar_dir_ksp_atol 1e-60
+-solar_diff_ksp_rtol 1e-5
+-solar_diff_ksp_atol 1e-60
+-thermal_diff_ksp_rtol 1e-5
+-thermal_diff_ksp_atol 1e-60
+
+-thermal_diff_ksp_monitor
+#-thermal_diff_ksp_view
