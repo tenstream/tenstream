@@ -38,20 +38,23 @@ configure_file(${_options_file} ${TESTDIR}/ COPYONLY)
 endforeach()
 
 set_source_files_properties(${_test_sources} PROPERTIES COMPILE_FLAGS "${EXTRA_TEST_COMPILE_FLAGS}")
-set_source_files_properties(${PFUNIT_DIR}/include/driver.F90 PROPERTIES
+set_source_files_properties(
+  ${PFUNIT_DIR}/include/driver.F90 PROPERTIES
   GENERATED 1
-  COMPILE_FLAGS "${EXTRA_TESTDRIVER_COMPILE_FLAGS}")
+  COMPILE_FLAGS "${EXTRA_TESTDRIVER_COMPILE_FLAGS}"
+  )
 
 add_executable(
   pfunit_${CDIR}
   ${PFUNIT_DIR}/include/driver.F90
   ${_test_sources}
   )
-target_link_libraries(
-  pfunit_${CDIR}
+target_link_libraries(pfunit_${CDIR}
   ${PFUNIT_DIR}/lib/libpfunit.a
   ${TENSTR_LIBS}
+  ${EXTLIB}
   )
+
 add_test(
   NAME pfunit_${CDIR}
   COMMAND ${MPIEXEC} ${CTEST_MPIRUN_FLAGS} ${MPIEXEC_NUMPROC_FLAG} ${NUMPROC} ${PROJECT_BINARY_DIR}/bin/pfunit_${CDIR}

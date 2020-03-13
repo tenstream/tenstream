@@ -80,13 +80,13 @@ set( optprop_sources
 # pprts_base libs
 add_library( pprts_base_objs OBJECT ${general_sources} ${optprop_sources} )
 add_library( pprts_base             $<TARGET_OBJECTS:pprts_base_objs> )
-target_link_libraries( pprts_base   ${EXTLIB} ${USERLIB} ${LIBS})
+target_link_libraries( pprts_base   ${EXTLIB})
 
 # pprts libs
 add_library( pprts_objs OBJECT "pprts.F90")
 add_dependencies( pprts_objs pprts_base_objs )
 add_library( pprts        $<TARGET_OBJECTS:pprts_objs> )
-target_link_libraries( pprts     pprts_base        ${EXTLIB} ${USERLIB} ${LIBS})
+target_link_libraries( pprts     pprts_base        ${EXTLIB})
 
 # CreateLUT binaries
 file( GLOB streams createLUT*.[fF]90 )

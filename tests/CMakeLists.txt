@@ -2,10 +2,6 @@ message(STATUS "Installing pfUnit  --  Installation taken from https://github.co
 
 cmake_minimum_required(VERSION 2.8 FATAL_ERROR)
 
-#project(pfunit)
-
-enable_language(Fortran)
-
 enable_testing()
 
 set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -DUSE_MPI")
@@ -64,7 +60,6 @@ else()
 endif()
 
 include_directories(${PFUNIT_DIR}/mod)
-#include_directories( ${PROJECT_SOURCE_DIR} )
 
 macro(subdirlist result curdir)
   file(GLOB children RELATIVE ${curdir} ${curdir}/*)

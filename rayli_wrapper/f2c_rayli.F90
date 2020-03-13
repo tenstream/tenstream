@@ -25,7 +25,7 @@ module m_f2c_rayli
 
   implicit none
 
-#ifdef __HAVE_RAYLI__
+#ifdef HAVE_RAYLI
   interface
     integer(c_int) function rfft_wedgeF90(&
         Nphotons, Nwedges, Nfaces, Nverts, cyclic, &

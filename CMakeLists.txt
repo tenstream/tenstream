@@ -25,7 +25,7 @@ if(${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR})
 endif()
 
 ########################### Tenstream Project: ###################################
-project (tenstream C Fortran)
+project (tenstream C Fortran CXX)
 enable_testing()
 set(CTEST_CMAKE_GENERATOR "Unix Makefiles")
 set(CMAKE_C_STANDARD 99)
@@ -98,18 +98,33 @@ endif()
 set(MPIEXEC_NUMPROC_FLAG -n CACHE STRING "options to set number of MPI tasks/nodes")
 if(AUTODETECT_MPI)
   find_package( MPI REQUIRED )
+
+  add_definitions(${MPI_C_COMPILE_FLAGS})
+  include_directories(${MPI_C_INCLUDE_PATH})
+  list (APPEND EXTLIB "${MPI_C_LIBRARIES}" )
+
+  add_definitions(${MPI_CXX_COMPILE_FLAGS})
+  include_directories(${MPI_CXX_INCLUDE_PATH})
+  list (APPEND EXTLIB "${MPI_CXX_LIBRARIES}" )
+
   if(${MPI_Fortran_FOUND})
     add_definitions(${MPI_Fortran_COMPILE_FLAGS})
     include_directories(${MPI_Fortran_INCLUDE_PATH})
     link_directories(${MPI_Fortran_LIBRARIES})
     list (APPEND EXTLIB "${MPI_Fortran_LIBRARIES}" )
-    add_definitions(${MPI_C_COMPILE_FLAGS})
-    include_directories(${MPI_C_INCLUDE_PATH})
-    list (APPEND EXTLIB "${MPI_C_LIBRARIES}" )
-    include_directories(${ITAPS_INCLUDES})
   else(${MPI_Fortran_FOUND})
-    message(WARNING "!!!!!!! MPI MISSING")
+    message(FATAL "!!!!!!! Fotran MPI MISSING")
   endif(${MPI_Fortran_FOUND})
+
+  set( CMAKE_EXE_LINKER_FLAGS
+    ${CMAKE_EXE_LINKER_FLAGS}
+    ${MPI_CXX_LINK_FLAGS}
+    ${MPI_Fortran_LIBRARIES}
+    ${MPI_C_LIBRARIES}
+    )
+  string (REPLACE ";" " " CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}")
+
+  include_directories(${ITAPS_INCLUDES})
 else(AUTODETECT_MPI)
 endif(AUTODETECT_MPI)
 
@@ -118,11 +133,9 @@ endif(AUTODETECT_MPI)
 find_package( HDF5 REQUIRED ) # use this for non-cmake install of HDF5
 message(STATUS "Found HDF5    : ${HDF5_FOUND}" )
 if(${HDF5_FOUND})
-  message(STATUS "HDF5  Includes: ${HDF5_INCLUDE_DIR}" )
-  message(STATUS "HDF5 F90      : ${HDF5_BUILD_FORTRAN}" )
-  message(STATUS "HDF5 Library  : ${HDF5_LIBRARIES}")
+  message(STATUS "HDF5 Includes: ${HDF5_INCLUDE_DIR}" )
+  message(STATUS "HDF5 Library : ${HDF5_LIBRARIES}")
   include_directories(${HDF5_INCLUDE_DIR})
-  include_directories(${HDF5_FORTRAN_INCLUDE_DIR})
   list (APPEND EXTLIB ${HDF5_LIBRARIES})
 else(${HDF5_FOUND})
   message(WARNING "CMake could not find your HDF5 install, you may need to add the hdf5 libraries in config/<loc>.cmake by hand." )
@@ -149,30 +162,15 @@ set(PETSCINSTALL "$ENV{PETSC_DIR}/$ENV{PETSC_ARCH}")
 MESSAGE(STATUS "Using PETSC ${PETSCINSTALL} ")
 if(NOT EXISTS "${PETSCINSTALL}" )
   message(FATAL "Directory ${PETSCINSTALL} does not exist!")
-endif(NOT EXISTS "${PETSCINSTALL}" )
-
+endif()
 set(CMAKE_PREFIX_PATH ${PETSCINSTALL} ${CMAKE_PREFIX_PATH})
-
-find_package( PETSc )
-message(STATUS "Found Petsc:    ${PETSC_FOUND}" )
-message(STATUS "Petsc Includes: ${PETSC_INCLUDES}" )
-message(STATUS "Petsc Library : ${PETSC_LIBRARIES}")
-message(STATUS "Petsc compiler: ${PETSC_COMPILER}" )
-message(STATUS "Petsc VERSION : ${PETSC_VERSION}" )
-message(STATUS "Petsc definiti: ${PETSC_DEFINITIONS}")
-
-list(APPEND CMAKE_MODULE_PATH "${PETSCINSTALL}/lib/petsc/conf/")
-include(PETScConfig OPTIONAL)
-
-if(PETSC_HDF5_LIB)
-  message(STATUS "Petsc HDF5:     ${PETSC_HDF5_LIB}")
-  add_definitions(-D_PETSC_HAVE_HDF5)
-endif(PETSC_HDF5_LIB)
-
-add_definitions (${PETSC_DEFINITIONS})
-include_directories (${PETSC_INCLUDES})
-list (APPEND EXTLIB "${PETSC_LIBRARIES}" )
-
+include(FindPkgConfig)
+pkg_search_module(PETSC REQUIRED PETSc)
+message(STATUS "PETSc Includes: ${PETSC_INCLUDE_DIRS}")
+message(STATUS "PETSc Library : ${PETSC_LIBRARIES}")
+message(STATUS "PETSc LDFLAGS : ${PETSC_LDFLAGS}")
+include_directories(${PETSC_INCLUDE_DIRS})
+list (APPEND EXTLIB ${PETSC_LDFLAGS} ${PETSC_LIBRARIES})
 
 # Add Lapack
 find_package( LAPACK )
@@ -180,13 +178,11 @@ if(${LAPACK_FOUND})
   list (APPEND EXTLIB "${LAPACK_LIBRARIES}")
 endif(${LAPACK_FOUND})
 
-
 ## Add User Libs
 if(DEFINED USER_LIBS)
     list (APPEND EXTLIB "${USER_LIBS}" )
     message(INFO " EXTLIB after user LIBS: ${USER_LIBS}")
 endif()
-
 
 # Set Output Directories
 set (CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib CACHE PATH "Output directory for Dohp archives")
@@ -239,6 +235,7 @@ if(ENABLE_IPO)
     message(WARNING "IPO could not be enabled ${ipo_errmsg}")
   endif()
 endif()
+
 
 # Add Source Directories
 add_subdirectory(external)
@@ -303,14 +300,6 @@ if(NOT BUILD_SHARED_LIBS)
 	combine_archives(tenstream "${TENSTR_LIBS}")
 endif()
 
-# Add pfUnit for testing
-option(ENABLE_PFUNIT "Enable pfUnit testing Framework" OFF)
-if(ENABLE_PFUNIT)
-  add_subdirectory(tests)
-  add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} -E 'boxmc|LUT')
-  set(CTEST_MPIRUN_FLAGS "" CACHE STRING "Additional mpiexec flags to run tests with")
-endif(ENABLE_PFUNIT)
-
 option(ENABLE_RRTM "Enable use of RRTM" OFF)
 if(ENABLE_RRTM)
 	add_subdirectory(rrtmg)
@@ -320,6 +309,14 @@ option(ENABLE_EXAMPLES "Enable compilation of EXAMPLES" OFF)
 if(ENABLE_EXAMPLES)
 	add_subdirectory(examples)
 endif(ENABLE_EXAMPLES)
+
+# Add pfUnit for testing
+option(ENABLE_PFUNIT "Enable pfUnit testing Framework" OFF)
+if(ENABLE_PFUNIT)
+  add_subdirectory(tests)
+  add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} -E 'boxmc|LUT')
+  set(CTEST_MPIRUN_FLAGS "" CACHE STRING "Additional mpiexec flags to run tests with")
+endif(ENABLE_PFUNIT)
 
 find_program(CTAGS_PATH ctags)
 if(CTAGS_PATH)
@@ -374,7 +371,7 @@ add_custom_target(distclean
   )
 
 # Documentation targets
-add_custom_target(doc DEPENDS doxygen)
+add_custom_target(doc_doxygen DEPENDS doxygen)
 
 # add a target to generate API documentation with Doxygen
 find_package(Doxygen)
