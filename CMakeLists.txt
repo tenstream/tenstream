@@ -88,6 +88,32 @@ else()
   message(FATAL " -- CMAKE_BUILD_TYPE should be either RELEASE or DEBUG")
 endif()
 
+# NetCDF
+set (NETCDF_F90 "YES")
+find_package( NetCDF REQUIRED)
+if(${NETCDF_FOUND})
+  message(STATUS "Found NetCDF:     ${NETCDF_FOUND}" )
+  message(STATUS "NetCDF  Includes: ${NETCDF_INCLUDES}" )
+  message(STATUS "NetCDFF Includes: ${NETCDF_INCLUDES_F90}" )
+  message(STATUS "NetCDF  Library : ${NETCDF_LIBRARIES}")
+  include_directories(${NETCDF_INCLUDES})
+  include_directories(${NETCDF_INCLUDES_F90})
+  list (APPEND EXTLIB ${NETCDF_LIBRARIES})
+else(${NETCDF_FOUND})
+  message(WARNING "CMake could not find your NETCDF install, you may need to add the NETCDF libraries in config/<loc>.cmake by hand." )
+endif(${NETCDF_FOUND})
+
+# HDF5
+find_package( HDF5 REQUIRED ) # use this for non-cmake install of HDF5
+message(STATUS "Found HDF5    : ${HDF5_FOUND}" )
+if(${HDF5_FOUND})
+  message(STATUS "HDF5 Includes: ${HDF5_INCLUDE_DIR}" )
+  message(STATUS "HDF5 Library : ${HDF5_LIBRARIES}")
+  include_directories(${HDF5_INCLUDE_DIR})
+  list (APPEND EXTLIB ${HDF5_LIBRARIES})
+else(${HDF5_FOUND})
+  message(WARNING "CMake could not find your HDF5 install, you may need to add the hdf5 libraries in config/<loc>.cmake by hand." )
+endif(${HDF5_FOUND})
 
 ## Set MPI Stuff
 option(AUTODETECT_MPI "Let CMAKE try to find MPI variables" ON)
@@ -128,35 +154,6 @@ if(AUTODETECT_MPI)
 else(AUTODETECT_MPI)
 endif(AUTODETECT_MPI)
 
-
-# HDF5
-find_package( HDF5 REQUIRED ) # use this for non-cmake install of HDF5
-message(STATUS "Found HDF5    : ${HDF5_FOUND}" )
-if(${HDF5_FOUND})
-  message(STATUS "HDF5 Includes: ${HDF5_INCLUDE_DIR}" )
-  message(STATUS "HDF5 Library : ${HDF5_LIBRARIES}")
-  include_directories(${HDF5_INCLUDE_DIR})
-  list (APPEND EXTLIB ${HDF5_LIBRARIES})
-else(${HDF5_FOUND})
-  message(WARNING "CMake could not find your HDF5 install, you may need to add the hdf5 libraries in config/<loc>.cmake by hand." )
-endif(${HDF5_FOUND})
-
-# NetCDF
-set (NETCDF_F90 "YES")
-find_package( NetCDF REQUIRED)
-if(${NETCDF_FOUND})
-  message(STATUS "Found NetCDF:     ${NETCDF_FOUND}" )
-  message(STATUS "NetCDF  Includes: ${NETCDF_INCLUDES}" )
-  message(STATUS "NetCDFF Includes: ${NETCDF_INCLUDES_F90}" )
-  message(STATUS "NetCDF  Library : ${NETCDF_LIBRARIES}")
-  include_directories(${NETCDF_INCLUDES})
-  include_directories(${NETCDF_INCLUDES_F90})
-  list (APPEND EXTLIB ${NETCDF_LIBRARIES})
-else(${NETCDF_FOUND})
-  message(WARNING "CMake could not find your NETCDF install, you may need to add the NETCDF libraries in config/<loc>.cmake by hand." )
-endif(${NETCDF_FOUND})
-
-
 # Petsc
 set(PETSCINSTALL "$ENV{PETSC_DIR}/$ENV{PETSC_ARCH}")
 MESSAGE(STATUS "Using PETSC ${PETSCINSTALL} ")
@@ -169,8 +166,10 @@ pkg_search_module(PETSC REQUIRED PETSc)
 message(STATUS "PETSc Includes: ${PETSC_INCLUDE_DIRS}")
 message(STATUS "PETSc Library : ${PETSC_LIBRARIES}")
 message(STATUS "PETSc LDFLAGS : ${PETSC_LDFLAGS}")
+message(STATUS "PETSc STATIC Libraries : ${PETSC_STATIC_LIBRARIES}")
+message(STATUS "PETSc STATIC LDFLAGS   : ${PETSC_STATIC_LDFLAGS}")
 include_directories(${PETSC_INCLUDE_DIRS})
-list (APPEND EXTLIB ${PETSC_LDFLAGS} ${PETSC_LIBRARIES})
+list (APPEND EXTLIB ${PETSC_LDFLAGS} ${PETSC_LIBRARIES} ${PETSC_STATIC_LDFLAGS} ${PETSC_STATIC_LIBRARIES})
 
 # Add Lapack
 find_package( LAPACK )
