@@ -801,7 +801,6 @@ module m_plex_grid
       type(tDM), allocatable, intent(inout) :: dm
       type(tPetscSection) :: section
       integer(mpiint) :: ierr
-      !logical :: luseCone, luseClosure
 
 
       if(allocated(dm)) call CHKERR(1_mpiint, 'called setup_edir_dmplex on an already allocated DM')
@@ -1030,7 +1029,7 @@ module m_plex_grid
       integer(iintegers), pointer :: cells_of_face(:)
       integer(iintegers) :: i, iface, istream, neigh_cell, offset_a, offset_b
       integer(iintegers) :: j_incoming, j_outgoing, num_dof, num_fields, idof
-      integer(iintegers) :: boundarylabelval, owner
+      integer(iintegers) :: owner
       type(tPetscSection) :: section
       integer(mpiint) :: comm, myid, ierr
 

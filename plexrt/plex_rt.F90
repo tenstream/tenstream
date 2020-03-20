@@ -2597,7 +2597,7 @@ module m_plex_rt
           sideward_bc_coeff, lflg, ierr); call CHKERR(ierr)
 
         call DMGetStratumIS(plex%geom_dm, 'DomainBoundary', SIDEFACE, bc_ids, ierr); call CHKERR(ierr)
-        if (bc_ids.eq.PETSC_NULL_IS.or.sideward_bc_coeff.eq.zero) then ! dont have surface points
+        if (bc_ids.eq.PETSC_NULL_IS.or.approx(sideward_bc_coeff, zero)) then ! dont have surface points
         else
           call ISGetIndicesF90(bc_ids, xi, ierr); call CHKERR(ierr)
           do i = 1, size(xi)

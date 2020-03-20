@@ -385,7 +385,7 @@ module m_helper_functions_dp
       real(ireal_dp) :: Az, Bz, Cz, T
       real(ireal_dp) :: U, V, W
       real(ireal_dp) :: b0, b1, b2
-      real(ireal_dp) :: det, rcpDet, dist_times_det
+      real(ireal_dp) :: det, rcpDet
 
 
       real(ireal_dp) :: CxBy, CyBx, AxCy, AyCx, BxAy, ByAx
@@ -470,7 +470,7 @@ module m_helper_functions_dp
 
       ! calculate determinant
       det = U + V + W
-      if(det.eq.0) then
+      if(approx(det, zero, zero)) then
         lhit = .False.
         hit(:) = huge(one)
         return
