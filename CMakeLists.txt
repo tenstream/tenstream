@@ -1,11 +1,3 @@
-list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/config)
-
-set (NETCDF_DIR     "" CACHE PATH "default netcdf  path")
-set (NETCDF_DIR_F90 "" CACHE PATH "default netcdff path")
-#Load system specific settings
-set (SYST default CACHE STRING "Location specific settings from config/<SYST>.cmake files")
-include (${SYST} OPTIONAL)
-
 # Add our custom cmake find scripts
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/petsc_cmake_modules/")
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/")
@@ -30,14 +22,20 @@ enable_testing()
 set(CTEST_CMAKE_GENERATOR "Unix Makefiles")
 set(CMAKE_C_STANDARD 99)
 
-#set(CMAKE_VERBOSE_MAKEFILE ON)
+#Load system specific settings
+if ("${CMAKE_Fortran_COMPILER_ID}" STREQUAL "GNU")
+  set (SYST gcc CACHE STRING "Location specific settings from config/<SYST>.cmake files")
+elseif ("${CMAKE_Fortran_COMPILER_ID}" STREQUAL "Intel")
+  set (SYST intel CACHE STRING "Location specific settings from config/<SYST>.cmake files")
+endif()
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/config)
+include (${SYST} OPTIONAL)
 
 set(CMAKE_C_FLAGS               "${USER_C_FLAGS}               ${CMAKE_C_FLAGS}               " )
 set(CMAKE_Fortran_FLAGS         "${USER_Fortran_FLAGS}         ${CMAKE_Fortran_FLAGS}         " )
 set(CMAKE_Fortran_FLAGS_RELEASE "${USER_Fortran_FLAGS_RELEASE} ${CMAKE_Fortran_FLAGS_RELEASE} " )
 set(CMAKE_Fortran_FLAGS_DEBUG   "${USER_Fortran_FLAGS_DEBUG}   ${CMAKE_Fortran_FLAGS_DEBUG}   ")
 
-#set(CMAKE_INCLUDE_SYSTEM_FLAG_Fortran "-I")
 
 # Add PGO Options
 set(ENABLE_PGO "OFF" CACHE STRING "Use PGO in build, first compile with PGO set to `generate`, run make check, and then set to `use`")
