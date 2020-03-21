@@ -88,11 +88,6 @@ endif()
 
 ## Set MPI Stuff
 option(AUTODETECT_MPI "Let CMAKE try to find MPI variables" ON)
-set(MPIEXEC mpirun CACHE STRING "Command to run MPI programs, e.g. used to run tests")
-if(DEFINED USER_MPIEXEC)
-  set(MPIEXEC ${USER_MPIEXEC})
-endif()
-set(MPIEXEC_NUMPROC_FLAG -n CACHE STRING "options to set number of MPI tasks/nodes")
 if(AUTODETECT_MPI)
   find_package( MPI REQUIRED )
 
@@ -129,6 +124,12 @@ if(AUTODETECT_MPI)
   include_directories(${ITAPS_INCLUDES})
 else(AUTODETECT_MPI)
 endif(AUTODETECT_MPI)
+set(MPIEXEC mpirun CACHE STRING "Command to run MPI programs, e.g. used to run tests")
+if(DEFINED USER_MPIEXEC)
+  set(MPIEXEC ${USER_MPIEXEC})
+endif()
+set(MPIEXEC_NUMPROC_FLAG -n CACHE STRING "options to set number of MPI tasks/nodes")
+MESSAGE(STATUS "Using MPIEXEC: ${MPIEXEC}")
 
 # Petsc
 set(PETSCINSTALL "$ENV{PETSC_DIR}/$ENV{PETSC_ARCH}")
