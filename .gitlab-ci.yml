@@ -27,7 +27,7 @@ stages:
     - CMD="ctest $CTEST_ARGS"
     - echo $CMD && $CMD || exit 3
   variables:
-    CTEST_ARGS: "-E 'boxmc|LUT'"
+    CTEST_ARGS: "-V -E 'boxmc|LUT'"
     BUILD_TYPE: RELEASE
     MPIEXEC: "mpirun"
     MPIRUN_FLAGS: '' #--allow-run-as-root;-A;bm0974;-p;shared
@@ -42,7 +42,7 @@ build:docker:ubuntu-rolling:
   tags:
     - docker.meteo.physik.lmu.de
   variables:
-    CTEST_ARGS: '-E boxmc|LUT|pfunit_test_pprts_symmetry|pfunit_test_rrtm_lw_Bsrfc|pfunit_test_rrtm_lw_sw'
+    CTEST_ARGS: '-V -E boxmc|LUT|pfunit_test_pprts_symmetry|pfunit_test_rrtm_lw_Bsrfc|pfunit_test_rrtm_lw_sw'
     MPIRUN_FLAGS: "--allow-run-as-root;--oversubscribe"
     PETSC_DIR: petsc
     PETSC_ARCH: default
@@ -62,7 +62,7 @@ build:docker:ubuntu-rolling:
     LUT_BASENAME: "$CI_PROJECT_DIR/LUT/LUT"
     SRUN_OPTIONS: "--time 02:00:00 --mem 4G -n 9"
     MPIEXEC: "srun"
-    CTEST_ARGS: '-E boxmc|LUT'
+    CTEST_ARGS: '-V -E boxmc|LUT'
 
 .build:mim:icc:single:
   extends: .build:mim:default
