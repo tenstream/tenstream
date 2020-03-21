@@ -66,14 +66,14 @@ build:docker:ubuntu-rolling:
 
 # INTEL
 build:mim:icc:single:
-  extends: .build:intel:default
+  extends: .build:mim:default
   variables:
     MODULES: "petsc/single-icc-19"
     SRUN_OPTIONS: "--time 02:00:00 --mem 8G -n 9"
     PETSC_OPTIONS: "-vecscatter_type mpi3"
 
 build:mim:icc:debug:
-  extends: .build:intel:default
+  extends: .build:mim:default
   variables:
     MODULES: "petsc/debug-icc-19"
     SRUN_OPTIONS: "--time 02:00:00 --mem 8G -n 9"
