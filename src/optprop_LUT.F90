@@ -878,7 +878,7 @@ subroutine prepare_table_space(OPP, config, S, T)
     if(.not.allocated (S%stddev_tol)) allocate(S%stddev_tol(product(config%dims(:)%N)), source=huge(-1._irealLUT))
     if(.not.allocated (T%stddev_tol)) allocate(T%stddev_tol(product(config%dims(:)%N)), source=huge(-1._irealLUT))
   else
-    if(.not.associated(S%c)) allocate(S%c(OPP%diff_streams**2, product(config%dims(:)%N)))
+    if(.not.associated(S%c)) allocate(S%c(OPP%diff_streams**2, product(config%dims(:)%N)), source=-1._irealLUT)
     if(.not.allocated (S%stddev_tol)) allocate(S%stddev_tol(product(config%dims(:)%N)), source=huge(-1._irealLUT))
   endif
   print *,'Allocating Space for LUTs '//itoa(entries)// &
