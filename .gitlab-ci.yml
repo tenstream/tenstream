@@ -52,6 +52,36 @@ build:docker:ubuntu-rolling:
     BUILD_TYPE: DEBUG
 
 # MIM runs
+
+# INTEL
+.build:intel:default:
+  extends: .build:default
+  before_script:
+    - mkdir -p $CI_PROJECT_DIR/LUT; cp -rsn /project/meteo/homepages/Fabian.Jakub/TenstreamLUT/* $CI_PROJECT_DIR/LUT/
+    - echo "# intelmpi crashes with default vecscatter_type: sf\n-vecscatter_type mpi3" >> $HOME/.petscrc
+  tags:
+    - slurm.meteo.physik.lmu.de
+  variables:
+    LUT_BASENAME: "$CI_PROJECT_DIR/LUT/LUT"
+    SRUN_OPTIONS: "--time 02:00:00 --mem 4G -n 9"
+    MPIEXEC: "srun"
+    CTEST_ARGS: '-V -E boxmc|LUT'
+
+build:mim:icc:single:
+  extends: .build:intel:default
+  variables:
+    MODULES: "petsc/single-icc-19"
+    SRUN_OPTIONS: "--time 02:00:00 --mem 8G -n 9"
+
+build:mim:icc:debug:
+  extends: .build:intel:default
+  variables:
+    MODULES: "petsc/debug-icc-19"
+    SRUN_OPTIONS: "--time 02:00:00 --mem 8G -n 9"
+    BUILD_TYPE: DEBUG
+
+
+# GCC
 .build:mim:default:
   extends: .build:default
   before_script:
@@ -64,19 +94,14 @@ build:docker:ubuntu-rolling:
     MPIEXEC: "srun"
     CTEST_ARGS: '-V -E boxmc|LUT'
 
-.build:mim:icc:single:
-  extends: .build:mim:default
-  variables:
-    MODULES: "petsc/single-icc-19 netcdf/4.7.0-icc-19"
-    SRUN_OPTIONS: "--time 02:00:00 --mem 8G -n 9"
 
 build:mim:gcc:single:
   extends: .build:mim:default
   variables:
-    MODULES: "petsc/single-gcc-9 netcdf/4.7.0-gcc-9"
+    MODULES: "petsc/single-gcc-9"
 
 build:mim:gcc:debug:
   extends: .build:mim:default
   variables:
-    MODULES: "petsc/debug-gcc-9 netcdf/4.7.0-gcc-9"
+    MODULES: "petsc/debug-gcc-9"
     BUILD_TYPE: DEBUG
