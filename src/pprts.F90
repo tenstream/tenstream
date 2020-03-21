@@ -414,11 +414,11 @@ module m_pprts
             C%da                    , ierr) ;call CHKERR(ierr)
         endif
 
-        call DMSetup(C%da,ierr)                                              ; call CHKERR(ierr)
         call DMSetMatType(C%da, MATAIJ, ierr)                                ; call CHKERR(ierr)
         if(lprealloc) call DMSetMatrixPreallocateOnly(C%da, PETSC_TRUE,ierr) ; call CHKERR(ierr)
-
         call DMSetFromOptions(C%da, ierr)                                    ; call CHKERR(ierr)
+        call DMSetup(C%da,ierr)                                              ; call CHKERR(ierr)
+
         if(ldebug) call DMView(C%da, PETSC_VIEWER_STDOUT_WORLD ,ierr)        ; call CHKERR(ierr)
         call setup_coords(C)
       end subroutine
