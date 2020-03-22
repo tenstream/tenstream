@@ -78,7 +78,6 @@ build:mim:icc:debug:
   variables:
     MODULES: "petsc/debug-icc-19"
     SRUN_OPTIONS: "--time 02:00:00 --mem 8G -n 9"
-    BUILD_TYPE: DEBUG
     PETSC_OPTIONS: "-vecscatter_type mpi1"
 
 
