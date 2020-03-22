@@ -22,7 +22,7 @@ stages:
   script:
     - if [ ! -z "$MODULES" ]; then module load $MODULES || exit 1; module list; fi
     - mkdir -p build && cd build
-    - cmake .. -DCMAKE_BUILD_TYPE="$BUILD_TYPE" -DCTEST_MPIRUN_FLAGS="$MPIRUN_FLAGS" -DMPIEXEC="$MPIEXEC" || exit 1
+    - cmake -DCMAKE_BUILD_TYPE="$BUILD_TYPE" -DCTEST_MPIRUN_FLAGS="$MPIRUN_FLAGS" -DMPIEXEC="$MPIEXEC" .. || exit 1
     - make all -j || exit 2
     - CMD="ctest $CTEST_ARGS"
     - echo $CMD && $CMD || exit 3
@@ -61,7 +61,6 @@ build:docker:ubuntu-rolling:
   variables:
     LUT_BASENAME: "$CI_PROJECT_DIR/LUT/LUT"
     SRUN_OPTIONS: "--time 02:00:00 --mem 4G -n 9"
-    MPIEXEC: "srun"
     CTEST_ARGS: '-V -E boxmc|LUT'
 
 # INTEL
