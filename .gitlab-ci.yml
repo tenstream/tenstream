@@ -61,33 +61,32 @@ build:docker:ubuntu-rolling:
     - slurm.meteo.physik.lmu.de
   variables:
     LUT_BASENAME: "$CI_PROJECT_DIR/LUT/LUT"
-    SRUN_OPTIONS: "--time 02:00:00 --mem 4G -n 9"
+    SRUN_OPTIONS: "--time 02:00:00 --mem 8G -n 9"
     MPIEXEC: "srun"
     MPIRUN_FLAGS: '--mpi=pmix'
     CTEST_ARGS: '-V -E boxmc|LUT'
 
 # INTEL
-build:mim:icc:single:
+.build:mim:default:intel:
   extends: .build:mim:default
   variables:
-    MODULES: "petsc/single-icc-19"
-    SRUN_OPTIONS: "--time 02:00:00 --mem 8G -n 9"
     PETSC_OPTIONS: "-vecscatter_type mpi1"
 
-build:mim:icc:debug:
-  extends: .build:mim:default
+build:mim:icc:single:
+  extends: .build:mim:default:intel
   variables:
     MODULES: "petsc/single-icc-19"
-    SRUN_OPTIONS: "--time 02:00:00 --mem 8G -n 9"
-    PETSC_OPTIONS: "-vecscatter_type mpi1"
+
+build:mim:icc:debug:
+  extends: .build:mim:default:intel
+  variables:
+    MODULES: "petsc/single-icc-19"
     BUILD_TYPE: DEBUG
 
 build:mim:icc_rayli:debug:
-  extends: .build:mim:default
+  extends: .build:mim:default:intel
   variables:
     MODULES: "petsc/single-icc-19"
-    SRUN_OPTIONS: "--time 02:00:00 --mem 8G -n 9"
-    PETSC_OPTIONS: "-vecscatter_type mpi1"
     BUILD_TYPE: DEBUG
     BUILD_RAYLI: ON
 
