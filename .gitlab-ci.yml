@@ -86,7 +86,7 @@ build:mim:icc:debug:
 build:mim:icc:debug:rayli:
   extends: .build:mim:default:intel
   variables:
-    MODULES: "petsc/single-icc-19"
+    MODULES: "petsc/single-icc-19 cmake"
     BUILD_TYPE: DEBUG
     BUILD_RAYLI: "ON"
 
@@ -105,6 +105,6 @@ build:mim:gcc:debug:
 build:mim:gcc:debug:rayli:
   extends: .build:mim:default
   variables:
-    MODULES: "petsc/debug-gcc-9"
+    MODULES: "petsc/debug-gcc-9 cmake"
     BUILD_TYPE: DEBUG
     BUILD_RAYLI: "ON"
