@@ -83,6 +83,13 @@ build:mim:icc:debug:
     MODULES: "petsc/single-icc-19"
     BUILD_TYPE: DEBUG
 
+build:mim:icc:debug:rayli:
+  extends: .build:mim:default:intel
+  variables:
+    MODULES: "petsc/single-icc-19"
+    BUILD_TYPE: DEBUG
+    BUILD_RAYLI: "ON"
+
 # GCC
 build:mim:gcc:single:
   extends: .build:mim:default
@@ -94,3 +101,10 @@ build:mim:gcc:debug:
   variables:
     MODULES: "petsc/debug-gcc-9"
     BUILD_TYPE: DEBUG
+
+build:mim:gcc:debug:rayli:
+  extends: .build:mim:default
+  variables:
+    MODULES: "petsc/debug-gcc-9"
+    BUILD_TYPE: DEBUG
+    BUILD_RAYLI: "ON"
