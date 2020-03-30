@@ -1357,9 +1357,9 @@ module m_plex_rt
                     !  'dir2diff', dir2diff, ':', cstr(ftoa(sum(dir2diff)), 'green')
 
                     do idst = 1, size(outgoing_offsets)
-                      if(dir2diff(diff_plex2bmc(idst)).gt.zero) then
-                        if(outgoing_offsets(idst).lt.0) call CHKERR(1_mpiint, 'does this happen?')
-                      endif
+                      !if(dir2diff(diff_plex2bmc(idst)).gt.zero) then
+                      !  if(outgoing_offsets(idst).lt.0) call CHKERR(1_mpiint, 'does this happen?')
+                      !endif
                       if(outgoing_offsets(idst).lt.0) cycle
 
                       xb(i1+outgoing_offsets(idst)) = xb(i1+outgoing_offsets(idst)) + &
