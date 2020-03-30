@@ -28,7 +28,7 @@
 
 
       use m_data_parameters, only : ireals, mpiint
-      use m_helper_functions, only: CHKERR
+      use m_helper_functions, only: CHKERR, CHKWARN
 
       implicit none
 
@@ -317,6 +317,9 @@
           allocate(tenstr_solsrc(ngptsw))
           tenstr_solsrc = zsflxzen
           if(any(.not.tenstr_solsrc.gt.0._ireals)) then
+            call CHKWARN(1_mpiint, 'bad value for solar src. '// &
+              'I saw this happening when I had an background atmosphere '// &
+              'that was too low. Maybe increasing that helps.')
             do jb = 1, ngptsw
               print *,'band', jb, 'solar source term', tenstr_solsrc(jb), 'valid?', tenstr_solsrc(jb).gt.0
             enddo
