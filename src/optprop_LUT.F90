@@ -598,7 +598,9 @@ subroutine createLUT(OPP, comm, config, S, T)
         real(irealLUT),allocatable, dimension(:,:) :: S_diff, T_dir, S_tol, T_tol
 
         real :: starttime, lastsavetime, now
-        call cpu_time(starttime)
+        integer :: clock_count, clock_count_rate
+        call system_clock(clock_count, clock_count_rate)
+        starttime = clock_count / clock_count_rate
         lastsavetime = starttime
 
         finalizedworkers=0
@@ -709,7 +711,8 @@ subroutine createLUT(OPP, comm, config, S, T)
                 print *,'Calculated LUT...', lutindex, &
                         real(lutindex-1, irealLUT)*100._irealLUT/real(total_size, irealLUT),'%'
 
-              call cpu_time(now)
+              call system_clock(clock_count, clock_count_rate)
+              now = clock_count / clock_count_rate
               if( (now-lastsavetime).gt.LUT_dump_interval .or. (now-starttime).gt.LUT_max_create_jobtime ) then !every 30 minutes wall clock time, dump the LUT.
                 print *,'Dumping LUT after ',(now-lastsavetime)/60,'minutes'
                 if(present(T)) then
