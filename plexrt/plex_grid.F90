@@ -29,7 +29,11 @@ module m_plex_grid
   public :: t_plexgrid, &
     icell_icon_2_plex, iface_top_icon_2_plex, update_plex_indices, &
     compute_face_geometry, &
-    setup_cell1_dmplex, setup_edir_dmplex, setup_ediff_dmplex, setup_abso_dmplex, &
+    setup_cell1_dmplex, &
+    setup_edir_dmplex, &
+    setup_ediff_dmplex, &
+    setup_abso_dmplex, &
+    gen_face_section, &
     print_dmplex, ncvar2d_to_globalvec, facevec2cellvec, &
     orient_face_normals_along_sundir, compute_wedge_orientation, is_solar_src, &
     compute_local_wedge_ordering, compute_local_vertex_coordinates, &
@@ -80,9 +84,10 @@ module m_plex_grid
     integer(iintegers) :: offset_edges_vertical
     integer(iintegers) :: offset_vertices
 
+    integer(iintegers) :: max_constrained_k              ! number of top layers with 1D constraints
     logical,allocatable :: l1d(:)                        ! constrained 1D cell, cStart..cEnd-1
     logical,allocatable :: ltopfacepos(:)                ! TOP_BOT_FACE or SIDE_FACE of faces and edges, fStart..eEnd-1
-    integer(iintegers),allocatable :: zindex(:)          ! vertical layer / level of cells/faces/edges/vertices , pStart..pEnd-1
+    integer(iintegers),allocatable :: zindex(:)          ! vertical layer / level of cells/faces/edges/vertices , pStart..pEnd-1, starting at TOA, values [1..Nlay(+1)]
     real(ireals), allocatable :: hhl1d(:)                ! 1D vertical height levels which were used in 2D_to_3D extrusion
     integer(iintegers),allocatable :: localiconindex(:)  ! local index of face, edge, vertex on icongrid, pStart, pEnd-1, i.e. on each rank from 1..Ncell, 1..Nedges etc..
     integer(iintegers),allocatable :: globaliconindex(:) ! global index of face, edge, vertex on icongrid, pStart, pEnd-1, i.e. for each rank has the indices of the global icon grid as it is read from nc
@@ -107,6 +112,7 @@ module m_plex_grid
       call dealloc_vec(plex%geomVec)
       call dealloc_vec(plex%wedge_orientation)
 
+      call dealloc_dm(plex%dm2d)
       call dealloc_dm(plex%dm)
       call dealloc_dm(plex%cell1_dm)
       call dealloc_dm(plex%horizface1_dm)
@@ -136,6 +142,7 @@ module m_plex_grid
       plex%offset_edges_vertical = -1
       plex%offset_vertices = -1
 
+      if(allocated(plex%l1d            )) deallocate(plex%l1d            )
       if(allocated(plex%ltopfacepos    )) deallocate(plex%ltopfacepos    )
       if(allocated(plex%zindex         )) deallocate(plex%zindex         )
       if(allocated(plex%localiconindex )) deallocate(plex%localiconindex )
@@ -251,16 +258,27 @@ module m_plex_grid
       call set_1D_constraints(plex)
     end subroutine
 
-    subroutine gen_test_mat(dm)
+    subroutine gen_test_mat(dm, oA)
       type(tDM), intent(inout) :: dm
+      type(tMat), intent(out), optional :: oA
       type(tMat) :: A
+      type(tVec) :: diag
       integer(mpiint) :: ierr
 
-      call dmplex_set_new_section(dm, 'face_test_section', i1, [i0], [i1], [i0], [i0])
+      call DMGetGlobalVector(dm, diag, ierr); call CHKERR(ierr)
+      call VecSet(diag, one, ierr); call CHKERR(ierr)
 
       call DMCreateMatrix(dm, A, ierr); call CHKERR(ierr)
-      call MatDestroy(A, ierr); call CHKERR(ierr)
-      call CHKERR(1_mpiint, 'DEBUG')
+      call MatDiagonalSet(A, diag, INSERT_VALUES, ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(A, dm, "-show_test_mat", ierr); call CHKERR(ierr)
+
+      call DMRestoreGlobalVector(dm, diag, ierr); call CHKERR(ierr)
+      if(present(oA)) then
+        oA = A
+      else
+        call MatDestroy(A, ierr); call CHKERR(ierr)
+        call CHKERR(1_mpiint, 'DEBUG')
+      endif
     end subroutine
 
     subroutine label_domain_boundary(dm, ltopfacepos, zindex, boundarylabel, domainboundarylabel, ownerlabel)
@@ -827,7 +845,7 @@ module m_plex_grid
     end subroutine
 
     !> @brief setup the section on which diffuse radiation lives, e.g. 2 dof on top/bot faces and 4 dof on side faces
-    !> @details the section has 2 fields, one for incoming radiation and one for outgoing.
+    !> @details the section has 2 components, one for incoming radiation and one for outgoing.
     !    The direction for the fields is given as:
     !      * field 0: radiation travelling vertical
     !      * field 1: radiation travelling horizontally
@@ -872,9 +890,9 @@ module m_plex_grid
       logical :: lflg
       real(ireals) :: dz, face_area, aspect
       real(ireals) :: max_height, max_radius
-      integer(iintegers) :: icell, k, max_constrained_k
+      integer(iintegers) :: icell, k
       integer(iintegers) :: geom_offset
-      integer(mpiint) :: ierr
+      integer(mpiint) :: ierr, myid
 
       if(allocated(plex%l1d)) return
 
@@ -894,14 +912,14 @@ module m_plex_grid
       if(.not.allocated(plex%l1d)) &
         & allocate(plex%l1d(plex%cStart:plex%cEnd-1))
 
-      max_constrained_k = -1
+      plex%max_constrained_k = -1
 
       call DMGetSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
       call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
       do icell = plex%cStart, plex%cEnd-1
         k = modulo(icell, plex%Nlay)
-        if (k.le.max_constrained_k) cycle
+        if (k.le.plex%max_constrained_k) cycle
 
         call PetscSectionGetFieldOffset(geomSection, icell, i3, geom_offset, ierr); call CHKERR(ierr)
         dz = geoms(i1+geom_offset)
@@ -913,8 +931,7 @@ module m_plex_grid
 
         aspect = LUT_wedge_aspect_zx(face_area, dz)
         if(aspect.gt.twostr_ratio) then
-          max_constrained_k = k
-          print *,'max_constrained_k aspect', icell, k, aspect, max_constrained_k
+          plex%max_constrained_k = k
           cycle
         endif
 
@@ -922,13 +939,11 @@ module m_plex_grid
         call PetscSectionGetFieldOffset(geomSection, icell, i0, geom_offset, ierr); call CHKERR(ierr)
         print *,'cell centroid', geoms(geom_offset+i1:geom_offset+i3)
         if(geoms(geom_offset+i3) .gt. max_height) then
-          max_constrained_k = k
-          print *,'max_constrained_k height', icell, k, geoms(geom_offset+i3), max_constrained_k
+          plex%max_constrained_k = k
           cycle
         endif
         if(norm2(geoms(geom_offset+i1:geom_offset+i3)) .gt. max_radius) then
-          max_constrained_k = k
-          print *,'max_constrained_k radius', icell, k, norm2(geoms(geom_offset+i1:geom_offset+i3)), max_constrained_k
+          plex%max_constrained_k = k
           cycle
         endif
 
@@ -936,28 +951,38 @@ module m_plex_grid
 
       call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
-      k = max_constrained_k
-      call imp_allreduce_max(plex%comm, k, max_constrained_k)
+      k = i1 + plex%max_constrained_k
+      call imp_allreduce_max(plex%comm, k, plex%max_constrained_k)
+      if(ldebug) then
+        call mpi_comm_rank(plex%comm, myid, ierr); call CHKERR(ierr)
+        if(myid.eq.0) then
+          print *,'max constrained k', plex%max_constrained_k
+        endif
+      endif
 
       do icell = plex%cStart, plex%cEnd-1
         k = modulo(icell, plex%Nlay)
-        plex%l1d(icell) = k.le.max_constrained_k
+        plex%l1d(icell) = k.le.plex%max_constrained_k
         if(ldebug.and.plex%l1d(icell)) print *,'constrained cell', icell, k, plex%l1d(icell)
       enddo
     end subroutine
 
 
-    subroutine gen_face_section(dm, top_streams, side_streams, dof_per_stream, section, plex_l1d)
+    subroutine gen_face_section(dm, top_streams, side_streams, dof_per_stream, section, plex_l1d, face_mask)
       type(tDM), intent(in) :: dm
       integer(iintegers), intent(in) :: top_streams, side_streams, dof_per_stream ! number of streams
       type(tPetscSection), intent(inout) :: section
-      logical, intent(in), optional :: plex_l1d(:)
-      integer(iintegers) :: num_constrained, num_unconstrained
+      logical, intent(in), optional :: plex_l1d(:), face_mask(:)
+      integer(iintegers) :: num_constrained, num_unconstrained, num_masked, num_top
       integer(iintegers), pointer :: cells_of_face(:)
+      character(len=default_str_len) :: dmprefix
       logical :: l1d
 
-      integer(iintegers) :: iface, fStart, fEnd, istream, num_edges_of_face, tot_top_dof, tot_side_dof
+      integer(iintegers) :: iface, fStart, fEnd, istream
+      integer(iintegers) :: num_edges_of_face, tot_top_dof, tot_side_dof
       integer(mpiint) :: comm, ierr
+
+      call PetscObjectGetName(dm, dmprefix, ierr); call CHKERR(ierr)
 
       call PetscObjectGetComm(dm, comm, ierr); call CHKERR(ierr)
       call PetscSectionCreate(comm, section, ierr); call CHKERR(ierr)
@@ -980,8 +1005,17 @@ module m_plex_grid
 
       num_constrained = 0
       num_unconstrained = 0
+      num_masked = 0
       call PetscSectionSetChart(section, fStart, fEnd, ierr); call CHKERR(ierr)
       do iface = fStart,  fEnd-1
+        if(present(face_mask)) then
+          if(.not.face_mask(i1+iface-fStart)) then
+            call PetscSectionSetDof(section, iface, i0, ierr); call CHKERR(ierr)
+            !print *,'('//trim(dmprefix)//') '//'Ignoring face', iface, 'because it is masked out'
+            num_masked = num_masked + 1
+            cycle
+          endif
+        endif
         call DMPlexGetConeSize(dm, iface, num_edges_of_face, ierr); call CHKERR(ierr)
 
         if(num_edges_of_face.eq.i3) then ! top/bot face
@@ -989,9 +1023,10 @@ module m_plex_grid
           do istream = 1, top_streams
             call PetscSectionSetFieldDof(section, iface, istream-i1, dof_per_stream, ierr); call CHKERR(ierr)
           enddo
+          num_top = num_top + 1
 
         else ! side face
-          l1d = .False.
+          l1d = side_streams.eq.i0
           if(present(plex_l1d)) then
             call DMPlexGetSupport(dm, iface, cells_of_face, ierr); call CHKERR(ierr)
             l1d = any(plex_l1d(i1+cells_of_face))
@@ -1012,12 +1047,21 @@ module m_plex_grid
       call PetscSectionSetUp(section, ierr); call CHKERR(ierr)
       if(ldebug) then
         if(num_unconstrained.eq.0) then
-          print *,'Have '//itoa(num_constrained)//' constrained dofs : 100% '
+          print *,'('//trim(dmprefix)//') '//' Have '// &
+            itoa(num_top)//' top '// &
+            itoa(num_unconstrained)//' unconstrained '// &
+            itoa(num_masked)//' masked '// &
+            itoa(num_constrained)//' constrained faces : 100% '
         else
-          print *,'Have '//itoa(num_constrained)//' constrained dofs :'// &
+          print *,'('//trim(dmprefix)//') '//' Have '// &
+            itoa(num_top)//' top '// &
+            itoa(num_unconstrained)//' unconstrained '// &
+            itoa(num_masked)//' masked '// &
+            itoa(num_constrained)//' constrained faces :'// &
             & ftoa(real(num_constrained, ireals)*100._ireals/real(num_unconstrained+num_constrained, ireals))//' %'
         endif
       endif
+      call PetscObjectViewFromOptions(section, dm, '-show_face_section', ierr); call CHKERR(ierr)
     end subroutine
 
     subroutine setup_srfc_boundary_dm(plex, dm)
@@ -1731,14 +1775,14 @@ module m_plex_grid
       call DMPlexGetDepthStratum(dm, i0, vStart, vEnd, ierr); call CHKERR(ierr) ! vertices
 
       do i = 0, numnodes-1
-      if(myid.eq.i) then
-        print *,myid,'pStart,End :: ',pStart, pEnd
-        print *,myid,'cStart,End :: ',cStart, cEnd
-        print *,myid,'fStart,End :: ',fStart, fEnd
-        print *,myid,'eStart,End :: ',eStart, eEnd
-        print *,myid,'vStart,End :: ',vStart, vEnd
-      endif
-      call mpi_barrier(comm, ierr); call CHKERR(ierr)
+        if(myid.eq.i) then
+          print *,myid,'pStart,End :: ',pStart, pEnd
+          print *,myid,'cStart,End :: ',cStart, cEnd
+          print *,myid,'fStart,End :: ',fStart, fEnd
+          print *,myid,'eStart,End :: ',eStart, eEnd
+          print *,myid,'vStart,End :: ',vStart, vEnd
+        endif
+        call mpi_barrier(comm, ierr); call CHKERR(ierr)
       enddo
     end subroutine
 

@@ -15,9 +15,22 @@ module m_plex_rt_base
     t_plex_solver_5_8, &
     t_plex_solver_rectilinear_5_8, &
     t_plex_solver_18_8, &
-    t_dof, &
+    t_dof, t_mergedm, t_subdm, &
     allocate_plexrt_solver_from_commandline
 
+  type t_subdm
+    type(tDM) :: dm
+    type(tMat) :: A
+    integer(iintegers) :: layStart, layEnd
+  end type
+  type t_mergedm
+    ! usually have 2 or three subdms
+    !   - first is main 3D subdm
+    !   - second is 1D mesh inside LES/NWP domain
+    !   - third is 1D mesh in background domain
+    type(t_subdm), allocatable :: sub_dms(:)
+    type(tDM) :: comp_dm
+  end type
 
   type t_dof
     integer(iintegers) :: dof, area_divider, streams
@@ -50,6 +63,8 @@ module m_plex_rt_base
     logical :: lenable_solutions_err_estimates=.True.
 
     type(t_solver_log_events) :: logs
+
+    type(t_mergedm), allocatable :: edir_mergedm
   end type
 
   type, extends(t_plex_solver) :: t_plex_solver_5_8

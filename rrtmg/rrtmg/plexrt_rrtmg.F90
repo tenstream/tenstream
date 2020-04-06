@@ -129,7 +129,10 @@ contains
                              "-rrtmg_only" , lrrtmg_only , lflg , ierr) ;call CHKERR(ierr)
 
     ke1 = solver%plex%Nlay+1
-    call CHKERR(int(ke1 - size(atm%plev,dim=1),mpiint), 'Vertical Size of atm and plex solver dont match')
+    call CHKERR(int(ke1 - size(atm%plev,dim=1),mpiint), &
+      'Vertical Size of atm and plex solver dont match:'// &
+      'atm: '//itoa(size(atm%plev,dim=1))// &
+      'plex: '//itoa(ke1))
     ke = ke1-1
 
     call DMGetStratumIS(solver%plex%geom_dm, 'DomainBoundary', TOAFACE, toa_ids, ierr); call CHKERR(ierr)
@@ -1049,6 +1052,8 @@ contains
     class(t_plex_solver), allocatable, intent(inout) :: solver
     logical, intent(in) :: lfinalizepetsc
     ! Tidy up the solver
+    if(ldebug) &
+      & print *,'destroy_plexrt_rrtmg::allocated solver?', allocated(solver)
     call destroy_plexrt_solver(solver, lfinalizepetsc=lfinalizepetsc)
   end subroutine
 end module

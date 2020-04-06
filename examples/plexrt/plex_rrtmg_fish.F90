@@ -65,7 +65,7 @@ logical, parameter :: ldebug=.True.
 
       type(t_plexgrid), allocatable :: plex
       integer(iintegers), allocatable :: zindex(:)
-    class(t_plex_solver), allocatable :: solver
+      class(t_plex_solver), allocatable :: solver
 
       type(t_tenstr_atm) :: atm
       character(len=default_str_len) :: atm_filename
