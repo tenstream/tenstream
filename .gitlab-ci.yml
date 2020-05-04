@@ -32,6 +32,9 @@ stages:
     MPIEXEC: "mpirun"
     MPIRUN_FLAGS: '' #--allow-run-as-root;-A;bm0974;-p;shared
     MODULES: ''
+    environment:
+      - TZ=Europe/Berlin
+      - DEBIAN_FRONTEND=noninteractive
 
 build:docker:ubuntu-rolling:
   extends: .build:default
