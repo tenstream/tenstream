@@ -22,6 +22,9 @@ enable_testing()
 set(CTEST_CMAKE_GENERATOR "Unix Makefiles")
 set(CMAKE_C_STANDARD 99)
 
+# For python interfaces need -fPIC:
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
 #Load system specific settings
 if ("${CMAKE_Fortran_COMPILER_ID}" STREQUAL "GNU")
   set (SYST gcc CACHE STRING "Location specific settings from config/<SYST>.cmake files")
@@ -361,8 +364,6 @@ if(ENABLE_PYTHON)
   message(STATUS "Found f2py: ${F2PY_PATH}")
   add_custom_target(python_interface ALL)
 	add_subdirectory(python)
-  # For python interfaces need -fPIC:
-  set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 endif(ENABLE_PYTHON)
 
 option(ENABLE_C_WRAPPER "Enable creation of C Wrapper " ON)
