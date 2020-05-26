@@ -62,6 +62,7 @@ set( general_sources
   "nca.F90"
   "mmap.F90"
   "pprts_base.F90"
+  "pprts_external_solvers.F90"
   "adaptive_spectral_integration.F90"
   "search.F90"
   )
