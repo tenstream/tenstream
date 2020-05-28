@@ -51,7 +51,7 @@ module m_pprts_rrtmg
   use m_helper_functions, only : read_ascii_file_2d, gradient, meanvec, imp_bcast, &
       imp_allreduce_min, imp_allreduce_max, imp_allreduce_mean, mpi_logical_all_same, &
       CHKERR, deg2rad, get_arg, &
-      reverse, approx, itoa, spherical_2_cartesian
+      reverse, approx, itoa, spherical_2_cartesian, cross_3d
   use m_search, only: find_real_location
   use m_petsc_helpers, only: dmda_convolve_ediff_srfc, &
     getvecpointer, restorevecpointer, f90vectopetsc
@@ -210,7 +210,7 @@ contains
 
     real(ireals),pointer :: grad   (:,:,:,:) =>null()
     real(ireals),pointer :: grad_1d(:)       =>null()
-    real(ireals) :: g(3), sundir(3), fac
+    real(ireals) :: sundir(3), fac, gX(3), gY(3), n(3)
     integer(iintegers) :: i,j,k
 
     call mpi_comm_rank(solver%comm, myid, ierr); call CHKERR(ierr)
@@ -236,13 +236,11 @@ contains
         do i=C_two1%xs,C_two1%xe
           sundir = spherical_2_cartesian(sun%phi(C_two1%zs,i,j), sun%theta(C_two1%zs,i,j))
 
-          g(1) = grad(i0,k,i,j)
-          g(2) = grad(i1,k,i,j)
-          g(3) = one
-          g = g/norm2(g)
-
-          !print *,k,i,j,'g',g,'sun',sundir,':', dot_product(g,-sundir), ':', dot_product([zero,zero,one],-sundir)
-          fac = dot_product([zero,zero,one],-sundir) / dot_product(g,-sundir)
+          gX = [solver%atm%dx, zero, grad(i0, k, i, j) * solver%atm%dx]
+          gY = [zero, solver%atm%dy, grad(i1, k, i, j) * solver%atm%dy]
+          n = cross_3d(gX, gY)
+          n = n / norm2(n)
+          fac = dot_product(-sundir, n) / dot_product(-sundir, [zero, zero, one])
           edir(ubound(edir,1), i-C_two1%xs+1, j-C_two1%ys+1) = edir(ubound(edir,1), i-C_two1%xs+1, j-C_two1%ys+1) * fac
         enddo
       enddo
