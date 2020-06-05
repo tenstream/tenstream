@@ -15,7 +15,8 @@ module m_petsc_helpers
     f90VecToPetsc, &
     getVecPointer, restoreVecPointer, &
     dmda_convolve_ediff_srfc, &
-    hegedus_trick
+    hegedus_trick, &
+    gen_shared_subcomm, gen_shared_scatter_ctx
 
   interface f90VecToPetsc
     module procedure f90VecToPetsc_3d, f90VecToPetsc_4d
@@ -659,5 +660,28 @@ contains
       call DMRestoreglobalVector(dm, Ax0, ierr); call CHKERR(ierr)
       call DMRestoreglobalVector(dm, z  , ierr); call CHKERR(ierr)
     endif
+  end subroutine
+
+  subroutine gen_shared_subcomm(comm, subcomm, ierr)
+    integer(mpiint), intent(in) :: comm
+    integer(mpiint), intent(out):: subcomm, ierr
+    integer(mpiint) :: mpinfo
+    call MPI_Info_create(mpinfo, ierr); call CHKERR(ierr)
+    call MPI_Comm_split_type(comm, MPI_COMM_TYPE_SHARED, 0_mpiint, mpinfo, subcomm, ierr); call CHKERR(ierr)
+    call MPI_Info_free(mpinfo, ierr); call CHKERR(ierr)
+  end subroutine
+
+  subroutine gen_shared_scatter_ctx(gvec, svec, ctx, ierr)
+    type(tVec), intent(in) :: gvec, svec
+    type(tVecScatter), intent(out) :: ctx
+    integer(mpiint) :: ierr
+
+    integer(iintegers) :: Nlocal
+    type(tIS) :: is
+
+    call VecGetSize(svec, Nlocal, ierr); call CHKERR(ierr)
+    call ISCreateStride(PETSC_COMM_SELF, Nlocal, 0_iintegers, 1_iintegers, is, ierr); call CHKERR(ierr)
+    call VecScatterCreate(gvec, is, svec, is, ctx, ierr); call CHKERR(ierr)
+    call ISDestroy(is, ierr); call CHKERR(ierr)
   end subroutine
 end module
