@@ -4,8 +4,8 @@ module test_convolution
   use petsc
   use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint, zero, one, i1, i2
   use m_tenstream_options, only : read_commandline_options
-  use m_pprts_base, only : t_solver_3_10
-  use m_pprts, only : init_pprts, destroy_pprts
+  use m_pprts_base, only : t_solver_3_10, destroy_pprts
+  use m_pprts, only : init_pprts
   use m_petsc_helpers, only : petscVecToF90, petscGlobalVecToZero, f90VecToPetsc, dmda_convolve_ediff_srfc
   use m_helper_functions, only : CHKERR
 

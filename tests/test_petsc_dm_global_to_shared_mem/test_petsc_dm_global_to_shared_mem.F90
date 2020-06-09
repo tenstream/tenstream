@@ -3,8 +3,8 @@ module test_petsc_dm_global_to_shared_mem
 #include "petsc/finclude/petsc.h"
   use petsc
   use m_data_parameters, only : iintegers, ireals, mpiint, zero, one
-  use m_pprts_base, only : t_solver_3_10
-  use m_pprts, only : init_pprts, destroy_pprts
+  use m_pprts_base, only : t_solver_3_10, destroy_pprts
+  use m_pprts, only : init_pprts
   use m_petsc_helpers, only : &
     gen_shared_subcomm, gen_shared_scatter_ctx, &
     getvecpointer, restorevecpointer

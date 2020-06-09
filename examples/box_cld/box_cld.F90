@@ -2,9 +2,9 @@ module m_box_cld
 
   use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint, zero, pi
 
-  use m_pprts, only : init_pprts, set_optical_properties, solve_pprts, destroy_pprts, &
+  use m_pprts, only : init_pprts, set_optical_properties, solve_pprts, &
     pprts_get_result
-  use m_pprts_base, only: t_solver, allocate_pprts_solver_from_commandline
+  use m_pprts_base, only: t_solver, allocate_pprts_solver_from_commandline, destroy_pprts
 
   use m_helper_functions, only : get_mem_footprint
 

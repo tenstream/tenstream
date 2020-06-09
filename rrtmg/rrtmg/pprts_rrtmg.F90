@@ -44,8 +44,8 @@ module m_pprts_rrtmg
   use m_data_parameters, only : init_mpi_data_parameters, &
       iintegers, ireals, zero, one, i0, i1, i2, i9,         &
       mpiint, pi, default_str_len
-  use m_pprts_base, only : t_solver, compute_gradient
-  use m_pprts, only : init_pprts, set_angles, set_optical_properties, solve_pprts, destroy_pprts,&
+  use m_pprts_base, only : t_solver, compute_gradient, destroy_pprts
+  use m_pprts, only : init_pprts, set_angles, set_optical_properties, solve_pprts,&
       pprts_get_result, pprts_get_result_toZero
   use m_adaptive_spectral_integration, only: need_new_solution
   use m_helper_functions, only : read_ascii_file_2d, gradient, meanvec, imp_bcast, &

@@ -2,9 +2,9 @@ module pprts_error_growth_tracking
   use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint, one, zero
 
   use m_adaptive_spectral_integration, only: need_new_solution
-  use m_pprts_base, only : t_coord, t_solver_3_10
+  use m_pprts_base, only : t_coord, t_solver_3_10, destroy_pprts
   use m_pprts, only : init_pprts, set_angles, &
-    set_optical_properties, solve_pprts, destroy_pprts, &
+    set_optical_properties, solve_pprts, &
     pprts_get_result
 
   use m_tenstream_options, only: read_commandline_options
