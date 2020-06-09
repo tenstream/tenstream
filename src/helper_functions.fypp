@@ -35,6 +35,8 @@ module m_helper_functions
     default_str_len, &
     imp_int4, imp_int8, imp_iinteger
 
+#include "petsc/finclude/petsc.h"
+  use petsc
   use mpi
 
   implicit none
@@ -55,7 +57,7 @@ module m_helper_functions
     ind_1d_to_nd, ind_nd_to_1d, ndarray_offsets, get_mem_footprint,            &
     resize_arr, reverse, rotate_angle_x, rotate_angle_y, rotate_angle_z, rotation_matrix_around_axis_vec,            &
     solve_quadratic, linspace, assert_arr_is_monotonous, is_between, is_inrange, sEXP, transposed_arr,               &
-    triangle_inner_circle_center, domain_decompose_2d
+    triangle_inner_circle_center, domain_decompose_2d, deallocate_allocatable
 
   interface rotate_angle_x
     module procedure rotate_angle_x_r32, rotate_angle_x_r64
@@ -254,6 +256,26 @@ module m_helper_functions
 
   interface assert_arr_is_monotonous
     module procedure assert_arr_is_monotonous_r32, assert_arr_is_monotonous_r64
+  end interface
+
+  interface deallocate_allocatable
+    #:for basetype,dtype,destructor in [ &
+      ('type'      , 'tVec'   , 'call VecDestroy(obj, ierr); call CHKERR(ierr);'), &
+      ('type'      , 'tDM'    , 'call DMDestroy (obj, ierr); call CHKERR(ierr);'), &
+      ('type'      , 'tKSP'   , 'call KSPDestroy(obj, ierr); call CHKERR(ierr);'), &
+      ('type'      , 'tMat'   , 'call MatDestroy(obj, ierr); call CHKERR(ierr);'), &
+      ('logical'   , None     , None                                            ), &
+      ('integer'   , 'INT32'  , None                                            ), &
+      ('integer'   , 'INT64'  , None                                            ), &
+      ('real'      , 'REAL32' , None                                            ), &
+      ('real'      , 'REAL64' , None                                            )]
+    #:set dKIND = '' if dtype == None else '('+dtype+')'
+    #:for RANK in range(0, 8)
+    #:if not ((destructor is not None) and (RANK>0))
+    module procedure deallocate_allocatable_${basetype}$_${dtype}$_${RANK}$d
+    #:endif
+    #:endfor
+    #:endfor
   end interface
 
   integer(iintegers), parameter :: npar_cumprod=8
@@ -2666,4 +2688,30 @@ subroutine domain_decompose_2d(comm, N_ranks_x, N_ranks_y, ierr)
     ierr = 1
   endif
 end subroutine
+
+
+#:for basetype,dtype,destructor,optdef in [ &
+  ('type'      , 'tVec'   , 'call VecDestroy(obj, ierr)   ; call CHKERR(ierr);', 'integer(mpiint) :: ierr'), &
+  ('type'      , 'tDM'    , 'call DMDestroy (obj, ierr)   ; call CHKERR(ierr);', 'integer(mpiint) :: ierr'), &
+  ('type'      , 'tKSP'   , 'call KSPDestroy(obj, ierr)   ; call CHKERR(ierr);', 'integer(mpiint) :: ierr'), &
+  ('type'      , 'tMat'   , 'call MatDestroy(obj, ierr)   ; call CHKERR(ierr);', 'integer(mpiint) :: ierr'), &
+  ('logical'   , None     , None                                            , None), &
+  ('integer'   , 'INT32'  , None                                            , None), &
+  ('integer'   , 'INT64'  , None                                            , None), &
+  ('real'      , 'REAL32' , None                                            , None), &
+  ('real'      , 'REAL64' , None                                            , None)]
+#:set dKIND = '' if dtype == None else '('+dtype+')'
+#:for RANK in range(0, 8)
+#:if not (destructor is not None and (RANK>0))
+    subroutine  deallocate_allocatable_${basetype}$_${dtype}$_${RANK}$d(obj)
+      ${basetype}$ ${dKIND}$, allocatable, intent(inout) :: obj${ranksuffix(RANK)}$
+      ${optdef}$
+      if(allocated(obj)) then
+        ${destructor}$
+        deallocate(obj)
+      endif
+    end subroutine
+#:endif
+#:endfor
+#:endfor
   end module
