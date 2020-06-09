@@ -47,11 +47,6 @@ contains
     real(ireals),parameter :: sundir(3) = [zero, zero, -one]
     real(ireals),parameter :: albedo=0, dz=dx
 
-    real(ireals),allocatable,dimension(:,:) :: fdir,fdn,fup,fdiv
-
-    real(ireals) :: time
-    logical :: lneed
-
     type(tDM) :: dm_serial, dm2d, dm3d
     real(ireals) :: hhl(Nz)
     type(t_plexgrid), allocatable :: plex

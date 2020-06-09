@@ -45,19 +45,8 @@ contains
     integer(iintegers),parameter :: nxp=5,nyp=5,nv=5,uid=0
     real(ireals),parameter :: dx=100,dy=dx
     real(ireals),parameter :: phi0=10, theta0=60
-    real(ireals),parameter :: albedo=0., dz=dx
-    real(ireals),parameter :: incSolar=1000
-    real(ireals),parameter :: atolerance=.1
+    real(ireals),parameter :: dz=dx
     real(ireals) :: dz1d(nv)
-
-    real(ireals),allocatable,dimension(:,:,:) :: kabs,ksca,g
-    real(ireals),allocatable,dimension(:,:,:) :: fdir0,fdn0,fup0,fdiv0
-    real(ireals),allocatable,dimension(:,:,:) :: fdir1,fdn1,fup1,fdiv1
-    real(ireals),allocatable,dimension(:,:,:) :: fdir2,fdn2,fup2,fdiv2
-    real(ireals),allocatable,dimension(:,:,:) :: fdir3,fdn3,fup3,fdiv3
-
-    integer(iintegers) :: j
-    integer(iintegers) :: cx, cy      ! global indices of cloud
 
     dz1d = dz
     dz1d(1) = 10*dx
