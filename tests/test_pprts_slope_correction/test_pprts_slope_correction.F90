@@ -31,7 +31,7 @@ contains
     class (MpiTestMethod), intent(inout) :: this
     continue
   end subroutine teardown
-  
+
   real(ireals) function hill_pressure_deficiency(jglob, ny_glob, hill_dP, hill_shape) result(dP)
     integer(iintegers), intent(in) :: jglob, ny_glob
     real(ireals), intent(in) :: hill_dP, hill_shape
@@ -39,7 +39,6 @@ contains
   end function
 
   @test(npes =[1])
-  
   subroutine test_pprts_slope_correction_ex1(this)
     class (MpiTestMethod), intent(inout) :: this
 
@@ -54,10 +53,10 @@ contains
     logical :: lflg
     real(ireals), dimension(nzp+1,nxp,nyp), target :: plev ! pressure on layer interfaces [hPa]
     real(ireals), dimension(nzp+1,nxp,nyp), target :: tlev ! Temperature on layer interfaces [K]
-    
+
     real(ireals), pointer, dimension(:,:) :: pplev, ptlev
     integer(iintegers), allocatable :: nxproc(:), nyproc(:)
-    
+
     real(ireals),allocatable, dimension(:,:,:) :: edir, edn, eup, abso ! [nlev_merged(-1), nxp, nyp]
     ! static: save statt parameter
     character(len=default_str_len),parameter :: atm_filename='atmosphere.dat'
@@ -94,9 +93,6 @@ contains
 
     do j=1,nyp
       jglob = j + nyp*myid
-      ! dP gives pressure deficiency of hill, i.e. highest val at hill center
-      !dP = hill_dP / ( 1 + ((jglob-(nyp*numnodes+1)/2._ireals)/hill_shape)**2 ) &
-      !   - hill_dP / ( 1 + ((    1-(nyp*numnodes+1)/2._ireals)/hill_shape)**2 )
       dp = hill_pressure_deficiency(jglob, nyp*numnodes, hill_dP, hill_shape) &
           -hill_pressure_deficiency(   i1, nyp*numnodes, hill_dP, hill_shape)
       dP = max(0._ireals, dP)
@@ -110,30 +106,26 @@ contains
 
     pplev(1:size(plev,1),1:size(plev,2)*size(plev,3)) => plev
     ptlev(1:size(tlev,1),1:size(tlev,2)*size(tlev,3)) => tlev
-    
-    !phi0   = 180
-    !theta0 = zero
 
     lsolar = .True.
     lthermal = .False.
-    
+
     call allocate_pprts_solver_from_commandline(pprts_solver, '3_10')
 
     call setup_tenstr_atm(comm, .False., atm_filename, &
       pplev, ptlev, atm)
 
     !call print_tenstr_atm(atm)
-    
+
     allocate( edir_target( nxp, nyp ) )
-    cols = size( atm%zt, 2 )  
+    cols = size( atm%zt, 2 )
     allocate( hill( cols ) )
     hill = ( maxval( atm%zt ) - atm%zt( ubound( atm%zt, 1 ), : ) )
     allocate( nnormal( cols, 3 ) )
-    !allocate( theta( cols ) )
-      
+
     do j=1, cols
       if ( j < nxp  + 1 .or. j > cols - nxp ) then
-      
+
         if ( j == 1 .or. j == cols - nxp + 1 ) then
           gradient_x = ( hill( j + 1 ) - hill( j ) ) / ( two * dx )
         else if ( j == nxp .or. j == cols ) then
@@ -141,33 +133,33 @@ contains
         else
           gradient_x = ( hill( j + 1 ) - hill( j - 1 ) ) / ( two * dx )
         end if
-        
-        if ( j > cols - nxp ) then 
+
+        if ( j > cols - nxp ) then
           gradient_y = ( hill( j ) - hill( j - nxp ) ) / ( two * dy )
         else
           gradient_y = ( hill( j + nxp ) - hill( j ) ) / ( two * dy )
         end if
-      
+
       else
         if ( mod( j, nxp ) == 0 ) then
           gradient_x = ( hill( j ) - hill( j - 1 ) ) / ( two * dx )
         else if ( mod( j - 1, nxp ) == 0 ) then
           gradient_x = ( hill( j + 1 ) - hill( j ) ) / ( two * dx )
         else
-          gradient_x = ( hill( j + 1)  - hill( j - 1) ) / ( two * dx ) 
+          gradient_x = ( hill( j + 1)  - hill( j - 1) ) / ( two * dx )
         end if
         gradient_y = ( hill( j + nxp ) - hill( j - nxp ) ) / ( two * dy )
-      
+
       end if
-       
+
       normal = cross_3d( [ dx, zero, dx * gradient_x ], [ zero, dy, dy * gradient_y ] )
       nnormal( j, : ) = normal / norm2(normal)
     enddo
-   
+
     do k=1, 4
       theta0 = 30._ireals
       phi0 = 90._ireals * k
-       
+
       print *, '________________________________________________________'
       print *, 'k', k, 'theta0', theta0, 'phi0', phi0
 
@@ -177,63 +169,35 @@ contains
         lthermal, lsolar,       &
         edir, edn, eup, abso,   &
         nxproc=nxproc, nyproc=nyproc, opt_solar_constant=E0)
-    
-        sundir = spherical_2_cartesian( phi0, theta0 ) 
 
-
-    !do j=1, cols
-    !  print *, j, 'normal', normal( j, : ) 
-    !enddo
-    
-!    do j=1, size( theta ) 
-!      if ( j < nxp + 1 ) then
-!        el_left = hill( j )
-!        el_right = ( hill( j + nxp ) + hill( j ) ) / two 
-!      else if ( j > size( theta ) - nxp ) then 
-!        el_left = ( hill( j ) + hill( j - nxp ) ) / two
-!        el_right = hill( j )
-!      else
-!        el_left = ( hill( j ) + hill( j - nxp ) ) / two
-!        el_right = ( hill( j + nxp ) + hill( j ) ) / two
-!      end if
-!      m = ( el_right - el_left ) / dy 
-!      theta( j ) = atan( m )
-!    enddo
-
+        sundir = spherical_2_cartesian( phi0, theta0 )
+      print *, 'sundir', sundir
       do j=1, cols
         if ( mod( j, nxp ) == 0 ) then
           x_index = 5
-        else 
+        else
           x_index = mod( j, nxp )
         end if
-     
+
         if ( ( j - 1) / nxp  == 0 ) then
           y_index = 1
         else
           y_index =  ( j - 1 ) / nxp + 1
         end if
-        !print *, j, 'normal', nnormal( j, : ),  'theta', dot_product( - sundir, nnormal(j, : ))       
-        edir_target( x_index, y_index ) = E0 * dot_product( - sundir, nnormal( j, : ) ) / dot_product( - sundir, [ zero, zero, one ] )
-        !edir_target( x_index, y_index ) = E0 * cos( theta( j ) ) !/ cos( ( phi0 - 180 ) / 180 * pi )
-      enddo 
-   
-!    do j=1, size( theta ) / nxp
-!      print *, 'theta', j, theta( j * nxp )
-!    enddo
+        edir_target( x_index, y_index ) = E0 * cos(deg2rad(theta0)) * dot_product( - sundir, nnormal( j, : ) ) / dot_product( - sundir, [ zero, zero, one ] )
+      enddo
 
       do j=1, nyp
         print *, 'edir_target', j, edir_target(1, j)
       enddo
-    
+
       do j=1, nyp
         print *, 'edir', j, edir(ubound(edir, 1), 1, j)
       enddo
-    
+
       @assertEqual(edir_target, edir(ubound(edir, 1), :, :), atolerance, 'Should be equal')
-    
+
     enddo
-    !edir_target(:, :) = 1 ! muss ich noch ausrechnen
-    !edir_target(1, 1) = 0.85
 
     end subroutine
 end module
