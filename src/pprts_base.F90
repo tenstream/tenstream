@@ -6,7 +6,7 @@ module m_pprts_base
     zero, one, i0, i1, i2, i3, i4, i5, i6, i7, i8, i10, pi, &
     default_str_len
 
-  use m_helper_functions, only : CHKWARN, CHKERR, get_arg, itoa, ltoa, ftoa, cstr
+  use m_helper_functions, only : CHKWARN, CHKERR, get_arg, itoa, ltoa, ftoa, cstr, deallocate_allocatable
   use m_petsc_helpers, only: getvecpointer, restorevecpointer
 
   use m_optprop, only: t_optprop_cube
@@ -38,8 +38,8 @@ module m_pprts_base
 
     integer(iintegers)      :: dof,dim                 ! degrees of freedom of Petsc Domain, dimension of dmda
     type(tDM)               :: da                      ! The Domain Decomposition Object
-    PetscMPIInt,allocatable :: neighbors(:)            ! all 3d neighbours((x=-1,y=-1,z=-1), (x=0,y=-1,z=-1) ...), i.e. 14 is one self.
     integer(mpiint)         :: comm                    ! mpi communicatior for this DMDA
+    integer(mpiint),allocatable :: neighbors(:)        ! all 3d neighbours((x=-1,y=-1,z=-1), (x=0,y=-1,z=-1) ...), i.e. 14 is one self.
   end type
 
   type t_atmosphere
@@ -136,17 +136,17 @@ module m_pprts_base
     type(tKSP), allocatable            :: ksp_thermal_diff
     class(t_optprop_cube), allocatable :: OPP
 
-    type(t_dof)                     :: difftop, diffside, dirtop, dirside
+    type(t_dof)                        :: difftop, diffside, dirtop, dirside
 
-    logical                         :: lenable_solutions_err_estimates=.True.  ! if enabled, we can save and load solutions.... just pass an unique identifer to solve()... beware, this may use lots of memory
-    type(tVec),allocatable          :: incSolar, b
-    type(tVec),allocatable          :: dir_scalevec_Wm2_to_W, diff_scalevec_Wm2_to_W
-    type(tVec),allocatable          :: dir_scalevec_W_to_Wm2, diff_scalevec_W_to_Wm2
-    type(tVec),allocatable          :: abso_scalevec
+    logical                            :: lenable_solutions_err_estimates=.True.  ! if enabled, we can save and load solutions.... just pass an unique identifer to solve()... beware, this may use lots of memory
+    type(tVec),allocatable             :: incSolar, b
+    type(tVec),allocatable             :: dir_scalevec_Wm2_to_W, diff_scalevec_Wm2_to_W
+    type(tVec),allocatable             :: dir_scalevec_W_to_Wm2, diff_scalevec_W_to_Wm2
+    type(tVec),allocatable             :: abso_scalevec
 
-    logical                         :: linitialized=.False.
-    type(t_state_container)         :: solutions(-1000:1000)
-    type(t_solver_log_events)       :: logs
+    logical                            :: linitialized=.False.
+    type(t_state_container)            :: solutions(-1000:1000)
+    type(t_solver_log_events)          :: logs
   end type
 
   type, extends(t_solver) :: t_solver_1_2
@@ -206,29 +206,14 @@ module m_pprts_base
     end subroutine
     subroutine destroy_solution(solution)
       type(t_state_container), intent(inout) :: solution
-      integer(mpiint) :: ierr
       if( solution%lset ) then
-        if(solution%lsolar_rad) then
-          if(allocated(solution%edir)) then
-            call VecDestroy(solution%edir , ierr) ;call CHKERR(ierr)
-            deallocate(solution%edir)
-          endif
-          solution%lsolar_rad = .False.
-        endif
+        call deallocate_allocatable(solution%edir)
+        solution%lsolar_rad = .False.
 
-        if(allocated(solution%ediff)) then
-          call VecDestroy(solution%ediff    , ierr) ;call CHKERR(ierr)
-          deallocate(solution%ediff)
-        endif
-        if(allocated(solution%abso)) then
-          call VecDestroy(solution%abso     , ierr) ;call CHKERR(ierr)
-          deallocate(solution%abso)
-        endif
-
-        if(allocated(solution%dir_ksp_residual_history)) &
-          deallocate(solution%dir_ksp_residual_history)
-        if(allocated(solution%diff_ksp_residual_history)) &
-          deallocate(solution%diff_ksp_residual_history)
+        call deallocate_allocatable(solution%ediff)
+        call deallocate_allocatable(solution%abso)
+        call deallocate_allocatable(solution%dir_ksp_residual_history)
+        call deallocate_allocatable(solution%diff_ksp_residual_history)
 
         solution%lset = .False.
       endif
@@ -353,6 +338,36 @@ module m_pprts_base
 
   end subroutine
 
+  subroutine destroy_coord(C)
+    type(t_coord), allocatable, intent(inout) :: C
+    integer(mpiint) :: ierr
+    if(allocated(C)) then
+      call DMDestroy(C%da, ierr); call CHKERR(ierr)
+      deallocate(C)
+    endif
+  end subroutine
+  subroutine destroy_atm(atm)
+    type(t_atmosphere), intent(inout) :: atm
+    call deallocate_allocatable(atm%planck)
+    call deallocate_allocatable(atm%kabs)
+    call deallocate_allocatable(atm%ksca)
+    call deallocate_allocatable(atm%g)
+    call deallocate_allocatable(atm%a11)
+    call deallocate_allocatable(atm%a12)
+    call deallocate_allocatable(atm%a21)
+    call deallocate_allocatable(atm%a22)
+    call deallocate_allocatable(atm%a13)
+    call deallocate_allocatable(atm%a23)
+    call deallocate_allocatable(atm%a33)
+    call deallocate_allocatable(atm%dz)
+    call deallocate_allocatable(atm%l1d)
+    call deallocate_allocatable(atm%albedo)
+    call deallocate_allocatable(atm%Btop)
+    call deallocate_allocatable(atm%Bbot)
+    call deallocate_allocatable(atm%Bsrfc)
+    call deallocate_allocatable(atm%hhl)
+    call deallocate_allocatable(atm%hgrad)
+  end subroutine
   subroutine destroy_pprts(solver, lfinalizepetsc)
     class(t_solver)   :: solver
     logical,optional :: lfinalizepetsc
@@ -363,27 +378,12 @@ module m_pprts_base
     lfinalize = get_arg(.False., lfinalizepetsc)
 
     if(solver%linitialized) then
-      if(allocated(solver%ksp_solar_dir)) then
-        call KSPDestroy(solver%ksp_solar_dir, ierr); call CHKERR(ierr)
-        deallocate(solver%ksp_solar_dir)
-      endif
-      if(allocated(solver%ksp_solar_diff)) then
-        call KSPDestroy(solver%ksp_solar_diff, ierr); call CHKERR(ierr)
-        deallocate(solver%ksp_solar_diff)
-      endif
-      if(allocated(solver%ksp_thermal_diff)) then
-        call KSPDestroy(solver%ksp_thermal_diff, ierr); call CHKERR(ierr)
-        deallocate(solver%ksp_thermal_diff)
-      endif
+      call deallocate_allocatable(solver%ksp_solar_dir)
+      call deallocate_allocatable(solver%ksp_solar_diff)
+      call deallocate_allocatable(solver%ksp_thermal_diff)
 
-      if(allocated(solver%incSolar)) then
-        call VecDestroy(solver%incSolar, ierr); call CHKERR(ierr)
-        deallocate(solver%incSolar)
-      endif
-      if(allocated(solver%b)) then
-        call VecDestroy(solver%b, ierr); call CHKERR(ierr)
-        deallocate(solver%b)
-      endif
+      call deallocate_allocatable(solver%incSolar)
+      call deallocate_allocatable(solver%b)
 
       call destroy_matrices(solver)
 
@@ -391,58 +391,39 @@ module m_pprts_base
         call destroy_solution(solver%solutions(uid))
       enddo
 
-      if(allocated(solver%dir_scalevec_Wm2_to_W)) then
-        call VecDestroy(solver%dir_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
-        deallocate(solver%dir_scalevec_Wm2_to_W)
+      call deallocate_allocatable(solver%dir_scalevec_Wm2_to_W)
+      call deallocate_allocatable(solver%diff_scalevec_Wm2_to_W)
+      call deallocate_allocatable(solver%dir_scalevec_W_to_Wm2)
+      call deallocate_allocatable(solver%diff_scalevec_W_to_Wm2)
+      call deallocate_allocatable(solver%abso_scalevec)
+
+      if(allocated(solver%atm)) then
+        call destroy_atm(solver%atm)
+        deallocate(solver%atm)
       endif
 
-      if(allocated(solver%diff_scalevec_Wm2_to_W)) then
-        call VecDestroy(solver%diff_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
-        deallocate(solver%diff_scalevec_Wm2_to_W)
-      endif
-
-      if(allocated(solver%dir_scalevec_W_to_Wm2)) then
-        call VecDestroy(solver%dir_scalevec_W_to_Wm2, ierr); call CHKERR(ierr)
-        deallocate(solver%dir_scalevec_W_to_Wm2)
-      endif
-
-      if(allocated(solver%diff_scalevec_W_to_Wm2)) then
-        call VecDestroy(solver%diff_scalevec_W_to_Wm2, ierr); call CHKERR(ierr)
-        deallocate(solver%diff_scalevec_W_to_Wm2)
-      endif
-
-      if(allocated(solver%abso_scalevec)) then
-        call VecDestroy(solver%abso_scalevec, ierr); call CHKERR(ierr)
-        deallocate(solver%abso_scalevec)
-      endif
-
-      if(allocated(solver%atm%hgrad)) then
-        call VecDestroy(solver%atm%hgrad, ierr); call CHKERR(ierr)
-        deallocate(solver%atm%hgrad)
-      endif
-      if(allocated(solver%atm)) deallocate(solver%atm)
-
-      if(allocated(solver%sun%symmetry_phi)) deallocate(solver%sun%symmetry_phi)
-      if(allocated(solver%sun%theta       )) deallocate(solver%sun%theta       )
-      if(allocated(solver%sun%phi         )) deallocate(solver%sun%phi         )
-      if(allocated(solver%sun%costheta    )) deallocate(solver%sun%costheta    )
-      if(allocated(solver%sun%sintheta    )) deallocate(solver%sun%sintheta    )
-      if(allocated(solver%sun%xinc        )) deallocate(solver%sun%xinc        )
-      if(allocated(solver%sun%yinc        )) deallocate(solver%sun%yinc        )
+      call deallocate_allocatable(solver%sun%symmetry_phi)
+      call deallocate_allocatable(solver%sun%theta       )
+      call deallocate_allocatable(solver%sun%phi         )
+      call deallocate_allocatable(solver%sun%costheta    )
+      call deallocate_allocatable(solver%sun%sintheta    )
+      call deallocate_allocatable(solver%sun%xinc        )
+      call deallocate_allocatable(solver%sun%yinc        )
 
       if(allocated(solver%OPP)) call solver%OPP%destroy()
-      if(allocated(solver%C_dir     )) call DMDestroy(solver%C_dir%da ,ierr); deallocate(solver%C_dir )
-      if(allocated(solver%C_diff    )) call DMDestroy(solver%C_diff%da,ierr); deallocate(solver%C_diff)
-      if(allocated(solver%C_one     )) call DMDestroy(solver%C_one%da ,ierr); deallocate(solver%C_one )
-      if(allocated(solver%C_one1    )) call DMDestroy(solver%C_one1%da,ierr); deallocate(solver%C_one1)
-      if(allocated(solver%C_two1    )) call DMDestroy(solver%C_two1%da,ierr); deallocate(solver%C_two1)
-      if(allocated(solver%C_one_atm )) call DMDestroy(solver%C_one_atm%da ,ierr); deallocate(solver%C_one_atm)
-      if(allocated(solver%C_one_atm1)) call DMDestroy(solver%C_one_atm1%da,ierr); deallocate(solver%C_one_atm1)
 
-      if(allocated(solver%difftop%is_inward)) deallocate(solver%difftop%is_inward)
-      if(allocated(solver%diffside%is_inward)) deallocate(solver%diffside%is_inward)
-      if(allocated(solver%dirtop%is_inward)) deallocate(solver%dirtop%is_inward)
-      if(allocated(solver%dirside%is_inward)) deallocate(solver%dirside%is_inward)
+      call destroy_coord(solver%C_dir     )
+      call destroy_coord(solver%C_diff    )
+      call destroy_coord(solver%C_one     )
+      call destroy_coord(solver%C_one1    )
+      call destroy_coord(solver%C_two1    )
+      call destroy_coord(solver%C_one_atm )
+      call destroy_coord(solver%C_one_atm1)
+
+      call deallocate_allocatable(solver%difftop%is_inward)
+      call deallocate_allocatable(solver%diffside%is_inward)
+      call deallocate_allocatable(solver%dirtop%is_inward)
+      call deallocate_allocatable(solver%dirside%is_inward)
 
       solver%comm = -1
       solver%linitialized=.False.
@@ -455,18 +436,10 @@ module m_pprts_base
 
   subroutine destroy_matrices(solver)
     class(t_solver) :: solver
-    integer(mpiint) :: ierr
 
-    if(allocated(solver%Mdir)) then
-      call MatDestroy(solver%Mdir , ierr) ;call CHKERR(ierr)
-      deallocate(solver%Mdir)
-    endif
-    if(allocated(solver%Mdiff)) then
-      call MatDestroy(solver%Mdiff, ierr) ;call CHKERR(ierr)
-      deallocate(solver%Mdiff)
-    endif
+    call deallocate_allocatable(solver%Mdir)
+    call deallocate_allocatable(solver%Mdiff)
   end subroutine
-
 
   !> @brief compute gradient from dz3d
   !> @details integrate dz3d from to top of atmosphere to bottom.
