@@ -33,9 +33,9 @@ module m_f2c_pprts
         resize_arr, spherical_2_cartesian, itoa
 
       use m_pprts_base, only : t_solver, t_solver_3_10, t_solver_3_6, t_solver_1_2, t_coord, &
-        t_solver_8_10, t_solver_3_16, t_solver_8_16, t_solver_8_18
+        t_solver_8_10, t_solver_3_16, t_solver_8_16, t_solver_8_18, destroy_pprts
 
-      use m_pprts, only : init_pprts, set_global_optical_properties, solve_pprts, destroy_pprts, &
+      use m_pprts, only : init_pprts, set_global_optical_properties, solve_pprts, &
         pprts_get_result_toZero
 
       use m_petsc_helpers, only : petscVecToF90, petscGlobalVecToZero, f90VecToPetsc

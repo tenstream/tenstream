@@ -6,8 +6,8 @@ module test_pprts_solution_vecscale
   use petsc
 
   use m_pprts_base, only : t_solver, t_solver_3_10, t_solver_8_10, t_solver_8_16, &
-    prepare_solution, print_solution
-  use m_pprts, only : init_pprts, scale_flx, destroy_pprts
+    prepare_solution, print_solution, destroy_pprts
+  use m_pprts, only : init_pprts, scale_flx
   use m_tenstream_options, only: read_commandline_options
   use m_helper_functions, only: CHKERR
 

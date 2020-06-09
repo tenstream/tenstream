@@ -5,9 +5,9 @@ module test_pprts_symmetry
 #include "petsc/finclude/petsc.h"
   use petsc
 
-  use m_pprts_base, only : t_solver, t_solver_3_10, t_solver_8_10
+  use m_pprts_base, only : t_solver, t_solver_3_10, t_solver_8_10, destroy_pprts
   use m_pprts, only : init_pprts, set_optical_properties, &
-    solve_pprts, set_angles, pprts_get_result_toZero, destroy_pprts
+    solve_pprts, set_angles, pprts_get_result_toZero
   use m_tenstream_options, only: read_commandline_options
   use m_helper_functions, only: itoa
 
