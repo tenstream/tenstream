@@ -797,10 +797,10 @@ contains
     logical, intent(in)          :: lswitch_east, lswitch_north
     real(irealLUT),intent(inout) :: coeff(:)
     if(lswitch_east) then
-      call CHKERR(1_mpiint, 'not yet implemented')
+      call CHKERR(1_mpiint, 'dir3_to_diff16_coeff_symmetry_lswitch_east_not yet implemented')
     endif
     if (lswitch_north) then
-      call CHKERR(1_mpiint, 'not yet implemented')
+      call CHKERR(1_mpiint, 'dir3_to_diff16_coeff_symmetry_lswitch_north_not yet implemented')
     endif
     if(.False.) then ! remove compiler unused warnings
       select type(OPP)
@@ -853,10 +853,10 @@ contains
     logical, intent(in)          :: lswitch_east, lswitch_north
     real(irealLUT),intent(inout) :: coeff(:)
     if(lswitch_east) then
-      call CHKERR(1_mpiint, 'not yet implemented')
+      call CHKERR(1_mpiint, 'dir8_to_diff16_coeff_symmetry_lswitch_east_not yet implemented')
     endif
     if (lswitch_north) then
-      call CHKERR(1_mpiint, 'not yet implemented')
+      call CHKERR(1_mpiint, 'dir8_to_diff16_coeff_symmetry_lswitch_north_not yet implemented')
     endif
     if(.False.) then ! remove compiler unused warnings
       select type(OPP)
@@ -870,11 +870,11 @@ contains
     logical, intent(in)          :: lswitch_east, lswitch_north
     real(irealLUT),intent(inout) :: coeff(:)
     if(lswitch_east) then
-      call CHKERR(1_mpiint, 'not yet implemented')
+      call CHKERR(1_mpiint, 'dir8_to_diff18_coeff_symmetry_lswitch_east_not yet implemented')
       coeff = coeff
     endif
     if (lswitch_north) then
-      call CHKERR(1_mpiint, 'not yet implemented')
+      call CHKERR(1_mpiint, 'dir8_to_diff18_coeff_symmetry_lswitch_north_not yet implemented')
       coeff = coeff
     endif
     select type(OPP)
