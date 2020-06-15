@@ -291,31 +291,34 @@ if(ENABLE_RRTM)
   list(APPEND TENSTR_LIBS pprts_rrtm_sw pprts_rrtm_lw pprts_rrtmg)
 endif()
 
-
 # Generate Master Library which contains all symbols
 if(NOT BUILD_SHARED_LIBS)
-	function(combine_archives output_archive list_of_input_archives)
-		set(mri_file ${CMAKE_BINARY_DIR}/${output_archive}.mri)
-		set(FULL_OUTPUT_PATH ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/lib${output_archive}.a)
-		message(STATUS "Generating one lib to rule them all: ${FULL_OUTPUT_PATH} :: ${mri_file}")
-		file(WRITE ${mri_file} "create ${FULL_OUTPUT_PATH}\n")
-		FOREACH(in_archive ${list_of_input_archives})
-			message(STATUS "Adding static lib: ${in_archive}")
-			file(APPEND ${mri_file} "addlib ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/lib${in_archive}.a\n")
-		ENDFOREACH()
-		file(APPEND ${mri_file} "save\n")
-		file(APPEND ${mri_file} "end\n")
+  function(combine_archives output_archive list_of_input_archives)
+    set(obj_folder ${CMAKE_BINARY_DIR}/objs/)
+    file(MAKE_DIRECTORY ${obj_folder})
+    set(FULL_OUTPUT_PATH ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/lib${output_archive}.a)
+    message(STATUS "Generating one lib to rule them all: ${FULL_OUTPUT_PATH}")
 
-		set(output_archive_dummy_file ${CMAKE_BINARY_DIR}/${output_archive}.dummy.F90)
-		add_custom_command(OUTPUT ${output_archive_dummy_file}
-			COMMAND touch ${output_archive_dummy_file}
-			DEPENDS ${list_of_input_archives})
+    set(output_archive_dummy_file ${CMAKE_BINARY_DIR}/${output_archive}.dummy.F90)
+    add_custom_command(OUTPUT ${output_archive_dummy_file}
+      COMMAND touch ${output_archive_dummy_file}
+      DEPENDS ${list_of_input_archives})
 
-		add_library(${output_archive} STATIC ${output_archive_dummy_file})
-		add_custom_command(TARGET ${output_archive}
-			POST_BUILD
-			COMMAND ${CMAKE_AR} -M < ${mri_file})
-	endfunction(combine_archives)
+    add_library(${output_archive} STATIC ${output_archive_dummy_file})
+
+    FOREACH(in_archive ${list_of_input_archives})
+      message(STATUS "Adding static lib: ${in_archive}")
+      add_custom_command(TARGET ${output_archive}
+        PRE_BUILD ${output_archive}
+        WORKING_DIRECTORY ${obj_folder}
+        COMMAND ${CMAKE_AR} x ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/lib${in_archive}.a)
+    ENDFOREACH()
+
+    add_custom_command(TARGET ${output_archive}
+      POST_BUILD
+      WORKING_DIRECTORY ${obj_folder}
+      COMMAND ${CMAKE_AR} -qc ${FULL_OUTPUT_PATH} *.o)
+  endfunction(combine_archives)
 
 	combine_archives(tenstream "${TENSTR_LIBS}")
 endif()
