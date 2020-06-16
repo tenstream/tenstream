@@ -62,7 +62,6 @@ set( general_sources
   "nca.F90"
   "mmap.F90"
   "pprts_base.F90"
-  "pprts_external_solvers.F90"
   "adaptive_spectral_integration.F90"
   "search.F90"
   )
@@ -77,17 +76,22 @@ set( optprop_sources
   "optprop.F90"
   )
 
+set( solver_sources
+  "pprts.F90"
+  "pprts_external_solvers.F90"
+  )
+
 
 # pprts_base libs
 add_library( pprts_base_objs OBJECT ${general_sources} ${optprop_sources} )
 add_library( pprts_base             $<TARGET_OBJECTS:pprts_base_objs> )
-target_link_libraries( pprts_base   ${EXTLIB})
+target_link_libraries( pprts_base ${EXTLIB})
 
 # pprts libs
-add_library( pprts_objs OBJECT "pprts.F90")
-add_dependencies( pprts_objs pprts_base_objs )
+add_library( pprts_objs OBJECT ${solver_sources} )
+add_dependencies( pprts_objs pprts_base plexrt )
 add_library( pprts        $<TARGET_OBJECTS:pprts_objs> )
-target_link_libraries( pprts     pprts_base        ${EXTLIB})
+target_link_libraries( pprts    pprts_base plexrt   ${EXTLIB})
 
 # CreateLUT binaries
 file( GLOB streams createLUT*.[fF]90 )

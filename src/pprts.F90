@@ -52,7 +52,8 @@ module m_pprts
     t_solver_8_10, t_solver_3_16, t_solver_8_16, t_solver_8_18, &
     t_coord, t_suninfo, t_atmosphere, compute_gradient, atmk, &
     t_state_container, prepare_solution, destroy_solution, &
-    t_dof, t_solver_log_events, setup_log_events
+    t_dof, t_solver_log_events, setup_log_events, &
+    set_dmda_cell_coordinates
 
   use m_pprts_external_solvers, only: twostream, schwarz
 
@@ -65,7 +66,7 @@ module m_pprts
             pprts_get_result_toZero, gather_all_toZero, scale_flx
 
   logical,parameter :: ldebug=.False.
-  logical,parameter :: lcycle_dir=.True.
+  logical,parameter :: lcyclic_bc=.True.
   logical,parameter :: lprealloc=.True.
 
   integer(iintegers),parameter :: minimal_dimension=3 ! this is the minimum number of gridpoints in x or y direction
@@ -309,6 +310,11 @@ module m_pprts
         ierr=1; call CHKERR(ierr)
       endif
 
+      if (.not.allocated(solver%atm%hhl)) then
+        allocate(solver%atm%hhl)
+        call compute_vertical_height_levels(dz=solver%atm%dz, C_hhl=solver%C_one_atm1_box, vhhl=solver%atm%hhl)
+      endif
+
       solver%sun%luse_topography = present(dz3d) .and. ltopography  ! if the user supplies 3d height levels and has set the topography option
 
       if(.not.allocated(solver%atm%l1d)) then
@@ -344,86 +350,139 @@ module m_pprts
   !> @details setup DMDA grid containers for direct, diffuse and absorption grid
   !>  \n and fill user context containers(t_coord) which include local as well as global array sizes
   !>  \n every mpi rank has to call this
-  subroutine setup_grid(solver,Nz_in,Nx,Ny,nxproc,nyproc, collapseindex)
+  subroutine setup_grid(solver, Nz_in, Nx, Ny, nxproc, nyproc, collapseindex)
       class(t_solver), intent(inout) :: solver
-      integer(iintegers), intent(in) :: Nz_in,Nx,Ny !< @param[in] local number of grid boxes -- in the vertical we have Nz boxes and Nz+1 levels
-      integer(iintegers), optional :: nxproc(:), nyproc(:) ! size of local domains on each node
-      integer(iintegers), optional, intent(in) :: collapseindex  !< @param[in] collapseindex if given, the upper n layers will be reduce to 1d and no individual output will be given for them
+      integer(iintegers), intent(in) :: Nz_in, Nx, Ny                  !< @param[in] local number of grid boxes -- in the vertical we have Nz boxes and Nz+1 levels
+      integer(iintegers), intent(in), optional :: nxproc(:), nyproc(:) !< @param[in] size of local domains on each node
+      integer(iintegers), optional, intent(in) :: collapseindex        !< @param[in] collapseindex if given, the upper n layers will be reduce to 1d and no individual output will be given for them
 
-      DMBoundaryType :: bp=DM_BOUNDARY_PERIODIC, bn=DM_BOUNDARY_NONE, bg=DM_BOUNDARY_GHOSTED
       integer(iintegers) :: Nz
+      DMBoundaryType, parameter :: &
+        & bp=DM_BOUNDARY_PERIODIC, &
+        & bn=DM_BOUNDARY_NONE,     &
+        & bm=DM_BOUNDARY_MIRROR!,   &
+        !& bg=DM_BOUNDARY_GHOSTED
+
+      DMBoundaryType :: boundaries(3)
+      integer(iintegers), allocatable :: nxprocp1(:), nyprocp1(:) !< last entry one larger for vertices
+
+      if(lcyclic_bc) then
+        boundaries = [bn, bp, bp]
+      else
+        boundaries = [bn, bm, bm]
+      endif
 
       Nz = Nz_in
       if(present(collapseindex)) Nz = Nz_in-collapseindex+i1
 
-      if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'Setting up the DMDA grid for',Nz,Nx,Ny,'using',solver%numnodes,'nodes'
+      if(solver%myid.eq.0.and.ldebug) print *,solver%myid,&
+        & 'Setting up the DMDA grid for',Nz,Nx,Ny,'using',solver%numnodes,'nodes'
 
-      if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'Configuring DMDA C_diff'
-      call setup_dmda(solver%comm, solver%C_diff, Nz+1,Nx,Ny, bp, solver%difftop%dof + 2* solver%diffside%dof)
+      if(solver%myid.eq.0.and.ldebug) &
+        & print *,solver%myid,'Configuring DMDA C_diff'
+      call setup_dmda(solver%comm, solver%C_diff, Nz+1,Nx,Ny, boundaries, &
+        & solver%difftop%dof + 2* solver%diffside%dof, nxproc,nyproc)
 
-      if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'Configuring DMDA C_dir'
-      if(lcycle_dir) then
-        call setup_dmda(solver%comm, solver%C_dir, Nz+1,Nx,Ny, bp, solver%dirtop%dof + 2* solver%dirside%dof)
-      else
-        call setup_dmda(solver%comm, solver%C_dir, Nz+1,Nx,Ny, bg, solver%dirtop%dof + 2* solver%dirside%dof)
-      endif
+      if(solver%myid.eq.0.and.ldebug) &
+        & print *,solver%myid,'Configuring DMDA C_dir'
+      call setup_dmda(solver%comm, solver%C_dir, Nz+1,Nx,Ny, boundaries, &
+        & solver%dirtop%dof + 2* solver%dirside%dof, nxproc,nyproc)
 
       if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'Configuring DMDA C_one'
-      call setup_dmda(solver%comm, solver%C_one , Nz  , Nx,Ny,  bp, i1)
-      call setup_dmda(solver%comm, solver%C_one1, Nz+1, Nx,Ny,  bp, i1)
+      call setup_dmda(solver%comm, solver%C_one , Nz  , Nx,Ny, boundaries, &
+        & i1, nxproc,nyproc)
+      call setup_dmda(solver%comm, solver%C_one1, Nz+1, Nx,Ny, boundaries, &
+        & i1, nxproc,nyproc)
 
       if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'Configuring DMDA C_two'
-      call setup_dmda(solver%comm, solver%C_two1, Nz+1, Nx,Ny,  bp, i2)
+      call setup_dmda(solver%comm, solver%C_two1, Nz+1, Nx,Ny, boundaries, &
+        & i2, nxproc,nyproc)
 
       if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'Configuring DMDA atm'
-      call setup_dmda(solver%comm, solver%C_one_atm , Nz_in  , Nx,Ny,  bp, i1)
-      call setup_dmda(solver%comm, solver%C_one_atm1, Nz_in+1, Nx,Ny,  bp, i1)
+      call setup_dmda(solver%comm, solver%C_one_atm , Nz_in  , Nx,Ny, boundaries, &
+        & i1, nxproc,nyproc)
+      call setup_dmda(solver%comm, solver%C_one_atm1, Nz_in+1, Nx,Ny, boundaries, &
+        & i1, nxproc,nyproc)
+      call setup_dmda(solver%comm, solver%C_one_atm1_box, Nz_in+1, Nx,Ny, boundaries, &
+        & i1, nxproc,nyproc, DMDA_STENCIL_BOX)
+
+      if(present(nxproc)) then
+        allocate(nxprocp1(size(nxproc)), nyprocp1(size(nyproc)))
+        nxprocp1(:) = nxproc
+        nyprocp1(:) = nyproc
+        nxprocp1(size(nxprocp1)) = nxprocp1(size(nxprocp1)) +1
+        nyprocp1(size(nyprocp1)) = nyprocp1(size(nyprocp1)) +1
+
+        call setup_dmda(solver%comm, solver%Cvert_one_atm1, Nz_in+1, Nx+1,Ny+1, boundaries, &
+          & i1, nxprocp1,nyprocp1)
+      else
+        call setup_dmda(solver%comm, solver%Cvert_one_atm1, Nz_in+1, Nx+1,Ny+1, boundaries, &
+          & i1)
+      endif
 
       if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'DMDA grid ready'
+    end subroutine
+
+    subroutine setup_dmda(icomm, C, Nz, Nx, Ny, boundary, dof, nxproc, nyproc, stencil_type)
+      integer(mpiint), intent(in) :: icomm
+      type(t_coord), allocatable :: C
+      integer(iintegers), intent(in) :: Nz,Nx,Ny,dof
+      DMBoundaryType, intent(in) :: boundary(:)
+      integer(iintegers), intent(in), optional :: nxproc(:), nyproc(:) ! size of local domains on each node
+      DMDAStencilType, intent(in), optional :: stencil_type
+      DMDAStencilType :: opt_stencil_type
+
+      integer(iintegers), parameter :: stencil_size=1
+      integer(mpiint) :: myid, ierr
+      call mpi_comm_rank(icomm, myid, ierr); call CHKERR(ierr)
+
+      if(any([present(nxproc), present(nyproc)])&
+        & .and..not.all([present(nxproc), present(nyproc)])) &
+        & call CHKERR(1_mpiint, 'have to have both, nxproc AND nyproc present or none')
+
+      if(ldebug.and.present(nxproc).and.present(nyproc)) &
+        & print *, myid, 'setup_dmda', nxproc, nyproc
+
+      if(present(stencil_type)) then
+        opt_stencil_type = stencil_type
+      else
+        opt_stencil_type = DMDA_STENCIL_STAR
+      endif
+
+      allocate(C)
+
+      C%comm = icomm
+
+      C%dof = i1*dof
+      if(present(nxproc) .and. present(nyproc) ) then
+        call DMDACreate3d( C%comm ,                                                     &
+          boundary(1)             , boundary(2)                , boundary(3)          , &
+          opt_stencil_type        ,                                                     &
+          Nz                      , sum(nxproc)                , sum(nyproc)          , &
+          i1                      , size(nxproc,kind=iintegers), size(nyproc,kind=iintegers), &
+          C%dof                   , stencil_size               ,                        &
+          [Nz]                    , nxproc                     , nyproc               , &
+          C%da                    , ierr)
+        call CHKERR(ierr)
+      else
+        call DMDACreate3d( C%comm ,                                                   &
+          boundary(1)             , boundary(2)              , boundary(3)          , &
+          opt_stencil_type        ,                                                   &
+          i1*Nz                   , Nx                       , Ny                   , &
+          i1                      , PETSC_DECIDE             , PETSC_DECIDE         , &
+          C%dof                   , stencil_size             ,                        &
+          [Nz]                    , PETSC_NULL_INTEGER       , PETSC_NULL_INTEGER   , &
+          C%da                    , ierr) ;call CHKERR(ierr)
+      endif
+
+      call DMSetMatType(C%da, MATAIJ, ierr)                                ; call CHKERR(ierr)
+      if(lprealloc) call DMSetMatrixPreallocateOnly(C%da, PETSC_TRUE,ierr) ; call CHKERR(ierr)
+      call DMSetFromOptions(C%da, ierr)                                    ; call CHKERR(ierr)
+      call DMSetup(C%da,ierr)                                              ; call CHKERR(ierr)
+
+      if(ldebug) call DMView(C%da, PETSC_VIEWER_STDOUT_WORLD ,ierr)        ; call CHKERR(ierr)
+      call setup_coords(C)
     contains
-      subroutine setup_dmda(icomm, C, Nz, Nx, Ny, boundary, dof)
-        integer(mpiint), intent(in) :: icomm
-        type(t_coord), allocatable :: C
-        integer(iintegers), intent(in) :: Nz,Nx,Ny,dof
-        DMBoundaryType, intent(in) :: boundary
-
-        integer(iintegers), parameter :: stencil_size=1
-        if(ldebug.and.present(nxproc).and.present(nyproc)) print *, solver%myid, 'setup_dmda', nxproc, nyproc
-
-        allocate(C)
-
-        C%comm = icomm
-
-        C%dof = i1*dof
-        if(present(nxproc) .and. present(nyproc) ) then
-          call DMDACreate3d( C%comm ,                                                     &
-            bn                      , boundary                   , boundary             , &
-            DMDA_STENCIL_STAR       ,                                                     &
-            Nz                      , sum(nxproc)                , sum(nyproc)          , &
-            i1                      , size(nxproc,kind=iintegers), size(nyproc,kind=iintegers), &
-            C%dof                   , stencil_size               ,                        &
-            [Nz]                    , nxproc                     , nyproc               , &
-            C%da                    , ierr)
-          call CHKERR(ierr)
-        else
-          call DMDACreate3d( C%comm ,                                                   &
-            bn                      , boundary                 , boundary             , &
-            DMDA_STENCIL_STAR       ,                                                   &
-            i1*Nz                   , Nx                       , Ny                   , &
-            i1                      , PETSC_DECIDE             , PETSC_DECIDE         , &
-            C%dof                   , stencil_size             ,                        &
-            [Nz]                    , PETSC_NULL_INTEGER       , PETSC_NULL_INTEGER   , &
-            C%da                    , ierr) ;call CHKERR(ierr)
-        endif
-
-        call DMSetMatType(C%da, MATAIJ, ierr)                                ; call CHKERR(ierr)
-        if(lprealloc) call DMSetMatrixPreallocateOnly(C%da, PETSC_TRUE,ierr) ; call CHKERR(ierr)
-        call DMSetFromOptions(C%da, ierr)                                    ; call CHKERR(ierr)
-        call DMSetup(C%da,ierr)                                              ; call CHKERR(ierr)
-
-        if(ldebug) call DMView(C%da, PETSC_VIEWER_STDOUT_WORLD ,ierr)        ; call CHKERR(ierr)
-        call setup_coords(C)
-      end subroutine
       subroutine setup_coords(C)
         type(t_coord) :: C
         DMBoundaryType :: bx, by, bz
@@ -447,32 +506,83 @@ module m_pprts
         C%gze = C%gzs+C%gzm-1
 
         if(ldebug) then
-          print *,solver%myid,'Domain Corners z:: ',C%zs,':',C%ze,' (',C%zm,' entries)','global size',C%glob_zm
-          print *,solver%myid,'Domain Corners x:: ',C%xs,':',C%xe,' (',C%xm,' entries)','global size',C%glob_xm
-          print *,solver%myid,'Domain Corners y:: ',C%ys,':',C%ye,' (',C%ym,' entries)','global size',C%glob_ym
+          print *,myid,'Domain Corners z:: ',C%zs,':',C%ze,' (',C%zm,' entries)','global size',C%glob_zm
+          print *,myid,'Domain Corners x:: ',C%xs,':',C%xe,' (',C%xm,' entries)','global size',C%glob_xm
+          print *,myid,'Domain Corners y:: ',C%ys,':',C%ye,' (',C%ym,' entries)','global size',C%glob_ym
         endif
 
         allocate(C%neighbors(0:3**C%dim-1) )
         call DMDAGetNeighbors(C%da,C%neighbors,ierr) ;call CHKERR(ierr)
-        call mpi_comm_size(solver%comm, numnodes, ierr); call CHKERR(ierr)
+        call mpi_comm_size(icomm, numnodes, ierr); call CHKERR(ierr)
         if(numnodes.gt.i1) then
-          if(ldebug.and.(C%dim.eq.3)) print *,'PETSC id',solver%myid,C%dim,'Neighbors are',C%neighbors(10),  &
-                                                                                           C%neighbors(4) ,  &
-                                                                                           C%neighbors(16),  &
-                                                                                           C%neighbors(22),  &
-                                                                             'while I am ',C%neighbors(13)
+          if(ldebug.and.(C%dim.eq.3)) print *,'PETSC id',myid,C%dim,'Neighbors are',C%neighbors(10),  &
+            C%neighbors(4) ,  &
+            C%neighbors(16),  &
+            C%neighbors(22),  &
+            'while I am ',C%neighbors(13)
 
-          if(ldebug.and.(C%dim.eq.2)) print *,'PETSC id',solver%myid,C%dim,'Neighbors are',C%neighbors(1), &
-                                                                                           C%neighbors(3), &
-                                                                                           C%neighbors(7), &
-                                                                                           C%neighbors(5), &
-                                                                             'while I am ',C%neighbors(4)
+          if(ldebug.and.(C%dim.eq.2)) print *,'PETSC id',myid,C%dim,'Neighbors are',C%neighbors(1), &
+            C%neighbors(3), &
+            C%neighbors(7), &
+            C%neighbors(5), &
+            'while I am ',C%neighbors(4)
         endif
         if(C%glob_xm.lt.i3) call CHKERR(1_mpiint, 'Global domain is too small in x-direction (Nx='//itoa(C%glob_xm)// &
           '). However, need at least 3 because of horizontal ghost cells')
         if(C%glob_ym.lt.i3) call CHKERR(1_mpiint, 'Global domain is too small in y-direction (Ny='//itoa(C%glob_ym)// &
           '). However, need at least 3 because of horizontal ghost cells')
       end subroutine
+    end subroutine
+
+
+    !> @brief Determine height levels by summing up the atm%dz with the assumption that TOA is at a constant value
+    !>        or a max_height is given in the option database
+    subroutine compute_vertical_height_levels(dz, C_hhl, vhhl)
+      type(t_coord), intent(in) :: C_hhl
+      real(ireals), intent(in) :: dz(:,:,:)
+      type(tVec), intent(inout) :: vhhl
+
+      real(ireals), pointer :: hhl(:,:,:,:)=>null(), hhl1d(:)=>null()
+      real(ireals) :: max_height, global_max_height
+
+      integer(mpiint) :: comm, ierr
+      integer(iintegers) :: k,i,j
+      integer(iintegers) :: kk,ii,jj
+      logical :: lflg
+
+      max_height = zero
+
+      call DMCreateLocalVector(C_hhl%da, vhhl, ierr) ;call CHKERR(ierr)
+      call getVecPointer(vhhl, C_hhl%da, hhl1d, hhl)
+
+      do j = C_hhl%ys, C_hhl%ye
+        jj = i1 + j - C_hhl%ys
+        do i = C_hhl%xs, C_hhl%xe
+          ii = i1 + i - C_hhl%xs
+
+          hhl(i0, C_hhl%zs, i, j ) = zero
+          do k = C_hhl%zs, C_hhl%ze-1
+            kk = i1 + k - C_hhl%zs
+            hhl(i0,k+1,i,j) = hhl(i0,k,i,j) - dz(kk,ii,jj)
+            max_height = min(max_height, hhl(i0,k+1,i,j))
+          enddo
+        enddo
+      enddo
+
+      call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_global_max_height", &
+        global_max_height, lflg , ierr) ;call CHKERR(ierr)
+      if(.not.lflg) then
+        call PetscObjectGetComm(C_hhl%da, comm, ierr); call CHKERR(ierr)
+        call imp_allreduce_min(comm, max_height, global_max_height)
+      endif
+      hhl(i0, :, :, :) = hhl(i0, :, :, :) - global_max_height
+
+      call restoreVecPointer(vhhl, hhl1d, hhl)
+
+      call DMLocalToLocalBegin(C_hhl%da, vhhl, INSERT_VALUES, vhhl,ierr) ;call CHKERR(ierr)
+      call DMLocalToLocalEnd(C_hhl%da, vhhl, INSERT_VALUES, vhhl,ierr) ;call CHKERR(ierr)
+
+      call PetscObjectViewFromOptions(vhhl, PETSC_NULL_VEC, "-pprts_show_hhl", ierr); call CHKERR(ierr)
     end subroutine
 
     !> @brief initialize basic memory structs like PETSc vectors and matrices
@@ -502,9 +612,9 @@ module m_pprts
       logical :: lchanged_theta, lchanged_phi
 
       if(.not.solver%linitialized) then
-          print *,solver%myid,'You tried to set angles in the PPRTS solver.  &
-              & This should be called right after init_pprts'
-          ierr=1; call CHKERR(ierr)
+        print *,solver%myid,'You tried to set angles in the PPRTS solver.  &
+          & This should be called right after init_pprts'
+        ierr=1; call CHKERR(ierr)
       endif
 
       lchanged_theta = .True.
@@ -1780,7 +1890,7 @@ module m_pprts
       if(ldebug) call mat_info(solver%comm, solver%Mdir)
 
       call PetscLogEventBegin(solver%logs%solve_Mdir, ierr)
-      call setup_ksp(solver%atm, solver%ksp_solar_dir, C_dir, solver%Mdir, "solar_dir_")
+      call setup_ksp(solver, solver%ksp_solar_dir, C_dir, solver%Mdir, "solar_dir_")
       call solve(solver, &
         solver%ksp_solar_dir, &
         solver%incSolar, &
@@ -1817,7 +1927,7 @@ module m_pprts
 
       call PetscLogEventBegin(solver%logs%solve_Mdiff, ierr)
       if( solutions(uid)%lsolar_rad ) then
-        call setup_ksp(solver%atm, solver%ksp_solar_diff, C_diff, Mdiff, "solar_diff_")
+        call setup_ksp(solver, solver%ksp_solar_diff, C_diff, Mdiff, "solar_diff_")
         call solve(solver, &
           solver%ksp_solar_diff, &
           solver%b, &
@@ -1825,7 +1935,7 @@ module m_pprts
           solutions(uid)%Niter_diff, &
           solutions(uid)%diff_ksp_residual_history)
       else
-        call setup_ksp(solver%atm, solver%ksp_thermal_diff, C_diff, Mdiff, "thermal_diff_")
+        call setup_ksp(solver, solver%ksp_thermal_diff, C_diff, Mdiff, "thermal_diff_")
         call solve(solver, &
           solver%ksp_thermal_diff, &
           solver%b, &
@@ -2409,8 +2519,8 @@ end subroutine
 !> @details default KSP solver is a FGMRES with BJCAOBI // ILU(1)
 !> \n -- the default does however not scale well -- and we configure petsc solvers per commandline anyway
 !> \n -- see documentation for details on how to do so
-subroutine setup_ksp(atm, ksp, C, A, prefix)
-  type(t_atmosphere) :: atm
+subroutine setup_ksp(solver, ksp, C, A, prefix)
+  class(t_solver) :: solver
   type(tKSP), intent(inout), allocatable :: ksp
   type(t_coord) :: C
   type(tMat) :: A
@@ -2428,25 +2538,24 @@ subroutine setup_ksp(atm, ksp, C, A, prefix)
 
   real(ireals) :: atol
 
-  logical,parameter :: lset_geometry=.True.  ! this may be necessary in order to use geometric multigrid
-! logical,parameter :: lset_geometry=.False.  ! this may be necessary in order to use geometric multigrid
-! logical,parameter :: lset_nullspace=.True. ! set constant nullspace?
   logical,parameter :: lset_nullspace=.False. ! set constant nullspace?
 
   linit = allocated(ksp)
   if(linit) return
+
+  call set_dmda_cell_coordinates(solver, solver%atm, C%da, ierr); call CHKERR(ierr)
 
   call mpi_comm_rank(C%comm, myid, ierr)     ; call CHKERR(ierr)
   call mpi_comm_size(C%comm, numnodes, ierr) ; call CHKERR(ierr)
 
   call imp_allreduce_min(C%comm, &
     rel_atol * real(C%dof*C%glob_xm*C%glob_ym*C%glob_zm, ireals) &
-    * count(.not.atm%l1d)/real(size(atm%l1d), ireals), atol)
+    * count(.not.solver%atm%l1d)/real(size(solver%atm%l1d), ireals), atol)
   atol = max(1e-8_ireals, atol)
 
   if(myid.eq.0.and.ldebug) &
     print *,'Setup KSP -- tolerances:',rtol,atol,&
-      '::',rel_atol,(C%dof*C%glob_xm*C%glob_ym*C%glob_zm),count(.not.atm%l1d),one*size(atm%l1d)
+      '::',rel_atol,(C%dof*C%glob_xm*C%glob_ym*C%glob_zm),count(.not.solver%atm%l1d),one*size(solver%atm%l1d)
 
   allocate(ksp)
   call KSPCreate(C%comm,ksp,ierr) ;call CHKERR(ierr)
@@ -2471,24 +2580,6 @@ subroutine setup_ksp(atm, ksp, C, A, prefix)
 
   call KSPSetUp(ksp,ierr) ;call CHKERR(ierr)
 
-  !if(numnodes.eq.0) then
-  !  call PCFactorSetLevels(prec,ilu_default_levels,ierr);call CHKERR(ierr)
-  !else
-  !  call PCBJacobiGetSubKSP(prec,pcbjac_n_local,pcbjac_iglob,PETSC_NULL_KSP,ierr);call CHKERR(ierr)
-  !  if(.not.allocated(pcbjac_ksps)) allocate(pcbjac_ksps(pcbjac_n_local))
-  !  call PCBJacobiGetSubKSP(prec,pcbjac_n_local,pcbjac_iglob,pcbjac_ksps,ierr);call CHKERR(ierr)
-
-  !  do isub=1,pcbjac_n_local
-  !    call KSPSetType(pcbjac_ksps(isub) ,KSPPREONLY,ierr)              ;call CHKERR(ierr)
-  !    call KSPGetPC  (pcbjac_ksps(isub), pcbjac_sub_pc,ierr)        ;call CHKERR(ierr)
-  !    call PCSetType (pcbjac_sub_pc, PCILU,ierr)                    ;call CHKERR(ierr)
-  !    call PCFactorSetLevels(pcbjac_sub_pc,ilu_default_levels,ierr) ;call CHKERR(ierr)
-  !  enddo
-
-  !endif
-
-  if(lset_geometry) call set_coordinates(atm, C,ierr);call CHKERR(ierr)
-
   if(lset_nullspace) then
     call MatNullSpaceCreate( C%comm, PETSC_TRUE, i0, nullvecs, nullspace, ierr) ; call CHKERR(ierr)
     call MatSetNearNullSpace(A, nullspace, ierr);call CHKERR(ierr)
@@ -2499,45 +2590,6 @@ subroutine setup_ksp(atm, ksp, C, A, prefix)
   linit = .True.
   if(myid.eq.0.and.ldebug) print *,'Setup KSP done'
 
-  contains
-    !> @brief define physical coordinates for DMDA to allow for geometric multigrid
-    subroutine set_coordinates(atm, C,ierr)
-      type(t_atmosphere) :: atm
-      type(t_coord) :: C
-      PetscErrorCode,intent(out) :: ierr
-
-      Vec :: coordinates
-      PetscReal,pointer,dimension(:,:,:,:) :: xv  =>null()
-      PetscReal,pointer,dimension(:)       :: xv1d=>null()
-
-      DM  :: coordDA
-      integer(iintegers) :: mstart,nstart,pstart,m,n,p, i,j,k
-
-      call DMDASetUniformCoordinates(C%da, zero, one, &
-        zero, atm%dx * real(C%glob_xm, ireals), &
-        zero, atm%dy * real(C%glob_ym, ireals), ierr );call CHKERR(ierr)
-      call DMGetCoordinateDM(C%da,coordDA,ierr);call CHKERR(ierr)
-      call DMGetCoordinates(C%da, coordinates,ierr);call CHKERR(ierr)
-
-      call DMDAGetCorners(coordDA, mstart,nstart,pstart,m,n,p,ierr);call CHKERR(ierr)
-      !print *,'coordinates',C%xs,C%xe,mstart,nstart,pstart,m,n,p
-
-      call VecGetArrayF90(coordinates,xv1d,ierr) ;call CHKERR(ierr)
-      xv(0:2 , mstart:mstart+m-1  , nstart:nstart+n-1   , pstart:pstart+p-1   ) => xv1d
-
-      xv(0,mstart+m-1,:,:) = zero ! surface boundary condition
-      do k=pstart,pstart+p-1
-        do j=nstart,nstart+n-1
-          do i=mstart+m-2, mstart, -1
-            xv(0,i,j,k) = xv(0,i+1,j,k) + atm%dz(atmk(atm, i),j,k)
-          enddo
-        enddo
-      enddo
-
-      xv => null()
-      call VecRestoreArrayF90(coordinates,xv1d,ierr) ;call CHKERR(ierr)
-      xv1d => null()
-    end subroutine
   end subroutine
 
 
