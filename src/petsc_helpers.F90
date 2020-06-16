@@ -16,7 +16,8 @@ module m_petsc_helpers
     getVecPointer, restoreVecPointer, &
     dmda_convolve_ediff_srfc, &
     hegedus_trick, &
-    gen_shared_subcomm, gen_shared_scatter_ctx
+    gen_shared_subcomm, gen_shared_scatter_ctx, &
+    is_local_vec
 
   interface f90VecToPetsc
     module procedure f90VecToPetsc_3d, f90VecToPetsc_4d
@@ -683,5 +684,19 @@ contains
     call ISCreateStride(PETSC_COMM_SELF, Nlocal, 0_iintegers, 1_iintegers, is, ierr); call CHKERR(ierr)
     call VecScatterCreate(gvec, is, svec, is, ctx, ierr); call CHKERR(ierr)
     call ISDestroy(is, ierr); call CHKERR(ierr)
+  end subroutine
+
+  subroutine is_local_vec(da, vec, is_local, ierr)
+    type(tDM), intent(in) :: da
+    type(tVec), intent(in) :: vec
+    logical, intent(out) :: is_local
+    integer(mpiint), intent(out) :: ierr
+
+    integer(iintegers) :: vsize, ncx, ncy, ncz, numCells
+
+    call VecGetLocalSize(vec, vsize, ierr); call CHKERR(ierr)
+    call DMDAGetNumCells(da, ncx, ncy, ncz, numCells, ierr); call CHKERR(ierr)
+
+    is_local = vsize.eq.numCells
   end subroutine
 end module
