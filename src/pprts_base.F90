@@ -6,8 +6,9 @@ module m_pprts_base
     zero, one, i0, i1, i2, i3, i4, i5, i6, i7, i8, i10, pi, &
     default_str_len
 
-  use m_helper_functions, only : CHKWARN, CHKERR, get_arg, itoa, ltoa, ftoa, cstr, deallocate_allocatable
-  use m_petsc_helpers, only: getvecpointer, restorevecpointer
+  use m_helper_functions, only : CHKWARN, CHKERR, &
+    get_arg, itoa, ltoa, ftoa, cstr, deallocate_allocatable
+  use m_petsc_helpers, only: getvecpointer, restorevecpointer, is_local_vec
 
   use m_optprop, only: t_optprop_cube
 
@@ -23,7 +24,9 @@ module m_pprts_base
     compute_gradient, atmk, &
     prepare_solution, destroy_solution, print_solution, &
     destroy_pprts, &
-    allocate_pprts_solver_from_commandline
+    allocate_pprts_solver_from_commandline, &
+    set_dmda_cell_coordinates, &
+    interpolate_cell_values_to_vertices
 
   type t_coord
     integer(iintegers)      :: xs,xe                   ! local domain start and end indices
@@ -53,6 +56,7 @@ module m_pprts_base
     real(ireals)                                 :: dx,dy
     integer(iintegers)                           :: icollapse=1
     logical                                      :: lcollapse = .False.
+    type(tVec),allocatable                       :: hhl   ! vertical level heights, local vec on C_one_atm1_box
     type(tVec),allocatable                       :: hgrad ! horizontal gradient of heights, C_two1
   end type
 
@@ -126,8 +130,10 @@ module m_pprts_base
   type, abstract :: t_solver
     character(len=default_str_len)     :: solvername='' ! name to prefix e.g. log stages. If you create more than one solver, make sure that it has a unique name
     integer(mpiint)                    :: comm, myid, numnodes     ! mpi communicator, my rank and number of ranks in comm
-    type(t_coord), allocatable         :: C_dir, C_diff, C_one, C_one1, C_one_atm, C_one_atm1
+    type(t_coord), allocatable         :: C_dir, C_diff, C_one, C_one1
+    type(t_coord), allocatable         :: C_one_atm, C_one_atm1, C_one_atm1_box
     type(t_coord), allocatable         :: C_two1
+    type(t_coord), allocatable         :: Cvert_one_atm1
     type(t_atmosphere),allocatable     :: atm
     type(t_suninfo)                    :: sun
     type(tMat),allocatable             :: Mdir,Mdiff
@@ -412,13 +418,14 @@ module m_pprts_base
 
       if(allocated(solver%OPP)) call solver%OPP%destroy()
 
-      call destroy_coord(solver%C_dir     )
-      call destroy_coord(solver%C_diff    )
-      call destroy_coord(solver%C_one     )
-      call destroy_coord(solver%C_one1    )
-      call destroy_coord(solver%C_two1    )
-      call destroy_coord(solver%C_one_atm )
-      call destroy_coord(solver%C_one_atm1)
+      call destroy_coord(solver%C_dir         )
+      call destroy_coord(solver%C_diff        )
+      call destroy_coord(solver%C_one         )
+      call destroy_coord(solver%C_one1        )
+      call destroy_coord(solver%C_two1        )
+      call destroy_coord(solver%C_one_atm     )
+      call destroy_coord(solver%C_one_atm1    )
+      call destroy_coord(solver%C_one_atm1_box)
 
       call deallocate_allocatable(solver%difftop%is_inward)
       call deallocate_allocatable(solver%diffside%is_inward)
@@ -441,15 +448,64 @@ module m_pprts_base
     call deallocate_allocatable(solver%Mdiff)
   end subroutine
 
-  !> @brief compute gradient from dz3d
-  !> @details integrate dz3d from to top of atmosphere to bottom.
-  !>   \n then build horizontal gradient of height information
+  !> @brief define physical coordinates for DMDA to allow for geometric multigrid
+  subroutine set_dmda_cell_coordinates(solver, atm, da, ierr)
+  class(t_solver), intent(in) :: solver
+    type(t_atmosphere), intent(in) :: atm
+    type(tDM), intent(inout) :: da
+    integer(mpiint), intent(out) :: ierr
+
+    type(tVec) :: coordinates
+    real(ireals), pointer, dimension(:,:,:,:) :: xv  =>null()
+    real(ireals), pointer, dimension(:)       :: xv1d=>null()
+
+    type(tDM) :: coordDA
+    integer(iintegers) :: zs,zm, xs,xm, ys,ym, k,i,j
+
+    real(ireals), pointer :: hhl(:,:,:,:)=>null(), hhl1d(:)=>null()
+
+    call DMGetCoordinatesLocal(da, coordinates, ierr); call CHKERR(ierr)
+    if(coordinates.ne.PETSC_NULL_VEC) return
+
+    if(.not.allocated(solver%atm%hhl)) &
+      & call CHKERR(1_mpiint, 'solver%atm%hhl has to be allocated')
+
+    call DMDASetUniformCoordinates(da, &
+      zero, one, &
+      zero, one, &
+      zero, one, ierr );call CHKERR(ierr)
+    call DMGetCoordinateDM(da, coordDA, ierr); call CHKERR(ierr)
+    call DMDAGetGhostCorners(coordDA, zs, xs, ys, zm, xm, ym, ierr); call CHKERR(ierr)
+
+    call DMGetCoordinatesLocal(da, coordinates, ierr); call CHKERR(ierr)
+    call VecGetArrayF90(coordinates, xv1d, ierr); call CHKERR(ierr)
+    xv(0:2, zs:zs+zm-1 ,xs:xs+xm-1 ,ys:ys+ym-1) => xv1d
+
+    call getVecPointer(atm%hhl, solver%C_one_atm1_box%da, hhl1d, hhl)
+    do j = ys, ys+ym-1
+      do i = xs, xs+xm-1
+        do k = zs, zs+zm-1
+          xv(i0,k,i,j) = hhl(i0, atmk(solver%atm,k), i, j)
+          xv(i1,k,i,j) = (real(i, ireals) + 0.5_ireals) * atm%dx
+          xv(i2,k,i,j) = (real(j, ireals) + 0.5_ireals) * atm%dy
+        enddo
+      enddo
+    enddo
+    nullify(xv)
+    call restoreVecPointer(atm%hhl, hhl1d, hhl)
+    call VecRestoreArrayF90(coordinates,xv1d,ierr) ;call CHKERR(ierr)
+
+    call PetscObjectViewFromOptions(coordinates, PETSC_NULL_VEC, "-pprts_show_coordinates", ierr); call CHKERR(ierr)
+  end subroutine
+
+
+  !> @brief compute horizontal gradient from dz3d
+  !> @details build horizontal gradient of height information, i.e. [dz/dx, dz/dy]
   subroutine compute_gradient(atm, C_one1, C_two1, vgrad)
     type(t_atmosphere),intent(in) :: atm
     type(t_coord), intent(in) :: C_one1, C_two1
     type(tVec), allocatable :: vgrad
 
-    type(tVec) :: vhhl
     real(ireals),Pointer :: hhl(:,:,:,:)=>null(), hhl1d(:)=>null()
     real(ireals),Pointer :: grad(:,:,:,:)=>null(), grad_1d(:)=>null()
 
@@ -466,58 +522,89 @@ module m_pprts_base
       call DMCreateLocalVector(C_two1%da, vgrad, ierr) ;call CHKERR(ierr)
     endif
 
-    call DMGetLocalVector(C_one1%da, vhhl, ierr) ;call CHKERR(ierr)
-    call getVecPointer(vhhl, C_one1%da, hhl1d, hhl)
-    do j=C_one1%ys,C_one1%ye
-      do i=C_one1%xs,C_one1%xe
-        hhl(i0, C_one1%zs, i, j ) = zero
-
-        do k=C_one1%zs,C_one1%ze-1
-          hhl(i0,k+1,i,j) = hhl(i0,k,i,j)-atm%dz(atmk(atm, k),i,j)
-        enddo
-      enddo
-    enddo
-    call restoreVecPointer(vhhl, hhl1d, hhl)
-
-    call DMLocalToLocalBegin(C_one1%da, vhhl, INSERT_VALUES, vhhl,ierr) ;call CHKERR(ierr)
-    call DMLocalToLocalEnd(C_one1%da, vhhl, INSERT_VALUES, vhhl,ierr) ;call CHKERR(ierr)
-
-    call getVecPointer(vhhl , C_one1%da, hhl1d, hhl)
+    call getVecPointer(atm%hhl , C_one1%da, hhl1d, hhl)
     call getVecPointer(vgrad, C_two1%da, grad_1d, grad)
 
     do j=C_two1%ys,C_two1%ye
       do i=C_two1%xs,C_two1%xe
-        do k=C_two1%zs,C_two1%ze-1
+        do k=C_two1%zs,C_two1%ze
           ! Mean heights of adjacent columns
-          zm(1) = (hhl(i0,k,i-1,j) + hhl(i0,k+1,i-1,j)) / 2
-          zm(2) = (hhl(i0,k,i+1,j) + hhl(i0,k+1,i+1,j)) / 2
+          zm(1) = hhl(i0,k,i-1,j)
+          zm(2) = hhl(i0,k,i+1,j)
 
-          zm(3) = (hhl(i0,k,i,j-1) + hhl(i0,k+1,i,j-1)) / 2
-          zm(4) = (hhl(i0,k,i,j+1) + hhl(i0,k+1,i,j+1)) / 2
+          zm(3) = hhl(i0,k,i,j-1)
+          zm(4) = hhl(i0,k,i,j+1)
 
           ! Gradient of height field
           grad(i0, k, i, j) = (zm(2)-zm(1)) / (2._ireals*atm%dx)
           grad(i1, k, i, j) = (zm(4)-zm(3)) / (2._ireals*atm%dy)
-          !print *,k,i,j,'zm', zm,'::', grad(:, k, i, j)
-          if(grad(i0, k, i, j).gt.epsilon(one)) call CHKERR(1_mpiint, 'DEBUG')
         enddo
-        zm(1) = hhl(i0, C_two1%ze, i-1, j)
-        zm(2) = hhl(i0, C_two1%ze, i+1, j)
-        zm(3) = hhl(i0, C_two1%ze, i, j-1)
-        zm(4) = hhl(i0, C_two1%ze, i, j+1)
-        ! Gradient of height field
-        grad(i0, C_two1%ze, i, j) = (zm(2)-zm(1)) / (2._ireals*atm%dx)
-        grad(i1, C_two1%ze, i, j) = (zm(4)-zm(3)) / (2._ireals*atm%dy)
-        !print *,k,i,j,'zm', zm,'::', grad_x(:, C_two1%ze, i, j)
       enddo
     enddo
 
-    call restoreVecPointer(vhhl, hhl1d, hhl)
-    call DMRestoreLocalVector(C_one1%da ,vhhl ,ierr);  call CHKERR(ierr)
+    call restoreVecPointer(atm%hhl, hhl1d, hhl)
 
     call restoreVecPointer(vgrad, grad_1d, grad)
 
     call PetscObjectViewFromOptions(vgrad, PETSC_NULL_VEC, "-pprts_show_grad", ierr); call CHKERR(ierr)
+  end subroutine
+
+  !> @brief horizontally interpolate/average cell values onto vertices
+  !> @details averages the 4 adjacent cell values onto a vertex.
+  !>          C_cells should be a box stencil da
+  !>          dof on C_cells has to be the same as on C_verts
+  !>          and C_verts has to have Nz, Nx+1 and Ny+1 entries
+  subroutine interpolate_cell_values_to_vertices(C_cells, cell_vals, C_verts, vert_vals)
+    type(tVec), intent(in)    :: cell_vals
+    type(t_coord), intent(in) :: C_cells
+    type(t_coord), intent(in) :: C_verts
+    type(tVec), intent(inout) :: vert_vals
+
+    type(tVec) :: vcells
+    real(ireals), pointer :: xc(:,:,:,:)=>null(), xc1d(:)=>null()
+    real(ireals), pointer :: xv(:,:,:,:)=>null(), xv1d(:)=>null()
+    integer(iintegers) :: k,i,j
+    logical :: is_local
+    integer(mpiint) :: ierr
+
+    call CHKERR(int(C_cells%glob_xm-C_verts%glob_xm+i1, mpiint), &
+      & 'nonconforming size: cells/verts %xe '//itoa(C_cells%glob_xm)//' '//itoa(C_verts%glob_xm))
+    call CHKERR(int(C_cells%glob_ym-C_verts%glob_ym+i1, mpiint), &
+      & 'nonconforming size: cells/verts %ye '//itoa(C_cells%glob_ym)//' '//itoa(C_verts%glob_ym))
+    call CHKERR(int(C_cells%ze-C_verts%ze, mpiint), &
+      & 'nonconforming size: cells/verts %ze '//itoa(C_cells%ze)//' '//itoa(C_verts%ze))
+
+    call CHKERR(int(C_cells%dof-C_verts%dof, mpiint), &
+      & 'nonconforming size: cells/verts %dof '//itoa(C_cells%dof)//' '//itoa(C_verts%dof))
+
+
+    call is_local_vec(C_cells%da, cell_vals, is_local, ierr); call CHKERR(ierr)
+    if(is_local) then
+      vcells = cell_vals
+    else
+      call DMGetLocalVector(C_cells%da, vcells, ierr); call CHKERR(ierr)
+      call DMGlobalToLocalBegin(C_cells%da, cell_vals, INSERT_VALUES, vcells,ierr) ;call CHKERR(ierr)
+      call DMGlobalToLocalEnd(C_cells%da, cell_vals, INSERT_VALUES, vcells,ierr) ;call CHKERR(ierr)
+    endif
+
+    call getVecPointer(vcells, C_cells%da, xc1d, xc)
+    call getVecPointer(vert_vals, C_verts%da, xv1d, xv)
+
+    do j=C_verts%ys,C_verts%ye
+      do i=C_verts%xs,C_verts%xe
+        do k=C_verts%zs,C_verts%ze
+          xv(:,k,i,j) = ( xc(:,k,i-1,j-1) + xc(:,k,i,j-1) &
+                      & + xc(:,k,i-1,j)   + xc(:,k,i,j)   ) * .25_ireals
+        enddo
+      enddo
+    enddo
+
+    call restoreVecPointer(vert_vals, xv1d, xv)
+    call restoreVecPointer(vcells, xc1d, xc)
+
+    if(.not.is_local) then
+      call DMRestoreLocalVector(C_cells%da, vcells, ierr); call CHKERR(ierr)
+    endif
   end subroutine
 
   pure function atmk(atm, k) ! return vertical index value for DMDA grid on atmosphere grid
