@@ -210,6 +210,7 @@ program main
 #include "petsc/finclude/petsc.h"
   use petsc
   use mpi
+  use m_tenstream_options, only: read_commandline_options
   use m_data_parameters, only : iintegers, mpiint, ireals
   use m_example_pprts_rrtm_lw_sw, only: example_rrtm_lw_sw
 
@@ -224,6 +225,8 @@ program main
   call mpi_comm_rank(mpi_comm_world, myid, ierr)
 
   call PetscInitialize(PETSC_NULL_CHARACTER ,ierr)
+
+  call read_commandline_options(PETSC_COMM_WORLD)
 
   Nx=3; Ny=3; Nz=5
   call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Nx", Nx, lflg, ierr)

@@ -134,6 +134,7 @@ module m_pprts_base
     type(t_coord), allocatable         :: C_one_atm, C_one_atm1, C_one_atm1_box
     type(t_coord), allocatable         :: C_two1
     type(t_coord), allocatable         :: Cvert_one_atm1
+    type(t_coord), allocatable         :: Csrfc_one
     type(t_atmosphere),allocatable     :: atm
     type(t_suninfo)                    :: sun
     type(tMat),allocatable             :: Mdir,Mdiff
@@ -426,6 +427,8 @@ module m_pprts_base
       call destroy_coord(solver%C_one_atm     )
       call destroy_coord(solver%C_one_atm1    )
       call destroy_coord(solver%C_one_atm1_box)
+      call destroy_coord(solver%Cvert_one_atm1)
+      call destroy_coord(solver%Csrfc_one     )
 
       call deallocate_allocatable(solver%difftop%is_inward)
       call deallocate_allocatable(solver%diffside%is_inward)
