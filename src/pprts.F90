@@ -55,7 +55,7 @@ module m_pprts
     t_dof, t_solver_log_events, setup_log_events, &
     set_dmda_cell_coordinates
 
-  use m_pprts_external_solvers, only: twostream, schwarz
+  use m_pprts_external_solvers, only: twostream, schwarz, pprts_rayli_wrapper
 
   implicit none
   private
@@ -405,6 +405,9 @@ module m_pprts
         & i1, nxproc,nyproc)
       call setup_dmda(solver%comm, solver%C_one_atm1_box, Nz_in+1, Nx,Ny, boundaries, &
         & i1, nxproc,nyproc, DMDA_STENCIL_BOX)
+
+      call setup_dmda(solver%comm, solver%Csrfc_one, i1, Nx,Ny, boundaries, &
+        & i1, nxproc,nyproc)
 
       if(present(nxproc)) then
         allocate(nxprocp1(size(nxproc)), nyprocp1(size(nyproc)))
@@ -1810,6 +1813,7 @@ module m_pprts
     integer(iintegers) :: uid
     logical            :: lsolar
     logical            :: lskip_diffuse_solve, lflg
+    logical            :: luse_rayli
 
     associate(  solutions => solver%solutions, &
                 C_dir     => solver%C_dir,     &
@@ -1839,6 +1843,15 @@ module m_pprts
       call VecSet(solutions(uid)%ediff, zero, ierr); call CHKERR(ierr)
       solutions(uid)%lchanged=.True.
       goto 99 ! quick exit
+    endif
+
+    ! --------- Calculate Radiative Transfer with RayLi ------------
+    luse_rayli = .False.
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+      "-pprts_use_rayli", luse_rayli, lflg,ierr) ; call CHKERR(ierr)
+    if(luse_rayli) then
+      call pprts_rayli_wrapper(solver, edirTOA, solutions(uid))
+      goto 99
     endif
 
     ! --------- Calculate 1D Radiative Transfer ------------
@@ -2148,7 +2161,7 @@ module m_pprts
     if( .not. solution%lset ) call CHKERR(1_mpiint, 'cant restore solution that was not initialized')
     if( .not. allocated(solution%abso) ) call CHKERR(1_mpiint, 'cant restore solution that was not initialized')
 
-    if( .not. solution%lchanged ) call CHKERR(1_mpiint, 'cant restore solution which was not changed')
+    if( .not. solution%lchanged ) return
 
     if(present(time) .and. solver%lenable_solutions_err_estimates) then ! Create working vec to determine difference between old and new absorption vec
       call DMGetGlobalVector(solver%C_one%da, abso_old, ierr) ; call CHKERR(ierr)

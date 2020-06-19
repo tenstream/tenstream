@@ -227,7 +227,7 @@ module m_plex2rayli
   !> @details solve the radiative transfer equation with RayLi, currently only works for single task mpi runs
   subroutine rayli_wrapper(plex, kabs, ksca, g, albedo, sundir, solution, plck)
     use iso_c_binding
-    type(t_plexgrid), intent(inout) :: plex
+    type(t_plexgrid), intent(in) :: plex
     type(tVec), intent(in) :: kabs, ksca, g, albedo
     type(tVec), intent(in), optional :: plck
     real(ireals), intent(in) :: sundir(:)
@@ -250,22 +250,24 @@ module m_plex2rayli
     integer(c_size_t), allocatable :: verts_of_face(:,:)
     integer(c_size_t), allocatable :: faces_of_wedges(:,:)
     real(c_double),    allocatable :: vert_coords(:,:)
-    real(c_float),    allocatable :: rkabs(:), rksca(:), rg(:)
-    real(c_float),    allocatable :: ralbedo_on_faces(:)
-    real(c_float)                 :: rsundir(3)
-    real(c_float),    allocatable :: flx_through_faces_edir(:)
-    real(c_float),    allocatable :: flx_through_faces_ediff(:)
-    real(c_float),    allocatable :: abso_in_cells(:)
+    real(c_float),     allocatable :: rkabs(:), rksca(:), rg(:)
+    real(c_float),     allocatable :: ralbedo_on_faces(:)
+    real(c_float)                  :: rsundir(3)
+    real(c_float),     allocatable :: flx_through_faces_edir(:)
+    real(c_float),     allocatable :: flx_through_faces_ediff(:)
+    real(c_float),     allocatable :: abso_in_cells(:)
 
     real(ireals) :: diffuse_point_origin(3)
     integer(c_size_t) :: Nphotons, Nwedges, Nfaces, Nverts
+    integer(iintegers) :: opt_photons_int
     real(ireals) :: opt_photons
 
     integer(c_size_t) :: outer_id
     logical :: lcyclic, lflg
     integer(c_int) :: icyclic
 
-    opt_photons = 100000
+    call VecGetSize(albedo, opt_photons_int, ierr); call CHKERR(ierr)
+    opt_photons = real(opt_photons_int, ireals) * 1e1_ireals
     call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
       "-rayli_photons", opt_photons, lflg,ierr) ; call CHKERR(ierr)
     Nphotons = int(opt_photons, c_size_t)
@@ -373,13 +375,12 @@ module m_plex2rayli
     rsundir = real(-sundir, kind(rsundir))
 
     call take_snap(comm, &
-      Nphotons, Nwedges, Nfaces, Nverts, &
+      Nwedges, Nfaces, Nverts, &
       verts_of_face, faces_of_wedges, vert_coords, &
       rkabs, rksca, rg, &
       ralbedo_on_faces, &
       rsundir, &
       solution, ierr)
-    if(ierr.eq.1) return
 
     ierr = rfft_wedgeF90(Nphotons, Nwedges, Nfaces, Nverts, icyclic, &
       verts_of_face, faces_of_wedges, vert_coords, &
@@ -406,7 +407,7 @@ module m_plex2rayli
         flx_through_faces_ediff, &
         abso_in_cells, &
         solution)
-      type(t_plexgrid), intent(inout) :: plex
+      type(t_plexgrid), intent(in) :: plex
       real(c_float), intent(in) :: flx_through_faces_edir(:)
       real(c_float), intent(in) :: flx_through_faces_ediff(:)
       real(c_float), intent(in) :: abso_in_cells(:)
@@ -426,7 +427,7 @@ module m_plex2rayli
       call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
       ! --------------------------- Direct Radiation ------------------
-      call DMPlexGetDepthStratum(plex%dm, i2, ofStart, ofEnd, ierr); call CHKERR(ierr) ! vertices
+      call DMPlexGetDepthStratum(plex%dm, i2, ofStart, ofEnd, ierr); call CHKERR(ierr)
       if(solution%lsolar_rad) then
         call DMGetSection(plex%edir_dm, edir_section, ierr); call CHKERR(ierr)
         call VecGetArrayF90(solution%edir, xedir, ierr); call CHKERR(ierr)
@@ -495,7 +496,7 @@ module m_plex2rayli
     end subroutine
 
     subroutine fill_albedo(plex, albedo, ralbedo_on_faces)
-      type(t_plexgrid), intent(inout) :: plex
+      type(t_plexgrid), intent(in) :: plex
       type(tVec), intent(in) :: albedo
       real(c_float), intent(out) :: ralbedo_on_faces(:)
 
@@ -521,14 +522,14 @@ module m_plex2rayli
     end subroutine
 
     subroutine take_snap(comm, &
-        Nphotons, Nwedges, Nfaces, Nverts, &
+        Nwedges, Nfaces, Nverts, &
         verts_of_face, faces_of_wedges, vert_coords, &
         rkabs, rksca, rg, &
         ralbedo_on_faces, &
         rsundir, &
         solution, ierr)
       integer(mpiint),   intent(in) :: comm
-      integer(c_size_t), intent(in) :: Nphotons, Nwedges, Nfaces, Nverts
+      integer(c_size_t), intent(in) :: Nwedges, Nfaces, Nverts
       integer(c_size_t), intent(in) :: verts_of_face(:,:)
       integer(c_size_t), intent(in) :: faces_of_wedges(:,:)
       real(c_double),    intent(in) :: vert_coords(:,:)
@@ -540,6 +541,8 @@ module m_plex2rayli
 
       character(len=default_str_len) :: snap_path, groups(2)
       logical :: lflg
+      real(ireals) :: opt_photons
+      integer(c_size_t) :: opt_photons_int
       integer(c_size_t) :: Nx=400, Ny=300
       real(c_float), allocatable :: img(:,:)
       real(c_float) :: cam_loc(3), cam_viewing_dir(3), cam_up_vec(3)
@@ -557,6 +560,7 @@ module m_plex2rayli
       if(lflg) then
         if(len_trim(snap_path).eq.0) snap_path = 'rayli_snaphots.nc'
         if(myid.eq.0) print *,'Capturing scene to file: '//trim(snap_path), len_trim(snap_path)
+
         Nx = 400
         call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,&
           '-rayli_snap_Nx', narg, lflg, ierr); call CHKERR(ierr)
@@ -566,6 +570,11 @@ module m_plex2rayli
         call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,&
           '-rayli_snap_Ny', narg, lflg, ierr); call CHKERR(ierr)
         if(lflg) Ny = narg
+
+        opt_photons = real(Nx*Ny*100_iintegers, ireals)
+        call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+          "-rayli_snap_photons", opt_photons, lflg,ierr) ; call CHKERR(ierr)
+        opt_photons_int = int(opt_photons, c_size_t)
 
         allocate(img(Nx, Ny))
 
@@ -611,7 +620,7 @@ module m_plex2rayli
         fov_height = fov_width * real(Ny, c_float) / real(Nx, c_float)
 
         ierr = rpt_img_wedgeF90( Nx, Ny, &
-          Nphotons, Nwedges, Nfaces, Nverts, &
+          opt_photons_int, Nwedges, Nfaces, Nverts, &
           verts_of_face, faces_of_wedges, vert_coords, &
           rkabs, rksca, rg, &
           ralbedo_on_faces, &

@@ -1019,12 +1019,12 @@ module m_icon_plex_utils
       end subroutine
 
     ! Create a 2D Regular grid with Nx vertices horizontally and Ny rows of Vertices vertically
-    subroutine create_2d_regular_plex(comm, Nx, Ny, dm, dmdist, opt_migration_sf, opt_dx, lverbose)
+    subroutine create_2d_regular_plex(comm, Nx, Ny, dm, dmdist, opt_migration_sf, opt_dx, opt_dy,lverbose)
       integer(mpiint), intent(in) :: comm
       integer(iintegers), intent(in) :: Nx, Ny
       type(tDM), intent(out) :: dm, dmdist
       type(tPetscSF), intent(out), optional :: opt_migration_sf
-      real(ireals), intent(in), optional :: opt_dx
+      real(ireals), intent(in), optional :: opt_dx, opt_dy
       logical, intent(in), optional :: lverbose
 
       type(tPetscSF) :: migration_sf
@@ -1242,7 +1242,7 @@ module m_icon_plex_utils
           vert_per_row = Nx
 
           dx = get_arg(1._ireals, opt_dx)
-          dy = dx
+          dy = get_arg(dx, opt_dy)
           ds = sqrt(dy**2 - (dx/2)**2)
 
           if(ldebug) call mpi_barrier(comm, ierr)

@@ -20,7 +20,7 @@ module m_petsc_helpers
     is_local_vec
 
   interface f90VecToPetsc
-    module procedure f90VecToPetsc_3d, f90VecToPetsc_4d
+    module procedure f90VecToPetsc_2d, f90VecToPetsc_3d, f90VecToPetsc_4d
   end interface
   interface petscVecToF90
     module procedure petscVecToF90_3d, petscVecToF90_4d
@@ -257,6 +257,26 @@ contains
 
     call getVecPointer(vec, dm, x1d, x4d)
     x4d(i0,:,:,:) = arr
+    call restoreVecPointer(vec, x1d, x4d)
+
+    call VecGetLocalSize(vec, vecsize, ierr); call CHKERR(ierr)
+    if(vecsize.ne.size(arr)) then
+      print *,'f90VecToPetsc Vecsizes dont match! petsc:', vecsize, 'f90 arr', size(arr)
+      call CHKERR(1_mpiint, 'f90VecToPetsc Vecsizes dont match!')
+    endif
+  end subroutine
+  subroutine f90VecToPetsc_2d(arr, dm, vec)
+    real(ireals), intent(in)  :: arr(:,:)
+    type(tDM), intent(in)     :: dm
+    type(tVec), intent(inout) :: vec
+
+    integer(iintegers) :: vecsize
+    real(ireals),pointer :: x1d(:)=>null(),x4d(:,:,:,:)=>null()
+
+    integer(mpiint) :: ierr
+
+    call getVecPointer(vec, dm, x1d, x4d)
+    x4d(i0,i0,:,:) = arr
     call restoreVecPointer(vec, x1d, x4d)
 
     call VecGetLocalSize(vec, vecsize, ierr); call CHKERR(ierr)
@@ -672,18 +692,36 @@ contains
     call MPI_Info_free(mpinfo, ierr); call CHKERR(ierr)
   end subroutine
 
-  subroutine gen_shared_scatter_ctx(gvec, svec, ctx, ierr)
+  subroutine gen_shared_scatter_ctx(gvec, svec, ctx, ierr, opt_is_in, opt_is_out)
     type(tVec), intent(in) :: gvec, svec
     type(tVecScatter), intent(out) :: ctx
-    integer(mpiint) :: ierr
+    integer(mpiint), intent(out) :: ierr
+    type(tIS), intent(in), optional :: opt_is_in, opt_is_out
+    type(tIS) :: is_in, is_out
 
-    integer(iintegers) :: Nlocal
-    type(tIS) :: is
+    integer(iintegers) :: N_out
+    logical :: created_is_out
 
-    call VecGetSize(svec, Nlocal, ierr); call CHKERR(ierr)
-    call ISCreateStride(PETSC_COMM_SELF, Nlocal, 0_iintegers, 1_iintegers, is, ierr); call CHKERR(ierr)
-    call VecScatterCreate(gvec, is, svec, is, ctx, ierr); call CHKERR(ierr)
-    call ISDestroy(is, ierr); call CHKERR(ierr)
+    created_is_out = .False.
+
+    if(present(opt_is_out)) then
+      is_out = opt_is_out
+    else
+        call VecGetSize(svec, N_out, ierr); call CHKERR(ierr)
+        call ISCreateStride(PETSC_COMM_SELF, N_out, 0_iintegers, 1_iintegers, is_out, ierr); call CHKERR(ierr)
+        created_is_out = .True.
+    endif
+
+    if(present(opt_is_in)) then
+      is_in = opt_is_in
+    else
+      is_in = is_out
+    endif
+
+    call VecScatterCreate(gvec, is_in, svec, is_out, ctx, ierr); call CHKERR(ierr)
+    if(created_is_out) then
+      call ISDestroy(is_out, ierr); call CHKERR(ierr)
+    endif
   end subroutine
 
   subroutine is_local_vec(da, vec, is_local, ierr)
