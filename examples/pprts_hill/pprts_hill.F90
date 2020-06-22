@@ -42,7 +42,7 @@ contains
     integer(mpiint) :: numnodes, comm, myid, N_ranks_x, N_ranks_y, ierr
 
     real(ireals) :: phi0, theta0, theta              ! Sun's angles, azimuth phi(0=North, 90=East), zenith(0 high sun, 80=low sun)
-    real(ireals),parameter :: albedo_th=0, albedo_sol=.3 ! broadband ground albedo for solar and thermal spectrum
+    real(ireals),parameter :: albedo_th=0, albedo_sol=.12 ! broadband ground albedo for solar and thermal spectrum
 
     real(ireals), dimension(nzp+1,nxp,nyp), target :: plev ! pressure on layer interfaces [hPa]
     real(ireals), dimension(nzp+1,nxp,nyp), target :: tlev ! Temperature on layer interfaces [K]
@@ -85,6 +85,8 @@ contains
 
     integer(iintegers) :: solve_iterations, iter
     real(ireals) :: solve_iterations_scale
+    integer(iintegers) :: cld_width
+    real(ireals) :: cld_bot, cld_top
     logical :: lflg
     character(len=default_str_len) :: outpath(2)
 
@@ -141,11 +143,18 @@ contains
     icld = -1
     cld_lwc = 0e-2
     call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-lwc", cld_lwc, lflg, ierr)
+    cld_width = 5
+    call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-cld_width", cld_width, lflg, ierr)
+    cld_bot = 750._ireals
+    cld_top = 700._ireals
+    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-cld_bot", cld_bot, lflg, ierr)
+    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-cld_top", cld_top, lflg, ierr)
+
     do j=1,nyp
       jglob = j + nyp*myid
-      if( abs(jglob - (nyp*numnodes+1)/2).le. 2 ) then
-        icld(1) = nint(search_sorted_bisection(plev(:,1,j), 750._ireals))
-        icld(2) = nint(search_sorted_bisection(plev(:,1,j), 700._ireals))
+      if( abs(jglob - (nyp*numnodes+1)/2).le.cld_width) then
+        icld(1) = nint(search_sorted_bisection(plev(:,1,j), cld_bot))
+        icld(2) = nint(search_sorted_bisection(plev(:,1,j), cld_top))
 
         lwc  (icld(1):icld(2), :, j) = cld_lwc
       endif
