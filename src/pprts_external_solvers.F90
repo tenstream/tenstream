@@ -29,20 +29,20 @@ module m_pprts_external_solvers
     & gen_shared_subcomm, gen_shared_scatter_ctx
 
   use m_pprts_base, only : t_solver, &
-    & t_state_container, prepare_solution, &
+    & t_state_container, prepare_solution, destroy_solution, &
     & atmk, set_dmda_cell_coordinates, &
     & interpolate_cell_values_to_vertices
   use m_schwarzschild, only: schwarzschild, B_eff
   use m_twostream, only: delta_eddington_twostream, adding_delta_eddington_twostream
 
   use m_icon_plex_utils, only: create_2d_regular_plex, dmplex_2D_to_3D
-  use m_plex_grid, only: t_plexgrid, &
+  use m_plex_grid, only: t_plexgrid, destroy_plexgrid, &
     & setup_plexgrid, setup_edir_dmplex, setup_ediff_dmplex, setup_abso_dmplex
   use m_plex2rayli, only: rayli_wrapper
 
   implicit none
   private
-  public :: twostream, schwarz, pprts_rayli_wrapper
+  public :: twostream, schwarz, pprts_rayli_wrapper, destroy_rayli_info
 
   logical,parameter :: ldebug=.True.
 
@@ -63,6 +63,28 @@ module m_pprts_external_solvers
   type(t_rayli_info), allocatable :: rayli_info
 
 contains
+
+  subroutine destroy_rayli_info()
+    integer(mpiint) :: ierr
+    if(.not.allocated(rayli_info)) return
+    associate(ri => rayli_info)
+      call destroy_solution(ri%plex_solution)
+      call destroy_plexgrid(ri%plex)
+      call mpi_comm_free(ri%subcomm, ierr); call CHKERR(ierr)
+      call VecScatterDestroy(ri%ctx_hhl    , ierr); call CHKERR(ierr)
+      call VecScatterDestroy(ri%ctx_albedo , ierr); call CHKERR(ierr)
+      call VecScatterDestroy(ri%ctx_optprop, ierr); call CHKERR(ierr)
+      call VecScatterDestroy(ri%ctx_edir   , ierr); call CHKERR(ierr)
+      call VecScatterDestroy(ri%ctx_ediff  , ierr); call CHKERR(ierr)
+      call VecScatterDestroy(ri%ctx_abso   , ierr); call CHKERR(ierr)
+      call VecDestroy(ri%albedo, ierr); call CHKERR(ierr)
+      call VecDestroy(ri%kabs  , ierr); call CHKERR(ierr)
+      call VecDestroy(ri%ksca  , ierr); call CHKERR(ierr)
+      call VecDestroy(ri%g     , ierr); call CHKERR(ierr)
+    end associate
+
+    deallocate(rayli_info)
+  end subroutine
 
   subroutine init_pprts_rayli_wrapper(solver, solution, rayli_info)
     class(t_solver), intent(in) :: solver
@@ -85,7 +107,7 @@ contains
     type(tIS) :: is_in, is_out
     integer(iintegers), allocatable :: is_data(:)
 
-    if(allocated(rayli_info)) call CHKERR(1_mpiint, 'rayli_wrapper_info already allocated')
+    if(allocated(rayli_info)) return
     allocate(rayli_info)
 
     ! Scatter height info to subcomm[0]
@@ -406,6 +428,7 @@ contains
         type(t_state_container),intent(inout) :: plex_solution
 
           if(submyid.eq.0) then
+            plex_solution%uid = solution%uid
             call rayli_wrapper(rayli_info%plex, rayli_info%kabs, rayli_info%ksca, rayli_info%g, rayli_info%albedo, &
               & sundir, plex_solution)
 
