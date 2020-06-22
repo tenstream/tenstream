@@ -40,13 +40,18 @@ rm -f $out
 cat > plot_snapshot.py << EOF
 import xarray as xr
 from pylab import *
+from matplotlib.colors import LogNorm
 from contextlib import closing
 with closing(xr.open_dataset('rayli_snaphots.nc')) as D:
-  im = np.mean([ D[k].data for k in D.keys() ], axis=0)
+  im = np.sum([ D[k].data for k in D.keys() ], axis=0)
 im[im==0] = np.NaN
-plt.imshow(im, origin='lower')
-plt.colorbar()
-plt.savefig('rayli_snaphots.pdf')
+plt.imshow(im, origin='lower', cmap=cm.viridis, norm=LogNorm(vmin=1e-2))
+plt.xlabel('px')
+plt.ylabel('px')
+cbar = plt.colorbar()
+cbar.set_label('radiance [arbitrary units]')
+plt.tight_layout()
+plt.savefig('rayli_snaphots.pdf', bbox_inches='tight')
 EOF
 
 [ ! -e res_rayli.nc ] && $bin $baseopt $rayli_opt $snap_opt && mv $out res_rayli.nc
