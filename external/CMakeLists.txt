@@ -20,7 +20,7 @@ set(BUILD_RAYLI_GIT_URL "git@gitlab.lrz.de:ri96kit/rayli.git"
   "Git url which is used when downloading RayLi (e.g. to https://gitlab.lrz.de/ri96kit/rayli.git)"
   )
 
-set(BUILD_RAYLI_GIT_TAG origin/feature/city_like_mystic
+set(BUILD_RAYLI_GIT_TAG origin/feature/no_conan
   CACHE STRING
   "Git branch which is used when downloading RayLi (e.g. to origin/master)"
   )
