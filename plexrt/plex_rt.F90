@@ -522,7 +522,7 @@ module m_plex_rt
       integer(mpiint) :: myid, ierr
 
       real(ireals), save :: last_sundir(3) = [zero,zero,zero]
-      logical :: luse_rayli, lvacuum_domain_boundary, luse_disort, lflg
+      logical :: lrayli_snap, luse_rayli, lvacuum_domain_boundary, luse_disort, lflg
 
       call check_input_arguments()
 
@@ -612,16 +612,20 @@ module m_plex_rt
 
 
         ! RayLi Raytracer interface
-        luse_rayli=.False.
-        call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-plexrt_use_rayli",&
-          luse_rayli, lflg, ierr) ;call CHKERR(ierr)
-        if(luse_rayli) then
-          call PetscLogEventBegin(solver%logs%solve_rayli, ierr)
-          call rayli_wrapper(solver%plex, solver%kabs, solver%ksca, solver%g, &
-              solver%albedo, sundir, solution, plck=solver%plck)
-          call PetscLogEventEnd(solver%logs%solve_rayli, ierr)
-          goto 99
-        endif
+        luse_rayli = .False.
+        call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+          "-plexrt_use_rayli", luse_rayli, lflg, ierr) ;call CHKERR(ierr)
+
+        lrayli_snap = .False.
+        call PetscOptionsHasName(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+          "-rayli_snapshot", lrayli_snap, ierr) ;call CHKERR(ierr)
+
+        call PetscLogEventBegin(solver%logs%solve_rayli, ierr)
+        call rayli_wrapper(luse_rayli, lrayli_snap, &
+          solver%plex, solver%kabs, solver%ksca, solver%g, &
+          solver%albedo, sundir, solution, plck=solver%plck)
+        call PetscLogEventEnd(solver%logs%solve_rayli, ierr)
+        if(luse_rayli) goto 99
 
         if(solution%lsolar_rad) then
           call PetscLogEventBegin(solver%logs%compute_Edir, ierr)
