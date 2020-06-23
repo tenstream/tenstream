@@ -225,8 +225,10 @@ module m_plex2rayli
 
   !> @brief wrapper for the rayli MonteCarlo solver
   !> @details solve the radiative transfer equation with RayLi, currently only works for single task mpi runs
-  subroutine rayli_wrapper(plex, kabs, ksca, g, albedo, sundir, solution, plck)
+  subroutine rayli_wrapper(lcall_solver, lcall_snapshot, &
+      plex, kabs, ksca, g, albedo, sundir, solution, plck)
     use iso_c_binding
+    logical, intent(in) :: lcall_solver, lcall_snapshot
     type(t_plexgrid), intent(in) :: plex
     type(tVec), intent(in) :: kabs, ksca, g, albedo
     type(tVec), intent(in), optional :: plck
@@ -265,6 +267,8 @@ module m_plex2rayli
     integer(c_size_t) :: outer_id
     logical :: lcyclic, lflg
     integer(c_int) :: icyclic
+
+    if(all([lcall_solver,lcall_snapshot].eqv..False.)) return
 
     call VecGetSize(albedo, opt_photons_int, ierr); call CHKERR(ierr)
     opt_photons = real(opt_photons_int, ireals) * 1e1_ireals
@@ -374,31 +378,35 @@ module m_plex2rayli
 
     rsundir = real(-sundir, kind(rsundir))
 
-    call take_snap(comm, &
-      Nwedges, Nfaces, Nverts, &
-      verts_of_face, faces_of_wedges, vert_coords, &
-      rkabs, rksca, rg, &
-      ralbedo_on_faces, &
-      rsundir, &
-      solution, ierr)
+    if(lcall_snapshot) then
+      call take_snap(comm, &
+        Nwedges, Nfaces, Nverts, &
+        verts_of_face, faces_of_wedges, vert_coords, &
+        rkabs, rksca, rg, &
+        ralbedo_on_faces, &
+        rsundir, &
+        solution, ierr)
+    endif
 
-    ierr = rfft_wedgeF90(Nphotons, Nwedges, Nfaces, Nverts, icyclic, &
-      verts_of_face, faces_of_wedges, vert_coords, &
-      rkabs, rksca, rg, &
-      ralbedo_on_faces, rsundir, real(diffuse_point_origin, c_float), &
-      flx_through_faces_edir, flx_through_faces_ediff, abso_in_cells ); call CHKERR(ierr)
+    if(lcall_solver) then
+      ierr = rfft_wedgeF90(Nphotons, Nwedges, Nfaces, Nverts, icyclic, &
+        verts_of_face, faces_of_wedges, vert_coords, &
+        rkabs, rksca, rg, &
+        ralbedo_on_faces, rsundir, real(diffuse_point_origin, c_float), &
+        flx_through_faces_edir, flx_through_faces_ediff, abso_in_cells ); call CHKERR(ierr)
 
-    call rayli_get_result(plex, &
-          flx_through_faces_edir, &
-          flx_through_faces_ediff, &
-          abso_in_cells, &
-          solution)
+      call rayli_get_result(plex, &
+        flx_through_faces_edir, &
+        flx_through_faces_ediff, &
+        abso_in_cells, &
+        solution)
 
-    !Twostream solver returns fluxes as [W/m^2]
-    solution%lWm2_dir  = .True.
-    solution%lWm2_diff = .True.
-    ! and mark solution that it is up to date, otherwise abso would be overwritten
-    solution%lchanged  = .False.
+      !Twostream solver returns fluxes as [W/m^2]
+      solution%lWm2_dir  = .True.
+      solution%lWm2_diff = .True.
+      ! and mark solution that it is up to date, otherwise abso would be overwritten
+      solution%lchanged  = .False.
+    endif
 
     end subroutine
 
@@ -555,85 +563,81 @@ module m_plex2rayli
 
       call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
-      call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-rayli_snapshot", &
-        snap_path, lflg,ierr) ; call CHKERR(ierr)
-      if(lflg) then
-        if(len_trim(snap_path).eq.0) snap_path = 'rayli_snaphots.nc'
-        if(myid.eq.0) print *,'Capturing scene to file: '//trim(snap_path), len_trim(snap_path)
+      call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+        "-rayli_snapshot", snap_path, lflg,ierr) ; call CHKERR(ierr)
+      if(len_trim(snap_path).eq.0) snap_path = 'rayli_snaphots.nc'
+      if(myid.eq.0) print *,'Capturing scene to file: '//trim(snap_path), len_trim(snap_path)
 
-        Nx = 400
-        call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,&
-          '-rayli_snap_Nx', narg, lflg, ierr); call CHKERR(ierr)
-        if(lflg) Nx = narg
+      Nx = 400
+      call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,&
+        '-rayli_snap_Nx', narg, lflg, ierr); call CHKERR(ierr)
+      if(lflg) Nx = narg
 
-        Ny = 300
-        call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,&
-          '-rayli_snap_Ny', narg, lflg, ierr); call CHKERR(ierr)
-        if(lflg) Ny = narg
+      Ny = 300
+      call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,&
+        '-rayli_snap_Ny', narg, lflg, ierr); call CHKERR(ierr)
+      if(lflg) Ny = narg
 
-        opt_photons = real(Nx*Ny*100_iintegers, ireals)
-        call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-          "-rayli_snap_photons", opt_photons, lflg,ierr) ; call CHKERR(ierr)
-        opt_photons_int = int(opt_photons, c_size_t)
+      opt_photons = real(Nx*Ny*100_iintegers, ireals)
+      call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+        "-rayli_snap_photons", opt_photons, lflg,ierr) ; call CHKERR(ierr)
+      opt_photons_int = int(opt_photons, c_size_t)
 
-        allocate(img(Nx, Ny))
+      allocate(img(Nx, Ny))
 
-        visit_view_angle = 30._ireals
-        call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,&
-          '-visit_view_angle', visit_view_angle, lflg, ierr); call CHKERR(ierr)
+      visit_view_angle = 30._ireals
+      call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,&
+        '-visit_view_angle', visit_view_angle, lflg, ierr); call CHKERR(ierr)
 
-        visit_image_zoom = 1._ireals
-        call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,&
-          '-visit_image_zoom', visit_image_zoom, lflg, ierr); call CHKERR(ierr)
+      visit_image_zoom = 1._ireals
+      call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,&
+        '-visit_image_zoom', visit_image_zoom, lflg, ierr); call CHKERR(ierr)
 
-        visit_parallel_scale = 1e5_ireals
-        call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,&
-          '-visit_parallel_scale', visit_parallel_scale, lflg, ierr); call CHKERR(ierr)
+      visit_parallel_scale = 1e5_ireals
+      call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,&
+        '-visit_parallel_scale', visit_parallel_scale, lflg, ierr); call CHKERR(ierr)
 
-        visit_focus = 0._ireals
-        narg=3
-        call PetscOptionsGetRealArray(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,&
-          '-visit_focus', visit_focus, narg, lflg, ierr); call CHKERR(ierr)
-        if(lflg) &
-          call CHKERR(int(narg-3, mpiint), 'wrong number of input, need to be given comma separated without spaces')
+      visit_focus = 0._ireals
+      narg=3
+      call PetscOptionsGetRealArray(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,&
+        '-visit_focus', visit_focus, narg, lflg, ierr); call CHKERR(ierr)
+      if(lflg) &
+        call CHKERR(int(narg-3, mpiint), 'wrong number of input, need to be given comma separated without spaces')
 
-        visit_view_normal = -rsundir
-        narg=3
-        call PetscOptionsGetRealArray(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,&
-          '-visit_view_normal', visit_view_normal, narg, lflg, ierr); call CHKERR(ierr)
-        if(lflg) &
-          call CHKERR(int(narg-3, mpiint), 'wrong number of input, need to be given comma separated without spaces')
+      visit_view_normal = -rsundir
+      narg=3
+      call PetscOptionsGetRealArray(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,&
+        '-visit_view_normal', visit_view_normal, narg, lflg, ierr); call CHKERR(ierr)
+      if(lflg) &
+        call CHKERR(int(narg-3, mpiint), 'wrong number of input, need to be given comma separated without spaces')
 
-        visit_view_up = [0,0,1]
-        narg=3
-        call PetscOptionsGetRealArray(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,&
-          '-visit_view_up', visit_view_up, narg, lflg, ierr); call CHKERR(ierr)
-        if(lflg) &
-          call CHKERR(int(narg-3, mpiint), 'wrong number of input, need to be given comma separated without spaces')
+      visit_view_up = [0,0,1]
+      narg=3
+      call PetscOptionsGetRealArray(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,&
+        '-visit_view_up', visit_view_up, narg, lflg, ierr); call CHKERR(ierr)
+      if(lflg) &
+        call CHKERR(int(narg-3, mpiint), 'wrong number of input, need to be given comma separated without spaces')
 
-        cam_viewing_dir = -real(visit_view_normal, kind(cam_viewing_dir))
-        cam_up_vec = real(visit_view_up, kind(cam_up_vec))
-        cam_loc = real(visit_focus + visit_view_normal * visit_parallel_scale &
-          / tan(deg2rad(visit_view_angle)/2), kind(cam_loc))
+      cam_viewing_dir = -real(visit_view_normal, kind(cam_viewing_dir))
+      cam_up_vec = real(visit_view_up, kind(cam_up_vec))
+      cam_loc = real(visit_focus + visit_view_normal * visit_parallel_scale &
+        / tan(deg2rad(visit_view_angle)/2), kind(cam_loc))
 
-        fov_width = 2 * real(tan(deg2rad(visit_view_angle)/2) / visit_image_zoom, kind(fov_width))
-        fov_height = fov_width * real(Ny, c_float) / real(Nx, c_float)
+      fov_width = 2 * real(tan(deg2rad(visit_view_angle)/2) / visit_image_zoom, kind(fov_width))
+      fov_height = fov_width * real(Ny, c_float) / real(Nx, c_float)
 
-        ierr = rpt_img_wedgeF90( Nx, Ny, &
-          opt_photons_int, Nwedges, Nfaces, Nverts, &
-          verts_of_face, faces_of_wedges, vert_coords, &
-          rkabs, rksca, rg, &
-          ralbedo_on_faces, &
-          rsundir, & ! DEBUG note the kabs/ksca/
-          cam_loc, cam_viewing_dir, cam_up_vec, &
-          fov_width, fov_height, &
-          img); call CHKERR(ierr)
+      ierr = rpt_img_wedgeF90( Nx, Ny, &
+        opt_photons_int, Nwedges, Nfaces, Nverts, &
+        verts_of_face, faces_of_wedges, vert_coords, &
+        rkabs, rksca, rg, &
+        ralbedo_on_faces, &
+        rsundir, & ! DEBUG note the kabs/ksca/
+        cam_loc, cam_viewing_dir, cam_up_vec, &
+        fov_width, fov_height, &
+        img); call CHKERR(ierr)
 
-        groups(1) = trim(snap_path)
-        groups(2) = "rpt_img_"//itoa(solution%uid)
-        call ncwrite(groups, img, ierr); call CHKERR(ierr)
-        ierr = 1
-        return
-      endif
+      groups(1) = trim(snap_path)
+      groups(2) = "rpt_img_"//itoa(solution%uid)
+      call ncwrite(groups, img, ierr); call CHKERR(ierr)
     end subroutine
 end module

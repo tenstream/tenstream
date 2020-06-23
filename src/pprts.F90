@@ -1811,15 +1811,7 @@ module m_pprts
     real(ireals),      optional,intent(in)  :: opt_solution_time
 
     integer(iintegers) :: uid
-    logical            :: lsolar
-    logical            :: lskip_diffuse_solve, lflg
-    logical            :: luse_rayli
-
-    associate(  solutions => solver%solutions, &
-                C_dir     => solver%C_dir,     &
-                C_diff    => solver%C_diff,    &
-                Mdir      => solver%Mdir,      &
-                Mdiff     => solver%Mdiff     )
+    logical            :: lflg, lsolar, luse_rayli, lrayli_snapshot
 
     if(.not.allocated(solver%atm)) call CHKERR(1_mpiint, 'atmosphere is not allocated?!')
     if(.not.allocated(solver%atm%kabs)) &
@@ -1829,45 +1821,50 @@ module m_pprts
 
     uid = get_arg(0_iintegers, opt_solution_uid)
 
+    associate( solution => solver%solutions(uid) )
+
     lsolar = mpi_logical_and(solver%comm, edirTOA.gt.zero .and. any(solver%sun%theta.ge.zero))
     if(ldebug) print *,'uid', uid, 'lsolar', lsolar, 'edirTOA', edirTOA, ':', any(solver%sun%theta.ge.zero)
 
-    if(.not.solutions(uid)%lset) then
+    if(.not.solution%lset) then
       call prepare_solution(solver%C_dir%da, solver%C_diff%da, solver%C_one%da, &
-        lsolar=lsolar, solution=solutions(uid), uid=uid)
+        lsolar=lsolar, solution=solution, uid=uid)
     endif
 
     ! --------- Skip Thermal Computation (-lskip_thermal) --
-    if(lskip_thermal .and. (solutions(uid)%lsolar_rad.eqv..False.) ) then !
+    if(lskip_thermal .and. (solution%lsolar_rad.eqv..False.) ) then !
       if(ldebug .and. solver%myid.eq.0) print *,'skipping thermal calculation -- returning zero flux'
-      call VecSet(solutions(uid)%ediff, zero, ierr); call CHKERR(ierr)
-      solutions(uid)%lchanged=.True.
+      call VecSet(solution%ediff, zero, ierr); call CHKERR(ierr)
+      solution%lchanged=.True.
       goto 99 ! quick exit
     endif
 
     ! --------- Calculate Radiative Transfer with RayLi ------------
+    call PetscLogEventBegin(solver%logs%solve_mcrts, ierr)
     luse_rayli = .False.
     call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
       "-pprts_use_rayli", luse_rayli, lflg,ierr) ; call CHKERR(ierr)
-    if(luse_rayli) then
-      call pprts_rayli_wrapper(solver, edirTOA, solutions(uid))
-      goto 99
-    endif
+    lrayli_snapshot = .False.
+    call PetscOptionsHasName(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+      "-rayli_snapshot", lrayli_snapshot, ierr) ; call CHKERR(ierr)
+    call pprts_rayli_wrapper(luse_rayli, lrayli_snapshot, solver, edirTOA, solution)
+    call PetscLogEventEnd(solver%logs%solve_mcrts, ierr)
+    if(luse_rayli) goto 99
 
     ! --------- Calculate 1D Radiative Transfer ------------
     if(  ltwostr &
       .or. all(solver%atm%l1d.eqv..True.) &
-      .or. ((solutions(uid)%lsolar_rad.eqv..False.) .and. lcalc_nca) &
-      .or. ((solutions(uid)%lsolar_rad.eqv..False.) .and. lschwarzschild) ) then
+      .or. ((solution%lsolar_rad.eqv..False.) .and. lcalc_nca) &
+      .or. ((solution%lsolar_rad.eqv..False.) .and. lschwarzschild) ) then
 
 
-      if( (solutions(uid)%lsolar_rad.eqv..False.) .and. lschwarzschild ) then
+      if( (solution%lsolar_rad.eqv..False.) .and. lschwarzschild ) then
         call PetscLogEventBegin(solver%logs%solve_schwarzschild, ierr)
-        call schwarz(solver, solutions(uid))
+        call schwarz(solver, solution)
         call PetscLogEventEnd(solver%logs%solve_schwarzschild, ierr)
       else
         call PetscLogEventBegin(solver%logs%solve_twostream, ierr)
-        call twostream(solver, edirTOA,  solutions(uid) )
+        call twostream(solver, edirTOA,  solution )
         call PetscLogEventEnd(solver%logs%solve_twostream, ierr)
       endif
 
@@ -1876,99 +1873,111 @@ module m_pprts
 
       if( ltwostr_only ) goto 99
       if( all(solver%atm%l1d.eqv..True.) ) goto 99
-      if( (solutions(uid)%lsolar_rad.eqv..False.) .and. lcalc_nca ) goto 99
-      if( (solutions(uid)%lsolar_rad.eqv..False.) .and. lschwarzschild ) goto 99
+      if( (solution%lsolar_rad.eqv..False.) .and. lcalc_nca ) goto 99
+      if( (solution%lsolar_rad.eqv..False.) .and. lschwarzschild ) goto 99
     endif
 
     if( lmcrts ) then
       call PetscLogEventBegin(solver%logs%solve_mcrts, ierr)
-      call solve_mcrts(solver, edirTOA, solutions(uid))
+      call solve_mcrts(solver, edirTOA, solution)
       call PetscLogEventEnd(solver%logs%solve_mcrts, ierr)
       goto 99
     endif
 
+    call pprts(solver, edirTOA, solution)
+
+    99 continue ! this is the quick exit final call where we clean up before the end of the routine
+
+    call restore_solution(solver, solution, opt_solution_time)
+
+    end associate
+  end subroutine
+
+  !> @brief call the matrix assembly and petsc solve routines for pprts solvers
+  subroutine pprts(solver, edirTOA, solution)
+    class(t_solver), intent(inout) :: solver
+    real(ireals), intent(in) :: edirTOA
+    type(t_state_container), intent(inout) :: solution
+
+    logical :: lflg, lskip_diffuse_solve
+    integer(mpiint) :: ierr
+
     ! --------- scale from [W/m**2] to [W] -----------------
-    call scale_flx(solver, solutions(uid), lWm2=.False. )
+    call scale_flx(solver, solution, lWm2=.False. )
 
     ! ---------------------------- Edir  -------------------
-    if( solutions(uid)%lsolar_rad ) then
+    if( solution%lsolar_rad ) then
       call PetscLogEventBegin(solver%logs%compute_Edir, ierr)
 
       call setup_incSolar(solver, solver%incSolar, edirTOA)
 
       call PetscLogEventBegin(solver%logs%setup_Mdir, ierr)
-      call set_dir_coeff(solver, solver%sun, solver%Mdir, C_dir)
+      call set_dir_coeff(solver, solver%sun, solver%Mdir, solver%C_dir)
       call PetscLogEventEnd(solver%logs%setup_Mdir, ierr)
 
       if(ldebug) call mat_info(solver%comm, solver%Mdir)
 
       call PetscLogEventBegin(solver%logs%solve_Mdir, ierr)
-      call setup_ksp(solver, solver%ksp_solar_dir, C_dir, solver%Mdir, "solar_dir_")
+      call setup_ksp(solver, solver%ksp_solar_dir, solver%C_dir, solver%Mdir, "solar_dir_")
       call solve(solver, &
         solver%ksp_solar_dir, &
         solver%incSolar, &
-        solutions(uid)%edir, &
-        solutions(uid)%Niter_dir, &
-        solutions(uid)%dir_ksp_residual_history)
+        solution%edir, &
+        solution%Niter_dir, &
+        solution%dir_ksp_residual_history)
 
       call PetscLogEventEnd(solver%logs%solve_Mdir, ierr)
 
-      solutions(uid)%lchanged=.True.
-      solutions(uid)%lWm2_dir=.False.
-      call PetscObjectSetName(solutions(uid)%edir,'debug_edir',ierr) ; call CHKERR(ierr)
-      call PetscObjectViewFromOptions(solutions(uid)%edir, PETSC_NULL_VEC, "-show_debug_edir", ierr); call CHKERR(ierr)
+      solution%lchanged=.True.
+      solution%lWm2_dir=.False.
+      call PetscObjectSetName(solution%edir,'debug_edir',ierr) ; call CHKERR(ierr)
+      call PetscObjectViewFromOptions(solution%edir, PETSC_NULL_VEC, "-show_debug_edir", ierr); call CHKERR(ierr)
       call PetscLogEventEnd(solver%logs%compute_Edir, ierr)
     endif
 
 
     ! ---------------------------- Source Term -------------
     call PetscLogEventBegin(solver%logs%compute_Ediff, ierr)
-    call setup_b(solver, solutions(uid),solver%b)
+    call setup_b(solver, solution,solver%b)
 
     lskip_diffuse_solve = .False.
     call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
       "-skip_diffuse_solve", lskip_diffuse_solve, lflg , ierr) ;call CHKERR(ierr)
     if(lskip_diffuse_solve) then
-      call VecCopy(solver%b, solutions(uid)%ediff, ierr)
+      call VecCopy(solver%b, solution%ediff, ierr)
     else
       ! ---------------------------- Ediff -------------------
       call PetscLogEventBegin(solver%logs%setup_Mdiff, ierr)
-      call set_diff_coeff(solver, Mdiff,C_diff)
+      call set_diff_coeff(solver, solver%Mdiff, solver%C_diff)
       call PetscLogEventEnd(solver%logs%setup_Mdiff, ierr)
 
       if(ldebug) call mat_info(solver%comm, solver%Mdiff)
 
       call PetscLogEventBegin(solver%logs%solve_Mdiff, ierr)
-      if( solutions(uid)%lsolar_rad ) then
-        call setup_ksp(solver, solver%ksp_solar_diff, C_diff, Mdiff, "solar_diff_")
+      if( solution%lsolar_rad ) then
+        call setup_ksp(solver, solver%ksp_solar_diff, solver%C_diff, solver%Mdiff, "solar_diff_")
         call solve(solver, &
           solver%ksp_solar_diff, &
           solver%b, &
-          solutions(uid)%ediff, &
-          solutions(uid)%Niter_diff, &
-          solutions(uid)%diff_ksp_residual_history)
+          solution%ediff, &
+          solution%Niter_diff, &
+          solution%diff_ksp_residual_history)
       else
-        call setup_ksp(solver, solver%ksp_thermal_diff, C_diff, Mdiff, "thermal_diff_")
+        call setup_ksp(solver, solver%ksp_thermal_diff, solver%C_diff, solver%Mdiff, "thermal_diff_")
         call solve(solver, &
           solver%ksp_thermal_diff, &
           solver%b, &
-          solutions(uid)%ediff, &
-          solutions(uid)%Niter_diff, &
-          solutions(uid)%diff_ksp_residual_history)
+          solution%ediff, &
+          solution%Niter_diff, &
+          solution%diff_ksp_residual_history)
       endif
       call PetscLogEventEnd(solver%logs%solve_Mdiff, ierr)
     endif
 
-    solutions(uid)%lchanged=.True.
-    solutions(uid)%lWm2_diff=.False. !Tenstream solver returns fluxes as [W]
+    solution%lchanged=.True.
+    solution%lWm2_diff=.False. !Tenstream solver returns fluxes as [W]
 
     call PetscLogEventEnd(solver%logs%compute_Ediff, ierr)
-
-    99 continue ! this is the quick exit final call where we clean up before the end of the routine
-
-    call restore_solution(solver, solutions(uid), opt_solution_time)
-
-    end associate
   end subroutine
 
   !> @brief renormalize fluxes with the size of a face(sides or lid)

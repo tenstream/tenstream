@@ -358,7 +358,8 @@ contains
     ! * implement pprts to wedge interface
     ! * average results over shared mem comm
     ! * distribute results
-  subroutine pprts_rayli_wrapper(solver, edirTOA, solution)
+  subroutine pprts_rayli_wrapper(lcall_solver, lcall_snap, solver, edirTOA, solution)
+    logical, intent(in) :: lcall_solver, lcall_snap
     class(t_solver), intent(inout)        :: solver
     real(ireals),intent(in)               :: edirTOA
     type(t_state_container),intent(inout) :: solution
@@ -369,6 +370,8 @@ contains
 
     real(ireals) :: sundir(3)
     sundir = spherical_2_cartesian(meanval(solver%sun%phi),meanval(solver%sun%theta)) * edirTOA
+
+    if(all([lcall_solver, lcall_snap].eqv..False.)) return
 
     call init_pprts_rayli_wrapper(solver, solution, rayli_info)
 
@@ -429,7 +432,8 @@ contains
 
           if(submyid.eq.0) then
             plex_solution%uid = solution%uid
-            call rayli_wrapper(rayli_info%plex, rayli_info%kabs, rayli_info%ksca, rayli_info%g, rayli_info%albedo, &
+            call rayli_wrapper(lcall_solver, lcall_snap, &
+              rayli_info%plex, rayli_info%kabs, rayli_info%ksca, rayli_info%g, rayli_info%albedo, &
               & sundir, plex_solution)
 
             call PetscObjectViewFromOptions(plex_solution%edir , PETSC_NULL_VEC, '-show_rayli_edir', ierr); call CHKERR(ierr)
@@ -444,29 +448,39 @@ contains
 
         fac = one / 2._ireals / real(rayli_info%num_subcomm_masters, ireals)
 
-        call VecSet(solution%edir, zero, ierr); call CHKERR(ierr)
+        if(allocated(solution%edir)) then
+          call VecSet(solution%edir, zero, ierr); call CHKERR(ierr)
+        endif
         call VecSet(solution%ediff, zero, ierr); call CHKERR(ierr)
         call VecSet(solution%abso, zero, ierr); call CHKERR(ierr)
 
-        call VecScatterBegin(rayli_info%ctx_edir, rayli_info%plex_solution%edir, solution%edir, &
-          ADD_VALUES, SCATTER_REVERSE, ierr); call CHKERR(ierr)
+        if(allocated(solution%edir)) then
+          call VecScatterBegin(rayli_info%ctx_edir, rayli_info%plex_solution%edir, solution%edir, &
+            ADD_VALUES, SCATTER_REVERSE, ierr); call CHKERR(ierr)
+        endif
         call VecScatterBegin(rayli_info%ctx_ediff, rayli_info%plex_solution%ediff, solution%ediff, &
           ADD_VALUES, SCATTER_REVERSE, ierr); call CHKERR(ierr)
         call VecScatterBegin(rayli_info%ctx_abso, rayli_info%plex_solution%abso, solution%abso, &
           ADD_VALUES, SCATTER_REVERSE, ierr); call CHKERR(ierr)
 
-        call VecScatterEnd  (rayli_info%ctx_edir, rayli_info%plex_solution%edir, solution%edir, &
-          ADD_VALUES, SCATTER_REVERSE, ierr); call CHKERR(ierr)
+        if(allocated(solution%edir)) then
+          call VecScatterEnd  (rayli_info%ctx_edir, rayli_info%plex_solution%edir, solution%edir, &
+            ADD_VALUES, SCATTER_REVERSE, ierr); call CHKERR(ierr)
+        endif
         call VecScatterEnd  (rayli_info%ctx_ediff, rayli_info%plex_solution%ediff, solution%ediff, &
           ADD_VALUES, SCATTER_REVERSE, ierr); call CHKERR(ierr)
         call VecScatterEnd  (rayli_info%ctx_abso, rayli_info%plex_solution%abso, solution%abso, &
           ADD_VALUES, SCATTER_REVERSE, ierr); call CHKERR(ierr)
 
-        call VecScale(solution%edir, fac, ierr); call CHKERR(ierr)
+        if(allocated(solution%edir)) then
+          call VecScale(solution%edir, fac, ierr); call CHKERR(ierr)
+        endif
         call VecScale(solution%ediff, fac, ierr); call CHKERR(ierr)
         call VecScale(solution%abso, fac, ierr); call CHKERR(ierr)
 
-        call PetscObjectViewFromOptions(solution%edir, PETSC_NULL_VEC, '-show_rayli_edir', ierr); call CHKERR(ierr)
+        if(allocated(solution%edir)) then
+          call PetscObjectViewFromOptions(solution%edir, PETSC_NULL_VEC, '-show_rayli_edir', ierr); call CHKERR(ierr)
+        endif
         call PetscObjectViewFromOptions(solution%ediff, PETSC_NULL_VEC, '-show_rayli_ediff', ierr); call CHKERR(ierr)
         call PetscObjectViewFromOptions(solution%abso, PETSC_NULL_VEC, '-show_rayli_abso', ierr); call CHKERR(ierr)
 
