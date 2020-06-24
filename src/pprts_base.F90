@@ -18,7 +18,8 @@ module m_pprts_base
     t_solver_8_10, t_solver_3_16, t_solver_8_16, t_solver_8_18, &
     allocate_pprts_solver_from_commandline, &
     t_coord, t_suninfo, compute_gradient, atmk, &
-    t_state_container, prepare_solution, destroy_solution, print_solution, &
+    t_state_container, t_state_container_pprts, &
+    prepare_solution, destroy_solution, print_solution, &
     t_dof, t_solver_log_events, setup_log_events, &
     t_atmosphere
 
@@ -69,18 +70,24 @@ module m_pprts_base
 
   type t_state_container
     integer(iintegers)  :: uid ! dirty hack to give the solution a unique hash for example to write it out to disk -- this should be the same as the index in global solutions array
-    type(tVec), allocatable    :: edir,ediff,abso
 
     logical             :: lset        = .False. ! initialized?
-    logical             :: lsolar_rad  = .False. ! direct radiation calculated?
     logical             :: lchanged    = .True.  ! did the flux change recently? -- call restore_solution to bring it in a coherent state
+
+    !save error statistics
+    real(ireals)             :: time   (30) = -one
+    real(ireals)             :: maxnorm(30) = zero
+  end type
+
+  type,extends(t_state_container) :: t_state_container_pprts
+    type(tVec), allocatable    :: edir,ediff,abso
+
+    logical             :: lsolar_rad  = .False. ! direct radiation calculated?
 
     ! save state of solution vectors... they are either in [W](false) or [W/m**2](true)
     logical             :: lWm2_dir=.False. , lWm2_diff=.False.
 
     !save error statistics
-    real(ireals)        :: time   (30) = -one
-    real(ireals)        :: maxnorm(30) = zero
     real(ireals),allocatable :: dir_ksp_residual_history(:)
     real(ireals),allocatable :: diff_ksp_residual_history(:)
 
@@ -142,7 +149,7 @@ module m_pprts_base
     type(tVec),allocatable          :: abso_scalevec
 
     logical                         :: linitialized=.False.
-    type(t_state_container)         :: solutions(-1000:1000)
+    type(t_state_container_pprts)   :: solutions(-1000:1000)
     type(t_solver_log_events)       :: logs
   end type
 
@@ -166,7 +173,7 @@ module m_pprts_base
     subroutine prepare_solution(edir_dm, ediff_dm, abso_dm, lsolar, solution, uid)
       type(tDM), intent(in) :: edir_dm, ediff_dm, abso_dm
       logical, intent(in) :: lsolar
-      type(t_state_container), intent(inout) :: solution
+      type(t_state_container_pprts), intent(inout) :: solution
       integer(iintegers), optional, intent(in) :: uid
       integer(mpiint) :: ierr
 
@@ -203,7 +210,7 @@ module m_pprts_base
       solution%lset = .True.
     end subroutine
     subroutine destroy_solution(solution)
-      type(t_state_container), intent(inout) :: solution
+      type(t_state_container_pprts), intent(inout) :: solution
       integer(mpiint) :: ierr
       if( solution%lset ) then
         if(solution%lsolar_rad) then
@@ -232,7 +239,7 @@ module m_pprts_base
       endif
     end subroutine
     subroutine print_solution(solution)
-      type(t_state_container), intent(inout) :: solution
+      type(t_state_container_pprts), intent(inout) :: solution
       integer(mpiint) :: ierr
       character(len=30) :: header
       header = cstr('Solution('//itoa(solution%uid)//') ', 'blue')

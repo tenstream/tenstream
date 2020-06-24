@@ -37,7 +37,7 @@ module m_adaptive_spectral_integration
 
     function need_new_solution(comm, solution, time, lenable_solutions_err_estimates)
       integer(mpiint), intent(in)      :: comm
-      type(t_state_container)          :: solution
+      class(t_state_container)         :: solution
       real(ireals),intent(in),optional :: time
       logical,intent(in)               :: lenable_solutions_err_estimates
       logical                          :: need_new_solution
@@ -169,10 +169,10 @@ module m_adaptive_spectral_integration
         print *,''
         print *,'new calc',need_new_solution,' bc ',trim(reason),' t',time,solution%uid, &
           '    ::     est.',error_estimate,'[W]',error_estimate*86.1,'[K/d]'
-        if(allocated(solution%dir_ksp_residual_history) ) &
-          print *,' dir residuals _solver ::', solution%dir_ksp_residual_history(1:4)
-        if(allocated(solution%diff_ksp_residual_history) ) &
-          print *,' diff residuals _solver ::', solution%diff_ksp_residual_history(1:4)
+        !if(allocated(solution%dir_ksp_residual_history) ) &
+        !  print *,' dir residuals _solver ::', solution%dir_ksp_residual_history(1:4)
+        !if(allocated(solution%diff_ksp_residual_history) ) &
+        !  print *,' diff residuals _solver ::', solution%diff_ksp_residual_history(1:4)
         if(solution%uid.eq.501) then
           open (unit=out_unit,file="residuals.log",action="write",status="replace")
         else

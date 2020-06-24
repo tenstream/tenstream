@@ -45,8 +45,8 @@ module m_dyn_atm_to_rrtmg
 
   implicit none
 
-  !logical,parameter :: ldebug=.True.
-  logical,parameter :: ldebug=.False.
+  logical,parameter :: ldebug=.True.
+  !logical,parameter :: ldebug=.False.
 
   ! specific gas constant for dry air [J kg−1 K−1] and standard gravity on earth
   real(ireals), parameter :: Ra  =287.058_ireals, grav  =9.80665_ireals

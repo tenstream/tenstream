@@ -42,7 +42,7 @@ module m_mcrts_dmda
   use m_boxmc_geometry, only: setup_default_unit_cube_geometry
 
   use m_pprts_base, only: t_solver, t_solver_1_2, t_solver_3_6, &
-    t_state_container, t_coord
+    t_state_container_pprts, t_coord
 
   use m_petsc_helpers, only: getVecPointer, restoreVecPointer
 
@@ -82,7 +82,7 @@ contains
   subroutine solve_mcrts(solver, edirTOA, solution)
     class(t_solver),intent(in) :: solver
     real(ireals),intent(in) :: edirTOA
-    type(t_state_container) :: solution
+    type(t_state_container_pprts) :: solution
 
     integer(mpiint) :: myid, numnodes, ierr
 
@@ -227,7 +227,7 @@ end subroutine
 subroutine run_photon_queue(solver, bmc, solution, pqueues, ipq, started_photons, killed_photons, limit_number_photons)
   class(t_solver),intent(in) :: solver
   class(t_boxmc), intent(in) :: bmc
-  type(t_state_container), intent(in) :: solution
+  type(t_state_container_pprts), intent(in) :: solution
   type(t_photon_queue), intent(inout) :: pqueues(:) ! [own, north, east, south, west]
   integer(mpiint), intent(in) :: ipq
   integer(iintegers), intent(out) :: started_photons

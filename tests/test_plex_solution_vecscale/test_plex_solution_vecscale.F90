@@ -19,15 +19,14 @@ use m_plex_grid, only: t_plexgrid, &
   ncvar2d_to_globalvec, setup_plexgrid, &
   gen_test_mat, get_normal_of_first_toa_face
 
-use m_plex_rt_base, only: t_plex_solver, allocate_plexrt_solver_from_commandline
+use m_plex_rt_base, only: t_plex_solver, allocate_plexrt_solver_from_commandline, &
+  t_state_container_plexrt, prepare_solution, destroy_solution
 
 use m_plex_rt, only: compute_face_geometry, &
   init_plex_rt_solver, run_plex_rt_solver, set_plex_rt_optprop, &
   plexrt_get_result, destroy_plexrt_solver, scale_flx
 
 use m_icon_plex_utils, only: create_2d_fish_plex, dmplex_2D_to_3D
-
-use m_pprts_base, only : t_state_container, prepare_solution, destroy_solution
 
   use pfunit_mod
 implicit none
@@ -45,9 +44,8 @@ implicit none
 
       integer(mpiint) :: myid, numnodes, comm, ierr
       integer(iintegers) :: k
-      type(tVec), allocatable :: dir_scalevec_Wm2_to_W, dir_scalevec_W_to_Wm2
-      type(tVec), allocatable :: diff_scalevec_Wm2_to_W, diff_scalevec_W_to_Wm2
-      type(t_state_container) :: solution
+      type(tVec), allocatable :: scalevec_Wm2_to_W, scalevec_W_to_Wm2
+      type(t_state_container_plexrt) :: solution
 
       class(t_plex_solver), allocatable :: solver
       type(t_plexgrid), allocatable :: plex
@@ -76,19 +74,17 @@ implicit none
       call allocate_plexrt_solver_from_commandline(solver, '5_8')
       call init_plex_rt_solver(plex, solver)
 
-      call prepare_solution(solver%plex%edir_dm, solver%plex%ediff_dm, solver%plex%abso_dm, lsolar=.True., solution=solution)
+      call prepare_solution(solver%mergedm, solver%plex%abso_dm, solution=solution)
 
       print *,'Testing Scalevec Direct'
-      call init_and_scalevecs(solution, one, solution%edir, solution%lWm2_dir)
-      print *,'Testing Scalevec Diffuse'
-      call init_and_scalevecs(solution, one, solution%ediff, solution%lWm2_diff)
+      call init_and_scalevecs(solution, one, solution%flx, solution%lWm2)
 
 
-      call PetscObjectViewFromOptions(solution%edir, PETSC_NULL_VEC, '-show_solution_edir_vec1', ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(solution%flx, PETSC_NULL_VEC, '-show_solution_flx_vec', ierr); call CHKERR(ierr)
 
       contains
         subroutine init_and_scalevecs(solution, initialvar, solution_vec, solution_lWm2)
-          type(t_state_container), intent(inout) :: solution
+          type(t_state_container_plexrt), intent(inout) :: solution
           real(ireals), intent(in) :: initialvar
           type(tVec), intent(inout) :: solution_vec
           logical, intent(inout) :: solution_lWm2
@@ -104,8 +100,7 @@ implicit none
           call VecSet(tmp_vec, initialvar, ierr); call CHKERR(ierr)
 
           call scale_flx(solver, solver%plex, &
-            dir_scalevec_Wm2_to_W, dir_scalevec_W_to_Wm2, &
-            diff_scalevec_Wm2_to_W, diff_scalevec_W_to_Wm2, &
+            scalevec_Wm2_to_W, scalevec_W_to_Wm2, &
             solution, lWm2=.True.)
 
           call VecGetArrayReadF90(solution_vec, xa, ierr); call CHKERR(ierr)
@@ -117,8 +112,7 @@ implicit none
           call VecRestoreArrayReadF90(solution_vec, xa, ierr); call CHKERR(ierr)
 
           call scale_flx(solver, solver%plex, &
-            dir_scalevec_Wm2_to_W, dir_scalevec_W_to_Wm2, &
-            diff_scalevec_Wm2_to_W, diff_scalevec_W_to_Wm2, &
+            scalevec_Wm2_to_W, scalevec_W_to_Wm2, &
             solution, lWm2=.False.)
 
           call VecGetArrayReadF90(solution_vec, xa, ierr); call CHKERR(ierr)
@@ -147,8 +141,7 @@ implicit none
           call VecRestoreArrayReadF90(solution_vec, xa, ierr); call CHKERR(ierr)
 
           call scale_flx(solver, solver%plex, &
-            dir_scalevec_Wm2_to_W, dir_scalevec_W_to_Wm2, &
-            diff_scalevec_Wm2_to_W, diff_scalevec_W_to_Wm2, &
+            scalevec_Wm2_to_W, scalevec_W_to_Wm2, &
             solution, lWm2=.True.)
 
           call VecGetArrayReadF90(solution_vec, xa, ierr); call CHKERR(ierr)

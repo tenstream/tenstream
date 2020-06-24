@@ -51,7 +51,7 @@ module m_pprts
   use m_pprts_base, only : t_solver, t_solver_1_2, t_solver_3_6, t_solver_3_10, &
     t_solver_8_10, t_solver_3_16, t_solver_8_16, t_solver_8_18, &
     t_coord, t_suninfo, t_atmosphere, compute_gradient, atmk, &
-    t_state_container, prepare_solution, destroy_solution, &
+    t_state_container_pprts, prepare_solution, destroy_solution, &
     t_dof, t_solver_log_events, setup_log_events
 
   implicit none
@@ -1831,7 +1831,7 @@ module m_pprts
   !> @brief renormalize fluxes with the size of a face(sides or lid)
   subroutine scale_flx(solver, solution, lWm2)
     class(t_solver), intent(inout)        :: solver
-    type(t_state_container),intent(inout) :: solution   !< @param solution container with computed fluxes
+    type(t_state_container_pprts),intent(inout) :: solution   !< @param solution container with computed fluxes
     logical,intent(in)                    :: lWm2  !< @param determines direction of scaling, if true, scale to W/m**2
 
     call PetscLogEventBegin(solver%logs%scale_flx, ierr); call CHKERR(ierr)
@@ -2008,7 +2008,7 @@ module m_pprts
   subroutine restore_solution(solver, solution, time)
     ! restore_solution:: if flux have changed, we need to update absorption, save the residual history
     class(t_solver)         :: solver
-    type(t_state_container) :: solution
+    type(t_state_container_pprts) :: solution
     real(ireals),intent(in),optional :: time
 
     character(default_str_len) :: vecname
@@ -2096,7 +2096,7 @@ module m_pprts
   subroutine twostream(solver, edirTOA, solution)
     class(t_solver), intent(inout) :: solver
     real(ireals),intent(in)       :: edirTOA
-    type(t_state_container)       :: solution
+    type(t_state_container_pprts)       :: solution
 
     real(ireals),pointer,dimension(:,:,:,:) :: xv_dir=>null(),xv_diff=>null()
     real(ireals),pointer,dimension(:) :: xv_dir1d=>null(),xv_diff1d=>null()
@@ -2211,7 +2211,7 @@ module m_pprts
   !> \n This is the simplest radiation solver but quite accurate for thermal calculations
   subroutine schwarz(solver, solution)
     class(t_solver)         :: solver
-    type(t_state_container) :: solution
+    type(t_state_container_pprts) :: solution
 
     real(ireals),pointer,dimension(:,:,:,:) :: xv_diff=>null()
     real(ireals),pointer,dimension(:)       :: xv_diff1d=>null()
@@ -2301,7 +2301,7 @@ module m_pprts
   !> \n we therefore sum up the incoming and outgoing fluxes to compute the divergence
   subroutine calc_flx_div(solver, solution)
     class(t_solver)         :: solver
-    type(t_state_container) :: solution
+    type(t_state_container_pprts) :: solution
 
     real(ireals),pointer,dimension(:,:,:,:) :: xediff=>null(),xedir=>null(),xabso=>null()
     real(ireals),pointer,dimension(:)       :: xediff1d=>null(),xedir1d=>null(),xabso1d=>null()
@@ -2978,7 +2978,7 @@ subroutine setup_ksp(atm, ksp, C, A, prefix)
   !> \n   a la: transmissivity $T = \sum(coeffs)$ and therefore emissivity $E = 1 - T$
   subroutine setup_b(solver, solution, b)
     class(t_solver)         :: solver
-    type(t_state_container) :: solution
+    type(t_state_container_pprts) :: solution
     type(tVec) :: local_b, b
 
     real(ireals),pointer,dimension(:,:,:,:) :: xsrc=>null()
