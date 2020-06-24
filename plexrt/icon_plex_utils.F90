@@ -1019,7 +1019,7 @@ module m_icon_plex_utils
       end subroutine
 
     ! Create a 2D Regular grid with Nx vertices horizontally and Ny rows of Vertices vertically
-    subroutine create_2d_regular_plex(comm, Nx, Ny, dm, dmdist, opt_migration_sf, opt_dx, opt_dy,lverbose)
+    subroutine create_2d_regular_plex(comm, Nx, Ny, dm, dmdist, opt_migration_sf, opt_dx, opt_dy, lverbose)
       integer(mpiint), intent(in) :: comm
       integer(iintegers), intent(in) :: Nx, Ny
       type(tDM), intent(out) :: dm, dmdist
