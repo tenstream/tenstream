@@ -22,8 +22,8 @@ module m_data_parameters
       use petsc
 
       use iso_fortran_env, only: INT32, INT64, REAL32, REAL64, REAL128
-      use ieee_arithmetic, only: ieee_support_nan, ieee_quiet_nan, ieee_value
-
+      use ieee_arithmetic, only: ieee_support_nan, ieee_quiet_nan, ieee_value, &
+        & ieee_support_inf, ieee_positive_inf, ieee_negative_inf
       implicit none
 
       private
@@ -34,6 +34,7 @@ module m_data_parameters
              ireals,ireal128,ireal_dp,irealLUT,                  &
              ireal_params, irealbmc, irealeddington,             &
              nan32, nan64, nan,                                  &
+             neginf, inf,                                        &
              imp_iinteger,imp_int4, imp_int8,                    &
              imp_ireals,imp_real_dp,imp_irealLUT,imp_logical,    &
              imp_REAL32, imp_REAL64,                             &
@@ -77,7 +78,7 @@ module m_data_parameters
 
       integer(mpiint) :: imp_irealLUT, imp_ireals, imp_real_dp, imp_logical, imp_REAL32, imp_REAL64
       integer(mpiint) :: imp_iinteger, imp_int4, imp_int8
-      real(ireals) :: nan
+      real(ireals) :: nan, inf, neginf
 
 contains
 subroutine init_mpi_data_parameters(comm)
@@ -148,6 +149,13 @@ subroutine init_mpi_data_parameters(comm)
 
   !if(ieee_support_nan(nan32)) nan32=ieee_value(1._real32, ieee_quiet_nan)
   !if(ieee_support_nan(nan64)) nan64=ieee_value(1._real64, ieee_quiet_nan)
+  if(ieee_support_inf(inf)) then
+    inf   = ieee_value(1._ireals, ieee_positive_inf)
+    neginf= ieee_value(1._ireals, ieee_negative_inf)
+  else
+    inf   = huge(1._ireals)
+    neginf= -huge(1._ireals)
+  endif
 
 !  if(myid.eq.0) print *,myid,'init_mpi_data_parameters :: imp_int',imp_int,' :: imp_real',imp_real,'epsilon(real)',epsilon(one)
 !  print *,'init_mpi_data_parameters :: MPI_INTEGER',MPI_INTEGER,' :: MPI_DOUBLE_PRECISION',MPI_DOUBLE_PRECISION,' :: MPI_REAL',MPI_REAL
