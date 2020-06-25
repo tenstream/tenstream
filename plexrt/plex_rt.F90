@@ -765,10 +765,12 @@ module m_plex_rt
             do k=1,3
               call mpi_reduce(sundir(k), minmax(1), 1_mpiint, imp_ireals, MPI_MIN, 0_mpiint, comm, ierr); call CHKERR(ierr)
               call mpi_reduce(sundir(k), minmax(2), 1_mpiint, imp_ireals, MPI_MAX, 0_mpiint, comm, ierr); call CHKERR(ierr)
-              if(myid.eq.0 .and. .not.approx(minmax(1), minmax(2))) &
+              if(myid.eq.0 .and. .not.approx(minmax(1), minmax(2), zero)) then
                 call CHKERR(1_mpiint, 'run_plex_rt_solver::sundir('//itoa(k)//')'// &
                                       ' is not the same on all processes!'// &
-                                      ' min/max: '//ftoa(minmax))
+                                      ' min/max: '//ftoa(minmax)// &
+                                      ' sundir @rank0 '//ftoa(sundir) )
+              endif
             enddo
           endif
 
@@ -2133,7 +2135,6 @@ module m_plex_rt
 
           call get_inward_face_normal(topface, icell, geomSection, geoms, face_normal)
           mu0 = dot_product(face_normal, sundir)
-          print *,icell, 'mu0', mu0
 
           dtau = (xkabs(i1+icell) + xksca(i1+icell)) * dz / mu0
 

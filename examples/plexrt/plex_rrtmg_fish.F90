@@ -12,7 +12,7 @@ use m_helper_functions, only: CHKERR, CHKWARN, imp_bcast, determine_normal_direc
 use m_helper_functions, only: cross_3d, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world, &
   rotate_angle_x, rotation_matrix_around_axis_vec
 
-use m_data_parameters, only : ireals, iintegers, mpiint, &
+use m_data_parameters, only : ireals, iintegers, mpiint, imp_ireals, &
   default_str_len, &
   i0, i1, i2, i3, i4, i5,  &
   zero, one,       &
@@ -50,7 +50,7 @@ logical, parameter :: ldebug=.True.
   contains
 
     subroutine ex_plex_rrtmg_fish(comm, Nx, Ny, Nz, dx, dz, Ag, lthermal, lsolar)
-      MPI_Comm, intent(in) :: comm
+      integer(mpiint), intent(in) :: comm
       integer(iintegers), intent(in) :: Nx, Ny, Nz
       real(ireals), intent(in) :: dx, dz, Ag
       logical, intent(in) :: lthermal, lsolar
@@ -65,7 +65,7 @@ logical, parameter :: ldebug=.True.
 
       type(t_plexgrid), allocatable :: plex
       integer(iintegers), allocatable :: zindex(:)
-    class(t_plex_solver), allocatable :: solver
+      class(t_plex_solver), allocatable :: solver
 
       type(t_tenstr_atm) :: atm
       character(len=default_str_len) :: atm_filename
@@ -296,6 +296,7 @@ logical, parameter :: ldebug=.True.
             call sundir_rot_theta(sundir, rot_angle)
           endif
 
+          call mpi_bcast(sundir, 3_mpiint, imp_ireals, 0_mpiint, comm, ierr); call CHKERR(ierr)
           if(ldebug.and.myid.eq.0) print *,'determine initial sundirection ... done'
         end subroutine
         subroutine sundir_rot_theta(sundir, rot_angle)
@@ -305,6 +306,11 @@ logical, parameter :: ldebug=.True.
 
           call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
           first_normal = get_normal_of_first_TOA_face(solver%plex)
+          if(dot_product(first_normal, sundir).gt.one-epsilon(U)) then
+            first_normal(1) = first_normal(1) + epsilon(first_normal)
+            first_normal(2) = first_normal(2) - epsilon(first_normal)
+            first_normal = first_normal / norm2(first_normal)
+          endif
           U = cross_3d(first_normal, sundir)
           Mrot = rotation_matrix_around_axis_vec(deg2rad(rot_angle), U)
           rot_sundir = matmul(Mrot, sundir)

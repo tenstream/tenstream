@@ -8,7 +8,7 @@ module m_mpi_plex_ex4
   use m_helper_functions, only: CHKERR, imp_bcast, determine_normal_direction, &
     spherical_2_cartesian, angle_between_two_vec, rad2deg, deg2rad, meanvec, reverse
 
-  use m_data_parameters, only : ireals, iintegers, mpiint, &
+  use m_data_parameters, only : ireals, iintegers, mpiint, imp_ireals, &
     default_str_len, &
     i0, i1, i2, i3, i4, i5,  &
     zero, one,       &
@@ -39,7 +39,7 @@ module m_mpi_plex_ex4
 contains
 
   subroutine plex_ex4(comm, gridfile, icondatafile, Ag, lthermal, lsolar)
-    MPI_Comm, intent(in) :: comm
+    integer(mpiint), intent(in) :: comm
     character(len=*), intent(in) :: gridfile, icondatafile
     real(ireals), intent(in) :: Ag
     logical, intent(in) :: lthermal, lsolar
@@ -261,6 +261,11 @@ contains
       call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-sundir_rot_theta", &
         rot_angle, lflg, ierr) ; call CHKERR(ierr)
       if(lflg) then
+        if(dot_product(first_normal, sundir).gt.one-epsilon(U)) then
+          first_normal(1) = first_normal(1) + epsilon(first_normal)
+          first_normal(2) = first_normal(2) - epsilon(first_normal)
+          first_normal = first_normal / norm2(first_normal)
+        endif
         U = cross_3d(first_normal, sundir)
         Mrot = rotation_matrix_around_axis_vec(deg2rad(rot_angle), U)
         rot_sundir = matmul(Mrot, sundir)
@@ -272,6 +277,7 @@ contains
         sundir = rot_sundir
       endif
 
+      call mpi_bcast(sundir, 3_mpiint, imp_ireals, 0_mpiint, comm, ierr); call CHKERR(ierr)
       if(ldebug.and.myid.eq.0) print *,'determine initial sundirection ... done'
     end subroutine
   end subroutine

@@ -920,7 +920,6 @@ module m_plex_grid
 
         ! check for max height or radius of cell centroid
         call PetscSectionGetFieldOffset(geomSection, icell, i0, geom_offset, ierr); call CHKERR(ierr)
-        print *,'cell centroid', geoms(geom_offset+i1:geom_offset+i3)
         if(geoms(geom_offset+i3) .gt. max_height) then
           max_constrained_k = k
           print *,'max_constrained_k height', icell, k, geoms(geom_offset+i3), max_constrained_k
