@@ -3042,11 +3042,12 @@ module m_plex_rt
       end subroutine
   end subroutine
 
-  subroutine compute_absorption(solver, solution)
+  subroutine compute_absorption(solver, solution, absorption_by_flx_divergence)
     class(t_plex_solver), allocatable, intent(inout) :: solver
     type(t_state_container), intent(inout) :: solution
 
-    logical, parameter :: by_flx_divergence=.True.
+    logical, intent(in), optional :: absorption_by_flx_divergence
+    logical :: by_flx_divergence, lflg
     integer(mpiint) :: ierr
 
     if(.not.solution%lset) call CHKERR(1_mpiint, 'compute_absorption needs to get an initialized solution obj')
@@ -3057,6 +3058,12 @@ module m_plex_rt
     endif
 
     if(solution%lchanged) then
+
+      by_flx_divergence = get_arg(.True., absorption_by_flx_divergence)
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-plexrt_absorption_by_flx_divergence",&
+        by_flx_divergence, lflg, ierr) ;call CHKERR(ierr)
+
+
       if(solution%lsolar_rad .and. .not.allocated(solution%edir)) &
         call CHKERR(1_mpiint, 'solution%lsolar_rad true but edir not allocated')
       if(.not.allocated(solution%ediff)) call CHKERR(1_mpiint, 'ediff vec not allocated')
