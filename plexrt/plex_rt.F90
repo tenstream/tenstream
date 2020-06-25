@@ -628,133 +628,7 @@ module m_plex_rt
         call PetscLogEventEnd(solver%logs%solve_rayli, ierr)
         if(luse_rayli) goto 99
 
-        if(solution%lsolar_rad) then
-          call PetscLogEventBegin(solver%logs%compute_Edir, ierr)
-          ! Setup direct source term
-          call PetscLogEventBegin(solver%logs%setup_dir_src, ierr)
-          call create_edir_src_vec(solver, solver%plex, solver%plex%edir_dm, norm2(sundir), &
-            solver%kabs, solver%ksca, solver%g, &
-            sundir/norm2(sundir), solver%dirsrc)
-          call PetscLogEventEnd(solver%logs%setup_dir_src, ierr)
-
-          ! Output of srcVec
-          if(ldebug) then
-            call scale_flx(solver, solver%plex, &
-              solver%dir_scalevec_Wm2_to_W, solver%dir_scalevec_W_to_Wm2, &
-              solver%diff_scalevec_Wm2_to_W, solver%diff_scalevec_W_to_Wm2, &
-              solution, lWm2=.False., logevent=solver%logs%scale_flx)
-            call debug_dump_vec(solver%plex%edir_dm, solver%dirsrc, solver%dir_scalevec_W_to_Wm2)
-          endif
-
-          ! Create Direct Matrix & KSP
-          call PetscLogEventBegin(solver%logs%setup_Mdir, ierr)
-          call create_edir_mat(solver, solver%plex, solver%OPP, solver%kabs, solver%ksca, solver%g, &
-            sundir/norm2(sundir), solver%Mdir)
-
-          call setup_ksp (&
-            & solver%plex, &
-            & solver%plex%edir_dm, &
-            & solver%Mdir, &
-            & solver%ksp_solar_dir, &
-            & ksp_residual_history=solution%dir_ksp_residual_history, &
-            & prefix='solar_dir_' )
-          call PetscLogEventEnd(solver%logs%setup_Mdir, ierr)
-
-          ! Solve Direct Matrix
-          call PetscLogEventBegin(solver%logs%solve_Mdir, ierr)
-          call solve_plex_rt (&
-            & solver%plex%edir_dm, &
-            & solver%dirsrc, &
-            & solver%ksp_solar_dir, &
-            & solution%edir, &
-            & ksp_iter=solution%Niter_dir)
-          call PetscLogEventEnd(solver%logs%solve_Mdir, ierr)
-          call PetscObjectSetName(solution%edir, 'edir', ierr); call CHKERR(ierr)
-          call PetscObjectViewFromOptions(solution%edir, PETSC_NULL_VEC, &
-            '-show_edir_vec_global', ierr); call CHKERR(ierr)
-          solution%lWm2_dir = .False.
-          solution%lchanged = .True.
-
-          ! Output of Edir Vec
-          if(ldebug) then
-            call scale_flx(solver, solver%plex, &
-              solver%dir_scalevec_Wm2_to_W, solver%dir_scalevec_W_to_Wm2, &
-              solver%diff_scalevec_Wm2_to_W, solver%diff_scalevec_W_to_Wm2, &
-              solution, lWm2=.False., logevent=solver%logs%scale_flx)
-            call debug_dump_vec(solver%plex%edir_dm, solution%edir, solver%dir_scalevec_W_to_Wm2)
-          endif
-
-          call PetscLogEventEnd(solver%logs%compute_Edir, ierr)
-        endif
-
-        ! Create Diffuse Src
-        call PetscLogEventBegin(solver%logs%compute_Ediff, ierr)
-        call PetscLogEventBegin(solver%logs%setup_diff_src, ierr)
-        call create_ediff_src_vec(solver, solver%plex, solver%OPP, solver%plex%ediff_dm, &
-          solver%kabs, solver%ksca, solver%g, solver%albedo, &
-          lthermal, lsolar, solver%diffsrc, &
-          solver%plex%horizface1_dm, solver%plck, &
-          solver%plex%edir_dm, solution%edir)
-        call PetscLogEventEnd(solver%logs%setup_diff_src, ierr)
-
-        ! Output of Diffuse Src Vec
-        if(ldebug) &
-          call debug_dump_vec(solver%plex%ediff_dm, solver%diffsrc, solver%diff_scalevec_W_to_Wm2)
-
-        ! Create Diffuse Matrix & KSP
-        call PetscLogEventBegin(solver%logs%setup_Mdiff, ierr)
-        call create_ediff_mat(solver, solver%plex, solver%OPP, &
-          solver%kabs, solver%ksca, solver%g, solver%albedo, solver%Mdiff)
-        call PetscObjectViewFromOptions(solver%Mdiff, PETSC_NULL_MAT, &
-          '-show_Mediff_'//itoa(solution%uid), ierr); call CHKERR(ierr)
-
-        if(solution%lsolar_rad) then
-          call setup_ksp (&
-            & solver%plex, &
-            & solver%plex%ediff_dm, &
-            & solver%Mdiff, &
-            & solver%ksp_solar_diff, &
-            & ksp_residual_history=solution%diff_ksp_residual_history, &
-            & prefix='solar_diff_' )
-        else
-          call setup_ksp (&
-            & solver%plex, &
-            & solver%plex%ediff_dm, &
-            & solver%Mdiff, &
-            & solver%ksp_thermal_diff, &
-            & ksp_residual_history=solution%diff_ksp_residual_history, &
-            & prefix='thermal_diff_' )
-        endif
-        call PetscLogEventEnd(solver%logs%setup_Mdiff, ierr)
-
-
-        ! Solve Diffuse Matrix
-        call PetscLogEventBegin(solver%logs%solve_Mdiff, ierr)
-        if(solution%lsolar_rad) then
-          call solve_plex_rt(solver%plex%ediff_dm, &
-            solver%diffsrc, &
-            solver%ksp_solar_diff, &
-            solution%ediff, &
-            ksp_iter=solution%Niter_diff)
-        else
-          call solve_plex_rt(solver%plex%ediff_dm, &
-            solver%diffsrc, &
-            solver%ksp_thermal_diff, &
-            solution%ediff, &
-            ksp_iter=solution%Niter_diff)
-        endif
-        call PetscLogEventEnd(solver%logs%solve_Mdiff, ierr)
-        call PetscObjectSetName(solution%ediff, 'ediff', ierr); call CHKERR(ierr)
-        call PetscObjectViewFromOptions(solution%ediff, PETSC_NULL_VEC, &
-          '-show_ediff_vec_global', ierr); call CHKERR(ierr)
-        solution%lWm2_diff = .False.
-        solution%lchanged = .True.
-
-        call PetscLogEventEnd(solver%logs%compute_Ediff, ierr)
-
-        ! Output of Diffuse Vec
-        if(ldebug) &
-          call debug_dump_vec(solver%plex%ediff_dm, solution%ediff, solver%diff_scalevec_W_to_Wm2)
+        call plexrt(solver, lthermal, lsolar, sundir, solution)
 
         99 continue ! this is the quick exit final call where we clean up before the end of the routine
 
@@ -813,7 +687,156 @@ module m_plex_rt
           if(.not.allocated(solver%plex%abso_dm))  &
             call CHKERR(1_mpiint, 'solver%plex%abso_dm not allocated, should have happened in init_solver?')
         end subroutine
+    end subroutine
 
+    subroutine plexrt(solver, lthermal, lsolar, sundir, solution)
+      class(t_plex_solver), allocatable, intent(inout) :: solver
+      logical, intent(in) :: lthermal, lsolar
+      real(ireals), intent(in) :: sundir(3)               !< @param sundir cartesian direction of sun rays, norm of vector is the energy in W/m2
+      type(t_state_container),intent(inout)  :: solution  !< @param solution container with computed fluxes
+
+      integer(mpiint) :: ierr
+
+      if(solution%lsolar_rad) then
+        call PetscLogEventBegin(solver%logs%compute_Edir, ierr)
+        ! Setup direct source term
+        call PetscLogEventBegin(solver%logs%setup_dir_src, ierr)
+        call create_edir_src_vec(solver, solver%plex, solver%plex%edir_dm, norm2(sundir), &
+          solver%kabs, solver%ksca, solver%g, &
+          sundir/norm2(sundir), solver%dirsrc)
+        call PetscLogEventEnd(solver%logs%setup_dir_src, ierr)
+
+        ! Output of srcVec
+        if(ldebug) then
+          call scale_flx(solver, solver%plex, &
+            solver%dir_scalevec_Wm2_to_W, solver%dir_scalevec_W_to_Wm2, &
+            solver%diff_scalevec_Wm2_to_W, solver%diff_scalevec_W_to_Wm2, &
+            solution, lWm2=.True., logevent=solver%logs%scale_flx)
+          call debug_dump_vec(solver%plex%edir_dm, solver%dirsrc, solver%dir_scalevec_W_to_Wm2)
+        endif
+
+        ! Create Direct Matrix & KSP
+        call PetscLogEventBegin(solver%logs%setup_Mdir, ierr)
+        call create_edir_mat(solver, solver%plex, solver%OPP, solver%kabs, solver%ksca, solver%g, &
+          sundir/norm2(sundir), solver%Mdir)
+
+        call setup_ksp (&
+          & solver%plex, &
+          & solver%plex%edir_dm, &
+          & solver%Mdir, &
+          & solver%ksp_solar_dir, &
+          & ksp_residual_history=solution%dir_ksp_residual_history, &
+          & prefix='solar_dir_' )
+        call PetscLogEventEnd(solver%logs%setup_Mdir, ierr)
+
+        ! Make sure it is in W to be suitable as a non-zero guess
+        call scale_flx(solver, solver%plex, &
+          solver%dir_scalevec_Wm2_to_W, solver%dir_scalevec_W_to_Wm2, &
+          solver%diff_scalevec_Wm2_to_W, solver%diff_scalevec_W_to_Wm2, &
+          solution, lWm2=.False., logevent=solver%logs%scale_flx)
+
+        ! Solve Direct Matrix
+        call PetscLogEventBegin(solver%logs%solve_Mdir, ierr)
+        call solve_plex_rt (&
+          & solver%plex%edir_dm, &
+          & solver%dirsrc, &
+          & solver%ksp_solar_dir, &
+          & solution%edir, &
+          & ksp_iter=solution%Niter_dir)
+        call PetscLogEventEnd(solver%logs%solve_Mdir, ierr)
+        call PetscObjectSetName(solution%edir, 'edir', ierr); call CHKERR(ierr)
+        call PetscObjectViewFromOptions(solution%edir, PETSC_NULL_VEC, &
+          '-show_edir_vec_global', ierr); call CHKERR(ierr)
+        solution%lWm2_dir = .False.
+        solution%lchanged = .True.
+
+        ! Output of Edir Vec
+        if(ldebug) then
+          call scale_flx(solver, solver%plex, &
+            solver%dir_scalevec_Wm2_to_W, solver%dir_scalevec_W_to_Wm2, &
+            solver%diff_scalevec_Wm2_to_W, solver%diff_scalevec_W_to_Wm2, &
+            solution, lWm2=.True., logevent=solver%logs%scale_flx)
+          call debug_dump_vec(solver%plex%edir_dm, solution%edir, solver%dir_scalevec_W_to_Wm2)
+        endif
+
+        call PetscLogEventEnd(solver%logs%compute_Edir, ierr)
+      endif
+
+      ! Create Diffuse Src
+      call PetscLogEventBegin(solver%logs%compute_Ediff, ierr)
+      call PetscLogEventBegin(solver%logs%setup_diff_src, ierr)
+      call create_ediff_src_vec(solver, solver%plex, solver%OPP, solver%plex%ediff_dm, &
+        solver%kabs, solver%ksca, solver%g, solver%albedo, &
+        lthermal, lsolar, solver%diffsrc, &
+        solver%plex%horizface1_dm, solver%plck, &
+        solver%plex%edir_dm, solution%edir)
+      call PetscLogEventEnd(solver%logs%setup_diff_src, ierr)
+
+      ! Output of Diffuse Src Vec
+      if(ldebug) &
+        call debug_dump_vec(solver%plex%ediff_dm, solver%diffsrc, solver%diff_scalevec_W_to_Wm2)
+
+      ! Create Diffuse Matrix & KSP
+      call PetscLogEventBegin(solver%logs%setup_Mdiff, ierr)
+      call create_ediff_mat(solver, solver%plex, solver%OPP, &
+        solver%kabs, solver%ksca, solver%g, solver%albedo, solver%Mdiff)
+      call PetscObjectViewFromOptions(solver%Mdiff, PETSC_NULL_MAT, &
+        '-show_Mediff_'//itoa(solution%uid), ierr); call CHKERR(ierr)
+
+      if(solution%lsolar_rad) then
+        call setup_ksp (&
+          & solver%plex, &
+          & solver%plex%ediff_dm, &
+          & solver%Mdiff, &
+          & solver%ksp_solar_diff, &
+          & ksp_residual_history=solution%diff_ksp_residual_history, &
+          & prefix='solar_diff_' )
+      else
+        call setup_ksp (&
+          & solver%plex, &
+          & solver%plex%ediff_dm, &
+          & solver%Mdiff, &
+          & solver%ksp_thermal_diff, &
+          & ksp_residual_history=solution%diff_ksp_residual_history, &
+          & prefix='thermal_diff_' )
+      endif
+      call PetscLogEventEnd(solver%logs%setup_Mdiff, ierr)
+
+      ! Make sure it is in W to be suitable as a non-zero guess
+      call scale_flx(solver, solver%plex, &
+        solver%dir_scalevec_Wm2_to_W, solver%dir_scalevec_W_to_Wm2, &
+        solver%diff_scalevec_Wm2_to_W, solver%diff_scalevec_W_to_Wm2, &
+        solution, lWm2=.False., logevent=solver%logs%scale_flx)
+
+      ! Solve Diffuse Matrix
+      call PetscLogEventBegin(solver%logs%solve_Mdiff, ierr)
+      if(solution%lsolar_rad) then
+        call solve_plex_rt(solver%plex%ediff_dm, &
+          solver%diffsrc, &
+          solver%ksp_solar_diff, &
+          solution%ediff, &
+          ksp_iter=solution%Niter_diff)
+      else
+        call solve_plex_rt(solver%plex%ediff_dm, &
+          solver%diffsrc, &
+          solver%ksp_thermal_diff, &
+          solution%ediff, &
+          ksp_iter=solution%Niter_diff)
+      endif
+      call PetscLogEventEnd(solver%logs%solve_Mdiff, ierr)
+      call PetscObjectSetName(solution%ediff, 'ediff', ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(solution%ediff, PETSC_NULL_VEC, &
+        '-show_ediff_vec_global', ierr); call CHKERR(ierr)
+      solution%lWm2_diff = .False.
+      solution%lchanged = .True.
+
+      call PetscLogEventEnd(solver%logs%compute_Ediff, ierr)
+
+      ! Output of Diffuse Vec
+      if(ldebug) &
+        call debug_dump_vec(solver%plex%ediff_dm, solution%ediff, solver%diff_scalevec_W_to_Wm2)
+
+      contains
         subroutine debug_dump_vec(dm, vec, scalevec)
           type(tDM), intent(in) :: dm
           type(tVec), intent(in) :: vec

@@ -176,7 +176,7 @@ contains
       call PetscLogStagePush(log_events%stage_rrtmg_thermal, ierr); call CHKERR(ierr)
       call compute_thermal(comm, solver, atm, &
         Ncol, ke1, &
-        albedo_thermal, &
+        sundir, albedo_thermal, &
         edn, eup, abso, &
         opt_time=opt_time, &
         thermal_albedo_2d=thermal_albedo_2d, &
@@ -275,7 +275,7 @@ contains
       end subroutine
   end subroutine
 
-  subroutine compute_thermal(comm, solver, atm, Ncol, ke1, albedo, &
+  subroutine compute_thermal(comm, solver, atm, Ncol, ke1, sundir, albedo, &
       edn, eup, abso, opt_time, thermal_albedo_2d, lrrtmg_only)
 
     use m_tenstr_rrlw_wvn, only : ngb, wavenum1, wavenum2
@@ -286,6 +286,7 @@ contains
     type(t_tenstr_atm), intent(in), target :: atm
     integer(iintegers),intent(in) :: Ncol, ke1
 
+    real(ireals),intent(in) :: sundir(:)
     real(ireals),intent(in) :: albedo
 
     real(ireals),intent(inout),dimension(:,:) :: edn, eup, abso
@@ -462,7 +463,7 @@ contains
 
         call Nz_Ncol_vec_to_horizface1_dm(solver%plex, reverse(Blev * Bfrac(:,:,ib)), solver%plck)
 
-        call run_plex_rt_solver(solver, lthermal=.True., lsolar=.False., sundir=[zero, zero, one], &
+        call run_plex_rt_solver(solver, lthermal=.True., lsolar=.False., sundir=sundir, &
           opt_solution_uid=500+ib, opt_solution_time=opt_time)
 
       endif

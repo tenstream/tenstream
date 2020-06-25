@@ -152,8 +152,6 @@ logical, parameter :: ldebug=.True.
       Nlev = size(atm%plev,1,kind=iintegers)
       call dmplex_2D_to_3D(dm2d_dist, Nlev, reverse(atm%zt(:, i1)), dm3d, zindex)
 
-      call dump_ownership(dm3d, '-dump_ownership', '-show_plex')
-
       call setup_plexgrid(dm2d_dist, dm3d, Nlev-1, zindex, plex, hhl=reverse(atm%zt(:, i1)))
 
       call DMDestroy(dm2d, ierr); call CHKERR(ierr)
