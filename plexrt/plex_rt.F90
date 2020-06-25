@@ -45,6 +45,7 @@ module m_plex_rt
   use m_schwarzschild, only: B_eff
   use m_netcdfio, only: ncwrite
   use m_petsc_helpers, only: hegedus_trick
+  use m_eddington, only: eddington_coeff_zdun
 
   implicit none
 
@@ -2423,30 +2424,10 @@ module m_plex_rt
     integer(mpiint) :: myid, ierr
 
     real(ireals), pointer :: xkabs(:), xksca(:), xg(:)
-    integer(iintegers), pointer :: faces_of_cell(:)
-    integer(iintegers) :: i, j, icell, iface
-    integer(iintegers), allocatable :: irows(:), icols(:)
-    real(ireals), allocatable :: c(:)
 
     type(tPetscSection) :: ediffSection, geomSection, wedgeSection
     real(ireals), pointer :: geoms(:) ! pointer to coordinates vec
     real(ireals), pointer :: wedgeorient(:) ! pointer to orientation vec
-    integer(iintegers) :: wedge_offset1, wedge_offset2, wedge_offset4, geom_offset
-
-    integer(iintegers), allocatable :: incoming_offsets(:), outgoing_offsets(:)
-
-    ! face_plex2bmc :: mapping from plex_indices, i.e. iface(1..5) to boxmc wedge numbers,
-    ! i.e. face_plex2bmc(1) gives the wedge boxmc position of first dmplex face
-    integer(iintegers) :: face_plex2bmc(5)
-    integer(iintegers) :: diff_plex2bmc(solver%diffdof/2)
-
-    !real(ireals) :: diff2diff(solver%diffdof/2)
-
-    real(irealLUT) :: coeff((solver%diffdof/2)**2), sumcoeff ! coefficients for each src=[1..8] and dst[1..8]
-    integer(iintegers), pointer :: xinoutdof(:)
-    real(ireals) :: dz, area_top, area_bot
-    real(ireals), parameter :: coeff_norm_err_tolerance=one+100*sqrt(epsilon(one))
-
     logical :: lflg, ldestroy_mat, lreset_mat
 
     call mpi_comm_rank(plex%comm, myid, ierr); call CHKERR(ierr)
@@ -2501,98 +2482,8 @@ module m_plex_rt
 
     call set_boundary_conditions()
     call set_diagonal_entries()
-
-    call ISGetIndicesF90(solver%IS_diff_in_out_dof, xinoutdof, ierr); call CHKERR(ierr)
-    do icell = plex%cStart, plex%cEnd-1
-      call DMPlexGetCone(plex%ediff_dm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
-      call get_in_out_dof_offsets(solver%IS_diff_in_out_dof, icell, incoming_offsets, outgoing_offsets, xinoutdof)
-      if(.not.allocated(irows)) allocate(irows(size(outgoing_offsets)))
-      if(.not.allocated(icols)) allocate(icols(size(incoming_offsets)))
-      if(.not.allocated(c    )) allocate(c    (size(outgoing_offsets)*size(incoming_offsets)))
-      !print *,'icell', icell, 'faces_of_cell', faces_of_cell
-      !print *,'icell', icell, 'incoming_offsets', incoming_offsets
-      !print *,'icell', icell, 'outgoing_offsets', outgoing_offsets
-
-      call PetscSectionGetFieldOffset(wedgeSection, icell, i0, wedge_offset1, ierr); call CHKERR(ierr)
-      call PetscSectionGetFieldOffset(wedgeSection, icell, i1, wedge_offset2, ierr); call CHKERR(ierr)
-      call PetscSectionGetFieldOffset(wedgeSection, icell, i3, wedge_offset4, ierr); call CHKERR(ierr)
-
-      do iface = 1, size(faces_of_cell)
-        face_plex2bmc(int(wedgeorient(wedge_offset2+iface), iintegers)) = iface
-      enddo
-      call face_idx_to_diff_bmc_idx(face_plex2bmc, diff_plex2bmc)
-
-      call PetscSectionGetFieldOffset(geomSection, icell, i3, geom_offset, ierr); call CHKERR(ierr)
-      dz = geoms(i1+geom_offset)
-
-      !print *,'icell',icell,': foc',faces_of_cell
-      !print *,'icell',icell,':',face_plex2bmc
-      call PetscLogEventBegin(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
-      call get_coeff(OPP, xkabs(i1+icell), xksca(i1+icell), xg(i1+icell), dz, &
-        aspect_zx=wedgeorient(wedge_offset1+i5), &
-        Cx=wedgeorient(wedge_offset4+i1), &
-        Cy=wedgeorient(wedge_offset4+i2), &
-        ldir=.False., coeff=coeff, ierr=ierr)
-
-      if(ldebug_optprop) then
-        do i = 1, size(incoming_offsets)
-          associate(diff2diff => coeff(diff_plex2bmc(i):size(coeff):solver%diffdof/2))
-            if(sum(diff2diff).gt.coeff_norm_err_tolerance) then
-              print *,i,': bmcface', diff_plex2bmc(i), 'diff2diff gt one', diff2diff, &
-                ':', sum(diff2diff), 'l1d', ierr.eq.OPP_1D_RETCODE, 'tol', coeff_norm_err_tolerance
-              call CHKERR(1_mpiint, '1 energy conservation violated! '//ftoa(sum(diff2diff)))
-            endif
-          end associate
-        enddo
-      endif
-
-      if(ierr.eq.OPP_1D_RETCODE) then
-        call PetscSectionGetFieldOffset(geomSection, faces_of_cell(1), i2, geom_offset, ierr); call CHKERR(ierr)
-        area_top = geoms(i1+geom_offset)
-        call PetscSectionGetFieldOffset(geomSection, faces_of_cell(2), i2, geom_offset, ierr); call CHKERR(ierr)
-        area_bot = geoms(i1+geom_offset)
-
-        !if(area_top.gt.area_bot) then
-        !  ! send overhanging energy to side faces
-        !  coeff(7*8+[2,4,6]) = coeff(7*8+[2,4,6]) + coeff(7*8+1) * (one - area_bot / area_top) / i3
-        !  ! reduce transmission bc receiver is smaller than top face
-        !  coeff(7*8+1) = coeff(7*8+1) * area_bot / area_top
-        !else
-        !  ! send overhanging energy to side faces
-        !  coeff([3,5,7]) = coeff([3,5,7]) + coeff(8) * (one - area_top / area_bot) / i3
-        !  ! transmission from bot to top face
-        !  coeff(8) = coeff(8) * area_top / area_bot
-        !endif
-      endif
-      call PetscLogEventEnd(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
-
-      if(ldebug) sumcoeff=0
-      do j = 1, size(outgoing_offsets)
-        do i = 1, size(incoming_offsets)
-          if(ldebug) then
-            if(outgoing_offsets(j).ge.0 .and. incoming_offsets(i).ge.0) &
-              sumcoeff = sumcoeff + coeff((diff_plex2bmc(j)-1)*(solver%diffdof/2) + diff_plex2bmc(i))
-          endif
-          c((j-1)*size(outgoing_offsets) + i) = -coeff((diff_plex2bmc(j)-1)*(solver%diffdof/2) + diff_plex2bmc(i))
-        enddo
-      enddo
-      call MatSetValuesLocal(A, &
-        size(outgoing_offsets, kind=iintegers), outgoing_offsets, &
-        size(incoming_offsets, kind=iintegers), incoming_offsets, c, INSERT_VALUES, ierr); call CHKERR(ierr)
-
-      if(ldebug) then
-        if(.not.approx(sumcoeff, sum(coeff), sqrt(epsilon(coeff)))) then
-          do i = 1, solver%diffdof/2
-          call CHKWARN(1_mpiint, 'diff2diff src '//itoa(i)//' : '//&
-            ftoa(coeff(i:size(coeff):solver%diffdof/2)))
-          enddo
-          call CHKERR(1_mpiint, 'have we used all coefficients? '// &
-            'used '//ftoa(sumcoeff)//' out of '//ftoa(sum(coeff)))
-        endif
-      endif
-      call DMPlexRestoreCone(plex%ediff_dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
-    enddo
-    call ISRestoreIndicesF90(solver%IS_diff_in_out_dof, xinoutdof, ierr); call CHKERR(ierr)
+    call set_1d_coeffs()
+    call set_3d_coeffs()
 
     call MatAssemblyBegin(A, MAT_FINAL_ASSEMBLY, ierr); call CHKERR(ierr)
     call MatAssemblyEnd(A, MAT_FINAL_ASSEMBLY, ierr); call CHKERR(ierr)
@@ -2689,7 +2580,149 @@ module m_plex_rt
           call MatSetValuesLocal(A, i1, irow, i1, irow, one, INSERT_VALUES, ierr); call CHKERR(ierr)
         enddo
       end subroutine
-  end subroutine
+      subroutine set_1d_coeffs()
+        integer(iintegers) :: icell, topface, botface
+        integer(iintegers) :: geom_offset
+        real(ireals) :: area_top, area_bot
+        real(ireals) :: dtau, w0, dz
+        real(ireals) :: c11,c12,c13,c23,c33
+        real(ireals) :: c(4)
+
+        integer(iintegers), allocatable :: incoming_offsets(:), outgoing_offsets(:)
+        integer(iintegers), pointer :: xinoutdof(:)
+
+        call ISGetIndicesF90(solver%IS_diff_in_out_dof, xinoutdof, ierr); call CHKERR(ierr)
+
+        do icell = plex%cStart, plex%cEnd-1
+          if(.not.plex%l1d(icell)) cycle
+
+          call get_top_bot_face_of_cell(plex%edir_dm, icell, topface, botface)
+
+          call PetscSectionGetFieldOffset(geomSection, icell, i3, geom_offset, ierr); call CHKERR(ierr)
+          dz = geoms(i1+geom_offset)
+
+          dtau = xkabs(i1+icell) + xksca(i1+icell)
+          w0   = xksca(i1+icell) / dtau
+          dtau = dtau * dz
+
+          call eddington_coeff_zdun(dtau, w0, xg(i1+icell), one, c11, c12, c13, c23, c33)
+
+          ! edn0 -> eup0, eup1 -> eup0, edn0 -> edn0, eup1 -> edn1
+          c(:) = [c12, c11, c11, c12]
+
+          call PetscSectionGetFieldOffset(geomSection, topface, i2, geom_offset, ierr); call CHKERR(ierr)
+          area_top = geoms(i1+geom_offset)
+          call PetscSectionGetFieldOffset(geomSection, botface, i2, geom_offset, ierr); call CHKERR(ierr)
+          area_bot = geoms(i1+geom_offset)
+
+          ! TODO: check how to do this for diffuse rad
+          c(2) = c(2) * (area_bot / area_top)
+          c(3) = c(3) * (area_top / area_bot)
+
+          call get_in_out_dof_offsets(solver%IS_diff_in_out_dof, icell, incoming_offsets, outgoing_offsets, xinoutdof)
+          call MatSetValuesLocal(A, i2, outgoing_offsets, i2, incoming_offsets, -c, INSERT_VALUES, ierr); call CHKERR(ierr)
+        enddo
+        call ISRestoreIndicesF90(solver%IS_diff_in_out_dof, xinoutdof, ierr); call CHKERR(ierr)
+      end subroutine
+      subroutine set_3d_coeffs()
+        integer(iintegers), pointer :: faces_of_cell(:)
+        integer(iintegers) :: i, j, icell, iface
+        integer(iintegers), allocatable :: irows(:), icols(:)
+        integer(iintegers) :: wedge_offset1, wedge_offset2, wedge_offset4, geom_offset
+
+        integer(iintegers), allocatable :: incoming_offsets(:), outgoing_offsets(:)
+        integer(iintegers), pointer :: xinoutdof(:)
+        real(ireals), allocatable :: c(:)
+
+        ! face_plex2bmc :: mapping from plex_indices, i.e. iface(1..5) to boxmc wedge numbers,
+        ! i.e. face_plex2bmc(1) gives the wedge boxmc position of first dmplex face
+        integer(iintegers) :: face_plex2bmc(5)
+        integer(iintegers) :: diff_plex2bmc(solver%diffdof/2)
+
+        !real(ireals) :: diff2diff(solver%diffdof/2)
+
+        real(irealLUT) :: coeff((solver%diffdof/2)**2), sumcoeff ! coefficients for each src=[1..8] and dst[1..8]
+        real(ireals) :: dz
+        real(ireals), parameter :: coeff_norm_err_tolerance=one+100*sqrt(epsilon(one))
+
+        call ISGetIndicesF90(solver%IS_diff_in_out_dof, xinoutdof, ierr); call CHKERR(ierr)
+        call get_in_out_dof_offsets(solver%IS_diff_in_out_dof, plex%cStart, incoming_offsets, outgoing_offsets, xinoutdof)
+
+        allocate(irows(size(outgoing_offsets)))
+        allocate(icols(size(incoming_offsets)))
+        allocate(c    (size(outgoing_offsets)*size(incoming_offsets)))
+
+        do icell = plex%cStart, plex%cEnd-1
+          if(plex%l1d(icell)) cycle
+
+          call DMPlexGetCone(plex%ediff_dm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
+          !print *,'icell', icell, 'faces_of_cell', faces_of_cell
+
+          call get_in_out_dof_offsets(solver%IS_diff_in_out_dof, icell, incoming_offsets, outgoing_offsets, xinoutdof)
+          !print *,'icell', icell, 'incoming_offsets', incoming_offsets
+          !print *,'icell', icell, 'outgoing_offsets', outgoing_offsets
+
+          call PetscSectionGetFieldOffset(wedgeSection, icell, i0, wedge_offset1, ierr); call CHKERR(ierr)
+          call PetscSectionGetFieldOffset(wedgeSection, icell, i1, wedge_offset2, ierr); call CHKERR(ierr)
+          call PetscSectionGetFieldOffset(wedgeSection, icell, i3, wedge_offset4, ierr); call CHKERR(ierr)
+
+          do iface = 1, size(faces_of_cell)
+            face_plex2bmc(int(wedgeorient(wedge_offset2+iface), iintegers)) = iface
+          enddo
+          call face_idx_to_diff_bmc_idx(face_plex2bmc, diff_plex2bmc)
+
+          call PetscSectionGetFieldOffset(geomSection, icell, i3, geom_offset, ierr); call CHKERR(ierr)
+          dz = geoms(i1+geom_offset)
+
+          call PetscLogEventBegin(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
+          call get_coeff(OPP, xkabs(i1+icell), xksca(i1+icell), xg(i1+icell), dz, &
+            aspect_zx=wedgeorient(wedge_offset1+i5), &
+            Cx=wedgeorient(wedge_offset4+i1), &
+            Cy=wedgeorient(wedge_offset4+i2), &
+            ldir=.False., coeff=coeff, ierr=ierr)
+
+          if(ldebug_optprop) then
+            do i = 1, size(incoming_offsets)
+              associate(diff2diff => coeff(diff_plex2bmc(i):size(coeff):solver%diffdof/2))
+                if(sum(diff2diff).gt.coeff_norm_err_tolerance) then
+                  print *,i,': bmcface', diff_plex2bmc(i), 'diff2diff gt one', diff2diff, &
+                    ':', sum(diff2diff), 'l1d', ierr.eq.OPP_1D_RETCODE, 'tol', coeff_norm_err_tolerance
+                  call CHKERR(1_mpiint, '1 energy conservation violated! '//ftoa(sum(diff2diff)))
+                endif
+              end associate
+            enddo
+          endif
+          call PetscLogEventEnd(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
+
+          if(ldebug) sumcoeff=0
+          do j = 1, size(outgoing_offsets)
+            do i = 1, size(incoming_offsets)
+              if(ldebug) then
+                if(outgoing_offsets(j).ge.0 .and. incoming_offsets(i).ge.0) &
+                  sumcoeff = sumcoeff + coeff((diff_plex2bmc(j)-1)*(solver%diffdof/2) + diff_plex2bmc(i))
+              endif
+              c((j-1)*size(outgoing_offsets) + i) = -coeff((diff_plex2bmc(j)-1)*(solver%diffdof/2) + diff_plex2bmc(i))
+            enddo
+          enddo
+          call MatSetValuesLocal(A, &
+            size(outgoing_offsets, kind=iintegers), outgoing_offsets, &
+            size(incoming_offsets, kind=iintegers), incoming_offsets, c, INSERT_VALUES, ierr); call CHKERR(ierr)
+
+          if(ldebug) then
+            if(.not.approx(sumcoeff, sum(coeff), sqrt(epsilon(coeff)))) then
+              do i = 1, solver%diffdof/2
+                call CHKWARN(1_mpiint, 'diff2diff src '//itoa(i)//' : '//&
+                  ftoa(coeff(i:size(coeff):solver%diffdof/2)))
+              enddo
+              call CHKERR(1_mpiint, 'have we used all coefficients? '// &
+                'used '//ftoa(sumcoeff)//' out of '//ftoa(sum(coeff)))
+            endif
+          endif
+          call DMPlexRestoreCone(plex%ediff_dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
+        enddo
+        call ISRestoreIndicesF90(solver%IS_diff_in_out_dof, xinoutdof, ierr); call CHKERR(ierr)
+      end subroutine
+    end subroutine
   !> @brief retrieve transport coefficients from optprop module
   !> @detail this may get the coeffs from a LUT or ANN or whatever and return diff2diff or dir2diff or dir2dir coeffs
   subroutine get_coeff(OPP, kabs, ksca, g, dz, aspect_zx, Cx, Cy, ldir, coeff, ierr, angles)
