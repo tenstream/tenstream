@@ -646,23 +646,28 @@ module m_plex_rt
             call debug_dump_vec(solver%plex%edir_dm, solver%dirsrc, solver%dir_scalevec_W_to_Wm2)
           endif
 
-          ! Create Direct Matrix
+          ! Create Direct Matrix & KSP
           call PetscLogEventBegin(solver%logs%setup_Mdir, ierr)
           call create_edir_mat(solver, solver%plex, solver%OPP, solver%kabs, solver%ksca, solver%g, &
             sundir/norm2(sundir), solver%Mdir)
-          call PetscLogEventEnd(solver%logs%setup_Mdir, ierr)
 
+          call setup_ksp (&
+            & solver%plex, &
+            & solver%plex%edir_dm, &
+            & solver%Mdir, &
+            & solver%ksp_solar_dir, &
+            & ksp_residual_history=solution%dir_ksp_residual_history, &
+            & prefix='solar_dir_' )
+          call PetscLogEventEnd(solver%logs%setup_Mdir, ierr)
 
           ! Solve Direct Matrix
           call PetscLogEventBegin(solver%logs%solve_Mdir, ierr)
-          call solve_plex_rt(solver%plex%edir_dm, &
-            solver%dirsrc, &
-            solver%Mdir, &
-            solver%ksp_solar_dir, &
-            solution%edir, &
-            ksp_residual_history=solution%dir_ksp_residual_history, &
-            prefix='solar_dir_', &
-            ksp_iter=solution%Niter_dir)
+          call solve_plex_rt (&
+            & solver%plex%edir_dm, &
+            & solver%dirsrc, &
+            & solver%ksp_solar_dir, &
+            & solution%edir, &
+            & ksp_iter=solution%Niter_dir)
           call PetscLogEventEnd(solver%logs%solve_Mdir, ierr)
           call PetscObjectSetName(solution%edir, 'edir', ierr); call CHKERR(ierr)
           call PetscObjectViewFromOptions(solution%edir, PETSC_NULL_VEC, &
@@ -696,12 +701,30 @@ module m_plex_rt
         if(ldebug) &
           call debug_dump_vec(solver%plex%ediff_dm, solver%diffsrc, solver%diff_scalevec_W_to_Wm2)
 
-        ! Create Diffuse Matrix
+        ! Create Diffuse Matrix & KSP
         call PetscLogEventBegin(solver%logs%setup_Mdiff, ierr)
         call create_ediff_mat(solver, solver%plex, solver%OPP, &
           solver%kabs, solver%ksca, solver%g, solver%albedo, solver%Mdiff)
         call PetscObjectViewFromOptions(solver%Mdiff, PETSC_NULL_MAT, &
           '-show_Mediff_'//itoa(solution%uid), ierr); call CHKERR(ierr)
+
+        if(solution%lsolar_rad) then
+          call setup_ksp (&
+            & solver%plex, &
+            & solver%plex%ediff_dm, &
+            & solver%Mdiff, &
+            & solver%ksp_solar_diff, &
+            & ksp_residual_history=solution%diff_ksp_residual_history, &
+            & prefix='solar_diff_' )
+        else
+          call setup_ksp (&
+            & solver%plex, &
+            & solver%plex%ediff_dm, &
+            & solver%Mdiff, &
+            & solver%ksp_thermal_diff, &
+            & ksp_residual_history=solution%diff_ksp_residual_history, &
+            & prefix='thermal_diff_' )
+        endif
         call PetscLogEventEnd(solver%logs%setup_Mdiff, ierr)
 
 
@@ -710,20 +733,14 @@ module m_plex_rt
         if(solution%lsolar_rad) then
           call solve_plex_rt(solver%plex%ediff_dm, &
             solver%diffsrc, &
-            solver%Mdiff, &
             solver%ksp_solar_diff, &
             solution%ediff, &
-            ksp_residual_history=solution%diff_ksp_residual_history, &
-            prefix='solar_diff_', &
             ksp_iter=solution%Niter_diff)
         else
           call solve_plex_rt(solver%plex%ediff_dm, &
             solver%diffsrc, &
-            solver%Mdiff, &
             solver%ksp_thermal_diff, &
             solution%ediff, &
-            ksp_residual_history=solution%diff_ksp_residual_history, &
-            prefix='thermal_diff_', &
             ksp_iter=solution%Niter_diff)
         endif
         call PetscLogEventEnd(solver%logs%solve_Mdiff, ierr)
@@ -1666,15 +1683,13 @@ module m_plex_rt
         enddo
       end subroutine
 
-    subroutine solve_plex_rt(dm, b, A, ksp, x, ksp_residual_history, prefix, ksp_iter)
+    subroutine setup_ksp(plex, dm, A, ksp, ksp_residual_history, prefix)
+      type(t_plexgrid), intent(in) :: plex
       type(tDM), intent(inout) :: dm
-      type(tVec), allocatable, intent(in) :: b
       type(tMat), allocatable, intent(in) :: A
       type(tKSP), allocatable, intent(inout) :: ksp
-      type(tVec), allocatable, intent(inout) :: x
       real(ireals), allocatable, intent(inout), optional :: ksp_residual_history(:)
       character(len=*),optional :: prefix
-      integer(iintegers), intent(out), optional :: ksp_iter
 
       real(ireals),parameter :: rtol=1e-6_ireals, rel_atol=1e-6_ireals
       integer(iintegers),parameter  :: maxiter=1000
@@ -1686,43 +1701,41 @@ module m_plex_rt
       integer(iintegers), parameter :: Nmaxhistory=1000
       integer(mpiint) :: comm, myid, numnodes, ierr
 
-      call PetscObjectGetComm(dm, comm, ierr); call CHKERR(ierr)
-
-      if(.not.allocated(b)) call CHKERR(1_mpiint, 'Src Vector has to be allocated before running solve')
+      if(allocated(ksp)) return
       if(.not.allocated(A)) call CHKERR(1_mpiint, 'System Matrix has to be allocated before running solve')
 
-      if(.not.allocated(ksp)) then
-        allocate(ksp)
-        call KSPCreate(comm, ksp, ierr); call CHKERR(ierr)
-        if(present(prefix)) then
-          call KSPAppendOptionsPrefix(ksp, trim(prefix), ierr); call CHKERR(ierr)
-        endif
+      call PetscObjectGetComm(dm, comm, ierr); call CHKERR(ierr)
 
-        call MatGetSize(A, Nrows_global, PETSC_NULL_INTEGER, ierr); call CHKERR(ierr)
-        atol = rel_atol*real(Nrows_global, ireals)
-        !call imp_allreduce_min(comm, rel_atol*real(Nrows_global, ireals), atol)
-        atol = max(1e-8_ireals, atol)
-
-        call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
-        call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
-
-        if(myid.eq.0.and.ldebug) &
-          print *,'Setup KSP -- tolerances:',rtol,atol,'::',rel_atol, Nrows_global
-
-        call KSPSetType(ksp,KSPFGMRES,ierr); call CHKERR(ierr)
-        call KSPSetInitialGuessNonzero(ksp, PETSC_TRUE, ierr); call CHKERR(ierr)
-        call KSPGetPC(ksp,prec,ierr); call CHKERR(ierr)
-        if(numnodes.eq.0) then
-          call PCSetType(prec, PCILU, ierr); call CHKERR(ierr)
-        else
-          call PCSetType(prec, PCBJACOBI, ierr); call CHKERR(ierr)
-        endif
-
-        call KSPSetTolerances(ksp, rtol, atol, PETSC_DEFAULT_REAL, maxiter, ierr); call CHKERR(ierr)
-
-        call KSPSetDM(ksp, dm, ierr); call CHKERR(ierr)
-        call KSPSetDMActive(ksp, PETSC_FALSE, ierr); call CHKERR(ierr)
+      allocate(ksp)
+      call KSPCreate(comm, ksp, ierr); call CHKERR(ierr)
+      if(present(prefix)) then
+        call KSPAppendOptionsPrefix(ksp, trim(prefix), ierr); call CHKERR(ierr)
       endif
+
+      call MatGetSize(A, Nrows_global, PETSC_NULL_INTEGER, ierr); call CHKERR(ierr)
+      atol = rel_atol*real(Nrows_global, ireals)
+      !call imp_allreduce_min(comm, rel_atol*real(Nrows_global, ireals), atol)
+      atol = max(1e-8_ireals, atol)
+
+      call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+      call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
+
+      if(myid.eq.0.and.ldebug) &
+        print *,'Setup KSP -- tolerances:',rtol,atol,'::',rel_atol, Nrows_global
+
+      call KSPSetType(ksp,KSPFGMRES,ierr); call CHKERR(ierr)
+      call KSPSetInitialGuessNonzero(ksp, PETSC_TRUE, ierr); call CHKERR(ierr)
+      call KSPGetPC(ksp,prec,ierr); call CHKERR(ierr)
+      if(numnodes.eq.0) then
+        call PCSetType(prec, PCILU, ierr); call CHKERR(ierr)
+      else
+        call PCSetType(prec, PCBJACOBI, ierr); call CHKERR(ierr)
+      endif
+
+      call KSPSetTolerances(ksp, rtol, atol, PETSC_DEFAULT_REAL, maxiter, ierr); call CHKERR(ierr)
+
+      call KSPSetDM(ksp, dm, ierr); call CHKERR(ierr)
+      call KSPSetDMActive(ksp, PETSC_FALSE, ierr); call CHKERR(ierr)
 
       if(present(ksp_residual_history)) then
         if(.not.allocated(ksp_residual_history)) &
@@ -1730,14 +1743,108 @@ module m_plex_rt
         call KSPSetResidualHistory(ksp, ksp_residual_history, Nmaxhistory, PETSC_TRUE, ierr); call CHKERR(ierr)
       endif
 
+      call KSPSetOperators(ksp, A, A, ierr); call CHKERR(ierr)
+      call KSPSetFromOptions(ksp, ierr); call CHKERR(ierr)
+      call set_fieldsplits(ksp)
+      call KSPSetUp(ksp, ierr); call CHKERR(ierr)
+
+      contains
+        subroutine set_fieldsplits(ksp)
+          type(tKSP), intent(inout) :: ksp
+          type(tPetscSection) :: psection
+          type(tPC) :: pc
+          type(tIS) :: is_1D, isg_1D, isg_3D, isg_all
+          integer(iintegers) :: numfields, numDof
+          integer(iintegers) :: cStart, cEnd, j1D
+          integer(iintegers) :: mStart, mEnd
+          integer(iintegers) :: icell, iface, ifield, idof, voff, Ndof1D
+          integer(iintegers), pointer :: faces_of_cell(:)
+          integer(iintegers), allocatable :: idx1D(:)
+          ISLocalToGlobalMapping :: rmapping, cmapping
+
+          call KSPGetPC(ksp, pc, ierr); call CHKERR(ierr)
+          call MatGetLocalToGlobalMapping(A, rmapping, cmapping, ierr); call CHKERR(ierr)
+          call MatGetOwnershipRange(A, mStart, mEnd, ierr); call CHKERR(ierr)
+          call DMGetSection(dm, psection, ierr); call CHKERR(ierr)
+          call PetscSectionGetNumFields(psection, numfields, ierr); call CHKERR(ierr)
+          call DMPlexGetDepthStratum(dm, i3, cStart, cEnd, ierr); call CHKERR(ierr)
+
+          Ndof1D = 0
+          do icell = cStart, cEnd-1
+            if(plex%l1d(icell)) then
+              call DMPlexGetCone(dm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
+              do iface = 1, size(faces_of_cell)
+                call PetscSectionGetDof(psection, faces_of_cell(iface), numDof, ierr); call CHKERR(ierr)
+                Ndof1D = Ndof1D + numDof
+              enddo
+              call DMPlexrestoreCone(dm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
+            endif
+          enddo
+
+          allocate(idx1D(i0:Ndof1D-i1))
+
+          j1D = 0
+          do icell = cStart, cEnd-1
+            if(plex%l1d(icell)) then
+              call DMPlexGetCone(dm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
+              do iface = 1, size(faces_of_cell)
+                do ifield = i0, numFields-i1
+                  call PetscSectionGetFieldDof(psection, faces_of_cell(iface), ifield, numDof, ierr); call CHKERR(ierr)
+                  call PetscSectionGetFieldOffset(psection, faces_of_cell(iface), ifield, voff, ierr); call CHKERR(ierr)
+                  do idof = i0, numDof-i1
+                    idx1D(j1D) = voff + idof
+                    j1D = j1D + i1
+                  enddo
+                enddo
+              enddo
+              call DMPlexrestoreCone(dm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
+            endif
+          enddo
+
+          call ISCreateGeneral(comm, Ndof1D, idx1D, PETSC_COPY_VALUES, IS_1D, ierr); call CHKERR(ierr)
+          deallocate(idx1D)
+          call ISSortRemoveDups(IS_1D, ierr); call CHKERR(ierr)
+          call ISLocalToGlobalMappingApplyIS(cmapping, IS_1D, isg_1D, ierr); call CHKERR(ierr)
+          call ISDestroy(is_1D, ierr); call CHKERR(ierr)
+
+          call PetscObjectViewFromOptions(ISg_1D, ksp, '-show_fs_1D', ierr); call CHKERR(ierr)
+          call PCFieldSplitSetIS(pc, '1D', isg_1D, ierr); call CHKERR(ierr)
+
+          call ISComplement(isg_1D, mStart, mEnd, isg_3D, ierr); call CHKERR(ierr)
+          call ISDestroy(isg_1D, ierr); call CHKERR(ierr)
+
+          call PetscObjectViewFromOptions(ISg_3D, ksp, '-show_fs_3D', ierr); call CHKERR(ierr)
+          call PCFieldSplitSetIS(pc, '3D', isg_3D, ierr); call CHKERR(ierr)
+          call ISDestroy(isg_3D, ierr); call CHKERR(ierr)
+
+          if(.False.) then
+            call ISCreateStride(comm, mEnd-mStart, mStart, i1, isg_all, ierr); call CHKERR(ierr)
+            call PetscObjectViewFromOptions(isg_all, ksp, '-show_fs_all', ierr); call CHKERR(ierr)
+            call PCFieldSplitSetIS(pc, 'all', isg_all, ierr); call CHKERR(ierr)
+            call ISDestroy(isg_all, ierr); call CHKERR(ierr)
+          endif
+        end subroutine
+    end subroutine
+
+    subroutine solve_plex_rt(dm, b, ksp, x, ksp_iter)
+      type(tDM), intent(inout) :: dm
+      type(tVec), allocatable, intent(in) :: b
+      type(tKSP), allocatable, intent(inout) :: ksp
+      type(tVec), allocatable, intent(inout) :: x
+      integer(iintegers), intent(out), optional :: ksp_iter
+
+      integer(mpiint) :: comm, myid, ierr
+
+      call PetscObjectGetComm(dm, comm, ierr); call CHKERR(ierr)
+
+      if(.not.allocated(b)) call CHKERR(1_mpiint, 'Src Vector has to be allocated before running solve')
+      if(.not.allocated(ksp)) call CHKERR(1_mpiint, 'KSP has to be setup before')
+
+
       if(.not.allocated(x)) then
         allocate(x)
         call VecDuplicate(b, x, ierr); call CHKERR(ierr)
       endif
-
-      call KSPSetOperators(ksp, A, A, ierr); call CHKERR(ierr)
-      call KSPSetFromOptions(ksp, ierr); call CHKERR(ierr)
-      call KSPSetUp(ksp, ierr); call CHKERR(ierr)
 
       call hegedus_trick(ksp, b, x)
       call KSPSolve(ksp, b, x, ierr); call CHKERR(ierr)
@@ -1772,10 +1879,12 @@ module m_plex_rt
           character(len=*), parameter :: alternate_prefix='diverged_alternate_'
           character(len=default_str_len) :: old_prefix
 
-          type(tMat) :: A2
+          type(tMat) :: A, Pmat, A2
           logical :: lhandle_diverged, lflg
 
           call KSPGetConvergedReason(ksp,reason,ierr) ;call CHKERR(ierr)
+
+          call KSPGetOperators(ksp, A, Pmat, ierr); call CHKERR(ierr)
           if(reason.le.0) then
             call PetscObjectViewFromOptions(b  , PETSC_NULL_VEC, '-show_diverged_b', ierr); call CHKERR(ierr)
             call PetscObjectViewFromOptions(x  , PETSC_NULL_VEC, '-show_diverged_x', ierr); call CHKERR(ierr)
