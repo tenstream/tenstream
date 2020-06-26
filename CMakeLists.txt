@@ -91,6 +91,17 @@ add_custom_target(pgobuild
   COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --
   )
 
+option(ENABLE_GCOV "enable code coverage flags" OFF)
+if(ENABLE_GCOV)
+  set(GCC_COVERAGE_COMPILE_FLAGS "-g -coverage -fprofile-arcs -ftest-coverage")
+  set(GCC_COVERAGE_LINK_FLAGS    "-coverage -lgcov")
+  message(INFO " Enabling Gcov flags: ${GCC_COVERAGE_COMPILE_FLAGS} ${GCC_COVERAGE_LINK_FLAGS}")
+  set(CMAKE_Fortran_FLAGS  "${CMAKE_Fortran_FLAGS} ${GCC_COVERAGE_COMPILE_FLAGS}")
+  set(CMAKE_C_FLAGS  "${CMAKE_C_FLAGS} ${GCC_COVERAGE_COMPILE_FLAGS}")
+  set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} ${GCC_COVERAGE_COMPILE_FLAGS}")
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${GCC_COVERAGE_LINK_FLAGS}")
+endif()
+
 MESSAGE(STATUS "Build Type " ${CMAKE_BUILD_TYPE})
 MESSAGE(STATUS "Compiler ID "  ${CMAKE_Fortran_COMPILER_ID})
 if (CMAKE_BUILD_TYPE STREQUAL "RELEASE")

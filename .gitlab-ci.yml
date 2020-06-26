@@ -22,7 +22,7 @@ stages:
   script:
     - if [ ! -z "$MODULES" ]; then module load $MODULES || exit 1; module list; fi
     - mkdir -p build && cd build
-    - cmake -DCMAKE_BUILD_TYPE="$BUILD_TYPE" -DCTEST_MPIRUN_FLAGS="$MPIRUN_FLAGS" -DMPIEXEC="$MPIEXEC" ${CMAKE_OPTS} .. || exit 1
+    - cmake -DCMAKE_BUILD_TYPE="$BUILD_TYPE" -DCTEST_MPIRUN_FLAGS="$MPIRUN_FLAGS" -DMPIEXEC="$MPIEXEC" $CMAKE_OPTS .. || exit 1
     - make all -j || exit 2
     - CMD="ctest $CTEST_ARGS"
     - echo $CMD && $CMD || exit 3
@@ -31,7 +31,7 @@ stages:
     BUILD_TYPE: RELEASE
     MPIEXEC: "mpirun"
     MPIRUN_FLAGS: '' #--allow-run-as-root;-A;bm0974;-p;shared
-    CMAKE_OPTS: ''
+    CMAKE_OPTS: ""
 
 build:docker:ubuntu-rolling:
   extends: .build:default
@@ -94,3 +94,14 @@ build:mim:gcc:debug:
   variables:
     MODULES: "petsc/debug-gcc-9 localflock"
     BUILD_TYPE: DEBUG
+
+build:mim:gcc:debug:gcov:
+  extends: .build:mim:default
+  after_script:
+    -  bash <(curl -s https://codecov.io/bash) || echo 'Codecov failed to upload'
+  extends: .build:mim:default
+  variables:
+    MODULES: "petsc/debug-gcc-9 localflock"
+    BUILD_TYPE: DEBUG
+    CODECOV_TOKEN: "0d3305f8-b2e2-404e-9218-92a749eb7e5b"
+    CMAKE_OPTS: "-DENABLE_GCOV=ON"
