@@ -92,6 +92,5 @@ build:mim:gcc:single:
 build:mim:gcc:debug:
   extends: .build:mim:default
   variables:
-    MODULES: "petsc/debug-gcc-9 localflock cmake"
+    MODULES: "petsc/debug-gcc-9 localflock"
     BUILD_TYPE: DEBUG
-    CMAKE_OPTS: '-DBUILD_RAYLI=ON'
