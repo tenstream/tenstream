@@ -1,0 +1,204 @@
+module m_search
+  use iso_fortran_env, only: REAL32, REAL64
+  use m_data_parameters,only : iintegers, mpiint, ireals
+  use m_helper_functions, only: CHKERR
+
+  implicit none
+
+  interface find_real_location
+#:for dtype in ['REAL32', 'REAL64']
+    module procedure find_real_location_${dtype}$
+#:endfor
+  end interface
+
+  interface find_real_location_linear
+#:for dtype in ['REAL32', 'REAL64']
+    module procedure find_real_location_linear_${dtype}$
+#:endfor
+  end interface
+  interface find_real_location_linear_asc
+#:for dtype in ['REAL32', 'REAL64']
+    module procedure find_real_location_linear_asc${dtype}$
+#:endfor
+  end interface
+  interface find_real_location_linear_desc
+#:for dtype in ['REAL32', 'REAL64']
+    module procedure find_real_location_linear_desc${dtype}$
+#:endfor
+  end interface
+
+  interface search_sorted_bisection
+#:for dtype in ['REAL32', 'REAL64']
+    module procedure search_sorted_bisection_${dtype}$
+#:endfor
+  end interface
+
+  integer(iintegers), parameter :: LINEAR_SEARCH_LIMIT=30
+
+  contains
+
+    ! return index+residula i where val is between arr(i) and arr(i+1)
+    ! chooses different implementations depending on input array size
+#:for dtype in ['REAL32', 'REAL64']
+    pure function find_real_location_${dtype}$(arr, val) result(loc)
+      real(${dtype}$),intent(in) :: arr(:)
+      real(${dtype}$),intent(in) :: val
+      real(${dtype}$)            :: loc
+      ! Seems that the Petsc Func is always the slowest implementation but unnoticeable after N>100
+      select case (size(arr))
+      case(:LINEAR_SEARCH_LIMIT)
+        loc = find_real_location_linear(arr, val)
+      case default
+        loc = search_sorted_bisection(arr,val)
+      end select
+    end function
+
+    pure function find_real_location_linear_${dtype}$(arr, val) result(res)
+      real(${dtype}$),intent(in) :: arr(:)
+      real(${dtype}$),intent(in) :: val
+      real(${dtype}$)            :: res
+
+      if(arr(1).le.arr(2)) then ! ascending order
+        res = find_real_location_linear_asc(arr, val)
+      else !descending order
+        res = find_real_location_linear_desc(arr, val)
+      endif !ordering
+    end function
+
+    ! linear search for ascending ordering
+    pure function find_real_location_linear_asc${dtype}$(arr, val) result(res)
+      real(${dtype}$),intent(in) :: arr(:)
+      real(${dtype}$),intent(in) :: val
+      real(${dtype}$)            :: res
+      real(${dtype}$)            :: loc_increment
+      integer(iintegers)      :: i, N
+
+      N = size(arr, kind=iintegers)
+
+      if(arr(1).ge.val) then
+        res = 1
+        return
+      endif
+      do i=2,N
+        if(arr(i).ge.val) then
+          loc_increment = (val - arr(i-1)) / (arr(i) - arr(i-1))
+          res = real(i-1, kind=kind(res)) + loc_increment
+          return
+        endif
+      enddo
+      res = real(N, kind=kind(res))
+    end function
+
+    pure function find_real_location_linear_desc${dtype}$(arr, val) result(res)
+      real(${dtype}$),intent(in) :: arr(:)
+      real(${dtype}$),intent(in) :: val
+      real(${dtype}$)            :: res
+      real(${dtype}$)            :: loc_increment
+      integer(iintegers)      :: i, N
+
+      N = size(arr, kind=iintegers)
+
+      if(arr(1).le.val) then
+        res = 1
+        return
+      endif
+      do i=2,N
+        if(arr(i).le.val) then
+          loc_increment = (val - arr(i-1)) / (arr(i) - arr(i-1))
+          res = real(i-1, kind=kind(res)) + loc_increment
+          return
+        endif
+      enddo
+      res = real(N, kind=kind(res))
+    end function
+
+    ! return index+residula i where val is between arr(i) and arr(i+1)
+    pure function search_sorted_bisection_${dtype}$(arr,val) result(res)
+      real(${dtype}$),intent(in) :: arr(:)
+      real(${dtype}$),intent(in) :: val
+      real(${dtype}$) :: res
+      real(${dtype}$) :: loc_increment
+      integer(iintegers) :: i,j,k,N
+
+      N = size(arr, kind=iintegers)
+      if(N.le.LINEAR_SEARCH_LIMIT) then ! for small arrays it is quicker to do a linear search
+        res = find_real_location_linear(arr, val)
+        return
+      endif
+
+      i=lbound(arr,1)
+      j=ubound(arr,1)
+
+      if(arr(i).le.arr(j)) then ! ascending order
+        do
+          k=(i+j)/2
+          if (val < arr(k)) then
+            j=k
+          else
+            i=k
+          endif
+          if (i+1 >= j) then ! only single or tuple left
+            ! i is left bound and j is right bound index
+            if(i.eq.j) then
+              loc_increment = 0
+            else
+              loc_increment = (val - arr(i)) / ( arr(j) - arr(i) )
+            endif
+            res= min(max( real(lbound(arr,1), ${dtype}$), real(i, ${dtype}$) + loc_increment ), &
+              & real(ubound(arr,1), ${dtype}$)) ! return `real-numbered` location of val
+            return
+          endif
+        end do
+      else !descending order
+        do
+          k=(i+j)/2
+          if (val > arr(k)) then
+            j=k
+          else
+            i=k
+          endif
+          if (i+1 >= j) then ! only single or tuple left
+            ! i is left bound and j is right bound index
+            if(i.eq.j) then
+              loc_increment = 0
+            else
+              loc_increment = (val - arr(j)) / ( arr(i) - arr(j) )
+            endif
+            res = min(max(real(lbound(arr,1), ${dtype}$), real(j, ${dtype}$) - loc_increment ), &
+              & real(ubound(arr,1), ${dtype}$)) ! return `real-numbered` location of val
+            return
+          endif
+        end do
+      endif
+    end function
+#:endfor
+
+    ! return index+residula i where val is between arr(i) and arr(i+1)
+    function find_real_location_petsc(arr, val) result(loc)
+      real(ireals),intent(in) :: arr(:)
+      real(ireals),intent(in) :: val
+      real(ireals)            :: loc
+      real(ireals)            :: residual
+      integer(iintegers)      :: lb, N
+      real(ireals), parameter :: eps=epsilon(eps)
+      integer(mpiint)         :: ierr
+
+      N = size(arr, kind=iintegers)
+      call PetscFindReal(val, N, arr, eps, lb, ierr); call CHKERR(ierr)
+      if(lb.eq.-1_iintegers) then
+        loc = 1
+        return
+      else if(lb.eq.-N-1) then
+        loc = real(N, ireals)
+        return
+      else if(lb.lt.-1._iintegers) then ! we have not hit the real value exactly, lets add the offset
+        lb = -lb - 1
+        residual = (val - arr(lb)) / (arr(lb+1) - arr(lb))
+        loc = real(lb, ireals) + residual
+        return
+      else
+        loc = real(lb+1) ! PetscFind returns the c-notation index
+      endif
+    end function
+
+end module
