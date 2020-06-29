@@ -9,7 +9,7 @@ module test_pprts_symmetry
   use m_pprts, only : init_pprts, set_optical_properties, &
     solve_pprts, set_angles, pprts_get_result_toZero
   use m_tenstream_options, only: read_commandline_options
-  use m_helper_functions, only: itoa
+  use m_helper_functions, only: itoa, spherical_2_cartesian
 
   use m_optprop, only: t_optprop, t_optprop_cube, &
     t_optprop_3_10, t_optprop_8_10
@@ -142,7 +142,7 @@ contains
     contains
       subroutine this_test(solver)
       class(t_solver), intent(inout) :: solver
-    call init_pprts(comm, nv, nxp, nyp, dx,dy, phi0, theta0, solver, dz1d)
+    call init_pprts(comm, nv, nxp, nyp, dx,dy, spherical_2_cartesian(phi0, theta0), solver, dz1d)
 
     allocate(kabs(solver%C_one%zm , solver%C_one%xm,  solver%C_one%ym ))
     allocate(ksca(solver%C_one%zm , solver%C_one%xm,  solver%C_one%ym ))
@@ -164,19 +164,19 @@ contains
     endif
 
     call set_optical_properties(solver, albedo, kabs, ksca, g)
-    call set_angles(solver, 10._ireals, theta0)
+    call set_angles(solver, spherical_2_cartesian(10._ireals, theta0))
     call solve_pprts(solver, incSolar, opt_solution_uid=10_iintegers)
 
-    call set_angles(solver, 190._ireals, theta0)
+    call set_angles(solver, spherical_2_cartesian(190._ireals, theta0))
     call solve_pprts(solver, incSolar, opt_solution_uid=190_iintegers)
 
     call pprts_get_result_toZero(solver, fdn0, fup0, fdiv0, fdir0, opt_solution_uid=10_iintegers)
     call pprts_get_result_toZero(solver, fdn1, fup1, fdiv1, fdir1, opt_solution_uid=190_iintegers)
 
-    call set_angles(solver, 100._ireals, theta0)
+    call set_angles(solver, spherical_2_cartesian(100._ireals, theta0))
     call solve_pprts(solver, incSolar, opt_solution_uid=100_iintegers)
 
-    call set_angles(solver, 280._ireals, theta0)
+    call set_angles(solver, spherical_2_cartesian(280._ireals, theta0))
     call solve_pprts(solver, incSolar, opt_solution_uid=280_iintegers)
 
     call pprts_get_result_toZero(solver, fdn2, fup2, fdiv2, fdir2, opt_solution_uid=100_iintegers)

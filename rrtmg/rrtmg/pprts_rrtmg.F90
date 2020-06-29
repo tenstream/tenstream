@@ -77,14 +77,14 @@ module m_pprts_rrtmg
 contains
 
   subroutine init_pprts_rrtmg(comm, solver, dx, dy, dz, &
-                  phi0, theta0, &
+                  sundir, &
                   xm, ym, zm, &
                   nxproc, nyproc, &
                   pprts_icollapse)
 
     integer(mpiint), intent(in) :: comm
 
-    real(ireals), intent(in)      :: dx, dy, phi0, theta0
+    real(ireals), intent(in)      :: dx, dy, sundir(3)
     real(ireals), intent(in)      :: dz(:,:) ! bot to top, e.g. from atm%dz
     integer(iintegers),intent(in) :: xm, ym, zm
     class(t_solver),intent(inout) :: solver
@@ -115,10 +115,10 @@ contains
     enddo
 
     if(present(nxproc) .and. present(nyproc)) then
-      call init_pprts(comm, zm, xm, ym, dx,dy,phi0, theta0, solver, nxproc=nxproc, nyproc=nyproc, dz3d=dz_t2b, &
+      call init_pprts(comm, zm, xm, ym, dx, dy, sundir, solver, nxproc=nxproc, nyproc=nyproc, dz3d=dz_t2b, &
         collapseindex=pprts_icollapse)
     else ! we let petsc decide where to put stuff
-      call init_pprts(comm, zm, xm, ym, dx, dy, phi0, theta0, solver, dz3d=dz_t2b, &
+      call init_pprts(comm, zm, xm, ym, dx, dy, sundir, solver, dz3d=dz_t2b, &
         collapseindex=pprts_icollapse)
     endif
   end subroutine
@@ -205,12 +205,12 @@ contains
   subroutine slope_correction_fluxes(solver, edir)
     class(t_solver), intent(inout)  :: solver                         ! solver type (e.g. t_solver_8_10)
     real(ireals),allocatable, dimension(:,:,:), intent(inout) :: edir ! [nlyr+1, local_nx, local_ny ]
-    logical :: lslope_correction, lflg
+    logical :: lslope_correction, latm_correction, lflg
     integer(mpiint) :: myid, ierr
 
     real(ireals),pointer :: grad   (:,:,:,:) =>null()
     real(ireals),pointer :: grad_1d(:)       =>null()
-    real(ireals) :: sundir(3), fac, gX(3), gY(3), n(3)
+    real(ireals) :: fac, n(3)
     integer(iintegers) :: i,j,k
 
     call mpi_comm_rank(solver%comm, myid, ierr); call CHKERR(ierr)
@@ -219,9 +219,9 @@ contains
     call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
       "-pprts_slope_correction", lslope_correction, lflg, ierr) ;call CHKERR(ierr)
 
-    if(.not.lslope_correction) return
-
-    call compute_gradient(solver%atm, solver%C_one1, solver%C_two1, solver%atm%hgrad)
+    latm_correction = .False.
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+      "-pprts_atm_correction", latm_correction, lflg, ierr) ;call CHKERR(ierr)
 
     associate(&
         atm     => solver%atm,  &
@@ -231,32 +231,46 @@ contains
 
       call getVecPointer(atm%hgrad, C_two1%da, grad_1d, grad)
 
-      k = C_two1%ze
-      do j=C_two1%ys,C_two1%ye
-        do i=C_two1%xs,C_two1%xe
-          sundir = spherical_2_cartesian(sun%phi(C_two1%zs,i,j), sun%theta(C_two1%zs,i,j))
+      if(lslope_correction) then
+        k = C_two1%ze
+        do j=C_two1%ys,C_two1%ye
+          do i=C_two1%xs,C_two1%xe
 
-          gX = [solver%atm%dx, zero, grad(i0, k, i, j) * solver%atm%dx]
-          gY = [zero, solver%atm%dy, grad(i1, k, i, j) * solver%atm%dy]
-          n = cross_3d(gX, gY)
-          n = n / norm2(n)
-          fac = dot_product(-sundir, n) / dot_product(-sundir, [zero, zero, one])
-          edir(ubound(edir,1), i-C_two1%xs+1, j-C_two1%ys+1) = edir(ubound(edir,1), i-C_two1%xs+1, j-C_two1%ys+1) * fac
+            n = cross_3d([one, zero, grad(i0, k, i, j)], [zero, one, grad(i1, k, i, j)])
+            n = n/norm2(n)
+
+            fac = dot_product(solver%sun%sundir, n) / dot_product(solver%sun%sundir, [zero, zero, one])
+            edir(k-C_two1%zs+1, i-C_two1%xs+1, j-C_two1%ys+1) = edir(k-C_two1%zs+1, i-C_two1%xs+1, j-C_two1%ys+1) * fac
+          enddo
         enddo
-      enddo
+      endif
+
+      if(latm_correction) then
+        do j=C_two1%ys,C_two1%ye
+          do i=C_two1%xs,C_two1%xe
+            do k=C_two1%zs,C_two1%ze
+
+              n = cross_3d([one, zero, grad(i0, k, i, j)], [zero, one, grad(i1, k, i, j)])
+              n = n/norm2(n)
+
+              fac = dot_product(solver%sun%sundir, [zero, zero, one]) / dot_product(solver%sun%sundir, n)
+              edir(k-C_two1%zs+1, i-C_two1%xs+1, j-C_two1%ys+1) = edir(k-C_two1%zs+1, i-C_two1%xs+1, j-C_two1%ys+1) * fac
+            enddo
+          enddo
+        enddo
+      endif
 
       call restoreVecPointer(atm%hgrad, grad_1d, grad)
     end associate
   end subroutine
 
-  subroutine pprts_rrtmg(comm, solver, atm, ie, je, &
-      dx, dy, phi0, theta0, &
+  subroutine pprts_rrtmg(comm, solver, atm, ie, je,   &
+      dx, dy, sundir,                                 &
       albedo_thermal, albedo_solar,                   &
       lthermal, lsolar,                               &
       edir,edn,eup,abso,                              &
       nxproc, nyproc, icollapse,                      &
       opt_time, solar_albedo_2d, thermal_albedo_2d,   &
-      phi2d, theta2d,                                 &
       opt_solar_constant)
 
     integer(mpiint), intent(in)     :: comm ! MPI Communicator
@@ -265,7 +279,7 @@ contains
     type(t_tenstr_atm), intent(in)  :: atm                          ! contains info on atmospheric constituents
     integer(iintegers), intent(in)  :: ie, je                       ! local domain size in x and y direction
     real(ireals), intent(in)        :: dx, dy                       ! horizontal grid spacing in [m]
-    real(ireals), intent(in)        :: phi0, theta0                 ! Sun's angles, azimuth phi(0=North, 90=East), zenith(0 high sun, 80=low sun)
+    real(ireals), intent(in)        :: sundir(:)                    ! cartesian sun direction, pointing away from the sun, dim(3)
     real(ireals), intent(in)        :: albedo_solar, albedo_thermal ! broadband ground albedo for solar and thermal spectrum
 
     ! Compute solar or thermal radiative transfer. Or compute both at once.
@@ -282,8 +296,6 @@ contains
     ! and compute new solutions only after threshold estimate is exceeded.
     ! If solar_albedo_2d is present, we use a 2D surface albedo
     real(ireals), optional, intent(in) :: opt_time, solar_albedo_2d(:,:), thermal_albedo_2d(:,:), opt_solar_constant
-
-    real(ireals), optional, intent(in) :: phi2d(:,:), theta2d(:,:)
 
     ! Fluxes and absorption in [W/m2] and [W/m3] respectively.
     ! Dimensions will probably be bigger than the dynamics grid, i.e. will have
@@ -352,7 +364,7 @@ contains
     if(.not.solver%linitialized) then
       call init_pprts_rrtmg(comm, solver, &
         dx, dy, atm%dz, &
-        phi0, theta0, &
+        sundir, &
         ie, je, ke, &
         nxproc, nyproc, pprts_icollapse)
     endif
@@ -387,9 +399,9 @@ contains
       if(.not.lskip_solar) then
         call PetscLogStagePush(log_events%stage_rrtmg_solar, ierr); call CHKERR(ierr)
         call compute_solar(solver, atm, ie, je, ke, &
-          phi0, theta0, albedo_solar, &
+          sundir, albedo_solar, &
           edir, edn, eup, abso, opt_time=opt_time, solar_albedo_2d=solar_albedo_2d, &
-          lrrtmg_only=lrrtmg_only, phi2d=phi2d, theta2d=theta2d, opt_solar_constant=opt_solar_constant)
+          lrrtmg_only=lrrtmg_only, opt_solar_constant=opt_solar_constant)
         call PetscLogStagePop(ierr); call CHKERR(ierr) ! pop solver%logs%stage_rrtmg_solar
       endif
     endif
@@ -719,9 +731,9 @@ contains
   end subroutine compute_thermal
 
   subroutine compute_solar(solver, atm, ie, je, ke, &
-      phi0, theta0, albedo, &
+      sundir, albedo, &
       edir, edn, eup, abso, opt_time, solar_albedo_2d, lrrtmg_only, &
-      phi2d, theta2d, opt_solar_constant)
+      opt_solar_constant)
 
       use m_tenstr_parrrsw, only: ngptsw
       use m_tenstr_rrtmg_sw_spcvrt, only: tenstr_solsrc
@@ -731,8 +743,7 @@ contains
     integer(iintegers),intent(in)   :: ie, je, ke
 
     real(ireals),intent(in) :: albedo
-    real(ireals),intent(in) :: phi0, theta0
-    real(ireals),intent(in),dimension(:,:),optional :: phi2d, theta2d
+    real(ireals),intent(in) :: sundir(3)
 
     real(ireals),intent(inout),dimension(:,:,:) :: edir, edn, eup, abso
 
@@ -792,7 +803,7 @@ contains
 
     allocate(integral_coeff(ke))
 
-    call set_angles(solver, phi0, theta0, phi2d=phi2d, theta2d=theta2d)
+    call set_angles(solver, sundir)
 
     if(lrrtmg_only) then
       do j=1,je
@@ -808,11 +819,7 @@ contains
             integral_coeff(k) = vert_integral_coeff(atm%plev(k,icol), atm%plev(k+1,icol))
           enddo
 
-          if(present(theta2d)) then
-            col_theta = theta2d(i,j)
-          else
-            col_theta = theta0
-          endif
+          col_theta = solver%sun%theta(solver%C_one%zs, solver%C_one%xs+i-i1, solver%C_one%ys+j-i1)
 
           if(present(solar_albedo_2d)) then
             col_albedo = solar_albedo_2d(i,j)
@@ -852,14 +859,9 @@ contains
           icol =  i+(j-1)*ie
           do k=1,ke
             integral_coeff(k) = vert_integral_coeff(atm%plev(k,icol), atm%plev(k+1,icol))
-
           enddo
 
-          if(present(theta2d)) then
-            col_theta = theta2d(i,j)
-          else
-            col_theta = theta0
-          endif
+          col_theta = solver%sun%theta(solver%C_one%zs, solver%C_one%xs+i-i1, solver%C_one%ys+j-i1)
 
           if(present(solar_albedo_2d)) then
             col_albedo = solar_albedo_2d(i,j)
@@ -952,11 +954,7 @@ contains
             do i=1,ie
               icol =  i+(j-1)*ie
 
-              if(present(theta2d)) then
-                col_theta = theta2d(i,j)
-              else
-                col_theta = theta0
-              endif
+              col_theta = solver%sun%theta(solver%C_one%zs, solver%C_one%xs+i-i1, solver%C_one%ys+j-i1)
 
               if(present(solar_albedo_2d)) col_albedo = solar_albedo_2d(i,j)
 

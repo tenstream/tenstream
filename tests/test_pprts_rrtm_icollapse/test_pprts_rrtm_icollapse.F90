@@ -4,7 +4,7 @@ module test_pprts_rrtm_icollapse
     init_mpi_data_parameters,   &
     iintegers, ireals, mpiint,  &
     i1, zero, one, default_str_len
-  use m_helper_functions, only : linspace, itoa
+  use m_helper_functions, only : linspace, itoa, spherical_2_cartesian
 
   ! main entry point for solver, and desctructor
   use m_pprts_rrtmg, only : pprts_rrtmg, destroy_pprts_rrtmg
@@ -129,6 +129,7 @@ contains
     logical :: lthermal, lsolar
     integer(mpiint) :: comm, myid
 
+    real(ireals) :: sundir(3)
     integer(iintegers) :: k, k0
 
     ! Fluxes and absorption in [W/m2] and [W/m3] respectively.
@@ -148,9 +149,11 @@ contains
     if(myid.eq.0 .and. ldebug) print *,'Computing Solar Radiation:'
     lthermal=.False.; lsolar=.True.
 
+    sundir = spherical_2_cartesian(phi0, theta0)
+
     solver%solvername = '3_10_base_solver'
     call pprts_rrtmg(comm, solver, atm, nxp, nyp, &
-      dx, dy, phi0, theta0,   &
+      dx, dy, sundir,         &
       albedo_th, albedo_sol,  &
       lthermal, lsolar,       &
       edir0, edn0, eup0, abso0, &
@@ -159,7 +162,7 @@ contains
 
     solver_collapsed%solvername = '3_10_collapsed_solver'
     call pprts_rrtmg(comm, solver_collapsed, atm, nxp, nyp, &
-      dx, dy, phi0, theta0,   &
+      dx, dy, sundir,         &
       albedo_th, albedo_sol,  &
       lthermal, lsolar,       &
       edir, edn, eup, abso, &
@@ -213,6 +216,7 @@ contains
     logical :: lthermal, lsolar
     integer(mpiint) :: comm, myid
 
+    real(ireals) :: sundir(3)
     integer(iintegers) :: k, k0
 
     ! Fluxes and absorption in [W/m2] and [W/m3] respectively.
@@ -232,9 +236,11 @@ contains
     if(myid.eq.0 .and. ldebug) print *,'Computing Thermal Radiation:'
     lthermal=.True.; lsolar=.False.
 
+    sundir = spherical_2_cartesian(phi0, theta0)
+
     solver%solvername = '3_10_base_solver'
     call pprts_rrtmg(comm, solver, atm, nxp, nyp, &
-      dx, dy, phi0, theta0,   &
+      dx, dy, sundir,         &
       albedo_th, albedo_sol,  &
       lthermal, lsolar,       &
       edir0, edn0, eup0, abso0, &
@@ -243,7 +249,7 @@ contains
 
     solver_collapsed%solvername = '3_10_collapsed_solver'
     call pprts_rrtmg(comm, solver_collapsed, atm, nxp, nyp, &
-      dx, dy, phi0, theta0,   &
+      dx, dy, sundir,         &
       albedo_th, albedo_sol,  &
       lthermal, lsolar,       &
       edir, edn, eup, abso, &

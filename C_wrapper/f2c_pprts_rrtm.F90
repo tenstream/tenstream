@@ -28,7 +28,7 @@ module m_f2c_pprts_rrtm
         iintegers, ireals, mpiint, default_str_len, &
         zero, one
 
-      use m_helper_functions, only: imp_bcast, CHKERR
+      use m_helper_functions, only: imp_bcast, CHKERR, spherical_2_cartesian
 
       use m_pprts_base, only : t_solver_3_10
       use m_pprts_rrtmg, only : pprts_rrtmg, destroy_pprts_rrtmg
@@ -85,6 +85,7 @@ contains
     real(ireals), allocatable, target, save, dimension(:,:,:) :: edir, edn, eup, abso
     real(c_double), allocatable, target, save, dimension(:,:,:) :: edir_dp, edn_dp, eup_dp, abso_dp
 
+    real(c_double) :: sundir(3)
     character(default_str_len) :: atm_filename
     logical :: lthermal, lsolar
 
@@ -107,13 +108,14 @@ contains
     lthermal = c_int_2_logical(c_lthermal)
     lsolar   = c_int_2_logical(c_lsolar)
 
+    sundir = spherical_2_cartesian(phi0, theta0)
+
     call pprts_rrtmg(comm,                &
       solver, atm,                        &
       int(Nx,iintegers),int(Ny,iintegers),&
       real(dx, kind=ireals),              &
       real(dy, kind=ireals),              &
-      real(phi0, kind=ireals),            &
-      real(theta0, kind=ireals),          &
+      real(sundir, kind=ireals),          &
       real(albedo_thermal, kind=ireals),  &
       real(albedo_solar, kind=ireals),    &
       lthermal, lsolar,                   &

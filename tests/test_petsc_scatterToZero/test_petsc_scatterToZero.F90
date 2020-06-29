@@ -42,7 +42,7 @@ contains
 
     integer(iintegers),parameter :: nxp=9,nyp=9,nv=2
     real(ireals),parameter :: dx=100,dy=dx
-    real(ireals),parameter :: phi0=0, theta0=60
+    real(ireals),parameter :: sundir(3) = 0
     real(ireals),parameter :: dz=dx
     real(ireals) :: dz1d(nv)
 
@@ -58,7 +58,7 @@ contains
     numnodes = this%getNumProcesses()
     myid     = this%getProcessRank()
 
-    call init_pprts(comm, nv, nxp, nyp, dx,dy, phi0, theta0, solver, dz1d)
+    call init_pprts(comm, nv, nxp, nyp, dx,dy, sundir, solver, dz1d)
 
     associate(C=>solver%C_one)
     allocate(local_arr(C%dof, C%zm, C%xm, C%ym))

@@ -1,5 +1,6 @@
 module m_pprts_ex1
     use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint, zero, pi
+    use m_helper_functions, only : spherical_2_cartesian
     use m_pprts, only : init_pprts, set_optical_properties, solve_pprts, pprts_get_result, set_angles
     use m_pprts_base, only: t_solver, t_solver_1_2, t_solver_3_6, t_solver_3_10, &
       t_solver_8_10, t_solver_3_16, t_solver_8_16, t_solver_8_18, destroy_pprts
@@ -18,6 +19,7 @@ subroutine pprts_ex1()
     real(ireals),parameter :: incSolar = 1364
     real(ireals) :: dz1d(nv)
 
+    real(ireals) :: sundir(3)
     real(ireals),allocatable,dimension(:,:,:) :: kabs,ksca,g
     real(ireals),allocatable,dimension(:,:,:) :: fdir,fdn,fup,fdiv
 
@@ -57,18 +59,12 @@ subroutine pprts_ex1()
         stop
     end select
 
-    call init_pprts(mpi_comm_world, nv, nxp, nyp, dx,dy, phi0, theta0, solver, dz1d)
+    sundir = spherical_2_cartesian(phi0, theta0)
+    call init_pprts(mpi_comm_world, nv, nxp, nyp, dx,dy, sundir, solver, dz1d)
 
     allocate(kabs(solver%C_one%zm , solver%C_one%xm,  solver%C_one%ym ))
     allocate(ksca(solver%C_one%zm , solver%C_one%xm,  solver%C_one%ym ))
     allocate(g   (solver%C_one%zm , solver%C_one%xm,  solver%C_one%ym ))
-
-    !call random_seed(size=Nseed)
-    !allocate(seed(Nseed))
-    !seed=1
-    !call random_seed(put=seed)
-    !call random_number(kabs)
-    !kabs = kabs / (dz*nv)
 
     kabs = .1_ireals/(dz*nv)
     ksca = 1e-3_ireals/(dz*nv)
@@ -83,7 +79,7 @@ subroutine pprts_ex1()
     g   (mid_idx_z, mid_idx_x, :) = .9
 
     call set_optical_properties(solver, albedo, kabs, ksca, g)
-    call set_angles(solver, phi0, theta0)
+    call set_angles(solver, sundir)
 
     call solve_pprts(solver, incSolar)
 

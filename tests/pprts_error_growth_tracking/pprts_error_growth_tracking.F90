@@ -1,5 +1,6 @@
 module pprts_error_growth_tracking
   use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint, one, zero
+  use m_helper_functions, only : spherical_2_cartesian
 
   use m_adaptive_spectral_integration, only: need_new_solution
   use m_pprts_base, only : t_coord, t_solver_3_10, destroy_pprts
@@ -43,6 +44,7 @@ contains
     real(ireals),parameter :: incSolar = 1000
     real(ireals) :: dz1d(nlyr)
 
+    real(ireals) :: sundir(3)
     real(ireals),allocatable,dimension(:,:,:) :: kabs,ksca,g
     real(ireals),allocatable,dimension(:,:,:) :: fdir,fdn,fup,fdiv
 
@@ -56,7 +58,9 @@ contains
     myid     = this%getProcessRank()
 
     call init_mpi_data_parameters(comm)
-    call init_pprts(comm, nlyr, nxp, nyp, dx, dy, phi0, theta0, solver, dz1d=dz1d)
+    sundir = spherical_2_cartesian(phi0, theta0)
+
+    call init_pprts(comm, nlyr, nxp, nyp, dx, dy, sundir, solver, dz1d=dz1d)
 
     allocate(kabs(solver%C_one%zm , solver%C_one%xm,  solver%C_one%ym ))
     allocate(ksca(solver%C_one%zm , solver%C_one%xm,  solver%C_one%ym ))
@@ -67,10 +71,6 @@ contains
     kabs = 1._ireals/nlyr
     ksca = 1e-8
     g    = zero
-
-    !allocate(fdn  (solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym))
-    !allocate(fup  (solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym))
-    !allocate(fdiv (solver%C_one%zm,  solver%C_one%xm,  solver%C_one%ym))
 
     do iter=1,5
       do k=1,2

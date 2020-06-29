@@ -84,7 +84,7 @@ contains
     integer(c_int),intent(inout) :: collapseindex
 
     integer(iintegers) :: osolver_id, oNx, oNy, oNz, ocollapseindex
-    real(ireals) :: odx,ody,ophi0,otheta0
+    real(ireals) :: odx,ody,ophi0,otheta0,osundir(3)
     real(ireals),allocatable :: ohhl(:)
 
     real(ireals),allocatable :: odz(:)
@@ -175,29 +175,31 @@ contains
       odz(k) = ohhl(k) - ohhl(k+1)
     enddo
 
+    osundir = spherical_2_cartesian(ophi0, otheta0)
+
     ierr=1
     select case(solver_id)
     case(SOLVER_ID_PPRTS_1_2)
       allocate(t_solver_1_2::pprts_solver); ierr=0
-      call init_pprts(comm, oNz,oNx,oNy, odx,ody, ophi0, otheta0, pprts_solver, dz1d=odz)
+      call init_pprts(comm, oNz,oNx,oNy, odx,ody, osundir, pprts_solver, dz1d=odz)
     case(SOLVER_ID_PPRTS_3_6)
       allocate(t_solver_3_6::pprts_solver); ierr=0
-      call init_pprts(comm, oNz,oNx,oNy, odx,ody, ophi0, otheta0, pprts_solver, dz1d=odz)
+      call init_pprts(comm, oNz,oNx,oNy, odx,ody, osundir, pprts_solver, dz1d=odz)
     case(SOLVER_ID_PPRTS_3_10)
       allocate(t_solver_3_10::pprts_solver); ierr=0
-      call init_pprts(comm, oNz,oNx,oNy, odx,ody, ophi0, otheta0, pprts_solver, dz1d=odz)
+      call init_pprts(comm, oNz,oNx,oNy, odx,ody, osundir, pprts_solver, dz1d=odz)
     case(SOLVER_ID_PPRTS_8_10)
       allocate(t_solver_8_10::pprts_solver); ierr=0
-      call init_pprts(comm, oNz,oNx,oNy, odx,ody, ophi0, otheta0, pprts_solver, dz1d=odz)
+      call init_pprts(comm, oNz,oNx,oNy, odx,ody, osundir, pprts_solver, dz1d=odz)
     case(SOLVER_ID_PPRTS_3_16)
       allocate(t_solver_3_16::pprts_solver); ierr=0
-      call init_pprts(comm, oNz,oNx,oNy, odx,ody, ophi0, otheta0, pprts_solver, dz1d=odz)
+      call init_pprts(comm, oNz,oNx,oNy, odx,ody, osundir, pprts_solver, dz1d=odz)
     case(SOLVER_ID_PPRTS_8_16)
       allocate(t_solver_8_16::pprts_solver); ierr=0
-      call init_pprts(comm, oNz,oNx,oNy, odx,ody, ophi0, otheta0, pprts_solver, dz1d=odz)
+      call init_pprts(comm, oNz,oNx,oNy, odx,ody, osundir, pprts_solver, dz1d=odz)
     case(SOLVER_ID_PPRTS_8_18)
       allocate(t_solver_8_18::pprts_solver); ierr=0
-      call init_pprts(comm, oNz,oNx,oNy, odx,ody, ophi0, otheta0, pprts_solver, dz1d=odz)
+      call init_pprts(comm, oNz,oNx,oNy, odx,ody, osundir, pprts_solver, dz1d=odz)
     case(SOLVER_ID_PLEXRT_RECTILINEAR_5_8); ierr=0
       call plexrt_f2c_init(comm, osolver_id, oNx, oNy, oNz+1, odx, ohhl, ophi0, otheta0)
     end select

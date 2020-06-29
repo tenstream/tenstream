@@ -7,7 +7,8 @@ module m_pprts_base
     default_str_len
 
   use m_helper_functions, only : CHKWARN, CHKERR, &
-    get_arg, itoa, ltoa, ftoa, cstr, deallocate_allocatable
+    & get_arg, itoa, ltoa, ftoa, cstr, deallocate_allocatable
+
   use m_petsc_helpers, only: getvecpointer, restorevecpointer, is_local_vec
 
   use m_optprop, only: t_optprop_cube
@@ -60,14 +61,9 @@ module m_pprts_base
     type(tVec),allocatable                       :: hgrad ! horizontal gradient of heights, C_two1
   end type
 
-  !type t_sunangles
-  !  real(ireals)        :: symmetry_phi
-  !  integer(iintegers)  :: yinc,xinc
-  !  real(ireals)        :: theta, phi, costheta, sintheta
-  !end type
-
   type t_suninfo
     !type(t_sunangles),allocatable :: angles(:,:,:) ! defined on DMDA grid
+    real(ireals) :: sundir(3)
     real(ireals), allocatable, dimension(:,:,:) :: & ! C_one%zs:C_one%ze, C_one%xs:C_one%xe, C_one%ys:C_one%ye
       symmetry_phi, theta, phi, costheta, sintheta
     integer(iintegers), allocatable, dimension(:,:,:) :: xinc, yinc
@@ -504,9 +500,9 @@ module m_pprts_base
 
   !> @brief compute horizontal gradient from dz3d
   !> @details build horizontal gradient of height information, i.e. [dz/dx, dz/dy]
-  subroutine compute_gradient(atm, C_one1, C_two1, vgrad)
+  subroutine compute_gradient(atm, C_one_atm1, C_two1, vgrad)
     type(t_atmosphere),intent(in) :: atm
-    type(t_coord), intent(in) :: C_one1, C_two1
+    type(t_coord), intent(in) :: C_one_atm1, C_two1
     type(tVec), allocatable :: vgrad
 
     real(ireals),Pointer :: hhl(:,:,:,:)=>null(), hhl1d(:)=>null()
@@ -517,26 +513,28 @@ module m_pprts_base
     real(ireals) :: zm(4)
     integer(mpiint) :: ierr
 
-    if(.not.allocated(atm%dz)) call CHKERR(1_mpiint, 'You called  compute_gradient()&
-      &but the atm struct is not yet up, make sure we have atm%dz before')
+    if(.not.allocated(atm%dz)) call CHKERR(1_mpiint, 'You called  compute_gradient()'// &
+      & ' but the atm struct is not yet up, make sure we have atm%dz before')
+
+    if(.not.allocated(atm%hhl)) call CHKERR(1_mpiint, 'hhl has to be allocated')
 
     if(.not.allocated(vgrad)) then
       allocate(vgrad)
       call DMCreateLocalVector(C_two1%da, vgrad, ierr) ;call CHKERR(ierr)
     endif
 
-    call getVecPointer(atm%hhl , C_one1%da, hhl1d, hhl)
+    call getVecPointer(atm%hhl, C_one_atm1%da, hhl1d, hhl)
     call getVecPointer(vgrad, C_two1%da, grad_1d, grad)
 
     do j=C_two1%ys,C_two1%ye
       do i=C_two1%xs,C_two1%xe
         do k=C_two1%zs,C_two1%ze
           ! Mean heights of adjacent columns
-          zm(1) = hhl(i0,k,i-1,j)
-          zm(2) = hhl(i0,k,i+1,j)
+          zm(1) = hhl(i0,atmk(atm, k),i-1,j)
+          zm(2) = hhl(i0,atmk(atm, k),i+1,j)
 
-          zm(3) = hhl(i0,k,i,j-1)
-          zm(4) = hhl(i0,k,i,j+1)
+          zm(3) = hhl(i0,atmk(atm, k),i,j-1)
+          zm(4) = hhl(i0,atmk(atm, k),i,j+1)
 
           ! Gradient of height field
           grad(i0, k, i, j) = (zm(2)-zm(1)) / (2._ireals*atm%dx)

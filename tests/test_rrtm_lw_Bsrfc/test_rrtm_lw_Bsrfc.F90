@@ -4,6 +4,7 @@ module test_rrtm_lw_Bsrfc
     init_mpi_data_parameters,   &
     iintegers, ireals, mpiint,  &
     zero, one, default_str_len
+  use m_helper_functions, only : spherical_2_cartesian
 
   ! main entry point for solver, and desctructor
   use m_pprts_rrtmg, only : pprts_rrtmg, destroy_pprts_rrtmg
@@ -143,11 +144,10 @@ contains
       lthermal=.True.
 
       call pprts_rrtmg(comm, solver, atm, nxp, nyp, &
-        dx, dy, phi0, theta0,   &
-        albedo_th, albedo_sol,  &
-        lthermal, lsolar,       &
-        edir, edn, eup, abso,   &
-        nxproc=nxproc, nyproc=nyproc, &
+        dx, dy, spherical_2_cartesian(phi0, theta0),&
+        albedo_th, albedo_sol, lthermal, lsolar,    &
+        edir, edn, eup, abso,                       &
+        nxproc=nxproc, nyproc=nyproc,               &
         opt_time=zero, icollapse=icollapse)
 
       ! Determine number of actual output levels from returned flux arrays.

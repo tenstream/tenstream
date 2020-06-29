@@ -9,7 +9,7 @@ module m_example_pprts_rrtm_lw_sw
   ! the Tenstream uses.
   use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint, zero, one, default_str_len
 
-  use m_helper_functions, only : linspace, CHKERR
+  use m_helper_functions, only : linspace, CHKERR, spherical_2_cartesian
 
   ! Import specific solver type: 3_10 for example uses 3 streams direct, 10 streams for diffuse radiation
   use m_pprts_base, only : t_solver, allocate_pprts_solver_from_commandline
@@ -65,6 +65,8 @@ contains
 
     ! reshape pointer to convert i,j vecs to column vecs
     real(ireals), pointer, dimension(:,:) :: pplev, ptlev, plwc, preliq
+
+    real(ireals) :: sundir(3)
 
     logical,parameter :: ldebug=.True.
     logical :: lthermal, lsolar
@@ -137,9 +139,11 @@ contains
     if(myid.eq.0 .and. ldebug) print *,'Computing Solar Radiation...'
     lthermal=.False.; lsolar=.True.
 
+    sundir = spherical_2_cartesian(phi0, theta0)
+
     call allocate_pprts_solver_from_commandline(pprts_solver, '3_10')
     call pprts_rrtmg(comm, pprts_solver, atm, nxp, nyp, &
-      dx, dy, phi0, theta0,   &
+      dx, dy, sundir,         &
       albedo_th, albedo_sol,  &
       lthermal, lsolar,       &
       edir, edn, eup, abso,   &
@@ -150,7 +154,7 @@ contains
     lthermal=.True.; lsolar=.False.
 
     call pprts_rrtmg(comm, pprts_solver, atm, nxp, nyp, &
-      dx, dy, phi0, theta0,                    &
+      dx, dy, sundir,                          &
       albedo_th, albedo_sol,                   &
       lthermal, lsolar,                        &
       edir, edn, eup, abso,                    &
@@ -160,7 +164,7 @@ contains
     lthermal=.True.; lsolar=.True.
 
     call pprts_rrtmg(comm, pprts_solver, atm, nxp, nyp, &
-      dx, dy, phi0, theta0,                    &
+      dx, dy, sundir,                          &
       albedo_th, albedo_sol,                   &
       lthermal, lsolar,                        &
       edir, edn, eup, abso,                    &
