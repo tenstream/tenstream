@@ -453,7 +453,7 @@ module m_pprts_base
 
   !> @brief define physical coordinates for DMDA to allow for geometric multigrid
   subroutine set_dmda_cell_coordinates(solver, atm, da, ierr)
-  class(t_solver), intent(in) :: solver
+    class(t_solver), intent(in) :: solver
     type(t_atmosphere), intent(in) :: atm
     type(tDM), intent(inout) :: da
     integer(mpiint), intent(out) :: ierr

@@ -15,6 +15,7 @@ module m_example_pprts_rrtmg_hill
   ! Import specific solver type: 3_10 for example uses 3 streams direct, 10 streams for diffuse radiation
   use m_pprts_base, only : t_solver, allocate_pprts_solver_from_commandline
   use m_netcdfIO, only : ncwrite, set_global_attribute
+  use m_petsc_helpers, only: getvecpointer, restorevecpointer
 
   ! main entry point for solver, and desctructor
   use m_pprts_rrtmg, only : pprts_rrtmg, destroy_pprts_rrtmg
@@ -89,6 +90,7 @@ contains
     real(ireals) :: cld_bot, cld_top
     logical :: lflg
     character(len=default_str_len) :: outpath(2)
+    real(ireals), pointer :: hhl(:,:,:,:)=>null(), hhl1d(:)=>null()
 
     comm = MPI_COMM_WORLD
     call MPI_COMM_SIZE(comm, numnodes, ierr)
@@ -265,6 +267,11 @@ contains
       outpath(2) = itoa(myid)//'abso'; call ncwrite(outpath, abso, ierr); call CHKERR(ierr)
       outpath(2) = itoa(myid)//'zt'; call ncwrite(outpath, &
         reshape(atm%zt, [int(size(atm%zt,dim=1), iintegers),nxp,nyp]), ierr); call CHKERR(ierr)
+
+      call getVecPointer(pprts_solver%atm%hhl, pprts_solver%C_one_atm1_box%da, hhl1d, hhl)
+      outpath(2) = itoa(myid)//'hhl'; call ncwrite(outpath, hhl, ierr); call CHKERR(ierr)
+      call restoreVecPointer(pprts_solver%atm%hhl, hhl1d, hhl)
+
       outpath(2) = itoa(myid)//'dz'; call ncwrite(outpath, pprts_solver%atm%dz, ierr); call CHKERR(ierr)
       outpath(2) = itoa(myid)//'lwc'; call ncwrite(outpath, lwc, ierr); call CHKERR(ierr)
       outpath(2) = itoa(myid)//'reliq'; call ncwrite(outpath, reliq, ierr); call CHKERR(ierr)
