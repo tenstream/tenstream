@@ -84,8 +84,8 @@ EOF
 
 [ ! -e res_1d.nc ] && $bin $baseopt -twostr_only -pprts_slope_correction -out res_1d.nc
 [ ! -e res_rayli.nc ] && $bin $baseopt $rayli_opt -pprts_atm_correction -pprts_slope_correction -out res_rayli.nc
-[ ! -e res_10str.nc ] && $bin $baseopt -topography -out res_10str.nc
-[ ! -e res_10str_topo.nc ] && $bin $baseopt -pprts_atm_correction -pprts_slope_correction -out res_10str_topo.nc
+[ ! -e res_10str.nc ] && $bin $baseopt -out res_10str.nc
+[ ! -e res_10str_topo.nc ] && $bin $baseopt -topography -out res_10str_topo.nc
 
 for f in res_*.nc
 do

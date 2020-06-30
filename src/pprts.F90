@@ -693,7 +693,6 @@ module m_pprts
     e_y = [zero, one, zero]
     e_z = [zero, zero, one]
     loc_sundir = sun%sundir
-    print *,'sundir', sun%sundir
 
     call getVecPointer(solver%atm%hgrad, solver%C_two1%da, grad_1d, grad)
     do j=C_one%ys,C_one%ye
