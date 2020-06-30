@@ -30,7 +30,8 @@ module m_pprts
   use m_helper_functions, only : CHKERR, CHKWARN, deg2rad, rad2deg, imp_allreduce_min, &
     & imp_bcast, imp_allreduce_max, delta_scale, mpi_logical_and, meanval, get_arg, approx, &
     & inc, ltoa, cstr, itoa, ftoa, imp_allreduce_mean, &
-    & normalize_vec, vec_proj_on_plane, angle_between_two_normed_vec, cross_3d
+    & normalize_vec, vec_proj_on_plane, angle_between_two_normed_vec, cross_3d, &
+    & rotation_matrix_world_to_local_basis
 
   use m_twostream, only: delta_eddington_twostream, adding_delta_eddington_twostream
   use m_schwarzschild, only: schwarzschild, B_eff
@@ -669,10 +670,7 @@ module m_pprts
 
     real(ireals),pointer :: grad   (:,:,:,:) =>null()
     real(ireals),pointer :: grad_1d(:)       =>null()
-    real(ireals) :: proj_sundir(3), e_x(3)
-    real(ireals) :: top_face_normal(3)
-    real(ireals), parameter :: side_face_normal(3) = [zero, -one, zero]
-    real(ireals) :: side_face_normal_proj_on_topface(3)
+    real(ireals) :: loc_sundir(3), proj_sundir(3), e_x(3), e_y(3), e_z(3), Mrot(3,3)
     real(ireals) :: az, zenith
     integer(iintegers) :: k,i,j
     integer(mpiint) :: ierr
@@ -690,37 +688,43 @@ module m_pprts
     sun%sundir = sundir
     call normalize_vec(sun%sundir, ierr)
 
+    ! default unit vectors (if not ltopography)
+    e_x = [one, zero, zero]
+    e_y = [zero, one, zero]
+    e_z = [zero, zero, one]
+    loc_sundir = sun%sundir
+    print *,'sundir', sun%sundir
+
     call getVecPointer(solver%atm%hgrad, solver%C_two1%da, grad_1d, grad)
     do j=C_one%ys,C_one%ye
       do i=C_one%xs,C_one%xe
         do k=C_one%zs,C_one%ze
 
-          top_face_normal = cross_3d([zero, one, grad(i1, k, i, j)], [one, zero, grad(i0, k, i, j)]) ! downward pointing normal
-          call normalize_vec(top_face_normal, ierr)
+          if(sun%luse_topography) then
+            e_x = [one, zero, grad(i0, k, i, j)]
+            e_y = [zero, one, grad(i1, k, i, j)]
+            call normalize_vec(e_x, ierr)
+            call normalize_vec(e_y, ierr)
+            e_z = cross_3d(e_x, e_y) ! upward pointing normal on top face
+            Mrot = rotation_matrix_world_to_local_basis(e_x, e_y, e_z)
+            loc_sundir = matmul(Mrot, sun%sundir)
+          endif
 
-          proj_sundir = vec_proj_on_plane(sundir, top_face_normal)
+          proj_sundir = vec_proj_on_plane(loc_sundir, -e_z)
           call normalize_vec(proj_sundir, ierr)
 
-          ! Local unit vec on upperface, pointing towards '+x'
-          side_face_normal_proj_on_topface = vec_proj_on_plane(side_face_normal, top_face_normal)
-          call normalize_vec(side_face_normal_proj_on_topface, ierr)
-
-          e_x = cross_3d(top_face_normal, side_face_normal_proj_on_topface)
-
-          az = angle_between_two_normed_vec(proj_sundir, side_face_normal)
+          az = angle_between_two_normed_vec(proj_sundir, -e_y)
           az = az * sign(one, dot_product(proj_sundir, e_x))
           sun%phi(k,i,j) = rad2deg(az)
 
-          zenith = angle_between_two_normed_vec(sun%sundir, top_face_normal)
+          zenith = angle_between_two_normed_vec(loc_sundir, -e_z)
           sun%theta(k,i,j) = rad2deg(zenith)
         enddo
       enddo
     enddo
     call restoreVecPointer(solver%atm%hgrad, grad_1d, grad)
 
-    if(sun%luse_topography) then
-      call setup_topography(solver%atm, solver%C_one, solver%C_two1, sun)
-    endif
+    sun%theta = min(90._ireals, sun%theta)
 
     sun%costheta = max( cos(deg2rad(sun%theta)), zero)
     sun%sintheta = max( sin(deg2rad(sun%theta)), zero)
@@ -772,75 +776,6 @@ module m_pprts
   !> @details integrate dz3d from to top of atmosphere to bottom.
   !>   \n then build horizontal gradient of height information and
   !>   \n tweak the local sun angles to bend the rays.
-  subroutine setup_topography(atm, C_one, C_two1, sun)
-    type(t_atmosphere), intent(in) :: atm
-    type(t_coord), intent(in) :: C_one, C_two1
-    type(t_suninfo),intent(inout) :: sun
-
-    real(ireals),Pointer :: grad(:,:,:,:)=>null(), grad_1d(:)=>null()
-
-    integer(iintegers) :: i,j,k
-    real(ireals) :: newtheta, newphi, xsun(3)
-    real(ireals) :: rotmat(3, 3), newxsun(3)
-    integer(mpiint) :: comm, myid, ierr
-
-    if(.not.allocated(sun%theta)) call CHKERR(1_mpiint, 'You called  setup_topography()'// &
-      & ' but the sun struct is not yet up, make sure setup_suninfo is called before')
-    if(.not.allocated(atm%dz)) call CHKERR(1_mpiint, 'You called  setup_topography()'// &
-      & ' but the atm struct is not yet up, make sure we have atm%dz before')
-    if(.not.allocated(atm%hgrad)) call CHKERR(1_mpiint, 'atm%hgrad not initialized!')
-
-    call PetscObjectGetComm(C_one%da, comm, ierr); call CHKERR(ierr)
-    call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
-
-    call getVecPointer(atm%hgrad , C_two1%da, grad_1d, grad)
-
-    rotmat = reshape((/ one , zero, zero,  &
-                        zero, one , zero,  &
-                        nil , nil , one/), &
-                     (/3, 3/), order=(/2, 1/) )
-
-    do j=C_one%ys,C_one%ye
-      do i=C_one%xs,C_one%xe
-        do k=C_one%zs,C_one%ze
-
-          ! if we are at the global boundary we have to take care that the gradient does not get too
-          ! steep. That wouldnt make sense for cyclic boundaries... ! todo: check what we should do?
-          !if(i.eq.i0 .or. i.eq.C_one%glob_xm-i1 .or. j.eq.i0 .or. j.eq.C_one%glob_ym-i1) then
-          !   !print *,solver%myid,'global edge at:',i,j
-          !    cycle
-          !endif
-
-          ! Vector of sun direction
-          xsun(1) = sin(deg2rad(sun%theta(k,i,j)))*sin(deg2rad(sun%phi(k,i,j)))
-          xsun(2) = sin(deg2rad(sun%theta(k,i,j)))*cos(deg2rad(sun%phi(k,i,j)))
-          xsun(3) = cos(deg2rad(sun%theta(k,i,j)))
-
-          xsun = xsun / norm2(xsun)
-
-          rotmat(3, 1) = grad(i0, k, i, j)
-          rotmat(3, 2) = grad(i1, k, i, j)
-
-          newxsun = matmul(rotmat, xsun)
-          newxsun = newxsun / norm2(newxsun)
-
-          newtheta = rad2deg(acos(newxsun(3)))
-
-          !newphi in meteorologiecal definitions: clockwise from y-axis
-          newphi = rad2deg(atan2(newxsun(1), newxsun(2)))
-
-          !if(i.eq.C_one1%xs.and.k.eq.C_one%ze) print *,myid,i,j,k, &
-          !  '::', sun%theta(k,i,j), newtheta, &
-          !  '::', sun%phi  (k,i,j), newphi
-
-          sun%theta(k,i,j) = max(zero, min( 90._ireals, newtheta ))
-          sun%phi  (k,i,j) = newphi
-        enddo
-      enddo
-    enddo
-
-    call restoreVecPointer(atm%hgrad, grad_1d, grad)
-  end subroutine
 
   !> @brief create PETSc matrix and inserts diagonal elements
   !> @details one important step for performance is to set preallocation of matrix structure.
@@ -2583,7 +2518,8 @@ subroutine setup_ksp(solver, ksp, C, A, prefix)
 
   if(lset_nullspace) then
     call MatNullSpaceCreate( C%comm, PETSC_TRUE, i0, nullvecs, nullspace, ierr) ; call CHKERR(ierr)
-    call MatSetNearNullSpace(A, nullspace, ierr);call CHKERR(ierr)
+    call MatSetNullSpace(A, nullspace, ierr);call CHKERR(ierr)
+    CALL MatNullSpaceDestroy(nullspace, ierr); CALL CHKERR(ierr)
   endif
 
   call KSPSetFromOptions(ksp,ierr) ;call CHKERR(ierr)
