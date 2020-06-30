@@ -10,12 +10,13 @@ module m_example_pprts_rrtmg_hill
   use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint, zero, one, i1, default_str_len
 
   use m_helper_functions, only : linspace, CHKERR, meanval, itoa, spherical_2_cartesian
+
   use m_search, only: search_sorted_bisection
 
   ! Import specific solver type: 3_10 for example uses 3 streams direct, 10 streams for diffuse radiation
   use m_pprts_base, only : t_solver, allocate_pprts_solver_from_commandline
   use m_netcdfIO, only : ncwrite, set_global_attribute
-  use m_petsc_helpers, only: getvecpointer, restorevecpointer
+  use m_petsc_helpers, only: getvecpointer, restorevecpointer, petscGlobalVecToZero, petscVecToF90, f90VecToPetsc
 
   ! main entry point for solver, and desctructor
   use m_pprts_rrtmg, only : pprts_rrtmg, destroy_pprts_rrtmg
@@ -30,23 +31,24 @@ contains
   real(ireals) function hill_pressure_deficiency(jglob, ny_glob, hill_dP, hill_shape) result(dP)
     integer(iintegers), intent(in) :: jglob, ny_glob
     real(ireals), intent(in) :: hill_dP, hill_shape
-    dP = hill_dP / ( 1._ireals + ((real(jglob, ireals)-(real(ny_glob, ireals)+1._ireals)/2._ireals)/hill_shape)**2 )
+    dP = hill_dP / ( 1._ireals + ((real(jglob, ireals)-(real(ny_glob, ireals)-1._ireals)/2._ireals)/hill_shape)**2 )
   end function
 
-  subroutine example_pprts_rrtmg_hill(nxp, nyp, nzp, dx, dy)
-
-    implicit none
+  subroutine example_pprts_rrtmg_hill(comm, nxp, nyp, nzp, dx, dy, nxproc, nyproc, xstart, ystart)
+    integer(mpiint), intent(in) :: comm
     integer(iintegers), intent(in) :: nxp, nyp, nzp  ! local domain size for each rank
+    integer(iintegers), intent(in) :: nxproc(:), nyproc(:) ! local domain sizes on 2d cartesian decomposition
+    integer(iintegers), intent(in) :: xStart, yStart ! start indices of local domains
     real(ireals), intent(in) :: dx, dy               ! horizontal grid spacing in [m]
 
     ! MPI variables and domain decomposition sizes
-    integer(mpiint) :: numnodes, comm, myid, N_ranks_x, N_ranks_y, ierr
+    integer(mpiint) :: numnodes, myid, ierr
 
-    real(ireals) :: phi0, theta0, theta, sundir(3) ! Sun's angles, azimuth phi(0=North, 90=East), zenith(0 high sun, 80=low sun)
+    real(ireals) :: phi0, theta0 ! Sun's angles, azimuth phi(0=North, 90=East), zenith(0 high sun, 80=low sun)
     real(ireals),parameter :: albedo_th=0, albedo_sol=.12 ! broadband ground albedo for solar and thermal spectrum
 
-    real(ireals), dimension(nzp+1,nxp,nyp), target :: plev ! pressure on layer interfaces [hPa]
-    real(ireals), dimension(nzp+1,nxp,nyp), target :: tlev ! Temperature on layer interfaces [K]
+    real(ireals), dimension(nzp+1,xStart:xStart+nxp-1,yStart:yStart+nyp-1), target :: plev ! pressure on layer interfaces [hPa]
+    real(ireals), dimension(nzp+1,xStart:xStart+nxp-1,yStart:yStart+nyp-1), target :: tlev ! Temperature on layer interfaces [K]
 
     ! Layer values for the atmospheric constituents -- those are actually all
     ! optional and if not provided, will be taken from the background profile file (atm_filename)
@@ -54,7 +56,7 @@ contains
     ! real(ireals), dimension(nzp,nxp,nyp) :: h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr
 
     ! Liquid water cloud content [g/kg] and effective radius in micron
-    real(ireals), dimension(nzp,nxp,nyp), target :: lwc, reliq
+    real(ireals), dimension(nzp,xStart:xStart+nxp-1,yStart:yStart+nyp-1), target :: lwc, reliq
 
     ! Fluxes and absorption in [W/m2] and [W/m3] respectively.
     ! Dimensions will probably be bigger than the dynamics grid, i.e. will have
@@ -70,8 +72,7 @@ contains
     character(len=default_str_len) :: atm_filename ! ='afglus_100m.dat'
 
     !------------ Local vars ------------------
-    integer(iintegers) :: j, jglob, k, nlev, icld(2)
-    integer(iintegers),allocatable :: nxproc(:), nyproc(:)
+    integer(iintegers) :: j, k, nlev, icld(2)
 
     ! reshape pointer to convert i,j vecs to column vecs
     real(ireals), pointer, dimension(:,:) :: pplev, ptlev, plwc, preliq
@@ -79,28 +80,19 @@ contains
     logical,parameter :: ldebug=.True.
     logical :: lthermal, lsolar
 
-    class(t_solver), allocatable :: pprts_solver
+  class(t_solver), allocatable :: pprts_solver
     type(t_tenstr_atm) :: atm
 
     real(ireals) :: hill_dP, hill_shape, dP, cld_lwc
 
-    integer(iintegers) :: solve_iterations, iter
-    real(ireals) :: solve_iterations_scale
     integer(iintegers) :: cld_width
     real(ireals) :: cld_bot, cld_top
     logical :: lflg
     character(len=default_str_len) :: outpath(2)
     real(ireals), pointer :: hhl(:,:,:,:)=>null(), hhl1d(:)=>null()
 
-    comm = MPI_COMM_WORLD
     call MPI_COMM_SIZE(comm, numnodes, ierr)
     call MPI_COMM_RANK(comm, myid, ierr)
-
-    N_ranks_x = 1
-    N_ranks_y = numnodes
-
-    allocate(nxproc(N_ranks_x), source=nxp) ! dimension will determine how many ranks are used along the axis
-    allocate(nyproc(N_ranks_y), source=nyp) ! values have to define the local domain sizes on each rank (here constant on all processes)
 
     ! Have to call init_mpi_data_parameters() to define datatypes
     call init_mpi_data_parameters(comm)
@@ -112,31 +104,16 @@ contains
     hill_shape = 10
     call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-hill_shape", hill_shape, lflg, ierr) ! the bigger the flatter
 
-    do j=1,nyp
-      jglob = j + nyp*myid
-      ! dP gives pressure deficiency of hill, i.e. highest val at hill center
-      !dP = hill_dP / ( 1 + ((jglob-(nyp*numnodes+1)/2._ireals)/hill_shape)**2 ) &
-      !   - hill_dP / ( 1 + ((    1-(nyp*numnodes+1)/2._ireals)/hill_shape)**2 )
-      dp = hill_pressure_deficiency(jglob, nyp*numnodes, hill_dP, hill_shape) &
-          -hill_pressure_deficiency(   i1, nyp*numnodes, hill_dP, hill_shape)
+    do j=yStart,yStart+nyp-1
+      dp = hill_pressure_deficiency( j, sum(nyproc), hill_dP, hill_shape) &
+          -hill_pressure_deficiency(i1, sum(nyproc), hill_dP, hill_shape)
       dP = max(0._ireals, dP)
 
       do k=1,nzp+1
         plev(k,:,j) = linspace(k, [1e3_ireals - dP, 500._ireals], nzp+1)
         tlev(k,:,j) = 250 !linspace(k, [290._ireals, 250._ireals], nzp+1)
       enddo
-      !print *,'plev@j',j,jglob,':',plev(1,1,j)
     enddo
-
-    ! Not much going on in the dynamics grid, we actually don't supply trace
-    ! gases to the TenStream solver... this will then be interpolated from the
-    ! background profile (read from `atm_filename`)
-    ! h2ovmr = zero
-    ! o3vmr  = zero
-    ! co2vmr = zero
-    ! ch4vmr = zero
-    ! n2ovmr = zero
-    ! o2vmr  = zero
 
     ! define a cloud, with liquid water content and effective radius 10 micron
     lwc = 0
@@ -152,9 +129,8 @@ contains
     call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-cld_bot", cld_bot, lflg, ierr)
     call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-cld_top", cld_top, lflg, ierr)
 
-    do j=1,nyp
-      jglob = j + nyp*myid
-      if( abs(jglob - (nyp*numnodes+1)/2).le.cld_width) then
+    do j=yStart,yStart+nyp-1
+      if( abs(j - real(sum(nyproc)-1, ireals)/2).le.cld_width) then
         icld(1) = nint(search_sorted_bisection(plev(:,1,j), cld_bot))
         icld(2) = nint(search_sorted_bisection(plev(:,1,j), cld_top))
 
@@ -162,11 +138,7 @@ contains
       endif
     enddo
 
-    !tlev (icld  , :,:) = 288
-    !tlev (icld+1, :,:) = tlev (icld  , :,:)
-
     if(myid.eq.0 .and. ldebug) print *,'Setup Atmosphere...'
-
     pplev(1:size(plev,1),1:size(plev,2)*size(plev,3)) => plev
     ptlev(1:size(tlev,1),1:size(tlev,2)*size(tlev,3)) => tlev
     plwc (1:size(lwc ,1),1:size(lwc ,2)*size(lwc ,3)) => lwc
@@ -188,111 +160,117 @@ contains
 
     call allocate_pprts_solver_from_commandline(pprts_solver, '3_10')
 
-    solve_iterations = 1
-    call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-solve_iterations", &
-      solve_iterations, lflg,ierr) ; call CHKERR(ierr)
-    solve_iterations_scale = 0
-    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-solve_iterations_scale", &
-      solve_iterations_scale, lflg,ierr) ; call CHKERR(ierr)
+    call setup_tenstr_atm(comm, .False., atm_filename, &
+      pplev, ptlev, atm, &
+      d_lwc=plwc, d_reliq=preliq)
 
-    do iter = 1, solve_iterations
-      if(lthermal) then
-        ! Perform a circular shift of cloud field by one column
-        lwc   = cshift(lwc  , 1, dim=2)
-        reliq = cshift(reliq, 1, dim=2)
-      endif
-      if(lsolar) then
-        theta = theta0 + real(iter-1, ireals) * solve_iterations_scale
-      endif
+    ! Hack the background atmosphere so that there is no jump in temperatures,
+    ! i.e. add the difference at the glue location to all background temps
+    atm%tlev(atm%d_ke1+1:size(atm%tlev,1),:) = atm%tlev(atm%d_ke1+1:size(atm%tlev,1),:) &
+      + meanval(atm%tlev(atm%d_ke1,:)-atm%tlev(atm%d_ke1+1,:))
+    if(myid.eq.0) call print_tenstr_atm(atm)
 
-      call setup_tenstr_atm(comm, .False., atm_filename, &
-        pplev, ptlev, atm, &
-        d_lwc=plwc, d_reliq=preliq)
+    call pprts_rrtmg(comm, pprts_solver, atm, nxp, nyp, &
+      dx, dy, spherical_2_cartesian(phi0, theta0),   &
+      albedo_th, albedo_sol,  &
+      lthermal, lsolar,       &
+      edir, edn, eup, abso,   &
+      nxproc=nxproc, nyproc=nyproc )
 
-      ! Hack the background atmosphere so that there is no jump in temperatures,
-      ! i.e. add the difference at the glue location to all background temps
-      atm%tlev(atm%d_ke1+1:size(atm%tlev,1),:) = atm%tlev(atm%d_ke1+1:size(atm%tlev,1),:) &
-        + meanval(atm%tlev(atm%d_ke1,:)-atm%tlev(atm%d_ke1+1,:))
-      if(iter.eq.1.and.myid.eq.0) call print_tenstr_atm(atm)
-
-      if(myid.eq.0) print *,'theta0 =', theta
-
-      sundir = spherical_2_cartesian(phi0, theta)
-
-      call pprts_rrtmg(comm, pprts_solver, atm, nxp, nyp, &
-        dx, dy, sundir,   &
-        albedo_th, albedo_sol,  &
-        lthermal, lsolar,       &
-        edir, edn, eup, abso,   &
-        nxproc=nxproc, nyproc=nyproc )
-
-      nlev = ubound(edn,1)
-      if(myid.eq.0) then
-        if(ldebug) then
-          do k=1,nlev
-            if(allocated(edir)) then
-              print *,k,'edir', edir(k,1,1), 'edn', edn(k,1,1), 'eup', eup(k,1,1), abso(min(nlev-1,k),1,1)
-            else
-              print *,k, 'edn', edn(k,1,1), 'eup', eup(k,1,1), abso(min(nlev-1,k),1,1)
-            endif
-          enddo
-        endif
-
-        if(allocated(edir)) &
-          print *,'surface :: direct flux', edir(nlev,1,1)
-        print *,'surface :: downw flux ', edn (nlev,1,1)
-        print *,'surface :: upward fl  ', eup (nlev,1,1)
-        print *,'surface :: absorption ', abso(nlev-1,1,1)
-
-        if(allocated(edir)) &
-          print *,'TOA :: direct flux', edir(1,1,1)
-        print *,'TOA :: downw flux ', edn (1,1,1)
-        print *,'TOA :: upward fl  ', eup (1,1,1)
-        print *,'TOA :: absorption ', abso(1,1,1)
-
-        if(all(icld.ne.-1)) then
+    nlev = ubound(edn,1)
+    if(myid.eq.0) then
+      if(ldebug) then
+        do k=1,nlev
           if(allocated(edir)) then
-            print *,'icloud :: direct flux  ', edir(nlev-icld  ,1,1)
-            print *,'icloud+1 :: direct flux', edir(nlev-icld+1,1,1)
+            print *,k,'edir', edir(k,1,1), 'edn', edn(k,1,1), 'eup', eup(k,1,1), abso(min(nlev-1,k),1,1)
+          else
+            print *,k, 'edn', edn(k,1,1), 'eup', eup(k,1,1), abso(min(nlev-1,k),1,1)
           endif
-          print *,'icloud :: downw flux   ', edn (nlev-icld+1,1,1)
-          print *,'icloud :: upward fl    ', eup (nlev-icld  ,1,1)
-          print *,'icloud :: absorption   ', abso(nlev-icld  ,1,1)
-        endif
+        enddo
       endif
 
-      outpath(1) = 'out_pprts_hill.nc'
-      call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-out", outpath(1), lflg, ierr)
       if(allocated(edir)) &
-        outpath(2) = itoa(myid)//'edir'; call ncwrite(outpath, edir, ierr); call CHKERR(ierr)
-      outpath(2) = itoa(myid)//'edn' ; call ncwrite(outpath, edn , ierr); call CHKERR(ierr)
-      outpath(2) = itoa(myid)//'eup' ; call ncwrite(outpath, eup , ierr); call CHKERR(ierr)
-      outpath(2) = itoa(myid)//'abso'; call ncwrite(outpath, abso, ierr); call CHKERR(ierr)
-      outpath(2) = itoa(myid)//'zt'; call ncwrite(outpath, &
-        reshape(atm%zt, [int(size(atm%zt,dim=1), iintegers),nxp,nyp]), ierr); call CHKERR(ierr)
+        print *,'surface :: direct flux', edir(nlev,1,1)
+      print *,'surface :: downw flux ', edn (nlev,1,1)
+      print *,'surface :: upward fl  ', eup (nlev,1,1)
+      print *,'surface :: absorption ', abso(nlev-1,1,1)
 
-      call getVecPointer(pprts_solver%atm%hhl, pprts_solver%C_one_atm1_box%da, hhl1d, hhl)
-      outpath(2) = itoa(myid)//'hhl'; call ncwrite(outpath, hhl, ierr); call CHKERR(ierr)
+      if(allocated(edir)) &
+        print *,'TOA :: direct flux', edir(1,1,1)
+      print *,'TOA :: downw flux ', edn (1,1,1)
+      print *,'TOA :: upward fl  ', eup (1,1,1)
+      print *,'TOA :: absorption ', abso(1,1,1)
+
+      if(all(icld.ne.-1)) then
+        if(allocated(edir)) then
+          print *,'icloud :: direct flux  ', edir(nlev-icld  ,1,1)
+          print *,'icloud+1 :: direct flux', edir(nlev-icld+1,1,1)
+        endif
+        print *,'icloud :: downw flux   ', edn (nlev-icld+1,1,1)
+        print *,'icloud :: upward fl    ', eup (nlev-icld  ,1,1)
+        print *,'icloud :: absorption   ', abso(nlev-icld  ,1,1)
+      endif
+    endif
+
+    outpath(1) = 'out_pprts_hill.nc'
+    call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-out", outpath(1), lflg, ierr)
+
+    associate(&
+        & C  => pprts_solver%C_one,     &
+        & C1 => pprts_solver%C_one1,    &
+        & Ca => pprts_solver%C_one_atm, &
+        & Ca1=> pprts_solver%C_one_atm1_box )
+
+      call dump_vec(Ca%da, pprts_solver%atm%dz, 'dz')
+
+      if(allocated(edir)) &
+        call dump_vec(C1%da, edir, 'edir')
+      call dump_vec(C1%da, edn , 'edn')
+      call dump_vec(C1%da, eup , 'eup')
+      call dump_vec(C%da , abso, 'abso')
+
+      call getVecPointer(pprts_solver%atm%hhl, Ca1%da, hhl1d, hhl)
+      call dump_vec(Ca1%da, hhl(0,Ca1%zs:Ca1%ze,Ca1%xs:Ca1%xe,Ca1%ys:Ca1%ye), 'hhl')
       call restoreVecPointer(pprts_solver%atm%hhl, hhl1d, hhl)
 
-      outpath(2) = itoa(myid)//'dz'; call ncwrite(outpath, pprts_solver%atm%dz, ierr); call CHKERR(ierr)
-      outpath(2) = itoa(myid)//'lwc'; call ncwrite(outpath, lwc, ierr); call CHKERR(ierr)
-      outpath(2) = itoa(myid)//'reliq'; call ncwrite(outpath, reliq, ierr); call CHKERR(ierr)
-      call set_global_attribute(outpath(1), 'Nx', nxp)
-      call set_global_attribute(outpath(1), 'Ny', nyp)
-      call set_global_attribute(outpath(1), 'Nz', nzp)
-      call set_global_attribute(outpath(1), 'dx', dx)
-      call set_global_attribute(outpath(1), 'dy', dy)
-      call set_global_attribute(outpath(1), 'phi0', phi0)
-      call set_global_attribute(outpath(1), 'theta0', theta0)
-      call set_global_attribute(outpath(1), 'Ag_solar', albedo_sol)
-    enddo
+      if(myid.eq.0) then
+        call set_global_attribute(outpath(1), 'Nx', C%glob_xm)
+        call set_global_attribute(outpath(1), 'Ny', C%glob_ym)
+        call set_global_attribute(outpath(1), 'Nz', nzp)
+        call set_global_attribute(outpath(1), 'dx', dx)
+        call set_global_attribute(outpath(1), 'dy', dy)
+        call set_global_attribute(outpath(1), 'phi0', phi0)
+        call set_global_attribute(outpath(1), 'theta0', theta0)
+        call set_global_attribute(outpath(1), 'Ag_solar', albedo_sol)
+      endif
+    end associate
 
     ! Tidy up
     call destroy_pprts_rrtmg(pprts_solver, lfinalizepetsc=.True.)
     call destroy_tenstr_atm(atm)
-  end subroutine
+  contains
+    subroutine dump_vec(dm, arr, varname)
+      type(tDM), intent(in) :: dm
+      real(ireals), intent(in) :: arr(:,:,:)
+      character(len=*), intent(in) :: varname
+      type(tVec) :: gvec, lVec
+      real(ireals), allocatable :: larr(:,:,:)
+      integer(mpiint) :: ierr
 
+      call DMGetGlobalVector(dm, gvec, ierr); call CHKERR(ierr)
+      call f90VecToPetsc(arr, dm, gvec)
+      call petscGlobalVecToZero(gvec, dm, lVec)
+      if(myid.eq.0) then
+        call petscVecToF90(lVec, dm, larr, opt_l_only_on_rank0=.True.)
+
+        outpath(2) = trim(varname)
+        call ncwrite(outpath, larr, ierr); call CHKERR(ierr)
+      endif
+      call VecDestroy(lVec, ierr); call CHKERR(ierr)
+
+      call DMRestoreGlobalVector(dm, gvec, ierr); call CHKERR(ierr)
+    end subroutine
+  end subroutine
 end module
 
 program main
@@ -300,33 +278,41 @@ program main
   use petsc
   use mpi
   use m_data_parameters, only : iintegers, mpiint, ireals
+  use m_helper_functions, only : domain_decompose_2d_petsc, CHKERR
   use m_example_pprts_rrtmg_hill, only: example_pprts_rrtmg_hill
 
   implicit none
 
   integer(mpiint) :: ierr, myid
-  integer(iintegers) :: Nx, Ny, Nz
+  integer(iintegers),allocatable :: nxproc(:), nyproc(:)
+  integer(iintegers) :: Nx, Ny, Nz, nxp, nyp, xStart, yStart
   real(ireals)       :: dx, dy
   logical :: lflg
 
   call mpi_init(ierr)
   call mpi_comm_rank(mpi_comm_world, myid, ierr)
 
-  call PetscInitialize(PETSC_NULL_CHARACTER ,ierr)
+  call PetscInitialize(PETSC_NULL_CHARACTER ,ierr); call CHKERR(ierr)
 
   Nx=3; Ny=32; Nz=10
-  call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Nx", Nx, lflg, ierr)
-  call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Ny", Ny, lflg, ierr)
-  call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Nz", Nz, lflg, ierr)
+  call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Nx", Nx, lflg, ierr); call CHKERR(ierr)
+  call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Ny", Ny, lflg, ierr); call CHKERR(ierr)
+  call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Nz", Nz, lflg, ierr); call CHKERR(ierr)
 
   dx = 500
   dy = dx
-  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-dx", dx, lflg, ierr)
-  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-dy", dy, lflg, ierr)
+  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-dx", dx, lflg, ierr); call CHKERR(ierr)
+  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-dy", dy, lflg, ierr); call CHKERR(ierr)
 
-  if (myid.eq.0) print *,'Running rrtm_lw_sw example with grid size:', Nx, Ny, Nz
+  call domain_decompose_2d_petsc(mpi_comm_world, Nx, Ny, &
+    & nxp, nyp, xStart, yStart, nxproc, nyproc, ierr); call CHKERR(ierr)
 
-  call example_pprts_rrtmg_hill(Nx, Ny, Nz, dx, dy)
+  if (myid.eq.0) then
+    print *,'Running rrtm_lw_sw example with grid size:', Nx, Ny, Nz,&
+      & '(decomp:',nxproc,nyproc,')'
+  endif
+
+  call example_pprts_rrtmg_hill(mpi_comm_world, nxp, nyp, Nz, dx, dy, nxproc, nyproc, xStart, yStart)
 
   call mpi_finalize(ierr)
 end program
