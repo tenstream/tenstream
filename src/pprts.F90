@@ -671,7 +671,7 @@ module m_pprts
     real(ireals),pointer :: grad_1d(:)       =>null()
     real(ireals) :: proj_sundir(3), e_x(3)
     real(ireals) :: top_face_normal(3)
-    real(ireals), parameter :: side_face_normal(3) = [zero, one, zero]
+    real(ireals), parameter :: side_face_normal(3) = [zero, -one, zero]
     real(ireals) :: side_face_normal_proj_on_topface(3)
     real(ireals) :: az, zenith
     integer(iintegers) :: k,i,j
@@ -696,6 +696,7 @@ module m_pprts
         do k=C_one%zs,C_one%ze
 
           top_face_normal = cross_3d([zero, one, grad(i1, k, i, j)], [one, zero, grad(i0, k, i, j)]) ! downward pointing normal
+          call normalize_vec(top_face_normal, ierr)
 
           proj_sundir = vec_proj_on_plane(sundir, top_face_normal)
           call normalize_vec(proj_sundir, ierr)
