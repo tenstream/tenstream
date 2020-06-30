@@ -12,7 +12,7 @@ baseopt="\
   -Nz 50 \
   -hill_dP 100 \
   -hill_shape 10 \
-  -theta0 40 -phi0 0 \
+  -theta0 40 -phi0 180 \
   -log_view \
   $1"
 
@@ -69,16 +69,38 @@ args = parser.parse_args()
 
 D = xr.open_dataset(args.inp)
 
-z    = D['hhl'].mean(axis=1).data
-edir = D['edir'].mean(axis=1).data
+def get_grid_coords(var):
+  Ny, Nz = D[var].mean(axis=1).shape
+  z      = D['hhl'].mean(axis=1).data[:,::-1][:,:Nz][:,::-1]
+  y = np.linspace(-(D.Ny/2-.5)*D.dy, (D.Ny/2-.5)*D.dy, D.Ny)
+  y = np.tile(y, Nz).reshape(Nz, Ny).T
+  return y,z
 
-Ny, Nz = edir.shape
+y, z = get_grid_coords('edir')
 
-y = np.linspace(-(D.Ny/2-.5)*D.dy, (D.Ny/2-.5)*D.dy, D.Ny); y = np.tile(y, Nz).reshape(Nz, Ny).T
+plt.figure(figsize=(7,8))
+yrng = (0,5e3)
 
-plt.pcolormesh(y,z,edir)
-plt.colorbar()
-plt.ylim(0,5e3)
+plt.suptitle(args.inp)
+
+plt.subplot(411)
+plt.pcolormesh(y,z, D['edir'].mean(axis=1))
+cbar = plt.colorbar(); cbar.set_label('edir [W/m^2]'); plt.ylim(*yrng)
+
+plt.subplot(412)
+plt.pcolormesh(y,z, D['edn'].mean(axis=1))
+cbar = plt.colorbar(); cbar.set_label('edn [W/m^2]'); plt.ylim(*yrng)
+
+plt.subplot(413)
+plt.pcolormesh(y,z, D['eup'].mean(axis=1))
+cbar = plt.colorbar(); cbar.set_label('eup [W/m^2]'); plt.ylim(*yrng)
+
+y, z = get_grid_coords('abso')
+
+plt.subplot(414)
+plt.pcolormesh(y,z, D['abso'].mean(axis=1))
+cbar = plt.colorbar(); cbar.set_label('abso [W/m^3]'); plt.ylim(*yrng)
+
 plt.savefig(args.out)
 EOF
 
