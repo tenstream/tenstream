@@ -76,12 +76,13 @@ contains
 
     ! reshape pointer to convert i,j vecs to column vecs
     real(ireals), pointer, dimension(:,:) :: pplev, ptlev, plwc, preliq
+    real(ireals), pointer, dimension(:,:,:) :: patmlwc, patmreliq
 
     logical,parameter :: ldebug=.True.
     logical :: lthermal, lsolar
 
-  class(t_solver), allocatable :: pprts_solver
-    type(t_tenstr_atm) :: atm
+    class(t_solver), allocatable :: pprts_solver
+    type(t_tenstr_atm), target :: atm
 
     real(ireals) :: hill_dP, hill_shape, dP, cld_lwc
 
@@ -222,6 +223,11 @@ contains
         & Ca1=> pprts_solver%C_one_atm1_box )
 
       call dump_vec(Ca%da, pprts_solver%atm%dz, 'dz')
+
+      patmlwc  (Ca%zs:Ca%ze, Ca%xs:Ca%xe, Ca%ys:Ca%ye) => atm%lwc
+      patmreliq(Ca%zs:Ca%ze, Ca%xs:Ca%xe, Ca%ys:Ca%ye) => atm%reliq
+      call dump_vec(Ca%da, patmlwc, 'lwc')
+      call dump_vec(Ca%da, patmreliq, 'reliq')
 
       if(allocated(edir)) &
         call dump_vec(C1%da, edir, 'edir')
