@@ -296,7 +296,7 @@ module m_plex2rayli
 
     lcyclic=.False.
     call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-      '-rayli_cylic_bc', lcyclic, lflg, ierr); call CHKERR(ierr)
+      '-rayli_cyclic_bc', lcyclic, lflg, ierr); call CHKERR(ierr)
     if(lcyclic) then
       icyclic = 1
     else
