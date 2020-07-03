@@ -290,6 +290,9 @@ endif()
 if(ENABLE_RRTM)
   list(APPEND TENSTR_LIBS pprts_rrtm_sw pprts_rrtm_lw pprts_rrtmg)
 endif()
+if(BUILD_RAYLI)
+  list(APPEND TENSTR_LIBS ${RAYLI_LIBS} spdlog fmt)
+endif()
 
 # Generate Master Library which contains all symbols
 if(NOT BUILD_SHARED_LIBS)
