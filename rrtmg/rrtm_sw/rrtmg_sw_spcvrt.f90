@@ -485,7 +485,7 @@
 
 
 ! Delta scaling - clear   
-               zf = zgcc(jk) * zgcc(jk)
+               zf = 0 !zgcc(jk) * zgcc(jk)
                zwf = zomcc(jk) * zf
                ztauc(jk) = (1.0_rb - zwf) * ztauc(jk)
                zomcc(jk) = (zomcc(jk) - zwf) / (1.0_rb - zwf)
