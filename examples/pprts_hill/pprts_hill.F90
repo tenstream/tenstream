@@ -9,7 +9,7 @@ module m_example_pprts_rrtmg_hill
   ! the Tenstream uses.
   use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint, zero, one, i1, default_str_len
 
-  use m_helper_functions, only : linspace, CHKERR, meanval, itoa, spherical_2_cartesian
+  use m_helper_functions, only : reverse, linspace, CHKERR, meanval, itoa, spherical_2_cartesian
 
   use m_search, only: search_sorted_bisection
 
@@ -226,8 +226,8 @@ contains
 
       patmlwc  (Ca%zs:Ca%ze, Ca%xs:Ca%xe, Ca%ys:Ca%ye) => atm%lwc
       patmreliq(Ca%zs:Ca%ze, Ca%xs:Ca%xe, Ca%ys:Ca%ye) => atm%reliq
-      call dump_vec(Ca%da, patmlwc, 'lwc')
-      call dump_vec(Ca%da, patmreliq, 'reliq')
+      call dump_vec(Ca%da, reverse(patmlwc), 'lwc')
+      call dump_vec(Ca%da, reverse(patmreliq), 'reliq')
 
       if(allocated(edir)) &
         call dump_vec(C1%da, edir, 'edir')
