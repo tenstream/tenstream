@@ -4,6 +4,7 @@ module test_rrtm_lw_sw
     init_mpi_data_parameters,   &
     iintegers, ireals, mpiint,  &
     zero, one, default_str_len
+  use m_helper_functions, only : spherical_2_cartesian
 
   ! main entry point for solver, and desctructor
   use m_pprts_rrtmg, only : pprts_rrtmg, destroy_pprts_rrtmg
@@ -134,12 +135,12 @@ contains
     if(myid.eq.0 .and. ldebug) print *,'Computing Solar Radiation:'
     lthermal=.False.; lsolar=.True.
 
-    call pprts_rrtmg(comm, solver, atm, nxp, nyp, &
-      dx, dy, phi0, theta0,   &
-      albedo_th, albedo_sol,  &
-      lthermal, lsolar,       &
-      edir, edn, eup, abso,   &
-      nxproc=nxproc, nyproc=nyproc, &
+    call pprts_rrtmg(comm, solver, atm, nxp, nyp,  &
+      dx, dy, spherical_2_cartesian(phi0, theta0), &
+      albedo_th, albedo_sol,                       &
+      lthermal, lsolar,                            &
+      edir, edn, eup, abso,                        &
+      nxproc=nxproc, nyproc=nyproc,                &
       opt_time=zero)
 
     ! Determine number of actual output levels from returned flux arrays.
@@ -173,10 +174,11 @@ contains
     if(myid.eq.0 .and. ldebug) print *,'Computing Thermal Radiation:'
     lthermal=.True.; lsolar=.False.
 
-    call pprts_rrtmg(comm, solver, atm, nxp, nyp, &
-      dx, dy, phi0, theta0, albedo_th, albedo_sol,      &
-      lthermal, lsolar,                                 &
-      edir, edn, eup, abso,                             &
+    call pprts_rrtmg(comm, solver, atm, nxp, nyp,  &
+      dx, dy, spherical_2_cartesian(phi0, theta0), &
+      albedo_th, albedo_sol,                       &
+      lthermal, lsolar,                            &
+      edir, edn, eup, abso,                        &
       nxproc=nxproc, nyproc=nyproc, opt_time=zero)
 
     if(myid.eq.0 .and. ldebug) print *,'Computing Thermal Radiation done'
@@ -205,10 +207,10 @@ contains
     if(myid.eq.0 .and. ldebug) print *,'Computing Solar AND Thermal Radiation:'
     lthermal=.True.; lsolar=.True.
 
-    call pprts_rrtmg(comm, solver, atm, nxp, nyp, &
-      dx, dy, phi0, theta0, albedo_th, albedo_sol,      &
-      lthermal, lsolar,                                 &
-      edir, edn, eup, abso,                             &
+    call pprts_rrtmg(comm, solver, atm, nxp, nyp,  &
+      dx, dy, spherical_2_cartesian(phi0, theta0), &
+      albedo_th, albedo_sol, lthermal, lsolar,     &
+      edir, edn, eup, abso,                        &
       nxproc=nxproc, nyproc=nyproc, opt_time=zero)
 
     nlev = ubound(edn,1)

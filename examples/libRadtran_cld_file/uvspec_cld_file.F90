@@ -212,6 +212,7 @@ contains
 
     ! reshape pointer to convert i,j vecs to column vecs
     real(ireals), pointer, dimension(:,:) :: pplev, ptlev, plwc, preliq
+    real(ireals) :: sundir(3)
 
     logical,parameter :: ldebug=.True.
 
@@ -244,13 +245,15 @@ contains
     plwc (1:size(lwc ,1),1:size(lwc ,2)*size(lwc ,3)) => lwc
     preliq(1:size(reliq,1),1:size(reliq,2)*size(reliq,3)) => reliq
 
+    sundir = spherical_2_cartesian(phi0,theta0)
+
     call setup_tenstr_atm(comm, .False., atm_filename, &
       pplev, ptlev, atm, &
       d_lwc=plwc, d_reliq=preliq)
 
     call pprts_rrtmg(comm, pprts_solver, atm, &
       size(plev,2, kind=iintegers), size(plev,3, kind=iintegers), &
-      dx, dy, phi0, theta0,                    &
+      dx, dy, sundir,                          &
       albedo_th, albedo_sol,                   &
       lthermal, lsolar,                        &
       edir, edn, eup, abso,                    &

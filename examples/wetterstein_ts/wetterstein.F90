@@ -5,7 +5,7 @@ module m_wetterstein
 
   use m_tenstream_options, only: read_commandline_options
 
-  use m_helper_functions, only : imp_bcast, CHKERR
+  use m_helper_functions, only : imp_bcast, CHKERR, spherical_2_cartesian
 
   use m_netcdfIO, only : ncwrite, ncload
 
@@ -38,6 +38,7 @@ contains
     character(len=80) :: nc_path(2) ! [ filename, varname ]
     real(ireals),allocatable :: tmp(:,:,:)
 
+    real(ireals) :: sundir(3)
     integer(iintegers) :: k
     integer(iintegers) :: nxp,nyp,nlay
     integer(iintegers),allocatable :: nxproc(:), nyproc(:)
@@ -91,6 +92,8 @@ contains
       enddo
     endif
 
+    sundir = spherical_2_cartesian(phi0, theta0)
+
     pplev(1:size(plev,1),1:size(plev,2)*size(plev,3)) => plev
     ptlev(1:size(tlev,1),1:size(tlev,2)*size(tlev,3)) => tlev
     plwc (1:size(lwc ,1),1:size(lwc ,2)*size(lwc ,3)) => lwc
@@ -101,7 +104,7 @@ contains
       d_lwc=plwc, d_reliq=preliq)
 
     call pprts_rrtmg(comm, solver, atm, nxp, nyp, &
-      dx, dy, phi0, theta0,   &
+      dx, dy, sundir,         &
       albedo_th, albedo_sol,  &
       lthermal, lsolar,       &
       edir, edn, eup, abso,   &

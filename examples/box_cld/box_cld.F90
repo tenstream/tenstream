@@ -6,7 +6,7 @@ module m_box_cld
     pprts_get_result
   use m_pprts_base, only: t_solver, allocate_pprts_solver_from_commandline, destroy_pprts
 
-  use m_helper_functions, only : get_mem_footprint
+  use m_helper_functions, only : get_mem_footprint, spherical_2_cartesian
 
   use m_tenstream_options, only: read_commandline_options
 
@@ -27,6 +27,7 @@ subroutine box_cld()
     real(ireals),parameter :: incSolar = 1364
     real(ireals) :: dz1d(nv)
 
+    real(ireals) :: sundir(3)
     real(ireals),allocatable,dimension(:,:,:) :: kabs,ksca,g
     real(ireals),allocatable,dimension(:,:,:) :: fdir,fdn,fup,fdiv
 
@@ -38,7 +39,9 @@ subroutine box_cld()
     call allocate_pprts_solver_from_commandline(solver, '8_16')
     dz1d = dz
 
-    call init_pprts(MPI_COMM_WORLD, nv, nxp,nyp, dx,dy,phi0, theta0, solver, dz1d=dz1d)
+    sundir = spherical_2_cartesian(phi0, theta0)
+
+    call init_pprts(MPI_COMM_WORLD, nv, nxp, nyp, dx, dy, sundir, solver, dz1d=dz1d)
     call mpi_comm_rank(MPI_COMM_WORLD, myid, ierr)
 
     allocate(kabs(solver%C_one%zm , solver%C_one%xm,  solver%C_one%ym ))

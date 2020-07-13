@@ -7,7 +7,7 @@ module test_convolution
   use m_pprts_base, only : t_solver_3_10, destroy_pprts
   use m_pprts, only : init_pprts
   use m_petsc_helpers, only : petscVecToF90, petscGlobalVecToZero, f90VecToPetsc, dmda_convolve_ediff_srfc
-  use m_helper_functions, only : CHKERR
+  use m_helper_functions, only : CHKERR, spherical_2_cartesian
 
   use pfunit_mod
 
@@ -43,7 +43,7 @@ contains
     real(ireals),parameter :: dx=100,dy=dx
     real(ireals),parameter :: phi0=0, theta0=60
     real(ireals),parameter :: dz=dx
-    real(ireals) :: dz1d(nv)
+    real(ireals) :: dz1d(nv), sundir(3)
     real(ireals), parameter :: eps=sqrt(epsilon(eps))
 
     real(ireals),allocatable,dimension(:,:,:,:) :: local_arr
@@ -52,12 +52,13 @@ contains
     integer(iintegers) :: j,k
 
     dz1d = dz
+    sundir = spherical_2_cartesian(phi0, theta0)
 
     comm     = this%getMpiCommunicator()
     numnodes = this%getNumProcesses()
     myid     = this%getProcessRank()
 
-    call init_pprts(comm, nv, nxp, nyp, dx,dy, phi0, theta0, solver, dz1d)
+    call init_pprts(comm, nv, nxp, nyp, dx,dy, sundir, solver, dz1d)
 
     associate(C=>solver%C_diff)
       allocate(local_arr(C%dof, C%zm , C%xm,  C%ym ))
@@ -140,7 +141,7 @@ contains
     real(ireals),parameter :: dx=100,dy=dx
     real(ireals),parameter :: phi0=0, theta0=60
     real(ireals),parameter :: dz=dx
-    real(ireals) :: dz1d(nv)
+    real(ireals) :: dz1d(nv), sundir(3)
     real(ireals), parameter :: eps=sqrt(epsilon(eps))
 
     real(ireals),allocatable,dimension(:,:,:,:) :: local_arr
@@ -148,12 +149,13 @@ contains
     integer(iintegers) :: j,k
 
     dz1d = dz
+    sundir = spherical_2_cartesian(phi0, theta0)
 
     comm     = this%getMpiCommunicator()
     numnodes = this%getNumProcesses()
     myid     = this%getProcessRank()
 
-    call init_pprts(comm, nv, nxp, nyp, dx,dy, phi0, theta0, solver, dz1d)
+    call init_pprts(comm, nv, nxp, nyp, dx,dy, sundir, solver, dz1d)
 
     associate(C=>solver%C_diff)
       allocate(local_arr(C%dof, C%zm , C%xm,  C%ym ))

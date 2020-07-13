@@ -43,7 +43,7 @@ subroutine test_search_sorted_bisection_reversed(this)
 end subroutine
 
 @test(npes=[1])
-subroutine test_find_real_location(this)
+subroutine test_find_real_location_petsc(this)
   class (MpiTestMethod), intent(inout) :: this
   real(ireals), parameter :: A(3) = [-10, 0, 2]
 
@@ -57,6 +57,39 @@ subroutine test_find_real_location(this)
   @assertEqual(3.0, find_real_location_petsc(A,   2._ireals))
   @assertEqual(3.0, find_real_location_petsc(A,   3._ireals))
 end subroutine
+
+@test(npes=[1])
+subroutine test_find_real_location(this)
+  class (MpiTestMethod), intent(inout) :: this
+  real(ireals), parameter :: A(3) = [-10, 0, 2]
+
+  @assertEqual(1.0, find_real_location(A, -20._ireals))
+  @assertEqual(1.0, find_real_location(A, -10._ireals))
+  @assertEqual(1.25,find_real_location(A, -7.5_ireals))
+  @assertEqual(1.5, find_real_location(A,  -5._ireals))
+  @assertEqual(2.0, find_real_location(A,  -0._ireals))
+  @assertEqual(2.0, find_real_location(A,   0._ireals))
+  @assertEqual(2.5, find_real_location(A,   1._ireals))
+  @assertEqual(3.0, find_real_location(A,   2._ireals))
+  @assertEqual(3.0, find_real_location(A,   3._ireals))
+end subroutine
+
+@test(npes=[1])
+subroutine test_find_real_location_reversed(this)
+  class (MpiTestMethod), intent(inout) :: this
+  real(ireals), parameter :: A(3) = [10, 0, -2]
+
+  @assertEqual(1.0, find_real_location(A,  20._ireals))
+  @assertEqual(1.0, find_real_location(A,  10._ireals))
+  @assertEqual(1.25,find_real_location(A,  7.5_ireals))
+  @assertEqual(1.5, find_real_location(A,   5._ireals))
+  @assertEqual(2.0, find_real_location(A,   0._ireals))
+  @assertEqual(2.0, find_real_location(A,  -0._ireals))
+  @assertEqual(2.5, find_real_location(A,  -1._ireals))
+  @assertEqual(3.0, find_real_location(A,  -2._ireals))
+  @assertEqual(3.0, find_real_location(A,  -3._ireals))
+end subroutine
+
 
 @test(npes=[1])
 subroutine test_find_real_location_linear(this)
@@ -131,7 +164,7 @@ subroutine test_search_runtime(this)
       do itest=2,size(sum_res)
         @assertEqual(sum_res(1), sum_res(itest))
       enddo
-      print *, 'arr size', s, 'time', time(2:), ':', time(2:) / minval(time), ': auto_select algorithm', time(1) / minval(time)
+      print *, 'arr size', s, 'time', time, ':', time / minval(time), ': auto_select algorithm', time(1), '( ratio=',time(1)/minval(time),')'
       ! make sure that the generic version of search algorithm is selected well,
       ! i.e. that we are not off by a factor of 3
       @assertTrue(time(1).lt.minval(time)*3, 'the auto selected search algorithm was the wrong one')

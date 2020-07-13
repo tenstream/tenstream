@@ -163,18 +163,19 @@ contains
       print *, '________________________________________________________'
       print *, 'k', k, 'theta0', theta0, 'phi0', phi0
 
+      sundir = spherical_2_cartesian( phi0, theta0 )
+
       call pprts_rrtmg(comm, pprts_solver, atm, nxp, nyp, &
-        dx, dy, phi0, theta0,   &
+        dx, dy, sundir,         &
         albedo_th, albedo_sol,  &
         lthermal, lsolar,       &
         edir, edn, eup, abso,   &
         nxproc=nxproc, nyproc=nyproc, opt_solar_constant=E0)
 
-        sundir = spherical_2_cartesian( phi0, theta0 )
       print *, 'sundir', sundir
       do j=1, cols
         if ( mod( j, nxp ) == 0 ) then
-          x_index = 5
+          x_index = nxp
         else
           x_index = mod( j, nxp )
         end if

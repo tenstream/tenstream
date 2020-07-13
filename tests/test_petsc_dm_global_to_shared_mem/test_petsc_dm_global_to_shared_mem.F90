@@ -74,7 +74,7 @@ contains
 
     integer(iintegers),parameter :: nxp=3,nyp=3,nv=2
     real(ireals),parameter :: dx=100,dy=dx
-    real(ireals),parameter :: phi0=0, theta0=0
+    real(ireals),parameter :: sundir(3) = 0
     real(ireals),parameter :: dz=dx
     real(ireals) :: dz1d(nv)
 
@@ -97,7 +97,7 @@ contains
     call mpi_comm_rank(subcomm,submyid,ierr); call CHKERR(ierr)
     call mpi_comm_size(subcomm,subnumnodes,ierr); call CHKERR(ierr)
 
-    call init_pprts(comm, nv, nxp, nyp, dx,dy, phi0, theta0, solver, dz1d)
+    call init_pprts(comm, nv, nxp, nyp, dx,dy, sundir, solver, dz1d)
 
     associate(C=>solver%C_one)
       ! Gen new global vector

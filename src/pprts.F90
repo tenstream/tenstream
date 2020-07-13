@@ -28,8 +28,10 @@ module m_pprts
     default_str_len
 
   use m_helper_functions, only : CHKERR, CHKWARN, deg2rad, rad2deg, imp_allreduce_min, &
-    imp_bcast, imp_allreduce_max, delta_scale, mpi_logical_and, meanval, get_arg, approx, &
-    inc, ltoa, cstr, itoa, ftoa, imp_allreduce_mean
+    & imp_bcast, imp_allreduce_max, delta_scale, mpi_logical_and, meanval, get_arg, approx, &
+    & inc, ltoa, cstr, itoa, ftoa, imp_allreduce_mean, &
+    & normalize_vec, vec_proj_on_plane, angle_between_two_normed_vec, cross_3d, &
+    & rotation_matrix_world_to_local_basis
 
   use m_twostream, only: delta_eddington_twostream, adding_delta_eddington_twostream
   use m_schwarzschild, only: schwarzschild, B_eff
@@ -39,7 +41,6 @@ module m_pprts
 
   use m_tenstream_options, only : read_commandline_options, ltwostr, luse_eddington, twostr_ratio, &
     options_max_solution_err, options_max_solution_time, ltwostr_only, luse_twostr_guess,        &
-    options_phi, lforce_phi, options_theta, lforce_theta, &
     lcalc_nca, lskip_thermal, lschwarzschild, ltopography, &
     lmcrts
 
@@ -79,15 +80,14 @@ module m_pprts
   !> @details This will setup the PETSc DMDA grid and set other grid information, needed for the pprts
   !> \n Nx, Ny Nz are either global domain size or have to be local sizes if present(nxproc,nyproc)
   !> \n where nxproc and nyproc then are the number of pixel per rank for all ranks -- i.e. sum(nxproc) != Nx_global
-  subroutine init_pprts(icomm, Nz,Nx,Ny, dx,dy, phi0, theta0, solver, dz1d, dz3d, nxproc, nyproc, collapseindex, solvername)
+  subroutine init_pprts(icomm, Nz,Nx,Ny, dx,dy, sundir, solver, dz1d, dz3d, nxproc, nyproc, collapseindex, solvername)
     MPI_Comm, intent(in)          :: icomm         !< @param MPI_Communicator for this solver
     integer(iintegers),intent(in) :: Nz            !< @param[in] Nz     Nz is the number of layers and Nz+1 would be the number of levels
     integer(iintegers),intent(in) :: Nx            !< @param[in] Nx     number of boxes in x-direction
     integer(iintegers),intent(in) :: Ny            !< @param[in] Ny     number of boxes in y-direction
     real(ireals),intent(in)       :: dx            !< @param[in] dx     physical size of grid in [m]
     real(ireals),intent(in)       :: dy            !< @param[in] dy     physical size of grid in [m]
-    real(ireals),intent(in)       :: phi0          !< @param[in] phi0   solar azmiuth and zenith angle
-    real(ireals),intent(in)       :: theta0        !< @param[in] theta0 solar azmiuth and zenith angle
+    real(ireals),intent(in)       :: sundir(:)     !< @param[in] cartesian sun direction (pointing away from the sun), dim(3)
 
     class(t_solver), intent(inout)         :: solver         !< @param[inout] solver
     real(ireals),optional,intent(in)       :: dz1d(:)        !< @param[in]    dz1d    if given, dz1d is used everywhere on the rank
@@ -273,7 +273,7 @@ module m_pprts
 
     !Todo: this is just here so that we do not break the API. User could also
     !       directly use the set_angle routines?
-    call set_angles(solver, phi0, theta0)
+    call set_angles(solver, sundir)
 
   contains
     subroutine setup_atm()
@@ -315,6 +315,10 @@ module m_pprts
         call compute_vertical_height_levels(dz=solver%atm%dz, C_hhl=solver%C_one_atm1_box, vhhl=solver%atm%hhl)
       endif
 
+      if(.not.allocated(solver%atm%hgrad)) then
+        call compute_gradient(solver%atm, solver%C_one_atm1, solver%C_two1, solver%atm%hgrad)
+      endif
+
       solver%sun%luse_topography = present(dz3d) .and. ltopography  ! if the user supplies 3d height levels and has set the topography option
 
       if(.not.allocated(solver%atm%l1d)) then
@@ -343,6 +347,7 @@ module m_pprts
         solver%atm%l1d(solver%C_one_atm%zs:atmk(solver%atm, solver%C_one%zs),:,:) = .True. ! if need to be collapsed, they have to be 1D.
         if(ldebug) print *,'Using icollapse:',collapseindex, solver%atm%lcollapse
       endif
+
     end subroutine
   end subroutine
 
@@ -605,14 +610,9 @@ module m_pprts
       call VecSet(b,zero,ierr)        ; call CHKERR(ierr)
     end subroutine
 
-    subroutine set_angles(solver, phi0, theta0, phi2d, theta2d)
+    subroutine set_angles(solver, sundir)
       class(t_solver), intent(inout)   :: solver
-      real(ireals),intent(in)          :: phi0           !< @param[in] phi0   solar azmiuth and zenith angle
-      real(ireals),intent(in)          :: theta0         !< @param[in] theta0 solar azmiuth and zenith angle
-      real(ireals),optional,intent(in) :: phi2d  (:,:)   !< @param[in] phi2d   if given, horizontally varying azimuth
-      real(ireals),optional,intent(in) :: theta2d(:,:)   !< @param[in] theta2d if given, and zenith angle
-
-      logical :: lchanged_theta, lchanged_phi
+      real(ireals),intent(in)          :: sundir(:)      !< @param[in] cartesian sun direction
 
       if(.not.solver%linitialized) then
         print *,solver%myid,'You tried to set angles in the PPRTS solver.  &
@@ -620,28 +620,7 @@ module m_pprts
         ierr=1; call CHKERR(ierr)
       endif
 
-      lchanged_theta = .True.
-      lchanged_phi   = .True.
-      if(allocated(solver%sun%theta)) then ! was initialized
-        if(present(theta2d)) then
-          lchanged_theta = any(.not.approx(theta2d, solver%sun%theta(1,:,:)))
-        else
-          lchanged_theta = any(.not.approx(theta0 , solver%sun%theta(1,:,:)))
-        endif
-      endif
-      if(allocated(solver%sun%phi)) then
-        if(present(phi2d)) then
-          lchanged_phi = any(.not.approx(phi2d, solver%sun%phi(1,:,:)))
-        else
-          lchanged_phi = any(.not.approx(phi0 , solver%sun%phi(1,:,:)))
-        endif
-      endif
-      if(solver%myid.eq.0 .and. ldebug) print *,'pprts set_angles -- changed angles?',lchanged_theta, lchanged_phi
-      if(.not. lchanged_theta .and. .not. lchanged_phi) then
-        return
-      endif
-
-      call setup_suninfo(solver, phi0, theta0, solver%sun, solver%C_one, phi2d=phi2d, theta2d=theta2d)
+      call setup_suninfo(solver, sundir, solver%sun, solver%C_one)
 
       if(ltwostr_only .or. lmcrts) return ! dont need anything here, we just compute Twostream anyway
 
@@ -683,17 +662,20 @@ module m_pprts
   !> @details save sun azimuth and zenith angle
   !>   \n sun azimuth is reduced to the range of [0,90] and the transmission of direct radiation is contributed for by a integer increment,
   !>   \n determining which neighbouring box is used in the horizontal direction
-  subroutine setup_suninfo(solver, phi0, theta0, sun, C_one, phi2d, theta2d)
+  subroutine setup_suninfo(solver, sundir, sun, C_one)
     class(t_solver), intent(in) :: solver
-    real(ireals),intent(in) :: phi0, theta0
+    real(ireals),intent(in) :: sundir(:)
     type(t_suninfo),intent(inout) :: sun
     type(t_coord), intent(in) :: C_one
-    real(ireals), optional, intent(in) :: phi2d(:,:), theta2d(:,:)
 
-    real(ireals) :: avgphi
-    logical :: use_avg_phi, lflg
+    real(ireals),pointer :: grad   (:,:,:,:) =>null()
+    real(ireals),pointer :: grad_1d(:)       =>null()
+    real(ireals) :: loc_sundir(3), proj_sundir(3), e_x(3), e_y(3), e_z(3), Mrot(3,3)
+    real(ireals) :: az, zenith
+    integer(iintegers) :: k,i,j
     integer(mpiint) :: ierr
-    integer(iintegers) :: i,j
+
+    if(.not.allocated(solver%atm%hgrad)) call CHKERR(1_mpiint, 'atm%hgrad not initialized!')
 
     call alloc_sun_rfield(sun%symmetry_phi)
     call alloc_sun_rfield(sun%theta)
@@ -703,44 +685,45 @@ module m_pprts
     call alloc_sun_ifield(sun%xinc)
     call alloc_sun_ifield(sun%yinc)
 
-    if(lforce_phi) then
-      sun%phi(:,:,:) = options_phi
-    else
-      if(present(phi2d)) then
-        do j = C_one%ys, C_one%ye
-          do i = C_one%xs, C_one%xe
-            sun%phi(:,i,j) = phi2d(i-C_one%xs+1,j-C_one%ys+1)
-          enddo
-        enddo
-      else
-        sun%phi(:,:,:) = phi0
-      endif
-      use_avg_phi=.False.
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-use_avg_phi", &
-        use_avg_phi, lflg , ierr) ;call CHKERR(ierr)
-      if(use_avg_phi) then
-        call imp_allreduce_mean(solver%comm, sun%phi, avgphi)
-        sun%phi(:,:,:) = avgphi
-      endif
-    endif
+    sun%sundir = sundir
+    call normalize_vec(sun%sundir, ierr)
 
-    if(lforce_theta) then
-      sun%theta(:,:,:) = options_theta
-    else
-      if(present(theta2d)) then
-        do j = C_one%ys, C_one%ye
-          do i = C_one%xs, C_one%xe
-            sun%theta(:,i,j) = theta2d(i-C_one%xs+1,j-C_one%ys+1)
-          enddo
-        enddo
-      else
-        sun%theta(:,:,:) = theta0
-      endif
-    endif
+    ! default unit vectors (if not ltopography)
+    e_x = [one, zero, zero]
+    e_y = [zero, one, zero]
+    e_z = [zero, zero, one]
+    loc_sundir = sun%sundir
 
-    if(sun%luse_topography) then
-      call setup_topography(solver%atm, solver%C_one, solver%C_one1, solver%C_two1, sun)
-    endif
+    call getVecPointer(solver%atm%hgrad, solver%C_two1%da, grad_1d, grad)
+    do j=C_one%ys,C_one%ye
+      do i=C_one%xs,C_one%xe
+        do k=C_one%zs,C_one%ze
+
+          if(sun%luse_topography) then
+            e_x = [one, zero, grad(i0, k, i, j)]
+            e_y = [zero, one, grad(i1, k, i, j)]
+            call normalize_vec(e_x, ierr)
+            call normalize_vec(e_y, ierr)
+            e_z = cross_3d(e_x, e_y) ! upward pointing normal on top face
+            Mrot = rotation_matrix_world_to_local_basis(e_x, e_y, e_z)
+            loc_sundir = matmul(Mrot, sun%sundir)
+          endif
+
+          proj_sundir = vec_proj_on_plane(loc_sundir, -e_z)
+          call normalize_vec(proj_sundir, ierr)
+
+          az = angle_between_two_normed_vec(proj_sundir, -e_y)
+          az = az * sign(one, dot_product(proj_sundir, e_x))
+          sun%phi(k,i,j) = rad2deg(az)
+
+          zenith = angle_between_two_normed_vec(loc_sundir, -e_z)
+          sun%theta(k,i,j) = rad2deg(zenith)
+        enddo
+      enddo
+    enddo
+    call restoreVecPointer(solver%atm%hgrad, grad_1d, grad)
+
+    sun%theta = min(90._ireals, sun%theta)
 
     sun%costheta = max( cos(deg2rad(sun%theta)), zero)
     sun%sintheta = max( sin(deg2rad(sun%theta)), zero)
@@ -792,76 +775,6 @@ module m_pprts
   !> @details integrate dz3d from to top of atmosphere to bottom.
   !>   \n then build horizontal gradient of height information and
   !>   \n tweak the local sun angles to bend the rays.
-  subroutine setup_topography(atm, C_one, C_one1, C_two1, sun)
-    type(t_atmosphere), intent(in) :: atm
-    type(t_coord), intent(in) :: C_one, C_one1, C_two1
-    type(t_suninfo),intent(inout) :: sun
-
-    real(ireals),Pointer :: grad(:,:,:,:)=>null(), grad_1d(:)=>null()
-
-    integer(iintegers) :: i,j,k
-    real(ireals) :: newtheta, newphi, xsun(3)
-    real(ireals) :: rotmat(3, 3), newxsun(3)
-    integer(mpiint) :: comm, myid, ierr
-
-    if(.not.allocated(sun%theta)) call CHKERR(1_mpiint, 'You called  setup_topography() &
-        &but the sun struct is not yet up, make sure setup_suninfo is called before')
-    if(.not.allocated(atm%dz)) call CHKERR(1_mpiint, 'You called  setup_topography() &
-        &but the atm struct is not yet up, make sure we have atm%dz before')
-
-    call compute_gradient(atm, C_one1, C_two1, atm%hgrad)
-
-    call PetscObjectGetComm(C_one%da, comm, ierr); call CHKERR(ierr)
-    call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
-
-    call getVecPointer(atm%hgrad , C_two1%da, grad_1d, grad)
-
-    rotmat = reshape((/ one , zero, zero,  &
-                        zero, one , zero,  &
-                        nil , nil , one/), &
-                     (/3, 3/), order=(/2, 1/) )
-
-    do j=C_one%ys,C_one%ye
-      do i=C_one%xs,C_one%xe
-        do k=C_one%zs,C_one%ze
-
-          ! if we are at the global boundary we have to take care that the gradient does not get too
-          ! steep. That wouldnt make sense for cyclic boundaries... ! todo: check what we should do?
-          !if(i.eq.i0 .or. i.eq.C_one%glob_xm-i1 .or. j.eq.i0 .or. j.eq.C_one%glob_ym-i1) then
-          !   !print *,solver%myid,'global edge at:',i,j
-          !    cycle
-          !endif
-
-          ! Vector of sun direction
-          xsun(1) = sin(deg2rad(sun%theta(k,i,j)))*sin(deg2rad(sun%phi(k,i,j)))
-          xsun(2) = sin(deg2rad(sun%theta(k,i,j)))*cos(deg2rad(sun%phi(k,i,j)))
-          xsun(3) = cos(deg2rad(sun%theta(k,i,j)))
-
-          xsun = xsun / norm2(xsun)
-
-          rotmat(3, 1) = grad(i0, k, i, j)
-          rotmat(3, 2) = grad(i1, k, i, j)
-
-          newxsun = matmul(rotmat, xsun)
-          newxsun = newxsun / norm2(newxsun)
-
-          newtheta = rad2deg(acos(newxsun(3)))
-
-          !newphi in meteorologiecal definitions: clockwise from y-axis
-          newphi = rad2deg(atan2(newxsun(1), newxsun(2)))
-
-          !if(i.eq.C_one1%xs.and.k.eq.C_one%ze) print *,myid,i,j,k, &
-          !  '::', sun%theta(k,i,j), newtheta, &
-          !  '::', sun%phi  (k,i,j), newphi
-
-          sun%theta(k,i,j) = max(zero, min( 90._ireals, newtheta ))
-          sun%phi  (k,i,j) = newphi
-        enddo
-      enddo
-    enddo
-
-    call restoreVecPointer(atm%hgrad, grad_1d, grad)
-  end subroutine
 
   !> @brief create PETSc matrix and inserts diagonal elements
   !> @details one important step for performance is to set preallocation of matrix structure.
@@ -2604,7 +2517,8 @@ subroutine setup_ksp(solver, ksp, C, A, prefix)
 
   if(lset_nullspace) then
     call MatNullSpaceCreate( C%comm, PETSC_TRUE, i0, nullvecs, nullspace, ierr) ; call CHKERR(ierr)
-    call MatSetNearNullSpace(A, nullspace, ierr);call CHKERR(ierr)
+    call MatSetNullSpace(A, nullspace, ierr);call CHKERR(ierr)
+    CALL MatNullSpaceDestroy(nullspace, ierr); CALL CHKERR(ierr)
   endif
 
   call KSPSetFromOptions(ksp,ierr) ;call CHKERR(ierr)

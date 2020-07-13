@@ -44,7 +44,7 @@ contains
 
     integer(iintegers),parameter :: nxp=5,nyp=5,nv=5,uid=0
     real(ireals),parameter :: dx=100,dy=dx
-    real(ireals),parameter :: phi0=10, theta0=60
+    real(ireals),parameter :: sundir(3) = 0
     real(ireals),parameter :: dz=dx
     real(ireals) :: dz1d(nv)
 
@@ -65,7 +65,7 @@ contains
         real(ireals) :: target_dirnorm, target_diffnorm
         real(ireals) :: dirnorm, diffnorm
         integer(mpiint) :: ierr
-        call init_pprts(comm, nv, nxp, nyp, dx,dy, phi0, theta0, solver, dz1d)
+        call init_pprts(comm, nv, nxp, nyp, dx,dy, sundir, solver, dz1d)
 
         associate( S => solver%solutions(uid) )
           call prepare_solution(solver%C_dir%da, solver%C_diff%da, solver%C_one%da, &

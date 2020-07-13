@@ -9,7 +9,7 @@ module m_example_pprts_rrtm_iterations
   ! the Tenstream uses.
   use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint, zero, one, default_str_len
 
-  use m_helper_functions, only : linspace, CHKERR, meanval
+  use m_helper_functions, only : linspace, CHKERR, meanval, spherical_2_cartesian
   use m_search, only: search_sorted_bisection
 
   ! Import specific solver type: 3_10 for example uses 3 streams direct, 10 streams for diffuse radiation
@@ -33,7 +33,7 @@ contains
     ! MPI variables and domain decomposition sizes
     integer(mpiint) :: numnodes, comm, myid, N_ranks_x, N_ranks_y, ierr
 
-    real(ireals) :: phi0, theta0, theta              ! Sun's angles, azimuth phi(0=North, 90=East), zenith(0 high sun, 80=low sun)
+    real(ireals) :: phi0, theta0, theta, sundir(3)   ! Sun's angles, azimuth phi(0=North, 90=East), zenith(0 high sun, 80=low sun)
     real(ireals) :: lwc0                             ! cloud lwc content
     real(ireals),parameter :: albedo_th=0, albedo_sol=.3 ! broadband ground albedo for solar and thermal spectrum
 
@@ -193,8 +193,10 @@ contains
       if(iter.eq.1.and.myid.eq.0) call print_tenstr_atm(atm)
 
       if(lsolar.and.myid.eq.0) print *,'theta0 =', theta
+      sundir = spherical_2_cartesian(phi0, theta)
+
       call pprts_rrtmg(comm, pprts_solver, atm, nxp, nyp, &
-        dx, dy, phi0, theta,   &
+        dx, dy, sundir,        &
         albedo_th, albedo_sol,  &
         lthermal, lsolar,       &
         edir, edn, eup, abso,   &
