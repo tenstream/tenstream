@@ -283,7 +283,7 @@
                                      ssacoliq(ib) = ssaliq1(index,ib)
                       gliq(ib) = asyliq1(index,ib) + fint * &
                                 (asyliq1(index+1,ib) - asyliq1(index,ib))
-                      forwliq(ib) = gliq(ib)*gliq(ib)
+                      forwliq(ib) = 0 !gliq(ib)*gliq(ib)
 ! Check to ensure all calculated quantities are within physical limits.
                       if (extcoliq(ib) .lt. 0.0_rb) stop 'LIQUID EXTINCTION LESS THAN 0.0'
                       if (ssacoliq(ib) .gt. 1.0_rb) stop 'LIQUID SSA GRTR THAN 1.0'
