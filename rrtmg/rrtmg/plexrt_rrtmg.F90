@@ -176,7 +176,7 @@ contains
       call PetscLogStagePush(log_events%stage_rrtmg_thermal, ierr); call CHKERR(ierr)
       call compute_thermal(comm, solver, atm, &
         Ncol, ke1, &
-        albedo_thermal, &
+        sundir, albedo_thermal, &
         edn, eup, abso, &
         opt_time=opt_time, &
         thermal_albedo_2d=thermal_albedo_2d, &
@@ -275,7 +275,7 @@ contains
       end subroutine
   end subroutine
 
-  subroutine compute_thermal(comm, solver, atm, Ncol, ke1, albedo, &
+  subroutine compute_thermal(comm, solver, atm, Ncol, ke1, sundir, albedo, &
       edn, eup, abso, opt_time, thermal_albedo_2d, lrrtmg_only)
 
     use m_tenstr_rrlw_wvn, only : ngb, wavenum1, wavenum2
@@ -286,6 +286,7 @@ contains
     type(t_tenstr_atm), intent(in), target :: atm
     integer(iintegers),intent(in) :: Ncol, ke1
 
+    real(ireals),intent(in) :: sundir(:)
     real(ireals),intent(in) :: albedo
 
     real(ireals),intent(inout),dimension(:,:) :: edn, eup, abso
@@ -462,7 +463,7 @@ contains
 
         call Nz_Ncol_vec_to_horizface1_dm(solver%plex, reverse(Blev * Bfrac(:,:,ib)), solver%plck)
 
-        call run_plex_rt_solver(solver, lthermal=.True., lsolar=.False., sundir=[zero, zero, one], &
+        call run_plex_rt_solver(solver, lthermal=.True., lsolar=.False., sundir=sundir, &
           opt_solution_uid=500+ib, opt_solution_time=opt_time)
 
       endif
@@ -851,7 +852,7 @@ contains
     enddo ! ib 1 -> nbndsw , i.e. spectral integration
   contains
     function compute_solar_disort() result(ldisort_only)
-      logical :: ldisort_only, ldelta_scale
+      logical :: ldisort_only, ldelta_scale, ldisort_verbose
       integer(iintegers) :: nstreams
       integer(iintegers) :: icol, ib
       real :: mu0
@@ -862,16 +863,21 @@ contains
 
       ldisort_only = .False.
       call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
-        "-disort_only" , ldisort_only , lflg , ierr) ;call CHKERR(ierr)
+        "-disort_only", ldisort_only, lflg,ierr) ;call CHKERR(ierr)
 
       ldelta_scale = .False.
       call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
-        "-disort_delta_scale" , ldelta_scale , lflg , ierr) ;call CHKERR(ierr)
+        "-disort_delta_scale", ldelta_scale, lflg ,ierr) ;call CHKERR(ierr)
 
       if(ldisort_only) then
         nstreams = 16
         call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
-          "-disort_streams" , nstreams , lflg , ierr) ;call CHKERR(ierr)
+          "-disort_streams", nstreams ,lflg, ierr) ;call CHKERR(ierr)
+
+        ldisort_verbose=.False.
+        call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+          "-disort_verbose", ldisort_verbose, lflg ,ierr) ;call CHKERR(ierr)
+
 
         col_tskin = 0
         col_temper = 0
@@ -914,7 +920,7 @@ contains
                 col_g,    &
                 col_temper, &
                 RFLDIR, RFLDN, FLUP, DFDT, UAVG, &
-                int(nstreams), lverbose=.False.)
+                int(nstreams), lverbose=ldisort_verbose)
 
               edir(:,icol) = edir(:,icol) + RFLDIR
               eup (:,icol) = eup (:,icol) + FLUP

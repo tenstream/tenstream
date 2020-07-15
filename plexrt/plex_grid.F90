@@ -13,7 +13,8 @@ module m_plex_grid
 
   use m_data_parameters, only : ireals, irealLUT, ireal_params, &
     iintegers, mpiint, zero, one, pi, &
-    i0, i1, i2, i3, i4, i5, i6, i7, i8, default_str_len
+    i0, i1, i2, i3, i4, i5, i6, i7, i8, default_str_len, &
+    inf
 
   use m_icon_grid, only : t_icongrid, ICONULL
 
@@ -79,6 +80,7 @@ module m_plex_grid
     integer(iintegers) :: offset_edges_vertical
     integer(iintegers) :: offset_vertices
 
+    logical,allocatable :: l1d(:)                        ! constrained 1D cell, cStart..cEnd-1
     logical,allocatable :: ltopfacepos(:)                ! TOP_BOT_FACE or SIDE_FACE of faces and edges, fStart..eEnd-1
     integer(iintegers),allocatable :: zindex(:)          ! vertical layer / level of cells/faces/edges/vertices , pStart..pEnd-1
     real(ireals), allocatable :: hhl1d(:)                ! 1D vertical height levels which were used in 2D_to_3D extrusion
@@ -245,6 +247,8 @@ module m_plex_grid
       if(present(hhl)) then
         allocate(plex%hhl1d(size(hhl)), source=hhl)
       endif
+
+      call set_1D_constraints(plex)
     end subroutine
 
     subroutine gen_test_mat(dm)
@@ -813,7 +817,7 @@ module m_plex_grid
       call PetscObjectViewFromOptions(dm, PETSC_NULL_DM, "-show_plex", ierr); call CHKERR(ierr)
 
       call gen_face_section(dm, top_streams=top_streams, side_streams=side_streams, dof_per_stream=dof_per_stream, &
-        section=section, geomdm=plex%geom_dm, geomVec=plex%geomVec, aspect_constraint=twostr_ratio)
+        section=section, plex_l1d=plex%l1d)
 
       call DMSetLocalSection(dm, section, ierr); call CHKERR(ierr)
       call PetscObjectViewFromOptions(section, PETSC_NULL_SECTION, '-show_section', ierr); call CHKERR(ierr)
@@ -849,7 +853,7 @@ module m_plex_grid
       call PetscObjectViewFromOptions(dm, PETSC_NULL_DM, "-show_plex", ierr); call CHKERR(ierr)
 
       call gen_face_section(dm, top_streams=top_streams, side_streams=side_streams, dof_per_stream=dof_per_stream, &
-        section=section, geomdm=plex%geom_dm, geomVec=plex%geomVec, aspect_constraint=twostr_ratio)
+        section=section, plex_l1d=plex%l1d)
 
       call DMSetLocalSection(dm, section, ierr); call CHKERR(ierr)
       call PetscObjectViewFromOptions(section, PETSC_NULL_SECTION, '-show_diff_section', ierr); call CHKERR(ierr)
@@ -857,35 +861,102 @@ module m_plex_grid
       call DMSetFromOptions(dm, ierr); call CHKERR(ierr)
     end subroutine
 
-    subroutine gen_face_section(dm, top_streams, side_streams, dof_per_stream, section, &
-        geomdm, geomVec, aspect_constraint)
+    subroutine set_1D_constraints(plex)
+      type(t_plexgrid), intent(inout) :: plex
+
+      type(tPetscSection) :: geomSection
+      real(ireals), pointer :: geoms(:)
+
+      integer(iintegers), pointer :: faces_of_cell(:)
+
+      logical :: lflg
+      real(ireals) :: dz, face_area, aspect
+      real(ireals) :: max_height, max_radius
+      integer(iintegers) :: icell, k, max_constrained_k
+      integer(iintegers) :: geom_offset
+      integer(mpiint) :: ierr
+
+      if(allocated(plex%l1d)) return
+
+      if(.not.allocated(plex%geom_dm)) &
+        & call CHKERR(1_mpiint, 'find_1D_constraints: plex%geomdm  has to allocated')
+      if(.not.allocated(plex%geomVec)) &
+        & call CHKERR(1_mpiint, 'find_1D_constraints: plex%geomVec has to allocated')
+
+      max_height = inf
+      call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+        "-plexrt_1d_height", max_height, lflg, ierr) ; call CHKERR(ierr)
+
+      max_radius = inf
+      call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+        "-plexrt_1d_radius", max_radius, lflg, ierr) ; call CHKERR(ierr)
+
+      if(.not.allocated(plex%l1d)) &
+        & allocate(plex%l1d(plex%cStart:plex%cEnd-1))
+
+      max_constrained_k = -1
+
+      call DMGetSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
+      call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+
+      do icell = plex%cStart, plex%cEnd-1
+        k = modulo(icell, plex%Nlay)
+        if (k.le.max_constrained_k) cycle
+
+        call PetscSectionGetFieldOffset(geomSection, icell, i3, geom_offset, ierr); call CHKERR(ierr)
+        dz = geoms(i1+geom_offset)
+
+        call DMPlexGetCone(plex%geom_dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
+        call PetscSectionGetFieldOffset(geomSection, faces_of_cell(1), i2, geom_offset, ierr); call CHKERR(ierr)
+        face_area = geoms(i1+geom_offset) ! top face area
+        call DMPlexRestoreCone(plex%geom_dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
+
+        aspect = LUT_wedge_aspect_zx(face_area, dz)
+        if(aspect.gt.twostr_ratio) then
+          max_constrained_k = k
+          print *,'max_constrained_k aspect', icell, k, aspect, max_constrained_k
+          cycle
+        endif
+
+        ! check for max height or radius of cell centroid
+        call PetscSectionGetFieldOffset(geomSection, icell, i0, geom_offset, ierr); call CHKERR(ierr)
+        if(geoms(geom_offset+i3) .gt. max_height) then
+          max_constrained_k = k
+          print *,'max_constrained_k height', icell, k, geoms(geom_offset+i3), max_constrained_k
+          cycle
+        endif
+        if(norm2(geoms(geom_offset+i1:geom_offset+i3)) .gt. max_radius) then
+          max_constrained_k = k
+          print *,'max_constrained_k radius', icell, k, norm2(geoms(geom_offset+i1:geom_offset+i3)), max_constrained_k
+          cycle
+        endif
+
+      enddo
+
+      call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+
+      k = max_constrained_k
+      call imp_allreduce_max(plex%comm, k, max_constrained_k)
+
+      do icell = plex%cStart, plex%cEnd-1
+        k = modulo(icell, plex%Nlay)
+        plex%l1d(icell) = k.le.max_constrained_k
+        if(ldebug.and.plex%l1d(icell)) print *,'constrained cell', icell, k, plex%l1d(icell)
+      enddo
+    end subroutine
+
+
+    subroutine gen_face_section(dm, top_streams, side_streams, dof_per_stream, section, plex_l1d)
       type(tDM), intent(in) :: dm
       integer(iintegers), intent(in) :: top_streams, side_streams, dof_per_stream ! number of streams
       type(tPetscSection), intent(inout) :: section
-      type(tDM), intent(in), optional :: geomdm
-      type(tVec), intent(in), optional :: geomVec
-      real(ireals), intent(in), optional :: aspect_constraint
-
+      logical, intent(in), optional :: plex_l1d(:)
+      integer(iintegers) :: num_constrained, num_unconstrained
+      integer(iintegers), pointer :: cells_of_face(:)
       logical :: l1d
-      type(tPetscSection) :: geomSection
-      real(ireals), pointer :: geoms(:)
-      real(ireals) :: face_area, dz, aspect
-      integer(iintegers) :: ic, geom_offset, num_constrained, num_unconstrained
-      integer(iintegers), pointer :: cells_of_face(:), faces_of_cell(:)
 
       integer(iintegers) :: iface, fStart, fEnd, istream, num_edges_of_face, tot_top_dof, tot_side_dof
       integer(mpiint) :: comm, ierr
-
-      if(    any([present(geomdm), present(geomVec), present(aspect_constraint)]) .and. &
-        .not.all([present(geomdm), present(geomVec), present(aspect_constraint)])) then
-        call CHKERR(1_mpiint, 'if you want to constraint dofs with the aspect ratio '// &
-          'you have to provide both, the geom dm and a value for the constraint')
-      endif
-
-      if(present(aspect_constraint)) then
-        call DMGetSection(geomdm, geomSection, ierr); call CHKERR(ierr)
-        call VecGetArrayReadF90(geomVec, geoms, ierr); call CHKERR(ierr)
-      endif
 
       call PetscObjectGetComm(dm, comm, ierr); call CHKERR(ierr)
       call PetscSectionCreate(comm, section, ierr); call CHKERR(ierr)
@@ -912,34 +983,18 @@ module m_plex_grid
       do iface = fStart,  fEnd-1
         call DMPlexGetConeSize(dm, iface, num_edges_of_face, ierr); call CHKERR(ierr)
 
-        if(num_edges_of_face.eq.i3) then
+        if(num_edges_of_face.eq.i3) then ! top/bot face
           call PetscSectionSetDof(section, iface, tot_top_dof, ierr); call CHKERR(ierr)
           do istream = 1, top_streams
             call PetscSectionSetFieldDof(section, iface, istream-i1, dof_per_stream, ierr); call CHKERR(ierr)
           enddo
 
-        else
+        else ! side face
           l1d = .False.
-          if(present(aspect_constraint)) then
-            l1d = .True.
-
-            call PetscSectionGetFieldOffset(geomSection, iface, i2, geom_offset, ierr); call CHKERR(ierr)
-            face_area = geoms(i1+geom_offset)
-
-            call DMPlexGetSupport(geomdm, iface, cells_of_face, ierr); call CHKERR(ierr)
-            do ic = 1, size(cells_of_face)
-              call PetscSectionGetFieldOffset(geomSection, cells_of_face(ic), i3, geom_offset, ierr); call CHKERR(ierr)
-              dz = geoms(i1+geom_offset)
-
-              call DMPlexGetCone(geomdm, cells_of_face(ic), faces_of_cell, ierr); call CHKERR(ierr)
-              call PetscSectionGetFieldOffset(geomSection, faces_of_cell(1), i2, geom_offset, ierr); call CHKERR(ierr)
-              face_area = geoms(i1+geom_offset) ! top face area
-              call DMPlexRestoreCone(geomdm, cells_of_face(ic), faces_of_cell, ierr); call CHKERR(ierr)
-
-              aspect = LUT_wedge_aspect_zx(face_area, dz)
-              if(aspect.lt.aspect_constraint) l1d=.False.
-            enddo
-            call DMPlexRestoreSupport(geomdm, iface, cells_of_face, ierr); call CHKERR(ierr)
+          if(present(plex_l1d)) then
+            call DMPlexGetSupport(dm, iface, cells_of_face, ierr); call CHKERR(ierr)
+            l1d = any(plex_l1d(i1+cells_of_face))
+            call DMPlexRestoreSupport(dm, iface, cells_of_face, ierr); call CHKERR(ierr)
           endif
 
           if(.not.l1d) then
@@ -949,7 +1004,6 @@ module m_plex_grid
             enddo
             num_unconstrained = num_unconstrained + 1
           else
-            !print *,'Have 1D aspect constraint on face', iface, ':', face_area, dz, dx, '=>', aspect, aspect_constraint, l1d
             num_constrained = num_constrained + 1
           endif
         endif
@@ -957,15 +1011,11 @@ module m_plex_grid
       call PetscSectionSetUp(section, ierr); call CHKERR(ierr)
       if(ldebug) then
         if(num_unconstrained.eq.0) then
-          print *,'Have '//itoa(num_constrained)//' constrained dofs : 100%'
+          print *,'Have '//itoa(num_constrained)//' constrained dofs : 100% '
         else
-          print *,'Have '//itoa(num_constrained)//' constrained dofs :'//&
-            ftoa(real(num_constrained, ireals)*100._ireals/real(num_unconstrained, ireals))//' %'
+          print *,'Have '//itoa(num_constrained)//' constrained dofs :'// &
+            & ftoa(real(num_constrained, ireals)*100._ireals/real(num_unconstrained+num_constrained, ireals))//' %'
         endif
-      endif
-
-      if(present(aspect_constraint)) then
-        call VecRestoreArrayReadF90(geomVec, geoms, ierr); call CHKERR(ierr)
       endif
     end subroutine
 

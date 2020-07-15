@@ -88,6 +88,12 @@ contains
     character(len=127) HEADER
 
 
+    if(any(dtau.lt.0)) call CHKERR(1_mpiint, 'bad input dtau < 0')
+    if(any(ssalb.lt.0)) call CHKERR(1_mpiint, 'bad input ssalb < 0')
+    if(any(ssalb.gt.1)) call CHKERR(1_mpiint, 'bad input ssalb > 1')
+    if(any(gasym.lt.0)) call CHKERR(1_mpiint, 'bad input g < 0')
+    if(any(gasym.gt.1)) call CHKERR(1_mpiint, 'bad input g > 1')
+
     nstr = 16
     if(present(nstreams)) nstr = nstreams
 

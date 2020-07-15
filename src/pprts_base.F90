@@ -260,11 +260,12 @@ module m_pprts_base
     subroutine setup_log_events(logs, solvername)
       type(t_solver_log_events), intent(inout) :: logs
       character(len=*), optional :: solvername
-      PetscClassId, parameter :: cid=0
+      PetscClassId :: cid
       integer(mpiint) :: ierr
       character(len=default_str_len) :: s
 
       s = get_arg('pprts.', solvername)
+      call PetscClassIdRegister(trim(s), cid, ierr); call CHKERR(ierr)
 
       call PetscLogEventRegister(trim(s)//'set_optprop', cid, logs%set_optprop, ierr); call CHKERR(ierr)
       call PetscLogEventRegister(trim(s)//'setup_dir_src', cid, logs%setup_dir_src, ierr); call CHKERR(ierr)

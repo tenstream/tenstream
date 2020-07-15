@@ -134,9 +134,6 @@ module m_helper_functions
 #:endfor
 #:endfor
 #:endfor
-!    module procedure imp_bcast_real_1d, imp_bcast_real_3d, imp_bcast_real_5d, &
-!        imp_bcast_real32_2d, imp_bcast_real64_2d, imp_bcast_real32_2d_ptr, imp_bcast_real64_2d_ptr, &
-!        imp_bcast_int_1d, imp_bcast_int_2d, imp_bcast_int4, imp_bcast_int8, imp_bcast_real, imp_bcast_logical
   end interface
   interface get_arg
     module procedure get_arg_logical, get_arg_i32, get_arg_i64, get_arg_real32, get_arg_real64, get_arg_char
