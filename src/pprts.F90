@@ -31,7 +31,7 @@ module m_pprts
     & imp_bcast, imp_allreduce_max, delta_scale, mpi_logical_and, meanval, get_arg, approx, &
     & inc, ltoa, cstr, itoa, ftoa, imp_allreduce_mean, &
     & normalize_vec, vec_proj_on_plane, angle_between_two_normed_vec, cross_3d, &
-    & rotation_matrix_world_to_local_basis
+    & rotation_matrix_world_to_local_basis, deallocate_allocatable
 
   use m_twostream, only: delta_eddington_twostream, adding_delta_eddington_twostream
   use m_schwarzschild, only: schwarzschild, B_eff
@@ -688,6 +688,10 @@ module m_pprts
       end select
 
       call solver%OPP%init(solver%comm)
+
+      ! reset Matrices to generate new preallocation
+      call deallocate_allocatable(solver%Mdir)
+      call deallocate_allocatable(solver%Mdiff)
   end subroutine
 
 
