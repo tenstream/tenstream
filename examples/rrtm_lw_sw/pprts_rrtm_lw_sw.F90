@@ -60,7 +60,7 @@ contains
     logical :: lflg
 
     !------------ Local vars ------------------
-    integer(iintegers) :: k, nlev, icld
+    integer(iintegers) :: k, nlev, icld, iter
     integer(iintegers),allocatable :: nxproc(:), nyproc(:)
 
     ! reshape pointer to convert i,j vecs to column vecs
@@ -136,39 +136,29 @@ contains
       d_lwc=plwc, d_reliq=preliq)
 
     ! For comparison, compute lw and sw separately
-    if(myid.eq.0 .and. ldebug) print *,'Computing Solar Radiation...'
-    lthermal=.False.; lsolar=.True.
+    lthermal=.True.
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+      "-thermal", lthermal, lflg,ierr) ; call CHKERR(ierr)
+    lsolar=.True.
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+      "-solar", lsolar, lflg,ierr) ; call CHKERR(ierr)
 
     sundir = spherical_2_cartesian(phi0, theta0)
 
     call allocate_pprts_solver_from_commandline(pprts_solver, '3_10')
-    call pprts_rrtmg(comm, pprts_solver, atm, nxp, nyp, &
-      dx, dy, sundir,         &
-      albedo_th, albedo_sol,  &
-      lthermal, lsolar,       &
-      edir, edn, eup, abso,   &
-      nxproc=nxproc, nyproc=nyproc, &
-      opt_time=zero)
 
-    if(myid.eq.0 .and. ldebug) print *,'Computing Thermal Radiation...'
-    lthermal=.True.; lsolar=.False.
+    iter=1
+    call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-iter", iter, lflg, ierr)
 
-    call pprts_rrtmg(comm, pprts_solver, atm, nxp, nyp, &
-      dx, dy, sundir,                          &
-      albedo_th, albedo_sol,                   &
-      lthermal, lsolar,                        &
-      edir, edn, eup, abso,                    &
-      nxproc=nxproc, nyproc=nyproc, opt_time=zero)
-
-    if(myid.eq.0 .and. ldebug) print *,'Computing Solar AND Thermal Radiation...'
-    lthermal=.True.; lsolar=.True.
-
-    call pprts_rrtmg(comm, pprts_solver, atm, nxp, nyp, &
-      dx, dy, sundir,                          &
-      albedo_th, albedo_sol,                   &
-      lthermal, lsolar,                        &
-      edir, edn, eup, abso,                    &
-      nxproc=nxproc, nyproc=nyproc, opt_time=zero)
+    do k=1,iter
+      call pprts_rrtmg(comm, pprts_solver, atm, nxp, nyp, &
+        dx, dy, sundir,         &
+        albedo_th, albedo_sol,  &
+        lthermal, lsolar,       &
+        edir, edn, eup, abso,   &
+        nxproc=nxproc, nyproc=nyproc, &
+        opt_time=zero)
+    enddo
 
     nlev = ubound(edn,1)
     if(myid.eq.0) then
