@@ -3060,7 +3060,7 @@ module m_plex_rt
     if(solution%lchanged) then
 
       by_flx_divergence = get_arg(.True., absorption_by_flx_divergence)
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-plexrt_absorption_by_flx_divergence",&
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-absorption_by_flx_divergence",&
         by_flx_divergence, lflg, ierr) ;call CHKERR(ierr)
 
 
