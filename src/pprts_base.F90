@@ -18,6 +18,7 @@ module m_pprts_base
   private
   public :: t_solver, t_solver_1_2, t_solver_3_6, t_solver_3_10, &
     t_solver_8_10, t_solver_3_16, t_solver_8_16, t_solver_8_18, &
+    t_pprts_shell_ctx, &
     t_coord, t_suninfo, &
     t_state_container, &
     t_dof, t_solver_log_events, setup_log_events, &
@@ -123,6 +124,10 @@ module m_pprts_base
     PetscLogEvent :: debug_output
   end type
 
+  type t_pprts_shell_ctx
+    class(t_solver), pointer :: solver
+  end type
+
   type, abstract :: t_solver
     character(len=default_str_len)     :: solvername='' ! name to prefix e.g. log stages. If you create more than one solver, make sure that it has a unique name
     integer(mpiint)                    :: comm, myid, numnodes     ! mpi communicator, my rank and number of ranks in comm
@@ -150,6 +155,7 @@ module m_pprts_base
     logical                            :: linitialized=.False.
     type(t_state_container)            :: solutions(-1000:1000)
     type(t_solver_log_events)          :: logs
+    type(t_pprts_shell_ctx)            :: shell_ctx
   end type
 
   type, extends(t_solver) :: t_solver_1_2
@@ -166,6 +172,7 @@ module m_pprts_base
   end type
   type, extends(t_solver) :: t_solver_8_18
   end type
+
 
   contains
     subroutine prepare_solution(edir_dm, ediff_dm, abso_dm, lsolar, solution, uid)
