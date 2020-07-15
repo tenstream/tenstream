@@ -690,8 +690,6 @@ module m_pprts
       call solver%OPP%init(solver%comm)
 
       ! reset Matrices to generate new preallocation
-      call deallocate_allocatable(solver%Mdir)
-      call deallocate_allocatable(solver%Mdiff)
   end subroutine
 
 
@@ -859,36 +857,29 @@ module m_pprts
     endif
 
     ! If matrix is resetted, keep nonzero pattern and allow to non-zero allocations -- those should not be many
-    ! call MatSetOption(A,MAT_KEEP_NONZERO_PATTERN,PETSC_TRUE,ierr) ;call CHKERR(ierr)
+    call MatSetOption(A,MAT_KEEP_NONZERO_PATTERN,PETSC_TRUE,ierr) ;call CHKERR(ierr)
 
     ! pressure mesh  may wiggle a bit and change atm%l1d -- keep the nonzeros flexible
-    !call MatSetOption(A,MAT_NEW_NONZERO_ALLOCATION_ERR,PETSC_FALSE,ierr) ;call CHKERR(ierr)
+    call MatSetOption(A,MAT_NEW_NONZERO_ALLOCATION_ERR,PETSC_FALSE,ierr) ;call CHKERR(ierr)
 
     ! call MatSetOption(A,MAT_IGNORE_ZERO_ENTRIES,PETSC_TRUE,ierr) ;call CHKERR(ierr) ! dont throw away the zero -- this completely destroys preallocation performance
 
     call MatSetUp(A,ierr) ;call CHKERR(ierr)
+  end subroutine
 
-    call mat_set_diagonal(A)
-  contains
-    subroutine mat_set_diagonal(A,vdiag)
-      type(tMat) :: A
-      real(ireals),intent(in),optional :: vdiag
+  subroutine mat_set_diagonal(A,vdiag)
+    type(tMat) :: A
+    real(ireals),intent(in),optional :: vdiag
 
-      integer(iintegers) :: is, ie, irow
-      real(ireals) :: v
+    integer(iintegers) :: is, ie, irow
+    real(ireals) :: v
 
-      if(present(vdiag)) then
-        v = vdiag
-      else
-        v = one
-      endif
+    v = get_arg(one, vdiag)
 
-      call MatGetOwnershipRange(A, is, ie, ierr); call CHKERR(ierr)
-      do irow = is, ie-1
-        call MatSetValue(A, irow, irow, v, INSERT_VALUES, ierr); call CHKERR(ierr)
-      enddo
-    end subroutine
-
+    call MatGetOwnershipRange(A, is, ie, ierr); call CHKERR(ierr)
+    do irow = is, ie-1
+      call MatSetValue(A, irow, irow, v, INSERT_VALUES, ierr); call CHKERR(ierr)
+    enddo
   end subroutine
 
   subroutine setup_direct_preallocation(solver, C, d_nnz, o_nnz)
@@ -2213,7 +2204,6 @@ module m_pprts
         call setup_matshell(solver, solver%C_dir, solver%Mdir, op_mat_mult_edir)
       else
         call init_Matrix(solver, solver%C_dir, solver%Mdir, setup_direct_preallocation)
-
         call PetscLogEventBegin(solver%logs%setup_Mdir, ierr)
         call set_dir_coeff(solver, solver%sun, solver%Mdir, solver%C_dir)
         call PetscLogEventEnd(solver%logs%setup_Mdir, ierr)
@@ -3218,8 +3208,8 @@ subroutine setup_ksp(solver, ksp, C, A, prefix)
 
     if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'setup_direct_matrix ...'
 
-    !      call MatZeroEntries(A, ierr) ;call CHKERR(ierr) !TODO necessary?
-    !      call mat_set_diagonal(A,C)
+    call MatZeroEntries(A, ierr) ;call CHKERR(ierr)
+    call mat_set_diagonal(A)
 
     do j=C%ys,C%ye
       do i=C%xs,C%xe
@@ -3921,8 +3911,8 @@ subroutine setup_ksp(solver, ksp, C, A, prefix)
 
     if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'Setting coefficients for diffuse Light'
 
-    !      call MatZeroEntries(A, ierr) ;call CHKERR(ierr) !TODO necessary?
-    !      call mat_set_diagonal(A,C)
+    call MatZeroEntries(A, ierr) ;call CHKERR(ierr)
+    call mat_set_diagonal(A)
 
     do j=C%ys,C%ye
       do i=C%xs,C%xe
@@ -3945,7 +3935,6 @@ subroutine setup_ksp(solver, ksp, C, A, prefix)
     if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'Final diffuse Matrix Assembly:'
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr) ;call CHKERR(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr) ;call CHKERR(ierr)
-
 
     call PetscObjectViewFromOptions(solver%Mdiff, PETSC_NULL_MAT, "-show_Mdiff", ierr); call CHKERR(ierr)
   contains
