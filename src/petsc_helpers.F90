@@ -286,11 +286,12 @@ contains
     endif
   end subroutine
 
-  subroutine getVecPointer_3d(vec,dm,x1d,x4d)
+  subroutine getVecPointer_3d(vec,dm,x1d,x4d,readonly)
     type(tVec) :: vec
     type(tDM), intent(in) :: dm
     real(ireals),intent(inout),pointer,dimension(:,:,:,:) :: x4d
     real(ireals),intent(inout),pointer,dimension(:) :: x1d
+    logical, optional, intent(in) :: readonly
 
     integer(iintegers) :: N, dmdim, dof, glob_zm, glob_xm, glob_ym
     integer(iintegers) :: zs, ze, xs, xe, ys, ye, zm, xm, ym
@@ -334,7 +335,11 @@ contains
       call CHKERR(1_mpiint, 'Local Vector dimensions do not conform to DMDA size')
     endif
 
-    call VecGetArrayF90(vec,x1d,ierr) ;call CHKERR(ierr)
+    if(get_arg(.False.,readonly)) then
+      call VecGetArrayReadF90(vec,x1d,ierr) ;call CHKERR(ierr)
+    else
+      call VecGetArrayF90(vec,x1d,ierr) ;call CHKERR(ierr)
+    endif
     if(lghosted) then
       x4d(0:dof-1 , gzs:gze, gxs:gxe , gys:gye ) => x1d
     else
@@ -343,10 +348,11 @@ contains
 
   end subroutine
 
-  subroutine restoreVecPointer_3d(vec,x1d,x4d)
+  subroutine restoreVecPointer_3d(vec,x1d,x4d,readonly)
     type(tVec) :: vec
     real(ireals),intent(inout),pointer,dimension(:,:,:,:) :: x4d
     real(ireals),intent(inout),pointer,dimension(:) :: x1d
+    logical, optional, intent(in) :: readonly
     integer(mpiint) :: ierr
 
     if(.not.associated(x1d).or..not.associated(x4d)) then
@@ -355,15 +361,19 @@ contains
     endif
 
     x4d => null()
-    call VecRestoreArrayF90(vec,x1d,ierr) ;call CHKERR(ierr)
-    x1d => null()
+    if(get_arg(.False.,readonly)) then
+      call VecRestoreArrayReadF90(vec,x1d,ierr) ;call CHKERR(ierr)
+    else
+      call VecRestoreArrayF90(vec,x1d,ierr) ;call CHKERR(ierr)
+    endif
   end subroutine
 
-  subroutine getVecPointer_2d(vec,dm,x1d,x3d)
+  subroutine getVecPointer_2d(vec,dm,x1d,x3d, readonly)
     type(tVec) :: vec
     type(tDM), intent(in) :: dm
     real(ireals),intent(inout),pointer,dimension(:,:,:) :: x3d
     real(ireals),intent(inout),pointer,dimension(:) :: x1d
+    logical, optional, intent(in) :: readonly
 
     integer(iintegers) :: N, dmdim, dof, glob_xm, glob_ym
     integer(iintegers) :: xs, xe, ys, ye, xm, ym
@@ -404,7 +414,11 @@ contains
       stop 'Local Vector dimensions do not conform to DMDA size'
     endif
 
-    call VecGetArrayF90(vec,x1d,ierr) ;call CHKERR(ierr)
+    if(get_arg(.False.,readonly)) then
+      call VecGetArrayReadF90(vec,x1d,ierr) ;call CHKERR(ierr)
+    else
+      call VecGetArrayF90(vec,x1d,ierr) ;call CHKERR(ierr)
+    endif
     if(lghosted) then
       x3d(0:dof-1 , gxs:gxe , gys:gye ) => x1d
     else
@@ -412,10 +426,11 @@ contains
     endif
 
   end subroutine
-  subroutine restoreVecPointer_2d(vec,x1d,x3d)
+  subroutine restoreVecPointer_2d(vec, x1d, x3d, readonly)
     type(tVec) :: vec
     real(ireals),intent(inout),pointer,dimension(:,:,:) :: x3d
     real(ireals),intent(inout),pointer,dimension(:) :: x1d
+    logical, optional, intent(in) :: readonly
     integer(mpiint) :: ierr
 
     if(.not.associated(x1d).or..not.associated(x3d)) then
@@ -424,8 +439,11 @@ contains
     endif
 
     x3d => null()
-    call VecRestoreArrayF90(vec,x1d,ierr) ;call CHKERR(ierr)
-    x1d => null()
+    if(get_arg(.False.,readonly)) then
+      call VecRestoreArrayReadF90(vec,x1d,ierr) ;call CHKERR(ierr)
+    else
+      call VecRestoreArrayF90(vec,x1d,ierr) ;call CHKERR(ierr)
+    endif
   end subroutine
 
   subroutine dmda_convolve_ediff_srfc(dm3d, kernel_width, arr)
