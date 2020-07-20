@@ -41,7 +41,8 @@ module m_netcdfIO
 
   private
   public :: ncwrite, ncload, acquire_file_lock, release_file_lock, &
-    get_global_attribute, set_global_attribute
+    get_global_attribute, set_global_attribute, &
+    get_number_global_attributes, list_global_attributes
 
 !  integer :: v=11
   integer,parameter :: deflate_lvl=1
@@ -263,116 +264,6 @@ module m_netcdfIO
 #:endfor
 #:endfor
 
-!    subroutine ncload_1dint(groups,arr,ierr,lverbose)
-!        integer(iintegers),allocatable,intent(inout) :: arr(:)
-!        include 'netcdfio_read_1.inc'
-!        if(ierr.eq.0) allocate(arr(dimsize(1)))
-!        include 'netcdfio_read_2.inc'
-!    end subroutine
-!    subroutine ncload_2dint(groups,arr,ierr,lverbose)
-!        integer(iintegers),allocatable,intent(inout) :: arr(:,:)
-!        include 'netcdfio_read_1.inc'
-!        if(ierr.eq.0) allocate(arr(dimsize(1),dimsize(2)))
-!        include 'netcdfio_read_2.inc'
-!    end subroutine
-!
-!     subroutine ncload_1d_r32(groups,arr,ierr,lverbose)
-!        real(REAL32),allocatable,intent(inout) :: arr(:)
-!        include 'netcdfio_read_1.inc'
-!        if(ierr.eq.0) allocate(arr(dimsize(1)))
-!        include 'netcdfio_read_2.inc'
-!    end subroutine
-!    subroutine ncload_2d_r32(groups,arr,ierr,lverbose)
-!        real(REAL32),allocatable,intent(inout) :: arr(:,:)
-!        include 'netcdfio_read_1.inc'
-!        if(ierr.eq.0) allocate(arr(dimsize(1),dimsize(2)))
-!        include 'netcdfio_read_2.inc'
-!    end subroutine
-!    subroutine ncload_2d_r32_ptr(groups,arr,ierr,lverbose)
-!        real(REAL32),pointer,intent(inout) :: arr(:,:)
-!        include 'netcdfio_read_1_ptr.inc'
-!        if(ierr.eq.0) allocate(arr(dimsize(1),dimsize(2)))
-!        include 'netcdfio_read_2.inc'
-!    end subroutine
-!    subroutine ncload_3d_r32(groups,arr,ierr,lverbose)
-!        real(REAL32),allocatable,intent(inout) :: arr(:,:,:)
-!        include 'netcdfio_read_1.inc'
-!        if(ierr.eq.0) allocate(arr(dimsize(1),dimsize(2),dimsize(3)))
-!        include 'netcdfio_read_2.inc'
-!    end subroutine
-!    subroutine ncload_4d_r32(groups,arr,ierr,lverbose)
-!        real(REAL32),allocatable,intent(inout) :: arr(:,:,:,:)
-!        include 'netcdfio_read_1.inc'
-!        if(ierr.eq.0) allocate(arr(dimsize(1),dimsize(2),dimsize(3),dimsize(4)))
-!        include 'netcdfio_read_2.inc'
-!    end subroutine
-!    subroutine ncload_5d_r32(groups,arr,ierr,lverbose)
-!        real(REAL32),allocatable,intent(inout) :: arr(:,:,:,:,:)
-!        include 'netcdfio_read_1.inc'
-!        if(ierr.eq.0) allocate(arr(dimsize(1),dimsize(2),dimsize(3),dimsize(4),dimsize(5)))
-!        include 'netcdfio_read_2.inc'
-!    end subroutine
-!    subroutine ncload_6d_r32(groups,arr,ierr,lverbose)
-!        real(REAL32),allocatable,intent(inout) :: arr(:,:,:,:,:,:)
-!        include 'netcdfio_read_1.inc'
-!        if(ierr.eq.0) allocate(arr(dimsize(1),dimsize(2),dimsize(3),dimsize(4),dimsize(5),dimsize(6)))
-!        include 'netcdfio_read_2.inc'
-!    end subroutine
-!    subroutine ncload_7d_r32(groups,arr,ierr,lverbose)
-!        real(REAL32),allocatable,intent(inout) :: arr(:,:,:,:,:,:,:)
-!        include 'netcdfio_read_1.inc'
-!        if(ierr.eq.0) allocate(arr(dimsize(1),dimsize(2),dimsize(3),dimsize(4),dimsize(5),dimsize(6),dimsize(7)))
-!        include 'netcdfio_read_2.inc'
-!    end subroutine
-!     subroutine ncload_1d_r64(groups,arr,ierr,lverbose)
-!        real(REAL64),allocatable,intent(inout) :: arr(:)
-!        include 'netcdfio_read_1.inc'
-!        if(ierr.eq.0) allocate(arr(dimsize(1)))
-!        include 'netcdfio_read_2.inc'
-!    end subroutine
-!    subroutine ncload_2d_r64(groups,arr,ierr,lverbose)
-!        real(REAL64),allocatable,intent(inout) :: arr(:,:)
-!        include 'netcdfio_read_1.inc'
-!        if(ierr.eq.0) allocate(arr(dimsize(1),dimsize(2)))
-!        include 'netcdfio_read_2.inc'
-!    end subroutine
-!    subroutine ncload_2d_r64_ptr(groups,arr,ierr,lverbose)
-!        real(REAL64),pointer,intent(inout) :: arr(:,:)
-!        include 'netcdfio_read_1_ptr.inc'
-!        if(ierr.eq.0) allocate(arr(dimsize(1),dimsize(2)))
-!        include 'netcdfio_read_2.inc'
-!    end subroutine
-!    subroutine ncload_3d_r64(groups,arr,ierr,lverbose)
-!        real(REAL64),allocatable,intent(inout) :: arr(:,:,:)
-!        include 'netcdfio_read_1.inc'
-!        if(ierr.eq.0) allocate(arr(dimsize(1),dimsize(2),dimsize(3)))
-!        include 'netcdfio_read_2.inc'
-!    end subroutine
-!    subroutine ncload_4d_r64(groups,arr,ierr,lverbose)
-!        real(REAL64),allocatable,intent(inout) :: arr(:,:,:,:)
-!        include 'netcdfio_read_1.inc'
-!        if(ierr.eq.0) allocate(arr(dimsize(1),dimsize(2),dimsize(3),dimsize(4)))
-!        include 'netcdfio_read_2.inc'
-!    end subroutine
-!    subroutine ncload_5d_r64(groups,arr,ierr,lverbose)
-!        real(REAL64),allocatable,intent(inout) :: arr(:,:,:,:,:)
-!        include 'netcdfio_read_1.inc'
-!        if(ierr.eq.0) allocate(arr(dimsize(1),dimsize(2),dimsize(3),dimsize(4),dimsize(5)))
-!        include 'netcdfio_read_2.inc'
-!    end subroutine
-!    subroutine ncload_6d_r64(groups,arr,ierr,lverbose)
-!        real(REAL64),allocatable,intent(inout) :: arr(:,:,:,:,:,:)
-!        include 'netcdfio_read_1.inc'
-!        if(ierr.eq.0) allocate(arr(dimsize(1),dimsize(2),dimsize(3),dimsize(4),dimsize(5),dimsize(6)))
-!        include 'netcdfio_read_2.inc'
-!    end subroutine
-!    subroutine ncload_7d_r64(groups,arr,ierr,lverbose)
-!        real(REAL64),allocatable,intent(inout) :: arr(:,:,:,:,:,:,:)
-!        include 'netcdfio_read_1.inc'
-!        if(ierr.eq.0) allocate(arr(dimsize(1),dimsize(2),dimsize(3),dimsize(4),dimsize(5),dimsize(6),dimsize(7)))
-!        include 'netcdfio_read_2.inc'
-!    end subroutine
-
     subroutine cpusleep(sec)
         real(ireals) :: sec
         real(ireals) :: t1,t2,dither
@@ -474,17 +365,75 @@ module m_netcdfIO
       call CHKERR(1_mpiint, 'Error releasing file lock for unit '//itoa(flock_unit))
     end subroutine
 
-    subroutine get_global_attribute_str(fname, attr_name, attr)
+    subroutine list_global_attributes(fname, ierr)
+      character(len=*) :: fname
+      integer(mpiint), intent(out) :: ierr
+
+      character(len=2*default_str_len), allocatable :: attrs(:)
+      character(len=default_str_len), allocatable :: attNames(:)
+      integer(iintegers) :: N, ierr2
+      integer :: ncid, ncerr, k
+
+      ierr = 0
+      call get_number_global_attributes(fname, N, ierr); call CHKERR(ierr)
+      allocate(attrs(N), attNames(N))
+
+
+      ncerr = nf90_open(trim(fname), nf90_nowrite, ncid)
+      call nccheck(ncerr); ierr = ierr + ncerr
+      call CHKWARN(ierr, "Could not open File "//fname)
+
+      do k=1,N
+        ncerr = nf90_inquire_attribute(ncid, varid=nf90_global, attnum=k, name=attNames(k))
+        call nccheck(ncerr); ierr = ierr + ncerr
+        call CHKWARN(ierr, "Could not determine attribute name for attribute number "//itoa(k))
+        print *,'Attribute '//itoa(k)//' : '//trim(attNames(k))
+      enddo
+      ncerr = nf90_close(ncid); call nccheck(ncerr); ierr = ierr + ncerr
+
+      do k=1,N
+        call get_global_attribute_str(fname, attNames(k), attrs(k), ierr2)
+        ierr = ierr + ierr2
+        print *,'Attribute '//itoa(k)//' : '//trim(attNames(k))//' => '//trim(attrs(k))
+      enddo
+    end subroutine
+
+    subroutine get_number_global_attributes(fname, nattributes, ierr)
+      character(len=*) :: fname
+      integer(iintegers), intent(out) :: nattributes
+      integer(mpiint), intent(out) :: ierr
+      integer :: ncid, ncerr, nattrs
+
+      ierr = 0
+      nattributes = -1
+
+      ncerr = nf90_open(trim(fname), nf90_nowrite, ncid)
+      call nccheck(ncerr); ierr = ierr + ncerr
+      call CHKWARN(ierr, "Could not open File "//fname)
+      ncerr = nf90_inquire(ncid, nAttributes=nattrs)
+      call nccheck(ncerr); ierr = ierr + ncerr
+      call CHKWARN(ierr, "Could not determine number of global attributes "//fname)
+      nattributes = nattrs
+      ncerr = nf90_close(ncid); call nccheck(ncerr); ierr = ierr + ncerr
+    end subroutine
+
+    subroutine get_global_attribute_str(fname, attr_name, attr, ierr)
       character(len=*) :: fname, attr_name, attr
-      integer :: ncid, ierr
+      integer(mpiint), intent(out) :: ierr
+      integer :: ncid, ncerr
       integer :: attrLength
-      ierr = nf90_open(trim(fname), nf90_nowrite, ncid); call nccheck(ierr)
-      ierr = nf90_inquire_attribute(ncid, nf90_global, attr_name, len=attrLength); call nccheck(ierr)
+      ierr = 0
+      ncerr = nf90_open(trim(fname), nf90_nowrite, ncid); call nccheck(ncerr); ierr = ierr + ncerr
+      ncerr = nf90_inquire_attribute(ncid, varid=nf90_global, name=trim(attr_name), len=attrLength)
+      call nccheck(ncerr); ierr = ierr + ncerr
+      call CHKWARN(ierr, 'Could not determine attribute length: '//trim(attr_name)//' -> len '//itoa(attrLength))
       if(attrLength.gt.default_str_len) then
         call CHKERR(1_mpiint, 'Cant fit attribute name into default_str_len, its too long: '//itoa(attrLength))
       endif
-      ierr = nf90_get_att(ncid, nf90_global, trim(attr_name), attr); call nccheck(ierr)
-      ierr = nf90_close(ncid); call nccheck(ierr)
+      ncerr = nf90_get_att(ncid, varid=nf90_global, name=trim(attr_name), values=attr)
+      call nccheck(ncerr); ierr = ierr + ncerr
+      call CHKWARN(ierr, 'Could not read global attribute: '//trim(attr_name)//' -> len '//itoa(attrLength))
+      ncerr = nf90_close(ncid); call nccheck(ncerr); ierr = ierr + ncerr
     end subroutine
     subroutine get_global_attribute_i32(fname, attr_name, attr)
       character(len=*) :: fname, attr_name
