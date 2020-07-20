@@ -8,6 +8,9 @@ def LUT_to_ANN_input(fname, varname):
     log.info('Converting LUT input data from {} :: {}'.format(fname, varname))
 
     with closing(xr.open_dataset(fname)) as D:
+        retvars = [ D[d].load().data for d in D.variables if d.endswith(varname) ]
+        if len(retvars) != 1:
+            raise Exception("Havent found the data I was expecting? :: {}".format(varname))
 
         dim_names = [k for k in D.keys() if 'values' in k]
         dims = [D[k] for k in dim_names]
@@ -22,9 +25,6 @@ def LUT_to_ANN_input(fname, varname):
         grid = np.meshgrid(*dims[::-1], indexing='ij')
         inp_phys = np.array(grid).reshape(len(dims),-1).T
 
-        retvars = [ D[d].load().data for d in D.variables if d.endswith('S') ]
-        if len(retvars) != 1:
-            raise Exception("Havent found the data i was expecting?")
         log.info('Converting LUT input data from {} :: {} ... done'.format(fname, varname))
         return inp_idx, inp_phys, retvars[0]
 
@@ -33,7 +33,9 @@ def read_inp_file(inpfile, varname):
     import xarray as xr
     log.info('Reading input data from {} :: {}'.format(inpfile, varname))
     with xr.open_dataset(inpfile) as D:
-        return [ D[_].load().data for _ in ["inp_idx","inp_phys",varname]]
+        data = [ D[_].load().data for _ in ["inp_idx","inp_phys",varname]]
+    log.info('Reading input data from {} :: {} ... done'.format(inpfile, varname))
+    return data
 
 
 def gen_out_file(inp_idx, inp_phys, varname, var, outfile):
@@ -56,46 +58,46 @@ def setup_keras_model(inp, trgt, ident,
         n_neurons=8,
         optimizer='Adam',
         dropout=None):
-    import keras
+    import tensorflow as tf
 
     name = "{}_f{}_M{}_N{}_drop{}_o{}".format(ident, activation, n_hidden, n_neurons, dropout, activation_output)
 
     log.info('Setup Keras model :: {}'.format(name))
 
-    model = keras.Sequential(name=name)
+    model = tf.keras.Sequential(name=name)
 
-    act        = getattr(keras.activations, activation)
-    output_act = getattr(keras.activations, activation_output)
+    act        = getattr(tf.keras.activations, activation)
+    output_act = getattr(tf.keras.activations, activation_output)
 
-    model.add(keras.layers.Dense(n_neurons, activation=act, input_shape=(inp.shape[1],) ))
+    model.add(tf.keras.layers.Dense(n_neurons, activation=act, input_shape=(inp.shape[1],) ))
     if dropout is not None:
-        model.add(keras.layers.Dropout(dropout))
+        model.add(tf.keras.layers.Dropout(dropout))
 
     for l in range(1,n_hidden):
-        model.add(keras.layers.Dense(n_neurons, activation=act))
+        model.add(tf.keras.layers.Dense(n_neurons, activation=act))
         if dropout is not None:
-            model.add(keras.layers.Dropout(dropout))
+            model.add(tf.keras.layers.Dropout(dropout))
 
-    model.add(keras.layers.Dense( trgt.shape[1], activation=output_act))
-    opt = getattr( keras.optimizers, optimizer )(lr=learning_rate)
-    model.compile( loss='mse', optimizer=opt, metrics=['mae'] )
+    model.add(tf.keras.layers.Dense( trgt.shape[1], activation=output_act))
+    opt = getattr(tf.keras.optimizers, optimizer )(lr=learning_rate)
+    model.compile(loss='mse', optimizer=opt, metrics=['mae'] )
 
     return model
 
 
 def train_keras_model(inp, trgt, model, train_split=.1, validation_split=.1, epochs=1000, batch_size=None):
     import numpy as np
-    import keras
+    import tensorflow as tf
     import datetime
     import os
 
     log.info('training Keras model :: {}'.format(model.name))
 
-    es_callback = keras.callbacks.EarlyStopping(monitor='val_loss', patience=3)
+    es_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=3)
 
     print("Check logs with: `tensorboard --logdir logs/ --bind_all`")
     log_dir = os.path.join("logs/", model.name, datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
-    tensorboard_callback = keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
+    tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
 
     train_mask = np.random.rand(inp.shape[0]) <= train_split
     valid_mask = ~train_mask
@@ -143,8 +145,11 @@ def _main():
     parser.add_argument('--learn_rate', default=1e-4, type=float, help='Learning rate for optimizer')
     parser.add_argument('-i', '--load_model', type=str, help='load model from file')
     parser.add_argument('-o', '--save_model', type=str, help='save model to file')
+    parser.add_argument('--export', type=str, help='export saved model to path')
     parser.add_argument('-v', '--verbose', action="store_true", help='more verbose output')
     parser.add_argument('--no_gpu', action="store_true", help='dont use the GPU')
+    parser.add_argument('-af', '--activation', type=str, help='activation functions in network, e.g. elu, relu, swish')
+    parser.add_argument('-ao', '--output_function', type=str, help='activation functions in output layer, e.g. softmax, linear, sigmoid')
 
     args = parser.parse_args()
 
@@ -174,15 +179,27 @@ def _main():
         inpvar = inp_idx
 
     if args.load_model:
-        import keras
-        model = keras.models.load_model(args.load_model)
+        import tensorflow as tf
+        model = tf.keras.models.load_model(args.load_model)
     else:
-        model = setup_keras_model(inpvar, var, ident=args.varname, n_hidden=args.Nlayers, n_neurons=args.Nneurons, learning_rate=args.learn_rate, dropout=args.dropout)
+        model = setup_keras_model(inpvar, var,
+                ident=args.varname,
+                n_hidden=args.Nlayers,
+                n_neurons=args.Nneurons,
+                learning_rate=args.learn_rate,
+                activation=args.activation,
+                activation_output=args.output_function,
+                dropout=args.dropout)
 
     train_keras_model(inpvar, var, model, train_split=args.train_frac, epochs=args.epochs, batch_size=args.batch_size)
 
     if args.save_model:
         model.save(args.save_model)
+
+    if args.export:
+        import tensorflow as tf
+        tf.saved_model.save(model, args.export)
+
 
 if __name__ == "__main__":
     _main()
