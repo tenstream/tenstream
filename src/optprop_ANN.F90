@@ -24,19 +24,19 @@ module m_optprop_ANN
     ldelta_scale, delta_scale_truncate
   use m_netcdfio
   use mpi
-  use m_helper_functions, only : imp_bcast
+  use m_helper_functions, only : imp_bcast, CHKERR
   use m_search, only: find_real_location
 
 
   implicit none
   private
-  public ANN_init, ANN_destroy, ANN_get_dir2dir, ANN_get_dir2diff, ANN_get_diff2diff
+  public t_ANN, load_ANN, view_ANN, ANN_init, ANN_destroy, ANN_get_dir2dir, ANN_get_dir2diff, ANN_get_diff2diff
 
   logical,parameter :: check_input=.True.
 
   integer(mpiint) :: myid,comm_size,mpierr
 
-  type ANN
+  type t_ANN
     real(ireals),allocatable,dimension(:) :: weights, units, aspect, tau, w0, g, phi, theta
     integer(iintegers),allocatable,dimension(:) :: inno, outno
     real(ireals),allocatable,dimension(:,:) :: eni, deo, inlimits
@@ -44,9 +44,11 @@ module m_optprop_ANN
     real(ireals),allocatable,dimension(:) :: lastcall,lastresult
     integer(iintegers) :: in_size=-1, out_size=-1
     logical :: initialized=.False.
+    character(len=default_str_len) :: fname
+    character(len=2*default_str_len) :: model_config
   end type
 
-  type(ANN),allocatable,save :: diff2diff_network, dir2dir_network, dir2diff_network
+  type(t_ANN),allocatable,save :: diff2diff_network, dir2dir_network, dir2diff_network
 
   real(irealLUT),parameter :: min_lim_coeff = 0.0001, zero=0, one=1
 ! logical,parameter :: lrenormalize=.True.
@@ -57,6 +59,33 @@ contains
     if(allocated(diff2diff_network)) deallocate(diff2diff_network)
     if(allocated(dir2diff_network)) deallocate(dir2diff_network)
     if(allocated(dir2dir_network)) deallocate(dir2dir_network)
+  end subroutine
+
+  subroutine load_ANN(fname, ann, ierr)
+    character(len=*), intent(in) :: fname
+    type(t_ANN), allocatable, intent(inout) :: ann
+    integer(mpiint), intent(out) :: ierr
+    integer(iintegers) :: nattrs
+
+    if(allocated(ann)) call CHKERR(1_mpiint, 'ANN already allocated')
+    allocate(ann)
+    ann%fname = trim(fname)
+    print *,'loading Ann from ', trim(fname)
+
+    call get_number_global_attributes(ann%fname, nattrs, ierr); call CHKERR(ierr)
+    print *,'Nattrs', nattrs
+    call list_global_attributes(fname, ierr); call CHKERR(ierr)
+    call get_global_attribute(ann%fname, "model_config", ann%model_config, ierr); call CHKERR(ierr)
+
+    ierr = 0
+  end subroutine
+
+  subroutine view_ANN(ann, ierr)
+    type(t_ANN), intent(in) :: ann
+    integer(mpiint), intent(out) :: ierr
+    print *,'ann file: ['//trim(ann%fname)       //']'
+    print *,'config:   ['//trim(ann%model_config)//']'
+    ierr = 0
   end subroutine
 
   subroutine ANN_init( comm, ierr)
@@ -106,7 +135,7 @@ contains
   end subroutine
 
   subroutine scatter_ANN (comm, net)
-    type(ANN) :: net
+    type(t_ANN) :: net
     integer(mpiint), intent(in) :: comm
     logical :: l_have_angles
 
@@ -140,7 +169,7 @@ contains
 
   subroutine loadnet(netname,net,ierr)
       character(default_str_len) :: netname
-      type(ANN) :: net
+      type(t_ANN) :: net
       integer(mpiint),intent(out) :: ierr
       integer(mpiint) :: errcnt,k
 
@@ -325,7 +354,7 @@ contains
     end subroutine
 
   subroutine calc_net(coeffs,inp,net,ierr)
-      type(ANN),intent(inout) :: net
+      type(t_ANN),intent(inout) :: net
       real(irealLUT),intent(out):: coeffs(net%out_size )
       real(irealLUT),intent(in) :: inp(:)
       integer(mpiint),intent(out) :: ierr
