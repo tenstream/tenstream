@@ -240,14 +240,14 @@ contains
       call restoreVecPointer(pprts_solver%atm%hhl, hhl1d, hhl)
 
       if(myid.eq.0) then
-        call set_global_attribute(outpath(1), 'Nx', C%glob_xm)
-        call set_global_attribute(outpath(1), 'Ny', C%glob_ym)
-        call set_global_attribute(outpath(1), 'Nz', nzp)
-        call set_global_attribute(outpath(1), 'dx', dx)
-        call set_global_attribute(outpath(1), 'dy', dy)
-        call set_global_attribute(outpath(1), 'phi0', phi0)
-        call set_global_attribute(outpath(1), 'theta0', theta0)
-        call set_global_attribute(outpath(1), 'Ag_solar', albedo_sol)
+        call set_global_attribute(outpath(1), 'Nx', C%glob_xm, ierr); call CHKERR(ierr)
+        call set_global_attribute(outpath(1), 'Ny', C%glob_ym, ierr); call CHKERR(ierr)
+        call set_global_attribute(outpath(1), 'Nz', nzp, ierr); call CHKERR(ierr)
+        call set_global_attribute(outpath(1), 'dx', dx, ierr); call CHKERR(ierr)
+        call set_global_attribute(outpath(1), 'dy', dy, ierr); call CHKERR(ierr)
+        call set_global_attribute(outpath(1), 'phi0', phi0, ierr); call CHKERR(ierr)
+        call set_global_attribute(outpath(1), 'theta0', theta0, ierr); call CHKERR(ierr)
+        call set_global_attribute(outpath(1), 'Ag_solar', albedo_sol, ierr); call CHKERR(ierr)
       endif
     end associate
 

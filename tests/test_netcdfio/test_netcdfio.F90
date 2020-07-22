@@ -279,34 +279,35 @@ end subroutine
     integer(INT32) :: attr_i32
     integer(INT64) :: attr_i64
     character(len=default_str_len) :: attr_str
+    integer(mpiint) :: ierr
 
     comm     = this%getMpiCommunicator()
     numnodes = this%getNumProcesses()
     myid     = this%getProcessRank()
 
     attr_r32 = 7._REAL32
-    call set_global_attribute(fname, 'r32_test_attr', attr_r32)
-    call get_global_attribute(fname, 'r32_test_attr', attr_r32)
+    call set_global_attribute(fname, 'r32_test_attr', attr_r32, ierr)
+    call get_global_attribute(fname, 'r32_test_attr', attr_r32, ierr)
     @assertEqual(7._REAL32, attr_r32)
 
     attr_r64 = 7._REAL64
-    call set_global_attribute(fname, 'r64_test_attr', attr_r64)
-    call get_global_attribute(fname, 'r64_test_attr', attr_r64)
+    call set_global_attribute(fname, 'r64_test_attr', attr_r64, ierr)
+    call get_global_attribute(fname, 'r64_test_attr', attr_r64, ierr)
     @assertEqual(7._REAL64, attr_r64)
 
     attr_i32 = 8_INT32
-    call set_global_attribute(fname, 'i32_test_attr', attr_i32)
-    call get_global_attribute(fname, 'i32_test_attr', attr_i32)
+    call set_global_attribute(fname, 'i32_test_attr', attr_i32, ierr)
+    call get_global_attribute(fname, 'i32_test_attr', attr_i32, ierr)
     @assertEqual(8_INT32, attr_i32)
 
     attr_i64 = 9_INT64
-    call set_global_attribute(fname, 'i64_test_attr', attr_i64)
-    call get_global_attribute(fname, 'i64_test_attr', attr_i64)
+    call set_global_attribute(fname, 'i64_test_attr', attr_i64, ierr)
+    call get_global_attribute(fname, 'i64_test_attr', attr_i64, ierr)
     @assertEqual(9_INT64, attr_i64)
 
     attr_str = 'this is a test string'
-    call set_global_attribute(fname, 'str_test_attr', attr_str)
-    call get_global_attribute(fname, 'str_test_attr', attr_str)
+    call set_global_attribute(fname, 'str_test_attr', attr_str, ierr)
+    call get_global_attribute(fname, 'str_test_attr', attr_str, ierr)
     @assertEqual('this is a test string', trim(attr_str))
   end subroutine
 end module

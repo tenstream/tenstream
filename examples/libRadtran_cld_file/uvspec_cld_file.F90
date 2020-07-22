@@ -68,8 +68,8 @@ contains
     call mpi_comm_rank(comm, myid, ierr)
 
     ! Load LibRadtran Cloud File
-    call get_global_attribute(cldfile, 'dx', dx)
-    call get_global_attribute(cldfile, 'dy', dy)
+    call get_global_attribute(cldfile, 'dx', dx, ierr); call CHKERR(ierr)
+    call get_global_attribute(cldfile, 'dy', dy, ierr); call CHKERR(ierr)
     groups(1) = trim(cldfile)
     groups(2) = trim('lwc'); call ncload(groups, lwc, ierr); call CHKERR(ierr)
     groups(2) = trim('reff'); call ncload(groups, reliq, ierr); call CHKERR(ierr)
@@ -334,8 +334,8 @@ contains
 
     if(myid.eq.0) then
       ! Load LibRadtran Cloud File
-      call get_global_attribute(cldfile, 'dx', dx)
-      call get_global_attribute(cldfile, 'dy', dy)
+      call get_global_attribute(cldfile, 'dx', dx, ierr); call CHKERR(ierr)
+      call get_global_attribute(cldfile, 'dy', dy, ierr); call CHKERR(ierr)
       groups(1) = trim(cldfile)
       groups(2) = trim('lwc') ; call ncload(groups, glob_lwc,   ierr); call CHKERR(ierr)
       groups(2) = trim('reff'); call ncload(groups, glob_reliq, ierr); call CHKERR(ierr)
