@@ -16,7 +16,7 @@
 !  --------------------------------------------------------------------------
 
 ! ------- Modules -------
-
+      use petsc
       use m_tenstr_parkind_sw, only : im => kind_im, rb => kind_rb
       use m_tenstr_parrrsw, only : nbndsw, jpband, jpb1, jpb2
       use m_tenstr_rrsw_cld, only : extliq1, ssaliq1, asyliq1, &
@@ -25,6 +25,8 @@
                            abari, bbari, cbari, dbari, ebari, fbari
       use m_tenstr_rrsw_wvn, only : wavenum1, wavenum2
       use m_tenstr_rrsw_vsn, only : hvrcld, hnamcld
+      use m_data_parameters, only : mpiint
+      use m_helper_functions, only : CHKERR
 
       implicit none
 
@@ -109,6 +111,12 @@
       real(kind=rb) :: ssacoice(jpb1:jpb2), forwice(jpb1:jpb2)
       real(kind=rb) :: extcoliq(jpb1:jpb2), gliq(jpb1:jpb2)
       real(kind=rb) :: ssacoliq(jpb1:jpb2), forwliq(jpb1:jpb2)
+
+      integer(mpiint) :: ierr
+      logical :: lflg, lno_delta_scaling
+      lno_delta_scaling = .True.
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+        "-no_delta_scaling", lno_delta_scaling, lflg, ierr) ;call CHKERR(ierr)
 
 ! Initialize
 
@@ -283,7 +291,11 @@
                                      ssacoliq(ib) = ssaliq1(index,ib)
                       gliq(ib) = asyliq1(index,ib) + fint * &
                                 (asyliq1(index+1,ib) - asyliq1(index,ib))
-                      forwliq(ib) = 0 !gliq(ib)*gliq(ib)
+                      if (lno_delta_scaling) then
+                        forwliq(ib) = 0
+                      else
+                        forwliq(ib) = gliq(ib)*gliq(ib)
+                      endif
 ! Check to ensure all calculated quantities are within physical limits.
                       if (extcoliq(ib) .lt. 0.0_rb) stop 'LIQUID EXTINCTION LESS THAN 0.0'
                       if (ssacoliq(ib) .gt. 1.0_rb) stop 'LIQUID SSA GRTR THAN 1.0'

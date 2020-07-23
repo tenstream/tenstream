@@ -16,7 +16,7 @@
 !  --------------------------------------------------------------------------
 
 ! ------- Modules -------
-
+      use petsc
       use m_tenstr_parkind_sw, only : im => kind_im, rb => kind_rb
       use m_tenstr_parrrsw, only : nbndsw, ngptsw, mxmol, jpband
       use m_tenstr_rrsw_tbl, only : tblint, bpade, od_lo, exp_tbl
@@ -275,6 +275,11 @@
 !     real(kind=rb) :: zbbfddir(nlayers+1), zbbcddir(nlayers+1)
 
 ! ------------------------------------------------------------------
+      integer(mpiint) :: ierr
+      logical :: lflg, lno_delta_scaling
+      lno_delta_scaling = .True.
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+        "-no_delta_scaling", lno_delta_scaling, lflg, ierr) ;call CHKERR(ierr)
 
 ! Initializations
 
@@ -487,8 +492,12 @@
 !   /\/\/\ Above code only needed for unscaled direct beam calculation
 
 
-! Delta scaling - clear   
-               zf = 0 !zgcc(jk) * zgcc(jk)
+! Delta scaling - clear
+               if (lno_delta_scaling) then
+                 zf = 0
+               else
+                 zf = zgcc(jk) * zgcc(jk)
+               endif
                zwf = zomcc(jk) * zf
                ztauc(jk) = (1.0_rb - zwf) * ztauc(jk)
                zomcc(jk) = (zomcc(jk) - zwf) / (1.0_rb - zwf)
