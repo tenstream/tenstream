@@ -172,14 +172,15 @@
 !     Dec 2008: M. J. Iacono, AER, Inc.
 
 ! --------- Modules ---------
-
+      use petsc
       use m_tenstr_parrrsw, only : nbndsw, ngptsw, naerec, nstr, nmol, mxmol, &
                           jpband, jpb1, jpb2
       use m_tenstr_rrsw_aer, only : rsrtaua, rsrpiza, rsrasya
       use m_tenstr_rrsw_con, only : heatfac, oneminus, pi
       use m_tenstr_rrsw_wvn, only : wavenum1, wavenum2
 
-      use m_data_parameters, only : ireals
+      use m_data_parameters, only : ireals, mpiint
+      use m_helper_functions, only: CHKERR
 
 ! ------- Declarations
 
@@ -450,6 +451,12 @@
 !      real(kind=rb) :: znicu(nlay+2)         ! temporary clear sky upward near-IR shortwave flux (w/m2)
 !      real(kind=rb) :: znicd(nlay+2)         ! temporary clear sky downward near-IR shortwave flux (w/m2)
 
+      integer(mpiint) :: ierr
+      logical :: lflg, lrrtmg_delta_scaling
+      lrrtmg_delta_scaling = .True.
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, &
+      PETSC_NULL_CHARACTER, "-rrtmg_delta_scaling", &
+      lrrtmg_delta_scaling, lflg, ierr) ;call CHKERR(ierr)
 
 ! Initializations
 
@@ -539,7 +546,8 @@
          enddo
          call cldprop_sw(nlayers, inflag, iceflag, liqflag, cldfrac, &
                          tauc, ssac, asmc, fsfc, ciwp, clwp, rei, rel, &
-                         taucldorig, taucloud, ssacloud, asmcloud)
+                         taucldorig, taucloud, ssacloud, asmcloud, &
+                         lrrtmg_delta_scaling)
          icpr = 1
 
 ! Calculate coefficients for the temperature and pressure dependence of the 
@@ -689,7 +697,8 @@
              zbbfd, zbbfu, zbbcd, zbbcu, zuvfd, zuvcd, znifd, znicd, &
              zbbfddir, zbbcddir, zuvfddir, zuvcddir, znifddir, znicddir, &
              tenstr_tau(:, iplon, :), tenstr_w(:, iplon, :), tenstr_g(:, iplon, :), loptprop_only, &
-             tenstr_tau_f(:, iplon, :), tenstr_w_f(:, iplon, :), tenstr_g_f(:, iplon, :))
+             tenstr_tau_f(:, iplon, :), tenstr_w_f(:, iplon, :), &
+             tenstr_g_f(:, iplon, :), lrrtmg_delta_scaling)
          else
            call spcvrt_sw &
              (nlayers, istart, iend, icpr, idelm, iout, &
@@ -702,7 +711,9 @@
              selffac, selffrac, indself, forfac, forfrac, indfor, &
              zbbfd, zbbfu, zbbcd, zbbcu, zuvfd, zuvcd, znifd, znicd, &
              zbbfddir, zbbcddir, zuvfddir, zuvcddir, znifddir, znicddir, &
-             tenstr_tau(:, iplon, :), tenstr_w(:, iplon, :), tenstr_g(:, iplon, :), loptprop_only)
+             tenstr_tau(:, iplon, :), tenstr_w(:, iplon, :), &
+             tenstr_g(:, iplon, :), loptprop_only,  &
+             lrrtmg_delta_scaling=lrrtmg_delta_scaling)
          endif
 
 ! Transfer up and down, clear and total sky fluxes to output arrays.

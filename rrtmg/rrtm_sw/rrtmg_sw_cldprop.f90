@@ -35,7 +35,8 @@
 ! ----------------------------------------------------------------------------
       subroutine cldprop_sw(nlayers, inflag, iceflag, liqflag, cldfrac, &
                             tauc, ssac, asmc, fsfc, ciwp, clwp, rei, rel, &
-                            taucldorig, taucloud, ssacloud, asmcloud)
+                            taucldorig, taucloud, ssacloud, asmcloud, &
+                            lrrtmg_delta_scaling)
 ! ----------------------------------------------------------------------------
 
 ! Purpose: Compute the cloud optical properties for each cloudy layer.
@@ -77,6 +78,7 @@
                                                       !    Dimensions: (nbndsw,nlayers)
       real(kind=rb), intent(in) :: fsfc(:,:)          ! forward scattering fraction
                                                       !    Dimensions: (nbndsw,nlayers)
+      logical, intent(in) :: lrrtmg_delta_scaling
 
 ! ------- Output -------
 
@@ -111,12 +113,6 @@
       real(kind=rb) :: ssacoice(jpb1:jpb2), forwice(jpb1:jpb2)
       real(kind=rb) :: extcoliq(jpb1:jpb2), gliq(jpb1:jpb2)
       real(kind=rb) :: ssacoliq(jpb1:jpb2), forwliq(jpb1:jpb2)
-
-      integer(mpiint) :: ierr
-      logical :: lflg, lno_delta_scaling
-      lno_delta_scaling = .True.
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
-        "-no_delta_scaling", lno_delta_scaling, lflg, ierr) ;call CHKERR(ierr)
 
 ! Initialize
 
@@ -164,7 +160,7 @@
                enddo
 
 ! (inflag=2): Separate treatement of ice clouds and water clouds.
-            elseif (inflag .eq. 2) then       
+            elseif (inflag .eq. 2) then
                radice = rei(lay)
 
 ! Calculation of absorption coefficients due to ice clouds.
@@ -291,10 +287,10 @@
                                      ssacoliq(ib) = ssaliq1(index,ib)
                       gliq(ib) = asyliq1(index,ib) + fint * &
                                 (asyliq1(index+1,ib) - asyliq1(index,ib))
-                      if (lno_delta_scaling) then
-                        forwliq(ib) = 0
-                      else
+                      if (lrrtmg_delta_scaling) then
                         forwliq(ib) = gliq(ib)*gliq(ib)
+                      else
+                        forwliq(ib) = 0
                       endif
 ! Check to ensure all calculated quantities are within physical limits.
                       if (extcoliq(ib) .lt. 0.0_rb) stop 'LIQUID EXTINCTION LESS THAN 0.0'
