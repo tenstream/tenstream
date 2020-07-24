@@ -76,7 +76,7 @@ contains
 
     ! reshape pointer to convert i,j vecs to column vecs
     real(ireals), pointer, dimension(:,:) :: pplev, ptlev, plwc, preliq
-    real(ireals), pointer, dimension(:,:,:) :: patmlwc, patmreliq
+    real(ireals), pointer, dimension(:,:,:) :: patm, patmp
 
     logical,parameter :: ldebug=.True.
     logical :: lthermal, lsolar
@@ -224,10 +224,33 @@ contains
 
       call dump_vec(Ca%da, pprts_solver%atm%dz, 'dz')
 
-      patmlwc  (Ca%zs:Ca%ze, Ca%xs:Ca%xe, Ca%ys:Ca%ye) => atm%lwc
-      patmreliq(Ca%zs:Ca%ze, Ca%xs:Ca%xe, Ca%ys:Ca%ye) => atm%reliq
-      call dump_vec(Ca%da, reverse(patmlwc), 'lwc')
-      call dump_vec(Ca%da, reverse(patmreliq), 'reliq')
+      patmp (Ca1%zs:Ca1%ze, Ca1%xs:Ca1%xe, Ca1%ys:Ca1%ye) => atm%plev
+      call dump_vec(Ca1%da, reverse(patmp), 'plev')
+
+      patm (Ca%zs:Ca%ze, Ca%xs:Ca%xe, Ca%ys:Ca%ye) => atm%tlay
+      call dump_vec(Ca%da, reverse(patm), 't_lay')
+
+      patm (Ca%zs:Ca%ze, Ca%xs:Ca%xe, Ca%ys:Ca%ye) => atm%o3_lay
+      call dump_vec(Ca%da, reverse(patm), 'o3_lay')
+
+      patm (Ca%zs:Ca%ze, Ca%xs:Ca%xe, Ca%ys:Ca%ye) => atm%o2_lay
+      call dump_vec(Ca%da, reverse(patm), 'o2_lay')
+
+      patm (Ca%zs:Ca%ze, Ca%xs:Ca%xe, Ca%ys:Ca%ye) => atm%h2o_lay
+      call dump_vec(Ca%da, reverse(patm), 'h2o_lay')
+
+      patm (Ca%zs:Ca%ze, Ca%xs:Ca%xe, Ca%ys:Ca%ye) => atm%co2_lay
+      call dump_vec(Ca%da, reverse(patm), 'co2_lay')
+
+      patm (Ca%zs:Ca%ze, Ca%xs:Ca%xe, Ca%ys:Ca%ye) => atm%n2o_lay
+      call dump_vec(Ca%da, reverse(patm), 'no2_lay')
+
+      patm  (Ca%zs:Ca%ze, Ca%xs:Ca%xe, Ca%ys:Ca%ye) => atm%lwc
+      call dump_vec(Ca%da, reverse(patm), 'lwc')
+
+      patm(Ca%zs:Ca%ze, Ca%xs:Ca%xe, Ca%ys:Ca%ye) => atm%reliq
+      call dump_vec(Ca%da, reverse(patm), 'reliq')
+
 
       if(allocated(edir)) &
         call dump_vec(C1%da, edir, 'edir')
