@@ -54,7 +54,7 @@
              pbbfd, pbbfu, pbbcd, pbbcu, puvfd, puvcd, pnifd, pnicd, &
              pbbfddir, pbbcddir, puvfddir, puvcddir, pnifddir, pnicddir, &
              tenstr_tau, tenstr_w, tenstr_g, loptprop_only, &
-             tenstr_tau_f, tenstr_w_f, tenstr_g_f)
+             tenstr_tau_f, tenstr_w_f, tenstr_g_f, lrrtmg_delta_scaling)
 ! ---------------------------------------------------------------------------
 !
 ! Purpose: Contains spectral loop to compute the shortwave radiative fluxes, 
@@ -209,7 +209,7 @@
       real(ireals), intent(out), optional :: tenstr_w_f(:,:)  ! clearsky optical props(nlayers, nbands)
       real(ireals), intent(out), optional :: tenstr_g_f(:,:)  ! clearsky optical props(nlayers, nbands)
 
-      logical, intent(in) :: loptprop_only
+      logical, intent(in) :: loptprop_only, lrrtmg_delta_scaling
 
 ! Output - inactive                                            !   All Dimensions: (nlayers+1)
 !      real(kind=rb), intent(out) :: puvcu(:)
@@ -275,11 +275,6 @@
 !     real(kind=rb) :: zbbfddir(nlayers+1), zbbcddir(nlayers+1)
 
 ! ------------------------------------------------------------------
-      integer(mpiint) :: ierr
-      logical :: lflg, lno_delta_scaling
-      lno_delta_scaling = .True.
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
-        "-no_delta_scaling", lno_delta_scaling, lflg, ierr) ;call CHKERR(ierr)
 
 ! Initializations
 
@@ -493,10 +488,10 @@
 
 
 ! Delta scaling - clear
-               if (lno_delta_scaling) then
-                 zf = 0
-               else
+               if (lrrtmg_delta_scaling) then
                  zf = zgcc(jk) * zgcc(jk)
+               else
+                 zf = 0
                endif
                zwf = zomcc(jk) * zf
                ztauc(jk) = (1.0_rb - zwf) * ztauc(jk)
