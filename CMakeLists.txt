@@ -32,11 +32,12 @@ elseif ("${CMAKE_Fortran_COMPILER_ID}" STREQUAL "Intel")
   set (SYST intel CACHE STRING "Location specific settings from config/<SYST>.cmake files")
 endif()
 
-message(STATUS "Using System config file: ${SYST}")
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/config)
 include (${SYST} OPTIONAL RESULT_VARIABLE FOUND_SYST)
 if(NOT FOUND_SYST)
   message(FATAL_ERROR "Could not find SYST config file for :: ${SYST} :: ${FOUND_SYST}")
+else()
+  message(STATUS "Using System config file: ${FOUND_SYST}")
 endif(NOT FOUND_SYST)
 
 
