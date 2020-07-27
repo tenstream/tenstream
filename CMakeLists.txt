@@ -31,8 +31,14 @@ if ("${CMAKE_Fortran_COMPILER_ID}" STREQUAL "GNU")
 elseif ("${CMAKE_Fortran_COMPILER_ID}" STREQUAL "Intel")
   set (SYST intel CACHE STRING "Location specific settings from config/<SYST>.cmake files")
 endif()
+
+message(STATUS "Using System config file: ${SYST}")
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/config)
-include (${SYST} OPTIONAL)
+include (${SYST} OPTIONAL RESULT_VARIABLE FOUND_SYST)
+if(NOT FOUND_SYST)
+  message(FATAL_ERROR "Could not find SYST config file for :: ${SYST} :: ${FOUND_SYST}")
+endif(NOT FOUND_SYST)
+
 
 set(CMAKE_C_FLAGS               "${USER_C_FLAGS}               ${CMAKE_C_FLAGS}               " )
 set(CMAKE_Fortran_FLAGS         "${USER_Fortran_FLAGS}         ${CMAKE_Fortran_FLAGS}         " )
