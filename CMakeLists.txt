@@ -16,36 +16,37 @@ if(${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR})
   message(FATAL_ERROR "In-source builds not allowed. Please make a new directory (called a build directory) and run CMake from there. CMAKE_SOURCE_DIR: ${CMAKE_SOURCE_DIR} !== CMAKE_BINARY_DIR: ${CMAKE_BINARY_DIR}")
 endif()
 
+#Load system specific settings
+if ($ENV{FC} MATCHES "gfortran|mpif90")
+  set (SYST gcc CACHE STRING "Location specific settings from config/<SYST>.cmake files")
+elseif ($ENV{FC} MATCHES "ifort|mpiifort")
+  set (SYST intel CACHE STRING "Location specific settings from config/<SYST>.cmake files")
+endif()
+
+if(SYST)
+  list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/config)
+  include ("${SYST}" OPTIONAL RESULT_VARIABLE FOUND_SYST)
+  if(NOT FOUND_SYST)
+    message(FATAL_ERROR "Could not find SYST config file for :: SYST=`${SYST}` :: ${FOUND_SYST}")
+  else()
+    message(STATUS "Using System config file: ${FOUND_SYST}")
+  endif(NOT FOUND_SYST)
+endif(SYST)
+
 ########################### Tenstream Project: ###################################
 project (tenstream C Fortran CXX)
 enable_testing()
+
 set(CTEST_CMAKE_GENERATOR "Unix Makefiles")
 set(CMAKE_C_STANDARD 99)
 
 # For python interfaces need -fPIC:
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-#Load system specific settings
-if ("${CMAKE_Fortran_COMPILER_ID}" STREQUAL "GNU")
-  set (SYST gcc CACHE STRING "Location specific settings from config/<SYST>.cmake files")
-elseif ("${CMAKE_Fortran_COMPILER_ID}" STREQUAL "Intel")
-  set (SYST intel CACHE STRING "Location specific settings from config/<SYST>.cmake files")
-endif()
-
-list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/config)
-include (${SYST} OPTIONAL RESULT_VARIABLE FOUND_SYST)
-if(NOT FOUND_SYST)
-  message(FATAL_ERROR "Could not find SYST config file for :: ${SYST} :: ${FOUND_SYST}")
-else()
-  message(STATUS "Using System config file: ${FOUND_SYST}")
-endif(NOT FOUND_SYST)
-
-
 set(CMAKE_C_FLAGS               "${USER_C_FLAGS}               ${CMAKE_C_FLAGS}               " )
 set(CMAKE_Fortran_FLAGS         "${USER_Fortran_FLAGS}         ${CMAKE_Fortran_FLAGS}         " )
 set(CMAKE_Fortran_FLAGS_RELEASE "${USER_Fortran_FLAGS_RELEASE} ${CMAKE_Fortran_FLAGS_RELEASE} " )
 set(CMAKE_Fortran_FLAGS_DEBUG   "${USER_Fortran_FLAGS_DEBUG}   ${CMAKE_Fortran_FLAGS_DEBUG}   ")
-
 
 # Add PGO Options
 set(ENABLE_PGO "OFF" CACHE STRING "Use PGO in build, first compile with PGO set to `generate`, run make check, and then set to `use`")
