@@ -13,7 +13,12 @@ endif (NOT CMAKE_BUILD_TYPE)
 
 # guard against in-source builds
 if(${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR})
-  message(FATAL_ERROR "In-source builds not allowed. Please make a new directory (called a build directory) and run CMake from there. CMAKE_SOURCE_DIR: ${CMAKE_SOURCE_DIR} !== CMAKE_BINARY_DIR: ${CMAKE_BINARY_DIR}")
+  message(FATAL_ERROR
+    " In-source builds not allowed. Please make a new directory (e.g. called build) and run CMake from there.\n \n"
+    " CMAKE_SOURCE_DIR=${CMAKE_SOURCE_DIR}\n"
+    " cannot be\n"
+    " CMAKE_BINARY_DIR=${CMAKE_BINARY_DIR}\n \n"
+    " However, before that, you have to remove the already created files,\n  e.g. with `rm -rf CMakeCache.txt CMakeFiles/`")
 endif()
 
 #Load system specific settings
