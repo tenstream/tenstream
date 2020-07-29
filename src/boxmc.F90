@@ -29,6 +29,9 @@ module m_boxmc
 #define isnan ieee_is_nan
 #endif
 
+  use iso_c_binding
+  use mpi
+
   use m_helper_functions_dp, only : &
     hit_plane, square_intersection, triangle_intersection, pnt_in_cube
 
@@ -39,18 +42,19 @@ module m_boxmc
     deg2rad, rad2deg, pnt_in_triangle, &
     compute_normal_3d, spherical_2_cartesian, &
     cross_3d, triangle_area_by_vertices
-  use iso_c_binding
-  use mpi
+
   use m_data_parameters, only: &
-    mpiint,iintegers,ireals,ireal_dp,irealbmc, &
-    i0,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10, inil, pi64, &
-    imp_iinteger, imp_real_dp, imp_logical
+    mpiint, iintegers, ireals, ireal_dp, irealbmc, &
+    i0, i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, inil, pi64, &
+    init_mpi_data_parameters, imp_iinteger, imp_real_dp, imp_logical
 
-  use m_optprop_parameters, only : delta_scale_truncate,stddev_atol,stddev_rtol,ldebug_optprop
+  use m_optprop_parameters, only : delta_scale_truncate, &
+    & stddev_atol, stddev_rtol, ldebug_optprop
 
-  use m_boxmc_geometry, only : setup_cube_coords_from_vertices, setup_wedge_coords_from_vertices, &
-      intersect_cube, intersect_wedge, &
-      box_halfspaces, wedge_halfspaces
+  use m_boxmc_geometry, only : &
+    & setup_cube_coords_from_vertices, setup_wedge_coords_from_vertices, &
+    & intersect_cube, intersect_wedge, &
+    & box_halfspaces, wedge_halfspaces
 
   use m_kiss_rng, only: kiss_real, kiss_init
 
@@ -299,13 +303,16 @@ module m_boxmc
 
 contains
 
-  subroutine gen_mpi_photon_type()
+  subroutine gen_mpi_photon_type(comm)
+    integer(mpiint),intent(in) :: comm
     type(t_photon) :: dummy
     integer(mpiint),parameter :: block_cnt=3  ! Number of blocks
     integer(mpiint) :: blocklengths(block_cnt) ! Number of elements in each block
     integer(mpiint) :: dtypes(block_cnt) ! Type of elements in each block (array of handles to data-type objects)
     integer(mpi_address_kind) :: displacements(block_cnt), base ! byte displacement of each block
     integer(mpiint) :: ierr
+
+    call init_mpi_data_parameters(comm)
 
     blocklengths(1) = 8 ! doubles to begin with
     blocklengths(2) = 10 ! ints
@@ -1006,7 +1013,7 @@ contains
     stop 'initialize: unexpected type for boxmc object!'
   end select
 
-  call gen_mpi_photon_type()
+  call gen_mpi_photon_type(comm)
 
   bmc%initialized = .True.
 end subroutine
