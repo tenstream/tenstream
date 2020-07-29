@@ -52,12 +52,13 @@ module m_helper_functions
     compute_normal_3d, determine_normal_direction, spherical_2_cartesian, hit_plane,                                 &
     angle_between_two_vec, angle_between_two_normed_vec, normalize_vec,                                              &
     pnt_in_triangle, distance_to_edge, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world,   &
-    vec_proj_on_plane, get_arg, unique, ltoa, itoa, ftoa, char_arr_to_str, cstr, strF2C,                             &
+    vec_proj_on_plane, get_arg, unique, toStr, ltoa, itoa, ftoa, char_arr_to_str, cstr, strF2C,                      &
     distance, triangle_area_by_edgelengths, triangle_area_by_vertices,                                               &
     ind_1d_to_nd, ind_nd_to_1d, ndarray_offsets, get_mem_footprint,            &
     resize_arr, reverse, rotate_angle_x, rotate_angle_y, rotate_angle_z, rotation_matrix_around_axis_vec,            &
     solve_quadratic, linspace, assert_arr_is_monotonous, is_between, is_inrange, sEXP, transposed_arr,               &
-    triangle_inner_circle_center, domain_decompose_2d, domain_decompose_2d_petsc, deallocate_allocatable
+    triangle_inner_circle_center, domain_decompose_2d, domain_decompose_2d_petsc, deallocate_allocatable,            &
+    char_to_lower, char_to_upper, colored_str_by_range
 
   interface rotate_angle_x
     module procedure rotate_angle_x_r32, rotate_angle_x_r64
@@ -88,12 +89,39 @@ module m_helper_functions
     module procedure distance_${dtype}$
 #:endfor
   end interface
+
+  interface toStr
+    module procedure ltoa
+    #:for basetype,dtype in [&
+      ('integer', 'INT32'  ), &
+      ('integer', 'INT64'  ), &
+      ('real'   , 'REAL32' ), &
+      ('real'   , 'REAL64' ), &
+      ('real'   , 'REAL128')]
+      module procedure toStr${dtype}$
+      #:for RANK in range(1, 8)
+        module procedure toStr${dtype}$_${RANK}$d
+      #:endfor
+    #:endfor
+  end interface
+
   interface itoa
-    module procedure itoa_i4, itoa_i8, itoa_1d_i4, itoa_1d_i8
+    #:for dtype in ['INT32', 'INT64']
+      module procedure toStr${dtype}$
+      #:for RANK in range(1, 8)
+        module procedure toStr${dtype}$_${RANK}$d
+      #:endfor
+    #:endfor
   end interface
   interface ftoa
-    module procedure ftoa_r32, ftoa_r64, ftoa_r128, ftoa_1d_r32, ftoa_1d_r64, ftoa_1d_r128
+   #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+     module procedure toStr${dtype}$
+     #:for RANK in range(1, 8)
+       module procedure toStr${dtype}$_${RANK}$d
+     #:endfor
+   #:endfor
   end interface
+
   interface meanval
     module procedure meanval_1d_r4, meanval_2d_r4, meanval_3d_r4, &
         meanval_1d_r8, meanval_2d_r8, meanval_3d_r8
@@ -275,7 +303,16 @@ module m_helper_functions
     #:endfor
   end interface
 
+  interface colored_str_by_range
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    #:for RANK in range(0, 8)
+    module procedure colored_str_by_range${dtype}$_${RANK}$d
+    #:endfor
+    #:endfor
+  end interface
+
   integer(iintegers), parameter :: npar_cumprod=8
+
   contains
 
     function strF2C(str)
@@ -396,7 +433,7 @@ module m_helper_functions
       endif
     end subroutine
 
-    pure function ltoa(l) result(res)
+    elemental function ltoa(l) result(res)
       character(len=1) :: res
       logical,intent(in) :: l
       if(l) then
@@ -405,105 +442,39 @@ module m_helper_functions
         res = 'F'
       endif
     end function
-    pure function itoa_i4(i) result(res)
-      character(:),allocatable :: res
-      integer(kind=INT32),intent(in) :: i
-      character(len=range(i)+2) :: tmp
-      write(tmp,'(i0)') i
-      res = trim(tmp)
-    end function
-    pure function itoa_i8(i) result(res)
-      character(:),allocatable :: res
-      integer(kind=INT64),intent(in) :: i
-      character(range(i)+2) :: tmp
-      write(tmp,'(i0)') i
-      res = trim(tmp)
-    end function
-    pure function itoa_1d_i4(i) result(res)
-      character(:),allocatable :: res
-      integer(kind=INT32),intent(in) :: i(:)
-      character(range(i)+2) :: tmp
-      integer :: digit
-      res = ''
-      do digit = 1, size(i)
-        write(tmp,'(i0)') i(digit)
-        res = res//trim(tmp)//' '
-      enddo
-      res = trim(res)
-    end function
-    pure function itoa_1d_i8(i) result(res)
-      character(:),allocatable :: res
-      integer(kind=INT64),intent(in) :: i(:)
-      character(range(i)+2) :: tmp
-      integer :: digit
-      res = ''
-      do digit = 1, size(i)
-        write(tmp,'(i0)') i(digit)
-        res = res//trim(tmp)//' '
-      enddo
-      res = trim(res)
-    end function
-    pure function ftoa_r32(i) result(res)
-      character(:),allocatable :: res
-      real(REAL32),intent(in) :: i
-      character(range(i)+2) :: tmp
-      write(tmp,*) i
-      res = trim(tmp)
-    end function
-    pure function ftoa_r64(i) result(res)
-      character(:),allocatable :: res
-      real(REAL64),intent(in) :: i
-      character(range(i)+2) :: tmp
-      write(tmp,*) i
-      res = trim(tmp)
-    end function
-    pure function ftoa_r128(i) result(res)
-      character(:),allocatable :: res
-      real(REAL128),intent(in) :: i
-      character(range(i)+2) :: tmp
-      write(tmp,*) i
+
+    #:for basetype, dtype, fmt in [&
+      ('integer', 'INT32'  , "'(I0)'"), &
+      ('integer', 'INT64'  , "'(I0)'"), &
+      ('real'   , 'REAL32' , "'(F12.7)'"), &
+      ('real'   , 'REAL64' , "'(F12.7)'"), &
+      ('real'   , 'REAL128', "'(F12.7)'")]
+    function toStr${dtype}$(inp) result (res)
+      ${basetype}$(${dtype}$), intent(in) :: inp
+      character(len=:), allocatable :: res
+      character(range(inp)+2) :: tmp
+      write(tmp,fmt=${fmt}$) inp
       res = trim(tmp)
     end function
 
-    pure function ftoa_1d_r32(i) result(res)
-      character(:),allocatable :: res
-      real(REAL32),intent(in) :: i(:)
-      character(range(i)+2) :: tmp
-      integer :: digit
-      res = ''
-      res = ''
-      do digit = 1, size(i)
-        write(tmp,*) i(digit)
-        res = res//trim(tmp)//' '
+    #:for RANK in range(1, 8)
+    function toStr${dtype}$_${RANK}$d(inp, deliminator) result (res)
+      ${basetype}$(${dtype}$), intent(in) :: inp${ranksuffix(RANK)}$
+      character(len=:), allocatable :: res
+      character(len=*), intent(in), optional :: deliminator
+      character(range(inp)+2) :: tmp(size(inp))
+      ${basetype}$(${dtype}$), allocatable :: inp1d(:)
+      integer(iintegers) :: i
+      inp1d = pack(inp, .True.)
+      do i=1,size(inp1d)
+        tmp(i) = toStr(inp1d(i))
       enddo
-      res = trim(res)
+      res = trim(char_arr_to_str(tmp, deliminator))
     end function
-    pure function ftoa_1d_r64(i) result(res)
-      character(:),allocatable :: res
-      real(REAL64),intent(in) :: i(:)
-      character(range(i)+2) :: tmp
-      integer :: digit
-      res = ''
-      res = ''
-      do digit = 1, size(i)
-        write(tmp,*) i(digit)
-        res = res//trim(tmp)//' '
-      enddo
-      res = trim(res)
-    end function
-    pure function ftoa_1d_r128(i) result(res)
-      character(:),allocatable :: res
-      real(REAL128),intent(in) :: i(:)
-      character(range(i)+2) :: tmp
-      integer :: digit
-      res = ''
-      res = ''
-      do digit = 1, size(i)
-        write(tmp,*) i(digit)
-        res = res//trim(tmp)//' '
-      enddo
-      res = trim(res)
-    end function
+    #:endfor
+    #:endfor
+
+
 
     pure function gradient(v)
       real(ireals),intent(in) :: v(:)
@@ -2753,4 +2724,78 @@ end subroutine
 #:endif
 #:endfor
 #:endfor
-  end module
+
+  subroutine char_to_lower(str)
+    character(len=*), intent(inout) :: str
+    integer :: i
+    do i = 1, len(str)
+      select case(str(i:i))
+      case("A":"Z")
+        str(i:i) = achar(iachar(str(i:i))+32)
+      end select
+    end do
+  end subroutine
+
+  subroutine char_to_upper(str)
+    character(len=*), intent(inout) :: str
+    integer(iintegers) :: i
+    do i = 1, len(str)
+      select case(str(i:i))
+      case("a":"z")
+        str(i:i) = achar(iachar(str(i:i))-32)
+      end select
+    end do
+  end subroutine
+
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+#:for RANK in range(0, 8)
+  function colored_str_by_range${dtype}$_${RANK}$d(inp, limits, colors) result (res)
+    real(${dtype}$), intent(in) :: inp${ranksuffix(RANK)}$
+    real(${dtype}$), intent(in) :: limits(:)
+    character(len=*), intent(in) :: colors(:)
+    !character(len=default_str_len) :: res${ranksuffixofarr(RANK, 'inp')}$
+    character(:), allocatable :: res
+
+    integer(iintegers) :: icolor
+    #:if RANK>0
+    integer(iintegers) :: i
+    ${basetype}$(${dtype}$), allocatable :: inp1d(:)
+    #:endif
+
+    call CHKERR(size(colors,kind=mpiint)-size(limits, kind=mpiint)+1_mpiint, &
+      & " size of inputs are not as expected:"// &
+      & " colors should be one less than limits"// &
+      & " but have "//itoa(size(colors))//" "//itoa(size(limits)))
+
+    #:if RANK==0
+
+    ! default is no color
+    res = toStr(inp)
+
+    do icolor = 1, size(colors)
+      if(is_inrange(inp, limits(icolor), limits(icolor+1))) then
+        res = cstr( toStr(inp), colors(icolor) )
+      endif
+    enddo
+
+    #:else
+
+    inp1d = pack(inp, .True.)
+    res = ''
+
+    entryloop: do i=1,size(inp1d)
+      do icolor = 1, size(colors)
+        if(is_inrange(inp1d(i), limits(icolor), limits(icolor+1))) then
+          res = res // cstr( toStr(inp1d(i)), colors(icolor) )
+          cycle entryloop
+        endif
+      enddo
+      res = res // toStr(inp1d(i))
+    enddo entryloop
+    #:endif
+
+  end function
+#:endfor
+#:endfor
+
+end module
