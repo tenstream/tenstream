@@ -82,11 +82,15 @@ set( solver_sources
   "pprts_external_solvers.F90"
   )
 
+if(BUILD_FORNADO)
+  SET_SOURCE_FILES_PROPERTIES(optprop_ANN.F90
+    PROPERTIES COMPILE_DEFINITIONS HAVE_FORNADO)
+endif()
 
 # pprts_base libs
 add_library( pprts_base_objs OBJECT ${general_sources} ${optprop_sources} )
 add_library( pprts_base             $<TARGET_OBJECTS:pprts_base_objs> )
-target_link_libraries( pprts_base ${EXTLIB})
+target_link_libraries( pprts_base ${FORNADO_LIBS} ${EXTLIB})
 
 # pprts libs
 add_library( pprts_objs OBJECT ${solver_sources} )

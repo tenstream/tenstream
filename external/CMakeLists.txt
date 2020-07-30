@@ -64,3 +64,36 @@ else(BUILD_RAYLI) # else, check if we have a custom RAYLI_DIR set as environment
   endif(RAYLI_DIR)
 
 endif(BUILD_RAYLI)
+
+
+option(BUILD_FORNADO "Build Fornado - Fortran tensorflow inference module" OFF)
+if(BUILD_FORNADO)
+  set(BUILD_FORNADO_GIT_URL "git@gitlab.com:LeonhardScheck/fornado.git"
+    CACHE STRING
+    "Git url which is used when downloading Fornado (e.g. https://gitlab.com/LeonhardScheck/fornado/)"
+    )
+  set(BUILD_FORNADO_GIT_TAG origin/FJ/refactoring_to_use_modules
+    CACHE STRING
+    "Git branch which is used when downloading Fornado (e.g. to origin/master)"
+    )
+
+  cmake_minimum_required(VERSION 3.11 FATAL_ERROR)
+  include(FetchContent)
+  set(FORNADO_DIR ${CMAKE_BINARY_DIR}/external/fornado CACHE INTERNAL "FORNADO install directory")
+
+  FetchContent_Declare(fornado
+    GIT_REPOSITORY ${BUILD_FORNADO_GIT_URL}
+    SOURCE_DIR "${CMAKE_BINARY_DIR}/external/fornado-src"
+    PREFIX ${FORNADO_DIR}
+    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${FORNADO_DIR} -DENABLE_PYTHON=OFF
+    GIT_TAG ${BUILD_FORNADO_GIT_TAG}
+    )
+  FetchContent_GetProperties(fornado)
+  if(NOT fornado_POPULATED)
+    FetchContent_Populate(fornado)
+    add_subdirectory(${fornado_SOURCE_DIR} ${fornado_BINARY_DIR})
+  endif()
+
+  set(FORNADO_LIBS fornado CACHE INTERNAL "FORNADO Libraries")
+  message(STATUS " Fornado Libraries => ${FORNADO_LIBS}")
+endif(BUILD_FORNADO)

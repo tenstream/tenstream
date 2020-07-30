@@ -314,6 +314,9 @@ endif()
 if(BUILD_RAYLI)
   list(APPEND TENSTR_LIBS ${RAYLI_LIBS} spdlog fmt)
 endif()
+if(BUILD_FORNADO)
+  list(APPEND TENSTR_LIBS ${FORNADO_LIBS})
+endif()
 
 # Generate Master Library which contains all symbols
 if(NOT BUILD_SHARED_LIBS)
