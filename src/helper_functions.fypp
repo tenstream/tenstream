@@ -2753,7 +2753,6 @@ end subroutine
     real(${dtype}$), intent(in) :: inp${ranksuffix(RANK)}$
     real(${dtype}$), intent(in) :: limits(:)
     character(len=*), intent(in) :: colors(:)
-    !character(len=default_str_len) :: res${ranksuffixofarr(RANK, 'inp')}$
     character(:), allocatable :: res
 
     integer(iintegers) :: icolor
