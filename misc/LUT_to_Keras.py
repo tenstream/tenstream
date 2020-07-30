@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
+import xarray as xr
+import numpy as np
 import logging as log
 
 def LUT_to_ANN_input(fname, varname):
-    import numpy as np
-    import xarray as xr
     from contextlib import closing
     log.info('Converting LUT input data from {} :: {}'.format(fname, varname))
 
@@ -25,12 +25,13 @@ def LUT_to_ANN_input(fname, varname):
         grid = np.meshgrid(*dims[::-1], indexing='ij')
         inp_phys = np.array(grid).reshape(len(dims),-1).T
 
+        inp_phys[:,-1] = np.exp(-inp_phys[:,-1]) # convert tau to transmission
+
         log.info('Converting LUT input data from {} :: {} ... done'.format(fname, varname))
         return inp_idx, inp_phys, retvars[0]
 
 
 def read_inp_file(inpfile, varname):
-    import xarray as xr
     log.info('Reading input data from {} :: {}'.format(inpfile, varname))
     with xr.open_dataset(inpfile) as D:
         data = [ D[_].load().data for _ in ["inp_idx","inp_phys",varname]]
@@ -53,14 +54,14 @@ def gen_out_file(inp_idx, inp_phys, varname, var, outfile):
 def setup_keras_model(inp, trgt, ident,
         activation='elu',
         activation_output='linear',
-        learning_rate=0.0001,
+        learning_rate=0.01,
         n_hidden=5,
         n_neurons=8,
         optimizer='Adam',
         dropout=None):
     import tensorflow as tf
 
-    name = "{}_f{}_M{}_N{}_drop{}_o{}".format(ident, activation, n_hidden, n_neurons, dropout, activation_output)
+    name = "{}_f{}_M{}_N{}_drop{}_o{}_opti{}_lr{}".format(ident, activation, n_hidden, n_neurons, dropout, activation_output, optimizer, learning_rate)
 
     log.info('Setup Keras model :: {}'.format(name))
 
@@ -79,25 +80,32 @@ def setup_keras_model(inp, trgt, ident,
             model.add(tf.keras.layers.Dropout(dropout))
 
     model.add(tf.keras.layers.Dense( trgt.shape[1], activation=output_act))
-    opt = getattr(tf.keras.optimizers, optimizer )(lr=learning_rate)
-    model.compile(loss='mse', optimizer=opt, metrics=['mae'] )
+    opt = getattr(tf.keras.optimizers, optimizer)(lr=learning_rate)
+    model.compile(loss='mae', optimizer=opt, metrics=['mse'] )
 
     return model
 
 
-def train_keras_model(inp, trgt, model, train_split=.1, validation_split=.1, epochs=1000, batch_size=None):
+def train_keras_model(inp, trgt, model, train_split=.1, validation_split=.1, epochs=1000, batch_size=None, outpath=None):
     import numpy as np
     import tensorflow as tf
+    import tensorflow_addons as tfa
     import datetime
     import os
 
     log.info('training Keras model :: {}'.format(model.name))
+    callbacks = []
 
-    es_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=3)
+    callbacks.append( tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True) )
+    callbacks.append( tfa.callbacks.TimeStopping(seconds=3600*24, verbose=1) )
 
     print("Check logs with: `tensorboard --logdir logs/ --bind_all`")
     log_dir = os.path.join("logs/", model.name, datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
-    tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
+    callbacks.append( tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1) )
+
+    if outpath is not None:
+        callbacks.append( tf.keras.callbacks.ModelCheckpoint(filepath=outpath, monitor='val_loss', save_best_only=True) )
+
 
     train_mask = np.random.rand(inp.shape[0]) <= train_split
     valid_mask = ~train_mask
@@ -108,13 +116,43 @@ def train_keras_model(inp, trgt, model, train_split=.1, validation_split=.1, epo
     history = model.fit(
             inp[train_mask],
             trgt[train_mask],
-            validation_split=validation_split,
             validation_data=(inp[valid_mask], trgt[valid_mask]),
             epochs=epochs,
             batch_size=batch_size,
-            callbacks=[es_callback, tensorboard_callback])
+            callbacks=callbacks)
+
+    import timeit
+    run_model = lambda: model.predict(inp)
+    dt = timeit.timeit(run_model, number=1)
+    print("Timing model performance: ", dt)
 
     return model, history
+
+
+def tf2fornado(model, outpath, verbose=True):
+    import numpy as np
+    import xarray as xr
+
+    if model is None:
+        D = xr.Dataset()
+        D.to_netcdf(outpath)
+        return
+
+    layers = [ l for l in model.layers if 'Dropout' not in str(type(l)) ]
+    if verbose:
+        for i,l in enumerate(layers):
+            print("Layer {}: {}, {}".format(i, str(type(l)), l.weights[0].shape))
+
+    D = xr.Dataset()
+    D.attrs['Nlayer'] = np.int32(len(layers))
+
+    for i, l in enumerate(layers):
+        D["w{}".format(i)] = xr.DataArray(l.weights[0].numpy(), dims=("Ninp_{}".format(i), "Nout_{}".format(i)))
+        D["b{}".format(i)] = xr.DataArray(l.weights[1].numpy(), dims=("Nout_{}".format(i)))
+        D["w{}".format(i)].attrs['activation'] = l.activation.__name__
+
+    D.to_netcdf(outpath)
+
 
 def _main():
     import argparse
@@ -141,11 +179,13 @@ def _main():
     parser.add_argument('-e', '--epochs', default=1000, type=int, help='Number of iterations')
     parser.add_argument('-b', '--batch_size', default=None, type=int, help='Training Batch size, defaults to train dataset size')
     parser.add_argument('-d', '--dropout', default=None, type=float, help='drop out layer strength')
+    parser.add_argument('-nt', '--no-train', action="store_true", help='dont run the training cycle')
     parser.add_argument('--train_frac', default=.1, type=float, help='Fraction of LUT which is used to train network')
-    parser.add_argument('--learn_rate', default=1e-4, type=float, help='Learning rate for optimizer')
+    parser.add_argument('--learn_rate', default=1e-2, type=float, help='Learning rate for optimizer')
+    parser.add_argument('--optimizer', default='Adam', type=str, help='Optimizer Name')
     parser.add_argument('-i', '--load_model', type=str, help='load model from file')
     parser.add_argument('-o', '--save_model', type=str, help='save model to file')
-    parser.add_argument('--export', type=str, help='export saved model to path')
+    parser.add_argument('--export', type=str, help='file path to export model for fornado')
     parser.add_argument('-v', '--verbose', action="store_true", help='more verbose output')
     parser.add_argument('--no_gpu', action="store_true", help='dont use the GPU')
     parser.add_argument('-af', '--activation', type=str, help='activation functions in network, e.g. elu, relu, swish')
@@ -164,12 +204,11 @@ def _main():
     elif args.inp:
         inp_idx, inp_phys, var = read_inp_file(args.inp, args.varname)
     else:
-        raise Exception("Have to give either -LUT or -inp option")
+        inp_idx, inp_phys, var = None, None, None
 
     if args.dump_input:
         gen_out_file(inp_idx, inp_phys, args.varname, var, args.dump_input)
         return
-
 
     if args.physical_axis:
         log.info("Using physical quantities as input")
@@ -177,6 +216,10 @@ def _main():
     else:
         log.info("Using LUT index sets as input")
         inpvar = inp_idx
+
+    # We write to the file beforehand (bug in xarray if we do it after tf import)
+    if args.export:
+        tf2fornado(None, args.export)
 
     if args.load_model:
         import tensorflow as tf
@@ -186,19 +229,28 @@ def _main():
                 ident=args.varname,
                 n_hidden=args.Nlayers,
                 n_neurons=args.Nneurons,
+                optimizer=args.optimizer,
                 learning_rate=args.learn_rate,
                 activation=args.activation,
                 activation_output=args.output_function,
                 dropout=args.dropout)
 
-    train_keras_model(inpvar, var, model, train_split=args.train_frac, epochs=args.epochs, batch_size=args.batch_size)
+
+    if not args.no_train:
+        train_keras_model(
+                inpvar,
+                var,
+                model,
+                train_split=args.train_frac,
+                epochs=args.epochs,
+                batch_size=args.batch_size,
+                outpath=args.save_model)
 
     if args.save_model:
         model.save(args.save_model)
 
     if args.export:
-        import tensorflow as tf
-        tf.saved_model.save(model, args.export)
+        tf2fornado(model, args.export)
 
 
 if __name__ == "__main__":
