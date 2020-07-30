@@ -4,7 +4,8 @@ module test_LUT_wedge_18_8
     iintegers, mpiint, &
     init_mpi_data_parameters, default_str_len, &
     i1, i2, i3, i4, i5
-  use m_optprop_LUT, only : t_optprop_LUT_wedge_18_8, find_lut_dim_by_name, &
+  use m_optprop_base, only : find_op_dim_by_name
+  use m_optprop_LUT, only : t_optprop_LUT_wedge_18_8, &
     azimuth_from_param_phi, param_phi_from_azimuth
   use m_optprop, only : t_optprop_wedge_18_8
   use m_tenstream_options, only: read_commandline_options
@@ -208,7 +209,7 @@ contains
       end subroutine
   end subroutine
 
-  @test(npes=[2,1])
+  !@test(npes=[2,1])
   subroutine test_LUT_wedge_direct_coeff_onsamplepts(this)
       class (MpiTestMethod), intent(inout) :: this
 
@@ -231,19 +232,19 @@ contains
 
       associate( LUTconfig => OPPLUT%dirconfig )
 
-      idim_tau    = find_lut_dim_by_name(LUTconfig, 'tau')
-      idim_w0     = find_lut_dim_by_name(LUTconfig, 'w0')
-      idim_g      = find_lut_dim_by_name(LUTconfig, 'g')
+      idim_tau    = find_op_dim_by_name(LUTconfig, 'tau')
+      idim_w0     = find_op_dim_by_name(LUTconfig, 'w0')
+      idim_g      = find_op_dim_by_name(LUTconfig, 'g')
       if(idim_g.eq.-1) then
         allocate(g_dim(1), source=zero)
       else
         allocate(g_dim(LUTconfig%dims(idim_g)%N), source=LUTconfig%dims(idim_g     )%v(:))
       endif
-      idim_aspect = find_lut_dim_by_name(LUTconfig, 'aspect_zx')
-      idim_param_phi    = find_lut_dim_by_name(LUTconfig, 'param_phi')
-      idim_theta  = find_lut_dim_by_name(LUTconfig, 'theta')
-      idim_Cx     = find_lut_dim_by_name(LUTconfig, 'wedge_coord_Cx')
-      idim_Cy     = find_lut_dim_by_name(LUTconfig, 'wedge_coord_Cy')
+      idim_aspect = find_op_dim_by_name(LUTconfig, 'aspect_zx')
+      idim_param_phi    = find_op_dim_by_name(LUTconfig, 'param_phi')
+      idim_theta  = find_op_dim_by_name(LUTconfig, 'theta')
+      idim_Cx     = find_op_dim_by_name(LUTconfig, 'wedge_coord_Cx')
+      idim_Cy     = find_op_dim_by_name(LUTconfig, 'wedge_coord_Cy')
 
       do itau = 1, LUTconfig%dims(idim_tau)%N, NSLICE
         do iw0  = 1, LUTconfig%dims(idim_w0)%N, NSLICE

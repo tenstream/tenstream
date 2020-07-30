@@ -73,6 +73,7 @@ set( optprop_sources
   "LUT_param_phi.F90"
   "optprop_LUT.F90"
   "optprop_ANN.F90"
+  "optprop_base.F90"
   "optprop.F90"
   )
 

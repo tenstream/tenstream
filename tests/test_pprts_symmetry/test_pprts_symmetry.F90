@@ -75,8 +75,8 @@ contains
 
         call OPP%init(comm)
 
-        allocate(dir2dir(OPP%OPP_LUT%dir_streams**2))
-        allocate(dir2diff(OPP%OPP_LUT%diff_streams*OPP%OPP_LUT%dir_streams))
+        allocate(dir2dir(OPP%LUT%dir_streams**2))
+        allocate(dir2diff(OPP%LUT%diff_streams*OPP%LUT%dir_streams))
 
         do i=1,ubound(dir2dir,1)
           dir2dir(i) = real(i, kind=irealLUT)

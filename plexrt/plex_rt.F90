@@ -27,7 +27,7 @@ module m_plex_rt
     t_optprop_wedge_5_8, &
     t_optprop_rectilinear_wedge_5_8, &
     t_optprop_wedge_18_8
-  use m_optprop_LUT, only : find_lut_dim_by_name
+  use m_optprop_base, only : find_op_dim_by_name
   use m_optprop_parameters, only : ldebug_optprop
 
   use m_pprts_base, only : t_state_container, prepare_solution, destroy_solution, &
@@ -2884,35 +2884,35 @@ module m_plex_rt
     integer, parameter :: iCydir=5 , iCydiff=10
 
     if(.not.linit_idx) then
-      dimidx(itaudir) = find_lut_dim_by_name(OPP%OPP_LUT%dirconfig, 'tau')
-      dimidx(iw0dir ) = find_lut_dim_by_name(OPP%OPP_LUT%dirconfig, 'w0')
-      dimidx(iphidir) = find_lut_dim_by_name(OPP%OPP_LUT%dirconfig, 'param_phi')
-      dimidx(iCxdir ) = find_lut_dim_by_name(OPP%OPP_LUT%dirconfig, 'wedge_coord_Cx')
-      dimidx(iCydir ) = find_lut_dim_by_name(OPP%OPP_LUT%dirconfig, 'wedge_coord_Cy')
+      dimidx(itaudir) = find_op_dim_by_name(OPP%LUT%dirconfig, 'tau')
+      dimidx(iw0dir ) = find_op_dim_by_name(OPP%LUT%dirconfig, 'w0')
+      dimidx(iphidir) = find_op_dim_by_name(OPP%LUT%dirconfig, 'param_phi')
+      dimidx(iCxdir ) = find_op_dim_by_name(OPP%LUT%dirconfig, 'wedge_coord_Cx')
+      dimidx(iCydir ) = find_op_dim_by_name(OPP%LUT%dirconfig, 'wedge_coord_Cy')
 
-      dimidx(itaudiff) = find_lut_dim_by_name(OPP%OPP_LUT%diffconfig, 'tau')
-      dimidx(iw0diff ) = find_lut_dim_by_name(OPP%OPP_LUT%diffconfig, 'w0')
-      dimidx(iCxdiff ) = find_lut_dim_by_name(OPP%OPP_LUT%diffconfig, 'wedge_coord_Cx')
-      dimidx(iCydiff ) = find_lut_dim_by_name(OPP%OPP_LUT%diffconfig, 'wedge_coord_Cy')
+      dimidx(itaudiff) = find_op_dim_by_name(OPP%LUT%diffconfig, 'tau')
+      dimidx(iw0diff ) = find_op_dim_by_name(OPP%LUT%diffconfig, 'w0')
+      dimidx(iCxdiff ) = find_op_dim_by_name(OPP%LUT%diffconfig, 'wedge_coord_Cx')
+      dimidx(iCydiff ) = find_op_dim_by_name(OPP%LUT%diffconfig, 'wedge_coord_Cy')
 
-      if(find_lut_dim_by_name(OPP%OPP_LUT%dirconfig, 'g').ge.1) then
-        max_g(1:2) = OPP%OPP_LUT%dirconfig%dims(&
-          find_lut_dim_by_name(OPP%OPP_LUT%dirconfig, 'g'))%vrange
+      if(find_op_dim_by_name(OPP%LUT%dirconfig, 'g').ge.1) then
+        max_g(1:2) = OPP%LUT%dirconfig%dims(&
+          find_op_dim_by_name(OPP%LUT%dirconfig, 'g'))%vrange
       else
         max_g(1:2) = 0._irealLUT
       endif
 
-      if(find_lut_dim_by_name(OPP%OPP_LUT%diffconfig, 'g').ge.1) then
-        max_g(3:4) = OPP%OPP_LUT%diffconfig%dims(&
-          find_lut_dim_by_name(OPP%OPP_LUT%diffconfig, 'g'))%vrange
+      if(find_op_dim_by_name(OPP%LUT%diffconfig, 'g').ge.1) then
+        max_g(3:4) = OPP%LUT%diffconfig%dims(&
+          find_op_dim_by_name(OPP%LUT%diffconfig, 'g'))%vrange
       else
         max_g(3:4) = 0._irealLUT
       endif
 
       if(ldebug) then
         print *,'found LUT max_g to be:', max_g
-        print *,'found direct LUT range tau to be:', OPP%OPP_LUT%dirconfig%dims(dimidx(itaudir))%vrange
-        print *,'found direct LUT range  w0 to be:', OPP%OPP_LUT%dirconfig%dims(dimidx(iw0dir ))%vrange
+        print *,'found direct LUT range tau to be:', OPP%LUT%dirconfig%dims(dimidx(itaudir))%vrange
+        print *,'found direct LUT range  w0 to be:', OPP%LUT%dirconfig%dims(dimidx(iw0dir ))%vrange
       endif
 
       call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
@@ -2934,11 +2934,11 @@ module m_plex_rt
     w0 = real(dksca / max(dkabs+dksca, tiny(dksca)), irealLUT)
 
     if(present(angles)) then
-      tauz = snap_limits(tauz, OPP%OPP_LUT%dirconfig%dims(dimidx(itaudir))%vrange)
-      w0   = snap_limits(w0  , OPP%OPP_LUT%dirconfig%dims(dimidx(iw0dir ))%vrange)
+      tauz = snap_limits(tauz, OPP%LUT%dirconfig%dims(dimidx(itaudir))%vrange)
+      w0   = snap_limits(w0  , OPP%LUT%dirconfig%dims(dimidx(iw0dir ))%vrange)
 
-      param_phi = max(OPP%OPP_LUT%dirconfig%dims(dimidx(iphidir))%vrange(1), &
-        min(OPP%OPP_LUT%dirconfig%dims(dimidx(iphidir))%vrange(2), angles(1)))
+      param_phi = max(OPP%LUT%dirconfig%dims(dimidx(iphidir))%vrange(1), &
+        min(OPP%LUT%dirconfig%dims(dimidx(iphidir))%vrange(2), angles(1)))
 
       call delta_scale( dkabs, dksca, dg, max_g=max_g(2))
 
@@ -2954,8 +2954,8 @@ module m_plex_rt
       !    '::', dksca / (dkabs+dksca), ':', max(dkabs+dksca, tiny(dksca))
       !endif
     else
-      tauz = snap_limits(tauz, OPP%OPP_LUT%diffconfig%dims(dimidx(itaudiff))%vrange)
-      w0   = snap_limits(w0  , OPP%OPP_LUT%diffconfig%dims(dimidx(iw0diff ))%vrange)
+      tauz = snap_limits(tauz, OPP%LUT%diffconfig%dims(dimidx(itaudiff))%vrange)
+      w0   = snap_limits(w0  , OPP%LUT%diffconfig%dims(dimidx(iw0diff ))%vrange)
 
       call delta_scale( dkabs, dksca, dg, max_g=max_g(4))
 

@@ -38,16 +38,6 @@ module m_optprop_parameters
 
       character(default_str_len) :: lut_basename='./LUT'
 
-      !-----------------------------------------
-      !> Define the mode to calculate coeffs   -
-      !!-----------------------------------------
-      !! 0 :: retrieve directly from Lookuptable
-      !! 1 :: retrieve from ANN (experimental) ::
-      !!        this assumes you actually have a
-      !!        ANN that can be queried....
-      !!
-      integer(iintegers) :: coeff_mode = 0
-
       logical, parameter :: luse_memory_map=.True.
 
       !-----------------------------------------

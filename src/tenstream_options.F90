@@ -21,7 +21,7 @@ module m_tenstream_options
 
   use m_data_parameters, only : init_mpi_data_parameters, ireals, iintegers, mpiint, &
     zero, one, i0, default_str_len
-  use m_optprop_parameters, only: lut_basename, coeff_mode, stddev_atol, stddev_rtol
+  use m_optprop_parameters, only: lut_basename, stddev_atol, stddev_rtol
   use m_helper_functions, only: CHKERR, CHKWARN
 
 #include "petsc/finclude/petsc.h"
@@ -200,17 +200,12 @@ contains
     call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-mcrts_photons_per_px", &
       mcrts_photons_per_pixel, lflg,ierr); call CHKERR(ierr)
 
-    coeff_mode=0 ! use LUT by default
-    call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-coeff_mode", &
-      coeff_mode, lflg, ierr); call CHKERR(ierr)
-
     call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-tenstr_view", &
       ltenstr_view, lflg, ierr); call CHKERR(ierr)
     if(myid.eq.0.and.ltenstr_view) then
       print *,'********************************************************************'
       print *,'***   nr. of Nodes:',numnodes
       print *,'***   eddington    ',luse_eddington
-      print *,'***   coeff_mode   ',coeff_mode
       print *,'***   twostr_only  ',ltwostr_only
       print *,'***   twostr       ',ltwostr
       print *,'***   twostr_guess ',luse_twostr_guess
