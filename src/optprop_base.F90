@@ -47,7 +47,36 @@ module m_optprop_base
   type,abstract :: t_optprop_base
     type(t_op_config), allocatable :: dirconfig, diffconfig
     integer(iintegers) :: dir_streams = inil, diff_streams = inil
+    contains
+      procedure(get_dir2dir  ), deferred :: get_dir2dir
+      procedure(get_dir2diff ), deferred :: get_dir2diff
+      procedure(get_diff2diff), deferred :: get_diff2diff
   end type
+
+  abstract interface
+    subroutine get_dir2dir(OPP, sample_pts, C)
+      import t_optprop_base, irealLUT
+      class(t_optprop_base), intent(in) :: OPP
+      real(irealLUT),intent(in) :: sample_pts(:)
+      real(irealLUT), target, intent(out):: C(:)
+    end subroutine
+  end interface
+  abstract interface
+    subroutine get_dir2diff(OPP, sample_pts, C)
+      import t_optprop_base, irealLUT
+      class(t_optprop_base), intent(in) :: OPP
+      real(irealLUT),intent(in) :: sample_pts(:)
+      real(irealLUT), target, intent(out):: C(:)
+    end subroutine
+  end interface
+  abstract interface
+    subroutine get_diff2diff(OPP, sample_pts, C)
+      import t_optprop_base, irealLUT
+      class(t_optprop_base), intent(in) :: OPP
+      real(irealLUT),intent(in) :: sample_pts(:)
+      real(irealLUT), target, intent(out):: C(:)
+    end subroutine
+  end interface
 
   logical, parameter :: ldebug=.False.
 contains

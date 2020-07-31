@@ -117,9 +117,9 @@ module m_optprop_LUT
     contains
       procedure :: init
       procedure :: destroy
-      procedure :: LUT_get_dir2dir
-      procedure :: LUT_get_dir2diff
-      procedure :: LUT_get_diff2diff
+      procedure :: get_dir2dir   => LUT_get_dir2dir
+      procedure :: get_dir2diff  => LUT_get_dir2diff
+      procedure :: get_diff2diff => LUT_get_diff2diff
       procedure :: LUT_bmc_wrapper_determine_sample_pts
       procedure :: LUT_bmc_wrapper
       procedure :: bmc_wrapper
@@ -281,9 +281,10 @@ contains
       if(OPP%optprop_LUT_debug .and. myid.eq.0) print *,'Initializing LUT`s... finished'
   end subroutine
 
-  subroutine destroy(OPP)
+  subroutine destroy(OPP, ierr)
       class(t_optprop_LUT) :: OPP
-      integer(mpiint) :: ierr
+      integer(mpiint), intent(out) :: ierr
+      ierr = 0
       if(allocated(OPP%Tdir)) then
         if(luse_memory_map) then
           call munmap_mmap_ptr(OPP%Tdir%c, ierr); call CHKERR(ierr)
@@ -1350,9 +1351,9 @@ end subroutine
   end subroutine
 
   subroutine LUT_get_dir2dir(OPP, sample_pts, C)
-    class(t_optprop_LUT) :: OPP
-    real(irealLUT),intent(in) :: sample_pts(:)
-    real(irealLUT),intent(out):: C(:) ! dimension(OPP%dir_streams**2)
+    class(t_optprop_LUT), intent(in) :: OPP
+    real(irealLUT), intent(in) :: sample_pts(:)
+    real(irealLUT), target, intent(out):: C(:) ! dimension(OPP%dir_streams**2)
 
     integer(iintegers) :: src, kdim, ind1d
     real(irealLUT) :: pti_buffer(LUT_MAX_DIM)
@@ -1402,9 +1403,9 @@ end subroutine
   end subroutine
 
   subroutine LUT_get_dir2diff(OPP, sample_pts, C)
-    class(t_optprop_LUT) :: OPP
-    real(irealLUT),intent(in) :: sample_pts(:)
-    real(irealLUT),intent(out):: C(:) ! dimension(OPP%dir_streams*OPP%diff_streams)
+    class(t_optprop_LUT), intent(in) :: OPP
+    real(irealLUT), intent(in) :: sample_pts(:)
+    real(irealLUT), target, intent(out):: C(:) ! dimension(OPP%dir_streams*OPP%diff_streams)
 
     integer(iintegers) :: src, kdim, ind1d
     real(irealLUT) :: pti_buffer(LUT_MAX_DIM)
@@ -1452,9 +1453,9 @@ end subroutine
   end subroutine
 
   subroutine LUT_get_diff2diff(OPP, sample_pts, C)
-    class(t_optprop_LUT) :: OPP
-    real(irealLUT),intent(in) :: sample_pts(:)
-    real(irealLUT),intent(out):: C(:) ! dimension(OPP%diff_streams**2)
+    class(t_optprop_LUT), intent(in) :: OPP
+    real(irealLUT), intent(in) :: sample_pts(:)
+    real(irealLUT), target, intent(out):: C(:) ! dimension(OPP%diff_streams**2)
 
     integer(iintegers) :: src, kdim, ind1d
     real(irealLUT) :: pti_buffer(LUT_MAX_DIM)

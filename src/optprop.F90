@@ -190,13 +190,14 @@ contains
       if(allocated(OPP%ANN)) then
         call OPP%ANN%init(comm, ierr); call CHKERR(ierr)
       endif
+      call CHKERR(1_mpiint, 'DEBUG')
 
   end subroutine
   subroutine destroy(OPP)
       class(t_optprop) :: OPP
       integer(mpiint) :: ierr
       if(allocated(OPP%LUT)) then
-          call OPP%LUT%destroy()
+          call OPP%LUT%destroy(ierr); call CHKERR(ierr)
           deallocate(OPP%LUT)
       endif
       if(allocated(OPP%ANN)) then
@@ -335,9 +336,9 @@ contains
             if(dimidx_dir(8).gt.0) inp_arr_dir(dimidx_dir(8)) = save_param_theta
 
             if(ldir) then ! dir2dir
-              call OPP%LUT%LUT_get_dir2dir(inp_arr_dir, C)
+              call OPP%LUT%get_dir2dir(inp_arr_dir, C)
             else ! dir2diff
-              call OPP%LUT%LUT_get_dir2diff(inp_arr_dir, C)
+              call OPP%LUT%get_dir2diff(inp_arr_dir, C)
             endif
           end associate
         else
@@ -348,7 +349,7 @@ contains
           if(dimidx_diff(4).gt.0) inp_arr_diff(dimidx_diff(4)) = g
           if(dimidx_diff(5).gt.0) inp_arr_diff(dimidx_diff(5)) = wedge_coords(1)
           if(dimidx_diff(6).gt.0) inp_arr_diff(dimidx_diff(6)) = wedge_coords(2)
-          call OPP%LUT%LUT_get_diff2diff(inp_arr_diff, C)
+          call OPP%LUT%get_diff2diff(inp_arr_diff, C)
         endif
 
       end subroutine
@@ -532,10 +533,10 @@ contains
         save_aspect_zx = aspect_zx
       endif
       if(dir) then ! dir2dir
-        call OPP%LUT%LUT_get_dir2dir([tauz, w0, save_aspect_zx, g, angles(1), angles(2)], C)
+        call OPP%LUT%get_dir2dir([tauz, w0, save_aspect_zx, g, angles(1), angles(2)], C)
         call OPP%dir2dir_coeff_symmetry(C, lswitch_east, lswitch_north)
       else         ! dir2diff
-        call OPP%LUT%LUT_get_dir2diff([tauz, w0, save_aspect_zx, g, angles(1), angles(2)], C)
+        call OPP%LUT%get_dir2diff([tauz, w0, save_aspect_zx, g, angles(1), angles(2)], C)
         call OPP%dir2diff_coeff_symmetry(C, lswitch_east, lswitch_north)
       endif
     else
@@ -546,7 +547,7 @@ contains
       else
         save_aspect_zx = aspect_zx
       endif
-      call OPP%LUT%LUT_get_diff2diff([tauz, w0, save_aspect_zx, g], C)
+      call OPP%LUT%get_diff2diff([tauz, w0, save_aspect_zx, g], C)
     endif
   end subroutine
 

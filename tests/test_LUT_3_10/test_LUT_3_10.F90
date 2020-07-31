@@ -201,8 +201,8 @@ contains
 
         call OPP%init(comm)
 
-        call OPP%LUT_get_dir2dir ([tauz, w0, tauz/taux, g, phi, theta], LUT_dir2dir)
-        call OPP%LUT_get_dir2diff([tauz, w0, tauz/taux, g, phi, theta], LUT_dir2diff)
+        call OPP%get_dir2dir ([tauz, w0, tauz/taux, g, phi, theta], LUT_dir2dir)
+        call OPP%get_dir2diff([tauz, w0, tauz/taux, g, phi, theta], LUT_dir2diff)
         print*,taux, tauz
         do src=1,Ndir
 
@@ -250,7 +250,7 @@ contains
 
         call OPP%init(comm)
 
-        call OPP%LUT_get_diff2diff([tauz, w0, tauz/taux, g], LUT_diff2diff)
+        call OPP%get_diff2diff([tauz, w0, tauz/taux, g], LUT_diff2diff)
         do src=1,Ndiff
 
           call bmc_3_10%get_coeff(comm, &
@@ -293,8 +293,8 @@ contains
 
       call OPP%init(this%getMpiCommunicator())
 
-      call OPP%LUT_get_dir2dir ([tauz, w0, tauz/taux, bg(3), phi, theta], LUT_dir2dir)
-      call OPP%LUT_get_dir2diff([tauz, w0, tauz/taux, bg(3), phi, theta], LUT_dir2diff)
+      call OPP%get_dir2dir ([tauz, w0, tauz/taux, bg(3), phi, theta], LUT_dir2dir)
+      call OPP%get_dir2diff([tauz, w0, tauz/taux, bg(3), phi, theta], LUT_dir2diff)
 
       do src=1,1
         T_target = zero

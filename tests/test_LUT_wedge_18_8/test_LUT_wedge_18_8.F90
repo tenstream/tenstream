@@ -73,7 +73,8 @@ contains
   @after
   subroutine teardown(this)
       class (MpiTestMethod), intent(inout) :: this
-      call OPPLUT%destroy()
+      integer(mpiint) :: ierr
+      call OPPLUT%destroy(ierr); call CHKERR(ierr)
       call OPP%destroy()
       call PetscFinalize(ierr)
   end subroutine teardown
@@ -102,7 +103,7 @@ contains
 
     phi = -0._irealLUT
     param_phi = real(param_phi_from_azimuth(deg2rad(real(phi, ireal_params)), real([Cx, Cy], ireal_params)), irealLUT)
-    call OPPLUT%LUT_get_dir2dir ([tau, w0, aspect, Cx, Cy, param_phi, theta], d2d1)
+    call OPPLUT%get_dir2dir ([tau, w0, aspect, Cx, Cy, param_phi, theta], d2d1)
     call print_dir2dir(d2d1)
 
     !call compute_bmc_coeff(d2d2)
@@ -265,8 +266,8 @@ contains
                       phi    =real(rad2deg(azimuth_from_param_phi(&
                         real(param_phi, ireal_params), real([Cx,Cy], ireal_params))), irealLUT)
 
-                      call OPPLUT%LUT_get_dir2dir ([tau, w0, aspect, Cx, Cy, param_phi, theta], LUT_dir2dir)
-                      call OPPLUT%LUT_get_dir2diff([tau, w0, aspect, Cx, Cy, param_phi, theta], LUT_dir2diff)
+                      call OPPLUT%get_dir2dir ([tau, w0, aspect, Cx, Cy, param_phi, theta], LUT_dir2dir)
+                      call OPPLUT%get_dir2diff([tau, w0, aspect, Cx, Cy, param_phi, theta], LUT_dir2diff)
 
                       call setup_default_wedge_geometry(&
                         [0._ireals, 0._ireals], &

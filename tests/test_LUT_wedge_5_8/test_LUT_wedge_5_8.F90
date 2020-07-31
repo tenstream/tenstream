@@ -117,7 +117,7 @@ contains
     pphi   = real(param_phi, irealLUT)
     ptheta = real(param_theta, irealLUT)
     call print_dir2dir()
-    call OPPLUT%LUT_get_dir2dir ([tau, w0, aspect, g, Cx, Cy, pphi, ptheta], d2d1)
+    call OPPLUT%get_dir2dir ([tau, w0, aspect, g, Cx, Cy, pphi, ptheta], d2d1)
 
     phi = deg2rad(+27._irealLUT)
     call param_phi_param_theta_from_phi_and_theta_withcoords(&
@@ -128,7 +128,7 @@ contains
     pphi   = real(param_phi, irealLUT)
     ptheta = real(param_theta, irealLUT)
     call print_dir2dir()
-    call OPPLUT%LUT_get_dir2dir ([tau, w0, aspect, g, Cx, Cy, pphi, ptheta], d2d2)
+    call OPPLUT%get_dir2dir ([tau, w0, aspect, g, Cx, Cy, pphi, ptheta], d2d2)
 
     @assertEqual(d2d1(srcdst_2_idx(i1, i3)), d2d2(srcdst_2_idx(i1, i4)))
     @assertEqual(d2d1(srcdst_2_idx(i1, i4)), d2d2(srcdst_2_idx(i1, i3)))
@@ -148,7 +148,7 @@ contains
       subroutine print_dir2dir()
         integer(iintegers) :: isrc
         print *,'INPUT:', [tau, w0, aspect, g, Cx, Cy, pphi, ptheta]
-        call OPPLUT%LUT_get_dir2dir ([tau, w0, aspect, g, Cx, Cy, pphi, ptheta], LUT_dir2dir)
+        call OPPLUT%get_dir2dir ([tau, w0, aspect, g, Cx, Cy, pphi, ptheta], LUT_dir2dir)
         do isrc = i1, i5
           print *,': src '//itoa(isrc), LUT_dir2dir(isrc:size(LUT_dir2dir):i5)
         enddo
@@ -205,8 +205,8 @@ contains
                       Cx     = LUTconfig%dims(idim_Cx    )%v(iCx)
                       Cy     = LUTconfig%dims(idim_Cy    )%v(iCy)
 
-                      call OPPLUT%LUT_get_dir2dir ([tau, w0, aspect, Cx, Cy, phi, theta], LUT_dir2dir)
-                      call OPPLUT%LUT_get_dir2diff([tau, w0, aspect, Cx, Cy, phi, theta], LUT_dir2diff)
+                      call OPPLUT%get_dir2dir ([tau, w0, aspect, Cx, Cy, phi, theta], LUT_dir2dir)
+                      call OPPLUT%get_dir2diff([tau, w0, aspect, Cx, Cy, phi, theta], LUT_dir2diff)
 
                       call setup_default_wedge_geometry(&
                         [0._ireals, 0._ireals], &
@@ -311,8 +311,8 @@ contains
                       Cx     = Cx     + LUTconfig%dims(idim_Cx    )%v(min(LUTconfig%dims(idim_Cx    )%N, iCx+1))     / 2
                       Cy     = Cy     + LUTconfig%dims(idim_Cy    )%v(min(LUTconfig%dims(idim_Cy    )%N, iCy+1))     / 2
 
-                      call OPPLUT%LUT_get_dir2dir ([tau, w0, aspect, Cx, Cy, phi, theta], LUT_dir2dir)
-                      call OPPLUT%LUT_get_dir2diff([tau, w0, aspect, Cx, Cy, phi, theta], LUT_dir2diff)
+                      call OPPLUT%get_dir2dir ([tau, w0, aspect, Cx, Cy, phi, theta], LUT_dir2dir)
+                      call OPPLUT%get_dir2diff([tau, w0, aspect, Cx, Cy, phi, theta], LUT_dir2diff)
 
                       call setup_default_wedge_geometry(&
                         [0._ireals, 0._ireals], &
@@ -409,8 +409,8 @@ contains
                       Cx     = LUTconfig%dims(idim_Cx    )%v(iCx)
                       Cy     = LUTconfig%dims(idim_Cy    )%v(iCy)
 
-                      call OPPLUT%LUT_get_dir2dir ([tau, w0, aspect, Cx, Cy, phi, theta], LUT_dir2dir)
-                      call OPPLUT%LUT_get_dir2diff([tau, w0, aspect, Cx, Cy, phi, theta], LUT_dir2diff)
+                      call OPPLUT%get_dir2dir ([tau, w0, aspect, Cx, Cy, phi, theta], LUT_dir2dir)
+                      call OPPLUT%get_dir2diff([tau, w0, aspect, Cx, Cy, phi, theta], LUT_dir2diff)
 
                       call OPP%get_coeff(tau, w0, g, aspect, .True., OPP_dir2dir, ierr, &
                         angles=[phi, theta], wedge_coords=[zero,zero,one,zero,Cx,Cy])

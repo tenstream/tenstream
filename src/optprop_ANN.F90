@@ -53,9 +53,9 @@ module m_optprop_ANN
     contains
       procedure :: init
       procedure :: destroy
-      procedure :: get_dir2dir
-      procedure :: get_dir2diff
-      procedure :: get_diff2diff
+      procedure :: get_dir2dir   => ANN_get_dir2dir
+      procedure :: get_dir2diff  => ANN_get_dir2diff
+      procedure :: get_diff2diff => ANN_get_diff2diff
   end type
 
   type,extends(t_optprop_ANN) :: t_optprop_ANN_3_10
@@ -81,6 +81,7 @@ contains
     class default
       call CHKERR(1_mpiint, 'initialize ANN: unexpected type for optprop_ANN object!')
     end select
+
     ANN%basename = &
       & trim(lut_basename)//&
       & trim(gen_ann_basename("_ANN_", ANN%dirconfig))
@@ -227,8 +228,8 @@ contains
 !    endif
 !  end subroutine
 
-  subroutine get_dir2dir(ANN, sample_pts, C)
-    class(t_optprop_ANN), intent(in) :: ANN
+  subroutine ANN_get_dir2dir(OPP, sample_pts, C)
+    class(t_optprop_ANN), intent(in) :: OPP
     real(irealLUT), intent(in) :: sample_pts(:)
     real(irealLUT), target, intent(out):: C(:) ! dimension(ANN%dir_streams**2)
 
@@ -237,20 +238,27 @@ contains
     real(irealLUT), pointer :: pC(:,:) ! dim(src, dst)
     integer(mpiint) :: ierr
 
-    do kdim = 1, size(sample_pts)
-      pti_buffer(kdim) = find_real_location(ANN%dirconfig%dims(kdim)%v, sample_pts(kdim))
-    enddo
-    call ANN_predict(ANN%ann_dir2dir%fann, pti_buffer, C, ierr); call CHKERR(ierr)
+    if(OPP%ann_dir2dir%lphysical_input) then
+      pti_buffer = sample_pts
+      pti_buffer(1) = exp(-pti_buffer(1))
+      call ANN_predict(OPP%ann_dir2dir%fann, pti_buffer, C, ierr); call CHKERR(ierr)
+    else
+      do kdim = 1, size(sample_pts)
+        pti_buffer(kdim) = find_real_location(OPP%dirconfig%dims(kdim)%v, sample_pts(kdim))
+      enddo
+      pti_buffer = pti_buffer - 1 ! because the network is trained on C indices
+      call ANN_predict(OPP%ann_dir2dir%fann, pti_buffer, C, ierr); call CHKERR(ierr)
+    endif
 
     if(ldebug_optprop) then
       !Check for energy conservation:
       ierr=0
-      pC(1:ANN%dir_streams, 1:ANN%dir_streams) => C(:)
-      do src = 1, ANN%dir_streams
+      pC(1:OPP%dir_streams, 1:OPP%dir_streams) => C(:)
+      do src = 1, OPP%dir_streams
         if(sum(pC(src,:)).gt.1._irealLUT+1e-5_irealLUT) ierr=ierr+1
       enddo
       if(ierr.ne.0) then
-        do src=1,ANN%dir_streams
+        do src=1,OPP%dir_streams
           print *,'SUM dir2dir coeff for src '//toStr(src)//' :: sum',sum(pC(src,:)),':: C', pC(src,:)
         enddo
         call CHKERR(1_mpiint, 'Check for energy conservation failed')
@@ -259,8 +267,8 @@ contains
   end subroutine
 
 
-  subroutine get_dir2diff(ANN, sample_pts, C)
-    class(t_optprop_ANN), intent(in) :: ANN
+  subroutine ANN_get_dir2diff(OPP, sample_pts, C)
+    class(t_optprop_ANN), intent(in) :: OPP
     real(irealLUT), intent(in) :: sample_pts(:)
     real(irealLUT), target, intent(out):: C(:) ! dimension(ANN%dir_streams*ANN%diff_streams)
 
@@ -269,20 +277,27 @@ contains
     real(irealLUT), pointer :: pC(:,:) ! dim(src, dst)
     integer(mpiint) :: ierr
 
-    do kdim = 1, size(sample_pts)
-      pti_buffer(kdim) = find_real_location(ANN%dirconfig%dims(kdim)%v, sample_pts(kdim))
-    enddo
-    call ANN_predict(ANN%ann_dir2diff%fann, pti_buffer, C, ierr); call CHKERR(ierr)
+    if(OPP%ann_dir2diff%lphysical_input) then
+      pti_buffer = sample_pts
+      pti_buffer(1) = exp(-pti_buffer(1))
+      call ANN_predict(OPP%ann_dir2diff%fann, pti_buffer, C, ierr); call CHKERR(ierr)
+    else
+      do kdim = 1, size(sample_pts)
+        pti_buffer(kdim) = find_real_location(OPP%dirconfig%dims(kdim)%v, sample_pts(kdim))
+      enddo
+      pti_buffer = pti_buffer - 1 ! because the network is trained on C indices
+      call ANN_predict(OPP%ann_dir2diff%fann, pti_buffer, C, ierr); call CHKERR(ierr)
+    endif
 
     if(ldebug_optprop) then
       !Check for energy conservation:
       ierr=0
-      pC(1:ANN%dir_streams, 1:ANN%diff_streams) => C(:)
-      do src = 1, ANN%dir_streams
+      pC(1:OPP%dir_streams, 1:OPP%diff_streams) => C(:)
+      do src = 1, OPP%dir_streams
         if(sum(pC(src,:)).gt.1._irealLUT+1e-5_irealLUT) ierr=ierr+1
       enddo
       if(ierr.ne.0) then
-        do src=1,ANN%dir_streams
+        do src=1,OPP%dir_streams
           print *,'SUM dir2diff coeff for src '//toStr(src)//' :: sum',sum(pC(src,:)),':: C', pC(src,:)
         enddo
         call CHKERR(1_mpiint, 'Check for energy conservation failed')
@@ -291,8 +306,8 @@ contains
   end subroutine
 
 
-  subroutine get_diff2diff(ANN, sample_pts, C)
-    class(t_optprop_ANN), intent(in) :: ANN
+  subroutine ANN_get_diff2diff(OPP, sample_pts, C)
+    class(t_optprop_ANN), intent(in) :: OPP
     real(irealLUT), intent(in) :: sample_pts(:)
     real(irealLUT), target, intent(out):: C(:) ! dimension(ANN%diff_streams**2)
 
@@ -301,198 +316,41 @@ contains
     real(irealLUT), pointer :: pC(:,:) ! dim(src, dst)
     integer(mpiint) :: ierr
 
-    if(ANN%ann_diff2diff%lphysical_input) then
+    if(OPP%ann_diff2diff%lphysical_input) then
       pti_buffer = sample_pts
       pti_buffer(1) = exp(-pti_buffer(1))
-      call ANN_predict(ANN%ann_diff2diff%fann, pti_buffer, C, ierr); call CHKERR(ierr)
+      call ANN_predict(OPP%ann_diff2diff%fann, pti_buffer, C, ierr); call CHKERR(ierr)
     else
 
       if(ldebug_optprop) then
-        if(size(sample_pts).ne.size(ANN%diffconfig%dims)) then
-          call print_op_config(ANN%diffconfig)
+        if(size(sample_pts).ne.size(OPP%diffconfig%dims)) then
+          call print_op_config(OPP%diffconfig)
           call CHKERR(1_mpiint, 'size of sample_pts array ne number of dimensions in ANN ' &
-            //toStr(size(sample_pts, kind=iintegers))//'/'//toStr(size(ANN%diffconfig%dims)))
+            //toStr(size(sample_pts, kind=iintegers))//'/'//toStr(size(OPP%diffconfig%dims)))
         endif
-        call check_if_samplepts_in_bounds(sample_pts, ANN%diffconfig)
+        call check_if_samplepts_in_bounds(sample_pts, OPP%diffconfig)
       endif
 
       do kdim = 1, size(sample_pts)
-        pti_buffer(kdim) = find_real_location(ANN%diffconfig%dims(kdim)%v, sample_pts(kdim))
+        pti_buffer(kdim) = find_real_location(OPP%diffconfig%dims(kdim)%v, sample_pts(kdim))
       enddo
       pti_buffer = pti_buffer - 1 ! because the network is trained on C indices
-      call ANN_predict(ANN%ann_diff2diff%fann, pti_buffer, C, ierr); call CHKERR(ierr)
+      call ANN_predict(OPP%ann_diff2diff%fann, pti_buffer, C, ierr); call CHKERR(ierr)
     endif
 
     if(ldebug_optprop) then
       !Check for energy conservation:
       ierr=0
-      pC(1:ANN%diff_streams, 1:ANN%diff_streams) => C(:)
-      do src = 1, ANN%diff_streams
+      pC(1:OPP%diff_streams, 1:OPP%diff_streams) => C(:)
+      do src = 1, OPP%diff_streams
         if(sum(pC(src,:)).gt.1._irealLUT+1e-3_irealLUT) ierr=ierr+1
       enddo
       if(ierr.ne.0) then
-        do src=1,ANN%diff_streams
+        do src=1,OPP%diff_streams
           print *,'SUM diff2diff coeff for src '//toStr(src)//' :: sum',sum(pC(src,:)),':: C', pC(src,:)
         enddo
         call CHKERR(1_mpiint, 'Check for energy conservation failed')
       endif
     endif
   end subroutine
-!
-!      if(.not.diff2diff_network%initialized) then
-!        print *,'network that is about to be used for coeffs is not loaded! diffuse:'
-!        call exit()
-!      endif
-!
-!      ind_aspect = find_real_location(real(diff2diff_network%aspect,irealLUT), aspect)
-!      ind_tauz   = find_real_location(real(diff2diff_network%tau   ,irealLUT), tauz)
-!      ind_w0     = find_real_location(real(diff2diff_network%w0    ,irealLUT), w0  )
-!      ind_g      = find_real_location(real(diff2diff_network%g     ,irealLUT), g   )
-!
-!      call calc_net(C, [ind_aspect, ind_tauz, ind_w0, ind_g], diff2diff_network, ierr )
-! !     C = C/1000.0
-!      if(ierr.ne.0) then
-!        print *,'Error when calculating diff_net coeffs',ierr
-!        call exit()
-!      endif
-!
-!      C = min(one, max(C,zero) )
-!      where( C.le.min_lim_coeff )
-!        C = zero
-!      endwhere
-!
-!      !Check for energy conservation:
-!!     if(lrenormalize) then
-!!       do isrc=1,Ndiff_8_10
-!!         norm = sum( C( isrc:size(C):Ndiff_8_10 ) )
-!!         if(real(norm).gt.one) then
-!!           C( isrc:size(C):Ndiff_8_10 ) = C( isrc:size(C):Ndiff_8_10 )/ norm
-!!           !          print *,'diffuse renormalization:',norm,' ::: ',sum( C( isrc:size(C):Ndiff_8_10 ) )
-!!         endif
-!!       enddo
-!!     endif
-!    end subroutine
-!
-!  subroutine calc_net(coeffs,inp,net,ierr)
-!      type(t_ANN),intent(inout) :: net
-!      real(irealLUT),intent(out):: coeffs(net%out_size )
-!      real(irealLUT),intent(in) :: inp(:)
-!      integer(mpiint),intent(out) :: ierr
-!
-!      real(irealLUT) :: input(net%in_size)
-!
-!      integer(iintegers) :: k,srcnode,trgnode,ctrg,xn
-!
-!
-!      ierr=0
-!
-!      input = inp-one
-!
-!      if(all(approx(real(net%lastcall, irealLUT),inp) )) then
-!        coeffs = real(net%lastresult, irealLUT)
-!        return
-!      endif
-!
-!      !        input([1,2]) = log(input([1,2]))
-!      !        input([4,5]) = log(input([4,5]))
-!      !        input(   7 ) = input(   7 ) *100._ireals
-!
-!      ! Concerning the lower limits for optprops, just take the ANN limits. Theres not happening much anyway.
-!      input(2) = max(real(net%inlimits(2,1), irealLUT),input(2))
-!      input(3) = max(real(net%inlimits(3,1), irealLUT),input(3))
-!      input(4) = max(real(net%inlimits(4,1), irealLUT),input(4))
-!
-!!      if(net%in_size.ge.5) then ! we should not fudge solar angles... this might confuse users...
-!!        input(5) = max(net%inlimits(5,1),input(5))
-!!        input(6) = max(net%inlimits(6,1),input(6))
-!!      endif
-!
-!      ! Concerning the upper limits for optprops, take the ANN limits. This is huge TODO, as this might lead to super wrong results! This is a very dirty hack for the time being!
-!      !        input(1) = min(net%inlimits(1,2),input(1))
-!      !        input(2) = min(net%inlimits(2,2),input(2))
-!      !        input(4) = min(net%inlimits(4,2),input(4))
-!      !        input(5) = min(net%inlimits(5,2),input(5))
-!
-!      ! for asymmetry parameter, this is odd, that the cosmo ANN input doesnt capture it.
-!      ! this should not happen for a real run but if this is a artificial case, it very well may be.
-!      ! TODO: make sure, this doesnt happen.
-!      !        input(3) = max( net%inlimits(3,1), min( net%inlimits(3,2), input(3) ))
-!      !        input(6) = max( net%inlimits(6,1), min( net%inlimits(6,2), input(6) ))
-!
-!      !{{{ check input
-!      !       print *,'This is function: ANN_get_direct_Transmission'
-!      if(check_input) then
-!        if(inp(1).lt.net%inlimits(1,1).or.inp(1).gt.net%inlimits(1,2)) then
-!          print *,'aspect out of ANN range',inp(1),'limits:',net%inlimits(1,:) ;ierr=1;! call exit()
-!        endif
-!        if(input(2).lt.net%inlimits(2,1).or.input(2).gt.net%inlimits(2,2)) then
-!          print *,'tauz out of ANN range',input(2),'limits:',net%inlimits(2,:) ;ierr=2;! call exit()
-!        endif
-!        if(input(3).lt.net%inlimits(3,1).or.input(3).gt.net%inlimits(3,2)) then
-!          print *,'w0 out of ANN range',input(3),'limits:',net%inlimits(3,:)   ;ierr=3;! call exit()
-!        endif
-!        if(input(4).lt.net%inlimits(4,1).or.input(4).gt.net%inlimits(4,2)) then
-!          print *,'g out of ANN range',input(4),'limits:',net%inlimits(4,:)    ;ierr=4;! call exit()
-!        endif
-!        if(net%in_size.ge.5) then
-!          if(input(5).lt.net%inlimits(5,1).or.input(5).gt.net%inlimits(5,2)) then
-!            print *,'phi out of ANN range',input(5),'limits:',net%inlimits(5,:) ;ierr=5;! call exit()
-!          endif
-!          if(input(6).lt.net%inlimits(6,1).or.input(6).gt.net%inlimits(6,2)) then
-!            print *,'theta out of ANN range',input(6),'limits:',net%inlimits(6,:);ierr=6;! call exit()
-!          endif
-!        endif
-!      endif
-!      !}}}
-!
-!      ! normalize input
-!      do k=1,ubound(net%inno,1)
-!        net%units(net%inno(k)) = net%eni(k,1) * input(k) + net%eni(k,2)
-!      enddo
-!
-!      ! Propagate signal through conecs
-!      ctrg = net%conec(1,2)
-!      net%units(ctrg) = 0._ireals
-!      do xn=1,ubound(net%weights,1)
-!        srcnode = net%conec(xn,1)
-!        trgnode = net%conec(xn,2)
-!        !if next unit
-!        if (trgnode.ne.ctrg) then
-!          net%units(ctrg) = 1._ireals/(1._ireals+exp(-net%units(ctrg)))
-!          ctrg = trgnode
-!          if (srcnode.eq.0) then !handle bias
-!            net%units(ctrg) = net%weights(xn)
-!          else
-!            net%units(ctrg) = net%units(srcnode) * net%weights(xn)
-!          endif
-!        else
-!          if (srcnode.eq.0) then !handle bias
-!            net%units(ctrg) = net%units(ctrg) + net%weights(xn)
-!          else
-!            net%units(ctrg) = net%units(ctrg) + net%units(srcnode) * net%weights(xn)
-!          endif
-!        endif
-!      enddo
-!      net%units(ctrg) = 1._ireals/(1._ireals+exp(-net%units(ctrg))) !for last unit
-!
-!      ! Denormalize output
-!      do k=1,ubound(net%outno,1)
-!        coeffs(k) = real(net%deo(k,1) * net%units(net%outno(k)) + net%deo(k,2), irealLUT)
-!      enddo
-!
-!      net%lastcall = input
-!      net%lastresult = coeffs(:)
-!    contains
-!      pure elemental logical function approx(a,b)
-!        real(irealLUT),intent(in) :: a,b
-!        real(irealLUT),parameter :: eps=1e-5
-!        if( a.le.b+eps .and. a.ge.b-eps ) then
-!          approx = .True.
-!        else
-!          approx = .False.
-!        endif
-!    end function
-!
-!end subroutine
-
 end module

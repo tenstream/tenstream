@@ -75,7 +75,7 @@ contains
         aspect = 1._irealLUT
         g    = .5717_irealLUT
 
-        call OPP_LUT%LUT%LUT_get_diff2diff([tauz, w0, aspect, g], C_LUT)
+        call OPP_LUT%LUT%get_diff2diff([tauz, w0, aspect, g], C_LUT)
         do idst = 1, Ndiff
           print *,'C_LUT dst', idst, ':', trim(colored_str_by_range(pC_LUT(:, idst), limits=climits, colors=colors))
         enddo
