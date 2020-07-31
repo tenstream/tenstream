@@ -507,10 +507,8 @@ module m_netcdfIO
         if(ierr.ne.0) goto 99
 
         if(xtype.ne.${nctype}$) then
-          ierr = ierr + 1
-          call CHKWARN(ierr, 'nc_datatype does not match NC_Type ${nctype}$ expected: '//itoa(${nctype}$)// &
+          call CHKWARN(1_mpiint, 'nc_datatype does not match NC_Type ${nctype}$ expected: '//itoa(${nctype}$)// &
             & ' found: '//itoa(xtype))
-          goto 99
         endif
 
 #:if method == 'character'
