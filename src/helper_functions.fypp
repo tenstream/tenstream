@@ -21,6 +21,7 @@
 #:def ranksuffix(RANK)
 $:'' if RANK == 0 else '(' + ':' + ',:' * (RANK - 1) + ')'
 #:enddef ranksuffix
+
 #:def rankallocdims(RANK)
 $:'' if RANK == 0 else '('+','.join(['Ntot({})'.format(_) for _ in range(1,RANK+1)]) + ')'
 #:enddef rankallocdims

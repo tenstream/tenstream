@@ -35,8 +35,10 @@ module m_pprts
 
   use m_twostream, only: delta_eddington_twostream, adding_delta_eddington_twostream
   use m_schwarzschild, only: schwarzschild, B_eff
-  use m_optprop, only: t_optprop, t_optprop_1_2, t_optprop_3_6, t_optprop_3_10, &
-    t_optprop_8_10, t_optprop_3_16, t_optprop_8_16, t_optprop_8_18
+  use m_optprop, only: t_optprop, &
+    & t_optprop_1_2, t_optprop_3_6, t_optprop_3_10, &
+    & t_optprop_8_10, t_optprop_3_16, t_optprop_8_16, t_optprop_8_18, &
+    & t_optprop_3_10_ann
   use m_eddington, only : eddington_coeff_zdun
 
   use m_tenstream_options, only : read_commandline_options, ltwostr, luse_eddington, twostr_ratio, &
@@ -649,6 +651,10 @@ module m_pprts
     subroutine set_angles(solver, sundir)
       class(t_solver), intent(inout)   :: solver
       real(ireals),intent(in)          :: sundir(:)      !< @param[in] cartesian sun direction
+      logical :: luse_ann, lflg
+
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_use_ANN", &
+        luse_ann, lflg , ierr) ;call CHKERR(ierr)
 
       if(.not.solver%linitialized) then
         print *,solver%myid,'You tried to set angles in the PPRTS solver.  &
@@ -669,7 +675,13 @@ module m_pprts
            if(.not.allocated(solver%OPP) ) allocate(t_optprop_3_6::solver%OPP)
 
         class is (t_solver_3_10)
-           if(.not.allocated(solver%OPP) ) allocate(t_optprop_3_10::solver%OPP)
+           if(.not.allocated(solver%OPP) ) then
+             if(luse_ann) then
+               allocate(t_optprop_3_10_ann::solver%OPP)
+             else
+               allocate(t_optprop_3_10::solver%OPP)
+             endif
+           endif
 
         class is (t_solver_8_10)
            if(.not.allocated(solver%OPP) ) allocate(t_optprop_8_10::solver%OPP)

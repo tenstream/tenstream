@@ -25,7 +25,7 @@ module m_optprop_LUT
 
   use m_helper_functions, only : approx,  &
     rel_approx, imp_bcast,                &
-    get_arg, ftoa, itoa,                  &
+    get_arg, toStr,                       &
     cstr, char_arr_to_str,                &
     mpi_logical_and, mpi_logical_or,      &
     CHKERR,                               &
@@ -75,6 +75,7 @@ module m_optprop_LUT
     & find_op_dim_by_name,              &
     & set_op_param_space,               &
     & get_sample_pnt_by_name_and_index, &
+    & check_if_samplepts_in_bounds,     &
     & print_op_config
 
   implicit none
@@ -231,7 +232,7 @@ contains
           class is (t_optprop_LUT_wedge_5_8)
             OPP%dir_streams  = 5
             OPP%diff_streams = 8
-            OPP%lutbasename=trim(lut_basename)//'_wedge.Rsphere'//itoa(int(wedge_sphere_radius))
+            OPP%lutbasename=trim(lut_basename)//'_wedge.Rsphere'//toStr(int(wedge_sphere_radius))
             allocate(t_boxmc_wedge_5_8::OPP%bmc)
 
           class is (t_optprop_LUT_rectilinear_wedge_5_8)
@@ -243,7 +244,7 @@ contains
           class is (t_optprop_LUT_wedge_18_8)
             OPP%dir_streams  = 18
             OPP%diff_streams = 8
-            OPP%lutbasename=trim(lut_basename)//'_wedge.Rsphere'//itoa(int(wedge_sphere_radius))
+            OPP%lutbasename=trim(lut_basename)//'_wedge.Rsphere'//toStr(int(wedge_sphere_radius))
             allocate(t_boxmc_wedge_18_8::OPP%bmc)
 
           class default
@@ -315,9 +316,9 @@ contains
     integer(iintegers) :: k
     lutname = trim(prefix)
     do k=1,size(config%dims)
-      lutname = trim(lutname)//'.'//trim(config%dims(k)%dimname)//itoa(config%dims(k)%N)
+      lutname = trim(lutname)//'.'//trim(config%dims(k)%dimname)//toStr(config%dims(k)%N)
     enddo
-    lutname = trim(lutname)//'.ds'//itoa(int(delta_scale_truncate*1000))
+    lutname = trim(lutname)//'.ds'//toStr(int(delta_scale_truncate*1000))
   end function
 
 subroutine load_table_from_netcdf(table, istat)
@@ -397,7 +398,7 @@ subroutine loadLUT_diff(OPP, comm, skip_load_LUT)
     errcnt = 0
 
     ! Set filename of LUT
-    descr = gen_lut_basename('_diffuse_'//itoa(OPP%diff_streams), OPP%diffconfig)
+    descr = gen_lut_basename('_diffuse_'//toStr(OPP%diff_streams), OPP%diffconfig)
 
     str(1) = trim(OPP%lutbasename)//trim(descr)//'.nc'
     str(2) = 'diffuse'
@@ -444,7 +445,7 @@ subroutine loadLUT_dir(OPP, comm, skip_load_LUT)
     errcnt = 0
 
     ! Set filename of LUT
-    descr = gen_lut_basename('_direct_'//itoa(OPP%dir_streams)//'_'//itoa(OPP%diff_streams), OPP%dirconfig)
+    descr = gen_lut_basename('_direct_'//toStr(OPP%dir_streams)//'_'//toStr(OPP%diff_streams), OPP%dirconfig)
 
     str(1) = trim(OPP%lutbasename)//trim(descr)//'.nc'
     str(2) = 'direct'
@@ -811,11 +812,11 @@ subroutine createLUT(OPP, comm, config, S, T)
         call random_number(R)
         if(R.lt.chance) then
           do isrc=1,size(T_dir,dim=1)
-            print *,'lutindex '//itoa(lutindex)//' src '//itoa(isrc)//' :T', T_dir(:, isrc)
+            print *,'lutindex '//toStr(lutindex)//' src '//toStr(isrc)//' :T', T_dir(:, isrc)
           enddo
           print *,'Min/Max T_tol ', minval(T_tol), maxval(T_tol)
           do isrc=1,size(T_dir,dim=1)
-            print *,'lutindex '//itoa(lutindex)//' src '//itoa(isrc)//' :S', S_diff(:, isrc)
+            print *,'lutindex '//toStr(lutindex)//' src '//toStr(isrc)//' :S', S_diff(:, isrc)
           enddo
           print *,'Min/Max S_tol ', minval(S_tol), maxval(S_tol)
         endif
@@ -840,8 +841,8 @@ subroutine prepare_table_space(OPP, config, S, T)
     entries = int(OPP%diff_streams**2+1, int64) * int(product(config%dims(:)%N), int64)
   endif
   bytesize = int(C_SIZEOF(1._irealLUT), INT64) * entries
-  print *,'Allocating Space for LUTs '//itoa(entries)// &
-    ' entries ( '//ftoa(real(bytesize, irealLUT)/1024._irealLUT**3)//' Gb) ...'
+  print *,'Allocating Space for LUTs '//toStr(entries)// &
+    ' entries ( '//toStr(real(bytesize, irealLUT)/1024._irealLUT**3)//' Gb) ...'
 
   errcnt = 0
   if(present(T)) then
@@ -856,8 +857,8 @@ subroutine prepare_table_space(OPP, config, S, T)
     if(.not.associated(S%c)) allocate(S%c(OPP%diff_streams**2, product(config%dims(:)%N)), source=-1._irealLUT)
     if(.not.allocated (S%stddev_tol)) allocate(S%stddev_tol(product(config%dims(:)%N)), source=huge(-1._irealLUT))
   endif
-  print *,'Allocating Space for LUTs '//itoa(entries)// &
-    ' entries ( '//ftoa(real(bytesize, irealLUT)/1024._irealLUT**3)//' Gb) ... done'
+  print *,'Allocating Space for LUTs '//toStr(entries)// &
+    ' entries ( '//toStr(real(bytesize, irealLUT)/1024._irealLUT**3)//' Gb) ... done'
 end subroutine
 
 
@@ -1057,8 +1058,8 @@ contains
       return
     endif
     call CHKERR(1_mpiint, 'should not be here? '// &
-      'param_phi '//ftoa(param_phi)// &
-      'param_theta '//ftoa(param_theta))
+      'param_phi '//toStr(param_phi)// &
+      'param_theta '//toStr(param_theta))
   end subroutine
   subroutine validate_plexrt()
     real(irealLUT) :: param_phi, param_theta
@@ -1341,31 +1342,10 @@ end subroutine
     call MPI_Comm_rank(MPI_COMM_WORLD, myid, ierr); call CHKERR(ierr)
     if(myid.eq.0) then
       print *,'Diffuse LUT config:'
-      call print_op_config(MPI_COMM_WORLD, OPP%diffconfig)
+      call print_op_config(OPP%diffconfig)
       print *,'Direct LUT config:'
-      call print_op_config(MPI_COMM_WORLD, OPP%dirconfig)
+      call print_op_config(OPP%dirconfig)
       print *,'----------------------'
-    endif
-  end subroutine
-
-  subroutine check_if_samplepts_in_LUT_bounds(sample_pts, config)
-    real(irealLUT),intent(in) :: sample_pts(:)
-    type(t_op_config), allocatable, intent(in) :: config
-    integer(mpiint) :: ierr, kdim
-
-    ierr = 0
-    do kdim = 1,size(sample_pts)
-      if(sample_pts(kdim).lt.config%dims(kdim)%vrange(1).or.sample_pts(kdim).gt.config%dims(kdim)%vrange(2)) then
-        print *,'ERROR value in dimension '//trim(config%dims(kdim)%dimname)// &
-                ' ('//itoa(kdim)//') is outside of LUT range', &
-                sample_pts(kdim), 'not in:', config%dims(kdim)%vrange
-        ierr = ierr +1
-      endif
-    enddo
-
-    if(ierr.ne.0) then
-      call print_op_config(MPI_COMM_WORLD, config)
-      call CHKERR(ierr, 'Out of Bounds ERROR in LUT retrieval')
     endif
   end subroutine
 
@@ -1380,11 +1360,11 @@ end subroutine
 
     if(ldebug_optprop) then
       if(size(sample_pts).ne.size(OPP%dirconfig%dims)) then
-        call print_op_config(MPI_COMM_WORLD, OPP%dirconfig)
+        call print_op_config(OPP%dirconfig)
         call CHKERR(1_mpiint, 'size of sample_pts array ne number of dimensions in LUT ' &
-          //itoa(size(sample_pts, kind=iintegers))//'/'//itoa(size(OPP%dirconfig%dims)))
+          //toStr(size(sample_pts, kind=iintegers))//'/'//toStr(size(OPP%dirconfig%dims)))
       endif
-      call check_if_samplepts_in_LUT_bounds(sample_pts, OPP%dirconfig)
+      call check_if_samplepts_in_bounds(sample_pts, OPP%dirconfig)
     endif
 
     do kdim = 1, size(sample_pts)
@@ -1399,7 +1379,7 @@ end subroutine
     case(2)
       call interp_vec_simplex_nd(pti_buffer(1:size(sample_pts)), OPP%Tdir%c, OPP%dirconfig%offsets, C)
     case default
-      call CHKERR(1_mpiint, 'interpolation mode '//itoa(interp_mode)//' not implemented yet! please choose something else!')
+      call CHKERR(1_mpiint, 'interpolation mode '//toStr(interp_mode)//' not implemented yet! please choose something else!')
     end select
 
     if(ldebug_optprop) then
@@ -1432,11 +1412,11 @@ end subroutine
 
     if(ldebug_optprop) then
       if(size(sample_pts).ne.size(OPP%dirconfig%dims)) then
-        call print_op_config(MPI_COMM_WORLD, OPP%dirconfig)
+        call print_op_config(OPP%dirconfig)
         call CHKERR(1_mpiint, 'size of sample_pts array ne number of dimensions in LUT ' &
-          //itoa(size(sample_pts, kind=iintegers))//'/'//itoa(size(OPP%dirconfig%dims)))
+          //toStr(size(sample_pts, kind=iintegers))//'/'//toStr(size(OPP%dirconfig%dims)))
       endif
-      call check_if_samplepts_in_LUT_bounds(sample_pts, OPP%dirconfig)
+      call check_if_samplepts_in_bounds(sample_pts, OPP%dirconfig)
     endif
 
     do kdim = 1, size(sample_pts)
@@ -1451,7 +1431,7 @@ end subroutine
     case(2)
       call interp_vec_simplex_nd(pti_buffer(1:size(sample_pts)), OPP%Sdir%c, OPP%dirconfig%offsets, C)
     case default
-      call CHKERR(1_mpiint, 'interpolation mode '//itoa(interp_mode)//' not implemented yet! please choose something else!')
+      call CHKERR(1_mpiint, 'interpolation mode '//toStr(interp_mode)//' not implemented yet! please choose something else!')
     end select
 
     if(ldebug_optprop) then
@@ -1482,16 +1462,18 @@ end subroutine
 
     if(ldebug_optprop) then
       if(size(sample_pts).ne.size(OPP%diffconfig%dims)) then
-        call print_op_config(MPI_COMM_WORLD, OPP%diffconfig)
+        call print_op_config(OPP%diffconfig)
         call CHKERR(1_mpiint, 'size of sample_pts array ne number of dimensions in LUT ' &
-          //itoa(size(sample_pts, kind=iintegers))//'/'//itoa(size(OPP%diffconfig%dims, kind=iintegers)))
+          //toStr(size(sample_pts, kind=iintegers))//'/'//toStr(size(OPP%diffconfig%dims, kind=iintegers)))
       endif
-      call check_if_samplepts_in_LUT_bounds(sample_pts, OPP%diffconfig)
+      call check_if_samplepts_in_bounds(sample_pts, OPP%diffconfig)
     endif
 
     do kdim = 1, size(sample_pts)
       pti_buffer(kdim) = find_real_location(OPP%diffconfig%dims(kdim)%v, sample_pts(kdim))
     enddo
+    !print *,'LUT_get_diff2diff sample', sample_pts, 'idx', pti_buffer(1:size(sample_pts)), &
+    !  & 'i1d', ind_nd_to_1d(OPP%diffconfig%offsets, nint(pti_buffer(1:size(sample_pts)), kind=iintegers))
 
     select case(interp_mode)
     case(1)
@@ -1501,7 +1483,7 @@ end subroutine
     case(2)
       call interp_vec_simplex_nd(pti_buffer(1:size(sample_pts)), OPP%Sdiff%c, OPP%diffconfig%offsets, C)
     case default
-      call CHKERR(1_mpiint, 'interpolation mode '//itoa(interp_mode)//' not implemented yet! please choose something else!')
+      call CHKERR(1_mpiint, 'interpolation mode '//toStr(interp_mode)//' not implemented yet! please choose something else!')
     end select
 
     if(ldebug_optprop) then

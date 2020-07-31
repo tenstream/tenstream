@@ -80,21 +80,17 @@ contains
   end subroutine
 
 
-  subroutine print_op_config(comm, config)
-    integer(mpiint), intent(in) :: comm
+  subroutine print_op_config(config)
     type(t_op_config), allocatable, intent(in) :: config
     integer(iintegers) :: i
-    integer(mpiint) :: myid, ierr
 
-    call MPI_Comm_rank(comm, myid, ierr); call CHKERR(ierr)
-
-    print *,myid,'LUT Config initialized', allocated(config)
+    print *,'LUT Config initialized', allocated(config)
     if(.not.allocated(config)) return
 
-    print *,myid,'LUT Config Ndim', size(config%dims)
+    print *,'LUT Config Ndim', size(config%dims)
     do i = 1, size(config%dims)
-      print *,myid,'Dimension '//toStr(i)//' '//trim(config%dims(i)%dimname)// &
-              ' size '//toStr(config%dims(i)%N), '(', config%dims(i)%vrange, ')'
+      print *,'Dimension '//toStr(i)//' '//trim(config%dims(i)%dimname)// &
+        ' size '//toStr(config%dims(i)%N), '(', config%dims(i)%vrange, ')'
     enddo
   end subroutine
 
@@ -345,14 +341,14 @@ contains
     allocate(OPP%diffconfig%offsets(size(OPP%diffconfig%dims)))
     call ndarray_offsets(OPP%diffconfig%dims(:)%N, OPP%diffconfig%offsets)
 
-!    if(ldebug.and..False.) then
-!      call MPI_Comm_rank(MPI_COMM_WORLD, myid, ierr); call CHKERR(ierr)
-!      print *,myid,'set_parameter space dims:', size(OPP%diffconfig%dims), size(OPP%dirconfig%dims)
-!      do k=1,size(OPP%dirconfig%dims)
-!        print *,myid,'dim ',trim(OPP%dirconfig%dims(k)%dimname), OPP%dirconfig%offsets(k), &
-!          OPP%dirconfig%dims(k)%vrange, ':', OPP%dirconfig%dims(k)%v
-!      enddo
-!    endif
+    !    if(ldebug.and..False.) then
+    !      call MPI_Comm_rank(MPI_COMM_WORLD, myid, ierr); call CHKERR(ierr)
+    !      print *,myid,'set_parameter space dims:', size(OPP%diffconfig%dims), size(OPP%dirconfig%dims)
+    !      do k=1,size(OPP%dirconfig%dims)
+    !        print *,myid,'dim ',trim(OPP%dirconfig%dims(k)%dimname), OPP%dirconfig%offsets(k), &
+    !          OPP%dirconfig%dims(k)%vrange, ':', OPP%dirconfig%dims(k)%v
+    !      enddo
+    !    endif
   contains
     subroutine setup_pprts_mockup()
       allocate(OPP%dirconfig%dims(6))
@@ -392,43 +388,65 @@ contains
     end subroutine
   end subroutine
 
-! return the integer in config%dims that corresponds to the given dimension
-function find_op_dim_by_name(config, dimname) result(kdim)
-  type(t_op_config), intent(in) :: config
-  character(len=*), intent(in) :: dimname
-  integer(iintegers) :: kdim
+  ! return the integer in config%dims that corresponds to the given dimension
+  function find_op_dim_by_name(config, dimname) result(kdim)
+    type(t_op_config), intent(in) :: config
+    character(len=*), intent(in) :: dimname
+    integer(iintegers) :: kdim
 
-  integer(iintegers) :: k
-  do k=1,size(config%dims)
-    if(trim(dimname).eq.trim(config%dims(k)%dimname)) then
-      kdim = k
+    integer(iintegers) :: k
+    do k=1,size(config%dims)
+      if(trim(dimname).eq.trim(config%dims(k)%dimname)) then
+        kdim = k
+        return
+      endif
+    enddo
+    kdim=-1
+  end function
+
+  subroutine get_sample_pnt_by_name_and_index(config, dimname, index_1d, sample_pnt, ierr)
+    type(t_op_config), intent(in) :: config
+    character(len=*), intent(in) :: dimname
+    integer(iintegers), intent(in) :: index_1d
+    real(irealLUT), intent(inout) :: sample_pnt
+    integer(mpiint), intent(out) :: ierr
+
+    integer(iintegers) :: kdim, nd_indices(size(config%dims))
+
+    call ind_1d_to_nd(config%offsets, index_1d, nd_indices)
+
+    kdim = find_op_dim_by_name(config, trim(dimname))
+    if(kdim.lt.i1) then ! could not find the corresponding dimension
+      ierr = 1
       return
     endif
-  enddo
-  kdim=-1
-end function
+    if(nd_indices(kdim).gt.size(config%dims(kdim)%v)) then
+      print *,index_1d,'nd_indices', nd_indices
+      call CHKERR(1_mpiint, 'wrong indices in kdim')
+    endif
+    sample_pnt = config%dims(kdim)%v(nd_indices(kdim))
+    ierr = 0
+  end subroutine
 
-subroutine get_sample_pnt_by_name_and_index(config, dimname, index_1d, sample_pnt, ierr)
-  type(t_op_config), intent(in) :: config
-  character(len=*), intent(in) :: dimname
-  integer(iintegers), intent(in) :: index_1d
-  real(irealLUT), intent(inout) :: sample_pnt
-  integer(mpiint), intent(out) :: ierr
+  subroutine check_if_samplepts_in_bounds(sample_pts, config)
+    real(irealLUT),intent(in) :: sample_pts(:)
+    type(t_op_config), allocatable, intent(in) :: config
+    integer(mpiint) :: ierr, kdim
 
-  integer(iintegers) :: kdim, nd_indices(size(config%dims))
+    ierr = 0
+    do kdim = 1,size(sample_pts)
+      if(sample_pts(kdim).lt.config%dims(kdim)%vrange(1).or.sample_pts(kdim).gt.config%dims(kdim)%vrange(2)) then
+        print *,'ERROR value in dimension '//trim(config%dims(kdim)%dimname)// &
+          ' ('//toStr(kdim)//') is outside of LUT range', &
+          sample_pts(kdim), 'not in:', config%dims(kdim)%vrange
+        ierr = ierr +1
+      endif
+    enddo
 
-  call ind_1d_to_nd(config%offsets, index_1d, nd_indices)
+    if(ierr.ne.0) then
+      call print_op_config(config)
+      call CHKERR(ierr, 'Out of Bounds ERROR in LUT retrieval')
+    endif
+  end subroutine
 
-  kdim = find_op_dim_by_name(config, trim(dimname))
-  if(kdim.lt.i1) then ! could not find the corresponding dimension
-    ierr = 1
-    return
-  endif
-  if(nd_indices(kdim).gt.size(config%dims(kdim)%v)) then
-    print *,index_1d,'nd_indices', nd_indices
-    call CHKERR(1_mpiint, 'wrong indices in kdim')
-  endif
-  sample_pnt = config%dims(kdim)%v(nd_indices(kdim))
-  ierr = 0
-end subroutine
 end module

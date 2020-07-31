@@ -25,13 +25,14 @@ contains
       numnodes = this%getNumProcesses()
       myid     = this%getProcessRank()
 
-      call ANN_load('test_ANN_diffuse.nc', ann, ierr)
+      allocate(ann)
+      ann%fname = 'test_ANN_diffuse.nc'
+      call ANN_load(ann, ierr)
       @assertEqual(0_mpiint, ierr)
 
-      @assertEqual(3_iintegers, size(ann%layers, kind=iintegers), 'wrong number of layers')
+      @assertEqual(3_iintegers, size(ann%fann%layers, kind=iintegers), 'wrong number of layers')
       call ANN_destroy(ann, ierr)
       @assertEqual(0_mpiint, ierr)
-      @assertFalse(allocated(ann))
   endsubroutine
 
   @test( npes=[1] )
@@ -41,15 +42,16 @@ contains
 
       type(t_optprop_3_10)     :: OPP_LUT
       type(t_optprop_3_10_ann) :: OPP_ANN
-      type(t_ANN), allocatable :: ann
 
       integer(iintegers) :: idst
-      real(irealLUT) :: taux, tauz, w0, g
+      real(irealLUT) :: tauz, w0, g, aspect
       real(irealLUT), target, allocatable :: C_LUT(:)
+      real(irealLUT), target, allocatable :: C_ANN(:)
       real(irealLUT), pointer :: pC_LUT(:,:)
+      real(irealLUT), pointer :: pC_ANN(:,:)
 
       real(irealLUT), parameter :: climits(7) = [0., 1e-8, 1e-3, 1e-2, 1e-1, .5, 1.]
-      character(len=6), parameter :: colors(6) = ['black ', 'green ', 'purple', 'peach ', 'blue  ', 'red   ']
+      character(len=*), parameter :: colors(6) = [character(len=6) :: 'black', 'green', 'purple', 'peach', 'blue', 'red']
 
       !real(ireals)   :: BMC_diff2diff(Ndiff*Ndiff), BMC_dir2diff(Ndir*Ndiff), BMC_dir2dir(Ndir*Ndir)
 
@@ -60,37 +62,33 @@ contains
       call read_commandline_options(comm)
 
       call OPP_LUT%init(comm)
+      call OPP_ANN%init(comm)
+
       associate( Ndiff => OPP_LUT%LUT%diff_streams )
-        allocate(C_LUT(Ndiff**2))
+        allocate(C_LUT(Ndiff**2), C_ANN(Ndiff**2))
         pC_LUT(1:Ndiff, 1:Ndiff) => C_LUT(:)
+        pC_ANN(1:Ndiff, 1:Ndiff) => C_ANN(:)
 
-        tauz = 1._irealLUT
-        taux = 1._irealLUT
-        w0   = .5_irealLUT
-        g    = .5_irealLUT
+        ! idx 22 5 14 4
+        tauz = 1.08083180518_irealLUT
+        w0   = .521358613652_irealLUT
+        aspect = 1._irealLUT
+        g    = .5717_irealLUT
 
-        call OPP_LUT%LUT%LUT_get_diff2diff([tauz, w0, tauz/taux, g], C_LUT)
+        call OPP_LUT%LUT%LUT_get_diff2diff([tauz, w0, aspect, g], C_LUT)
         do idst = 1, Ndiff
           print *,'C_LUT dst', idst, ':', trim(colored_str_by_range(pC_LUT(:, idst), limits=climits, colors=colors))
-          !print *,'C_LUT dst', idst, ':', pC_LUT(:, idst)
+        enddo
+        print *,''
+
+        call OPP_ANN%ANN%get_diff2diff([tauz, w0, aspect, g], C_ANN)
+        do idst = 1, Ndiff
+          print *,'C_ANN dst', idst, ':', trim(colored_str_by_range(pC_ANN(:, idst), limits=climits, colors=colors))
         enddo
 
       end associate
       call OPP_LUT%destroy()
-
-      call OPP_ANN%init(comm)
       call OPP_ANN%destroy()
-
-
-      !inp = [1, 2, 3, 4]
-      !call ANN_predict(ann, inp, C, ierr)
-      !print *,'C', C
-
-
-
-      !call ANN_destroy(ann, ierr)
-      !@assertEqual(0_mpiint, ierr)
-      @assertFalse(allocated(ann))
   endsubroutine
 
 end module

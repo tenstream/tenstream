@@ -32,8 +32,7 @@ use m_optprop_LUT, only : t_optprop_LUT, t_optprop_LUT_1_2,t_optprop_LUT_3_6, t_
   t_optprop_LUT_8_10, t_optprop_LUT_3_16, t_optprop_LUT_8_16, t_optprop_LUT_8_18, &
   t_optprop_LUT_wedge_5_8, t_optprop_LUT_rectilinear_wedge_5_8, t_optprop_LUT_wedge_18_8
 
-use m_optprop_ANN, only : t_optprop_ANN, t_optprop_ANN_3_10, &
-  & ANN_get_dir2dir, ANN_get_dir2diff, ANN_get_diff2diff
+use m_optprop_ANN, only : t_optprop_ANN, t_optprop_ANN_3_10
 use m_boxmc_geometry, only : setup_default_unit_cube_geometry, setup_default_wedge_geometry
 use m_eddington, only: eddington_coeff_zdun
 use m_tenstream_options, only: twostr_ratio
@@ -100,7 +99,7 @@ type,extends(t_optprop_cube) :: t_optprop_3_10
     procedure :: dir2diff_coeff_symmetry => dir3_to_diff10_coeff_symmetry
 end type
 
-type,extends(t_optprop_cube) :: t_optprop_3_10_ann
+type,extends(t_optprop_3_10) :: t_optprop_3_10_ann
 end type
 
 type,extends(t_optprop_cube) :: t_optprop_3_16
@@ -549,25 +548,6 @@ contains
       endif
       call OPP%LUT%LUT_get_diff2diff([tauz, w0, save_aspect_zx, g], C)
     endif
-
-
-!    case(i1) ! ANN
-!
-!      if(present(angles)) then ! obviously we want the direct coefficients
-!        if(dir) then ! specifically the dir2dir
-!          call ANN_get_dir2dir(tauz, w0, g, aspect_zx, angles(1), angles(2), C)
-!        else ! dir2diff
-!          call ANN_get_dir2diff(tauz, w0, g, aspect_zx, angles(1), angles(2), C)
-!        endif
-!      else
-!        ! diff2diff
-!        call ANN_get_diff2diff(tauz, w0, g, aspect_zx, C)
-!      endif
-!
-!    case default
-!      call CHKERR(1_mpiint, 'particular value of coeff mode in optprop_parameters is not defined: '//itoa(coeff_mode))
-!    end select
-
   end subroutine
 
   subroutine get_coeff_bmc(OPP, vertices, tauz, w0, g, dir, C, angles)

@@ -20,41 +20,42 @@
 module m_optprop_ANN
   USE m_data_parameters, ONLY : ireals, irealLUT, iintegers, i1, mpiint, default_str_len
   use m_optprop_parameters, only: ldebug_optprop, lut_basename
-  use m_optprop_base, only: t_optprop_base, set_op_param_space, &
-    & print_op_config
+  use m_optprop_base, only: t_optprop_base, t_op_config, set_op_param_space, &
+    & print_op_config, check_if_samplepts_in_bounds
   use m_netcdfio, only: get_attribute, ncload
   use mpi
-  use m_helper_functions, only : imp_bcast, CHKERR, CHKWARN, itoa, char_to_upper
+  use m_helper_functions, only : imp_bcast, CHKERR, CHKWARN, toStr, char_to_upper
   use m_search, only: find_real_location
 
   use m_boxmc, only: t_boxmc, t_boxmc_3_10
 
-  use m_fornado_base, only: fr, fi, ferr, t_ANN, t_ANN_layer, func_name_to_id, ANN_view
+  use m_fornado_base, only: fr, fi, ferr, func_name_to_id, ANN_view
+  use m_fornado_base, only: t_fornado_ANN => t_ANN, t_fornado_ANN_layer => t_ANN_layer
   use m_fornado, only: fornado_inference
 
   implicit none
   private
   public t_optprop_ANN, t_optprop_ANN_3_10, &
-    & t_ANN, ANN_load, ANN_destroy, &
-    & ANN_get_dir2dir, ANN_get_dir2diff, ANN_get_diff2diff, &
-    & ANN_predict
+    & t_ANN, ANN_load, ANN_destroy, ANN_predict
 
-  logical,parameter :: check_input=.True.
-
-  type t_fornado_ANN
-    type(t_ANN) :: ann
+  type t_ANN
+    type(t_fornado_ANN), allocatable :: fann
     character(len=default_str_len) :: fname
+    logical :: lphysical_input
   end type
 
   type, abstract, extends(t_optprop_base) :: t_optprop_ANN
     character(default_str_len) :: basename
-    type(t_fornado_ANN), allocatable :: fann_dir2dir
-    type(t_fornado_ANN), allocatable :: fann_dir2diff
-    type(t_fornado_ANN), allocatable :: fann_diff2diff
+    type(t_ANN), allocatable :: ann_dir2dir
+    type(t_ANN), allocatable :: ann_dir2diff
+    type(t_ANN), allocatable :: ann_diff2diff
     class(t_boxmc), allocatable :: bmc
     contains
       procedure :: init
       procedure :: destroy
+      procedure :: get_dir2dir
+      procedure :: get_dir2diff
+      procedure :: get_diff2diff
   end type
 
   type,extends(t_optprop_ANN) :: t_optprop_ANN_3_10
@@ -62,65 +63,6 @@ module m_optprop_ANN
 
 
 contains
-  subroutine ANN_destroy(ann, ierr)
-    type(t_ANN), allocatable, intent(inout) :: ann
-    integer(mpiint), intent(out) :: ierr
-    if(.not.allocated(ann)) then
-      ierr = 1
-      call CHKWARN(ierr, 'ann not allocated but called destroy')
-    endif
-    if(allocated(ann)) deallocate(ann)
-    ierr = 0
-  end subroutine
-
-  subroutine ANN_load(fname, ann, ierr)
-    character(len=*), intent(in) :: fname
-    type(t_ANN), allocatable, intent(inout) :: ann
-    integer(mpiint), intent(out) :: ierr
-
-    character(len=default_str_len) :: groups(2), act_name
-    integer(iintegers) :: Nlayer, i
-    integer(ferr) :: fe
-
-    if(allocated(ann)) call CHKERR(1_mpiint, 'ANN already allocated')
-    allocate(ann)
-
-    call get_attribute(fname, "global", "Nlayer", Nlayer, ierr); call CHKERR(ierr)
-    allocate(ann%layers(Nlayer))
-
-    groups(1) = trim(fname)
-    do i = 1, size(ann%layers)
-      groups(2) = 'w'//itoa(i-1); call ncload(groups, ann%layers(i)%wgt, ierr)
-      call CHKERR(ierr, "Could not load ANN weights: "//trim(groups(2)))
-      groups(2) = 'b'//itoa(i-1); call ncload(groups, ann%layers(i)%bias, ierr)
-      call CHKERR(ierr, "Could not load ANN bias: "//trim(groups(2)))
-      call get_attribute(fname, 'w'//itoa(i-1), "activation", act_name, ierr); call CHKERR(ierr)
-      call char_to_upper(act_name)
-      ann%layers(i)%activation_id = func_name_to_id(act_name)
-      if(ann%layers(i)%activation_id.lt.0) then
-        call CHKERR(int(ann%layers(i)%activation_id, mpiint), 'Could not find func id for activation_name '//trim(act_name))
-      endif
-    enddo
-    call ANN_view(ann, fe); ierr = ierr+fe
-    ierr = 0
-  end subroutine
-
-  subroutine ANN_predict(ann, inp, C, ierr)
-    type(t_ANN), intent(in) :: ann
-    real(ireals), intent(in) :: inp(:)
-    real(ireals), intent(out) :: C(:)
-    integer(mpiint), intent(out) :: ierr
-
-    real(fr) :: Cfr(size(C))
-    integer(ferr) :: iferr
-
-    if(fr.ne.ireals) then
-      call fornado_inference(ann, real(inp, fr), Cfr, iferr)
-      C = Cfr
-    endif
-    ierr = int(iferr, mpiint)
-  end subroutine
-
   subroutine init(ANN, comm, ierr)
     class(t_optprop_ANN), intent(inout) :: ANN
     integer(mpiint), intent(in) :: comm
@@ -133,74 +75,124 @@ contains
     class is (t_optprop_ANN_3_10)
       ANN%dir_streams  = 3
       ANN%diff_streams = 10
-      ANN%basename=trim(lut_basename)
       allocate(t_boxmc_3_10::ANN%bmc)
       call set_op_param_space(ANN, 'LUT_3_10', ierr); call CHKERR(ierr)
 
     class default
       call CHKERR(1_mpiint, 'initialize ANN: unexpected type for optprop_ANN object!')
     end select
+    ANN%basename = &
+      & trim(lut_basename)//&
+      & trim(gen_ann_basename("_ANN_", ANN%dirconfig))
 
     print *,'Init ANN for basename: ', trim(ANN%basename)
     print *,'ANN dirconfig'
-    call print_op_config(comm, ANN%dirconfig)
+    call print_op_config(ANN%dirconfig)
     print *,'ANN diffconfig'
-    call print_op_config(comm, ANN%diffconfig)
+    call print_op_config(ANN%diffconfig)
+
+    allocate(ANN%ann_dir2dir)
+    ANN%ann_dir2dir%fname = trim(ANN%basename)//"_dir2dir_"//toStr(ANN%dir_streams)//'.nc'
+
+    allocate(ANN%ann_dir2diff)
+    ANN%ann_dir2diff%fname = trim(ANN%basename)//"_dir2diff_"//toStr(ANN%dir_streams)// &
+      & "_"//toStr(ANN%diff_streams)//'.nc'
+
+    allocate(ANN%ann_diff2diff)
+    ANN%ann_diff2diff%fname = trim(ANN%basename)//"_diff2diff_"//toStr(ANN%diff_streams)//'.nc'
+
+    !call ANN_load(ANN%ann_dir2dir, ierr); call CHKERR(ierr)
+    !call ANN_load(ANN%ann_dir2diff, ierr); call CHKERR(ierr)
+    call ANN_load(ANN%ann_diff2diff, ierr); call CHKERR(ierr)
 
     ierr = 0
   end subroutine
 
+  function gen_ann_basename(prefix, config) result(lutname)
+    character(len=:), allocatable :: lutname
+    character(len=*), intent(in) :: prefix
+    type(t_op_config), intent(in) :: config
+    integer(iintegers) :: k
+    lutname = trim(prefix)
+    do k=1,size(config%dims)
+      lutname = trim(lutname)//'.'//trim(config%dims(k)%dimname)//toStr(config%dims(k)%N)
+    enddo
+  end function
+
   subroutine destroy(ANN, ierr)
     class(t_optprop_ANN), intent(inout) :: ann
     integer(mpiint), intent(out) :: ierr
-    if(allocated(ann%fann_dir2dir  )) deallocate(ann%fann_dir2dir)
-    if(allocated(ann%fann_dir2diff )) deallocate(ann%fann_dir2diff)
-    if(allocated(ann%fann_diff2diff)) deallocate(ann%fann_diff2diff)
+    if(allocated(ann%ann_dir2dir  )) deallocate(ann%ann_dir2dir)
+    if(allocated(ann%ann_dir2diff )) deallocate(ann%ann_dir2diff)
+    if(allocated(ann%ann_diff2diff)) deallocate(ann%ann_diff2diff)
     ann%basename = 'deallocated'
     ann%dir_streams = -1
     ann%diff_streams = -1
     ierr = 0
   end subroutine
-!
-!      call MPI_Comm_rank(comm, myid, mpierr)
-!      call MPI_Comm_size(comm, comm_size, mpierr)
-!
-!      if (myid.eq.0) then
-!
-!        basename = trim(lut_basename)//'_dstorder_8_10.'
-!
-!        write(descr,FMT='("diffuse.tau",I0,".w0",I0,".g",I0,".delta_",L1,"_",F0.3)') &
-!          size(preset_tau31), size(preset_w010), size(preset_g3), ldelta_scale, delta_scale_truncate
-!
-!        allocate(diff2diff_network)
-!        netname = trim(basename)//trim(descr)//'_diff2diff.ANN.nc'
-!        call loadnet(netname, diff2diff_network, ierr)
-!
-!        write(descr,FMT='("direct.tau",I0,".w0",I0,".g",I0,".delta_",L1,"_",F0.3)') &
-!          size(preset_tau31), size(preset_w010), size(preset_g3), ldelta_scale, delta_scale_truncate
-!
-!        allocate(dir2diff_network)
-!        netname = trim(basename)//trim(descr)//'_dir2diff.ANN.nc'
-!        call loadnet(netname, dir2diff_network, ierr)
-!
-!        allocate(dir2dir_network)
-!        netname = trim(basename)//trim(descr)//'_dir2dir.ANN.nc'
-!        call loadnet(netname, dir2dir_network, ierr)
-!      endif
-!      call imp_bcast(comm, ierr, 0_mpiint)
-!
-!      if (comm_size.gt.1 .and. ierr.eq.0) then
-!        if(myid.ne.0) then
-!          allocate( diff2diff_network )
-!          allocate( dir2diff_network  )
-!          allocate( dir2dir_network   )
-!        endif
-!        call scatter_ANN (comm, diff2diff_network)
-!        call scatter_ANN (comm, dir2diff_network)
-!        call scatter_ANN (comm, dir2dir_network)
-!      endif
-!
-!  end subroutine
+
+  subroutine ANN_destroy(ann, ierr)
+    type(t_ANN), allocatable, intent(inout) :: ann
+    integer(mpiint), intent(out) :: ierr
+    if(.not.allocated(ann)) then
+      ierr = 1
+      call CHKWARN(ierr, 'ann not allocated but called destroy')
+    endif
+    if(allocated(ann)) deallocate(ann)
+    ierr = 0
+  end subroutine
+
+  subroutine ANN_load(ann, ierr)
+    type(t_ANN), intent(inout) :: ann
+    integer(mpiint), intent(out) :: ierr
+
+    character(len=default_str_len) :: groups(2), act_name
+    integer(iintegers) :: Nlayer, i
+    integer(mpiint) :: iphys
+    integer(ferr) :: fe
+
+    print *,'loading ann from file:', ann%fname
+
+    call get_attribute(ann%fname, "global", "physical_input", iphys, ierr)
+    call CHKWARN(ierr, "Could not load global attribute if network was trained on physical_input or with indices")
+    ann%lphysical_input = iphys.ne.0_mpiint
+
+    if(allocated(ann%fann)) call CHKERR(1_mpiint, 'ANN already allocated')
+    allocate(ann%fann)
+
+    call get_attribute(ann%fname, "global", "Nlayer", Nlayer, ierr); call CHKERR(ierr)
+    allocate(ann%fann%layers(Nlayer))
+
+    groups(1) = trim(ann%fname)
+    do i = 1, size(ann%fann%layers)
+      groups(2) = 'w'//toStr(i-1); call ncload(groups, ann%fann%layers(i)%wgt, ierr)
+      call CHKERR(ierr, "Could not load ANN weights: "//trim(groups(2)))
+      groups(2) = 'b'//toStr(i-1); call ncload(groups, ann%fann%layers(i)%bias, ierr)
+      call CHKERR(ierr, "Could not load ANN bias: "//trim(groups(2)))
+      call get_attribute(ann%fname, 'w'//toStr(i-1), "activation", act_name, ierr); call CHKERR(ierr)
+      call char_to_upper(act_name)
+      ann%fann%layers(i)%activation_id = func_name_to_id(act_name)
+      if(ann%fann%layers(i)%activation_id.lt.0) then
+        call CHKERR(int(ann%fann%layers(i)%activation_id, mpiint), 'Could not find func id for activation_name '//trim(act_name))
+      endif
+    enddo
+    call ANN_view(ann%fann, fe); ierr = ierr+fe
+    ierr = 0
+  end subroutine
+
+  pure subroutine ANN_predict(ann, inp, C, ierr)
+    type(t_fornado_ANN), intent(in) :: ann
+    real(irealLUT), intent(in) :: inp(:)
+    real(irealLUT), intent(out) :: C(:)
+    integer(mpiint), intent(out) :: ierr
+
+    real(fr) :: Cfr(size(C))
+    integer(ferr) :: iferr
+
+    call fornado_inference(ann, real(inp, fr), Cfr, iferr)
+    C = Cfr
+    ierr = int(iferr, mpiint)
+  end subroutine
 
 !  subroutine scatter_ANN (comm, net)
 !    type(t_ANN) :: net
@@ -234,163 +226,118 @@ contains
 !      call imp_bcast(comm, net%theta      , 0_mpiint)
 !    endif
 !  end subroutine
-!
-!  subroutine loadnet(netname,net,ierr)
-!      character(default_str_len) :: netname
-!      type(t_ANN) :: net
-!      integer(mpiint),intent(out) :: ierr
-!      integer(mpiint) :: errcnt,k
-!
-!      errcnt=0
-!      if(.not.allocated(net%weights)) then
-!        call ncload([netname,'weights' ],net%weights , ierr) ; errcnt = ierr        ! ; print *,'loading weights ',ierr
-!        call ncload([netname,'units'   ],net%units   , ierr) ; errcnt = errcnt+ierr ! ; print *,'loading units   ',ierr
-!        call ncload([netname,'inno'    ],net%inno    , ierr) ; errcnt = errcnt+ierr ! ; print *,'loading inno    ',ierr
-!        call ncload([netname,'outno'   ],net%outno   , ierr) ; errcnt = errcnt+ierr ! ; print *,'loading outno   ',ierr
-!        call ncload([netname,'conec'   ],net%conec   , ierr) ; errcnt = errcnt+ierr ! ; print *,'loading conec   ',ierr
-!        call ncload([netname,'deo'     ],net%deo     , ierr) ; errcnt = errcnt+ierr ! ; print *,'loading deo     ',ierr
-!        call ncload([netname,'eni'     ],net%eni     , ierr) ; errcnt = errcnt+ierr ! ; print *,'loading eni     ',ierr
-!        call ncload([netname,'inlimits'],net%inlimits, ierr) ; errcnt = errcnt+ierr ! ; print *,'loading inlimits     ',ierr
-!
-!        call ncload([netname,'pspace.aspect'],net%aspect, ierr) ; errcnt = errcnt+ierr   !  ; print *,'loading inlimits',ierr
-!        call ncload([netname,'pspace.tau'   ],net%tau   , ierr) ; errcnt = errcnt+ierr   !  ; print *,'loading inlimits',ierr
-!        call ncload([netname,'pspace.w0'    ],net%w0    , ierr) ; errcnt = errcnt+ierr   ! ; print *,'loading eni     ',ierr
-!        call ncload([netname,'pspace.g'     ],net%g     , ierr) ; errcnt = errcnt+ierr  ! ; print *,'loading inlimits',ierr
-!        call ncload([netname,'pspace.phi'   ],net%phi   , ierr) ; print *,'loading phi  ',ierr, allocated(net%phi  ), net%inlimits
-!        call ncload([netname,'pspace.theta' ],net%theta , ierr) ; print *,'loading theta',ierr, allocated(net%theta), net%inlimits
-!
-!        if(ldebug_optprop) &
-!          print *,'Loading ANN from: ',trim(netname),' resulted in errcnt',errcnt
-!        if(errcnt.ne.0) then
-!          ierr = errcnt
-!          print *,'ERROR loading ANN for netname :: ',trim(netname),' ::: ',ierr
-!          return
-!        endif
-!
-!        net%in_size = size(net%inno)
-!        net%out_size= size(net%outno)
-!
-!        if(ldebug_optprop) then
-!          print *,'shape eni',shape(net%eni),'weights',shape(net%weights),'conec',shape(net%conec)
-!          do k=1,ubound(net%inlimits,1)
-!            print *,'input limits(',k,')',net%inlimits(k,:),'eni',net%eni(k,:)
-!          enddo
-!        endif
-!
-!        allocate(net%lastcall(net%in_size) ) ; net%lastcall=-1
-!        allocate(net%lastresult(net%out_size) )
-!
-!        net%initialized = .True.
-!      endif
-!
-!  end subroutine
-!
-!
-  subroutine ANN_get_dir2dir(aspect, tauz, w0, g, phi, theta, C)
-    real(irealLUT),intent(in) :: aspect, tauz, w0, g, phi, theta
-    real(irealLUT),intent(out) :: C(:)
-    !real(irealLUT) :: ind_aspect, ind_tauz, ind_w0, ind_g, ind_phi, ind_theta
-    C = aspect+tauz+w0+g+phi+theta
+
+  subroutine get_dir2dir(ANN, sample_pts, C)
+    class(t_optprop_ANN), intent(in) :: ANN
+    real(irealLUT), intent(in) :: sample_pts(:)
+    real(irealLUT), target, intent(out):: C(:) ! dimension(ANN%dir_streams**2)
+
+    integer(iintegers) :: src, kdim
+    real(irealLUT) :: pti_buffer(size(sample_pts))
+    real(irealLUT), pointer :: pC(:,:) ! dim(src, dst)
+    integer(mpiint) :: ierr
+
+    do kdim = 1, size(sample_pts)
+      pti_buffer(kdim) = find_real_location(ANN%dirconfig%dims(kdim)%v, sample_pts(kdim))
+    enddo
+    call ANN_predict(ANN%ann_dir2dir%fann, pti_buffer, C, ierr); call CHKERR(ierr)
+
+    if(ldebug_optprop) then
+      !Check for energy conservation:
+      ierr=0
+      pC(1:ANN%dir_streams, 1:ANN%dir_streams) => C(:)
+      do src = 1, ANN%dir_streams
+        if(sum(pC(src,:)).gt.1._irealLUT+1e-5_irealLUT) ierr=ierr+1
+      enddo
+      if(ierr.ne.0) then
+        do src=1,ANN%dir_streams
+          print *,'SUM dir2dir coeff for src '//toStr(src)//' :: sum',sum(pC(src,:)),':: C', pC(src,:)
+        enddo
+        call CHKERR(1_mpiint, 'Check for energy conservation failed')
+      endif
+    endif
   end subroutine
-!
-!      integer(mpiint) :: ierr
-!
-!      ind_aspect  = find_real_location(real(dir2dir_network%aspect,irealLUT), aspect)
-!      ind_tauz    = find_real_location(real(dir2dir_network%tau   ,irealLUT), tauz)
-!      ind_w0      = find_real_location(real(dir2dir_network%w0    ,irealLUT), w0  )
-!      ind_g       = find_real_location(real(dir2dir_network%g     ,irealLUT), g    )
-!      ind_phi     = find_real_location(real(dir2dir_network%phi   ,irealLUT), phi  )
-!      ind_theta   = find_real_location(real(dir2dir_network%theta ,irealLUT), theta)
-!
-!      call calc_net(C, [ind_aspect, ind_tauz, ind_w0, ind_g, ind_phi, ind_theta] , dir2dir_network,ierr )
-!      if(ierr.ne.0) then
-!        print *,'Error when calculating dir2dir_net coeffs',ierr
-!        call exit()
-!      endif
-!
-!      C = min(one, max(C,zero) )
-!      where( C.le.min_lim_coeff )
-!        C = zero
-!      endwhere
-!
-!      !Check for energy conservation:
-!!      if(lrenormalize) then
-!!        do isrc=1,Ndir_8_10
-!!          norm = sum( C( isrc:size(C):Ndir_8_10 ) )
-!!          if(real(norm).gt.one) then
-!!            C( isrc:size(C):Ndir_8_10 ) = C( isrc:size(C):Ndir_8_10 )/norm
-!!            !          print *,'dir2dir renormalization:',norm,' ::: ',sum( C( isrc:size(C):Ndir_8_10 ) )
-!!          endif
-!!        enddo
-!!      endif
-!
-!!     if(lrenormalize) then
-!!       call calc_net(C2, [ind_aspect, ind_tauz, ind_w0, ind_g, ind_phi, ind_theta], dir2diff_network,ierr)
-!!       do isrc=1,Ndir_8_10
-!!         norm = sum( C(isrc:size(C):Ndir_8_10) ) + sum( C2(isrc:size(C2):Ndiff_8_10) )
-!!         if(real(norm).gt.one) then
-!!           C(isrc:size(C):Ndir_8_10)=C( isrc:size(C):Ndir_8_10 )/norm
-!!         endif
-!!       enddo
-!!     endif
-!
-!   end subroutine
-!
-  subroutine ANN_get_dir2diff(aspect, tauz, w0, g, phi, theta, C)
-    real(irealLUT),intent(in) :: aspect, tauz, w0, g,phi,theta
-    real(irealLUT),intent(out) :: C(:)
-    !real(irealLUT) :: ind_aspect, ind_tauz, ind_w0, ind_g, ind_phi, ind_theta
-    C = aspect+tauz+w0+g+phi+theta
+
+
+  subroutine get_dir2diff(ANN, sample_pts, C)
+    class(t_optprop_ANN), intent(in) :: ANN
+    real(irealLUT), intent(in) :: sample_pts(:)
+    real(irealLUT), target, intent(out):: C(:) ! dimension(ANN%dir_streams*ANN%diff_streams)
+
+    integer(iintegers) :: src, kdim
+    real(irealLUT) :: pti_buffer(size(sample_pts))
+    real(irealLUT), pointer :: pC(:,:) ! dim(src, dst)
+    integer(mpiint) :: ierr
+
+    do kdim = 1, size(sample_pts)
+      pti_buffer(kdim) = find_real_location(ANN%dirconfig%dims(kdim)%v, sample_pts(kdim))
+    enddo
+    call ANN_predict(ANN%ann_dir2diff%fann, pti_buffer, C, ierr); call CHKERR(ierr)
+
+    if(ldebug_optprop) then
+      !Check for energy conservation:
+      ierr=0
+      pC(1:ANN%dir_streams, 1:ANN%diff_streams) => C(:)
+      do src = 1, ANN%dir_streams
+        if(sum(pC(src,:)).gt.1._irealLUT+1e-5_irealLUT) ierr=ierr+1
+      enddo
+      if(ierr.ne.0) then
+        do src=1,ANN%dir_streams
+          print *,'SUM dir2diff coeff for src '//toStr(src)//' :: sum',sum(pC(src,:)),':: C', pC(src,:)
+        enddo
+        call CHKERR(1_mpiint, 'Check for energy conservation failed')
+      endif
+    endif
   end subroutine
-!
-!      integer(mpiint) :: ierr
-!
-!      ind_aspect  = find_real_location(real(dir2diff_network%aspect,irealLUT), aspect )
-!      ind_tauz    = find_real_location(real(dir2diff_network%tau   ,irealLUT), tauz )
-!      ind_w0      = find_real_location(real(dir2diff_network%w0    ,irealLUT), w0   )
-!      ind_g       = find_real_location(real(dir2diff_network%g     ,irealLUT), g    )
-!      ind_phi     = find_real_location(real(dir2diff_network%phi   ,irealLUT), phi  )
-!      ind_theta   = find_real_location(real(dir2diff_network%theta ,irealLUT), theta)
-!
-!      call calc_net(C, [ind_aspect, ind_tauz, ind_w0, ind_g, ind_phi, ind_theta] , dir2diff_network,ierr )
-!!      C = C/1000.0
-!      if(ierr.ne.0) then
-!        print *,'Error when calculating dir2diff_net coeffs',ierr
-!        call exit()
-!      endif
-!
-!      C = min(one, max(C,zero) )
-!      where( C.le.min_lim_coeff )
-!        C = zero
-!      endwhere
-!
-!      !Check for energy conservation:
-!!     if(lrenormalize) then
-!!       do isrc=1,Ndiff_8_10
-!!         norm = sum( C( isrc:size(C):Ndir_8_10 ) )
-!!         if(real(norm).gt.one) then
-!!           C( isrc:size(C):Ndir_8_10 ) = C( isrc:size(C):Ndir_8_10 )/ norm
-!!           !          print *,'dir2diff renormalization:',norm,' ::: ',sum( C( isrc:size(C):Ndir_8_10 ) )
-!!         endif
-!!       enddo
-!!     endif
-!!     if(lrenormalize) then
-!!       call calc_net(C2, [ind_aspect, ind_tauz, ind_w0 ,ind_g, ind_phi, ind_theta], dir2dir_network, ierr)
-!!       do isrc=1,Ndir_8_10
-!!         norm = sum( C(isrc:size(C):Ndiff_8_10) ) + sum(C2(isrc:size(C2):Ndir_8_10))
-!!         if(real(norm).gt.one) then
-!!           C(isrc:size(C):Ndiff_8_10)=C( isrc:size(C):Ndiff_8_10 )/norm
-!!         endif
-!!       enddo
-!!     endif
-!   end subroutine
-!
-   subroutine ANN_get_diff2diff(aspect, tauz, w0, g, C)
-     real(irealLUT),intent(out) :: C(:)
-     real(irealLUT),intent(in) :: aspect, tauz, w0, g
-     !real(irealLUT) :: ind_aspect, ind_tauz, ind_w0, ind_g
-     C = aspect+tauz+w0+g
-   end subroutine
+
+
+  subroutine get_diff2diff(ANN, sample_pts, C)
+    class(t_optprop_ANN), intent(in) :: ANN
+    real(irealLUT), intent(in) :: sample_pts(:)
+    real(irealLUT), target, intent(out):: C(:) ! dimension(ANN%diff_streams**2)
+
+    real(irealLUT) :: pti_buffer(size(sample_pts))
+    integer(iintegers) :: src, kdim
+    real(irealLUT), pointer :: pC(:,:) ! dim(src, dst)
+    integer(mpiint) :: ierr
+
+    if(ANN%ann_diff2diff%lphysical_input) then
+      pti_buffer = sample_pts
+      pti_buffer(1) = exp(-pti_buffer(1))
+      call ANN_predict(ANN%ann_diff2diff%fann, pti_buffer, C, ierr); call CHKERR(ierr)
+    else
+
+      if(ldebug_optprop) then
+        if(size(sample_pts).ne.size(ANN%diffconfig%dims)) then
+          call print_op_config(ANN%diffconfig)
+          call CHKERR(1_mpiint, 'size of sample_pts array ne number of dimensions in ANN ' &
+            //toStr(size(sample_pts, kind=iintegers))//'/'//toStr(size(ANN%diffconfig%dims)))
+        endif
+        call check_if_samplepts_in_bounds(sample_pts, ANN%diffconfig)
+      endif
+
+      do kdim = 1, size(sample_pts)
+        pti_buffer(kdim) = find_real_location(ANN%diffconfig%dims(kdim)%v, sample_pts(kdim))
+      enddo
+      pti_buffer = pti_buffer - 1 ! because the network is trained on C indices
+      call ANN_predict(ANN%ann_diff2diff%fann, pti_buffer, C, ierr); call CHKERR(ierr)
+    endif
+
+    if(ldebug_optprop) then
+      !Check for energy conservation:
+      ierr=0
+      pC(1:ANN%diff_streams, 1:ANN%diff_streams) => C(:)
+      do src = 1, ANN%diff_streams
+        if(sum(pC(src,:)).gt.1._irealLUT+1e-3_irealLUT) ierr=ierr+1
+      enddo
+      if(ierr.ne.0) then
+        do src=1,ANN%diff_streams
+          print *,'SUM diff2diff coeff for src '//toStr(src)//' :: sum',sum(pC(src,:)),':: C', pC(src,:)
+        enddo
+        call CHKERR(1_mpiint, 'Check for energy conservation failed')
+      endif
+    endif
+  end subroutine
 !
 !      if(.not.diff2diff_network%initialized) then
 !        print *,'network that is about to be used for coeffs is not loaded! diffuse:'
