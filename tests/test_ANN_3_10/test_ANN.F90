@@ -1,4 +1,4 @@
-module test_LUT_ANN
+module test_ANN
   use m_tenstream_options, only: read_commandline_options
   use m_data_parameters, only : ireals, irealLUT, iintegers, mpiint, default_str_len
   use m_optprop_ANN, only: t_ANN, ANN_load, ANN_destroy, ANN_predict
