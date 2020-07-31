@@ -13,19 +13,24 @@ def LUT_to_ANN_input(fname, varname):
             raise Exception("Havent found the data I was expecting? :: {}".format(varname))
 
         dim_names = [k for k in D.keys() if 'values' in k]
-        dims = [D[k] for k in dim_names]
+        dims = [D[k] for k in dim_names][::-1]
 
-        dim_sizes = [np.size(_) for _ in dims[::-1] ]
+        dim_sizes = [np.size(_) for _ in dims ]
 
         # Index Space coordinates
         mg = np.mgrid[[slice(_) for _ in dim_sizes]]
         inp_idx = mg.reshape(len(dims),-1).T
 
         # Physics space coordinates
-        grid = np.meshgrid(*dims[::-1], indexing='ij')
+        grid = np.meshgrid(*dims, indexing='ij')
         inp_phys = np.array(grid).reshape(len(dims),-1).T
 
-        inp_phys[:,-1] = np.exp(-inp_phys[:,-1]) # convert tau to transmission
+        # reverse dims to get it in fortran order, i.e. tau first
+        inp_idx = inp_idx[:,::-1]
+        inp_phys= inp_phys[:,::-1]
+
+        # convert tau to transmission
+        inp_phys[:,0] = np.exp(-inp_phys[:,0])
 
         log.info('Converting LUT input data from {} :: {} ... done'.format(fname, varname))
         return inp_idx, inp_phys, retvars[0]
@@ -96,12 +101,15 @@ def train_keras_model(inp, trgt, model, train_split=.1, validation_split=.1, epo
     log.info('training Keras model :: {}'.format(model.name))
     callbacks = []
 
-    callbacks.append( tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True) )
+    callbacks.append( tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True) )
     callbacks.append( tfa.callbacks.TimeStopping(seconds=3600*24, verbose=1) )
 
     print("Check logs with: `tensorboard --logdir logs/ --bind_all`")
     log_dir = os.path.join("logs/", model.name, datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
     callbacks.append( tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1) )
+
+    callbacks.append( tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.2, patience=2, min_lr=1e-6) )
+
 
     if outpath is not None:
         callbacks.append( tf.keras.callbacks.ModelCheckpoint(filepath=outpath, monitor='val_loss', save_best_only=True) )
@@ -129,7 +137,7 @@ def train_keras_model(inp, trgt, model, train_split=.1, validation_split=.1, epo
     return model, history
 
 
-def tf2fornado(model, outpath, verbose=True):
+def tf2fornado(model, phys_input, outpath, verbose=True):
     import numpy as np
     import xarray as xr
 
@@ -145,6 +153,8 @@ def tf2fornado(model, outpath, verbose=True):
 
     D = xr.Dataset()
     D.attrs['Nlayer'] = np.int32(len(layers))
+    D.attrs['physical_input'] = np.int32(phys_input)
+    D.attrs['keras_name'] = model.name
 
     for i, l in enumerate(layers):
         D["w{}".format(i)] = xr.DataArray(l.weights[0].numpy(), dims=("Ninp_{}".format(i), "Nout_{}".format(i)))
@@ -219,7 +229,7 @@ def _main():
 
     # We write to the file beforehand (bug in xarray if we do it after tf import)
     if args.export:
-        tf2fornado(None, args.export)
+        tf2fornado(None, None, args.export)
 
     if args.load_model:
         import tensorflow as tf
@@ -250,7 +260,7 @@ def _main():
         model.save(args.save_model)
 
     if args.export:
-        tf2fornado(model, args.export)
+        tf2fornado(model, args.physical_axis, args.export)
 
 
 if __name__ == "__main__":
