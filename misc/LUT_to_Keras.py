@@ -56,6 +56,36 @@ def gen_out_file(inp_idx, inp_phys, varname, var, outfile):
     D.to_netcdf(outfile)
 
 
+def loss_rmse(y_true, y_predict):
+    import tensorflow.math as M
+    return M.sqrt( M.reduce_mean( M.squared_difference(y_predict, y_true) ) )
+
+def loss_mse(y_true, y_predict):
+    import tensorflow.math as M
+    return M.reduce_mean( M.squared_difference(y_predict, y_true) )
+
+def loss_mae(y_true, y_predict):
+    import tensorflow.math as M
+    return M.reduce_mean(M.abs(y_predict - y_true))
+
+def loss_bias(y_true, y_pred):
+    import tensorflow as tf
+    import tensorflow.math as M
+
+    cc = {9:3, 30:10, 100:10}
+    N = cc[y_pred.shape[-1]]
+    dst_coeff_y_pred = tf.split(y_pred, axis=1, num_or_size_splits=N)
+    dst_coeff_y_true = tf.split(y_true, axis=1, num_or_size_splits=N)
+
+    # then sum over the src dimension
+    bias = M.abs(M.reduce_sum(dst_coeff_y_pred, axis=0) - M.reduce_sum(dst_coeff_y_true, axis=0))
+    mean_bias = M.reduce_mean(bias)/N
+
+    return mean_bias
+
+def custom_loss(y_true, y_pred):
+    return loss_mae(y_true, y_pred) + loss_bias(y_true, y_pred)
+
 def setup_keras_model(inp, trgt, ident,
         activation='elu',
         activation_output='linear',
@@ -66,7 +96,11 @@ def setup_keras_model(inp, trgt, ident,
         dropout=None):
     import tensorflow as tf
 
-    name = "{}_f{}_M{}_N{}_drop{}_o{}_opti{}_lr{}".format(ident, activation, n_hidden, n_neurons, dropout, activation_output, optimizer, learning_rate)
+    name = "{}_f{}_M{}_N{}_drop{}_o{}_opti{}_lr{}".format(
+            ident, activation,
+            n_hidden, n_neurons,
+            dropout, activation_output,
+            optimizer, learning_rate)
 
     log.info('Setup Keras model :: {}'.format(name))
 
@@ -86,7 +120,8 @@ def setup_keras_model(inp, trgt, ident,
 
     model.add(tf.keras.layers.Dense( trgt.shape[1], activation=output_act))
     opt = getattr(tf.keras.optimizers, optimizer)(lr=learning_rate)
-    model.compile(loss='mae', optimizer=opt, metrics=['mse'] )
+
+    model.compile(loss=custom_loss, optimizer=opt, metrics=[loss_mae, loss_mse, loss_bias] )
 
     return model
 
@@ -108,12 +143,10 @@ def train_keras_model(inp, trgt, model, train_split=.1, validation_split=.1, epo
     log_dir = os.path.join("logs/", model.name, datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
     callbacks.append( tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1) )
 
-    callbacks.append( tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.2, patience=2, min_lr=1e-6) )
+    callbacks.append( tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.9, patience=10, min_lr=1e-4) )
 
-
-    if outpath is not None:
-        callbacks.append( tf.keras.callbacks.ModelCheckpoint(filepath=outpath, monitor='val_loss', save_best_only=True) )
-
+    #if outpath is not None:
+    #    callbacks.append( tf.keras.callbacks.ModelCheckpoint(filepath=outpath, monitor='val_loss', save_best_only=True) )
 
     train_mask = np.random.rand(inp.shape[0]) <= train_split
     valid_mask = ~train_mask
@@ -233,7 +266,13 @@ def _main():
 
     if args.load_model:
         import tensorflow as tf
-        model = tf.keras.models.load_model(args.load_model)
+        custom_objects = {
+                "custom_loss" : custom_loss,
+                "loss_mae" : loss_mae,
+                "loss_mse" : loss_mse,
+                "loss_bias" : loss_bias,
+                }
+        model = tf.keras.models.load_model(args.load_model, custom_objects=custom_objects)
     else:
         model = setup_keras_model(inpvar, var,
                 ident=args.varname,
@@ -257,7 +296,7 @@ def _main():
                 outpath=args.save_model)
 
     if args.save_model:
-        model.save(args.save_model)
+        model.save(args.save_model, save_format="tf")
 
     if args.export:
         tf2fornado(model, args.physical_axis, args.export)
