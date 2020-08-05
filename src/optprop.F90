@@ -27,7 +27,7 @@ module m_optprop
 use m_optprop_parameters, only : ldebug_optprop, wedge_sphere_radius, param_eps
 use m_helper_functions, only : rmse, CHKERR, CHKWARN, itoa, ftoa, approx, deg2rad, rad2deg, swap, is_between, char_arr_to_str
 use m_data_parameters, only: ireals,ireal_dp,irealLUT,ireal_params,iintegers,one,zero,i0,i1,inil,mpiint
-use m_optprop_base, only: t_op_config, find_op_dim_by_name
+use m_optprop_base, only: t_optprop_base, t_op_config, find_op_dim_by_name
 use m_optprop_LUT, only : t_optprop_LUT, t_optprop_LUT_1_2,t_optprop_LUT_3_6, t_optprop_LUT_3_10, &
   t_optprop_LUT_8_10, t_optprop_LUT_3_16, t_optprop_LUT_8_16, t_optprop_LUT_8_18, &
   t_optprop_LUT_wedge_5_8, t_optprop_LUT_rectilinear_wedge_5_8, t_optprop_LUT_wedge_18_8
@@ -66,6 +66,7 @@ type,abstract :: t_optprop
   logical :: optprop_debug=ldebug_optprop
   class(t_optprop_LUT), allocatable :: LUT
   class(t_optprop_ANN), allocatable :: ANN
+  class(t_optprop_base), pointer :: dev
   contains
     procedure :: init
     procedure :: get_coeff_bmc
@@ -99,7 +100,7 @@ type,extends(t_optprop_cube) :: t_optprop_3_10
     procedure :: dir2diff_coeff_symmetry => dir3_to_diff10_coeff_symmetry
 end type
 
-type,extends(t_optprop_3_10) :: t_optprop_3_10_ann
+type,extends(t_optprop_cube) :: t_optprop_3_10_ann
 end type
 
 type,extends(t_optprop_cube) :: t_optprop_3_16
@@ -143,7 +144,7 @@ integer(mpiint), parameter :: OPP_TINYASPECT_RETCODE = -2_mpiint
 contains
 
   subroutine init(OPP, comm, skip_load_LUT)
-      class(t_optprop), intent(inout) :: OPP
+      class(t_optprop), target, intent(inout) :: OPP
       integer(mpiint) ,intent(in) :: comm
       logical, intent(in), optional :: skip_load_LUT
       integer(mpiint) :: ierr
@@ -186,11 +187,14 @@ contains
         call CHKERR(1_mpiint, ' init optprop : unexpected type for optprop object!')
       end select
 
-      if(allocated(OPP%LUT)) call OPP%LUT%init(comm, skip_load_LUT)
+      if(allocated(OPP%LUT)) then
+        call OPP%LUT%init(comm, skip_load_LUT)
+        OPP%dev => OPP%LUT
+      endif
       if(allocated(OPP%ANN)) then
         call OPP%ANN%init(comm, ierr); call CHKERR(ierr)
+        OPP%dev => OPP%ANN
       endif
-      call CHKERR(1_mpiint, 'DEBUG')
 
   end subroutine
   subroutine destroy(OPP)
@@ -276,9 +280,9 @@ contains
 
         err = rmse(real(C, ireals), real(Cbmc, ireals))
         print *,'rmse', err
-        do isrc=1,OPP%LUT%dir_streams
-          print *, 'lut src', isrc, ':', C(isrc:OPP%LUT%dir_streams**2:OPP%LUT%dir_streams)
-          print *, 'bmc src', isrc, ':', Cbmc(isrc:OPP%LUT%dir_streams**2:OPP%LUT%dir_streams)
+        do isrc=1,OPP%dev%dir_streams
+          print *, 'lut src', isrc, ':', C(isrc:OPP%dev%dir_streams**2:OPP%dev%dir_streams)
+          print *, 'bmc src', isrc, ':', Cbmc(isrc:OPP%dev%dir_streams**2:OPP%dev%dir_streams)
         enddo
         if(err(2).gt.one) then
           !call CHKERR(1_mpiint, 'DEBUG')
@@ -297,22 +301,22 @@ contains
         logical, save :: linit=.False.
 
         if(.not.linit) then
-          dimidx_dir(1) = find_op_dim_by_name(OPP%LUT%dirconfig, 'tau')
-          dimidx_dir(2) = find_op_dim_by_name(OPP%LUT%dirconfig, 'w0')
-          dimidx_dir(3) = find_op_dim_by_name(OPP%LUT%dirconfig, 'aspect_zx')
-          dimidx_dir(4) = find_op_dim_by_name(OPP%LUT%dirconfig, 'g')
-          dimidx_dir(5) = find_op_dim_by_name(OPP%LUT%dirconfig, 'wedge_coord_Cx')
-          dimidx_dir(6) = find_op_dim_by_name(OPP%LUT%dirconfig, 'wedge_coord_Cy')
-          dimidx_dir(7) = find_op_dim_by_name(OPP%LUT%dirconfig, 'param_phi')
-          dimidx_dir(8) = find_op_dim_by_name(OPP%LUT%dirconfig, 'param_theta')
+          dimidx_dir(1) = find_op_dim_by_name(OPP%dev%dirconfig, 'tau')
+          dimidx_dir(2) = find_op_dim_by_name(OPP%dev%dirconfig, 'w0')
+          dimidx_dir(3) = find_op_dim_by_name(OPP%dev%dirconfig, 'aspect_zx')
+          dimidx_dir(4) = find_op_dim_by_name(OPP%dev%dirconfig, 'g')
+          dimidx_dir(5) = find_op_dim_by_name(OPP%dev%dirconfig, 'wedge_coord_Cx')
+          dimidx_dir(6) = find_op_dim_by_name(OPP%dev%dirconfig, 'wedge_coord_Cy')
+          dimidx_dir(7) = find_op_dim_by_name(OPP%dev%dirconfig, 'param_phi')
+          dimidx_dir(8) = find_op_dim_by_name(OPP%dev%dirconfig, 'param_theta')
           allocate(inp_arr_dir(count(dimidx_dir.gt.0)))
 
-          dimidx_diff(1) = find_op_dim_by_name(OPP%LUT%dirconfig, 'tau')
-          dimidx_diff(2) = find_op_dim_by_name(OPP%LUT%dirconfig, 'w0')
-          dimidx_diff(3) = find_op_dim_by_name(OPP%LUT%dirconfig, 'aspect_zx')
-          dimidx_diff(4) = find_op_dim_by_name(OPP%LUT%dirconfig, 'g')
-          dimidx_diff(5) = find_op_dim_by_name(OPP%LUT%dirconfig, 'wedge_coord_Cx')
-          dimidx_diff(6) = find_op_dim_by_name(OPP%LUT%dirconfig, 'wedge_coord_Cy')
+          dimidx_diff(1) = find_op_dim_by_name(OPP%dev%dirconfig, 'tau')
+          dimidx_diff(2) = find_op_dim_by_name(OPP%dev%dirconfig, 'w0')
+          dimidx_diff(3) = find_op_dim_by_name(OPP%dev%dirconfig, 'aspect_zx')
+          dimidx_diff(4) = find_op_dim_by_name(OPP%dev%dirconfig, 'g')
+          dimidx_diff(5) = find_op_dim_by_name(OPP%dev%dirconfig, 'wedge_coord_Cx')
+          dimidx_diff(6) = find_op_dim_by_name(OPP%dev%dirconfig, 'wedge_coord_Cy')
           allocate(inp_arr_diff(count(dimidx_diff.gt.0)))
           linit = .True.
         endif
@@ -336,9 +340,9 @@ contains
             if(dimidx_dir(8).gt.0) inp_arr_dir(dimidx_dir(8)) = save_param_theta
 
             if(ldir) then ! dir2dir
-              call OPP%LUT%get_dir2dir(inp_arr_dir, C)
+              call OPP%dev%get_dir2dir(inp_arr_dir, C)
             else ! dir2diff
-              call OPP%LUT%get_dir2diff(inp_arr_dir, C)
+              call OPP%dev%get_dir2diff(inp_arr_dir, C)
             endif
           end associate
         else
@@ -349,7 +353,7 @@ contains
           if(dimidx_diff(4).gt.0) inp_arr_diff(dimidx_diff(4)) = g
           if(dimidx_diff(5).gt.0) inp_arr_diff(dimidx_diff(5)) = wedge_coords(1)
           if(dimidx_diff(6).gt.0) inp_arr_diff(dimidx_diff(6)) = wedge_coords(2)
-          call OPP%LUT%get_diff2diff(inp_arr_diff, C)
+          call OPP%dev%get_diff2diff(inp_arr_diff, C)
         endif
 
       end subroutine
@@ -459,9 +463,9 @@ contains
             handle_aspect_zx_1D_case = .True.
             ierr = OPP_1D_RETCODE
 
-          elseif(aspect_zx.lt.OPP%LUT%dirconfig%dims(3)%vrange(1)) then
-            restricted_aspect_zx = min(max(aspect_zx, OPP%LUT%dirconfig%dims(3)%vrange(1)), &
-              OPP%LUT%dirconfig%dims(3)%vrange(2))
+          elseif(aspect_zx.lt.OPP%dev%dirconfig%dims(3)%vrange(1)) then
+            restricted_aspect_zx = min(max(aspect_zx, OPP%dev%dirconfig%dims(3)%vrange(1)), &
+              OPP%dev%dirconfig%dims(3)%vrange(2))
             call do_wedge_lookup(tauz, w0, restricted_aspect_zx, ldir, angles)
             handle_aspect_zx_1D_case = .True.
             ierr = OPP_TINYASPECT_RETCODE
@@ -469,7 +473,7 @@ contains
 
         else ! diffuse
 
-          !if(aspect_zx.gt.OPP%LUT%diffconfig%dims(3)%vrange(2)) then
+          !if(aspect_zx.gt.OPP%dev%diffconfig%dims(3)%vrange(2)) then
           if(aspect_zx.ge.twostr_ratio) then
             C = zero
 
@@ -490,9 +494,9 @@ contains
             handle_aspect_zx_1D_case = .True.
             ierr = OPP_1D_RETCODE
 
-          elseif(aspect_zx.lt.OPP%LUT%diffconfig%dims(3)%vrange(1)) then
-            restricted_aspect_zx = min(max(aspect_zx, OPP%LUT%diffconfig%dims(3)%vrange(1)), &
-              OPP%LUT%diffconfig%dims(3)%vrange(2))
+          elseif(aspect_zx.lt.OPP%dev%diffconfig%dims(3)%vrange(1)) then
+            restricted_aspect_zx = min(max(aspect_zx, OPP%dev%diffconfig%dims(3)%vrange(1)), &
+              OPP%dev%diffconfig%dims(3)%vrange(2))
             call do_wedge_lookup(tauz, w0, restricted_aspect_zx, ldir, angles)
             handle_aspect_zx_1D_case = .True.
             ierr = OPP_TINYASPECT_RETCODE
@@ -526,28 +530,28 @@ contains
 
 
     if(present(angles)) then ! obviously we want the direct coefficients
-      if(aspect_zx.lt.OPP%LUT%dirconfig%dims(3)%vrange(1)) then
-        save_aspect_zx = OPP%LUT%dirconfig%dims(3)%vrange(1)
+      if(aspect_zx.lt.OPP%dev%dirconfig%dims(3)%vrange(1)) then
+        save_aspect_zx = OPP%dev%dirconfig%dims(3)%vrange(1)
         ierr = OPP_TINYASPECT_RETCODE
       else
         save_aspect_zx = aspect_zx
       endif
       if(dir) then ! dir2dir
-        call OPP%LUT%get_dir2dir([tauz, w0, save_aspect_zx, g, angles(1), angles(2)], C)
+        call OPP%dev%get_dir2dir([tauz, w0, save_aspect_zx, g, angles(1), angles(2)], C)
         call OPP%dir2dir_coeff_symmetry(C, lswitch_east, lswitch_north)
       else         ! dir2diff
-        call OPP%LUT%get_dir2diff([tauz, w0, save_aspect_zx, g, angles(1), angles(2)], C)
+        call OPP%dev%get_dir2diff([tauz, w0, save_aspect_zx, g, angles(1), angles(2)], C)
         call OPP%dir2diff_coeff_symmetry(C, lswitch_east, lswitch_north)
       endif
     else
       ! diff2diff
-      if(aspect_zx.lt.OPP%LUT%diffconfig%dims(3)%vrange(1)) then
-        save_aspect_zx = OPP%LUT%diffconfig%dims(3)%vrange(1)
+      if(aspect_zx.lt.OPP%dev%diffconfig%dims(3)%vrange(1)) then
+        save_aspect_zx = OPP%dev%diffconfig%dims(3)%vrange(1)
         ierr = OPP_TINYASPECT_RETCODE
       else
         save_aspect_zx = aspect_zx
       endif
-      call OPP%LUT%get_diff2diff([tauz, w0, save_aspect_zx, g], C)
+      call OPP%dev%get_diff2diff([tauz, w0, save_aspect_zx, g], C)
     endif
   end subroutine
 
@@ -558,15 +562,15 @@ contains
       real(irealLUT),intent(out):: C(:)
       real(irealLUT),intent(in),optional :: angles(2)
 
-      real(irealLUT) :: S_diff(OPP%LUT%diff_streams),T_dir(OPP%LUT%dir_streams)
-      real(irealLUT) :: S_tol (OPP%LUT%diff_streams),T_tol(OPP%LUT%dir_streams)
+      real(irealLUT) :: S_diff(OPP%dev%diff_streams),T_dir(OPP%dev%dir_streams)
+      real(irealLUT) :: S_tol (OPP%dev%diff_streams),T_tol(OPP%dev%dir_streams)
       integer(iintegers) :: isrc
 
       real(irealLUT), parameter :: atol=5e-3_irealLUT, rtol=5e-2_irealLUT
 
       if(present(angles)) then
-          do isrc=1,OPP%LUT%dir_streams
-            call OPP%LUT%bmc_wrapper(isrc, &
+          do isrc=1,OPP%dev%dir_streams
+            call OPP%dev%bmc_wrapper(isrc, &
               real(vertices, ireal_dp), &
               real(tauz, irealLUT), &
               real(w0, irealLUT), &
@@ -578,9 +582,9 @@ contains
               S_diff, T_dir, S_tol, T_tol, &
               inp_atol=real(atol, irealLUT), inp_rtol=real(rtol, irealLUT))
             if(dir) then !dir2dir
-              C(isrc:OPP%LUT%dir_streams**2:OPP%LUT%dir_streams) = T_dir
+              C(isrc:OPP%dev%dir_streams**2:OPP%dev%dir_streams) = T_dir
             else ! dir2diff
-              C(isrc:OPP%LUT%dir_streams*OPP%LUT%diff_streams:OPP%LUT%dir_streams) = S_diff
+              C(isrc:OPP%dev%dir_streams*OPP%dev%diff_streams:OPP%dev%dir_streams) = S_diff
             endif
             if(w0.ge.1) then
               if(any(S_tol.gt.0).or.any(T_tol.gt.0)) then
@@ -595,8 +599,8 @@ contains
           enddo
       else
         ! diff2diff
-        do isrc=1,OPP%LUT%diff_streams
-            call OPP%LUT%bmc_wrapper(isrc, &
+        do isrc=1,OPP%dev%diff_streams
+            call OPP%dev%bmc_wrapper(isrc, &
               real(vertices, ireal_dp), &
               real(tauz, irealLUT), &
               real(w0, irealLUT), &
@@ -606,7 +610,7 @@ contains
               mpi_comm_self, &
               S_diff, T_dir, S_tol, T_tol, &
               inp_atol=real(atol, irealLUT), inp_rtol=real(rtol, irealLUT))
-          C(isrc:OPP%LUT%diff_streams**2:OPP%LUT%diff_streams) = S_diff
+          C(isrc:OPP%dev%diff_streams**2:OPP%dev%diff_streams) = S_diff
           if(w0.ge.1) then
             if(any(S_tol.gt.0).or.any(T_tol.gt.0)) then
               print *,'SumT', sum(T_dir), 'SumS', sum(S_diff), &
@@ -637,41 +641,41 @@ contains
     endif
 
     if(dir) then
-      call check_LUT_dimension_limits(OPP%LUT%dirconfig ,[      'tau'], tauz, dimidx_dir(1))
-      call check_LUT_dimension_limits(OPP%LUT%dirconfig ,[       'w0'], w0  , dimidx_dir(2))
-      call check_LUT_dimension_limits(OPP%LUT%dirconfig ,[        'g'], g   , dimidx_dir(3), default_val=0._irealLUT)
-      call check_LUT_dimension_limits(OPP%LUT%dirconfig ,['aspect_zx'], aspect_zx, dimidx_dir(4))
-      call check_LUT_dimension_limits(OPP%LUT%dirconfig ,['phi        ', 'param_phi  '], angles(1), dimidx_dir(5))
-      call check_LUT_dimension_limits(OPP%LUT%dirconfig ,['theta      ', 'param_theta'], angles(2), dimidx_dir(6))
+      call check_LUT_dimension_limits(OPP%dev%dirconfig ,[      'tau'], tauz, dimidx_dir(1))
+      call check_LUT_dimension_limits(OPP%dev%dirconfig ,[       'w0'], w0  , dimidx_dir(2))
+      call check_LUT_dimension_limits(OPP%dev%dirconfig ,[        'g'], g   , dimidx_dir(3), default_val=0._irealLUT)
+      call check_LUT_dimension_limits(OPP%dev%dirconfig ,['aspect_zx'], aspect_zx, dimidx_dir(4))
+      call check_LUT_dimension_limits(OPP%dev%dirconfig ,['phi        ', 'param_phi  '], angles(1), dimidx_dir(5))
+      call check_LUT_dimension_limits(OPP%dev%dirconfig ,['theta      ', 'param_theta'], angles(2), dimidx_dir(6))
     else
-      call check_LUT_dimension_limits(OPP%LUT%diffconfig,[      'tau'], tauz, dimidx_diff(1))
-      call check_LUT_dimension_limits(OPP%LUT%diffconfig,[       'w0'], w0  , dimidx_diff(2))
-      call check_LUT_dimension_limits(OPP%LUT%diffconfig,[        'g'], g   , dimidx_diff(3), default_val=0._irealLUT)
-      call check_LUT_dimension_limits(OPP%LUT%diffconfig,['aspect_zx'], aspect_zx, dimidx_diff(4))
+      call check_LUT_dimension_limits(OPP%dev%diffconfig,[      'tau'], tauz, dimidx_diff(1))
+      call check_LUT_dimension_limits(OPP%dev%diffconfig,[       'w0'], w0  , dimidx_diff(2))
+      call check_LUT_dimension_limits(OPP%dev%diffconfig,[        'g'], g   , dimidx_diff(3), default_val=0._irealLUT)
+      call check_LUT_dimension_limits(OPP%dev%diffconfig,['aspect_zx'], aspect_zx, dimidx_diff(4))
     endif
 
     if(present(angles)) then
-      if(dir .and. size(C).ne. OPP%LUT%dir_streams**2) then
-        print *,'direct called get_coeff with wrong shaped output array:',size(C),'should be ',OPP%LUT%dir_streams**2
+      if(dir .and. size(C).ne. OPP%dev%dir_streams**2) then
+        print *,'direct called get_coeff with wrong shaped output array:',size(C),'should be ',OPP%dev%dir_streams**2
       endif
-      if(.not.dir .and. size(C).ne. OPP%LUT%diff_streams*OPP%LUT%dir_streams) then
+      if(.not.dir .and. size(C).ne. OPP%dev%diff_streams*OPP%dev%dir_streams) then
         print *,'dir2diffuse called get_coeff with wrong shaped output array:',size(C), &
-          'should be',OPP%LUT%diff_streams*OPP%LUT%dir_streams
+          'should be',OPP%dev%diff_streams*OPP%dev%dir_streams
       endif
     else
-      if(dir .and. size(C).ne. OPP%LUT%diff_streams) then
-        print *,'diff2diff called get_coeff with wrong shaped output array:',size(C),'should be ',OPP%LUT%diff_streams
+      if(dir .and. size(C).ne. OPP%dev%diff_streams) then
+        print *,'diff2diff called get_coeff with wrong shaped output array:',size(C),'should be ',OPP%dev%diff_streams
       endif
-      if(.not.dir .and. size(C).ne. OPP%LUT%diff_streams**2) then
-        print *,'diff2diff called get_coeff with wrong shaped output array:',size(C),'should be ',OPP%LUT%diff_streams**2
+      if(.not.dir .and. size(C).ne. OPP%dev%diff_streams**2) then
+        print *,'diff2diff called get_coeff with wrong shaped output array:',size(C),'should be ',OPP%dev%diff_streams**2
       endif
     endif
 
     if(present(wedge_coords)) then
-      call check_LUT_dimension_limits(OPP%LUT%dirconfig ,['wedge_coord_Cx'], wedge_coords(1), dimidx_dir(7))
-      call check_LUT_dimension_limits(OPP%LUT%dirconfig ,['wedge_coord_Cy'], wedge_coords(2), dimidx_dir(8))
-      call check_LUT_dimension_limits(OPP%LUT%diffconfig ,['wedge_coord_Cx'], wedge_coords(1), dimidx_diff(5))
-      call check_LUT_dimension_limits(OPP%LUT%diffconfig ,['wedge_coord_Cy'], wedge_coords(2), dimidx_diff(6))
+      call check_LUT_dimension_limits(OPP%dev%dirconfig ,['wedge_coord_Cx'], wedge_coords(1), dimidx_dir(7))
+      call check_LUT_dimension_limits(OPP%dev%dirconfig ,['wedge_coord_Cy'], wedge_coords(2), dimidx_dir(8))
+      call check_LUT_dimension_limits(OPP%dev%diffconfig ,['wedge_coord_Cx'], wedge_coords(1), dimidx_diff(5))
+      call check_LUT_dimension_limits(OPP%dev%diffconfig ,['wedge_coord_Cy'], wedge_coords(2), dimidx_diff(6))
     endif
     contains
       subroutine check_LUT_dimension_limits(config, dimnames, val, dimindex, default_val)

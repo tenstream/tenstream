@@ -1,10 +1,19 @@
 module m_optprop_base
-  use m_data_parameters, only : iintegers, mpiint, irealLUT, &
+
+  use m_data_parameters, only : &
+    & iintegers, mpiint, &
+    & ireals, irealLUT, ireal_dp, &
     & default_str_len, inil, i1, i2, i3
+
   use m_helper_functions, only: &
-    & CHKERR, &
+    & CHKERR, get_arg, &
     & toStr, linspace, &
     & ind_1d_to_nd, ind_nd_to_1d, ndarray_offsets
+
+  use m_boxmc, only: t_boxmc
+
+  use m_optprop_parameters, only:         &
+    & stddev_atol, stddev_rtol
 
   use m_tenstream_options, only: lLUT_mockup
 
@@ -47,7 +56,9 @@ module m_optprop_base
   type,abstract :: t_optprop_base
     type(t_op_config), allocatable :: dirconfig, diffconfig
     integer(iintegers) :: dir_streams = inil, diff_streams = inil
+    class(t_boxmc), allocatable :: bmc
     contains
+      procedure :: bmc_wrapper
       procedure(get_dir2dir  ), deferred :: get_dir2dir
       procedure(get_dir2diff ), deferred :: get_dir2diff
       procedure(get_diff2diff), deferred :: get_diff2diff
@@ -478,4 +489,57 @@ contains
     endif
   end subroutine
 
+  subroutine bmc_wrapper(OPP, src, vertices, tauz, w0, g, dir, phi, theta, comm, &
+      S_diff, T_dir, S_tol, T_tol, inp_atol, inp_rtol)
+    class(t_optprop_base), intent(in) :: OPP
+    integer(iintegers),intent(in) :: src
+    logical,intent(in) :: dir
+    integer(mpiint),intent(in) :: comm
+    real(irealLUT), intent(in) :: tauz, w0, g, phi, theta
+    real(ireal_dp) :: vertices(:)
+
+    real(irealLUT),intent(out) :: S_diff(OPP%diff_streams),T_dir(OPP%dir_streams)
+    real(irealLUT),intent(out) :: S_tol (OPP%diff_streams),T_tol(OPP%dir_streams)
+    real(irealLUT),intent(in),optional :: inp_atol, inp_rtol
+    real(ireals) :: rS_diff(OPP%diff_streams),rT_dir(OPP%dir_streams)
+    real(ireals) :: rS_tol (OPP%diff_streams),rT_tol(OPP%dir_streams)
+
+    real(ireal_dp) :: bg(3), dz, atol, rtol
+
+    atol = get_arg(stddev_atol, inp_atol)
+    rtol = get_arg(stddev_rtol, inp_rtol)
+
+    atol = atol-epsilon(atol)*10
+    rtol = rtol-epsilon(rtol)*10
+
+    dz = real(vertices(size(vertices)), kind(dz))
+
+    bg(1) = tauz / dz * (1._irealLUT-w0)
+    bg(2) = tauz / dz * w0
+    bg(3) = g
+
+    !print *,comm,'BMC :: calling bmc_get_coeff tauz',tauz,'w0,g',w0,g,phi,theta
+    !print *,comm,'BMC :: calling bmc_get_coeff dz bg',vertices(size(vertices)),bg, '=>', sum(bg(1:2))*vertices(size(vertices)),'/',tauz
+    !print *,comm,'BMC :: calling bmc_get_coeff verts', vertices(1:3) ,':', vertices(10:12)
+    !print *,comm,'BMC :: calling bmc_get_coeff verts', vertices(4:6) ,':', vertices(13:15)
+    !print *,comm,'BMC :: calling bmc_get_coeff verts', vertices(7:9) ,':', vertices(16:18)
+    !print *,'area bot', triangle_area_by_vertices(vertices(1:3), vertices(4:6), vertices(7:9))
+    !print *,'area top', triangle_area_by_vertices(vertices(10:12), vertices(13:15), vertices(16:18))
+    !print *,'area_ratio:', triangle_area_by_vertices(vertices(1:3), vertices(4:6), vertices(7:9)) &
+    !  / triangle_area_by_vertices(vertices(10:12), vertices(13:15), vertices(16:18))
+    !call CHKERR(1_mpiint, 'DEBUG')
+
+    call OPP%bmc%get_coeff(comm, bg, &
+      src, dir, &
+      real(phi, ireal_dp), real(theta, ireal_dp), &
+      vertices,   &
+      rS_diff, rT_dir, &
+      rS_tol, rT_tol, &
+      inp_atol=atol, inp_rtol=rtol)
+
+    S_diff = real(rS_diff, irealLUT)
+    T_dir  = real(rT_dir, irealLUT)
+    S_tol  = real(rS_tol, irealLUT)
+    T_tol  = real(rT_tol, irealLUT)
+  end subroutine
 end module

@@ -109,9 +109,8 @@ module m_optprop_LUT
   end type
 
   type,abstract, extends(t_optprop_base) :: t_optprop_LUT
-    class(t_boxmc), allocatable :: bmc
     type(t_table), allocatable :: Sdiff, Sdir, Tdir
-    logical :: LUT_initialized=.False., optprop_LUT_debug=ldebug_optprop
+    logical :: initialized=.False., optprop_LUT_debug=ldebug_optprop
     character(default_str_len) :: lutbasename
 
     contains
@@ -122,7 +121,6 @@ module m_optprop_LUT
       procedure :: get_diff2diff => LUT_get_diff2diff
       procedure :: LUT_bmc_wrapper_determine_sample_pts
       procedure :: LUT_bmc_wrapper
-      procedure :: bmc_wrapper
       procedure :: scatter_LUTtables
       procedure :: createLUT
       procedure :: loadLUT_dir
@@ -172,7 +170,7 @@ contains
       integer(mpiint) :: comm_size, myid, ierr
       logical :: lskip_load_LUT, load_diffuse_LUT_first, lflg
 
-      if(OPP%LUT_initialized) return
+      if(OPP%initialized) return
 
       call MPI_Comm_rank(comm, myid, mpierr); call CHKERR(mpierr)
       call MPI_Comm_size(comm, comm_size, mpierr); call CHKERR(mpierr)
@@ -276,7 +274,7 @@ contains
 
       call OPP%scatter_LUTtables(comm)
 
-      OPP%LUT_initialized=.True.
+      OPP%initialized=.True.
       if(ldebug.and.myid.eq.0) call print_configs(OPP)
       if(OPP%optprop_LUT_debug .and. myid.eq.0) print *,'Initializing LUT`s... finished'
   end subroutine
@@ -306,8 +304,8 @@ contains
       if(allocated(OPP%bmc  )) deallocate(OPP%bmc)
       if(allocated(OPP%dirconfig)) deallocate(OPP%dirconfig)
       if(allocated(OPP%diffconfig)) deallocate(OPP%diffconfig)
-      OPP%LUT_initialized=.False.
-      if(OPP%optprop_LUT_debug) print *,'Destroyed LUTs', OPP%LUT_initialized
+      OPP%initialized=.False.
+      if(OPP%optprop_LUT_debug) print *,'Destroyed LUTs'
   end subroutine
 
   function gen_lut_basename(prefix, config) result(lutname)
@@ -1131,7 +1129,7 @@ subroutine LUT_bmc_wrapper(OPP, config, index_1d, src, dir, comm, S_diff, T_dir,
       return
     endif
 
-    call bmc_wrapper(OPP, src, vertices, tauz, w0, g, dir, phi, theta, comm, S_diff, T_dir, S_tol, T_tol)
+    call OPP%bmc_wrapper(src, vertices, tauz, w0, g, dir, phi, theta, comm, S_diff, T_dir, S_tol, T_tol)
 
     call LUT_bmc_wrapper_validate(OPP, config, tauz, w0, index_1d, src, dir, T_dir, S_diff, ierr)
     if(ierr.ne.0) then
@@ -1150,59 +1148,6 @@ subroutine LUT_bmc_wrapper(OPP, config, index_1d, src, dir, comm, S_diff, T_dir,
     !  T_dir, ':(', T_tol, ') //', S_diff, ':(', S_tol, ')'
 end subroutine
 
-subroutine bmc_wrapper(OPP, src, vertices, tauz, w0, g, dir, phi, theta, comm, &
-    S_diff, T_dir, S_tol, T_tol, inp_atol, inp_rtol)
-    class(t_optprop_LUT) :: OPP
-    integer(iintegers),intent(in) :: src
-    logical,intent(in) :: dir
-    integer(mpiint),intent(in) :: comm
-    real(irealLUT), intent(in) :: tauz, w0, g, phi, theta
-    real(ireal_dp) :: vertices(:)
-
-    real(irealLUT),intent(out) :: S_diff(OPP%diff_streams),T_dir(OPP%dir_streams)
-    real(irealLUT),intent(out) :: S_tol (OPP%diff_streams),T_tol(OPP%dir_streams)
-    real(irealLUT),intent(in),optional :: inp_atol, inp_rtol
-    real(ireals) :: rS_diff(OPP%diff_streams),rT_dir(OPP%dir_streams)
-    real(ireals) :: rS_tol (OPP%diff_streams),rT_tol(OPP%dir_streams)
-
-    real(ireal_dp) :: bg(3), dz, atol, rtol
-
-    atol = get_arg(stddev_atol, inp_atol)
-    rtol = get_arg(stddev_rtol, inp_rtol)
-
-    atol = atol-epsilon(atol)*10
-    rtol = rtol-epsilon(rtol)*10
-
-    dz = real(vertices(size(vertices)), kind(dz))
-
-    bg(1) = tauz / dz * (1._irealLUT-w0)
-    bg(2) = tauz / dz * w0
-    bg(3) = g
-
-    !print *,comm,'BMC :: calling bmc_get_coeff tauz',tauz,'w0,g',w0,g,phi,theta
-    !print *,comm,'BMC :: calling bmc_get_coeff dz bg',vertices(size(vertices)),bg, '=>', sum(bg(1:2))*vertices(size(vertices)),'/',tauz
-    !print *,comm,'BMC :: calling bmc_get_coeff verts', vertices(1:3) ,':', vertices(10:12)
-    !print *,comm,'BMC :: calling bmc_get_coeff verts', vertices(4:6) ,':', vertices(13:15)
-    !print *,comm,'BMC :: calling bmc_get_coeff verts', vertices(7:9) ,':', vertices(16:18)
-    !print *,'area bot', triangle_area_by_vertices(vertices(1:3), vertices(4:6), vertices(7:9))
-    !print *,'area top', triangle_area_by_vertices(vertices(10:12), vertices(13:15), vertices(16:18))
-    !print *,'area_ratio:', triangle_area_by_vertices(vertices(1:3), vertices(4:6), vertices(7:9)) &
-    !  / triangle_area_by_vertices(vertices(10:12), vertices(13:15), vertices(16:18))
-    !call CHKERR(1_mpiint, 'DEBUG')
-
-    call OPP%bmc%get_coeff(comm, bg, &
-      src, dir, &
-      real(phi, ireal_dp), real(theta, ireal_dp), &
-      vertices,   &
-      rS_diff, rT_dir, &
-      rS_tol, rT_tol, &
-      inp_atol=atol, inp_rtol=rtol)
-
-    S_diff = real(rS_diff, irealLUT)
-    T_dir  = real(rT_dir, irealLUT)
-    S_tol  = real(rS_tol, irealLUT)
-    T_tol  = real(rT_tol, irealLUT)
-end subroutine
 
 !function lin_index_to_param(idx,rng,N)
 !    real(irealLUT) :: lin_index_to_param

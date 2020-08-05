@@ -49,7 +49,7 @@ module m_optprop_ANN
     type(t_ANN), allocatable :: ann_dir2dir
     type(t_ANN), allocatable :: ann_dir2diff
     type(t_ANN), allocatable :: ann_diff2diff
-    class(t_boxmc), allocatable :: bmc
+    logical :: initialized=.False.
     contains
       procedure :: init
       procedure :: destroy
@@ -69,13 +69,14 @@ contains
     integer(mpiint), intent(out) :: ierr
     integer(mpiint) :: myid
 
+    if(ANN%initialized) return
+
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
     select type (ANN)
     class is (t_optprop_ANN_3_10)
       ANN%dir_streams  = 3
       ANN%diff_streams = 10
-      allocate(t_boxmc_3_10::ANN%bmc)
       call set_op_param_space(ANN, 'LUT_3_10', ierr); call CHKERR(ierr)
 
     class default
@@ -102,10 +103,11 @@ contains
     allocate(ANN%ann_diff2diff)
     ANN%ann_diff2diff%fname = trim(ANN%basename)//"_diff2diff_"//toStr(ANN%diff_streams)//'.nc'
 
-    !call ANN_load(ANN%ann_dir2dir, ierr); call CHKERR(ierr)
-    !call ANN_load(ANN%ann_dir2diff, ierr); call CHKERR(ierr)
-    call ANN_load(ANN%ann_diff2diff, ierr); call CHKERR(ierr)
+    call ANN_load(comm, ANN%ann_dir2dir, ierr); call CHKERR(ierr)
+    call ANN_load(comm, ANN%ann_dir2diff, ierr); call CHKERR(ierr)
+    call ANN_load(comm, ANN%ann_diff2diff, ierr); call CHKERR(ierr)
 
+    ANN%initialized=.True.
     ierr = 0
   end subroutine
 
@@ -143,42 +145,58 @@ contains
     ierr = 0
   end subroutine
 
-  subroutine ANN_load(ann, ierr)
+  subroutine ANN_load(comm, ann, ierr)
+    integer(mpiint), intent(in) :: comm
     type(t_ANN), intent(inout) :: ann
     integer(mpiint), intent(out) :: ierr
 
     character(len=default_str_len) :: groups(2), act_name
     integer(iintegers) :: Nlayer, i
-    integer(mpiint) :: iphys
+    integer(mpiint) :: myid, iphys
     integer(ferr) :: fe
-
-    print *,'loading ann from file:', ann%fname
-
-    call get_attribute(ann%fname, "global", "physical_input", iphys, ierr)
-    call CHKWARN(ierr, "Could not load global attribute if network was trained on physical_input or with indices")
-    ann%lphysical_input = iphys.ne.0_mpiint
 
     if(allocated(ann%fann)) call CHKERR(1_mpiint, 'ANN already allocated')
     allocate(ann%fann)
 
-    call get_attribute(ann%fname, "global", "Nlayer", Nlayer, ierr); call CHKERR(ierr)
-    allocate(ann%fann%layers(Nlayer))
+    call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+    if(myid.eq.0) then
+      print *,'loading ann from file:', ann%fname
 
-    groups(1) = trim(ann%fname)
-    do i = 1, size(ann%fann%layers)
-      groups(2) = 'w'//toStr(i-1); call ncload(groups, ann%fann%layers(i)%wgt, ierr)
-      call CHKERR(ierr, "Could not load ANN weights: "//trim(groups(2)))
-      groups(2) = 'b'//toStr(i-1); call ncload(groups, ann%fann%layers(i)%bias, ierr)
-      call CHKERR(ierr, "Could not load ANN bias: "//trim(groups(2)))
-      call get_attribute(ann%fname, 'w'//toStr(i-1), "activation", act_name, ierr); call CHKERR(ierr)
-      call char_to_upper(act_name)
-      ann%fann%layers(i)%activation_id = func_name_to_id(act_name)
-      if(ann%fann%layers(i)%activation_id.lt.0) then
-        call CHKERR(int(ann%fann%layers(i)%activation_id, mpiint), 'Could not find func id for activation_name '//trim(act_name))
-      endif
-    enddo
-    call ANN_view(ann%fann, fe); ierr = ierr+fe
+      call get_attribute(ann%fname, "global", "physical_input", iphys, ierr)
+      call CHKWARN(ierr, "Could not load global attribute if network was trained on physical_input or with indices")
+      ann%lphysical_input = iphys.ne.0_mpiint
+
+      call get_attribute(ann%fname, "global", "Nlayer", Nlayer, ierr); call CHKERR(ierr)
+      allocate(ann%fann%layers(Nlayer))
+
+      groups(1) = trim(ann%fname)
+      do i = 1, size(ann%fann%layers)
+        groups(2) = 'w'//toStr(i-1); call ncload(groups, ann%fann%layers(i)%wgt, ierr)
+        call CHKERR(ierr, "Could not load ANN weights: "//trim(groups(2)))
+        groups(2) = 'b'//toStr(i-1); call ncload(groups, ann%fann%layers(i)%bias, ierr)
+        call CHKERR(ierr, "Could not load ANN bias: "//trim(groups(2)))
+        call get_attribute(ann%fname, 'w'//toStr(i-1), "activation", act_name, ierr); call CHKERR(ierr)
+        call char_to_upper(act_name)
+        ann%fann%layers(i)%activation_id = func_name_to_id(act_name)
+        if(ann%fann%layers(i)%activation_id.lt.0) then
+          call CHKERR(int(ann%fann%layers(i)%activation_id, mpiint), 'Could not find func id for activation_name '//trim(act_name))
+        endif
+      enddo
+      call ANN_view(ann%fann, fe); ierr = ierr+fe
+    endif
+    call scatter_net()
     ierr = 0
+    contains
+      subroutine scatter_net()
+        call imp_bcast(comm, ann%lphysical_input, 0_mpiint)
+        call imp_bcast(comm, Nlayer, 0_mpiint)
+        if(.not.allocated(ann%fann%layers)) allocate(ann%fann%layers(Nlayer))
+        do i = 1, size(ann%fann%layers)
+          call imp_bcast(comm, ann%fann%layers(i)%wgt, 0_mpiint)
+          call imp_bcast(comm, ann%fann%layers(i)%bias, 0_mpiint)
+          call imp_bcast(comm, ann%fann%layers(i)%activation_id, 0_mpiint)
+        enddo
+      end subroutine
   end subroutine
 
   pure subroutine ANN_predict(ann, inp, C, ierr)
