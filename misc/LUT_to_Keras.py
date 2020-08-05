@@ -55,18 +55,34 @@ def gen_out_file(inp_idx, inp_phys, varname, var, outfile):
     })
     D.to_netcdf(outfile)
 
-
-def loss_rmse(y_true, y_predict):
+def loss_diff(y_true, y_predict, atol=0, rtol=0):
+    import tensorflow as tf
     import tensorflow.math as M
-    return M.sqrt( M.reduce_mean( M.squared_difference(y_predict, y_true) ) )
+    diff = y_predict - y_true
+    lim_atol = M.abs(diff) < atol
+    lim_rtol = M.abs(diff/y_true) < rtol
+    ret = tf.where(M.logical_and(lim_atol, lim_rtol), 0., diff)
+    #if (atol > 0) or (rtol > 0):
+    #    tf.print("nonzero diff:",
+    #            tf.math.count_nonzero(ret), "/",
+    #            tf.size(ret), "(",
+    #            (tf.math.count_nonzero(ret)*100)/tf.size(ret, tf.dtypes.int64), "% )")
+    return ret
 
-def loss_mse(y_true, y_predict):
+def loss_rmse(y_true, y_predict, **kwargs):
     import tensorflow.math as M
-    return M.reduce_mean( M.squared_difference(y_predict, y_true) )
+    diff = loss_diff(y_true, y_predict, **kwargs)
+    return M.sqrt( M.reduce_mean( M.square(diff) ) )
 
-def loss_mae(y_true, y_predict):
+def loss_mse(y_true, y_predict, **kwargs):
     import tensorflow.math as M
-    return M.reduce_mean(M.abs(y_predict - y_true))
+    diff = loss_diff(y_true, y_predict, **kwargs)
+    return M.reduce_mean( M.square(diff) )
+
+def loss_mae(y_true, y_predict, **kwargs):
+    import tensorflow.math as M
+    diff = loss_diff(y_true, y_predict, **kwargs)
+    return M.reduce_mean(diff)
 
 def loss_bias(y_true, y_pred):
     import tensorflow as tf
@@ -78,13 +94,13 @@ def loss_bias(y_true, y_pred):
     dst_coeff_y_true = tf.split(y_true, axis=1, num_or_size_splits=N)
 
     # then sum over the src dimension
-    bias = M.abs(M.reduce_sum(dst_coeff_y_pred, axis=0) - M.reduce_sum(dst_coeff_y_true, axis=0))
+    bias = M.square(M.reduce_sum(dst_coeff_y_pred, axis=0) - M.reduce_sum(dst_coeff_y_true, axis=0))
     mean_bias = M.reduce_mean(bias)/N
 
     return mean_bias
 
 def custom_loss(y_true, y_pred):
-    return loss_mae(y_true, y_pred) + loss_bias(y_true, y_pred)
+    return loss_mse(y_true, y_pred, atol=1e-0, rtol=1e-2) + loss_bias(y_true, y_pred)
 
 def setup_keras_model(inp, trgt, ident,
         activation='elu',
@@ -109,19 +125,51 @@ def setup_keras_model(inp, trgt, ident,
     act        = getattr(tf.keras.activations, activation)
     output_act = getattr(tf.keras.activations, activation_output)
 
-    model.add(tf.keras.layers.Dense(n_neurons, activation=act, input_shape=(inp.shape[1],) ))
+    def get_N_Neurons(ilay):
+        if n_neurons > 0:
+            return n_neurons
+        elif n_neurons == -1:
+            dN_by_dL = float(trgt.shape[1] - inp.shape[1]) / float(n_hidden+1)
+            N = inp.shape[1] + np.ceil(dN_by_dL) * (ilay+1)
+            print('Linear interpolation of neurons in layer {} ({}) => {}'.format(ilay, dN_by_dL, N))
+            return np.int(N)
+        elif n_neurons < -1:
+            p = np.polynomial.polynomial.Polynomial.fit(
+                    [-1,(n_hidden+1)/2,n_hidden],
+                    [inp.shape[1], -n_neurons, trgt.shape[1]], 2)
+            print('Polynomial interpolation of neurons in layer {} => {}'.format(ilay, p(ilay)))
+            return np.int( p(ilay))
+        else:
+            raise ValueError("Bad n_neurons Values: {}".format(n_neurons))
+
+    kernel_init = "glorot_uniform"
+
+    model.add(tf.keras.layers.Dense(
+        get_N_Neurons(0),
+        activation=act,
+        input_shape=(inp.shape[1],),
+        kernel_initializer=kernel_init ))
+
     if dropout is not None:
         model.add(tf.keras.layers.Dropout(dropout))
 
     for l in range(1,n_hidden):
-        model.add(tf.keras.layers.Dense(n_neurons, activation=act))
+        model.add(tf.keras.layers.Dense(
+            get_N_Neurons(l),
+            activation=act,
+            kernel_initializer=kernel_init ))
+
         if dropout is not None:
             model.add(tf.keras.layers.Dropout(dropout))
 
-    model.add(tf.keras.layers.Dense( trgt.shape[1], activation=output_act))
+    model.add(tf.keras.layers.Dense(
+        trgt.shape[1],
+        activation=output_act,
+        kernel_initializer=kernel_init ))
+
     opt = getattr(tf.keras.optimizers, optimizer)(lr=learning_rate)
 
-    model.compile(loss=custom_loss, optimizer=opt, metrics=[loss_mae, loss_mse, loss_bias] )
+    model.compile(loss=custom_loss, optimizer=opt, metrics=[loss_mae, loss_mse, loss_rmse, loss_bias] )
 
     return model
 
@@ -136,14 +184,14 @@ def train_keras_model(inp, trgt, model, train_split=.1, validation_split=.1, epo
     log.info('training Keras model :: {}'.format(model.name))
     callbacks = []
 
-    callbacks.append( tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True) )
+    callbacks.append( tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True) )
     callbacks.append( tfa.callbacks.TimeStopping(seconds=3600*24, verbose=1) )
 
     print("Check logs with: `tensorboard --logdir logs/ --bind_all`")
     log_dir = os.path.join("logs/", model.name, datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
     callbacks.append( tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1) )
 
-    callbacks.append( tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.9, patience=10, min_lr=1e-4) )
+    callbacks.append( tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=2, min_lr=1e-4) )
 
     #if outpath is not None:
     #    callbacks.append( tf.keras.callbacks.ModelCheckpoint(filepath=outpath, monitor='val_loss', save_best_only=True) )
@@ -271,6 +319,7 @@ def _main():
                 "loss_mae" : loss_mae,
                 "loss_mse" : loss_mse,
                 "loss_bias" : loss_bias,
+                "loss_diff" : loss_diff,
                 }
         model = tf.keras.models.load_model(args.load_model, custom_objects=custom_objects)
     else:
