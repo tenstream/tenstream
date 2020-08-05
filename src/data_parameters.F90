@@ -36,7 +36,8 @@ module m_data_parameters
              nan32, nan64, nan,                                  &
              neginf, inf,                                        &
              imp_iinteger,imp_int4, imp_int8,                    &
-             imp_ireals,imp_real_dp,imp_irealLUT,imp_logical,    &
+             imp_ireals,imp_real_dp,imp_irealLUT,                &
+             imp_logical, imp_character,                         &
              imp_REAL32, imp_REAL64,                             &
              init_mpi_data_parameters, default_str_len,          &
              EXP_MINVAL, EXP_MAXVAL, EXP_MINVAL128, EXP_MAXVAL128
@@ -76,7 +77,8 @@ module m_data_parameters
       real(real32) :: nan32 =  transfer(-4194304_int32, 1._real32)
       real(real64) :: nan64 =  transfer(-2251799813685248_int64, 1._real64)
 
-      integer(mpiint) :: imp_irealLUT, imp_ireals, imp_real_dp, imp_logical, imp_REAL32, imp_REAL64
+      integer(mpiint) :: imp_irealLUT, imp_ireals, imp_real_dp, imp_REAL32, imp_REAL64
+      integer(mpiint) :: imp_logical, imp_character
       integer(mpiint) :: imp_iinteger, imp_int4, imp_int8
       real(ireals) :: nan, inf, neginf
 
@@ -138,6 +140,7 @@ subroutine init_mpi_data_parameters(comm)
   if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
 
   imp_logical = mpi_logical
+  imp_character = mpi_character
 
   if(ireal128.lt.i0) then
     if(myid.eq.0) print *,'128 bit reals not supported :( -- '// &
