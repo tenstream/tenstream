@@ -68,12 +68,19 @@ contains
     call mpi_comm_rank(comm, myid, ierr)
 
     ! Load LibRadtran Cloud File
-    call get_global_attribute(cldfile, 'dx', dx, ierr); call CHKERR(ierr)
-    call get_global_attribute(cldfile, 'dy', dy, ierr); call CHKERR(ierr)
-    groups(1) = trim(cldfile)
-    groups(2) = trim('lwc'); call ncload(groups, lwc, ierr); call CHKERR(ierr)
-    groups(2) = trim('reff'); call ncload(groups, reliq, ierr); call CHKERR(ierr)
-    groups(2) = trim('z'); call ncload(groups, hhl, ierr); call CHKERR(ierr)
+    if(myid.eq.0) then
+      call get_global_attribute(cldfile, 'dx', dx, ierr); call CHKERR(ierr)
+      call get_global_attribute(cldfile, 'dy', dy, ierr); call CHKERR(ierr)
+      groups(1) = trim(cldfile)
+      groups(2) = trim('lwc'); call ncload(groups, lwc, ierr); call CHKERR(ierr)
+      groups(2) = trim('reff'); call ncload(groups, reliq, ierr); call CHKERR(ierr)
+      groups(2) = trim('z'); call ncload(groups, hhl, ierr); call CHKERR(ierr)
+    endif
+    call imp_bcast(comm, dx, 0_mpiint)
+    call imp_bcast(comm, dy, 0_mpiint)
+    call imp_bcast(comm, lwc, 0_mpiint)
+    call imp_bcast(comm, reliq, 0_mpiint)
+    call imp_bcast(comm, hhl, 0_mpiint)
 
     if(size(lwc  ,dim=2).eq.1) call resize_arr(3_iintegers, lwc  , dim=2, lrepeat=.True.)
     if(size(reliq,dim=2).eq.1) call resize_arr(3_iintegers, reliq, dim=2, lrepeat=.True.)
