@@ -61,6 +61,8 @@ module m_optprop_ANN
   type,extends(t_optprop_ANN) :: t_optprop_ANN_3_10
   end type
 
+  logical, parameter :: lrenormalize=.True.
+  real(irealLUT), parameter :: renorm_eps=1e-5_irealLUT
 
 contains
   subroutine init(ANN, comm, ierr)
@@ -213,46 +215,13 @@ contains
     ierr = int(iferr, mpiint)
   end subroutine
 
-!  subroutine scatter_ANN (comm, net)
-!    type(t_ANN) :: net
-!    integer(mpiint), intent(in) :: comm
-!    logical :: l_have_angles
-!
-!    call imp_bcast(comm, net%weights    , 0_mpiint)
-!    call imp_bcast(comm, net%units      , 0_mpiint)
-!    call imp_bcast(comm, net%inno       , 0_mpiint)
-!    call imp_bcast(comm, net%outno      , 0_mpiint)
-!    call imp_bcast(comm, net%conec      , 0_mpiint)
-!    call imp_bcast(comm, net%deo        , 0_mpiint)
-!    call imp_bcast(comm, net%eni        , 0_mpiint)
-!    call imp_bcast(comm, net%inlimits   , 0_mpiint)
-!    call imp_bcast(comm, net%lastcall   , 0_mpiint)
-!    call imp_bcast(comm, net%lastresult , 0_mpiint)
-!    call imp_bcast(comm, net%in_size    , 0_mpiint)
-!    call imp_bcast(comm, net%out_size   , 0_mpiint)
-!    call imp_bcast(comm, net%initialized, 0_mpiint)
-!    call imp_bcast(comm, net%aspect     , 0_mpiint)
-!    call imp_bcast(comm, net%tau        , 0_mpiint)
-!    call imp_bcast(comm, net%w0         , 0_mpiint)
-!    call imp_bcast(comm, net%g          , 0_mpiint)
-!    if (myid.eq.0) then
-!      l_have_angles = allocated(net%phi) .and. allocated(net%theta)
-!    endif
-!    call imp_bcast(comm, l_have_angles  , 0_mpiint)
-!
-!    if (l_have_angles) then
-!      call imp_bcast(comm, net%phi        , 0_mpiint)
-!      call imp_bcast(comm, net%theta      , 0_mpiint)
-!    endif
-!  end subroutine
-
   subroutine ANN_get_dir2dir(OPP, sample_pts, C)
     class(t_optprop_ANN), intent(in) :: OPP
     real(irealLUT), intent(in) :: sample_pts(:)
     real(irealLUT), target, intent(out):: C(:) ! dimension(ANN%dir_streams**2)
 
     integer(iintegers) :: src, kdim
-    real(irealLUT) :: pti_buffer(size(sample_pts))
+    real(irealLUT) :: pti_buffer(size(sample_pts)), maxtrans
     real(irealLUT), pointer :: pC(:,:) ! dim(src, dst)
     integer(mpiint) :: ierr
 
@@ -272,18 +241,27 @@ contains
       !Check for energy conservation:
       ierr=0
       pC(1:OPP%dir_streams, 1:OPP%dir_streams) => C(:)
+      maxtrans = 0
       do src = 1, OPP%dir_streams
-        if(sum(pC(src,:)).gt.1._irealLUT+1e-5_irealLUT) ierr=ierr+1
+        maxtrans = max(maxtrans, sum(pC(src,:)))
+        if(sum(pC(src,:)).gt.1._irealLUT+1e-2_irealLUT) ierr=ierr+1
       enddo
       if(ierr.ne.0) then
         do src=1,OPP%dir_streams
           print *,'SUM dir2dir coeff for src '//toStr(src)//' :: sum',sum(pC(src,:)),':: C', pC(src,:)
         enddo
-        call CHKERR(1_mpiint, 'Check for energy conservation failed')
+        call CHKWARN(1_mpiint, 'Check for energy conservation failed: '//toStr(maxtrans))
       endif
     endif
-  end subroutine
 
+    if(lrenormalize) then
+      pC(1:OPP%dir_streams, 1:OPP%dir_streams) => C(:)
+      do src = 1, OPP%dir_streams
+        maxtrans = sum(pC(src,:))
+        if(maxtrans.gt.1._irealLUT) pC(src,:) = pC(src,:) / (maxtrans+renorm_eps)
+      enddo
+    endif
+  end subroutine
 
   subroutine ANN_get_dir2diff(OPP, sample_pts, C)
     class(t_optprop_ANN), intent(in) :: OPP
@@ -291,7 +269,7 @@ contains
     real(irealLUT), target, intent(out):: C(:) ! dimension(ANN%dir_streams*ANN%diff_streams)
 
     integer(iintegers) :: src, kdim
-    real(irealLUT) :: pti_buffer(size(sample_pts))
+    real(irealLUT) :: pti_buffer(size(sample_pts)), maxtrans
     real(irealLUT), pointer :: pC(:,:) ! dim(src, dst)
     integer(mpiint) :: ierr
 
@@ -311,25 +289,34 @@ contains
       !Check for energy conservation:
       ierr=0
       pC(1:OPP%dir_streams, 1:OPP%diff_streams) => C(:)
+      maxtrans = 0
       do src = 1, OPP%dir_streams
-        if(sum(pC(src,:)).gt.1._irealLUT+1e-5_irealLUT) ierr=ierr+1
+        maxtrans = max(maxtrans, sum(pC(src,:)))
+        if(sum(pC(src,:)).gt.1._irealLUT+1e-2_irealLUT) ierr=ierr+1
       enddo
       if(ierr.ne.0) then
         do src=1,OPP%dir_streams
           print *,'SUM dir2diff coeff for src '//toStr(src)//' :: sum',sum(pC(src,:)),':: C', pC(src,:)
         enddo
-        call CHKERR(1_mpiint, 'Check for energy conservation failed')
+        call CHKWARN(1_mpiint, 'Check for energy conservation failed: '//toStr(maxtrans))
       endif
     endif
-  end subroutine
 
+    if(lrenormalize) then
+      pC(1:OPP%dir_streams, 1:OPP%diff_streams) => C(:)
+      do src = 1, OPP%dir_streams
+        maxtrans = sum(pC(src,:))
+        if(maxtrans.gt.1._irealLUT) pC(src,:) = pC(src,:) / (maxtrans+renorm_eps)
+      enddo
+    endif
+  end subroutine
 
   subroutine ANN_get_diff2diff(OPP, sample_pts, C)
     class(t_optprop_ANN), intent(in) :: OPP
     real(irealLUT), intent(in) :: sample_pts(:)
     real(irealLUT), target, intent(out):: C(:) ! dimension(ANN%diff_streams**2)
 
-    real(irealLUT) :: pti_buffer(size(sample_pts))
+    real(irealLUT) :: pti_buffer(size(sample_pts)), maxtrans
     integer(iintegers) :: src, kdim
     real(irealLUT), pointer :: pC(:,:) ! dim(src, dst)
     integer(mpiint) :: ierr
@@ -360,15 +347,25 @@ contains
       !Check for energy conservation:
       ierr=0
       pC(1:OPP%diff_streams, 1:OPP%diff_streams) => C(:)
+      maxtrans = 0
       do src = 1, OPP%diff_streams
-        if(sum(pC(src,:)).gt.1._irealLUT+1e-3_irealLUT) ierr=ierr+1
+        maxtrans = max(maxtrans, sum(pC(src,:)))
+        if(sum(pC(src,:)).gt.1._irealLUT+1e-2_irealLUT) ierr=ierr+1
       enddo
       if(ierr.ne.0) then
         do src=1,OPP%diff_streams
           print *,'SUM diff2diff coeff for src '//toStr(src)//' :: sum',sum(pC(src,:)),':: C', pC(src,:)
         enddo
-        call CHKERR(1_mpiint, 'Check for energy conservation failed')
+        call CHKWARN(1_mpiint, 'Check for energy conservation failed: '//toStr(maxtrans))
       endif
+    endif
+
+    if(lrenormalize) then
+      pC(1:OPP%diff_streams, 1:OPP%diff_streams) => C(:)
+      do src = 1, OPP%diff_streams
+        maxtrans = sum(pC(src,:))
+        if(maxtrans.gt.1._irealLUT) pC(src,:) = pC(src,:) / (maxtrans+renorm_eps)
+      enddo
     endif
   end subroutine
 end module
