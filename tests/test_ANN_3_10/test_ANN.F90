@@ -14,81 +14,243 @@ module test_ANN
   implicit none
 
 contains
-  @test( npes=[1] )
+  @test( npes=[1,2] )
   subroutine test_load_ANN(this)
-      class (MpiTestMethod), intent(inout) :: this
+    class (MpiTestMethod), intent(inout) :: this
 
-      type(t_ANN), allocatable :: ann
-      integer(mpiint) :: myid, numnodes, comm, ierr
+    type(t_ANN), allocatable :: ann
+    integer(mpiint) :: myid, numnodes, comm, ierr
 
-      comm     = this%getMpiCommunicator()
-      numnodes = this%getNumProcesses()
-      myid     = this%getProcessRank()
+    comm     = this%getMpiCommunicator()
+    numnodes = this%getNumProcesses()
+    myid     = this%getProcessRank()
 
-      allocate(ann)
-      ann%fname = 'test_ANN_diffuse.nc'
-      call ANN_load(ann, ierr)
-      @assertEqual(0_mpiint, ierr)
+    call read_commandline_options(comm)
 
-      @assertEqual(3_iintegers, size(ann%fann%layers, kind=iintegers), 'wrong number of layers')
-      call ANN_destroy(ann, ierr)
-      @assertEqual(0_mpiint, ierr)
+    allocate(ann)
+    ann%fname = 'test_ANN_diffuse.nc'
+    call ANN_load(comm, ann, ierr)
+    @assertEqual(0_mpiint, ierr)
+
+    @assertEqual(3_iintegers, size(ann%fann%layers, kind=iintegers), 'wrong number of layers')
+    call ANN_destroy(ann, ierr)
+    @assertEqual(0_mpiint, ierr)
   endsubroutine
 
   @test( npes=[1] )
-  subroutine test_compare_to_LUT(this)
-      class (MpiTestMethod), intent(inout) :: this
-      integer(mpiint) :: myid, numnodes, comm
+  subroutine test_compare_diff2diff_to_LUT(this)
+    class (MpiTestMethod), intent(inout) :: this
+    integer(mpiint) :: myid, numnodes, comm
 
-      type(t_optprop_3_10)     :: OPP_LUT
-      type(t_optprop_3_10_ann) :: OPP_ANN
+    type(t_optprop_3_10)     :: OPP_LUT
+    type(t_optprop_3_10_ann) :: OPP_ANN
 
-      integer(iintegers) :: idst
-      real(irealLUT) :: tauz, w0, g, aspect
-      real(irealLUT), target, allocatable :: C_LUT(:)
-      real(irealLUT), target, allocatable :: C_ANN(:)
-      real(irealLUT), pointer :: pC_LUT(:,:)
-      real(irealLUT), pointer :: pC_ANN(:,:)
+    integer(iintegers) :: isrc
+    real(irealLUT) :: tauz, w0, g, aspect
+    real(irealLUT), target, allocatable :: C_LUT(:)
+    real(irealLUT), target, allocatable :: C_ANN(:)
+    real(irealLUT), pointer :: pC_LUT(:,:)
+    real(irealLUT), pointer :: pC_ANN(:,:)
 
-      real(irealLUT), parameter :: climits(7) = [0., 1e-8, 1e-3, 1e-2, 1e-1, .5, 1.]
-      character(len=*), parameter :: colors(6) = [character(len=6) :: 'black', 'green', 'purple', 'peach', 'blue', 'red']
+    real(irealLUT), parameter :: climits(7) = [0., 1e-8, 1e-3, 1e-2, 1e-1, .5, 1.]
+    character(len=*), parameter :: colors(6) = [character(len=6) :: 'black', 'green', 'purple', 'peach', 'blue', 'red']
 
-      !real(ireals)   :: BMC_diff2diff(Ndiff*Ndiff), BMC_dir2diff(Ndir*Ndiff), BMC_dir2dir(Ndir*Ndir)
+    real(irealLUT), parameter :: rlimits(6) = [-.5, -.1, -1e-2, 1e-2, .1, .5] * 100
+    character(len=*), parameter :: rolors(5) = [character(len=6) :: 'red', 'purple', 'green', 'purple', 'red']
 
-      comm     = this%getMpiCommunicator()
-      numnodes = this%getNumProcesses()
-      myid     = this%getProcessRank()
+    print *,"Checking ANN for diff2diff coeffs"
 
-      call read_commandline_options(comm)
+    comm     = this%getMpiCommunicator()
+    numnodes = this%getNumProcesses()
+    myid     = this%getProcessRank()
 
-      call OPP_LUT%init(comm)
-      call OPP_ANN%init(comm)
+    call read_commandline_options(comm)
 
-      associate( Ndiff => OPP_LUT%LUT%diff_streams )
-        allocate(C_LUT(Ndiff**2), C_ANN(Ndiff**2))
-        pC_LUT(1:Ndiff, 1:Ndiff) => C_LUT(:)
-        pC_ANN(1:Ndiff, 1:Ndiff) => C_ANN(:)
+    call OPP_LUT%init(comm)
+    call OPP_ANN%init(comm)
 
-        ! idx 22 5 14 4
-        tauz = 1.08083180518_irealLUT
-        w0   = .521358613652_irealLUT
-        aspect = 1._irealLUT
-        g    = .5717_irealLUT
+    associate( Ndiff => OPP_LUT%LUT%diff_streams )
+      allocate(C_LUT(Ndiff**2), C_ANN(Ndiff**2))
+      pC_LUT(1:Ndiff, 1:Ndiff) => C_LUT(:)
+      pC_ANN(1:Ndiff, 1:Ndiff) => C_ANN(:)
 
-        call OPP_LUT%LUT%get_diff2diff([tauz, w0, aspect, g], C_LUT)
-        do idst = 1, Ndiff
-          print *,'C_LUT dst', idst, ':', trim(colored_str_by_range(pC_LUT(:, idst), limits=climits, colors=colors))
-        enddo
-        print *,''
+      ! idx 22 5 14 4
+      tauz = 1.08083180518_irealLUT
+      w0   = .521358613652_irealLUT
+      aspect = 1._irealLUT
+      g    = .5717_irealLUT
 
-        call OPP_ANN%ANN%get_diff2diff([tauz, w0, aspect, g], C_ANN)
-        do idst = 1, Ndiff
-          print *,'C_ANN dst', idst, ':', trim(colored_str_by_range(pC_ANN(:, idst), limits=climits, colors=colors))
-        enddo
+      call OPP_LUT%LUT%get_diff2diff([tauz, w0, aspect, g], C_LUT)
+      do isrc = 1, Ndiff
+        print *,'C_LUT src', isrc, ':', trim(colored_str_by_range(pC_LUT(isrc,:), limits=climits, colors=colors)), sum(pC_LUT(isrc,:))
+      enddo
+      print *,''
 
-      end associate
-      call OPP_LUT%destroy()
-      call OPP_ANN%destroy()
+      call OPP_ANN%ANN%get_diff2diff([tauz, w0, aspect, g], C_ANN)
+      do isrc = 1, Ndiff
+        print *,'C_ANN src', isrc, ':', trim(colored_str_by_range(pC_ANN(isrc,:), limits=climits, colors=colors)), sum(pC_ANN(isrc,:))
+      enddo
+      print *,''
+      print *,'Relative error: [%] .................. bias'
+
+      call OPP_ANN%ANN%get_diff2diff([tauz, w0, aspect, g], C_ANN)
+      do isrc = 1, Ndiff
+        print *,'C_ANN src', isrc, ':', &
+          & trim(colored_str_by_range(100._irealLUT - pC_ANN(isrc,:)/pC_LUT(isrc,:)*100, limits=rlimits, colors=rolors)), &
+          & sum(pC_LUT(isrc,:)) - sum(pC_ANN(isrc,:))
+      enddo
+
+      print *,'RMSE', sqrt(sum((C_LUT-C_ANN)**2)/size(C_LUT))
+
+    end associate
+    call OPP_LUT%destroy()
+    call OPP_ANN%destroy()
+  endsubroutine
+
+  @test( npes=[1] )
+  subroutine test_compare_dir2diff_to_LUT(this)
+    class (MpiTestMethod), intent(inout) :: this
+    integer(mpiint) :: myid, numnodes, comm
+
+    type(t_optprop_3_10)     :: OPP_LUT
+    type(t_optprop_3_10_ann) :: OPP_ANN
+
+    integer(iintegers) :: isrc
+    real(irealLUT) :: tauz, w0, g, aspect, phi, theta, inp(6)
+    real(irealLUT), target, allocatable :: C_LUT(:)
+    real(irealLUT), target, allocatable :: C_ANN(:)
+    real(irealLUT), pointer :: pC_LUT(:,:)
+    real(irealLUT), pointer :: pC_ANN(:,:)
+
+    real(irealLUT), parameter :: climits(7) = [0., 1e-8, 1e-3, 1e-2, 1e-1, .5, 1.]
+    character(len=*), parameter :: colors(6) = [character(len=6) :: 'black', 'green', 'purple', 'peach', 'blue', 'red']
+
+    real(irealLUT), parameter :: rlimits(6) = [-.5, -.1, -1e-2, 1e-2, .1, .5] * 100
+    character(len=*), parameter :: rolors(5) = [character(len=6) :: 'red', 'purple', 'green', 'purple', 'red']
+
+    print *,"Checking ANN for dir2diff coeffs"
+
+    comm     = this%getMpiCommunicator()
+    numnodes = this%getNumProcesses()
+    myid     = this%getProcessRank()
+
+    call read_commandline_options(comm)
+
+    call OPP_LUT%init(comm)
+    call OPP_ANN%init(comm)
+
+    associate( Ndir => OPP_LUT%LUT%dir_streams, Ndiff => OPP_LUT%LUT%diff_streams )
+      allocate(C_LUT(Ndir*Ndiff), C_ANN(Ndir*Ndiff))
+      pC_LUT(1:Ndir, 1:Ndiff) => C_LUT(:)
+      pC_ANN(1:Ndir, 1:Ndiff) => C_ANN(:)
+
+      ! idx 22 5 14 4
+      tauz = 1.08083180518_irealLUT
+      w0   = .521358613652_irealLUT
+      aspect = 1._irealLUT
+      g    = .5717_irealLUT
+      phi  = 10
+      theta= 10
+      inp = [tauz, w0, aspect, g, phi, theta]
+
+      call OPP_LUT%LUT%get_dir2diff(inp, C_LUT)
+      do isrc = 1, Ndir
+        print *,'C_LUT src', isrc, ':', trim(colored_str_by_range(pC_LUT(isrc,:), limits=climits, colors=colors)), sum(pC_LUT(isrc,:))
+      enddo
+      print *,''
+
+      call OPP_ANN%ANN%get_dir2diff(inp, C_ANN)
+      do isrc = 1, Ndir
+        print *,'C_ANN src', isrc, ':', trim(colored_str_by_range(pC_ANN(isrc,:), limits=climits, colors=colors)), sum(pC_ANN(isrc,:))
+      enddo
+      print *,''
+      print *,'Relative error: [%] .................. bias'
+
+      call OPP_ANN%ANN%get_dir2diff(inp, C_ANN)
+      do isrc = 1, Ndir
+        print *,'C_ANN src', isrc, ':', &
+          & trim(colored_str_by_range(100._irealLUT - pC_ANN(isrc,:)/pC_LUT(isrc,:)*100, limits=rlimits, colors=rolors)), &
+          & sum(pC_LUT(isrc,:)) - sum(pC_ANN(isrc,:))
+      enddo
+
+      print *,'RMSE', sqrt(sum((C_LUT-C_ANN)**2)/size(C_LUT))
+
+    end associate
+    call OPP_LUT%destroy()
+    call OPP_ANN%destroy()
+  endsubroutine
+
+  @test( npes=[1] )
+  subroutine test_compare_dir2dir_to_LUT(this)
+    class (MpiTestMethod), intent(inout) :: this
+    integer(mpiint) :: myid, numnodes, comm
+
+    type(t_optprop_3_10)     :: OPP_LUT
+    type(t_optprop_3_10_ann) :: OPP_ANN
+
+    integer(iintegers) :: isrc
+    real(irealLUT) :: tauz, w0, g, aspect, phi, theta, inp(6)
+    real(irealLUT), target, allocatable :: C_LUT(:)
+    real(irealLUT), target, allocatable :: C_ANN(:)
+    real(irealLUT), pointer :: pC_LUT(:,:)
+    real(irealLUT), pointer :: pC_ANN(:,:)
+
+    real(irealLUT), parameter :: climits(7) = [0., 1e-8, 1e-3, 1e-2, 1e-1, .5, 1.]
+    character(len=*), parameter :: colors(6) = [character(len=6) :: 'black', 'green', 'purple', 'peach', 'blue', 'red']
+
+    real(irealLUT), parameter :: rlimits(6) = [-.5, -.1, -1e-2, 1e-2, .1, .5] * 100
+    character(len=*), parameter :: rolors(5) = [character(len=6) :: 'red', 'purple', 'green', 'purple', 'red']
+
+    print *,"Checking ANN for dir2dir coeffs"
+
+    comm     = this%getMpiCommunicator()
+    numnodes = this%getNumProcesses()
+    myid     = this%getProcessRank()
+
+    call read_commandline_options(comm)
+
+    call OPP_LUT%init(comm)
+    call OPP_ANN%init(comm)
+
+    associate( Ndir => OPP_LUT%LUT%dir_streams )
+      allocate(C_LUT(Ndir**2), C_ANN(Ndir**2))
+      pC_LUT(1:Ndir, 1:Ndir) => C_LUT(:)
+      pC_ANN(1:Ndir, 1:Ndir) => C_ANN(:)
+
+      ! idx 22 5 14 4
+      tauz = 1.08083180518_irealLUT
+      w0   = .521358613652_irealLUT
+      aspect = 1._irealLUT
+      g    = .5717_irealLUT
+      phi  = 10
+      theta= 10
+      inp = [tauz, w0, aspect, g, phi, theta]
+
+      call OPP_LUT%LUT%get_dir2dir(inp, C_LUT)
+      do isrc = 1, Ndir
+        print *,'C_LUT src', isrc, ':', trim(colored_str_by_range(pC_LUT(isrc,:), limits=climits, colors=colors)), sum(pC_LUT(isrc,:))
+      enddo
+      print *,''
+
+      call OPP_ANN%ANN%get_dir2dir(inp, C_ANN)
+      do isrc = 1, Ndir
+        print *,'C_ANN src', isrc, ':', trim(colored_str_by_range(pC_ANN(isrc,:), limits=climits, colors=colors)), sum(pC_ANN(isrc,:))
+      enddo
+      print *,''
+      print *,'Relative error: [%] .................. bias'
+
+      call OPP_ANN%ANN%get_dir2dir(inp, C_ANN)
+      do isrc = 1, Ndir
+        print *,'C_ANN src', isrc, ':', &
+          & trim(colored_str_by_range(100._irealLUT - pC_ANN(isrc,:)/pC_LUT(isrc,:)*100, limits=rlimits, colors=rolors)), &
+          & sum(pC_LUT(isrc,:)) - sum(pC_ANN(isrc,:))
+      enddo
+
+      print *,'RMSE', sqrt(sum((C_LUT-C_ANN)**2)/size(C_LUT))
+
+    end associate
+    call OPP_LUT%destroy()
+    call OPP_ANN%destroy()
   endsubroutine
 
 end module
