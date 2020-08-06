@@ -370,9 +370,9 @@ contains
     spectral_bands = [min_band, max_band]
 
     call PetscOptionsGetIntArray(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
-      "-rrtm_bands" , spectral_bands, argcnt, lflg , ierr) ;call CHKERR(ierr)
-    if(lflg) call CHKERR(int(argcnt-2_iintegers, mpiint), "must provide 2 values for rrtm_bands, comma separated, no spaces")
-    if(spectral_bands(1).gt.spectral_bands(2)) call CHKERR(1_mpiint, 'first value of rrtm_bands('// &
+      "-rrtmg_bands" , spectral_bands, argcnt, lflg , ierr) ;call CHKERR(ierr)
+    if(lflg) call CHKERR(int(argcnt-2_iintegers, mpiint), "must provide 2 values for rrtmg_bands, comma separated, no spaces")
+    if(spectral_bands(1).gt.spectral_bands(2)) call CHKERR(1_mpiint, 'first value of rrtmg_bands('// &
       itoa(spectral_bands(1))//') has to <= second ('//itoa(spectral_bands(2))//')')
 
     spectral_bands = max(min_band, min(max_band, spectral_bands))
