@@ -603,6 +603,5 @@ program main
     call example_uvspec_cld_file(mpi_comm_world, cldfile, atm_filename, outfile, &
       zero, Ag, lsolar, lthermal, phi0, theta0, Tsrfc, dTdz)
   endif
-  call PetscFinalize(ierr)
   call mpi_finalize(ierr)
 end program
