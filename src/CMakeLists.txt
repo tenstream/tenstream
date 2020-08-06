@@ -87,6 +87,13 @@ if(BUILD_FORNADO)
     PROPERTIES COMPILE_DEFINITIONS HAVE_FORNADO)
 endif()
 
+include(CheckSymbolExists)
+check_symbol_exists(OMPI_MPI_H "mpi.h" HAVE_OMPI)
+if(HAVE_OMPI)
+  SET_SOURCE_FILES_PROPERTIES(petsc_helpers.F90
+    PROPERTIES COMPILE_DEFINITIONS HAVE_OMPI)
+endif()
+
 # pprts_base libs
 add_library( pprts_base_objs OBJECT ${general_sources} ${optprop_sources} )
 add_library( pprts_base             $<TARGET_OBJECTS:pprts_base_objs> )

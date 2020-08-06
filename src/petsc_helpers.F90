@@ -3,9 +3,9 @@ module m_petsc_helpers
   use petsc
 
   use m_data_parameters, only : ireals, iintegers, mpiint, &
-    zero, i0, i1, i2, i3, default_str_len
+    zero, i0, i1, i2, i3, default_str_len, init_mpi_data_parameters
 
-  use m_helper_functions, only : get_arg, CHKERR
+  use m_helper_functions, only : get_arg, CHKERR, char_to_upper
 
   implicit none
 
@@ -705,9 +705,53 @@ contains
     integer(mpiint), intent(in) :: comm
     integer(mpiint), intent(out):: subcomm, ierr
     integer(mpiint) :: mpinfo
+    integer(mpiint) :: stype
+    call init_mpi_data_parameters(comm)
+    call select_split_type(stype, ierr); call CHKERR(ierr)
     call MPI_Info_create(mpinfo, ierr); call CHKERR(ierr)
-    call MPI_Comm_split_type(comm, MPI_COMM_TYPE_SHARED, 0_mpiint, mpinfo, subcomm, ierr); call CHKERR(ierr)
+    call MPI_Comm_split_type(comm, stype, 0_mpiint, mpinfo, subcomm, ierr); call CHKERR(ierr)
     call MPI_Info_free(mpinfo, ierr); call CHKERR(ierr)
+  end subroutine
+
+  subroutine select_split_type(stype, ierr)
+    integer(mpiint), intent(out) :: stype
+    integer(mpiint), intent(out) :: ierr
+    character(len=default_str_len) :: csplit_type
+    logical :: lflg
+    ierr = 0
+    csplit_type = 'MPI_COMM_TYPE_SHARED'
+    call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+      & '-mpi_split_type', csplit_type, lflg, ierr) ; call CHKERR(ierr)
+    call char_to_upper(csplit_type)
+    select case(trim(csplit_type))
+    case('MPI_COMM_TYPE_SHARED')
+      stype = MPI_COMM_TYPE_SHARED
+#ifdef HAVE_OMPI
+    case('OMPI_COMM_TYPE_HWTHREAD')
+      stype = OMPI_COMM_TYPE_HWTHREAD
+    case('OMPI_COMM_TYPE_CORE')
+      stype = OMPI_COMM_TYPE_CORE
+    case('OMPI_COMM_TYPE_L1CACHE')
+      stype = OMPI_COMM_TYPE_L1CACHE
+    case('OMPI_COMM_TYPE_L2CACHE')
+      stype = OMPI_COMM_TYPE_L2CACHE
+    case('OMPI_COMM_TYPE_L3CACHE')
+      stype = OMPI_COMM_TYPE_L3CACHE
+    case('OMPI_COMM_TYPE_SOCKET')
+      stype = OMPI_COMM_TYPE_SOCKET
+    case('OMPI_COMM_TYPE_NUMA')
+      stype = OMPI_COMM_TYPE_NUMA
+    case('OMPI_COMM_TYPE_BOARD')
+      stype = OMPI_COMM_TYPE_BOARD
+    case('OMPI_COMM_TYPE_HOST')
+      stype = OMPI_COMM_TYPE_HOST
+    case('OMPI_COMM_TYPE_CU')
+      stype = OMPI_COMM_TYPE_CU
+#endif
+    case default
+      ierr = 1
+      call CHKERR(1_mpiint, 'Dont know mpi_split_type `'//csplit_type//'`')
+    end select
   end subroutine
 
   subroutine gen_shared_scatter_ctx(gvec, svec, ctx, ierr, opt_is_in, opt_is_out)
