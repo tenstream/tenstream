@@ -256,6 +256,7 @@ contains
 
     if(lrenormalize) then
       pC(1:OPP%dir_streams, 1:OPP%dir_streams) => C(:)
+      pC = min(1._irealLUT, max( 0._irealLUT, pC))
       do src = 1, OPP%dir_streams
         maxtrans = sum(pC(src,:))
         if(maxtrans.gt.1._irealLUT) pC(src,:) = pC(src,:) / (maxtrans+renorm_eps)
@@ -304,6 +305,7 @@ contains
 
     if(lrenormalize) then
       pC(1:OPP%dir_streams, 1:OPP%diff_streams) => C(:)
+      pC = min(1._irealLUT, max( 0._irealLUT, pC))
       do src = 1, OPP%dir_streams
         maxtrans = sum(pC(src,:))
         if(maxtrans.gt.1._irealLUT) pC(src,:) = pC(src,:) / (maxtrans+renorm_eps)
@@ -347,6 +349,7 @@ contains
       !Check for energy conservation:
       ierr=0
       pC(1:OPP%diff_streams, 1:OPP%diff_streams) => C(:)
+      pC = min(1._irealLUT, max( 0._irealLUT, pC))
       maxtrans = 0
       do src = 1, OPP%diff_streams
         maxtrans = max(maxtrans, sum(pC(src,:)))
