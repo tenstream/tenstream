@@ -44,9 +44,31 @@ def read_inp_file(inpfile, varname):
     return data
 
 
+def average_diffuse_lut(var):
+    print("Averaging diffuse coeffs with symmetries")
+    v = var.copy().reshape((-1,10,10))
+    v[:,0,0] = v[:,1,1] = (v[:,0,0] + v[:,1,1]) / 2
+    v[:,0,1] = v[:,1,0] = (v[:,0,1] + v[:,1,0]) / 2
+    v[:,0,2] = v[:,0,3] = v[:,0,6] = v[:,0,7] = v[:,1,4] = v[:,1,5] = v[:,1,8] = v[:,1,9] = np.mean(v[:,0,[2,3,6,7]] + v[:,1,[4,5,8,9]], axis=-1)/2
+    v[:,1,2] = v[:,1,3] = v[:,1,6] = v[:,1,7] = v[:,0,4] = v[:,0,5] = v[:,0,8] = v[:,0,9] = np.mean(v[:,1,[2,3,6,7]] + v[:,0,[4,5,8,9]], axis=-1)/2
+    v[:,2,0] = v[:,3,0] = v[:,4,1] = v[:,5,1] = v[:,6,0] = v[:,7,0] = v[:,8,1] = v[:,9,1] = np.mean(v[:,[2,3,6,7],0] + v[:,[4,5,8,9],1], axis=-1)/2
+    v[:,2,1] = v[:,3,1] = v[:,4,0] = v[:,5,0] = v[:,6,1] = v[:,7,1] = v[:,8,0] = v[:,9,0] = np.mean(v[:,[2,3,6,7],1] + v[:,[4,5,8,9],0], axis=-1)/2
+
+    v[:,2,2] = v[:,3,3] = v[:,4,4] = v[:,5,5] = v[:,6,6] = v[:,7,7] = v[:,8,8] = v[:,9,9] = np.mean([ v[:,_,_] for _ in range(2,10)], axis=0)
+    v[:,2,3] = v[:,3,2] = v[:,4,5] = v[:,5,4] = v[:,6,7] = v[:,7,6] = v[:,8,9] = v[:,9,8] = np.mean([ v[:,i1,i2] for i1,i2 in zip(range(2,10),(3,2,5,4,7,6,9,8))], axis=0)
+    v[:,2,4] = v[:,3,5] = v[:,4,2] = v[:,5,3] = v[:,6,8] = v[:,7,9] = v[:,8,6] = v[:,9,7] = np.mean([ v[:,i1,i2] for i1,i2 in zip(range(2,10),(4,5,2,3,8,9,6,7))], axis=0)
+
+    v[:,2,6] = v[:,2,7] = v[:,3,6] = v[:,3,7] = v[:,4,8] = v[:,4,9] = v[:,5,8] = v[:,5,9] = v[:,6,2] = v[:,6,3] = v[:,7,2] = v[:,7,3] = v[:,8,4] = v[:,8,5] = v[:,9,4] = v[:,9,5] = np.mean([ v[:,i1,i2] for i1,i2 in zip(sorted(list(range(2,10))*2),(6,7,6,7, 8,9,8,9, 2,3,2,3, 4,5,4,5,))], axis=0)
+    v[:,2,8] = v[:,2,9] = v[:,3,8] = v[:,3,9] = v[:,4,6] = v[:,4,7] = v[:,5,6] = v[:,5,7] = v[:,6,4] = v[:,6,5] = v[:,7,4] = v[:,7,5] = v[:,8,2] = v[:,8,3] = v[:,9,2] = v[:,9,3] = np.mean([ v[:,i1,i2] for i1,i2 in zip(sorted(list(range(2,10))*2),(8,9,8,9, 6,7,6,7, 4,5,4,5, 2,3,2,3,))], axis=0)
+    v[:,2,5] = v[:,3,4] = v[:,4,3] = v[:,5,2] = v[:,6,9] = v[:,7,8] = v[:,8,7] = v[:,9,6] = np.mean([ v[:,i1,i2] for i1,i2 in zip(range(2,10),(5,4,3,2,9,8,7,6))], axis=0)
+    return v.reshape((-1,100))
+
+
 def gen_out_file(inp_idx, inp_phys, varname, var, outfile):
     import xarray as xr
     log.info('Generating output data for {} :: {}'.format(varname, outfile))
+    if var.shape[1] == 100:
+        var = average_diffuse_lut(var)
 
     D = xr.Dataset({
         "inp_idx" : xr.DataArray(inp_idx, dims=("Nsample", "Ndim")),
