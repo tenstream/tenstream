@@ -227,7 +227,7 @@ contains
 
     if(OPP%ann_dir2dir%lphysical_input) then
       pti_buffer = sample_pts
-      pti_buffer(1) = exp(-pti_buffer(1))
+      !pti_buffer(1) = exp(-pti_buffer(1))
       call ANN_predict(OPP%ann_dir2dir%fann, pti_buffer, C, ierr); call CHKERR(ierr)
     else
       do kdim = 1, size(sample_pts)
@@ -276,7 +276,7 @@ contains
 
     if(OPP%ann_dir2diff%lphysical_input) then
       pti_buffer = sample_pts
-      pti_buffer(1) = exp(-pti_buffer(1))
+      !pti_buffer(1) = exp(-pti_buffer(1))
       call ANN_predict(OPP%ann_dir2diff%fann, pti_buffer, C, ierr); call CHKERR(ierr)
     else
       do kdim = 1, size(sample_pts)
@@ -325,7 +325,7 @@ contains
 
     if(OPP%ann_diff2diff%lphysical_input) then
       pti_buffer = sample_pts
-      pti_buffer(1) = exp(-pti_buffer(1))
+      !pti_buffer(1) = exp(-pti_buffer(1))
       call ANN_predict(OPP%ann_diff2diff%fann, pti_buffer, C, ierr); call CHKERR(ierr)
     else
 

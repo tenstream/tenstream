@@ -30,7 +30,7 @@ def LUT_to_ANN_input(fname, varname):
         inp_phys= inp_phys[:,::-1]
 
         # convert tau to transmission
-        inp_phys[:,0] = np.exp(-inp_phys[:,0])
+        # inp_phys[:,0] = np.exp(-inp_phys[:,0])
 
         log.info('Converting LUT input data from {} :: {} ... done'.format(fname, varname))
         return inp_idx, inp_phys, retvars[0]
