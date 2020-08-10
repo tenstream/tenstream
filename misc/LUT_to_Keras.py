@@ -314,14 +314,15 @@ def _main():
 
     if args.LUT:
         inp_idx, inp_phys, var = LUT_to_ANN_input(args.LUT, args.varname)
-    elif args.inp:
-        inp_idx, inp_phys, var = read_inp_file(args.inp, args.varname)
-    else:
-        inp_idx, inp_phys, var = None, None, None
-
-    if args.dump_input:
+        if not args.dump_input:
+            raise ValueError("Have to give dump_input option when reading LUT data")
         gen_out_file(inp_idx, inp_phys, args.varname, var, args.dump_input)
         return
+
+    inp_idx, inp_phys, var = None, None, None
+    if args.inp:
+        inp_idx, inp_phys, var = read_inp_file(args.inp, args.varname)
+
 
     if args.physical_axis:
         log.info("Using physical quantities as input")
@@ -340,6 +341,7 @@ def _main():
                 "custom_loss" : custom_loss,
                 "loss_mae" : loss_mae,
                 "loss_mse" : loss_mse,
+                "loss_rmse" : loss_rmse,
                 "loss_bias" : loss_bias,
                 "loss_diff" : loss_diff,
                 }
