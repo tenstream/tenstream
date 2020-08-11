@@ -1,6 +1,7 @@
 module test_ANN
   use m_tenstream_options, only: read_commandline_options
-  use m_data_parameters, only : ireals, irealLUT, iintegers, mpiint, default_str_len
+  use m_data_parameters, only : init_mpi_data_parameters, &
+    & ireals, irealLUT, iintegers, mpiint, default_str_len
   use m_optprop_ANN, only: t_ANN, ANN_load, ANN_destroy, ANN_predict
   use m_helper_functions, only: CHKERR, colored_str_by_range
   use m_netcdfio, only: ncwrite
@@ -14,18 +15,32 @@ module test_ANN
   implicit none
 
 contains
+  @before
+  subroutine setup(this)
+    class (MpiTestMethod), intent(inout) :: this
+    integer(mpiint) :: comm
+    comm     = this%getMpiCommunicator()
+    call init_mpi_data_parameters(comm)
+    call read_commandline_options(comm)
+  end subroutine setup
+
+  @after
+  subroutine teardown(this)
+    class (MpiTestMethod), intent(inout) :: this
+    logical :: lpetsc_is_initialized
+    integer(mpiint) :: ierr
+    call PetscInitialized(lpetsc_is_initialized, ierr)
+    if(lpetsc_is_initialized) call PetscFinalize(ierr)
+  end subroutine teardown
+
   @test( npes=[1,2] )
   subroutine test_load_ANN(this)
     class (MpiTestMethod), intent(inout) :: this
 
     type(t_ANN), allocatable :: ann
-    integer(mpiint) :: myid, numnodes, comm, ierr
+    integer(mpiint) :: comm, ierr
 
     comm     = this%getMpiCommunicator()
-    numnodes = this%getNumProcesses()
-    myid     = this%getProcessRank()
-
-    call read_commandline_options(comm)
 
     allocate(ann)
     ann%fname = 'test_ANN_diffuse.nc'
@@ -40,7 +55,7 @@ contains
   @test( npes=[1] )
   subroutine test_compare_diff2diff_to_LUT(this)
     class (MpiTestMethod), intent(inout) :: this
-    integer(mpiint) :: myid, numnodes, comm
+    integer(mpiint) :: comm
 
     type(t_optprop_3_10)     :: OPP_LUT
     type(t_optprop_3_10_ann) :: OPP_ANN
@@ -61,10 +76,6 @@ contains
     print *,"Checking ANN for diff2diff coeffs"
 
     comm     = this%getMpiCommunicator()
-    numnodes = this%getNumProcesses()
-    myid     = this%getProcessRank()
-
-    call read_commandline_options(comm)
 
     call OPP_LUT%init(comm)
     call OPP_ANN%init(comm)
@@ -110,7 +121,7 @@ contains
   @test( npes=[1] )
   subroutine test_compare_dir2diff_to_LUT(this)
     class (MpiTestMethod), intent(inout) :: this
-    integer(mpiint) :: myid, numnodes, comm
+    integer(mpiint) :: comm
 
     type(t_optprop_3_10)     :: OPP_LUT
     type(t_optprop_3_10_ann) :: OPP_ANN
@@ -131,10 +142,6 @@ contains
     print *,"Checking ANN for dir2diff coeffs"
 
     comm     = this%getMpiCommunicator()
-    numnodes = this%getNumProcesses()
-    myid     = this%getProcessRank()
-
-    call read_commandline_options(comm)
 
     call OPP_LUT%init(comm)
     call OPP_ANN%init(comm)
@@ -183,7 +190,7 @@ contains
   @test( npes=[1] )
   subroutine test_compare_dir2dir_to_LUT(this)
     class (MpiTestMethod), intent(inout) :: this
-    integer(mpiint) :: myid, numnodes, comm
+    integer(mpiint) :: comm
 
     type(t_optprop_3_10)     :: OPP_LUT
     type(t_optprop_3_10_ann) :: OPP_ANN
@@ -204,10 +211,6 @@ contains
     print *,"Checking ANN for dir2dir coeffs"
 
     comm     = this%getMpiCommunicator()
-    numnodes = this%getNumProcesses()
-    myid     = this%getProcessRank()
-
-    call read_commandline_options(comm)
 
     call OPP_LUT%init(comm)
     call OPP_ANN%init(comm)
