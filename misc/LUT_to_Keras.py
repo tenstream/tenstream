@@ -124,6 +124,15 @@ def loss_bias(y_true, y_pred):
 def custom_loss(y_true, y_pred):
     return loss_mse(y_true, y_pred, atol=1e-0, rtol=1e-2) + loss_bias(y_true, y_pred)
 
+CUSTOM_OBJECTS = {
+        "custom_loss" : custom_loss,
+        "loss_mae" : loss_mae,
+        "loss_mse" : loss_mse,
+        "loss_rmse" : loss_rmse,
+        "loss_bias" : loss_bias,
+        "loss_diff" : loss_diff,
+        }
+
 def setup_keras_model(inp, trgt, ident,
         activation='elu',
         activation_output='linear',
@@ -206,7 +215,7 @@ def train_keras_model(inp, trgt, model, train_split=.1, validation_split=.1, epo
     log.info('training Keras model :: {}'.format(model.name))
     callbacks = []
 
-    callbacks.append( tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True) )
+    callbacks.append( tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True) )
     callbacks.append( tfa.callbacks.TimeStopping(seconds=3600*24, verbose=1) )
 
     print("Check logs with: `tensorboard --logdir logs/ --bind_all`")
@@ -215,8 +224,8 @@ def train_keras_model(inp, trgt, model, train_split=.1, validation_split=.1, epo
 
     callbacks.append( tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=2, min_lr=1e-4) )
 
-    #if outpath is not None:
-    #    callbacks.append( tf.keras.callbacks.ModelCheckpoint(filepath=outpath, monitor='val_loss', save_best_only=True) )
+    if outpath is not None:
+        callbacks.append( tf.keras.callbacks.ModelCheckpoint(filepath=outpath, monitor='val_loss', save_best_only=True) )
 
     train_mask = np.random.rand(inp.shape[0]) <= train_split
     valid_mask = ~train_mask
@@ -337,15 +346,7 @@ def _main():
 
     if args.load_model:
         import tensorflow as tf
-        custom_objects = {
-                "custom_loss" : custom_loss,
-                "loss_mae" : loss_mae,
-                "loss_mse" : loss_mse,
-                "loss_rmse" : loss_rmse,
-                "loss_bias" : loss_bias,
-                "loss_diff" : loss_diff,
-                }
-        model = tf.keras.models.load_model(args.load_model, custom_objects=custom_objects)
+        model = tf.keras.models.load_model(args.load_model, custom_objects=CUSTOM_OBJECTS)
     else:
         model = setup_keras_model(inpvar, var,
                 ident=args.varname,
@@ -368,10 +369,12 @@ def _main():
                 batch_size=args.batch_size,
                 outpath=args.save_model)
 
-    if args.save_model:
-        model.save(args.save_model, save_format="tf")
+    # Already done with callback
+    #if args.save_model:
+    #    model.save(args.save_model, save_format="tf")
 
     if args.export:
+        model = tf.keras.models.load_model(args.save_model, custom_objects=CUSTOM_OBJECTS)
         tf2fornado(model, args.physical_axis, args.export)
 
 
