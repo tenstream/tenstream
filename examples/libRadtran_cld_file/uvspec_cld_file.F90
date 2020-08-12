@@ -16,6 +16,7 @@ module m_example_uvspec_cld_file
 
   use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, destroy_tenstr_atm, hydrostat_dp
 
+  use m_tenstream_options, only: read_commandline_options
   use m_helper_functions, only: CHKERR, itoa, imp_bcast, reverse, spherical_2_cartesian, resize_arr, &
     domain_decompose_2d
   use m_netcdfio, only: ncload, ncwrite, get_global_attribute
@@ -563,6 +564,7 @@ program main
 
   call mpi_init(ierr)
   call init_mpi_data_parameters(mpi_comm_world)
+  call read_commandline_options(mpi_comm_world)
   call mpi_comm_rank(mpi_comm_world, myid, ierr)
 
   call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-cld', cldfile, lflg, ierr); call CHKERR(ierr)
