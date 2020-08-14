@@ -29,26 +29,31 @@ module m_optprop_ANN
 
   use m_boxmc, only: t_boxmc, t_boxmc_3_10
 
+#ifdef HAVE_FORNADO
   use m_fornado_base, only: fr, fi, ferr, func_name_to_id, ANN_view
   use m_fornado_base, only: t_fornado_ANN => t_ANN, t_fornado_ANN_layer => t_ANN_layer
   use m_fornado, only: fornado_inference
+#endif
 
   implicit none
   private
-  public t_optprop_ANN, t_optprop_ANN_3_10, &
-    & t_ANN, ANN_load, ANN_destroy, ANN_predict
+  public t_optprop_ANN, t_optprop_ANN_3_10
 
+#ifdef HAVE_FORNADO
   type t_ANN
     type(t_fornado_ANN), allocatable :: fann
     character(len=default_str_len) :: fname
     logical :: lphysical_input
   end type
+#endif
 
   type, abstract, extends(t_optprop_base) :: t_optprop_ANN
     character(default_str_len) :: basename
+#ifdef HAVE_FORNADO
     type(t_ANN), allocatable :: ann_dir2dir
     type(t_ANN), allocatable :: ann_dir2diff
     type(t_ANN), allocatable :: ann_diff2diff
+#endif
     logical :: initialized=.False.
     contains
       procedure :: init
@@ -64,7 +69,10 @@ module m_optprop_ANN
   logical, parameter :: lrenormalize=.True.
   real(irealLUT), parameter :: renorm_eps=1e-5_irealLUT
 
+#ifdef HAVE_FORNADO
+
 contains
+
   subroutine init(ANN, comm, ierr)
     class(t_optprop_ANN), intent(inout) :: ANN
     integer(mpiint), intent(in) :: comm
@@ -133,6 +141,7 @@ contains
     ann%basename = 'deallocated'
     ann%dir_streams = -1
     ann%diff_streams = -1
+    ann%initialized=.False.
     ierr = 0
   end subroutine
 
@@ -371,4 +380,54 @@ contains
       enddo
     endif
   end subroutine
+
+! else HAVE_FORNADO
+#else
+
+character(len=*), parameter :: no_avail_errmsg = &
+  & "TenStream package is not configured with FORNADO, you cannot use ANN as LUT replacement."// &
+  & "Try to compile with -DBUILD_FORNADO"
+
+contains
+  subroutine init(ANN, comm, ierr)
+    class(t_optprop_ANN), intent(inout) :: ANN
+    integer(mpiint), intent(in) :: comm
+    integer(mpiint), intent(out) :: ierr
+    ierr = 10 + comm
+    call CHKERR(ierr, no_avail_errmsg)
+    if(ANN%initialized) return
+  end subroutine
+  subroutine destroy(ANN, ierr)
+    class(t_optprop_ANN), intent(inout) :: ann
+    integer(mpiint), intent(out) :: ierr
+    ierr = 1
+    call CHKERR(ierr, no_avail_errmsg)
+    ANN%initialized=.False.
+  end subroutine
+  subroutine ANN_get_dir2dir(OPP, sample_pts, C)
+    class(t_optprop_ANN), intent(in) :: OPP
+    real(irealLUT), intent(in) :: sample_pts(:)
+    real(irealLUT), target, intent(out):: C(:) ! dimension(ANN%dir_streams**2)
+    C(:) = sample_pts(1) + real(OPP%dir_streams)
+    call CHKERR(1_mpiint, no_avail_errmsg)
+  end subroutine
+
+  subroutine ANN_get_dir2diff(OPP, sample_pts, C)
+    class(t_optprop_ANN), intent(in) :: OPP
+    real(irealLUT), intent(in) :: sample_pts(:)
+    real(irealLUT), target, intent(out):: C(:) ! dimension(ANN%dir_streams*ANN%diff_streams)
+    C(:) = sample_pts(1) + real(OPP%dir_streams)
+    call CHKERR(1_mpiint, no_avail_errmsg)
+  end subroutine
+
+  subroutine ANN_get_diff2diff(OPP, sample_pts, C)
+    class(t_optprop_ANN), intent(in) :: OPP
+    real(irealLUT), intent(in) :: sample_pts(:)
+    real(irealLUT), target, intent(out):: C(:) ! dimension(ANN%diff_streams**2)
+    C(:) = sample_pts(1) + real(OPP%dir_streams)
+    call CHKERR(1_mpiint, no_avail_errmsg)
+  end subroutine
+
+! endif HAVE_FORNADO
+#endif
 end module
