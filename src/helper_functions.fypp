@@ -124,8 +124,15 @@ module m_helper_functions
   end interface
 
   interface meanval
-    module procedure meanval_1d_r4, meanval_2d_r4, meanval_3d_r4, &
-        meanval_1d_r8, meanval_2d_r8, meanval_3d_r8
+    #:for intype,dtype,otype in [ &
+      ('integer', 'INT32' ,'ireals'), &
+      ('integer', 'INT64' ,'ireals'), &
+      ('real'   , 'REAL32','REAL32'), &
+      ('real'   , 'REAL64','REAL64')]
+    #:for RANK in range(1, 8)
+    module procedure meanval_intype_${intype}$_${dtype}$_${RANK}$d_out${otype}$
+    #:endfor
+    #:endfor
   end interface
   interface imp_allreduce_mean
     module procedure imp_allreduce_mean_0d
@@ -920,36 +927,19 @@ module m_helper_functions
       rmse(2) = rmse(1)/max( meanval(b), epsilon(rmse) )
     end function
 
-    pure function meanval_1d_r4(arr) result(mean)
-      real(REAL32) :: mean
-      real(REAL32),intent(in) :: arr(:)
-      mean = sum(arr)/size(arr)
+#:for intype,dtype,otype in [ &
+  ('integer', 'INT32' , 'ireals'), &
+  ('integer', 'INT64' , 'ireals'), &
+  ('real'   , 'REAL32', 'REAL32'), &
+  ('real'   , 'REAL64', 'REAL64')]
+#:for RANK in range(1, 8)
+    pure function meanval_intype_${intype}$_${dtype}$_${RANK}$d_out${otype}$(arr) result(mean)
+      ${intype}$(${dtype}$), intent(in) :: arr${ranksuffix(RANK)}$
+      real(${otype}$) :: mean
+      mean = real(sum(arr), kind=kind(mean)) / real(size(arr), kind=kind(mean))
     end function
-    pure function meanval_2d_r4(arr) result(mean)
-      real(REAL32) :: mean
-      real(REAL32),intent(in) :: arr(:,:)
-      mean = sum(arr)/size(arr)
-    end function
-    pure function meanval_3d_r4(arr) result(mean)
-      real(REAL32) :: mean
-      real(REAL32),intent(in) :: arr(:,:,:)
-      mean = sum(arr)/size(arr)
-    end function
-    pure function meanval_1d_r8(arr) result(mean)
-      real(REAL64) :: mean
-      real(REAL64),intent(in) :: arr(:)
-      mean = sum(arr)/size(arr)
-    end function
-    pure function meanval_2d_r8(arr) result(mean)
-      real(REAL64) :: mean
-      real(REAL64),intent(in) :: arr(:,:)
-      mean = sum(arr)/size(arr)
-    end function
-    pure function meanval_3d_r8(arr) result(mean)
-      real(REAL64) :: mean
-      real(REAL64),intent(in) :: arr(:,:,:)
-      mean = sum(arr)/size(arr)
-    end function
+#:endfor
+#:endfor
 
     elemental logical function approx_r128(a,b,precis) result(approx)
       real(REAL128),intent(in) :: a,b
