@@ -382,11 +382,9 @@ module m_pprts_base
   subroutine destroy_pprts(solver, lfinalizepetsc)
     class(t_solver)   :: solver
     logical,optional :: lfinalizepetsc
-    logical :: lfinalize
+    logical :: lfinalize, lpetsc_is_initialized
     integer(iintegers) :: uid
     integer(mpiint) :: ierr
-
-    lfinalize = get_arg(.False., lfinalizepetsc)
 
     if(solver%linitialized) then
       call deallocate_allocatable(solver%ksp_solar_dir)
@@ -441,10 +439,12 @@ module m_pprts_base
 
       solver%comm = -1
       solver%linitialized=.False.
+    endif
 
-      if(lfinalize) then
-        call PetscFinalize(ierr) ;call CHKERR(ierr)
-      endif
+    lfinalize = get_arg(.False., lfinalizepetsc)
+    if(lfinalize) then
+      call PetscInitialized(lpetsc_is_initialized, ierr); call CHKERR(ierr)
+      if(lpetsc_is_initialized) call PetscFinalize(ierr); call CHKERR(ierr)
     endif
   end subroutine
 

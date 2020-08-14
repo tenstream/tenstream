@@ -2,7 +2,8 @@ module test_petsc_dm_global_to_shared_mem
 
 #include "petsc/finclude/petsc.h"
   use petsc
-  use m_data_parameters, only : iintegers, ireals, mpiint, zero, one
+  use m_data_parameters, only : iintegers, ireals, mpiint, zero, one, &
+    & init_mpi_data_parameters
   use m_pprts_base, only : t_solver_3_10, destroy_pprts
   use m_pprts, only : init_pprts
   use m_petsc_helpers, only : &
@@ -19,12 +20,16 @@ contains
   @before
   subroutine setup(this)
     class (MpiTestMethod), intent(inout) :: this
-    continue
+    call init_mpi_data_parameters(this%getMpiCommunicator())
   end subroutine setup
 
   @after
   subroutine teardown(this)
     class (MpiTestMethod), intent(inout) :: this
+    logical :: lpetsc_is_initialized
+    integer(mpiint) :: mpierr
+    call PetscInitialized(lpetsc_is_initialized, mpierr)
+    if(lpetsc_is_initialized) call PetscFinalize(mpierr)
   end subroutine teardown
 
 
