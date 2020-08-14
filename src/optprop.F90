@@ -79,6 +79,7 @@ type,abstract,extends(t_optprop) :: t_optprop_cube
     procedure :: get_coeff => get_coeff_cube
     procedure :: dir2dir_coeff_symmetry => dir2dir_coeff_symmetry_none
     procedure :: dir2diff_coeff_symmetry => dir2diff_coeff_symmetry_none
+    procedure :: diff2diff_coeff_symmetry => diff2diff_coeff_symmetry
 end type
 
 ! we introduce one special cube type for 8 direct streams, this way, all of them can share dir2dir_coeff_symmetry
@@ -552,6 +553,7 @@ contains
         save_aspect_zx = aspect_zx
       endif
       call OPP%dev%get_diff2diff([tauz, w0, save_aspect_zx, g], C)
+      call OPP%diff2diff_coeff_symmetry(C)
     endif
   end subroutine
 
@@ -715,6 +717,168 @@ contains
           endif
         endif
       end subroutine
+  end subroutine
+
+  subroutine diff2diff_coeff_symmetry(OPP, coeff)
+    class(t_optprop_cube)        :: OPP
+    real(irealLUT), target, intent(inout) :: coeff(:)
+    real(irealLUT), pointer :: v(:,:) ! dim(src, dst)
+    integer(iintegers) :: i
+    real(irealLUT) :: norm(0:9)
+
+    if(OPP%dev%diff_streams.eq.10) then
+      v(0:9,0:9) => coeff(1:100)
+
+      do i = 0,9
+        norm(i) = sum(v(i,:))
+      enddo
+
+      v(0,0) = (v(0,0) + v(1,1)) * .5_irealLUT
+      v(1,1) = v(0,0)
+
+      v(0,1) = (v(0,1) + v(1,0)) * .5_irealLUT
+      v(1,0) = v(0,1)
+
+      v(1,0) = (v(0,1) + v(1,0)) * .5_irealLUT
+      v(0,1) = v(1,0)
+
+
+      ! v(0,2) = v(0,3) = v(0,6) = v(0,7) = v(1,4) = v(1,5) = v(1,8) = v(1,9) = np.mean(v(0,(2,3,6,7)) + v(1,(4,5,8,9)), axis=-1)/2
+      v(0,2) = ( v(0,2) + v(0,3) + v(0,6) + v(0,7) + &
+        & v(1,4) + v(1,5) + v(1,8) + v(1,9) ) / 8._irealLUT
+      v(0,3) = v(0,2)
+      v(0,6) = v(0,2)
+      v(0,7) = v(0,2)
+      v(1,4) = v(0,2)
+      v(1,5) = v(0,2)
+      v(1,8) = v(0,2)
+      v(1,9) = v(0,2)
+
+      !v(1,2) = v(1,3) = v(1,6) = v(1,7) = v(0,4) = v(0,5) = v(0,8) = v(0,9) = np.mean(v(1,(2,3,6,7)) + v(0,(4,5,8,9)), axis=-1)/2
+      v(1,2) = ( v(0,4) + v(0,5) + v(0,8) + v(0,9) + &
+        & v(1,2) + v(1,3) + v(1,6) + v(1,7) ) / 8._irealLUT
+      v(1,3) = v(1,2)
+      v(1,6) = v(1,2)
+      v(1,7) = v(1,2)
+      v(0,4) = v(1,2)
+      v(0,5) = v(1,2)
+      v(0,8) = v(1,2)
+      v(0,9) = v(1,2)
+
+      !v(2,0) = v(3,0) = v(4,1) = v(5,1) = v(6,0) = v(7,0) = v(8,1) = v(9,1) = np.mean(v((2,3,6,7),0) + v((4,5,8,9),1), axis=-1)/2
+      v(2,0) = ( v(2,0) + v(3,0) + v(6,0) + v(7,0) + &
+        & v(4,1) + v(5,1) + v(8,1) + v(9,1) ) / 8._irealLUT
+      v(3,0) = v(2,0)
+      v(6,0) = v(2,0)
+      v(7,0) = v(2,0)
+      v(4,1) = v(2,0)
+      v(5,1) = v(2,0)
+      v(8,1) = v(2,0)
+      v(9,1) = v(2,0)
+
+
+      !v(2,1) = v(3,1) = v(4,0) = v(5,0) = v(6,1) = v(7,1) = v(8,0) = v(9,0) = np.mean(v((2,3,6,7),1) + v((4,5,8,9),0), axis=-1)/2
+      v(2,1) = ( v(4,0) + v(5,0) + v(8,0) + v(9,0) + &
+        & v(2,1) + v(3,1) + v(6,1) + v(7,1) ) / 8._irealLUT
+      v(4,0) = v(2,1)
+      v(5,0) = v(2,1)
+      v(8,0) = v(2,1)
+      v(9,0) = v(2,1)
+      v(3,1) = v(2,1)
+      v(6,1) = v(2,1)
+      v(7,1) = v(2,1)
+
+      !v(2,2) = v(3,3) = v(4,4) = v(5,5) = v(6,6) = v(7,7) = v(8,8) = v(9,9) = np.mean(( v(_,_) for _ in range(2,10)), axis=0)
+      v(2,2) = ( v(2,2) + v(3,3) + v(4,4) + v(5,5) + v(6,6) + v(7,7) + v(8,8) + v(9,9) ) / 8._irealLUT
+      v(3,3) = v(2,2)
+      v(4,4) = v(2,2)
+      v(5,5) = v(2,2)
+      v(6,6) = v(2,2)
+      v(7,7) = v(2,2)
+      v(8,8) = v(2,2)
+      v(9,9) = v(2,2)
+
+      !v(2,3) = v(3,2) = v(4,5) = v(5,4) = v(6,7) = v(7,6) = v(8,9) = v(9,8) = np.mean(( v(i1,i2) for i1,i2 in zip(range(2,10),(3,2,5,4,7,6,9,8))), axis=0)
+      v(2,3) = ( v(2,3) + v(3,2) + v(4,5) + v(5,4) + v(6,7) + v(7,6) + v(8,9) + v(9,8) ) / 8._irealLUT
+      v(3,2) = v(2,3)
+      v(4,5) = v(2,3)
+      v(5,4) = v(2,3)
+      v(6,7) = v(2,3)
+      v(7,6) = v(2,3)
+      v(8,9) = v(2,3)
+      v(9,8) = v(2,3)
+
+      !v(2,4) = v(3,5) = v(4,2) = v(5,3) = v(6,8) = v(7,9) = v(8,6) = v(9,7) = np.mean(( v(i1,i2) for i1,i2 in zip(range(2,10),(4,5,2,3,8,9,6,7))), axis=0)
+      v(2,4) = ( v(2,4) + v(3,5) + v(4,2) + v(5,3) + v(6,8) + v(7,9) + v(8,6) + v(9,7) ) / 8._irealLUT
+      v(3,5) = v(2,4)
+      v(4,2) = v(2,4)
+      v(5,3) = v(2,4)
+      v(6,8) = v(2,4)
+      v(7,9) = v(2,4)
+      v(8,6) = v(2,4)
+      v(9,7) = v(2,4)
+
+      !v(2,6) = v(2,7) = v(3,6) = v(3,7) = v(4,8) = v(4,9) = v(5,8) = v(5,9) = v(6,2) = v(6,3) = v(7,2) = v(7,3) = v(8,4) = v(8,5) = v(9,4) = v(9,5) = np.mean(( v(i1,i2) for i1,i2 in zip(sorted(list(range(2,10))*2),(6,7,6,7, 8,9,8,9, 2,3,2,3, 4,5,4,5,))), axis=0)
+      v(2,6) = ( v(2,6) + v(2,7) + v(3,6) + v(3,7) + &
+        & v(4,8) + v(4,9) + v(5,8) + v(5,9) + &
+        & v(6,2) + v(6,3) + v(7,2) + v(7,3) + &
+        & v(8,4) + v(8,5) + v(9,4) + v(9,5) ) / 16._irealLUT
+      v(2,7) = v(2,6)
+      v(3,6) = v(2,6)
+      v(3,7) = v(2,6)
+      v(4,8) = v(2,6)
+      v(4,9) = v(2,6)
+      v(5,8) = v(2,6)
+      v(5,9) = v(2,6)
+      v(6,2) = v(2,6)
+      v(6,3) = v(2,6)
+      v(7,2) = v(2,6)
+      v(7,3) = v(2,6)
+      v(8,4) = v(2,6)
+      v(8,5) = v(2,6)
+      v(9,4) = v(2,6)
+      v(9,5) = v(2,6)
+
+      !v(2,8) = v(2,9) = v(3,8) = v(3,9) = v(4,6) = v(4,7) = v(5,6) = v(5,7) = v(6,4) = v(6,5) = v(7,4) = v(7,5) = v(8,2) = v(8,3) = v(9,2) = v(9,3) = np.mean(( v(i1,i2) for i1,i2 in zip(sorted(list(range(2,10))*2),(8,9,8,9, 6,7,6,7, 4,5,4,5, 2,3,2,3,))), axis=0)
+      v(2,8) = ( v(2,8) + v(2,9) + v(3,8) + v(3,9) + &
+        & v(4,6) + v(4,7) + v(5,6) + v(5,7) + &
+        & v(6,4) + v(6,5) + v(7,4) + v(7,5) + &
+        & v(8,2) + v(8,3) + v(9,2) + v(9,3) ) / 16._irealLUT
+      v(2,9) = v(2,8)
+      v(3,8) = v(2,8)
+      v(3,9) = v(2,8)
+      v(4,6) = v(2,8)
+      v(4,7) = v(2,8)
+      v(5,6) = v(2,8)
+      v(5,7) = v(2,8)
+      v(6,4) = v(2,8)
+      v(6,5) = v(2,8)
+      v(7,4) = v(2,8)
+      v(7,5) = v(2,8)
+      v(8,2) = v(2,8)
+      v(8,3) = v(2,8)
+      v(9,2) = v(2,8)
+      v(9,3) = v(2,8)
+
+      !v(2,5) = v(3,4) = v(4,3) = v(5,2) = v(6,9) = v(7,8) = v(8,7) = v(9,6) = np.mean(( v(i1,i2) for i1,i2 in zip(range(2,10),(5,4,3,2,9,8,7,6))), axis=0)
+      v(2,5) = ( v(2,5) + v(3,4) + v(4,3) + v(5,2) + v(6,9) + v(7,8) + v(8,7) + v(9,6) ) / 8._irealLUT
+      v(3,4) = v(2,5)
+      v(4,3) = v(2,5)
+      v(5,2) = v(2,5)
+      v(6,9) = v(2,5)
+      v(7,8) = v(2,5)
+      v(8,7) = v(2,5)
+      v(9,6) = v(2,5)
+
+      do i = 0,9
+        v(i,:) = v(i,:) / sum(v(i,:)) * norm(i)
+      enddo
+    endif
+
+    if(.False.) then
+      select type(OPP)
+      end select
+    endif
   end subroutine
 
   subroutine dir2diff_coeff_symmetry_none(OPP, coeff, lswitch_east, lswitch_north)
