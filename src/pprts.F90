@@ -3067,14 +3067,15 @@ subroutine setup_ksp(solver, ksp, C, A, prefix)
   real(ireals) :: atol
 
   logical,parameter :: lset_nullspace=.False. ! set constant nullspace?
+  logical :: prec_is_set
 
   linit = allocated(ksp)
   if(linit) return
 
   call set_dmda_cell_coordinates(solver, solver%atm, C%da, ierr); call CHKERR(ierr)
 
-  call mpi_comm_rank(C%comm, myid, ierr)     ; call CHKERR(ierr)
-  call mpi_comm_size(C%comm, numnodes, ierr) ; call CHKERR(ierr)
+  call mpi_comm_rank(C%comm, myid, ierr)    ; call CHKERR(ierr)
+  call mpi_comm_size(C%comm, numnodes, ierr); call CHKERR(ierr)
 
   call imp_allreduce_min(C%comm, &
     rel_atol * real(C%dof*C%glob_xm*C%glob_ym*C%glob_zm, ireals) &
@@ -3082,44 +3083,76 @@ subroutine setup_ksp(solver, ksp, C, A, prefix)
   atol = max(1e-8_ireals, atol)
 
   if(myid.eq.0.and.ldebug) &
-    print *,'Setup KSP -- tolerances:',rtol,atol,&
-      '::',rel_atol,(C%dof*C%glob_xm*C%glob_ym*C%glob_zm),count(.not.solver%atm%l1d),one*size(solver%atm%l1d)
+    print *,'Setup KSP -- tolerances:', rtol, atol, &
+      '::', rel_atol, C%dof * C%glob_xm * C%glob_ym * C%glob_zm, count(.not.solver%atm%l1d), one * size(solver%atm%l1d)
 
   allocate(ksp)
-  call KSPCreate(C%comm,ksp,ierr) ;call CHKERR(ierr)
-  if(present(prefix) ) call KSPAppendOptionsPrefix(ksp,trim(prefix),ierr) ;call CHKERR(ierr)
+  call KSPCreate(C%comm, ksp, ierr); call CHKERR(ierr)
+  if(present(prefix)) call KSPAppendOptionsPrefix(ksp, trim(prefix), ierr); call CHKERR(ierr)
 
-  call KSPSetType(ksp,KSPGMRES,ierr)  ;call CHKERR(ierr)
-  call KSPSetInitialGuessNonzero(ksp, PETSC_TRUE, ierr) ;call CHKERR(ierr)
-  call KSPGetPC  (ksp,prec,ierr)  ;call CHKERR(ierr)
-  if(numnodes.eq.0) then
-    call PCSetType (prec,PCILU,ierr);call CHKERR(ierr)
-  else
-    call PCSetType (prec,PCBJACOBI,ierr);call CHKERR(ierr)
+  call KSPSetType(ksp, KSPBCGS, ierr); call CHKERR(ierr)
+  call KSPSetInitialGuessNonzero(ksp, PETSC_TRUE, ierr); call CHKERR(ierr)
+
+  prec_is_set = .False.
+  call PetscOptionsHasName(PETSC_NULL_OPTIONS, trim(prefix), '-pc_type', prec_is_set, ierr); call CHKERR(ierr)
+
+  if(.not.prec_is_set) then
+    !call CHKWARN(1_mpiint, 'no preconditioner setting found, applying defaults')
+    call KSPGetPC(ksp, prec, ierr); call CHKERR(ierr)
+    if(numnodes.eq.0) then
+      call PCSetType(prec, PCILU, ierr); call CHKERR(ierr)
+    else
+      call PCSetType(prec, PCASM, ierr); call CHKERR(ierr)
+      call PCASMSetOverlap(prec, i1, ierr); call CHKERR(ierr)
+    endif
   endif
 
-  call KSPSetTolerances(ksp,rtol,atol,PETSC_DEFAULT_REAL,maxiter,ierr);call CHKERR(ierr)
+  call KSPSetTolerances(ksp, rtol, atol, PETSC_DEFAULT_REAL, maxiter, ierr); call CHKERR(ierr)
 
-  call KSPSetConvergenceTest(ksp, MyKSPConverged, 0, PETSC_NULL_FUNCTION, ierr)
+  call KSPSetConvergenceTest(ksp, MyKSPConverged, 0, PETSC_NULL_FUNCTION, ierr); call CHKERR(ierr)
 
-  call KSPSetOperators(ksp,A,A,ierr) ;call CHKERR(ierr)
-  call KSPSetDM(ksp,C%da,ierr) ;call CHKERR(ierr)
-  call KSPSetDMActive(ksp,PETSC_FALSE,ierr) ;call CHKERR(ierr)
+  call KSPSetOperators(ksp, A, A, ierr); call CHKERR(ierr)
+  call KSPSetDM(ksp, C%da, ierr); call CHKERR(ierr)
+  call KSPSetDMActive(ksp, PETSC_FALSE, ierr); call CHKERR(ierr)
 
-  call KSPSetUp(ksp,ierr) ;call CHKERR(ierr)
+  call KSPSetUp(ksp, ierr); call CHKERR(ierr)
+
+  if(.not.prec_is_set) then
+    default_preconditioner_settings: block
+      integer(iintegers) :: i, asm_N, asm_iter
+      type(tKSP) :: asm_ksps(1)
+      type(tPC) :: subpc
+      logical :: lflg
+
+      asm_iter = 2
+      call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+        "-ts_ksp_iter", asm_iter, lflg, ierr) ;call CHKERR(ierr)
+
+      call PCASMGetSubKSP(prec, asm_N, PETSC_NULL_INTEGER, asm_ksps, ierr); call CHKERR(ierr)
+      do i = 1, asm_N
+        call KSPSetType(asm_ksps(i), KSPRICHARDSON, ierr); call CHKERR(ierr)
+        call KSPRichardsonSetSelfScale(asm_ksps(i), PETSC_TRUE, ierr); call CHKERR(ierr)
+        call KSPSetNormType(asm_ksps(i), KSP_NORM_PRECONDITIONED, ierr); call CHKERR(ierr)
+        call KSPSetTolerances(asm_ksps(i), &
+          & PETSC_DEFAULT_REAL, PETSC_DEFAULT_REAL, PETSC_DEFAULT_REAL, &
+          & asm_iter, ierr); call CHKERR(ierr)
+        call KSPGetPC(asm_ksps(i), subpc, ierr); call CHKERR(ierr)
+        call PCSetType(subpc, PCSOR, ierr); call CHKERR(ierr)
+      enddo
+    end block default_preconditioner_settings
+  endif
 
   if(lset_nullspace) then
-    call MatNullSpaceCreate( C%comm, PETSC_TRUE, i0, nullvecs, nullspace, ierr) ; call CHKERR(ierr)
-    call MatSetNullSpace(A, nullspace, ierr);call CHKERR(ierr)
+    call MatNullSpaceCreate(C%comm, PETSC_TRUE, i0, nullvecs, nullspace, ierr); call CHKERR(ierr)
+    call MatSetNullSpace(A, nullspace, ierr); call CHKERR(ierr)
     CALL MatNullSpaceDestroy(nullspace, ierr); CALL CHKERR(ierr)
   endif
 
-  call KSPSetFromOptions(ksp,ierr) ;call CHKERR(ierr)
+  call KSPSetFromOptions(ksp, ierr); call CHKERR(ierr)
 
   linit = .True.
   if(myid.eq.0.and.ldebug) print *,'Setup KSP done'
-
-  end subroutine
+end subroutine
 
 
   !> @brief override convergence tests -- the normal KSPConverged returns bad solution if no iterations are needed for convergence
