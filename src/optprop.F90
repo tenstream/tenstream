@@ -871,7 +871,7 @@ contains
       v(9,6) = v(2,5)
 
       do i = 0,9
-        v(i,:) = v(i,:) / sum(v(i,:)) * norm(i)
+        v(i,:) = v(i,:) / max(tiny(v), sum(v(i,:))) * norm(i)
       enddo
     endif
 
