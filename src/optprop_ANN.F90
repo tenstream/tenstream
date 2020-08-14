@@ -145,17 +145,6 @@ contains
     ierr = 0
   end subroutine
 
-  subroutine ANN_destroy(ann, ierr)
-    type(t_ANN), allocatable, intent(inout) :: ann
-    integer(mpiint), intent(out) :: ierr
-    if(.not.allocated(ann)) then
-      ierr = 1
-      call CHKWARN(ierr, 'ann not allocated but called destroy')
-    endif
-    if(allocated(ann)) deallocate(ann)
-    ierr = 0
-  end subroutine
-
   subroutine ANN_load(comm, ann, ierr)
     integer(mpiint), intent(in) :: comm
     type(t_ANN), intent(inout) :: ann
