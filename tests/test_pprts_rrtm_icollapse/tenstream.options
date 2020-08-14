@@ -11,3 +11,5 @@
 -diff_ksp_rtol 1e-7
 -dir_ksp_atol 1e-30
 -diff_ksp_atol 1e-30
+
+-twostr_ratio 0
