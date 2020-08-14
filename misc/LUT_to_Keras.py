@@ -374,6 +374,7 @@ def _main():
     #    model.save(args.save_model, save_format="tf")
 
     if args.export:
+        import tensorflow as tf
         model = tf.keras.models.load_model(args.save_model, custom_objects=CUSTOM_OBJECTS)
         tf2fornado(model, args.physical_axis, args.export)
 
