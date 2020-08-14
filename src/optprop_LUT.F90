@@ -45,9 +45,10 @@ module m_optprop_LUT
   use m_optprop_parameters, only:         &
     luse_memory_map,                      &
     ldebug_optprop, lut_basename,         &
-    LUT_dump_interval, LUT_max_create_jobtime, &
+    LUT_dump_interval,                    &
+    LUT_max_create_jobtime,               &
     LUT_MAX_DIM,                          &
-    ldelta_scale,delta_scale_truncate,    &
+    delta_scale_truncate,                 &
     stddev_atol, stddev_rtol,             &
     wedge_sphere_radius
 

@@ -180,9 +180,6 @@ module m_optprop_parameters
       ! logical,parameter :: ldebug_optprop=.False.
       logical,parameter :: ldebug_optprop=.True.
 
-      ! Use delta scaling on optical properties? -- this significantly reduces
-      ! the size of the lookuptables.
-      logical,parameter :: ldelta_scale=.True.
 
       ! Treat direct2diffuse radiation in a cone around solar angle as direct
       ! radiation.
