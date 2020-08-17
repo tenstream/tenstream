@@ -914,7 +914,7 @@ module m_plex_grid
         aspect = LUT_wedge_aspect_zx(face_area, dz)
         if(aspect.gt.twostr_ratio) then
           max_constrained_k = k
-          print *,'max_constrained_k aspect', icell, k, aspect, max_constrained_k
+          !print *,'max_constrained_k aspect', icell, k, aspect, max_constrained_k
           cycle
         endif
 
@@ -922,12 +922,12 @@ module m_plex_grid
         call PetscSectionGetFieldOffset(geomSection, icell, i0, geom_offset, ierr); call CHKERR(ierr)
         if(geoms(geom_offset+i3) .gt. max_height) then
           max_constrained_k = k
-          print *,'max_constrained_k height', icell, k, geoms(geom_offset+i3), max_constrained_k
+          !print *,'max_constrained_k height', icell, k, geoms(geom_offset+i3), max_constrained_k
           cycle
         endif
         if(norm2(geoms(geom_offset+i1:geom_offset+i3)) .gt. max_radius) then
           max_constrained_k = k
-          print *,'max_constrained_k radius', icell, k, norm2(geoms(geom_offset+i1:geom_offset+i3)), max_constrained_k
+          !print *,'max_constrained_k radius', icell, k, norm2(geoms(geom_offset+i1:geom_offset+i3)), max_constrained_k
           cycle
         endif
 
