@@ -370,7 +370,12 @@ contains
     integer(mpiint) :: submyid, subnumnodes
 
     real(ireals) :: sundir(3)
-    sundir = spherical_2_cartesian(meanval(solver%sun%phi),meanval(solver%sun%theta)) * edirTOA
+
+    if(solution%lsolar_rad.eqv..False.) &
+      & call CHKERR(1_mpiint, "Cannot use Rayli for thermal computations")
+
+    sundir = spherical_2_cartesian(meanval(solver%sun%phi), meanval(solver%sun%theta)) &
+      & * edirTOA
 
     if(all([lcall_solver, lcall_snap].eqv..False.)) return
 
