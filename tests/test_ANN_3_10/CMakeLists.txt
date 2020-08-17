@@ -1,6 +1,10 @@
 get_filename_component(CDIR ${CMAKE_CURRENT_LIST_DIR} NAME)
 set(TESTDIR "${PROJECT_BINARY_DIR}/generated/${CDIR}" )
 
+if(NOT BUILD_FORNADO)
+  return()
+endif(NOT BUILD_FORNADO)
+
 message( STATUS "Creating Cmake Test wrapper for directory :: ${TESTDIR} :: CDIR ${CDIR}" )
 
 file(MAKE_DIRECTORY  ${TESTDIR} )
