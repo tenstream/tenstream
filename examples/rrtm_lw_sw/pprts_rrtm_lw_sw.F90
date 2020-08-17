@@ -22,17 +22,17 @@ module m_example_pprts_rrtm_lw_sw
   implicit none
 
 contains
-  subroutine example_rrtm_lw_sw(nxp, nyp, nzp, dx, dy)
+  subroutine example_rrtm_lw_sw(nxp, nyp, nzp, dx, dy, phi0, theta0, albedo_th, albedo_sol)
 
     implicit none
-    integer(iintegers), intent(in) :: nxp, nyp, nzp  ! local domain size for each rank
-    real(ireals), intent(in) :: dx, dy               ! horizontal grid spacing in [m]
+    integer(iintegers), intent(in) :: nxp, nyp, nzp   ! local domain size for each rank
+    real(ireals), intent(in) :: dx, dy                ! horizontal grid spacing in [m]
+    real(ireals), intent(in) :: phi0, theta0          ! Sun's angles, azimuth phi(0=North, 90=East), zenith(0 high sun, 80=low sun)
+    real(ireals), intent(in) :: albedo_th, albedo_sol ! broadband ground albedo for solar and thermal spectrum
 
     ! MPI variables and domain decomposition sizes
     integer(mpiint) :: numnodes, comm, myid, N_ranks_x, N_ranks_y, ierr
 
-    real(ireals),parameter :: phi0=180, theta0=60 ! Sun's angles, azimuth phi(0=North, 90=East), zenith(0 high sun, 80=low sun)
-    real(ireals),parameter :: albedo_th=0, albedo_sol=.3 ! broadband ground albedo for solar and thermal spectrum
 
     real(ireals), dimension(nzp+1,nxp,nyp), target :: plev ! pressure on layer interfaces [hPa]
     real(ireals), dimension(nzp+1,nxp,nyp), target :: tlev ! Temperature on layer interfaces [K]
@@ -212,7 +212,7 @@ program main
 
   integer(mpiint) :: ierr, myid
   integer(iintegers) :: Nx, Ny, Nz
-  real(ireals)       :: dx, dy
+  real(ireals)       :: dx, dy, phi0, theta0, albedo_th, albedo_sol
   logical :: lflg
 
   call mpi_init(ierr)
@@ -228,13 +228,24 @@ program main
   call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Nz", Nz, lflg, ierr)
 
   dx = 500
-  dy = dx
   call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-dx", dx, lflg, ierr)
+  dy = dx
   call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-dy", dy, lflg, ierr)
+
+  phi0 = 180._ireals
+  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-phi", phi0, lflg, ierr)
+  theta0 = 0._ireals
+  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-theta", theta0, lflg, ierr)
+  albedo_th = 0._ireals
+  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Ag", albedo_th, lflg, ierr)
+  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Ag_thermal", albedo_th, lflg, ierr)
+  albedo_sol = .1_ireals
+  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Ag", albedo_sol, lflg, ierr)
+  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Ag_solar", albedo_sol, lflg, ierr)
 
   if (myid.eq.0) print *,'Running rrtm_lw_sw example with grid size:', Nx, Ny, Nz
 
-  call example_rrtm_lw_sw(Nx, Ny, Nz, dx, dy)
+  call example_rrtm_lw_sw(Nx, Ny, Nz, dx, dy, phi0, theta0, albedo_th, albedo_sol)
 
   call mpi_finalize(ierr)
 end program
