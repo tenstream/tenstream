@@ -21,7 +21,8 @@ module m_pprts_external_solvers
 #include "petsc/finclude/petsc.h"
   use petsc
 
-  use m_data_parameters, only : ireals, iintegers, mpiint, i0, i1, i2, i3, i4, zero, one
+  use m_data_parameters, only : ireals, iintegers, mpiint, imp_iinteger, &
+    & i0, i1, i2, i3, i4, zero, one
   use m_helper_functions, only : CHKERR, CHKWARN, itoa, ndarray_offsets, ind_nd_to_1d, &
     meanval, spherical_2_cartesian, imp_allreduce_sum
   use m_petsc_helpers, only : getVecPointer, restoreVecPointer, &
@@ -429,17 +430,38 @@ contains
 
       subroutine call_solver(plex_solution)
         type(t_state_container),intent(inout) :: plex_solution
+        logical :: gotmsg
+        integer(iintegers) :: idummy
+        integer(mpiint) :: isub, status(MPI_STATUS_SIZE)
+        integer(mpiint), parameter :: FINALIZEMSG=1
+        integer(mpiint) :: run_rank=0
 
-          if(submyid.eq.0) then
-            plex_solution%uid = solution%uid
-            call rayli_wrapper(lcall_solver, lcall_snap, &
-              rayli_info%plex, rayli_info%kabs, rayli_info%ksca, rayli_info%g, rayli_info%albedo, &
-              & sundir, plex_solution)
+        if(submyid.eq.run_rank) then
+          plex_solution%uid = solution%uid
+          call rayli_wrapper(lcall_solver, lcall_snap, &
+            rayli_info%plex, rayli_info%kabs, rayli_info%ksca, rayli_info%g, rayli_info%albedo, &
+            & sundir, plex_solution)
 
-            call PetscObjectViewFromOptions(plex_solution%edir , PETSC_NULL_VEC, '-show_rayli_edir', ierr); call CHKERR(ierr)
-            call PetscObjectViewFromOptions(plex_solution%ediff, PETSC_NULL_VEC, '-show_rayli_ediff', ierr); call CHKERR(ierr)
-            call PetscObjectViewFromOptions(plex_solution%abso , PETSC_NULL_VEC, '-show_rayli_abso', ierr); call CHKERR(ierr)
-          endif
+          call PetscObjectViewFromOptions(plex_solution%edir , PETSC_NULL_VEC, '-show_rayli_edir', ierr); call CHKERR(ierr)
+          call PetscObjectViewFromOptions(plex_solution%ediff, PETSC_NULL_VEC, '-show_rayli_ediff', ierr); call CHKERR(ierr)
+          call PetscObjectViewFromOptions(plex_solution%abso , PETSC_NULL_VEC, '-show_rayli_abso', ierr); call CHKERR(ierr)
+
+          do isub=0,subnumnodes-1
+            if(submyid.ne.run_rank) then
+              call mpi_send(-i1, 1_mpiint, imp_iinteger, isub, FINALIZEMSG, rayli_info%subcomm, ierr); call CHKERR(ierr)
+            endif
+          enddo
+        else
+          gotmsg=.False.
+          do
+            call mpi_iprobe(run_rank, FINALIZEMSG, rayli_info%subcomm, gotmsg, status, ierr); call CHKERR(ierr)
+            if(gotmsg) then
+              call mpi_recv(idummy, 1_mpiint, imp_iinteger, run_rank, FINALIZEMSG, &
+                & rayli_info%subcomm, status, ierr); call CHKERR(ierr)
+            endif
+            call sleep(1)
+          enddo
+        endif
       end subroutine
       subroutine transfer_result(solution)
         type(t_state_container),intent(inout) :: solution
