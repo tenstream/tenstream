@@ -392,7 +392,7 @@ contains
 
     contains
       subroutine prepare_input()
-        type(tVec) :: glob_albedo, glob_kabs, glob_ksca, glob_g
+        type(tVec) :: glob_vec, nat_vec
         character(len=*), parameter :: log_event_name="pprts_rayli_prepare_input"
         PetscClassId :: cid
         PetscLogEvent :: log_event
@@ -409,29 +409,40 @@ contains
             & Cv  => solver%Cvert_one_atm1, &
             & ri  => rayli_info             )
 
-          call DMGetGlobalVector(Cs%da, glob_albedo, ierr); call CHKERR(ierr)
-          call f90VecToPetsc(atm%albedo, Cs%da, glob_albedo)
-          call VecScatterBegin(ri%ctx_albedo, glob_albedo, ri%albedo, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
-          call VecScatterEnd  (ri%ctx_albedo, glob_albedo, ri%albedo, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
-          call DMRestoreGlobalVector(Cs%da, glob_albedo, ierr); call CHKERR(ierr)
+          call DMDACreateNaturalVector(Cs%da, nat_vec, ierr); call CHKERR(ierr)
+          call DMGetGlobalVector(Cs%da, glob_vec, ierr); call CHKERR(ierr)
+          call f90VecToPetsc(atm%albedo, Cs%da, glob_vec)
+          call DMDAGlobalToNaturalBegin(Cs%da, glob_vec, INSERT_VALUES, nat_vec, ierr); call CHKERR(ierr)
+          call DMDAGlobalToNaturalEnd  (Cs%da, glob_vec, INSERT_VALUES, nat_vec, ierr); call CHKERR(ierr)
+          call VecScatterBegin(ri%ctx_albedo, nat_vec, ri%albedo, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
+          call VecScatterEnd  (ri%ctx_albedo, nat_vec, ri%albedo, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
+          call DMRestoreGlobalVector(Cs%da, glob_vec, ierr); call CHKERR(ierr)
+          call VecDestroy(nat_vec, ierr); call CHKERR(ierr)
 
-          call DMGetGlobalVector(Ca%da, glob_kabs, ierr); call CHKERR(ierr)
-          call f90VecToPetsc(atm%kabs, Ca%da, glob_kabs)
-          call VecScatterBegin(ri%ctx_optprop, glob_kabs, ri%kabs, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
-          call VecScatterEnd  (ri%ctx_optprop, glob_kabs, ri%kabs, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
-          call DMRestoreGlobalVector(Ca%da, glob_kabs, ierr); call CHKERR(ierr)
 
-          call DMGetGlobalVector(Ca%da, glob_ksca, ierr); call CHKERR(ierr)
-          call f90VecToPetsc(atm%ksca, Ca%da, glob_ksca)
-          call VecScatterBegin(ri%ctx_optprop, glob_ksca, ri%ksca, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
-          call VecScatterEnd  (ri%ctx_optprop, glob_ksca, ri%ksca, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
-          call DMRestoreGlobalVector(Ca%da, glob_ksca, ierr); call CHKERR(ierr)
+          call DMDACreateNaturalVector(Ca%da, nat_vec, ierr); call CHKERR(ierr)
+          call DMGetGlobalVector(Ca%da, glob_vec, ierr); call CHKERR(ierr)
 
-          call DMGetGlobalVector(Ca%da, glob_g, ierr); call CHKERR(ierr)
-          call f90VecToPetsc(atm%g, Ca%da, glob_g)
-          call VecScatterBegin(ri%ctx_optprop, glob_g, ri%g, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
-          call VecScatterEnd  (ri%ctx_optprop, glob_g, ri%g, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
-          call DMRestoreGlobalVector(Ca%da, glob_g, ierr); call CHKERR(ierr)
+          call f90VecToPetsc(atm%kabs, Ca%da, glob_vec)
+          call DMDAGlobalToNaturalBegin(Ca%da, glob_vec, INSERT_VALUES, nat_vec, ierr); call CHKERR(ierr)
+          call DMDAGlobalToNaturalEnd  (Ca%da, glob_vec, INSERT_VALUES, nat_vec, ierr); call CHKERR(ierr)
+          call VecScatterBegin(ri%ctx_optprop, nat_vec, ri%kabs, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
+          call VecScatterEnd  (ri%ctx_optprop, nat_vec, ri%kabs, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
+
+          call f90VecToPetsc(atm%ksca, Ca%da, glob_vec)
+          call DMDAGlobalToNaturalBegin(Ca%da, glob_vec, INSERT_VALUES, nat_vec, ierr); call CHKERR(ierr)
+          call DMDAGlobalToNaturalEnd  (Ca%da, glob_vec, INSERT_VALUES, nat_vec, ierr); call CHKERR(ierr)
+          call VecScatterBegin(ri%ctx_optprop, nat_vec, ri%ksca, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
+          call VecScatterEnd  (ri%ctx_optprop, nat_vec, ri%ksca, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
+
+          call f90VecToPetsc(atm%g, Ca%da, glob_vec)
+          call DMDAGlobalToNaturalBegin(Ca%da, glob_vec, INSERT_VALUES, nat_vec, ierr); call CHKERR(ierr)
+          call DMDAGlobalToNaturalEnd  (Ca%da, glob_vec, INSERT_VALUES, nat_vec, ierr); call CHKERR(ierr)
+          call VecScatterBegin(ri%ctx_optprop, nat_vec, ri%g, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
+          call VecScatterEnd  (ri%ctx_optprop, nat_vec, ri%g, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
+
+          call DMRestoreGlobalVector(Ca%da, glob_vec, ierr); call CHKERR(ierr)
+          call VecDestroy(nat_vec, ierr); call CHKERR(ierr)
 
           call PetscObjectViewFromOptions(rayli_info%kabs  , PETSC_NULL_VEC, '-show_rayli_kabs', ierr); call CHKERR(ierr)
           call PetscObjectViewFromOptions(rayli_info%ksca  , PETSC_NULL_VEC, '-show_rayli_ksca', ierr); call CHKERR(ierr)
@@ -463,9 +474,9 @@ contains
             rayli_info%plex, rayli_info%kabs, rayli_info%ksca, rayli_info%g, rayli_info%albedo, &
             & sundir, plex_solution, petsc_log=solver%logs%rayli_tracing)
 
-          call PetscObjectViewFromOptions(plex_solution%edir , PETSC_NULL_VEC, '-show_rayli_edir', ierr); call CHKERR(ierr)
-          call PetscObjectViewFromOptions(plex_solution%ediff, PETSC_NULL_VEC, '-show_rayli_ediff', ierr); call CHKERR(ierr)
-          call PetscObjectViewFromOptions(plex_solution%abso , PETSC_NULL_VEC, '-show_rayli_abso', ierr); call CHKERR(ierr)
+          call PetscObjectViewFromOptions(plex_solution%edir , PETSC_NULL_VEC, '-show_plex_rayli_edir', ierr); call CHKERR(ierr)
+          call PetscObjectViewFromOptions(plex_solution%ediff, PETSC_NULL_VEC, '-show_plex_rayli_ediff', ierr); call CHKERR(ierr)
+          call PetscObjectViewFromOptions(plex_solution%abso , PETSC_NULL_VEC, '-show_plex_rayli_abso', ierr); call CHKERR(ierr)
 
           do isub=0,subnumnodes-1 ! send finalize msg to all others to stop waiting
             if(isub.ne.run_rank) then
@@ -486,10 +497,12 @@ contains
         endif
         call PetscLogEventEnd(log_event, ierr); call CHKERR(ierr)
       end subroutine
+
       subroutine transfer_result(solution)
         type(t_state_container),intent(inout) :: solution
 
         real(ireals) :: fac
+        type(tVec) :: nat_vec
 
         character(len=*), parameter :: log_event_name="pprts_rayli_transfer_result"
         PetscClassId :: cid
@@ -499,31 +512,40 @@ contains
         call PetscLogEventRegister(log_event_name, cid, log_event, ierr); call CHKERR(ierr)
         call PetscLogEventBegin(log_event, ierr); call CHKERR(ierr)
 
-        fac = one / 2._ireals / real(rayli_info%num_subcomm_masters, ireals)
+        associate( &
+            & psol => rayli_info%plex_solution, &
+            & ri   => rayli_info                )
+          fac = one / 2._ireals / real(ri%num_subcomm_masters, ireals)
 
-        if(allocated(solution%edir)) then
-          call VecSet(solution%edir, zero, ierr); call CHKERR(ierr)
-        endif
-        call VecSet(solution%ediff, zero, ierr); call CHKERR(ierr)
-        call VecSet(solution%abso, zero, ierr); call CHKERR(ierr)
+          if(allocated(solution%edir)) then
+            call VecSet(solution%edir, zero, ierr); call CHKERR(ierr)
+          endif
+          call VecSet(solution%ediff, zero, ierr); call CHKERR(ierr)
+          call VecSet(solution%abso, zero, ierr); call CHKERR(ierr)
 
-        if(allocated(solution%edir)) then
-          call VecScatterBegin(rayli_info%ctx_edir, rayli_info%plex_solution%edir, solution%edir, &
-            ADD_VALUES, SCATTER_REVERSE, ierr); call CHKERR(ierr)
-        endif
-        call VecScatterBegin(rayli_info%ctx_ediff, rayli_info%plex_solution%ediff, solution%ediff, &
-          ADD_VALUES, SCATTER_REVERSE, ierr); call CHKERR(ierr)
-        call VecScatterBegin(rayli_info%ctx_abso, rayli_info%plex_solution%abso, solution%abso, &
-          ADD_VALUES, SCATTER_REVERSE, ierr); call CHKERR(ierr)
+          if(allocated(solution%edir)) then
+            call DMDACreateNaturalVector(solver%C_dir%da, nat_vec, ierr); call CHKERR(ierr)
+            call VecScatterBegin(ri%ctx_edir, psol%edir, nat_vec, ADD_VALUES, SCATTER_REVERSE, ierr); call CHKERR(ierr)
+            call VecScatterEnd  (ri%ctx_edir, psol%edir, nat_vec, ADD_VALUES, SCATTER_REVERSE, ierr); call CHKERR(ierr)
+            call DMDANaturalToGlobalBegin(solver%C_dir%da, nat_vec, INSERT_VALUES, solution%edir, ierr); call CHKERR(ierr)
+            call DMDANaturalToGlobalEnd  (solver%C_dir%da, nat_vec, INSERT_VALUES, solution%edir, ierr); call CHKERR(ierr)
+            call VecDestroy(nat_vec, ierr); call CHKERR(ierr)
+          endif
 
-        if(allocated(solution%edir)) then
-          call VecScatterEnd  (rayli_info%ctx_edir, rayli_info%plex_solution%edir, solution%edir, &
-            ADD_VALUES, SCATTER_REVERSE, ierr); call CHKERR(ierr)
-        endif
-        call VecScatterEnd  (rayli_info%ctx_ediff, rayli_info%plex_solution%ediff, solution%ediff, &
-          ADD_VALUES, SCATTER_REVERSE, ierr); call CHKERR(ierr)
-        call VecScatterEnd  (rayli_info%ctx_abso, rayli_info%plex_solution%abso, solution%abso, &
-          ADD_VALUES, SCATTER_REVERSE, ierr); call CHKERR(ierr)
+          call DMDACreateNaturalVector(solver%C_diff%da, nat_vec, ierr); call CHKERR(ierr)
+          call VecScatterBegin(ri%ctx_ediff, psol%ediff, nat_vec, ADD_VALUES, SCATTER_REVERSE, ierr); call CHKERR(ierr)
+          call VecScatterEnd  (ri%ctx_ediff, psol%ediff, nat_vec, ADD_VALUES, SCATTER_REVERSE, ierr); call CHKERR(ierr)
+          call DMDANaturalToGlobalBegin(solver%C_diff%da, nat_vec, INSERT_VALUES, solution%ediff, ierr); call CHKERR(ierr)
+          call DMDANaturalToGlobalEnd  (solver%C_diff%da, nat_vec, INSERT_VALUES, solution%ediff, ierr); call CHKERR(ierr)
+          call VecDestroy(nat_vec, ierr); call CHKERR(ierr)
+
+          call DMDACreateNaturalVector(solver%C_one%da, nat_vec, ierr); call CHKERR(ierr)
+          call VecScatterBegin(ri%ctx_abso , psol%abso , nat_vec, ADD_VALUES, SCATTER_REVERSE, ierr); call CHKERR(ierr)
+          call VecScatterEnd  (ri%ctx_abso , psol%abso , nat_vec, ADD_VALUES, SCATTER_REVERSE, ierr); call CHKERR(ierr)
+          call DMDANaturalToGlobalBegin(solver%C_one%da, nat_vec, INSERT_VALUES, solution%abso, ierr); call CHKERR(ierr)
+          call DMDANaturalToGlobalEnd  (solver%C_one%da, nat_vec, INSERT_VALUES, solution%abso, ierr); call CHKERR(ierr)
+          call VecDestroy(nat_vec, ierr); call CHKERR(ierr)
+        end associate
 
         if(allocated(solution%edir)) then
           call VecScale(solution%edir, fac, ierr); call CHKERR(ierr)
