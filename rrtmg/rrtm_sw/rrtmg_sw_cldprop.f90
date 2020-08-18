@@ -287,11 +287,6 @@
                                      ssacoliq(ib) = ssaliq1(index,ib)
                       gliq(ib) = asyliq1(index,ib) + fint * &
                                 (asyliq1(index+1,ib) - asyliq1(index,ib))
-                      if (lrrtmg_delta_scaling) then
-                        forwliq(ib) = gliq(ib)*gliq(ib)
-                      else
-                        forwliq(ib) = 0
-                      endif
 ! Check to ensure all calculated quantities are within physical limits.
                       if (extcoliq(ib) .lt. 0.0_rb) stop 'LIQUID EXTINCTION LESS THAN 0.0'
                       if (ssacoliq(ib) .gt. 1.0_rb) stop 'LIQUID SSA GRTR THAN 1.0'
@@ -299,6 +294,13 @@
                       if (gliq(ib) .gt. 1.0_rb) stop 'LIQUID ASYM GRTR THAN 1.0'
                       if (gliq(ib) .lt. 0.0_rb) stop 'LIQUID ASYM LESS THAN 0.0'
                    enddo
+                endif
+
+                if (.not.lrrtmg_delta_scaling) then
+                  do ib = ib1 , ib2
+                    forwice(ib) = 0
+                    forwliq(ib) = 0
+                  enddo
                 endif
 
                 do ib = ib1 , ib2

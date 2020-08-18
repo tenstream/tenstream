@@ -453,10 +453,10 @@
 
       integer(mpiint) :: ierr
       logical :: lflg, lrrtmg_delta_scaling
+
       lrrtmg_delta_scaling = .True.
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, &
-      PETSC_NULL_CHARACTER, "-rrtmg_delta_scaling", &
-      lrrtmg_delta_scaling, lflg, ierr) ;call CHKERR(ierr)
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+        & "-rrtmg_delta_scaling", lrrtmg_delta_scaling, lflg, ierr) ;call CHKERR(ierr)
 
 ! Initializations
 
@@ -696,9 +696,12 @@
              selffac, selffrac, indself, forfac, forfrac, indfor, &
              zbbfd, zbbfu, zbbcd, zbbcu, zuvfd, zuvcd, znifd, znicd, &
              zbbfddir, zbbcddir, zuvfddir, zuvcddir, znifddir, znicddir, &
-             tenstr_tau(:, iplon, :), tenstr_w(:, iplon, :), tenstr_g(:, iplon, :), loptprop_only, &
-             tenstr_tau_f(:, iplon, :), tenstr_w_f(:, iplon, :), &
-             tenstr_g_f(:, iplon, :), lrrtmg_delta_scaling)
+             tenstr_tau(:, iplon, :), tenstr_w(:, iplon, :), tenstr_g(:, iplon, :), &
+             loptprop_only, &
+             tenstr_tau_f=tenstr_tau_f(:, iplon, :), &
+             tenstr_w_f=tenstr_w_f(:, iplon, :), &
+             tenstr_g_f=tenstr_g_f(:, iplon, :), &
+             lrrtmg_delta_scaling=lrrtmg_delta_scaling)
          else
            call spcvrt_sw &
              (nlayers, istart, iend, icpr, idelm, iout, &
@@ -711,8 +714,8 @@
              selffac, selffrac, indself, forfac, forfrac, indfor, &
              zbbfd, zbbfu, zbbcd, zbbcu, zuvfd, zuvcd, znifd, znicd, &
              zbbfddir, zbbcddir, zuvfddir, zuvcddir, znifddir, znicddir, &
-             tenstr_tau(:, iplon, :), tenstr_w(:, iplon, :), &
-             tenstr_g(:, iplon, :), loptprop_only,  &
+             tenstr_tau(:, iplon, :), tenstr_w(:, iplon, :), tenstr_g(:, iplon, :), &
+             loptprop_only,  &
              lrrtmg_delta_scaling=lrrtmg_delta_scaling)
          endif
 

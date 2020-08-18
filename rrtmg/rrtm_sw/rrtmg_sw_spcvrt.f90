@@ -519,7 +519,11 @@
 
 ! Delta scaling - clouds 
 !   Use only if subroutine rrtmg_sw_cldprop is not used to get cloud properties and to apply delta scaling
-                  zf = zgco(jk) * zgco(jk)
+                  if (lrrtmg_delta_scaling) then
+                    zf = zgco(jk) * zgco(jk)
+                  else
+                    zf = 0
+                  endif
                   zwf = zomco(jk) * zf
                   ztauo(jk) = (1._rb - zwf) * ztauo(jk)
                   zomco(jk) = (zomco(jk) - zwf) / (1.0_rb - zwf)

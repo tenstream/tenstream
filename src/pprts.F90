@@ -1411,7 +1411,7 @@ module m_pprts
     call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_delta_scale", &
       lpprts_delta_scale, lflg , ierr) ;call CHKERR(ierr)
 
-    pprts_delta_scale_max_g=.649_ireals
+    pprts_delta_scale_max_g=.85_ireals-epsilon(pprts_delta_scale_max_g)
     call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_delta_scale_max_g", &
       pprts_delta_scale_max_g, lflg , ierr) ;call CHKERR(ierr)
 
@@ -1419,10 +1419,10 @@ module m_pprts
       call delta_scale(atm%kabs, atm%ksca, atm%g, max_g=pprts_delta_scale_max_g)
     else
       if(solver%myid.eq.0.and.lflg) print *,"Skipping Delta scaling of optprops"
-      if(any(atm%g.ge.0.649_ireals)) &
+      if(any(atm%g.ge.0.85_ireals)) &
         call CHKWARN(1_mpiint, 'Skipping delta scaling but now we have values of '// &
         'g > '//ftoa(pprts_delta_scale_max_g)// &
-        ' ('//ftoa(maxval(atm%g))//')')
+        ' (max='//ftoa(maxval(atm%g))//')')
     endif
 
     if(ltwostr_only) then
