@@ -371,13 +371,13 @@ contains
 
     real(ireals) :: sundir(3)
 
+    if(all([lcall_solver, lcall_snap].eqv..False.)) return
+
     if(solution%lsolar_rad.eqv..False.) &
       & call CHKERR(1_mpiint, "Cannot use Rayli for thermal computations")
 
     sundir = spherical_2_cartesian(meanval(solver%sun%phi), meanval(solver%sun%theta)) &
       & * edirTOA
-
-    if(all([lcall_solver, lcall_snap].eqv..False.)) return
 
     call init_pprts_rayli_wrapper(solver, solution, rayli_info)
 
