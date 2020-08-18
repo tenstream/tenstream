@@ -226,7 +226,7 @@ module m_plex2rayli
   !> @brief wrapper for the rayli MonteCarlo solver
   !> @details solve the radiative transfer equation with RayLi, currently only works for single task mpi runs
   subroutine rayli_wrapper(lcall_solver, lcall_snapshot, &
-      plex, kabs, ksca, g, albedo, sundir, solution, plck)
+      plex, kabs, ksca, g, albedo, sundir, solution, plck, petsc_log)
     use iso_c_binding
     logical, intent(in) :: lcall_solver, lcall_snapshot
     type(t_plexgrid), intent(in) :: plex
@@ -234,6 +234,7 @@ module m_plex2rayli
     type(tVec), intent(in), optional :: plck
     real(ireals), intent(in) :: sundir(:)
     type(t_state_container), intent(inout) :: solution
+    PetscLogEvent, intent(in), optional :: petsc_log
 
     real(ireals), pointer :: xksca(:), xkabs(:), xg(:)
 
@@ -389,11 +390,17 @@ module m_plex2rayli
     endif
 
     if(lcall_solver) then
+      if(present(petsc_log)) then
+        call PetscLogEventBegin(petsc_log, ierr); call CHKERR(ierr)
+      endif
       ierr = rfft_wedgeF90(Nphotons, Nwedges, Nfaces, Nverts, icyclic, &
         verts_of_face, faces_of_wedges, vert_coords, &
         rkabs, rksca, rg, &
         ralbedo_on_faces, rsundir, real(diffuse_point_origin, c_float), &
         flx_through_faces_edir, flx_through_faces_ediff, abso_in_cells ); call CHKERR(ierr)
+      if(present(petsc_log)) then
+        call PetscLogEventEnd(petsc_log, ierr); call CHKERR(ierr)
+      endif
 
       call rayli_get_result(plex, &
         flx_through_faces_edir, &

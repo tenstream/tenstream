@@ -393,6 +393,13 @@ contains
     contains
       subroutine prepare_input()
         type(tVec) :: glob_albedo, glob_kabs, glob_ksca, glob_g
+        character(len=*), parameter :: log_event_name="pprts_rayli_prepare_input"
+        PetscClassId :: cid
+        PetscLogEvent :: log_event
+
+        call PetscClassIdRegister("pprts_rayli", cid, ierr); call CHKERR(ierr)
+        call PetscLogEventRegister(log_event_name, cid, log_event, ierr); call CHKERR(ierr)
+        call PetscLogEventBegin(log_event, ierr); call CHKERR(ierr)
 
         associate( &
             & atm => solver%atm,            &
@@ -431,47 +438,66 @@ contains
           call PetscObjectViewFromOptions(rayli_info%g     , PETSC_NULL_VEC, '-show_rayli_g', ierr); call CHKERR(ierr)
           call PetscObjectViewFromOptions(rayli_info%albedo, PETSC_NULL_VEC, '-show_rayli_albedo', ierr); call CHKERR(ierr)
         end associate
+        call PetscLogEventEnd(log_event, ierr); call CHKERR(ierr)
       end subroutine
 
       subroutine call_solver(plex_solution)
         type(t_state_container),intent(inout) :: plex_solution
         logical :: gotmsg
         integer(iintegers) :: idummy
-        integer(mpiint) :: isub, status(MPI_STATUS_SIZE)
+        integer(mpiint) :: isub, status(MPI_STATUS_SIZE), mpi_request
         integer(mpiint), parameter :: FINALIZEMSG=1
         integer(mpiint) :: run_rank=0
+
+        character(len=*), parameter :: log_event_name="pprts_rayli_call_solver"
+        PetscClassId :: cid
+        PetscLogEvent :: log_event
+
+        call PetscClassIdRegister("pprts_rayli", cid, ierr); call CHKERR(ierr)
+        call PetscLogEventRegister(log_event_name, cid, log_event, ierr); call CHKERR(ierr)
+        call PetscLogEventBegin(log_event, ierr); call CHKERR(ierr)
 
         if(submyid.eq.run_rank) then
           plex_solution%uid = solution%uid
           call rayli_wrapper(lcall_solver, lcall_snap, &
             rayli_info%plex, rayli_info%kabs, rayli_info%ksca, rayli_info%g, rayli_info%albedo, &
-            & sundir, plex_solution)
+            & sundir, plex_solution, petsc_log=solver%logs%rayli_tracing)
 
           call PetscObjectViewFromOptions(plex_solution%edir , PETSC_NULL_VEC, '-show_rayli_edir', ierr); call CHKERR(ierr)
           call PetscObjectViewFromOptions(plex_solution%ediff, PETSC_NULL_VEC, '-show_rayli_ediff', ierr); call CHKERR(ierr)
           call PetscObjectViewFromOptions(plex_solution%abso , PETSC_NULL_VEC, '-show_rayli_abso', ierr); call CHKERR(ierr)
 
-          do isub=0,subnumnodes-1
-            if(submyid.ne.run_rank) then
-              call mpi_send(-i1, 1_mpiint, imp_iinteger, isub, FINALIZEMSG, rayli_info%subcomm, ierr); call CHKERR(ierr)
+          do isub=0,subnumnodes-1 ! send finalize msg to all others to stop waiting
+            if(isub.ne.run_rank) then
+              call mpi_isend(-i1, 1_mpiint, imp_iinteger, isub, FINALIZEMSG, &
+                & rayli_info%subcomm, mpi_request, ierr); call CHKERR(ierr)
             endif
           enddo
         else
-          gotmsg=.False.
-          do
-            call mpi_iprobe(run_rank, FINALIZEMSG, rayli_info%subcomm, gotmsg, status, ierr); call CHKERR(ierr)
+          lazy_wait: do ! prevent eager MPI polling while the one rank performs rayli computations
+            call mpi_iprobe(MPI_ANY_SOURCE, FINALIZEMSG, rayli_info%subcomm, gotmsg, status, ierr); call CHKERR(ierr)
             if(gotmsg) then
-              call mpi_recv(idummy, 1_mpiint, imp_iinteger, run_rank, FINALIZEMSG, &
+              call mpi_recv(idummy, 1_mpiint, imp_iinteger, status(MPI_SOURCE), FINALIZEMSG, &
                 & rayli_info%subcomm, status, ierr); call CHKERR(ierr)
+              exit lazy_wait
             endif
             call sleep(1)
-          enddo
+          enddo lazy_wait
         endif
+        call PetscLogEventEnd(log_event, ierr); call CHKERR(ierr)
       end subroutine
       subroutine transfer_result(solution)
         type(t_state_container),intent(inout) :: solution
 
         real(ireals) :: fac
+
+        character(len=*), parameter :: log_event_name="pprts_rayli_transfer_result"
+        PetscClassId :: cid
+        PetscLogEvent :: log_event
+
+        call PetscClassIdRegister("pprts_rayli", cid, ierr); call CHKERR(ierr)
+        call PetscLogEventRegister(log_event_name, cid, log_event, ierr); call CHKERR(ierr)
+        call PetscLogEventBegin(log_event, ierr); call CHKERR(ierr)
 
         fac = one / 2._ireals / real(rayli_info%num_subcomm_masters, ireals)
 
@@ -516,6 +542,7 @@ contains
         solution%lWm2_diff = .True.
         ! and mark solution that it is up to date (to prevent absoprtion computations)
         solution%lchanged  = .False.
+        call PetscLogEventEnd(log_event, ierr); call CHKERR(ierr)
       end subroutine
   end subroutine
 
