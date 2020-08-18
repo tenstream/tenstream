@@ -16,7 +16,7 @@
 !  --------------------------------------------------------------------------
 
 ! ------- Modules -------
-
+      use petsc
       use m_tenstr_parkind_sw, only : im => kind_im, rb => kind_rb
       use m_tenstr_parrrsw, only : nbndsw, ngptsw, mxmol, jpband
       use m_tenstr_rrsw_tbl, only : tblint, bpade, od_lo, exp_tbl
@@ -54,7 +54,7 @@
              pbbfd, pbbfu, pbbcd, pbbcu, puvfd, puvcd, pnifd, pnicd, &
              pbbfddir, pbbcddir, puvfddir, puvcddir, pnifddir, pnicddir, &
              tenstr_tau, tenstr_w, tenstr_g, loptprop_only, &
-             tenstr_tau_f, tenstr_w_f, tenstr_g_f)
+             tenstr_tau_f, tenstr_w_f, tenstr_g_f, lrrtmg_delta_scaling)
 ! ---------------------------------------------------------------------------
 !
 ! Purpose: Contains spectral loop to compute the shortwave radiative fluxes, 
@@ -209,7 +209,7 @@
       real(ireals), intent(out), optional :: tenstr_w_f(:,:)  ! clearsky optical props(nlayers, nbands)
       real(ireals), intent(out), optional :: tenstr_g_f(:,:)  ! clearsky optical props(nlayers, nbands)
 
-      logical, intent(in) :: loptprop_only
+      logical, intent(in) :: loptprop_only, lrrtmg_delta_scaling
 
 ! Output - inactive                                            !   All Dimensions: (nlayers+1)
 !      real(kind=rb), intent(out) :: puvcu(:)
@@ -487,8 +487,12 @@
 !   /\/\/\ Above code only needed for unscaled direct beam calculation
 
 
-! Delta scaling - clear   
-               zf = zgcc(jk) * zgcc(jk)
+! Delta scaling - clear
+               if (lrrtmg_delta_scaling) then
+                 zf = zgcc(jk) * zgcc(jk)
+               else
+                 zf = 0
+               endif
                zwf = zomcc(jk) * zf
                ztauc(jk) = (1.0_rb - zwf) * ztauc(jk)
                zomcc(jk) = (zomcc(jk) - zwf) / (1.0_rb - zwf)
@@ -515,7 +519,11 @@
 
 ! Delta scaling - clouds 
 !   Use only if subroutine rrtmg_sw_cldprop is not used to get cloud properties and to apply delta scaling
-                  zf = zgco(jk) * zgco(jk)
+                  if (lrrtmg_delta_scaling) then
+                    zf = zgco(jk) * zgco(jk)
+                  else
+                    zf = 0
+                  endif
                   zwf = zomco(jk) * zf
                   ztauo(jk) = (1._rb - zwf) * ztauo(jk)
                   zomco(jk) = (zomco(jk) - zwf) / (1.0_rb - zwf)

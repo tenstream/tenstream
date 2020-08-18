@@ -650,7 +650,7 @@ contains
 
         call set_optical_properties(solver, albedo, kabs, ksca, g, &
             reverse(Blev*Bfrac(:,:,:,ib)), planck_srfc=Bsrfc*Bfrac(1,:,:,ib), &
-            albedo_2d=thermal_albedo_2d, ldelta_scaling=.False.)
+            albedo_2d=thermal_albedo_2d)
         call solve_pprts(solver, zero, opt_solution_uid=500+ib, opt_solution_time=opt_time)
       endif
 
@@ -913,9 +913,8 @@ contains
           edirTOA = tenstr_solsrc(ib)
         endif
 
-        ! dont use delta scaling here because rrtmg values should already be delta scaled
         call set_optical_properties(solver, albedo, kabs, ksca, kg, &
-          albedo_2d=solar_albedo_2d, ldelta_scaling=.False.)
+          albedo_2d=solar_albedo_2d)
         call solve_pprts(solver, edirTOA, opt_solution_uid=ib, opt_solution_time=opt_time)
 
       endif
