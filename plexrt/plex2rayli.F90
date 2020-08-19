@@ -6,7 +6,7 @@ module m_plex2rayli
   use m_data_parameters, only: ireals, iintegers, mpiint, &
     i0, i1, i2, i3, i8, zero, one, default_str_len
 
-  use m_helper_functions, only: CHKERR, deg2rad, itoa
+  use m_helper_functions, only: CHKERR, deg2rad, itoa, get_arg
 
   use m_netcdfio, only: ncwrite
 
@@ -226,7 +226,7 @@ module m_plex2rayli
   !> @brief wrapper for the rayli MonteCarlo solver
   !> @details solve the radiative transfer equation with RayLi, currently only works for single task mpi runs
   subroutine rayli_wrapper(lcall_solver, lcall_snapshot, &
-      plex, kabs, ksca, g, albedo, sundir, solution, plck, petsc_log)
+      plex, kabs, ksca, g, albedo, sundir, solution, plck, nr_photons, petsc_log)
     use iso_c_binding
     logical, intent(in) :: lcall_solver, lcall_snapshot
     type(t_plexgrid), intent(in) :: plex
@@ -235,6 +235,7 @@ module m_plex2rayli
     real(ireals), intent(in) :: sundir(:)
     type(t_state_container), intent(inout) :: solution
     PetscLogEvent, intent(in), optional :: petsc_log
+    integer(iintegers), intent(in), optional :: nr_photons
 
     real(ireals), pointer :: xksca(:), xkabs(:), xg(:)
 
@@ -272,7 +273,7 @@ module m_plex2rayli
     if(all([lcall_solver,lcall_snapshot].eqv..False.)) return
 
     call VecGetSize(albedo, opt_photons_int, ierr); call CHKERR(ierr)
-    opt_photons = real(opt_photons_int, ireals) * 1e1_ireals
+    opt_photons = real(get_arg(opt_photons_int*10, nr_photons), ireals)
     call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
       "-rayli_photons", opt_photons, lflg,ierr) ; call CHKERR(ierr)
     Nphotons = int(opt_photons, c_size_t)

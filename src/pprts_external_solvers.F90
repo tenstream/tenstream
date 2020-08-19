@@ -460,6 +460,10 @@ contains
         integer(mpiint), parameter :: FINALIZEMSG=1
         integer(mpiint) :: run_rank=0
 
+        integer(iintegers) :: Nphotons
+        real(ireals) :: Nphotons_r
+        logical :: lflg
+
         character(len=*), parameter :: log_event_name="pprts_rayli_call_solver"
         PetscClassId :: cid
         PetscLogEvent :: log_event
@@ -468,33 +472,41 @@ contains
         call PetscLogEventRegister(log_event_name, cid, log_event, ierr); call CHKERR(ierr)
         call PetscLogEventBegin(log_event, ierr); call CHKERR(ierr)
 
-        if(submyid.eq.run_rank) then
-          plex_solution%uid = solution%uid
-          call rayli_wrapper(lcall_solver, lcall_snap, &
-            rayli_info%plex, rayli_info%kabs, rayli_info%ksca, rayli_info%g, rayli_info%albedo, &
-            & sundir, plex_solution, petsc_log=solver%logs%rayli_tracing)
+        associate(ri   => rayli_info)
+          call VecGetSize(ri%albedo, Nphotons, ierr); call CHKERR(ierr)
+          nphotons_r = real(Nphotons/ri%num_subcomm_masters*10, ireals)
+          call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+            "-pprts_rayli_photons", nphotons_r, lflg,ierr) ; call CHKERR(ierr)
+          Nphotons = int(nphotons_r, kind(Nphotons))
 
-          call PetscObjectViewFromOptions(plex_solution%edir , PETSC_NULL_VEC, '-show_plex_rayli_edir', ierr); call CHKERR(ierr)
-          call PetscObjectViewFromOptions(plex_solution%ediff, PETSC_NULL_VEC, '-show_plex_rayli_ediff', ierr); call CHKERR(ierr)
-          call PetscObjectViewFromOptions(plex_solution%abso , PETSC_NULL_VEC, '-show_plex_rayli_abso', ierr); call CHKERR(ierr)
+          if(submyid.eq.run_rank) then
+            plex_solution%uid = solution%uid
+            call rayli_wrapper(lcall_solver, lcall_snap, &
+              ri%plex, ri%kabs, ri%ksca, ri%g, ri%albedo, &
+              & sundir, plex_solution, nr_photons=Nphotons, petsc_log=solver%logs%rayli_tracing)
 
-          do isub=0,subnumnodes-1 ! send finalize msg to all others to stop waiting
-            if(isub.ne.run_rank) then
-              call mpi_isend(-i1, 1_mpiint, imp_iinteger, isub, FINALIZEMSG, &
-                & rayli_info%subcomm, mpi_request, ierr); call CHKERR(ierr)
-            endif
-          enddo
-        else
-          lazy_wait: do ! prevent eager MPI polling while the one rank performs rayli computations
-            call mpi_iprobe(MPI_ANY_SOURCE, FINALIZEMSG, rayli_info%subcomm, gotmsg, status, ierr); call CHKERR(ierr)
-            if(gotmsg) then
-              call mpi_recv(idummy, 1_mpiint, imp_iinteger, status(MPI_SOURCE), FINALIZEMSG, &
-                & rayli_info%subcomm, status, ierr); call CHKERR(ierr)
-              exit lazy_wait
-            endif
-            call sleep(1)
-          enddo lazy_wait
-        endif
+            call PetscObjectViewFromOptions(plex_solution%edir , PETSC_NULL_VEC, '-show_plex_rayli_edir', ierr); call CHKERR(ierr)
+            call PetscObjectViewFromOptions(plex_solution%ediff, PETSC_NULL_VEC, '-show_plex_rayli_ediff', ierr); call CHKERR(ierr)
+            call PetscObjectViewFromOptions(plex_solution%abso , PETSC_NULL_VEC, '-show_plex_rayli_abso', ierr); call CHKERR(ierr)
+
+            do isub=0,subnumnodes-1 ! send finalize msg to all others to stop waiting
+              if(isub.ne.run_rank) then
+                call mpi_isend(-i1, 1_mpiint, imp_iinteger, isub, FINALIZEMSG, &
+                  & ri%subcomm, mpi_request, ierr); call CHKERR(ierr)
+              endif
+            enddo
+          else
+            lazy_wait: do ! prevent eager MPI polling while the one rank performs rayli computations
+              call mpi_iprobe(MPI_ANY_SOURCE, FINALIZEMSG, ri%subcomm, gotmsg, status, ierr); call CHKERR(ierr)
+              if(gotmsg) then
+                call mpi_recv(idummy, 1_mpiint, imp_iinteger, status(MPI_SOURCE), FINALIZEMSG, &
+                  & ri%subcomm, status, ierr); call CHKERR(ierr)
+                exit lazy_wait
+              endif
+              call sleep(1)
+            enddo lazy_wait
+          endif
+        end associate
         call PetscLogEventEnd(log_event, ierr); call CHKERR(ierr)
       end subroutine
 

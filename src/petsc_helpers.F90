@@ -750,7 +750,22 @@ contains
 #endif
     case default
       ierr = 1
-      call CHKERR(1_mpiint, 'Dont know mpi_split_type `'//csplit_type//'`')
+      call CHKERR(1_mpiint, 'Dont know mpi_split_type `'//trim(csplit_type)//'`'//&
+        & " Available options:"//new_line('')// &
+        & " MPI_COMM_TYPE_SHARED"//new_line('')// &
+#ifdef HAVE_OMPI
+        & " OMPI_COMM_TYPE_HWTHREAD"//new_line('')// &
+        & " OMPI_COMM_TYPE_CORE"//new_line('')// &
+        & " OMPI_COMM_TYPE_L1CACHE"//new_line('')// &
+        & " OMPI_COMM_TYPE_L2CACHE"//new_line('')// &
+        & " OMPI_COMM_TYPE_L3CACHE"//new_line('')// &
+        & " OMPI_COMM_TYPE_SOCKET"//new_line('')// &
+        & " OMPI_COMM_TYPE_NUMA"//new_line('')// &
+        & " OMPI_COMM_TYPE_BOARD"//new_line('')// &
+        & " OMPI_COMM_TYPE_HOST"//new_line('')// &
+        & " OMPI_COMM_TYPE_CU"//new_line('')// &
+#endif
+        & "")
     end select
   end subroutine
 
