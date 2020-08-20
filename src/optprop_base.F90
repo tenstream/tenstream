@@ -90,33 +90,40 @@ module m_optprop_base
   end interface
 
   logical, parameter :: ldebug=.False.
+
+  interface populate_op_dim
+    module procedure populate_op_dim_vrange
+    module procedure populate_op_dim_preset
+  end interface
 contains
 
-  subroutine populate_op_dim(dimname, N, op_dim, vrange, preset)
+  pure subroutine populate_op_dim_vrange(dimname, N, op_dim, vrange)
     character(len=*),intent(in) :: dimname
     integer(iintegers), intent(in) :: N
     type(t_optprop_dim),intent(out) :: op_dim
-    real(irealLUT), optional :: vrange(:), preset(:)
+    real(irealLUT), intent(in) :: vrange(:)
     integer(iintegers) :: k
     if(allocated(op_dim%v)) return ! already done
     allocate(op_dim%v(N))
-
-    if(present(vrange)) then
-      do k=1,N
-        op_dim%v(k) = linspace(k, vrange, N)
-      enddo
-    elseif(present(preset)) then
-      if(size(preset).ne.N) &
-        call CHKERR(1_mpiint, 'Given preset size does not conform to proposed size N ' &
-        //toStr(N)//' vs '//toStr(size(preset, kind=iintegers)))
-      op_dim%v = preset
-    else
-      call CHKERR(1_mpiint, 'Have to provide either a number of a preset for LUT dimension')
-    endif
-
+    do k=1,N
+      op_dim%v(k) = linspace(k, vrange, N)
+    enddo
     op_dim%vrange = [op_dim%v(1), op_dim%v(N)]
     op_dim%dimname = trim(dimname)
     op_dim%N = size(op_dim%v)
+  end subroutine
+
+  pure subroutine populate_op_dim_preset(dimname, op_dim, preset)
+    character(len=*),intent(in) :: dimname
+    type(t_optprop_dim),intent(out) :: op_dim
+    real(irealLUT), intent(in) :: preset(:)
+    if(allocated(op_dim%v)) return ! already done
+
+    op_dim%N = size(preset)
+    allocate(op_dim%v(op_dim%N))
+    op_dim%v = preset
+    op_dim%vrange = [op_dim%v(1), op_dim%v(op_dim%N)]
+    op_dim%dimname = trim(dimname)
   end subroutine
 
 
@@ -147,137 +154,137 @@ contains
       select case(cname)
       case('LUT_1_2')
         allocate(OPP%dirconfig%dims(6))
-        call populate_op_dim('tau',       size(preset_tau31,kind=iintegers), OPP%dirconfig%dims(1), preset=preset_tau31)
-        call populate_op_dim('w0',        size(preset_w020,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w020)
-        call populate_op_dim('aspect_zx', size(preset_aspect23,kind=iintegers), OPP%dirconfig%dims(3), preset=preset_aspect23)
-        call populate_op_dim('g',         size(preset_g6,kind=iintegers), OPP%dirconfig%dims(4), preset=preset_g6)
+        call populate_op_dim('tau',       OPP%dirconfig%dims(1), preset=preset_tau31)
+        call populate_op_dim('w0',        OPP%dirconfig%dims(2), preset=preset_w020)
+        call populate_op_dim('aspect_zx', OPP%dirconfig%dims(3), preset=preset_aspect23)
+        call populate_op_dim('g',         OPP%dirconfig%dims(4), preset=preset_g6)
         call populate_op_dim('phi',       i1, OPP%dirconfig%dims(5), vrange=real([0], irealLUT)) ! azimithally average in 1D
         call populate_op_dim('theta',     19_iintegers, OPP%dirconfig%dims(6), vrange=real([0,90], irealLUT))
         allocate(OPP%diffconfig%dims(4))
-        call populate_op_dim('tau',       size(preset_tau31,kind=iintegers), OPP%diffconfig%dims(1), preset=preset_tau31)
-        call populate_op_dim('w0',        size(preset_w020,kind=iintegers), OPP%diffconfig%dims(2), preset=preset_w020)
-        call populate_op_dim('aspect_zx', size(preset_aspect23,kind=iintegers), OPP%diffconfig%dims(3), preset=preset_aspect23)
-        call populate_op_dim('g',         size(preset_g6,kind=iintegers), OPP%diffconfig%dims(4), preset=preset_g6)
+        call populate_op_dim('tau',       OPP%diffconfig%dims(1), preset=preset_tau31)
+        call populate_op_dim('w0',        OPP%diffconfig%dims(2), preset=preset_w020)
+        call populate_op_dim('aspect_zx', OPP%diffconfig%dims(3), preset=preset_aspect23)
+        call populate_op_dim('g',         OPP%diffconfig%dims(4), preset=preset_g6)
 
       case('LUT_8_10')
         allocate(OPP%dirconfig%dims(6))
-        call populate_op_dim('tau',       size(preset_tau31,kind=iintegers), OPP%dirconfig%dims(1), preset=preset_tau31)
-        call populate_op_dim('w0',        size(preset_w020,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w020)
-        call populate_op_dim('aspect_zx', size(preset_aspect23,kind=iintegers), OPP%dirconfig%dims(3), preset=preset_aspect23)
-        call populate_op_dim('g',         size(preset_g6,kind=iintegers), OPP%dirconfig%dims(4), preset=preset_g6)
+        call populate_op_dim('tau',       OPP%dirconfig%dims(1), preset=preset_tau31)
+        call populate_op_dim('w0',        OPP%dirconfig%dims(2), preset=preset_w020)
+        call populate_op_dim('aspect_zx', OPP%dirconfig%dims(3), preset=preset_aspect23)
+        call populate_op_dim('g',         OPP%dirconfig%dims(4), preset=preset_g6)
         call populate_op_dim('phi',       19_iintegers, OPP%dirconfig%dims(5), vrange=real([0,90], irealLUT))
         call populate_op_dim('theta',     19_iintegers, OPP%dirconfig%dims(6), vrange=real([0,90], irealLUT))
         allocate(OPP%diffconfig%dims(4))
-        call populate_op_dim('tau',       size(preset_tau31,kind=iintegers), OPP%diffconfig%dims(1), preset=preset_tau31)
-        call populate_op_dim('w0',        size(preset_w020,kind=iintegers), OPP%diffconfig%dims(2), preset=preset_w020)
-        call populate_op_dim('aspect_zx', size(preset_aspect23,kind=iintegers), OPP%diffconfig%dims(3), preset=preset_aspect23)
-        call populate_op_dim('g',         size(preset_g6,kind=iintegers), OPP%diffconfig%dims(4), preset=preset_g6)
+        call populate_op_dim('tau',       OPP%diffconfig%dims(1), preset=preset_tau31)
+        call populate_op_dim('w0',        OPP%diffconfig%dims(2), preset=preset_w020)
+        call populate_op_dim('aspect_zx', OPP%diffconfig%dims(3), preset=preset_aspect23)
+        call populate_op_dim('g',         OPP%diffconfig%dims(4), preset=preset_g6)
 
       case('LUT_8_12')
         allocate(OPP%dirconfig%dims(6))
-        call populate_op_dim('tau',       size(preset_tau31,kind=iintegers), OPP%dirconfig%dims(1), preset=preset_tau31)
-        call populate_op_dim('w0',        size(preset_w020,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w020)
-        call populate_op_dim('aspect_zx', size(preset_aspect23,kind=iintegers), OPP%dirconfig%dims(3), preset=preset_aspect23)
-        call populate_op_dim('g',         size(preset_g6,kind=iintegers), OPP%dirconfig%dims(4), preset=preset_g6)
+        call populate_op_dim('tau',       OPP%dirconfig%dims(1), preset=preset_tau31)
+        call populate_op_dim('w0',        OPP%dirconfig%dims(2), preset=preset_w020)
+        call populate_op_dim('aspect_zx', OPP%dirconfig%dims(3), preset=preset_aspect23)
+        call populate_op_dim('g',         OPP%dirconfig%dims(4), preset=preset_g6)
         call populate_op_dim('phi',       i2, OPP%dirconfig%dims(5), vrange=real([0,90], irealLUT))
         call populate_op_dim('theta',     i3, OPP%dirconfig%dims(6), vrange=real([55,60,65], irealLUT))
         allocate(OPP%diffconfig%dims(4))
-        call populate_op_dim('tau',       size(preset_tau31,kind=iintegers), OPP%diffconfig%dims(1), preset=preset_tau31)
-        call populate_op_dim('w0',        size(preset_w020,kind=iintegers), OPP%diffconfig%dims(2), preset=preset_w020)
-        call populate_op_dim('aspect_zx', size(preset_aspect23,kind=iintegers), OPP%diffconfig%dims(3), preset=preset_aspect23)
-        call populate_op_dim('g',         size(preset_g6,kind=iintegers), OPP%diffconfig%dims(4), preset=preset_g6)
+        call populate_op_dim('tau',       OPP%diffconfig%dims(1), preset=preset_tau31)
+        call populate_op_dim('w0',        OPP%diffconfig%dims(2), preset=preset_w020)
+        call populate_op_dim('aspect_zx', OPP%diffconfig%dims(3), preset=preset_aspect23)
+        call populate_op_dim('g',         OPP%diffconfig%dims(4), preset=preset_g6)
 
       case('LUT_8_16')
         allocate(OPP%dirconfig%dims(6))
-        call populate_op_dim('tau',       size(preset_tau31,kind=iintegers), OPP%dirconfig%dims(1), preset=preset_tau31)
-        call populate_op_dim('w0',        size(preset_w020,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w020)
-        call populate_op_dim('aspect_zx', size(preset_aspect23,kind=iintegers), OPP%dirconfig%dims(3), preset=preset_aspect23)
-        call populate_op_dim('g',         size(preset_g6,kind=iintegers), OPP%dirconfig%dims(4), preset=preset_g6)
+        call populate_op_dim('tau',       OPP%dirconfig%dims(1), preset=preset_tau31)
+        call populate_op_dim('w0',        OPP%dirconfig%dims(2), preset=preset_w020)
+        call populate_op_dim('aspect_zx', OPP%dirconfig%dims(3), preset=preset_aspect23)
+        call populate_op_dim('g',         OPP%dirconfig%dims(4), preset=preset_g6)
         call populate_op_dim('phi',       19_iintegers, OPP%dirconfig%dims(5), vrange=real([0,90], irealLUT))
         call populate_op_dim('theta',     19_iintegers, OPP%dirconfig%dims(6), vrange=real([0,90], irealLUT))
         allocate(OPP%diffconfig%dims(4))
-        call populate_op_dim('tau',       size(preset_tau31,kind=iintegers), OPP%diffconfig%dims(1), preset=preset_tau31)
-        call populate_op_dim('w0',        size(preset_w020,kind=iintegers), OPP%diffconfig%dims(2), preset=preset_w020)
-        call populate_op_dim('aspect_zx', size(preset_aspect23,kind=iintegers), OPP%diffconfig%dims(3), preset=preset_aspect23)
-        call populate_op_dim('g',         size(preset_g6,kind=iintegers), OPP%diffconfig%dims(4), preset=preset_g6)
+        call populate_op_dim('tau',       OPP%diffconfig%dims(1), preset=preset_tau31)
+        call populate_op_dim('w0',        OPP%diffconfig%dims(2), preset=preset_w020)
+        call populate_op_dim('aspect_zx', OPP%diffconfig%dims(3), preset=preset_aspect23)
+        call populate_op_dim('g',         OPP%diffconfig%dims(4), preset=preset_g6)
 
       case('LUT_8_18')
         allocate(OPP%dirconfig%dims(6))
-        call populate_op_dim('tau',       size(preset_tau31,kind=iintegers), OPP%dirconfig%dims(1), preset=preset_tau31)
-        call populate_op_dim('w0',        size(preset_w020,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w020)
-        call populate_op_dim('aspect_zx', size(preset_aspect23,kind=iintegers), OPP%dirconfig%dims(3), preset=preset_aspect23)
-        call populate_op_dim('g',         size(preset_g6,kind=iintegers), OPP%dirconfig%dims(4), preset=preset_g6)
+        call populate_op_dim('tau',       OPP%dirconfig%dims(1), preset=preset_tau31)
+        call populate_op_dim('w0',        OPP%dirconfig%dims(2), preset=preset_w020)
+        call populate_op_dim('aspect_zx', OPP%dirconfig%dims(3), preset=preset_aspect23)
+        call populate_op_dim('g',         OPP%dirconfig%dims(4), preset=preset_g6)
         call populate_op_dim('phi',       19_iintegers, OPP%dirconfig%dims(5), vrange=real([0,90], irealLUT))
         call populate_op_dim('theta',     19_iintegers, OPP%dirconfig%dims(6), vrange=real([0,90], irealLUT))
         allocate(OPP%diffconfig%dims(4))
-        call populate_op_dim('tau',       size(preset_tau31,kind=iintegers), OPP%diffconfig%dims(1), preset=preset_tau31)
-        call populate_op_dim('w0',        size(preset_w020,kind=iintegers), OPP%diffconfig%dims(2), preset=preset_w020)
-        call populate_op_dim('aspect_zx', size(preset_aspect23,kind=iintegers), OPP%diffconfig%dims(3), preset=preset_aspect23)
-        call populate_op_dim('g',         size(preset_g6,kind=iintegers), OPP%diffconfig%dims(4), preset=preset_g6)
+        call populate_op_dim('tau',       OPP%diffconfig%dims(1), preset=preset_tau31)
+        call populate_op_dim('w0',        OPP%diffconfig%dims(2), preset=preset_w020)
+        call populate_op_dim('aspect_zx', OPP%diffconfig%dims(3), preset=preset_aspect23)
+        call populate_op_dim('g',         OPP%diffconfig%dims(4), preset=preset_g6)
 
       case('LUT_3_10')
         allocate(OPP%dirconfig%dims(6))
-        call populate_op_dim('tau',       size(preset_tau31,kind=iintegers), OPP%dirconfig%dims(1), preset=preset_tau31)
-        call populate_op_dim('w0',        size(preset_w020,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w020)
-        call populate_op_dim('aspect_zx', size(preset_aspect23,kind=iintegers), OPP%dirconfig%dims(3), preset=preset_aspect23)
-        call populate_op_dim('g',         size(preset_g6,kind=iintegers), OPP%dirconfig%dims(4), preset=preset_g6)
+        call populate_op_dim('tau',       OPP%dirconfig%dims(1), preset=preset_tau31)
+        call populate_op_dim('w0',        OPP%dirconfig%dims(2), preset=preset_w020)
+        call populate_op_dim('aspect_zx', OPP%dirconfig%dims(3), preset=preset_aspect23)
+        call populate_op_dim('g',         OPP%dirconfig%dims(4), preset=preset_g6)
         call populate_op_dim('phi',       19_iintegers, OPP%dirconfig%dims(5), vrange=real([0,90], irealLUT))
         call populate_op_dim('theta',     19_iintegers, OPP%dirconfig%dims(6), vrange=real([0,90], irealLUT))
         allocate(OPP%diffconfig%dims(4))
-        call populate_op_dim('tau',       size(preset_tau31,kind=iintegers), OPP%diffconfig%dims(1), preset=preset_tau31)
-        call populate_op_dim('w0',        size(preset_w020,kind=iintegers), OPP%diffconfig%dims(2), preset=preset_w020)
-        call populate_op_dim('aspect_zx', size(preset_aspect23,kind=iintegers), OPP%diffconfig%dims(3), preset=preset_aspect23)
-        call populate_op_dim('g',         size(preset_g6,kind=iintegers), OPP%diffconfig%dims(4), preset=preset_g6)
+        call populate_op_dim('tau',       OPP%diffconfig%dims(1), preset=preset_tau31)
+        call populate_op_dim('w0',        OPP%diffconfig%dims(2), preset=preset_w020)
+        call populate_op_dim('aspect_zx', OPP%diffconfig%dims(3), preset=preset_aspect23)
+        call populate_op_dim('g',         OPP%diffconfig%dims(4), preset=preset_g6)
 
       case('LUT_3_16')
         allocate(OPP%dirconfig%dims(6))
-        call populate_op_dim('tau',       size(preset_tau31,kind=iintegers), OPP%dirconfig%dims(1), preset=preset_tau31)
-        call populate_op_dim('w0',        size(preset_w020,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w020)
-        call populate_op_dim('aspect_zx', size(preset_aspect23,kind=iintegers), OPP%dirconfig%dims(3), preset=preset_aspect23)
-        call populate_op_dim('g',         size(preset_g6,kind=iintegers), OPP%dirconfig%dims(4), preset=preset_g6)
+        call populate_op_dim('tau',       OPP%dirconfig%dims(1), preset=preset_tau31)
+        call populate_op_dim('w0',        OPP%dirconfig%dims(2), preset=preset_w020)
+        call populate_op_dim('aspect_zx', OPP%dirconfig%dims(3), preset=preset_aspect23)
+        call populate_op_dim('g',         OPP%dirconfig%dims(4), preset=preset_g6)
         call populate_op_dim('phi',       19_iintegers, OPP%dirconfig%dims(5), vrange=real([0,90], irealLUT))
         call populate_op_dim('theta',     19_iintegers, OPP%dirconfig%dims(6), vrange=real([0,90], irealLUT))
         allocate(OPP%diffconfig%dims(4))
-        call populate_op_dim('tau',       size(preset_tau31,kind=iintegers), OPP%diffconfig%dims(1), preset=preset_tau31)
-        call populate_op_dim('w0',        size(preset_w020,kind=iintegers), OPP%diffconfig%dims(2), preset=preset_w020)
-        call populate_op_dim('aspect_zx', size(preset_aspect23,kind=iintegers), OPP%diffconfig%dims(3), preset=preset_aspect23)
-        call populate_op_dim('g',         size(preset_g6,kind=iintegers), OPP%diffconfig%dims(4), preset=preset_g6)
+        call populate_op_dim('tau',       OPP%diffconfig%dims(1), preset=preset_tau31)
+        call populate_op_dim('w0',        OPP%diffconfig%dims(2), preset=preset_w020)
+        call populate_op_dim('aspect_zx', OPP%diffconfig%dims(3), preset=preset_aspect23)
+        call populate_op_dim('g',         OPP%diffconfig%dims(4), preset=preset_g6)
 
       case('LUT_3_6')
         allocate(OPP%dirconfig%dims(6))
-        call populate_op_dim('tau',       size(preset_tau31,kind=iintegers), OPP%dirconfig%dims(1), preset=preset_tau31)
-        call populate_op_dim('w0',        size(preset_w020,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w020)
-        call populate_op_dim('aspect_zx', size(preset_aspect23,kind=iintegers), OPP%dirconfig%dims(3), preset=preset_aspect23)
-        call populate_op_dim('g',         size(preset_g6,kind=iintegers), OPP%dirconfig%dims(4), preset=preset_g6)
+        call populate_op_dim('tau',       OPP%dirconfig%dims(1), preset=preset_tau31)
+        call populate_op_dim('w0',        OPP%dirconfig%dims(2), preset=preset_w020)
+        call populate_op_dim('aspect_zx', OPP%dirconfig%dims(3), preset=preset_aspect23)
+        call populate_op_dim('g',         OPP%dirconfig%dims(4), preset=preset_g6)
         call populate_op_dim('phi',       19_iintegers, OPP%dirconfig%dims(5), vrange=real([0,90], irealLUT))
         call populate_op_dim('theta',     19_iintegers, OPP%dirconfig%dims(6), vrange=real([0,90], irealLUT))
         allocate(OPP%diffconfig%dims(4))
-        call populate_op_dim('tau',       size(preset_tau31,kind=iintegers), OPP%diffconfig%dims(1), preset=preset_tau31)
-        call populate_op_dim('w0',        size(preset_w020,kind=iintegers), OPP%diffconfig%dims(2), preset=preset_w020)
-        call populate_op_dim('aspect_zx', size(preset_aspect23,kind=iintegers), OPP%diffconfig%dims(3), preset=preset_aspect23)
-        call populate_op_dim('g',         size(preset_g6,kind=iintegers), OPP%diffconfig%dims(4), preset=preset_g6)
+        call populate_op_dim('tau',       OPP%diffconfig%dims(1), preset=preset_tau31)
+        call populate_op_dim('w0',        OPP%diffconfig%dims(2), preset=preset_w020)
+        call populate_op_dim('aspect_zx', OPP%diffconfig%dims(3), preset=preset_aspect23)
+        call populate_op_dim('g',         OPP%diffconfig%dims(4), preset=preset_g6)
 
       case('LUT_wedge_5_8')
         allocate(OPP%dirconfig%dims(8))
-        call populate_op_dim('tau',       size(preset_tau15,kind=iintegers), OPP%dirconfig%dims(1), preset=preset_tau15)
-        call populate_op_dim('w0',        size(preset_w010,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w010)
-        call populate_op_dim('aspect_zx', size(preset_aspect18,kind=iintegers), OPP%dirconfig%dims(3), preset=preset_aspect18)
-        call populate_op_dim('g',         size(preset_g6,kind=iintegers), OPP%dirconfig%dims(4), preset=preset_g6)
+        call populate_op_dim('tau',       OPP%dirconfig%dims(1), preset=preset_tau15)
+        call populate_op_dim('w0',        OPP%dirconfig%dims(2), preset=preset_w010)
+        call populate_op_dim('aspect_zx', OPP%dirconfig%dims(3), preset=preset_aspect18)
+        call populate_op_dim('g',         OPP%dirconfig%dims(4), preset=preset_g6)
         call populate_op_dim('wedge_coord_Cx', 7_iintegers, OPP%dirconfig%dims(5), &
           vrange=real([.35,.65], irealLUT))
         call populate_op_dim('wedge_coord_Cy', 7_iintegers, OPP%dirconfig%dims(6), &
           vrange=real([0.7760254, 0.9560254], irealLUT))
 
-        call populate_op_dim('param_phi', size(preset_param_phi19, kind=iintegers), &
+        call populate_op_dim('param_phi', &
           OPP%dirconfig%dims(7), preset=preset_param_phi19)
-        call populate_op_dim('param_theta', size(preset_param_theta13, kind=iintegers), &
+        call populate_op_dim('param_theta', &
           OPP%dirconfig%dims(8), preset=preset_param_theta13)
 
         allocate(OPP%diffconfig%dims(6))
-        call populate_op_dim('tau',       size(preset_tau31,kind=iintegers), OPP%diffconfig%dims(1), preset=preset_tau31)
-        call populate_op_dim('w0',        size(preset_w021,kind=iintegers), OPP%diffconfig%dims(2), preset=preset_w021)
-        call populate_op_dim('aspect_zx', size(preset_aspect23,kind=iintegers), OPP%diffconfig%dims(3), preset=preset_aspect23)
-        call populate_op_dim('g',         size(preset_g6,kind=iintegers), OPP%diffconfig%dims(4), preset=preset_g6)
+        call populate_op_dim('tau',       OPP%diffconfig%dims(1), preset=preset_tau31)
+        call populate_op_dim('w0',        OPP%diffconfig%dims(2), preset=preset_w021)
+        call populate_op_dim('aspect_zx', OPP%diffconfig%dims(3), preset=preset_aspect23)
+        call populate_op_dim('g',         OPP%diffconfig%dims(4), preset=preset_g6)
         call populate_op_dim('wedge_coord_Cx', 7_iintegers, OPP%diffconfig%dims(5), &
           vrange=real([.35,.65], irealLUT))
         call populate_op_dim('wedge_coord_Cy', 7_iintegers, OPP%diffconfig%dims(6), &
@@ -285,25 +292,25 @@ contains
 
       case('LUT_rectilinear_wedge_5_8')
         allocate(OPP%dirconfig%dims(8))
-        call populate_op_dim('tau',       size(preset_tau31,kind=iintegers), OPP%dirconfig%dims(1), preset=preset_tau31)
-        call populate_op_dim('w0',        size(preset_w021,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w021)
-        call populate_op_dim('aspect_zx', size(preset_aspect18,kind=iintegers), OPP%dirconfig%dims(3), preset=preset_aspect18)
-        call populate_op_dim('g',         size(preset_g6,kind=iintegers), OPP%dirconfig%dims(4), preset=preset_g6)
+        call populate_op_dim('tau',       OPP%dirconfig%dims(1), preset=preset_tau31)
+        call populate_op_dim('w0',        OPP%dirconfig%dims(2), preset=preset_w021)
+        call populate_op_dim('aspect_zx', OPP%dirconfig%dims(3), preset=preset_aspect18)
+        call populate_op_dim('g',         OPP%dirconfig%dims(4), preset=preset_g6)
         call populate_op_dim('wedge_coord_Cx', 3_iintegers, OPP%dirconfig%dims(5), &
           vrange=real([-0.000001,1.000001], irealLUT))
         call populate_op_dim('wedge_coord_Cy', 2_iintegers, OPP%dirconfig%dims(6), &
           vrange=real([.499999,1.000001], irealLUT))
 
-        call populate_op_dim('param_phi', size(preset_param_phi19, kind=iintegers), &
+        call populate_op_dim('param_phi', &
           OPP%dirconfig%dims(7), preset=preset_param_phi19)
-        call populate_op_dim('param_theta', size(preset_param_theta13, kind=iintegers), &
+        call populate_op_dim('param_theta', &
           OPP%dirconfig%dims(8), preset=preset_param_theta13)
 
         allocate(OPP%diffconfig%dims(6))
-        call populate_op_dim('tau',       size(preset_tau31,kind=iintegers), OPP%diffconfig%dims(1), preset=preset_tau31)
-        call populate_op_dim('w0',        size(preset_w021,kind=iintegers), OPP%diffconfig%dims(2), preset=preset_w021)
-        call populate_op_dim('aspect_zx', size(preset_aspect23,kind=iintegers), OPP%diffconfig%dims(3), preset=preset_aspect23)
-        call populate_op_dim('g',         size(preset_g6,kind=iintegers), OPP%diffconfig%dims(4), preset=preset_g6)
+        call populate_op_dim('tau',       OPP%diffconfig%dims(1), preset=preset_tau31)
+        call populate_op_dim('w0',        OPP%diffconfig%dims(2), preset=preset_w021)
+        call populate_op_dim('aspect_zx', OPP%diffconfig%dims(3), preset=preset_aspect23)
+        call populate_op_dim('g',         OPP%diffconfig%dims(4), preset=preset_g6)
         call populate_op_dim('wedge_coord_Cx', 3_iintegers, OPP%diffconfig%dims(5), &
           vrange=real([-0.000001,1.000001], irealLUT))
         call populate_op_dim('wedge_coord_Cy', 2_iintegers, OPP%diffconfig%dims(6), &
@@ -311,24 +318,24 @@ contains
 
       case('LUT_wedge_18_8')
         allocate(OPP%dirconfig%dims(7))
-        call populate_op_dim('tau',       size(preset_tau15,kind=iintegers), OPP%dirconfig%dims(1), preset=preset_tau15)
-        call populate_op_dim('w0',        size(preset_w010,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w010)
-        call populate_op_dim('aspect_zx', size(preset_aspect18,kind=iintegers), OPP%dirconfig%dims(3), preset=preset_aspect18)
+        call populate_op_dim('tau',       OPP%dirconfig%dims(1), preset=preset_tau15)
+        call populate_op_dim('w0',        OPP%dirconfig%dims(2), preset=preset_w010)
+        call populate_op_dim('aspect_zx', OPP%dirconfig%dims(3), preset=preset_aspect18)
         call populate_op_dim('wedge_coord_Cx', 7_iintegers, OPP%dirconfig%dims(4), &
           vrange=real([.35,.65], irealLUT))
         call populate_op_dim('wedge_coord_Cy', 7_iintegers, OPP%dirconfig%dims(5), &
           vrange=real([0.7760254, 0.9560254], irealLUT))
 
-        call populate_op_dim('param_phi', size(preset_param_phi19, kind=iintegers), &
+        call populate_op_dim('param_phi', &
           OPP%dirconfig%dims(6), preset=preset_param_phi19)
-        call populate_op_dim('param_theta', size(preset_param_theta13, kind=iintegers), &
+        call populate_op_dim('param_theta', &
           OPP%dirconfig%dims(7), preset=preset_param_theta13)
 
         allocate(OPP%diffconfig%dims(6))
-        call populate_op_dim('tau',       size(preset_tau20,kind=iintegers), OPP%diffconfig%dims(1), preset=preset_tau20)
+        call populate_op_dim('tau',       OPP%diffconfig%dims(1), preset=preset_tau20)
         call populate_op_dim('w0',        i2, OPP%diffconfig%dims(2), vrange=real([.0,.99999], irealLUT))
-        call populate_op_dim('aspect_zx', size(preset_aspect7,kind=iintegers), OPP%diffconfig%dims(3), preset=preset_aspect7)
-        call populate_op_dim('g',         size(preset_g6,kind=iintegers), OPP%diffconfig%dims(4), preset=preset_g6)
+        call populate_op_dim('aspect_zx', OPP%diffconfig%dims(3), preset=preset_aspect7)
+        call populate_op_dim('g',         OPP%diffconfig%dims(4), preset=preset_g6)
         call populate_op_dim('wedge_coord_Cx', 7_iintegers, OPP%diffconfig%dims(5), &
           vrange=real([.35,.65], irealLUT))
         call populate_op_dim('wedge_coord_Cy', 7_iintegers, OPP%diffconfig%dims(6), &
@@ -413,10 +420,8 @@ contains
         vrange=real([.35,.65], irealLUT))
       call populate_op_dim('wedge_coord_Cy', 2_iintegers, OPP%dirconfig%dims(5), &
         vrange=real([0.7760254, 0.9560254], irealLUT))
-      call populate_op_dim('param_phi', size(preset_param_phi6, kind=iintegers), &
-        OPP%dirconfig%dims(6), preset=preset_param_phi6)
-      call populate_op_dim('param_theta', size(preset_param_theta4, kind=iintegers), &
-        OPP%dirconfig%dims(7), preset=preset_param_theta4)
+      call populate_op_dim('param_phi'  , OPP%dirconfig%dims(6), preset=preset_param_phi6)
+      call populate_op_dim('param_theta', OPP%dirconfig%dims(7), preset=preset_param_theta4)
       allocate(OPP%diffconfig%dims(5))
       call populate_op_dim('tau',       2_iintegers, OPP%diffconfig%dims(1), vrange=real([1e-30,1e3], irealLUT))
       call populate_op_dim('w0',        2_iintegers, OPP%diffconfig%dims(2), vrange=real([0,1], irealLUT))

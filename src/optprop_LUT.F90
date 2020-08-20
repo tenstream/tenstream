@@ -247,7 +247,7 @@ contains
             allocate(t_boxmc_wedge_18_8::OPP%bmc)
 
           class default
-            stop 'initialize LUT: unexpected type for optprop_LUT object!'
+            call CHKERR(1_mpiint, 'initialize LUT: unexpected type for optprop_LUT object!')
         end select
 
         call OPP%bmc%init(comm)
