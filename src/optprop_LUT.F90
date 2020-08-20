@@ -86,6 +86,7 @@ module m_optprop_LUT
     t_optprop_LUT_1_2, &
     t_optprop_LUT_3_6, &
     t_optprop_LUT_3_10, &
+    t_optprop_LUT_3_10_for_ANN, &
     t_optprop_LUT_3_16, &
     t_optprop_LUT_8_10, &
     t_optprop_LUT_8_12, &
@@ -135,6 +136,8 @@ module m_optprop_LUT
   type,extends(t_optprop_LUT) :: t_optprop_LUT_3_6
   end type
   type,extends(t_optprop_LUT) :: t_optprop_LUT_3_10
+  end type
+  type,extends(t_optprop_LUT) :: t_optprop_LUT_3_10_for_ANN
   end type
   type,extends(t_optprop_LUT) :: t_optprop_LUT_3_16
   end type
@@ -191,6 +194,12 @@ contains
             OPP%diff_streams = 6
             OPP%lutbasename=trim(lut_basename)
             allocate(t_boxmc_3_6::OPP%bmc)
+
+          class is (t_optprop_LUT_3_10_for_ANN)
+            OPP%dir_streams  = 3
+            OPP%diff_streams = 10
+            OPP%lutbasename=trim(lut_basename)
+            allocate(t_boxmc_3_10::OPP%bmc)
 
           class is (t_optprop_LUT_3_10)
             OPP%dir_streams  = 3
@@ -908,6 +917,9 @@ subroutine LUT_bmc_wrapper_determine_sample_pts(OPP, config, index_1d, dir, &
   class is (t_optprop_LUT_3_6)
     call prep_pprts()
 
+  class is (t_optprop_LUT_3_10_for_ANN)
+    call prep_pprts()
+
   class is (t_optprop_LUT_3_10)
     call prep_pprts()
 
@@ -1183,6 +1195,9 @@ end subroutine
 
     class is (t_optprop_LUT_3_10)
       call set_op_param_space(OPP, 'LUT_3_10', ierr); call CHKERR(ierr)
+
+    class is (t_optprop_LUT_3_10_for_ANN)
+      call set_op_param_space(OPP, 'LUT_3_10_for_ANN', ierr); call CHKERR(ierr)
 
     class is (t_optprop_LUT_3_16)
       call set_op_param_space(OPP, 'LUT_3_16', ierr); call CHKERR(ierr)

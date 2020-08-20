@@ -28,6 +28,7 @@ program main
         t_optprop_LUT_1_2,  &
         t_optprop_LUT_3_6,  &
         t_optprop_LUT_3_10, &
+        t_optprop_LUT_3_10_for_ANN, &
         t_optprop_LUT_3_16, &
         t_optprop_LUT_8_10, &
         t_optprop_LUT_8_12, &
@@ -66,6 +67,9 @@ program main
 
       case ('3_10')
         allocate(t_optprop_LUT_3_10::OPP)
+
+      case ('3_10_for_ANN')
+        allocate(t_optprop_LUT_3_10_for_ANN::OPP)
 
       case ('3_16')
         allocate(t_optprop_LUT_3_16::OPP)

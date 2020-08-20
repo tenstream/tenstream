@@ -157,7 +157,7 @@ module m_optprop_parameters
 
       real(irealLUT), parameter :: preset_g2(2) = [0.0, 0.5]
       real(irealLUT), parameter :: preset_g3(3) = [0.0, 0.2670, 0.5]
-      real(irealLUT), parameter :: preset_g4(4) = [0.0, 0.1936, 0.4258, 0.65]
+      real(irealLUT), parameter :: preset_g4(4) = [0.0, 0.4, 0.65, 0.85]
       real(irealLUT), parameter :: preset_g6(6) = [0.0, 0.2424, 0.4137, 0.5717, 0.7144, 0.85]
 
       !-----------------------------------------
@@ -168,11 +168,11 @@ module m_optprop_parameters
 
 !      real(irealLUT),parameter :: stddev_atol=1e-2_irealLUT
 !      real(irealLUT),parameter :: stddev_atol=5e-3_irealLUT
-      real(irealLUT) :: stddev_atol=1e-3_irealLUT
+      real(irealLUT) :: stddev_atol=1e-4_irealLUT
 !      real(irealLUT),parameter :: stddev_atol=2e-4_irealLUT
 !      real(irealLUT),parameter :: stddev_atol=5e-6_irealLUT
 
-      real(irealLUT) :: stddev_rtol=2e-1_irealLUT
+      real(irealLUT) :: stddev_rtol=5e-2_irealLUT
 !      real(irealLUT),parameter :: stddev_rtol=1e-3_irealLUT
 
       ! Do some sanity checks on coefficients -- only disable if you are sure
