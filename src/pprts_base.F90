@@ -296,13 +296,15 @@ module m_pprts_base
       call PetscLogEventRegister(trim(s)//'debug_output', cid, logs%debug_output, ierr); call CHKERR(ierr)
     end subroutine
 
-  subroutine allocate_pprts_solver_from_commandline(pprts_solver, default_solver)
+  subroutine allocate_pprts_solver_from_commandline(pprts_solver, default_solver, ierr)
     class(t_solver), intent(inout), allocatable :: pprts_solver
     character(len=*), intent(in), optional :: default_solver
+    integer(mpiint), intent(out) :: ierr
 
     logical :: lflg
     character(len=default_str_len) :: solver_str
-    integer(mpiint) :: ierr
+
+    ierr = 0
 
     if(allocated(pprts_solver)) then
       call CHKWARN(1_mpiint, 'called allocate_pprts_solver_from_commandline on an already allocated solver...'//&
@@ -345,10 +347,9 @@ module m_pprts_base
         print *,'-solver 3_16'
         print *,'-solver 8_16'
         print *,'-solver 8_18'
-        call CHKERR(1_mpiint, 'have to provide solver type')
-        call exit
+        ierr = 1
+        call CHKERR(ierr, 'have to provide solver type')
     end select
-
   end subroutine
 
   subroutine destroy_coord(C)

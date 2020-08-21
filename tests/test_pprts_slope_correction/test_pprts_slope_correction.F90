@@ -87,9 +87,9 @@ contains
 
 
     hill_dP = 100 ! [hPa]
-    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-hill_dP", hill_dP, lflg, ierr)
+    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-hill_dP", hill_dP, lflg, ierr); call CHKERR(ierr)
     hill_shape = 3
-    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-hill_shape", hill_shape, lflg, ierr) ! the bigger the flatter
+    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-hill_shape", hill_shape, lflg, ierr); call CHKERR(ierr) ! the bigger the flatter
 
     do j=1,nyp
       jglob = j + nyp*myid
@@ -110,7 +110,7 @@ contains
     lsolar = .True.
     lthermal = .False.
 
-    call allocate_pprts_solver_from_commandline(pprts_solver, '3_10')
+    call allocate_pprts_solver_from_commandline(pprts_solver, '3_10', ierr); call CHKERR(ierr)
 
     call setup_tenstr_atm(comm, .False., atm_filename, &
       pplev, ptlev, atm)

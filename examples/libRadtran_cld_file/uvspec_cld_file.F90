@@ -145,7 +145,7 @@ contains
       enddo
     endif
 
-    call allocate_pprts_solver_from_commandline(pprts_solver, default_solver='8_10')
+    call allocate_pprts_solver_from_commandline(pprts_solver, default_solver='8_10', ierr=ierr); call CHKERR(ierr)
 
     call run_rrtmg_lw_sw(pprts_solver, atm_filename, dx, dy, phi0, theta0, &
       plev, tlev, &

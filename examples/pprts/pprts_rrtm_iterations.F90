@@ -161,7 +161,7 @@ contains
     call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-solar", lsolar, lflg,ierr); call CHKERR(ierr)
     call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-thermal", lthermal, lflg,ierr); call CHKERR(ierr)
 
-    call allocate_pprts_solver_from_commandline(pprts_solver, '3_10')
+    call allocate_pprts_solver_from_commandline(pprts_solver, '3_10', ierr); call CHKERR(ierr)
 
     solve_iterations = 1
     call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-solve_iterations", &

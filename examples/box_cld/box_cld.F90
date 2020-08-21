@@ -6,7 +6,7 @@ module m_box_cld
     pprts_get_result
   use m_pprts_base, only: t_solver, allocate_pprts_solver_from_commandline, destroy_pprts
 
-  use m_helper_functions, only : get_mem_footprint, spherical_2_cartesian
+  use m_helper_functions, only : CHKERR, get_mem_footprint, spherical_2_cartesian
 
   use m_tenstream_options, only: read_commandline_options
 
@@ -36,7 +36,7 @@ subroutine box_cld()
     ! Have to call init_mpi_data_parameters() to define datatypes
     call init_mpi_data_parameters(MPI_COMM_WORLD)
 
-    call allocate_pprts_solver_from_commandline(solver, '8_16')
+    call allocate_pprts_solver_from_commandline(solver, '8_16', ierr); call CHKERR(ierr)
     dz1d = dz
 
     sundir = spherical_2_cartesian(phi0, theta0)

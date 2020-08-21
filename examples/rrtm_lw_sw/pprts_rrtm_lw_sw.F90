@@ -145,7 +145,7 @@ contains
 
     sundir = spherical_2_cartesian(phi0, theta0)
 
-    call allocate_pprts_solver_from_commandline(pprts_solver, '3_10')
+    call allocate_pprts_solver_from_commandline(pprts_solver, '3_10', ierr); call CHKERR(ierr)
 
     iter=1
     call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-iter", iter, lflg, ierr)
