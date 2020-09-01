@@ -45,9 +45,14 @@ module m_pprts_rrtmg
       iintegers, ireals, zero, one, i0, i1, i2, i9,         &
       mpiint, pi, default_str_len
   use m_pprts_base, only : t_solver, compute_gradient, destroy_pprts
+
   use m_pprts, only : init_pprts, set_angles, set_optical_properties, solve_pprts,&
       pprts_get_result, pprts_get_result_toZero
+
+  use m_buildings, only: t_pprts_buildings
+
   use m_adaptive_spectral_integration, only: need_new_solution
+
   use m_helper_functions, only : read_ascii_file_2d, gradient, meanvec, imp_bcast, &
       imp_allreduce_min, imp_allreduce_max, imp_allreduce_mean, mpi_logical_all_same, &
       CHKERR, deg2rad, get_arg, &
@@ -271,7 +276,8 @@ contains
       edir,edn,eup,abso,                              &
       nxproc, nyproc, icollapse,                      &
       opt_time, solar_albedo_2d, thermal_albedo_2d,   &
-      opt_solar_constant)
+      opt_solar_constant,                             &
+      opt_buildings_sol)
 
     integer(mpiint), intent(in)     :: comm ! MPI Communicator
 
@@ -296,6 +302,10 @@ contains
     ! and compute new solutions only after threshold estimate is exceeded.
     ! If solar_albedo_2d is present, we use a 2D surface albedo
     real(ireals), optional, intent(in) :: opt_time, solar_albedo_2d(:,:), thermal_albedo_2d(:,:), opt_solar_constant
+
+    ! buildings information, setup broadband thermal and solar albedo on faces inside the domain, not just on the surface
+    ! see definition for details on how to set it up
+    type(t_pprts_buildings), intent(in), optional :: opt_buildings_sol
 
     ! Fluxes and absorption in [W/m2] and [W/m3] respectively.
     ! Dimensions will probably be bigger than the dynamics grid, i.e. will have
@@ -401,7 +411,7 @@ contains
         call compute_solar(solver, atm, ie, je, ke, &
           sundir, albedo_solar, &
           edir, edn, eup, abso, opt_time=opt_time, solar_albedo_2d=solar_albedo_2d, &
-          lrrtmg_only=lrrtmg_only, opt_solar_constant=opt_solar_constant)
+          lrrtmg_only=lrrtmg_only, opt_solar_constant=opt_solar_constant, opt_buildings=opt_buildings_sol)
         call PetscLogStagePop(ierr); call CHKERR(ierr) ! pop solver%logs%stage_rrtmg_solar
       endif
     endif
@@ -733,7 +743,7 @@ contains
   subroutine compute_solar(solver, atm, ie, je, ke, &
       sundir, albedo, &
       edir, edn, eup, abso, opt_time, solar_albedo_2d, lrrtmg_only, &
-      opt_solar_constant)
+      opt_solar_constant, opt_buildings)
 
       use m_tenstr_parrrsw, only: ngptsw
       use m_tenstr_rrtmg_sw_spcvrt, only: tenstr_solsrc
@@ -750,6 +760,7 @@ contains
     real(ireals), optional, intent(in) :: opt_time, solar_albedo_2d(:,:)
     logical, optional, intent(in) :: lrrtmg_only
     real(ireals), intent(in), optional :: opt_solar_constant
+    type(t_pprts_buildings), intent(in), optional :: opt_buildings
 
     real(ireals) :: edirTOA
 
@@ -913,9 +924,18 @@ contains
           edirTOA = tenstr_solsrc(ib)
         endif
 
-        call set_optical_properties(solver, albedo, kabs, ksca, kg, &
-          albedo_2d=solar_albedo_2d)
-        call solve_pprts(solver, edirTOA, opt_solution_uid=ib, opt_solution_time=opt_time)
+        call set_optical_properties( &
+          & solver,                  &
+          & albedo,                  &
+          & kabs,                    &
+          & ksca,                    &
+          & kg,                      &
+          & albedo_2d=solar_albedo_2d)
+
+        call solve_pprts(solver, edirTOA, &
+          & opt_solution_uid=ib,          &
+          & opt_solution_time=opt_time,   &
+          & opt_buildings=opt_buildings)
 
       endif
       call pprts_get_result(solver, spec_edn, spec_eup, spec_abso, spec_edir, opt_solution_uid=ib)

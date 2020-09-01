@@ -101,7 +101,6 @@ module m_dyn_atm_to_rrtmg
       real(ireals),allocatable :: opt_w0 (:,:,:) ! will be added to the rrtmg optical properties
       real(ireals),allocatable :: opt_g  (:,:,:) ! if only tau is allocated, assume it is absorption only
 
-
       real(ireals),allocatable :: tskin  (:) ! skin temperature   [K] dim(ncol)
 
       logical :: lTOA_to_srfc

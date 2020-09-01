@@ -59,6 +59,8 @@ module m_pprts
     t_dof, t_solver_log_events, setup_log_events, &
     set_dmda_cell_coordinates
 
+  use m_buildings, only: t_pprts_buildings
+
   use m_pprts_external_solvers, only: twostream, schwarz, pprts_rayli_wrapper
 
   implicit none
@@ -1758,11 +1760,12 @@ module m_pprts
 
   end subroutine
 
-  subroutine solve_pprts(solver, edirTOA, opt_solution_uid, opt_solution_time)
+  subroutine solve_pprts(solver, edirTOA, opt_solution_uid, opt_solution_time, opt_buildings)
     class(t_solver), intent(inout)          :: solver
     real(ireals),intent(in)                 :: edirTOA
-    integer(iintegers),optional,intent(in)  :: opt_solution_uid
-    real(ireals),      optional,intent(in)  :: opt_solution_time
+    integer(iintegers),optional, intent(in) :: opt_solution_uid
+    real(ireals),      optional, intent(in) :: opt_solution_time
+    type(t_pprts_buildings), optional, intent(in) :: opt_buildings
 
     integer(iintegers) :: uid
     logical            :: lflg, lsolar, luse_rayli, lrayli_snapshot
@@ -1801,7 +1804,7 @@ module m_pprts
     lrayli_snapshot = .False.
     call PetscOptionsHasName(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
       "-rayli_snapshot", lrayli_snapshot, ierr) ; call CHKERR(ierr)
-    call pprts_rayli_wrapper(luse_rayli, lrayli_snapshot, solver, edirTOA, solution)
+    call pprts_rayli_wrapper(luse_rayli, lrayli_snapshot, solver, edirTOA, solution, opt_buildings)
     call PetscLogEventEnd(solver%logs%solve_mcrts, ierr)
     if(luse_rayli) goto 99
 

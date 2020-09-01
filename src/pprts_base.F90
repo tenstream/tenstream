@@ -174,7 +174,6 @@ module m_pprts_base
   type, extends(t_solver) :: t_solver_8_18
   end type
 
-
   contains
     subroutine prepare_solution(edir_dm, ediff_dm, abso_dm, lsolar, solution, uid)
       type(tDM), intent(in) :: edir_dm, ediff_dm, abso_dm
@@ -625,4 +624,5 @@ module m_pprts_base
     type(t_atmosphere),intent(in) :: atm
     atmk = k+atm%icollapse-1
   end function
+
 end module

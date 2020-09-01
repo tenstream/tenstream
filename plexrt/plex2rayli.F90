@@ -6,14 +6,24 @@ module m_plex2rayli
   use m_data_parameters, only: ireals, iintegers, mpiint, &
     i0, i1, i2, i3, i8, zero, one, default_str_len
 
-  use m_helper_functions, only: CHKERR, deg2rad, itoa, get_arg
+  use m_helper_functions, only: CHKERR, deg2rad, get_arg, approx, toStr, &
+    & ind_1d_to_nd, ind_nd_to_1d
 
   use m_netcdfio, only: ncwrite
 
   use m_plex_grid, only: t_plexgrid, &
-    TOAFACE
+    TOAFACE, get_inward_face_normal
 
   use m_pprts_base, only : t_state_container
+
+  use m_buildings, only: t_plex_buildings, t_pprts_buildings, &
+    & PPRTS_TOP_FACE,                     &
+    & PPRTS_BOT_FACE,                     &
+    & PPRTS_LEFT_FACE,                    &
+    & PPRTS_RIGHT_FACE,                   &
+    & PPRTS_REAR_FACE,                    &
+    & PPRTS_FRONT_FACE
+
   use m_f2c_rayli, only: rfft_wedgeF90, rpt_img_wedgeF90
 
   implicit none
@@ -226,7 +236,8 @@ module m_plex2rayli
   !> @brief wrapper for the rayli MonteCarlo solver
   !> @details solve the radiative transfer equation with RayLi, currently only works for single task mpi runs
   subroutine rayli_wrapper(lcall_solver, lcall_snapshot, &
-      plex, kabs, ksca, g, albedo, sundir, solution, plck, nr_photons, petsc_log)
+      & plex, kabs, ksca, g, albedo, sundir, solution, &
+      & plck, nr_photons, petsc_log, opt_buildings)
     use iso_c_binding
     logical, intent(in) :: lcall_solver, lcall_snapshot
     type(t_plexgrid), intent(in) :: plex
@@ -234,8 +245,9 @@ module m_plex2rayli
     type(tVec), intent(in), optional :: plck
     real(ireals), intent(in) :: sundir(:)
     type(t_state_container), intent(inout) :: solution
-    PetscLogEvent, intent(in), optional :: petsc_log
     integer(iintegers), intent(in), optional :: nr_photons
+    PetscLogEvent, intent(in), optional :: petsc_log
+    type(t_plex_buildings), intent(in), optional :: opt_buildings
 
     real(ireals), pointer :: xksca(:), xkabs(:), xg(:)
 
@@ -376,7 +388,7 @@ module m_plex2rayli
     call VecRestoreArrayReadF90(ksca, xksca, ierr); call CHKERR(ierr)
     call VecRestoreArrayReadF90(g   , xg   , ierr); call CHKERR(ierr)
 
-    call fill_albedo(plex, albedo, ralbedo_on_faces)
+    call fill_albedo(plex, albedo, ralbedo_on_faces, opt_buildings)
 
     rsundir = real(-sundir, kind(rsundir))
 
@@ -511,10 +523,11 @@ module m_plex2rayli
       call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
     end subroutine
 
-    subroutine fill_albedo(plex, albedo, ralbedo_on_faces)
+    subroutine fill_albedo(plex, albedo, ralbedo_on_faces, opt_buildings)
       type(t_plexgrid), intent(in) :: plex
       type(tVec), intent(in) :: albedo
       real(c_float), intent(out) :: ralbedo_on_faces(:)
+      type(t_plex_buildings), intent(in), optional :: opt_buildings
 
       type(tIS) :: toa_ids
       integer(iintegers), pointer :: xtoa_faces(:)
@@ -535,6 +548,13 @@ module m_plex2rayli
       enddo
 
       call VecRestoreArrayReadF90(albedo, xalbedo, ierr); call CHKERR(ierr)
+      if(present(opt_buildings)) then
+        associate(b => opt_buildings)
+          do i=1,size(b%iface)
+            ralbedo_on_faces(b%iface(i)-fStart+1) = real(b%albedo(i), c_float)
+          enddo
+        end associate
+      endif
     end subroutine
 
     subroutine take_snap(comm, &
@@ -645,7 +665,144 @@ module m_plex2rayli
         img); call CHKERR(ierr)
 
       groups(1) = trim(snap_path)
-      groups(2) = "rpt_img_"//itoa(solution%uid)
+      groups(2) = "rpt_img_"//toStr(solution%uid)
       call ncwrite(groups, img, ierr); call CHKERR(ierr)
     end subroutine
+
+    subroutine pprts_buildings_to_plex(plex, pprts_buildings, plex_buildings, ierr)
+      type(t_plexgrid), intent(in) :: plex
+      type(t_pprts_buildings), intent(in) :: pprts_buildings
+      type(t_plex_buildings), intent(inout), allocatable :: plex_buildings
+      integer(mpiint), intent(out) :: ierr
+      integer(iintegers) :: i, k, icell, iface
+      integer(iintegers) :: nr_plex_faces, ndidx(4), cell_offsets(3)
+      integer(iintegers) :: cStart, cEnd, fStart, fEnd
+
+      type(tPetscSection) :: geomSection
+      real(ireals), pointer :: geoms(:)
+      integer(iintegers) :: geom_offset
+
+      ierr = 0
+
+      if(.not.allocated(pprts_buildings%albedo)) ierr = 1
+      if(.not.allocated(pprts_buildings%iface)) ierr = 2
+      call CHKERR(ierr, 'bad input data in pprts_buildings')
+
+      ! count number of needed new faces
+      associate(P => pprts_buildings)
+        nr_plex_faces = 0
+        do i = lbound(P%iface,1), ubound(P%iface,1)
+
+          call ind_1d_to_nd(P%da_offsets, P%iface(i), ndidx)
+          select case(ndidx(1))
+
+          case (PPRTS_TOP_FACE, PPRTS_BOT_FACE)
+            nr_plex_faces = nr_plex_faces + 2
+
+          case (PPRTS_LEFT_FACE, PPRTS_RIGHT_FACE, PPRTS_REAR_FACE, PPRTS_FRONT_FACE)
+            nr_plex_faces = nr_plex_faces + 1
+
+          case default
+            ierr = -1
+            call CHKERR(ierr, 'dont know the faceidx')
+          end select
+
+        enddo
+      end associate
+
+      if(.not.allocated(plex_buildings)) then
+        allocate(plex_buildings)
+        allocate(plex_buildings%albedo(nr_plex_faces))
+        allocate(plex_buildings%iface (nr_plex_faces))
+      else
+        call CHKERR(int(size(plex_buildings%iface )-2*size(pprts_buildings%iface ),mpiint), "wrong size plex_buildings%iface ")
+        call CHKERR(int(size(plex_buildings%albedo)-2*size(pprts_buildings%albedo),mpiint), "wrong size plex_buildings%albedo")
+      endif
+
+      call DMPlexGetDepthStratum(plex%dm, 3_iintegers, cStart, cEnd, ierr); call CHKERR(ierr) ! cells
+      call DMPlexGetDepthStratum(plex%dm, 2_iintegers, fStart, fEnd, ierr); call CHKERR(ierr) ! faces
+
+      call DMGetSection(plex%geom_dm, geomSection, ierr); CHKERRQ(ierr)
+      call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+
+      associate(P => pprts_buildings, T=>plex_buildings)
+        cell_offsets = P%da_offsets(2:4)/P%da_offsets(2)
+        cell_offsets(2:3) = cell_offsets(2:3) * 2 ! two cells in x direction
+
+        k = 1
+        do i = lbound(P%iface,1), ubound(P%iface,1)
+
+          call ind_1d_to_nd(P%da_offsets, P%iface(i), ndidx)
+          icell = cStart + ind_nd_to_1d(cell_offsets, ndidx(2:4)) - 1
+          call PetscSectionGetFieldOffset(geomSection, icell, i0, geom_offset, ierr); call CHKERR(ierr)
+
+          ! First plex cell
+          iface = find_face_idx_by_orientation(icell, ndidx(1))
+          if (iface.ge.i0) then
+            T%iface(k) = iface
+            T%albedo(k) = P%albedo(i)
+            k = k+1
+          endif
+
+          icell = icell + plex%Nlay
+          call PetscSectionGetFieldOffset(geomSection, icell, i0, geom_offset, ierr); call CHKERR(ierr)
+
+          iface = find_face_idx_by_orientation(icell, ndidx(1))
+          if (iface.ge.i0) then
+            T%iface(k) = iface
+            T%albedo(k) = P%albedo(i)
+            k = k+1
+          endif
+        enddo
+      end associate
+      call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+
+    contains
+      function find_face_idx_by_orientation(icell, fidx) result(iface)
+        integer(iintegers), intent(in) :: icell, fidx
+        integer(iintegers) :: iface
+        integer(iintegers) :: i
+        real(ireals) :: face_normal(3)
+        integer(iintegers), pointer :: faces_of_cell(:)
+        iface = -1
+
+        call DMPlexGetCone(plex%dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
+
+        main: block
+          select case(fidx)
+          case (PPRTS_TOP_FACE)
+            iface = faces_of_cell(1)
+            exit main
+
+          case (PPRTS_BOT_FACE)
+            iface = faces_of_cell(2)
+            exit main
+          end select
+
+          do i=3,size(faces_of_cell)
+            iface = faces_of_cell(i)
+            call get_inward_face_normal(iface, icell, geomSection, geoms, face_normal)
+
+            select case(fidx)
+            case (PPRTS_RIGHT_FACE)
+              if(approx(face_normal(1), -one, .0_ireals)) exit main
+            case (PPRTS_LEFT_FACE)
+              if(approx(face_normal(1),  one, .0_ireals)) exit main
+            case (PPRTS_REAR_FACE)
+              if(approx(face_normal(2), -one, .0_ireals)) exit main
+            case (PPRTS_FRONT_FACE)
+              if(approx(face_normal(2),  one, .0_ireals)) exit main
+
+            case default
+              ierr = -1
+              call CHKERR(ierr, 'dont know the faceidx '//toStr(fidx))
+            end select
+          enddo
+          iface = -1
+        end block main
+
+        call DMPlexRestoreCone(plex%dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
+      end function
+    end subroutine
+
 end module

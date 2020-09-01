@@ -39,7 +39,9 @@ module m_pprts_external_solvers
   use m_icon_plex_utils, only: create_2d_regular_plex, dmplex_2D_to_3D
   use m_plex_grid, only: t_plexgrid, destroy_plexgrid, &
     & setup_plexgrid, setup_edir_dmplex, setup_ediff_dmplex, setup_abso_dmplex
-  use m_plex2rayli, only: rayli_wrapper
+  use m_plex2rayli, only: rayli_wrapper, pprts_buildings_to_plex
+
+  use m_buildings, only: t_pprts_buildings, t_plex_buildings
 
   implicit none
   private
@@ -59,6 +61,7 @@ module m_pprts_external_solvers
     type(tVecScatter) :: ctx_ediff
     type(tVecScatter) :: ctx_abso
     type(tVec) :: albedo, kabs, ksca, g
+    type(t_plex_buildings), allocatable :: buildings
   end type
 
   type(t_rayli_info), allocatable :: rayli_info
@@ -87,11 +90,12 @@ contains
     deallocate(rayli_info)
   end subroutine
 
-  subroutine init_pprts_rayli_wrapper(solver, solution, rayli_info)
+  subroutine init_pprts_rayli_wrapper(solver, solution, rayli_info, opt_buildings)
     class(t_solver), intent(in) :: solver
     type(t_state_container),intent(in) :: solution
     type(t_rayli_info), allocatable, intent(inout) :: rayli_info
-    integer(mpiint) :: submyid, ierr
+    type(t_pprts_buildings), intent(in), optional :: opt_buildings
+    integer(mpiint) :: numnodes, submyid, ierr
 
     integer(iintegers) :: Nhhl, Nalbedo, Noptprop, Nedir, Nediff, Nabso
     type(tVec) :: vertex_hhl, hhl
@@ -216,6 +220,10 @@ contains
     deallocate(is_data)
     call DMRestoreGlobalVector(solver%Csrfc_one%da, vec_albedo, ierr); call CHKERR(ierr)
 
+    if(present(opt_buildings)) then
+      call mpi_comm_rank(solver%comm, numnodes, ierr); call CHKERR(ierr)
+      if(numnodes.gt.1) call CHKERR(1_mpiint, 'TODO: parallel rayli with buildings not yet implemented')
+    endif
 
     ! Setup optprop_scatter_ctx
     call DMGetGlobalVector(solver%C_one_atm%da, vec_optprop, ierr); call CHKERR(ierr)
@@ -359,11 +367,12 @@ contains
     ! * implement pprts to wedge interface
     ! * average results over shared mem comm
     ! * distribute results
-  subroutine pprts_rayli_wrapper(lcall_solver, lcall_snap, solver, edirTOA, solution)
+  subroutine pprts_rayli_wrapper(lcall_solver, lcall_snap, solver, edirTOA, solution, opt_buildings)
     logical, intent(in) :: lcall_solver, lcall_snap
     class(t_solver), intent(inout)        :: solver
     real(ireals),intent(in)               :: edirTOA
     type(t_state_container),intent(inout) :: solution
+    type(t_pprts_buildings), intent(in), optional :: opt_buildings
 
     integer(mpiint) :: ierr
     integer(mpiint) :: myid, numnodes
@@ -379,7 +388,7 @@ contains
     sundir = spherical_2_cartesian(meanval(solver%sun%phi), meanval(solver%sun%theta)) &
       & * edirTOA
 
-    call init_pprts_rayli_wrapper(solver, solution, rayli_info)
+    call init_pprts_rayli_wrapper(solver, solution, rayli_info, opt_buildings=opt_buildings)
 
     call mpi_comm_rank(solver%comm,myid,ierr); call CHKERR(ierr)
     call mpi_comm_size(solver%comm,numnodes,ierr); call CHKERR(ierr)
@@ -414,6 +423,12 @@ contains
           call VecScatterBegin(ri%ctx_albedo, glob_albedo, ri%albedo, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
           call VecScatterEnd  (ri%ctx_albedo, glob_albedo, ri%albedo, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
           call DMRestoreGlobalVector(Cs%da, glob_albedo, ierr); call CHKERR(ierr)
+
+          if(present(opt_buildings)) then
+            call pprts_buildings_to_plex(ri%plex, opt_buildings, ri%buildings, ierr); call CHKERR(ierr)
+          else
+            if(allocated(ri%buildings)) deallocate(ri%buildings)
+          endif
 
           call DMGetGlobalVector(Ca%da, glob_kabs, ierr); call CHKERR(ierr)
           call f90VecToPetsc(atm%kabs, Ca%da, glob_kabs)
@@ -470,9 +485,18 @@ contains
 
           if(submyid.eq.run_rank) then
             plex_solution%uid = solution%uid
-            call rayli_wrapper(lcall_solver, lcall_snap, &
-              ri%plex, ri%kabs, ri%ksca, ri%g, ri%albedo, &
-              & sundir, plex_solution, nr_photons=Nphotons, petsc_log=solver%logs%rayli_tracing)
+            if(present(opt_buildings)) then
+              call rayli_wrapper(lcall_solver, lcall_snap, &
+                ri%plex, ri%kabs, ri%ksca, ri%g, ri%albedo, &
+                & sundir, plex_solution, &
+                & nr_photons=Nphotons, petsc_log=solver%logs%rayli_tracing, &
+                & opt_buildings=ri%buildings)
+            else
+              call rayli_wrapper(lcall_solver, lcall_snap, &
+                ri%plex, ri%kabs, ri%ksca, ri%g, ri%albedo, &
+                & sundir, plex_solution, &
+                & nr_photons=Nphotons, petsc_log=solver%logs%rayli_tracing)
+            endif
 
             call PetscObjectViewFromOptions(plex_solution%edir , PETSC_NULL_VEC, '-show_plex_rayli_edir', ierr); call CHKERR(ierr)
             call PetscObjectViewFromOptions(plex_solution%ediff, PETSC_NULL_VEC, '-show_plex_rayli_ediff', ierr); call CHKERR(ierr)
