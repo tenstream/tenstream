@@ -549,16 +549,23 @@ module m_netcdfIO
         integer(mpiint), intent(out) :: ierr
 
         integer :: ncid, varid, ncerr
+        logical :: file_exists
 
         ierr = 0
-        ncerr = nf90_open(trim(fname), nf90_nowrite, ncid); call nccheck(ncerr)
+
+        inquire(file=fname, exist=file_exists)
+        if(ldebug) print *,'file '//trim(fname)//' exists :: ', file_exists
+
+        if(.not.file_exists) then
+          ncerr = nf90_create(trim(fname), NF90_HDF5, ncid) ; call nccheck(ncerr); ierr = ierr + ncerr
+          if(ldebug) print *,'opened file to append: ',trim(fname),' ::',ncerr
+        else
+          ncerr = nf90_open(path=trim(fname), mode=NF90_WRITE, ncid=ncid) ; call nccheck(ncerr); ierr = ierr + ncerr
+          if(ldebug) print *,'opened file to write: ',trim(fname),' ::',ncerr
+        endif
+
         if(ncerr.ne.NF90_NOERR) ierr = ierr + 1
         call CHKWARN(ierr, 'Could not open file '//trim(fname))
-        if(ierr.ne.0) goto 99
-
-        ncerr = nf90_redef(ncid); call nccheck(ncerr)
-        if(ncerr.ne.NF90_NOERR) ierr = ierr + 1
-        call CHKWARN(ierr, 'Could not set file to define mode '//trim(fname))
         if(ierr.ne.0) goto 99
 
         if(trim(varname).eq.'global') then
