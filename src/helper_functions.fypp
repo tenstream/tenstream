@@ -2205,28 +2205,43 @@ module m_helper_functions
     ! @brief: map from the flattened numbering to the coefficients in Ndims
     ! This is something like numpy.unravel
     ! offset could usually look like [1, size(arr, dim=1), size(arr, dim=1)*size(arr, dim=2), ...]
-    pure subroutine ind_1d_to_nd(offsets, ind, nd_indices)
+    pure subroutine ind_1d_to_nd(offsets, ind, nd_indices, cstyle)
       integer(iintegers), intent(in) :: offsets(:)
       integer(iintegers), intent(in) :: ind
       integer(iintegers), intent(out) :: nd_indices(size(offsets))
+      logical, intent(in), optional :: cstyle
       integer(iintegers) :: k
 
-      k = ubound(nd_indices,1) ! last dimension
-      nd_indices(k) = (ind-1) / offsets(k) +1
+      if(get_arg(.False., cstyle)) then
+        k = ubound(nd_indices,1) ! last dimension
+        nd_indices(k) = ind / offsets(k)
 
-      do k=ubound(offsets,1)-1, lbound(offsets,1), -1
-        nd_indices(k) = modulo(ind-1, offsets(k+1)) / offsets(k) +1
-      enddo
+        do k=ubound(offsets,1)-1, lbound(offsets,1), -1
+          nd_indices(k) = modulo(ind, offsets(k+1)) / offsets(k)
+        enddo
+      else
+        k = ubound(nd_indices,1) ! last dimension
+        nd_indices(k) = (ind-1) / offsets(k) +1
+
+        do k=ubound(offsets,1)-1, lbound(offsets,1), -1
+          nd_indices(k) = modulo(ind-1, offsets(k+1)) / offsets(k) +1
+        enddo
+      endif
     end subroutine
 
     ! @brief: map indices in N-dimensions to a flattened array
     ! This is something like numpy.ravel
     ! offset could usually look like [1, size(arr, dim=1), size(arr, dim=1)*size(arr, dim=2), ...]
-    pure function ind_nd_to_1d(offsets, nd_indices) result (i1d)
+    pure function ind_nd_to_1d(offsets, nd_indices, cstyle) result (i1d)
       integer(iintegers), intent(in) :: offsets(:)
       integer(iintegers), intent(in) :: nd_indices(:)
+      logical, intent(in), optional :: cstyle
       integer(iintegers) :: i1d
-      i1d = dot_product(nd_indices(:)-1, offsets) +1
+      if(get_arg(.False., cstyle)) then
+        i1d = dot_product(nd_indices(:), offsets)
+      else
+        i1d = dot_product(nd_indices(:)-1, offsets) +1
+      endif
     end function
 
     pure subroutine ndarray_offsets(arrshape, offsets)
