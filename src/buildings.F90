@@ -34,6 +34,9 @@ module m_buildings
 
     ! offsets from iface idx sets to da indices, i.e. [6, zm, xm, ym]
     integer(iintegers), allocatable :: da_offsets(:)
+
+    ! irradiances on surfaces, if allocated -> dim(size(iface))
+    real(ireals), allocatable :: edir(:), edn(:), eup(:)
   end type
 
   type, extends(t_buildings) :: t_plex_buildings

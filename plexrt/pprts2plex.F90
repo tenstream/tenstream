@@ -136,7 +136,6 @@ contains
     call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
     call DMPlexGetCone(plex%dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
-    !print *,'cell', icell, 'faces', faces_of_cell
 
     main: block
       select case(fidx)
@@ -155,14 +154,14 @@ contains
         !print *,'iface', iface, 'normal', face_normal
 
         select case(fidx)
-        case (PPRTS_RIGHT_FACE)
-          if(approx(face_normal(1), -one, .001_ireals)) exit main
         case (PPRTS_LEFT_FACE)
           if(approx(face_normal(1),  one, .001_ireals)) exit main
+        case (PPRTS_RIGHT_FACE)
+          if(approx(face_normal(1), -one, .001_ireals)) exit main
         case (PPRTS_REAR_FACE)
-          if(approx(face_normal(2), -one, .001_ireals)) exit main
-        case (PPRTS_FRONT_FACE)
           if(approx(face_normal(2),  one, .001_ireals)) exit main
+        case (PPRTS_FRONT_FACE)
+          if(approx(face_normal(2), -one, .001_ireals)) exit main
 
         case default
           ierr = -1
@@ -171,6 +170,8 @@ contains
       enddo
       iface = -1
     end block main
+
+    !print *,'looking for', fidx, 'in cell', icell, 'faces', faces_of_cell, '=>', iface
 
     call DMPlexRestoreCone(plex%dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
     call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)

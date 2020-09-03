@@ -440,7 +440,6 @@ module m_plex2rayli
       integer(iintegers) :: ofStart, ofEnd, cStart, cEnd
       integer(iintegers), pointer :: xtoa_faces(:)
       real(ireals), pointer :: xedir(:), xediff(:), xabso(:), geoms(:)
-      real(ireals) :: area
       type(tPetscSection) :: edir_section, ediff_section, abso_section, geomSection
       integer(mpiint) :: ierr
 
@@ -453,13 +452,11 @@ module m_plex2rayli
         call DMGetSection(plex%edir_dm, edir_section, ierr); call CHKERR(ierr)
         call VecGetArrayF90(solution%edir, xedir, ierr); call CHKERR(ierr)
         do iface = ofStart, ofEnd-1
-          call PetscSectionGetFieldOffset(geomSection, iface, i2, geom_offset, ierr); call CHKERR(ierr)
-          area = geoms(i1+geom_offset)
 
           call PetscSectionGetOffset(edir_section, iface, voff, ierr); call CHKERR(ierr)
           call PetscSectionGetDof(edir_section, iface, numDof, ierr); call CHKERR(ierr)
           do idof = 1, numDof
-            xedir(voff+idof) = real(abs(flx_through_faces_edir(iface-ofStart+1)), ireals)! / area
+            xedir(voff+idof) = real(abs(flx_through_faces_edir(iface-ofStart+1)), ireals)
           enddo
         enddo
         call VecRestoreArrayF90(solution%edir, xedir, ierr); call CHKERR(ierr)
@@ -481,22 +478,18 @@ module m_plex2rayli
         iface = xtoa_faces(i)
         do k = 0, ke1-2
           call PetscSectionGetFieldOffset(ediff_section, iface+k, i0, voff, ierr); call CHKERR(ierr)
-          call PetscSectionGetFieldOffset(geomSection, iface+k, i2, geom_offset, ierr); call CHKERR(ierr)
-          area = geoms(i1+geom_offset)
 
-          xediff(i1+voff) = real(abs( flx_through_faces_ediff(ridx  ) ), ireals)! / area
-          xediff(i2+voff) = real(abs( flx_through_faces_ediff(ridx+1) ), ireals)! / area
+          xediff(i1+voff) = real(abs( flx_through_faces_ediff(ridx  ) ), ireals)
+          xediff(i2+voff) = real(abs( flx_through_faces_ediff(ridx+1) ), ireals)
 
           ridx = ridx+2
         enddo
 
         ! at the surface, the ordering of incoming/outgoing fluxes is reversed because of cellid_surface == -1
         call PetscSectionGetFieldOffset(ediff_section, iface+ke1-1, i0, voff, ierr); call CHKERR(ierr)
-        call PetscSectionGetFieldOffset(geomSection, iface+ke1-1, i2, geom_offset, ierr); call CHKERR(ierr)
-        area = geoms(i1+geom_offset)
 
-        xediff(i2+voff) = real(abs( flx_through_faces_ediff(ridx  ) ), ireals)! / area
-        xediff(i1+voff) = real(abs( flx_through_faces_ediff(ridx+1) ), ireals)! / area
+        xediff(i2+voff) = real(abs( flx_through_faces_ediff(ridx  ) ), ireals)
+        xediff(i1+voff) = real(abs( flx_through_faces_ediff(ridx+1) ), ireals)
         ridx = ridx+2
       enddo
 

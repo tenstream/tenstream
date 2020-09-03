@@ -29,9 +29,10 @@ module m_pprts
 
   use m_helper_functions, only : CHKERR, CHKWARN, deg2rad, rad2deg, imp_allreduce_min, &
     & imp_bcast, imp_allreduce_max, delta_scale, mpi_logical_and, meanval, get_arg, approx, &
-    & inc, ltoa, cstr, itoa, ftoa, imp_allreduce_mean, &
+    & inc, ltoa, cstr, toStr, imp_allreduce_mean, &
     & normalize_vec, vec_proj_on_plane, angle_between_two_normed_vec, cross_3d, &
-    & rotation_matrix_world_to_local_basis, deallocate_allocatable
+    & rotation_matrix_world_to_local_basis, deallocate_allocatable, &
+    & ind_1d_to_nd
 
   use m_twostream, only: delta_eddington_twostream, adding_delta_eddington_twostream
   use m_schwarzschild, only: schwarzschild, B_eff
@@ -59,7 +60,13 @@ module m_pprts
     t_dof, t_solver_log_events, setup_log_events, &
     set_dmda_cell_coordinates
 
-  use m_buildings, only: t_pprts_buildings
+  use m_buildings, only: t_pprts_buildings, &
+    & PPRTS_TOP_FACE  , &
+    & PPRTS_BOT_FACE  , &
+    & PPRTS_LEFT_FACE , &
+    & PPRTS_RIGHT_FACE, &
+    & PPRTS_REAR_FACE , &
+    & PPRTS_FRONT_FACE
 
   use m_pprts_external_solvers, only: twostream, schwarz, pprts_rayli_wrapper
 
@@ -270,10 +277,10 @@ module m_pprts
         options_max_solution_err.gt.zero .and. options_max_solution_time.gt.zero
 
       if(.not.approx(dx,dy)) &
-        call CHKERR(1_mpiint, 'dx and dy currently have to be the same '//ftoa(dx)//' vs '//ftoa(dy))
+        call CHKERR(1_mpiint, 'dx and dy currently have to be the same '//toStr(dx)//' vs '//toStr(dy))
 
       if(ldebug.and.solver%myid.eq.0) then
-        print *,'atm dx/dy '//ftoa(dx)//' , '//ftoa(dy)
+        print *,'atm dx/dy '//toStr(dx)//' , '//toStr(dy)
         print *,'Solver dirtop:', solver%dirtop%is_inward, ':', solver%dirtop%dof
         print *,'Solver dirside:', solver%dirside%is_inward, ':', solver%dirside%dof
         print *,'Solver difftop:', solver%difftop%is_inward, ':', solver%difftop%dof
@@ -575,9 +582,9 @@ module m_pprts
             C%neighbors(5), &
             'while I am ',C%neighbors(4)
         endif
-        if(C%glob_xm.lt.i3) call CHKERR(1_mpiint, 'Global domain is too small in x-direction (Nx='//itoa(C%glob_xm)// &
+        if(C%glob_xm.lt.i3) call CHKERR(1_mpiint, 'Global domain is too small in x-direction (Nx='//toStr(C%glob_xm)// &
           '). However, need at least 3 because of horizontal ghost cells')
-        if(C%glob_ym.lt.i3) call CHKERR(1_mpiint, 'Global domain is too small in y-direction (Ny='//itoa(C%glob_ym)// &
+        if(C%glob_ym.lt.i3) call CHKERR(1_mpiint, 'Global domain is too small in y-direction (Ny='//toStr(C%glob_ym)// &
           '). However, need at least 3 because of horizontal ghost cells')
       end subroutine
     end subroutine
@@ -1352,10 +1359,10 @@ module m_pprts
           print *,solver%myid,k,'ksca',ksca(k,:,:)
         enddo
         call CHKERR(1_mpiint, 'set_optical_properties :: found illegal value in local_optical properties! '//&
-                              ' '//itoa(solver%myid)//&
-                              ' kabs min '//ftoa(minval(kabs))//' max '//ftoa(maxval(kabs))//&
-                              ' ksca min '//ftoa(minval(ksca))//' max '//ftoa(maxval(ksca))//&
-                              ' g    min '//ftoa(minval(g   ))//' max '//ftoa(maxval(g   )))
+                              ' '//toStr(solver%myid)//&
+                              ' kabs min '//toStr(minval(kabs))//' max '//toStr(maxval(kabs))//&
+                              ' ksca min '//toStr(minval(ksca))//' max '//toStr(maxval(ksca))//&
+                              ' g    min '//toStr(minval(g   ))//' max '//toStr(maxval(g   )))
       endif
       if( any(isnan([kabs,ksca,g]))) then
         call CHKERR(1_mpiint, 'set_optical_properties :: found NaN value in optical properties!'//&
@@ -1367,10 +1374,10 @@ module m_pprts
     if(ldebug) then
       if( (any([atm%kabs,atm%ksca,atm%g].lt.zero)) .or. (any(isnan([atm%kabs,atm%ksca,atm%g]))) ) then
         call CHKERR(1_mpiint, 'set_optical_properties :: found illegal value in optical properties! '//&
-                              ' '//itoa(solver%myid)//&
-                              ' kabs min '//ftoa(minval(atm%kabs))//' max '//ftoa(maxval(atm%kabs))//&
-                              ' ksca min '//ftoa(minval(atm%ksca))//' max '//ftoa(maxval(atm%ksca))//&
-                              ' g    min '//ftoa(minval(atm%g   ))//' max '//ftoa(maxval(atm%g   )))
+                              ' '//toStr(solver%myid)//&
+                              ' kabs min '//toStr(minval(atm%kabs))//' max '//toStr(maxval(atm%kabs))//&
+                              ' ksca min '//toStr(minval(atm%ksca))//' max '//toStr(maxval(atm%ksca))//&
+                              ' g    min '//toStr(minval(atm%g   ))//' max '//toStr(maxval(atm%g   )))
       endif
     endif
 
@@ -1423,8 +1430,8 @@ module m_pprts
       if(solver%myid.eq.0.and.lflg) print *,"Skipping Delta scaling of optprops"
       if(any(atm%g.ge.0.85_ireals)) &
         call CHKWARN(1_mpiint, 'Skipping delta scaling but now we have values of '// &
-        'g > '//ftoa(pprts_delta_scale_max_g)// &
-        ' (max='//ftoa(maxval(atm%g))//')')
+        'g > '//toStr(pprts_delta_scale_max_g)// &
+        ' (max='//toStr(maxval(atm%g))//')')
     endif
 
     if(ltwostr_only) then
@@ -1839,7 +1846,7 @@ module m_pprts
       goto 99
     endif
 
-    call pprts(solver, edirTOA, solution)
+    call pprts(solver, edirTOA, solution, opt_buildings)
 
     99 continue ! this is the quick exit final call where we clean up before the end of the routine
 
@@ -2195,10 +2202,11 @@ module m_pprts
   end subroutine
 
   !> @brief call the matrix assembly and petsc solve routines for pprts solvers
-  subroutine pprts(solver, edirTOA, solution)
+  subroutine pprts(solver, edirTOA, solution, opt_buildings)
     class(t_solver), intent(inout) :: solver
     real(ireals), intent(in) :: edirTOA
     type(t_state_container), intent(inout) :: solution
+    type(t_pprts_buildings), optional, intent(in) :: opt_buildings
 
     logical :: lflg, lskip_diffuse_solve, lshell_pprts
     integer(mpiint) :: ierr
@@ -2221,7 +2229,7 @@ module m_pprts
       else
         call init_Matrix(solver, solver%C_dir, solver%Mdir, setup_direct_preallocation)
         call PetscLogEventBegin(solver%logs%setup_Mdir, ierr)
-        call set_dir_coeff(solver, solver%sun, solver%Mdir, solver%C_dir)
+        call set_dir_coeff(solver, solver%sun, solver%Mdir, solver%C_dir, opt_buildings)
         call PetscLogEventEnd(solver%logs%setup_Mdir, ierr)
         if(ldebug) call mat_info(solver%comm, solver%Mdir)
       endif
@@ -3247,11 +3255,12 @@ end subroutine
   !> @brief build direct radiation matrix
   !> @details will get the transfer coefficients for 1D and 3D Tenstream layers and input those into the matrix
   !>   \n get_coeff should provide coefficients in dst_order so that we can set  coeffs for a full block(i.e. all coeffs of one box)
-  subroutine set_dir_coeff(solver, sun, A,C)
-    class(t_solver)     :: solver
-    type(t_suninfo)     :: sun
-    type(tMat)          :: A
-    type(t_coord)       :: C
+  subroutine set_dir_coeff(solver, sun, A, C, opt_buildings)
+    class(t_solver), intent(in) :: solver
+    type(t_suninfo), intent(in) :: sun
+    type(tMat), intent(inout)   :: A
+    type(t_coord), intent(in)   :: C
+    type(t_pprts_buildings), optional, intent(in) :: opt_buildings
 
     integer(iintegers) :: i,j,k
 
@@ -3276,10 +3285,112 @@ end subroutine
 
     if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'setup_direct_matrix done'
 
-    call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr) ;call CHKERR(ierr)
-    call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr) ;call CHKERR(ierr)
+    if(.True. .and. present(opt_buildings)) then
+      call MatAssemblyBegin(A, MAT_FLUSH_ASSEMBLY, ierr); call CHKERR(ierr)
+      call MatAssemblyEnd  (A, MAT_FLUSH_ASSEMBLY, ierr); call CHKERR(ierr)
+      call set_buildings_coeff(solver, C, opt_buildings, A, ierr); call CHKERR(ierr)
+    endif
 
+    call MatAssemblyBegin(A, MAT_FINAL_ASSEMBLY, ierr); call CHKERR(ierr)
+    call MatAssemblyEnd  (A, MAT_FINAL_ASSEMBLY, ierr); call CHKERR(ierr)
+
+    call PetscObjectViewFromOptions(A, PETSC_NULL_MAT, "-show_Mdir", ierr); call CHKERR(ierr)
   contains
+
+    !> @brief   apply blocking of direct radiation from buildings
+    !> @details Goal: set all src dof on a buildings face towards all dst dof to zero
+    !> \n       albedo is not used in the dir2dir case, we only set blocking of radiation
+    subroutine set_buildings_coeff(solver, C, opt_buildings, A, ierr)
+    class(t_solver)                     :: solver
+      type(t_coord),intent(in)            :: C
+      type(t_pprts_buildings), intent(in) :: opt_buildings
+      type(tMat),intent(inout)            :: A
+      integer(mpiint), intent(out)        :: ierr
+
+      MatStencil         :: row(4,0:C%dof-1)  ,col(4,1)
+      integer(iintegers) :: m, isrc, idst, dst, idx(4)
+      integer(iintegers) :: xinc, yinc
+      real(ireals) :: v(C%dof)
+
+      v(:) = -zero
+
+      ierr = 0
+
+      associate( B => opt_buildings )
+        do m = 1, size(B%iface)
+          call ind_1d_to_nd(B%da_offsets, B%iface(m), idx)
+          idx(2:4) = idx(2:4) -1 + [C%zs, C%xs, C%ys]
+          print *, m, 'face', B%iface(m), 'idx', idx, 'Ag', B%albedo(m)
+
+          associate(k => idx(2), i => idx(3), j => idx(4))
+
+            !lsun_east  = sun%xinc(idx(k,i,j).eq.i0
+            !lsun_north = sun%yinc(idx(k,i,j).eq.i0
+
+            xinc = sun%xinc(k,i,j)
+            yinc = sun%yinc(k,i,j)
+
+            dst = 0
+            do idst = 0, solver%dirtop%dof-1
+              row(MatStencil_j,dst) = i
+              row(MatStencil_k,dst) = j
+              row(MatStencil_i,dst) = k+1
+              row(MatStencil_c,dst) = dst
+              dst = dst + 1
+            enddo
+
+            do idst = 1, solver%dirside%dof
+              row(MatStencil_j,dst) = i+xinc
+              row(MatStencil_k,dst) = j
+              row(MatStencil_i,dst) = k
+              row(MatStencil_c,dst) = dst ! Define transmission towards the left/right lid
+              dst = dst + 1
+            enddo
+
+            do idst = 1, solver%dirside%dof
+              row(MatStencil_j,dst) = i
+              row(MatStencil_k,dst) = j+yinc
+              row(MatStencil_i,dst) = k
+              row(MatStencil_c,dst) = dst ! Define transmission towards the front/back lid
+              dst = dst + 1
+            enddo
+
+            select case(idx(1))
+            case(PPRTS_TOP_FACE, PPRTS_BOT_FACE)
+              do isrc = 0, solver%dirtop%dof-1
+                col(MatStencil_j,1) = i
+                col(MatStencil_k,1) = j
+                col(MatStencil_i,1) = k
+                col(MatStencil_c,1) = isrc
+                call MatSetValuesStencil(A, C%dof, row, i1, col, v, INSERT_VALUES, ierr); call CHKERR(ierr)
+              enddo
+
+            case(PPRTS_LEFT_FACE, PPRTS_RIGHT_FACE)
+              do isrc = solver%dirtop%dof, solver%dirtop%dof + solver%dirside%dof - 1
+                col(MatStencil_j,1) = i+1-xinc
+                col(MatStencil_k,1) = j
+                col(MatStencil_i,1) = k
+                col(MatStencil_c,1) = isrc
+                call MatSetValuesStencil(A, C%dof, row, i1, col, v, INSERT_VALUES, ierr); call CHKERR(ierr)
+              enddo
+
+            case(PPRTS_REAR_FACE, PPRTS_FRONT_FACE)
+              do isrc = solver%dirtop%dof + solver%dirside%dof, solver%dirtop%dof + solver%dirside%dof + solver%dirside%dof - 1
+                col(MatStencil_j,1) = i
+                col(MatStencil_k,1) = j+1-yinc
+                col(MatStencil_i,1) = k
+                col(MatStencil_c,1) = isrc
+                call MatSetValuesStencil(A, C%dof, row, i1, col, v, INSERT_VALUES, ierr); call CHKERR(ierr)
+              enddo
+
+            case default
+              call CHKERR(1_mpiint, 'wrong building fidx '//toStr(idx(1)))
+            end select
+          end associate
+        enddo
+      end associate
+    end subroutine
+
     subroutine set_pprts_coeff(solver, C,A,k,i,j)
       class(t_solver)               :: solver
       type(t_coord),intent(in)      :: C
@@ -3366,13 +3477,12 @@ end subroutine
           endif
         enddo
       endif
-
     end subroutine
 
     subroutine set_eddington_coeff(atm,A,k,i,j)
-      type(t_atmosphere), intent(inout) :: atm
-      type(tMat),intent(inout)          :: A
-      integer(iintegers),intent(in)     :: i,j,k
+      type(t_atmosphere), intent(in) :: atm
+      type(tMat),intent(inout)       :: A
+      integer(iintegers),intent(in)  :: i,j,k
 
       MatStencil :: row(4,1), col(4,1)
       real(irealLUT) :: v(1)
@@ -3831,7 +3941,7 @@ end subroutine
   !> @detail this may get the coeffs from a LUT or ANN or whatever and return diff2diff or dir2diff or dir2dir coeffs
   subroutine get_coeff(solver, kabs, ksca, g, dz, ldir, coeff, &
       lone_dimensional, angles, lswitch_east, lswitch_north)
-    class(t_solver), intent(inout)    :: solver
+    class(t_solver), intent(in)       :: solver
     real(ireals),intent(in)           :: kabs, ksca, g, dz
     logical,intent(in)                :: ldir
     real(irealLUT),intent(out)        :: coeff(:)
@@ -4168,16 +4278,16 @@ end subroutine
 
                 if(src.ne.inv_dof(dst)) cycle ! in 1D has to be the inverse stream
                 v(i1 + dst*solver%difftop%dof + src) = atm%a12(atmk(atm,k),i,j)
-                !print *,i,j,k,'setting r ',itoa(src)//' (k='//itoa(col(MatStencil_i,src))//') ->', &
-                !  itoa(dst)//' (k='//itoa(row(MatStencil_i,dst))//')'// &
+                !print *,i,j,k,'setting r ',toStr(src)//' (k='//toStr(col(MatStencil_i,src))//') ->', &
+                !  toStr(dst)//' (k='//toStr(row(MatStencil_i,dst))//')'// &
                 !  ':', i1 + dst*solver%difftop%dof + src, v(i1 + dst*solver%difftop%dof + src), &
                 !  'invdof',src,dst,inv_dof(dst)
               else
 
                 if(src.ne.dst) cycle ! in 1D has to be the same
                 v(i1 + dst*solver%difftop%dof + src) = atm%a11(atmk(atm,k),i,j)
-                !print *,i,j,k,'setting t ',itoa(src)//' (k='//itoa(col(MatStencil_i,src))//') ->', &
-                !  itoa(dst)//' (k='//itoa(row(MatStencil_i,dst))//') :', i1 + dst*solver%difftop%dof + src, v(i1 + dst*solver%difftop%dof + src)
+                !print *,i,j,k,'setting t ',toStr(src)//' (k='//toStr(col(MatStencil_i,src))//') ->', &
+                !  toStr(dst)//' (k='//toStr(row(MatStencil_i,dst))//') :', i1 + dst*solver%difftop%dof + src, v(i1 + dst*solver%difftop%dof + src)
               endif ! which k-lev
           enddo
       enddo
@@ -4226,7 +4336,7 @@ end subroutine
                 if (solver%difftop%is_inward(src)) then
                   col(MatStencil_c,i1) = src-1
                   row(MatStencil_c,i1) = dst-1
-                  !print *,solver%myid, 'i '//itoa(i)//' j '//itoa(j), ' Setting albedo for dst '//itoa(dst)//' src '//itoa(src)
+                  !print *,solver%myid, 'i '//toStr(i)//' j '//toStr(j), ' Setting albedo for dst '//toStr(dst)//' src '//toStr(src)
                   call MatSetValuesStencil(A, i1, row, i1, col, &
                     [-solver%atm%albedo(i,j) / real(solver%difftop%streams, ireals)], &
                     INSERT_VALUES, ierr) ;call CHKERR(ierr)
@@ -4240,11 +4350,12 @@ end subroutine
     end subroutine
   end subroutine
 
-  subroutine pprts_get_result(solver, redn, reup, rabso, redir, opt_solution_uid )
+  subroutine pprts_get_result(solver, redn, reup, rabso, redir, opt_solution_uid, opt_buildings)
     class(t_solver) :: solver
     real(ireals),dimension(:,:,:),intent(inout),allocatable          :: redn,reup,rabso
     real(ireals),dimension(:,:,:),intent(inout),allocatable,optional :: redir
     integer(iintegers),optional,intent(in) :: opt_solution_uid
+    type(t_pprts_buildings), optional, intent(inout) :: opt_buildings
 
     integer(iintegers)  :: uid, iside
     real(ireals),pointer :: x1d(:)=>null(),x4d(:,:,:,:)=>null()
@@ -4257,117 +4368,173 @@ end subroutine
       call PetscObjectViewFromOptions(solution%ediff, PETSC_NULL_VEC, "-pprts_show_ediff", ierr); call CHKERR(ierr)
       call PetscObjectViewFromOptions(solution%abso, PETSC_NULL_VEC, "-pprts_show_abso", ierr); call CHKERR(ierr)
 
-    if(ldebug .and. solver%myid.eq.0) print *,'calling pprts_get_result',present(redir),'for uid',uid
+      if(ldebug .and. solver%myid.eq.0) print *,'calling pprts_get_result',present(redir),'for uid',uid
 
-    if(solution%lchanged) &
-      call CHKERR(1_mpiint, 'tried to get results from unrestored solution -- call restore_solution first')
+      if(solution%lchanged) &
+        call CHKERR(1_mpiint, 'tried to get results from unrestored solution -- call restore_solution first')
 
-    if(present(opt_solution_uid)) then
-      if(.not.solution%lWm2_diff) &
-        call CHKERR(1_mpiint, 'solution vecs for diffuse radiation are not in W/m2 ... this is not what I expected')
-    endif
-
-    if(allocated(redn)) then
-      if(.not.all(shape(redn).eq.[solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym])) then
-        print *,'Shape redn', shape(redn), 'vs', [solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym]
-        call CHKERR(1_mpiint, 'the shape of edn result array which you provided does not conform to output size. '// &
-          'Either call with unallocated object or make sure it has the correct size')
+      if(present(opt_solution_uid)) then
+        if(.not.solution%lWm2_diff) &
+          call CHKERR(1_mpiint, 'solution vecs for diffuse radiation are not in W/m2 ... this is not what I expected')
       endif
-    else
-      allocate(redn(solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym))
-    endif
 
-    if(allocated(reup)) then
-      if(.not.all(shape(reup).eq.[solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym])) then
-        print *,'Shape reup', shape(reup), 'vs', [solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym]
-        call CHKERR(1_mpiint, 'the shape of eup result array which you provided does not conform to output size. '// &
-          'Either call with unallocated object or make sure it has the correct size')
-      endif
-    else
-      allocate(reup(solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym))
-    endif
-
-    if(allocated(rabso)) then
-      if(.not.all(shape(rabso).eq.[solver%C_one%zm, solver%C_one%xm, solver%C_one%ym])) then
-        print *,'Shape rabso', shape(rabso), 'vs', [solver%C_one%zm, solver%C_one%xm, solver%C_one%ym]
-        call CHKERR(1_mpiint, 'the shape of absorption result array which you provided does not conform to output size. '//&
-          'Either call with unallocated object or make sure it has the correct size')
-      endif
-    else
-      allocate(rabso(solver%C_one%zm, solver%C_one%xm, solver%C_one%ym))
-    endif
-
-    if(present(redir)) then
-      if(allocated(redir)) then
-        if(.not.all(shape(redir).eq.[solver%C_dir%zm, solver%C_dir%xm, solver%C_dir%ym])) then
-          print *,'Shape redir', shape(redir), 'vs', [solver%C_dir%zm, solver%C_dir%xm, solver%C_dir%ym]
-          call CHKERR(1_mpiint, 'pprts_get_result :: you should not call it with an allocated redir array')
+      if(allocated(redn)) then
+        if(.not.all(shape(redn).eq.[solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym])) then
+          print *,'Shape redn', shape(redn), 'vs', [solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym]
+          call CHKERR(1_mpiint, 'the shape of edn result array which you provided does not conform to output size. '// &
+            'Either call with unallocated object or make sure it has the correct size')
         endif
       else
-        allocate(redir(solver%C_dir%zm, solver%C_dir%xm, solver%C_dir%ym))
+        allocate(redn(solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym))
       endif
 
-      if( .not. solution%lsolar_rad ) then
-        print *,'Hey, You called pprts_get_result for uid '//itoa(uid)// &
-          ' and provided an array for direct radiation.'// &
-          ' However in this particular band we haven`t computed direct radiation.'// &
-          ' I will return with edir=0 but are you sure this is what you intended?'
-        redir = zero
+      if(allocated(reup)) then
+        if(.not.all(shape(reup).eq.[solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym])) then
+          print *,'Shape reup', shape(reup), 'vs', [solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym]
+          call CHKERR(1_mpiint, 'the shape of eup result array which you provided does not conform to output size. '// &
+            'Either call with unallocated object or make sure it has the correct size')
+        endif
       else
-        if(.not.solution%lWm2_dir) &
-          call CHKERR(1_mpiint, 'tried to get result from a result vector(dir) which is not in [W/m2]')
+        allocate(reup(solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym))
+      endif
 
-        call getVecPointer(solution%edir, solver%C_dir%da, x1d, x4d)
-        ! average of direct radiation of all fluxes through top faces
-        redir = sum(x4d(0:solver%dirtop%dof-1, :, :, :), dim=1) / real(solver%dirtop%area_divider, ireals)
-        call restoreVecPointer(solution%edir, x1d, x4d)
+      if(allocated(rabso)) then
+        if(.not.all(shape(rabso).eq.[solver%C_one%zm, solver%C_one%xm, solver%C_one%ym])) then
+          print *,'Shape rabso', shape(rabso), 'vs', [solver%C_one%zm, solver%C_one%xm, solver%C_one%ym]
+          call CHKERR(1_mpiint, 'the shape of absorption result array which you provided does not conform to output size. '//&
+            'Either call with unallocated object or make sure it has the correct size')
+        endif
+      else
+        allocate(rabso(solver%C_one%zm, solver%C_one%xm, solver%C_one%ym))
+      endif
 
-        if(ldebug) then
-          if(solver%myid.eq.0) print *,'Edir vertically first column',redir(:, lbound(redir,2), lbound(redir,3))
-          if(any(redir.lt.-one)) then
-            print *,'Found direct radiation smaller than 0 in dir result... that should not happen',minval(redir)
-            call CHKERR(1_mpiint)
+      if(present(redir)) then
+        if(allocated(redir)) then
+          if(.not.all(shape(redir).eq.[solver%C_dir%zm, solver%C_dir%xm, solver%C_dir%ym])) then
+            print *,'Shape redir', shape(redir), 'vs', [solver%C_dir%zm, solver%C_dir%xm, solver%C_dir%ym]
+            call CHKERR(1_mpiint, 'pprts_get_result :: you should not call it with an allocated redir array')
+          endif
+        else
+          allocate(redir(solver%C_dir%zm, solver%C_dir%xm, solver%C_dir%ym))
+        endif
+
+        if( .not. solution%lsolar_rad ) then
+          print *,'Hey, You called pprts_get_result for uid '//toStr(uid)// &
+            ' and provided an array for direct radiation.'// &
+            ' However in this particular band we haven`t computed direct radiation.'// &
+            ' I will return with edir=0 but are you sure this is what you intended?'
+          redir = zero
+        else
+          if(.not.solution%lWm2_dir) &
+            call CHKERR(1_mpiint, 'tried to get result from a result vector(dir) which is not in [W/m2]')
+
+          call getVecPointer(solution%edir, solver%C_dir%da, x1d, x4d)
+          ! average of direct radiation of all fluxes through top faces
+          redir = sum(x4d(0:solver%dirtop%dof-1, :, :, :), dim=1) / real(solver%dirtop%area_divider, ireals)
+          call restoreVecPointer(solution%edir, x1d, x4d)
+
+          if(ldebug) then
+            if(solver%myid.eq.0) print *,'Edir vertically first column',redir(:, lbound(redir,2), lbound(redir,3))
+            if(any(redir.lt.-one)) then
+              print *,'Found direct radiation smaller than 0 in dir result... that should not happen',minval(redir)
+              call CHKERR(1_mpiint)
+            endif
           endif
         endif
       endif
-    endif
 
-    if(.not.solution%lWm2_diff) &
-      call CHKERR(1_mpiint, 'tried to get result from a result vector(diff) which is not in [W/m2]')
+      if(.not.solution%lWm2_diff) &
+        call CHKERR(1_mpiint, 'tried to get result from a result vector(diff) which is not in [W/m2]')
 
 
-    redn = zero
-    reup = zero
-    call getVecPointer(solution%ediff, solver%C_diff%da, x1d, x4d)
-    do iside=1,solver%difftop%dof
-      if(solver%difftop%is_inward(iside)) then
-        redn = redn + x4d(iside-1, :, :, :) / real(solver%difftop%area_divider, ireals)
-      else
-        reup = reup + x4d(iside-1, :, :, :) / real(solver%difftop%area_divider, ireals)
+      redn = zero
+      reup = zero
+      call getVecPointer(solution%ediff, solver%C_diff%da, x1d, x4d)
+      do iside=1,solver%difftop%dof
+        if(solver%difftop%is_inward(iside)) then
+          redn = redn + x4d(iside-1, :, :, :) / real(solver%difftop%area_divider, ireals)
+        else
+          reup = reup + x4d(iside-1, :, :, :) / real(solver%difftop%area_divider, ireals)
+        endif
+      enddo
+      call restoreVecPointer(solution%ediff,x1d,x4d)
+
+      if(solver%myid.eq.0 .and. ldebug .and. present(redir)) &
+        print *,'mean surface Edir',meanval(redir(ubound(redir,1),:,:))
+      if(solver%myid.eq.0 .and. ldebug) print *,'mean surface Edn',meanval(redn(ubound(redn,1), :,:))
+      if(solver%myid.eq.0 .and. ldebug) print *,'mean surface Eup',meanval(reup(ubound(reup,1), :,:))
+
+      if(ldebug .and. solution%lsolar_rad) then
+        if(any(redn.lt.-one)) then
+          print *,'Found radiation smaller than 0 in edn result... that should not happen',minval(redn)
+          call exit(1)
+        endif
+        if(any(reup.lt.-one)) then
+          print *,'Found radiation smaller than 0 in eup result... that should not happen',minval(reup)
+          call exit(1)
+        endif
       endif
-    enddo
-    call restoreVecPointer(solution%ediff,x1d,x4d)
 
-    if(solver%myid.eq.0 .and. ldebug .and. present(redir)) &
-      print *,'mean surface Edir',meanval(redir(ubound(redir,1),:,:))
-    if(solver%myid.eq.0 .and. ldebug) print *,'mean surface Edn',meanval(redn(ubound(redn,1), :,:))
-    if(solver%myid.eq.0 .and. ldebug) print *,'mean surface Eup',meanval(reup(ubound(reup,1), :,:))
+      call getVecPointer(solution%abso, solver%C_one%da, x1d, x4d, readonly=.True.)
+      rabso = x4d(i0,:,:,:)
+      call restoreVecPointer(solution%abso, x1d, x4d, readonly=.True.)
 
-    if(ldebug .and. solution%lsolar_rad) then
-      if(any(redn.lt.-one)) then
-        print *,'Found radiation smaller than 0 in edn result... that should not happen',minval(redn)
-        call exit(1)
+      if(present(opt_buildings)) then
+        buildings: block
+          integer(iintegers) :: m, idx(4), dof_offset
+
+          if(solution%lsolar_rad) then
+            associate( B => opt_buildings, C => solver%C_dir )
+              if(.not.allocated(B%edir)) allocate(B%edir(size(B%iface)))
+
+              call getVecPointer(solution%edir, C%da, x1d, x4d)
+              ! average of direct radiation of all fluxes through top faces
+              !redir = sum(x4d(0:solver%dirtop%dof-1, :, :, :), dim=1) / real(solver%dirtop%area_divider, ireals)
+
+              do m = 1, size(B%iface)
+                call ind_1d_to_nd(B%da_offsets, B%iface(m), idx)
+                idx(2:4) = idx(2:4) -1 + [C%zs, C%xs, C%ys]
+
+                associate(k => idx(2), i => idx(3), j => idx(4))
+
+                  select case(idx(1))
+                  case(PPRTS_TOP_FACE)
+                    dof_offset = 0
+                    B%edir(m) = sum(x4d(dof_offset:dof_offset+solver%dirtop%dof-1, k, i, j)) &
+                      & / real(solver%dirtop%area_divider, ireals)
+                  case(PPRTS_BOT_FACE)
+                    dof_offset = 0
+                    B%edir(m) = sum(x4d(dof_offset:dof_offset+solver%dirtop%dof-1, k+1, i, j)) &
+                      & / real(solver%dirtop%area_divider, ireals)
+                  case(PPRTS_LEFT_FACE)
+                    dof_offset = solver%dirtop%dof
+                    B%edir(m) = sum(x4d(dof_offset:dof_offset+solver%dirside%dof-1, k, i, j)) &
+                      & / real(solver%dirside%area_divider, ireals)
+                  case(PPRTS_RIGHT_FACE)
+                    dof_offset = solver%dirtop%dof
+                    B%edir(m) = sum(x4d(dof_offset:dof_offset+solver%dirside%dof-1, k, i+1, j)) &
+                      & / real(solver%dirside%area_divider, ireals)
+                  case(PPRTS_REAR_FACE )
+                    dof_offset = solver%dirtop%dof + solver%dirside%dof
+                    B%edir(m) = sum(x4d(dof_offset:dof_offset+solver%dirside%dof-1, k, i, j)) &
+                      & / real(solver%dirside%area_divider, ireals)
+                  case(PPRTS_FRONT_FACE)
+                    dof_offset = solver%dirtop%dof + solver%dirside%dof
+                    B%edir(m) = sum(x4d(dof_offset:dof_offset+solver%dirside%dof-1, k, i, j+1)) &
+                      & / real(solver%dirside%area_divider, ireals)
+                  case default
+                    call CHKERR(1_mpiint, 'unknown building face_idx '//toStr(idx(1)+1))
+                  end select
+                end associate
+              enddo
+
+              call restoreVecPointer(solution%edir, x1d, x4d)
+            end associate
+          endif
+        end block buildings
       endif
-      if(any(reup.lt.-one)) then
-        print *,'Found radiation smaller than 0 in eup result... that should not happen',minval(reup)
-        call exit(1)
-      endif
-    endif
 
-    call getVecPointer(solution%abso, solver%C_one%da, x1d, x4d, readonly=.True.)
-    rabso = x4d(i0,:,:,:)
-    call restoreVecPointer(solution%abso, x1d, x4d, readonly=.True.)
-    if(solver%myid.eq.0 .and. ldebug) print *,'get_result done'
+      if(solver%myid.eq.0 .and. ldebug) print *,'get_result done'
     end associate
   end subroutine
 

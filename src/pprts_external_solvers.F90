@@ -651,6 +651,7 @@ contains
       subroutine transfer_result(solution)
         type(t_state_container),intent(inout) :: solution
 
+        real(ireals), pointer :: x(:,:,:,:)=>null(), x1d(:)=>null()
         real(ireals) :: fac
 
         character(len=*), parameter :: log_event_name="pprts_rayli_transfer_result"
@@ -661,7 +662,7 @@ contains
         call PetscLogEventRegister(log_event_name, cid, log_event, ierr); call CHKERR(ierr)
         call PetscLogEventBegin(log_event, ierr); call CHKERR(ierr)
 
-        fac = one / 2._ireals / real(rayli_info%num_subcomm_masters, ireals)
+        fac = one / real(rayli_info%num_subcomm_masters, ireals)
 
         if(allocated(solution%edir)) then
           call VecSet(solution%edir, zero, ierr); call CHKERR(ierr)
@@ -688,10 +689,13 @@ contains
           ADD_VALUES, SCATTER_REVERSE, ierr); call CHKERR(ierr)
 
         if(allocated(solution%edir)) then
-          call VecScale(solution%edir, fac, ierr); call CHKERR(ierr)
+          call getVecPointer(solution%edir, solver%C_dir%da, x1d, x)
+          x(i0,:,:,:) = x(i0,:,:,:) * fac / 2._ireals
+          x(i1:i2,:,:,:) = x(i1:i2,:,:,:) * fac
+          call restoreVecPointer(solution%edir, x1d, x)
         endif
-        call VecScale(solution%ediff, fac, ierr); call CHKERR(ierr)
-        call VecScale(solution%abso, fac, ierr); call CHKERR(ierr)
+        call VecScale(solution%ediff, fac / 2._ireals, ierr); call CHKERR(ierr)
+        call VecScale(solution%abso, fac / 2._ireals, ierr); call CHKERR(ierr)
 
         if(allocated(solution%edir)) then
           call PetscObjectViewFromOptions(solution%edir, PETSC_NULL_VEC, '-show_rayli_edir', ierr); call CHKERR(ierr)

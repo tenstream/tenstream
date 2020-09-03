@@ -3,7 +3,10 @@ module m_pprts_buildings
     & iintegers, ireals, mpiint, &
     & zero, pi, i1, i2, default_str_len
 
-  use m_helper_functions, only : CHKERR, spherical_2_cartesian
+  use m_helper_functions, only : &
+    & CHKERR, &
+    & toStr, &
+    & spherical_2_cartesian, rotate_angle_z
 
   use m_pprts, only : init_pprts, &
     & set_optical_properties, solve_pprts, &
@@ -41,8 +44,9 @@ contains
 
     class(t_solver), allocatable :: solver
     type(t_pprts_buildings), allocatable :: buildings
+    integer, parameter :: Nbuildings = 7
 
-    integer(iintegers) :: i, box_k, box_i, box_j
+    integer(iintegers) :: k, i, box_k, box_i, box_j
     integer(mpiint) :: ierr
 
     dz1d = dz
@@ -51,6 +55,8 @@ contains
     call allocate_pprts_solver_from_commandline(solver, '3_10', ierr); call CHKERR(ierr)
 
     sundir = spherical_2_cartesian(phi0, theta0)
+    !sundir = rotate_angle_z(sundir, 180._ireals) ! because pprts takes vector originating at the sun
+    print *,'sundir', sundir
     call init_pprts(comm, Nlay, Nx, Ny, dx,dy, sundir, solver, dz1d)
 
     allocate(kabs(solver%C_one%zm , solver%C_one%xm,  solver%C_one%ym ))
@@ -64,28 +70,55 @@ contains
     call init_buildings(buildings, &
       & [integer(iintegers) :: 6, solver%C_one%zm, solver%C_one%xm,  solver%C_one%ym], &
       & ierr); call CHKERR(ierr)
-    allocate(buildings%albedo(6), buildings%iface(6))
 
-    box_k = int((1+Nlay )/ 2.)
-    box_i = int((1+Nx)/ 2.)
-    box_j = int((1+Ny)/ 2.)
+    allocate(buildings%albedo(Nbuildings), buildings%iface(Nbuildings))
+
+    box_k = int((1+Nlay) / 2.)
+    box_i = int((1+Nx  ) / 2.)
+    box_j = int((1+Ny  ) / 2.)
 
     do i=1,6
       buildings%iface(i) = faceidx_by_cell_plus_offset( &
-        & buildings%da_offsets, box_k, box_i, box_j, i )
+        & buildings%da_offsets, box_k, box_i, box_j, i)
       buildings%albedo(i) = .2_ireals + i/10._ireals
     enddo
+    !buildings%iface(1) = buildings%iface(2)
 
-    !buildings%iface(5) = buildings%iface(2)
-    !buildings%iface(6) = buildings%iface(3)
+    buildings%iface(7) = faceidx_by_cell_plus_offset( &
+      & buildings%da_offsets, 1+solver%C_one%ze, box_i, box_j, PPRTS_BOT_FACE)
+    buildings%albedo(7) = .0_ireals
 
+    print *,'buildings idx', buildings%iface
 
     call set_optical_properties(solver, albedo, kabs, ksca, g)
     call set_angles(solver, sundir)
 
     call solve_pprts(solver, incSolar, opt_buildings=buildings)
 
-    call pprts_get_result(solver, fdn,fup,fdiv,fdir)
+    call pprts_get_result(solver, fdn, fup, fdiv, fdir, opt_buildings=buildings)
+
+    print *,''
+    print *,'y-slice:'
+    do i = box_i, box_i
+      do k = 1+solver%C_dir%zs, 1+solver%C_dir%ze
+        print *, 'edir', k,i, toStr( fdir(k, i, :) )
+      enddo
+    enddo
+
+    print *,''
+    print *,'x-slice:'
+    do i = box_j, box_j
+      do k = 1+solver%C_dir%zs, 1+solver%C_dir%ze
+        print *, 'edir', k,i, toStr( fdir(k, :, i) )
+      enddo
+    enddo
+    print *,''
+
+    if(allocated(buildings%edir)) then
+      do i=1, size(buildings%iface)
+        print *, 'building_face', i, 'edir', buildings%edir(i)
+      enddo
+    endif
 
     call destroy_pprts(solver, .True.)
   end subroutine
@@ -105,8 +138,8 @@ program main
   real(ireals) :: phi0, theta0
   real(ireals) :: Ag
 
-  character(len=10*default_str_len) :: default_options
-  logical :: lflg, lverbose
+  character(len=10*default_str_len) :: rayli_options
+  logical :: lflg, lverbose, lrayli_opts
   integer(mpiint) :: ierr
 
   call mpi_init(ierr)
@@ -137,25 +170,29 @@ program main
   call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-verbose', &
     lverbose, lflg, ierr) ; call CHKERR(ierr)
 
+  lrayli_opts = .False.
+  call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-rayli_opts', &
+    lrayli_opts, lflg, ierr) ; call CHKERR(ierr)
 
-  default_options=''
-  default_options=trim(default_options)//' -pprts_use_rayli'
-  default_options=trim(default_options)//' -rayli_diff_flx_origin 0,0,-inf'
-  default_options=trim(default_options)//' -rayli_cyclic_bc'
-  default_options=trim(default_options)//' -show_rayli_dm3d hdf5:dm.h5'
+  if(lrayli_opts) then
+    rayli_options=''
+    rayli_options=trim(rayli_options)//' -pprts_use_rayli'
+    rayli_options=trim(rayli_options)//' -rayli_diff_flx_origin 0,0,-inf'
+    rayli_options=trim(rayli_options)//' -rayli_cyclic_bc'
+    rayli_options=trim(rayli_options)//' -show_rayli_dm3d hdf5:dm.h5'
 
-  default_options=trim(default_options)//' -rayli_snapshot'
-  default_options=trim(default_options)//' -rayli_snap_photons 1e6'
-  default_options=trim(default_options)//' -rayli_snap_Nx 256'
-  default_options=trim(default_options)//' -rayli_snap_Ny 256'
-  default_options=trim(default_options)//' -visit_image_zoom .75'
-  default_options=trim(default_options)//' -visit_parallel_scale 291.5'
-  default_options=trim(default_options)//' -visit_focus 300,300,0'
-  default_options=trim(default_options)//' -visit_view_normal -0.2811249083446944,-0.7353472951470268,0.6166304739697339'
-  default_options=trim(default_options)//' -visit_view_up 0.1878717450780742,0.5879401184069877,0.7867849925925738'
+    rayli_options=trim(rayli_options)//' -rayli_snapshot'
+    rayli_options=trim(rayli_options)//' -rayli_snap_Nx 256'
+    rayli_options=trim(rayli_options)//' -rayli_snap_Ny 256'
+    rayli_options=trim(rayli_options)//' -visit_image_zoom .75'
+    rayli_options=trim(rayli_options)//' -visit_parallel_scale 291.5'
+    rayli_options=trim(rayli_options)//' -visit_focus 300,300,0'
+    rayli_options=trim(rayli_options)//' -visit_view_normal -0.2811249083446944,-0.7353472951470268,0.6166304739697339'
+    rayli_options=trim(rayli_options)//' -visit_view_up 0.1878717450780742,0.5879401184069877,0.7867849925925738'
 
-  if(lverbose) print *,'Adding default Petsc Options:', trim(default_options)
-  call PetscOptionsInsertString(PETSC_NULL_OPTIONS, trim(default_options), ierr); call CHKERR(ierr)
+    if(lverbose) print *,'Adding rayli Petsc Options:', trim(rayli_options)
+    call PetscOptionsInsertString(PETSC_NULL_OPTIONS, trim(rayli_options), ierr); call CHKERR(ierr)
+  endif
 
   call pprts_buildings(mpi_comm_world, Nx, Ny, Nlay, dx, dy, dz, phi0, theta0, Ag)
 
