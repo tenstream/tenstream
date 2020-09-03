@@ -62,14 +62,21 @@ module m_helper_functions
     char_to_lower, char_to_upper, colored_str_by_range
 
   interface rotate_angle_x
-    module procedure rotate_angle_x_r32, rotate_angle_x_r64
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    module procedure rotate_angle_x_${dtype}$
+#:endfor
   end interface
   interface rotate_angle_y
-    module procedure rotate_angle_y_r32, rotate_angle_y_r64
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    module procedure rotate_angle_y_${dtype}$
+#:endfor
   end interface
   interface rotate_angle_z
-    module procedure rotate_angle_z_r32, rotate_angle_z_r64
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    module procedure rotate_angle_z_${dtype}$
+#:endfor
   end interface
+
   interface rmse
     module procedure rmse_r32, rmse_r64
   end interface
@@ -199,12 +206,12 @@ module m_helper_functions
         reverse_3d_real32, reverse_3d_real64, reverse_4d_real32, reverse_4d_real64
   end interface
   interface is_between
-#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+#:for dtype in ['INT32', 'INT64', 'REAL32', 'REAL64', 'REAL128']
     module procedure is_between_${dtype}$
 #:endfor
   end interface
   interface is_inrange
-#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+#:for dtype in ['INT32', 'INT64', 'REAL32', 'REAL64', 'REAL128']
     module procedure is_inrange_${dtype}$
 #:endfor
   end interface
@@ -373,13 +380,18 @@ module m_helper_functions
       x=x+i
     end subroutine
 
-#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+#:for basetype, dtype in [&
+  ('integer', 'INT32'  ), &
+  ('integer', 'INT64'  ), &
+  ('real'   , 'REAL32' ), &
+  ('real'   , 'REAL64' ), &
+  ('real'   , 'REAL128')]
     pure elemental logical function is_between_${dtype}$(x,a,b) result(is_between)
-      real(${dtype}$), intent(in) :: x,a,b
+      ${basetype}$ (${dtype}$), intent(in) :: x,a,b
       is_between = (x-a) * (x-b) .lt. 0
     end function
     pure elemental logical function is_inrange_${dtype}$(x,a,b) result(is_between)
-      real(${dtype}$), intent(in) :: x,a,b
+      ${basetype}$ (${dtype}$), intent(in) :: x,a,b
       is_between = (x-a) * (x-b) .le. 0
     end function
 #:endfor
@@ -1934,90 +1946,48 @@ module m_helper_functions
       distance_to_edge = abs( (p2(2)-p1(2))*p(1) - (p2(1)-p1(1))*p(2) + p2(1)*p1(2) - p2(2)*p1(1) ) / norm2(p2-p1)
     end function
 
-      pure function rotate_angle_x_r32(v,angle) result(rotate_angle_x)
-        ! left hand rule
-        real(REAL32) :: rotate_angle_x(3)
-        real(REAL32),intent(in) :: v(3), angle
-        real(REAL32) :: M(3,3),s,c
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+      !> @brief: rotate vector around given axis by angle [deg] with left hand rule
+      pure function rotate_angle_x_${dtype}$(v,angle) result(rotated)
+        real(${dtype}$) :: rotated(3)
+        real(${dtype}$),intent(in) :: v(3), angle
+        real(${dtype}$) :: M(3,3),s,c
         s=sin(deg2rad(angle))
         c=cos(deg2rad(angle))
 
-        M(1,:)=[1._REAL32 ,0._REAL32 ,0._REAL32]
-        M(2,:)=[0._REAL32, c   , s  ]
-        M(3,:)=[0._REAL32,-s   , c  ]
+        M(1,:)=[1._${dtype}$ ,0._${dtype}$ ,0._${dtype}$]
+        M(2,:)=[0._${dtype}$, c   , s  ]
+        M(3,:)=[0._${dtype}$,-s   , c  ]
 
-        rotate_angle_x = matmul(M,v)
+        rotated = matmul(M,v)
       end function
-      pure function rotate_angle_x_r64(v,angle) result(rotate_angle_x)
-        ! left hand rule
-        real(REAL64) :: rotate_angle_x(3)
-        real(REAL64),intent(in) :: v(3), angle
-        real(REAL64) :: M(3,3),s,c
+      pure function rotate_angle_y_${dtype}$(v,angle) result(rotated)
+        real(${dtype}$) :: rotated(3)
+        real(${dtype}$),intent(in) :: v(3), angle
+        real(${dtype}$) :: M(3,3),s,c
         s=sin(deg2rad(angle))
         c=cos(deg2rad(angle))
 
-        M(1,:)=[1._REAL64 ,0._REAL64 ,0._REAL64]
-        M(2,:)=[0._REAL64, c   , s  ]
-        M(3,:)=[0._REAL64,-s   , c  ]
+        M(1,:)=[c        , 0._${dtype}$, -s       ]
+        M(2,:)=[0._${dtype}$, 1._${dtype}$, 0._${dtype}$]
+        M(3,:)=[s        , 0._${dtype}$, c        ]
 
-        rotate_angle_x = matmul(M,v)
+        rotated = matmul(M,v)
       end function
-      pure function rotate_angle_y_r32(v,angle) result(rotate_angle_y)
-        ! left hand rule
-        real(REAL32) :: rotate_angle_y(3)
-        real(REAL32),intent(in) :: v(3), angle
-        real(REAL32) :: M(3,3),s,c
+      pure function rotate_angle_z_${dtype}$(v,angle) result(rotated)
+        real(${dtype}$) :: rotated(3)
+        real(${dtype}$),intent(in) :: v(3), angle
+        real(${dtype}$) :: M(3,3),s,c
         s=sin(deg2rad(angle))
         c=cos(deg2rad(angle))
 
-        M(1,:)=[ c  ,0._REAL32 , -s ]
-        M(2,:)=[0._REAL32, 1._REAL32 ,0._REAL32]
-        M(3,:)=[ s  , 0._REAL32, c  ]
+        M(1,:)=[ c  , s   ,0._${dtype}$]
+        M(2,:)=[-s  , c   ,0._${dtype}$]
+        M(3,:)=[0._${dtype}$, 0._${dtype}$, 1._${dtype}$]
 
-        rotate_angle_y = matmul(M,v)
+        rotated = matmul(M,v)
       end function
-      pure function rotate_angle_y_r64(v,angle) result(rotate_angle_y)
-        ! left hand rule
-        real(REAL64) :: rotate_angle_y(3)
-        real(REAL64),intent(in) :: v(3), angle
-        real(REAL64) :: M(3,3),s,c
-        s=sin(deg2rad(angle))
-        c=cos(deg2rad(angle))
-
-        M(1,:)=[ c  ,0._REAL64 , -s ]
-        M(2,:)=[0._REAL64, 1._REAL64 ,0._REAL64]
-        M(3,:)=[ s  , 0._REAL64, c  ]
-
-        rotate_angle_y = matmul(M,v)
-      end function
-      pure function rotate_angle_z_r32(v,angle) result(rotate_angle_z)
-        ! left hand rule
-        real(REAL32) :: rotate_angle_z(3)
-        real(REAL32),intent(in) :: v(3), angle
-        real(REAL32) :: M(3,3),s,c
-        s=sin(deg2rad(angle))
-        c=cos(deg2rad(angle))
-
-        M(1,:)=[ c  , s   ,0._REAL32]
-        M(2,:)=[-s  , c   ,0._REAL32]
-        M(3,:)=[0._REAL32, 0._REAL32, 1._REAL32]
-
-        rotate_angle_z = matmul(M,v)
-      end function
-      pure function rotate_angle_z_r64(v,angle) result(rotate_angle_z)
-        ! left hand rule
-        real(REAL64) :: rotate_angle_z(3)
-        real(REAL64),intent(in) :: v(3), angle
-        real(REAL64) :: M(3,3),s,c
-        s=sin(deg2rad(angle))
-        c=cos(deg2rad(angle))
-
-        M(1,:)=[ c  , s   ,0._REAL64]
-        M(2,:)=[-s  , c   ,0._REAL64]
-        M(3,:)=[0._REAL64, 0._REAL64, 1._REAL64]
-
-        rotate_angle_z = matmul(M,v)
-      end function
+#:endfor
 
     ! https://en.wikipedia.org/wiki/Rotation_matrix#General_rotations
     pure function rotation_matrix_around_axis_vec(angle, rot_axis) result(M)
