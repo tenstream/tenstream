@@ -4,8 +4,10 @@ module m_buildings
 
   use m_data_parameters, only: iintegers, ireals, mpiint
 
-  use m_helper_functions, only: CHKERR, &
-    & ind_nd_to_1d, ndarray_offsets
+  use m_helper_functions, only: &
+    & CHKERR, &
+    & ind_nd_to_1d, ndarray_offsets, &
+    & get_arg
 
   implicit none
 
@@ -61,6 +63,10 @@ contains
     call ndarray_offsets(da_sizes, buildings%da_offsets)
   end subroutine
 
+  !> @brief: find face index in a pprts dmda
+  !> @details: this a helper routine to determine a flattened index in a 3D DMDA domain as in pprts
+  !> \n        k,i,j are cell indices in 3D starting to count at 1
+  !> \n        face_id has to be one of [PPRTS_TOP_FACE, ... ,PPRTS_FRONT_FACE]
   function faceidx_by_cell_plus_offset(da_offsets, k, i, j, face_id) result(fidx)
     integer(iintegers), intent(in) :: da_offsets(:)
     integer(iintegers), intent(in) :: k, i, j, face_id
