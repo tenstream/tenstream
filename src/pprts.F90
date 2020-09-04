@@ -770,7 +770,7 @@ module m_pprts
           call normalize_vec(proj_sundir, ierr)
 
           az = angle_between_two_normed_vec(proj_sundir, -e_y)
-          az = az * sign(one, dot_product(proj_sundir, e_x))
+          az = az * sign(one, dot_product(proj_sundir, -e_x))
           sun%phi(k,i,j) = rad2deg(az)
 
           zenith = angle_between_two_normed_vec(loc_sundir, -e_z)
