@@ -20,11 +20,12 @@ module m_box_cld
 subroutine box_cld()
     implicit none
 
-    integer(iintegers),parameter :: nxp=16,nyp=3,nv=20
+    integer(iintegers),parameter :: nxp=16,nyp=16,nv=20
     real(ireals),parameter :: dx=500,dy=dx
-    real(ireals),parameter :: phi0=90, theta0=40
-    real(ireals),parameter :: albedo=0, dz=100
+    real(ireals),parameter :: phi0=180, theta0=40
+    real(ireals),parameter :: albedo=.1, dz=100
     real(ireals),parameter :: incSolar = 1364
+    integer(iintegers), parameter :: cld_width=0
     real(ireals) :: dz1d(nv)
 
     real(ireals) :: sundir(3)
@@ -53,9 +54,9 @@ subroutine box_cld()
     ksca = .005_ireals/(dz*nv)
     g    = zero
 
-    kabs(nv/2,nxp/2,1:nyp) = 1/dz
-    ksca(nv/2,nxp/2,1:nyp) = 1/dz
-    g   (nv/2,nxp/2,1:nyp) = .9
+    kabs(nv/2, nxp/2-cld_width:nxp/2+cld_width, nyp/2-cld_width:nyp/2+cld_width) = 1/dz
+    ksca(nv/2, nxp/2-cld_width:nxp/2+cld_width, nyp/2-cld_width:nyp/2+cld_width) = 1/dz
+    g   (nv/2, nxp/2-cld_width:nxp/2+cld_width, nyp/2-cld_width:nyp/2+cld_width) = .9
 
     call set_optical_properties(solver, albedo, kabs, ksca, g)
     call solve_pprts(solver, incSolar)
