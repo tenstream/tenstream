@@ -40,6 +40,7 @@ subroutine box_cld()
     dz1d = dz
 
     sundir = spherical_2_cartesian(phi0, theta0)
+    print *,'sundir', sundir
 
     call init_pprts(MPI_COMM_WORLD, nv, nxp, nyp, dx, dy, sundir, solver, dz1d=dz1d)
     call mpi_comm_rank(MPI_COMM_WORLD, myid, ierr)
