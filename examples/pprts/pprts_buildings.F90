@@ -1,7 +1,7 @@
 module m_pprts_buildings
   use m_data_parameters, only : init_mpi_data_parameters, &
     & iintegers, ireals, mpiint, &
-    & zero, pi, i1, i2, default_str_len
+    & zero, one, pi, i1, i2, default_str_len
 
   use m_helper_functions, only : &
     & CHKERR, &
@@ -21,6 +21,7 @@ module m_pprts_buildings
 
   use m_buildings, only: t_pprts_buildings, &
     & faceidx_by_cell_plus_offset, &
+    & check_buildings_consistency, &
     & PPRTS_TOP_FACE, PPRTS_BOT_FACE, &
     & PPRTS_LEFT_FACE, PPRTS_RIGHT_FACE, &
     & PPRTS_REAR_FACE, PPRTS_FRONT_FACE, &
@@ -29,11 +30,11 @@ module m_pprts_buildings
   implicit none
 
 contains
-  subroutine pprts_buildings(comm, Nx, Ny, Nlay, dx, dy, dz, phi0, theta0, albedo)
+  subroutine pprts_buildings(comm, Nx, Ny, Nlay, dx, dy, dz, phi0, theta0, albedo, dtau, w0)
     integer(iintegers), intent(in) :: Nx,Ny,Nlay
     real(ireals), intent(in) :: dx, dy, dz
     real(ireals), intent(in) :: phi0, theta0
-    real(ireals), intent(in) :: albedo
+    real(ireals), intent(in) :: albedo, dtau, w0
     integer(mpiint), intent(in) :: comm
     real(ireals),parameter :: incSolar = 1
     real(ireals) :: dz1d(Nlay)
@@ -44,7 +45,7 @@ contains
 
     class(t_solver), allocatable :: solver
     type(t_pprts_buildings), allocatable :: buildings
-    integer, parameter :: Nbuildings = 7
+    integer, parameter :: Nbuildings = 6
 
     integer(iintegers) :: k, i, box_k, box_i, box_j
     integer(mpiint) :: ierr
@@ -61,8 +62,8 @@ contains
     allocate(ksca(solver%C_one%zm , solver%C_one%xm,  solver%C_one%ym ))
     allocate(g   (solver%C_one%zm , solver%C_one%xm,  solver%C_one%ym ))
 
-    kabs = .1_ireals/(dz*Nlay)
-    ksca = 1e-3_ireals/(dz*Nlay)
+    kabs = dtau*(one-w0)/(dz*Nlay)
+    ksca = dtau*w0/(dz*Nlay)
     g    = zero
 
     call init_buildings(buildings, &
@@ -82,11 +83,13 @@ contains
     enddo
     !buildings%iface(1) = buildings%iface(2)
 
-    buildings%iface(7) = faceidx_by_cell_plus_offset( &
-      & buildings%da_offsets, 1+solver%C_one%ze, box_i, box_j, PPRTS_BOT_FACE)
-    buildings%albedo(7) = .0_ireals
+    !buildings%iface(7) = faceidx_by_cell_plus_offset( &
+    !  & buildings%da_offsets, 1+solver%C_one%ze, box_i, box_j, PPRTS_BOT_FACE)
+    !buildings%iface(7) = faceidx_by_cell_plus_offset( &
+    !  & buildings%da_offsets, 1+solver%C_one%ze, box_i, i1, PPRTS_BOT_FACE)
+    !buildings%albedo(7) = .5_ireals
 
-    print *,'buildings idx', buildings%iface
+    call check_buildings_consistency(buildings, solver%C_one%zm, solver%C_one%xm, solver%C_one%ym, ierr); call CHKERR(ierr)
 
     call set_optical_properties(solver, albedo, kabs, ksca, g)
     call set_angles(solver, sundir)
@@ -134,7 +137,7 @@ contains
     if(allocated(buildings%edir)) then
       do i=1, size(buildings%iface)
         print *, 'building_face', i, 'edir', buildings%edir(i), &
-          & 'edn/up', buildings%edn(i), buildings%eup(i)
+          & 'in/out', buildings%incoming(i), buildings%outgoing(i)
       enddo
     endif
 
@@ -154,7 +157,7 @@ program main
   integer(iintegers) :: Nx,Ny,Nlay
   real(ireals) :: dx, dy, dz
   real(ireals) :: phi0, theta0
-  real(ireals) :: Ag
+  real(ireals) :: Ag, dtau, w0
 
   character(len=10*default_str_len) :: rayli_options
   logical :: lflg, lverbose, lrayli_opts
@@ -183,6 +186,10 @@ program main
 
   Ag=0.1_ireals
   call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Ag", Ag, lflg, ierr)
+  dtau=1._ireals
+  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-dtau", dtau, lflg, ierr)
+  w0=0.5_ireals
+  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-w0", w0, lflg, ierr)
 
   lverbose = .True.
   call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-verbose', &
@@ -212,7 +219,7 @@ program main
     call PetscOptionsInsertString(PETSC_NULL_OPTIONS, trim(rayli_options), ierr); call CHKERR(ierr)
   endif
 
-  call pprts_buildings(mpi_comm_world, Nx, Ny, Nlay, dx, dy, dz, phi0, theta0, Ag)
+  call pprts_buildings(mpi_comm_world, Nx, Ny, Nlay, dx, dy, dz, phi0, theta0, Ag, dtau, w0)
 
   call mpi_finalize(ierr)
 end program
