@@ -5,7 +5,7 @@ module m_pprts_buildings
 
   use m_helper_functions, only : &
     & CHKERR, &
-    & toStr, &
+    & toStr, cstr, &
     & spherical_2_cartesian, rotate_angle_z
 
   use m_pprts, only : init_pprts, &
@@ -55,8 +55,6 @@ contains
     call allocate_pprts_solver_from_commandline(solver, '3_10', ierr); call CHKERR(ierr)
 
     sundir = spherical_2_cartesian(phi0, theta0)
-    !sundir = rotate_angle_z(sundir, 180._ireals) ! because pprts takes vector originating at the sun
-    print *,'sundir', sundir
     call init_pprts(comm, Nlay, Nx, Ny, dx,dy, sundir, solver, dz1d)
 
     allocate(kabs(solver%C_one%zm , solver%C_one%xm,  solver%C_one%ym ))
@@ -80,7 +78,7 @@ contains
     do i=1,6
       buildings%iface(i) = faceidx_by_cell_plus_offset( &
         & buildings%da_offsets, box_k, box_i, box_j, i)
-      buildings%albedo(i) = .2_ireals + i/10._ireals
+      buildings%albedo(i) = .1_ireals !+ i/10._ireals
     enddo
     !buildings%iface(1) = buildings%iface(2)
 
@@ -98,7 +96,7 @@ contains
     call pprts_get_result(solver, fdn, fup, fdiv, fdir, opt_buildings=buildings)
 
     print *,''
-    print *,'y-slice:'
+    print *,'Direct y-slice:'
     do i = box_i, box_i
       do k = 1+solver%C_dir%zs, 1+solver%C_dir%ze
         print *, 'edir', k,i, toStr( fdir(k, i, :) )
@@ -106,7 +104,7 @@ contains
     enddo
 
     print *,''
-    print *,'x-slice:'
+    print *,'Direct x-slice:'
     do i = box_j, box_j
       do k = 1+solver%C_dir%zs, 1+solver%C_dir%ze
         print *, 'edir', k,i, toStr( fdir(k, :, i) )
@@ -114,9 +112,29 @@ contains
     enddo
     print *,''
 
+    print *,''
+    print *,'Diffuse y-slice:'
+    do i = box_i, box_i
+      do k = 1+solver%C_diff%zs, 1+solver%C_diff%ze
+        print *, 'edn', k,i, toStr( fdn(k, i, :) ), &
+          & cstr(' eup'//toStr( fup(k, i, :) ), 'blue')
+      enddo
+    enddo
+
+    print *,''
+    print *,'Diffuse x-slice:'
+    do i = box_j, box_j
+      do k = 1+solver%C_diff%zs, 1+solver%C_diff%ze
+        print *, 'edn', k,i, toStr( fdn(k, :, i) ), &
+          & cstr(' eup'//toStr( fup(k, :, i) ), 'green')
+      enddo
+    enddo
+    print *,''
+
     if(allocated(buildings%edir)) then
       do i=1, size(buildings%iface)
-        print *, 'building_face', i, 'edir', buildings%edir(i)
+        print *, 'building_face', i, 'edir', buildings%edir(i), &
+          & 'edn/up', buildings%edn(i), buildings%eup(i)
       enddo
     endif
 

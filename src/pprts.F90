@@ -29,7 +29,7 @@ module m_pprts
 
   use m_helper_functions, only : CHKERR, CHKWARN, deg2rad, rad2deg, imp_allreduce_min, &
     & imp_bcast, imp_allreduce_max, delta_scale, mpi_logical_and, meanval, get_arg, approx, &
-    & inc, ltoa, cstr, toStr, imp_allreduce_mean, &
+    & inc, ltoa, toStr, imp_allreduce_mean, &
     & normalize_vec, vec_proj_on_plane, angle_between_two_normed_vec, cross_3d, &
     & rotation_matrix_world_to_local_basis, deallocate_allocatable, &
     & ind_1d_to_nd
@@ -2255,7 +2255,7 @@ module m_pprts
 
     ! ---------------------------- Source Term -------------
     call PetscLogEventBegin(solver%logs%compute_Ediff, ierr)
-    call setup_b(solver, solution,solver%b)
+    call setup_b(solver, solution,solver%b, opt_buildings)
 
     lskip_diffuse_solve = .False.
     call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
@@ -3519,10 +3519,14 @@ end subroutine
   !> \n or it may be that we have a source term due to thermal emission --
   !> \n   to determine emissivity of box, we use the forward transport coefficients backwards
   !> \n   a la: transmissivity $T = \sum(coeffs)$ and therefore emissivity $E = 1 - T$
-  subroutine setup_b(solver, solution, b)
-    class(t_solver)         :: solver
-    type(t_state_container) :: solution
-    type(tVec) :: local_b, b
+  subroutine setup_b(solver, solution, b, opt_buildings)
+    class(t_solver)        , intent(in)    :: solver
+    type(t_state_container), intent(in)    :: solution
+    type(tVec)             , intent(inout) :: b
+    type(t_pprts_buildings), intent(in), optional :: opt_buildings
+
+    type(tVec) :: local_b
+    type(tVec) :: local_edir
 
     real(ireals),pointer,dimension(:,:,:,:) :: xsrc=>null()
     real(ireals),pointer,dimension(:) :: xsrc1d=>null()
@@ -3538,13 +3542,27 @@ end subroutine
 
     call getVecPointer(local_b, C_diff%da, xsrc1d, xsrc)
 
-    if(solution%lsolar_rad) &
-      call set_solar_source(solver, solution%edir)
+    if(solution%lsolar_rad) then
+      ! Copy ghosted values for direct vec
+      call DMGetLocalVector(C_dir%da, local_edir, ierr); call CHKERR(ierr)
+      call VecSet(local_edir, zero, ierr); call CHKERR(ierr)
+      call DMGlobalToLocalBegin(C_dir%da, solution%edir, ADD_VALUES, local_edir ,ierr); call CHKERR(ierr)
+      call DMGlobalToLocalEnd  (C_dir%da, solution%edir, ADD_VALUES, local_edir ,ierr); call CHKERR(ierr)
+
+      call set_solar_source(solver, local_edir)
+    endif
 
     if(allocated(atm%planck) ) &
       call set_thermal_source()
 
+    if(present(opt_buildings)) &
+      call set_buildings_reflection(solver, local_edir, opt_buildings)
+
     if(solver%myid.eq.0.and.ldebug) print *,'src Vector Assembly... setting coefficients ...done'
+
+    if(solution%lsolar_rad) then
+      call DMRestoreLocalVector(C_dir%da, local_edir, ierr); call CHKERR(ierr)
+    endif
 
     call restoreVecPointer(local_b, xsrc1d, xsrc )
 
@@ -3714,16 +3732,15 @@ end subroutine
     end associate
     end subroutine
 
-    subroutine set_solar_source(solver, edir)
-      class(t_solver)     :: solver
-      type(tVec)          :: edir
+    subroutine set_solar_source(solver, local_edir)
+      class(t_solver), intent(in) :: solver
+      type(tVec)     , intent(in) :: local_edir
 
-      real(irealLUT)        :: dir2diff(solver%C_dir%dof*solver%C_diff%dof)
+      real(irealLUT)      :: dir2diff(solver%C_dir%dof*solver%C_diff%dof)
       real(ireals)        :: solrad
       integer(iintegers)  :: idof, idofdst, idiff
       integer(iintegers)  :: k, i, j, src, dst
 
-      type(tVec) :: ledir
       real(ireals),pointer,dimension(:,:,:,:) :: xedir=>null()
       real(ireals),pointer,dimension(:)       :: xedir1d=>null()
 
@@ -3734,13 +3751,7 @@ end subroutine
                 C_diff  => solver%C_diff, &
                 sun     => solver%sun)
 
-      ! Copy ghosted values for direct vec
-      call DMGetLocalVector(C_dir%da ,ledir ,ierr)                      ; call CHKERR(ierr)
-      call VecSet(ledir ,zero,ierr)                                     ; call CHKERR(ierr)
-      call DMGlobalToLocalBegin(C_dir%da ,edir ,ADD_VALUES,ledir ,ierr) ; call CHKERR(ierr)
-      call DMGlobalToLocalEnd  (C_dir%da ,edir ,ADD_VALUES,ledir ,ierr) ; call CHKERR(ierr)
-
-      call getVecPointer(ledir, C_dir%da, xedir1d, xedir)
+      call getVecPointer(local_edir, C_dir%da, xedir1d, xedir)
 
       if(solver%myid.eq.0.and.ldebug) print *,'Assembly of SRC-Vector .. setting solar source', &
         sum(xedir(i0,C_dir%zs:C_dir%ze,C_dir%xs:C_dir%xe,C_dir%ys:C_dir%ye)) / &
@@ -3930,10 +3941,133 @@ end subroutine
         enddo
       enddo
 
-      call restoreVecPointer(ledir, xedir1d, xedir )
-      call DMRestoreLocalVector(C_dir%da, ledir, ierr); call CHKERR(ierr)
+      call restoreVecPointer(local_edir, xedir1d, xedir )
       end associate
     end subroutine
+
+    subroutine set_buildings_reflection(solver, local_edir, buildings)
+      class(t_solver)        , intent(in)   :: solver
+      type(tVec)             , intent(in)   :: local_edir
+      type(t_pprts_buildings), intent(in)   :: buildings
+
+      real(ireals),pointer,dimension(:,:,:,:) :: xedir=>null()
+      real(ireals),pointer,dimension(:)       :: xedir1d=>null()
+
+      integer(iintegers) :: m, idx(4), isrc, idiff, dof_offset
+
+      associate(                           &
+          & B => buildings,                &
+          & C => solver%C_dir              )
+
+        if(solution%lsolar_rad) then
+
+          call getVecPointer(local_edir, C%da, xedir1d, xedir)
+
+          do m = 1, size(B%iface)
+            call ind_1d_to_nd(B%da_offsets, B%iface(m), idx)
+            idx(2:4) = idx(2:4) -1 + [C%zs, C%xs, C%ys]
+
+            associate(k => idx(2), i => idx(3), j => idx(4))
+
+              select case(idx(1))
+              case(PPRTS_TOP_FACE)
+                do idiff = 0, solver%difftop%dof-1
+                  if (.not.solver%difftop%is_inward(i1+idiff)) xsrc(idiff,k,i,j) = 0
+                enddo
+                do isrc = 0, solver%dirtop%dof-1
+                  do idiff = 0, solver%difftop%dof-1
+                    if (.not.solver%difftop%is_inward(i1+idiff)) then ! eup on upper face
+                      xsrc(idiff,k,i,j) = xsrc(idiff,k,i,j) &
+                        & + xedir(isrc,k,i,j) * B%albedo(m) / real(solver%difftop%streams, ireals)
+                    endif
+                  enddo
+                enddo
+
+              case(PPRTS_BOT_FACE)
+                do idiff = 0, solver%difftop%dof-1
+                  if (solver%difftop%is_inward(i1+idiff)) xsrc(idiff,k+1,i,j) = 0
+                enddo
+                do isrc = 0, solver%dirtop%dof-1
+                  do idiff = 0, solver%difftop%dof-1
+                    if (solver%difftop%is_inward(i1+idiff)) then ! eup on lower face
+                      xsrc(idiff,k+1,i,j) = xsrc(idiff,k+1,i,j) &
+                        & + xedir(isrc,k+1,i,j) * B%albedo(m) / real(solver%difftop%streams, ireals)
+                    endif
+                  enddo
+                enddo
+
+              case(PPRTS_LEFT_FACE)
+                dof_offset = solver%difftop%dof
+                do idiff = 0, solver%diffside%dof-1
+                  if (.not.solver%diffside%is_inward(i1+idiff)) xsrc(dof_offset+idiff,k,i,j) = 0
+                enddo
+
+                do isrc = solver%dirtop%dof, solver%dirtop%dof + solver%dirside%dof - 1
+                  do idiff = 0, solver%diffside%dof-1
+                    if (.not.solver%diffside%is_inward(i1+idiff)) then ! eup on left face
+                      xsrc(dof_offset+idiff,k,i,j) = xsrc(dof_offset+idiff,k,i,j) &
+                        & + xedir(isrc,k,i,j) * B%albedo(m) / real(solver%diffside%streams, ireals)
+                    endif
+                  enddo
+                enddo
+
+              case(PPRTS_RIGHT_FACE)
+                dof_offset = solver%difftop%dof
+                do idiff = 0, solver%diffside%dof-1
+                  if (solver%diffside%is_inward(i1+idiff)) xsrc(dof_offset+idiff,k,i+1,j) = 0
+                enddo
+
+                do isrc = solver%dirtop%dof, solver%dirtop%dof + solver%dirside%dof - 1
+                  do idiff = 0, solver%diffside%dof-1
+                    if (solver%diffside%is_inward(i1+idiff)) then ! eup on right face
+                      xsrc(dof_offset+idiff,k,i+1,j) = xsrc(dof_offset+idiff,k,i+1,j) &
+                        & + xedir(isrc,k,i+1,j) * B%albedo(m) / real(solver%diffside%streams, ireals)
+                    endif
+                  enddo
+                enddo
+
+              case(PPRTS_REAR_FACE )
+                dof_offset = solver%difftop%dof + solver%diffside%dof
+                do idiff = 0, solver%diffside%dof-1
+                  if (.not.solver%diffside%is_inward(i1+idiff)) xsrc(dof_offset+idiff,k,i,j) = 0
+                enddo
+
+                do isrc = solver%dirtop%dof + solver%dirside%dof, solver%dirtop%dof + 2*solver%dirside%dof - 1
+                  do idiff = 0, solver%diffside%dof-1
+                    if (.not.solver%diffside%is_inward(i1+idiff)) then
+                      xsrc(dof_offset+idiff,k,i,j) = xsrc(dof_offset+idiff,k,i,j) &
+                        & + xedir(isrc,k,i,j) * B%albedo(m) / real(solver%diffside%streams, ireals)
+                    endif
+                  enddo
+                enddo
+
+              case(PPRTS_FRONT_FACE)
+                dof_offset = solver%difftop%dof + solver%diffside%dof
+                do idiff = 0, solver%diffside%dof-1
+                  if (solver%diffside%is_inward(i1+idiff)) xsrc(dof_offset+idiff,k,i,j+1) = 0
+                enddo
+
+                do isrc = solver%dirtop%dof + solver%dirside%dof, solver%dirtop%dof + 2*solver%dirside%dof - 1
+                  do idiff = 0, solver%diffside%dof-1
+                    if (solver%diffside%is_inward(i1+idiff)) then
+                      xsrc(dof_offset+idiff,k,i,j+1) = xsrc(dof_offset+idiff,k,i,j+1) &
+                        & + xedir(isrc,k,i,j+1) * B%albedo(m) / real(solver%diffside%streams, ireals)
+                    endif
+                  enddo
+                enddo
+
+              case default
+                call CHKERR(1_mpiint, 'unknown building face_idx '//toStr(idx(1)+1))
+              end select
+            end associate
+          enddo
+
+          call restoreVecPointer(local_edir, xedir1d, xedir)
+        endif
+      end associate
+
+    end subroutine
+
   end subroutine setup_b
 
 
@@ -4480,62 +4614,170 @@ end subroutine
       call restoreVecPointer(solution%abso, x1d, x4d, readonly=.True.)
 
       if(present(opt_buildings)) then
-        buildings: block
-          integer(iintegers) :: m, idx(4), dof_offset
-
-          if(solution%lsolar_rad) then
-            associate( B => opt_buildings, C => solver%C_dir )
-              if(.not.allocated(B%edir)) allocate(B%edir(size(B%iface)))
-
-              call getVecPointer(solution%edir, C%da, x1d, x4d)
-              ! average of direct radiation of all fluxes through top faces
-              !redir = sum(x4d(0:solver%dirtop%dof-1, :, :, :), dim=1) / real(solver%dirtop%area_divider, ireals)
-
-              do m = 1, size(B%iface)
-                call ind_1d_to_nd(B%da_offsets, B%iface(m), idx)
-                idx(2:4) = idx(2:4) -1 + [C%zs, C%xs, C%ys]
-
-                associate(k => idx(2), i => idx(3), j => idx(4))
-
-                  select case(idx(1))
-                  case(PPRTS_TOP_FACE)
-                    dof_offset = 0
-                    B%edir(m) = sum(x4d(dof_offset:dof_offset+solver%dirtop%dof-1, k, i, j)) &
-                      & / real(solver%dirtop%area_divider, ireals)
-                  case(PPRTS_BOT_FACE)
-                    dof_offset = 0
-                    B%edir(m) = sum(x4d(dof_offset:dof_offset+solver%dirtop%dof-1, k+1, i, j)) &
-                      & / real(solver%dirtop%area_divider, ireals)
-                  case(PPRTS_LEFT_FACE)
-                    dof_offset = solver%dirtop%dof
-                    B%edir(m) = sum(x4d(dof_offset:dof_offset+solver%dirside%dof-1, k, i, j)) &
-                      & / real(solver%dirside%area_divider, ireals)
-                  case(PPRTS_RIGHT_FACE)
-                    dof_offset = solver%dirtop%dof
-                    B%edir(m) = sum(x4d(dof_offset:dof_offset+solver%dirside%dof-1, k, i+1, j)) &
-                      & / real(solver%dirside%area_divider, ireals)
-                  case(PPRTS_REAR_FACE )
-                    dof_offset = solver%dirtop%dof + solver%dirside%dof
-                    B%edir(m) = sum(x4d(dof_offset:dof_offset+solver%dirside%dof-1, k, i, j)) &
-                      & / real(solver%dirside%area_divider, ireals)
-                  case(PPRTS_FRONT_FACE)
-                    dof_offset = solver%dirtop%dof + solver%dirside%dof
-                    B%edir(m) = sum(x4d(dof_offset:dof_offset+solver%dirside%dof-1, k, i, j+1)) &
-                      & / real(solver%dirside%area_divider, ireals)
-                  case default
-                    call CHKERR(1_mpiint, 'unknown building face_idx '//toStr(idx(1)+1))
-                  end select
-                end associate
-              enddo
-
-              call restoreVecPointer(solution%edir, x1d, x4d)
-            end associate
-          endif
-        end block buildings
+        call fill_buildings()
       endif
 
       if(solver%myid.eq.0 .and. ldebug) print *,'get_result done'
     end associate
+
+  contains
+
+    subroutine fill_buildings
+      integer(iintegers) :: m, idx(4), dof_offset, idof
+
+      associate(                               &
+          & solution => solver%solutions(uid), &
+          & B => opt_buildings,                &
+          & C => solver%C_dir                  )
+
+        if(solution%lsolar_rad) then
+          if(.not.allocated(B%edir)) allocate(B%edir(size(B%iface)))
+
+          call getVecPointer(solution%edir, C%da, x1d, x4d)
+          ! average of direct radiation of all fluxes through top faces
+          !redir = sum(x4d(0:solver%dirtop%dof-1, :, :, :), dim=1) / real(solver%dirtop%area_divider, ireals)
+
+          do m = 1, size(B%iface)
+            call ind_1d_to_nd(B%da_offsets, B%iface(m), idx)
+            idx(2:4) = idx(2:4) -1 + [C%zs, C%xs, C%ys]
+
+            associate(k => idx(2), i => idx(3), j => idx(4))
+
+              select case(idx(1))
+              case(PPRTS_TOP_FACE)
+                dof_offset = 0
+                B%edir(m) = sum(x4d(dof_offset:dof_offset+solver%dirtop%dof-1, k, i, j)) &
+                  & / real(solver%dirtop%area_divider, ireals)
+              case(PPRTS_BOT_FACE)
+                dof_offset = 0
+                B%edir(m) = sum(x4d(dof_offset:dof_offset+solver%dirtop%dof-1, k+1, i, j)) &
+                  & / real(solver%dirtop%area_divider, ireals)
+              case(PPRTS_LEFT_FACE)
+                dof_offset = solver%dirtop%dof
+                B%edir(m) = sum(x4d(dof_offset:dof_offset+solver%dirside%dof-1, k, i, j)) &
+                  & / real(solver%dirside%area_divider, ireals)
+              case(PPRTS_RIGHT_FACE)
+                dof_offset = solver%dirtop%dof
+                B%edir(m) = sum(x4d(dof_offset:dof_offset+solver%dirside%dof-1, k, i+1, j)) &
+                  & / real(solver%dirside%area_divider, ireals)
+              case(PPRTS_REAR_FACE )
+                dof_offset = solver%dirtop%dof + solver%dirside%dof
+                B%edir(m) = sum(x4d(dof_offset:dof_offset+solver%dirside%dof-1, k, i, j)) &
+                  & / real(solver%dirside%area_divider, ireals)
+              case(PPRTS_FRONT_FACE)
+                dof_offset = solver%dirtop%dof + solver%dirside%dof
+                B%edir(m) = sum(x4d(dof_offset:dof_offset+solver%dirside%dof-1, k, i, j+1)) &
+                  & / real(solver%dirside%area_divider, ireals)
+              case default
+                call CHKERR(1_mpiint, 'unknown building face_idx '//toStr(idx(1)+1))
+              end select
+            end associate
+          enddo
+
+          call restoreVecPointer(solution%edir, x1d, x4d)
+        endif
+      end associate
+
+
+      associate(                               &
+          & solution => solver%solutions(uid), &
+          & B => opt_buildings,                &
+          & C => solver%C_diff                  )
+        if(.not.allocated(B%edn)) allocate(B%edn(size(B%iface)))
+        if(.not.allocated(B%eup)) allocate(B%eup(size(B%iface)))
+
+        call getVecPointer(solution%ediff, C%da, x1d, x4d)
+
+        do m = 1, size(B%iface)
+          call ind_1d_to_nd(B%da_offsets, B%iface(m), idx)
+          idx(2:4) = idx(2:4) -1 + [C%zs, C%xs, C%ys]
+
+          associate(k => idx(2), i => idx(3), j => idx(4))
+
+            B%edn(m) = zero
+            B%eup(m) = zero
+
+            select case(idx(1))
+
+            case(PPRTS_TOP_FACE)
+              do idof = 0, solver%difftop%dof-1
+                if(solver%difftop%is_inward(i1+idof)) then
+                  B%edn(m) = B%edn(m) + x4d(idof, k, i, j)
+                else
+                  B%eup(m) = B%eup(m) + x4d(idof, k, i, j)
+                endif
+              enddo
+              B%edn(m) = B%edn(m) / real(solver%difftop%area_divider, ireals)
+              B%eup(m) = B%eup(m) / real(solver%difftop%area_divider, ireals)
+
+            case(PPRTS_BOT_FACE)
+              do idof = 0, solver%difftop%dof-1
+                if(solver%difftop%is_inward(i1+idof)) then
+                  B%edn(m) = B%edn(m) + x4d(idof, k+1, i, j)
+                else
+                  B%eup(m) = B%eup(m) + x4d(idof, k+1, i, j)
+                endif
+              enddo
+              B%edn(m) = B%edn(m) / real(solver%difftop%area_divider, ireals)
+              B%eup(m) = B%eup(m) / real(solver%difftop%area_divider, ireals)
+
+            case(PPRTS_LEFT_FACE)
+              dof_offset = solver%difftop%dof
+              do idof = 0, solver%diffside%dof-1
+                if(solver%diffside%is_inward(i1+idof)) then
+                  B%edn(m) = B%edn(m) + x4d(dof_offset + idof, k, i, j)
+                else
+                  B%eup(m) = B%eup(m) + x4d(dof_offset + idof, k, i, j)
+                endif
+              enddo
+              B%edn(m) = B%edn(m) / real(solver%diffside%area_divider, ireals)
+              B%eup(m) = B%eup(m) / real(solver%diffside%area_divider, ireals)
+
+            case(PPRTS_RIGHT_FACE)
+              dof_offset = solver%difftop%dof
+              do idof = 0, solver%diffside%dof-1
+                if(solver%diffside%is_inward(i1+idof)) then
+                  B%eup(m) = B%eup(m) + x4d(dof_offset + idof, k, i+1, j)
+                else
+                  B%edn(m) = B%edn(m) + x4d(dof_offset + idof, k, i+1, j)
+                endif
+              enddo
+              B%edn(m) = B%edn(m) / real(solver%diffside%area_divider, ireals)
+              B%eup(m) = B%eup(m) / real(solver%diffside%area_divider, ireals)
+
+            case(PPRTS_REAR_FACE )
+              dof_offset = solver%difftop%dof + solver%diffside%dof
+              do idof = 0, solver%diffside%dof-1
+                if(solver%diffside%is_inward(i1+idof)) then
+                  B%edn(m) = B%edn(m) + x4d(dof_offset + idof, k, i, j)
+                else
+                  B%eup(m) = B%eup(m) + x4d(dof_offset + idof, k, i, j)
+                endif
+              enddo
+              B%edn(m) = B%edn(m) / real(solver%diffside%area_divider, ireals)
+              B%eup(m) = B%eup(m) / real(solver%diffside%area_divider, ireals)
+
+            case(PPRTS_FRONT_FACE)
+              dof_offset = solver%difftop%dof + solver%diffside%dof
+              do idof = 0, solver%diffside%dof-1
+                if(solver%diffside%is_inward(i1+idof)) then
+                  B%eup(m) = B%eup(m) + x4d(dof_offset + idof, k, i, j+1)
+                else
+                  B%edn(m) = B%edn(m) + x4d(dof_offset + idof, k, i, j+1)
+                endif
+              enddo
+              B%edn(m) = B%edn(m) / real(solver%diffside%area_divider, ireals)
+              B%eup(m) = B%eup(m) / real(solver%diffside%area_divider, ireals)
+
+            case default
+              call CHKERR(1_mpiint, 'unknown building face_idx '//toStr(idx(1)+1))
+            end select
+          end associate
+        enddo
+
+        call restoreVecPointer(solution%ediff, x1d, x4d)
+      end associate
+    end subroutine
   end subroutine
 
   subroutine pprts_get_result_toZero(solver, gedn, geup, gabso, gedir, opt_solution_uid)
