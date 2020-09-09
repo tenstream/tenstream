@@ -896,7 +896,7 @@ module m_plex_rt
 
       lview=.False.
       call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-plexrt_view_optprop",&
-            lview, lflg, ierr) ;call CHKERR(ierr)
+        lview, lflg, ierr) ;call CHKERR(ierr)
       if(.not.lview) return
 
       call get_col_vec(albedo, i1    , xalbedo, xxalbedo)
@@ -924,18 +924,18 @@ module m_plex_rt
           '                                '//cstr('kabs(min/mean/max)', 'blue')//'                            '// &
           '                                '//cstr('ksca              ', 'red' )//'                            '// &
           '                                '//cstr('g                 ', 'blue')
-    endif
+      endif
       if(myid.eq.0) print *,cstr('---------------------------------------------------------------------------------------', 'blue')
       do k=1,Nlay
-      if(allocated(kabs)) call imp_min_mean_max(comm, xxkabs(k,:), mkabs)
-      if(allocated(ksca)) call imp_min_mean_max(comm, xxksca(k,:), mksca)
-      if(allocated(g   )) call imp_min_mean_max(comm, xxg   (k,:), mg   )
-      if(allocated(plck)) call imp_min_mean_max(comm, xxplck(k,:), mplck)
-      if(allocated(plck)) then
-        if(myid.eq.0) print *,k,cstr(ftoa(mkabs),'blue'), cstr(ftoa(mksca),'red'), cstr(ftoa(mg),'blue'), cstr(ftoa(mplck),'red')
-      else
-        if(myid.eq.0) print *,k,cstr(ftoa(mkabs),'blue'), cstr(ftoa(mksca),'red'), cstr(ftoa(mg),'blue')
-      endif
+        if(allocated(kabs)) call imp_min_mean_max(comm, xxkabs(k,:), mkabs)
+        if(allocated(ksca)) call imp_min_mean_max(comm, xxksca(k,:), mksca)
+        if(allocated(g   )) call imp_min_mean_max(comm, xxg   (k,:), mg   )
+        if(allocated(plck)) call imp_min_mean_max(comm, xxplck(k,:), mplck)
+        if(allocated(plck)) then
+          if(myid.eq.0) print *,k,cstr(ftoa(mkabs),'blue'), cstr(ftoa(mksca),'red'), cstr(ftoa(mg),'blue'), cstr(ftoa(mplck),'red')
+        else
+          if(myid.eq.0) print *,k,cstr(ftoa(mkabs),'blue'), cstr(ftoa(mksca),'red'), cstr(ftoa(mg),'blue')
+        endif
       enddo
       if(myid.eq.0) print *,cstr('---------------------------------------------------------------------------------------', 'blue')
       if(allocated(albedo)) call imp_min_mean_max(comm, xxalbedo(i1,:), malbedo)
@@ -946,30 +946,30 @@ module m_plex_rt
       call restore_col_vec(ksca  , xksca  , xxksca  )
       call restore_col_vec(g     , xg     , xxg     )
       call restore_col_vec(plck  , xplck  , xxplck  )
-      contains
-        subroutine get_col_vec(vec, N, xv, xxv)
-          type(tVec), allocatable, intent(in) :: vec
-          integer(iintegers), intent(in) :: N ! number of entries per column/stride
-          real(ireals), intent(inout), pointer :: xv(:), xxv(:,:)
-          integer(iintegers) :: vecsize, Ncol
-          if(allocated(vec)) then
-            call VecGetLocalSize(vec, vecsize, ierr); call CHKERR(ierr)
-            Ncol = vecsize / N
-            call CHKERR(int(Ncol*N-vecsize, mpiint), 'stride size of vec not as expected. '//new_line('')// &
-              'Given stride size '//itoa(N)//new_line('')// &
-              'Local vector size '//itoa(vecsize)//new_line('')// &
-              'expected number of columns/strides '//itoa(Ncol)//' would result in '//itoa(Ncol*N)//'entries')
+    contains
+      subroutine get_col_vec(vec, N, xv, xxv)
+        type(tVec), allocatable, intent(in) :: vec
+        integer(iintegers), intent(in) :: N ! number of entries per column/stride
+        real(ireals), intent(inout), pointer :: xv(:), xxv(:,:)
+        integer(iintegers) :: vecsize, Ncol
+        if(allocated(vec)) then
+          call VecGetLocalSize(vec, vecsize, ierr); call CHKERR(ierr)
+          Ncol = vecsize / N
+          call CHKERR(int(Ncol*N-vecsize, mpiint), 'stride size of vec not as expected. '//new_line('')// &
+            'Given stride size '//itoa(N)//new_line('')// &
+            'Local vector size '//itoa(vecsize)//new_line('')// &
+            'expected number of columns/strides '//itoa(Ncol)//' would result in '//itoa(Ncol*N)//'entries')
 
-            call VecGetArrayF90(vec, xv, ierr); call CHKERR(ierr)
-            xxv(1:N, 1:Ncol) => xv(:)
-          endif
-        end subroutine
-        subroutine restore_col_vec(vec, xv, xxv)
-          type(tVec), allocatable, intent(in) :: vec
-          real(ireals), intent(inout), pointer :: xv(:), xxv(:,:)
-          if(associated(xxv)) nullify(xxv)
-          if(allocated(vec)) call VecRestoreArrayF90(vec, xv, ierr); call CHKERR(ierr)
-        end subroutine
+          call VecGetArrayF90(vec, xv, ierr); call CHKERR(ierr)
+          xxv(1:N, 1:Ncol) => xv(:)
+        endif
+      end subroutine
+      subroutine restore_col_vec(vec, xv, xxv)
+        type(tVec), allocatable, intent(in) :: vec
+        real(ireals), intent(inout), pointer :: xv(:), xxv(:,:)
+        if(associated(xxv)) nullify(xxv)
+        if(allocated(vec)) call VecRestoreArrayF90(vec, xv, ierr); call CHKERR(ierr)
+      end subroutine
     end subroutine
 
     subroutine create_edir_src_vec(solver, plex, edirdm, E0, kabs, ksca, g, sundir, srcVec)

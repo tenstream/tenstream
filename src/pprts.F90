@@ -22,14 +22,15 @@ module m_pprts
 #include "petsc/finclude/petsc.h"
   use petsc
 
-  use m_data_parameters, only : ireals, iintegers, irealLUT,     &
-    init_mpi_data_parameters, mpiint,                            &
-    zero, one, nil, i0, i1, i2, i3, i4, i5, i6, i7, i8, i10, pi, &
-    default_str_len
+  use m_data_parameters, only : ireals, iintegers, irealLUT, &
+    & init_mpi_data_parameters, mpiint,                      &
+    & zero, one, nan, pi,                                    &
+    & nil, i0, i1, i2, i3, i4, i5, i6, i7, i8, i10, pi,      &
+    & default_str_len
 
   use m_helper_functions, only : CHKERR, CHKWARN, deg2rad, rad2deg, imp_allreduce_min, &
     & imp_bcast, imp_allreduce_max, delta_scale, mpi_logical_and, meanval, get_arg, approx, &
-    & inc, ltoa, toStr, imp_allreduce_mean, &
+    & inc, cstr, toStr, imp_allreduce_mean, imp_min_mean_max, &
     & normalize_vec, vec_proj_on_plane, angle_between_two_normed_vec, cross_3d, &
     & rotation_matrix_world_to_local_basis, deallocate_allocatable, &
     & ind_1d_to_nd
@@ -1298,6 +1299,7 @@ module m_pprts
     if(myid.eq.0.and.ldebug) print *,myid,'mat_info :: MAT_INFO_USED',nz_used,'MAT_INFO_NZ_unneded',nz_unneeded
     if(myid.eq.0.and.ldebug) print *,myid,'mat_info :: Ownership range',m,n
   end subroutine
+
   subroutine set_optical_properties(solver, albedo, &
       kabs, ksca, g, &
       planck, planck_srfc, &
@@ -1371,9 +1373,9 @@ module m_pprts
       endif
       if( any(isnan([kabs,ksca,g]))) then
         call CHKERR(1_mpiint, 'set_optical_properties :: found NaN value in optical properties!'//&
-                              ' NaN in kabs? '//ltoa(any(isnan(kabs)))// &
-                              ' NaN in ksca? '//ltoa(any(isnan(ksca)))// &
-                              ' NaN in g   ? '//ltoa(any(isnan(g   ))))
+                              ' NaN in kabs? '//toStr(any(isnan(kabs)))// &
+                              ' NaN in ksca? '//toStr(any(isnan(ksca)))// &
+                              ' NaN in g   ? '//toStr(any(isnan(g   ))))
       endif
     endif
     if(ldebug) then
@@ -1403,24 +1405,6 @@ module m_pprts
     endif
 
 
-    if(ldebug.and.solver%myid.eq.0) then
-      if(present(kabs) ) then
-        print *,'atm_kabs     ',maxval(atm%kabs  )  ,shape(atm%kabs  )
-      endif
-      if(present(ksca) ) then
-        print *,'atm_ksca     ',maxval(atm%ksca  )  ,shape(atm%ksca  )
-      endif
-      if(present(g) ) then
-        print *,'atm_g        ',maxval(atm%g     )  ,shape(atm%g     )
-      endif
-      if(present(planck) ) then
-        print *,'atm_planck   ',maxval(atm%planck   )  ,shape(atm%planck   )
-      endif
-
-      print *,'Number of 1D layers: ', count(atm%l1d) , size(atm%l1d),'(',(100._ireals* count(atm%l1d) )/size(atm%l1d),'%)'
-      if(present(kabs)) print *,'init local optprop:', shape(kabs), '::', shape(atm%kabs)
-    endif
-
     lpprts_delta_scale = get_arg(.True., ldelta_scaling)
     call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_delta_scale", &
       lpprts_delta_scale, lflg , ierr) ;call CHKERR(ierr)
@@ -1439,30 +1423,14 @@ module m_pprts
         ' (max='//toStr(maxval(atm%g))//')')
     endif
 
+    call print_optical_properties_summary(solver, opt_lview=ldebug)
+
     if(ltwostr_only) then
-      if(ldebug .and. solver%myid.eq.0) then
-        do k=C_one_atm%zs,C_one_atm%ze
-          if(present(planck)) then
-            print *,solver%myid,'Optical Properties:',k, &
-              'dz',atm%dz(k,C_one_atm%xs,C_one_atm%ys),atm%l1d(k,C_one_atm%xs,C_one_atm%ys),'k',&
-              minval(atm%kabs(k,:,:)), minval(atm%ksca(k,:,:)), minval(atm%g(k,:,:)),&
-              maxval(atm%kabs(k,:,:)), maxval(atm%ksca(k,:,:)), maxval(atm%g(k,:,:)),&
-              '::',minval(atm%planck (k,:,:)),maxval(atm%planck        (k, :,:))
-          else
-            print *,solver%myid,'Optical Properties:',k, &
-              'dz',atm%dz(k,C_one_atm%xs,C_one_atm%ys),atm%l1d(k,C_one_atm%xs,C_one_atm%ys),'k',&
-              minval(atm%kabs(k,:,:)), minval(atm%ksca(k,:,:)), minval(atm%g(k,:,:)),&
-              maxval(atm%kabs(k,:,:)), maxval(atm%ksca(k,:,:)), maxval(atm%g(k,:,:))
-          endif
-        enddo
-      endif
       return ! twostream should not depend on eddington coeffs... it will have to calculate it on its own.
     endif
 
-    if(ldebug) then
-      if( (any([atm%kabs,atm%ksca,atm%g].lt.zero)) .or. (any(isnan([atm%kabs,atm%ksca,atm%g]))) ) then
-        print *,solver%myid,'set_optical_properties :: found illegal value in delta_scaled optical properties! abort!'
-      endif
+    if( (any([atm%kabs,atm%ksca,atm%g].lt.zero)) .or. (any(isnan([atm%kabs,atm%ksca,atm%g]))) ) then
+      call CHKERR(1_mpiint, 'set_optical_properties :: found illegal value in delta_scaled optical properties! abort!')
     endif
 
     if(luse_eddington) then
@@ -1516,23 +1484,6 @@ module m_pprts
       call handle_atm_collapse()
     endif
 
-    if(ldebug .and. solver%myid.eq.0) then
-      do k=C_one_atm%zs,C_one_atm%ze
-        if(present(planck)) then
-          print *,solver%myid,'Optical Properties:',k,&
-            'dz',atm%dz(k,C_one_atm%xs,C_one_atm%ys),atm%l1d(k,C_one_atm%xs,C_one_atm%ys),'k',&
-            minval(atm%kabs(k,:,:)), minval(atm%ksca(k,:,:)), minval(atm%g(k,:,:)),&
-            maxval(atm%kabs(k,:,:)), maxval(atm%ksca(k,:,:)), maxval(atm%g(k,:,:)),&
-            '::',minval(atm%planck (k,:,:)),maxval(atm%planck        (k, :,:))
-        else
-          print *,solver%myid,'Optical Properties:',k,&
-            'dz',atm%dz(k,C_one_atm%xs,C_one_atm%ys),atm%l1d(k,C_one_atm%xs,C_one_atm%ys),'k',&
-            minval(atm%kabs(k,:,:)), minval(atm%ksca(k,:,:)), minval(atm%g(k,:,:)),&
-            maxval(atm%kabs(k,:,:)), maxval(atm%ksca(k,:,:)), maxval(atm%g(k,:,:)),&
-            '::',minval(atm%a33 (k,:,:)),maxval(atm%a33(k,:,:))
-        endif
-      enddo
-    endif
     end associate
     call PetscLogEventEnd(solver%logs%set_optprop, ierr); call CHKERR(ierr)
 
@@ -1658,6 +1609,61 @@ module m_pprts
           Btop = Eup(1) / pi
         endif
       end subroutine
+    end subroutine
+
+    subroutine print_optical_properties_summary(solver, opt_lview)
+      class(t_solver), intent(in) :: solver
+      logical, intent(in), optional :: opt_lview
+
+      logical :: lview, lflg
+      real(ireals), dimension(3) :: mkabs, mksca, mg, malbedo, mplck
+      integer(mpiint) :: myid, ierr
+      integer(iintegers) :: k
+
+      lview = get_arg(.False., opt_lview)
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_view_optprop",&
+        lview, lflg, ierr) ;call CHKERR(ierr)
+      if(.not.lview) return
+
+
+      call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
+      call mpi_comm_rank(solver%comm, myid, ierr); call CHKERR(ierr)
+      if(myid.eq.0) print *,'*      k(layer)  '// &
+        '     '//cstr('kabs(min/mean/max)', 'blue')//'                  '// &
+        '     '//cstr('ksca              ', 'red' )//'                  '// &
+        '     '//cstr('g                 ', 'blue')//'                  '// &
+        '     '//cstr('plck              ', 'red')
+      associate( atm => solver%atm, C_one_atm => solver%C_one_atm )
+
+        do k=C_one_atm%zs,C_one_atm%ze
+
+          if(allocated(atm%kabs)) call imp_min_mean_max(solver%comm, atm%kabs(k,:,:), mkabs)
+          if(allocated(atm%ksca)) call imp_min_mean_max(solver%comm, atm%ksca(k,:,:), mksca)
+          if(allocated(atm%g   )) call imp_min_mean_max(solver%comm, atm%g   (k,:,:), mg   )
+          if(allocated(atm%planck)) then
+            call imp_min_mean_max(solver%comm, atm%planck(k,:,:), mplck)
+          else
+            mplck = nan
+          endif
+
+          if(myid.eq.0) &
+            & print *,k,cstr(toStr(mkabs),'blue'), cstr(toStr(mksca),'red'), cstr(toStr(mg),'blue'), cstr(toStr(mplck),'red')
+
+        enddo
+
+        if(allocated(atm%albedo)) then
+          call imp_min_mean_max(solver%comm, atm%albedo(:,:), malbedo)
+          if(myid.eq.0) print *, 'Albedo (min/mean,max)', malbedo
+        endif
+
+
+        if(myid.eq.0) then
+          print *,'Number of 1D layers: ', count(atm%l1d) , size(atm%l1d),'(',(100._ireals* count(atm%l1d) )/size(atm%l1d),'%)'
+          print *,'shape local optprop:', shape(atm%kabs)
+        endif
+
+      end associate
+      call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
     end subroutine
 
   subroutine set_global_optical_properties(solver, global_albedo, global_kabs, global_ksca, global_g, global_planck)
