@@ -141,6 +141,7 @@ module m_helper_functions
     #:endfor
     #:endfor
   end interface
+
   interface imp_allreduce_mean
     module procedure imp_allreduce_mean_0d
 #:for RANK in range(1, 4)
@@ -159,9 +160,31 @@ module m_helper_functions
   interface imp_reduce_sum
     module procedure imp_reduce_sum_r32, imp_reduce_sum_r64, imp_reduce_sum_r128
   end interface
+
   interface imp_reduce_mean
-    module procedure imp_reduce_mean_1d
+#:for method,dtype,mpitype,otype in [ &
+  ('integer', 'INT32' , 'imp_int4'  , 'ireals'), &
+  ('integer', 'INT64' , 'imp_int8'  , 'ireals'), &
+  ('real'   , 'REAL32', 'imp_REAL32', 'REAL32'), &
+  ('real'   , 'REAL64', 'imp_REAL64', 'REAL64')]
+#:for RANK in range(1, 8)
+    module procedure imp_reduce_mean_${method}$_${dtype}$_${RANK}$d_${otype}$
+#:endfor
+#:endfor
   end interface
+
+  interface imp_min_mean_max
+#:for method,dtype,mpitype,otype in [ &
+  ('integer', 'INT32' , 'imp_int4'  , 'ireals'), &
+  ('integer', 'INT64' , 'imp_int8'  , 'ireals'), &
+  ('real'   , 'REAL32', 'imp_REAL32', 'REAL32'), &
+  ('real'   , 'REAL64', 'imp_REAL64', 'REAL64')]
+#:for RANK in range(1, 8)
+    module procedure imp_min_mean_max_${method}$_${dtype}$_${RANK}$d_${otype}$
+#:endfor
+#:endfor
+  end interface
+
   interface imp_bcast
 #:for method,dtype,mpitype in [ &
   ('logical', ''      , 'imp_logical'), &
@@ -178,6 +201,7 @@ module m_helper_functions
 #:endfor
 #:endfor
   end interface
+
   interface get_arg
     module procedure get_arg_logical, get_arg_i32, get_arg_i64, get_arg_real32, get_arg_real64, get_arg_char
   end interface
@@ -1119,6 +1143,7 @@ module m_helper_functions
       call imp_allreduce_sum(comm, v, r)
       r = r / real(numnodes, kind(r))
     end subroutine
+
 #:for RANK in range(1, 4)
     subroutine imp_allreduce_mean_${RANK}$d(comm,v,r)
       integer(mpiint),intent(in) :: comm
@@ -1177,12 +1202,20 @@ module m_helper_functions
       call imp_reduce_sum(comm, r)
       v = real(r, kind(v))
     end subroutine
-    subroutine imp_reduce_mean_1d(comm,v,r,root)
+
+#:for method,dtype,mpitype,otype in [ &
+  ('integer', 'INT32' , 'imp_int4'  , 'ireals'), &
+  ('integer', 'INT64' , 'imp_int8'  , 'ireals'), &
+  ('real'   , 'REAL32', 'imp_REAL32', 'REAL32'), &
+  ('real'   , 'REAL64', 'imp_REAL64', 'REAL64')]
+#:for RANK in range(1, 8)
+    subroutine imp_reduce_mean_${method}$_${dtype}$_${RANK}$d_${otype}$(comm,v,r,root)
       integer(mpiint),intent(in) :: comm
-      real(ireals),intent(in) :: v(:)
-      real(ireals),intent(out) :: r
+      ${method}$(${dtype}$),intent(in) :: v${ranksuffix(RANK)}$
+      real(${otype}$),intent(out) :: r
       integer(mpiint), intent(in), optional :: root
-      real(ireals) :: my_avg
+
+      real(${otype}$) :: my_avg
       integer(INT64)  :: global_size
       integer(mpiint) ::trgt, ierr, myid
 
@@ -1193,22 +1226,35 @@ module m_helper_functions
       endif
 
       my_avg = meanval(v) * size(v)
-      call mpi_reduce(my_avg, r, 1_mpiint, imp_ireals, MPI_SUM, trgt, comm, ierr); call CHKERR(ierr)
+      call mpi_reduce(my_avg, r, 1_mpiint, ${mpitype}$, MPI_SUM, trgt, comm, ierr); call CHKERR(ierr)
 
       call mpi_reduce(size(v, kind=INT64), global_size, 1_mpiint, imp_int8, MPI_SUM, trgt, comm, ierr); call CHKERR(ierr)
       call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
       if(myid.eq.trgt) r = r / real(global_size, kind(r))
     end subroutine
+#:endfor
+#:endfor
 
-    subroutine imp_min_mean_max(comm, arr, mmm)
+#:for method,dtype,mpitype,otype in [ &
+  ('integer', 'INT32' , 'imp_int4'  , 'ireals'), &
+  ('integer', 'INT64' , 'imp_int8'  , 'ireals'), &
+  ('real'   , 'REAL32', 'imp_REAL32', 'REAL32'), &
+  ('real'   , 'REAL64', 'imp_REAL64', 'REAL64')]
+#:for RANK in range(1, 8)
+    subroutine imp_min_mean_max_${method}$_${dtype}$_${RANK}$d_${otype}$(comm, arr, mmm)
       integer(mpiint), intent(in) :: comm
-      real(ireals), intent(in) :: arr(:)
-      real(ireals), intent(out) :: mmm(:)
+      ${method}$(${dtype}$), intent(in) :: arr${ranksuffix(RANK)}$
+      real(${otype}$), intent(out) :: mmm(:)
+      ${method}$(${otype}$) :: vmin, vmax
       integer(mpiint) :: ierr
-      call mpi_reduce(minval(arr), mmm(1), 1_mpiint, imp_ireals, MPI_MIN, 0_mpiint, comm, ierr); call CHKERR(ierr)
+      vmin = minval(arr)
+      vmax = maxval(arr)
+      call mpi_reduce(vmin, mmm(1), 1_mpiint, ${mpitype}$, MPI_MIN, 0_mpiint, comm, ierr); call CHKERR(ierr)
       call imp_reduce_mean(comm, arr, mmm(2))
-      call mpi_reduce(maxval(arr), mmm(3), 1_mpiint, imp_ireals, MPI_MAX, 0_mpiint, comm, ierr); call CHKERR(ierr)
+      call mpi_reduce(vmax, mmm(3), 1_mpiint, ${mpitype}$, MPI_MAX, 0_mpiint, comm, ierr); call CHKERR(ierr)
     end subroutine
+#:endfor
+#:endfor
 
     subroutine imp_allgather_int_inplace(comm,v)
       integer(mpiint),intent(in) :: comm
