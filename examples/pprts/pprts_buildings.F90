@@ -72,9 +72,9 @@ contains
 
     allocate(buildings%albedo(Nbuildings), buildings%iface(Nbuildings))
 
-    box_k = int((1+Nlay) / 2.)
-    box_i = int((1+Nx  ) / 2.)
-    box_j = int((1+Ny  ) / 2.)
+    box_k = int((1+solver%C_one%zm) / 2.)
+    box_i = int((1+solver%C_one%xm) / 2.)
+    box_j = int((1+solver%C_one%ym) / 2.)
 
     do i=1,6
       buildings%iface(i) = faceidx_by_cell_plus_offset( &
