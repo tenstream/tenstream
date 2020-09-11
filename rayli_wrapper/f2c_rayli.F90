@@ -30,7 +30,7 @@ module m_f2c_rayli
     integer(c_int) function rfft_wedgeF90(&
         Nphotons, Nwedges, Nfaces, Nverts, cyclic, &
         verts_of_face, faces_of_wedges, vert_coords, &
-        kabs, ksca, g, albedo_on_faces, sundir, diffuse_point_origin, &
+        kabs, ksca, g, albedo_on_faces, sundir, &
         flx_through_faces_edir, flx_through_faces_ediff, abso_in_cells) &
         bind(c, name='rfft_wedge')
       use iso_c_binding
@@ -45,7 +45,6 @@ module m_f2c_rayli
       real(c_float ) :: kabs(1:Nwedges), ksca(1:Nwedges), g(1:Nwedges)
       real(c_float) :: albedo_on_faces(1:Nfaces)
       real(c_float) :: sundir(1:3)
-      real(c_float) :: diffuse_point_origin(1:3)
       real(c_float) :: flx_through_faces_edir(1:Nfaces)
       real(c_float) :: flx_through_faces_ediff(1:Nfaces)
       real(c_float) :: abso_in_cells(1:Nwedges)
@@ -85,7 +84,7 @@ contains
   integer(c_int) function rfft_wedgeF90(&
         Nphotons, Nwedges, Nfaces, Nverts, cyclic, &
         verts_of_face, faces_of_wedges, vert_coords, &
-        kabs, ksca, g, albedo_on_faces, sundir, diffuse_point_origin, &
+        kabs, ksca, g, albedo_on_faces, sundir, &
         flx_through_faces_edir, flx_through_faces_ediff, abso_in_cells)
       use iso_c_binding
       integer(c_size_t), value :: Nphotons
@@ -98,7 +97,7 @@ contains
       real(c_double), intent(in) :: vert_coords(:,:)
       real(c_float ), intent(in) :: kabs(:), ksca(:), g(:)
       real(c_float ), intent(in) :: albedo_on_faces(1:Nfaces)
-      real(c_float ), intent(in) :: sundir(:), diffuse_point_origin(:)
+      real(c_float ), intent(in) :: sundir(:)
       real(c_float ), intent(out) :: flx_through_faces_edir(:)
       real(c_float ), intent(out) :: flx_through_faces_ediff(:)
       real(c_float ), intent(out) :: abso_in_cells(:)
@@ -112,7 +111,7 @@ contains
         flx_through_faces_edir(1) = real(Nphotons+Nwedges+Nfaces+Nverts+verts_of_face(1,1)+faces_of_wedges(1,1), c_float) + &
           real(cyclic, c_float)
         flx_through_faces_ediff(1) = real(vert_coords(1,1), c_float) + kabs(1) + ksca(1) + g(1) + sundir(1) + &
-          albedo_on_faces(1) + diffuse_point_origin(1)
+          albedo_on_faces(1)
         abso_in_cells(1) = 0
       endif
     end function

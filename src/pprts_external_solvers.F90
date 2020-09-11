@@ -43,7 +43,10 @@ module m_pprts_external_solvers
   use m_plex2rayli, only: rayli_wrapper
   use m_pprts2plex, only: pprts_buildings_to_plex, find_face_idx_by_orientation, pprts_cell_to_plex_cell_idx
 
-  use m_buildings, only: t_pprts_buildings, t_plex_buildings, &
+  use m_buildings, only: &
+    & t_pprts_buildings, t_plex_buildings, &
+    & init_buildings, &
+    & check_buildings_consistency, &
     & PPRTS_TOP_FACE, &
     & PPRTS_BOT_FACE, &
     & PPRTS_LEFT_FACE, &
@@ -54,6 +57,14 @@ module m_pprts_external_solvers
   public :: twostream, schwarz, pprts_rayli_wrapper, destroy_rayli_info
 
   logical,parameter :: ldebug=.True.
+
+  type t_rayli_info_buildings
+    type(t_pprts_buildings), allocatable :: subcomm_buildings
+    type(t_plex_buildings), allocatable :: plex_buildings
+    integer(iintegers) :: Nglob ! global number of building entries (0 if not a subcomm master)
+    ISLocalToGlobalMapping :: l2g_mapping ! mapping local building entries to global entries TODO check what that means
+    type(tVecScatter) :: ctx_albedo
+  end type
 
   type t_rayli_info
     type(t_state_container) :: plex_solution
@@ -67,7 +78,7 @@ module m_pprts_external_solvers
     type(tVecScatter) :: ctx_ediff
     type(tVecScatter) :: ctx_abso
     type(tVec) :: albedo, kabs, ksca, g
-    type(t_plex_buildings), allocatable :: buildings
+    type(t_rayli_info_buildings) :: buildings_info
   end type
 
   type(t_rayli_info), allocatable :: rayli_info
@@ -101,7 +112,7 @@ contains
     type(t_state_container),intent(in) :: solution
     type(t_rayli_info), allocatable, intent(inout) :: rayli_info
     type(t_pprts_buildings), intent(in), optional :: opt_buildings
-    integer(mpiint) :: numnodes, submyid, ierr
+    integer(mpiint) :: submyid, ierr
 
     integer(iintegers) :: Nhhl, Noptprop
     type(tVec) :: vertex_hhl, hhl
@@ -187,7 +198,7 @@ contains
         call VecRestoreArrayReadF90(hhl, xhhl1d, ierr); call CHKERR(ierr)
 
         call setup_edir_dmplex (rayli_info%plex, rayli_info%plex%dm, solver%dirtop%dof, i1, i1, rayli_info%plex%edir_dm)
-        call setup_ediff_dmplex(rayli_info%plex, rayli_info%plex%dm, solver%difftop%dof/2, i0, i2, rayli_info%plex%ediff_dm)
+        call setup_ediff_dmplex(rayli_info%plex, rayli_info%plex%dm, i1, i1, i2, rayli_info%plex%ediff_dm)
         call setup_abso_dmplex (rayli_info%plex%dm, rayli_info%plex%abso_dm)
 
         call prepare_solution(rayli_info%plex%edir_dm, rayli_info%plex%ediff_dm, rayli_info%plex%abso_dm, &
@@ -214,7 +225,47 @@ contains
     call setup_ediff_scatter_context()
     call setup_abso_scatter_context()
 
+    call setup_buildings_scatter_context(opt_buildings)
   contains
+
+    subroutine setup_buildings_scatter_context(opt_buildings)
+      type(t_pprts_buildings), intent(in), optional :: opt_buildings
+      type(tVec) :: loc_albedo ! a petsc vec version of buildings%albedo
+      type(tVec) :: albedo ! tmp vec to generate scatter context
+      integer(iintegers) :: nlocal, iStart
+      type(tIS) :: is_in
+      type(tIS) :: is_out
+      integer(mpiint) :: numnodes, ierr
+
+      if(.not.present(opt_buildings)) return
+
+      call mpi_comm_size(solver%comm, numnodes, ierr); call CHKERR(ierr)
+      associate( B => opt_buildings, BI => rayli_info%buildings_info )
+        nlocal = size(B%iface)
+        call VecCreateMPIWithArray(solver%comm, i1, nlocal, PETSC_DECIDE, B%albedo, &
+          & loc_albedo, ierr); call CHKERR(ierr)
+        call VecGetOwnershipRange(loc_albedo, iStart, PETSC_NULL_INTEGER, ierr); call CHKERR(ierr)
+        call PetscObjectViewFromOptions(loc_albedo, PETSC_NULL_VEC, &
+          & '-show_rayli_buildings_loc_vec', ierr); call CHKERR(ierr)
+
+        if(submyid.eq.0) then
+          call VecGetSize(loc_albedo, BI%Nglob, ierr); call CHKERR(ierr)
+        else
+          BI%Nglob = 0
+        endif
+
+        call VecCreateSeq(PETSC_COMM_SELF, BI%Nglob, albedo, ierr); call CHKERR(ierr)
+        call ISCreateStride(PETSC_COMM_SELF, BI%Nglob, iStart, 1_iintegers, is_in, ierr); call CHKERR(ierr)
+        call ISCreateStride(PETSC_COMM_SELF, BI%Nglob, 0_iintegers, 1_iintegers, is_out, ierr); call CHKERR(ierr)
+        call gen_shared_scatter_ctx(loc_albedo, albedo, BI%ctx_albedo, ierr, &
+          & is_in, is_out); call CHKERR(ierr)
+        call ISDestroy(is_out, ierr); call CHKERR(ierr)
+        call ISDestroy(is_in, ierr); call CHKERR(ierr)
+
+        call VecDestroy(loc_albedo, ierr); call CHKERR(ierr)
+        call VecDestroy(albedo, ierr); call CHKERR(ierr)
+      end associate
+    end subroutine
 
     subroutine setup_albedo_scatter_context()
       integer(iintegers) :: Nalbedo, i, k
@@ -237,12 +288,6 @@ contains
       call ISDestroy(is_in, ierr); call CHKERR(ierr)
       deallocate(is_data)
       call DMRestoreGlobalVector(solver%Csrfc_one%da, vec_albedo, ierr); call CHKERR(ierr)
-
-      if(present(opt_buildings)) then
-        call mpi_comm_rank(solver%comm, numnodes, ierr); call CHKERR(ierr)
-        if(numnodes.gt.1) call CHKERR(1_mpiint, 'TODO: mpi parallel rayli with buildings not yet implemented')
-        ! because scatter contexts for buildings datastructs are missing
-      endif
 
       ! Setup optprop_scatter_ctx
       call DMGetGlobalVector(solver%C_one_atm%da, vec_optprop, ierr); call CHKERR(ierr)
@@ -274,7 +319,7 @@ contains
     end subroutine
 
     subroutine setup_edir_scatter_context()
-      integer(iintegers) :: Nedir, i1d, k, kk, i, j, l, m, iface, numDof, voff
+      integer(iintegers) :: i1d, k, kk, i, j, l, m, iface, numDof, voff
       integer(iintegers) :: pprts_offsets(4), plex_cells(2)
 
       type(tPetscSection) :: edirsection
@@ -284,21 +329,17 @@ contains
       integer(iintegers), allocatable :: is_data_out(:)
 
       associate( ri => rayli_info, Cdir => solver%C_dir, C1 => solver%C_one )
-        if(submyid.eq.0) then
-          ! Fluxes that need to be scattered are: all dof inside the domain plus one extra for the surface fluxes
-          Nedir = Cdir%dof*C1%glob_xm*C1%glob_ym*C1%glob_zm &
-            & + C1%glob_xm*C1%glob_ym
-          !Nedir = Cdir%glob_xm*Cdir%glob_ym*Cdir%glob_zm
-        else
-          Nedir = 0
-        endif
 
-        is_data_size = Cdir%glob_zm * Cdir%glob_xm * Cdir%glob_ym * i2 & ! all horizontal fluxes twice
-          & + C1%glob_zm * C1%glob_xm * C1%glob_ym * i2 ! plus fluxes on vertical faces once for x and y
+        if(submyid.eq.0) then
+          is_data_size = Cdir%glob_zm * Cdir%glob_xm * Cdir%glob_ym * i2 & ! all horizontal fluxes twice
+            & + C1%glob_zm * C1%glob_xm * C1%glob_ym * i2 ! plus fluxes on vertical faces once for x and y
+        else
+          is_data_size = 0
+        endif
         allocate(is_data_in (0:is_data_size-1))
         allocate(is_data_out(0:is_data_size-1))
-        is_data_in = -1
-        is_data_out= -1
+        is_data_in (:) = -1
+        is_data_out(:) = -1
 
         if(submyid.eq.0) then
           ! First do it for all the main dofs
@@ -381,7 +422,9 @@ contains
           enddo
         endif
 
-        is_data_size = count(is_data_in.ge.0)
+        ierr = int(count(is_data_in.ge.0) - is_data_size, mpiint)
+        call CHKERR(ierr, 'wrong number of scattered dof, did we forget something?')
+        !is_data_size = count(is_data_in.ge.0)
 
         call ISCreateGeneral(PETSC_COMM_SELF, is_data_size, is_data_in, PETSC_USE_POINTER, is_in, ierr); call CHKERR(ierr)
         call ISCreateGeneral(PETSC_COMM_SELF, is_data_size, is_data_out, PETSC_USE_POINTER, is_out, ierr); call CHKERR(ierr)
@@ -395,61 +438,145 @@ contains
     end subroutine
 
     subroutine setup_ediff_scatter_context()
-      integer(iintegers) :: Nediff, i, k, kk, voff, off_plex(2), idof
+      integer(iintegers) :: i, j, k, kk, voff, idof, i1d, iface, l, m
+      integer(iintegers) :: pprts_offsets(4), plex_cells(2)
+      type(tPetscSection) :: ediffsection
       type(tIS) :: is_in, is_out
-      integer(iintegers), allocatable :: is_data(:)
+      integer(iintegers) :: is_data_size
+      integer(iintegers), allocatable :: is_data_in(:)
+      integer(iintegers), allocatable :: is_data_out(:)
 
-      if(submyid.eq.0) then
-        Nediff = solver%C_diff%glob_xm*solver%C_diff%glob_ym*solver%C_diff%glob_zm*i2
-      else
-        Nediff = 0
-      endif
-      allocate(is_data(i0:Nediff*i2-i1))
-      if(submyid.eq.0) then
-        do i = i0, solver%C_diff%glob_xm*solver%C_diff%glob_ym-i1
-          do k = i0, solver%C_diff%glob_zm-i2
-            kk = atmk(solver%atm,k)
-            voff = i*solver%C_diff%glob_zm*solver%C_diff%dof + k*solver%C_diff%dof
+      associate( ri => rayli_info, Cdiff => solver%C_diff, C1 => solver%C_one )
+        if(submyid.eq.0) then
+          is_data_size = Cdiff%glob_zm * Cdiff%glob_xm * Cdiff%glob_ym * solver%difftop%dof * i2 & ! all horizontal fluxes
+            & + C1%glob_zm * C1%glob_xm * C1%glob_ym * solver%diffside%dof * i2 ! plus fluxes on vertical faces once for x and y
+        else
+          is_data_size = 0
+        endif
 
-            off_plex(1) = (i*i2   ) * solver%C_one_atm1%glob_zm * i2  + kk   * i2
-            off_plex(2) = (i*i2+i1) * solver%C_one_atm1%glob_zm * i2  + kk   * i2
+        allocate(is_data_in (0:is_data_size-1))
+        allocate(is_data_out(0:is_data_size-1))
+        is_data_in = -1
+        is_data_out= -1
+        if(submyid.eq.0) then
+          ! First do it for all the main dofs
+          call ndarray_offsets(      &
+            &[Cdiff%dof,      &
+            & Cdiff%glob_zm,  &
+            & Cdiff%glob_xm,  &
+            & Cdiff%glob_ym], &
+            & pprts_offsets          )
 
-            do idof = i0, i1
-              if(solver%difftop%is_inward(i1+idof)) then ! edn
-                is_data(off_plex(1)) = voff+idof
-                is_data(off_plex(2)) = voff+idof
-              else
-                is_data(off_plex(1)+i1) = voff+idof
-                is_data(off_plex(2)+i1) = voff+idof
-              endif
+          call DMGetSection(ri%plex%ediff_dm, ediffsection, ierr); call CHKERR(ierr)
+
+          l=0
+          do j = 0, Cdiff%glob_ym-1
+            do i = 0, Cdiff%glob_xm-1
+              do k = 0, Cdiff%glob_zm-2
+                kk = atmk(solver%atm,k)
+                call pprts_cell_to_plex_cell_idx(solver%C_one_atm, [kk,i,j], ri%plex, plex_cells, ierr); call CHKERR(ierr)
+
+                ! on top faces:
+                do idof = 0, solver%difftop%dof-1
+                  i1d = ind_nd_to_1d(pprts_offsets, [idof, k, i, j], cstyle=.True.) ! i1d points to dof on pprts topface
+                  do m = 1, 2
+                    iface = find_face_idx_by_orientation(ri%plex, plex_cells(m), PPRTS_TOP_FACE)
+                    if(iface.ge.0) then ! have a top face
+                      call PetscSectionGetFieldOffset(ediffsection, iface, i0, voff, ierr); call CHKERR(ierr)
+                      if(solver%difftop%is_inward(i1+idof)) then ! in pprts: edn
+                        is_data_in(l) = i1d
+                        is_data_out(l) = voff
+                      else
+                        is_data_in(l) = i1d
+                        is_data_out(l) = voff+1
+                      endif
+                      l = l+1
+                    endif
+                  enddo
+                enddo
+
+                !! on x-side faces:
+                do idof = 0, solver%diffside%dof-1
+                  ! i1d points to dof on pprts sideface
+                  i1d = ind_nd_to_1d(pprts_offsets, [solver%difftop%dof+idof, k, i, j], cstyle=.True.)
+                  do m = 1, 2
+                    iface = find_face_idx_by_orientation(ri%plex, plex_cells(m), PPRTS_LEFT_FACE)
+                    if(iface.ge.0) then ! have a left face
+                      call PetscSectionGetFieldOffset(ediffsection, iface, i1, voff, ierr); call CHKERR(ierr)
+                      if(solver%diffside%is_inward(i1+idof)) then ! in pprts: e_right
+                        is_data_in(l) = i1d
+                        is_data_out(l) = voff
+                      else
+                        is_data_in(l) = i1d
+                        is_data_out(l) = voff+1
+                      endif
+                      l = l+1
+                    endif
+                  enddo
+                enddo
+
+                !! on y-side faces:
+                do idof = 0, solver%diffside%dof-1
+                  ! i1d points to dof on pprts sideface
+                  i1d = ind_nd_to_1d(pprts_offsets, &
+                    & [solver%difftop%dof+solver%diffside%dof+idof, k, i, j], cstyle=.True.)
+                  do m = 1, 2
+                    iface = find_face_idx_by_orientation(ri%plex, plex_cells(m), PPRTS_REAR_FACE)
+                    if(iface.ge.0) then ! have a rear face
+                      call PetscSectionGetFieldOffset(ediffsection, iface, i1, voff, ierr); call CHKERR(ierr)
+                      if(solver%diffside%is_inward(i1+idof)) then ! in pprts: e_forward
+                        is_data_in(l) = i1d
+                        is_data_out(l) = voff
+                      else
+                        is_data_in(l) = i1d
+                        is_data_out(l) = voff+1
+                      endif
+                      l = l+1
+                    endif
+                  enddo
+                enddo
+
+              enddo
+
+              ! and at the surface
+              k = Cdiff%glob_zm-1
+              call pprts_cell_to_plex_cell_idx(C1, [k-1,i,j], ri%plex, plex_cells, ierr); call CHKERR(ierr)
+              do idof = 0, solver%difftop%dof-1
+                ! on top faces:
+                i1d = ind_nd_to_1d(pprts_offsets, [idof, k, i, j], cstyle=.True.)
+                do m = 1, 2
+                  iface = find_face_idx_by_orientation(ri%plex, plex_cells(m), PPRTS_BOT_FACE)
+                  if(iface.ge.0) then
+                    call PetscSectionGetFieldOffset(ediffsection, iface, i0, voff, ierr); call CHKERR(ierr)
+                    is_data_in(l) = i1d
+                    if(solver%difftop%is_inward(i1+idof)) then ! in pprts: edn
+                      is_data_out(l) = voff+1
+                    else
+                      is_data_out(l) = voff
+                    endif
+                    l = l+1
+                  endif
+                enddo
+              enddo
             enddo
           enddo
-          ! at the surface reversed inout dof (see details in plex_grid)
-          kk = atmk(solver%atm,k)
-          voff = i*solver%C_diff%glob_zm*solver%C_diff%dof + k*solver%C_diff%dof
+        endif
 
-          off_plex(1) = (i*i2   ) * solver%C_one_atm1%glob_zm * i2  + kk   * i2
-          off_plex(2) = (i*i2+i1) * solver%C_one_atm1%glob_zm * i2  + kk   * i2
+        ierr = int(count(is_data_in.ge.0) - is_data_size, mpiint)
+        call CHKERR(ierr, 'wrong number of scattered dof, did we forget something?')
+        !is_data_size = count(is_data_in.ge.0)
 
-          do idof = i0, i1
-            if(solver%difftop%is_inward(i1+idof)) then ! edn
-              is_data(off_plex(1)+i1) = voff+idof
-              is_data(off_plex(2)+i1) = voff+idof
-            else
-              is_data(off_plex(1)) = voff+idof
-              is_data(off_plex(2)) = voff+idof
-            endif
-          enddo
-        enddo
-      endif
-      call ISCreateGeneral(PETSC_COMM_SELF, Nediff*i2, is_data, PETSC_USE_POINTER, is_in, ierr); call CHKERR(ierr)
-      call ISCreateStride(PETSC_COMM_SELF, Nediff*i2, 0_iintegers, 1_iintegers, is_out, ierr); call CHKERR(ierr)
-      call PetscObjectViewFromOptions(is_in , PETSC_NULL_IS, '-show_rayli_iss', ierr); call CHKERR(ierr)
-      call PetscObjectViewFromOptions(is_out, PETSC_NULL_IS, '-show_rayli_iss', ierr); call CHKERR(ierr)
-      call gen_shared_scatter_ctx(solution%ediff, rayli_info%plex_solution%ediff, rayli_info%ctx_ediff, ierr, &
-        & is_in, is_out); call CHKERR(ierr)
-      call ISDestroy(is_out, ierr); call CHKERR(ierr)
-      call ISDestroy(is_in, ierr); call CHKERR(ierr)
+        call ISCreateGeneral(PETSC_COMM_SELF, is_data_size, is_data_in, PETSC_USE_POINTER, is_in, ierr); call CHKERR(ierr)
+        call PetscObjectSetName(is_in, "rayli_diff_iss_pprts_idx", ierr); call CHKERR(ierr)
+        call ISCreateGeneral(PETSC_COMM_SELF, is_data_size, is_data_out, PETSC_USE_POINTER, is_out, ierr); call CHKERR(ierr)
+        call PetscObjectSetName(is_out, "rayli_diff_iss_plex_idx", ierr); call CHKERR(ierr)
+        call PetscObjectViewFromOptions(is_in , PETSC_NULL_IS, '-show_rayli_diff_iss', ierr); call CHKERR(ierr)
+        call PetscObjectViewFromOptions(is_out, PETSC_NULL_IS, '-show_rayli_diff_iss', ierr); call CHKERR(ierr)
+        call gen_shared_scatter_ctx(solution%ediff, rayli_info%plex_solution%ediff, rayli_info%ctx_ediff, ierr, &
+          & is_in, is_out); call CHKERR(ierr)
+        call ISDestroy(is_out, ierr); call CHKERR(ierr)
+        call ISDestroy(is_in, ierr); call CHKERR(ierr)
+      end associate
     end subroutine
 
     subroutine setup_abso_scatter_context()
@@ -551,9 +678,22 @@ contains
           call DMRestoreGlobalVector(Cs%da, glob_albedo, ierr); call CHKERR(ierr)
 
           if(present(opt_buildings)) then
-            call pprts_buildings_to_plex(ri%plex, opt_buildings, ri%buildings, ierr); call CHKERR(ierr)
+            ! Create a pprts buildings object on each subcomm
+            call local_buildings_to_subcomm_buildings(&
+              & opt_buildings, &
+              & ri%buildings_info, &
+              & ri%buildings_info%subcomm_buildings, &
+              & ierr); call CHKERR(ierr)
+
+            ! Then build a plex_buildings object out of that one
+            if(submyid.eq.0) then
+              call pprts_buildings_to_plex(ri%plex, &
+                & ri%buildings_info%subcomm_buildings, &
+                & ri%buildings_info%plex_buildings, ierr); call CHKERR(ierr)
+            endif
           else
-            if(allocated(ri%buildings)) deallocate(ri%buildings)
+            if(allocated(ri%buildings_info%plex_buildings)) deallocate(ri%buildings_info%plex_buildings)
+            if(allocated(ri%buildings_info%subcomm_buildings)) deallocate(ri%buildings_info%subcomm_buildings)
           endif
 
           call DMGetGlobalVector(Ca%da, glob_kabs, ierr); call CHKERR(ierr)
@@ -580,6 +720,69 @@ contains
           call PetscObjectViewFromOptions(rayli_info%albedo, PETSC_NULL_VEC, '-show_rayli_albedo', ierr); call CHKERR(ierr)
         end associate
         call PetscLogEventEnd(log_event, ierr); call CHKERR(ierr)
+      end subroutine
+
+      subroutine local_buildings_to_subcomm_buildings( localB, B_info, subB, ierr)
+        type(t_pprts_buildings), intent(in) :: localB
+        type(t_rayli_info_buildings), intent(in) :: B_info
+        type(t_pprts_buildings), allocatable, intent(inout) :: subB
+        type(tVec) :: vlocal, vsub
+        real(ireals), allocatable :: glob_idx(:), sub_idx(:)
+        integer(iintegers) :: m, global_da_offsets(4), idx(4), nlocal
+        integer(mpiint), intent(out) :: ierr
+        ierr = 0
+
+        call init_buildings(subB, &
+          & [6_iintegers, solver%C_one%glob_zm, solver%C_one%glob_xm, solver%C_one%glob_ym], &
+          & ierr); call CHKERR(ierr)
+        if(.not.allocated(subB%iface))     allocate(subB%iface(B_info%Nglob))
+        if(.not.allocated(subB%albedo))    allocate(subB%albedo(B_info%Nglob))
+
+        nlocal = size(localB%iface)
+
+        ! Setup Albedo
+        call VecCreateMPIWithArray(solver%comm, i1, &
+          & nlocal, PETSC_DECIDE, localB%albedo, &
+          & vlocal, ierr); call CHKERR(ierr)
+
+        call VecCreateSeqWithArray(PETSC_COMM_SELF, i1, B_info%Nglob, subB%albedo, vsub, ierr); call CHKERR(ierr)
+        call VecScatterBegin(B_info%ctx_albedo, vlocal, vsub, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
+        call VecScatterEnd  (B_info%ctx_albedo, vlocal, vsub, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
+
+        call PetscObjectViewFromOptions(vsub, PETSC_NULL_VEC, '-show_rayli_buildings_albedo', ierr); call CHKERR(ierr)
+        call VecDestroy(vlocal, ierr); call CHKERR(ierr)
+        call VecDestroy(vsub, ierr); call CHKERR(ierr)
+
+        ! Setup buildings faces
+        ! i.e. find out what the face idx of buildings would be with global offsets
+        call ndarray_offsets( &
+          & [6_iintegers, solver%C_one%glob_zm, solver%C_one%glob_xm, solver%C_one%glob_ym], &
+          & global_da_offsets)
+        allocate(glob_idx(nlocal), sub_idx(B_info%Nglob))
+        do m = 1, nlocal
+          call ind_1d_to_nd(localB%da_offsets, localB%iface(m), idx)
+          associate(d => idx(1), k => idx(2), i => idx(3), j => idx(4))
+            glob_idx(m) = real( &
+              & ind_nd_to_1d(global_da_offsets, &
+                & [d, solver%C_one%zs+k, solver%C_one%xs+i, solver%C_one%ys+j]), &
+              & ireals)
+          end associate
+        enddo
+        call VecCreateMPIWithArray(solver%comm, i1, &
+          & nlocal, PETSC_DECIDE, glob_idx, &
+          & vlocal, ierr); call CHKERR(ierr)
+
+        call VecCreateSeqWithArray(PETSC_COMM_SELF, i1, B_info%Nglob, sub_idx, vsub, ierr); call CHKERR(ierr)
+        call VecScatterBegin(B_info%ctx_albedo, vlocal, vsub, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
+        call VecScatterEnd  (B_info%ctx_albedo, vlocal, vsub, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
+        subB%iface(:) = int(sub_idx(:), kind=iintegers)
+
+        call PetscObjectViewFromOptions(vsub, PETSC_NULL_VEC, '-show_rayli_buildings_iface', ierr); call CHKERR(ierr)
+        call VecDestroy(vlocal, ierr); call CHKERR(ierr)
+        call VecDestroy(vsub, ierr); call CHKERR(ierr)
+
+        call check_buildings_consistency(subB, &
+          & solver%C_one%glob_zm, solver%C_one%glob_xm, solver%C_one%glob_ym, ierr); call CHKERR(ierr)
       end subroutine
 
       subroutine call_solver(plex_solution)
@@ -616,7 +819,7 @@ contains
                 ri%plex, ri%kabs, ri%ksca, ri%g, ri%albedo, &
                 & sundir, plex_solution, &
                 & nr_photons=Nphotons, petsc_log=solver%logs%rayli_tracing, &
-                & opt_buildings=ri%buildings)
+                & opt_buildings=ri%buildings_info%plex_buildings)
             else
               call rayli_wrapper(lcall_solver, lcall_snap, &
                 ri%plex, ri%kabs, ri%ksca, ri%g, ri%albedo, &

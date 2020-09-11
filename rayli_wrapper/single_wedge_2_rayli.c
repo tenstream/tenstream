@@ -19,7 +19,6 @@ int main() {
     float  *kabs, *ksca, *g, *albedo;
     float *flx_through_faces_edir, *flx_through_faces_ediff, *abso_in_cells;
     float sundir[] = {0,1/sqrt(2.),1/sqrt(2.)}; // vec towards the sun
-    float diffuse_point_origin[] = {0.,0.,-1e30};
 
     kabs = malloc(Nwedges*sizeof(float)); VecSet(Nwedges, kabs, 0e-0);
     ksca = malloc(Nwedges*sizeof(float)); VecSet(Nwedges, ksca, 0e-0);
@@ -54,7 +53,7 @@ int main() {
     ierr = rfft_wedge(Nphotons, Nwedges, Nfaces, Nverts, cyclic,
             verts_of_face, faces_of_wedges, vert_coords,
             kabs, ksca, g, albedo,
-            sundir, diffuse_point_origin,
+            sundir,
             flx_through_faces_edir,
             flx_through_faces_ediff,
             abso_in_cells);

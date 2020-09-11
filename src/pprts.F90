@@ -4825,6 +4825,7 @@ end subroutine
 
     subroutine fill_buildings
       integer(iintegers) :: m, idx(4), dof_offset, idof
+      type(tVec) :: ledir, lediff
 
       associate(                               &
           & solution => solver%solutions(uid), &
@@ -4834,7 +4835,11 @@ end subroutine
         if(solution%lsolar_rad) then
           if(.not.allocated(B%edir)) allocate(B%edir(size(B%iface)))
 
-          call getVecPointer(solution%edir, C%da, x1d, x4d)
+          call DMGetLocalVector(C%da, ledir, ierr); call CHKERR(ierr)
+          call DMGlobalToLocalBegin(C%da, solution%edir, INSERT_VALUES, ledir, ierr) ;call CHKERR(ierr)
+          call DMGlobalToLocalEnd  (C%da, solution%edir, INSERT_VALUES, ledir, ierr) ;call CHKERR(ierr)
+
+          call getVecPointer(ledir, C%da, x1d, x4d, readonly=.True.)
           ! average of direct radiation of all fluxes through top faces
           !redir = sum(x4d(0:solver%dirtop%dof-1, :, :, :), dim=1) / real(solver%dirtop%area_divider, ireals)
 
@@ -4875,7 +4880,8 @@ end subroutine
             end associate
           enddo
 
-          call restoreVecPointer(solution%edir, x1d, x4d)
+          call restoreVecPointer(ledir, x1d, x4d, readonly=.True.)
+          call DMRestoreLocalVector(C%da, ledir, ierr); call CHKERR(ierr)
         endif
       end associate
 
@@ -4887,7 +4893,10 @@ end subroutine
         if(.not.allocated(B%incoming)) allocate(B%incoming(size(B%iface)))
         if(.not.allocated(B%outgoing)) allocate(B%outgoing(size(B%iface)))
 
-        call getVecPointer(solution%ediff, C%da, x1d, x4d)
+        call DMGetLocalVector(C%da, lediff, ierr); call CHKERR(ierr)
+        call DMGlobalToLocalBegin(C%da, solution%ediff, INSERT_VALUES, lediff, ierr) ;call CHKERR(ierr)
+        call DMGlobalToLocalEnd  (C%da, solution%ediff, INSERT_VALUES, lediff, ierr) ;call CHKERR(ierr)
+        call getVecPointer(lediff, C%da, x1d, x4d, readonly=.True.)
 
         do m = 1, size(B%iface)
           call ind_1d_to_nd(B%da_offsets, B%iface(m), idx)
@@ -4914,9 +4923,9 @@ end subroutine
             case(PPRTS_BOT_FACE)
               do idof = 0, solver%difftop%dof-1
                 if(solver%difftop%is_inward(i1+idof)) then ! e_down
-                  B%incoming(m) = B%incoming(m) + x4d(idof, k+1, i, j)
-                else
                   B%outgoing(m) = B%outgoing(m) + x4d(idof, k+1, i, j)
+                else
+                  B%incoming(m) = B%incoming(m) + x4d(idof, k+1, i, j)
                 endif
               enddo
               B%incoming(m) = B%incoming(m) / real(solver%difftop%area_divider, ireals)
@@ -4976,7 +4985,8 @@ end subroutine
           end associate
         enddo
 
-        call restoreVecPointer(solution%ediff, x1d, x4d)
+        call restoreVecPointer(solution%ediff, x1d, x4d, readonly=.True.)
+        call DMRestoreLocalVector(C%da, lediff, ierr); call CHKERR(ierr)
       end associate
     end subroutine
   end subroutine

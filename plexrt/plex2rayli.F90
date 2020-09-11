@@ -6,7 +6,8 @@ module m_plex2rayli
   use m_data_parameters, only: ireals, iintegers, mpiint, &
     i0, i1, i2, i3, i8, zero, one, default_str_len
 
-  use m_helper_functions, only: CHKERR, deg2rad, get_arg, toStr
+  use m_helper_functions, only: CHKERR, deg2rad, get_arg, toStr, &
+    & determine_normal_direction
 
   use m_netcdfio, only: ncwrite
 
@@ -249,7 +250,7 @@ module m_plex2rayli
     integer(mpiint) :: comm, myid, numnodes, ierr
 
     integer(iintegers) :: fStart, fEnd, cStart, cEnd, vStart, vEnd
-    integer(iintegers) :: icell, iface, ivert, voff, idof
+    integer(iintegers) :: icell, iface, ivert, voff
     integer(iintegers), pointer :: trans_closure(:), faces_of_cell(:)
 
     type(tVec) :: coordinates
@@ -266,7 +267,6 @@ module m_plex2rayli
     real(c_float),     allocatable :: flx_through_faces_ediff(:)
     real(c_float),     allocatable :: abso_in_cells(:)
 
-    real(ireals) :: diffuse_point_origin(3)
     integer(c_size_t) :: Nphotons, Nwedges, Nfaces, Nverts
     integer(iintegers) :: opt_photons_int
     real(ireals) :: opt_photons
@@ -295,11 +295,6 @@ module m_plex2rayli
     if(present(plck).or.lthermal) &
       call CHKERR(1_mpiint, "You provided planck stuff, I guess you want to use thermal radiation computations."// &
                             "However, Rayli currently only supports solar radiation.")
-
-    diffuse_point_origin = 0; idof=3
-    call PetscOptionsGetRealArray(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-      '-rayli_diff_flx_origin',diffuse_point_origin, idof, lflg, ierr); call CHKERR(ierr)
-    if(lflg) call CHKERR(int(idof-i3, mpiint), 'must provide exactly 3 values for rayli_diff_flx_origin')
 
     lcyclic=.False.
     call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
@@ -402,7 +397,7 @@ module m_plex2rayli
       ierr = rfft_wedgeF90(Nphotons, Nwedges, Nfaces, Nverts, icyclic, &
         verts_of_face, faces_of_wedges, vert_coords, &
         rkabs, rksca, rg, &
-        ralbedo_on_faces, rsundir, real(diffuse_point_origin, c_float), &
+        ralbedo_on_faces, rsundir, &
         flx_through_faces_edir, flx_through_faces_ediff, abso_in_cells ); call CHKERR(ierr)
       if(present(petsc_log)) then
         call PetscLogEventEnd(petsc_log, ierr); call CHKERR(ierr)
@@ -435,28 +430,33 @@ module m_plex2rayli
       type(t_state_container), intent(inout) :: solution
 
       type(tIS) :: toa_ids
-      integer(iintegers) :: i, k, ke1, Ncol, ridx, numDof, geom_offset
-      integer(iintegers) :: icell, iface, idof, voff
-      integer(iintegers) :: ofStart, ofEnd, cStart, cEnd
-      integer(iintegers), pointer :: xtoa_faces(:)
+      integer(iintegers) :: Ncol, ridx, numFields, numDof, geom_offset
+      integer(iintegers) :: icell, iface, ifield, idof, voff, voff0, voff1, orientation
+      integer(iintegers) :: fStart, fEnd, cStart, cEnd
+      integer(iintegers), pointer :: cells_of_face(:)
       real(ireals), pointer :: xedir(:), xediff(:), xabso(:), geoms(:)
+      real(ireals), pointer :: face_normal(:), face_center(:), cell_center(:)
       type(tPetscSection) :: edir_section, ediff_section, abso_section, geomSection
       integer(mpiint) :: ierr
+
+      do icell = 1, size(flx_through_faces_ediff)
+        print *,'flx_through_faces_ediff', icell, flx_through_faces_ediff(icell)
+      enddo
 
       call DMGetSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
       call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
       ! --------------------------- Direct Radiation ------------------
-      call DMPlexGetDepthStratum(plex%dm, i2, ofStart, ofEnd, ierr); call CHKERR(ierr)
+      call DMPlexGetDepthStratum(plex%dm, i2, fStart, fEnd, ierr); call CHKERR(ierr)
       if(solution%lsolar_rad) then
         call DMGetSection(plex%edir_dm, edir_section, ierr); call CHKERR(ierr)
         call VecGetArrayF90(solution%edir, xedir, ierr); call CHKERR(ierr)
-        do iface = ofStart, ofEnd-1
+        do iface = fStart, fEnd-1
 
           call PetscSectionGetOffset(edir_section, iface, voff, ierr); call CHKERR(ierr)
           call PetscSectionGetDof(edir_section, iface, numDof, ierr); call CHKERR(ierr)
           do idof = 1, numDof
-            xedir(voff+idof) = real(abs(flx_through_faces_edir(iface-ofStart+1)), ireals)
+            xedir(voff+idof) = real(abs(flx_through_faces_edir(iface-fStart+1)), ireals)
           enddo
         enddo
         call VecRestoreArrayF90(solution%edir, xedir, ierr); call CHKERR(ierr)
@@ -470,30 +470,39 @@ module m_plex2rayli
         TOAFACE, toa_ids, ierr); call CHKERR(ierr)
       call ISGetSize(toa_ids, Ncol, ierr); call CHKERR(ierr)
 
-      ke1 = plex%Nlay+1
+      call PetscSectionGetNumFields(ediff_section, numFields, ierr); call CHKERR(ierr)
+      do iface = fStart, fEnd-1
+        call DMPlexGetSupport(plex%ediff_dm, iface, cells_of_face, ierr); call CHKERR(ierr)
+        icell = maxval(cells_of_face)
 
-      call ISGetIndicesF90(toa_ids, xtoa_faces, ierr); call CHKERR(ierr)
-      ridx=1
-      do i = 1, size(xtoa_faces)
-        iface = xtoa_faces(i)
-        do k = 0, ke1-2
-          call PetscSectionGetFieldOffset(ediff_section, iface+k, i0, voff, ierr); call CHKERR(ierr)
+        call PetscSectionGetFieldOffset(geomSection, icell, i0, voff0, ierr); call CHKERR(ierr)
+        cell_center => geoms(voff0+i1: voff0+i3)
 
-          xediff(i1+voff) = real(abs( flx_through_faces_ediff(ridx  ) ), ireals)
-          xediff(i2+voff) = real(abs( flx_through_faces_ediff(ridx+1) ), ireals)
+        call PetscSectionGetFieldOffset(geomSection, iface, i0, voff0, ierr); call CHKERR(ierr)
+        call PetscSectionGetFieldOffset(geomSection, iface, i1, voff1, ierr); call CHKERR(ierr)
+        face_center => geoms(voff0+i1: voff0+i3)
+        face_normal => geoms(voff1+i1: voff1+i3)
 
-          ridx = ridx+2
-        enddo
+        orientation = determine_normal_direction(face_normal, face_center, cell_center)
+        ridx = i1 + 2*(iface - fStart)
 
-        ! at the surface, the ordering of incoming/outgoing fluxes is reversed because of cellid_surface == -1
-        call PetscSectionGetFieldOffset(ediff_section, iface+ke1-1, i0, voff, ierr); call CHKERR(ierr)
-
-        xediff(i2+voff) = real(abs( flx_through_faces_ediff(ridx  ) ), ireals)
-        xediff(i1+voff) = real(abs( flx_through_faces_ediff(ridx+1) ), ireals)
-        ridx = ridx+2
+        do ifield = 0, numFields-1
+          call PetscSectionGetFieldOffset(ediff_section, iface, ifield, voff, ierr); call CHKERR(ierr)
+          call PetscSectionGetFieldDof(ediff_section, iface, ifield, numDof, ierr); call CHKERR(ierr)
+          !print *,'icell', icell, 'iface', iface, 'ifield', ifield, 'ndof', numDof, 'voff', voff, voff+1, 'ridx', ridx, ridx+1
+          if(numDof.eq.2) then
+            if(orientation.lt.i0) then
+              xediff(i1+voff) = real(abs( flx_through_faces_ediff(ridx  ) ), ireals)
+              xediff(i2+voff) = real(abs( flx_through_faces_ediff(ridx+1) ), ireals)
+            else
+              xediff(i2+voff) = real(abs( flx_through_faces_ediff(ridx  ) ), ireals)
+              xediff(i1+voff) = real(abs( flx_through_faces_ediff(ridx+1) ), ireals)
+            endif
+          else
+            !call CHKWARN(1_mpiint, 'DEBUG '//toStr(numDof))
+          endif
+        enddo ! fields
       enddo
-
-      call ISRestoreIndicesF90(toa_ids, xtoa_faces, ierr); call CHKERR(ierr)
       call VecRestoreArrayF90(solution%ediff, xediff, ierr); call CHKERR(ierr)
 
       ! --------------------------- Absorption ------------------------
