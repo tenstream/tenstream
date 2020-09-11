@@ -384,6 +384,7 @@ if(CTAGS_PATH)
       ${CMAKE_CURRENT_SOURCE_DIR}/python
       ${CMAKE_CURRENT_SOURCE_DIR}/tests
       ${CMAKE_CURRENT_SOURCE_DIR}/twomax
+      ${CMAKE_CURRENT_BINARY_DIR}/external
       WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
         COMMENT "Creating ctags" VERBATIM
         )
