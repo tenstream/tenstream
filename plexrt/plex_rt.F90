@@ -540,7 +540,7 @@ module m_plex_rt
 
       if(.not.solver%solutions(suid)%lset) then
         call prepare_solution(solver%plex%edir_dm, solver%plex%ediff_dm, solver%plex%abso_dm, &
-          lsolar=lsolar, solution=solver%solutions(suid), uid=suid)
+          lsolar=lsolar, lthermal=lthermal, solution=solver%solutions(suid), uid=suid)
       endif
 
       lvacuum_domain_boundary=.False.

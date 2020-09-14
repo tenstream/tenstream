@@ -75,9 +75,10 @@ module m_pprts_base
     integer(iintegers)  :: uid ! dirty hack to give the solution a unique hash for example to write it out to disk -- this should be the same as the index in global solutions array
     type(tVec), allocatable    :: edir,ediff,abso
 
-    logical             :: lset        = .False. ! initialized?
-    logical             :: lsolar_rad  = .False. ! direct radiation calculated?
-    logical             :: lchanged    = .True.  ! did the flux change recently? -- call restore_solution to bring it in a coherent state
+    logical             :: lset         = .False. ! initialized?
+    logical             :: lsolar_rad   = .False. ! direct radiation calculated?
+    logical             :: lthermal_rad = .False. ! thermal radiation calculated?
+    logical             :: lchanged     = .True.  ! did the flux change recently? -- call restore_solution to bring it in a coherent state
 
     ! save state of solution vectors... they are either in [W](false) or [W/m**2](true)
     logical             :: lWm2_dir=.False. , lWm2_diff=.False.
@@ -175,9 +176,9 @@ module m_pprts_base
   end type
 
   contains
-    subroutine prepare_solution(edir_dm, ediff_dm, abso_dm, lsolar, solution, uid)
+    subroutine prepare_solution(edir_dm, ediff_dm, abso_dm, lsolar, lthermal, solution, uid)
       type(tDM), intent(in) :: edir_dm, ediff_dm, abso_dm
-      logical, intent(in) :: lsolar
+      logical, intent(in) :: lsolar, lthermal
       type(t_state_container), intent(inout) :: solution
       integer(iintegers), optional, intent(in) :: uid
       integer(mpiint) :: ierr
@@ -185,6 +186,7 @@ module m_pprts_base
       if(solution%lset) call CHKERR(1_mpiint, 'solution has already been prepared before')
 
       solution%lsolar_rad = lsolar
+      solution%lthermal_rad = lthermal
 
       solution%lchanged = .True.
       solution%lWm2_dir = .True.
@@ -219,6 +221,7 @@ module m_pprts_base
       if( solution%lset ) then
         call deallocate_allocatable(solution%edir)
         solution%lsolar_rad = .False.
+        solution%lthermal_rad = .False.
 
         call deallocate_allocatable(solution%ediff)
         call deallocate_allocatable(solution%abso)

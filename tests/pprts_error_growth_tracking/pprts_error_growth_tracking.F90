@@ -86,7 +86,12 @@ contains
         endif
 
         call set_optical_properties(solver, albedo, kabs, ksca, g)
-        call solve_pprts(solver, incSolar, opt_solution_uid=k, opt_solution_time=real(iter,ireals))
+        call solve_pprts(solver, &
+          & lthermal=.False., &
+          & lsolar=.True., &
+          & edirTOA=incSolar, &
+          & opt_solution_uid=k, &
+          & opt_solution_time=real(iter,ireals))
 
         !allocate(fdir (solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym))
         call pprts_get_result(solver, fdn, fup, fdiv, fdir, opt_solution_uid=k)

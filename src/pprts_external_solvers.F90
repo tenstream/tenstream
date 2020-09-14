@@ -201,8 +201,13 @@ contains
         call setup_ediff_dmplex(rayli_info%plex, rayli_info%plex%dm, i1, i1, i2, rayli_info%plex%ediff_dm)
         call setup_abso_dmplex (rayli_info%plex%dm, rayli_info%plex%abso_dm)
 
-        call prepare_solution(rayli_info%plex%edir_dm, rayli_info%plex%ediff_dm, rayli_info%plex%abso_dm, &
-          lsolar=solution%lsolar_rad, solution=rayli_info%plex_solution)
+        call prepare_solution(&
+          & rayli_info%plex%edir_dm, &
+          & rayli_info%plex%ediff_dm, &
+          & rayli_info%plex%abso_dm, &
+          & lsolar=solution%lsolar_rad, &
+          & lthermal=solution%lthermal_rad, &
+          & solution=rayli_info%plex_solution)
 
       else ! subcomm slave
 

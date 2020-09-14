@@ -1246,7 +1246,7 @@ module m_helper_functions
       ${method}$(${dtype}$), intent(in) :: arr${ranksuffix(RANK)}$
       real(${otype}$), intent(out) :: mmm(:)
 #:if RANK==0
-      mmm = arr
+      mmm = real(arr, kind=${otype}$)
       if(.False.) then
         if(comm.lt.0) continue ! unused var
       endif

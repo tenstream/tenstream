@@ -1941,6 +1941,7 @@ module m_icon_plex_utils
   end function
 
   ! after the wiki page: https://en.wikipedia.org/wiki/Position_of_the_Sun
+  ! returns vector pointing towards the sun
   function get_sun_vector(year, month, day) result(sundir)
     integer(iintegers), intent(in) :: year, month
     real(ireals), intent(in) :: day

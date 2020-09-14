@@ -661,7 +661,12 @@ contains
         call set_optical_properties(solver, albedo, kabs, ksca, g, &
             reverse(Blev*Bfrac(:,:,:,ib)), planck_srfc=Bsrfc*Bfrac(1,:,:,ib), &
             albedo_2d=thermal_albedo_2d)
-        call solve_pprts(solver, zero, opt_solution_uid=500+ib, opt_solution_time=opt_time)
+        call solve_pprts(solver, &
+          & lthermal=.True., &
+          & lsolar=.False., &
+          & edirTOA=zero, &
+          & opt_solution_uid=500+ib, &
+          & opt_solution_time=opt_time)
       endif
 
       call pprts_get_result(solver, spec_edn, spec_eup, spec_abso, opt_solution_uid=500+ib)
@@ -932,7 +937,10 @@ contains
           & kg,                      &
           & albedo_2d=solar_albedo_2d)
 
-        call solve_pprts(solver, edirTOA, &
+        call solve_pprts(solver, &
+          & lthermal=.False., &
+          & lsolar=.True., &
+          & edirTOA=edirTOA, &
           & opt_solution_uid=ib,          &
           & opt_solution_time=opt_time,   &
           & opt_buildings=opt_buildings)

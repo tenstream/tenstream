@@ -59,7 +59,7 @@ subroutine box_cld()
     g   (nv/2, nxp/2-cld_width:nxp/2+cld_width, nyp/2-cld_width:nyp/2+cld_width) = .9
 
     call set_optical_properties(solver, albedo, kabs, ksca, g)
-    call solve_pprts(solver, incSolar)
+    call solve_pprts(solver, lthermal=.False., lsolar=.True., edirTOA=incSolar)
 
     allocate(fdir (solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym))
     allocate(fdn  (solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym))

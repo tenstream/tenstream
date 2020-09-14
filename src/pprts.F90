@@ -421,8 +421,8 @@ module m_pprts
     call mpi_comm_rank(solver%comm, myid, ierr); call CHKERR(ierr)
     if(myid.eq.0) print *,'*  k(layer)'// &
       & ' '//cstr('all(1d) / any(1d)', 'blue' )//' '// &
-      & ' '//cstr('dz(min/mean/max)', 'red')//'                       '// &
-      & ' '//cstr('hhl', 'blue')
+      & ' '//cstr('dz(min/mean/max)', 'red')//' [m]                   '// &
+      & ' '//cstr('height [km]', 'blue')
     associate( &
         & atm => solver%atm, &
         & C_one_atm => solver%C_one_atm, &
@@ -438,7 +438,7 @@ module m_pprts
           & print *, k, &
           & cstr(toStr(all(atm%l1d(k,:,:))),'blue'), '        ', &
           & cstr(toStr(any(atm%l1d(k,:,:))),'blue'), '        ', &
-          & cstr(toStr(mdz),'red'), ' ', cstr(toStr(mhhl),'blue')
+          & cstr(toStr(mdz),'red'), ' ', cstr(toStr(mhhl*1e-3_ireals),'blue')
       enddo
       call restoreVecPointer(atm%hhl, hhl1d, hhl, readonly=.True.)
 
@@ -826,12 +826,11 @@ module m_pprts
 
           zenith = angle_between_two_normed_vec(loc_sundir, -e_z)
           sun%theta(k,i,j) = rad2deg(zenith)
+          if(sun%theta(k,i,j).ge.90._ireals) sun%theta(k,i,j) = -one
         enddo
       enddo
     enddo
     call restoreVecPointer(solver%atm%hgrad, grad_1d, grad)
-
-    sun%theta = min(90._ireals, sun%theta)
 
     sun%costheta = max( cos(deg2rad(sun%theta)), zero)
     sun%sintheta = max( sin(deg2rad(sun%theta)), zero)
@@ -1875,15 +1874,16 @@ module m_pprts
 
   end subroutine
 
-  subroutine solve_pprts(solver, edirTOA, opt_solution_uid, opt_solution_time, opt_buildings)
+  subroutine solve_pprts(solver, lthermal, lsolar, edirTOA, opt_solution_uid, opt_solution_time, opt_buildings)
     class(t_solver), intent(inout)          :: solver
+    logical, intent(in)                     :: lthermal, lsolar
     real(ireals),intent(in)                 :: edirTOA
     integer(iintegers),optional, intent(in) :: opt_solution_uid
     real(ireals),      optional, intent(in) :: opt_solution_time
     type(t_pprts_buildings), optional, intent(in) :: opt_buildings
 
     integer(iintegers) :: uid
-    logical            :: lflg, lsolar, luse_rayli, lrayli_snapshot
+    logical            :: lflg, derived_lsolar, luse_rayli, lrayli_snapshot
     integer(mpiint) :: ierr
 
     if(.not.allocated(solver%atm)) call CHKERR(1_mpiint, 'atmosphere is not allocated?!')
@@ -1896,16 +1896,50 @@ module m_pprts
 
     associate( solution => solver%solutions(uid) )
 
-    lsolar = mpi_logical_and(solver%comm, edirTOA.gt.zero .and. any(solver%sun%theta.ge.zero))
-    if(ldebug) print *,'uid', uid, 'lsolar', lsolar, 'edirTOA', edirTOA, ':', any(solver%sun%theta.ge.zero)
+    if(lthermal .and. (.not.allocated(solver%atm%planck))) &
+      & call CHKERR(1_mpiint, 'you asked to compute thermal radiation but '// &
+      & 'did not provide planck emissions in set_optical_properties')
+
+    derived_lsolar = mpi_logical_and(solver%comm, &
+      & lsolar.and. &
+      & edirTOA.gt.zero.and. &
+      & any(solver%sun%theta.ge.zero))
+
+    if(ldebug) print *,'uid', uid, 'lsolar', derived_lsolar, &
+      & 'edirTOA', edirTOA, 'any_theta in [0..90]?', any(solver%sun%theta.ge.zero)
+
+    if(derived_lsolar.and.lthermal) then
+      print *,'uid', uid, 'lthermal', lthermal, 'lsolar', lsolar, derived_lsolar, &
+        & 'edirTOA', edirTOA, 'any_theta in [0..90]?', any(solver%sun%theta.ge.zero)
+      call CHKERR(1_mpiint, 'Somehow ended up with a request to compute solar and thermal radiation in one call.'//new_line('')// &
+        & '       This is currently probably not going to work or at least has to be tested further...'//new_line('')// &
+        & '       I recommend you call it one after another')
+    endif
 
     if(.not.solution%lset) then
       call prepare_solution(solver%C_dir%da, solver%C_diff%da, solver%C_one%da, &
-        lsolar=lsolar, solution=solution, uid=uid)
+        lsolar=derived_lsolar, lthermal=lthermal, solution=solution, uid=uid)
+    else
+      if(solution%lsolar_rad.neqv.derived_lsolar) then
+        call destroy_solution(solution)
+        call prepare_solution(solver%C_dir%da, solver%C_diff%da, solver%C_one%da, &
+          lsolar=derived_lsolar, lthermal=lthermal, solution=solution, uid=uid)
+      endif
+    endif
+
+    if((solution%lthermal_rad.eqv..False.).and. (solution%lsolar_rad.eqv..False.)) then ! nothing else to do
+      if(allocated(solution%edir)) then
+        call VecSet(solution%ediff, zero, ierr); call CHKERR(ierr)
+      endif
+      if(allocated(solution%ediff)) then
+        call VecSet(solution%ediff, zero, ierr); call CHKERR(ierr)
+      endif
+      solution%lchanged=.True.
+      goto 99 ! quick exit
     endif
 
     ! --------- Skip Thermal Computation (-lskip_thermal) --
-    if(lskip_thermal .and. (solution%lsolar_rad.eqv..False.) ) then !
+    if(lskip_thermal .and. (solution%lsolar_rad.eqv..False.)) then ! nothing else to do
       if(ldebug .and. solver%myid.eq.0) print *,'skipping thermal calculation -- returning zero flux'
       call VecSet(solution%ediff, zero, ierr); call CHKERR(ierr)
       solution%lchanged=.True.
@@ -1926,11 +1960,11 @@ module m_pprts
 
     ! --------- Calculate 1D Radiative Transfer ------------
     if(  ltwostr &
-      .or. ((solution%lsolar_rad.eqv..False.) .and. lcalc_nca) &
-      .or. ((solution%lsolar_rad.eqv..False.) .and. lschwarzschild) ) then
+      .or. (solution%lthermal_rad .and. lcalc_nca) &
+      .or. (solution%lthermal_rad .and. lschwarzschild) ) then
 
 
-      if( (solution%lsolar_rad.eqv..False.) .and. lschwarzschild ) then
+      if( solution%lthermal_rad .and. lschwarzschild ) then
         call PetscLogEventBegin(solver%logs%solve_schwarzschild, ierr)
         call schwarz(solver, solution)
         call PetscLogEventEnd(solver%logs%solve_schwarzschild, ierr)
@@ -1944,8 +1978,8 @@ module m_pprts
 
 
       if( ltwostr_only ) goto 99
-      if( (solution%lsolar_rad.eqv..False.) .and. lcalc_nca ) goto 99
-      if( (solution%lsolar_rad.eqv..False.) .and. lschwarzschild ) goto 99
+      if( solution%lthermal_rad .and. lcalc_nca ) goto 99
+      if( solution%lthermal_rad .and. lschwarzschild ) goto 99
     endif
 
     if( lmcrts ) then
@@ -4793,19 +4827,20 @@ end subroutine
     uid = get_arg(0_iintegers, opt_solution_uid)
 
     associate(solution => solver%solutions(uid))
-      if(solution%lsolar_rad) &
-        & call PetscObjectViewFromOptions(solution%edir, PETSC_NULL_VEC, "-pprts_show_edir", ierr); call CHKERR(ierr)
+      if(solution%lsolar_rad) then
+        call PetscObjectViewFromOptions(solution%edir, PETSC_NULL_VEC, "-pprts_show_edir", ierr); call CHKERR(ierr)
+      endif
       call PetscObjectViewFromOptions(solution%ediff, PETSC_NULL_VEC, "-pprts_show_ediff", ierr); call CHKERR(ierr)
       call PetscObjectViewFromOptions(solution%abso, PETSC_NULL_VEC, "-pprts_show_abso", ierr); call CHKERR(ierr)
 
       if(ldebug .and. solver%myid.eq.0) print *,'calling pprts_get_result',present(redir),'for uid',uid
 
       if(solution%lchanged) &
-        call CHKERR(1_mpiint, 'tried to get results from unrestored solution -- call restore_solution first')
+        & call CHKERR(1_mpiint, 'tried to get results from unrestored solution -- call restore_solution first')
 
       if(present(opt_solution_uid)) then
         if(.not.solution%lWm2_diff) &
-          call CHKERR(1_mpiint, 'solution vecs for diffuse radiation are not in W/m2 ... this is not what I expected')
+          & call CHKERR(1_mpiint, 'solution vecs for diffuse radiation are not in W/m2 ... this is not what I expected')
       endif
 
       if(allocated(redn)) then
@@ -4849,14 +4884,16 @@ end subroutine
         endif
 
         if( .not. solution%lsolar_rad ) then
-          print *,'Hey, You called pprts_get_result for uid '//toStr(uid)// &
-            ' and provided an array for direct radiation.'// &
-            ' However in this particular band we haven`t computed direct radiation.'// &
-            ' I will return with edir=0 but are you sure this is what you intended?'
+          if(ldebug) then
+            call CHKWARN(1_mpiint, 'Hey, You called pprts_get_result for uid '//toStr(uid)// &
+              ' and provided an array for direct radiation.'// &
+              ' However in this particular band we haven`t computed direct radiation.'// &
+              ' I will return with edir=0 but are you sure this is what you intended?')
+          endif
           redir = zero
         else
           if(.not.solution%lWm2_dir) &
-            call CHKERR(1_mpiint, 'tried to get result from a result vector(dir) which is not in [W/m2]')
+            & call CHKERR(1_mpiint, 'tried to get result from a result vector(dir) which is not in [W/m2]')
 
           call getVecPointer(solution%edir, solver%C_dir%da, x1d, x4d)
           ! average of direct radiation of all fluxes through top faces
@@ -4874,7 +4911,7 @@ end subroutine
       endif
 
       if(.not.solution%lWm2_diff) &
-        call CHKERR(1_mpiint, 'tried to get result from a result vector(diff) which is not in [W/m2]')
+        & call CHKERR(1_mpiint, 'tried to get result from a result vector(diff) which is not in [W/m2]')
 
 
       redn = zero

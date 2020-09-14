@@ -100,7 +100,11 @@ contains
     call set_optical_properties(solver, albedo, kabs, ksca, g)
     call set_angles(solver, sundir)
 
-    call solve_pprts(solver, incSolar, opt_buildings=buildings)
+    call solve_pprts(solver, &
+      & lthermal=.False., &
+      & lsolar=.True., &
+      & edirTOA=incSolar, &
+      & opt_buildings=buildings)
 
     call pprts_get_result(solver, fdn, fup, fdiv, fdir, opt_buildings=buildings)
 
