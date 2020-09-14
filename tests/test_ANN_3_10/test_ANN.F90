@@ -44,6 +44,7 @@ contains
     real(irealLUT) :: tauz, w0, g, aspect
     real(irealLUT), target, allocatable :: C_LUT(:)
     real(irealLUT), target, allocatable :: C_ANN(:)
+    real(irealLUT), target, allocatable :: C_rel_err(:)
     real(irealLUT), pointer :: pC_LUT(:,:)
     real(irealLUT), pointer :: pC_ANN(:,:)
 
@@ -61,7 +62,7 @@ contains
     call OPP_ANN%init(comm)
 
     associate( Ndiff => OPP_LUT%LUT%diff_streams )
-      allocate(C_LUT(Ndiff**2), C_ANN(Ndiff**2))
+      allocate(C_LUT(Ndiff**2), C_ANN(Ndiff**2), C_rel_err(Ndiff))
       pC_LUT(1:Ndiff, 1:Ndiff) => C_LUT(:)
       pC_ANN(1:Ndiff, 1:Ndiff) => C_ANN(:)
 
@@ -86,8 +87,14 @@ contains
 
       call OPP_ANN%ANN%get_diff2diff([tauz, w0, aspect, g], C_ANN)
       do isrc = 1, Ndiff
+        where(pC_LUT(isrc,:).gt.0._irealLUT)
+          C_rel_err(:) = pC_ANN(isrc,:)/pC_LUT(isrc,:)
+        elsewhere
+          C_rel_err(:) = pC_ANN(isrc,:)
+        end where
+
         print *,'C_ANN src', isrc, ':', &
-          & trim(colored_str_by_range(100._irealLUT - pC_ANN(isrc,:)/pC_LUT(isrc,:)*100, limits=rlimits, colors=rolors)), &
+          & trim(colored_str_by_range(100._irealLUT - C_rel_err(:)*100, limits=rlimits, colors=rolors)), &
           & sum(pC_LUT(isrc,:)) - sum(pC_ANN(isrc,:))
       enddo
 
@@ -110,6 +117,7 @@ contains
     real(irealLUT) :: tauz, w0, g, aspect, phi, theta, inp(6)
     real(irealLUT), target, allocatable :: C_LUT(:)
     real(irealLUT), target, allocatable :: C_ANN(:)
+    real(irealLUT), target, allocatable :: C_rel_err(:)
     real(irealLUT), pointer :: pC_LUT(:,:)
     real(irealLUT), pointer :: pC_ANN(:,:)
 
@@ -127,7 +135,7 @@ contains
     call OPP_ANN%init(comm)
 
     associate( Ndir => OPP_LUT%LUT%dir_streams, Ndiff => OPP_LUT%LUT%diff_streams )
-      allocate(C_LUT(Ndir*Ndiff), C_ANN(Ndir*Ndiff))
+      allocate(C_LUT(Ndir*Ndiff), C_ANN(Ndir*Ndiff), C_rel_err(Ndiff))
       pC_LUT(1:Ndir, 1:Ndiff) => C_LUT(:)
       pC_ANN(1:Ndir, 1:Ndiff) => C_ANN(:)
 
@@ -155,8 +163,13 @@ contains
 
       call OPP_ANN%ANN%get_dir2diff(inp, C_ANN)
       do isrc = 1, Ndir
+        where(pC_LUT(isrc,:).gt.0._irealLUT)
+          C_rel_err(:) = pC_ANN(isrc,:)/pC_LUT(isrc,:)
+        elsewhere
+          C_rel_err(:) = pC_ANN(isrc,:)
+        end where
         print *,'C_ANN src', isrc, ':', &
-          & trim(colored_str_by_range(100._irealLUT - pC_ANN(isrc,:)/pC_LUT(isrc,:)*100, limits=rlimits, colors=rolors)), &
+          & trim(colored_str_by_range(100._irealLUT - C_rel_err(:)*100, limits=rlimits, colors=rolors)), &
           & sum(pC_LUT(isrc,:)) - sum(pC_ANN(isrc,:))
       enddo
 
@@ -179,6 +192,7 @@ contains
     real(irealLUT) :: tauz, w0, g, aspect, phi, theta, inp(6)
     real(irealLUT), target, allocatable :: C_LUT(:)
     real(irealLUT), target, allocatable :: C_ANN(:)
+    real(irealLUT), target, allocatable :: C_rel_err(:)
     real(irealLUT), pointer :: pC_LUT(:,:)
     real(irealLUT), pointer :: pC_ANN(:,:)
 
@@ -196,7 +210,7 @@ contains
     call OPP_ANN%init(comm)
 
     associate( Ndir => OPP_LUT%LUT%dir_streams )
-      allocate(C_LUT(Ndir**2), C_ANN(Ndir**2))
+      allocate(C_LUT(Ndir**2), C_ANN(Ndir**2), C_rel_err(Ndir))
       pC_LUT(1:Ndir, 1:Ndir) => C_LUT(:)
       pC_ANN(1:Ndir, 1:Ndir) => C_ANN(:)
 
@@ -224,8 +238,13 @@ contains
 
       call OPP_ANN%ANN%get_dir2dir(inp, C_ANN)
       do isrc = 1, Ndir
+        where(pC_LUT(isrc,:).gt.0._irealLUT)
+          C_rel_err(:) = pC_ANN(isrc,:)/pC_LUT(isrc,:)
+        elsewhere
+          C_rel_err(:) = pC_ANN(isrc,:)
+        end where
         print *,'C_ANN src', isrc, ':', &
-          & trim(colored_str_by_range(100._irealLUT - pC_ANN(isrc,:)/pC_LUT(isrc,:)*100, limits=rlimits, colors=rolors)), &
+          & trim(colored_str_by_range(100._irealLUT - C_rel_err(:)*100, limits=rlimits, colors=rolors)), &
           & sum(pC_LUT(isrc,:)) - sum(pC_ANN(isrc,:))
       enddo
 
