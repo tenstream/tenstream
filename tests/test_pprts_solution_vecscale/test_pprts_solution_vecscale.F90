@@ -69,7 +69,7 @@ contains
 
         associate( S => solver%solutions(uid) )
           call prepare_solution(solver%C_dir%da, solver%C_diff%da, solver%C_one%da, &
-            lsolar=.True., solution=S, uid=uid)
+            lsolar=.True., lthermal=.False., solution=S, uid=uid)
 
           call VecSet(S%edir , one, ierr); call CHKERR(ierr)
           S%lWm2_dir  = .True.
