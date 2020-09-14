@@ -281,7 +281,6 @@ module m_pprts
         call CHKERR(1_mpiint, 'dx and dy currently have to be the same '//toStr(dx)//' vs '//toStr(dy))
 
       if(ldebug.and.solver%myid.eq.0) then
-        print *,'atm dx/dy '//toStr(dx)//' , '//toStr(dy)
         print *,'Solver dirtop:', solver%dirtop%is_inward, ':', solver%dirtop%dof
         print *,'Solver dirside:', solver%dirside%is_inward, ':', solver%dirside%dof
         print *,'Solver difftop:', solver%difftop%is_inward, ':', solver%difftop%dof
@@ -303,6 +302,8 @@ module m_pprts
       endif
 
       call setup_atm()
+
+      call print_domain_geometry_summary(solver, opt_lview=ldebug)
 
       ! init work vectors
       call init_memory(solver%C_dir, solver%C_diff, solver%incSolar, solver%b)
@@ -398,6 +399,54 @@ module m_pprts
 
     end subroutine
   end subroutine
+
+  !> @brief Print a summary of the domain shape
+  subroutine print_domain_geometry_summary(solver, opt_lview)
+    class(t_solver), intent(in) :: solver
+    logical, intent(in), optional :: opt_lview
+
+    logical :: lview, lflg
+    real(ireals), dimension(3) :: mdz, mhhl
+    integer(mpiint) :: myid, ierr
+    integer(iintegers) :: k
+    real(ireals), pointer :: hhl(:,:,:,:)=>null(), hhl1d(:)=>null()
+
+    lview = get_arg(.False., opt_lview)
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_view_geometry",&
+      lview, lflg, ierr) ;call CHKERR(ierr)
+    if(.not.lview) return
+
+
+    call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
+    call mpi_comm_rank(solver%comm, myid, ierr); call CHKERR(ierr)
+    if(myid.eq.0) print *,'*  k(layer)'// &
+      & ' '//cstr('all(1d) / any(1d)', 'blue' )//' '// &
+      & ' '//cstr('dz(min/mean/max)', 'red')//'                       '// &
+      & ' '//cstr('hhl', 'blue')
+    associate( &
+        & atm => solver%atm, &
+        & C_one_atm => solver%C_one_atm, &
+        & C_one_atm1 => solver%C_one_atm1 )
+
+      call getVecPointer(atm%hhl, C_one_atm1%da, hhl1d, hhl, readonly=.True.)
+      do k=C_one_atm%zs,C_one_atm%ze
+
+        call imp_min_mean_max(solver%comm, atm%dz(k,:,:), mdz)
+        call imp_min_mean_max(solver%comm, hhl(i0,k,:,:)+hhl(i0,k+1,:,:), mhhl)
+
+        if(myid.eq.0) &
+          & print *, k, &
+          & cstr(toStr(all(atm%l1d(k,:,:))),'blue'), '        ', &
+          & cstr(toStr(any(atm%l1d(k,:,:))),'blue'), '        ', &
+          & cstr(toStr(mdz),'red'), ' ', cstr(toStr(mhhl),'blue')
+      enddo
+      call restoreVecPointer(atm%hhl, hhl1d, hhl, readonly=.True.)
+
+      if(myid.eq.0) print *,' * atm dx/dy '//toStr(atm%dx)//' , '//toStr(atm%dy)
+    end associate
+    call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
+  end subroutine
+
 
   !> @brief Construct PETSC grid information for regular DMDA
   !> @details setup DMDA grid containers for direct, diffuse and absorption grid
@@ -717,7 +766,6 @@ module m_pprts
       ! reset Matrices to generate new preallocation
   end subroutine
 
-
   !> @brief set direction where sun stands
   !> @details save sun azimuth and zenith angle
   !>   \n sun azimuth is reduced to the range of [0,90] and the transmission of direct radiation is contributed for by a integer increment,
@@ -803,10 +851,7 @@ module m_pprts
         sun%yinc=i0
     end where
 
-    if(ldebug) print *,solver%myid,'setup_dir_inc done', &
-      count(sun%xinc.eq.0),count(sun%xinc.eq.i1), &
-      count(sun%yinc.eq.0),count(sun%yinc.eq.i1), &
-      '::', minval(sun%xinc), maxval(sun%xinc), minval(sun%yinc), maxval(sun%yinc)
+    call print_suninfo_summary(solver, ldebug)
 
     contains
         pure elemental function sym_rot_phi(phi)
@@ -829,6 +874,57 @@ module m_pprts
           integer(iintegers), allocatable, dimension(:,:,:) :: f
           if(.not.allocated(f)) allocate(f(C_one%zs:C_one%ze, C_one%xs:C_one%xe, C_one%ys:C_one%ye))
         end subroutine
+  end subroutine
+
+  !> @brief Print a summary of the sun_info
+  subroutine print_suninfo_summary(solver, opt_lview)
+    class(t_solver), intent(in) :: solver
+    logical, intent(in), optional :: opt_lview
+
+    logical :: lview, lflg
+    integer(mpiint) :: myid, ierr
+    integer(iintegers) :: k
+    real(ireals), dimension(3) :: mtheta, mphi, msundir
+
+    lview = get_arg(.False., opt_lview)
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_view_suninfo",&
+      lview, lflg, ierr) ;call CHKERR(ierr)
+    if(.not.lview) return
+
+    call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
+    call mpi_comm_rank(solver%comm, myid, ierr); call CHKERR(ierr)
+    associate(sun => solver%sun, C_one => solver%C_one)
+
+      do k = 1, 3
+        call imp_min_mean_max(solver%comm, sun%sundir(k), msundir)
+        if(myid.eq.0) then
+          if(.not. all(approx(sun%sundir(k), msundir))) then
+            print *, 'Sundir rank=0 :: ', sun%sundir
+            ierr = int(k, mpiint)
+            call CHKERR(ierr, 'sundir component '//toStr(k)//' does not match across ranks '//&
+              & 'min mean max sundir('//toStr(k)//') = '//toStr(msundir))
+          endif
+        endif
+      enddo
+
+      if(solver%myid.eq.0) &
+        & print *, ' * '//cstr('sundir ['//toStr(sun%sundir)//'] ', 'red'), &
+        & ' count(xinc) ', count(sun%xinc.eq.0),count(sun%xinc.eq.i1), &
+        & ' count(yinc) ', count(sun%yinc.eq.0),count(sun%yinc.eq.i1)
+
+      if(myid.eq.0) print *,' * k(layer)  '// &
+        & ' '//cstr('theta(min/mean/max)', 'red')//'                    '// &
+        & ' '//cstr('phi', 'blue')
+      do k = C_one%zs, C_one%ze
+        call imp_min_mean_max(solver%comm, sun%phi(k,:,:), mphi)
+        call imp_min_mean_max(solver%comm, sun%theta(k,:,:), mtheta)
+        if(myid.eq.0) &
+          & print *, k, &
+          & cstr(toStr(mtheta),'red'), ' ', cstr(toStr(mphi),'blue')
+      enddo
+
+    end associate
+    call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
   end subroutine
 
   !> @brief setup topography information
@@ -1653,13 +1749,13 @@ module m_pprts
 
         if(allocated(atm%albedo)) then
           call imp_min_mean_max(solver%comm, atm%albedo(:,:), malbedo)
-          if(myid.eq.0) print *, 'Albedo (min/mean,max)', malbedo
+          if(myid.eq.0) print *, ' * Albedo (min/mean,max)', malbedo
         endif
 
 
         if(myid.eq.0) then
-          print *,'Number of 1D layers: ', count(atm%l1d) , size(atm%l1d),'(',(100._ireals* count(atm%l1d) )/size(atm%l1d),'%)'
-          print *,'shape local optprop:', shape(atm%kabs)
+          print *,' * Number of 1D layers: ', count(atm%l1d) , size(atm%l1d),'(',(100._ireals* count(atm%l1d) )/size(atm%l1d),'%)'
+          print *,' * shape local optprop:', shape(atm%kabs)
         endif
 
       end associate
@@ -1867,7 +1963,6 @@ module m_pprts
 
     end associate
   end subroutine
-
 
   !> @brief call the matrix assembly and petsc solve routines for pprts solvers
   subroutine setup_matshell(solver, C, A, mat_mult_subroutine)
