@@ -11,6 +11,7 @@ void VecSet(size_t N, float *arr, float val) {
 int main() {
 
     int ierr;
+    size_t Nthreads = 0;
     size_t Nphotons = 100000;
     size_t Nwedges = 1; // single wedge
     size_t Nfaces = 5;
@@ -50,7 +51,7 @@ int main() {
 
     fprintf(stderr, "Huhu %s \n", rayli_version());
 
-    ierr = rfft_wedge(Nphotons, Nwedges, Nfaces, Nverts, cyclic,
+    ierr = rfft_wedge(Nthreads, Nphotons, Nwedges, Nfaces, Nverts, cyclic,
             verts_of_face, faces_of_wedges, vert_coords,
             kabs, ksca, g, albedo,
             sundir,

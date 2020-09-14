@@ -231,7 +231,7 @@ module m_plex2rayli
   !> @details solve the radiative transfer equation with RayLi, currently only works for single task mpi runs
   subroutine rayli_wrapper(lcall_solver, lcall_snapshot, &
       & plex, kabs, ksca, g, albedo, sundir, solution, &
-      & plck, nr_photons, petsc_log, opt_buildings)
+      & plck, nr_photons, petsc_log, opt_buildings, opt_Nthreads)
     use iso_c_binding
     logical, intent(in) :: lcall_solver, lcall_snapshot
     type(t_plexgrid), intent(in) :: plex
@@ -242,6 +242,7 @@ module m_plex2rayli
     integer(iintegers), intent(in), optional :: nr_photons
     PetscLogEvent, intent(in), optional :: petsc_log
     type(t_plex_buildings), intent(in), optional :: opt_buildings
+    integer(iintegers), intent(in), optional :: opt_Nthreads
 
     real(ireals), pointer :: xksca(:), xkabs(:), xg(:)
 
@@ -267,8 +268,8 @@ module m_plex2rayli
     real(c_float),     allocatable :: flx_through_faces_ediff(:)
     real(c_float),     allocatable :: abso_in_cells(:)
 
-    integer(c_size_t) :: Nphotons, Nwedges, Nfaces, Nverts
-    integer(iintegers) :: opt_photons_int
+    integer(c_size_t) :: Nthreads, Nphotons, Nwedges, Nfaces, Nverts
+    integer(iintegers) :: opt_photons_int, opt_Nthreads_int
     real(ireals) :: opt_photons
 
     integer(c_size_t) :: outer_id
@@ -276,6 +277,11 @@ module m_plex2rayli
     integer(c_int) :: icyclic
 
     if(all([lcall_solver,lcall_snapshot].eqv..False.)) return
+
+    opt_Nthreads_int = get_arg(i0, opt_Nthreads)
+    call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+      "-rayli_nthreads", opt_Nthreads_int, lflg,ierr) ; call CHKERR(ierr)
+    Nthreads = int(opt_Nthreads_int, c_size_t)
 
     call VecGetSize(albedo, opt_photons_int, ierr); call CHKERR(ierr)
     opt_photons = real(get_arg(opt_photons_int*10, nr_photons), ireals)
@@ -382,23 +388,25 @@ module m_plex2rayli
 
     if(lcall_snapshot) then
       call take_snap(comm, &
-        Nwedges, Nfaces, Nverts, &
-        verts_of_face, faces_of_wedges, vert_coords, &
-        rkabs, rksca, rg, &
-        ralbedo_on_faces, &
-        rsundir, &
-        solution, ierr)
+        & Nthreads, &
+        & Nwedges, Nfaces, Nverts, &
+        & verts_of_face, faces_of_wedges, vert_coords, &
+        & rkabs, rksca, rg, &
+        & ralbedo_on_faces, &
+        & rsundir, &
+        & solution, ierr)
     endif
 
     if(lcall_solver) then
       if(present(petsc_log)) then
         call PetscLogEventBegin(petsc_log, ierr); call CHKERR(ierr)
       endif
-      ierr = rfft_wedgeF90(Nphotons, Nwedges, Nfaces, Nverts, icyclic, &
-        verts_of_face, faces_of_wedges, vert_coords, &
-        rkabs, rksca, rg, &
-        ralbedo_on_faces, rsundir, &
-        flx_through_faces_edir, flx_through_faces_ediff, abso_in_cells ); call CHKERR(ierr)
+      ierr = rfft_wedgeF90(Nthreads, &
+        & Nphotons, Nwedges, Nfaces, Nverts, icyclic, &
+        & verts_of_face, faces_of_wedges, vert_coords, &
+        & rkabs, rksca, rg, &
+        & ralbedo_on_faces, rsundir, &
+        & flx_through_faces_edir, flx_through_faces_ediff, abso_in_cells ); call CHKERR(ierr)
       if(present(petsc_log)) then
         call PetscLogEventEnd(petsc_log, ierr); call CHKERR(ierr)
       endif
@@ -438,10 +446,6 @@ module m_plex2rayli
       real(ireals), pointer :: face_normal(:), face_center(:), cell_center(:)
       type(tPetscSection) :: edir_section, ediff_section, abso_section, geomSection
       integer(mpiint) :: ierr
-
-      do icell = 1, size(flx_through_faces_ediff)
-        print *,'flx_through_faces_ediff', icell, flx_through_faces_ediff(icell)
-      enddo
 
       call DMGetSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
       call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
@@ -553,14 +557,15 @@ module m_plex2rayli
     end subroutine
 
     subroutine take_snap(comm, &
-        Nwedges, Nfaces, Nverts, &
-        verts_of_face, faces_of_wedges, vert_coords, &
-        rkabs, rksca, rg, &
-        ralbedo_on_faces, &
-        rsundir, &
-        solution, ierr)
+        & Nthreads, &
+        & Nwedges, Nfaces, Nverts, &
+        & verts_of_face, faces_of_wedges, vert_coords, &
+        & rkabs, rksca, rg, &
+        & ralbedo_on_faces, &
+        & rsundir, &
+        & solution, ierr)
       integer(mpiint),   intent(in) :: comm
-      integer(c_size_t), intent(in) :: Nwedges, Nfaces, Nverts
+      integer(c_size_t), intent(in) :: Nthreads, Nwedges, Nfaces, Nverts
       integer(c_size_t), intent(in) :: verts_of_face(:,:)
       integer(c_size_t), intent(in) :: faces_of_wedges(:,:)
       real(c_double),    intent(in) :: vert_coords(:,:)
@@ -649,15 +654,17 @@ module m_plex2rayli
       fov_width = 2 * real(tan(deg2rad(visit_view_angle)/2) / visit_image_zoom, kind(fov_width))
       fov_height = fov_width * real(Ny, c_float) / real(Nx, c_float)
 
-      ierr = rpt_img_wedgeF90( Nx, Ny, &
-        opt_photons_int, Nwedges, Nfaces, Nverts, &
-        verts_of_face, faces_of_wedges, vert_coords, &
-        rkabs, rksca, rg, &
-        ralbedo_on_faces, &
-        rsundir, & ! DEBUG note the kabs/ksca/
-        cam_loc, cam_viewing_dir, cam_up_vec, &
-        fov_width, fov_height, &
-        img); call CHKERR(ierr)
+      ierr = rpt_img_wedgeF90(&
+        & Nthreads, &
+        & Nx, Ny, &
+        & opt_photons_int, Nwedges, Nfaces, Nverts, &
+        & verts_of_face, faces_of_wedges, vert_coords, &
+        & rkabs, rksca, rg, &
+        & ralbedo_on_faces, &
+        & rsundir, &
+        & cam_loc, cam_viewing_dir, cam_up_vec, &
+        & fov_width, fov_height, &
+        & img); call CHKERR(ierr)
 
       groups(1) = trim(snap_path)
       groups(2) = "rpt_img_"//toStr(solution%uid)

@@ -819,7 +819,8 @@ contains
                 ri%plex, ri%kabs, ri%ksca, ri%g, ri%albedo, &
                 & sundir, plex_solution, &
                 & nr_photons=Nphotons, petsc_log=solver%logs%rayli_tracing, &
-                & opt_buildings=ri%buildings_info%plex_buildings)
+                & opt_buildings=ri%buildings_info%plex_buildings, &
+                & opt_Nthreads=subnumnodes)
             else
               call rayli_wrapper(lcall_solver, lcall_snap, &
                 ri%plex, ri%kabs, ri%ksca, ri%g, ri%albedo, &
