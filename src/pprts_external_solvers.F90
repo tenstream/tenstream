@@ -56,7 +56,7 @@ module m_pprts_external_solvers
   private
   public :: twostream, schwarz, pprts_rayli_wrapper, destroy_rayli_info
 
-  logical,parameter :: ldebug=.True.
+  logical,parameter :: ldebug=.False.
 
   type t_rayli_info_buildings
     type(t_pprts_buildings), allocatable :: subcomm_buildings
