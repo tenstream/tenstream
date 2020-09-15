@@ -430,11 +430,8 @@ contains
               enddo
             enddo
           enddo
+          is_data_size = l
         endif
-
-        ierr = int(count(is_data_in.ge.0) - is_data_size, mpiint)
-        call CHKERR(ierr, 'wrong number of scattered dof, did we forget something?')
-        !is_data_size = count(is_data_in.ge.0)
 
         call ISCreateGeneral(PETSC_COMM_SELF, is_data_size, is_data_in, PETSC_USE_POINTER, is_in, ierr); call CHKERR(ierr)
         call ISCreateGeneral(PETSC_COMM_SELF, is_data_size, is_data_out, PETSC_USE_POINTER, is_out, ierr); call CHKERR(ierr)
@@ -454,7 +451,7 @@ contains
     end subroutine
 
     subroutine setup_ediff_scatter_context()
-      integer(iintegers) :: i, j, k, voff, idof, i1d, iface, l, m, ak
+      integer(iintegers) :: i, j, k, voff, idof, i1d, iface, l, m, ak, numDof
       integer(iintegers) :: pprts_offsets(4), plex_cells(2)
       type(tPetscSection) :: ediffsection
       type(tIS) :: is_in, is_out
@@ -523,14 +520,17 @@ contains
                     iface = find_face_idx_by_orientation(ri%plex, plex_cells(m), PPRTS_LEFT_FACE)
                     if(iface.ge.0) then ! have a left face
                       call PetscSectionGetFieldOffset(ediffsection, iface, i1, voff, ierr); call CHKERR(ierr)
-                      if(solver%diffside%is_inward(i1+idof)) then ! in pprts: e_right
-                        is_data_in(l) = i1d
-                        is_data_out(l) = voff
-                      else
-                        is_data_in(l) = i1d
-                        is_data_out(l) = voff+1
+                      call PetscSectionGetDof(ediffSection, iface, numDof, ierr); call CHKERR(ierr)
+                      if(numDof.gt.0) then
+                        if(solver%diffside%is_inward(i1+idof)) then ! in pprts: e_right
+                          is_data_in(l) = i1d
+                          is_data_out(l) = voff
+                        else
+                          is_data_in(l) = i1d
+                          is_data_out(l) = voff+1
+                        endif
+                        l = l+1
                       endif
-                      l = l+1
                     endif
                   enddo
                 enddo
@@ -544,14 +544,17 @@ contains
                     iface = find_face_idx_by_orientation(ri%plex, plex_cells(m), PPRTS_REAR_FACE)
                     if(iface.ge.0) then ! have a rear face
                       call PetscSectionGetFieldOffset(ediffsection, iface, i1, voff, ierr); call CHKERR(ierr)
-                      if(solver%diffside%is_inward(i1+idof)) then ! in pprts: e_forward
-                        is_data_in(l) = i1d
-                        is_data_out(l) = voff
-                      else
-                        is_data_in(l) = i1d
-                        is_data_out(l) = voff+1
+                      call PetscSectionGetDof(ediffSection, iface, numDof, ierr); call CHKERR(ierr)
+                      if(numDof.gt.0) then
+                        if(solver%diffside%is_inward(i1+idof)) then ! in pprts: e_forward
+                          is_data_in(l) = i1d
+                          is_data_out(l) = voff
+                        else
+                          is_data_in(l) = i1d
+                          is_data_out(l) = voff+1
+                        endif
+                        l = l+1
                       endif
-                      l = l+1
                     endif
                   enddo
                 enddo
@@ -582,11 +585,8 @@ contains
               enddo
             enddo
           enddo
+          is_data_size = l
         endif
-
-        ierr = int(count(is_data_in.ge.0) - is_data_size, mpiint)
-        call CHKERR(ierr, 'wrong number of scattered dof, did we forget something?')
-        !is_data_size = count(is_data_in.ge.0)
 
         call ISCreateGeneral(PETSC_COMM_SELF, is_data_size, is_data_in, PETSC_USE_POINTER, is_in, ierr); call CHKERR(ierr)
         call PetscObjectSetName(is_in, "rayli_diff_iss_pprts_idx", ierr); call CHKERR(ierr)
@@ -663,10 +663,8 @@ contains
               enddo
             enddo
           enddo
+          is_data_size = l
         endif
-
-        ierr = int(count(is_data_in.ge.0) - is_data_size, mpiint)
-        call CHKERR(ierr, 'wrong number of scattered dof, did we forget something?')
 
         call ISCreateGeneral(PETSC_COMM_SELF, is_data_size, is_data_in, PETSC_USE_POINTER, is_in, ierr); call CHKERR(ierr)
         call PetscObjectSetName(is_in, "rayli_abso_iss_pprts_idx", ierr); call CHKERR(ierr)
