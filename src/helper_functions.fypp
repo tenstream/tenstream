@@ -404,19 +404,23 @@ module m_helper_functions
       x=x+i
     end subroutine
 
-#:for basetype, dtype in [&
-  ('integer', 'INT32'  ), &
-  ('integer', 'INT64'  ), &
-  ('real'   , 'REAL32' ), &
-  ('real'   , 'REAL64' ), &
-  ('real'   , 'REAL128')]
+#:for basetype, dtype, ctype in [&
+  ('integer', 'INT32'  , 'REAL64'), &
+  ('integer', 'INT64'  , 'REAL64'), &
+  ('real'   , 'REAL32' , 'REAL64'), &
+  ('real'   , 'REAL64' , 'REAL64'), &
+  ('real'   , 'REAL128', 'REAL128')]
     pure elemental logical function is_between_${dtype}$(x,a,b) result(is_between)
       ${basetype}$ (${dtype}$), intent(in) :: x,a,b
-      is_between = (x-a) * (x-b) .lt. 0
+      real(${ctype}$) :: r
+      r = real(x-a, kind(r)) * real(x-b, kind(r))
+      is_between = r .lt. 0._${ctype}$
     end function
     pure elemental logical function is_inrange_${dtype}$(x,a,b) result(is_between)
       ${basetype}$ (${dtype}$), intent(in) :: x,a,b
-      is_between = (x-a) * (x-b) .le. 0
+      real(${ctype}$) :: r
+      r = real(x-a, kind(r)) * real(x-b, kind(r))
+      is_between = r .le. 0._${ctype}$
     end function
 #:endfor
 

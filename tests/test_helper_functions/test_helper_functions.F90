@@ -6,7 +6,8 @@ module test_helper_functions
     mpi_logical_and, mpi_logical_or, mpi_logical_all_same, &
     compute_normal_3d, hit_plane, pnt_in_triangle, distance_to_edge, determine_normal_direction, &
     cumprod, reverse, rotation_matrix_around_axis_vec, deg2rad, char_arr_to_str, cstr, &
-    solve_quadratic, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world, is_between, &
+    solve_quadratic, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world, &
+    is_inrange, is_between, &
     resize_arr, normalize_vec, approx, itoa, ftoa, &
     imp_reduce_sum, imp_allreduce_sum, imp_reduce_mean, imp_allreduce_mean, &
     read_ascii_file_2d, &
@@ -506,6 +507,36 @@ subroutine test_is_between(this)
   @assertFalse(is_between(1.5_ireals, 1.0_ireals, 0.0_ireals))
 
   @assertTrue(is_between(0.5_ireals, 1.0_ireals, 0.0_ireals))
+
+  @assertTrue(is_between(780,0,2875391))
+
+  @assertFalse(is_between(0,0,2))
+  @assertTrue (is_between(1,0,2))
+  @assertFalse(is_between(2,0,2))
+
+  @assertFalse(is_between(0,2,0))
+  @assertTrue (is_between(1,2,0))
+  @assertFalse(is_between(2,2,0))
+end subroutine
+
+subroutine test_is_inrange(this)
+  class (MpiTestMethod), intent(inout) :: this
+
+  @assertTrue(is_inrange(0,0,2))
+  @assertTrue(is_inrange(1,0,2))
+  @assertTrue(is_inrange(2,0,2))
+
+  @assertTrue(is_inrange(0,2,0))
+  @assertTrue(is_inrange(1,2,0))
+  @assertTrue(is_inrange(2,2,0))
+
+  @assertFalse(is_inrange(-1,0,2))
+  @assertFalse(is_inrange( 4,0,2))
+
+  @assertFalse(is_inrange(-1,2,0))
+  @assertFalse(is_inrange( 4,2,0))
+
+  @assertTrue(is_inrange(780,0,2875391))
 end subroutine
 
 @test(npes=[1])
