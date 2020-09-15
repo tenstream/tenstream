@@ -112,8 +112,9 @@ contains
         " try to export RAYLI_DIR=<rayli-root>/build/package")
 
       if(.False.) then ! unused var warnings
-        flx_through_faces_edir(1) = real(Nthreads+Nphotons+Nwedges+Nfaces+Nverts+verts_of_face(1,1)+faces_of_wedges(1,1), c_float) + &
-          real(cyclic, c_float)
+        flx_through_faces_edir(1) = &
+          & real(Nthreads+Nphotons+Nwedges+Nfaces+Nverts+verts_of_face(1,1)+faces_of_wedges(1,1), c_float) + &
+          & real(cyclic, c_float)
         flx_through_faces_ediff(1) = real(vert_coords(1,1), c_float) + kabs(1) + ksca(1) + g(1) + sundir(1) + &
           albedo_on_faces(1)
         abso_in_cells(1) = 0
