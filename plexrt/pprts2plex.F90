@@ -190,8 +190,8 @@ contains
     ierr = 0
 
     call CHKERR(int(pprts_C%glob_zm - plex%Nlay, mpiint), &
-      & 'vertical axis of pprts_dmda and plex dont match '//toStr(pprts_C%glob_zm)// &
-      & ' vs '//toStr(plex%Nlay))
+      & 'vertical axis of pprts_dmda (Nz='//toStr(pprts_C%glob_zm)//')'// &
+      & ' and plex (Nz='//toStr(plex%Nlay)//') dont match')
     call ndarray_offsets([plex%Nlay, 2*pprts_C%glob_xm, pprts_C%glob_ym], plex_cell_offsets)
 
     associate( k=>pprts_cell(1), i=>pprts_cell(2), j=>pprts_cell(3) )

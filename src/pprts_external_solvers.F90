@@ -176,7 +176,7 @@ contains
         call VecGetArrayReadF90(hhl, xhhl1d, ierr); call CHKERR(ierr)
         xhhl(i1:i1, i1:Cv%glob_zm, i1:Cv%glob_xm, i1:Cv%glob_ym) => xhhl1d
 
-        call dmplex_2D_to_3D(dm2d, solver%C_one_atm1%glob_zm, xhhl(i1, :, i1, i1), dm3d, zindex, lpolar_coords=.False.)
+        call dmplex_2D_to_3D(dm2d, Ca1%glob_zm, xhhl(i1, :, i1, i1), dm3d, zindex, lpolar_coords=.False.)
 
         !set height lvls on vertices
         call DMGetCoordinateSection(dm3d, coord_section, ierr); call CHKERR(ierr)
@@ -191,7 +191,7 @@ contains
         enddo
         call VecRestoreArrayF90(coordinates, coords, ierr); call CHKERR(ierr)
 
-        call setup_plexgrid(dm2d, dm3d, solver%C_one_atm%glob_zm, zindex, rayli_info%plex, xhhl(i1, :, i1, i1))
+        call setup_plexgrid(dm2d, dm3d, Ca%glob_zm, zindex, rayli_info%plex, xhhl(i1, :, i1, i1))
 
         call PetscObjectViewFromOptions(dm3d, PETSC_NULL_DM, '-show_rayli_dm3d', ierr); call CHKERR(ierr)
         nullify(xhhl)
@@ -324,7 +324,7 @@ contains
     end subroutine
 
     subroutine setup_edir_scatter_context()
-      integer(iintegers) :: i1d, k, kk, i, j, l, m, iface, numDof, voff
+      integer(iintegers) :: i1d, k, i, j, l, m, iface, numDof, voff, ak
       integer(iintegers) :: pprts_offsets(4), plex_cells(2)
 
       type(tPetscSection) :: edirsection
@@ -333,7 +333,7 @@ contains
       integer(iintegers), allocatable :: is_data_in(:)
       integer(iintegers), allocatable :: is_data_out(:)
 
-      associate( ri => rayli_info, Cdir => solver%C_dir, C1 => solver%C_one )
+      associate( ri => rayli_info, Cdir => solver%C_dir, C1 => solver%C_one, Ca => solver%C_one_atm )
 
         if(submyid.eq.0) then
           is_data_size = Cdir%glob_zm * Cdir%glob_xm * Cdir%glob_ym * i2 & ! all horizontal fluxes twice
@@ -347,7 +347,7 @@ contains
         is_data_out(:) = -1
 
         if(submyid.eq.0) then
-          ! First do it for all the main dofs
+          ! First do it for all the atmosphere dofs
           call ndarray_offsets(      &
             &[Cdir%dof,      &
             & Cdir%glob_zm,  &
@@ -361,8 +361,12 @@ contains
           do j = 0, Cdir%glob_ym-1
             do i = 0, Cdir%glob_xm-1
               do k = 0, Cdir%glob_zm-2
-                kk = atmk(solver%atm,k)
-                call pprts_cell_to_plex_cell_idx(solver%C_one_atm, [kk,i,j], ri%plex, plex_cells, ierr); call CHKERR(ierr)
+                if(k.eq.0) then
+                  ak = 0
+                else
+                  ak = atmk(solver%atm, k)
+                endif
+                call pprts_cell_to_plex_cell_idx(Ca, [ak,i,j], ri%plex, plex_cells, ierr); call CHKERR(ierr)
 
                 ! on top faces:
                 i1d = ind_nd_to_1d(pprts_offsets, [i0, k, i, j], cstyle=.True.)
@@ -410,7 +414,9 @@ contains
 
               ! and at the surface
               k = Cdir%glob_zm-1
-              call pprts_cell_to_plex_cell_idx(C1, [k-1,i,j], ri%plex, plex_cells, ierr); call CHKERR(ierr)
+              ak = atmk(solver%atm, k)
+              call pprts_cell_to_plex_cell_idx(Ca, [ak-1,i,j], ri%plex, plex_cells, ierr); call CHKERR(ierr)
+
               ! on top faces:
               i1d = ind_nd_to_1d(pprts_offsets, [i0, k, i, j], cstyle=.True.)
 
@@ -433,17 +439,23 @@ contains
 
         call ISCreateGeneral(PETSC_COMM_SELF, is_data_size, is_data_in, PETSC_USE_POINTER, is_in, ierr); call CHKERR(ierr)
         call ISCreateGeneral(PETSC_COMM_SELF, is_data_size, is_data_out, PETSC_USE_POINTER, is_out, ierr); call CHKERR(ierr)
-        call PetscObjectViewFromOptions(is_in , PETSC_NULL_IS, '-show_rayli_iss', ierr); call CHKERR(ierr)
-        call PetscObjectViewFromOptions(is_out, PETSC_NULL_IS, '-show_rayli_iss', ierr); call CHKERR(ierr)
+
+        call PetscObjectSetName(is_in , "rayli_dir_iss_pprts_idx", ierr); call CHKERR(ierr)
+        call PetscObjectSetName(is_out, "rayli_dir_iss_plex_idx" , ierr); call CHKERR(ierr)
+
+        call PetscObjectViewFromOptions(is_in , PETSC_NULL_IS, '-show_rayli_dir_iss', ierr); call CHKERR(ierr)
+        call PetscObjectViewFromOptions(is_out, PETSC_NULL_IS, '-show_rayli_dir_iss', ierr); call CHKERR(ierr)
+
         call gen_shared_scatter_ctx(solution%edir, rayli_info%plex_solution%edir, rayli_info%ctx_edir, ierr, &
           & is_in, is_out); call CHKERR(ierr)
+
         call ISDestroy(is_out, ierr); call CHKERR(ierr)
         call ISDestroy(is_in, ierr); call CHKERR(ierr)
       end associate
     end subroutine
 
     subroutine setup_ediff_scatter_context()
-      integer(iintegers) :: i, j, k, kk, voff, idof, i1d, iface, l, m
+      integer(iintegers) :: i, j, k, voff, idof, i1d, iface, l, m, ak
       integer(iintegers) :: pprts_offsets(4), plex_cells(2)
       type(tPetscSection) :: ediffsection
       type(tIS) :: is_in, is_out
@@ -451,7 +463,7 @@ contains
       integer(iintegers), allocatable :: is_data_in(:)
       integer(iintegers), allocatable :: is_data_out(:)
 
-      associate( ri => rayli_info, Cdiff => solver%C_diff, C1 => solver%C_one )
+      associate( ri => rayli_info, Cdiff => solver%C_diff, C1 => solver%C_one, Ca => solver%C_one_atm )
         if(submyid.eq.0) then
           is_data_size = Cdiff%glob_zm * Cdiff%glob_xm * Cdiff%glob_ym * solver%difftop%dof * i2 & ! all horizontal fluxes
             & + C1%glob_zm * C1%glob_xm * C1%glob_ym * solver%diffside%dof * i2 ! plus fluxes on vertical faces once for x and y
@@ -478,8 +490,12 @@ contains
           do j = 0, Cdiff%glob_ym-1
             do i = 0, Cdiff%glob_xm-1
               do k = 0, Cdiff%glob_zm-2
-                kk = atmk(solver%atm,k)
-                call pprts_cell_to_plex_cell_idx(solver%C_one_atm, [kk,i,j], ri%plex, plex_cells, ierr); call CHKERR(ierr)
+                if(k.eq.0) then
+                  ak = 0
+                else
+                  ak = atmk(solver%atm, k)
+                endif
+                call pprts_cell_to_plex_cell_idx(Ca, [ak,i,j], ri%plex, plex_cells, ierr); call CHKERR(ierr)
 
                 ! on top faces:
                 do idof = 0, solver%difftop%dof-1
@@ -545,7 +561,9 @@ contains
 
               ! and at the surface
               k = Cdiff%glob_zm-1
-              call pprts_cell_to_plex_cell_idx(C1, [k-1,i,j], ri%plex, plex_cells, ierr); call CHKERR(ierr)
+              ak = atmk(solver%atm, k)
+              call pprts_cell_to_plex_cell_idx(Ca, [ak-1,i,j], ri%plex, plex_cells, ierr); call CHKERR(ierr)
+
               do idof = 0, solver%difftop%dof-1
                 ! on top faces:
                 i1d = ind_nd_to_1d(pprts_offsets, [idof, k, i, j], cstyle=.True.)
@@ -585,35 +603,83 @@ contains
     end subroutine
 
     subroutine setup_abso_scatter_context()
-      integer(iintegers) :: Nabso, i, k, kk, voff
+      integer(iintegers) :: is_data_size
+      integer(iintegers) :: pprts_offsets(4), plex_cells(2)
+      integer(iintegers) :: i, j, k, l, voff, i1d, m, ak
+      type(tPetscSection) :: cellSection
       type(tIS) :: is_in, is_out
-      integer(iintegers), allocatable :: is_data(:)
+      integer(iintegers), allocatable :: is_data_in(:)
+      integer(iintegers), allocatable :: is_data_out(:)
 
-      if(submyid.eq.0) then
-        Nabso = solver%C_one%glob_xm*solver%C_one%glob_ym*solver%C_one%glob_zm
-      else
-        Nabso = 0
-      endif
-      allocate(is_data(i0:Nabso*i2-i1))
-      if(submyid.eq.0) then
-        do i = i0, solver%C_one%glob_xm*solver%C_one%glob_ym-i1
-          do k = i0, solver%C_one%glob_zm-i1
-            kk = atmk(solver%atm,k)
-            voff = i*solver%C_one%glob_zm + k
-            is_data((i*i2  )*solver%C_one_atm%glob_zm+kk) = voff
-            is_data((i*i2+1)*solver%C_one_atm%glob_zm+kk) = voff
+      associate( ri => rayli_info, C1 => solver%C_one, Ca => solver%C_one_atm )
+        if(submyid.eq.0) then
+          is_data_size = Ca%glob_zm * C1%glob_xm * C1%glob_ym * i2
+        else
+          is_data_size= 0
+        endif
+
+        allocate(is_data_in (0:is_data_size-1))
+        allocate(is_data_out(0:is_data_size-1))
+        is_data_in = -1
+        is_data_out= -1
+
+        if(submyid.eq.0) then
+          ! First do it for all the main dofs
+          call ndarray_offsets(&
+            &[i1,          &
+            & C1%glob_zm,  &
+            & C1%glob_xm,  &
+            & C1%glob_ym], &
+            & pprts_offsets )
+
+          if(.not.allocated(ri%plex%cell1_dm)) call CHKERR(1_mpiint, 'ri%plex%cell1_dm not allocated but needed')
+          call DMGetSection(ri%plex%cell1_dm, cellSection, ierr); call CHKERR(ierr)
+
+          l=0
+          do j = 0, C1%glob_ym-1
+            do i = 0, C1%glob_xm-1
+              ! First build sum of upper atmosphere and put them in the 0th layer, i.e. sum up the collapsed values
+              do ak = 0, solver%atm%icollapse-1
+                k = 0
+                call pprts_cell_to_plex_cell_idx(Ca, [ak,i,j], ri%plex, plex_cells, ierr); call CHKERR(ierr)
+                i1d = ind_nd_to_1d(pprts_offsets, [i0, k, i, j], cstyle=.True.) ! i1d points to dof on pprts topface
+                do m = 1, 2
+                  call PetscSectionGetOffset(cellSection, plex_cells(m), voff, ierr); call CHKERR(ierr)
+                  is_data_in(l) = i1d
+                  is_data_out(l) = voff
+                  l = l+1
+                enddo
+              enddo
+              ! then define the normal layers
+              do k = i1, C1%glob_zm-1
+                ak = atmk(solver%atm, k)
+                call pprts_cell_to_plex_cell_idx(Ca, [ak,i,j], ri%plex, plex_cells, ierr); call CHKERR(ierr)
+                i1d = ind_nd_to_1d(pprts_offsets, [i0, k, i, j], cstyle=.True.) ! i1d points to dof on pprts cell
+                do m = 1, 2
+                  call PetscSectionGetOffset(cellSection, plex_cells(m), voff, ierr); call CHKERR(ierr)
+                  is_data_in(l) = i1d
+                  is_data_out(l) = voff
+                  l = l+1
+                enddo
+              enddo
+            enddo
           enddo
-        enddo
-      endif
-      call ISCreateGeneral(PETSC_COMM_SELF, Nabso*i2, is_data, PETSC_USE_POINTER, is_in, ierr); call CHKERR(ierr)
-      call ISCreateStride(PETSC_COMM_SELF, Nabso*i2, 0_iintegers, 1_iintegers, is_out, ierr); call CHKERR(ierr)
-      call gen_shared_scatter_ctx(solution%abso, rayli_info%plex_solution%abso, rayli_info%ctx_abso, ierr, &
-        & is_in, is_out); call CHKERR(ierr)
-      call PetscObjectViewFromOptions(is_in , PETSC_NULL_IS, '-show_rayli_iss', ierr); call CHKERR(ierr)
-      call PetscObjectViewFromOptions(is_out, PETSC_NULL_IS, '-show_rayli_iss', ierr); call CHKERR(ierr)
-      call ISDestroy(is_out, ierr); call CHKERR(ierr)
-      call ISDestroy(is_in, ierr); call CHKERR(ierr)
-      deallocate(is_data)
+        endif
+
+        ierr = int(count(is_data_in.ge.0) - is_data_size, mpiint)
+        call CHKERR(ierr, 'wrong number of scattered dof, did we forget something?')
+
+        call ISCreateGeneral(PETSC_COMM_SELF, is_data_size, is_data_in, PETSC_USE_POINTER, is_in, ierr); call CHKERR(ierr)
+        call PetscObjectSetName(is_in, "rayli_abso_iss_pprts_idx", ierr); call CHKERR(ierr)
+        call ISCreateGeneral(PETSC_COMM_SELF, is_data_size, is_data_out, PETSC_USE_POINTER, is_out, ierr); call CHKERR(ierr)
+        call PetscObjectSetName(is_out, "rayli_abso_iss_plex_idx", ierr); call CHKERR(ierr)
+        call PetscObjectViewFromOptions(is_in , PETSC_NULL_IS, '-show_rayli_abso_iss', ierr); call CHKERR(ierr)
+        call PetscObjectViewFromOptions(is_out, PETSC_NULL_IS, '-show_rayli_abso_iss', ierr); call CHKERR(ierr)
+        call gen_shared_scatter_ctx(solution%abso, rayli_info%plex_solution%abso, rayli_info%ctx_abso, ierr, &
+          & is_in, is_out); call CHKERR(ierr)
+        call ISDestroy(is_out, ierr); call CHKERR(ierr)
+        call ISDestroy(is_in, ierr); call CHKERR(ierr)
+      end associate
     end subroutine
 
   end subroutine
