@@ -3598,7 +3598,7 @@ end subroutine
 
           associate(k => idx(2), i => idx(3), j => idx(4))
 
-            print *, m, 'face', B%iface(m), 'idx', idx, 'Ag', B%albedo(m), 'x/y inc', sun%xinc(k,i,j), sun%yinc(k,i,j)
+            !print *, m, 'face', B%iface(m), 'idx', idx, 'Ag', B%albedo(m), 'x/y inc', sun%xinc(k,i,j), sun%yinc(k,i,j)
             !lsun_east  = sun%xinc(idx(k,i,j).eq.i0
             !lsun_north = sun%yinc(idx(k,i,j).eq.i0
 

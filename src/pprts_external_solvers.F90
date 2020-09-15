@@ -62,7 +62,6 @@ module m_pprts_external_solvers
     type(t_pprts_buildings), allocatable :: subcomm_buildings
     type(t_plex_buildings), allocatable :: plex_buildings
     integer(iintegers) :: Nglob ! global number of building entries (0 if not a subcomm master)
-    ISLocalToGlobalMapping :: l2g_mapping ! mapping local building entries to global entries TODO check what that means
     type(tVecScatter) :: ctx_albedo
   end type
 
@@ -758,7 +757,8 @@ contains
 
             ! Then build a plex_buildings object out of that one
             if(submyid.eq.0) then
-              call pprts_buildings_to_plex(ri%plex, &
+              call pprts_buildings_to_plex(solver, &
+                & ri%plex, &
                 & ri%buildings_info%subcomm_buildings, &
                 & ri%buildings_info%plex_buildings, ierr); call CHKERR(ierr)
             endif
@@ -803,57 +803,59 @@ contains
         integer(mpiint), intent(out) :: ierr
         ierr = 0
 
-        call init_buildings(subB, &
-          & [6_iintegers, solver%C_one%glob_zm, solver%C_one%glob_xm, solver%C_one%glob_ym], &
-          & ierr); call CHKERR(ierr)
-        if(.not.allocated(subB%iface))     allocate(subB%iface(B_info%Nglob))
-        if(.not.allocated(subB%albedo))    allocate(subB%albedo(B_info%Nglob))
+        associate(atm => solver%atm, C1 => solver%C_one)
+          call init_buildings(subB, &
+            & [6_iintegers, C1%glob_zm, C1%glob_xm, C1%glob_ym], &
+            & ierr); call CHKERR(ierr)
+          if(.not.allocated(subB%iface))  allocate(subB%iface(B_info%Nglob))
+          if(.not.allocated(subB%albedo)) allocate(subB%albedo(B_info%Nglob))
 
-        nlocal = size(localB%iface)
+          nlocal = size(localB%iface)
 
-        ! Setup Albedo
-        call VecCreateMPIWithArray(solver%comm, i1, &
-          & nlocal, PETSC_DECIDE, localB%albedo, &
-          & vlocal, ierr); call CHKERR(ierr)
+          ! Setup Albedo
+          call VecCreateMPIWithArray(solver%comm, i1, &
+            & nlocal, PETSC_DECIDE, localB%albedo, &
+            & vlocal, ierr); call CHKERR(ierr)
 
-        call VecCreateSeqWithArray(PETSC_COMM_SELF, i1, B_info%Nglob, subB%albedo, vsub, ierr); call CHKERR(ierr)
-        call VecScatterBegin(B_info%ctx_albedo, vlocal, vsub, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
-        call VecScatterEnd  (B_info%ctx_albedo, vlocal, vsub, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
+          call VecCreateSeqWithArray(PETSC_COMM_SELF, i1, B_info%Nglob, subB%albedo, vsub, ierr); call CHKERR(ierr)
+          call VecScatterBegin(B_info%ctx_albedo, vlocal, vsub, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
+          call VecScatterEnd  (B_info%ctx_albedo, vlocal, vsub, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
 
-        call PetscObjectViewFromOptions(vsub, PETSC_NULL_VEC, '-show_rayli_buildings_albedo', ierr); call CHKERR(ierr)
-        call VecDestroy(vlocal, ierr); call CHKERR(ierr)
-        call VecDestroy(vsub, ierr); call CHKERR(ierr)
+          call PetscObjectViewFromOptions(vsub, PETSC_NULL_VEC, '-show_rayli_buildings_albedo', ierr); call CHKERR(ierr)
+          call VecDestroy(vlocal, ierr); call CHKERR(ierr)
+          call VecDestroy(vsub, ierr); call CHKERR(ierr)
 
-        ! Setup buildings faces
-        ! i.e. find out what the face idx of buildings would be with global offsets
-        call ndarray_offsets( &
-          & [6_iintegers, solver%C_one%glob_zm, solver%C_one%glob_xm, solver%C_one%glob_ym], &
-          & global_da_offsets)
-        allocate(glob_idx(nlocal), sub_idx(B_info%Nglob))
-        do m = 1, nlocal
-          call ind_1d_to_nd(localB%da_offsets, localB%iface(m), idx)
-          associate(d => idx(1), k => idx(2), i => idx(3), j => idx(4))
-            glob_idx(m) = real( &
-              & ind_nd_to_1d(global_da_offsets, &
-                & [d, solver%C_one%zs+k, solver%C_one%xs+i, solver%C_one%ys+j]), &
-              & ireals)
-          end associate
-        enddo
-        call VecCreateMPIWithArray(solver%comm, i1, &
-          & nlocal, PETSC_DECIDE, glob_idx, &
-          & vlocal, ierr); call CHKERR(ierr)
+          ! Setup buildings faces
+          ! i.e. find out what the face idx of buildings would be with global offsets
+          call ndarray_offsets( &
+            & [6_iintegers, C1%glob_zm, C1%glob_xm, C1%glob_ym], &
+            & global_da_offsets)
+          allocate(glob_idx(nlocal), sub_idx(B_info%Nglob))
+          do m = 1, nlocal
+            call ind_1d_to_nd(localB%da_offsets, localB%iface(m), idx)
+            associate( d => idx(1), k => idx(2), i => idx(3), j => idx(4))
+              glob_idx(m) = real( &
+                & ind_nd_to_1d(global_da_offsets, &
+                & [d, C1%zs+k, C1%xs+i, C1%ys+j]), &
+                & ireals)
+            end associate
+          enddo
+          call VecCreateMPIWithArray(solver%comm, i1, &
+            & nlocal, PETSC_DECIDE, glob_idx, &
+            & vlocal, ierr); call CHKERR(ierr)
 
-        call VecCreateSeqWithArray(PETSC_COMM_SELF, i1, B_info%Nglob, sub_idx, vsub, ierr); call CHKERR(ierr)
-        call VecScatterBegin(B_info%ctx_albedo, vlocal, vsub, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
-        call VecScatterEnd  (B_info%ctx_albedo, vlocal, vsub, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
-        subB%iface(:) = int(sub_idx(:), kind=iintegers)
+          call VecCreateSeqWithArray(PETSC_COMM_SELF, i1, B_info%Nglob, sub_idx, vsub, ierr); call CHKERR(ierr)
+          call VecScatterBegin(B_info%ctx_albedo, vlocal, vsub, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
+          call VecScatterEnd  (B_info%ctx_albedo, vlocal, vsub, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
+          subB%iface(:) = int(sub_idx(:), kind=iintegers)
 
-        call PetscObjectViewFromOptions(vsub, PETSC_NULL_VEC, '-show_rayli_buildings_iface', ierr); call CHKERR(ierr)
-        call VecDestroy(vlocal, ierr); call CHKERR(ierr)
-        call VecDestroy(vsub, ierr); call CHKERR(ierr)
+          call PetscObjectViewFromOptions(vsub, PETSC_NULL_VEC, '-show_rayli_buildings_iface', ierr); call CHKERR(ierr)
+          call VecDestroy(vlocal, ierr); call CHKERR(ierr)
+          call VecDestroy(vsub, ierr); call CHKERR(ierr)
 
-        call check_buildings_consistency(subB, &
-          & solver%C_one%glob_zm, solver%C_one%glob_xm, solver%C_one%glob_ym, ierr); call CHKERR(ierr)
+          call check_buildings_consistency(subB, &
+            & C1%glob_zm, C1%glob_xm, C1%glob_ym, ierr); call CHKERR(ierr)
+        end associate
       end subroutine
 
       subroutine call_solver(plex_solution)

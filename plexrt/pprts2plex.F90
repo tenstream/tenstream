@@ -17,7 +17,7 @@ module m_pprts2plex
     & PPRTS_REAR_FACE,                    &
     & PPRTS_FRONT_FACE
 
-  use m_pprts_base, only : t_coord
+  use m_pprts_base, only : t_solver, t_coord, atmk
 
   use m_plex_grid, only: t_plexgrid, &
     & get_inward_face_normal
@@ -26,18 +26,18 @@ module m_pprts2plex
 
 contains
 
-  subroutine pprts_buildings_to_plex(plex, pprts_buildings, plex_buildings, ierr)
+  subroutine pprts_buildings_to_plex(solver, plex, pprts_buildings, plex_buildings, ierr)
+    class(t_solver), intent(in) :: solver
     type(t_plexgrid), intent(in) :: plex
     type(t_pprts_buildings), intent(in) :: pprts_buildings
     type(t_plex_buildings), intent(inout), allocatable :: plex_buildings
     integer(mpiint), intent(out) :: ierr
-    integer(iintegers) :: i, k, icell, iface
-    integer(iintegers) :: nr_plex_faces, ndidx(4), cell_offsets(3)
+    integer(iintegers) :: m, l, icell, iface, ak
+    integer(iintegers) :: nr_plex_faces, pprts_idx(4), plex_cells(2)
     integer(iintegers) :: cStart, cEnd, fStart, fEnd
 
     type(tPetscSection) :: geomSection
     real(ireals), pointer :: geoms(:)
-    integer(iintegers) :: geom_offset
 
     ierr = 0
 
@@ -48,10 +48,10 @@ contains
     ! count number of needed new faces
     associate(P => pprts_buildings)
       nr_plex_faces = 0
-      do i = lbound(P%iface,1), ubound(P%iface,1)
+      do m = lbound(P%iface,1), ubound(P%iface,1)
 
-        call ind_1d_to_nd(P%da_offsets, P%iface(i), ndidx)
-        select case(ndidx(1))
+        call ind_1d_to_nd(P%da_offsets, P%iface(m), pprts_idx)
+        select case(pprts_idx(1))
 
         case (PPRTS_TOP_FACE, PPRTS_BOT_FACE)
           nr_plex_faces = nr_plex_faces + 2
@@ -82,38 +82,27 @@ contains
     call DMGetSection(plex%geom_dm, geomSection, ierr); CHKERRQ(ierr)
     call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
-    associate(P => pprts_buildings, T=>plex_buildings)
-      cell_offsets = P%da_offsets(2:4)/P%da_offsets(2)
-      cell_offsets(2:3) = cell_offsets(2:3) * 2 ! two cells in x direction
-      !print *,'cell offsets', cell_offsets
+    associate(Ca => solver%C_one_atm, P => pprts_buildings, T=>plex_buildings)
+      l = 0
+      do m = lbound(P%iface,1), ubound(P%iface,1)
+        call ind_1d_to_nd(P%da_offsets, P%iface(m), pprts_idx)
 
-      k = 1
-      do i = lbound(P%iface,1), ubound(P%iface,1)
+        associate( d => pprts_idx(1), k => pprts_idx(2), i => pprts_idx(3), j => pprts_idx(4))
+          ak = atmk(solver%atm, k)
 
-        call ind_1d_to_nd(P%da_offsets, P%iface(i), ndidx)
-        icell = cStart + ind_nd_to_1d(cell_offsets, ndidx(2:4)) - 1
-        call PetscSectionGetFieldOffset(geomSection, icell, i0, geom_offset, ierr); call CHKERR(ierr)
-        !print *,'cell', icell, 'centroid', geoms(i1+geom_offset:i3+geom_offset)
+          call pprts_cell_to_plex_cell_idx(Ca, [ak,i,j]-1, plex, plex_cells, ierr); call CHKERR(ierr)
 
-        ! First plex cell
-        iface = find_face_idx_by_orientation(plex, icell, ndidx(1))
-        if (iface.ge.i0) then
-          T%iface(k) = iface
-          T%albedo(k) = P%albedo(i)
-          k = k+1
-        endif
-
-        icell = icell + plex%Nlay
-        call PetscSectionGetFieldOffset(geomSection, icell, i0, geom_offset, ierr); call CHKERR(ierr)
-        !print *,'cell', icell, 'centroid', geoms(i1+geom_offset:i3+geom_offset)
-
-        iface = find_face_idx_by_orientation(plex, icell, ndidx(1))
-        if (iface.ge.i0) then
-          T%iface(k) = iface
-          T%albedo(k) = P%albedo(i)
-          k = k+1
-        endif
+          do icell=1,2
+            iface = find_face_idx_by_orientation(plex, plex_cells(icell), d)
+            if(iface.ge.0) then
+              l = l+1
+              T%iface(l) = iface
+              T%albedo(l) = P%albedo(m)
+            endif
+          enddo
+        end associate
       enddo
+      call CHKERR(int(nr_plex_faces-l, mpiint), 'did we forget a face?')
     end associate
     call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
   end subroutine
