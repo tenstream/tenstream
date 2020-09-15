@@ -59,129 +59,131 @@ contains
     sundir = spherical_2_cartesian(phi0, theta0)
     call init_pprts(comm, Nlay, Nx, Ny, dx,dy, sundir, solver, dz1d, collapseindex=icollapse)
 
-    allocate(kabs(solver%C_one_atm%zm , solver%C_one_atm%xm,  solver%C_one_atm%ym ))
-    allocate(ksca(solver%C_one_atm%zm , solver%C_one_atm%xm,  solver%C_one_atm%ym ))
-    allocate(g   (solver%C_one_atm%zm , solver%C_one_atm%xm,  solver%C_one_atm%ym ))
+    associate(Ca => solver%C_one_atm, C1 => solver%C_one)
+      allocate(kabs(Ca%zm , Ca%xm,  Ca%ym ))
+      allocate(ksca(Ca%zm , Ca%xm,  Ca%ym ))
+      allocate(g   (Ca%zm , Ca%xm,  Ca%ym ))
 
-    kabs = dtau*(one-w0)/(dz*Nlay)
-    ksca = dtau*w0/(dz*Nlay)
-    g    = zero
+      kabs = dtau*(one-w0)/(dz*Nlay)
+      ksca = dtau*w0/(dz*Nlay)
+      g    = zero
 
-    call init_buildings(buildings, &
-      & [integer(iintegers) :: 6, solver%C_one%zm, solver%C_one%xm,  solver%C_one%ym], &
-      & ierr); call CHKERR(ierr)
+      call init_buildings(buildings, &
+        & [integer(iintegers) :: 6, C1%zm, C1%xm,  C1%ym], &
+        & ierr); call CHKERR(ierr)
 
-    box_k = 2 !int((1+solver%C_one%zm) / 2.)
-    box_i = 3 !int((1+solver%C_one%xm) / 2.)
-    box_j = 3 !int((1+solver%C_one%ym) / 2.)
+      box_k = C1%zm-1 ! one above the surface-touching cell
+      box_i = 3 !int((1+Ca%xm) / 2.)
+      box_j = 3 !int((1+Ca%ym) / 2.)
 
-    print *, 'Have box:', &
-      & solver%C_one%ys, solver%C_one%ye, &
-      & box_k.gt.solver%C_one%zs, box_k.le.solver%C_one%ze+1, &
-      & box_i.gt.solver%C_one%xs, box_i.le.solver%C_one%xe+1, &
-      & box_j.gt.solver%C_one%ys, box_j.le.solver%C_one%ye+1
+      print *, 'Have box:', &
+        & C1%ys, C1%ye, &
+        & box_k.gt.C1%zs, box_k.le.C1%ze+1, &
+        & box_i.gt.C1%xs, box_i.le.C1%xe+1, &
+        & box_j.gt.C1%ys, box_j.le.C1%ye+1
 
-    if( box_k.gt.solver%C_one%zs.and.box_k.le.solver%C_one%ze+1 .and. &
-      !& .False. .and. &
-      & box_i.gt.solver%C_one%xs.and.box_i.le.solver%C_one%xe+1 .and. &
-      & box_j.gt.solver%C_one%ys.and.box_j.le.solver%C_one%ye+1 ) then
-      allocate(buildings%albedo(Nbuildings), buildings%iface(Nbuildings))
-      do i=1,6
-        buildings%iface(i) = faceidx_by_cell_plus_offset( &
-          & buildings%da_offsets, box_k, box_i, box_j, i)
-        buildings%albedo(i) = .1_ireals !+ i/10._ireals
-      enddo
-    else
-      allocate(buildings%albedo(0), buildings%iface(0))
-    endif
-
-    call check_buildings_consistency(buildings, solver%C_one%zm, solver%C_one%xm, solver%C_one%ym, ierr); call CHKERR(ierr)
-
-    call set_optical_properties(solver, albedo, kabs, ksca, g)
-    call set_angles(solver, sundir)
-
-    call solve_pprts(solver, &
-      & lthermal=.False., &
-      & lsolar=.True., &
-      & edirTOA=incSolar, &
-      & opt_buildings=buildings)
-
-    call pprts_get_result(solver, fdn, fup, fdiv, fdir, opt_buildings=buildings)
-
-    call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
-    call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
-
-    do id = 0, numnodes-1
-      if(id.eq.myid) then
-        print *,''
-        print *,cstr(' ***************** Rank '//toStr(myid), 'red')
-        if(box_i.gt.solver%C_one%xs.and.box_i.le.solver%C_one%xe+1) then
-          print *,''
-          print *,'Direct y-slice:'
-          do i = box_i, box_i
-            do k = 1+solver%C_dir%zs, 1+solver%C_dir%ze
-              print *, 'edir', k,i, toStr( fdir(k, i, :) )
-            enddo
-          enddo
-        endif
-
-        if(box_j.gt.solver%C_one%ys.and.box_j.le.solver%C_one%ye+1) then
-          print *,''
-          print *,'Direct x-slice:'
-          do i = box_j, box_j
-            do k = 1+solver%C_dir%zs, 1+solver%C_dir%ze
-              print *, 'edir', k,i, toStr( fdir(k, :, i) )
-            enddo
-          enddo
-          print *,''
-        endif
-
-        if(box_i.gt.solver%C_one%xs.and.box_i.le.solver%C_one%xe+1) then
-          print *,''
-          print *,'Diffuse y-slice:'
-          do i = box_i, box_i
-            do k = 1+solver%C_diff%zs, 1+solver%C_diff%ze
-              print *, 'edn', k,i, toStr( fdn(k, i, :) ), &
-                & cstr(' eup'//toStr( fup(k, i, :) ), 'blue')
-            enddo
-          enddo
-        endif
-
-        if(box_j.gt.solver%C_one%ys.and.box_j.le.solver%C_one%ye+1) then
-          print *,''
-          print *,'Diffuse x-slice:'
-          do i = box_j, box_j
-            do k = 1+solver%C_diff%zs, 1+solver%C_diff%ze
-              print *, 'edn', k,i, toStr( fdn(k, :, i) ), &
-                & cstr(' eup'//toStr( fup(k, :, i) ), 'green')
-            enddo
-          enddo
-          print *,''
-        endif
-
-        if(allocated(buildings%edir)) then
-          do i=1, size(buildings%iface)
-            print *, 'building_face', i, 'edir', buildings%edir(i), &
-              & 'in/out', buildings%incoming(i), buildings%outgoing(i)
-          enddo
-        endif
+      if( box_k.gt.C1%zs.and.box_k.le.C1%ze+1 .and. &
+        !& .False. .and. &
+        & box_i.gt.C1%xs.and.box_i.le.C1%xe+1 .and. &
+        & box_j.gt.C1%ys.and.box_j.le.C1%ye+1 ) then
+        allocate(buildings%albedo(Nbuildings), buildings%iface(Nbuildings))
+        do i=1,6
+          buildings%iface(i) = faceidx_by_cell_plus_offset( &
+            & buildings%da_offsets, box_k, box_i, box_j, i)
+          buildings%albedo(i) = .1_ireals !+ i/10._ireals
+        enddo
+      else
+        allocate(buildings%albedo(0), buildings%iface(0))
       endif
 
-      do k = lbound(fdiv,1), ubound(fdiv, 1)
+      call check_buildings_consistency(buildings, C1%zm, C1%xm, C1%ym, ierr); call CHKERR(ierr)
+
+      call set_optical_properties(solver, albedo, kabs, ksca, g)
+      call set_angles(solver, sundir)
+
+      call solve_pprts(solver, &
+        & lthermal=.False., &
+        & lsolar=.True., &
+        & edirTOA=incSolar, &
+        & opt_buildings=buildings)
+
+      call pprts_get_result(solver, fdn, fup, fdiv, fdir, opt_buildings=buildings)
+
+      call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+      call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
+
+      do id = 0, numnodes-1
+        if(id.eq.myid) then
+          print *,''
+          print *,cstr(' ***************** Rank '//toStr(myid), 'red')
+          if(box_i.gt.Ca%xs.and.box_i.le.Ca%xe+1) then
+            print *,''
+            print *,'Direct y-slice:'
+            do i = box_i, box_i
+              do k = 1+solver%C_dir%zs, 1+solver%C_dir%ze
+                print *, 'edir', k,i, toStr( fdir(k, i, :) )
+              enddo
+            enddo
+          endif
+
+          if(box_j.gt.Ca%ys.and.box_j.le.Ca%ye+1) then
+            print *,''
+            print *,'Direct x-slice:'
+            do i = box_j, box_j
+              do k = 1+solver%C_dir%zs, 1+solver%C_dir%ze
+                print *, 'edir', k,i, toStr( fdir(k, :, i) )
+              enddo
+            enddo
+            print *,''
+          endif
+
+          if(box_i.gt.Ca%xs.and.box_i.le.Ca%xe+1) then
+            print *,''
+            print *,'Diffuse y-slice:'
+            do i = box_i, box_i
+              do k = 1+solver%C_diff%zs, 1+solver%C_diff%ze
+                print *, 'edn', k,i, toStr( fdn(k, i, :) ), &
+                  & cstr(' eup'//toStr( fup(k, i, :) ), 'blue')
+              enddo
+            enddo
+          endif
+
+          if(box_j.gt.Ca%ys.and.box_j.le.Ca%ye+1) then
+            print *,''
+            print *,'Diffuse x-slice:'
+            do i = box_j, box_j
+              do k = 1+solver%C_diff%zs, 1+solver%C_diff%ze
+                print *, 'edn', k,i, toStr( fdn(k, :, i) ), &
+                  & cstr(' eup'//toStr( fup(k, :, i) ), 'green')
+              enddo
+            enddo
+            print *,''
+          endif
+
+          if(allocated(buildings%edir)) then
+            do i=1, size(buildings%iface)
+              print *, 'building_face', i, 'edir', buildings%edir(i), &
+                & 'in/out', buildings%incoming(i), buildings%outgoing(i)
+            enddo
+          endif
+        endif
+
+        do k = lbound(fdiv,1), ubound(fdiv, 1)
+          print *, k, &
+            & 'mean edir', meanval(fdir(k,:,:)), &
+            & 'edn', meanval(fdn(k,:,:)), &
+            & 'eup', meanval(fup(k,:,:)), &
+            & 'abso', meanval(fdiv(k,:,:))
+        enddo
+        k = ubound(fdir, 1)
         print *, k, &
           & 'mean edir', meanval(fdir(k,:,:)), &
           & 'edn', meanval(fdn(k,:,:)), &
-          & 'eup', meanval(fup(k,:,:)), &
-          & 'abso', meanval(fdiv(k,:,:))
-      enddo
-      k = ubound(fdir, 1)
-      print *, k, &
-        & 'mean edir', meanval(fdir(k,:,:)), &
-        & 'edn', meanval(fdn(k,:,:)), &
-        & 'eup', meanval(fup(k,:,:))
+          & 'eup', meanval(fup(k,:,:))
 
-      call mpi_barrier(comm, ierr); call CHKERR(ierr)
-    enddo
+        call mpi_barrier(comm, ierr); call CHKERR(ierr)
+      enddo
+    end associate
 
     call destroy_pprts(solver, .True.)
   end subroutine
