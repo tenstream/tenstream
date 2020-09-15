@@ -411,7 +411,7 @@ module m_pprts
 
     logical :: lview, lflg
     real(ireals), dimension(3) :: mdz, mhhl
-    integer(mpiint) :: myid, ierr
+    integer(mpiint) :: myid, numnodes, ierr
     integer(iintegers) :: k
     real(ireals), pointer :: hhl(:,:,:,:)=>null(), hhl1d(:)=>null()
 
@@ -420,9 +420,32 @@ module m_pprts
       lview, lflg, ierr) ;call CHKERR(ierr)
     if(.not.lview) return
 
-
     call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
     call mpi_comm_rank(solver%comm, myid, ierr); call CHKERR(ierr)
+    call mpi_comm_size(solver%comm, numnodes, ierr); call CHKERR(ierr)
+
+    if(myid.eq.0) print *,''
+    if(myid.eq.0) print *,' * Cell Domain Corners'//new_line('')//&
+      & cstr(' rank  '      , 'blue')// &
+      & cstr(' zs:ze       ', 'green')// &
+      & cstr(' xs:xe       ', 'blue' )// &
+      & cstr(' ys:ye'       ,'green')
+
+    do k = 0, numnodes-1
+      if(myid.eq.k) then
+        associate(C => solver%C_one)
+          print *,' '//cstr(toStr(myid), 'blue')//&
+            & '     '//cstr(toStr(C%zs), 'green')//' : '//cstr(toStr(C%ze), 'green')// &
+            & '     '//cstr(toStr(C%xs), 'blue' )//' : '//cstr(toStr(C%xe), 'blue' )// &
+            & '     '//cstr(toStr(C%ys), 'green')//' : '//cstr(toStr(C%ye), 'green')
+        end associate
+      endif
+      call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
+    enddo
+    call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
+
+    if(myid.eq.0) print *,''
+
     if(myid.eq.0) print *,'*  k(layer)'// &
       & ' '//cstr('all(1d) / any(1d)', 'blue' )//' '// &
       & ' '//cstr('dz(min/mean/max)', 'red')//' [m]                   '// &
@@ -617,12 +640,6 @@ module m_pprts
         C%gxe = C%gxs+C%gxm-1
         C%gye = C%gys+C%gym-1
         C%gze = C%gzs+C%gzm-1
-
-        if(ldebug) then
-          print *,myid,'Domain Corners z:: ',C%zs,':',C%ze,' (',C%zm,' entries)','global size',C%glob_zm
-          print *,myid,'Domain Corners x:: ',C%xs,':',C%xe,' (',C%xm,' entries)','global size',C%glob_xm
-          print *,myid,'Domain Corners y:: ',C%ys,':',C%ye,' (',C%ym,' entries)','global size',C%glob_ym
-        endif
 
         allocate(C%neighbors(0:3**C%dim-1) )
         call DMDAGetNeighbors(C%da,C%neighbors,ierr) ;call CHKERR(ierr)
