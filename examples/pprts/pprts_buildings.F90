@@ -167,12 +167,19 @@ contains
         endif
       endif
 
-      do k = lbound(fdir,1), ubound(fdir, 1)
+      do k = lbound(fdiv,1), ubound(fdiv, 1)
         print *, k, &
           & 'mean edir', meanval(fdir(k,:,:)), &
           & 'edn', meanval(fdn(k,:,:)), &
-          & 'eup', meanval(fup(k,:,:))
+          & 'eup', meanval(fup(k,:,:)), &
+          & 'abso', meanval(fdiv(k,:,:))
       enddo
+      k = ubound(fdir, 1)
+      print *, k, &
+        & 'mean edir', meanval(fdir(k,:,:)), &
+        & 'edn', meanval(fdn(k,:,:)), &
+        & 'eup', meanval(fup(k,:,:))
+
       call mpi_barrier(comm, ierr); call CHKERR(ierr)
     enddo
 
