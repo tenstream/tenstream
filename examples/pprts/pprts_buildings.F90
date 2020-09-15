@@ -31,8 +31,8 @@ module m_pprts_buildings
   implicit none
 
 contains
-  subroutine pprts_buildings(comm, Nx, Ny, Nlay, dx, dy, dz, phi0, theta0, albedo, dtau, w0)
-    integer(iintegers), intent(in) :: Nx,Ny,Nlay
+  subroutine pprts_buildings(comm, Nx, Ny, Nlay, icollapse, dx, dy, dz, phi0, theta0, albedo, dtau, w0)
+    integer(iintegers), intent(in) :: Nx,Ny,Nlay, icollapse
     real(ireals), intent(in) :: dx, dy, dz
     real(ireals), intent(in) :: phi0, theta0
     real(ireals), intent(in) :: albedo, dtau, w0
@@ -57,11 +57,11 @@ contains
     call allocate_pprts_solver_from_commandline(solver, '3_10', ierr); call CHKERR(ierr)
 
     sundir = spherical_2_cartesian(phi0, theta0)
-    call init_pprts(comm, Nlay, Nx, Ny, dx,dy, sundir, solver, dz1d)
+    call init_pprts(comm, Nlay, Nx, Ny, dx,dy, sundir, solver, dz1d, collapseindex=icollapse)
 
-    allocate(kabs(solver%C_one%zm , solver%C_one%xm,  solver%C_one%ym ))
-    allocate(ksca(solver%C_one%zm , solver%C_one%xm,  solver%C_one%ym ))
-    allocate(g   (solver%C_one%zm , solver%C_one%xm,  solver%C_one%ym ))
+    allocate(kabs(solver%C_one_atm%zm , solver%C_one_atm%xm,  solver%C_one_atm%ym ))
+    allocate(ksca(solver%C_one_atm%zm , solver%C_one_atm%xm,  solver%C_one_atm%ym ))
+    allocate(g   (solver%C_one_atm%zm , solver%C_one_atm%xm,  solver%C_one_atm%ym ))
 
     kabs = dtau*(one-w0)/(dz*Nlay)
     ksca = dtau*w0/(dz*Nlay)
@@ -167,8 +167,9 @@ contains
         endif
       endif
 
-      do k=1,size(fdir,dim=1)
-        print *,'mean edir', meanval(fdir(k,:,:)), &
+      do k = lbound(fdir,1), ubound(fdir, 1)
+        print *, k, &
+          & 'mean edir', meanval(fdir(k,:,:)), &
           & 'edn', meanval(fdn(k,:,:)), &
           & 'eup', meanval(fup(k,:,:))
       enddo
@@ -188,7 +189,7 @@ program main
   use mpi, only : MPI_COMM_WORLD
   implicit none
 
-  integer(iintegers) :: Nx,Ny,Nlay
+  integer(iintegers) :: Nx,Ny,Nlay, icollapse
   real(ireals) :: dx, dy, dz
   real(ireals) :: phi0, theta0
   real(ireals) :: Ag, dtau, w0
@@ -202,28 +203,31 @@ program main
   call read_commandline_options(mpi_comm_world)
 
   Nx=5; Ny=5; Nlay=3
-  call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Nx", Nx, lflg, ierr)
-  call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Ny", Ny, lflg, ierr)
-  call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Nz", Nlay, lflg, ierr)
+  call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Nx", Nx, lflg, ierr); call CHKERR(ierr)
+  call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Ny", Ny, lflg, ierr); call CHKERR(ierr)
+  call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Nz", Nlay, lflg, ierr); call CHKERR(ierr)
+
+  icollapse=1
+  call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-icollapse", icollapse, lflg, ierr); call CHKERR(ierr)
 
   dx = 100
-  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-dx", dx, lflg, ierr)
+  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-dx", dx, lflg, ierr); call CHKERR(ierr)
   dy = dx
-  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-dy", dy, lflg, ierr)
+  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-dy", dy, lflg, ierr); call CHKERR(ierr)
   dz = 100
-  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-dz", dz, lflg, ierr)
+  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-dz", dz, lflg, ierr); call CHKERR(ierr)
 
   phi0 = 180._ireals
-  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-phi", phi0, lflg, ierr)
+  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-phi", phi0, lflg, ierr); call CHKERR(ierr)
   theta0 = 0._ireals
-  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-theta", theta0, lflg, ierr)
+  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-theta", theta0, lflg, ierr); call CHKERR(ierr)
 
   Ag=0.1_ireals
-  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Ag", Ag, lflg, ierr)
+  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Ag", Ag, lflg, ierr); call CHKERR(ierr)
   dtau=1._ireals
-  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-dtau", dtau, lflg, ierr)
+  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-dtau", dtau, lflg, ierr); call CHKERR(ierr)
   w0=0.5_ireals
-  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-w0", w0, lflg, ierr)
+  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-w0", w0, lflg, ierr); call CHKERR(ierr)
 
   lverbose = .True.
   call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-verbose', &
@@ -253,7 +257,7 @@ program main
     call PetscOptionsInsertString(PETSC_NULL_OPTIONS, trim(rayli_options), ierr); call CHKERR(ierr)
   endif
 
-  call pprts_buildings(mpi_comm_world, Nx, Ny, Nlay, dx, dy, dz, phi0, theta0, Ag, dtau, w0)
+  call pprts_buildings(mpi_comm_world, Nx, Ny, Nlay, icollapse, dx, dy, dz, phi0, theta0, Ag, dtau, w0)
 
   call mpi_finalize(ierr)
 end program

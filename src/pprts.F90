@@ -339,9 +339,9 @@ module m_pprts
 
       if(present(dz1d)) then
         do j=solver%C_one_atm%ys,solver%C_one_atm%ye
-        do i=solver%C_one_atm%xs,solver%C_one_atm%xe
-        solver%atm%dz(:,i,j) = dz1d
-        enddo
+          do i=solver%C_one_atm%xs,solver%C_one_atm%xe
+            solver%atm%dz(:,i,j) = dz1d
+          enddo
         enddo
       endif
       if(present(dz3d)) then
@@ -392,9 +392,13 @@ module m_pprts
 
       if(present(collapseindex)) then
         solver%atm%lcollapse=collapseindex.gt.i1
-        solver%atm%icollapse=collapseindex
-        solver%atm%l1d(solver%C_one_atm%zs:atmk(solver%atm, solver%C_one%zs),:,:) = .True. ! if need to be collapsed, they have to be 1D.
-        if(ldebug) print *,'Using icollapse:',collapseindex, solver%atm%lcollapse
+        if(solver%atm%lcollapse) then
+          solver%atm%icollapse=collapseindex
+          ierr = count(.not.solver%atm%l1d(solver%C_one_atm%zs:atmk(solver%atm, solver%C_one%zs),:,:))
+          call CHKWARN(ierr, 'Found non 1D cells in an area that will be collapsed. This will change the results!')
+          solver%atm%l1d(solver%C_one_atm%zs:atmk(solver%atm, solver%C_one%zs),:,:) = .True. ! if need to be collapsed, they have to be 1D.
+          if(ldebug) print *,'Using icollapse:',collapseindex, solver%atm%lcollapse
+        endif
       endif
 
     end subroutine
@@ -475,7 +479,11 @@ module m_pprts
       endif
 
       Nz = Nz_in
-      if(present(collapseindex)) Nz = Nz_in-collapseindex+i1
+      if(present(collapseindex)) then
+        if(collapseindex.gt.1) then
+          Nz = Nz_in-collapseindex+i1
+        endif
+      endif
 
       if(solver%myid.eq.0.and.ldebug) print *,solver%myid,&
         & 'Setting up the DMDA grid for',Nz,Nx,Ny,'using',solver%numnodes,'nodes'
@@ -1592,41 +1600,39 @@ module m_pprts
 
           if(atm%lcollapse) then
             ak = atmk(atm, C_one%zs)
-            if(ak.ne.i1) then
-              if(present(planck)) then
-                allocate(Edn(C_one_atm%zs:ak+1), Eup(C_one_atm%zs:ak+1))
-                if(.not.allocated(atm%Bbot)) &
-                  allocate(atm%Bbot(C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye))
-                if(.not.allocated(atm%Btop)) &
-                  allocate(atm%Btop(C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye))
-              endif
-              do j=C_one_atm%ys,C_one_atm%ye
-                do i=C_one_atm%xs,C_one_atm%xe
-                  if(present(planck)) then
-                    call adding(&
-                      atm%a11(C_one_atm%zs:ak, i, j), &
-                      atm%a12(C_one_atm%zs:ak, i, j), &
-                      atm%a21(C_one_atm%zs:ak, i, j), &
-                      atm%a22(C_one_atm%zs:ak, i, j), &
-                      atm%a13(C_one_atm%zs:ak, i, j), &
-                      atm%a23(C_one_atm%zs:ak, i, j), &
-                      atm%a33(C_one_atm%zs:ak, i, j), &
-                      atm%dz(C_one_atm%zs:ak, i, j) * atm%kabs(C_one_atm%zs:ak, i, j), &
-                      atm%planck(C_one_atm%zs:ak+1, i, j), &
-                      Eup, Edn, atm%Btop(i, j), atm%Bbot(i, j))
-                  else
-                    call adding(&
-                      atm%a11(C_one_atm%zs:ak, i, j), &
-                      atm%a12(C_one_atm%zs:ak, i, j), &
-                      atm%a21(C_one_atm%zs:ak, i, j), &
-                      atm%a22(C_one_atm%zs:ak, i, j), &
-                      atm%a13(C_one_atm%zs:ak, i, j), &
-                      atm%a23(C_one_atm%zs:ak, i, j), &
-                      atm%a33(C_one_atm%zs:ak, i, j))
-                  endif
-                enddo !i
-              enddo !j
+            if(present(planck)) then
+              allocate(Edn(C_one_atm%zs:ak+1), Eup(C_one_atm%zs:ak+1))
+              if(.not.allocated(atm%Bbot)) &
+                allocate(atm%Bbot(C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye))
+              if(.not.allocated(atm%Btop)) &
+                allocate(atm%Btop(C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye))
             endif
+            do j=C_one_atm%ys,C_one_atm%ye
+              do i=C_one_atm%xs,C_one_atm%xe
+                if(present(planck)) then
+                  call adding(&
+                    atm%a11(C_one_atm%zs:ak, i, j), &
+                    atm%a12(C_one_atm%zs:ak, i, j), &
+                    atm%a21(C_one_atm%zs:ak, i, j), &
+                    atm%a22(C_one_atm%zs:ak, i, j), &
+                    atm%a13(C_one_atm%zs:ak, i, j), &
+                    atm%a23(C_one_atm%zs:ak, i, j), &
+                    atm%a33(C_one_atm%zs:ak, i, j), &
+                    atm%dz(C_one_atm%zs:ak, i, j) * atm%kabs(C_one_atm%zs:ak, i, j), &
+                    atm%planck(C_one_atm%zs:ak+1, i, j), &
+                    Eup, Edn, atm%Btop(i, j), atm%Bbot(i, j))
+                else
+                  call adding(&
+                    atm%a11(C_one_atm%zs:ak, i, j), &
+                    atm%a12(C_one_atm%zs:ak, i, j), &
+                    atm%a21(C_one_atm%zs:ak, i, j), &
+                    atm%a22(C_one_atm%zs:ak, i, j), &
+                    atm%a13(C_one_atm%zs:ak, i, j), &
+                    atm%a23(C_one_atm%zs:ak, i, j), &
+                    atm%a33(C_one_atm%zs:ak, i, j))
+                endif
+              enddo !i
+            enddo !j
           endif !lcollapse
         end associate
       end subroutine
