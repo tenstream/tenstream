@@ -39,7 +39,8 @@ module m_data_parameters
              imp_ireals,imp_real_dp,imp_irealLUT,                &
              imp_logical, imp_character,                         &
              imp_REAL32, imp_REAL64,                             &
-             init_mpi_data_parameters, default_str_len,          &
+             init_mpi_data_parameters, finalize_mpi,             &
+             default_str_len,                                    &
              EXP_MINVAL, EXP_MAXVAL, EXP_MINVAL128, EXP_MAXVAL128
 
       integer :: mpiint_dummy
@@ -182,6 +183,53 @@ subroutine init_mpi_data_parameters(comm)
 
   PETSC_COMM_WORLD = comm
   if(.not.lpetsc_is_initialized) call PetscInitialize(PETSC_NULL_CHARACTER, mpierr)
+  if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
+
+  contains
+    !duplicate of helper function. otherwise get circular dependency
+    function mpi_logical_all_same(comm,lval) result(lsame)
+      integer(mpiint),intent(in) :: comm
+      logical :: lsame
+      logical,intent(in) :: lval
+      integer(mpiint) :: i, isum, commsize, ierr
+      if(lval) then
+        i = 1
+      else
+        i = 0
+      endif
+      call mpi_allreduce(i, isum, 1_mpiint, imp_int4, MPI_SUM, comm, ierr)
+      if(lval) then
+        call MPI_Comm_size( comm, commsize, ierr)
+        lsame = isum.eq.commsize
+      else
+        lsame = isum.eq.0
+      endif
+    end function
+end subroutine
+
+subroutine finalize_mpi(comm)
+  integer(mpiint),intent(in) :: comm
+  integer(mpiint) :: ierr, mpierr
+  logical :: lmpi_is_initialized, lpetsc_is_initialized, lallsame
+
+  call mpi_initialized( lmpi_is_initialized, mpierr)
+  if(.not.lmpi_is_initialized) return ! if we dont even have mpi, petsc cant live either
+
+  call PetscInitialized(lpetsc_is_initialized, mpierr)
+  if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
+
+  lallsame = mpi_logical_all_same(comm,lpetsc_is_initialized)
+  if(.not.lallsame) then
+    print *,'the provided communicator does not agree on lpetsc_is_initialized',lpetsc_is_initialized
+    call mpi_abort(comm, 1_mpiint, ierr)
+  endif
+
+  if(lpetsc_is_initialized) then
+    call PetscFinalize(mpierr)
+    if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
+  endif
+
+  if(lmpi_is_initialized) call MPI_Finalize(mpierr)
   if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
 
   contains
