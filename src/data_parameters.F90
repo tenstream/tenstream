@@ -184,27 +184,6 @@ subroutine init_mpi_data_parameters(comm)
   PETSC_COMM_WORLD = comm
   if(.not.lpetsc_is_initialized) call PetscInitialize(PETSC_NULL_CHARACTER, mpierr)
   if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
-
-  contains
-    !duplicate of helper function. otherwise get circular dependency
-    function mpi_logical_all_same(comm,lval) result(lsame)
-      integer(mpiint),intent(in) :: comm
-      logical :: lsame
-      logical,intent(in) :: lval
-      integer(mpiint) :: i, isum, commsize, ierr
-      if(lval) then
-        i = 1
-      else
-        i = 0
-      endif
-      call mpi_allreduce(i, isum, 1_mpiint, imp_int4, MPI_SUM, comm, ierr)
-      if(lval) then
-        call MPI_Comm_size( comm, commsize, ierr)
-        lsame = isum.eq.commsize
-      else
-        lsame = isum.eq.0
-      endif
-    end function
 end subroutine
 
 subroutine finalize_mpi(comm)
@@ -231,26 +210,29 @@ subroutine finalize_mpi(comm)
 
   if(lmpi_is_initialized) call MPI_Finalize(mpierr)
   if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
-
-  contains
-    !duplicate of helper function. otherwise get circular dependency
-    function mpi_logical_all_same(comm,lval) result(lsame)
-      integer(mpiint),intent(in) :: comm
-      logical :: lsame
-      logical,intent(in) :: lval
-      integer(mpiint) :: i, isum, commsize, ierr
-      if(lval) then
-        i = 1
-      else
-        i = 0
-      endif
-      call mpi_allreduce(i, isum, 1_mpiint, imp_int4, MPI_SUM, comm, ierr)
-      if(lval) then
-        call MPI_Comm_size( comm, commsize, ierr)
-        lsame = isum.eq.commsize
-      else
-        lsame = isum.eq.0
-      endif
-    end function
 end subroutine
+
+!duplicate of helper function. otherwise get circular dependency
+function mpi_logical_all_same(comm,lval) result(lsame)
+  integer(mpiint),intent(in) :: comm
+  logical :: lsame
+  logical,intent(in) :: lval
+  integer(mpiint) :: i, isum, commsize, ierr
+  call mpi_comm_size(comm, commsize, ierr)
+  if(commsize.gt.1_mpiint) then
+    if(lval) then
+      i = 1
+    else
+      i = 0
+    endif
+    call mpi_allreduce(i, isum, 1_mpiint, imp_int4, MPI_SUM, comm, ierr)
+    if(lval) then
+      lsame = isum.eq.commsize
+    else
+      lsame = isum.eq.0
+    endif
+  else
+    lsame = .True.
+  endif
+end function
 end module

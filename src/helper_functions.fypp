@@ -1073,17 +1073,21 @@ module m_helper_functions
       !     lor  = mpi_logical_or (comm, lval)
       !     lsame = land.eqv.lor
       ! however, it is better cast to it to int and do a sum reduction, otherwise we need 2 logical reductions
-      if(lval) then
-        i = 1
+      call mpi_comm_size(comm, commsize, ierr); call CHKERR(ierr)
+      if(commsize.gt.1_mpiint) then
+        if(lval) then
+          i = 1
+        else
+          i = 0
+        endif
+        call imp_allreduce_sum(comm, i, isum)
+        if(lval) then
+          lsame = isum.eq.commsize
+        else
+          lsame = isum.eq.0
+        endif
       else
-        i = 0
-      endif
-      call imp_allreduce_sum(comm, i, isum)
-      if(lval) then
-        call MPI_Comm_size( comm, commsize, ierr); call CHKERR(ierr)
-        lsame = isum.eq.commsize
-      else
-        lsame = isum.eq.0
+        lsame = .True.
       endif
     end function
 
