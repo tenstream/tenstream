@@ -326,6 +326,7 @@ contains
       integer(iintegers) :: i1d, k, i, j, l, m, iface, numDof, voff, ak
       integer(iintegers) :: pprts_offsets(4), plex_cells(2)
 
+      AO :: dmda_ao
       type(tPetscSection) :: edirsection
       type(tIS) :: is_in, is_out
       integer(iintegers) :: is_data_size
@@ -436,6 +437,9 @@ contains
         call ISCreateGeneral(PETSC_COMM_SELF, is_data_size, is_data_in, PETSC_USE_POINTER, is_in, ierr); call CHKERR(ierr)
         call ISCreateGeneral(PETSC_COMM_SELF, is_data_size, is_data_out, PETSC_USE_POINTER, is_out, ierr); call CHKERR(ierr)
 
+        call DMDAGetAO(Cdir%da, dmda_ao, ierr); call CHKERR(ierr)
+        call AOApplicationToPetscIS(dmda_ao, is_in, ierr); call CHKERR(ierr)
+
         call PetscObjectSetName(is_in , "rayli_dir_iss_pprts_idx", ierr); call CHKERR(ierr)
         call PetscObjectSetName(is_out, "rayli_dir_iss_plex_idx" , ierr); call CHKERR(ierr)
 
@@ -453,6 +457,8 @@ contains
     subroutine setup_ediff_scatter_context()
       integer(iintegers) :: i, j, k, voff, idof, i1d, iface, l, m, ak, numDof
       integer(iintegers) :: pprts_offsets(4), plex_cells(2)
+
+      AO :: dmda_ao
       type(tPetscSection) :: ediffsection
       type(tIS) :: is_in, is_out
       integer(iintegers) :: is_data_size
@@ -559,7 +565,7 @@ contains
                   enddo
                 enddo
 
-              enddo
+              enddo ! k
 
               ! and at the surface
               k = Cdiff%glob_zm-1
@@ -589,9 +595,14 @@ contains
         endif
 
         call ISCreateGeneral(PETSC_COMM_SELF, is_data_size, is_data_in, PETSC_USE_POINTER, is_in, ierr); call CHKERR(ierr)
-        call PetscObjectSetName(is_in, "rayli_diff_iss_pprts_idx", ierr); call CHKERR(ierr)
         call ISCreateGeneral(PETSC_COMM_SELF, is_data_size, is_data_out, PETSC_USE_POINTER, is_out, ierr); call CHKERR(ierr)
+
+        call DMDAGetAO(Cdiff%da, dmda_ao, ierr); call CHKERR(ierr)
+        call AOApplicationToPetscIS(dmda_ao, is_in, ierr); call CHKERR(ierr)
+
+        call PetscObjectSetName(is_in, "rayli_diff_iss_pprts_idx", ierr); call CHKERR(ierr)
         call PetscObjectSetName(is_out, "rayli_diff_iss_plex_idx", ierr); call CHKERR(ierr)
+
         call PetscObjectViewFromOptions(is_in , PETSC_NULL_IS, '-show_rayli_diff_iss', ierr); call CHKERR(ierr)
         call PetscObjectViewFromOptions(is_out, PETSC_NULL_IS, '-show_rayli_diff_iss', ierr); call CHKERR(ierr)
         call gen_shared_scatter_ctx(solution%ediff, rayli_info%plex_solution%ediff, rayli_info%ctx_ediff, ierr, &
@@ -605,6 +616,8 @@ contains
       integer(iintegers) :: is_data_size
       integer(iintegers) :: pprts_offsets(4), plex_cells(2)
       integer(iintegers) :: i, j, k, l, voff, i1d, m, ak
+
+      AO :: dmda_ao
       type(tPetscSection) :: cellSection
       type(tIS) :: is_in, is_out
       integer(iintegers), allocatable :: is_data_in(:)
@@ -667,11 +680,16 @@ contains
         endif
 
         call ISCreateGeneral(PETSC_COMM_SELF, is_data_size, is_data_in, PETSC_USE_POINTER, is_in, ierr); call CHKERR(ierr)
-        call PetscObjectSetName(is_in, "rayli_abso_iss_pprts_idx", ierr); call CHKERR(ierr)
         call ISCreateGeneral(PETSC_COMM_SELF, is_data_size, is_data_out, PETSC_USE_POINTER, is_out, ierr); call CHKERR(ierr)
+
+        call DMDAGetAO(C1%da, dmda_ao, ierr); call CHKERR(ierr)
+        call AOApplicationToPetscIS(dmda_ao, is_in, ierr); call CHKERR(ierr)
+
+        call PetscObjectSetName(is_in, "rayli_abso_iss_pprts_idx", ierr); call CHKERR(ierr)
         call PetscObjectSetName(is_out, "rayli_abso_iss_plex_idx", ierr); call CHKERR(ierr)
         call PetscObjectViewFromOptions(is_in , PETSC_NULL_IS, '-show_rayli_abso_iss', ierr); call CHKERR(ierr)
         call PetscObjectViewFromOptions(is_out, PETSC_NULL_IS, '-show_rayli_abso_iss', ierr); call CHKERR(ierr)
+
         call gen_shared_scatter_ctx(solution%abso, rayli_info%plex_solution%abso, rayli_info%ctx_abso, ierr, &
           & is_in, is_out); call CHKERR(ierr)
         call ISDestroy(is_out, ierr); call CHKERR(ierr)
@@ -828,15 +846,15 @@ contains
           call ndarray_offsets( &
             & [6_iintegers, C1%glob_zm, C1%glob_xm, C1%glob_ym], &
             & global_da_offsets)
+
           allocate(glob_idx(nlocal), sub_idx(B_info%Nglob))
           do m = 1, nlocal
             call ind_1d_to_nd(localB%da_offsets, localB%iface(m), idx)
+
             associate( d => idx(1), k => idx(2), i => idx(3), j => idx(4))
-              glob_idx(m) = real( &
-                & ind_nd_to_1d(global_da_offsets, &
-                & [d, C1%zs+k, C1%xs+i, C1%ys+j]), &
-                & ireals)
+              glob_idx(m) = real( ind_nd_to_1d(global_da_offsets, [d, C1%zs+k, C1%xs+i, C1%ys+j]), ireals)
             end associate
+
           enddo
           call VecCreateMPIWithArray(solver%comm, i1, &
             & nlocal, PETSC_DECIDE, glob_idx, &
@@ -923,6 +941,7 @@ contains
         end associate
         call PetscLogEventEnd(log_event, ierr); call CHKERR(ierr)
       end subroutine
+
       subroutine transfer_result(solution)
         type(t_state_container),intent(inout) :: solution
 
