@@ -1239,11 +1239,11 @@ module m_helper_functions
 #:endfor
 #:endfor
 
-#:for method,dtype,mpitype,otype in [ &
-  ('integer', 'INT32' , 'imp_int4'  , 'ireals'), &
-  ('integer', 'INT64' , 'imp_int8'  , 'ireals'), &
-  ('real'   , 'REAL32', 'imp_REAL32', 'REAL32'), &
-  ('real'   , 'REAL64', 'imp_REAL64', 'REAL64')]
+#:for method,cast,dtype,mpitype,otype in [ &
+  ('integer', 'int' , 'INT32' , 'imp_int4'  , 'ireals'), &
+  ('integer', 'int' , 'INT64' , 'imp_int8'  , 'ireals'), &
+  ('real'   , 'real', 'REAL32', 'imp_REAL32', 'REAL32'), &
+  ('real'   , 'real', 'REAL64', 'imp_REAL64', 'REAL64')]
 #:for RANK in range(0, 8)
     subroutine imp_min_mean_max_${method}$_${dtype}$_${RANK}$d_${otype}$(comm, arr, mmm)
       integer(mpiint), intent(in) :: comm
@@ -1258,8 +1258,8 @@ module m_helper_functions
       ${method}$(${otype}$) :: vmin, vmax
       integer(mpiint) :: ierr
 
-      vmin = minval(arr)
-      vmax = maxval(arr)
+      vmin = ${cast}$(minval(arr), kind(vmin))
+      vmax = ${cast}$(maxval(arr), kind(vmax))
       call mpi_reduce(vmin, mmm(1), 1_mpiint, ${mpitype}$, MPI_MIN, 0_mpiint, comm, ierr); call CHKERR(ierr)
       call imp_reduce_mean(comm, arr, mmm(2))
       call mpi_reduce(vmax, mmm(3), 1_mpiint, ${mpitype}$, MPI_MAX, 0_mpiint, comm, ierr); call CHKERR(ierr)
