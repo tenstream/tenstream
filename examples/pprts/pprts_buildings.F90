@@ -31,17 +31,18 @@ module m_pprts_buildings
   implicit none
 
 contains
-  subroutine pprts_buildings(comm, Nx, Ny, Nlay, icollapse, dx, dy, dz, phi0, theta0, albedo, dtau, w0)
+  subroutine pprts_buildings(comm, lthermal, lsolar, Nx, Ny, Nlay, icollapse, dx, dy, dz, phi0, theta0, albedo, dtau, w0)
+    integer(mpiint), intent(in) :: comm
+    logical, intent(in) :: lthermal, lsolar
     integer(iintegers), intent(in) :: Nx,Ny,Nlay, icollapse
     real(ireals), intent(in) :: dx, dy, dz
     real(ireals), intent(in) :: phi0, theta0
     real(ireals), intent(in) :: albedo, dtau, w0
-    integer(mpiint), intent(in) :: comm
     real(ireals),parameter :: incSolar = 1
     real(ireals) :: dz1d(Nlay)
 
     real(ireals) :: sundir(3)
-    real(ireals),allocatable,dimension(:,:,:) :: kabs,ksca,g
+    real(ireals),allocatable,dimension(:,:,:) :: kabs,ksca,g,plck
     real(ireals),allocatable,dimension(:,:,:) :: fdir,fdn,fup,fdiv
 
     class(t_solver), allocatable :: solver
@@ -60,13 +61,17 @@ contains
     call init_pprts(comm, Nlay, Nx, Ny, dx,dy, sundir, solver, dz1d, collapseindex=icollapse)
 
     associate(Ca => solver%C_one_atm, C1 => solver%C_one)
-      allocate(kabs(Ca%zm , Ca%xm,  Ca%ym ))
-      allocate(ksca(Ca%zm , Ca%xm,  Ca%ym ))
-      allocate(g   (Ca%zm , Ca%xm,  Ca%ym ))
+      allocate(kabs(Ca%zm  , Ca%xm, Ca%ym ))
+      allocate(ksca(Ca%zm  , Ca%xm, Ca%ym ))
+      allocate(g   (Ca%zm  , Ca%xm, Ca%ym ))
+      if(lthermal) allocate(plck(Ca%zm+1, Ca%xm, Ca%ym ))
 
       kabs = dtau*(one-w0)/(dz*Nlay)
       ksca = dtau*w0/(dz*Nlay)
       g    = zero
+
+      plck(:,:,:) = 0
+      plck(Ca%zm+1,:,:) = 0
 
       call init_buildings(buildings, &
         & [integer(iintegers) :: 6, C1%zm, C1%xm,  C1%ym], &
@@ -87,10 +92,12 @@ contains
         & box_i.gt.C1%xs.and.box_i.le.C1%xe+1 .and. &
         & box_j.gt.C1%ys.and.box_j.le.C1%ye+1 ) then
         allocate(buildings%albedo(Nbuildings), buildings%iface(Nbuildings))
+        if(lthermal) allocate(buildings%planck(Nbuildings))
         do i=1,6
           buildings%iface(i) = faceidx_by_cell_plus_offset( &
             & buildings%da_offsets, box_k, box_i, box_j, i)
-          buildings%albedo(i) = .1_ireals !+ i/10._ireals
+          buildings%albedo(i) = .1_ireals
+          if(lthermal) buildings%planck(i) = 100
         enddo
       else
         allocate(buildings%albedo(0), buildings%iface(0))
@@ -98,12 +105,16 @@ contains
 
       call check_buildings_consistency(buildings, C1%zm, C1%xm, C1%ym, ierr); call CHKERR(ierr)
 
-      call set_optical_properties(solver, albedo, kabs, ksca, g)
+      if(lthermal) then
+        call set_optical_properties(solver, albedo, kabs, ksca, g, plck)
+      else
+        call set_optical_properties(solver, albedo, kabs, ksca, g)
+      endif
       call set_angles(solver, sundir)
 
       call solve_pprts(solver, &
-        & lthermal=.False., &
-        & lsolar=.True., &
+        & lthermal=lthermal, &
+        & lsolar=lsolar, &
         & edirTOA=incSolar, &
         & opt_buildings=buildings)
 
@@ -114,27 +125,29 @@ contains
 
       do id = 0, numnodes-1
         if(id.eq.myid) then
-          print *,''
-          print *,cstr(' ***************** Rank '//toStr(myid), 'red')
-          if(box_i.gt.Ca%xs.and.box_i.le.Ca%xe+1) then
+          if(lsolar) then
             print *,''
-            print *,'Direct y-slice:'
-            do i = box_i, box_i
-              do k = 1+solver%C_dir%zs, 1+solver%C_dir%ze
-                print *, 'edir', k,i, toStr( fdir(k, i, :) )
+            print *,cstr(' ***************** Rank '//toStr(myid), 'red')
+            if(box_i.gt.Ca%xs.and.box_i.le.Ca%xe+1) then
+              print *,''
+              print *,'Direct y-slice:'
+              do i = box_i, box_i
+                do k = 1+solver%C_dir%zs, 1+solver%C_dir%ze
+                  print *, 'edir', k,i, toStr( fdir(k, i, :) )
+                enddo
               enddo
-            enddo
-          endif
+            endif
 
-          if(box_j.gt.Ca%ys.and.box_j.le.Ca%ye+1) then
-            print *,''
-            print *,'Direct x-slice:'
-            do i = box_j, box_j
-              do k = 1+solver%C_dir%zs, 1+solver%C_dir%ze
-                print *, 'edir', k,i, toStr( fdir(k, :, i) )
+            if(box_j.gt.Ca%ys.and.box_j.le.Ca%ye+1) then
+              print *,''
+              print *,'Direct x-slice:'
+              do i = box_j, box_j
+                do k = 1+solver%C_dir%zs, 1+solver%C_dir%ze
+                  print *, 'edir', k,i, toStr( fdir(k, :, i) )
+                enddo
               enddo
-            enddo
-            print *,''
+              print *,''
+            endif
           endif
 
           if(box_i.gt.Ca%xs.and.box_i.le.Ca%xe+1) then
@@ -165,21 +178,41 @@ contains
               print *, 'building_face', i, 'edir', buildings%edir(i), &
                 & 'in/out', buildings%incoming(i), buildings%outgoing(i)
             enddo
+          else
+            do i=1, size(buildings%iface)
+              print *, 'building_face', i, &
+                & 'in/out', buildings%incoming(i), buildings%outgoing(i)
+            enddo
           endif
         endif
 
-        do k = lbound(fdiv,1), ubound(fdiv, 1)
-          print *, k, &
-            & 'mean edir', meanval(fdir(k,:,:)), &
+        print *,''
+        if(lsolar) then
+          do k = lbound(fdiv,1), ubound(fdiv, 1)
+            print *, k, 'mean ', &
+              & 'edir', meanval(fdir(k,:,:)), &
+              & 'edn' , meanval(fdn(k,:,:)), &
+              & 'eup' , meanval(fup(k,:,:)), &
+              & 'abso', meanval(fdiv(k,:,:))
+          enddo
+          k = ubound(fdir, 1)
+          print *, k, 'mean ', &
+            & 'edir', meanval(fdir(k,:,:)), &
+            & 'edn' , meanval(fdn(k,:,:)), &
+            & 'eup' , meanval(fup(k,:,:))
+        else
+          do k = lbound(fdiv,1), ubound(fdiv, 1)
+            print *, k, &
+              & 'mean ', &
+              & 'edn', meanval(fdn(k,:,:)), &
+              & 'eup', meanval(fup(k,:,:)), &
+              & 'abso', meanval(fdiv(k,:,:))
+          enddo
+          k = ubound(fdir, 1)
+          print *, k, 'mean ', &
             & 'edn', meanval(fdn(k,:,:)), &
-            & 'eup', meanval(fup(k,:,:)), &
-            & 'abso', meanval(fdiv(k,:,:))
-        enddo
-        k = ubound(fdir, 1)
-        print *, k, &
-          & 'mean edir', meanval(fdir(k,:,:)), &
-          & 'edn', meanval(fdn(k,:,:)), &
-          & 'eup', meanval(fup(k,:,:))
+            & 'eup', meanval(fup(k,:,:))
+        endif
 
         call mpi_barrier(comm, ierr); call CHKERR(ierr)
       enddo
@@ -204,12 +237,20 @@ program main
   real(ireals) :: Ag, dtau, w0
 
   character(len=10*default_str_len) :: rayli_options
-  logical :: lflg, lverbose, lrayli_opts
+  logical :: lflg, lverbose, lrayli_opts, lsolar, lthermal
   integer(mpiint) :: ierr
 
   call mpi_init(ierr)
   call init_mpi_data_parameters(mpi_comm_world)
   call read_commandline_options(mpi_comm_world)
+
+  lsolar = .True.
+  call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-solar', &
+    lsolar, lflg, ierr) ; call CHKERR(ierr)
+
+  lthermal = .True.
+  call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-thermal', &
+    lthermal, lflg, ierr) ; call CHKERR(ierr)
 
   Nx=5; Ny=5; Nlay=3
   call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Nx", Nx, lflg, ierr); call CHKERR(ierr)
@@ -266,7 +307,7 @@ program main
     call PetscOptionsInsertString(PETSC_NULL_OPTIONS, trim(rayli_options), ierr); call CHKERR(ierr)
   endif
 
-  call pprts_buildings(mpi_comm_world, Nx, Ny, Nlay, icollapse, dx, dy, dz, phi0, theta0, Ag, dtau, w0)
+  call pprts_buildings(mpi_comm_world, lthermal, lsolar, Nx, Ny, Nlay, icollapse, dx, dy, dz, phi0, theta0, Ag, dtau, w0)
 
   call mpi_finalize(ierr)
 end program

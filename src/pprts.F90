@@ -3728,11 +3728,18 @@ end subroutine
       call set_solar_source(solver, local_edir)
     endif
 
-    if(allocated(atm%planck) ) &
+    if(solution%lthermal_rad) &
       call set_thermal_source()
 
-    if(present(opt_buildings)) &
-      call set_buildings_reflection(solver, local_edir, opt_buildings)
+    if(present(opt_buildings)) then
+      if(solution%lsolar_rad) then
+        call set_buildings_reflection(solver, local_edir, opt_buildings)
+      endif
+
+      if(solution%lthermal_rad) then
+        call set_buildings_emission(solver, opt_buildings, ierr); call CHKERR(ierr)
+      endif
+    endif
 
     if(solver%myid.eq.0.and.ldebug) print *,'src Vector Assembly... setting coefficients ...done'
 
@@ -3762,6 +3769,10 @@ end subroutine
       associate(  atm     => solver%atm, &
                 C_diff  => solver%C_diff)
 
+      if(.not.allocated(atm%planck)) then
+        ierr = 1
+        call CHKERR(ierr, 'have thermal computation but planck data is not allocated')
+      endif
       if(solver%myid.eq.0.and.ldebug) &
         print *,'Assembly of SRC-Vector ... setting thermal source terms min/max planck', &
         minval(atm%planck), maxval(atm%planck)
@@ -4136,9 +4147,7 @@ end subroutine
           & C => solver%C_dir              )
 
         if(solution%lsolar_rad) then
-
           call getVecPointer(local_edir, C%da, xedir1d, xedir)
-
           do m = 1, size(B%iface)
             call ind_1d_to_nd(B%da_offsets, B%iface(m), idx)
             idx(2:4) = idx(2:4) -1 + [C%zs, C%xs, C%ys]
@@ -4236,10 +4245,106 @@ end subroutine
                 call CHKERR(1_mpiint, 'unknown building face_idx '//toStr(idx(1)+1))
               end select
             end associate
-          enddo
-
+          enddo ! loop over building faces
           call restoreVecPointer(local_edir, xedir1d, xedir)
-        endif
+        endif ! is_solar
+      end associate
+    end subroutine
+
+    subroutine set_buildings_emission(solver, buildings, ierr)
+      class(t_solver)        , intent(in)   :: solver
+      type(t_pprts_buildings), intent(in)   :: buildings
+
+      integer(iintegers) :: m, idx(4), idiff, dof_offset, ak
+      real(ireals) :: emis, Az, Ax, Ay
+      integer(mpiint) :: ierr
+
+      if(.not.allocated(buildings%planck)) then
+        ierr = 1
+        call CHKERR(ierr, 'tried to set building emissions but planck data is not allocated')
+      endif
+
+      associate( atm => solver%atm, B => buildings, C => solver%C_diff )
+
+        Az = atm%dx * atm%dy / real(solver%difftop%area_divider, ireals)
+
+        do m = 1, size(B%iface)
+
+          call ind_1d_to_nd(B%da_offsets, B%iface(m), idx)
+          idx(2:4) = idx(2:4) -1 + [C%zs, C%xs, C%ys]
+
+          associate(k => idx(2), i => idx(3), j => idx(4))
+
+            ak = atmk(atm, k)
+            Ax = atm%dy * atm%dz(ak,i,j) / real(solver%diffside%area_divider, ireals)
+            Ay = atm%dx * atm%dz(ak,i,j) / real(solver%diffside%area_divider, ireals)
+
+            emis = pi * B%planck(m) * (one-B%albedo(m))
+
+            select case(idx(1))
+            case(PPRTS_TOP_FACE)
+              do idiff = 0, solver%difftop%dof-1
+                if (.not.solver%difftop%is_inward(i1+idiff)) then ! eup on upper face
+                  xsrc(idiff,k,i,j) = Az * emis / real(solver%difftop%streams, ireals)
+                else                                              ! edn on upper face
+                  xsrc(idiff,k,i,j) = 0
+                endif
+              enddo
+
+            case(PPRTS_BOT_FACE)
+              do idiff = 0, solver%difftop%dof-1
+                if (solver%difftop%is_inward(i1+idiff)) then ! edn on lower face
+                  xsrc(idiff,k+1,i,j) = Az * emis / real(solver%difftop%streams, ireals)
+                else                                         ! eup on lower face
+                  xsrc(idiff,k+1,i,j) = 0
+                endif
+              enddo
+
+            case(PPRTS_LEFT_FACE)
+              dof_offset = solver%difftop%dof
+              do idiff = 0, solver%diffside%dof-1
+                if (.not.solver%diffside%is_inward(i1+idiff)) then ! e_left on left face
+                  xsrc(dof_offset+idiff,k,i,j) = Ax * emis / real(solver%diffside%streams, ireals)
+                else
+                  xsrc(dof_offset+idiff,k,i,j) = 0
+                endif
+              enddo
+
+            case(PPRTS_RIGHT_FACE)
+              dof_offset = solver%difftop%dof
+              do idiff = 0, solver%diffside%dof-1
+                if (solver%diffside%is_inward(i1+idiff)) then ! e_right on right face
+                  xsrc(dof_offset+idiff,k,i+1,j) = Ax * emis / real(solver%diffside%streams, ireals)
+                else
+                  xsrc(dof_offset+idiff,k,i+1,j) = 0
+                endif
+              enddo
+
+            case(PPRTS_REAR_FACE )
+              dof_offset = solver%difftop%dof + solver%diffside%dof
+              do idiff = 0, solver%diffside%dof-1
+                if (.not.solver%diffside%is_inward(i1+idiff)) then ! e_backward
+                  xsrc(dof_offset+idiff,k,i,j) = Ay * emis / real(solver%diffside%streams, ireals)
+                else
+                  xsrc(dof_offset+idiff,k,i,j) = 0
+                endif
+              enddo
+
+            case(PPRTS_FRONT_FACE)
+              dof_offset = solver%difftop%dof + solver%diffside%dof
+              do idiff = 0, solver%diffside%dof-1
+                if (solver%diffside%is_inward(i1+idiff)) then ! e_forward
+                  xsrc(dof_offset+idiff,k,i,j+1) = Ay * emis / real(solver%diffside%streams, ireals)
+                else
+                  xsrc(dof_offset+idiff,k,i,j+1) = 0
+                endif
+              enddo
+
+            case default
+              call CHKERR(1_mpiint, 'unknown building face_idx '//toStr(idx(1)+1))
+            end select
+          end associate
+        enddo
       end associate
 
     end subroutine

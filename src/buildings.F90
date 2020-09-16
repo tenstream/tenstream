@@ -27,6 +27,7 @@ module m_buildings
 
   type, abstract :: t_buildings
     real(ireals), allocatable :: albedo(:)      ! albedo on a face, dim(Nbuilding_faces)
+    real(ireals), allocatable :: planck(:)      ! monochromatic planck emissivity on a face, dim(Nbuilding_faces)
   end type
 
   type, extends(t_buildings) :: t_pprts_buildings
