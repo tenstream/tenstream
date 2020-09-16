@@ -277,7 +277,7 @@ contains
       nxproc, nyproc, icollapse,                      &
       opt_time, solar_albedo_2d, thermal_albedo_2d,   &
       opt_solar_constant,                             &
-      opt_buildings_sol)
+      opt_buildings_solar, opt_buildings_thermal)
 
     integer(mpiint), intent(in)     :: comm ! MPI Communicator
 
@@ -305,7 +305,8 @@ contains
 
     ! buildings information, setup broadband thermal and solar albedo on faces inside the domain, not just on the surface
     ! see definition for details on how to set it up
-    type(t_pprts_buildings), intent(in), optional :: opt_buildings_sol
+    type(t_pprts_buildings), intent(in), optional :: opt_buildings_solar
+    type(t_pprts_buildings), intent(in), optional :: opt_buildings_thermal
 
     ! Fluxes and absorption in [W/m2] and [W/m3] respectively.
     ! Dimensions will probably be bigger than the dynamics grid, i.e. will have
@@ -392,10 +393,16 @@ contains
       "-skip_thermal" , lskip_thermal, lflg , ierr) ;call CHKERR(ierr)
     if(lthermal.and..not.lskip_thermal)then
       call PetscLogStagePush(log_events%stage_rrtmg_thermal, ierr); call CHKERR(ierr)
-      call compute_thermal(solver, atm, ie, je, ke, ke1, &
-        albedo_thermal, &
-        edn, eup, abso, opt_time=opt_time, lrrtmg_only=lrrtmg_only, &
-        thermal_albedo_2d=thermal_albedo_2d)
+      call compute_thermal(&
+        & solver, &
+        & atm, &
+        & ie, je, ke, ke1, &
+        & albedo_thermal, &
+        & edn, eup, abso, &
+        & opt_time=opt_time, &
+        & lrrtmg_only=lrrtmg_only, &
+        & thermal_albedo_2d=thermal_albedo_2d, &
+        & opt_buildings=opt_buildings_thermal)
       call PetscLogStagePop(ierr); call CHKERR(ierr) ! pop solver%logs%stage_rrtmg_thermal
     endif
 
@@ -408,10 +415,17 @@ contains
         "-skip_solar" , lskip_solar, lflg , ierr) ;call CHKERR(ierr)
       if(.not.lskip_solar) then
         call PetscLogStagePush(log_events%stage_rrtmg_solar, ierr); call CHKERR(ierr)
-        call compute_solar(solver, atm, ie, je, ke, &
-          sundir, albedo_solar, &
-          edir, edn, eup, abso, opt_time=opt_time, solar_albedo_2d=solar_albedo_2d, &
-          lrrtmg_only=lrrtmg_only, opt_solar_constant=opt_solar_constant, opt_buildings=opt_buildings_sol)
+        call compute_solar(&
+          & solver, &
+          & atm, &
+          & ie, je, ke, &
+          & sundir, albedo_solar, &
+          & edir, edn, eup, abso, &
+          & opt_time=opt_time, &
+          & solar_albedo_2d=solar_albedo_2d, &
+          & lrrtmg_only=lrrtmg_only, &
+          & opt_solar_constant=opt_solar_constant, &
+          & opt_buildings=opt_buildings_solar)
         call PetscLogStagePop(ierr); call CHKERR(ierr) ! pop solver%logs%stage_rrtmg_solar
       endif
     endif
@@ -472,7 +486,8 @@ contains
   subroutine compute_thermal(solver, atm, ie, je, ke, ke1, &
       albedo, &
       edn, eup, abso, opt_time, lrrtmg_only, &
-      thermal_albedo_2d)
+      thermal_albedo_2d, &
+      opt_buildings)
 
     use m_tenstr_rrlw_wvn, only : ngb, wavenum1, wavenum2
     use m_tenstr_parrrtm, only: ngptlw
@@ -487,6 +502,7 @@ contains
 
     real(ireals), optional, intent(in) :: opt_time, thermal_albedo_2d(:,:)
     logical, optional, intent(in) :: lrrtmg_only
+    type(t_pprts_buildings), intent(in), optional :: opt_buildings
 
     real(ireals),allocatable, target, dimension(:,:,:,:) :: tau, Bfrac  ! [nlyr, ie, je, ngptlw]
     real(ireals),allocatable, dimension(:,:,:) :: kabs, ksca, g, Blev   ! [nlyr(+1), local_nx, local_ny]
@@ -666,7 +682,8 @@ contains
           & lsolar=.False., &
           & edirTOA=zero, &
           & opt_solution_uid=500+ib, &
-          & opt_solution_time=opt_time)
+          & opt_solution_time=opt_time, &
+          & opt_buildings=opt_buildings)
       endif
 
       call pprts_get_result(solver, spec_edn, spec_eup, spec_abso, opt_solution_uid=500+ib)

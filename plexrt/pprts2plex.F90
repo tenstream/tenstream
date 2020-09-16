@@ -42,8 +42,9 @@ contains
     ierr = 0
 
     if(.not.allocated(pprts_buildings%albedo)) ierr = 1
-    if(.not.allocated(pprts_buildings%iface)) ierr = 2
-    call CHKERR(ierr, 'bad input data in pprts_buildings')
+    call CHKERR(ierr, 'bad input data in pprts_buildings, albedo not allocated')
+    if(.not.associated(pprts_buildings%iface)) ierr = 2
+    call CHKERR(ierr, 'bad input data in pprts_buildings, iface not associated')
 
     ! count number of needed new faces
     associate(P => pprts_buildings)

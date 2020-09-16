@@ -45,7 +45,8 @@ module m_pprts_external_solvers
 
   use m_buildings, only: &
     & t_pprts_buildings, t_plex_buildings, &
-    & init_buildings, &
+    & clone_buildings, &
+    & destroy_buildings, &
     & check_buildings_consistency, &
     & PPRTS_TOP_FACE, &
     & PPRTS_BOT_FACE, &
@@ -101,6 +102,8 @@ contains
       call VecDestroy(ri%kabs  , ierr); call CHKERR(ierr)
       call VecDestroy(ri%ksca  , ierr); call CHKERR(ierr)
       call VecDestroy(ri%g     , ierr); call CHKERR(ierr)
+      call destroy_buildings(ri%buildings_info%subcomm_buildings, ierr); call CHKERR(ierr)
+      call destroy_buildings(ri%buildings_info%plex_buildings, ierr); call CHKERR(ierr)
     end associate
 
     deallocate(rayli_info)
@@ -820,11 +823,11 @@ contains
         ierr = 0
 
         associate(atm => solver%atm, C1 => solver%C_one)
-          call init_buildings(subB, &
-            & [6_iintegers, C1%glob_zm, C1%glob_xm, C1%glob_ym], &
-            & ierr); call CHKERR(ierr)
-          if(.not.allocated(subB%iface))  allocate(subB%iface(B_info%Nglob))
-          if(.not.allocated(subB%albedo)) allocate(subB%albedo(B_info%Nglob))
+          call clone_buildings(localB, subB, .False., ierr); call CHKERR(ierr)
+          allocate(subB%da_offsets(size(localB%da_offsets)))
+          call ndarray_offsets([6_iintegers, C1%glob_zm, C1%glob_xm, C1%glob_ym], subB%da_offsets)
+          allocate(subB%iface(B_info%Nglob))
+          allocate(subB%albedo(B_info%Nglob))
 
           nlocal = size(localB%iface)
 

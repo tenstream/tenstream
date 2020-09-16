@@ -8,14 +8,18 @@ module m_buildings
     & CHKERR, &
     & toStr, &
     & ind_1d_to_nd, ind_nd_to_1d, ndarray_offsets, &
-    & get_arg
+    & get_arg, &
+    & deallocate_allocatable
 
   implicit none
 
   private
   public :: &
-    & t_pprts_buildings, t_plex_buildings,&
+    & t_pprts_buildings,                  &
+    & t_plex_buildings,                   &
     & init_buildings,                     &
+    & clone_buildings,                    &
+    & destroy_buildings,                  &
     & faceidx_by_cell_plus_offset,        &
     & check_buildings_consistency,        &
     & PPRTS_TOP_FACE,                     &
@@ -25,25 +29,41 @@ module m_buildings
     & PPRTS_REAR_FACE,                    &
     & PPRTS_FRONT_FACE
 
+  type :: t_buildings_face_data
+    ! iface_data is, depending on the implementing class:
+    !  * local face indices in pprts mesh
+    !  * face indices dmplex range [fStart, fEnd-1]
+    ! subclasses will have a pointer to this memory
+    ! so that it can be shared across multiple albedo types
+    integer(iintegers), pointer :: data(:)
+    integer(iintegers) :: ref_count = 0 ! data will be freed if reference count is 0
+  end type
+
   type, abstract :: t_buildings
-    real(ireals), allocatable :: albedo(:)      ! albedo on a face, dim(Nbuilding_faces)
-    real(ireals), allocatable :: planck(:)      ! monochromatic planck emissivity on a face, dim(Nbuilding_faces)
+    type(t_buildings_face_data), pointer :: iface_data
+    integer(iintegers), pointer :: iface(:) => null()
+
+    ! albedo on a face, dim(Nbuilding_faces)
+    real(ireals), allocatable :: albedo(:)
+
+    ! monochromatic planck emissivity on a face, dim(Nbuilding_faces)
+    ! should only be allocated if thermal computations are required
+    real(ireals), allocatable :: planck(:)
+
+    ! irradiances on surfaces, if allocated -> dim(Nbuilding_faces)
+    real(ireals), allocatable :: edir(:), incoming(:), outgoing(:)
   end type
 
   type, extends(t_buildings) :: t_pprts_buildings
     ! local face indices in pprts mesh,
     ! use faceidx_by_cell_plus_offset to translate from cell idx + face_ids (from PPRTS_XXX_FACE)
-    integer(iintegers), allocatable :: iface(:)
 
     ! offsets from iface idx sets to da indices, da_size e.g. [6, zm, xm, ym]
     integer(iintegers), allocatable :: da_offsets(:)
-
-    ! irradiances on surfaces, if allocated -> dim(size(iface))
-    real(ireals), allocatable :: edir(:), incoming(:), outgoing(:)
   end type
 
   type, extends(t_buildings) :: t_plex_buildings
-    integer(iintegers), allocatable :: iface(:)! face indices dim(Nbuilding_faces) valid in range [fStart, fEnd-1]
+    !integer(iintegers), pointer :: iface(:) => null() ! face indices dim(Nbuilding_faces) valid in range [fStart, fEnd-1]
   end type
 
   integer, parameter :: &
@@ -54,19 +74,123 @@ module m_buildings
     & PPRTS_REAR_FACE =5, & ! y+0
     & PPRTS_FRONT_FACE=6    ! y+1
 
+  interface destroy_buildings
+    module procedure destroy_pprts_buildings
+    module procedure destroy_plex_buildings
+  end interface
+
 contains
 
-  subroutine init_buildings(buildings, da_sizes, ierr)
+  subroutine init_buildings(buildings, da_sizes, Nfaces, ierr)
     type(t_pprts_buildings), intent(inout), allocatable :: buildings
     integer(iintegers), intent(in) :: da_sizes(:)
+    integer(iintegers), intent(in) :: Nfaces
     integer(mpiint), intent(out) :: ierr
     ierr = 0
     if(allocated(buildings)) ierr = 1
     call CHKERR(ierr, 'buildings already allocated')
 
     allocate(buildings)
+
+    allocate(buildings%iface_data)
+    allocate(buildings%iface_data%data(Nfaces), source=-1_iintegers)
+
+    buildings%iface => buildings%iface_data%data
+    buildings%iface_data%ref_count = 1
+
     allocate(buildings%da_offsets(size(da_sizes)))
     call ndarray_offsets(da_sizes, buildings%da_offsets)
+
+    allocate(buildings%albedo(Nfaces), source=-1._ireals)
+  end subroutine
+
+  !> @brief clone a buildings struct
+  !> @details iface_data is shared with reference counter on original buildings
+  !> \n       data arrays(e.g. albedo etc) will be allocated on its own
+  !> \n       and the user is responsible to set the values
+  !> \n       if l_copy_data is True, additional data arrays are also copied
+  subroutine clone_buildings(buildings, buildings_clone, l_copy_data, ierr)
+    type(t_pprts_buildings), intent(in) :: buildings
+    type(t_pprts_buildings), intent(inout), allocatable :: buildings_clone
+    logical, intent(in) :: l_copy_data
+    integer(mpiint), intent(out) :: ierr
+    ierr = 0
+    if(allocated(buildings_clone)) ierr = 1
+    call CHKERR(ierr, 'buildings_clone already allocated')
+
+    allocate(buildings_clone)
+    associate( B => buildings, C => buildings_clone )
+      C%iface      => B%iface
+      C%iface_data => B%iface_data
+      C%iface_data%ref_count = C%iface_data%ref_count+1
+
+      if(l_copy_data) then
+        if(allocated(B%da_offsets)) then
+          allocate(C%da_offsets(size(B%da_offsets)), source=B%da_offsets)
+        endif
+        if(allocated(B%albedo)) then
+          allocate(C%albedo(size(B%albedo)), source=B%albedo)
+        endif
+        if(allocated(B%planck)) then
+          allocate(C%planck(size(B%planck)), source=B%planck)
+        endif
+      endif
+    end associate
+  end subroutine
+
+
+  !> @brief destroy a buildings struct
+  !> @details deallocates memory in this buildings struct
+  !> \n       and frees shared iface data if reference count is 0
+  subroutine destroy_pprts_buildings(buildings, ierr)
+    type(t_pprts_buildings), allocatable, intent(inout) :: buildings
+    integer(mpiint), intent(out) :: ierr
+    ierr = 0
+
+    if(.not.allocated(buildings)) ierr = 1
+    call CHKERR(ierr, 'buildings not yet allocated')
+
+    associate( B => buildings )
+
+      nullify(B%iface)
+      B%iface_data%ref_count = B%iface_data%ref_count -1
+
+      if(B%iface_data%ref_count.eq.0) then
+        deallocate(B%iface_data%data)
+        nullify(B%iface_data%data)
+      endif
+
+      call deallocate_allocatable(B%da_offsets)
+      call deallocate_allocatable(B%edir)
+      call deallocate_allocatable(B%incoming)
+      call deallocate_allocatable(B%outgoing)
+      call deallocate_allocatable(B%albedo)
+      call deallocate_allocatable(B%planck)
+    end associate
+    deallocate(buildings)
+  end subroutine
+  subroutine destroy_plex_buildings(buildings, ierr)
+    type(t_plex_buildings), allocatable, intent(inout) :: buildings
+    integer(mpiint), intent(out) :: ierr
+    ierr = 0
+
+    if(.not.allocated(buildings)) ierr = 1
+    call CHKERR(ierr, 'buildings not yet allocated')
+
+    associate( B => buildings )
+
+      nullify(B%iface)
+      B%iface_data%ref_count = B%iface_data%ref_count -1
+
+      if(B%iface_data%ref_count.eq.0) then
+        deallocate(B%iface_data%data)
+        nullify(B%iface_data%data)
+      endif
+
+      call deallocate_allocatable(B%albedo)
+      call deallocate_allocatable(B%planck)
+    end associate
+    deallocate(buildings)
   end subroutine
 
   !> @brief: find face index in a pprts dmda
@@ -81,7 +205,7 @@ contains
   end function
 
   subroutine check_buildings_consistency(buildings, Nz, Nx, Ny, ierr)
-    type(t_pprts_buildings), intent(inout), allocatable :: buildings
+    type(t_pprts_buildings), intent(in) :: buildings
     integer(iintegers) :: Nx, Ny, Nz ! domain size, i.e. cell count
     integer(mpiint), intent(out) :: ierr
 
