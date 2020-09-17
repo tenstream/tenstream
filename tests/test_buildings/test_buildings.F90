@@ -4,8 +4,8 @@ module test_buildings
     init_mpi_data_parameters,   &
     finalize_mpi,               &
     iintegers, ireals, mpiint,  &
-    zero, one, default_str_len
-  use m_helper_functions, only : CHKERR
+    zero, one, pi, default_str_len
+  use m_helper_functions, only : CHKERR, deg2rad
 
   ! main entry point for solver, and desctructor
 !  use m_pprts_rrtmg, only : pprts_rrtmg, destroy_pprts_rrtmg
@@ -18,6 +18,8 @@ module test_buildings
     & init_buildings,    &
     & clone_buildings,   &
     & destroy_buildings
+
+  use m_examples_pprts_buildings, only: ex_pprts_buildings
 
   use pfunit_mod
 
@@ -35,7 +37,10 @@ contains
   subroutine teardown(this)
     class (MpiTestMethod), intent(inout) :: this
     ! Tidy up
-    call finalize_mpi(this%getMpiCommunicator())
+    call finalize_mpi(&
+      & this%getMpiCommunicator(), &
+      & lfinalize_mpi=.False., &
+      & lfinalize_petsc=.True.)
   end subroutine teardown
 
   @test(npes =[1])
@@ -144,5 +149,291 @@ contains
           endif
         enddo
       end subroutine
+  end subroutine
+
+  @test(npes =[2])
+  subroutine test_buildings_example(this)
+    class (MpiTestMethod), intent(inout) :: this
+
+    integer(mpiint) :: comm, myid
+
+    integer(iintegers), parameter :: Nx=6, Ny=6, Nlay=3, icollapse=1
+    integer(iintegers), parameter :: glob_box_i=3, glob_box_j=3, glob_box_k=2
+    real(ireals), parameter :: dx=100, dy=100, dz=100, S0=1
+    logical, parameter :: lverbose=.True.
+    real(ireals), parameter :: atol=sqrt(epsilon(atol))*10
+
+    logical :: lsolar, lthermal
+    real(ireals) :: box_albedo, box_planck
+    real(ireals) :: phi0, theta0
+    real(ireals) :: Ag, dtau, w0
+    real(ireals),allocatable,dimension(:,:,:) :: gedir, gedn, geup, gabso ! global arrays on rank 0
+    type(t_pprts_buildings), allocatable :: buildings
+
+    comm = this%getMpiCommunicator()
+    myid     = this%getProcessRank()
+
+    call overhead_sun()
+    call fortyfive_sun()
+    call check_albedo()
+    call check_emission()
+
+  contains
+    subroutine overhead_sun()
+      lthermal = .False.
+      lsolar   = .True.
+      box_albedo = 0
+      box_planck = 0
+      phi0       = 0
+      theta0     = 0
+      Ag         = 0
+      dtau       = 0
+      w0         = 0.5_ireals
+
+      call ex_pprts_buildings(comm, lverbose,       &
+        & lthermal, lsolar, Nx, Ny, Nlay, icollapse,&
+        & glob_box_i, glob_box_j, glob_box_k,       &
+        & box_albedo, box_planck,                   &
+        & dx, dy, dz,                               &
+        & S0, phi0, theta0,                         &
+        & Ag, dtau, w0,                             &
+        & gedir, gedn, geup, gabso,                 &
+        & buildings                                 )
+
+      if(myid.eq.0) then
+        @assertEqual(0, gedir(Nlay+1, glob_box_i, glob_box_j), atol, 'edir beneath building should be zero')
+        @assertEqual(0, gedir(glob_box_k+1, glob_box_i, glob_box_j), atol, 'edir at bot of building should be zero')
+        @assertEqual(S0/dz, gabso(glob_box_k, glob_box_i, glob_box_j), atol, 'box should absorb all incoming solar radiation')
+      endif
+      if(size(buildings%edir).gt.0) then
+        @assertEqual(S0       , buildings%edir(1), atol)
+        @assertEqual(0._ireals, buildings%edir(2:6), atol)
+
+        @assertEqual(0._ireals, buildings%incoming, atol)
+        @assertEqual(0._ireals, buildings%outgoing, atol)
+      endif
+    end subroutine
+
+    subroutine fortyfive_sun()
+      real(ireals) :: trgt
+      lthermal = .False.
+      lsolar   = .True.
+      box_albedo = 0
+      box_planck = 0
+      phi0       = 0
+      theta0     = 45
+      Ag         = 0
+      dtau       = 0
+      w0         = 0.5_ireals
+
+      call ex_pprts_buildings(comm, lverbose,       &
+        & lthermal, lsolar, Nx, Ny, Nlay, icollapse,&
+        & glob_box_i, glob_box_j, glob_box_k,       &
+        & box_albedo, box_planck,                   &
+        & dx, dy, dz,                               &
+        & S0, phi0, theta0,                         &
+        & Ag, dtau, w0,                             &
+        & gedir, gedn, geup, gabso,                 &
+        & buildings                                 )
+
+      if(myid.eq.0) then
+        trgt = S0*cos(deg2rad(theta0))
+        @assertEqual(trgt, gedir(Nlay+1, glob_box_i, glob_box_j), atol, 'edir beneath building should be clear sky value')
+        @assertEqual(trgt, gedir(glob_box_k, glob_box_i, glob_box_j), atol, 'edir at top of building should be the one from clear sky')
+
+        @assertEqual(0, gedir(glob_box_k+1, glob_box_i, glob_box_j  ), atol, 'edir at bot of building should be zero')
+        @assertEqual(0, gedir(glob_box_k+1, glob_box_i, glob_box_j-1), atol, 'edir building shadow should go south and should be zero')
+        @assertEqual(0, gedir(glob_box_k+2, glob_box_i, glob_box_j-1), atol, 'edir building shadow should go south and should be zero')
+        @assertEqual(0, gedir(glob_box_k+2, glob_box_i, glob_box_j-2), atol, 'edir building shadow should go south and should be zero')
+      endif
+      if(size(buildings%edir).gt.0) then
+        trgt = S0*cos(deg2rad(theta0))
+        @assertEqual(trgt, buildings%edir(1), atol)
+        trgt = S0*cos(deg2rad(theta0)) ! front face bc phi==0 is north)
+        @assertEqual(trgt, buildings%edir(6), atol)
+
+        @assertEqual(0._ireals              , buildings%edir(2:5), atol)
+
+        @assertEqual(0._ireals, buildings%incoming, atol)
+        @assertEqual(0._ireals, buildings%outgoing, atol)
+      endif
+
+
+      ! new sun direction
+      phi0 = 180
+
+      call ex_pprts_buildings(comm, lverbose,       &
+        & lthermal, lsolar, Nx, Ny, Nlay, icollapse,&
+        & glob_box_i, glob_box_j, glob_box_k,       &
+        & box_albedo, box_planck,                   &
+        & dx, dy, dz,                               &
+        & S0, phi0, theta0,                         &
+        & Ag, dtau, w0,                             &
+        & gedir, gedn, geup, gabso,                 &
+        & buildings                                 )
+
+      if(myid.eq.0) then
+        trgt = S0*cos(deg2rad(theta0))
+        @assertEqual(trgt, gedir(Nlay+1, glob_box_i, glob_box_j), atol, 'edir beneath building should be clear sky value')
+        @assertEqual(trgt, gedir(glob_box_k, glob_box_i, glob_box_j), atol, 'edir at top of building should be the one from clear sky')
+
+        @assertEqual(0, gedir(glob_box_k+1, glob_box_i, glob_box_j  ), atol, 'edir at bot of building should be zero')
+        @assertEqual(0, gedir(glob_box_k+1, glob_box_i, glob_box_j+1), atol, 'edir building shadow should go north and should be zero')
+        @assertEqual(0, gedir(glob_box_k+2, glob_box_i, glob_box_j+1), atol, 'edir building shadow should go north and should be zero')
+        @assertEqual(0, gedir(glob_box_k+2, glob_box_i, glob_box_j+2), atol, 'edir building shadow should go north and should be zero')
+      endif
+      if(size(buildings%edir).gt.0) then
+        trgt = S0*cos(deg2rad(theta0))
+        @assertEqual(trgt, buildings%edir(1), atol)
+        trgt = S0*cos(deg2rad(theta0)) ! back face bc phi==180 is south)
+        @assertEqual(trgt, buildings%edir(5), atol)
+
+        @assertEqual(0._ireals              , buildings%edir(2:4), atol)
+        @assertEqual(0._ireals              , buildings%edir(6), atol)
+
+        @assertEqual(0._ireals, buildings%incoming, atol)
+        @assertEqual(0._ireals, buildings%outgoing, atol)
+      endif
+
+      ! new sun direction
+      phi0 = 90
+
+      call ex_pprts_buildings(comm, lverbose,       &
+        & lthermal, lsolar, Nx, Ny, Nlay, icollapse,&
+        & glob_box_i, glob_box_j, glob_box_k,       &
+        & box_albedo, box_planck,                   &
+        & dx, dy, dz,                               &
+        & S0, phi0, theta0,                         &
+        & Ag, dtau, w0,                             &
+        & gedir, gedn, geup, gabso,                 &
+        & buildings                                 )
+
+      if(myid.eq.0) then
+        trgt = S0*cos(deg2rad(theta0))
+        @assertEqual(trgt, gedir(Nlay+1, glob_box_i, glob_box_j), atol, 'edir beneath building should be clear sky value')
+        @assertEqual(trgt, gedir(glob_box_k, glob_box_i, glob_box_j), atol, 'edir at top of building should be the one from clear sky')
+
+        @assertEqual(0, gedir(glob_box_k+1, glob_box_i, glob_box_j  ), atol, 'edir at bot of building should be zero')
+        @assertEqual(0, gedir(glob_box_k+1, glob_box_i-1, glob_box_j), atol, 'edir building shadow should go west and should be zero')
+        @assertEqual(0, gedir(glob_box_k+2, glob_box_i-1, glob_box_j), atol, 'edir building shadow should go west and should be zero')
+        @assertEqual(0, gedir(glob_box_k+2, glob_box_i-2, glob_box_j), atol, 'edir building shadow should go west and should be zero')
+      endif
+      if(size(buildings%edir).gt.0) then
+        trgt = S0*cos(deg2rad(theta0))
+        @assertEqual(trgt, buildings%edir(1), atol)
+        trgt = S0*cos(deg2rad(theta0)) ! right face bc phi==90 is east sun)
+        @assertEqual(trgt, buildings%edir(4), atol)
+
+        @assertEqual(0._ireals, buildings%edir(2:3), atol)
+        @assertEqual(0._ireals, buildings%edir(5:6), atol)
+
+        @assertEqual(0._ireals, buildings%incoming, atol)
+        @assertEqual(0._ireals, buildings%outgoing, atol)
+      endif
+
+      ! new sun direction
+      phi0 = 270
+
+      call ex_pprts_buildings(comm, lverbose,       &
+        & lthermal, lsolar, Nx, Ny, Nlay, icollapse,&
+        & glob_box_i, glob_box_j, glob_box_k,       &
+        & box_albedo, box_planck,                   &
+        & dx, dy, dz,                               &
+        & S0, phi0, theta0,                         &
+        & Ag, dtau, w0,                             &
+        & gedir, gedn, geup, gabso,                 &
+        & buildings                                 )
+
+      if(myid.eq.0) then
+        trgt = S0*cos(deg2rad(theta0))
+        @assertEqual(trgt, gedir(Nlay+1, glob_box_i, glob_box_j), atol, 'edir beneath building should be clear sky value')
+        @assertEqual(trgt, gedir(glob_box_k, glob_box_i, glob_box_j), atol, 'edir at top of building should be the one from clear sky')
+
+        @assertEqual(0, gedir(glob_box_k+1, glob_box_i, glob_box_j  ), atol, 'edir at bot of building should be zero')
+        @assertEqual(0, gedir(glob_box_k+1, glob_box_i+1, glob_box_j), atol, 'edir building shadow should go east and should be zero')
+        @assertEqual(0, gedir(glob_box_k+2, glob_box_i+1, glob_box_j), atol, 'edir building shadow should go east and should be zero')
+        @assertEqual(0, gedir(glob_box_k+2, glob_box_i+2, glob_box_j), atol, 'edir building shadow should go east and should be zero')
+      endif
+      if(size(buildings%edir).gt.0) then
+        trgt = S0*cos(deg2rad(theta0))
+        @assertEqual(trgt, buildings%edir(1), atol)
+        trgt = S0*cos(deg2rad(theta0)) ! leftt face bc phi==270 is west sun)
+        @assertEqual(trgt, buildings%edir(3), atol)
+
+        @assertEqual(0._ireals, buildings%edir(2), atol)
+        @assertEqual(0._ireals, buildings%edir(4:6), atol)
+
+        @assertEqual(0._ireals, buildings%incoming, atol)
+        @assertEqual(0._ireals, buildings%outgoing, atol)
+      endif
+    end subroutine
+
+    subroutine check_albedo()
+      lthermal = .False.
+      lsolar   = .True.
+      box_albedo = 0.5_ireals
+      box_planck = 0
+      phi0       = 0
+      theta0     = 0
+      Ag         = 1.0_ireals
+      dtau       = 0
+      w0         = 0.5_ireals
+
+      call ex_pprts_buildings(comm, lverbose,       &
+        & lthermal, lsolar, Nx, Ny, Nlay, icollapse,&
+        & glob_box_i, glob_box_j, glob_box_k,       &
+        & box_albedo, box_planck,                   &
+        & dx, dy, dz,                               &
+        & S0, phi0, theta0,                         &
+        & Ag, dtau, w0,                             &
+        & gedir, gedn, geup, gabso,                 &
+        & buildings                                 )
+
+      if(myid.eq.0) then
+        @assertEqual( 0, gedir(Nlay+1      , glob_box_i, glob_box_j), atol, 'edir beneath building should be zero')
+        @assertEqual( 0, gedir(glob_box_k+1, glob_box_i, glob_box_j), atol, 'edir at bot of building should be zero')
+        @assertEqual(S0, gedir(glob_box_k  , glob_box_i, glob_box_j), atol, 'edir at top of building should be S0')
+
+        @assertEqual(S0*box_albedo, geup (glob_box_k  , glob_box_i, glob_box_j), atol, 'eup at top of building should be S0*B_Ag')
+
+      endif
+      if(size(buildings%edir).gt.0) then
+        @assertEqual(S0       , buildings%edir(1), atol, 'edir at top of building should be S0')
+        @assertEqual(0._ireals, buildings%edir(2:6), atol, 'if zenith angle is 0, all sides of the building except the top should be 0 edir')
+
+        @assertEqual((buildings%edir+buildings%incoming)*box_albedo, buildings%outgoing, atol, 'total incoming times building albedo should give outgoing')
+      endif
+    end subroutine
+
+    subroutine check_emission()
+      lthermal   = .True.
+      lsolar     = .False.
+      box_albedo = 0._ireals
+      box_planck = 100
+      phi0       = 0
+      theta0     = 180
+      Ag         = 0
+      dtau       = 0
+      w0         = 0.5_ireals
+
+      call ex_pprts_buildings(comm, lverbose,       &
+        & lthermal, lsolar, Nx, Ny, Nlay, icollapse,&
+        & glob_box_i, glob_box_j, glob_box_k,       &
+        & box_albedo, box_planck,                   &
+        & dx, dy, dz,                               &
+        & S0, phi0, theta0,                         &
+        & Ag, dtau, w0,                             &
+        & gedir, gedn, geup, gabso,                 &
+        & buildings                                 )
+
+      if(myid.eq.0) then
+        @assertEqual(box_planck*pi, geup(glob_box_k  , glob_box_i, glob_box_j), 10*atol, 'eup at top of building should be emission')
+        @assertEqual(box_planck*pi, gedn(glob_box_k+1, glob_box_i, glob_box_j), 10*atol, 'edn at top of building should be emission')
+
+      endif
+      if(size(buildings%edir).gt.0) then
+        @assertEqual(box_planck*pi, buildings%outgoing, 10*atol, 'emission on buildings should be planck')
+      endif
+    end subroutine
   end subroutine
 end module

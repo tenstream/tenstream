@@ -186,8 +186,9 @@ subroutine init_mpi_data_parameters(comm)
   if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
 end subroutine
 
-subroutine finalize_mpi(comm)
+subroutine finalize_mpi(comm, lfinalize_mpi, lfinalize_petsc)
   integer(mpiint),intent(in) :: comm
+  logical, intent(in) :: lfinalize_mpi, lfinalize_petsc
   integer(mpiint) :: ierr, mpierr
   logical :: lmpi_is_initialized, lpetsc_is_initialized, lallsame
 
@@ -204,12 +205,16 @@ subroutine finalize_mpi(comm)
   endif
 
   if(lpetsc_is_initialized) then
-    call PetscFinalize(mpierr)
-    if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
+    if(lfinalize_petsc) then
+      call PetscFinalize(mpierr)
+      if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
+    endif
   endif
 
-  if(lmpi_is_initialized) call MPI_Finalize(mpierr)
-  if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
+  if(lfinalize_mpi) then
+    if(lmpi_is_initialized) call MPI_Finalize(mpierr)
+    if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
+  endif
 end subroutine
 
 !duplicate of helper function. otherwise get circular dependency
