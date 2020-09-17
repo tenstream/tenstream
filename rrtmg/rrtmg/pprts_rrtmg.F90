@@ -69,6 +69,7 @@ module m_pprts_rrtmg
 
   use m_tenstr_disort, only: default_flx_computation
   use m_tenstr_rrtmg_base, only: t_rrtmg_log_events, setup_log_events
+  use m_buildings, only: t_pprts_buildings, clone_buildings, destroy_buildings
 
   implicit none
 
@@ -270,14 +271,15 @@ contains
   end subroutine
 
   subroutine pprts_rrtmg(comm, solver, atm, ie, je,   &
-      dx, dy, sundir,                                 &
-      albedo_thermal, albedo_solar,                   &
-      lthermal, lsolar,                               &
-      edir,edn,eup,abso,                              &
-      nxproc, nyproc, icollapse,                      &
-      opt_time, solar_albedo_2d, thermal_albedo_2d,   &
-      opt_solar_constant,                             &
-      opt_buildings_solar, opt_buildings_thermal)
+      & dx, dy, sundir,                               &
+      & albedo_thermal, albedo_solar,                 &
+      & lthermal, lsolar,                             &
+      & edir,edn,eup,abso,                            &
+      & nxproc, nyproc, icollapse,                    &
+      & opt_time, solar_albedo_2d, thermal_albedo_2d, &
+      & opt_solar_constant,                           &
+      & opt_buildings_solar, opt_buildings_thermal,   &
+      & lonly_initialize)
 
     integer(mpiint), intent(in)     :: comm ! MPI Communicator
 
@@ -305,8 +307,8 @@ contains
 
     ! buildings information, setup broadband thermal and solar albedo on faces inside the domain, not just on the surface
     ! see definition for details on how to set it up
-    type(t_pprts_buildings), intent(in), optional :: opt_buildings_solar
-    type(t_pprts_buildings), intent(in), optional :: opt_buildings_thermal
+    type(t_pprts_buildings), intent(inout), optional :: opt_buildings_solar
+    type(t_pprts_buildings), intent(inout), optional :: opt_buildings_thermal
 
     ! Fluxes and absorption in [W/m2] and [W/m3] respectively.
     ! Dimensions will probably be bigger than the dynamics grid, i.e. will have
@@ -317,6 +319,9 @@ contains
     !   abso(ubound(abso,1)-nlay_dynamics+1 : ubound(abso,1) )
     real(ireals),allocatable, dimension(:,:,:), intent(inout) :: edir, edn, eup  ! [nlyr+1, local_nx, local_ny ]
     real(ireals),allocatable, dimension(:,:,:), intent(inout) :: abso            ! [nlyr  , local_nx, local_ny ]
+
+    ! if only_initialize we dont compute any radiation, merely setup the grid structures
+    logical, intent(in), optional :: lonly_initialize
 
     ! ---------- end of API ----------------
 
@@ -387,6 +392,8 @@ contains
     edn = zero
     eup = zero
     abso= zero
+
+    if(get_arg(.False., lonly_initialize)) return
 
     lskip_thermal = .False.
     call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
@@ -502,7 +509,7 @@ contains
 
     real(ireals), optional, intent(in) :: opt_time, thermal_albedo_2d(:,:)
     logical, optional, intent(in) :: lrrtmg_only
-    type(t_pprts_buildings), intent(in), optional :: opt_buildings
+    type(t_pprts_buildings), intent(inout), optional :: opt_buildings
 
     real(ireals),allocatable, target, dimension(:,:,:,:) :: tau, Bfrac  ! [nlyr, ie, je, ngptlw]
     real(ireals),allocatable, dimension(:,:,:) :: kabs, ksca, g, Blev   ! [nlyr(+1), local_nx, local_ny]
@@ -519,6 +526,8 @@ contains
     integer(iintegers) :: i, j, k, icol, ib, current_ibnd, spectral_bands(2)
     logical :: need_any_new_solution, lflg
 
+    type(t_pprts_buildings), allocatable :: spec_buildings
+
     integer(mpiint) :: myid, ierr
 
     call mpi_comm_rank(solver%comm, myid, ierr); call CHKERR(ierr)
@@ -526,6 +535,12 @@ contains
     allocate(spec_edn (solver%C_one1%zm, solver%C_one1%xm, solver%C_one1%ym))
     allocate(spec_eup (solver%C_one1%zm, solver%C_one1%xm, solver%C_one1%ym))
     allocate(spec_abso(solver%C_one%zm , solver%C_one%xm , solver%C_one%ym ))
+    if(present(opt_buildings)) then
+      call clone_buildings(opt_buildings, spec_buildings, l_copy_data=.False., ierr=ierr); call CHKERR(ierr)
+      allocate(opt_buildings%incoming(size(opt_buildings%iface)))
+      allocate(opt_buildings%outgoing(size(opt_buildings%iface)))
+    endif
+
 
     need_any_new_solution=.False.
     do ib=1,ngptlw
@@ -534,7 +549,18 @@ contains
     enddo
     if(.not.need_any_new_solution) then
       do ib=1,ngptlw
-        call pprts_get_result(solver, spec_edn, spec_eup, spec_abso, opt_solution_uid=500+ib)
+        if(present(opt_buildings)) then
+          call pprts_get_result(solver, &
+            & spec_edn, spec_eup, spec_abso, &
+            & opt_solution_uid=500+ib, &
+            & opt_buildings=spec_buildings)
+          opt_buildings%incoming = opt_buildings%incoming + spec_buildings%incoming
+          opt_buildings%outgoing = opt_buildings%outgoing + spec_buildings%outgoing
+        else
+          call pprts_get_result(solver, &
+            & spec_edn, spec_eup, spec_abso, &
+            & opt_solution_uid=500+ib)
+        endif
         edn  = edn  + spec_edn
         eup  = eup  + spec_eup
         abso = abso + spec_abso
@@ -686,7 +712,18 @@ contains
           & opt_buildings=opt_buildings)
       endif
 
-      call pprts_get_result(solver, spec_edn, spec_eup, spec_abso, opt_solution_uid=500+ib)
+      if(present(opt_buildings)) then
+        call pprts_get_result(solver, &
+          & spec_edn, spec_eup, spec_abso, &
+          & opt_solution_uid=500+ib, &
+          & opt_buildings=spec_buildings)
+        opt_buildings%incoming = opt_buildings%incoming + spec_buildings%incoming
+        opt_buildings%outgoing = opt_buildings%outgoing + spec_buildings%outgoing
+      else
+        call pprts_get_result(solver, &
+          & spec_edn, spec_eup, spec_abso, &
+          & opt_solution_uid=500+ib)
+      endif
 
       edn  = edn  + spec_edn
       eup  = eup  + spec_eup
@@ -782,7 +819,7 @@ contains
     real(ireals), optional, intent(in) :: opt_time, solar_albedo_2d(:,:)
     logical, optional, intent(in) :: lrrtmg_only
     real(ireals), intent(in), optional :: opt_solar_constant
-    type(t_pprts_buildings), intent(in), optional :: opt_buildings
+    type(t_pprts_buildings), intent(inout), optional :: opt_buildings
 
     real(ireals) :: edirTOA
 
@@ -801,6 +838,8 @@ contains
     integer(iintegers) :: i, j, k, icol, ib
     logical :: need_any_new_solution
 
+    type(t_pprts_buildings), allocatable :: spec_buildings
+
     logical :: lflg
     integer(iintegers) :: spectral_bands(2)
     integer(mpiint) :: ierr
@@ -810,6 +849,13 @@ contains
     allocate(spec_eup (solver%C_one1%zm, solver%C_one1%xm, solver%C_one1%ym))
     allocate(spec_abso(solver%C_one%zm , solver%C_one%xm , solver%C_one%ym ))
 
+    if(present(opt_buildings)) then
+      call clone_buildings(opt_buildings, spec_buildings, l_copy_data=.False., ierr=ierr); call CHKERR(ierr)
+      allocate(opt_buildings%edir(size(opt_buildings%iface)))
+      allocate(opt_buildings%incoming(size(opt_buildings%iface)))
+      allocate(opt_buildings%outgoing(size(opt_buildings%iface)))
+    endif
+
     need_any_new_solution=.False.
     do ib=1,ngptsw
       if(need_new_solution(solver%comm, solver%solutions(ib), opt_time, solver%lenable_solutions_err_estimates)) &
@@ -817,7 +863,19 @@ contains
     enddo
     if(.not.need_any_new_solution) then
       do ib=1,ngptsw
-        call pprts_get_result(solver, spec_edn, spec_eup, spec_abso, spec_edir, opt_solution_uid=ib)
+        if(present(opt_buildings)) then
+          call pprts_get_result(solver, &
+            & spec_edn, spec_eup, spec_abso, spec_edir, &
+            & opt_solution_uid=ib, &
+            & opt_buildings=spec_buildings)
+          opt_buildings%edir = opt_buildings%edir + spec_buildings%edir
+          opt_buildings%incoming = opt_buildings%incoming + spec_buildings%incoming
+          opt_buildings%outgoing = opt_buildings%outgoing + spec_buildings%outgoing
+        else
+          call pprts_get_result(solver, &
+            & spec_edn, spec_eup, spec_abso, spec_edir, &
+            & opt_solution_uid=ib)
+        endif
         edir = edir + spec_edir
         edn  = edn  + spec_edn
         eup  = eup  + spec_eup
@@ -963,7 +1021,21 @@ contains
           & opt_buildings=opt_buildings)
 
       endif
-      call pprts_get_result(solver, spec_edn, spec_eup, spec_abso, spec_edir, opt_solution_uid=ib)
+
+      if(present(opt_buildings)) then
+        call pprts_get_result(solver, &
+          & spec_edn, spec_eup, spec_abso, spec_edir, &
+          & opt_solution_uid=ib, &
+          & opt_buildings=spec_buildings)
+        print *,'allocated edir?', allocated(opt_buildings%edir), allocated(spec_buildings%edir)
+        opt_buildings%edir = opt_buildings%edir + spec_buildings%edir
+        opt_buildings%incoming = opt_buildings%incoming + spec_buildings%incoming
+        opt_buildings%outgoing = opt_buildings%outgoing + spec_buildings%outgoing
+      else
+        call pprts_get_result(solver, &
+          & spec_edn, spec_eup, spec_abso, spec_edir, &
+          & opt_solution_uid=ib)
+      endif
 
       edir = edir + spec_edir
       edn  = edn  + spec_edn

@@ -129,15 +129,25 @@ contains
       C%iface_data => B%iface_data
       C%iface_data%ref_count = C%iface_data%ref_count+1
 
+      if(allocated(B%da_offsets)) then
+        allocate(C%da_offsets(size(B%da_offsets)), source=B%da_offsets)
+      endif
+
       if(l_copy_data) then
-        if(allocated(B%da_offsets)) then
-          allocate(C%da_offsets(size(B%da_offsets)), source=B%da_offsets)
-        endif
         if(allocated(B%albedo)) then
           allocate(C%albedo(size(B%albedo)), source=B%albedo)
         endif
         if(allocated(B%planck)) then
           allocate(C%planck(size(B%planck)), source=B%planck)
+        endif
+        if(allocated(B%edir)) then
+          allocate(C%edir(size(B%edir)), source=B%edir)
+        endif
+        if(allocated(B%incoming)) then
+          allocate(C%incoming(size(B%incoming)), source=B%incoming)
+        endif
+        if(allocated(B%outgoing)) then
+          allocate(C%outgoing(size(B%outgoing)), source=B%outgoing)
         endif
       endif
     end associate
