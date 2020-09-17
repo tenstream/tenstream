@@ -161,7 +161,7 @@ contains
     integer(iintegers), parameter :: glob_box_i=3, glob_box_j=3, glob_box_k=2
     real(ireals), parameter :: dx=100, dy=100, dz=100, S0=1
     logical, parameter :: lverbose=.True.
-    real(ireals), parameter :: atol=sqrt(epsilon(atol))*10
+    real(ireals), parameter :: atol=1e-5_ireals
 
     logical :: lsolar, lthermal
     real(ireals) :: box_albedo, box_planck
@@ -409,7 +409,7 @@ contains
       lthermal   = .True.
       lsolar     = .False.
       box_albedo = 0._ireals
-      box_planck = 100
+      box_planck = 1
       phi0       = 0
       theta0     = 180
       Ag         = 0
@@ -427,12 +427,12 @@ contains
         & buildings                                 )
 
       if(myid.eq.0) then
-        @assertEqual(box_planck*pi, geup(glob_box_k  , glob_box_i, glob_box_j), 10*atol, 'eup at top of building should be emission')
-        @assertEqual(box_planck*pi, gedn(glob_box_k+1, glob_box_i, glob_box_j), 10*atol, 'edn at top of building should be emission')
+        @assertEqual(box_planck*pi, geup(glob_box_k  , glob_box_i, glob_box_j), atol, 'eup at top of building should be emission')
+        @assertEqual(box_planck*pi, gedn(glob_box_k+1, glob_box_i, glob_box_j), atol, 'edn at top of building should be emission')
 
       endif
       if(size(buildings%edir).gt.0) then
-        @assertEqual(box_planck*pi, buildings%outgoing, 10*atol, 'emission on buildings should be planck')
+        @assertEqual(box_planck*pi, buildings%outgoing, atol, 'emission on buildings should be planck')
       endif
     end subroutine
   end subroutine

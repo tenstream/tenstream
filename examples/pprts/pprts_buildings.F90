@@ -1,133 +1,266 @@
-program main
-#include "petsc/finclude/petsc.h"
-  use petsc
-  use m_examples_pprts_buildings
-  use mpi, only : MPI_COMM_WORLD
+module m_examples_pprts_buildings
+  use m_data_parameters, only : &
+    & init_mpi_data_parameters, &
+    & finalize_mpi, &
+    & iintegers, ireals, mpiint, &
+    & zero, one, pi, i1, i2, default_str_len
+
+  use m_helper_functions, only : &
+    & CHKERR, &
+    & toStr, cstr, &
+    & spherical_2_cartesian, rotate_angle_z, &
+    & meanval, &
+    & is_inrange
+
+  use m_pprts, only : init_pprts, &
+    & set_optical_properties, solve_pprts, &
+    & pprts_get_result, set_angles, &
+    & gather_all_toZero
+
+  use m_pprts_base, only: t_solver, &
+    & allocate_pprts_solver_from_commandline, destroy_pprts, &
+    & t_solver_1_2, t_solver_3_6, t_solver_3_10, t_solver_3_16, &
+    & t_solver_8_10, t_solver_8_16, t_solver_8_18
+
+  use m_tenstream_options, only: read_commandline_options
+
+  use m_buildings, only: t_pprts_buildings, &
+    & faceidx_by_cell_plus_offset, &
+    & check_buildings_consistency, &
+    & PPRTS_TOP_FACE, PPRTS_BOT_FACE, &
+    & PPRTS_LEFT_FACE, PPRTS_RIGHT_FACE, &
+    & PPRTS_REAR_FACE, PPRTS_FRONT_FACE, &
+    & init_buildings
+
+  use m_netcdfio, only: ncwrite
+
   implicit none
 
-  character(len=default_str_len) :: outfile
-  integer(iintegers) :: Nx, Ny, Nlay, icollapse
-  integer(iintegers) :: glob_box_i, glob_box_j, glob_box_k
-  real(ireals) :: box_albedo, box_planck
-  real(ireals) :: dx, dy, dz
-  real(ireals) :: S0, phi0, theta0
-  real(ireals) :: Ag, dtau, w0
-  real(ireals),allocatable,dimension(:,:,:) :: gedir, gedn, geup, gabso ! global arrays on rank 0
-  type(t_pprts_buildings), allocatable :: buildings
+contains
+  subroutine ex_pprts_buildings(            &
+      & comm, lverbose,                     &
+      & lthermal, lsolar,                   &
+      & Nx, Ny, Nlay, icollapse,            &
+      & glob_box_i, glob_box_j, glob_box_k, &
+      & box_albedo, box_planck,             &
+      & dx, dy, dz,                         &
+      & incSolar, phi0, theta0,             &
+      & albedo, dtau, w0,                   &
+      & gedir, gedn, geup, gabso,           &
+      & buildings,                          &
+      & outfile )
 
-  character(len=10*default_str_len) :: rayli_options
-  logical :: lflg, lverbose, lrayli_opts, lsolar, lthermal
-  integer(mpiint) :: ierr
+    integer(mpiint), intent(in) :: comm
+    logical, intent(in) :: lverbose, lthermal, lsolar
+    integer(iintegers), intent(in) :: Nx, Ny, Nlay ! global domain size
+    integer(iintegers), intent(in) :: icollapse    ! collapse upper nr of layers into 1 layer
+    integer(iintegers), intent(in) :: glob_box_i, glob_box_j, glob_box_k ! global index of a single cube building
+    real(ireals), intent(in) :: box_albedo         ! albedo of building faces
+    real(ireals), intent(in) :: box_planck         ! planck emission of building faces (only used if lthermal=.True.)
+    real(ireals), intent(in) :: dx, dy, dz         ! grid spacing in [m]
+    real(ireals), intent(in) :: incSolar           ! solar constant at TOA [W/m2]
+    real(ireals), intent(in) :: phi0, theta0       ! sun azimuth(phi) and zenith(theta) angle
+    real(ireals), intent(in) :: albedo, dtau, w0   ! surface albedo, vertically integrated optical depth and constant single scattering albedo
+    real(ireals), allocatable, dimension(:,:,:), intent(out) :: gedir, gedn, geup, gabso ! global arrays on rank 0
+    type(t_pprts_buildings), allocatable, intent(inout) :: buildings
+    character(len=*), intent(in), optional :: outfile ! output file to dump flux results
 
-  call mpi_init(ierr)
-  call init_mpi_data_parameters(mpi_comm_world)
-  call read_commandline_options(mpi_comm_world)
+    real(ireals) :: dz1d(Nlay)
+    real(ireals) :: sundir(3)
+    real(ireals),allocatable,dimension(:,:,:) :: kabs,ksca,g,plck
+    real(ireals),allocatable,dimension(:,:,:) :: fdir,fdn,fup,fdiv
 
-  call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-out', outfile, lflg, ierr); call CHKERR(ierr)
-  if(.not.lflg) call CHKERR(1_mpiint, 'need to supply a output filename... please call with -out <output.nc>')
+    class(t_solver), allocatable :: solver
+    integer :: Nbuildings
+    logical :: lhave_box
 
-  lsolar = .True.
-  call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-solar', &
-    lsolar, lflg, ierr) ; call CHKERR(ierr)
+    character(len=default_str_len) :: groups(2)
 
-  lthermal = .True.
-  call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-thermal', &
-    lthermal, lflg, ierr) ; call CHKERR(ierr)
+    integer(iintegers) :: k, i
+    integer(iintegers) :: box_k, box_i, box_j
+    integer(mpiint) :: myid, numnodes, ierr
 
-  Nx=5; Ny=5; Nlay=3
-  call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Nx", Nx, lflg, ierr); call CHKERR(ierr)
-  call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Ny", Ny, lflg, ierr); call CHKERR(ierr)
-  call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Nz", Nlay, lflg, ierr); call CHKERR(ierr)
+    dz1d = dz
 
-  icollapse=1
-  call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-icollapse", icollapse, lflg, ierr); call CHKERR(ierr)
+    call init_mpi_data_parameters(comm)
+    call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+    call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
 
-  glob_box_k = Nlay-(icollapse-1)-1 ! one above the surface-touching cell
-  glob_box_i = int(real(Nx+1)/2.)
-  glob_box_j = int(real(Nx+1)/2.)
-  call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Bx", glob_box_i, lflg, ierr); call CHKERR(ierr)
-  call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-By", glob_box_j, lflg, ierr); call CHKERR(ierr)
-  call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Bz", glob_box_k, lflg, ierr); call CHKERR(ierr)
+    call allocate_pprts_solver_from_commandline(solver, '3_10', ierr); call CHKERR(ierr)
 
-  box_albedo = .1_ireals
-  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-BAg", box_albedo, lflg, ierr); call CHKERR(ierr)
-  box_planck = 100._ireals / pi
-  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Bplanck", box_planck, lflg, ierr); call CHKERR(ierr)
+    sundir = spherical_2_cartesian(phi0, theta0)
+    call init_pprts(comm, Nlay, Nx, Ny, dx,dy, sundir, solver, dz1d, collapseindex=icollapse)
 
-  dx = 100
-  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-dx", dx, lflg, ierr); call CHKERR(ierr)
-  dy = dx
-  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-dy", dy, lflg, ierr); call CHKERR(ierr)
-  dz = 100
-  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-dz", dz, lflg, ierr); call CHKERR(ierr)
+    associate(Ca => solver%C_one_atm, C1 => solver%C_one)
+      allocate(kabs(Ca%zm  , Ca%xm, Ca%ym ))
+      allocate(ksca(Ca%zm  , Ca%xm, Ca%ym ))
+      allocate(g   (Ca%zm  , Ca%xm, Ca%ym ))
 
-  S0 = 1._ireals
-  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-S0", S0, lflg, ierr); call CHKERR(ierr)
+      if(lthermal) then
+        allocate(plck(Ca%zm+1, Ca%xm, Ca%ym ))
+        plck(:,:,:) = 0
+        plck(Ca%zm+1,:,:) = 0
+      endif
 
-  phi0 = 180._ireals
-  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-phi", phi0, lflg, ierr); call CHKERR(ierr)
-  theta0 = 0._ireals
-  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-theta", theta0, lflg, ierr); call CHKERR(ierr)
+      kabs = dtau*(one-w0)/(dz*Nlay)
+      ksca = dtau*w0/(dz*Nlay)
+      g    = zero
 
-  Ag=0.1_ireals
-  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Ag", Ag, lflg, ierr); call CHKERR(ierr)
-  dtau=1._ireals
-  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-dtau", dtau, lflg, ierr); call CHKERR(ierr)
-  w0=0.5_ireals
-  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-w0", w0, lflg, ierr); call CHKERR(ierr)
+      box_k = glob_box_k - C1%zs
+      box_i = glob_box_i - C1%xs
+      box_j = glob_box_j - C1%ys
 
-  lverbose = .True.
-  call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-verbose', &
-    lverbose, lflg, ierr) ; call CHKERR(ierr)
+      if(lverbose) print *, myid, 'Have box:', &
+        & is_inrange(glob_box_k, C1%zs+1, C1%ze+1), &
+        & is_inrange(glob_box_i, C1%xs+1, C1%xe+1), &
+        & is_inrange(glob_box_j, C1%ys+1, C1%ye+1)
 
-  lrayli_opts = .False.
-  call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-rayli_opts', &
-    lrayli_opts, lflg, ierr) ; call CHKERR(ierr)
+      if( &
+        !& .False. .and. &
+        & is_inrange(glob_box_k, C1%zs+1, C1%ze+1).and. &
+        & is_inrange(glob_box_i, C1%xs+1, C1%xe+1).and. &
+        & is_inrange(glob_box_j, C1%ys+1, C1%ye+1)      ) then
 
-  if(lrayli_opts) then
-    rayli_options=''
-    rayli_options=trim(rayli_options)//' -pprts_use_rayli'
-    rayli_options=trim(rayli_options)//' -rayli_diff_flx_origin 0,0,-inf'
-    rayli_options=trim(rayli_options)//' -rayli_cyclic_bc'
-    rayli_options=trim(rayli_options)//' -show_rayli_dm3d hdf5:dm.h5'
+        lhave_box = .True.
+        Nbuildings = 6
+      else
+        lhave_box = .False.
+        Nbuildings = 0
+      endif
 
-    rayli_options=trim(rayli_options)//' -rayli_snapshot'
-    rayli_options=trim(rayli_options)//' -rayli_snap_Nx 256'
-    rayli_options=trim(rayli_options)//' -rayli_snap_Ny 256'
-    rayli_options=trim(rayli_options)//' -visit_image_zoom .75'
-    rayli_options=trim(rayli_options)//' -visit_parallel_scale 291.5'
-    rayli_options=trim(rayli_options)//' -visit_focus 300,300,0'
-    rayli_options=trim(rayli_options)//' -visit_view_normal -0.2811249083446944,-0.7353472951470268,0.6166304739697339'
-    rayli_options=trim(rayli_options)//' -visit_view_up 0.1878717450780742,0.5879401184069877,0.7867849925925738'
+      call init_buildings(buildings, &
+        & [integer(iintegers) :: 6, C1%zm, C1%xm,  C1%ym], &
+        & Nbuildings, &
+        & ierr); call CHKERR(ierr)
 
-    if(lverbose) print *,'Adding rayli Petsc Options:', trim(rayli_options)
-    call PetscOptionsInsertString(PETSC_NULL_OPTIONS, trim(rayli_options), ierr); call CHKERR(ierr)
-  endif
+      if(lthermal) allocate(buildings%planck(Nbuildings))
+      do i=1,Nbuildings
+        buildings%iface(i) = faceidx_by_cell_plus_offset( &
+          & buildings%da_offsets, &
+          & box_k, &
+          & box_i, &
+          & box_j, i)
+        buildings%albedo(i) = box_albedo
+        if(lthermal) buildings%planck(i) = box_planck
+      enddo
 
-  if(lsolar) then
-    call ex_pprts_buildings(mpi_comm_world, lverbose, &
-      & .False., lsolar, Nx, Ny, Nlay, icollapse, &
-      & glob_box_i, glob_box_j, glob_box_k,       &
-      & box_albedo, box_planck,                   &
-      & dx, dy, dz,                               &
-      & S0, phi0, theta0,                         &
-      & Ag, dtau, w0,                             &
-      & gedir, gedn, geup, gabso,                 &
-      & buildings,                                &
-      & outfile=outfile)
-  endif
-  if(lthermal) then
-    call ex_pprts_buildings(mpi_comm_world, lverbose, &
-      & lsolar, .False., Nx, Ny, Nlay, icollapse, &
-      & glob_box_i, glob_box_j, glob_box_k,       &
-      & box_albedo, box_planck,                   &
-      & dx, dy, dz,                               &
-      & S0, phi0, theta0,                         &
-      & Ag, dtau, w0,                             &
-      & gedir, gedn, geup, gabso,                 &
-      & buildings,                                &
-      & outfile=outfile)
-  endif
+      call check_buildings_consistency(buildings, C1%zm, C1%xm, C1%ym, ierr); call CHKERR(ierr)
 
-  call finalize_mpi(ierr, .True., .True.)
-end program
+      if(lthermal) then
+        call set_optical_properties(solver, albedo, kabs, ksca, g, plck)
+      else
+        call set_optical_properties(solver, albedo, kabs, ksca, g)
+      endif
+      call set_angles(solver, sundir)
+
+      call solve_pprts(solver, &
+        & lthermal=lthermal, &
+        & lsolar=lsolar, &
+        & edirTOA=incSolar, &
+        & opt_buildings=buildings)
+
+      call pprts_get_result(solver, fdn, fup, fdiv, fdir, opt_buildings=buildings)
+
+      if(lsolar) then
+        call gather_all_toZero(solver%C_one_atm1, fdir, gedir)
+      endif
+      call gather_all_toZero(solver%C_one_atm1, fdn, gedn)
+      call gather_all_toZero(solver%C_one_atm1, fup, geup)
+      call gather_all_toZero(solver%C_one_atm, fdiv, gabso)
+
+      if(myid.eq.0_mpiint.and.present(outfile)) then
+        groups(1) = trim(outfile)
+        if(lsolar) then
+          groups(2) = 'edir'; call ncwrite(groups, gedir, ierr); call CHKERR(ierr)
+        endif
+        groups(2) = 'edn' ; call ncwrite(groups, gedn , ierr); call CHKERR(ierr)
+        groups(2) = 'eup' ; call ncwrite(groups, geup , ierr); call CHKERR(ierr)
+        groups(2) = 'abso'; call ncwrite(groups, gabso, ierr); call CHKERR(ierr)
+      endif
+
+      if(lverbose .and. myid.eq.0) then
+        print *,'y-slice: i='//toStr(box_i)
+        i = box_i
+        if(lsolar) then
+          do k = 1+solver%C_dir%zs, 1+solver%C_dir%ze
+            print *, k, cstr('edir'//toStr( gedir(k, i, :) ), 'red')
+          enddo
+        endif ! lsolar
+        do k = 1+solver%C_diff%zs, 1+solver%C_diff%ze
+          print *, k, cstr(' edn'//toStr( gedn(k, i, :) ), 'green')
+        enddo
+        do k = 1+solver%C_diff%zs, 1+solver%C_diff%ze
+          print *, k, cstr(' eup'//toStr( geup(k, i, :) ), 'blue')
+        enddo
+        do k = 1+solver%C_one%zs, 1+solver%C_one%ze
+          print *, k, cstr('abso'//toStr( gabso(k, i, :) ), 'purple')
+        enddo
+
+        print *,''
+        print *,'x-slice: j='//toStr(box_j)
+        i = box_j
+        if(lsolar) then
+          do k = 1+solver%C_dir%zs, 1+solver%C_dir%ze
+            print *, k, cstr('edir'//toStr( gedir(k, :, i) ), 'red')
+          enddo
+        endif
+        do k = 1+solver%C_diff%zs, 1+solver%C_diff%ze
+          print *, k, cstr(' edn'//toStr( gedn(k, :, i) ), 'green')
+        enddo
+        do k = 1+solver%C_diff%zs, 1+solver%C_diff%ze
+          print *, k, cstr(' eup'//toStr( geup(k, :, i) ), 'blue')
+        enddo
+        do k = 1+solver%C_one%zs, 1+solver%C_one%ze
+          print *, k, cstr('abso'//toStr( gabso(k, :, i) ), 'purple')
+        enddo
+
+        print *,''
+        if(lsolar) then
+          do k = lbound(fdiv,1), ubound(fdiv, 1)
+            print *, k, 'mean ', &
+              & 'edir', meanval(gedir(k,:,:)), &
+              & 'edn' , meanval(gedn(k,:,:)), &
+              & 'eup' , meanval(geup(k,:,:)), &
+              & 'abso', meanval(gabso(k,:,:))
+          enddo
+          k = ubound(fdir, 1)
+          print *, k, 'mean ', &
+            & 'edir', meanval(gedir(k,:,:)), &
+            & 'edn' , meanval(gedn(k,:,:)), &
+            & 'eup' , meanval(geup(k,:,:))
+        else
+          do k = lbound(fdiv,1), ubound(fdiv, 1)
+            print *, k, &
+              & 'mean ', &
+              & 'edn', meanval(gedn(k,:,:)), &
+              & 'eup', meanval(geup(k,:,:)), &
+              & 'abso', meanval(gabso(k,:,:))
+          enddo
+          k = ubound(fdir, 1)
+          print *, k, 'mean ', &
+            & 'edn', meanval(gedn(k,:,:)), &
+            & 'eup', meanval(geup(k,:,:))
+        endif
+      endif
+    end associate
+    call mpi_barrier(comm, ierr); call CHKERR(ierr)
+
+    if(lverbose .and. lhave_box) then
+      print *,''
+      if(allocated(buildings%edir)) then
+        do i=1, size(buildings%iface)
+          print *, 'building_face', i, 'edir', buildings%edir(i), &
+            & 'in/out', buildings%incoming(i), buildings%outgoing(i)
+        enddo
+      else
+        do i=1, size(buildings%iface)
+          print *, 'building_face', i, &
+            & 'in/out', buildings%incoming(i), buildings%outgoing(i)
+        enddo
+      endif
+    endif
+
+    call destroy_pprts(solver, .False.)
+  end subroutine
+
+end module

@@ -1,4 +1,4 @@
-module m_box_cld
+module m_examples_pprts_box_cld
 
   use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint, zero, pi
 
@@ -16,8 +16,8 @@ module m_box_cld
 
   integer(mpiint) :: myid, ierr
 
-  contains
-subroutine box_cld()
+contains
+  subroutine ex_pprts_box_cld()
     implicit none
 
     integer(iintegers),parameter :: nxp=16,nyp=16,nv=20
@@ -32,7 +32,7 @@ subroutine box_cld()
     real(ireals),allocatable,dimension(:,:,:) :: kabs,ksca,g
     real(ireals),allocatable,dimension(:,:,:) :: fdir,fdn,fup,fdiv
 
-    class(t_solver), allocatable :: solver
+  class(t_solver), allocatable :: solver
 
     ! Have to call init_mpi_data_parameters() to define datatypes
     call init_mpi_data_parameters(MPI_COMM_WORLD)
@@ -69,31 +69,14 @@ subroutine box_cld()
     call pprts_get_result(solver, fdn, fup, fdiv, fdir)
 
     if(myid.eq.0) then
-        print *,'kabs:', kabs(:,1,1)
-        print *,'fdir:', fdir(:,1,1)
-        print *,'fdn:',  fdn (:,1,1)
-        print *,'fup:',  fup (:,1,1)
-        print *,'fdiv:', fdiv(:,1,1)
+      print *,'kabs:', kabs(:,1,1)
+      print *,'fdir:', fdir(:,1,1)
+      print *,'fdn:',  fdn (:,1,1)
+      print *,'fup:',  fup (:,1,1)
+      print *,'fdiv:', fdiv(:,1,1)
     endif
     print *,myid,'Memory:',get_mem_footprint(MPI_COMM_WORLD)
 
     call destroy_pprts(solver, .True.)
-end subroutine
+  end subroutine
 end module
-
-program main
-  use m_box_cld
-
-  call box_cld()
-
-  if(myid.eq.0) then
-    print *,''
-    print *,''
-    print *,'Call this example e.g. with options: -show_edir hdf5:edir.h5'
-    print *,'and plot results with python:'
-    print *,'import h5py as H; h=H.File("edir.h5","r"); edir = h["edir0"][:]'
-    print *,'imshow(edir[0,:,:,0].T,interpolation="nearest");' ! has dimension nyp,nxp,nzp,8streams
-    print *,'colorbar(); savefig("edir_x0.pdf")'
-  endif
-
-end program
