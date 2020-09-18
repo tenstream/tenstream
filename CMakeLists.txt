@@ -375,16 +375,17 @@ if(CTAGS_PATH)
     set_source_files_properties( tags PROPERTIES GENERATED true)
     add_custom_target(tags ALL
       COMMAND ctags -R
-      ${CMAKE_CURRENT_SOURCE_DIR}/src
-      ${CMAKE_CURRENT_SOURCE_DIR}/disort
-      ${CMAKE_CURRENT_SOURCE_DIR}/rrtmg
+      ${CMAKE_CURRENT_BINARY_DIR}/examples
+      ${CMAKE_CURRENT_BINARY_DIR}/external
       ${CMAKE_CURRENT_SOURCE_DIR}/C_wrapper
+      ${CMAKE_CURRENT_SOURCE_DIR}/disort
       ${CMAKE_CURRENT_SOURCE_DIR}/plexrt
-      ${CMAKE_CURRENT_SOURCE_DIR}/rayli_wrapper
       ${CMAKE_CURRENT_SOURCE_DIR}/python
+      ${CMAKE_CURRENT_SOURCE_DIR}/rayli_wrapper
+      ${CMAKE_CURRENT_SOURCE_DIR}/rrtmg
+      ${CMAKE_CURRENT_SOURCE_DIR}/src
       ${CMAKE_CURRENT_SOURCE_DIR}/tests
       ${CMAKE_CURRENT_SOURCE_DIR}/twomax
-      ${CMAKE_CURRENT_BINARY_DIR}/external
       WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
         COMMENT "Creating ctags" VERBATIM
         )
