@@ -44,19 +44,35 @@ module m_pprts_rrtmg
   use m_data_parameters, only : init_mpi_data_parameters, &
       iintegers, ireals, zero, one, i0, i1, i2, i9,         &
       mpiint, pi, default_str_len
-  use m_pprts_base, only : t_solver, compute_gradient, destroy_pprts
+
+  use m_pprts_base, only : t_solver, compute_gradient, destroy_pprts, atmk
 
   use m_pprts, only : init_pprts, set_angles, set_optical_properties, solve_pprts,&
       pprts_get_result, pprts_get_result_toZero
 
-  use m_buildings, only: t_pprts_buildings
+  use m_buildings, only: t_pprts_buildings, PPRTS_BOT_FACE
 
   use m_adaptive_spectral_integration, only: need_new_solution
 
-  use m_helper_functions, only : read_ascii_file_2d, gradient, meanvec, imp_bcast, &
-      imp_allreduce_min, imp_allreduce_max, imp_allreduce_mean, mpi_logical_all_same, &
-      CHKERR, deg2rad, get_arg, &
-      reverse, approx, itoa, spherical_2_cartesian, cross_3d
+  use m_helper_functions, only : &
+    & CHKERR, &
+    & approx, &
+    & cross_3d, &
+    & deg2rad, &
+    & get_arg, &
+    & gradient, &
+    & imp_allreduce_max, &
+    & imp_allreduce_mean, &
+    & imp_allreduce_min, &
+    & imp_bcast, &
+    & ind_1d_to_nd, &
+    & meanvec, &
+    & mpi_logical_all_same, &
+    & read_ascii_file_2d, &
+    & reverse, &
+    & spherical_2_cartesian, &
+    & toStr
+
   use m_search, only: find_real_location
   use m_petsc_helpers, only: dmda_convolve_ediff_srfc, &
     getvecpointer, restorevecpointer, f90vectopetsc
@@ -180,7 +196,7 @@ contains
         enddo
         if(min_iter.gt.Ni_limit) &
           call CHKERR(int(min_iter, mpiint), 'the smoothing iteration count would be larger than '// &
-            itoa(Ni_limit)//'... this could become expensive, you can set the value higher but I'// &
+            toStr(Ni_limit)//'... this could become expensive, you can set the value higher but I'// &
             'suspect that you are trying something weird')
         ! We want it
         ! as close as possible to an integer
@@ -524,6 +540,7 @@ contains
     real(ireals) :: col_albedo, col_tskin(1)
 
     integer(iintegers) :: i, j, k, icol, ib, current_ibnd, spectral_bands(2)
+    integer(iintegers) :: ak, idx(4)
     logical :: need_any_new_solution, lflg
 
     type(t_pprts_buildings), allocatable :: spec_buildings
@@ -537,8 +554,14 @@ contains
     allocate(spec_abso(solver%C_one%zm , solver%C_one%xm , solver%C_one%ym ))
     if(present(opt_buildings)) then
       call clone_buildings(opt_buildings, spec_buildings, l_copy_data=.False., ierr=ierr); call CHKERR(ierr)
-      allocate(opt_buildings%incoming(size(opt_buildings%iface)))
-      allocate(opt_buildings%outgoing(size(opt_buildings%iface)))
+      allocate(opt_buildings%incoming(size(opt_buildings%iface)), source=zero)
+      allocate(opt_buildings%outgoing(size(opt_buildings%iface)), source=zero)
+      allocate(spec_buildings%albedo (size(opt_buildings%albedo)), source=opt_buildings%albedo)
+      if(.not.(allocated(opt_buildings%temp))) call CHKERR(1_mpiint, 'Thermal computation but opt_buildings%temp is not allocated')
+      if((allocated(opt_buildings%planck))) call CHKERR(1_mpiint, 'Thermal computation but opt_buildings%planck is allocated... '//&
+        & 'you should only provide temperatures. I`ll take care of planck emissison')
+      allocate(opt_buildings%planck  (size(opt_buildings%temp )))
+      allocate(spec_buildings%planck (size(opt_buildings%temp )))
     endif
 
 
@@ -565,6 +588,10 @@ contains
         eup  = eup  + spec_eup
         abso = abso + spec_abso
       enddo
+
+      if(present(opt_buildings)) then
+        call destroy_buildings(spec_buildings, ierr)
+      endif
       return
     endif
 
@@ -698,6 +725,30 @@ contains
               call CHKERR(1_mpiint, 'Found a negative Planck emission, this is not physical! Aborting...')
             endif
           endif
+
+          if(present(opt_buildings)) then
+            ! Use opt_buildings array in to hold raw planck values ...
+            do k = 1, size(opt_buildings%temp)
+              opt_buildings%planck(k) = &
+                & plkint(real(wavenum1(ngb(ib))), real(wavenum2(ngb(ib))), real(opt_buildings%temp(k)))
+            enddo
+          endif
+        endif
+
+        if(present(opt_buildings)) then
+          ! ... and use spec_buildings planck array for raw planck values multiplied with the planck fractions
+          do icol = 1, size(spec_buildings%temp)
+            call ind_1d_to_nd(spec_buildings%da_offsets, spec_buildings%iface(icol), idx)
+            associate(d => idx(1), k => idx(2), i => idx(3), j => idx(4))
+              if(d.eq.PPRTS_BOT_FACE) then
+                ak = atmk(solver%atm, k)+1
+              else
+                ak = atmk(solver%atm, k)
+              endif
+              spec_buildings%planck(icol) = opt_buildings%planck(icol) * &
+                & Bfrac(1+size(Bfrac,dim=1)-ak,i,j,ib)
+            end associate
+          enddo
         endif
 
         call set_optical_properties(solver, albedo, kabs, ksca, g, &
@@ -709,7 +760,7 @@ contains
           & edirTOA=zero, &
           & opt_solution_uid=500+ib, &
           & opt_solution_time=opt_time, &
-          & opt_buildings=opt_buildings)
+          & opt_buildings=spec_buildings)
       endif
 
       if(present(opt_buildings)) then
@@ -730,6 +781,9 @@ contains
       abso = abso + spec_abso
     enddo ! ib 1 -> nbndlw , i.e. spectral integration
 
+    if(present(opt_buildings)) then
+      call destroy_buildings(spec_buildings, ierr)
+    endif
     contains
       function compute_thermal_disort() result(ldisort_only)
         logical :: ldisort_only
@@ -851,9 +905,10 @@ contains
 
     if(present(opt_buildings)) then
       call clone_buildings(opt_buildings, spec_buildings, l_copy_data=.False., ierr=ierr); call CHKERR(ierr)
-      allocate(opt_buildings%edir(size(opt_buildings%iface)))
-      allocate(opt_buildings%incoming(size(opt_buildings%iface)))
-      allocate(opt_buildings%outgoing(size(opt_buildings%iface)))
+      allocate(spec_buildings%albedo (size(opt_buildings%albedo)), source=opt_buildings%albedo)
+      allocate(opt_buildings%edir    (size(opt_buildings%iface)), source=zero)
+      allocate(opt_buildings%incoming(size(opt_buildings%iface)), source=zero)
+      allocate(opt_buildings%outgoing(size(opt_buildings%iface)), source=zero)
     endif
 
     need_any_new_solution=.False.
@@ -881,6 +936,10 @@ contains
         eup  = eup  + spec_eup
         abso = abso + spec_abso
       enddo
+
+      if(present(opt_buildings)) then
+        call destroy_buildings(spec_buildings, ierr)
+      endif
       return
     endif
 
@@ -1018,7 +1077,7 @@ contains
           & edirTOA=edirTOA, &
           & opt_solution_uid=ib,          &
           & opt_solution_time=opt_time,   &
-          & opt_buildings=opt_buildings)
+          & opt_buildings=spec_buildings)
 
       endif
 
@@ -1027,7 +1086,6 @@ contains
           & spec_edn, spec_eup, spec_abso, spec_edir, &
           & opt_solution_uid=ib, &
           & opt_buildings=spec_buildings)
-        print *,'allocated edir?', allocated(opt_buildings%edir), allocated(spec_buildings%edir)
         opt_buildings%edir = opt_buildings%edir + spec_buildings%edir
         opt_buildings%incoming = opt_buildings%incoming + spec_buildings%incoming
         opt_buildings%outgoing = opt_buildings%outgoing + spec_buildings%outgoing
@@ -1044,6 +1102,9 @@ contains
 
     enddo ! ib 1 -> nbndsw , i.e. spectral integration
 
+    if(present(opt_buildings)) then
+      call destroy_buildings(spec_buildings, ierr)
+    endif
     contains
       function compute_solar_disort() result(ldisort_only)
         logical :: ldisort_only

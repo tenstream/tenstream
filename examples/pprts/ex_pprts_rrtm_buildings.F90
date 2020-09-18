@@ -2,18 +2,18 @@ program main
 #include "petsc/finclude/petsc.h"
   use petsc
   use m_data_parameters, only : &
-    & iintegers, mpiint, ireals, default_str_len, pi, &
+    & iintegers, mpiint, ireals, default_str_len, &
     & init_mpi_data_parameters, finalize_mpi
   use m_helper_functions, only: CHKERR
   use m_tenstream_options, only: read_commandline_options
   use m_buildings, only: t_pprts_buildings
   use mpi, only : MPI_COMM_WORLD
-  use m_example_pprts_rrtm_buildings, only: example_pprts_rrtm_buildings
+  use m_example_pprts_rrtm_buildings, only: ex_pprts_rrtm_buildings
   implicit none
 
   character(len=default_str_len) :: outfile, atm_filename
   integer(iintegers) :: Nx, Ny, Nlay
-  real(ireals) :: box_albedo, box_planck
+  real(ireals) :: buildings_albedo, buildings_temp
   real(ireals) :: dx, dy
   real(ireals) :: phi0, theta0
   real(ireals) :: Ag_solar, Ag_thermal
@@ -57,10 +57,13 @@ program main
   call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Ny", Ny, lflg, ierr); call CHKERR(ierr)
   call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Nz", Nlay, lflg, ierr); call CHKERR(ierr)
 
-  box_albedo = .1_ireals
-  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-BAg", box_albedo, lflg, ierr); call CHKERR(ierr)
-  box_planck = 100._ireals / pi
-  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Bplanck", box_planck, lflg, ierr); call CHKERR(ierr)
+  buildings_albedo = .1_ireals
+  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+    & "-BAg", buildings_albedo, lflg, ierr); call CHKERR(ierr)
+
+  buildings_temp = 300
+  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+    & "-Btemp", buildings_temp, lflg, ierr); call CHKERR(ierr)
 
   dx = 100
   call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-dx", dx, lflg, ierr); call CHKERR(ierr)
@@ -106,11 +109,11 @@ program main
     call PetscOptionsInsertString(PETSC_NULL_OPTIONS, trim(rayli_options), ierr); call CHKERR(ierr)
   endif
 
-  call example_pprts_rrtm_buildings(        &
+  call ex_pprts_rrtm_buildings(             &
       & comm, lverbose,                     &
       & lthermal, lsolar,                   &
       & Nx, Ny, Nlay,                       &
-      & box_albedo, box_planck,             &
+      & buildings_albedo, buildings_temp,   &
       & dx, dy,                             &
       & atm_filename,                       &
       & phi0, theta0,                       &

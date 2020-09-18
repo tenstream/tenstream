@@ -46,6 +46,10 @@ module m_buildings
     ! albedo on a face, dim(Nbuilding_faces)
     real(ireals), allocatable :: albedo(:)
 
+    ! face temperature to compute monochromatic planck emissivity, dim(Nbuilding_faces)
+    ! should only be allocated if thermal computations are required
+    real(ireals), allocatable :: temp(:)
+
     ! monochromatic planck emissivity on a face, dim(Nbuilding_faces)
     ! should only be allocated if thermal computations are required
     real(ireals), allocatable :: planck(:)
@@ -179,7 +183,9 @@ contains
       call deallocate_allocatable(B%edir)
       call deallocate_allocatable(B%incoming)
       call deallocate_allocatable(B%outgoing)
+
       call deallocate_allocatable(B%albedo)
+      call deallocate_allocatable(B%temp)
       call deallocate_allocatable(B%planck)
     end associate
     deallocate(buildings)
@@ -203,6 +209,7 @@ contains
       endif
 
       call deallocate_allocatable(B%albedo)
+      call deallocate_allocatable(B%temp)
       call deallocate_allocatable(B%planck)
     end associate
     deallocate(buildings)

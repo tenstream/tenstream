@@ -39,11 +39,11 @@ module m_example_pprts_rrtm_buildings
   implicit none
 
 contains
-  subroutine example_pprts_rrtm_buildings(  &
+  subroutine ex_pprts_rrtm_buildings(  &
       & comm, lverbose,                     &
       & lthermal, lsolar,                   &
       & Nx, Ny, Nlay,                       &
-      & box_albedo, box_planck,             &
+      & buildings_albedo, buildings_temp,   &
       & dx, dy,                             &
       & atm_filename,                       &
       & phi0, theta0,                       &
@@ -54,8 +54,8 @@ contains
     integer(mpiint), intent(in) :: comm
     logical, intent(in) :: lverbose, lthermal, lsolar
     integer(iintegers), intent(in) :: Nx, Ny, Nlay   ! global domain size
-    real(ireals), intent(in) :: box_albedo           ! albedo of building faces
-    real(ireals), intent(in) :: box_planck           ! planck emission of building faces (only used if lthermal=.True.)
+    real(ireals), intent(in) :: buildings_albedo     ! albedo of building faces
+    real(ireals), intent(in) :: buildings_temp       ! temperature of buildings faces to compute planck emission (only used if lthermal=.True.)
     real(ireals), intent(in) :: dx, dy               ! grid spacing in [m]
     character(len=*), intent(in) :: atm_filename     ! e.g. 'afglus_100m.dat'
     real(ireals), intent(in) :: phi0, theta0         ! sun azimuth(phi) and zenith(theta) angle
@@ -228,7 +228,7 @@ contains
             & [integer(iintegers) :: 6, C1%zm, C1%xm,  C1%ym], &
             & Nfaces, &
             & ierr); call CHKERR(ierr)
-          buildings_solar%albedo(:) = box_albedo
+          buildings_solar%albedo(:) = buildings_albedo
 
 
           Nbuildings = 1
@@ -263,8 +263,8 @@ contains
             & buildings_thermal, &
             & l_copy_data=.True., &
             & ierr=ierr); call CHKERR(ierr)
-          allocate(buildings_thermal%planck(Nfaces))
-          buildings_thermal%planck(:) = box_planck
+          allocate(buildings_thermal%temp(Nfaces))
+          buildings_thermal%temp(:) = buildings_temp
 
           call check_buildings_consistency(buildings_solar, C1%zm, C1%xm, C1%ym, ierr); call CHKERR(ierr)
           call check_buildings_consistency(buildings_thermal, C1%zm, C1%xm, C1%ym, ierr); call CHKERR(ierr)
