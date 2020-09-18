@@ -49,6 +49,7 @@ module m_pprts
     lmcrts
 
   use m_petsc_helpers, only : petscGlobalVecToZero, scatterZerotoPetscGlobal, &
+    petscGlobalVecToAll, &
     petscVecToF90, f90VecToPetsc, getVecPointer, restoreVecPointer, hegedus_trick
 
   use m_mcrts_dmda, only : solve_mcrts
@@ -74,10 +75,14 @@ module m_pprts
   implicit none
   private
 
-  public :: init_pprts, &
-            set_optical_properties, set_global_optical_properties, &
-            solve_pprts, set_angles, pprts_get_result, &
-            pprts_get_result_toZero, gather_all_toZero, scale_flx
+  public :: &
+    & init_pprts, &
+    & set_optical_properties, set_global_optical_properties, &
+    & solve_pprts, set_angles, pprts_get_result, &
+    & pprts_get_result_toZero, &
+    & gather_all_toZero, &
+    & gather_all_to_all, &
+    & scale_flx
 
   logical,parameter :: ldebug=.False.
   logical,parameter :: lcyclic_bc=.True.
@@ -5329,9 +5334,33 @@ end subroutine
     call DMRestoreGlobalVector(C%da,vec,ierr) ; call CHKERR(ierr)
 
     if(myid.eq.0) then
-      call petscVecToF90(lvec_on_zero, C%da, outp, opt_l_only_on_rank0=.True.)
+      call petscVecToF90(lvec_on_zero, C%da, outp, only_on_rank0=.True.)
       call VecDestroy(lvec_on_zero, ierr); call CHKERR(ierr)
     endif
+  end subroutine
+
+  subroutine gather_all_to_all(C, inp, outp)
+    type(t_coord),intent(in) :: C
+    real(ireals),intent(in), allocatable :: inp(:,:,:) ! local array from get_result
+    real(ireals),intent(inout),allocatable :: outp(:,:,:) ! global sized array on rank 0
+
+    type(tVec) :: vec, lvec
+
+    integer(mpiint) :: myid, ierr
+    call mpi_comm_rank(C%comm, myid, ierr)
+
+    if(ldebug) then
+      print *,myid,'exchange_var',allocated(inp), allocated(outp)
+      print *,myid,'exchange_var shape',shape(inp)
+    endif
+
+    call DMGetGlobalVector(C%da,vec,ierr) ; call CHKERR(ierr)
+    call f90VecToPetsc(inp, C%da, vec)
+    call petscGlobalVecToAll(vec, C%da, lvec)
+    call DMRestoreGlobalVector(C%da,vec,ierr) ; call CHKERR(ierr)
+
+    call petscVecToF90(lvec, C%da, outp)
+    call VecDestroy(lvec, ierr); call CHKERR(ierr)
   end subroutine
 end module
 

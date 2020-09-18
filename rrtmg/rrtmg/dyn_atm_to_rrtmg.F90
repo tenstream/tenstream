@@ -129,7 +129,7 @@ module m_dyn_atm_to_rrtmg
 
       ! Filename of background atmosphere file. ASCII file with columns:
       ! z(km)  p(hPa)  T(K)  air(cm-3)  o3(cm-3) o2(cm-3) h2o(cm-3)  co2(cm-3) no2(cm-3)
-      character(default_str_len), intent(in) :: atm_filename
+      character(len=*), intent(in) :: atm_filename
 
       ! dim(nlay_dynamics+1, ncol)
       real(ireals),intent(in) :: d_plev(:,:) ! pressure on layer interfaces [hPa]
@@ -730,7 +730,7 @@ module m_dyn_atm_to_rrtmg
 
     subroutine load_atmfile(comm, atm_filename, atm)
       integer(mpiint), intent(in) :: comm
-      character(default_str_len), intent(in) :: atm_filename
+      character(len=*), intent(in) :: atm_filename
       type(t_bg_atm),allocatable,intent(inout) :: atm
 
       integer(mpiint) :: myid, ierr

@@ -11,6 +11,7 @@ module m_petsc_helpers
 
   private
   public :: petscGlobalVecToZero, scatterZerotoPetscGlobal, &
+    petscGlobalVecToAll, &
     petscVecToF90, &
     f90VecToPetsc, &
     getVecPointer, restoreVecPointer, &
@@ -55,6 +56,32 @@ contains
     call DMDAGlobalToNaturalEnd  (dm, gVec, INSERT_VALUES, natural, ierr); call CHKERR(ierr)
 
     call VecScatterCreateToZero(natural, scatter_context, lVec, ierr); call CHKERR(ierr)
+
+    call VecScatterBegin(scatter_context, natural, lVec, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
+    call VecScatterEnd  (scatter_context, natural, lVec, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
+
+    call VecScatterDestroy(scatter_context, ierr); call CHKERR(ierr)
+
+    call VecDestroy(natural,ierr); call CHKERR(ierr)
+  end subroutine
+
+  !> @brief Scatter a petsc global vector into a local vector with global size
+  subroutine petscGlobalVecToAll(gVec, dm, lVec)
+    type(tVec), intent(in)    :: gVec
+    type(tDM), intent(in)     :: dm
+    type(tVec), intent(out)   :: lVec
+
+    type(tVec) :: natural
+    type(tVecScatter) :: scatter_context
+
+    integer(mpiint) :: ierr
+
+    call DMDACreateNaturalVector(dm, natural, ierr); call CHKERR(ierr)
+
+    call DMDAGlobalToNaturalBegin(dm, gVec, INSERT_VALUES, natural, ierr); call CHKERR(ierr)
+    call DMDAGlobalToNaturalEnd  (dm, gVec, INSERT_VALUES, natural, ierr); call CHKERR(ierr)
+
+    call VecScatterCreateToAll(natural, scatter_context, lVec, ierr); call CHKERR(ierr)
 
     call VecScatterBegin(scatter_context, natural, lVec, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
     call VecScatterEnd  (scatter_context, natural, lVec, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
@@ -112,28 +139,30 @@ contains
   !> @brief Copies the data from a petsc vector into an allocatable array
   !> @details if flag opt_l_only_on_rank0 is True,
   !>     \n we assume this is just a local vector on rank 0, i.e. coming petscGlobalVecToZero()
-  subroutine petscVecToF90_4d(vec, dm, arr, opt_l_only_on_rank0)
+  subroutine petscVecToF90_4d(vec, dm, arr, only_on_rank0)
     type(tVec), intent(in)    :: vec
     type(tDM), intent(in)     :: dm
     real(ireals), intent(inout), allocatable :: arr(:,:,:,:)
-    logical, intent(in), optional :: opt_l_only_on_rank0
-    logical :: l_only_on_rank0
+    logical, intent(in), optional :: only_on_rank0
+    logical :: l_only_on_rank0, l_has_global_dimensions
 
     integer(iintegers) :: vecsize
+    VecType :: vtype
     real(ireals),pointer :: x1d(:)=>null(),x4d(:,:,:,:)=>null()
 
     integer(mpiint) :: comm, myid, ierr
     integer(iintegers) :: dmdim, dof, zs, xs, ys, zm, xm, ym, glob_zm, glob_xm, glob_ym
+    integer(iintegers) :: dims(4)
 
     if(allocated(arr)) stop 'You shall not call petscVecToF90 with an already allocated array!'
 
     call PetscObjectGetComm(dm, comm, ierr); call CHKERR(ierr)
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
-    l_only_on_rank0 = get_arg(.False., opt_l_only_on_rank0)
+    l_only_on_rank0 = get_arg(.False., only_on_rank0)
 
     if(l_only_on_rank0 .and. myid.ne.0) &
-      call CHKERR(myid, 'Only rank 0 should call the routine petscVecToF90 with opt_l_only_on_rank0=.T.')
+      call CHKERR(myid, 'Only rank 0 should call the routine petscVecToF90 with only_on_rank0=.T.')
 
     call DMDAGetInfo(dm, dmdim, glob_zm, glob_xm, glob_ym,        &
       PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, &
@@ -143,43 +172,47 @@ contains
 
     call DMDAGetCorners(dm, zs, xs, ys, zm, xm, ym, ierr) ;call CHKERR(ierr)
 
-    if(.not.l_only_on_rank0) then
-      call VecGetLocalSize(vec, vecsize, ierr); call CHKERR(ierr)
-      if(.not.allocated(arr)) allocate(arr(dof, zm, xm, ym))
-    else
-      call VecGetSize(vec, vecsize, ierr); call CHKERR(ierr)
-      if(.not.allocated(arr)) allocate(arr(dof, glob_zm, glob_xm, glob_ym))
-    endif
+    l_has_global_dimensions = l_only_on_rank0
+    call VecGetType(vec, vtype, ierr); call CHKERR(ierr)
+    if(vtype.eq.VECSEQ) l_has_global_dimensions = .True.
 
+    dims(:) = [dof, zm, xm, ym]
+    if(l_has_global_dimensions) dims(:) = [dof, glob_zm, glob_xm, glob_ym]
+
+    if(.not.allocated(arr)) allocate(arr(dims(1), dims(2), dims(3), dims(4)))
+
+    call VecGetLocalSize(vec, vecsize, ierr); call CHKERR(ierr)
     if(vecsize.ne.size(arr)) then
       print *,'petscVecToF90 Vecsizes dont match! petsc:', vecsize, 'f90 arr', size(arr)
       stop 'petscVecToF90 Vecsizes dont match!'
     endif
 
-    if(.not.l_only_on_rank0) then
+    if(.not.l_has_global_dimensions) then
       call getVecPointer(vec, dm, x1d, x4d)
       arr = x4d
       call restoreVecPointer(vec, x1d, x4d)
     else
       call VecGetArrayF90(vec,x1d,ierr); call CHKERR(ierr)
-      arr = reshape( x1d, (/ dof, glob_zm, glob_xm, glob_ym /) )
+      arr = reshape( x1d, dims )
       call VecRestoreArrayF90(vec,x1d,ierr); call CHKERR(ierr)
     endif
   end subroutine
-  subroutine petscVecToF90_3d(vec, dm, arr, opt_l_only_on_rank0)
+  subroutine petscVecToF90_3d(vec, dm, arr, only_on_rank0)
     type(tVec), intent(in)    :: vec
     type(tDM), intent(in)     :: dm
     real(ireals), intent(inout), allocatable :: arr(:,:,:)
-    logical, intent(in), optional :: opt_l_only_on_rank0
-    logical :: l_only_on_rank0
+    logical, intent(in), optional :: only_on_rank0
+    logical :: l_only_on_rank0, l_has_global_dimensions
 
+    VecType :: vtype
     integer(iintegers) :: vecsize
     real(ireals),pointer :: x1d(:)=>null(),x4d(:,:,:,:)=>null()
 
     integer(mpiint) :: comm, myid, ierr
     integer(iintegers) :: dmdim, dof, zs, xs, ys, zm, xm, ym, glob_zm, glob_xm, glob_ym
+    integer(iintegers) :: dims(3)
 
-    l_only_on_rank0 = get_arg(.False., opt_l_only_on_rank0)
+    l_only_on_rank0 = get_arg(.False., only_on_rank0)
 
     call DMDAGetInfo(dm, dmdim, glob_zm, glob_xm, glob_ym,        &
       PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, &
@@ -199,29 +232,30 @@ contains
     if(l_only_on_rank0 .and. myid.ne.0) &
       call CHKERR(myid, 'Only rank 0 should call the routine petscVecToF90 with opt_l_only_on_rank0=.T.')
 
-    if(.not.l_only_on_rank0) then
-      call VecGetLocalSize(vec, vecsize, ierr); call CHKERR(ierr)
-      if(.not.allocated(arr)) allocate(arr(zm,xm,ym))
-    else
-      call VecGetSize(vec, vecsize, ierr); call CHKERR(ierr)
-      if(.not.allocated(arr)) allocate(arr(glob_zm, glob_xm, glob_ym))
-    endif
+    l_has_global_dimensions = l_only_on_rank0
+    call VecGetType(vec, vtype, ierr); call CHKERR(ierr)
+    if(vtype.eq.VECSEQ) l_has_global_dimensions = .True.
 
+    dims(:) = [zm, xm, ym]
+    if(l_has_global_dimensions) dims(:) = [glob_zm, glob_xm, glob_ym]
+
+    if(.not.allocated(arr)) allocate(arr(dims(1), dims(2), dims(3)))
+
+    call VecGetLocalSize(vec, vecsize, ierr); call CHKERR(ierr)
     if(vecsize.ne.size(arr)) then
       print *,'petscVecToF90 Vecsizes dont match! petsc:', vecsize, 'f90 arr', size(arr)
       call CHKERR(1_mpiint, 'petscVecToF90 Vecsizes dont match!')
     endif
 
-    if(.not.l_only_on_rank0) then
+    if(.not.l_has_global_dimensions) then
       call getVecPointer(vec, dm, x1d, x4d)
       arr = x4d(i0,:,:,:)
       call restoreVecPointer(vec, x1d, x4d)
     else
       call VecGetArrayF90(vec,x1d,ierr); call CHKERR(ierr)
-      arr = reshape( x1d, (/ glob_zm, glob_xm, glob_ym /) )
+      arr = reshape( x1d, dims )
       call VecRestoreArrayF90(vec,x1d,ierr); call CHKERR(ierr)
     endif
-
   end subroutine
 
   !> @brief Copies the data from a fortran vector into an petsc global vec

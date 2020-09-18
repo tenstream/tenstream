@@ -1,11 +1,16 @@
 module test_buildings
+#include "petsc/finclude/petsc.h"
+  use petsc
   use iso_fortran_env, only: REAL32, REAL64
   use m_data_parameters, only : &
     init_mpi_data_parameters,   &
     finalize_mpi,               &
     iintegers, ireals, mpiint,  &
     zero, one, pi, default_str_len
-  use m_helper_functions, only : CHKERR, deg2rad
+  use m_helper_functions, only : &
+    & CHKERR, &
+    & deg2rad, &
+    & ind_1d_to_nd
 
   ! main entry point for solver, and desctructor
 !  use m_pprts_rrtmg, only : pprts_rrtmg, destroy_pprts_rrtmg
@@ -17,9 +22,11 @@ module test_buildings
     & t_pprts_buildings, &
     & init_buildings,    &
     & clone_buildings,   &
-    & destroy_buildings
+    & destroy_buildings, &
+    & PPRTS_TOP_FACE
 
   use m_examples_pprts_buildings, only: ex_pprts_buildings
+  use m_examples_pprts_rrtm_buildings, only: ex_pprts_rrtm_buildings
 
   use pfunit_mod
 
@@ -151,7 +158,7 @@ contains
       end subroutine
   end subroutine
 
-  @test(npes =[2])
+  @test(npes =[1,2,4])
   subroutine test_buildings_example(this)
     class (MpiTestMethod), intent(inout) :: this
 
@@ -435,5 +442,90 @@ contains
         @assertEqual(box_planck*pi, buildings%outgoing, atol, 'emission on buildings should be planck')
       endif
     end subroutine
+  end subroutine
+
+  @test(npes=[1,2,4])
+  subroutine test_pprts_rrtmg_buildings_example(this)
+    class (MpiTestMethod), intent(inout) :: this
+    integer(mpiint) :: comm, myid, ierr
+
+    integer(iintegers), parameter :: Nx=6, Ny=6, Nlay=10
+    real(ireals), parameter :: dx=100, dy=100
+    character(len=*), parameter :: atm_filename='afglus_100m.dat'
+    logical, parameter :: lverbose=.True.
+    real(ireals), parameter :: atol=1e-5_ireals
+    logical :: lsolar, lthermal
+    real(ireals) :: buildings_albedo, buildings_temp
+    real(ireals) :: phi0, theta0
+    real(ireals) :: Ag_solar, Ag_thermal
+    real(ireals),allocatable,dimension(:,:,:) :: gedir, gedn, geup, gabso
+    type(t_pprts_buildings), allocatable :: buildings_solar, buildings_thermal
+
+    integer(iintegers) :: ke, iface, idx(4)
+
+    comm = this%getMpiCommunicator()
+    myid     = this%getProcessRank()
+
+    lsolar   = .True.
+    lthermal = .False.
+    buildings_albedo = 0
+    buildings_temp   = 0
+    phi0   = 0
+    theta0 = 0
+    Ag_solar   = 0
+    Ag_thermal = 0
+
+    call ex_pprts_rrtm_buildings(           &
+      & comm, lverbose,                     &
+      & lthermal, lsolar,                   &
+      & Nx, Ny, Nlay,                       &
+      & buildings_albedo, buildings_temp,   &
+      & dx, dy,                             &
+      & atm_filename,                       &
+      & phi0, theta0,                       &
+      & Ag_solar, Ag_thermal,               &
+      & gedir, gedn, geup, gabso,           &
+      & buildings_solar, buildings_thermal  )
+
+    print *,myid, 'shape edir', shape(gedir)
+
+    associate( Bs => buildings_solar, Bt => buildings_thermal )
+      @assertFalse(allocated(Bt%edir), 'edir in thermal should never be allocated')
+      @assertFalse(allocated(Bt%incoming), 'buildings_thermal should not have results allocated because lthermal=.F. ')
+      @assertFalse(allocated(Bt%outgoing), 'buildings_thermal should not have results allocated because lthermal=.F. ')
+
+      ke = size(gabso,dim=1)
+
+      do iface = 1, size(Bs%incoming)
+        @assertEqual(0._ireals, Bs%outgoing(iface), atol, 'outgoing fluxes should be zero because buildings_albedo = 0')
+
+        call ind_1d_to_nd(Bs%da_offsets, Bs%iface(iface), idx)
+        associate(d => idx(1), k => idx(2), i => idx(3), j => idx(4))
+          print *,myid, 'Building iface', iface, 'idx =>', idx, 'edir', Bs%edir(iface), 'inc', Bs%incoming(iface), 'out', Bs%outgoing(iface)
+
+          if(k.eq.ke .and. i.eq.3 .and. j.eq.3) then ! center pyramid box
+            @assertEqual(0._ireals, Bs%edir    (iface), atol, 'all fluxes of center building should be zero bc it is encircled by others')
+            @assertEqual(0._ireals, Bs%incoming(iface), atol, 'all fluxes of center building should be zero bc it is encircled by others')
+            @assertEqual(0._ireals, Bs%outgoing(iface), atol, 'all fluxes of center building should be zero bc it is encircled by others')
+          endif
+
+          if(d.eq.PPRTS_TOP_FACE .and. k.eq.ke-1 .and. i.eq.3 .and. j.eq.3) then ! center pyramid box above
+            @assertEqual(gedir(k,i,j), Bs%edir(iface), atol, 'edir flux of lifted center building should be same as edir in atmosphere ')
+          endif
+
+          if(d.eq.PPRTS_TOP_FACE .and. k.eq.ke .and. i.ne.3 .and. j.ne.3) then ! lower cells without the center one
+            @assertEqual(gedir(k,i,j), Bs%edir(iface), atol, 'edir flux of surrounding buildings should be same as edir in atmosphere ')
+          endif
+
+          if(d.ne.PPRTS_TOP_FACE) then
+            @assertEqual(0._ireals, Bs%edir(iface), atol, 'edir on all but the top face should be zero because sza=0')
+          endif
+        end associate
+      enddo
+
+    end associate
+    call destroy_buildings(buildings_solar,  ierr); call CHKERR(ierr)
+    call destroy_buildings(buildings_thermal,ierr); call CHKERR(ierr)
+    call mpi_barrier(comm, ierr); call CHKERR(ierr)
   end subroutine
 end module

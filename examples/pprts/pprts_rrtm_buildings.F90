@@ -1,4 +1,4 @@
-module m_example_pprts_rrtm_buildings
+module m_examples_pprts_rrtm_buildings
 
 #include "petsc/finclude/petsc.h"
   use petsc
@@ -20,7 +20,7 @@ module m_example_pprts_rrtm_buildings
   ! Import specific solver type: 3_10 for example uses 3 streams direct, 10 streams for diffuse radiation
   use m_pprts_base, only : t_solver, allocate_pprts_solver_from_commandline
 
-  use m_pprts, only : gather_all_toZero
+  use m_pprts, only : gather_all_to_all
 
   ! main entry point for solver, and desctructor
   use m_pprts_rrtmg, only : pprts_rrtmg, destroy_pprts_rrtmg
@@ -60,7 +60,7 @@ contains
     character(len=*), intent(in) :: atm_filename     ! e.g. 'afglus_100m.dat'
     real(ireals), intent(in) :: phi0, theta0         ! sun azimuth(phi) and zenith(theta) angle
     real(ireals), intent(in) :: Ag_solar, Ag_thermal ! surface albedo
-    real(ireals), allocatable, dimension(:,:,:), intent(out) :: gedir, gedn, geup, gabso ! global arrays on rank 0
+    real(ireals), allocatable, dimension(:,:,:), intent(out) :: gedir, gedn, geup, gabso
     type(t_pprts_buildings), allocatable, intent(inout) :: buildings_solar, buildings_thermal
 
     integer(iintegers) :: nxp, nyp, xs, ys ! local domain size in x and y aswell as start indices
@@ -138,10 +138,10 @@ contains
       & opt_buildings_thermal=buildings_thermal )
 
     if(allocated(edir)) &
-      & call gather_all_toZero(solver%C_one_atm1, edir, gedir)
-    call gather_all_toZero(solver%C_one_atm1, edn , gedn)
-    call gather_all_toZero(solver%C_one_atm1, eup , geup)
-    call gather_all_toZero(solver%C_one_atm , abso, gabso)
+      & call gather_all_to_all(solver%C_one_atm1, edir, gedir)
+    call gather_all_to_all(solver%C_one_atm1, edn , gedn)
+    call gather_all_to_all(solver%C_one_atm1, eup , geup)
+    call gather_all_to_all(solver%C_one_atm , abso, gabso)
 
     if(lverbose) then
       if(lsolar) then

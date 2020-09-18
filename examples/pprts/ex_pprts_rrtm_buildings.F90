@@ -8,7 +8,7 @@ program main
   use m_tenstream_options, only: read_commandline_options
   use m_buildings, only: t_pprts_buildings
   use mpi, only : MPI_COMM_WORLD
-  use m_example_pprts_rrtm_buildings, only: ex_pprts_rrtm_buildings
+  use m_examples_pprts_rrtm_buildings, only: ex_pprts_rrtm_buildings
   implicit none
 
   character(len=default_str_len) :: outfile, atm_filename

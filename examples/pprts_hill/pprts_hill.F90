@@ -291,7 +291,7 @@ contains
       call f90VecToPetsc(arr, dm, gvec)
       call petscGlobalVecToZero(gvec, dm, lVec)
       if(myid.eq.0) then
-        call petscVecToF90(lVec, dm, larr, opt_l_only_on_rank0=.True.)
+        call petscVecToF90(lVec, dm, larr, only_on_rank0=.True.)
 
         outpath(2) = trim(varname)
         call ncwrite(outpath, larr, ierr); call CHKERR(ierr)
