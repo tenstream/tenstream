@@ -461,7 +461,9 @@ contains
     real(ireals),allocatable,dimension(:,:,:) :: gedir, gedn, geup, gabso
     type(t_pprts_buildings), allocatable :: buildings_solar, buildings_thermal
 
+    integer(iintegers) :: local_dims(6)
     integer(iintegers) :: ke, iface, idx(4)
+    integer(iintegers) :: k, i, j
 
     comm = this%getMpiCommunicator()
     myid     = this%getProcessRank()
@@ -485,7 +487,8 @@ contains
       & phi0, theta0,                       &
       & Ag_solar, Ag_thermal,               &
       & gedir, gedn, geup, gabso,           &
-      & buildings_solar, buildings_thermal  )
+      & buildings_solar, buildings_thermal, &
+      & local_dims )
 
     print *,myid, 'shape edir', shape(gedir)
 
@@ -500,7 +503,11 @@ contains
         @assertEqual(0._ireals, Bs%outgoing(iface), atol, 'outgoing fluxes should be zero because buildings_albedo = 0')
 
         call ind_1d_to_nd(Bs%da_offsets, Bs%iface(iface), idx)
-        associate(d => idx(1), k => idx(2), i => idx(3), j => idx(4))
+        associate(d => idx(1), lk => idx(2), li => idx(3), lj => idx(4))
+          k = local_dims(1)+lk
+          i = local_dims(3)+li
+          j = local_dims(5)+lj
+
           print *,myid, 'Building iface', iface, 'idx =>', idx, 'edir', Bs%edir(iface), 'inc', Bs%incoming(iface), 'out', Bs%outgoing(iface)
 
           if(k.eq.ke .and. i.eq.3 .and. j.eq.3) then ! center pyramid box

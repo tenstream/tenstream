@@ -49,7 +49,8 @@ contains
       & phi0, theta0,                       &
       & Ag_solar, Ag_thermal,               &
       & gedir, gedn, geup, gabso,           &
-      & buildings_solar, buildings_thermal  )
+      & buildings_solar, buildings_thermal, &
+      & local_dims)
 
     integer(mpiint), intent(in) :: comm
     logical, intent(in) :: lverbose, lthermal, lsolar
@@ -62,6 +63,7 @@ contains
     real(ireals), intent(in) :: Ag_solar, Ag_thermal ! surface albedo
     real(ireals), allocatable, dimension(:,:,:), intent(out) :: gedir, gedn, geup, gabso
     type(t_pprts_buildings), allocatable, intent(inout) :: buildings_solar, buildings_thermal
+    integer(iintegers), intent(out), optional :: local_dims(:) ! local domain indices (zs, zm, xs, xm, ys, ym), dim(6)
 
     integer(iintegers) :: nxp, nyp, xs, ys ! local domain size in x and y aswell as start indices
     integer(iintegers),allocatable :: nxproc(:), nyproc(:)
@@ -122,6 +124,14 @@ contains
       & nxproc=nxproc,         &
       & nyproc=nyproc,         &
       & lonly_initialize=.True.)
+
+
+    if(present(local_dims)) then
+      local_dims(:) = [ &
+        & solver%C_one%zs, solver%C_one%zm, &
+        & solver%C_one%xs, solver%C_one%xm, &
+        & solver%C_one%ys, solver%C_one%ym  ]
+    endif
 
     call build_pyramid()
 
