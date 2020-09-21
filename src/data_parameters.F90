@@ -190,19 +190,13 @@ subroutine finalize_mpi(comm, lfinalize_mpi, lfinalize_petsc)
   integer(mpiint),intent(in) :: comm
   logical, intent(in) :: lfinalize_mpi, lfinalize_petsc
   integer(mpiint) :: ierr, mpierr
-  logical :: lmpi_is_initialized, lpetsc_is_initialized, lallsame
+  logical :: lmpi_is_initialized, lpetsc_is_initialized
 
   call mpi_initialized( lmpi_is_initialized, mpierr)
   if(.not.lmpi_is_initialized) return ! if we dont even have mpi, petsc cant live either
 
   call PetscInitialized(lpetsc_is_initialized, mpierr)
   if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
-
-  lallsame = mpi_logical_all_same(comm,lpetsc_is_initialized)
-  if(.not.lallsame) then
-    print *,'the provided communicator does not agree on lpetsc_is_initialized',lpetsc_is_initialized
-    call mpi_abort(comm, 1_mpiint, ierr)
-  endif
 
   if(lpetsc_is_initialized) then
     if(lfinalize_petsc) then
