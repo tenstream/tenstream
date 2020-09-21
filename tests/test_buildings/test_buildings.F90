@@ -601,7 +601,7 @@ contains
     real(ireals), parameter :: dx=100, dy=100
     character(len=*), parameter :: atm_filename='afglus_100m.dat'
     logical, parameter :: lverbose=.True.
-    real(ireals), parameter :: atol=1e-5_ireals
+    real(ireals), parameter :: rtol=1e-5_ireals
     logical :: lsolar, lthermal
     real(ireals) :: buildings_albedo, buildings_temp
     real(ireals) :: phi0, theta0
@@ -648,7 +648,7 @@ contains
       ke = size(gabso,dim=1)
 
       do iface = 1, size(Bs%incoming)
-        @assertEqual(0._ireals, Bs%outgoing(iface), atol, 'outgoing fluxes should be zero because buildings_albedo = 0')
+        @assertEqual(0._ireals, Bs%outgoing(iface), rtol, 'outgoing fluxes should be zero because buildings_albedo = 0')
 
         call ind_1d_to_nd(Bs%da_offsets, Bs%iface(iface), idx)
         associate(d => idx(1), lk => idx(2), li => idx(3), lj => idx(4))
@@ -659,21 +659,21 @@ contains
           print *,myid, 'Building iface', iface, 'idx =>', idx, 'edir', Bs%edir(iface), 'inc', Bs%incoming(iface), 'out', Bs%outgoing(iface)
 
           if(k.eq.ke .and. i.eq.3 .and. j.eq.3) then ! center pyramid box
-            @assertEqual(0._ireals, Bs%edir    (iface), atol, 'all fluxes of center building should be zero bc it is encircled by others')
-            @assertEqual(0._ireals, Bs%incoming(iface), atol, 'all fluxes of center building should be zero bc it is encircled by others')
-            @assertEqual(0._ireals, Bs%outgoing(iface), atol, 'all fluxes of center building should be zero bc it is encircled by others')
+            @assertEqual(0._ireals, Bs%edir    (iface), rtol, 'all fluxes of center building should be zero bc it is encircled by others')
+            @assertEqual(0._ireals, Bs%incoming(iface), rtol, 'all fluxes of center building should be zero bc it is encircled by others')
+            @assertEqual(0._ireals, Bs%outgoing(iface), rtol, 'all fluxes of center building should be zero bc it is encircled by others')
           endif
 
           if(d.eq.PPRTS_TOP_FACE .and. k.eq.ke-1 .and. i.eq.3 .and. j.eq.3) then ! center pyramid box above
-            @assertEqual(gedir(k,i,j), Bs%edir(iface), atol, 'edir flux of lifted center building should be same as edir in atmosphere ')
+            @assertEqual(gedir(k,i,j), Bs%edir(iface), rtol*gedir(k,i,j), 'edir flux of lifted center building should be same as edir in atmosphere ')
           endif
 
           if(d.eq.PPRTS_TOP_FACE .and. k.eq.ke .and. i.ne.3 .and. j.ne.3) then ! lower cells without the center one
-            @assertEqual(gedir(k,i,j), Bs%edir(iface), atol, 'edir flux of surrounding buildings should be same as edir in atmosphere ')
+            @assertEqual(gedir(k,i,j), Bs%edir(iface), rtol*gedir(k,i,j), 'edir flux of surrounding buildings should be same as edir in atmosphere ')
           endif
 
           if(d.ne.PPRTS_TOP_FACE) then
-            @assertEqual(0._ireals, Bs%edir(iface), atol, 'edir on all but the top face should be zero because sza=0')
+            @assertEqual(0._ireals, Bs%edir(iface), rtol, 'edir on all but the top face should be zero because sza=0')
           endif
         end associate
       enddo
@@ -681,6 +681,5 @@ contains
     end associate
     call destroy_buildings(buildings_solar,  ierr); call CHKERR(ierr)
     call destroy_buildings(buildings_thermal,ierr); call CHKERR(ierr)
-    call mpi_barrier(comm, ierr); call CHKERR(ierr)
   end subroutine
 end module
