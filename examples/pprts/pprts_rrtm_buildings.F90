@@ -121,6 +121,7 @@ contains
       & Ag_thermal, Ag_solar,  &
       & lthermal, lsolar,      &
       & edir, edn, eup, abso,  &
+      & icollapse=-1_iintegers,&
       & nxproc=nxproc,         &
       & nyproc=nyproc,         &
       & lonly_initialize=.True.)
@@ -148,10 +149,10 @@ contains
       & opt_buildings_thermal=buildings_thermal )
 
     if(allocated(edir)) &
-      & call gather_all_to_all(solver%C_one_atm1, edir, gedir)
-    call gather_all_to_all(solver%C_one_atm1, edn , gedn)
-    call gather_all_to_all(solver%C_one_atm1, eup , geup)
-    call gather_all_to_all(solver%C_one_atm , abso, gabso)
+      & call gather_all_to_all(solver%C_one1, edir, gedir)
+    call gather_all_to_all(solver%C_one1, edn , gedn)
+    call gather_all_to_all(solver%C_one1, eup , geup)
+    call gather_all_to_all(solver%C_one , abso, gabso)
 
     if(lverbose) then
       if(lsolar) then
