@@ -464,7 +464,7 @@ module m_pprts
       do k=C_one_atm%zs,C_one_atm%ze
 
         call imp_min_mean_max(solver%comm, atm%dz(k,:,:), mdz)
-        call imp_min_mean_max(solver%comm, hhl(i0,k,:,:)+hhl(i0,k+1,:,:), mhhl)
+        call imp_min_mean_max(solver%comm, (hhl(i0,k,:,:)+hhl(i0,k+1,:,:))/2, mhhl)
 
         if(myid.eq.0) &
           & print *, k, &
