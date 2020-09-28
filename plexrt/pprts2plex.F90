@@ -73,8 +73,8 @@ contains
       allocate(plex_buildings%albedo(nr_plex_faces))
       allocate(plex_buildings%iface (nr_plex_faces))
     else
-      call CHKERR(int(size(plex_buildings%iface )-2*size(pprts_buildings%iface ),mpiint), "wrong size plex_buildings%iface ")
-      call CHKERR(int(size(plex_buildings%albedo)-2*size(pprts_buildings%albedo),mpiint), "wrong size plex_buildings%albedo")
+      call CHKERR(int(size(plex_buildings%iface )-nr_plex_faces,mpiint), "wrong size plex_buildings%iface ")
+      call CHKERR(int(size(plex_buildings%albedo)-nr_plex_faces,mpiint), "wrong size plex_buildings%albedo")
     endif
 
     call DMPlexGetDepthStratum(plex%dm, 3_iintegers, cStart, cEnd, ierr); call CHKERR(ierr) ! cells

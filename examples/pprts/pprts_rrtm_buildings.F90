@@ -121,7 +121,7 @@ contains
       & Ag_thermal, Ag_solar,  &
       & lthermal, lsolar,      &
       & edir, edn, eup, abso,  &
-      & icollapse=-1_iintegers,&
+      & icollapse=1_iintegers, &
       & nxproc=nxproc,         &
       & nyproc=nyproc,         &
       & lonly_initialize=.True.)
@@ -143,6 +143,7 @@ contains
       & Ag_thermal, Ag_solar,  &
       & lthermal, lsolar,      &
       & edir, edn, eup, abso,  &
+      & icollapse=1_iintegers, &
       & nxproc=nxproc,         &
       & nyproc=nyproc,         &
       & opt_buildings_solar=buildings_solar, &

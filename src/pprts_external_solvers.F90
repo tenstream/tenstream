@@ -822,9 +822,10 @@ contains
         integer(mpiint), intent(out) :: ierr
         ierr = 0
 
+        if(allocated(subB)) return
+
         associate(atm => solver%atm, C1 => solver%C_one)
           call clone_buildings(localB, subB, .False., ierr); call CHKERR(ierr)
-          allocate(subB%da_offsets(size(localB%da_offsets)))
           call ndarray_offsets([6_iintegers, C1%glob_zm, C1%glob_xm, C1%glob_ym], subB%da_offsets)
           allocate(subB%iface(B_info%Nglob))
           allocate(subB%albedo(B_info%Nglob))
