@@ -3316,8 +3316,9 @@ subroutine setup_ksp(solver, ksp, C, A, prefix)
       call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
         "-ts_ksp_iter", asm_iter, lflg, ierr) ;call CHKERR(ierr)
 
-      call PCASMGetSubKSP(prec, asm_N, first_local, asm_ksps, ierr); call CHKERR(ierr)
+      call PCASMGetSubKSP(prec, asm_N, first_local, PETSC_NULL_KSP, ierr); call CHKERR(ierr)
       allocate(asm_ksps(asm_N))
+      call PCASMGetSubKSP(prec, asm_N, first_local, asm_ksps, ierr); call CHKERR(ierr)
       do i = 1, asm_N
         call KSPSetType(asm_ksps(i), KSPRICHARDSON, ierr); call CHKERR(ierr)
         call KSPRichardsonSetSelfScale(asm_ksps(i), PETSC_TRUE, ierr); call CHKERR(ierr)
