@@ -3307,7 +3307,8 @@ subroutine setup_ksp(solver, ksp, C, A, prefix)
   if(.not.prec_is_set) then
     default_preconditioner_settings: block
       integer(iintegers) :: i, asm_N, asm_iter
-      type(tKSP) :: asm_ksps(1)
+      integer(iintegers) :: first_local
+      type(tKSP), allocatable :: asm_ksps(:)
       type(tPC) :: subpc
       logical :: lflg
 
@@ -3315,7 +3316,8 @@ subroutine setup_ksp(solver, ksp, C, A, prefix)
       call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
         "-ts_ksp_iter", asm_iter, lflg, ierr) ;call CHKERR(ierr)
 
-      call PCASMGetSubKSP(prec, asm_N, PETSC_NULL_INTEGER, asm_ksps, ierr); call CHKERR(ierr)
+      call PCASMGetSubKSP(prec, asm_N, first_local, asm_ksps, ierr); call CHKERR(ierr)
+      allocate(asm_ksps(asm_N))
       do i = 1, asm_N
         call KSPSetType(asm_ksps(i), KSPRICHARDSON, ierr); call CHKERR(ierr)
         call KSPRichardsonSetSelfScale(asm_ksps(i), PETSC_TRUE, ierr); call CHKERR(ierr)
