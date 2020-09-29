@@ -35,7 +35,6 @@ module m_pprts
     & rotation_matrix_world_to_local_basis, deallocate_allocatable, &
     & ind_1d_to_nd
 
-  use m_twostream, only: delta_eddington_twostream, adding_delta_eddington_twostream
   use m_schwarzschild, only: schwarzschild, B_eff
   use m_optprop, only: t_optprop, &
     & t_optprop_1_2, t_optprop_3_6, t_optprop_3_10, &
@@ -400,7 +399,9 @@ module m_pprts
         if(solver%atm%lcollapse) then
           solver%atm%icollapse=collapseindex
           ierr = count(.not.solver%atm%l1d(solver%C_one_atm%zs:atmk(solver%atm, solver%C_one%zs),:,:))
-          call CHKWARN(ierr, 'Found non 1D cells in an area that will be collapsed. This will change the results!')
+          call CHKWARN(ierr, 'Found non 1D cells in an area that will be collapsed.'// &
+            & 'This will change the results! '//&
+            & 'collapse index: '//toStr(collapseindex))
           solver%atm%l1d(solver%C_one_atm%zs:atmk(solver%atm, solver%C_one%zs),:,:) = .True. ! if need to be collapsed, they have to be 1D.
           if(ldebug) print *,'Using icollapse:',collapseindex, solver%atm%lcollapse
         endif
@@ -1998,7 +1999,7 @@ module m_pprts
         call PetscLogEventEnd(solver%logs%solve_schwarzschild, ierr)
       else
         call PetscLogEventBegin(solver%logs%solve_twostream, ierr)
-        call twostream(solver, edirTOA,  solution )
+        call twostream(solver, edirTOA,  solution, opt_buildings)
         call PetscLogEventEnd(solver%logs%solve_twostream, ierr)
       endif
 
@@ -2538,10 +2539,10 @@ module m_pprts
       type(t_coord)        :: C
       real(ireals),pointer :: xv  (:,:,:,:) =>null()
       real(ireals),pointer :: xv1d(:)       =>null()
-      integer(iintegers)   :: i, j, k, d, iside
+      integer(iintegers)   :: i, j, k, d, iside, ak
       real(ireals)         :: Ax, Ay, Az, fac
 
-      associate( atm     => solver%atm )
+      associate( atm => solver%atm )
 
       if(solver%myid.eq.0.and.ldebug) print *,'rescaling direct fluxes',C%zm,C%xm,C%ym
       call getVecPointer(v ,C%da ,xv1d, xv)
@@ -2565,19 +2566,21 @@ module m_pprts
       do j=C%ys,C%ye
         do i=C%xs,C%xe
           do k=C%zs,C%ze-1
+            ak = atmk(atm, k)
+
             ! First the faces in x-direction
-            Ax = solver%atm%dy*solver%atm%dz(k,i,j) / real(solver%dirside%area_divider, ireals)
+            Ax = solver%atm%dy*solver%atm%dz(ak,i,j) / real(solver%dirside%area_divider, ireals)
             fac = Ax
-            do iside=1,solver%dirside%dof
-              d = solver%dirtop%dof + iside-1
+            do iside=0,solver%dirside%dof-1
+              d = solver%dirtop%dof + iside
               xv(d,k,i,j) = fac
             enddo
 
             ! Then the rest of the faces in y-direction
-            Ay = atm%dy*atm%dz(k,i,j) / real(solver%dirside%area_divider, ireals)
+            Ay = atm%dy*atm%dz(ak,i,j) / real(solver%dirside%area_divider, ireals)
             fac = Ay
-            do iside=1,solver%dirside%dof
-              d = solver%dirtop%dof + solver%dirside%dof + iside-1
+            do iside=0,solver%dirside%dof-1
+              d = solver%dirtop%dof + solver%dirside%dof + iside
               xv(d,k,i,j) = fac
             enddo
           enddo
@@ -2595,7 +2598,7 @@ module m_pprts
       real(ireals),pointer :: xv(:,:,:,:)=>null()
       real(ireals),pointer :: xv1d(:)=>null()
 
-      integer(iintegers)  :: iside, src, i, j, k
+      integer(iintegers)  :: iside, src, i, j, k, ak
       real(ireals)        :: Az, Ax, Ay, fac
 
       if(solver%myid.eq.0.and.ldebug) print *,'rescaling fluxes',C%zm,C%xm,C%ym
@@ -2624,23 +2627,24 @@ module m_pprts
       do j=C%ys,C%ye
         do i=C%xs,C%xe
           do k=C%zs,C%ze-1
-              ! faces in x-direction
-              Ax = solver%atm%dy*solver%atm%dz(k,i,j) / real(solver%diffside%area_divider, ireals)
-              fac = Ax
+            ak = atmk(solver%atm, k)
+            ! faces in x-direction
+            Ax = solver%atm%dy*solver%atm%dz(ak,i,j) / real(solver%diffside%area_divider, ireals)
+            fac = Ax
 
-              do iside=1,solver%diffside%dof
-                src = solver%difftop%dof + iside -1
-                xv(src ,k,i,j) = fac
-              enddo
+            do iside=1,solver%diffside%dof
+              src = solver%difftop%dof + iside -1
+              xv(src ,k,i,j) = fac
+            enddo
 
-              ! faces in y-direction
-              Ay = solver%atm%dx*solver%atm%dz(k,i,j) / real(solver%difftop%area_divider, ireals)
-              fac = Ay
+            ! faces in y-direction
+            Ay = solver%atm%dx*solver%atm%dz(ak,i,j) / real(solver%difftop%area_divider, ireals)
+            fac = Ay
 
-              do iside=1,solver%diffside%dof
-                src = solver%difftop%dof + solver%diffside%dof + iside -1
-                xv(src ,k,i,j) = fac
-              enddo
+            do iside=1,solver%diffside%dof
+              src = solver%difftop%dof + solver%diffside%dof + iside -1
+              xv(src ,k,i,j) = fac
+            enddo
           enddo
           ! the side faces underneath the surface are always scaled by unity
           xv(solver%difftop%dof:ubound(xv,dim=1),k,i,j) = one
