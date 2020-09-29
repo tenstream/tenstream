@@ -560,8 +560,8 @@ contains
       if(.not.(allocated(opt_buildings%temp))) call CHKERR(1_mpiint, 'Thermal computation but opt_buildings%temp is not allocated')
       if((allocated(opt_buildings%planck))) call CHKERR(1_mpiint, 'Thermal computation but opt_buildings%planck is allocated... '//&
         & 'you should only provide temperatures. I`ll take care of planck emissison')
-      allocate(opt_buildings%planck  (size(opt_buildings%temp )))
-      allocate(spec_buildings%planck (size(opt_buildings%temp )))
+      allocate(spec_buildings%temp  (size(opt_buildings%temp)))
+      allocate(spec_buildings%planck(size(opt_buildings%temp)))
     endif
 
 
@@ -727,9 +727,9 @@ contains
           endif
 
           if(present(opt_buildings)) then
-            ! Use opt_buildings array in to hold raw planck values ...
+            ! Use spec_buildings%temperature array to hold raw planck values ...
             do k = 1, size(opt_buildings%temp)
-              opt_buildings%planck(k) = &
+              spec_buildings%temp(k) = &
                 & plkint(real(wavenum1(ngb(ib))), real(wavenum2(ngb(ib))), real(opt_buildings%temp(k)))
             enddo
           endif
@@ -745,7 +745,7 @@ contains
               else
                 ak = atmk(solver%atm, k)
               endif
-              spec_buildings%planck(icol) = opt_buildings%planck(icol) * &
+              spec_buildings%planck(icol) = spec_buildings%temp(icol) * &
                 & Bfrac(1+size(Bfrac,dim=1)-ak,i,j,ib)
             end associate
           enddo
