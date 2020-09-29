@@ -1,18 +1,21 @@
 program main
 #include "petsc/finclude/petsc.h"
   use petsc
+  use mpi, only : MPI_COMM_WORLD
+
   use m_data_parameters, only : &
     & iintegers, mpiint, ireals, default_str_len, &
     & init_mpi_data_parameters, finalize_mpi
-  use m_helper_functions, only: CHKERR
-  use m_tenstream_options, only: read_commandline_options
   use m_buildings, only: t_pprts_buildings
-  use mpi, only : MPI_COMM_WORLD
   use m_examples_pprts_rrtm_buildings, only: ex_pprts_rrtm_buildings
+  use m_helper_functions, only: CHKERR, toStr
+  use m_netcdfio, only: ncwrite
+  use m_tenstream_options, only: read_commandline_options
+
   implicit none
 
   character(len=default_str_len) :: outfile, atm_filename
-  integer(iintegers) :: Nx, Ny, Nlay
+  integer(iintegers) :: Nx, Ny, Nlay, icollapse
   real(ireals) :: buildings_albedo, buildings_temp
   real(ireals) :: dx, dy
   real(ireals) :: phi0, theta0
@@ -21,8 +24,9 @@ program main
   type(t_pprts_buildings), allocatable :: buildings_solar, buildings_thermal
 
   character(len=10*default_str_len) :: rayli_options
-  logical :: lflg, lverbose, lrayli_opts, lsolar, lthermal, lfile_exists
-  integer(mpiint) :: comm, ierr
+  character(len=default_str_len) :: groups(2)
+  logical :: lflg, lverbose, lrayli_opts, lsolar, lthermal, lfile_exists, lhave_outfile
+  integer(mpiint) :: cid, comm, myid, numnodes, ierr
 
   call mpi_init(ierr)
   comm = mpi_comm_world
@@ -41,7 +45,7 @@ program main
   call CHKERR(ierr, 'background atmosphere file: `'//trim(atm_filename)//&
     & '` does not exist! Please provide a path with option -atm_filename <atmfile>')
 
-  call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-out', outfile, lflg, ierr); call CHKERR(ierr)
+  call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-out', outfile, lhave_outfile, ierr); call CHKERR(ierr)
 !  if(.not.lflg) call CHKERR(1_mpiint, 'need to supply a output filename... please call with -out <output.nc>')
 
   lsolar = .True.
@@ -56,6 +60,8 @@ program main
   call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Nx", Nx, lflg, ierr); call CHKERR(ierr)
   call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Ny", Ny, lflg, ierr); call CHKERR(ierr)
   call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Nz", Nlay, lflg, ierr); call CHKERR(ierr)
+  icollapse = -1
+  call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-icollapse", icollapse, lflg, ierr); call CHKERR(ierr)
 
   buildings_albedo = .1_ireals
   call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
@@ -119,7 +125,36 @@ program main
       & phi0, theta0,                       &
       & Ag_solar, Ag_thermal,               &
       & gedir, gedn, geup, gabso,           &
-      & buildings_solar, buildings_thermal  )
+      & buildings_solar, buildings_thermal, &
+      & icollapse=icollapse )
+
+  call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+  if(myid.eq.0_mpiint.and.lhave_outfile) then
+    groups(1) = trim(outfile)
+    if(lsolar) then
+      groups(2) = 'edir'; call ncwrite(groups, gedir, ierr); call CHKERR(ierr)
+    endif
+    groups(2) = 'edn' ; call ncwrite(groups, gedn , ierr); call CHKERR(ierr)
+    groups(2) = 'eup' ; call ncwrite(groups, geup , ierr); call CHKERR(ierr)
+    groups(2) = 'abso'; call ncwrite(groups, gabso, ierr); call CHKERR(ierr)
+  endif
+
+  call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
+  do cid = 0, numnodes-1
+    if(cid.eq.myid) then
+      if(lsolar) then
+        associate(Bs => buildings_solar)
+          if(allocated(Bs%edir)) then
+            groups(2) = 'rank'//toStr(myid)//'_buildings_edir'; call ncwrite(groups, Bs%edir, ierr); call CHKERR(ierr)
+          endif
+          groups(2) = 'rank'//toStr(myid)//'_buildings_incoming'; call ncwrite(groups, Bs%incoming, ierr); call CHKERR(ierr)
+          groups(2) = 'rank'//toStr(myid)//'_buildings_outgoing'; call ncwrite(groups, Bs%outgoing, ierr); call CHKERR(ierr)
+        end associate
+      endif
+    endif
+    call mpi_barrier(comm, ierr); call CHKERR(ierr)
+  enddo
+  call mpi_barrier(comm, ierr); call CHKERR(ierr)
 
   call finalize_mpi(ierr, .True., .True.)
 end program

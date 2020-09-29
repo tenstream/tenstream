@@ -10,11 +10,13 @@ module m_examples_pprts_rrtm_buildings
 
   use m_helper_functions, only : &
     & CHKERR, &
+    & cstr, &
+    & domain_decompose_2d_petsc, &
+    & get_arg, &
+    & is_inrange, &
     & linspace, &
     & spherical_2_cartesian, &
-    & toStr, cstr, &
-    & is_inrange, &
-    & domain_decompose_2d_petsc
+    & toStr
 
 
   ! Import specific solver type: 3_10 for example uses 3 streams direct, 10 streams for diffuse radiation
@@ -50,7 +52,7 @@ contains
       & Ag_solar, Ag_thermal,               &
       & gedir, gedn, geup, gabso,           &
       & buildings_solar, buildings_thermal, &
-      & local_dims)
+      & local_dims, icollapse)
 
     integer(mpiint), intent(in) :: comm
     logical, intent(in) :: lverbose, lthermal, lsolar
@@ -64,6 +66,7 @@ contains
     real(ireals), allocatable, dimension(:,:,:), intent(out) :: gedir, gedn, geup, gabso
     type(t_pprts_buildings), allocatable, intent(inout) :: buildings_solar, buildings_thermal
     integer(iintegers), intent(out), optional :: local_dims(:) ! local domain indices (zs, zm, xs, xm, ys, ym), dim(6)
+    integer(iintegers), intent(in), optional :: icollapse
 
     integer(iintegers) :: nxp, nyp, xs, ys ! local domain size in x and y aswell as start indices
     integer(iintegers),allocatable :: nxproc(:), nyproc(:)
@@ -121,7 +124,7 @@ contains
       & Ag_thermal, Ag_solar,  &
       & lthermal, lsolar,      &
       & edir, edn, eup, abso,  &
-      & icollapse=1_iintegers, &
+      & icollapse=get_arg(1_iintegers, icollapse), &
       & nxproc=nxproc,         &
       & nyproc=nyproc,         &
       & lonly_initialize=.True.)
@@ -143,7 +146,7 @@ contains
       & Ag_thermal, Ag_solar,  &
       & lthermal, lsolar,      &
       & edir, edn, eup, abso,  &
-      & icollapse=1_iintegers, &
+      & icollapse=get_arg(1_iintegers, icollapse), &
       & nxproc=nxproc,         &
       & nyproc=nyproc,         &
       & opt_buildings_solar=buildings_solar, &
