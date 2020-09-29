@@ -1012,24 +1012,52 @@ contains
 
   !> @brief wrapper for the delta-eddington twostream solver
   !> @details solve the radiative transfer equation for infinite horizontal slabs
-  subroutine twostream(solver, edirTOA, solution)
+  subroutine twostream(solver, edirTOA, solution, opt_buildings)
     class(t_solver), intent(inout) :: solver
     real(ireals),intent(in)       :: edirTOA
     type(t_state_container)       :: solution
+    type(t_pprts_buildings), optional, intent(in) :: opt_buildings
 
     real(ireals),pointer,dimension(:,:,:,:) :: xv_dir=>null(),xv_diff=>null()
     real(ireals),pointer,dimension(:) :: xv_dir1d=>null(),xv_diff1d=>null()
     integer(iintegers) :: i,j,src
 
     real(ireals),allocatable :: dtau(:),kext(:),w0(:),g(:),S(:),Edn(:),Eup(:)
-    real(ireals) :: mu0,incSolar,fac
+    real(ireals) :: mu0, incSolar, fac, Ag, Bsrfc
     integer(mpiint) :: ierr
+
+    integer(iintegers), allocatable :: buildings_mink(:,:)
+    integer(iintegers), allocatable :: buildings_face(:,:)
+    integer(iintegers) :: m, bk, idx(4)
 
     associate(atm         => solver%atm, &
         C_diff      => solver%C_diff, &
         C_dir       => solver%C_dir, &
         C_one_atm   => solver%C_one_atm, &
         C_one_atm1  => solver%C_one_atm1)
+
+      if(present(opt_buildings)) then
+        associate(B => opt_buildings)
+          ! on each pixel, find the top most face
+          allocate(buildings_mink(C_one_atm%xs:C_one_atm%xe,C_one_atm%ys:C_one_atm%ye))
+          allocate(buildings_face(C_one_atm%xs:C_one_atm%xe,C_one_atm%ys:C_one_atm%ye))
+          buildings_mink(:,:) = C_dir%ze
+          buildings_face(:,:) = -1
+          do m = 1, size(opt_buildings%iface)
+            call ind_1d_to_nd(B%da_offsets, B%iface(m), idx)
+            idx(2:4) = idx(2:4) -1 + [C_dir%zs, C_dir%xs, C_dir%ys]
+
+            associate(d => idx(1), k => idx(2), i => idx(3), j => idx(4))
+              if(d.eq.PPRTS_TOP_FACE) then
+                if(k.lt.buildings_mink(i,j)) then
+                  buildings_mink(i,j) = k
+                  buildings_face(i,j) = m
+                endif
+              endif
+            end associate
+          enddo
+        end associate
+      endif
 
       if(solution%lsolar_rad) then
         call PetscObjectSetName(solution%edir,'twostream_edir_vec uid='//toStr(solution%uid),ierr) ; call CHKERR(ierr)
@@ -1039,10 +1067,10 @@ contains
       call PetscObjectSetName(solution%ediff,'twostream_ediff_vec uid='//toStr(solution%uid),ierr) ; call CHKERR(ierr)
       call VecSet(solution%ediff,zero,ierr); call CHKERR(ierr)
 
-      allocate( dtau(C_one_atm%zm) )
-      allocate( kext(C_one_atm%zm) )
-      allocate(   w0(C_one_atm%zm) )
-      allocate(    g(C_one_atm%zm) )
+      allocate( dtau(C_one_atm%zs:C_one_atm%ze) )
+      allocate( kext(C_one_atm%zs:C_one_atm%ze) )
+      allocate(   w0(C_one_atm%zs:C_one_atm%ze) )
+      allocate(    g(C_one_atm%zs:C_one_atm%ze) )
 
       if(solution%lsolar_rad) &
         call getVecPointer(solution%edir  ,C_dir%da  ,xv_dir1d , xv_dir)
@@ -1063,28 +1091,85 @@ contains
           w0   = atm%ksca(:,i,j) / max(kext, epsilon(kext))
           g    = atm%g(:,i,j)
 
-          if(allocated(atm%planck) ) then
+          Ag = atm%albedo(i,j)
+
+
+          if(allocated(atm%planck)) then
             if(allocated(atm%Bsrfc)) then
+              Bsrfc = atm%Bsrfc(i,j)
+            else
+              Bsrfc = atm%planck(C_one_atm1%ze,i,j)
+            endif
+          endif
+
+          if(present(opt_buildings)) then
+            m = buildings_face(i,j)
+            if(m.gt.i0) then
+              Ag = opt_buildings%albedo(m)
+              bk = atmk(atm, buildings_mink(i,j)-1)
+              if(allocated(atm%planck)) then
+                Bsrfc = opt_buildings%planck(m)
+              endif
+            else
+              bk = C_one_atm%ze
+            endif
+
+            S(:) = zero
+            Edn(:) = zero
+            Eup(:) = zero
+
+            if(allocated(atm%planck)) then
+              call delta_eddington_twostream(&
+                & dtau(C_one_atm%zs:bk), &
+                & w0(C_one_atm%zs:bk), &
+                & g(C_one_atm%zs:bk), &
+                & mu0, incSolar, Ag, &
+                & S(C_one_atm%zs:bk+1), &
+                & Edn(C_one_atm%zs:bk+1), &
+                & Eup(C_one_atm%zs:bk+1), &
+                & planck=atm%planck(C_one_atm%zs:bk+1,i,j), &
+                & planck_srfc=Bsrfc)
+            else
+
+              call delta_eddington_twostream(&
+                & dtau(C_one_atm%zs:bk), &
+                & w0(C_one_atm%zs:bk), &
+                & g(C_one_atm%zs:bk), &
+                & mu0, incSolar, Ag, &
+                & S(C_one_atm%zs:bk+1), &
+                & Edn(C_one_atm%zs:bk+1), &
+                & Eup(C_one_atm%zs:bk+1))
+            endif
+
+!            print *,'twostream i,j',i,j,'bk',bk, m
+!            if(i.eq.2.and.j.eq.2) then
+!              do bk=lbound(Edn,1),ubound(Edn,1)
+!                print *,i,j,'k',bk,'edn',Edn(bk),'eup',Eup(bk)
+!              enddo
+!            endif
+
+
+          else ! not buildings
+
+            if(allocated(atm%planck) ) then
               call delta_eddington_twostream(dtau, w0, g, &
-                mu0, incSolar, atm%albedo(i,j), &
+                mu0, incSolar, Ag, &
                 S, Edn, Eup, &
                 planck=atm%planck(:,i,j), &
-                planck_srfc=atm%Bsrfc(i,j))
+                planck_srfc=Bsrfc)
             else
-              call delta_eddington_twostream(dtau, w0, g, &
-                mu0, incSolar, atm%albedo(i,j), &
-                S, Edn, Eup, &
-                planck=atm%planck(:,i,j) )
+              !
+              ! call adding_delta_eddington_twostream(dtau,w0,g,mu0,incSolar,atm%albedo(i,j), S,Edn,Eup )
+              !
+              !TODO investigate if this one is really ok...
+              ! I recently had valgrind errors in VecNorm after calling this:
+              ! make -j ex_pprts_rrtm_lw_sw &&
+              ! mpirun -np 1 -wdir ../examples/rrtm_lw_sw/ valgrind $(pwd)/bin/ex_pprts_rrtm_lw_sw -twostr_only
+              call delta_eddington_twostream(&
+                & dtau, w0, g,&
+                & mu0, incSolar, Ag, &
+                & S, Edn, Eup)
             endif
-          else
-            !
-            ! call adding_delta_eddington_twostream(dtau,w0,g,mu0,incSolar,atm%albedo(i,j), S,Edn,Eup )
-            !
-            !TODO investigate if this one is really ok...
-            ! I recently had valgrind errors in VecNorm after calling this:
-            ! make -j ex_pprts_rrtm_lw_sw &&
-            ! mpirun -np 1 -wdir ../examples/rrtm_lw_sw/ valgrind $(pwd)/bin/ex_pprts_rrtm_lw_sw -twostr_only
-            call delta_eddington_twostream(dtau,w0,g,mu0,incSolar,atm%albedo(i,j), S,Edn,Eup )
           endif
 
           if(solution%lsolar_rad) then
