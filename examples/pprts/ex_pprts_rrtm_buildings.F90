@@ -25,7 +25,7 @@ program main
 
   character(len=10*default_str_len) :: rayli_options
   character(len=default_str_len) :: groups(2)
-  logical :: lflg, lverbose, lrayli_opts, lsolar, lthermal, lfile_exists, lhave_outfile
+  logical :: lflg, lverbose, lrayli_opts, lsolar, lthermal, lfile_exists, lhave_outfile, lbuildings
   integer(mpiint) :: cid, comm, myid, numnodes, ierr
 
   call mpi_init(ierr)
@@ -62,6 +62,10 @@ program main
   call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Nz", Nlay, lflg, ierr); call CHKERR(ierr)
   icollapse = -1
   call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-icollapse", icollapse, lflg, ierr); call CHKERR(ierr)
+
+  lbuildings = .True.
+  call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-buildings', &
+    lbuildings, lflg, ierr) ; call CHKERR(ierr)
 
   buildings_albedo = .1_ireals
   call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
@@ -115,7 +119,8 @@ program main
     call PetscOptionsInsertString(PETSC_NULL_OPTIONS, trim(rayli_options), ierr); call CHKERR(ierr)
   endif
 
-  call ex_pprts_rrtm_buildings(             &
+  if(lbuildings) then
+    call ex_pprts_rrtm_buildings(             &
       & comm, lverbose,                     &
       & lthermal, lsolar,                   &
       & Nx, Ny, Nlay,                       &
@@ -127,34 +132,52 @@ program main
       & gedir, gedn, geup, gabso,           &
       & buildings_solar, buildings_thermal, &
       & icollapse=icollapse )
-
-  call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
-  if(myid.eq.0_mpiint.and.lhave_outfile) then
-    groups(1) = trim(outfile)
-    if(lsolar) then
-      groups(2) = 'edir'; call ncwrite(groups, gedir, ierr); call CHKERR(ierr)
-    endif
-    groups(2) = 'edn' ; call ncwrite(groups, gedn , ierr); call CHKERR(ierr)
-    groups(2) = 'eup' ; call ncwrite(groups, geup , ierr); call CHKERR(ierr)
-    groups(2) = 'abso'; call ncwrite(groups, gabso, ierr); call CHKERR(ierr)
+  else
+    call ex_pprts_rrtm_buildings(             &
+      & comm, lverbose,                     &
+      & lthermal, lsolar,                   &
+      & Nx, Ny, Nlay,                       &
+      & buildings_albedo, buildings_temp,   &
+      & dx, dy,                             &
+      & atm_filename,                       &
+      & phi0, theta0,                       &
+      & Ag_solar, Ag_thermal,               &
+      & gedir, gedn, geup, gabso,           &
+      & icollapse=icollapse )
   endif
 
-  call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
-  do cid = 0, numnodes-1
-    if(cid.eq.myid) then
-      if(lsolar) then
-        associate(Bs => buildings_solar)
-          if(allocated(Bs%edir)) then
-            groups(2) = 'rank'//toStr(myid)//'_buildings_edir'; call ncwrite(groups, Bs%edir, ierr); call CHKERR(ierr)
+    if(lhave_outfile) then
+      groups(1) = trim(outfile)
+
+      call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+      if(myid.eq.0_mpiint) then
+        if(lsolar) then
+          groups(2) = 'edir'; call ncwrite(groups, gedir, ierr); call CHKERR(ierr)
+        endif
+        groups(2) = 'edn' ; call ncwrite(groups, gedn , ierr); call CHKERR(ierr)
+        groups(2) = 'eup' ; call ncwrite(groups, geup , ierr); call CHKERR(ierr)
+        groups(2) = 'abso'; call ncwrite(groups, gabso, ierr); call CHKERR(ierr)
+      endif
+
+      if(lbuildings) then
+        call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
+        do cid = 0, numnodes-1
+          if(cid.eq.myid) then
+            if(lsolar) then
+              associate(Bs => buildings_solar)
+                if(allocated(Bs%edir)) then
+                  groups(2) = 'rank'//toStr(myid)//'_buildings_edir'; call ncwrite(groups, Bs%edir, ierr); call CHKERR(ierr)
+                endif
+                groups(2) = 'rank'//toStr(myid)//'_buildings_incoming'; call ncwrite(groups, Bs%incoming, ierr); call CHKERR(ierr)
+                groups(2) = 'rank'//toStr(myid)//'_buildings_outgoing'; call ncwrite(groups, Bs%outgoing, ierr); call CHKERR(ierr)
+              end associate
+            endif
           endif
-          groups(2) = 'rank'//toStr(myid)//'_buildings_incoming'; call ncwrite(groups, Bs%incoming, ierr); call CHKERR(ierr)
-          groups(2) = 'rank'//toStr(myid)//'_buildings_outgoing'; call ncwrite(groups, Bs%outgoing, ierr); call CHKERR(ierr)
-        end associate
+          call mpi_barrier(comm, ierr); call CHKERR(ierr)
+        enddo
+        call mpi_barrier(comm, ierr); call CHKERR(ierr)
       endif
     endif
-    call mpi_barrier(comm, ierr); call CHKERR(ierr)
-  enddo
-  call mpi_barrier(comm, ierr); call CHKERR(ierr)
 
   call finalize_mpi(ierr, .True., .True.)
 end program

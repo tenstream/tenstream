@@ -64,7 +64,7 @@ contains
     real(ireals), intent(in) :: phi0, theta0         ! sun azimuth(phi) and zenith(theta) angle
     real(ireals), intent(in) :: Ag_solar, Ag_thermal ! surface albedo
     real(ireals), allocatable, dimension(:,:,:), intent(out) :: gedir, gedn, geup, gabso
-    type(t_pprts_buildings), allocatable, intent(inout) :: buildings_solar, buildings_thermal
+    type(t_pprts_buildings), allocatable, intent(inout), optional :: buildings_solar, buildings_thermal
     integer(iintegers), intent(out), optional :: local_dims(:) ! local domain indices (zs, zm, xs, xm, ys, ym), dim(6)
     integer(iintegers), intent(in), optional :: icollapse
 
@@ -137,58 +137,72 @@ contains
         & solver%C_one%ys, solver%C_one%ym  ]
     endif
 
-    call build_pyramid()
+    if(present(buildings_solar).and.present(buildings_thermal)) then
+      call build_pyramid()
 
-    call pprts_rrtmg(comm,     &
-      & solver, atm,           &
-      & nxp, nyp, dx, dy,      &
-      & sundir,                &
-      & Ag_thermal, Ag_solar,  &
-      & lthermal, lsolar,      &
-      & edir, edn, eup, abso,  &
-      & icollapse=get_arg(1_iintegers, icollapse), &
-      & nxproc=nxproc,         &
-      & nyproc=nyproc,         &
-      & opt_buildings_solar=buildings_solar, &
-      & opt_buildings_thermal=buildings_thermal )
+      call pprts_rrtmg(comm,     &
+        & solver, atm,           &
+        & nxp, nyp, dx, dy,      &
+        & sundir,                &
+        & Ag_thermal, Ag_solar,  &
+        & lthermal, lsolar,      &
+        & edir, edn, eup, abso,  &
+        & icollapse=get_arg(1_iintegers, icollapse), &
+        & nxproc=nxproc,         &
+        & nyproc=nyproc,         &
+        & opt_buildings_solar=buildings_solar, &
+        & opt_buildings_thermal=buildings_thermal )
+
+      if(lverbose) then
+        if(lsolar) then
+          print *,'Flux on Top Face of buildings'//new_line('')// &
+            & '   Building cell'// &
+            & cstr('     edir'    , 'red'  )// &
+            & cstr('     incoming', 'green')// &
+            & cstr('     outgoing', 'blue' )
+          associate( B => buildings_solar )
+            do k = 0, size(B%iface)/6-1
+              iface = k*6+PPRTS_TOP_FACE
+              print *, k, &
+                & ' '//cstr(toStr(B%edir(iface)    ), 'red'  )// &
+                & ' '//cstr(toStr(B%incoming(iface)), 'green')// &
+                & ' '//cstr(toStr(B%outgoing(iface)), 'blue' )
+            enddo
+          end associate
+        else
+          print *,'Flux on Top Face of buildings'//new_line('')// &
+            & '   Building cell'// &
+            & cstr('     incoming', 'green')// &
+            & cstr('     outgoing', 'blue' )
+          associate( B => buildings_thermal )
+            do k = 0, size(B%iface)/6-1
+              iface = k*6+PPRTS_TOP_FACE
+              print *, k, &
+                & ' '//cstr(toStr(B%incoming(iface)), 'green')// &
+                & ' '//cstr(toStr(B%outgoing(iface)), 'blue' )
+            enddo
+          end associate
+        endif
+      endif
+
+    else ! without buildings
+      call pprts_rrtmg(comm,     &
+        & solver, atm,           &
+        & nxp, nyp, dx, dy,      &
+        & sundir,                &
+        & Ag_thermal, Ag_solar,  &
+        & lthermal, lsolar,      &
+        & edir, edn, eup, abso,  &
+        & icollapse=get_arg(1_iintegers, icollapse), &
+        & nxproc=nxproc,         &
+        & nyproc=nyproc          )
+    endif
 
     if(allocated(edir)) &
       & call gather_all_to_all(solver%C_one1, edir, gedir)
     call gather_all_to_all(solver%C_one1, edn , gedn)
     call gather_all_to_all(solver%C_one1, eup , geup)
     call gather_all_to_all(solver%C_one , abso, gabso)
-
-    if(lverbose) then
-      if(lsolar) then
-        print *,'Flux on Top Face of buildings'//new_line('')// &
-          & '   Building cell'// &
-          & cstr('     edir'    , 'red'  )// &
-          & cstr('     incoming', 'green')// &
-          & cstr('     outgoing', 'blue' )
-        associate( B => buildings_solar )
-          do k = 0, size(B%iface)/6-1
-            iface = k*6+PPRTS_TOP_FACE
-            print *, k, &
-              & ' '//cstr(toStr(B%edir(iface)    ), 'red'  )// &
-              & ' '//cstr(toStr(B%incoming(iface)), 'green')// &
-              & ' '//cstr(toStr(B%outgoing(iface)), 'blue' )
-          enddo
-        end associate
-      else
-        print *,'Flux on Top Face of buildings'//new_line('')// &
-          & '   Building cell'// &
-          & cstr('     incoming', 'green')// &
-          & cstr('     outgoing', 'blue' )
-        associate( B => buildings_thermal )
-          do k = 0, size(B%iface)/6-1
-            iface = k*6+PPRTS_TOP_FACE
-            print *, k, &
-              & ' '//cstr(toStr(B%incoming(iface)), 'green')// &
-              & ' '//cstr(toStr(B%outgoing(iface)), 'blue' )
-          enddo
-        end associate
-      endif
-    endif
 
     ! Tidy up
     call destroy_pprts_rrtmg(solver, lfinalizepetsc=.True.)
