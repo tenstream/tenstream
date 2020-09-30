@@ -678,6 +678,7 @@ module m_pprts
       real(ireals), intent(in) :: dz(:,:,:)
       type(tVec), intent(inout) :: vhhl
 
+      type(tVec) :: g_hhl
       real(ireals), pointer :: hhl(:,:,:,:)=>null(), hhl1d(:)=>null()
       real(ireals) :: max_height, global_max_height
 
@@ -688,8 +689,10 @@ module m_pprts
 
       max_height = zero
 
-      call DMCreateLocalVector(C_hhl%da, vhhl, ierr) ;call CHKERR(ierr)
-      call getVecPointer(vhhl, C_hhl%da, hhl1d, hhl)
+      call DMGetGlobalVector(C_hhl%da, g_hhl, ierr) ;call CHKERR(ierr)
+      call VecSet(g_hhl, zero, ierr); call CHKERR(ierr)
+
+      call getVecPointer(g_hhl, C_hhl%da, hhl1d, hhl)
 
       do j = C_hhl%ys, C_hhl%ye
         jj = i1 + j - C_hhl%ys
@@ -713,10 +716,12 @@ module m_pprts
       endif
       hhl(i0, :, :, :) = hhl(i0, :, :, :) - global_max_height
 
-      call restoreVecPointer(vhhl, hhl1d, hhl)
+      call restoreVecPointer(g_hhl, hhl1d, hhl)
 
-      call DMLocalToLocalBegin(C_hhl%da, vhhl, INSERT_VALUES, vhhl,ierr) ;call CHKERR(ierr)
-      call DMLocalToLocalEnd(C_hhl%da, vhhl, INSERT_VALUES, vhhl,ierr) ;call CHKERR(ierr)
+      call DMCreateLocalVector(C_hhl%da, vhhl, ierr) ;call CHKERR(ierr)
+      call DMGlobalToLocalBegin(C_hhl%da, g_hhl, INSERT_VALUES, vhhl,ierr) ;call CHKERR(ierr)
+      call DMGlobalToLocalEnd(C_hhl%da, g_hhl, INSERT_VALUES, vhhl,ierr) ;call CHKERR(ierr)
+      call DMRestoreGlobalVector(C_hhl%da, g_hhl, ierr) ;call CHKERR(ierr)
 
       call PetscObjectViewFromOptions(vhhl, PETSC_NULL_VEC, "-pprts_show_hhl", ierr); call CHKERR(ierr)
     end subroutine
