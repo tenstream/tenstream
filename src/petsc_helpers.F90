@@ -34,6 +34,11 @@ module m_petsc_helpers
   end interface
 
   logical, parameter :: ldebug=.False.
+
+  ! in earlier versions, we had problems with compilers
+  ! and therefore have a rewrite here, set to false to use it
+  logical, parameter :: lgetVecPointer_use_petsc_func=.True.
+
 contains
 
   !> @brief Scatter a petsc global vector into a local vector on Rank 0
@@ -188,9 +193,9 @@ contains
     endif
 
     if(.not.l_has_global_dimensions) then
-      call getVecPointer(vec, dm, x1d, x4d)
+      call getVecPointer(dm, vec, x1d, x4d)
       arr = x4d
-      call restoreVecPointer(vec, x1d, x4d)
+      call restoreVecPointer(dm, vec, x1d, x4d)
     else
       call VecGetArrayF90(vec,x1d,ierr); call CHKERR(ierr)
       arr = reshape( x1d, dims )
@@ -248,9 +253,9 @@ contains
     endif
 
     if(.not.l_has_global_dimensions) then
-      call getVecPointer(vec, dm, x1d, x4d)
+      call getVecPointer(dm, vec, x1d, x4d)
       arr = x4d(i0,:,:,:)
-      call restoreVecPointer(vec, x1d, x4d)
+      call restoreVecPointer(dm, vec, x1d, x4d)
     else
       call VecGetArrayF90(vec,x1d,ierr); call CHKERR(ierr)
       arr = reshape( x1d, dims )
@@ -269,9 +274,9 @@ contains
 
     integer(mpiint) :: ierr
 
-    call getVecPointer(vec, dm, x1d, x4d)
+    call getVecPointer(dm, vec, x1d, x4d)
     x4d = arr
-    call restoreVecPointer(vec, x1d, x4d)
+    call restoreVecPointer(dm, vec, x1d, x4d)
 
     call VecGetLocalSize(vec, vecsize, ierr); call CHKERR(ierr)
     if(vecsize.ne.size(arr)) then
@@ -289,9 +294,9 @@ contains
 
     integer(mpiint) :: ierr
 
-    call getVecPointer(vec, dm, x1d, x4d)
+    call getVecPointer(dm, vec, x1d, x4d)
     x4d(i0,:,:,:) = arr
-    call restoreVecPointer(vec, x1d, x4d)
+    call restoreVecPointer(dm, vec, x1d, x4d)
 
     call VecGetLocalSize(vec, vecsize, ierr); call CHKERR(ierr)
     if(vecsize.ne.size(arr)) then
@@ -309,9 +314,9 @@ contains
 
     integer(mpiint) :: ierr
 
-    call getVecPointer(vec, dm, x1d, x4d)
+    call getVecPointer(dm, vec, x1d, x4d)
     x4d(i0,i0,:,:) = arr
-    call restoreVecPointer(vec, x1d, x4d)
+    call restoreVecPointer(dm, vec, x1d, x4d)
 
     call VecGetLocalSize(vec, vecsize, ierr); call CHKERR(ierr)
     if(vecsize.ne.size(arr)) then
@@ -320,7 +325,7 @@ contains
     endif
   end subroutine
 
-  subroutine getVecPointer_3d(vec,dm,x1d,x4d,readonly)
+  subroutine getVecPointer_3d(dm,vec,x1d,x4d,readonly)
     type(tVec) :: vec
     type(tDM), intent(in) :: dm
     real(ireals),intent(inout),pointer,dimension(:,:,:,:) :: x4d
@@ -338,51 +343,63 @@ contains
       call CHKERR(1_mpiint, 'getVecPointer : input vector already associated')
     endif
 
-    call PetscObjectViewFromOptions(dm, PETSC_NULL_DM, '-show_getvecpointerdm', ierr); call CHKERR(ierr)
-    call DMDAGetInfo(dm, dmdim, glob_zm, glob_xm, glob_ym,        &
-      PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, &
-      dof               , PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, &
-      PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, &
-      ierr) ;call CHKERR(ierr)
-
-
-    call DMDAGetCorners(dm, zs, xs, ys, zm, xm, ym, ierr) ;call CHKERR(ierr)
-    call DMDAGetGhostCorners(dm,gzs,gxs,gys,gzm,gxm,gym,ierr) ;call CHKERR(ierr)
-    xe = xs+xm-1
-    ye = ys+ym-1
-    ze = zs+zm-1
-    gxe = gxs+gxm-1
-    gye = gys+gym-1
-    gze = gzs+gzm-1
-
-    call VecGetLocalSize(vec,N,ierr)
-
-    if( N .eq. dof*xm*ym*zm .or. N .eq. dof*glob_xm*glob_ym*glob_zm) then
-      lghosted=.False.
-    else if( N .eq. dof*gxm*gym*gzm ) then
-      lghosted=.True.
+    if(lgetVecPointer_use_petsc_func) then
+      if(get_arg(.False.,readonly)) then
+        call DMDAVecGetArrayReadF90(dm, vec, x4d, ierr); call CHKERR(ierr)
+        call VecGetArrayReadF90(vec,x1d,ierr) ;call CHKERR(ierr)
+      else
+        call DMDAVecGetArrayF90(dm, vec, x4d, ierr); call CHKERR(ierr)
+        call VecGetArrayF90(vec,x1d,ierr) ;call CHKERR(ierr)
+      endif
     else
-      lghosted=.False.
-      call PetscObjectGetComm(dm, comm, ierr); call CHKERR(ierr)
-      call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
-      print *,myid,'Size N:', N, dof*xm*ym*zm, dof*glob_xm*glob_ym*glob_zm, dof*gxm*gym*gzm
-      call CHKERR(1_mpiint, 'Local Vector dimensions do not conform to DMDA size')
-    endif
+      call PetscObjectViewFromOptions(dm, PETSC_NULL_DM, '-show_getvecpointerdm', ierr); call CHKERR(ierr)
+      call DMDAGetInfo(dm, dmdim, glob_zm, glob_xm, glob_ym,        &
+        PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, &
+        dof               , PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, &
+        PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, &
+        ierr) ;call CHKERR(ierr)
 
-    if(get_arg(.False.,readonly)) then
-      call VecGetArrayReadF90(vec,x1d,ierr) ;call CHKERR(ierr)
-    else
-      call VecGetArrayF90(vec,x1d,ierr) ;call CHKERR(ierr)
-    endif
-    if(lghosted) then
-      x4d(0:dof-1 , gzs:gze, gxs:gxe , gys:gye ) => x1d
-    else
-      x4d(0:dof-1 , zs:ze  , xs:xe   , ys:ye   ) => x1d
+
+      call DMDAGetCorners(dm, zs, xs, ys, zm, xm, ym, ierr) ;call CHKERR(ierr)
+      call DMDAGetGhostCorners(dm,gzs,gxs,gys,gzm,gxm,gym,ierr) ;call CHKERR(ierr)
+      xe = xs+xm-1
+      ye = ys+ym-1
+      ze = zs+zm-1
+      gxe = gxs+gxm-1
+      gye = gys+gym-1
+      gze = gzs+gzm-1
+
+      call VecGetLocalSize(vec,N,ierr)
+
+      if(N .eq. dof*xm*ym*zm) then
+        lghosted=.False.
+      else if( N .eq. dof*gxm*gym*gzm ) then
+        lghosted=.True.
+      else
+        call PetscObjectGetComm(dm, comm, ierr); call CHKERR(ierr)
+        call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+        print *,myid,'Size N:', N, dof*xm*ym*zm, dof*glob_xm*glob_ym*glob_zm, dof*gxm*gym*gzm
+        call CHKERR(1_mpiint, 'Local Vector dimensions do not conform to DMDA size')
+        stop 'Local Vector dimensions do not conform to DMDA size'
+      endif
+
+      if(get_arg(.False.,readonly)) then
+        call VecGetArrayReadF90(vec,x1d,ierr) ;call CHKERR(ierr)
+      else
+        call VecGetArrayF90(vec,x1d,ierr) ;call CHKERR(ierr)
+      endif
+
+      if(lghosted) then
+        x4d(0:dof-1 , gzs:gze, gxs:gxe , gys:gye ) => x1d
+      else
+        x4d(0:dof-1 , zs:ze  , xs:xe   , ys:ye   ) => x1d
+      endif
     endif
 
   end subroutine
 
-  subroutine restoreVecPointer_3d(vec,x1d,x4d,readonly)
+  subroutine restoreVecPointer_3d(dm,vec,x1d,x4d,readonly)
+    type(tDM), intent(in) :: dm
     type(tVec) :: vec
     real(ireals),intent(inout),pointer,dimension(:,:,:,:) :: x4d
     real(ireals),intent(inout),pointer,dimension(:) :: x1d
@@ -394,17 +411,27 @@ contains
       call CHKERR(1_mpiint, 'input vector not yet associated')
     endif
 
-    x4d => null()
-    if(get_arg(.False.,readonly)) then
-      call VecRestoreArrayReadF90(vec,x1d,ierr) ;call CHKERR(ierr)
+    if(lgetVecPointer_use_petsc_func) then
+      if(get_arg(.False.,readonly)) then
+        call DMDAVecRestoreArrayReadF90(dm, vec, x4d, ierr); call CHKERR(ierr)
+        call VecRestoreArrayReadF90(vec,x1d,ierr) ;call CHKERR(ierr)
+      else
+        call DMDAVecRestoreArrayF90(dm, vec, x4d, ierr); call CHKERR(ierr)
+        call VecRestoreArrayF90(vec,x1d,ierr) ;call CHKERR(ierr)
+      endif
     else
-      call VecRestoreArrayF90(vec,x1d,ierr) ;call CHKERR(ierr)
+      x4d => null()
+      if(get_arg(.False.,readonly)) then
+        call VecRestoreArrayReadF90(vec,x1d,ierr) ;call CHKERR(ierr)
+      else
+        call VecRestoreArrayF90(vec,x1d,ierr) ;call CHKERR(ierr)
+      endif
     endif
   end subroutine
 
-  subroutine getVecPointer_2d(vec,dm,x1d,x3d, readonly)
-    type(tVec) :: vec
+  subroutine getVecPointer_2d(dm,vec,x1d,x3d, readonly)
     type(tDM), intent(in) :: dm
+    type(tVec), intent(in) :: vec
     real(ireals),intent(inout),pointer,dimension(:,:,:) :: x3d
     real(ireals),intent(inout),pointer,dimension(:) :: x1d
     logical, optional, intent(in) :: readonly
@@ -420,48 +447,61 @@ contains
       call CHKERR(1_mpiint, 'getVecPointer : input vector already associated')
     endif
 
-    call PetscObjectViewFromOptions(dm, PETSC_NULL_DM, '-show_getvecpointerdm', ierr); call CHKERR(ierr)
-    call DMDAGetInfo(dm, dmdim, glob_xm, glob_ym, PETSC_NULL_INTEGER, &
-      PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, &
-      dof               , PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, &
-      PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, &
-      ierr) ;call CHKERR(ierr)
-
-
-    call DMDAGetCorners(dm, xs, ys, PETSC_NULL_INTEGER, xm, ym, PETSC_NULL_INTEGER, ierr) ;call CHKERR(ierr)
-    call DMDAGetGhostCorners(dm,gxs,gys,PETSC_NULL_INTEGER,gxm,gym,PETSC_NULL_INTEGER,ierr) ;call CHKERR(ierr)
-    xe = xs+xm-1
-    ye = ys+ym-1
-    gxe = gxs+gxm-1
-    gye = gys+gym-1
-
-    call VecGetLocalSize(vec,N,ierr)
-
-    if( N .eq. dof*xm*ym .or. N .eq. dof*glob_xm*glob_ym) then
-      lghosted=.False.
-    else if( N .eq. dof*gxm*gym ) then
-      lghosted=.True.
+    if(lgetVecPointer_use_petsc_func) then
+      if(get_arg(.False.,readonly)) then
+        call DMDAVecGetArrayReadF90(dm, vec, x3d, ierr); call CHKERR(ierr)
+        call VecGetArrayReadF90(vec,x1d,ierr) ;call CHKERR(ierr)
+      else
+        call DMDAVecGetArrayF90(dm, vec, x3d, ierr); call CHKERR(ierr)
+        call VecGetArrayF90(vec,x1d,ierr) ;call CHKERR(ierr)
+      endif
     else
-      call PetscObjectGetComm(dm, comm, ierr); call CHKERR(ierr)
-      call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
-      print *,myid,'Size N:', N, dof*xm*ym, dof*glob_xm*glob_ym, dof*gxm*gym
-      stop 'Local Vector dimensions do not conform to DMDA size'
-    endif
 
-    if(get_arg(.False.,readonly)) then
-      call VecGetArrayReadF90(vec,x1d,ierr) ;call CHKERR(ierr)
-    else
-      call VecGetArrayF90(vec,x1d,ierr) ;call CHKERR(ierr)
-    endif
-    if(lghosted) then
-      x3d(0:dof-1 , gxs:gxe , gys:gye ) => x1d
-    else
-      x3d(0:dof-1 , xs:xe   , ys:ye   ) => x1d
-    endif
+      call PetscObjectViewFromOptions(dm, PETSC_NULL_DM, '-show_getvecpointerdm', ierr); call CHKERR(ierr)
+      call DMDAGetInfo(dm, dmdim, glob_xm, glob_ym, PETSC_NULL_INTEGER, &
+        PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, &
+        dof               , PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, &
+        PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, &
+        ierr) ;call CHKERR(ierr)
 
+
+      call DMDAGetCorners(dm, xs, ys, PETSC_NULL_INTEGER, xm, ym, PETSC_NULL_INTEGER, ierr) ;call CHKERR(ierr)
+      call DMDAGetGhostCorners(dm,gxs,gys,PETSC_NULL_INTEGER,gxm,gym,PETSC_NULL_INTEGER,ierr) ;call CHKERR(ierr)
+      xe = xs+xm-1
+      ye = ys+ym-1
+      gxe = gxs+gxm-1
+      gye = gys+gym-1
+
+      call VecGetLocalSize(vec,N,ierr)
+
+      if(N .eq. dof*xm*ym) then
+        lghosted=.False.
+      else if( N .eq. dof*gxm*gym ) then
+        lghosted=.True.
+      else
+        call PetscObjectGetComm(dm, comm, ierr); call CHKERR(ierr)
+        call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+        print *,myid,'Size N:', N, dof*xm*ym, dof*glob_xm*glob_ym, dof*gxm*gym
+        call CHKERR(1_mpiint, 'Local Vector dimensions do not conform to DMDA size')
+        stop 'Local Vector dimensions do not conform to DMDA size'
+      endif
+
+      if(get_arg(.False.,readonly)) then
+        call VecGetArrayReadF90(vec,x1d,ierr) ;call CHKERR(ierr)
+      else
+        call VecGetArrayF90(vec,x1d,ierr) ;call CHKERR(ierr)
+      endif
+      if(lghosted) then
+        x3d(0:dof-1 , gxs:gxe , gys:gye ) => x1d
+      else
+        x3d(0:dof-1 , xs:xe   , ys:ye   ) => x1d
+      endif
+
+    endif
   end subroutine
-  subroutine restoreVecPointer_2d(vec, x1d, x3d, readonly)
-    type(tVec) :: vec
+  subroutine restoreVecPointer_2d(dm, vec, x1d, x3d, readonly)
+    type(tDM), intent(in) :: dm
+    type(tVec), intent(in) :: vec
     real(ireals),intent(inout),pointer,dimension(:,:,:) :: x3d
     real(ireals),intent(inout),pointer,dimension(:) :: x1d
     logical, optional, intent(in) :: readonly
@@ -472,11 +512,24 @@ contains
       call exit(1)
     endif
 
-    x3d => null()
-    if(get_arg(.False.,readonly)) then
-      call VecRestoreArrayReadF90(vec,x1d,ierr) ;call CHKERR(ierr)
+    if(lgetVecPointer_use_petsc_func) then
+
+      if(get_arg(.False.,readonly)) then
+        call DMDAVecRestoreArrayReadF90(dm, vec, x3d, ierr); call CHKERR(ierr)
+        call VecRestoreArrayReadF90(vec,x1d,ierr) ;call CHKERR(ierr)
+      else
+        call DMDAVecRestoreArrayF90(dm, vec, x3d, ierr); call CHKERR(ierr)
+        call VecRestoreArrayF90(vec,x1d,ierr) ;call CHKERR(ierr)
+      endif
+
     else
-      call VecRestoreArrayF90(vec,x1d,ierr) ;call CHKERR(ierr)
+
+      x3d => null()
+      if(get_arg(.False.,readonly)) then
+        call VecRestoreArrayReadF90(vec,x1d,ierr) ;call CHKERR(ierr)
+      else
+        call VecRestoreArrayF90(vec,x1d,ierr) ;call CHKERR(ierr)
+      endif
     endif
   end subroutine
 
@@ -529,9 +582,9 @@ contains
     call DMSetup(dm2d, ierr); call CHKERR(ierr)
 
     call DMGetGlobalVector(dm2d, gvec, ierr); call CHKERR(ierr)
-    call getVecPointer(gvec, dm2d, g1d, g3d)
+    call getVecPointer(dm2d, gvec, g1d, g3d)
     g3d(:,:,:) = arr(:,:,:)
-    call restoreVecPointer(gvec, g1d, g3d)
+    call restoreVecPointer(dm2d, gvec, g1d, g3d)
 
     call DMGetLocalVector(dm2d, lvec, ierr); call CHKERR(ierr)
     call VecSet(lvec, zero, ierr); call CHKERR(ierr)
@@ -539,7 +592,7 @@ contains
     call DMGlobalToLocalEnd  (dm2d, gvec, ADD_VALUES, lvec, ierr) ;call CHKERR(ierr)
     call DMRestoreGlobalVector(dm2d, gvec, ierr); call CHKERR(ierr)
 
-    call getVecPointer(lvec, dm2d, x1d, x3d)
+    call getVecPointer(dm2d, lvec, x1d, x3d)
 
     do idof = i0, Ndof-i1
       call box_filter(x3d(idof,:,:), kernel_width)
@@ -549,7 +602,7 @@ contains
       lbound(x3d,2)+kernel_width:ubound(x3d,2)-kernel_width, &
       lbound(x3d,3)+kernel_width:ubound(x3d,3)-kernel_width)
 
-    call restoreVecPointer(lvec, x1d, x3d)
+    call restoreVecPointer(dm2d, lvec, x1d, x3d)
     call DMRestoreLocalVector(dm2d, lvec, ierr) ;call CHKERR(ierr)
     call DMDestroy(dm2d, ierr); call CHKERR(ierr)
   end subroutine

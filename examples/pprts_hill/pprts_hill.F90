@@ -259,9 +259,9 @@ contains
       call dump_vec(C1%da, eup , 'eup')
       call dump_vec(C%da , abso, 'abso')
 
-      call getVecPointer(pprts_solver%atm%hhl, Ca1%da, hhl1d, hhl)
+      call getVecPointer(Ca1%da, pprts_solver%atm%hhl, hhl1d, hhl)
       call dump_vec(Ca1%da, hhl(0,Ca1%zs:Ca1%ze,Ca1%xs:Ca1%xe,Ca1%ys:Ca1%ye), 'hhl')
-      call restoreVecPointer(pprts_solver%atm%hhl, hhl1d, hhl)
+      call restoreVecPointer(Ca1%da, pprts_solver%atm%hhl, hhl1d, hhl)
 
       if(myid.eq.0) then
         call set_global_attribute(outpath(1), 'Nx', C%glob_xm, ierr); call CHKERR(ierr)

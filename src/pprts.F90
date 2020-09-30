@@ -369,7 +369,13 @@ module m_pprts
       endif
 
       if(.not.allocated(solver%atm%hgrad)) then
-        call compute_gradient(solver%atm, solver%C_one_atm1, solver%C_two1, solver%atm%hgrad)
+        call compute_gradient(            &
+          & comm  = solver%comm,          &
+          & atm   = solver%atm,           &
+          & C_hhl = solver%C_one_atm1_box,&
+          & vhhl  = solver%atm%hhl,       &
+          & C_grad= solver%C_two1,        &
+          & vgrad = solver%atm%hgrad      )
       endif
 
       solver%sun%luse_topography = present(dz3d) .and. ltopography  ! if the user supplies 3d height levels and has set the topography option
@@ -461,7 +467,7 @@ module m_pprts
         & C_one_atm => solver%C_one_atm, &
         & C_one_atm1 => solver%C_one_atm1 )
 
-      call getVecPointer(atm%hhl, C_one_atm1%da, hhl1d, hhl, readonly=.True.)
+      call getVecPointer(C_one_atm1%da, atm%hhl, hhl1d, hhl, readonly=.True.)
       do k=C_one_atm%zs,C_one_atm%ze
 
         call imp_min_mean_max(solver%comm, atm%dz(k,:,:), mdz)
@@ -473,7 +479,7 @@ module m_pprts
           & cstr(toStr(any(atm%l1d(k,:,:))),'blue'), '        ', &
           & cstr(toStr(mdz),'red'), ' ', cstr(toStr(mhhl*1e-3_ireals),'blue')
       enddo
-      call restoreVecPointer(atm%hhl, hhl1d, hhl, readonly=.True.)
+      call restoreVecPointer(C_one_atm1%da, atm%hhl, hhl1d, hhl, readonly=.True.)
 
       if(myid.eq.0) print *,' * atm dx/dy '//toStr(atm%dx)//' , '//toStr(atm%dy)
     end associate
@@ -500,6 +506,7 @@ module m_pprts
 
       DMBoundaryType :: boundaries(3)
       integer(iintegers), allocatable :: nxprocp1(:), nyprocp1(:) !< last entry one larger for vertices
+      integer(mpiint) :: ierr
 
       if(lcyclic_bc) then
         boundaries = [bn, bp, bp]
@@ -517,34 +524,61 @@ module m_pprts
       if(solver%myid.eq.0.and.ldebug) print *,solver%myid,&
         & 'Setting up the DMDA grid for',Nz,Nx,Ny,'using',solver%numnodes,'nodes'
 
-      if(solver%myid.eq.0.and.ldebug) &
-        & print *,solver%myid,'Configuring DMDA C_diff'
+      if(ldebug) then
+        if(solver%myid.eq.0) print *,solver%myid, cstr('Configuring DMDA C_diff', 'green')
+        call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
+      endif
       call setup_dmda(solver%comm, solver%C_diff, Nz+1,Nx,Ny, boundaries, &
         & solver%difftop%dof + 2* solver%diffside%dof, nxproc,nyproc)
 
-      if(solver%myid.eq.0.and.ldebug) &
-        & print *,solver%myid,'Configuring DMDA C_dir'
+      if(ldebug) then
+        if(solver%myid.eq.0) print *,solver%myid, cstr('Configuring DMDA C_dir', 'green')
+        call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
+      endif
       call setup_dmda(solver%comm, solver%C_dir, Nz+1,Nx,Ny, boundaries, &
         & solver%dirtop%dof + 2* solver%dirside%dof, nxproc,nyproc)
 
-      if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'Configuring DMDA C_one'
+      if(ldebug) then
+        if(solver%myid.eq.0) print *,solver%myid, cstr('Configuring DMDA C_one', 'green')
+        call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
+      endif
       call setup_dmda(solver%comm, solver%C_one , Nz  , Nx,Ny, boundaries, &
         & i1, nxproc,nyproc)
       call setup_dmda(solver%comm, solver%C_one1, Nz+1, Nx,Ny, boundaries, &
         & i1, nxproc,nyproc)
 
-      if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'Configuring DMDA C_two'
+      if(ldebug) then
+        if(solver%myid.eq.0) print *,solver%myid, cstr('Configuring DMDA C_two', 'green')
+        call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
+      endif
       call setup_dmda(solver%comm, solver%C_two1, Nz+1, Nx,Ny, boundaries, &
         & i2, nxproc,nyproc)
 
-      if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'Configuring DMDA atm'
+      if(ldebug) then
+        if(solver%myid.eq.0) print *,solver%myid, cstr('Configuring DMDA atm', 'green')
+        call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
+      endif
       call setup_dmda(solver%comm, solver%C_one_atm , Nz_in  , Nx,Ny, boundaries, &
         & i1, nxproc,nyproc)
+
+      if(ldebug) then
+        if(solver%myid.eq.0) print *,solver%myid, cstr('Configuring DMDA atm1', 'green')
+        call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
+      endif
       call setup_dmda(solver%comm, solver%C_one_atm1, Nz_in+1, Nx,Ny, boundaries, &
         & i1, nxproc,nyproc)
+
+      if(ldebug) then
+        if(solver%myid.eq.0) print *,solver%myid, cstr('Configuring DMDA atm1_box', 'green')
+        call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
+      endif
       call setup_dmda(solver%comm, solver%C_one_atm1_box, Nz_in+1, Nx,Ny, boundaries, &
         & i1, nxproc,nyproc, DMDA_STENCIL_BOX)
 
+      if(ldebug) then
+        if(solver%myid.eq.0) print *,solver%myid, cstr('Configuring DMDA srfc_one', 'green')
+        call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
+      endif
       call setup_dmda(solver%comm, solver%Csrfc_one, i1, Nx,Ny, boundaries, &
         & i1, nxproc,nyproc)
 
@@ -555,6 +589,10 @@ module m_pprts
         nxprocp1(size(nxprocp1)) = nxprocp1(size(nxprocp1)) +1
         nyprocp1(size(nyprocp1)) = nyprocp1(size(nyprocp1)) +1
 
+        if(ldebug) then
+          if(solver%myid.eq.0) print *,solver%myid, cstr('Configuring DMDA vert_one_atm1', 'green')
+          call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
+        endif
         call setup_dmda(solver%comm, solver%Cvert_one_atm1, Nz_in+1, Nx+1,Ny+1, boundaries, &
           & i1, nxprocp1,nyprocp1)
       else
@@ -583,13 +621,9 @@ module m_pprts
         & call CHKERR(1_mpiint, 'have to have both, nxproc AND nyproc present or none')
 
       if(ldebug.and.present(nxproc).and.present(nyproc)) &
-        & print *, myid, 'setup_dmda', nxproc, nyproc
+        & print *, myid, 'setup_dmda nxproc', nxproc, 'nyproc', nyproc
 
-      if(present(stencil_type)) then
-        opt_stencil_type = stencil_type
-      else
-        opt_stencil_type = DMDA_STENCIL_STAR
-      endif
+      opt_stencil_type = get_arg(DMDA_STENCIL_STAR, stencil_type)
 
       allocate(C)
 
@@ -667,6 +701,11 @@ module m_pprts
           '). However, need at least 3 because of horizontal ghost cells')
         if(C%glob_ym.lt.i3) call CHKERR(1_mpiint, 'Global domain is too small in y-direction (Ny='//toStr(C%glob_ym)// &
           '). However, need at least 3 because of horizontal ghost cells')
+
+        if(C%xm.lt.i1) call CHKERR(1_mpiint, 'Local domain is too small in x-direction (Nx='//toStr(C%xm)// &
+          '). However, need at least 1')
+        if(C%ym.lt.i1) call CHKERR(1_mpiint, 'Local domain is too small in y-direction (Ny='//toStr(C%ym)// &
+          '). However, need at least 1')
       end subroutine
     end subroutine
 
@@ -692,7 +731,7 @@ module m_pprts
       call DMGetGlobalVector(C_hhl%da, g_hhl, ierr) ;call CHKERR(ierr)
       call VecSet(g_hhl, zero, ierr); call CHKERR(ierr)
 
-      call getVecPointer(g_hhl, C_hhl%da, hhl1d, hhl)
+      call getVecPointer(C_hhl%da, g_hhl, hhl1d, hhl)
 
       do j = C_hhl%ys, C_hhl%ye
         jj = i1 + j - C_hhl%ys
@@ -716,7 +755,7 @@ module m_pprts
       endif
       hhl(i0, :, :, :) = hhl(i0, :, :, :) - global_max_height
 
-      call restoreVecPointer(g_hhl, hhl1d, hhl)
+      call restoreVecPointer(C_hhl%da, g_hhl, hhl1d, hhl)
 
       call DMCreateLocalVector(C_hhl%da, vhhl, ierr) ;call CHKERR(ierr)
       call DMGlobalToLocalBegin(C_hhl%da, g_hhl, INSERT_VALUES, vhhl,ierr) ;call CHKERR(ierr)
@@ -838,7 +877,7 @@ module m_pprts
     e_z = [zero, zero, one]
     loc_sundir = sun%sundir
 
-    call getVecPointer(solver%atm%hgrad, solver%C_two1%da, grad_1d, grad)
+    call getVecPointer(solver%C_two1%da, solver%atm%hgrad, grad_1d, grad)
     do j=C_one%ys,C_one%ye
       do i=C_one%xs,C_one%xe
         do k=C_one%zs,C_one%ze
@@ -866,7 +905,7 @@ module m_pprts
         enddo
       enddo
     enddo
-    call restoreVecPointer(solver%atm%hgrad, grad_1d, grad)
+    call restoreVecPointer(solver%C_two1%da, solver%atm%hgrad, grad_1d, grad)
 
     sun%costheta = max( cos(deg2rad(sun%theta)), zero)
     sun%sintheta = max( sin(deg2rad(sun%theta)), zero)
@@ -1063,8 +1102,8 @@ module m_pprts
     call DMGetLocalVector(C%da,v_o_nnz,ierr) ;call CHKERR(ierr)
     call DMGetLocalVector(C%da,v_d_nnz,ierr) ;call CHKERR(ierr)
 
-    call getVecPointer(v_o_nnz, C%da, xo1d, xo)
-    call getVecPointer(v_d_nnz, C%da, xd1d, xd)
+    call getVecPointer(C%da, v_o_nnz, xo1d, xo)
+    call getVecPointer(C%da, v_d_nnz, xd1d, xd)
 
     xd = zero
     xo = zero
@@ -1159,8 +1198,8 @@ module m_pprts
       enddo
     enddo
 
-    call restoreVecPointer(v_o_nnz, xo1d, xo)
-    call restoreVecPointer(v_d_nnz, xd1d, xd)
+    call restoreVecPointer(C%da, v_o_nnz, xo1d, xo)
+    call restoreVecPointer(C%da, v_d_nnz, xd1d, xd)
 
     call DMGetGlobalVector(C%da,g_o_nnz,ierr) ;call CHKERR(ierr)
     call DMGetGlobalVector(C%da,g_d_nnz,ierr) ;call CHKERR(ierr)
@@ -1176,8 +1215,8 @@ module m_pprts
     call DMRestoreLocalVector(C%da,v_o_nnz,ierr) ;call CHKERR(ierr)
     call DMRestoreLocalVector(C%da,v_d_nnz,ierr) ;call CHKERR(ierr)
 
-    call getVecPointer(g_o_nnz, C%da, xo1d, xo, readonly=.True.)
-    call getVecPointer(g_d_nnz, C%da, xd1d, xd, readonly=.True.)
+    call getVecPointer(C%da, g_o_nnz, xo1d, xo, readonly=.True.)
+    call getVecPointer(C%da, g_d_nnz, xd1d, xd, readonly=.True.)
 
     call VecGetLocalSize(g_d_nnz,vsize,ierr) ;call CHKERR(ierr)
     allocate(o_nnz(0:vsize-1))
@@ -1186,8 +1225,8 @@ module m_pprts
     o_nnz=int(xo1d, kind=iintegers)
     d_nnz=int(xd1d, kind=iintegers) + i1  ! +1 for diagonal entries
 
-    call restoreVecPointer(g_o_nnz, xo1d, xo, readonly=.True.)
-    call restoreVecPointer(g_d_nnz, xd1d, xd, readonly=.True.)
+    call restoreVecPointer(C%da, g_o_nnz, xo1d, xo, readonly=.True.)
+    call restoreVecPointer(C%da, g_d_nnz, xd1d, xd, readonly=.True.)
 
     call DMRestoreGlobalVector(C%da,g_o_nnz,ierr) ;call CHKERR(ierr)
     call DMRestoreGlobalVector(C%da,g_d_nnz,ierr) ;call CHKERR(ierr)
@@ -1217,8 +1256,8 @@ module m_pprts
     call DMGetLocalVector(C%da, v_o_nnz, ierr) ;call CHKERR(ierr)
     call DMGetLocalVector(C%da, v_d_nnz, ierr) ;call CHKERR(ierr)
 
-    call getVecPointer(v_o_nnz, C%da, xo1d, xo)
-    call getVecPointer(v_d_nnz, C%da, xd1d, xd)
+    call getVecPointer(C%da, v_o_nnz, xo1d, xo)
+    call getVecPointer(C%da, v_d_nnz, xd1d, xd)
 
 
     xd = zero
@@ -1370,8 +1409,8 @@ module m_pprts
       enddo
     enddo
 
-    call restoreVecPointer(v_o_nnz, xo1d, xo)
-    call restoreVecPointer(v_d_nnz, xd1d, xd)
+    call restoreVecPointer(C%da, v_o_nnz, xo1d, xo)
+    call restoreVecPointer(C%da, v_d_nnz, xd1d, xd)
 
     call DMGetGlobalVector(C%da,g_o_nnz,ierr) ;call CHKERR(ierr)
     call DMGetGlobalVector(C%da,g_d_nnz,ierr) ;call CHKERR(ierr)
@@ -1387,8 +1426,8 @@ module m_pprts
     call DMRestoreLocalVector(C%da,v_o_nnz,ierr) ;call CHKERR(ierr)
     call DMRestoreLocalVector(C%da,v_d_nnz,ierr) ;call CHKERR(ierr)
 
-    call getVecPointer(g_o_nnz, C%da, xo1d, xo, readonly=.True.)
-    call getVecPointer(g_d_nnz, C%da, xd1d, xd, readonly=.True.)
+    call getVecPointer(C%da, g_o_nnz, xo1d, xo, readonly=.True.)
+    call getVecPointer(C%da, g_d_nnz, xd1d, xd, readonly=.True.)
 
     call VecGetLocalSize(g_d_nnz, vsize, ierr) ;call CHKERR(ierr)
     allocate(o_nnz(0:vsize-1))
@@ -1397,8 +1436,8 @@ module m_pprts
     o_nnz=int(xo1d, kind=iintegers)
     d_nnz=int(xd1d, kind=iintegers) + i1  ! +1 for diagonal entries
 
-    call restoreVecPointer(g_o_nnz, xo1d, xo, readonly=.True.)
-    call restoreVecPointer(g_d_nnz, xd1d, xd, readonly=.True.)
+    call restoreVecPointer(C%da, g_o_nnz, xo1d, xo, readonly=.True.)
+    call restoreVecPointer(C%da, g_d_nnz, xd1d, xd, readonly=.True.)
 
     call DMRestoreGlobalVector(C%da, g_o_nnz, ierr) ;call CHKERR(ierr)
     call DMRestoreGlobalVector(C%da, g_d_nnz, ierr) ;call CHKERR(ierr)
@@ -2095,8 +2134,8 @@ module m_pprts
       call DMGlobalToLocalBegin(C%da, x, INSERT_VALUES, lx, ierr) ;call CHKERR(ierr)
       call DMGlobalToLocalEnd  (C%da, x, INSERT_VALUES, lx, ierr) ;call CHKERR(ierr)
 
-      call getVecPointer(lx, C%da, xx1d, xx, readonly=.True.)
-      call getVecPointer(lb, C%da, xb1d, xb)
+      call getVecPointer(C%da, lx, xx1d, xx, readonly=.True.)
+      call getVecPointer(C%da, lb, xb1d, xb)
 
       do j=C%ys,C%ye
         do i=C%xs,C%xe
@@ -2177,8 +2216,8 @@ module m_pprts
         enddo
       enddo
 
-      call restoreVecPointer(lb, xb1d, xb)
-      call restoreVecPointer(lx, xx1d, xx, readonly=.True.)
+      call restoreVecPointer(C%da, lb, xb1d, xb)
+      call restoreVecPointer(C%da, lx, xx1d, xx, readonly=.True.)
       call DMRestoreLocalVector(C%da, lx, ierr); call CHKERR(ierr)
 
       call VecSet(b, zero, ierr); call CHKERR(ierr)
@@ -2238,8 +2277,8 @@ module m_pprts
       call DMGlobalToLocalBegin(C%da, x, INSERT_VALUES, lx, ierr) ;call CHKERR(ierr)
       call DMGlobalToLocalEnd  (C%da, x, INSERT_VALUES, lx, ierr) ;call CHKERR(ierr)
 
-      call getVecPointer(lx, C%da, xx1d, xx, readonly=.True.)
-      call getVecPointer(lb, C%da, xb1d, xb)
+      call getVecPointer(C%da, lx, xx1d, xx, readonly=.True.)
+      call getVecPointer(C%da, lb, xb1d, xb)
 
       do j=C%ys,C%ye
         do i=C%xs,C%xe
@@ -2345,8 +2384,8 @@ module m_pprts
         enddo
       enddo
 
-      call restoreVecPointer(lb, xb1d, xb)
-      call restoreVecPointer(lx, xx1d, xx, readonly=.True.)
+      call restoreVecPointer(C%da, lb, xb1d, xb)
+      call restoreVecPointer(C%da, lx, xx1d, xx, readonly=.True.)
       call DMRestoreLocalVector(C%da, lx, ierr); call CHKERR(ierr)
 
       call VecSet(b, zero, ierr); call CHKERR(ierr)
@@ -2550,7 +2589,7 @@ module m_pprts
       associate( atm => solver%atm )
 
       if(solver%myid.eq.0.and.ldebug) print *,'rescaling direct fluxes',C%zm,C%xm,C%ym
-      call getVecPointer(v ,C%da ,xv1d, xv)
+      call getVecPointer(C%da, v, xv1d, xv)
 
       Az  = solver%atm%dx*solver%atm%dy / real(solver%dirtop%area_divider, ireals)  ! size of a direct stream in m**2
       fac = Az
@@ -2593,7 +2632,7 @@ module m_pprts
           xv(solver%dirtop%dof:ubound(xv,dim=1),k,i,j) = one
         enddo
       enddo
-      call restoreVecPointer(v, xv1d, xv )
+      call restoreVecPointer(C%da, v, xv1d, xv)
       end associate
     end subroutine
     subroutine gen_scale_diff_flx_vec(solver, v, C)
@@ -2607,7 +2646,7 @@ module m_pprts
       real(ireals)        :: Az, Ax, Ay, fac
 
       if(solver%myid.eq.0.and.ldebug) print *,'rescaling fluxes',C%zm,C%xm,C%ym
-      call getVecPointer(v ,C%da ,xv1d, xv)
+      call getVecPointer(C%da, v, xv1d, xv)
 
       if(C%dof.eq.i3 .or. C%dof.eq.i8) then
         print *,'scale_flx_vec is just for diffuse radia'
@@ -2655,7 +2694,7 @@ module m_pprts
           xv(solver%difftop%dof:ubound(xv,dim=1),k,i,j) = one
         enddo
       enddo
-      call restoreVecPointer(v, xv1d, xv )
+      call restoreVecPointer(C%da, v, xv1d, xv )
 
     end subroutine
   end subroutine
@@ -2814,10 +2853,10 @@ module m_pprts
           C_one   => solver%C_one   )
         if(ldebug.and.solver%myid.eq.0) print *,'lhave_no_3d_layer => will use 1D absorption computation'
 
-        if(solution%lsolar_rad) call getVecPointer(solution%edir, C_dir%da ,xedir1d ,xedir )
+        if(solution%lsolar_rad) call getVecPointer(C_dir%da, solution%edir, xedir1d, xedir)
 
-        call getVecPointer(solution%ediff, C_diff%da, xediff1d, xediff, readonly=.True.)
-        call getVecPointer(solution%abso, C_one%da, xabso1d, xabso)
+        call getVecPointer(C_diff%da, solution%ediff, xediff1d, xediff, readonly=.True.)
+        call getVecPointer(C_one%da , solution%abso , xabso1d, xabso)
 
         !! calculate absorption by flux divergence
 
@@ -2841,10 +2880,10 @@ module m_pprts
           enddo
         enddo
 
-        if(solution%lsolar_rad) call restoreVecPointer(solution%edir, xedir1d, xedir )
+        if(solution%lsolar_rad) call restoreVecPointer(C_dir%da, solution%edir, xedir1d, xedir )
 
-        call restoreVecPointer(solution%ediff, xediff1d, xediff, readonly=.True.)
-        call restoreVecPointer(solution%abso, xabso1d ,xabso)
+        call restoreVecPointer(C_diff%da, solution%ediff, xediff1d, xediff, readonly=.True.)
+        call restoreVecPointer(C_one%da , solution%abso, xabso1d ,xabso)
       end associate
     end subroutine
 
@@ -2855,6 +2894,8 @@ module m_pprts
       real(irealLUT), pointer :: dir2diff(:,:) ! dim(dst, src)
       real(irealLUT), pointer :: diff2diff(:,:) ! dim(dst, src)
       integer(iintegers) :: xinc, yinc, idof, msrc
+
+      call getVecPointer(solver%C_one%da, solution%abso, xabso1d, xabso)
 
       associate(                    &
           sun     => solver%sun,    &
@@ -2869,14 +2910,12 @@ module m_pprts
         allocate(cdir2diff(C_dir%dof * C_diff%dof))
         dir2diff(0:C_dir%dof-1, 0:C_diff%dof-1) => cdir2diff(1:C_dir%dof*C_diff%dof)
 
-        call getVecPointer(solution%abso, C_one%da, xabso1d, xabso)
-
         if(solution%lsolar_rad) then
           ! Copy ghosted values for direct vec
           call DMGetLocalVector(C_dir%da ,ledir ,ierr); call CHKERR(ierr)
           call DMGlobalToLocalBegin(C_dir%da, solution%edir , INSERT_VALUES, ledir ,ierr); call CHKERR(ierr)
           call DMGlobalToLocalEnd  (C_dir%da, solution%edir , INSERT_VALUES, ledir ,ierr); call CHKERR(ierr)
-          call getVecPointer(ledir, C_dir%da, xedir1d ,xedir, readonly=.True.)
+          call getVecPointer(C_dir%da, ledir, xedir1d ,xedir, readonly=.True.)
 
           do j=C_one%ys,C_one%ye
             do i=C_one%xs,C_one%xe
@@ -2937,7 +2976,7 @@ module m_pprts
             enddo
           enddo
 
-          call restoreVecPointer(ledir, xedir1d, xedir, readonly=.True.)
+          call restoreVecPointer(C_dir%da, ledir, xedir1d, xedir, readonly=.True.)
           call DMRestoreLocalVector(C_dir%da, ledir, ierr) ; call CHKERR(ierr)
         endif
       end associate
@@ -2951,7 +2990,7 @@ module m_pprts
         call DMGetLocalVector(C_diff%da,lediff,ierr); call CHKERR(ierr)
         call DMGlobalToLocalBegin (C_diff%da, solution%ediff  , INSERT_VALUES, lediff,ierr); call CHKERR(ierr)
         call DMGlobalToLocalEnd   (C_diff%da, solution%ediff  , INSERT_VALUES, lediff,ierr); call CHKERR(ierr)
-        call getVecPointer(lediff, C_diff%da, xediff1d, xediff, readonly=.True.)
+        call getVecPointer(C_diff%da, lediff, xediff1d, xediff, readonly=.True.)
 
         allocate(cdiff2diff(C_diff%dof**2))
         diff2diff(0:C_diff%dof-1, 0:C_diff%dof-1) => cdiff2diff(1:C_diff%dof**2)
@@ -3005,11 +3044,11 @@ module m_pprts
           enddo
         enddo
 
-        call restoreVecPointer(lediff, xediff1d, xediff, readonly=.True.)
+        call restoreVecPointer(C_diff%da, lediff, xediff1d, xediff, readonly=.True.)
         call DMRestoreLocalVector(C_diff%da, lediff, ierr); call CHKERR(ierr)
       end associate
 
-      call restoreVecPointer(solution%abso, xabso1d ,xabso)
+      call restoreVecPointer(solver%C_one%da, solution%abso, xabso1d ,xabso)
     end subroutine
 
     subroutine compute_absorption_by_flx_divergence()
@@ -3024,16 +3063,16 @@ module m_pprts
           call DMGetLocalVector(C_dir%da ,ledir ,ierr); call CHKERR(ierr)
           call DMGlobalToLocalBegin(C_dir%da, solution%edir , INSERT_VALUES, ledir ,ierr); call CHKERR(ierr)
           call DMGlobalToLocalEnd  (C_dir%da, solution%edir , INSERT_VALUES, ledir ,ierr); call CHKERR(ierr)
-          call getVecPointer(ledir, C_dir%da, xedir1d ,xedir, readonly=.True.)
+          call getVecPointer(C_dir%da, ledir, xedir1d ,xedir, readonly=.True.)
         endif
 
         ! Copy ghosted values for diffuse vec
         call DMGetLocalVector(C_diff%da,lediff,ierr); call CHKERR(ierr)
         call DMGlobalToLocalBegin (C_diff%da, solution%ediff  , INSERT_VALUES, lediff,ierr); call CHKERR(ierr)
         call DMGlobalToLocalEnd   (C_diff%da, solution%ediff  , INSERT_VALUES, lediff,ierr); call CHKERR(ierr)
-        call getVecPointer(lediff, C_diff%da, xediff1d, xediff, readonly=.True.)
+        call getVecPointer(C_diff%da, lediff, xediff1d, xediff, readonly=.True.)
 
-        call getVecPointer(solution%abso, C_one%da, xabso1d, xabso)
+        call getVecPointer(C_one%da, solution%abso, xabso1d, xabso)
 
         ! calculate absorption by flux divergence
         !DIR$ IVDEP
@@ -3123,14 +3162,14 @@ module m_pprts
         enddo
 
         if(solution%lsolar_rad) then
-          call restoreVecPointer(ledir, xedir1d, xedir, readonly=.True.)
+          call restoreVecPointer(C_dir%da, ledir, xedir1d, xedir, readonly=.True.)
           call DMRestoreLocalVector(C_dir%da, ledir, ierr) ; call CHKERR(ierr)
         endif
 
-        call restoreVecPointer(lediff, xediff1d, xediff, readonly=.True.)
+        call restoreVecPointer(C_diff%da, lediff, xediff1d, xediff, readonly=.True.)
         call DMRestoreLocalVector(C_diff%da, lediff, ierr) ; call CHKERR(ierr)
 
-        call restoreVecPointer(solution%abso, xabso1d ,xabso)
+        call restoreVecPointer(C_one%da, solution%abso, xabso1d ,xabso)
       end associate
     end subroutine
 
@@ -3139,7 +3178,7 @@ module m_pprts
 
         allocate(solver%abso_scalevec)
         call VecDuplicate(solution%abso, solver%abso_scalevec, ierr); call CHKERR(ierr)
-        call getVecPointer(solver%abso_scalevec, C_one%da, xabso1d, xabso)
+        call getVecPointer(C_one%da, solver%abso_scalevec, xabso1d, xabso)
         Az = atm%dx * atm%dy
 
         do j=C_one%ys,C_one%ye
@@ -3159,7 +3198,7 @@ module m_pprts
           enddo
         enddo
 
-        call restoreVecPointer(solver%abso_scalevec, xabso1d ,xabso)
+        call restoreVecPointer(C_one%da, solver%abso_scalevec, xabso1d ,xabso)
       end associate
     end subroutine
   end subroutine
@@ -3424,7 +3463,7 @@ end subroutine
 
     call VecSet(incSolar,zero,ierr) ;call CHKERR(ierr)
 
-    call getVecPointer(incSolar, solver%C_dir%da, x1d, x4d)
+    call getVecPointer(solver%C_dir%da, incSolar, x1d, x4d)
 
     do j=solver%C_dir%ys,solver%C_dir%ye
       do i=solver%C_dir%xs,solver%C_dir%xe
@@ -3434,7 +3473,7 @@ end subroutine
       enddo
     enddo
 
-    call restoreVecPointer(incSolar, x1d, x4d)
+    call restoreVecPointer(solver%C_dir%da, incSolar, x1d, x4d)
 
     if(solver%myid.eq.0 .and. ldebug) print *,solver%myid,'Setup of IncSolar done', edirTOA, &
       & '(', fac*solver%sun%costheta(solver%C_dir%zs,solver%C_dir%xs,solver%C_dir%ys), ')'
@@ -3566,11 +3605,13 @@ end subroutine
       if(ldebug) then
         do src=1,C%dof
           norm = sum( v(src:C%dof**2:C%dof) )
-          if( norm.gt.one+10._ireals*sqrt(epsilon(one)) ) then
-            print *,'direct sum(dst==',dst,') gt one',norm
-            print *,'direct coeff',norm,'::',v
-            call CHKERR(1_mpiint, 'omg.. shouldnt be happening')
-          endif
+          if( norm.gt.one+10._ireals*epsilon(norm) ) then ! could renormalize
+            if( norm.gt.one+10._ireals*sqrt(epsilon(norm)) ) then ! fatally off
+              print *,'direct sum(dst==',dst,') gt one',norm
+              print *,'direct coeff',norm,'::',v
+              call CHKERR(1_mpiint, 'omg.. shouldnt be happening')
+            endif ! fatally off
+          endif ! could renormalize
         enddo
       endif
     end subroutine
@@ -3733,7 +3774,7 @@ end subroutine
     call DMGetLocalVector(C_diff%da,local_b,ierr) ;call CHKERR(ierr)
     call VecSet(local_b,zero,ierr) ;call CHKERR(ierr)
 
-    call getVecPointer(local_b, C_diff%da, xsrc1d, xsrc)
+    call getVecPointer(C_diff%da, local_b, xsrc1d, xsrc)
 
     if(solution%lsolar_rad) then
       ! Copy ghosted values for direct vec
@@ -3764,7 +3805,7 @@ end subroutine
       call DMRestoreLocalVector(C_dir%da, local_edir, ierr); call CHKERR(ierr)
     endif
 
-    call restoreVecPointer(local_b, xsrc1d, xsrc )
+    call restoreVecPointer(C_diff%da, local_b, xsrc1d, xsrc )
 
     call VecSet(b,zero,ierr) ;call CHKERR(ierr) ! reset global Vec
 
@@ -3955,7 +3996,7 @@ end subroutine
                 C_diff  => solver%C_diff, &
                 sun     => solver%sun)
 
-      call getVecPointer(local_edir, C_dir%da, xedir1d, xedir)
+      call getVecPointer(C_dir%da, local_edir, xedir1d, xedir)
 
       if(solver%myid.eq.0.and.ldebug) print *,'Assembly of SRC-Vector .. setting solar source', &
         sum(xedir(i0,C_dir%zs:C_dir%ze,C_dir%xs:C_dir%xe,C_dir%ys:C_dir%ye)) / &
@@ -4145,7 +4186,7 @@ end subroutine
         enddo
       enddo
 
-      call restoreVecPointer(local_edir, xedir1d, xedir )
+      call restoreVecPointer(C_dir%da, local_edir, xedir1d, xedir )
       end associate
     end subroutine
 
@@ -4164,7 +4205,7 @@ end subroutine
           & C => solver%C_dir              )
 
         if(solution%lsolar_rad) then
-          call getVecPointer(local_edir, C%da, xedir1d, xedir)
+          call getVecPointer(C%da, local_edir, xedir1d, xedir)
           do m = 1, size(B%iface)
             call ind_1d_to_nd(B%da_offsets, B%iface(m), idx)
             idx(2:4) = idx(2:4) -1 + [C%zs, C%xs, C%ys]
@@ -4263,7 +4304,7 @@ end subroutine
               end select
             end associate
           enddo ! loop over building faces
-          call restoreVecPointer(local_edir, xedir1d, xedir)
+          call restoreVecPointer(C%da, local_edir, xedir1d, xedir)
         endif ! is_solar
       end associate
     end subroutine
@@ -4439,19 +4480,19 @@ end subroutine
      ! get ghost values for dz, planck, kabs and fluxes, ready to give it to NCA
      call DMGetGlobalVector(solver%C_diff%da ,gnca ,ierr) ; call CHKERR(ierr)
 
-     call getVecPointer(gnca ,solver%C_diff%da ,xvgnca1d, xvgnca)
+     call getVecPointer(solver%C_diff%da, gnca, xvgnca1d, xvgnca)
      xvgnca(  idz    , C_diff%zs:C_diff%ze-1, C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye ) = atm%dz
      xvgnca(  iplanck, C_diff%zs:C_diff%ze  , C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye ) = atm%planck
      xvgnca(  ikabs  , C_diff%zs:C_diff%ze-1, C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye ) = atm%kabs
 
 
      ! Copy Edn and Eup to local convenience vector
-     call getVecPointer(ediff ,C_diff%da ,xv1d, xv)
+     call getVecPointer(C_diff%da, ediff, xv1d, xv)
      xvgnca( E_up,:,C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye) = xv( E_up,:,:,:)
      xvgnca( E_dn,:,C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye) = xv( E_dn,:,:,:)
-     call restoreVecPointer(ediff, xv1d, xv)
+     call restoreVecPointer(C_diff%da, ediff, xv1d, xv)
 
-     call restoreVecPointer(gnca, xvgnca1d, xvgnca )
+     call restoreVecPointer(C_diff%da, gnca, xvgnca1d, xvgnca )
 
 
      ! retrieve ghost values into l(ocal) nca vec
@@ -4464,7 +4505,7 @@ end subroutine
      call DMRestoreGlobalVector(C_diff%da, gnca, ierr); call CHKERR(ierr)
 
      ! call NCA
-     call getVecPointer(lnca ,C_diff%da ,xvlnca1d, xvlnca)
+     call getVecPointer(C_diff%da, lnca, xvlnca1d, xvlnca)
 
      call ts_nca( atm%dx, atm%dy,                    &
        xvlnca(   idz        , : , : , :), &
@@ -4476,16 +4517,16 @@ end subroutine
 
 
      ! return absorption
-     call getVecPointer( abso, C_one%da ,xhr1d, xhr)
+     call getVecPointer(C_one%da, abso, xhr1d, xhr)
 
      do k=C_one%zs,C_one%ze
        xhr(i0,k,:,:) = xvlnca( ihr , k,C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye) / &
          xvlnca( idz , k,C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye)
      enddo
-     call restoreVecPointer(abso, xhr1d, xhr )
+     call restoreVecPointer(C_one%da, abso, xhr1d, xhr )
 
      !return convenience vector that holds optical properties
-     call restoreVecPointer(lnca, xvlnca1d, xvlnca )
+     call restoreVecPointer(C_diff%da, lnca, xvlnca1d, xvlnca )
      call DMRestoreLocalVector(C_diff%da, lnca, ierr); call CHKERR(ierr)
    end associate
   end subroutine
@@ -4545,7 +4586,7 @@ end subroutine
       integer(iintegers),intent(in) :: k,i,j
       integer(mpiint),intent(out)   :: ierr
 
-      MatStencil :: row(4,0:C%dof-1)  ,col(4,0:C%dof-1)
+      MatStencil :: row(4,0:C%dof-1), col(4,0:C%dof-1)
       real(irealLUT) :: v(C%dof**2),norm
 
       integer(iintegers) :: dst,src,idof
@@ -4656,8 +4697,8 @@ end subroutine
       if(ldebug) then
         do src=1,C%dof
           norm = sum( v(src:C%dof**2:C%dof))
-          if(norm.gt.one+10._ireals*epsilon(one)) then
-            if(norm.gt.one+10._ireals*sqrt(epsilon(one))) then
+          if(norm.gt.one+10._ireals*epsilon(norm)) then ! could renormalize
+            if(norm.gt.one+10._ireals*sqrt(epsilon(norm))) then ! fatally off
               print *,'diffuse sum(src==',src,') gt one',norm,'=>', v(src:C%dof**2:C%dof)
               print *,'get_coeff', solver%atm%kabs(atmk(solver%atm, k),i,j), &
                 solver%atm%ksca(atmk(solver%atm, k),i,j), &
@@ -4665,8 +4706,8 @@ end subroutine
                 solver%atm%dz(atmk(solver%atm, k),i,j), &
                 .False., solver%atm%l1d(atmk(solver%atm, k),i,j), '=>', v
               call CHKERR(1_mpiint, 'omg.. shouldnt be happening')
-            endif
-          endif
+            endif ! fatal
+          endif ! could renormalize
         enddo
       endif
 
@@ -5040,10 +5081,10 @@ end subroutine
           if(.not.solution%lWm2_dir) &
             & call CHKERR(1_mpiint, 'tried to get result from a result vector(dir) which is not in [W/m2]')
 
-          call getVecPointer(solution%edir, solver%C_dir%da, x1d, x4d)
+          call getVecPointer(solver%C_dir%da, solution%edir, x1d, x4d)
           ! average of direct radiation of all fluxes through top faces
           redir = sum(x4d(0:solver%dirtop%dof-1, :, :, :), dim=1) / real(solver%dirtop%area_divider, ireals)
-          call restoreVecPointer(solution%edir, x1d, x4d)
+          call restoreVecPointer(solver%C_dir%da, solution%edir, x1d, x4d)
 
           if(ldebug) then
             if(solver%myid.eq.0) print *,'Edir vertically first column',redir(:, lbound(redir,2), lbound(redir,3))
@@ -5061,7 +5102,7 @@ end subroutine
 
       redn = zero
       reup = zero
-      call getVecPointer(solution%ediff, solver%C_diff%da, x1d, x4d)
+      call getVecPointer(solver%C_diff%da, solution%ediff, x1d, x4d)
       do iside=1,solver%difftop%dof
         if(solver%difftop%is_inward(iside)) then
           redn = redn + x4d(iside-1, :, :, :) / real(solver%difftop%area_divider, ireals)
@@ -5069,7 +5110,7 @@ end subroutine
           reup = reup + x4d(iside-1, :, :, :) / real(solver%difftop%area_divider, ireals)
         endif
       enddo
-      call restoreVecPointer(solution%ediff,x1d,x4d)
+      call restoreVecPointer(solver%C_diff%da, solution%ediff,x1d,x4d)
 
       if(solver%myid.eq.0 .and. ldebug .and. present(redir)) &
         print *,'mean surface Edir',meanval(redir(ubound(redir,1),:,:))
@@ -5087,9 +5128,9 @@ end subroutine
         endif
       endif
 
-      call getVecPointer(solution%abso, solver%C_one%da, x1d, x4d, readonly=.True.)
+      call getVecPointer(solver%C_one%da, solution%abso, x1d, x4d, readonly=.True.)
       rabso = x4d(i0,:,:,:)
-      call restoreVecPointer(solution%abso, x1d, x4d, readonly=.True.)
+      call restoreVecPointer(solver%C_one%da, solution%abso, x1d, x4d, readonly=.True.)
 
       if(present(opt_buildings)) then
         call fill_buildings()
@@ -5116,7 +5157,7 @@ end subroutine
           call DMGlobalToLocalBegin(C%da, solution%edir, INSERT_VALUES, ledir, ierr) ;call CHKERR(ierr)
           call DMGlobalToLocalEnd  (C%da, solution%edir, INSERT_VALUES, ledir, ierr) ;call CHKERR(ierr)
 
-          call getVecPointer(ledir, C%da, x1d, x4d, readonly=.True.)
+          call getVecPointer(C%da, ledir, x1d, x4d, readonly=.True.)
           ! average of direct radiation of all fluxes through top faces
           !redir = sum(x4d(0:solver%dirtop%dof-1, :, :, :), dim=1) / real(solver%dirtop%area_divider, ireals)
 
@@ -5157,7 +5198,7 @@ end subroutine
             end associate
           enddo
 
-          call restoreVecPointer(ledir, x1d, x4d, readonly=.True.)
+          call restoreVecPointer(C%da, ledir, x1d, x4d, readonly=.True.)
           call DMRestoreLocalVector(C%da, ledir, ierr); call CHKERR(ierr)
         endif
       end associate
@@ -5173,7 +5214,7 @@ end subroutine
         call DMGetLocalVector(C%da, lediff, ierr); call CHKERR(ierr)
         call DMGlobalToLocalBegin(C%da, solution%ediff, INSERT_VALUES, lediff, ierr) ;call CHKERR(ierr)
         call DMGlobalToLocalEnd  (C%da, solution%ediff, INSERT_VALUES, lediff, ierr) ;call CHKERR(ierr)
-        call getVecPointer(lediff, C%da, x1d, x4d, readonly=.True.)
+        call getVecPointer(C%da, lediff, x1d, x4d, readonly=.True.)
 
         do m = 1, size(B%iface)
           call ind_1d_to_nd(B%da_offsets, B%iface(m), idx)
@@ -5262,7 +5303,7 @@ end subroutine
           end associate
         enddo
 
-        call restoreVecPointer(solution%ediff, x1d, x4d, readonly=.True.)
+        call restoreVecPointer(C%da, solution%ediff, x1d, x4d, readonly=.True.)
         call DMRestoreLocalVector(C%da, lediff, ierr); call CHKERR(ierr)
       end associate
     end subroutine

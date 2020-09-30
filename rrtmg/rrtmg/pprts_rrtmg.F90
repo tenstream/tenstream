@@ -251,7 +251,7 @@ contains
         C_dir   => solver%C_dir,&
         C_two1  => solver%C_two1)
 
-      call getVecPointer(atm%hgrad, C_two1%da, grad_1d, grad)
+      call getVecPointer(C_two1%da, atm%hgrad, grad_1d, grad)
 
       if(lslope_correction) then
         k = C_two1%ze
@@ -282,7 +282,7 @@ contains
         enddo
       endif
 
-      call restoreVecPointer(atm%hgrad, grad_1d, grad)
+      call restoreVecPointer(C_two1%da, atm%hgrad, grad_1d, grad)
     end associate
   end subroutine
 

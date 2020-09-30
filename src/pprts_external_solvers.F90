@@ -990,10 +990,10 @@ contains
           ADD_VALUES, SCATTER_REVERSE, ierr); call CHKERR(ierr)
 
         if(allocated(solution%edir)) then
-          call getVecPointer(solution%edir, solver%C_dir%da, x1d, x)
+          call getVecPointer(solver%C_dir%da, solution%edir, x1d, x)
           x(i0,:,:,:) = x(i0,:,:,:) * fac / 2._ireals
           x(i1:i2,:,:,:) = x(i1:i2,:,:,:) * fac
-          call restoreVecPointer(solution%edir, x1d, x)
+          call restoreVecPointer(solver%C_dir%da, solution%edir, x1d, x)
         endif
         call VecScale(solution%ediff, fac / 2._ireals, ierr); call CHKERR(ierr)
         call VecScale(solution%abso, fac / 2._ireals, ierr); call CHKERR(ierr)
@@ -1076,8 +1076,8 @@ contains
       allocate(    g(C_one_atm%zs:C_one_atm%ze) )
 
       if(solution%lsolar_rad) &
-        call getVecPointer(solution%edir  ,C_dir%da  ,xv_dir1d , xv_dir)
-      call getVecPointer(solution%ediff ,C_diff%da ,xv_diff1d, xv_diff)
+        call getVecPointer(C_dir%da, solution%edir, xv_dir1d, xv_dir)
+      call getVecPointer(C_diff%da, solution%ediff, xv_diff1d, xv_diff)
 
       allocate( S  (C_one_atm1%zs:C_one_atm1%ze) )
       allocate( Eup(C_one_atm1%zs:C_one_atm1%ze) )
@@ -1197,8 +1197,8 @@ contains
       enddo
 
       if(solution%lsolar_rad) &
-        call restoreVecPointer(solution%edir, xv_dir1d, xv_dir  )
-      call restoreVecPointer(solution%ediff, xv_diff1d, xv_diff )
+        call restoreVecPointer(C_dir%da, solution%edir, xv_dir1d, xv_dir  )
+      call restoreVecPointer(C_diff%da, solution%ediff, xv_diff1d, xv_diff )
 
       !Twostream solver returns fluxes as [W]
       solution%lWm2_dir  = .True.
@@ -1244,7 +1244,7 @@ contains
 
       allocate(dtau(size(atm%dz,dim=1)))
 
-      call getVecPointer(solution%ediff, C_diff%da, xv_diff1d, xv_diff)
+      call getVecPointer(C_diff%da, solution%ediff, xv_diff1d, xv_diff)
 
       allocate( Eup(0:size(atm%dz,dim=1)) )
       allocate( Edn(0:size(atm%dz,dim=1)) )
@@ -1292,7 +1292,7 @@ contains
       enddo
       xv_diff = xv_diff / real(solver%difftop%streams, ireals)
 
-      call restoreVecPointer(solution%ediff, xv_diff1d, xv_diff )
+      call restoreVecPointer(C_diff%da, solution%ediff, xv_diff1d, xv_diff )
 
       !Schwarzschild solver returns fluxes as [W/m^2]
       solution%lWm2_dir  = .True.
