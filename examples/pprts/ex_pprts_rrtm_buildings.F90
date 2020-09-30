@@ -107,8 +107,8 @@ program main
     rayli_options=trim(rayli_options)//' -show_rayli_dm3d hdf5:dm.h5'
 
     rayli_options=trim(rayli_options)//' -rayli_snapshot'
-    rayli_options=trim(rayli_options)//' -rayli_snap_Nx 256'
-    rayli_options=trim(rayli_options)//' -rayli_snap_Ny 256'
+    rayli_options=trim(rayli_options)//' -rayli_snap_Nx 1024'
+    rayli_options=trim(rayli_options)//' -rayli_snap_Ny 1024'
     rayli_options=trim(rayli_options)//' -visit_image_zoom .75'
     rayli_options=trim(rayli_options)//' -visit_parallel_scale 291.5'
     rayli_options=trim(rayli_options)//' -visit_focus 300,300,0'

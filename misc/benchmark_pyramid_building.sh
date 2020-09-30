@@ -7,30 +7,34 @@ make -j -C $TENSTREAMROOT $BIN
 
 ATM=$TENSTREAMROOT/generated/test_plexrt_rrtmg_lw_sw/atm.dat
 
-
-#BASEOPT="-atm_filename $ATM -thermal no -phi 155 -theta 50 -Nz 12 -BAg .25"
 BASEOPT="-atm_filename $ATM -thermal no -phi -55 -theta 40 -Nz 12 -BAg .25"
+
 
 PREFIX="buildings_benchmark_"
 function run_ex() {
-  OUT=${PREFIX}$1
-  OPTS=$2
+  NP=$1
+  NC=$2
+  OUT=${PREFIX}$3
+  OPTS=$4
 
+  MPIEXEC="srun --mpi=pmix -n $NP -c $NC"
   SNAP=rayli_snaphots.nc
   if [ ! -e $OUT ]; then
     rm -f $SNAP
-    $TENSTREAMROOT/bin/$BIN $BASEOPT -out $OUT $OPTS || true
+    $MPIEXEC $TENSTREAMROOT/bin/$BIN $BASEOPT -out $OUT $OPTS || true
     if [ -e $SNAP ] ; then
       mv $SNAP snaps_$OUT
     fi
   fi
 }
 
-run_ex "tenstr_8_10.nc" "-solver 8_10 ${1:-}"
-run_ex "tenstr_3_10.nc" "-solver 3_10 ${1:-}"
-run_ex "twostr.nc" "-twostr_only ${1:-}"
-#run_ex "rayli7.nc" "-rayli_opts -rayli_photons 1e7 -rayli_snap_photons 1e6 -rayli_nthreads 10 ${1:-}"
-#run_ex "rayli8.nc" "-rayli_opts -rayli_photons 1e8 -rayli_snap_photons 1e6 -rayli_nthreads 10 ${1:-}"
+NP=1; NC=1
+run_ex $NP $NC "tenstr_3_10.nc" "-solver 3_10 ${1:-}"
+run_ex $NP $NC "tenstr_8_10.nc" "-solver 8_10 ${1:-}"
+run_ex $NP $NC "twostr.nc" "-twostr_only ${1:-}"
+
+NP=1; NC=128
+run_ex $NP $NC "rayli.nc" "-rayli_opts -pprts_rayli_photons 1e6 -rayli_nthreads $(($NP * $NC))  ${1:-}"
 
 cat > compare_buildings_benchmark.py <<EOF
 import xarray as xr
