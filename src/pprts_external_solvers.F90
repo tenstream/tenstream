@@ -109,6 +109,7 @@ contains
     deallocate(rayli_info)
   end subroutine
 
+  !> @brief setup mpi scatters to move pprts domains into plexrt meshes on each local subcomm root
   subroutine init_pprts_rayli_wrapper(solver, solution, rayli_info, opt_buildings)
     class(t_solver), intent(in) :: solver
     type(t_state_container),intent(in) :: solution
@@ -262,7 +263,7 @@ contains
         endif
 
         call VecCreateSeq(PETSC_COMM_SELF, BI%Nglob, albedo, ierr); call CHKERR(ierr)
-        call ISCreateStride(PETSC_COMM_SELF, BI%Nglob, iStart, 1_iintegers, is_in, ierr); call CHKERR(ierr)
+        call ISCreateStride(PETSC_COMM_SELF, BI%Nglob, 0_iintegers, 1_iintegers, is_in, ierr); call CHKERR(ierr)
         call ISCreateStride(PETSC_COMM_SELF, BI%Nglob, 0_iintegers, 1_iintegers, is_out, ierr); call CHKERR(ierr)
         call gen_shared_scatter_ctx(loc_albedo, albedo, BI%ctx_albedo, ierr, &
           & is_in, is_out); call CHKERR(ierr)
@@ -900,10 +901,12 @@ contains
 
         associate(ri   => rayli_info)
           call VecGetSize(ri%albedo, Nphotons, ierr); call CHKERR(ierr)
-          nphotons_r = real(Nphotons/ri%num_subcomm_masters*10, ireals)
+          nphotons_r = real(Nphotons*10, ireals)
           call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
             "-pprts_rayli_photons", nphotons_r, lflg,ierr) ; call CHKERR(ierr)
           Nphotons = int(nphotons_r, kind(Nphotons))
+
+          Nphotons = Nphotons/ri%num_subcomm_masters
 
           if(submyid.eq.run_rank) then
             plex_solution%uid = solution%uid
