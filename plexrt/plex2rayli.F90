@@ -388,7 +388,7 @@ module m_plex2rayli
 
     if(lcall_snapshot) then
       call take_snap(comm, &
-        & Nthreads, &
+        & Nthreads, nr_photons, &
         & Nwedges, Nfaces, Nverts, &
         & verts_of_face, faces_of_wedges, vert_coords, &
         & rkabs, rksca, rg, &
@@ -557,7 +557,7 @@ module m_plex2rayli
     end subroutine
 
     subroutine take_snap(comm, &
-        & Nthreads, &
+        & Nthreads, nr_photons, &
         & Nwedges, Nfaces, Nverts, &
         & verts_of_face, faces_of_wedges, vert_coords, &
         & rkabs, rksca, rg, &
@@ -565,6 +565,7 @@ module m_plex2rayli
         & rsundir, &
         & solution, ierr)
       integer(mpiint),   intent(in) :: comm
+      integer(iintegers),intent(in) :: nr_photons
       integer(c_size_t), intent(in) :: Nthreads, Nwedges, Nfaces, Nverts
       integer(c_size_t), intent(in) :: verts_of_face(:,:)
       integer(c_size_t), intent(in) :: faces_of_wedges(:,:)
@@ -587,8 +588,9 @@ module m_plex2rayli
       real(ireals) :: visit_view_angle, visit_image_zoom, visit_parallel_scale
       integer(iintegers) :: narg
 
-      integer(mpiint) :: myid
+      integer(mpiint) :: myid, worldid
 
+      call mpi_comm_rank(mpi_comm_world, worldid, ierr); call CHKERR(ierr)
       call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
       call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
@@ -606,7 +608,7 @@ module m_plex2rayli
         '-rayli_snap_Ny', narg, lflg, ierr); call CHKERR(ierr)
       if(lflg) Ny = narg
 
-      opt_photons = real(Nx*Ny*100_iintegers, ireals)
+      opt_photons = real(nr_photons, ireals)
       call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
         "-rayli_snap_photons", opt_photons, lflg,ierr) ; call CHKERR(ierr)
       opt_photons_int = int(opt_photons, c_size_t)
@@ -667,7 +669,7 @@ module m_plex2rayli
         & img); call CHKERR(ierr)
 
       groups(1) = trim(snap_path)
-      groups(2) = "rpt_img_"//toStr(solution%uid)
+      groups(2) = toStr(worldid)//"_rpt_img_"//toStr(solution%uid)
       call ncwrite(groups, img, ierr); call CHKERR(ierr)
     end subroutine
 
