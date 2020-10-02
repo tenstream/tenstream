@@ -241,9 +241,9 @@ subroutine run_photon_queue(solver, bmc, solution, pqueues, ipq, started_photons
   Nphotmax = get_arg(huge(Nphotmax), limit_number_photons)
   Nphotmax = min(size(pqueues(ipq)%photons, kind=iintegers), Nphotmax)
 
-  call getVecPointer(solution%edir , solver%C_dir%da , xv_dir1d , xv_dir)
-  call getVecPointer(solution%ediff, solver%C_diff%da, xv_diff1d, xv_diff)
-  call getVecPointer(solution%abso , solver%C_one%da , xv_abso1d, xv_abso)
+  call getVecPointer(solver%C_dir%da , solution%edir , xv_dir1d , xv_dir)
+  call getVecPointer(solver%C_diff%da, solution%ediff, xv_diff1d, xv_diff)
+  call getVecPointer(solver%C_one%da , solution%abso , xv_abso1d, xv_abso)
 
   killed_photons = 0
   started_photons = 0
@@ -256,9 +256,9 @@ subroutine run_photon_queue(solver, bmc, solution, pqueues, ipq, started_photons
     endif
   enddo
 
-  call restoreVecPointer(solution%edir , xv_dir1d , xv_dir)
-  call restoreVecPointer(solution%ediff, xv_diff1d, xv_diff)
-  call restoreVecPointer(solution%abso , xv_abso1d, xv_abso)
+  call restoreVecPointer(solver%C_dir%da , solution%edir , xv_dir1d , xv_dir)
+  call restoreVecPointer(solver%C_diff%da, solution%ediff, xv_diff1d, xv_diff)
+  call restoreVecPointer(solver%C_one%da , solution%abso , xv_abso1d, xv_abso)
 end subroutine
 
 subroutine run_photon(solver, bmc, pqueues, ipq, iphoton, xv_dir, xv_diff, xv_abso, lkilled_photon)

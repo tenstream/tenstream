@@ -252,7 +252,7 @@ contains
     integer(c_int), value :: comm
     real(c_float), value :: edirTOA
     real(ireals) :: oedirTOA
-    logical :: lthermal
+    logical :: lsolar, lthermal
     integer(mpiint) :: myid, ierr
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
@@ -260,7 +260,9 @@ contains
     call imp_bcast(comm, oedirTOA, 0_mpiint)
 
     if(allocated(pprts_solver)) then
-      call solve_pprts(pprts_solver, oedirTOA)
+      lsolar = oedirTOA.gt.0
+      lthermal = .not.lsolar
+      call solve_pprts(pprts_solver, lthermal, lsolar, oedirTOA)
     endif
     if(allocated(plex_solver)) then
       lthermal = allocated(plex_solver%plck)

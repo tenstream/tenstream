@@ -7,7 +7,7 @@ module m_pprts_base
     default_str_len
 
   use m_helper_functions, only : CHKWARN, CHKERR, &
-    & get_arg, itoa, ltoa, ftoa, cstr, deallocate_allocatable
+    & get_arg, toStr, cstr, deallocate_allocatable
 
   use m_petsc_helpers, only: getvecpointer, restorevecpointer, is_local_vec
 
@@ -75,9 +75,10 @@ module m_pprts_base
     integer(iintegers)  :: uid ! dirty hack to give the solution a unique hash for example to write it out to disk -- this should be the same as the index in global solutions array
     type(tVec), allocatable    :: edir,ediff,abso
 
-    logical             :: lset        = .False. ! initialized?
-    logical             :: lsolar_rad  = .False. ! direct radiation calculated?
-    logical             :: lchanged    = .True.  ! did the flux change recently? -- call restore_solution to bring it in a coherent state
+    logical             :: lset         = .False. ! initialized?
+    logical             :: lsolar_rad   = .False. ! direct radiation calculated?
+    logical             :: lthermal_rad = .False. ! thermal radiation calculated?
+    logical             :: lchanged     = .True.  ! did the flux change recently? -- call restore_solution to bring it in a coherent state
 
     ! save state of solution vectors... they are either in [W](false) or [W/m**2](true)
     logical             :: lWm2_dir=.False. , lWm2_diff=.False.
@@ -174,11 +175,10 @@ module m_pprts_base
   type, extends(t_solver) :: t_solver_8_18
   end type
 
-
   contains
-    subroutine prepare_solution(edir_dm, ediff_dm, abso_dm, lsolar, solution, uid)
+    subroutine prepare_solution(edir_dm, ediff_dm, abso_dm, lsolar, lthermal, solution, uid)
       type(tDM), intent(in) :: edir_dm, ediff_dm, abso_dm
-      logical, intent(in) :: lsolar
+      logical, intent(in) :: lsolar, lthermal
       type(t_state_container), intent(inout) :: solution
       integer(iintegers), optional, intent(in) :: uid
       integer(mpiint) :: ierr
@@ -186,6 +186,7 @@ module m_pprts_base
       if(solution%lset) call CHKERR(1_mpiint, 'solution has already been prepared before')
 
       solution%lsolar_rad = lsolar
+      solution%lthermal_rad = lthermal
 
       solution%lchanged = .True.
       solution%lWm2_dir = .True.
@@ -196,20 +197,20 @@ module m_pprts_base
       if(solution%lsolar_rad) then
         allocate(solution%edir)
         call DMCreateGlobalVector(edir_dm, solution%edir, ierr)  ; call CHKERR(ierr)
-        call PetscObjectSetName(solution%edir,'initialized_edir_vec uid='//itoa(solution%uid),ierr) ; call CHKERR(ierr)
+        call PetscObjectSetName(solution%edir,'initialized_edir_vec uid='//toStr(solution%uid),ierr) ; call CHKERR(ierr)
         call VecSet(solution%edir, zero, ierr); call CHKERR(ierr)
         call PetscObjectViewFromOptions(solution%edir, PETSC_NULL_VEC, "-show_init_edir", ierr); call CHKERR(ierr)
       endif
 
       allocate(solution%ediff)
       call DMCreateGlobalVector(ediff_dm, solution%ediff, ierr)  ; call CHKERR(ierr)
-      call PetscObjectSetName(solution%ediff,'initialized_ediff_vec uid='//itoa(solution%uid),ierr) ; call CHKERR(ierr)
+      call PetscObjectSetName(solution%ediff,'initialized_ediff_vec uid='//toStr(solution%uid),ierr) ; call CHKERR(ierr)
       call VecSet(solution%ediff, zero, ierr); call CHKERR(ierr)
       call PetscObjectViewFromOptions(solution%ediff, PETSC_NULL_VEC, "-show_init_ediff", ierr); call CHKERR(ierr)
 
       allocate(solution%abso)
       call DMCreateGlobalVector(abso_dm, solution%abso, ierr)  ; call CHKERR(ierr)
-      call PetscObjectSetName(solution%abso,'initialized_abso_vec uid='//itoa(solution%uid),ierr) ; call CHKERR(ierr)
+      call PetscObjectSetName(solution%abso,'initialized_abso_vec uid='//toStr(solution%uid),ierr) ; call CHKERR(ierr)
       call VecSet(solution%abso, zero, ierr); call CHKERR(ierr)
       call PetscObjectViewFromOptions(solution%abso, PETSC_NULL_VEC, "-show_init_abso", ierr); call CHKERR(ierr)
 
@@ -220,6 +221,7 @@ module m_pprts_base
       if( solution%lset ) then
         call deallocate_allocatable(solution%edir)
         solution%lsolar_rad = .False.
+        solution%lthermal_rad = .False.
 
         call deallocate_allocatable(solution%ediff)
         call deallocate_allocatable(solution%abso)
@@ -233,7 +235,7 @@ module m_pprts_base
       type(t_state_container), intent(inout) :: solution
       integer(mpiint) :: ierr
       character(len=30) :: header
-      header = cstr('Solution('//itoa(solution%uid)//') ', 'blue')
+      header = cstr('Solution('//toStr(solution%uid)//') ', 'blue')
       print *, trim(header)//'is initialized?', solution%lset
       if(.not.solution%lset) return
       print *, trim(header)//'is a solar solution?', solution%lsolar_rad
@@ -254,7 +256,7 @@ module m_pprts_base
             call VecNorm(v, NORM_2, n2, ierr); call CHKERR(ierr)
           endif
           print *, trim(header)//title// &
-            ' (alloc='//ltoa(allocated(v))//' 2-norm = '//ftoa(n2)
+            ' (alloc='//toStr(allocated(v))//' 2-norm = '//toStr(n2)
         end subroutine
     end subroutine
 
@@ -296,13 +298,15 @@ module m_pprts_base
       call PetscLogEventRegister(trim(s)//'debug_output', cid, logs%debug_output, ierr); call CHKERR(ierr)
     end subroutine
 
-  subroutine allocate_pprts_solver_from_commandline(pprts_solver, default_solver)
+  subroutine allocate_pprts_solver_from_commandline(pprts_solver, default_solver, ierr)
     class(t_solver), intent(inout), allocatable :: pprts_solver
     character(len=*), intent(in), optional :: default_solver
+    integer(mpiint), intent(out) :: ierr
 
     logical :: lflg
     character(len=default_str_len) :: solver_str
-    integer(mpiint) :: ierr
+
+    ierr = 0
 
     if(allocated(pprts_solver)) then
       call CHKWARN(1_mpiint, 'called allocate_pprts_solver_from_commandline on an already allocated solver...'//&
@@ -345,10 +349,9 @@ module m_pprts_base
         print *,'-solver 3_16'
         print *,'-solver 8_16'
         print *,'-solver 8_18'
-        call CHKERR(1_mpiint, 'have to provide solver type')
-        call exit
+        ierr = 1
+        call CHKERR(ierr, 'have to provide solver type')
     end select
-
   end subroutine
 
   subroutine destroy_coord(C)
@@ -490,7 +493,7 @@ module m_pprts_base
     call VecGetArrayF90(coordinates, xv1d, ierr); call CHKERR(ierr)
     xv(0:2, zs:zs+zm-1 ,xs:xs+xm-1 ,ys:ys+ym-1) => xv1d
 
-    call getVecPointer(atm%hhl, solver%C_one_atm1_box%da, hhl1d, hhl)
+    call getVecPointer(solver%C_one_atm1_box%da, atm%hhl, hhl1d, hhl, readonly=.True.)
     do j = ys, ys+ym-1
       do i = xs, xs+xm-1
         do k = zs, zs+zm-1
@@ -501,7 +504,7 @@ module m_pprts_base
       enddo
     enddo
     nullify(xv)
-    call restoreVecPointer(atm%hhl, hhl1d, hhl)
+    call restoreVecPointer(solver%C_one_atm1_box%da, atm%hhl, hhl1d, hhl, readonly=.True.)
     call VecRestoreArrayF90(coordinates,xv1d,ierr) ;call CHKERR(ierr)
 
     call PetscObjectViewFromOptions(coordinates, PETSC_NULL_VEC, "-pprts_show_coordinates", ierr); call CHKERR(ierr)
@@ -510,35 +513,37 @@ module m_pprts_base
 
   !> @brief compute horizontal gradient from dz3d
   !> @details build horizontal gradient of height information, i.e. [dz/dx, dz/dy]
-  subroutine compute_gradient(atm, C_one_atm1, C_two1, vgrad)
+  subroutine compute_gradient(comm, atm, C_hhl, vhhl, C_grad, vgrad)
+    integer(mpiint), intent(in) :: comm
     type(t_atmosphere),intent(in) :: atm
-    type(t_coord), intent(in) :: C_one_atm1, C_two1
+    type(tVec), intent(in) :: vhhl
+    type(t_coord), intent(in) :: C_hhl, C_grad
     type(tVec), allocatable :: vgrad
 
-    real(ireals),Pointer :: hhl(:,:,:,:)=>null(), hhl1d(:)=>null()
-    real(ireals),Pointer :: grad(:,:,:,:)=>null(), grad_1d(:)=>null()
+    real(ireals), pointer :: hhl(:,:,:,:)=>null(), hhl1d(:)=>null()
+    real(ireals), pointer :: grad(:,:,:,:)=>null(), grad_1d(:)=>null()
 
     integer(iintegers) :: i,j,k
 
     real(ireals) :: zm(4)
-    integer(mpiint) :: ierr
+    integer(mpiint) :: myid, ierr
 
-    if(.not.allocated(atm%dz)) call CHKERR(1_mpiint, 'You called  compute_gradient()'// &
+    call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+    if(.not.allocated(atm%dz)) &
+      & call CHKERR(1_mpiint, toStr(myid)//' You called  compute_gradient()'// &
       & ' but the atm struct is not yet up, make sure we have atm%dz before')
-
-    if(.not.allocated(atm%hhl)) call CHKERR(1_mpiint, 'hhl has to be allocated')
 
     if(.not.allocated(vgrad)) then
       allocate(vgrad)
-      call DMCreateLocalVector(C_two1%da, vgrad, ierr) ;call CHKERR(ierr)
+      call DMCreateLocalVector(C_grad%da, vgrad, ierr) ;call CHKERR(ierr)
     endif
 
-    call getVecPointer(atm%hhl, C_one_atm1%da, hhl1d, hhl)
-    call getVecPointer(vgrad, C_two1%da, grad_1d, grad)
+    call getVecPointer(C_hhl%da, vhhl, hhl1d, hhl, readonly=.True.)
+    call getVecPointer(C_grad%da, vgrad, grad_1d, grad)
 
-    do j=C_two1%ys,C_two1%ye
-      do i=C_two1%xs,C_two1%xe
-        do k=C_two1%zs,C_two1%ze
+    do j=C_grad%ys,C_grad%ye
+      do i=C_grad%xs,C_grad%xe
+        do k=C_grad%zs,C_grad%ze
           ! Mean heights of adjacent columns
           zm(1) = hhl(i0,atmk(atm, k),i-1,j)
           zm(2) = hhl(i0,atmk(atm, k),i+1,j)
@@ -553,9 +558,9 @@ module m_pprts_base
       enddo
     enddo
 
-    call restoreVecPointer(atm%hhl, hhl1d, hhl)
+    call restoreVecPointer(C_hhl%da, vhhl, hhl1d, hhl, readonly=.True.)
 
-    call restoreVecPointer(vgrad, grad_1d, grad)
+    call restoreVecPointer(C_grad%da, vgrad, grad_1d, grad)
 
     call PetscObjectViewFromOptions(vgrad, PETSC_NULL_VEC, "-pprts_show_grad", ierr); call CHKERR(ierr)
   end subroutine
@@ -579,14 +584,14 @@ module m_pprts_base
     integer(mpiint) :: ierr
 
     call CHKERR(int(C_cells%glob_xm-C_verts%glob_xm+i1, mpiint), &
-      & 'nonconforming size: cells/verts %xe '//itoa(C_cells%glob_xm)//' '//itoa(C_verts%glob_xm))
+      & 'nonconforming size: cells/verts %xe '//toStr(C_cells%glob_xm)//' '//toStr(C_verts%glob_xm))
     call CHKERR(int(C_cells%glob_ym-C_verts%glob_ym+i1, mpiint), &
-      & 'nonconforming size: cells/verts %ye '//itoa(C_cells%glob_ym)//' '//itoa(C_verts%glob_ym))
+      & 'nonconforming size: cells/verts %ye '//toStr(C_cells%glob_ym)//' '//toStr(C_verts%glob_ym))
     call CHKERR(int(C_cells%ze-C_verts%ze, mpiint), &
-      & 'nonconforming size: cells/verts %ze '//itoa(C_cells%ze)//' '//itoa(C_verts%ze))
+      & 'nonconforming size: cells/verts %ze '//toStr(C_cells%ze)//' '//toStr(C_verts%ze))
 
     call CHKERR(int(C_cells%dof-C_verts%dof, mpiint), &
-      & 'nonconforming size: cells/verts %dof '//itoa(C_cells%dof)//' '//itoa(C_verts%dof))
+      & 'nonconforming size: cells/verts %dof '//toStr(C_cells%dof)//' '//toStr(C_verts%dof))
 
 
     call is_local_vec(C_cells%da, cell_vals, is_local, ierr); call CHKERR(ierr)
@@ -598,8 +603,8 @@ module m_pprts_base
       call DMGlobalToLocalEnd(C_cells%da, cell_vals, INSERT_VALUES, vcells,ierr) ;call CHKERR(ierr)
     endif
 
-    call getVecPointer(vcells, C_cells%da, xc1d, xc)
-    call getVecPointer(vert_vals, C_verts%da, xv1d, xv)
+    call getVecPointer(C_cells%da, vcells, xc1d, xc)
+    call getVecPointer(C_verts%da, vert_vals, xv1d, xv)
 
     do j=C_verts%ys,C_verts%ye
       do i=C_verts%xs,C_verts%xe
@@ -610,8 +615,8 @@ module m_pprts_base
       enddo
     enddo
 
-    call restoreVecPointer(vert_vals, xv1d, xv)
-    call restoreVecPointer(vcells, xc1d, xc)
+    call restoreVecPointer(C_cells%da, vert_vals, xv1d, xv)
+    call restoreVecPointer(C_verts%da, vcells, xc1d, xc)
 
     if(.not.is_local) then
       call DMRestoreLocalVector(C_cells%da, vcells, ierr); call CHKERR(ierr)
@@ -624,4 +629,5 @@ module m_pprts_base
     type(t_atmosphere),intent(in) :: atm
     atmk = k+atm%icollapse-1
   end function
+
 end module

@@ -11,6 +11,7 @@ void VecSet(size_t N, float *arr, float val) {
 int main() {
 
     int ierr;
+    size_t Nthreads = 0;
     size_t Nphotons = 100000;
     size_t Nwedges = 1; // single wedge
     size_t Nfaces = 5;
@@ -19,7 +20,6 @@ int main() {
     float  *kabs, *ksca, *g, *albedo;
     float *flx_through_faces_edir, *flx_through_faces_ediff, *abso_in_cells;
     float sundir[] = {0,1/sqrt(2.),1/sqrt(2.)}; // vec towards the sun
-    float diffuse_point_origin[] = {0.,0.,-1e30};
 
     kabs = malloc(Nwedges*sizeof(float)); VecSet(Nwedges, kabs, 0e-0);
     ksca = malloc(Nwedges*sizeof(float)); VecSet(Nwedges, ksca, 0e-0);
@@ -51,10 +51,10 @@ int main() {
 
     fprintf(stderr, "Huhu %s \n", rayli_version());
 
-    ierr = rfft_wedge(Nphotons, Nwedges, Nfaces, Nverts, cyclic,
+    ierr = rfft_wedge(Nthreads, Nphotons, Nwedges, Nfaces, Nverts, cyclic,
             verts_of_face, faces_of_wedges, vert_coords,
             kabs, ksca, g, albedo,
-            sundir, diffuse_point_origin,
+            sundir,
             flx_through_faces_edir,
             flx_through_faces_ediff,
             abso_in_cells);

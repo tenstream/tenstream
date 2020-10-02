@@ -18,7 +18,7 @@ module m_example_uvspec_cld_file
 
   use m_tenstream_options, only: read_commandline_options
   use m_helper_functions, only: CHKERR, itoa, imp_bcast, reverse, spherical_2_cartesian, resize_arr, &
-    domain_decompose_2d
+    domain_decompose_2d_petsc
   use m_netcdfio, only: ncload, ncwrite, get_global_attribute
 
   use m_icon_plex_utils, only: create_2d_regular_plex, dmplex_2D_to_3D, &
@@ -60,9 +60,10 @@ contains
     class(t_solver), allocatable :: pprts_solver
 
     real(ireals) :: dx, dy
-    integer(mpiint) :: myid, N_ranks_x, N_ranks_y, ierr
-    integer(iintegers) :: iproc, jproc, is, ie, js, je
+    integer(mpiint) :: myid, ierr
+    integer(iintegers) :: is, ie, js, je
     integer(iintegers) :: nxp, nyp, nzp ! local sizes of domain, nzp being number of layers
+    integer(iintegers),allocatable :: nxproc(:), nyproc(:)
 
     integer(iintegers) :: k
 
@@ -102,32 +103,22 @@ contains
     endif
 
     ! Determine Domain Decomposition
-    call domain_decompose_2d(comm, N_ranks_x, N_ranks_y, ierr); call CHKERR(ierr)
-    if(myid.eq.0) print *, myid, 'Domain Decomposition will be', N_ranks_x, 'and', N_ranks_y
+    call domain_decompose_2d_petsc(comm, &
+      & Nx_global = size(lwc, dim=2), &
+      & Ny_global = size(lwc, dim=3), &
+      & Nx_local  = nxp, &
+      & Ny_local  = nyp, &
+      & xStart    = is, &
+      & yStart    = js, &
+      & nxproc    = nxproc, &
+      & nyproc    = nyproc, &
+      & ierr=ierr); call CHKERR(ierr)
+    is = is+1 ! fortran based indices
+    js = js+1 ! fortran based indices
+    ie = is + nxp-1
+    je = js + nyp-1
 
-    nxp = size(lwc, dim=2) / N_ranks_x
-    nyp = size(lwc, dim=3) / N_ranks_y
-    call CHKERR(modulo(size(lwc, dim=2,kind=mpiint), int(N_ranks_x,mpiint)), &
-      'x-dimension is not evenly distributable on given communicator!'// &
-      'cant put'//itoa(size(lwc, dim=2))//' pixels on '//itoa(N_ranks_x)//' ranks')
-    call CHKERR(modulo(size(lwc, dim=3, kind=mpiint), int(N_ranks_y, mpiint)), &
-      'y-dimension is not evenly distributable on given communicator!'// &
-      'cant put'//itoa(size(lwc, dim=3))//' pixels on '//itoa(N_ranks_y)//' ranks')
-
-    if(myid.eq.0) then
-      print *,'Local Domain sizes are:',nxp,nyp
-    endif
-    jproc = myid / N_ranks_x
-    iproc = modulo(myid, int(N_ranks_x, mpiint))
-
-    js = 1 + jproc * nyp
-    je = js + nyp -1
-
-    is = 1 + (myid - jproc*N_ranks_x) * nxp
-    ie = is + nxp -1
-
-    call mpi_barrier(comm, ierr)
-    print *,myid,'i,j proc', iproc, jproc,' local portion: ', is, ie, 'and', js, je
+    print *,'myid', myid, 'is,ie', is,ie, 'js,je', js,je
 
     ! Start with a dynamics grid starting at 1000 hPa with a specified lapse rate and surface temperature
     nzp = size(hhl)-1
@@ -145,13 +136,18 @@ contains
       enddo
     endif
 
-    call allocate_pprts_solver_from_commandline(pprts_solver, default_solver='8_10')
+    call allocate_pprts_solver_from_commandline(pprts_solver, default_solver='3_10', ierr=ierr); call CHKERR(ierr)
 
-    call run_rrtmg_lw_sw(pprts_solver, atm_filename, dx, dy, phi0, theta0, &
-      plev, tlev, &
-      lwc(:, is:ie, js:je), reliq(:, is:ie, js:je), &
-      albedo_th, albedo_sol, lsolar, lthermal, &
-      edir, edn, eup, abso)
+    call run_rrtmg_lw_sw(pprts_solver, &
+      & nxproc, nyproc, &
+      & atm_filename, &
+      & dx, dy, phi0, theta0, &
+      & plev, tlev, &
+      & lwc(:, is:ie, js:je), &
+      & reliq(:, is:ie, js:je), &
+      & albedo_th, albedo_sol, &
+      & lsolar, lthermal, &
+      & edir, edn, eup, abso)
 
     groups(1) = trim(outfile)
 
@@ -177,10 +173,11 @@ contains
     call destroy_pprts_rrtmg(pprts_solver, lfinalizepetsc=.True.)
   end subroutine
 
-  subroutine run_rrtmg_lw_sw(pprts_solver, atm_filename, dx, dy, phi0, theta0, &
+  subroutine run_rrtmg_lw_sw(pprts_solver, nxproc, nyproc, atm_filename, dx, dy, phi0, theta0, &
       plev, tlev, lwc, reliq, albedo_th, albedo_sol, lsolar, lthermal, &
       edir, edn, eup, abso)
     class(t_solver) :: pprts_solver
+    integer(iintegers),intent(in) :: nxproc(:), nyproc(:)
     real(ireals),intent(in) :: dx, dy       ! horizontal grid spacing in [m]
     real(ireals), intent(in) :: phi0, theta0 ! Sun's angles, azimuth phi(0=North, 90=East), zenith(0 high sun, 80=low sun)
     real(ireals), intent(in), dimension(:,:,:), contiguous, target :: lwc, reliq ! dim(Nz,Nx,Ny)
@@ -190,7 +187,7 @@ contains
     real(ireals), dimension(:,:,:), contiguous, target, intent(in) :: tlev ! Temperature on layer interfaces [K]  dim=nzp+1,nxp,nyp
 
     ! MPI variables and domain decomposition sizes
-    integer(mpiint) :: comm, myid, N_ranks_x, N_ranks_y, ierr
+    integer(mpiint) :: comm, myid, ierr
 
 
     ! Layer values for the atmospheric constituents -- those are actually all
@@ -216,7 +213,6 @@ contains
 
     !------------ Local vars ------------------
     integer(iintegers) :: k, nlev
-    integer(iintegers),allocatable :: nxproc(:), nyproc(:)
 
     ! reshape pointer to convert i,j vecs to column vecs
     real(ireals), pointer, dimension(:,:) :: pplev, ptlev, plwc, preliq
@@ -228,13 +224,6 @@ contains
 
     comm = mpi_comm_world
     call mpi_comm_rank(comm, myid, ierr)
-
-    ! Determine Domain Decomposition
-    call domain_decompose_2d(comm, N_ranks_x, N_ranks_y, ierr); call CHKERR(ierr)
-    if(myid.eq.0) print *, myid, 'Domain Decomposition will be', N_ranks_x, 'and', N_ranks_y
-
-    allocate(nxproc(N_ranks_x), source=size(plev,2, kind=iintegers)) ! dimension will determine how many ranks are used along the axis
-    allocate(nyproc(N_ranks_y), source=size(plev,3, kind=iintegers)) ! values have to define the local domain sizes on each rank (here constant on all processes)
 
     ! Not much going on in the dynamics grid, we actually don't supply trace
     ! gases to the TenStream solver... this will then be interpolated from the

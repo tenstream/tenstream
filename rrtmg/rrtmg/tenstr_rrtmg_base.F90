@@ -1,7 +1,7 @@
 module m_tenstr_rrtmg_base
 #include "petsc/finclude/petsc.h"
   use petsc
-  use m_data_parameters, only : iintegers, mpiint, default_str_len, i0
+  use m_data_parameters, only : iintegers, ireals, mpiint, default_str_len, i0
   use m_helper_functions, only : CHKERR, get_arg
   implicit none
 
@@ -45,4 +45,6 @@ module m_tenstr_rrtmg_base
           endif
         end subroutine
     end subroutine
+
+
 end module

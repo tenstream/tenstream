@@ -44,14 +44,35 @@ module m_pprts_rrtmg
   use m_data_parameters, only : init_mpi_data_parameters, &
       iintegers, ireals, zero, one, i0, i1, i2, i9,         &
       mpiint, pi, default_str_len
-  use m_pprts_base, only : t_solver, compute_gradient, destroy_pprts
+
+  use m_pprts_base, only : t_solver, compute_gradient, destroy_pprts, atmk
+
   use m_pprts, only : init_pprts, set_angles, set_optical_properties, solve_pprts,&
       pprts_get_result, pprts_get_result_toZero
+
+  use m_buildings, only: t_pprts_buildings, PPRTS_BOT_FACE
+
   use m_adaptive_spectral_integration, only: need_new_solution
-  use m_helper_functions, only : read_ascii_file_2d, gradient, meanvec, imp_bcast, &
-      imp_allreduce_min, imp_allreduce_max, imp_allreduce_mean, mpi_logical_all_same, &
-      CHKERR, deg2rad, get_arg, &
-      reverse, approx, itoa, spherical_2_cartesian, cross_3d
+
+  use m_helper_functions, only : &
+    & CHKERR, &
+    & approx, &
+    & cross_3d, &
+    & deg2rad, &
+    & get_arg, &
+    & gradient, &
+    & imp_allreduce_max, &
+    & imp_allreduce_mean, &
+    & imp_allreduce_min, &
+    & imp_bcast, &
+    & ind_1d_to_nd, &
+    & meanvec, &
+    & mpi_logical_all_same, &
+    & read_ascii_file_2d, &
+    & reverse, &
+    & spherical_2_cartesian, &
+    & toStr
+
   use m_search, only: find_real_location
   use m_petsc_helpers, only: dmda_convolve_ediff_srfc, &
     getvecpointer, restorevecpointer, f90vectopetsc
@@ -64,6 +85,7 @@ module m_pprts_rrtmg
 
   use m_tenstr_disort, only: default_flx_computation
   use m_tenstr_rrtmg_base, only: t_rrtmg_log_events, setup_log_events
+  use m_buildings, only: t_pprts_buildings, clone_buildings, destroy_buildings
 
   implicit none
 
@@ -174,7 +196,7 @@ contains
         enddo
         if(min_iter.gt.Ni_limit) &
           call CHKERR(int(min_iter, mpiint), 'the smoothing iteration count would be larger than '// &
-            itoa(Ni_limit)//'... this could become expensive, you can set the value higher but I'// &
+            toStr(Ni_limit)//'... this could become expensive, you can set the value higher but I'// &
             'suspect that you are trying something weird')
         ! We want it
         ! as close as possible to an integer
@@ -229,7 +251,7 @@ contains
         C_dir   => solver%C_dir,&
         C_two1  => solver%C_two1)
 
-      call getVecPointer(atm%hgrad, C_two1%da, grad_1d, grad)
+      call getVecPointer(C_two1%da, atm%hgrad, grad_1d, grad)
 
       if(lslope_correction) then
         k = C_two1%ze
@@ -260,18 +282,20 @@ contains
         enddo
       endif
 
-      call restoreVecPointer(atm%hgrad, grad_1d, grad)
+      call restoreVecPointer(C_two1%da, atm%hgrad, grad_1d, grad)
     end associate
   end subroutine
 
   subroutine pprts_rrtmg(comm, solver, atm, ie, je,   &
-      dx, dy, sundir,                                 &
-      albedo_thermal, albedo_solar,                   &
-      lthermal, lsolar,                               &
-      edir,edn,eup,abso,                              &
-      nxproc, nyproc, icollapse,                      &
-      opt_time, solar_albedo_2d, thermal_albedo_2d,   &
-      opt_solar_constant)
+      & dx, dy, sundir,                               &
+      & albedo_thermal, albedo_solar,                 &
+      & lthermal, lsolar,                             &
+      & edir,edn,eup,abso,                            &
+      & nxproc, nyproc, icollapse,                    &
+      & opt_time, solar_albedo_2d, thermal_albedo_2d, &
+      & opt_solar_constant,                           &
+      & opt_buildings_solar, opt_buildings_thermal,   &
+      & lonly_initialize)
 
     integer(mpiint), intent(in)     :: comm ! MPI Communicator
 
@@ -297,6 +321,11 @@ contains
     ! If solar_albedo_2d is present, we use a 2D surface albedo
     real(ireals), optional, intent(in) :: opt_time, solar_albedo_2d(:,:), thermal_albedo_2d(:,:), opt_solar_constant
 
+    ! buildings information, setup broadband thermal and solar albedo on faces inside the domain, not just on the surface
+    ! see definition for details on how to set it up
+    type(t_pprts_buildings), intent(inout), optional :: opt_buildings_solar
+    type(t_pprts_buildings), intent(inout), optional :: opt_buildings_thermal
+
     ! Fluxes and absorption in [W/m2] and [W/m3] respectively.
     ! Dimensions will probably be bigger than the dynamics grid, i.e. will have
     ! the size of the merged grid. If you only want to use heating rates on the
@@ -306,6 +335,9 @@ contains
     !   abso(ubound(abso,1)-nlay_dynamics+1 : ubound(abso,1) )
     real(ireals),allocatable, dimension(:,:,:), intent(inout) :: edir, edn, eup  ! [nlyr+1, local_nx, local_ny ]
     real(ireals),allocatable, dimension(:,:,:), intent(inout) :: abso            ! [nlyr  , local_nx, local_ny ]
+
+    ! if only_initialize we dont compute any radiation, merely setup the grid structures
+    logical, intent(in), optional :: lonly_initialize
 
     ! ---------- end of API ----------------
 
@@ -377,15 +409,23 @@ contains
     eup = zero
     abso= zero
 
+    if(get_arg(.False., lonly_initialize)) return
+
     lskip_thermal = .False.
     call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
       "-skip_thermal" , lskip_thermal, lflg , ierr) ;call CHKERR(ierr)
     if(lthermal.and..not.lskip_thermal)then
       call PetscLogStagePush(log_events%stage_rrtmg_thermal, ierr); call CHKERR(ierr)
-      call compute_thermal(solver, atm, ie, je, ke, ke1, &
-        albedo_thermal, &
-        edn, eup, abso, opt_time=opt_time, lrrtmg_only=lrrtmg_only, &
-        thermal_albedo_2d=thermal_albedo_2d)
+      call compute_thermal(&
+        & solver, &
+        & atm, &
+        & ie, je, ke, ke1, &
+        & albedo_thermal, &
+        & edn, eup, abso, &
+        & opt_time=opt_time, &
+        & lrrtmg_only=lrrtmg_only, &
+        & thermal_albedo_2d=thermal_albedo_2d, &
+        & opt_buildings=opt_buildings_thermal)
       call PetscLogStagePop(ierr); call CHKERR(ierr) ! pop solver%logs%stage_rrtmg_thermal
     endif
 
@@ -398,10 +438,17 @@ contains
         "-skip_solar" , lskip_solar, lflg , ierr) ;call CHKERR(ierr)
       if(.not.lskip_solar) then
         call PetscLogStagePush(log_events%stage_rrtmg_solar, ierr); call CHKERR(ierr)
-        call compute_solar(solver, atm, ie, je, ke, &
-          sundir, albedo_solar, &
-          edir, edn, eup, abso, opt_time=opt_time, solar_albedo_2d=solar_albedo_2d, &
-          lrrtmg_only=lrrtmg_only, opt_solar_constant=opt_solar_constant)
+        call compute_solar(&
+          & solver, &
+          & atm, &
+          & ie, je, ke, &
+          & sundir, albedo_solar, &
+          & edir, edn, eup, abso, &
+          & opt_time=opt_time, &
+          & solar_albedo_2d=solar_albedo_2d, &
+          & lrrtmg_only=lrrtmg_only, &
+          & opt_solar_constant=opt_solar_constant, &
+          & opt_buildings=opt_buildings_solar)
         call PetscLogStagePop(ierr); call CHKERR(ierr) ! pop solver%logs%stage_rrtmg_solar
       endif
     endif
@@ -462,7 +509,8 @@ contains
   subroutine compute_thermal(solver, atm, ie, je, ke, ke1, &
       albedo, &
       edn, eup, abso, opt_time, lrrtmg_only, &
-      thermal_albedo_2d)
+      thermal_albedo_2d, &
+      opt_buildings)
 
     use m_tenstr_rrlw_wvn, only : ngb, wavenum1, wavenum2
     use m_tenstr_parrrtm, only: ngptlw
@@ -477,6 +525,7 @@ contains
 
     real(ireals), optional, intent(in) :: opt_time, thermal_albedo_2d(:,:)
     logical, optional, intent(in) :: lrrtmg_only
+    type(t_pprts_buildings), intent(inout), optional :: opt_buildings
 
     real(ireals),allocatable, target, dimension(:,:,:,:) :: tau, Bfrac  ! [nlyr, ie, je, ngptlw]
     real(ireals),allocatable, dimension(:,:,:) :: kabs, ksca, g, Blev   ! [nlyr(+1), local_nx, local_ny]
@@ -491,7 +540,10 @@ contains
     real(ireals) :: col_albedo, col_tskin(1)
 
     integer(iintegers) :: i, j, k, icol, ib, current_ibnd, spectral_bands(2)
+    integer(iintegers) :: ak, idx(4)
     logical :: need_any_new_solution, lflg
+
+    type(t_pprts_buildings), allocatable :: spec_buildings
 
     integer(mpiint) :: myid, ierr
 
@@ -500,6 +552,18 @@ contains
     allocate(spec_edn (solver%C_one1%zm, solver%C_one1%xm, solver%C_one1%ym))
     allocate(spec_eup (solver%C_one1%zm, solver%C_one1%xm, solver%C_one1%ym))
     allocate(spec_abso(solver%C_one%zm , solver%C_one%xm , solver%C_one%ym ))
+    if(present(opt_buildings)) then
+      call clone_buildings(opt_buildings, spec_buildings, l_copy_data=.False., ierr=ierr); call CHKERR(ierr)
+      allocate(opt_buildings%incoming(size(opt_buildings%iface)), source=zero)
+      allocate(opt_buildings%outgoing(size(opt_buildings%iface)), source=zero)
+      allocate(spec_buildings%albedo (size(opt_buildings%albedo)), source=opt_buildings%albedo)
+      if(.not.(allocated(opt_buildings%temp))) call CHKERR(1_mpiint, 'Thermal computation but opt_buildings%temp is not allocated')
+      if((allocated(opt_buildings%planck))) call CHKERR(1_mpiint, 'Thermal computation but opt_buildings%planck is allocated... '//&
+        & 'you should only provide temperatures. I`ll take care of planck emissison')
+      allocate(spec_buildings%temp  (size(opt_buildings%temp)))
+      allocate(spec_buildings%planck(size(opt_buildings%temp)))
+    endif
+
 
     need_any_new_solution=.False.
     do ib=1,ngptlw
@@ -508,11 +572,26 @@ contains
     enddo
     if(.not.need_any_new_solution) then
       do ib=1,ngptlw
-        call pprts_get_result(solver, spec_edn, spec_eup, spec_abso, opt_solution_uid=500+ib)
+        if(present(opt_buildings)) then
+          call pprts_get_result(solver, &
+            & spec_edn, spec_eup, spec_abso, &
+            & opt_solution_uid=500+ib, &
+            & opt_buildings=spec_buildings)
+          opt_buildings%incoming = opt_buildings%incoming + spec_buildings%incoming
+          opt_buildings%outgoing = opt_buildings%outgoing + spec_buildings%outgoing
+        else
+          call pprts_get_result(solver, &
+            & spec_edn, spec_eup, spec_abso, &
+            & opt_solution_uid=500+ib)
+        endif
         edn  = edn  + spec_edn
         eup  = eup  + spec_eup
         abso = abso + spec_abso
       enddo
+
+      if(present(opt_buildings)) then
+        call destroy_buildings(spec_buildings, ierr)
+      endif
       return
     endif
 
@@ -646,21 +725,65 @@ contains
               call CHKERR(1_mpiint, 'Found a negative Planck emission, this is not physical! Aborting...')
             endif
           endif
+
+          if(present(opt_buildings)) then
+            ! Use spec_buildings%temperature array to hold raw planck values ...
+            do k = 1, size(opt_buildings%temp)
+              spec_buildings%temp(k) = &
+                & plkint(real(wavenum1(ngb(ib))), real(wavenum2(ngb(ib))), real(opt_buildings%temp(k)))
+            enddo
+          endif
+        endif
+
+        if(present(opt_buildings)) then
+          ! ... and use spec_buildings planck array for raw planck values multiplied with the planck fractions
+          do icol = 1, size(spec_buildings%temp)
+            call ind_1d_to_nd(spec_buildings%da_offsets, spec_buildings%iface(icol), idx)
+            associate(d => idx(1), k => idx(2), i => idx(3), j => idx(4))
+              if(d.eq.PPRTS_BOT_FACE) then
+                ak = atmk(solver%atm, k)+1
+              else
+                ak = atmk(solver%atm, k)
+              endif
+              spec_buildings%planck(icol) = spec_buildings%temp(icol) * &
+                & Bfrac(1+size(Bfrac,dim=1)-ak,i,j,ib)
+            end associate
+          enddo
         endif
 
         call set_optical_properties(solver, albedo, kabs, ksca, g, &
             reverse(Blev*Bfrac(:,:,:,ib)), planck_srfc=Bsrfc*Bfrac(1,:,:,ib), &
             albedo_2d=thermal_albedo_2d)
-        call solve_pprts(solver, zero, opt_solution_uid=500+ib, opt_solution_time=opt_time)
+        call solve_pprts(solver, &
+          & lthermal=.True., &
+          & lsolar=.False., &
+          & edirTOA=zero, &
+          & opt_solution_uid=500+ib, &
+          & opt_solution_time=opt_time, &
+          & opt_buildings=spec_buildings)
       endif
 
-      call pprts_get_result(solver, spec_edn, spec_eup, spec_abso, opt_solution_uid=500+ib)
+      if(present(opt_buildings)) then
+        call pprts_get_result(solver, &
+          & spec_edn, spec_eup, spec_abso, &
+          & opt_solution_uid=500+ib, &
+          & opt_buildings=spec_buildings)
+        opt_buildings%incoming = opt_buildings%incoming + spec_buildings%incoming
+        opt_buildings%outgoing = opt_buildings%outgoing + spec_buildings%outgoing
+      else
+        call pprts_get_result(solver, &
+          & spec_edn, spec_eup, spec_abso, &
+          & opt_solution_uid=500+ib)
+      endif
 
       edn  = edn  + spec_edn
       eup  = eup  + spec_eup
       abso = abso + spec_abso
     enddo ! ib 1 -> nbndlw , i.e. spectral integration
 
+    if(present(opt_buildings)) then
+      call destroy_buildings(spec_buildings, ierr)
+    endif
     contains
       function compute_thermal_disort() result(ldisort_only)
         logical :: ldisort_only
@@ -733,7 +856,7 @@ contains
   subroutine compute_solar(solver, atm, ie, je, ke, &
       sundir, albedo, &
       edir, edn, eup, abso, opt_time, solar_albedo_2d, lrrtmg_only, &
-      opt_solar_constant)
+      opt_solar_constant, opt_buildings)
 
       use m_tenstr_parrrsw, only: ngptsw
       use m_tenstr_rrtmg_sw_spcvrt, only: tenstr_solsrc
@@ -750,6 +873,7 @@ contains
     real(ireals), optional, intent(in) :: opt_time, solar_albedo_2d(:,:)
     logical, optional, intent(in) :: lrrtmg_only
     real(ireals), intent(in), optional :: opt_solar_constant
+    type(t_pprts_buildings), intent(inout), optional :: opt_buildings
 
     real(ireals) :: edirTOA
 
@@ -768,6 +892,8 @@ contains
     integer(iintegers) :: i, j, k, icol, ib
     logical :: need_any_new_solution
 
+    type(t_pprts_buildings), allocatable :: spec_buildings
+
     logical :: lflg
     integer(iintegers) :: spectral_bands(2)
     integer(mpiint) :: ierr
@@ -777,6 +903,14 @@ contains
     allocate(spec_eup (solver%C_one1%zm, solver%C_one1%xm, solver%C_one1%ym))
     allocate(spec_abso(solver%C_one%zm , solver%C_one%xm , solver%C_one%ym ))
 
+    if(present(opt_buildings)) then
+      call clone_buildings(opt_buildings, spec_buildings, l_copy_data=.False., ierr=ierr); call CHKERR(ierr)
+      allocate(spec_buildings%albedo (size(opt_buildings%albedo)), source=opt_buildings%albedo)
+      allocate(opt_buildings%edir    (size(opt_buildings%iface)), source=zero)
+      allocate(opt_buildings%incoming(size(opt_buildings%iface)), source=zero)
+      allocate(opt_buildings%outgoing(size(opt_buildings%iface)), source=zero)
+    endif
+
     need_any_new_solution=.False.
     do ib=1,ngptsw
       if(need_new_solution(solver%comm, solver%solutions(ib), opt_time, solver%lenable_solutions_err_estimates)) &
@@ -784,12 +918,28 @@ contains
     enddo
     if(.not.need_any_new_solution) then
       do ib=1,ngptsw
-        call pprts_get_result(solver, spec_edn, spec_eup, spec_abso, spec_edir, opt_solution_uid=ib)
+        if(present(opt_buildings)) then
+          call pprts_get_result(solver, &
+            & spec_edn, spec_eup, spec_abso, spec_edir, &
+            & opt_solution_uid=ib, &
+            & opt_buildings=spec_buildings)
+          opt_buildings%edir = opt_buildings%edir + spec_buildings%edir
+          opt_buildings%incoming = opt_buildings%incoming + spec_buildings%incoming
+          opt_buildings%outgoing = opt_buildings%outgoing + spec_buildings%outgoing
+        else
+          call pprts_get_result(solver, &
+            & spec_edn, spec_eup, spec_abso, spec_edir, &
+            & opt_solution_uid=ib)
+        endif
         edir = edir + spec_edir
         edn  = edn  + spec_edn
         eup  = eup  + spec_eup
         abso = abso + spec_abso
       enddo
+
+      if(present(opt_buildings)) then
+        call destroy_buildings(spec_buildings, ierr)
+      endif
       return
     endif
 
@@ -913,12 +1063,37 @@ contains
           edirTOA = tenstr_solsrc(ib)
         endif
 
-        call set_optical_properties(solver, albedo, kabs, ksca, kg, &
-          albedo_2d=solar_albedo_2d)
-        call solve_pprts(solver, edirTOA, opt_solution_uid=ib, opt_solution_time=opt_time)
+        call set_optical_properties( &
+          & solver,                  &
+          & albedo,                  &
+          & kabs,                    &
+          & ksca,                    &
+          & kg,                      &
+          & albedo_2d=solar_albedo_2d)
+
+        call solve_pprts(solver, &
+          & lthermal=.False., &
+          & lsolar=.True., &
+          & edirTOA=edirTOA, &
+          & opt_solution_uid=ib,          &
+          & opt_solution_time=opt_time,   &
+          & opt_buildings=spec_buildings)
 
       endif
-      call pprts_get_result(solver, spec_edn, spec_eup, spec_abso, spec_edir, opt_solution_uid=ib)
+
+      if(present(opt_buildings)) then
+        call pprts_get_result(solver, &
+          & spec_edn, spec_eup, spec_abso, spec_edir, &
+          & opt_solution_uid=ib, &
+          & opt_buildings=spec_buildings)
+        opt_buildings%edir = opt_buildings%edir + spec_buildings%edir
+        opt_buildings%incoming = opt_buildings%incoming + spec_buildings%incoming
+        opt_buildings%outgoing = opt_buildings%outgoing + spec_buildings%outgoing
+      else
+        call pprts_get_result(solver, &
+          & spec_edn, spec_eup, spec_abso, spec_edir, &
+          & opt_solution_uid=ib)
+      endif
 
       edir = edir + spec_edir
       edn  = edn  + spec_edn
@@ -927,6 +1102,9 @@ contains
 
     enddo ! ib 1 -> nbndsw , i.e. spectral integration
 
+    if(present(opt_buildings)) then
+      call destroy_buildings(spec_buildings, ierr)
+    endif
     contains
       function compute_solar_disort() result(ldisort_only)
         logical :: ldisort_only

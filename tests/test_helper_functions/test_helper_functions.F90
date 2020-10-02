@@ -6,10 +6,12 @@ module test_helper_functions
     mpi_logical_and, mpi_logical_or, mpi_logical_all_same, &
     compute_normal_3d, hit_plane, pnt_in_triangle, distance_to_edge, determine_normal_direction, &
     cumprod, reverse, rotation_matrix_around_axis_vec, deg2rad, char_arr_to_str, cstr, &
-    solve_quadratic, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world, is_between, &
+    solve_quadratic, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world, &
+    is_inrange, is_between, &
     resize_arr, normalize_vec, approx, itoa, ftoa, &
     imp_reduce_sum, imp_allreduce_sum, imp_reduce_mean, imp_allreduce_mean, &
-    read_ascii_file_2d
+    read_ascii_file_2d, &
+    ndarray_offsets, ind_nd_to_1d, ind_1d_to_nd
 
   use pfunit_mod
 
@@ -505,6 +507,36 @@ subroutine test_is_between(this)
   @assertFalse(is_between(1.5_ireals, 1.0_ireals, 0.0_ireals))
 
   @assertTrue(is_between(0.5_ireals, 1.0_ireals, 0.0_ireals))
+
+  @assertTrue(is_between(780,0,2875391))
+
+  @assertFalse(is_between(0,0,2))
+  @assertTrue (is_between(1,0,2))
+  @assertFalse(is_between(2,0,2))
+
+  @assertFalse(is_between(0,2,0))
+  @assertTrue (is_between(1,2,0))
+  @assertFalse(is_between(2,2,0))
+end subroutine
+
+subroutine test_is_inrange(this)
+  class (MpiTestMethod), intent(inout) :: this
+
+  @assertTrue(is_inrange(0,0,2))
+  @assertTrue(is_inrange(1,0,2))
+  @assertTrue(is_inrange(2,0,2))
+
+  @assertTrue(is_inrange(0,2,0))
+  @assertTrue(is_inrange(1,2,0))
+  @assertTrue(is_inrange(2,2,0))
+
+  @assertFalse(is_inrange(-1,0,2))
+  @assertFalse(is_inrange( 4,0,2))
+
+  @assertFalse(is_inrange(-1,2,0))
+  @assertFalse(is_inrange( 4,2,0))
+
+  @assertTrue(is_inrange(780,0,2875391))
 end subroutine
 
 @test(npes=[1])
@@ -661,4 +693,75 @@ subroutine test_read_ascii_file(this)
   @assertFalse(0_mpiint.eq.ierr)
 end subroutine
 
+@test(npes=[1])
+subroutine test_ndarray_idx(this)
+  class (MpiTestMethod), intent(inout) :: this
+  integer(iintegers) :: arr_shape(3)
+  integer(iintegers) :: nd_offsets(3)
+  integer(iintegers) :: i1d, ind(3)
+
+  arr_shape = [2,3,2]
+  call ndarray_offsets(arr_shape, nd_offsets)
+
+  @assertEqual(1_iintegers, nd_offsets(1))
+  @assertEqual(2_iintegers, nd_offsets(2))
+  @assertEqual(6_iintegers, nd_offsets(3))
+
+  i1d = ind_nd_to_1d(nd_offsets, [integer(iintegers) :: 1, 1, 1])
+  @assertEqual(1_iintegers, i1d)
+
+  call ind_1d_to_nd(nd_offsets, i1d, ind)
+  @assertEqual(1_iintegers, ind(1))
+  @assertEqual(1_iintegers, ind(2))
+  @assertEqual(1_iintegers, ind(3))
+
+  i1d = ind_nd_to_1d(nd_offsets, [integer(iintegers) :: 2, 3, 2])
+  @assertEqual(12_iintegers, i1d)
+
+  call ind_1d_to_nd(nd_offsets, i1d, ind)
+  @assertEqual(2_iintegers, ind(1))
+  @assertEqual(3_iintegers, ind(2))
+  @assertEqual(2_iintegers, ind(3))
+
+  do i1d = 1, 12
+    call ind_1d_to_nd(nd_offsets, i1d, ind)
+    @assertEqual(i1d, ind_nd_to_1d(nd_offsets, ind))
+  enddo
+end subroutine
+
+@test(npes=[1])
+subroutine test_ndarray_idx_c_style(this)
+  class (MpiTestMethod), intent(inout) :: this
+  integer(iintegers) :: arr_shape(3)
+  integer(iintegers) :: nd_offsets(3)
+  integer(iintegers) :: i1d, ind(3)
+
+  arr_shape = [2,3,2]
+  call ndarray_offsets(arr_shape, nd_offsets)
+
+  @assertEqual(1_iintegers, nd_offsets(1))
+  @assertEqual(2_iintegers, nd_offsets(2))
+  @assertEqual(6_iintegers, nd_offsets(3))
+
+  i1d = ind_nd_to_1d(nd_offsets, [integer(iintegers) :: 0, 0, 0], cstyle=.True.)
+  @assertEqual(0_iintegers, i1d)
+
+  call ind_1d_to_nd(nd_offsets, i1d, ind, cstyle=.True.)
+  @assertEqual(0_iintegers, ind(1))
+  @assertEqual(0_iintegers, ind(2))
+  @assertEqual(0_iintegers, ind(3))
+
+  i1d = ind_nd_to_1d(nd_offsets, [integer(iintegers) :: 1, 2, 1], cstyle=.True.)
+  @assertEqual(11_iintegers, i1d)
+
+  call ind_1d_to_nd(nd_offsets, i1d, ind, cstyle=.True.)
+  @assertEqual(1_iintegers, ind(1))
+  @assertEqual(2_iintegers, ind(2))
+  @assertEqual(1_iintegers, ind(3))
+
+  do i1d = 0, 11
+    call ind_1d_to_nd(nd_offsets, i1d, ind, cstyle=.True.)
+    @assertEqual(i1d, ind_nd_to_1d(nd_offsets, ind, cstyle=.True.))
+  enddo
+end subroutine
 end module

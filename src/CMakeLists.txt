@@ -47,23 +47,24 @@ endforeach ()
 
 set( general_sources
   ${preprocessed_files}
-  "helper_functions_dp.F90"
-  "c_syscall_wrappers.F90"
+  "adaptive_spectral_integration.F90"
+  "buildings.F90"
   "c_syscall_constants.c"
+  "c_syscall_wrappers.F90"
   "data_parameters.F90"
   "eddington.F90"
+  "helper_functions_dp.F90"
   "interpolation.F90"
-  "ranlux.for" "kiss.F90"
   "mcrts_dmda.F90"
-  "twostream.F90"
-  "schwarzschild.F90"
-  "tenstream_options.F90"
-  "petsc_helpers.F90"
-  "nca.F90"
   "mmap.F90"
+  "nca.F90"
+  "petsc_helpers.F90"
   "pprts_base.F90"
-  "adaptive_spectral_integration.F90"
+  "ranlux.for" "kiss.F90"
+  "schwarzschild.F90"
   "search.F90"
+  "tenstream_options.F90"
+  "twostream.F90"
   )
 
 set( optprop_sources
@@ -96,6 +97,9 @@ endif()
 
 # pprts_base libs
 add_library( pprts_base_objs OBJECT ${general_sources} ${optprop_sources} )
+if(BUILD_FORNADO)
+  add_dependencies(pprts_base_objs ${FORNADO_LIBS})
+endif()
 add_library( pprts_base             $<TARGET_OBJECTS:pprts_base_objs> )
 target_link_libraries( pprts_base ${FORNADO_LIBS} ${EXTLIB})
 

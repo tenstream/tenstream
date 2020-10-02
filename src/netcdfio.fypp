@@ -405,7 +405,8 @@ module m_netcdfIO
 
       character(len=2*default_str_len), allocatable :: attrs(:)
       character(len=default_str_len), allocatable :: attNames(:)
-      integer(iintegers) :: N, ierr2
+      integer(iintegers) :: N
+      integer(mpiint) :: ierr2
       integer :: ncid, ncerr, k
 
       ierr = 0

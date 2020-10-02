@@ -95,7 +95,7 @@ contains
 
     ! Put data from petsc vec into fortran array
     if(myid.eq.0) then
-      call petscVecToF90(lvec, C%da, global_arr_on_rank0, opt_l_only_on_rank0=.True.)
+      call petscVecToF90(lvec, C%da, global_arr_on_rank0, only_on_rank0=.True.)
       do j=1,ubound(global_arr_on_rank0,4)
         do i=1,ubound(global_arr_on_rank0,3)
           do k=1,ubound(global_arr_on_rank0,2)

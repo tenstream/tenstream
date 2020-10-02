@@ -108,9 +108,9 @@ contains
       ! Gen new global vector
       call DMGetGlobalVector(C%da, gvec, ierr); call CHKERR(ierr)
 
-      call getVecPointer(gvec, C%da, x1d, xv)
+      call getVecPointer(C%da, gvec, x1d, xv)
       x1d(:) = 100._ireals + real(myid, ireals)
-      call restoreVecPointer(gvec, x1d, xv)
+      call restoreVecPointer(C%da, gvec, x1d, xv)
       call PetscObjectViewFromOptions(gvec, PETSC_NULL_VEC, '-show_gvec', ierr); call CHKERR(ierr)
 
       if(submyid.eq.0) then

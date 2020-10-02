@@ -1,4 +1,4 @@
-module m_pprts_ex1
+module m_examples_pprts_ex1
     use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint, zero, pi
     use m_helper_functions, only : spherical_2_cartesian
     use m_pprts, only : init_pprts, set_optical_properties, solve_pprts, pprts_get_result, set_angles
@@ -81,7 +81,10 @@ subroutine pprts_ex1()
     call set_optical_properties(solver, albedo, kabs, ksca, g)
     call set_angles(solver, sundir)
 
-    call solve_pprts(solver, incSolar)
+    call solve_pprts(solver, &
+      & lthermal=.False., &
+      & lsolar=.True., &
+      & edirTOA=incSolar )
 
     call pprts_get_result(solver, fdn,fup,fdiv,fdir)
 
@@ -91,27 +94,4 @@ subroutine pprts_ex1()
     print *,'divE', fdiv(:, mid_idx_x, mid_idx_y)
     call destroy_pprts(solver, .True.)
 end subroutine
-
 end module
-
-
-program main
-  use m_pprts_ex1
-  integer(mpiint) :: myid, ierr
-
-  call mpi_init(ierr)
-  call mpi_comm_rank(mpi_comm_world, myid, ierr)
-
-  call pprts_ex1()
-
-  if(myid.eq.0) then
-    print *,''
-    print *,''
-    print *,'Call this example e.g. with options: -show_edir hdf5:edir.h5'
-    print *,'and plot results with python:'
-    print *,'import h5py as H; h=H.File("edir.h5","r"); edir = h["edir0"][:]'
-    print *,'imshow(edir[0,:,:,0].T,interpolation="nearest");' ! has dimension nyp,nxp,nzp,8streams
-    print *,'colorbar(); savefig("edir_x0.pdf")'
-  endif
-  call mpi_finalize(ierr)
-end program

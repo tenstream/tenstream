@@ -76,7 +76,8 @@ implicit none
       call allocate_plexrt_solver_from_commandline(solver, '5_8')
       call init_plex_rt_solver(plex, solver)
 
-      call prepare_solution(solver%plex%edir_dm, solver%plex%ediff_dm, solver%plex%abso_dm, lsolar=.True., solution=solution)
+      call prepare_solution(solver%plex%edir_dm, solver%plex%ediff_dm, solver%plex%abso_dm, &
+        & lsolar=.True., lthermal=.False., solution=solution)
 
       print *,'Testing Scalevec Direct'
       call init_and_scalevecs(solution, one, solution%edir, solution%lWm2_dir)

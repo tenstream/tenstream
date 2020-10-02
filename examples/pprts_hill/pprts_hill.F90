@@ -159,7 +159,7 @@ contains
     call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-solar", lsolar, lflg,ierr); call CHKERR(ierr)
     call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-thermal", lthermal, lflg,ierr); call CHKERR(ierr)
 
-    call allocate_pprts_solver_from_commandline(pprts_solver, '3_10')
+    call allocate_pprts_solver_from_commandline(pprts_solver, '3_10', ierr); call CHKERR(ierr)
 
     call setup_tenstr_atm(comm, .False., atm_filename, &
       pplev, ptlev, atm, &
@@ -222,6 +222,7 @@ contains
         & Ca => pprts_solver%C_one_atm, &
         & Ca1=> pprts_solver%C_one_atm1_box )
 
+
       call dump_vec(Ca%da, pprts_solver%atm%dz, 'dz')
 
       patmp (Ca1%zs:Ca1%ze, Ca1%xs:Ca1%xe, Ca1%ys:Ca1%ye) => atm%plev
@@ -258,9 +259,9 @@ contains
       call dump_vec(C1%da, eup , 'eup')
       call dump_vec(C%da , abso, 'abso')
 
-      call getVecPointer(pprts_solver%atm%hhl, Ca1%da, hhl1d, hhl)
+      call getVecPointer(Ca1%da, pprts_solver%atm%hhl, hhl1d, hhl)
       call dump_vec(Ca1%da, hhl(0,Ca1%zs:Ca1%ze,Ca1%xs:Ca1%xe,Ca1%ys:Ca1%ye), 'hhl')
-      call restoreVecPointer(pprts_solver%atm%hhl, hhl1d, hhl)
+      call restoreVecPointer(Ca1%da, pprts_solver%atm%hhl, hhl1d, hhl)
 
       if(myid.eq.0) then
         call set_global_attribute(outpath(1), 'Nx', C%glob_xm, ierr); call CHKERR(ierr)
@@ -290,7 +291,7 @@ contains
       call f90VecToPetsc(arr, dm, gvec)
       call petscGlobalVecToZero(gvec, dm, lVec)
       if(myid.eq.0) then
-        call petscVecToF90(lVec, dm, larr, opt_l_only_on_rank0=.True.)
+        call petscVecToF90(lVec, dm, larr, only_on_rank0=.True.)
 
         outpath(2) = trim(varname)
         call ncwrite(outpath, larr, ierr); call CHKERR(ierr)

@@ -70,14 +70,14 @@ build:docker:ubuntu-rolling:
 build:mim:icc:single:
   extends: .build:mim:default
   variables:
-    MODULES: "petsc/single-icc-19 localflock"
+    MODULES: "petsc/single-icc-19"
     SRUN_OPTIONS: "--time 02:00:00 --mem 8G -n 9"
     PETSC_OPTIONS: "-vecscatter_type mpi1"
 
 build:mim:icc:debug:
   extends: .build:mim:default
   variables:
-    MODULES: "petsc/single-icc-19 localflock"
+    MODULES: "petsc/single-icc-19"
     SRUN_OPTIONS: "--time 02:00:00 --mem 8G -n 9"
     PETSC_OPTIONS: "-vecscatter_type mpi1"
     BUILD_TYPE: DEBUG
@@ -87,10 +87,10 @@ build:mim:icc:debug:
 build:mim:gcc:single:
   extends: .build:mim:default
   variables:
-    MODULES: "petsc/single-gcc-9 localflock"
+    MODULES: "petsc/single-gcc-9"
 
 build:mim:gcc:debug:
   extends: .build:mim:default
   variables:
-    MODULES: "petsc/debug-gcc-9 localflock"
+    MODULES: "petsc/debug-gcc-9"
     BUILD_TYPE: DEBUG

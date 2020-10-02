@@ -165,19 +165,35 @@ contains
 
     call set_optical_properties(solver, albedo, kabs, ksca, g)
     call set_angles(solver, spherical_2_cartesian(10._ireals, theta0))
-    call solve_pprts(solver, incSolar, opt_solution_uid=10_iintegers)
+    call solve_pprts(solver, &
+      & lthermal=.False., &
+      & lsolar=.True., &
+      & edirTOA=incSolar, &
+      & opt_solution_uid=10_iintegers)
 
     call set_angles(solver, spherical_2_cartesian(190._ireals, theta0))
-    call solve_pprts(solver, incSolar, opt_solution_uid=190_iintegers)
+    call solve_pprts(solver, &
+      & lthermal=.False., &
+      & lsolar=.True., &
+      & edirTOA=incSolar, &
+      & opt_solution_uid=190_iintegers)
 
     call pprts_get_result_toZero(solver, fdn0, fup0, fdiv0, fdir0, opt_solution_uid=10_iintegers)
     call pprts_get_result_toZero(solver, fdn1, fup1, fdiv1, fdir1, opt_solution_uid=190_iintegers)
 
     call set_angles(solver, spherical_2_cartesian(100._ireals, theta0))
-    call solve_pprts(solver, incSolar, opt_solution_uid=100_iintegers)
+    call solve_pprts(solver, &
+      & lthermal=.False., &
+      & lsolar=.True., &
+      & edirTOA=incSolar, &
+      & opt_solution_uid=100_iintegers)
 
     call set_angles(solver, spherical_2_cartesian(280._ireals, theta0))
-    call solve_pprts(solver, incSolar, opt_solution_uid=280_iintegers)
+    call solve_pprts(solver, &
+      & lthermal=.False., &
+      & lsolar=.True., &
+      & edirTOA=incSolar, &
+      & opt_solution_uid=280_iintegers)
 
     call pprts_get_result_toZero(solver, fdn2, fup2, fdiv2, fdir2, opt_solution_uid=100_iintegers)
     call pprts_get_result_toZero(solver, fdn3, fup3, fdiv3, fdir3, opt_solution_uid=280_iintegers)

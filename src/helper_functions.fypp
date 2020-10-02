@@ -62,14 +62,21 @@ module m_helper_functions
     char_to_lower, char_to_upper, colored_str_by_range
 
   interface rotate_angle_x
-    module procedure rotate_angle_x_r32, rotate_angle_x_r64
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    module procedure rotate_angle_x_${dtype}$
+#:endfor
   end interface
   interface rotate_angle_y
-    module procedure rotate_angle_y_r32, rotate_angle_y_r64
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    module procedure rotate_angle_y_${dtype}$
+#:endfor
   end interface
   interface rotate_angle_z
-    module procedure rotate_angle_z_r32, rotate_angle_z_r64
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    module procedure rotate_angle_z_${dtype}$
+#:endfor
   end interface
+
   interface rmse
     module procedure rmse_r32, rmse_r64
   end interface
@@ -134,6 +141,7 @@ module m_helper_functions
     #:endfor
     #:endfor
   end interface
+
   interface imp_allreduce_mean
     module procedure imp_allreduce_mean_0d
 #:for RANK in range(1, 4)
@@ -152,9 +160,31 @@ module m_helper_functions
   interface imp_reduce_sum
     module procedure imp_reduce_sum_r32, imp_reduce_sum_r64, imp_reduce_sum_r128
   end interface
+
   interface imp_reduce_mean
-    module procedure imp_reduce_mean_1d
+#:for method,dtype,mpitype,otype in [ &
+  ('integer', 'INT32' , 'imp_int4'  , 'ireals'), &
+  ('integer', 'INT64' , 'imp_int8'  , 'ireals'), &
+  ('real'   , 'REAL32', 'imp_REAL32', 'REAL32'), &
+  ('real'   , 'REAL64', 'imp_REAL64', 'REAL64')]
+#:for RANK in range(1, 8)
+    module procedure imp_reduce_mean_${method}$_${dtype}$_${RANK}$d_${otype}$
+#:endfor
+#:endfor
   end interface
+
+  interface imp_min_mean_max
+#:for method,dtype,mpitype,otype in [ &
+  ('integer', 'INT32' , 'imp_int4'  , 'ireals'), &
+  ('integer', 'INT64' , 'imp_int8'  , 'ireals'), &
+  ('real'   , 'REAL32', 'imp_REAL32', 'REAL32'), &
+  ('real'   , 'REAL64', 'imp_REAL64', 'REAL64')]
+#:for RANK in range(0, 8)
+    module procedure imp_min_mean_max_${method}$_${dtype}$_${RANK}$d_${otype}$
+#:endfor
+#:endfor
+  end interface
+
   interface imp_bcast
 #:for method,dtype,mpitype in [ &
   ('logical', ''      , 'imp_logical'), &
@@ -171,6 +201,7 @@ module m_helper_functions
 #:endfor
 #:endfor
   end interface
+
   interface get_arg
     module procedure get_arg_logical, get_arg_i32, get_arg_i64, get_arg_real32, get_arg_real64, get_arg_char
   end interface
@@ -199,12 +230,12 @@ module m_helper_functions
         reverse_3d_real32, reverse_3d_real64, reverse_4d_real32, reverse_4d_real64
   end interface
   interface is_between
-#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+#:for dtype in ['INT32', 'INT64', 'REAL32', 'REAL64', 'REAL128']
     module procedure is_between_${dtype}$
 #:endfor
   end interface
   interface is_inrange
-#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+#:for dtype in ['INT32', 'INT64', 'REAL32', 'REAL64', 'REAL128']
     module procedure is_inrange_${dtype}$
 #:endfor
   end interface
@@ -373,14 +404,23 @@ module m_helper_functions
       x=x+i
     end subroutine
 
-#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+#:for basetype, dtype, ctype in [&
+  ('integer', 'INT32'  , 'REAL64'), &
+  ('integer', 'INT64'  , 'REAL64'), &
+  ('real'   , 'REAL32' , 'REAL64'), &
+  ('real'   , 'REAL64' , 'REAL64'), &
+  ('real'   , 'REAL128', 'REAL128')]
     pure elemental logical function is_between_${dtype}$(x,a,b) result(is_between)
-      real(${dtype}$), intent(in) :: x,a,b
-      is_between = (x-a) * (x-b) .lt. 0
+      ${basetype}$ (${dtype}$), intent(in) :: x,a,b
+      real(${ctype}$) :: r
+      r = real(x-a, kind(r)) * real(x-b, kind(r))
+      is_between = r .lt. 0._${ctype}$
     end function
     pure elemental logical function is_inrange_${dtype}$(x,a,b) result(is_between)
-      real(${dtype}$), intent(in) :: x,a,b
-      is_between = (x-a) * (x-b) .le. 0
+      ${basetype}$ (${dtype}$), intent(in) :: x,a,b
+      real(${ctype}$) :: r
+      r = real(x-a, kind(r)) * real(x-b, kind(r))
+      is_between = r .le. 0._${ctype}$
     end function
 #:endfor
 
@@ -1033,17 +1073,21 @@ module m_helper_functions
       !     lor  = mpi_logical_or (comm, lval)
       !     lsame = land.eqv.lor
       ! however, it is better cast to it to int and do a sum reduction, otherwise we need 2 logical reductions
-      if(lval) then
-        i = 1
+      call mpi_comm_size(comm, commsize, ierr); call CHKERR(ierr)
+      if(commsize.gt.1_mpiint) then
+        if(lval) then
+          i = 1
+        else
+          i = 0
+        endif
+        call imp_allreduce_sum(comm, i, isum)
+        if(lval) then
+          lsame = isum.eq.commsize
+        else
+          lsame = isum.eq.0
+        endif
       else
-        i = 0
-      endif
-      call imp_allreduce_sum(comm, i, isum)
-      if(lval) then
-        call MPI_Comm_size( comm, commsize, ierr); call CHKERR(ierr)
-        lsame = isum.eq.commsize
-      else
-        lsame = isum.eq.0
+        lsame = .True.
       endif
     end function
 
@@ -1107,6 +1151,7 @@ module m_helper_functions
       call imp_allreduce_sum(comm, v, r)
       r = r / real(numnodes, kind(r))
     end subroutine
+
 #:for RANK in range(1, 4)
     subroutine imp_allreduce_mean_${RANK}$d(comm,v,r)
       integer(mpiint),intent(in) :: comm
@@ -1165,12 +1210,20 @@ module m_helper_functions
       call imp_reduce_sum(comm, r)
       v = real(r, kind(v))
     end subroutine
-    subroutine imp_reduce_mean_1d(comm,v,r,root)
+
+#:for method,dtype,mpitype,otype in [ &
+  ('integer', 'INT32' , 'imp_int4'  , 'ireals'), &
+  ('integer', 'INT64' , 'imp_int8'  , 'ireals'), &
+  ('real'   , 'REAL32', 'imp_REAL32', 'REAL32'), &
+  ('real'   , 'REAL64', 'imp_REAL64', 'REAL64')]
+#:for RANK in range(1, 8)
+    subroutine imp_reduce_mean_${method}$_${dtype}$_${RANK}$d_${otype}$(comm,v,r,root)
       integer(mpiint),intent(in) :: comm
-      real(ireals),intent(in) :: v(:)
-      real(ireals),intent(out) :: r
+      ${method}$(${dtype}$),intent(in) :: v${ranksuffix(RANK)}$
+      real(${otype}$),intent(out) :: r
       integer(mpiint), intent(in), optional :: root
-      real(ireals) :: my_avg
+
+      real(${otype}$) :: my_avg
       integer(INT64)  :: global_size
       integer(mpiint) ::trgt, ierr, myid
 
@@ -1181,22 +1234,43 @@ module m_helper_functions
       endif
 
       my_avg = meanval(v) * size(v)
-      call mpi_reduce(my_avg, r, 1_mpiint, imp_ireals, MPI_SUM, trgt, comm, ierr); call CHKERR(ierr)
+      call mpi_reduce(my_avg, r, 1_mpiint, ${mpitype}$, MPI_SUM, trgt, comm, ierr); call CHKERR(ierr)
 
       call mpi_reduce(size(v, kind=INT64), global_size, 1_mpiint, imp_int8, MPI_SUM, trgt, comm, ierr); call CHKERR(ierr)
       call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
       if(myid.eq.trgt) r = r / real(global_size, kind(r))
     end subroutine
+#:endfor
+#:endfor
 
-    subroutine imp_min_mean_max(comm, arr, mmm)
+#:for method,cast,dtype,mpitype,otype in [ &
+  ('integer', 'int' , 'INT32' , 'imp_int4'  , 'ireals'), &
+  ('integer', 'int' , 'INT64' , 'imp_int8'  , 'ireals'), &
+  ('real'   , 'real', 'REAL32', 'imp_REAL32', 'REAL32'), &
+  ('real'   , 'real', 'REAL64', 'imp_REAL64', 'REAL64')]
+#:for RANK in range(0, 8)
+    subroutine imp_min_mean_max_${method}$_${dtype}$_${RANK}$d_${otype}$(comm, arr, mmm)
       integer(mpiint), intent(in) :: comm
-      real(ireals), intent(in) :: arr(:)
-      real(ireals), intent(out) :: mmm(:)
+      ${method}$(${dtype}$), intent(in) :: arr${ranksuffix(RANK)}$
+      real(${otype}$), intent(out) :: mmm(:)
+#:if RANK==0
+      mmm = real(arr, kind=${otype}$)
+      if(.False.) then
+        if(comm.lt.0) continue ! unused var
+      endif
+#:else
+      ${method}$(${otype}$) :: vmin, vmax
       integer(mpiint) :: ierr
-      call mpi_reduce(minval(arr), mmm(1), 1_mpiint, imp_ireals, MPI_MIN, 0_mpiint, comm, ierr); call CHKERR(ierr)
+
+      vmin = ${cast}$(minval(arr), kind(vmin))
+      vmax = ${cast}$(maxval(arr), kind(vmax))
+      call mpi_reduce(vmin, mmm(1), 1_mpiint, ${mpitype}$, MPI_MIN, 0_mpiint, comm, ierr); call CHKERR(ierr)
       call imp_reduce_mean(comm, arr, mmm(2))
-      call mpi_reduce(maxval(arr), mmm(3), 1_mpiint, imp_ireals, MPI_MAX, 0_mpiint, comm, ierr); call CHKERR(ierr)
+      call mpi_reduce(vmax, mmm(3), 1_mpiint, ${mpitype}$, MPI_MAX, 0_mpiint, comm, ierr); call CHKERR(ierr)
+#:endif
     end subroutine
+#:endfor
+#:endfor
 
     subroutine imp_allgather_int_inplace(comm,v)
       integer(mpiint),intent(in) :: comm
@@ -1934,90 +2008,48 @@ module m_helper_functions
       distance_to_edge = abs( (p2(2)-p1(2))*p(1) - (p2(1)-p1(1))*p(2) + p2(1)*p1(2) - p2(2)*p1(1) ) / norm2(p2-p1)
     end function
 
-      pure function rotate_angle_x_r32(v,angle) result(rotate_angle_x)
-        ! left hand rule
-        real(REAL32) :: rotate_angle_x(3)
-        real(REAL32),intent(in) :: v(3), angle
-        real(REAL32) :: M(3,3),s,c
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+      !> @brief: rotate vector around given axis by angle [deg] with left hand rule
+      pure function rotate_angle_x_${dtype}$(v,angle) result(rotated)
+        real(${dtype}$) :: rotated(3)
+        real(${dtype}$),intent(in) :: v(3), angle
+        real(${dtype}$) :: M(3,3),s,c
         s=sin(deg2rad(angle))
         c=cos(deg2rad(angle))
 
-        M(1,:)=[1._REAL32 ,0._REAL32 ,0._REAL32]
-        M(2,:)=[0._REAL32, c   , s  ]
-        M(3,:)=[0._REAL32,-s   , c  ]
+        M(1,:)=[1._${dtype}$ ,0._${dtype}$ ,0._${dtype}$]
+        M(2,:)=[0._${dtype}$, c   , s  ]
+        M(3,:)=[0._${dtype}$,-s   , c  ]
 
-        rotate_angle_x = matmul(M,v)
+        rotated = matmul(M,v)
       end function
-      pure function rotate_angle_x_r64(v,angle) result(rotate_angle_x)
-        ! left hand rule
-        real(REAL64) :: rotate_angle_x(3)
-        real(REAL64),intent(in) :: v(3), angle
-        real(REAL64) :: M(3,3),s,c
+      pure function rotate_angle_y_${dtype}$(v,angle) result(rotated)
+        real(${dtype}$) :: rotated(3)
+        real(${dtype}$),intent(in) :: v(3), angle
+        real(${dtype}$) :: M(3,3),s,c
         s=sin(deg2rad(angle))
         c=cos(deg2rad(angle))
 
-        M(1,:)=[1._REAL64 ,0._REAL64 ,0._REAL64]
-        M(2,:)=[0._REAL64, c   , s  ]
-        M(3,:)=[0._REAL64,-s   , c  ]
+        M(1,:)=[c        , 0._${dtype}$, -s       ]
+        M(2,:)=[0._${dtype}$, 1._${dtype}$, 0._${dtype}$]
+        M(3,:)=[s        , 0._${dtype}$, c        ]
 
-        rotate_angle_x = matmul(M,v)
+        rotated = matmul(M,v)
       end function
-      pure function rotate_angle_y_r32(v,angle) result(rotate_angle_y)
-        ! left hand rule
-        real(REAL32) :: rotate_angle_y(3)
-        real(REAL32),intent(in) :: v(3), angle
-        real(REAL32) :: M(3,3),s,c
+      pure function rotate_angle_z_${dtype}$(v,angle) result(rotated)
+        real(${dtype}$) :: rotated(3)
+        real(${dtype}$),intent(in) :: v(3), angle
+        real(${dtype}$) :: M(3,3),s,c
         s=sin(deg2rad(angle))
         c=cos(deg2rad(angle))
 
-        M(1,:)=[ c  ,0._REAL32 , -s ]
-        M(2,:)=[0._REAL32, 1._REAL32 ,0._REAL32]
-        M(3,:)=[ s  , 0._REAL32, c  ]
+        M(1,:)=[ c  , s   ,0._${dtype}$]
+        M(2,:)=[-s  , c   ,0._${dtype}$]
+        M(3,:)=[0._${dtype}$, 0._${dtype}$, 1._${dtype}$]
 
-        rotate_angle_y = matmul(M,v)
+        rotated = matmul(M,v)
       end function
-      pure function rotate_angle_y_r64(v,angle) result(rotate_angle_y)
-        ! left hand rule
-        real(REAL64) :: rotate_angle_y(3)
-        real(REAL64),intent(in) :: v(3), angle
-        real(REAL64) :: M(3,3),s,c
-        s=sin(deg2rad(angle))
-        c=cos(deg2rad(angle))
-
-        M(1,:)=[ c  ,0._REAL64 , -s ]
-        M(2,:)=[0._REAL64, 1._REAL64 ,0._REAL64]
-        M(3,:)=[ s  , 0._REAL64, c  ]
-
-        rotate_angle_y = matmul(M,v)
-      end function
-      pure function rotate_angle_z_r32(v,angle) result(rotate_angle_z)
-        ! left hand rule
-        real(REAL32) :: rotate_angle_z(3)
-        real(REAL32),intent(in) :: v(3), angle
-        real(REAL32) :: M(3,3),s,c
-        s=sin(deg2rad(angle))
-        c=cos(deg2rad(angle))
-
-        M(1,:)=[ c  , s   ,0._REAL32]
-        M(2,:)=[-s  , c   ,0._REAL32]
-        M(3,:)=[0._REAL32, 0._REAL32, 1._REAL32]
-
-        rotate_angle_z = matmul(M,v)
-      end function
-      pure function rotate_angle_z_r64(v,angle) result(rotate_angle_z)
-        ! left hand rule
-        real(REAL64) :: rotate_angle_z(3)
-        real(REAL64),intent(in) :: v(3), angle
-        real(REAL64) :: M(3,3),s,c
-        s=sin(deg2rad(angle))
-        c=cos(deg2rad(angle))
-
-        M(1,:)=[ c  , s   ,0._REAL64]
-        M(2,:)=[-s  , c   ,0._REAL64]
-        M(3,:)=[0._REAL64, 0._REAL64, 1._REAL64]
-
-        rotate_angle_z = matmul(M,v)
-      end function
+#:endfor
 
     ! https://en.wikipedia.org/wiki/Rotation_matrix#General_rotations
     pure function rotation_matrix_around_axis_vec(angle, rot_axis) result(M)
@@ -2205,28 +2237,43 @@ module m_helper_functions
     ! @brief: map from the flattened numbering to the coefficients in Ndims
     ! This is something like numpy.unravel
     ! offset could usually look like [1, size(arr, dim=1), size(arr, dim=1)*size(arr, dim=2), ...]
-    pure subroutine ind_1d_to_nd(offsets, ind, nd_indices)
+    pure subroutine ind_1d_to_nd(offsets, ind, nd_indices, cstyle)
       integer(iintegers), intent(in) :: offsets(:)
       integer(iintegers), intent(in) :: ind
       integer(iintegers), intent(out) :: nd_indices(size(offsets))
+      logical, intent(in), optional :: cstyle
       integer(iintegers) :: k
 
-      k = ubound(nd_indices,1) ! last dimension
-      nd_indices(k) = (ind-1) / offsets(k) +1
+      if(get_arg(.False., cstyle)) then
+        k = ubound(nd_indices,1) ! last dimension
+        nd_indices(k) = ind / offsets(k)
 
-      do k=ubound(offsets,1)-1, lbound(offsets,1), -1
-        nd_indices(k) = modulo(ind-1, offsets(k+1)) / offsets(k) +1
-      enddo
+        do k=ubound(offsets,1)-1, lbound(offsets,1), -1
+          nd_indices(k) = modulo(ind, offsets(k+1)) / offsets(k)
+        enddo
+      else
+        k = ubound(nd_indices,1) ! last dimension
+        nd_indices(k) = (ind-1) / offsets(k) +1
+
+        do k=ubound(offsets,1)-1, lbound(offsets,1), -1
+          nd_indices(k) = modulo(ind-1, offsets(k+1)) / offsets(k) +1
+        enddo
+      endif
     end subroutine
 
     ! @brief: map indices in N-dimensions to a flattened array
     ! This is something like numpy.ravel
     ! offset could usually look like [1, size(arr, dim=1), size(arr, dim=1)*size(arr, dim=2), ...]
-    pure function ind_nd_to_1d(offsets, nd_indices) result (i1d)
+    pure function ind_nd_to_1d(offsets, nd_indices, cstyle) result (i1d)
       integer(iintegers), intent(in) :: offsets(:)
       integer(iintegers), intent(in) :: nd_indices(:)
+      logical, intent(in), optional :: cstyle
       integer(iintegers) :: i1d
-      i1d = dot_product(nd_indices(:)-1, offsets) +1
+      if(get_arg(.False., cstyle)) then
+        i1d = dot_product(nd_indices(:), offsets)
+      else
+        i1d = dot_product(nd_indices(:)-1, offsets) +1
+      endif
     end function
 
     pure subroutine ndarray_offsets(arrshape, offsets)
