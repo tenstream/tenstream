@@ -56,6 +56,7 @@ module m_f2c_rayli
         Nthreads, &
         img_Nx, img_Ny, &
         Nphotons, Nwedges, Nfaces, Nverts, &
+        cyclic, &
         verts_of_face, faces_of_wedges, vert_coords, &
         kabs, ksca, g, albedo_on_faces, &
         sundir, &
@@ -69,6 +70,7 @@ module m_f2c_rayli
       integer(c_size_t), value :: Nwedges
       integer(c_size_t), value :: Nfaces
       integer(c_size_t), value :: Nverts
+      integer(c_int),    value :: cyclic
       integer(c_size_t) :: verts_of_face(1:4,1:Nfaces)
       integer(c_size_t) :: faces_of_wedges(1:5,1:Nfaces)
       real(c_double) :: vert_coords(1:3,1:Nverts)
@@ -125,6 +127,7 @@ contains
         Nthreads, &
         img_Nx, img_Ny, &
         Nphotons, Nwedges, Nfaces, Nverts, &
+        cyclic, &
         verts_of_face, faces_of_wedges, vert_coords, &
         kabs, ksca, g, sundir, &
         albedo_on_faces, &
@@ -137,6 +140,7 @@ contains
       integer(c_size_t), value :: Nwedges
       integer(c_size_t), value :: Nfaces
       integer(c_size_t), value :: Nverts
+      integer(c_int),    value :: cyclic
       integer(c_size_t) :: verts_of_face(1:4,1:Nfaces)
       integer(c_size_t) :: faces_of_wedges(1:5,1:Nfaces)
       real(c_double) :: vert_coords(1:3,1:Nverts)

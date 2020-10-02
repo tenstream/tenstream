@@ -389,7 +389,7 @@ module m_plex2rayli
     if(lcall_snapshot) then
       call take_snap(comm, &
         & Nthreads, nr_photons, &
-        & Nwedges, Nfaces, Nverts, &
+        & Nwedges, Nfaces, Nverts, icyclic, &
         & verts_of_face, faces_of_wedges, vert_coords, &
         & rkabs, rksca, rg, &
         & ralbedo_on_faces, &
@@ -558,7 +558,7 @@ module m_plex2rayli
 
     subroutine take_snap(comm, &
         & Nthreads, nr_photons, &
-        & Nwedges, Nfaces, Nverts, &
+        & Nwedges, Nfaces, Nverts, icyclic, &
         & verts_of_face, faces_of_wedges, vert_coords, &
         & rkabs, rksca, rg, &
         & ralbedo_on_faces, &
@@ -567,6 +567,7 @@ module m_plex2rayli
       integer(mpiint),   intent(in) :: comm
       integer(iintegers),intent(in) :: nr_photons
       integer(c_size_t), intent(in) :: Nthreads, Nwedges, Nfaces, Nverts
+      integer(c_int),    intent(in) :: icyclic
       integer(c_size_t), intent(in) :: verts_of_face(:,:)
       integer(c_size_t), intent(in) :: faces_of_wedges(:,:)
       real(c_double),    intent(in) :: vert_coords(:,:)
@@ -577,10 +578,11 @@ module m_plex2rayli
       integer(mpiint), intent(out) :: ierr
 
       character(len=default_str_len) :: snap_path, groups(2)
-      logical :: lflg
+      logical :: lcyclic, lflg
       real(ireals) :: opt_photons
       integer(c_size_t) :: opt_photons_int
       integer(c_size_t) :: Nx=400, Ny=300
+      integer(c_int) :: isnap_cyclic
       real(c_float), allocatable :: img(:,:)
       real(c_float) :: cam_loc(3), cam_viewing_dir(3), cam_up_vec(3)
       real(c_float) :: fov_width, fov_height
@@ -597,6 +599,18 @@ module m_plex2rayli
         "-rayli_snapshot", snap_path, lflg,ierr) ; call CHKERR(ierr)
       if(len_trim(snap_path).eq.0) snap_path = 'rayli_snaphots.nc'
       if(myid.eq.0) print *,'Capturing scene to file: '//trim(snap_path), len_trim(snap_path)
+
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+        '-rayli_snap_cyclic_bc', lcyclic, lflg, ierr); call CHKERR(ierr)
+      if(lflg) then
+        if(lcyclic) then
+          isnap_cyclic = 1
+        else
+          isnap_cyclic = 0
+        endif
+      else
+        isnap_cyclic = icyclic
+      endif
 
       Nx = 400
       call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,&
@@ -660,6 +674,7 @@ module m_plex2rayli
         & Nthreads, &
         & Nx, Ny, &
         & opt_photons_int, Nwedges, Nfaces, Nverts, &
+        & isnap_cyclic, &
         & verts_of_face, faces_of_wedges, vert_coords, &
         & rkabs, rksca, rg, &
         & ralbedo_on_faces, &
