@@ -157,7 +157,7 @@ contains
         " try to export RAYLI_DIR=<rayli-root>/build/package")
 
       if(.False.) then ! unused var warnings
-        img(1,1) = real(Nphotons+Nwedges+Nfaces+Nverts+verts_of_face(1,1)+faces_of_wedges(1,1), c_float)
+        img(1,1) = real(Nphotons+Nwedges+Nfaces+Nverts+cyclic+verts_of_face(1,1)+faces_of_wedges(1,1), c_float)
         img(2,1) = real(vert_coords(1,1), c_float) + kabs(1) + ksca(1) + g(1) + sundir(1) + albedo_on_faces(1)
         img(3,1) = cam_location(1) + cam_viewing_dir(1) + cam_up_vec(1) + fov_width + fov_height
         img(4,1) = real(Nthreads+img_Nx+img_Ny, c_float)
