@@ -126,6 +126,9 @@ contains
     real(ireals), pointer :: coords(:)
     integer(iintegers) :: i, k, vStart, vEnd, ivert, coord_offset
 
+    AO :: dmda_ao
+    type(tIS) :: is_in, is_out
+
     type(tDM) :: dm2d, dm2d_dist, dm3d
     integer(iintegers), allocatable :: zindex(:)
 
@@ -158,7 +161,14 @@ contains
     endif
 
     call VecCreateSeq(PETSC_COMM_SELF, Nhhl, hhl, ierr); call CHKERR(ierr)
-    call gen_shared_scatter_ctx(vertex_hhl, hhl, rayli_info%ctx_hhl, ierr); call CHKERR(ierr)
+
+    call ISCreateStride(PETSC_COMM_SELF, Nhhl, 0_iintegers, 1_iintegers, is_in, ierr); call CHKERR(ierr)
+    call ISCreateStride(PETSC_COMM_SELF, Nhhl, 0_iintegers, 1_iintegers, is_out, ierr); call CHKERR(ierr)
+
+    call DMDAGetAO(solver%Cvert_one_atm1%da, dmda_ao, ierr); call CHKERR(ierr)
+    call AOApplicationToPetscIS(dmda_ao, is_in, ierr); call CHKERR(ierr)
+
+    call gen_shared_scatter_ctx(vertex_hhl, hhl, rayli_info%ctx_hhl, ierr, is_in, is_out); call CHKERR(ierr)
     call VecScatterBegin(rayli_info%ctx_hhl, vertex_hhl, hhl, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
     call VecScatterEnd  (rayli_info%ctx_hhl, vertex_hhl, hhl, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
 
@@ -277,6 +287,7 @@ contains
 
     subroutine setup_albedo_scatter_context()
       integer(iintegers) :: Nalbedo, i, k
+      AO :: dmda_ao
       type(tIS) :: is_in, is_out
       integer(iintegers), allocatable :: is_data(:)
 
@@ -290,6 +301,10 @@ contains
       allocate(is_data(Nalbedo*i2), source=(/(i/i2, i=i0,Nalbedo*i2-i1)/))
       call ISCreateGeneral(PETSC_COMM_SELF, Nalbedo*i2, is_data, PETSC_USE_POINTER, is_in, ierr); call CHKERR(ierr)
       call ISCreateStride(PETSC_COMM_SELF, Nalbedo*i2, 0_iintegers, 1_iintegers, is_out, ierr); call CHKERR(ierr)
+
+      call DMDAGetAO(solver%Csrfc_one%da, dmda_ao, ierr); call CHKERR(ierr)
+      call AOApplicationToPetscIS(dmda_ao, is_in, ierr); call CHKERR(ierr)
+
       call gen_shared_scatter_ctx(vec_albedo, rayli_info%albedo, rayli_info%ctx_albedo, ierr, &
         & is_in, is_out); call CHKERR(ierr)
       call ISDestroy(is_out, ierr); call CHKERR(ierr)
@@ -318,6 +333,10 @@ contains
       endif
       call ISCreateGeneral(PETSC_COMM_SELF, Noptprop*i2, is_data, PETSC_USE_POINTER, is_in, ierr); call CHKERR(ierr)
       call ISCreateStride(PETSC_COMM_SELF, Noptprop*i2, 0_iintegers, 1_iintegers, is_out, ierr); call CHKERR(ierr)
+
+      call DMDAGetAO(solver%C_one_atm%da, dmda_ao, ierr); call CHKERR(ierr)
+      call AOApplicationToPetscIS(dmda_ao, is_in, ierr); call CHKERR(ierr)
+
       call gen_shared_scatter_ctx(vec_optprop, rayli_info%kabs, rayli_info%ctx_optprop, ierr, &
         & is_in, is_out); call CHKERR(ierr)
       call ISDestroy(is_out, ierr); call CHKERR(ierr)
