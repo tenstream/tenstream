@@ -87,6 +87,7 @@ contains
     class is (t_optprop_ANN_3_10)
       ANN%dir_streams  = 3
       ANN%diff_streams = 10
+      !call set_op_param_space(ANN, 'LUT_3_10_for_ANN', ierr); call CHKERR(ierr)
       call set_op_param_space(ANN, 'LUT_3_10', ierr); call CHKERR(ierr)
 
     class default
@@ -94,8 +95,8 @@ contains
     end select
 
     ANN%basename = &
-      & trim(lut_basename)//&
-      & trim(gen_ann_basename("_ANN_", ANN%dirconfig))
+      & trim(lut_basename)!//&
+      !& trim(gen_ann_basename("_ANN_", ANN%dirconfig))
 
     print *,'Init ANN for basename: ', trim(ANN%basename)
     print *,'ANN dirconfig'
@@ -104,14 +105,20 @@ contains
     call print_op_config(ANN%diffconfig)
 
     allocate(ANN%ann_dir2dir)
-    ANN%ann_dir2dir%fname = trim(ANN%basename)//"_dir2dir_"//toStr(ANN%dir_streams)//'.nc'
+    ANN%ann_dir2dir%fname = trim(ANN%basename)//"_dir2dir"//&
+      & trim(gen_ann_basename("_ANN_", ANN%dirconfig))//&
+      & '.c'//toStr(ANN%dir_streams)//'.nc'
 
     allocate(ANN%ann_dir2diff)
-    ANN%ann_dir2diff%fname = trim(ANN%basename)//"_dir2diff_"//toStr(ANN%dir_streams)// &
+    ANN%ann_dir2diff%fname = trim(ANN%basename)//"_dir2diff"//&
+      & trim(gen_ann_basename("_ANN_", ANN%dirconfig))//&
+      & ".c"//toStr(ANN%dir_streams)// &
       & "_"//toStr(ANN%diff_streams)//'.nc'
 
     allocate(ANN%ann_diff2diff)
-    ANN%ann_diff2diff%fname = trim(ANN%basename)//"_diff2diff_"//toStr(ANN%diff_streams)//'.nc'
+    ANN%ann_diff2diff%fname = trim(ANN%basename)//"_diff2diff"//&
+      & trim(gen_ann_basename("_ANN_", ANN%diffconfig))//&
+      & ".c"//toStr(ANN%diff_streams)//'.nc'
 
     call ANN_load(comm, ANN%ann_dir2dir, ierr); call CHKERR(ierr)
     call ANN_load(comm, ANN%ann_dir2diff, ierr); call CHKERR(ierr)
