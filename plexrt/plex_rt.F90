@@ -8,7 +8,7 @@ module m_plex_rt
   use m_helper_functions, only: CHKERR, CHKWARN, determine_normal_direction, &
     angle_between_two_vec, rad2deg, deg2rad, strF2C, get_arg, meanval, &
     vec_proj_on_plane, cross_3d, rotation_matrix_world_to_local_basis, &
-    approx, swap, delta_scale, delta_scale_optprop, itoa, ftoa, cstr, &
+    approx, swap, delta_scale, delta_scale_optprop, toStr, cstr, &
     imp_reduce_mean, imp_min_mean_max, rotation_matrix_around_axis_vec, &
     mpi_logical_all_same
 
@@ -209,10 +209,10 @@ module m_plex_rt
           call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
           if(myid.eq.0) print *,'*        k  '// &
-            '                       '//cstr(' dz (min/mean/max)', 'blue')//'                      '// &
-            '                       '//cstr(' volume           ', 'red' )//'                      '// &
-            '                       '//cstr(' cell_top_area    ', 'blue')//'                      '// &
-            '                       '//cstr(' cell_bot_area    ', 'red')
+            '                '//cstr(' dz (min/mean/max)', 'blue')//'                   '// &
+            '                '//cstr(' volume           ', 'red' )//'                   '// &
+            '                '//cstr(' cell_top_area    ', 'blue')//'                   '// &
+            '                '//cstr(' cell_bot_area    ', 'red')
 
           do k = 1, size(dz,dim=1)
             call imp_min_mean_max(comm, dz      (k,:), mdz      )
@@ -221,8 +221,8 @@ module m_plex_rt
             call imp_min_mean_max(comm, bot_area(k,:), mbot_area)
 
             if(myid.eq.0) then
-              print *,k, cstr(ftoa(mdz), 'blue'), cstr(ftoa(mvol), 'red'), &
-                cstr(ftoa(mtop_area), 'blue'), cstr(ftoa(mbot_area), 'red')
+              print *,k, cstr(toStr(mdz), 'blue'), cstr(toStr(mvol), 'red'), &
+                cstr(toStr(mtop_area), 'blue'), cstr(toStr(mbot_area), 'red')
             endif
           enddo
         end subroutine
@@ -507,7 +507,7 @@ module m_plex_rt
       deallocate(idx)
       if(ldebug) then
         call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
-        if(myid.eq.0) print *,'IS_diff_in_out_dof blocksize = '//itoa(bs)
+        if(myid.eq.0) print *,'IS_diff_in_out_dof blocksize = '//toStr(bs)
       endif
     end subroutine
 
@@ -558,7 +558,7 @@ module m_plex_rt
         & solver%g, &
         & solver%albedo, &
         & plck=solver%plck, &
-        & postfix='_'//itoa(suid))
+        & postfix='_'//toStr(suid))
 
       call print_optical_properties_summary(solver%plex%comm, solver%plex%Nlay, &
         solver%kabs, solver%ksca, solver%g, solver%albedo, solver%plck)
@@ -663,10 +663,10 @@ module m_plex_rt
               call mpi_reduce(sundir(k), minmax(1), 1_mpiint, imp_ireals, MPI_MIN, 0_mpiint, comm, ierr); call CHKERR(ierr)
               call mpi_reduce(sundir(k), minmax(2), 1_mpiint, imp_ireals, MPI_MAX, 0_mpiint, comm, ierr); call CHKERR(ierr)
               if(myid.eq.0 .and. .not.approx(minmax(1), minmax(2), zero)) then
-                call CHKERR(1_mpiint, 'run_plex_rt_solver::sundir('//itoa(k)//')'// &
+                call CHKERR(1_mpiint, 'run_plex_rt_solver::sundir('//toStr(k)//')'// &
                                       ' is not the same on all processes!'// &
-                                      ' min/max: '//ftoa(minmax)// &
-                                      ' sundir @rank0 '//ftoa(sundir) )
+                                      ' min/max: '//toStr(minmax)// &
+                                      ' sundir @rank0 '//toStr(sundir) )
               endif
             enddo
           endif
@@ -786,7 +786,7 @@ module m_plex_rt
       call create_ediff_mat(solver, solver%plex, solver%OPP, &
         solver%kabs, solver%ksca, solver%g, solver%albedo, solver%Mdiff)
       call PetscObjectViewFromOptions(solver%Mdiff, PETSC_NULL_MAT, &
-        '-show_Mediff_'//itoa(solution%uid), ierr); call CHKERR(ierr)
+        '-show_Mediff_'//toStr(solution%uid), ierr); call CHKERR(ierr)
 
       if(solution%lsolar_rad) then
         call setup_ksp (&
@@ -920,15 +920,15 @@ module m_plex_rt
 
       if(allocated(plck)) then
         if(myid.eq.0) print *,'*        k  '// &
-          '                                '//cstr('kabs(min/mean/max)', 'blue')//'                            '// &
-          '                                '//cstr('ksca              ', 'red' )//'                            '// &
-          '                                '//cstr('g                 ', 'blue')//'                            '// &
-          '                                '//cstr('plck              ', 'red')
+          '                '//cstr('kabs(min/mean/max)', 'blue')//'                       '// &
+          '                '//cstr('ksca              ', 'red' )//'                       '// &
+          '                '//cstr('g                 ', 'blue')//'                       '// &
+          '                '//cstr('plck              ', 'red')
       else
         if(myid.eq.0) print *,'*        k  '// &
-          '                                '//cstr('kabs(min/mean/max)', 'blue')//'                            '// &
-          '                                '//cstr('ksca              ', 'red' )//'                            '// &
-          '                                '//cstr('g                 ', 'blue')
+          '                '//cstr('kabs(min/mean/max)', 'blue')//'                       '// &
+          '                '//cstr('ksca              ', 'red' )//'                       '// &
+          '                '//cstr('g                 ', 'blue')
       endif
       if(myid.eq.0) print *,cstr('---------------------------------------------------------------------------------------', 'blue')
       do k=1,Nlay
@@ -937,14 +937,18 @@ module m_plex_rt
         if(allocated(g   )) call imp_min_mean_max(comm, xxg   (k,:), mg   )
         if(allocated(plck)) call imp_min_mean_max(comm, xxplck(k,:), mplck)
         if(allocated(plck)) then
-          if(myid.eq.0) print *,k,cstr(ftoa(mkabs),'blue'), cstr(ftoa(mksca),'red'), cstr(ftoa(mg),'blue'), cstr(ftoa(mplck),'red')
+          if(myid.eq.0) print *,k,&
+            & cstr(toStr(mkabs),'blue'), &
+            & cstr(toStr(mksca),'red'), &
+            & cstr(toStr(mg),'blue'), &
+            & cstr(toStr(mplck),'red')
         else
-          if(myid.eq.0) print *,k,cstr(ftoa(mkabs),'blue'), cstr(ftoa(mksca),'red'), cstr(ftoa(mg),'blue')
+          if(myid.eq.0) print *,k,cstr(toStr(mkabs),'blue'), cstr(toStr(mksca),'red'), cstr(toStr(mg),'blue')
         endif
       enddo
       if(myid.eq.0) print *,cstr('---------------------------------------------------------------------------------------', 'blue')
       if(allocated(albedo)) call imp_min_mean_max(comm, xxalbedo(i1,:), malbedo)
-      if(myid.eq.0) print *,cstr('Surface Albedo (min,mean,max) '//ftoa(malbedo), 'blue')
+      if(myid.eq.0) print *,cstr('Surface Albedo (min,mean,max) '//toStr(malbedo), 'blue')
 
       call restore_col_vec(albedo, xalbedo, xxalbedo)
       call restore_col_vec(kabs  , xkabs  , xxkabs  )
@@ -961,9 +965,9 @@ module m_plex_rt
           call VecGetLocalSize(vec, vecsize, ierr); call CHKERR(ierr)
           Ncol = vecsize / N
           call CHKERR(int(Ncol*N-vecsize, mpiint), 'stride size of vec not as expected. '//new_line('')// &
-            'Given stride size '//itoa(N)//new_line('')// &
-            'Local vector size '//itoa(vecsize)//new_line('')// &
-            'expected number of columns/strides '//itoa(Ncol)//' would result in '//itoa(Ncol*N)//'entries')
+            'Given stride size '//toStr(N)//new_line('')// &
+            'Local vector size '//toStr(vecsize)//new_line('')// &
+            'expected number of columns/strides '//toStr(Ncol)//' would result in '//toStr(Ncol*N)//'entries')
 
           call VecGetArrayF90(vec, xv, ierr); call CHKERR(ierr)
           xxv(1:N, 1:Ncol) => xv(:)
@@ -1405,8 +1409,8 @@ module m_plex_rt
                   incsol = xedir(i1+icol)
 
                   associate( dir2diff => coeff(bmcsrcdof:size(coeff):solver%dirdof) ) ! dir2diff in src ordering
-                    !print *,'icell '//itoa(icell)//' in_dof '//itoa(in_dof)//' bmsrc '//itoa(bmcsrcdof)// &
-                    !  'dir2diff', dir2diff, ':', cstr(ftoa(sum(dir2diff)), 'green')
+                    !print *,'icell '//toStr(icell)//' in_dof '//toStr(in_dof)//' bmsrc '//toStr(bmcsrcdof)// &
+                    !  'dir2diff', dir2diff, ':', cstr(toStr(sum(dir2diff)), 'green')
 
                     do idst = 1, size(outgoing_offsets)
                       !if(dir2diff(diff_plex2bmc(idst)).gt.zero) then
@@ -1423,15 +1427,15 @@ module m_plex_rt
                         area_top = geoms(i1+geom_offset)
 
                         print *,cstr('Setting diffsrc for ', 'blue')// &
-                          ' icell '//itoa(icell)//&
-                          ' dst '//itoa(outgoing_offsets(idst))//&
-                          ' src-face '//itoa(isrc_side)//' edir_off '//itoa(icol)// &
-                          ' edir='//ftoa(incsol/area_top)//  &
-                          ' * idst ('//itoa(idst)//')'// &
-                          ' p2bmc '//itoa(diff_plex2bmc(idst))// &
-                          ' coeff:'//ftoa(dir2diff(diff_plex2bmc(idst)))// &
-                          ' xb '//ftoa(xb(i1+outgoing_offsets(idst))/area_top)// &
-                          ' ('//ftoa(xb(i1+outgoing_offsets(idst)))//')'
+                          ' icell '//toStr(icell)//&
+                          ' dst '//toStr(outgoing_offsets(idst))//&
+                          ' src-face '//toStr(isrc_side)//' edir_off '//toStr(icol)// &
+                          ' edir='//toStr(incsol/area_top)//  &
+                          ' * idst ('//toStr(idst)//')'// &
+                          ' p2bmc '//toStr(diff_plex2bmc(idst))// &
+                          ' coeff:'//toStr(dir2diff(diff_plex2bmc(idst)))// &
+                          ' xb '//toStr(xb(i1+outgoing_offsets(idst))/area_top)// &
+                          ' ('//toStr(xb(i1+outgoing_offsets(idst)))//')'
                       endif
 
                     enddo ! outgoing_offsets
@@ -1442,11 +1446,11 @@ module m_plex_rt
               if(.not.approx(sumcoeff, sum(coeff), sqrt(epsilon(coeff)) )) then
                 print *,'faces_of_cell', faces_of_cell, ' lsrc? ', lsrc
                 do isrc=1,solver%dirdof
-                  call CHKWARN(1_mpiint, 'dir2diff src '//itoa(isrc)//' : '//&
-                    ftoa(coeff(isrc:size(coeff):solver%dirdof)))
+                  call CHKWARN(1_mpiint, 'dir2diff src '//toStr(isrc)//' : '//&
+                    toStr(coeff(isrc:size(coeff):solver%dirdof)))
                 enddo
                 call CHKERR(1_mpiint, 'have we used all coefficients? '// &
-                  'used '//ftoa(sumcoeff)//' out of '//ftoa(sum(coeff)))
+                  'used '//toStr(sumcoeff)//' out of '//toStr(sum(coeff)))
               endif
             endif
 
@@ -1995,7 +1999,7 @@ module m_plex_rt
           endif
 
           if(reason.le.0) then
-            call CHKERR(1_mpiint, '***** SOLVER did NOT converge :( ********'//itoa(reason))
+            call CHKERR(1_mpiint, '***** SOLVER did NOT converge :( ********'//toStr(reason))
           endif
         end subroutine
 
@@ -2270,17 +2274,17 @@ module m_plex_rt
                     call PetscSectionGetOffset(sec, faces_of_cell(idst_side), irow, ierr); call CHKERR(ierr)
                     irow = irow + dof_dst_offset
 
-                    !print *,'cell   ('//itoa(icell)//') '// &
-                    !  'incoming dof -> out_dof   '//itoa(in_dof)//' -> '//itoa(out_dof)//' '// &
-                    !  'src_side  '//itoa(isrc_side)//' '// &
-                    !  ' ('//itoa(faces_of_cell(isrc_side))//') '// &
-                    !  'dst_side  '//itoa(idst_side)//' '// &
-                    !  ' ('//itoa(faces_of_cell(idst_side))//') '// &
-                    !  'bmc_src_side   ('//itoa(bmcsrcside)//') '// &
-                    !  'bmc_dst_side   ('//itoa(bmcdstside)//') '// &
-                    !  'src_offset   ('//itoa(dof_src_offset)//') '// &
-                    !  'dst_offset   ('//itoa(dof_dst_offset)//') '// &
-                    !  'col -> row    '//itoa(icol)//' -> '//itoa(irow)//'   = ', c
+                    !print *,'cell   ('//toStr(icell)//') '// &
+                    !  'incoming dof -> out_dof   '//toStr(in_dof)//' -> '//toStr(out_dof)//' '// &
+                    !  'src_side  '//toStr(isrc_side)//' '// &
+                    !  ' ('//toStr(faces_of_cell(isrc_side))//') '// &
+                    !  'dst_side  '//toStr(idst_side)//' '// &
+                    !  ' ('//toStr(faces_of_cell(idst_side))//') '// &
+                    !  'bmc_src_side   ('//toStr(bmcsrcside)//') '// &
+                    !  'bmc_dst_side   ('//toStr(bmcdstside)//') '// &
+                    !  'src_offset   ('//toStr(dof_src_offset)//') '// &
+                    !  'dst_offset   ('//toStr(dof_dst_offset)//') '// &
+                    !  'col -> row    '//toStr(icol)//' -> '//toStr(irow)//'   = ', c
                     call MatSetValuesLocal(A, i1, irow, i1, icol, c, INSERT_VALUES, ierr); call CHKERR(ierr)
 
 
@@ -2410,10 +2414,10 @@ module m_plex_rt
             do in_dof = 1, solver%dirdof
               bmcsrcdof = plex2bmc(in_dof)
               dir2dir = coeff(bmcsrcdof:size(coeff):solver%dirdof)
-              !print *, icell, in_dof, 'dir2dir', dir2dir, ':', cstr(ftoa(sum(dir2dir)),'green')
+              !print *, icell, in_dof, 'dir2dir', dir2dir, ':', cstr(toStr(sum(dir2dir)),'green')
               if(sum(dir2dir).gt.1+sqrt(epsilon(dir2dir))*100) then
                 print *,in_dof,': bmcface', bmcsrcdof, 'dir2dir gt one', dir2dir,':',sum(dir2dir)
-                call CHKERR(1_mpiint, 'energy conservation violated! '//ftoa(sum(dir2dir)))
+                call CHKERR(1_mpiint, 'energy conservation violated! '//toStr(sum(dir2dir)))
               endif
             enddo
             !print *,'-----'
@@ -2467,18 +2471,18 @@ module m_plex_rt
                       print *,'plexface 2 bmc', face_plex2bmc
                       print *,'lsrc(plex)', lsrc
                       print *,'param_phi', param_phi, 'param_theta', param_theta
-                      print *,'cell   ('//itoa(icell)//') '// &
-                        'incoming dof '//itoa(in_dof)//' -> out_dof '//itoa(out_dof)//' '// &
-                        'src_side  '//itoa(isrc_side)//' '// &
-                        ' ('//itoa(faces_of_cell(isrc_side))//') '// &
-                        'dst_side  '//itoa(idst_side)//' '// &
-                        ' ('//itoa(faces_of_cell(idst_side))//') '// &
-                        'bmc_src_dof    ('//itoa(bmcsrcdof)//') '// &
-                        'bmc_src_side   ('//itoa(bmcsrcside)//') '// &
-                        'bmc_dst_side   ('//itoa(bmcdstside)//') '// &
-                        'src_offset   ('//itoa(dof_src_offset)//') '// &
-                        'dst_offset   ('//itoa(dof_dst_offset)//') '// &
-                        'col -> row    '//itoa(icol)//' -> '//itoa(irow)//'   = ', c
+                      print *,'cell   ('//toStr(icell)//') '// &
+                        'incoming dof '//toStr(in_dof)//' -> out_dof '//toStr(out_dof)//' '// &
+                        'src_side  '//toStr(isrc_side)//' '// &
+                        ' ('//toStr(faces_of_cell(isrc_side))//') '// &
+                        'dst_side  '//toStr(idst_side)//' '// &
+                        ' ('//toStr(faces_of_cell(idst_side))//') '// &
+                        'bmc_src_dof    ('//toStr(bmcsrcdof)//') '// &
+                        'bmc_src_side   ('//toStr(bmcsrcside)//') '// &
+                        'bmc_dst_side   ('//toStr(bmcdstside)//') '// &
+                        'src_offset   ('//toStr(dof_src_offset)//') '// &
+                        'dst_offset   ('//toStr(dof_dst_offset)//') '// &
+                        'col -> row    '//toStr(icol)//' -> '//toStr(irow)//'   = ', c
                       if(ierr.eq.1) call CHKERR(ierr, 'found coeff, but thought this incoming side is not a src face')
                       if(ierr.eq.2) call CHKERR(ierr, 'have coeff, but the target dst is marked as being a src face')
                     endif
@@ -2498,11 +2502,11 @@ module m_plex_rt
             if(.not.approx(sumcoeff, sum(coeff), sqrt(epsilon(coeff)) )) then
               print *,'faces_of_cell', faces_of_cell, ' lsrc? ', lsrc
               do isrc=1,solver%dirdof
-                call CHKWARN(1_mpiint, 'dir2dir src '//itoa(isrc)//' : '//&
-                  ftoa(coeff(isrc:size(coeff):solver%dirdof)))
+                call CHKWARN(1_mpiint, 'dir2dir src '//toStr(isrc)//' : '//&
+                  toStr(coeff(isrc:size(coeff):solver%dirdof)))
               enddo
               call CHKERR(1_mpiint, 'have we used all coefficients? '// &
-                'used '//ftoa(sumcoeff)//' out of '//ftoa(sum(coeff)))
+                'used '//toStr(sumcoeff)//' out of '//toStr(sum(coeff)))
             endif
           endif
 
@@ -2738,8 +2742,8 @@ module m_plex_rt
                 call CHKERR(ierr)
                 if(ldebug.and.offset_Ein.eq.offset_Eout) call CHKERR(1_mpiint, &
                   'src and dst are the same :( ... should not happen here'// &
-                  ' row '//itoa(offset_Ein)// &
-                  ' col '//itoa(offset_Eout))
+                  ' row '//toStr(offset_Ein)// &
+                  ' col '//toStr(offset_Eout))
               elseif (numDof.eq.i0) then
               else
                 call CHKERR(1_mpiint, 'dont expect to have this numbering of dof, please check')
@@ -2778,7 +2782,7 @@ module m_plex_rt
           dz = geoms(i1+geom_offset)
 
           dtau = xkabs(i1+icell) + xksca(i1+icell)
-          w0   = xksca(i1+icell) / dtau
+          w0   = xksca(i1+icell) / max(tiny(dtau), dtau)
           dtau = dtau * dz
 
           call eddington_coeff_zdun(dtau, w0, xg(i1+icell), one, c11, c12, c13, c23, c33)
@@ -2863,7 +2867,7 @@ module m_plex_rt
                 if(sum(diff2diff).gt.coeff_norm_err_tolerance) then
                   print *,i,': bmcface', diff_plex2bmc(i), 'diff2diff gt one', diff2diff, &
                     ':', sum(diff2diff), 'l1d', ierr.eq.OPP_1D_RETCODE, 'tol', coeff_norm_err_tolerance
-                  call CHKERR(1_mpiint, '1 energy conservation violated! '//ftoa(sum(diff2diff)))
+                  call CHKERR(1_mpiint, '1 energy conservation violated! '//toStr(sum(diff2diff)))
                 endif
               end associate
             enddo
@@ -2887,11 +2891,11 @@ module m_plex_rt
           if(ldebug) then
             if(.not.approx(sumcoeff, sum(coeff), sqrt(epsilon(coeff)))) then
               do i = 1, solver%diffdof/2
-                call CHKWARN(1_mpiint, 'diff2diff src '//itoa(i)//' : '//&
-                  ftoa(coeff(i:size(coeff):solver%diffdof/2)))
+                call CHKWARN(1_mpiint, 'diff2diff src '//toStr(i)//' : '//&
+                  toStr(coeff(i:size(coeff):solver%diffdof/2)))
               enddo
               call CHKERR(1_mpiint, 'have we used all coefficients? '// &
-                'used '//ftoa(sumcoeff)//' out of '//ftoa(sum(coeff)))
+                'used '//toStr(sumcoeff)//' out of '//toStr(sum(coeff)))
             endif
           endif
           call DMPlexRestoreCone(plex%ediff_dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
@@ -2963,7 +2967,7 @@ module m_plex_rt
         "-plexrt_delta_scale_maxg", max_g_delta, lflg , ierr) ;call CHKERR(ierr)
       if(lflg) then
         max_g([2,4]) = max(max_g([1,3]), min(max_g([2,4]), real(max_g_delta, kind(max_g))))
-        if(ldebug) print *,'found deltascaling max_g -> setting limits to:', cstr(ftoa(max_g), 'green')
+        if(ldebug) print *,'found deltascaling max_g -> setting limits to:', cstr(toStr(max_g), 'green')
       endif
       max_g([2,4]) = max(max_g([1,3]), max_g([2,4]) - sqrt(epsilon(max_g)))
 
@@ -3130,7 +3134,7 @@ module m_plex_rt
         call PetscLogEventEnd(solver%logs%compute_absorption, ierr)
 
         call PetscLogEventBegin(solver%logs%debug_output, ierr)
-        call PetscObjectSetName(solution%abso, 'abso_direct_'//itoa(solution%uid), ierr);call CHKERR(ierr)
+        call PetscObjectSetName(solution%abso, 'abso_direct_'//toStr(solution%uid), ierr);call CHKERR(ierr)
         call PetscObjectViewFromOptions(solution%abso, PETSC_NULL_VEC, '-show_abso_direct', ierr); call CHKERR(ierr)
         call PetscLogEventEnd(solver%logs%debug_output, ierr)
       endif
@@ -3145,7 +3149,7 @@ module m_plex_rt
     endif
 
     call PetscLogEventBegin(solver%logs%debug_output, ierr)
-    call PetscObjectSetName(solution%abso, 'abso_'//itoa(solution%uid), ierr);call CHKERR(ierr)
+    call PetscObjectSetName(solution%abso, 'abso_'//toStr(solution%uid), ierr);call CHKERR(ierr)
     call PetscObjectViewFromOptions(solution%abso, PETSC_NULL_VEC, '-show_abso', ierr); call CHKERR(ierr)
     call PetscLogEventEnd(solver%logs%debug_output, ierr)
   end subroutine
@@ -3378,8 +3382,8 @@ module m_plex_rt
 
           if(lsrc(isrc_side)) then
             cell_abso = cell_abso + div * xedir(i1+icol)
-            !print *,'Adding dir cell abso cell='//itoa(icell)//' src-face='//itoa(iface)//' bmcsrc='//itoa(bmcsrcdof)// &
-            !  ' edir='//ftoa(xedir(i1+icol)), 'div', div, 'lsrc', lsrc(isrc_side)
+            !print *,'Adding dir cell abso cell='//toStr(icell)//' src-face='//toStr(iface)//' bmcsrc='//toStr(bmcsrcdof)// &
+            !  ' edir='//toStr(xedir(i1+icol)), 'div', div, 'lsrc', lsrc(isrc_side)
           endif
         enddo
       enddo
@@ -3387,7 +3391,7 @@ module m_plex_rt
       call PetscSectionGetFieldOffset(geomSection, icell, i2, geom_offset, ierr); call CHKERR(ierr)
       inv_volume = one / geoms(i1+geom_offset)
 
-      !print *,icell, cstr('icell abso '//ftoa(xabso(i1+abso_offset))//' += '//ftoa(cell_abso * inv_volume), 'red')
+      !print *,icell, cstr('icell abso '//toStr(xabso(i1+abso_offset))//' += '//toStr(cell_abso * inv_volume), 'red')
       xabso(i1+abso_offset) = xabso(i1+abso_offset) + cell_abso * inv_volume
       call DMPlexRestoreCone(plex%edir_dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
     enddo
@@ -3607,8 +3611,8 @@ module m_plex_rt
             div = one - sum(diff2diff)
             div = max(zero, min(one, one - sum(diff2diff)))
             cell_abso = cell_abso + div * xediff(i1+incoming_offsets(i))
-            !print *,'Adding diffuse cell abso cell='//itoa(icell)//' inc_offset='//itoa(incoming_offsets(i))// &
-            !  ' ediff='//ftoa(xediff(i1+incoming_offsets(i))), 'div', div
+            !print *,'Adding diffuse cell abso cell='//toStr(icell)//' inc_offset='//toStr(incoming_offsets(i))// &
+            !  ' ediff='//toStr(xediff(i1+incoming_offsets(i))), 'div', div
           end associate
         endif
       enddo
