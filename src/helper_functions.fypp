@@ -496,9 +496,9 @@ module m_helper_functions
     #:for basetype, dtype, fmt in [&
       ('integer', 'INT32'  , "'(I0)'"), &
       ('integer', 'INT64'  , "'(I0)'"), &
-      ('real'   , 'REAL32' , "'(F12.7)'"), &
-      ('real'   , 'REAL64' , "'(F12.7)'"), &
-      ('real'   , 'REAL128', "'(F12.7)'")]
+      ('real'   , 'REAL32' , "'(F16.7)'"), &
+      ('real'   , 'REAL64' , "'(F16.7)'"), &
+      ('real'   , 'REAL128', "'(F16.7)'")]
     function toStr${dtype}$(inp) result (res)
       ${basetype}$(${dtype}$), intent(in) :: inp
       character(len=:), allocatable :: res
