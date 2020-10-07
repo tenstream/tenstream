@@ -249,10 +249,11 @@ if(${_is_XLF})
 endif(${_is_XLF})
 
 # Set preprocessor Flag if Compiler is out of GNU Family
-string(COMPARE EQUAL ${CMAKE_Fortran_COMPILER_ID} "GNU" _is_GNU)
-if(${_is_GNU})
-    add_definitions(-D_GNU)
-endif(${_is_GNU})
+if ("${CMAKE_Fortran_COMPILER_ID}" STREQUAL "GNU")
+  add_definitions(-D_GNU)
+elseif ("${CMAKE_Fortran_COMPILER_ID}" STREQUAL "Intel")
+  add_definitions(-D_INTEL)
+endif()
 
 option(ENABLE_ALL "Enable use of all additional modules " ON)
 if(ENABLE_ALL)
