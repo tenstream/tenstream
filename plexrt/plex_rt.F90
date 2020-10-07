@@ -552,8 +552,13 @@ module m_plex_rt
           fill_kabs=zero, fill_ksca=zero, fill_g=zero)
       endif
 
-      call dump_optical_properties(solver%kabs, solver%ksca, solver%g, solver%albedo, &
-        plck=solver%plck, postfix='_'//itoa(suid))
+      call dump_optical_properties( &
+        & solver%kabs, &
+        & solver%ksca, &
+        & solver%g, &
+        & solver%albedo, &
+        & plck=solver%plck, &
+        & postfix='_'//itoa(suid))
 
       call print_optical_properties_summary(solver%plex%comm, solver%plex%Nlay, &
         solver%kabs, solver%ksca, solver%g, solver%albedo, solver%plck)

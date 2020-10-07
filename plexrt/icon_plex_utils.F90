@@ -846,6 +846,7 @@ module m_icon_plex_utils
 
       call DMSetBasicAdjacency(dm, PETSC_TRUE, PETSC_FALSE, ierr); call CHKERR(ierr)
 
+      dmdist = PETSC_NULL_DM
       call DMPlexDistribute(dm, i0, migration_sf, dmdist, ierr); call CHKERR(ierr)
       if(dmdist.ne.PETSC_NULL_DM) then
         call PetscObjectViewFromOptions(migration_sf, PETSC_NULL_SF, &
@@ -1036,7 +1037,7 @@ module m_icon_plex_utils
       integer(iintegers) :: eStart, eEnd
       integer(iintegers) :: vStart, vEnd
 
-      integer(mpiint) :: myid, numnodes, ierr
+      integer(mpiint) :: i, myid, numnodes, ierr
 
       call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
       call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
@@ -1053,10 +1054,16 @@ module m_icon_plex_utils
         Nedges = 0
         Nvertices = 0
       endif
+
       if(get_arg(.False., lverbose).or.ldebug) then
-        print *, myid, 'Nfaces', Nfaces
-        print *, myid, 'Nedges', Nedges
-        print *, myid, 'Nverts', Nvertices
+        do i = 0, numnodes-1
+          if(i.eq.myid) then
+            print *, myid, 'Nfaces', Nfaces
+            print *, myid, 'Nedges', Nedges
+            print *, myid, 'Nverts', Nvertices
+          endif
+          call mpi_barrier(comm, ierr); call CHKERR(ierr)
+        enddo
       endif
 
       call DMPlexCreate(comm, dm, ierr); call CHKERR(ierr)
@@ -1081,15 +1088,22 @@ module m_icon_plex_utils
       call DMPlexGetHeightStratum(dm, i2, vStart, vEnd, ierr); call CHKERR(ierr) ! vertices
 
       if(get_arg(.False., lverbose).or.ldebug) then
-        print *,'pStart,End serial :: ',pStart, pEnd
-        print *,'fStart,End serial :: ',fStart, fEnd
-        print *,'eStart,End serial :: ',eStart, eEnd
-        print *,'vStart,End serial :: ',vStart, vEnd
+        do i = 0, numnodes-1
+          if(i.eq.myid) then
+            print *,'pStart,End serial :: ',pStart, pEnd
+            print *,'fStart,End serial :: ',fStart, fEnd
+            print *,'eStart,End serial :: ',eStart, eEnd
+            print *,'vStart,End serial :: ',vStart, vEnd
+          endif
+          call mpi_barrier(comm, ierr); call CHKERR(ierr)
+        enddo
       endif
 
       call DMSetBasicAdjacency(dm, PETSC_TRUE, PETSC_FALSE, ierr); call CHKERR(ierr)
 
+      dmdist = PETSC_NULL_DM
       call DMPlexDistribute(dm, i0, migration_sf, dmdist, ierr); call CHKERR(ierr)
+
       if(dmdist.ne.PETSC_NULL_DM) then
         call PetscObjectViewFromOptions(migration_sf, PETSC_NULL_SF, &
           '-show_migration_sf', ierr); call CHKERR(ierr)
@@ -1100,10 +1114,15 @@ module m_icon_plex_utils
         call DMPlexGetHeightStratum(dmdist, i2, vStart, vEnd, ierr); call CHKERR(ierr) ! vertices
 
         if(get_arg(.False., lverbose).or.ldebug) then
-          print *,myid,'pStart,End distributed:: ',pStart, pEnd
-          print *,myid,'fStart,End distributed:: ',fStart, fEnd
-          print *,myid,'eStart,End distributed:: ',eStart, eEnd
-          print *,myid,'vStart,End distributed:: ',vStart, vEnd
+          do i = 0, numnodes-1
+            if(i.eq.myid) then
+              print *,myid,'pStart,End distributed:: ',pStart, pEnd
+              print *,myid,'fStart,End distributed:: ',fStart, fEnd
+              print *,myid,'eStart,End distributed:: ',eStart, eEnd
+              print *,myid,'vStart,End distributed:: ',vStart, vEnd
+            endif
+            call mpi_barrier(comm, ierr); call CHKERR(ierr)
+          enddo
         endif
 
         call PetscObjectViewFromOptions(dmdist, PETSC_NULL_DM, &
