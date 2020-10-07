@@ -123,19 +123,19 @@ contains
 
     print *,'myid', myid, 'is,ie', is,ie, 'js,je', js,je
 
-    ! Start with a dynamics grid starting at 1000 hPa with a specified lapse rate and surface temperature
+    ! Load the background atmosphere file and interpolate pressure and temperature from that
     nzp = size(hhl)-1
     allocate(plev(nzp+1, nxp, nyp), tlev(nzp+1, nxp, nyp))
     call load_atmfile(comm, atm_filename, bg_atm)
-    do k=1, nzp + 1
-      z_location=find_real_location(bg_atm%zt, hhl(k))
-      plev(k,:,:)=interp_1d(z_location, bg_atm%plev)
-      tlev(k,:,:)=interp_1d(z_location, bg_atm%tlev)
-      print *, k, z_location, interp_1d(z_location, bg_atm%zt), hhl(k), plev(k,1,1), tlev(k,1,1)
+    do k = 1, nzp + 1
+      z_location  = find_real_location(bg_atm%zt, hhl(k))
+      plev(k,:,:) = interp_1d(z_location, bg_atm%plev)
+      tlev(k,:,:) = interp_1d(z_location, bg_atm%tlev)
     enddo
+    deallocate(bg_atm)
 
     if(myid.eq.0) then
-      do k=1,nzp+1
+      do k = 1, nzp+1
         print *, k, 'plev', plev(k,is,js), 'Tlev', tlev(k,is,js)
       enddo
     endif
