@@ -14,7 +14,8 @@ module m_example_uvspec_cld_file
   ! main entry point for solver, and desctructor
   use m_pprts_rrtmg, only : pprts_rrtmg, destroy_pprts_rrtmg
 
-  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, destroy_tenstr_atm, hydrostat_dp
+  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, destroy_tenstr_atm, &
+    hydrostat_dp, load_atmfile, t_bg_atm, print_tenstr_atm
 
   use m_tenstream_options, only: read_commandline_options
   use m_helper_functions, only: CHKERR, itoa, imp_bcast, reverse, spherical_2_cartesian, resize_arr, &
@@ -33,6 +34,8 @@ module m_example_uvspec_cld_file
 
   use m_plexrt_rrtmg, only: plexrt_rrtmg, destroy_plexrt_rrtmg
 
+  use m_tenstream_interpolation, only: interp_1d
+  use m_search, only: find_real_location
   implicit none
 
 contains
@@ -40,14 +43,13 @@ contains
       cldfile, atm_filename, outfile, &
       albedo_th, albedo_sol, &
       lsolar, lthermal, &
-      phi0, theta0, &
-      Tsrfc, dTdz)
+      phi0, theta0)
+
     integer(mpiint), intent(in) :: comm
     character(len=*), intent(in) :: cldfile, atm_filename, outfile
     real(ireals), intent(in) :: albedo_th, albedo_sol
     logical, intent(in) :: lsolar, lthermal
     real(ireals), intent(in) :: phi0, theta0 ! Sun's angles, azimuth phi(0=North, 90=East), zenith(0 high sun, 80=low sun)
-    real(ireals), intent(in) :: Tsrfc, dTdz
 
     real(ireals), dimension(:,:,:), allocatable, target :: lwc, reliq ! will have global shape Nz, Nx, Ny
     real(ireals), dimension(:,:,:), allocatable, target :: plev, tlev ! will have local shape nzp+1, nxp, nyp
@@ -56,10 +58,11 @@ contains
 
     real(ireals),allocatable, dimension(:,:,:) :: edir, edn, eup, abso ! [nlev_merged(-1), nxp, nyp]
     real(ireals),allocatable, dimension(:,:,:) :: gedir, gedn, geup, gabso ! global arrays which we will dump to netcdf
+    type(t_bg_atm), allocatable :: bg_atm
 
     class(t_solver), allocatable :: pprts_solver
 
-    real(ireals) :: dx, dy
+    real(ireals) :: dx, dy, z_location
     integer(mpiint) :: myid, ierr
     integer(iintegers) :: is, ie, js, je
     integer(iintegers) :: nxp, nyp, nzp ! local sizes of domain, nzp being number of layers
@@ -123,11 +126,12 @@ contains
     ! Start with a dynamics grid starting at 1000 hPa with a specified lapse rate and surface temperature
     nzp = size(hhl)-1
     allocate(plev(nzp+1, nxp, nyp), tlev(nzp+1, nxp, nyp))
-    plev(1,:,:) = 1000_ireals
-    tlev(1,:,:) = Tsrfc
-    do k=2,nzp+1
-      tlev(k,:,:) = tlev(k-1,:,:) + dTdz * (hhl(k)-hhl(k-1))
-      plev(k,:,:) = plev(k-1,:,:) - hydrostat_dp(hhl(k)-hhl(k-1), plev(k-1,:,:), (tlev(k,:,:)+tlev(k-1,:,:))/2)
+    call load_atmfile(comm, atm_filename, bg_atm)
+    do k=1, nzp + 1
+      z_location=find_real_location(bg_atm%zt, hhl(k))
+      plev(k,:,:)=interp_1d(z_location, bg_atm%plev)
+      tlev(k,:,:)=interp_1d(z_location, bg_atm%tlev)
+      print *, k, z_location, interp_1d(z_location, bg_atm%zt), hhl(k), plev(k,1,1), tlev(k,1,1)
     enddo
 
     if(myid.eq.0) then
@@ -247,6 +251,8 @@ contains
     call setup_tenstr_atm(comm, .False., atm_filename, &
       pplev, ptlev, atm, &
       d_lwc=plwc, d_reliq=preliq)
+
+    call print_tenstr_atm(atm)
 
     call pprts_rrtmg(comm, pprts_solver, atm, &
       size(plev,2, kind=iintegers), size(plev,3, kind=iintegers), &
@@ -592,7 +598,7 @@ program main
       zero, Ag, lsolar, lthermal, phi0, theta0, Tsrfc, dTdz)
   else
     call example_uvspec_cld_file(mpi_comm_world, cldfile, atm_filename, outfile, &
-      zero, Ag, lsolar, lthermal, phi0, theta0, Tsrfc, dTdz)
+      zero, Ag, lsolar, lthermal, phi0, theta0)
   endif
   call mpi_finalize(ierr)
 end program

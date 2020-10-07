@@ -76,7 +76,7 @@ contains
 
     ! reshape pointer to convert i,j vecs to column vecs
     real(ireals), pointer, dimension(:,:) :: pplev, ptlev, plwc, preliq
-    real(ireals), pointer, dimension(:,:,:) :: patm, patmp
+    real(ireals), pointer, dimension(:,:,:) :: patm
 
     logical,parameter :: ldebug=.True.
     logical :: lthermal, lsolar
@@ -111,8 +111,8 @@ contains
       dP = max(0._ireals, dP)
 
       do k=1,nzp+1
-        plev(k,:,j) = linspace(k, [1e3_ireals - dP, 500._ireals], nzp+1)
-        tlev(k,:,j) = 250 !linspace(k, [290._ireals, 250._ireals], nzp+1)
+        plev(k,:,j) = linspace(k, [1013._ireals - dP, 500._ireals], nzp+1)
+        tlev(k,:,j) = linspace(k, [288._ireals, 252._ireals], nzp+1)
       enddo
     enddo
 
@@ -225,8 +225,11 @@ contains
 
       call dump_vec(Ca%da, pprts_solver%atm%dz, 'dz')
 
-      patmp (Ca1%zs:Ca1%ze, Ca1%xs:Ca1%xe, Ca1%ys:Ca1%ye) => atm%plev
-      call dump_vec(Ca1%da, reverse(patmp), 'plev')
+      patm (Ca1%zs:Ca1%ze, Ca1%xs:Ca1%xe, Ca1%ys:Ca1%ye) => atm%plev
+      call dump_vec(Ca1%da, reverse(patm), 'p_lev')
+
+      patm (Ca1%zs:Ca1%ze, Ca1%xs:Ca1%xe, Ca1%ys:Ca1%ye) => atm%tlev
+      call dump_vec(Ca1%da, reverse(patm), 't_lev')
 
       patm (Ca%zs:Ca%ze, Ca%xs:Ca%xe, Ca%ys:Ca%ye) => atm%tlay
       call dump_vec(Ca%da, reverse(patm), 't_lay')
