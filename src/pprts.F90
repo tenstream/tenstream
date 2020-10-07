@@ -3289,9 +3289,7 @@ subroutine setup_ksp(solver, ksp, C, A, prefix)
   type(tPC)  :: prec
   logical :: linit
 
-  type(tMatNullSpace) :: nullspace
-  type(tVec) :: nullvecs(0)
-  character(len=*),optional :: prefix
+  character(len=*), intent(in), optional :: prefix
 
   real(ireals),parameter :: rtol=1e-5_ireals, rel_atol=1e-4_ireals
   integer(iintegers),parameter  :: maxiter=1000
@@ -3300,9 +3298,9 @@ subroutine setup_ksp(solver, ksp, C, A, prefix)
 
   real(ireals) :: atol
 
-  logical,parameter :: lset_nullspace=.False. ! set constant nullspace?
   logical :: prec_is_set
   integer(mpiint) :: ierr
+  character(len=default_str_len) :: kspprefix
 
   linit = allocated(ksp)
   if(linit) return
@@ -3323,13 +3321,16 @@ subroutine setup_ksp(solver, ksp, C, A, prefix)
 
   allocate(ksp)
   call KSPCreate(C%comm, ksp, ierr); call CHKERR(ierr)
-  if(present(prefix)) call KSPAppendOptionsPrefix(ksp, trim(prefix), ierr); call CHKERR(ierr)
+  if(present(prefix)) then
+    call KSPAppendOptionsPrefix(ksp, trim(prefix), ierr); call CHKERR(ierr)
+  endif
+  call KSPGetOptionsPrefix(ksp, kspprefix, ierr); call CHKERR(ierr)
 
   call KSPSetType(ksp, KSPBCGS, ierr); call CHKERR(ierr)
   call KSPSetInitialGuessNonzero(ksp, PETSC_TRUE, ierr); call CHKERR(ierr)
 
   prec_is_set = .False.
-  call PetscOptionsHasName(PETSC_NULL_OPTIONS, trim(prefix), '-pc_type', prec_is_set, ierr); call CHKERR(ierr)
+  call PetscOptionsHasName(PETSC_NULL_OPTIONS, trim(kspprefix), '-pc_type', prec_is_set, ierr); call CHKERR(ierr)
 
   if(.not.prec_is_set) then
     !call CHKWARN(1_mpiint, 'no preconditioner setting found, applying defaults')
@@ -3350,6 +3351,7 @@ subroutine setup_ksp(solver, ksp, C, A, prefix)
   call KSPSetDM(ksp, C%da, ierr); call CHKERR(ierr)
   call KSPSetDMActive(ksp, PETSC_FALSE, ierr); call CHKERR(ierr)
 
+  call KSPSetFromOptions(ksp, ierr); call CHKERR(ierr)
   call KSPSetUp(ksp, ierr); call CHKERR(ierr)
 
   if(.not.prec_is_set) then
@@ -3376,17 +3378,10 @@ subroutine setup_ksp(solver, ksp, C, A, prefix)
           & asm_iter, ierr); call CHKERR(ierr)
         call KSPGetPC(asm_ksps(i), subpc, ierr); call CHKERR(ierr)
         call PCSetType(subpc, PCSOR, ierr); call CHKERR(ierr)
+        call KSPSetFromOptions(asm_ksps(i), ierr); call CHKERR(ierr)
       enddo
     end block default_preconditioner_settings
   endif
-
-  if(lset_nullspace) then
-    call MatNullSpaceCreate(C%comm, PETSC_TRUE, i0, nullvecs, nullspace, ierr); call CHKERR(ierr)
-    call MatSetNullSpace(A, nullspace, ierr); call CHKERR(ierr)
-    CALL MatNullSpaceDestroy(nullspace, ierr); CALL CHKERR(ierr)
-  endif
-
-  call KSPSetFromOptions(ksp, ierr); call CHKERR(ierr)
 
   linit = .True.
   if(myid.eq.0.and.ldebug) print *,'Setup KSP done'

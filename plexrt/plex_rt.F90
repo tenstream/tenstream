@@ -1717,11 +1717,14 @@ module m_plex_rt
       type(tMat), allocatable, intent(in) :: A
       type(tKSP), allocatable, intent(inout) :: ksp
       real(ireals), allocatable, intent(inout), optional :: ksp_residual_history(:)
-      character(len=*),optional :: prefix
+      character(len=*), intent(in), optional :: prefix
 
-      real(ireals),parameter :: rtol=1e-6_ireals, rel_atol=1e-6_ireals
+      real(ireals),parameter :: rtol=1e-5_ireals, rel_atol=1e-4_ireals
       integer(iintegers),parameter  :: maxiter=1000
       real(ireals) :: atol
+
+      character(len=default_str_len) :: kspprefix
+      logical :: prec_is_set
       type(tPC) :: prec
 
       integer(iintegers) :: Nrows_global
@@ -1734,12 +1737,6 @@ module m_plex_rt
 
       call PetscObjectGetComm(dm, comm, ierr); call CHKERR(ierr)
 
-      allocate(ksp)
-      call KSPCreate(comm, ksp, ierr); call CHKERR(ierr)
-      if(present(prefix)) then
-        call KSPAppendOptionsPrefix(ksp, trim(prefix), ierr); call CHKERR(ierr)
-      endif
-
       call MatGetSize(A, Nrows_global, PETSC_NULL_INTEGER, ierr); call CHKERR(ierr)
       atol = rel_atol*real(Nrows_global, ireals)
       !call imp_allreduce_min(comm, rel_atol*real(Nrows_global, ireals), atol)
@@ -1751,19 +1748,18 @@ module m_plex_rt
       if(myid.eq.0.and.ldebug) &
         print *,'Setup KSP -- tolerances:',rtol,atol,'::',rel_atol, Nrows_global
 
-      call KSPSetType(ksp,KSPFGMRES,ierr); call CHKERR(ierr)
-      call KSPSetInitialGuessNonzero(ksp, PETSC_TRUE, ierr); call CHKERR(ierr)
-      call KSPGetPC(ksp,prec,ierr); call CHKERR(ierr)
-      if(numnodes.eq.0) then
-        call PCSetType(prec, PCILU, ierr); call CHKERR(ierr)
-      else
-        call PCSetType(prec, PCBJACOBI, ierr); call CHKERR(ierr)
+      allocate(ksp)
+      call KSPCreate(comm, ksp, ierr); call CHKERR(ierr)
+      if(present(prefix)) then
+        call KSPAppendOptionsPrefix(ksp, trim(prefix), ierr); call CHKERR(ierr)
       endif
+      call KSPGetOptionsPrefix(ksp, kspprefix, ierr); call CHKERR(ierr)
 
+      call KSPSetInitialGuessNonzero(ksp, PETSC_TRUE, ierr); call CHKERR(ierr)
       call KSPSetTolerances(ksp, rtol, atol, PETSC_DEFAULT_REAL, maxiter, ierr); call CHKERR(ierr)
-
       call KSPSetDM(ksp, dm, ierr); call CHKERR(ierr)
       call KSPSetDMActive(ksp, PETSC_FALSE, ierr); call CHKERR(ierr)
+      call KSPSetOperators(ksp, A, A, ierr); call CHKERR(ierr)
 
       if(present(ksp_residual_history)) then
         if(.not.allocated(ksp_residual_history)) &
@@ -1771,10 +1767,53 @@ module m_plex_rt
         call KSPSetResidualHistory(ksp, ksp_residual_history, Nmaxhistory, PETSC_TRUE, ierr); call CHKERR(ierr)
       endif
 
-      call KSPSetOperators(ksp, A, A, ierr); call CHKERR(ierr)
+      call KSPSetType(ksp, KSPFGMRES, ierr); call CHKERR(ierr)
+
+      prec_is_set = .False.
+      call PetscOptionsHasName(PETSC_NULL_OPTIONS, trim(kspprefix), '-pc_type', prec_is_set, ierr); call CHKERR(ierr)
+
+      if(.not.prec_is_set) then
+        call KSPGetPC(ksp, prec, ierr); call CHKERR(ierr)
+        if(numnodes.eq.0) then
+          call PCSetType(prec, PCILU, ierr); call CHKERR(ierr)
+        else
+          call PCSetType(prec, PCASM, ierr); call CHKERR(ierr)
+          call PCASMSetOverlap(prec, i1, ierr); call CHKERR(ierr)
+        endif
+      endif
+
       call KSPSetFromOptions(ksp, ierr); call CHKERR(ierr)
       call set_fieldsplits(ksp)
       call KSPSetUp(ksp, ierr); call CHKERR(ierr)
+
+      if(.not.prec_is_set) then
+        default_preconditioner_settings: block
+          integer(iintegers) :: i, asm_N, asm_iter
+          integer(iintegers) :: first_local
+          type(tKSP), allocatable :: asm_ksps(:)
+          type(tPC) :: subpc
+          logical :: lflg
+
+          asm_iter = 2
+          call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+            "-ts_ksp_iter", asm_iter, lflg, ierr) ;call CHKERR(ierr)
+
+          call PCASMGetSubKSP(prec, asm_N, first_local, PETSC_NULL_KSP, ierr); call CHKERR(ierr)
+          allocate(asm_ksps(asm_N))
+          call PCASMGetSubKSP(prec, asm_N, first_local, asm_ksps, ierr); call CHKERR(ierr)
+          do i = 1, asm_N
+            call KSPSetType(asm_ksps(i), KSPRICHARDSON, ierr); call CHKERR(ierr)
+            call KSPRichardsonSetSelfScale(asm_ksps(i), PETSC_TRUE, ierr); call CHKERR(ierr)
+            call KSPSetNormType(asm_ksps(i), KSP_NORM_PRECONDITIONED, ierr); call CHKERR(ierr)
+            call KSPSetTolerances(asm_ksps(i), &
+              & PETSC_DEFAULT_REAL, PETSC_DEFAULT_REAL, PETSC_DEFAULT_REAL, &
+              & asm_iter, ierr); call CHKERR(ierr)
+            call KSPGetPC(asm_ksps(i), subpc, ierr); call CHKERR(ierr)
+            call PCSetType(subpc, PCSOR, ierr); call CHKERR(ierr)
+            call KSPSetFromOptions(asm_ksps(i), ierr); call CHKERR(ierr)
+          enddo
+        end block default_preconditioner_settings
+      endif
 
       contains
         subroutine set_fieldsplits(ksp)
