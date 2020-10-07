@@ -877,13 +877,13 @@ module m_plex_rt
       subroutine dump_var(var, varname)
         type(tVec), allocatable, intent(in) :: var
         character(len=*), intent(in) :: varname
-        character(len=default_str_len) :: oldname
+        !character(len=default_str_len) :: oldname
         integer(mpiint) :: ierr
         if(.not.allocated(var)) return
-        call PetscObjectGetName(var, oldname, ierr); call CHKERR(ierr)
+        !call PetscObjectGetName(var, oldname, ierr); call CHKERR(ierr)
         call PetscObjectSetName(var, trim(varname)//trim(postfix), ierr); call CHKERR(ierr)
         call PetscObjectViewFromOptions(var, PETSC_NULL_VEC, '-dump_optprop_'//trim(varname), ierr); call CHKERR(ierr)
-        call PetscObjectSetName(var, trim(oldname), ierr); call CHKERR(ierr)
+        !call PetscObjectSetName(var, trim(oldname), ierr); call CHKERR(ierr)
       end subroutine
     end subroutine
 
