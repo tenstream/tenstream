@@ -148,6 +148,7 @@ module m_plex_rt
           type(tIS) :: boundary_ids
 
           real(ireals), allocatable, dimension(:,:) :: top_area, bot_area, dz, vol
+          logical, allocatable, dimension(:) :: l1d
           real(ireals), dimension(3) :: mtop_area, mbot_area, mdz, mvol
           integer(iintegers), allocatable :: cell_idx(:)
           integer(iintegers) :: i, k, icell, iface
@@ -173,6 +174,7 @@ module m_plex_rt
               call ISGetIndicesF90(boundary_ids, xitoa, ierr); call CHKERR(ierr)
 
               allocate(&
+                l1d(plex%Nlay), &
                 dz (plex%Nlay,size(xitoa)), &
                 vol(plex%Nlay,size(xitoa)), &
                 top_area(plex%Nlay,size(xitoa)), &
@@ -187,6 +189,8 @@ module m_plex_rt
                 call get_consecutive_vertical_cell_idx(plex, icell, cell_idx)
                 do k = 0, size(cell_idx)-1
                   icell = cell_idx(i1+k)
+
+                  l1d(i1+k) = plex%l1d(icell)
 
                   call PetscSectionGetFieldOffset(geom_section, icell, i3, geom_offset, ierr); call CHKERR(ierr)
                   dz(i1+k,i) = xgeoms(i1+geom_offset)
@@ -208,7 +212,7 @@ module m_plex_rt
 
           call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
-          if(myid.eq.0) print *,'*        k  '// &
+          if(myid.eq.0) print *,'*        k 1D '// &
             '                '//cstr(' dz (min/mean/max)', 'blue')//'                   '// &
             '                '//cstr(' volume           ', 'red' )//'                   '// &
             '                '//cstr(' cell_top_area    ', 'blue')//'                   '// &
@@ -221,7 +225,7 @@ module m_plex_rt
             call imp_min_mean_max(comm, bot_area(k,:), mbot_area)
 
             if(myid.eq.0) then
-              print *,k, cstr(toStr(mdz), 'blue'), cstr(toStr(mvol), 'red'), &
+              print *, k, cstr(toStr(l1d(k)), 'red'), cstr(toStr(mdz), 'blue'), cstr(toStr(mvol), 'red'), &
                 cstr(toStr(mtop_area), 'blue'), cstr(toStr(mbot_area), 'red')
             endif
           enddo
