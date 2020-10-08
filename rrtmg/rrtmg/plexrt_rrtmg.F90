@@ -71,7 +71,7 @@ module m_plexrt_rrtmg
 !  logical,parameter :: ldebug=.True.
   logical,parameter :: ldebug=.False.
 
-  type(t_rrtmg_log_events), allocatable :: log_events
+  type(t_rrtmg_log_events) :: log_events
 contains
 
   subroutine plexrt_rrtmg(solver, atm, sundir,     &
@@ -116,10 +116,8 @@ contains
 
     if(.not.allocated(solver)) call CHKERR(1_mpiint, 'solver has to be setup beforehand')
     if(.not.allocated(solver%plex)) call CHKERR(1_mpiint, 'Solver has to have a ready to go Plexgrid')
-    if(.not.allocated(log_events)) then
-      allocate(log_events)
-      call setup_log_events(log_events, 'plexrt_')
-    endif
+
+    call setup_log_events(log_events, 'plexrt_')
 
     call PetscObjectGetComm(solver%plex%dm, comm, ierr); call CHKERR(ierr)
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
