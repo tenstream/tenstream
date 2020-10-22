@@ -22,6 +22,8 @@ module m_example_uvspec_cld_file
     domain_decompose_2d_petsc
   use m_netcdfio, only: ncload, ncwrite, get_global_attribute
 
+  use m_petsc_helpers, only: getvecpointer, restorevecpointer
+
   use m_icon_plex_utils, only: create_2d_regular_plex, dmplex_2D_to_3D, &
     rank0_f90vec_to_plex, dmplex_gvec_from_f90_array, plex_gvec_tozero
 
@@ -54,6 +56,7 @@ contains
     real(ireals), dimension(:,:,:), allocatable, target :: lwc, reliq ! will have global shape Nz, Nx, Ny
     real(ireals), dimension(:,:,:), allocatable, target :: plev, tlev ! will have local shape nzp+1, nxp, nyp
     real(ireals), dimension(:), allocatable :: hhl ! dim Nz+1
+    real(ireals), pointer :: z(:,:,:,:)=>null(), z1d(:)=>null() ! dim Nz+1
     character(len=default_str_len) :: groups(2)
 
     real(ireals),allocatable, dimension(:,:,:) :: edir, edn, eup, abso ! [nlev_merged(-1), nxp, nyp]
@@ -155,24 +158,36 @@ contains
 
     groups(1) = trim(outfile)
 
-    if(allocated(edir)) then
-      call gather_all_toZero(pprts_solver%C_one_atm1, edir, gedir)
-      if(myid.eq.0) then
-        print *,'dumping direct radiation with local and global shape', shape(edir), ':', shape(gedir)
-        groups(2) = 'edir'; call ncwrite(groups, gedir, ierr); call CHKERR(ierr)
+    associate(&
+        & C  => pprts_solver%C_one,     &
+        & C1 => pprts_solver%C_one1,    &
+        & Ca => pprts_solver%C_one_atm, &
+        & Ca1=> pprts_solver%C_one_atm1_box )
+
+      if(allocated(edir)) then
+        call gather_all_toZero(pprts_solver%C_one_atm1, edir, gedir)
+        if(myid.eq.0) then
+          print *,'dumping direct radiation with local and global shape', shape(edir), ':', shape(gedir)
+          groups(2) = 'edir'; call ncwrite(groups, gedir, ierr); call CHKERR(ierr)
+        endif
       endif
-    endif
-    call gather_all_toZero(pprts_solver%C_one_atm1, edn, gedn)
-    call gather_all_toZero(pprts_solver%C_one_atm1, eup, geup)
-    call gather_all_toZero(pprts_solver%C_one_atm, abso, gabso)
-    if(myid.eq.0) then
-      print *,'dumping edn radiation with local and global shape', shape(edn), ':', shape(gedn)
-      groups(2) = 'edn' ; call ncwrite(groups, gedn , ierr); call CHKERR(ierr)
-      print *,'dumping eup radiation with local and global shape', shape(eup), ':', shape(geup)
-      groups(2) = 'eup' ; call ncwrite(groups, geup , ierr); call CHKERR(ierr)
-      print *,'dumping abso radiation with local and global shape', shape(abso), ':', shape(gabso)
-      groups(2) = 'abso'; call ncwrite(groups, gabso, ierr); call CHKERR(ierr)
-    endif
+      call gather_all_toZero(pprts_solver%C_one_atm1, edn, gedn)
+      call gather_all_toZero(pprts_solver%C_one_atm1, eup, geup)
+      call gather_all_toZero(pprts_solver%C_one_atm, abso, gabso)
+      if(myid.eq.0) then
+        print *,'dumping edn radiation with local and global shape', shape(edn), ':', shape(gedn)
+        groups(2) = 'edn' ; call ncwrite(groups, gedn , ierr); call CHKERR(ierr)
+        print *,'dumping eup radiation with local and global shape', shape(eup), ':', shape(geup)
+        groups(2) = 'eup' ; call ncwrite(groups, geup , ierr); call CHKERR(ierr)
+        print *,'dumping abso radiation with local and global shape', shape(abso), ':', shape(gabso)
+        groups(2) = 'abso'; call ncwrite(groups, gabso, ierr); call CHKERR(ierr)
+        print *,'dumping hhl'
+        call getVecPointer(Ca1%da, pprts_solver%atm%hhl, z1d, z)
+        groups(2) = 'hhl'; call ncwrite(groups, z(0,Ca1%zs:Ca1%ze, Ca1%xs:Ca1%xs, Ca1%ys:Ca1%ys), ierr); call CHKERR(ierr)
+        call restoreVecPointer(Ca1%da, pprts_solver%atm%hhl, z1d, z)
+      endif
+
+    end associate
 
     call destroy_pprts_rrtmg(pprts_solver, lfinalizepetsc=.True.)
   end subroutine
