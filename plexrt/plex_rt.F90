@@ -117,6 +117,8 @@ module m_plex_rt
       allocate(solver%plex)
       solver%plex = plex
 
+      allocate(solver%solutions(-1:1000))
+
       call setup_log_events(solver%logs, 'plexrt')
 
       lplexrt_skip_loadLUT=.False.
@@ -290,9 +292,13 @@ module m_plex_rt
           deallocate(solver%ksp_solar_diff)
         endif
 
-        do uid=lbound(solver%solutions,1),ubound(solver%solutions,1)
-          call destroy_solution(solver%solutions(uid))
-        enddo
+        if(allocated(solver%solutions)) then
+          do uid=lbound(solver%solutions,1),ubound(solver%solutions,1)
+            call destroy_solution(solver%solutions(uid))
+          enddo
+          deallocate(solver%solutions)
+        endif
+
         deallocate(solver)
       endif
 

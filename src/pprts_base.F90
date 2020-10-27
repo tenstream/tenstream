@@ -155,9 +155,9 @@ module m_pprts_base
     type(tVec),allocatable             :: abso_scalevec
 
     logical                            :: linitialized=.False.
-    type(t_state_container)            :: solutions(-1000:1000)
     type(t_solver_log_events)          :: logs
     type(t_pprts_shell_ctx)            :: shell_ctx
+    type(t_state_container), allocatable  :: solutions(:)
   end type
 
   type, extends(t_solver) :: t_solver_1_2
@@ -401,9 +401,12 @@ module m_pprts_base
 
       call destroy_matrices(solver)
 
-      do uid=lbound(solver%solutions,1),ubound(solver%solutions,1)
-        call destroy_solution(solver%solutions(uid))
-      enddo
+      if(allocated(solver%solutions)) then
+        do uid=lbound(solver%solutions,1),ubound(solver%solutions,1)
+          call destroy_solution(solver%solutions(uid))
+        enddo
+        deallocate(solver%solutions)
+      endif
 
       call deallocate_allocatable(solver%dir_scalevec_Wm2_to_W)
       call deallocate_allocatable(solver%diff_scalevec_Wm2_to_W)

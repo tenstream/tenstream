@@ -34,7 +34,7 @@ module m_plex_rt_base
 
     type(tVec), allocatable :: plck ! Planck Radiation in each vertical level [W] [fStart..pEnd-1]
 
-    type(t_state_container) :: solutions(-1000:1000)
+    type(t_state_container), allocatable :: solutions(:)
 
     type(tVec), allocatable :: dirsrc, diffsrc
     type(tMat), allocatable :: Mdir

@@ -278,6 +278,7 @@ module m_pprts
 
       call read_commandline_options(solver%comm)
 
+      allocate(solver%solutions(-1:1000))
       solver%lenable_solutions_err_estimates = &
         options_max_solution_err.gt.zero .and. options_max_solution_time.gt.zero
 

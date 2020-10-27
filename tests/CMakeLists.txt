@@ -6,6 +6,8 @@ enable_testing()
 
 set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -DUSE_MPI")
 set(PFUNIT_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}")
+set(PFUNIT_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG}")
+set(PFUNIT_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS_RELEASE}")
 
 string(COMPARE EQUAL ${CMAKE_Fortran_COMPILER_ID} "Intel" _is_Intel)
 if(${_is_Intel})
@@ -16,7 +18,7 @@ if(${_is_Intel})
 else()
   set(EXTRA_TESTDRIVER_COMPILE_FLAGS "-Wno-error -w")
   set(EXTRA_TEST_COMPILE_FLAGS "-Wno-error -Wno-unused-dummy-argument -ffree-line-length-none")
-  set(PFUNIT_Fortran_FLAGS "${PFUNIT_Fortran_FLAGS} -fprofile-arcs -ftest-coverage")
+  set(PFUNIT_Fortran_FLAGS "${PFUNIT_Fortran_FLAGS}")
 endif(${_is_Intel})
 
 
@@ -40,7 +42,8 @@ else()
         -DCMAKE_INSTALL_PREFIX=${PROJECT_BINARY_DIR}/external/pfunit
         -DCMAKE_Fortran_COMPILER=${CMAKE_Fortran_COMPILER}
         -DCMAKE_Fortran_FLAGS=${PFUNIT_Fortran_FLAGS}
-        -DCMAKE_Fortran_FLAGS_RELEASE=
+        -DCMAKE_Fortran_FLAGS_RELEASE=${PFUNIT_Fortran_FLAGS}
+        -DCMAKE_Fortran_FLAGS_DEBUG=${PFUNIT_Fortran_FLAGS}
         -DMPI_USE_MPIEXEC=YES
         -DMPI=YES
         )

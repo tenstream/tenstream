@@ -156,8 +156,14 @@ contains
     real(ireals),pointer :: x1d(:)=>null(),x4d(:,:,:,:)=>null()
 
     integer(mpiint) :: comm, myid, ierr
-    integer(iintegers) :: dmdim, dof, zs, xs, ys, zm, xm, ym, glob_zm, glob_xm, glob_ym
+    integer(iintegers) :: zs, xs, ys, zm, xm, ym
     integer(iintegers) :: dims(4)
+
+    integer(iintegers) :: dmdim, dof, glob_xm, glob_ym, glob_zm
+    integer(iintegers) :: nprocz, nprocx, nprocy
+    integer(iintegers) :: stencil_width, stencil_type
+    integer(iintegers) :: boundary_z, boundary_x, boundary_y
+
 
     if(allocated(arr)) stop 'You shall not call petscVecToF90 with an already allocated array!'
 
@@ -169,11 +175,12 @@ contains
     if(l_only_on_rank0 .and. myid.ne.0) &
       call CHKERR(myid, 'Only rank 0 should call the routine petscVecToF90 with only_on_rank0=.T.')
 
-    call DMDAGetInfo(dm, dmdim, glob_zm, glob_xm, glob_ym,        &
-      PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, &
-      dof               , PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, &
-      PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, &
-      ierr) ;call CHKERR(ierr)
+    call DMDAGetInfo(dm, dmdim,             &
+      & glob_zm, glob_xm, glob_ym,          &
+      & nprocz, nprocx, nprocy,             &
+      & dof, stencil_width,                 &
+      & boundary_z, boundary_x, boundary_y, &
+      & stencil_type, ierr) ;call CHKERR(ierr)
 
     call DMDAGetCorners(dm, zs, xs, ys, zm, xm, ym, ierr) ;call CHKERR(ierr)
 
@@ -214,16 +221,22 @@ contains
     real(ireals),pointer :: x1d(:)=>null(),x4d(:,:,:,:)=>null()
 
     integer(mpiint) :: comm, myid, ierr
-    integer(iintegers) :: dmdim, dof, zs, xs, ys, zm, xm, ym, glob_zm, glob_xm, glob_ym
+    integer(iintegers) :: zs, xs, ys, zm, xm, ym
     integer(iintegers) :: dims(3)
+
+    integer(iintegers) :: dmdim, dof, glob_xm, glob_ym, glob_zm
+    integer(iintegers) :: nprocz, nprocx, nprocy
+    integer(iintegers) :: stencil_width, stencil_type
+    integer(iintegers) :: boundary_z, boundary_x, boundary_y
 
     l_only_on_rank0 = get_arg(.False., only_on_rank0)
 
-    call DMDAGetInfo(dm, dmdim, glob_zm, glob_xm, glob_ym,        &
-      PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, &
-      dof               , PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, &
-      PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, &
-      ierr) ;call CHKERR(ierr)
+    call DMDAGetInfo(dm, dmdim,             &
+      & glob_zm, glob_xm, glob_ym,          &
+      & nprocz, nprocx, nprocy,             &
+      & dof, stencil_width,                 &
+      & boundary_z, boundary_x, boundary_y, &
+      & stencil_type, ierr) ;call CHKERR(ierr)
 
     call DMDAGetCorners(dm, zs, xs, ys, zm, xm, ym, ierr) ;call CHKERR(ierr)
 
@@ -332,7 +345,12 @@ contains
     real(ireals),intent(inout),pointer,dimension(:) :: x1d
     logical, optional, intent(in) :: readonly
 
-    integer(iintegers) :: N, dmdim, dof, glob_zm, glob_xm, glob_ym
+    integer(iintegers) :: dmdim, dof, glob_xm, glob_ym, glob_zm
+    integer(iintegers) :: nprocz, nprocx, nprocy
+    integer(iintegers) :: stencil_width, stencil_type
+    integer(iintegers) :: boundary_z, boundary_x, boundary_y
+
+    integer(iintegers) :: N
     integer(iintegers) :: zs, ze, xs, xe, ys, ye, zm, xm, ym
     integer(iintegers) :: gzs, gze, gxs, gxe, gys, gye, gzm, gxm, gym
     integer(mpiint) :: comm, myid, ierr
@@ -353,12 +371,13 @@ contains
       endif
     else
       call PetscObjectViewFromOptions(dm, PETSC_NULL_DM, '-show_getvecpointerdm', ierr); call CHKERR(ierr)
-      call DMDAGetInfo(dm, dmdim, glob_zm, glob_xm, glob_ym,        &
-        PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, &
-        dof               , PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, &
-        PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, &
-        ierr) ;call CHKERR(ierr)
 
+      call DMDAGetInfo(dm, dmdim,             &
+        & glob_zm, glob_xm, glob_ym,          &
+        & nprocz, nprocx, nprocy,             &
+        & dof, stencil_width,                 &
+        & boundary_z, boundary_x, boundary_y, &
+        & stencil_type, ierr) ;call CHKERR(ierr)
 
       call DMDAGetCorners(dm, zs, xs, ys, zm, xm, ym, ierr) ;call CHKERR(ierr)
       call DMDAGetGhostCorners(dm,gzs,gxs,gys,gzm,gxm,gym,ierr) ;call CHKERR(ierr)
@@ -436,9 +455,14 @@ contains
     real(ireals),intent(inout),pointer,dimension(:) :: x1d
     logical, optional, intent(in) :: readonly
 
-    integer(iintegers) :: N, dmdim, dof, glob_xm, glob_ym
-    integer(iintegers) :: xs, xe, ys, ye, xm, ym
+    integer(iintegers) :: N, xs, xe, ys, ye, xm, ym
     integer(iintegers) :: gxs, gxe, gys, gye, gxm, gym
+
+    integer(iintegers) :: dmdim, dof, glob_xm, glob_ym, glob_zm
+    integer(iintegers) :: nprocz, nprocx, nprocy
+    integer(iintegers) :: stencil_width, stencil_type
+    integer(iintegers) :: boundary_z, boundary_x, boundary_y
+
     integer(mpiint) :: comm, myid, ierr
     logical :: lghosted
 
@@ -458,11 +482,12 @@ contains
     else
 
       call PetscObjectViewFromOptions(dm, PETSC_NULL_DM, '-show_getvecpointerdm', ierr); call CHKERR(ierr)
-      call DMDAGetInfo(dm, dmdim, glob_xm, glob_ym, PETSC_NULL_INTEGER, &
-        PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, &
-        dof               , PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, &
-        PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, &
-        ierr) ;call CHKERR(ierr)
+      call DMDAGetInfo(dm, dmdim,             &
+        & glob_xm, glob_ym, glob_zm,          &
+        & nprocx, nprocy, nprocz,             &
+        & dof, stencil_width,                 &
+        & boundary_x, boundary_y, boundary_z, &
+        & stencil_type, ierr) ;call CHKERR(ierr)
 
 
       call DMDAGetCorners(dm, xs, ys, PETSC_NULL_INTEGER, xm, ym, PETSC_NULL_INTEGER, ierr) ;call CHKERR(ierr)
@@ -546,9 +571,13 @@ contains
     real(ireals),pointer,dimension(:,:,:) :: g3d=>null()
     real(ireals),pointer,dimension(:) :: g1d=>null()
 
-    integer(iintegers) :: Nx, Ny, Ndof, nprocz, nprocx, nprocy
+    integer(iintegers) :: dmdim, dof, glob_xm, glob_ym, glob_zm
+    integer(iintegers) :: nprocz, nprocx, nprocy
+    integer(iintegers) :: stencil_width, stencil_type
+    integer(iintegers) :: boundary_z, boundary_x, boundary_y
+
     integer(iintegers), allocatable, dimension(:) :: Nxperproc, Nyperproc
-    integer(iintegers) :: idof
+    integer(iintegers) :: Ndof, idof
     integer(mpiint) :: comm, myid, numnodes, ierr
 
     Ndof=size(arr, dim=1, kind=iintegers)
@@ -557,10 +586,12 @@ contains
     call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
-    call DMDAGetInfo(dm3d, PETSC_NULL_INTEGER, &
-      PETSC_NULL_INTEGER, Nx, Ny, &
-      nprocz, nprocx, nprocy, PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, &
-      PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, ierr) ;call CHKERR(ierr)
+    call DMDAGetInfo(dm3d, dmdim,           &
+      & glob_zm, glob_xm, glob_ym,          &
+      & nprocz, nprocx, nprocy,             &
+      & dof, stencil_width,                 &
+      & boundary_z, boundary_x, boundary_y, &
+      & stencil_type, ierr) ;call CHKERR(ierr)
 
     allocate(Nxperproc(nprocx), Nyperproc(nprocy))
 
@@ -574,7 +605,7 @@ contains
 
     call DMDACreate2d(comm, &
       DM_BOUNDARY_PERIODIC, DM_BOUNDARY_PERIODIC, &
-      DMDA_STENCIL_BOX, Nx, Ny, &
+      DMDA_STENCIL_BOX, glob_xm, glob_ym, &
       nprocx, nprocy, &
       Ndof, kernel_width, &
       Nxperproc, Nyperproc, &
