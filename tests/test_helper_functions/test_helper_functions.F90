@@ -2,16 +2,38 @@ module test_helper_functions
   use iso_fortran_env, only: REAL32, REAL64
   use iso_c_binding
   use m_data_parameters, only: ireals, ireal128, iintegers, mpiint, init_mpi_data_parameters
-  use m_helper_functions, only : imp_bcast, imp_allgather_int_inplace, &
-    mpi_logical_and, mpi_logical_or, mpi_logical_all_same, &
-    compute_normal_3d, hit_plane, pnt_in_triangle, distance_to_edge, determine_normal_direction, &
-    cumprod, reverse, rotation_matrix_around_axis_vec, deg2rad, char_arr_to_str, cstr, &
-    solve_quadratic, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world, &
-    is_inrange, is_between, &
-    resize_arr, normalize_vec, approx, itoa, ftoa, &
-    imp_reduce_sum, imp_allreduce_sum, imp_reduce_mean, imp_allreduce_mean, &
-    read_ascii_file_2d, &
-    ndarray_offsets, ind_nd_to_1d, ind_1d_to_nd
+  use m_helper_functions, only : &
+    & approx, &
+    & char_arr_to_str, &
+    & compute_normal_3d, &
+    & cstr, &
+    & cumprod, &
+    & deg2rad, &
+    & determine_normal_direction, &
+    & distance_to_edge, &
+    & imp_allgather_int_inplace, &
+    & imp_allreduce_mean, &
+    & imp_allreduce_sum, &
+    & imp_bcast, &
+    & imp_reduce_mean, &
+    & imp_reduce_sum, &
+    & ind_1d_to_nd, &
+    & ind_nd_to_1d, &
+    & is_between, &
+    & is_inrange, &
+    & mpi_logical_all_same, &
+    & mpi_logical_and, &
+    & mpi_logical_or, &
+    & ndarray_offsets, &
+    & normalize_vec, &
+    & read_ascii_file_2d, &
+    & resize_arr, &
+    & reverse, &
+    & rotation_matrix_around_axis_vec, &
+    & rotation_matrix_local_basis_to_world, &
+    & rotation_matrix_world_to_local_basis, &
+    & solve_quadratic, &
+    & toStr
 
   use pfunit_mod
 
@@ -217,7 +239,7 @@ subroutine test_mpi_reductions(this)
       @assertEqual(sireals, v_ireals, epsilon(v_ireals), 'ireals reduce_sum is not correct')
       sireals  = real(s128 , ireals)
       v_ireals = real(v_128, ireals)
-      @assertEqual(sireals, v_ireals, epsilon(v_ireals), '128 bit reduce_sum is not correct Nranks:'//itoa(numnodes))
+      @assertEqual(sireals, v_ireals, epsilon(v_ireals), '128 bit reduce_sum is not correct Nranks:'//toStr(numnodes))
     endif
 
     call imp_allreduce_sum(comm, real(myid, ireals  ), v_ireals)
@@ -240,88 +262,7 @@ subroutine test_mpi_reductions(this)
     mean = mean / real(s, ireals)
 
     call imp_allreduce_mean(comm, m_ireals, sireals)
-    @assertEqual(mean, sireals, epsilon(v_ireals), 'ireals reduce_mean is not correct Nranks:'//itoa(numnodes))
-end subroutine
-
-@test(npes =[1])
-subroutine test_triangle_functions(this)
-    class (MpiTestMethod), intent(inout) :: this
-
-    real(ireals),parameter :: zero=0, one=1, dx = 100
-    real(ireals),parameter :: A(2) = [zero, zero]
-    real(ireals),parameter :: B(2) = [dx, zero]
-    real(ireals),parameter :: C(2) = [dx/2.,sqrt(dx**2 - (dx/2)**2)]
-    real(ireals) :: P(2), distance
-
-    real(ireals), dimension(3) :: normal, new_loc, center_face, center_cell
-    integer(iintegers) :: normal_direction
-
-    ! Tests determining the distance of a point to a 2D line/edge
-    @assertEqual(zero, distance_to_edge(A,B,A), 'from point on line, the distance to same line should be zero distance_to_edge1')
-    @assertEqual(zero, distance_to_edge(A,B,[dx/2,zero]), 'from point on line, the distance to same line should be zero distance_to_edge2')
-    @assertEqual(one, distance_to_edge(A,B,[dx/2,one]), 'here point line <-> distance should be one distance_to_edge3')
-    @assertEqual(sqrt(epsilon(dx)), distance_to_edge(A,B,[dx/2,sqrt(epsilon(dx))]), 'here point line <-> distance should be different distance_to_edge4')
-    @assertEqual(epsilon(dx), distance_to_edge(A,B,[dx/2,epsilon(dx)]), 'here point line <-> distance should be different distance_to_edge5')
-    @assertEqual(epsilon(dx), distance_to_edge(A,B,[dx/2,-epsilon(dx)]), 'here point line <-> distance should be different distance_to_edge6')
-    @assertEqual(one, distance_to_edge(A,B,B+[zero,one]), 'here point line <-> distance should be one test distance_to_edge7')
-
-
-    ! Checks if points lie in a triangle
-    new_loc = [0.38475394248962402_ireals, zero, zero]
-    @assertTrue(pnt_in_triangle(A,B,C, [new_loc(1), new_loc(2)]), 'custom edge case point should be in triangle!')
-
-    normal = compute_normal_3d([A(1),A(2),zero], [B(1),B(2),zero], [C(1),C(2),zero])
-    @assertEqual([zero,zero,one], normal, 10*epsilon(normal), '3D normal not as expected')
-
-    normal = compute_normal_3d([A(1),A(2),zero], [C(1),C(2),zero], [B(1),B(2),zero])
-    @assertEqual([zero,zero,one], -normal, 10*epsilon(normal), '3D normal not as expected')
-
-    @assertEqual(one, norm2(normal), 10*epsilon(normal), 'returned normal is not normed to one')
-
-    ! Check if we can determine if a point is in a triangle
-    @assertTrue(pnt_in_triangle(A,B,C, A), 'pnt_in_triangle wrong for edge case in A')
-    @assertTrue(pnt_in_triangle(A,B,C, B), 'pnt_in_triangle wrong for edge case in B')
-    @assertTrue(pnt_in_triangle(A,B,C, C), 'pnt_in_triangle wrong for edge case in C')
-    @assertTrue(pnt_in_triangle(A,B,C, [one/2, one/2]), 'pnt_in_triangle wrong for center of triangle')
-
-    @assertTrue(pnt_in_triangle(A,B,C, A+(C-A)/2), 'pnt_in_triangle wrong for edge case on line between A and C')
-    @assertTrue(pnt_in_triangle(A,B,C, A+(B-A)/2), 'pnt_in_triangle wrong for edge case on line between A and B')
-    @assertTrue(pnt_in_triangle(A,B,C, C+(B-C)/2), 'pnt_in_triangle wrong for edge case on line between B and C')
-
-    @assertFalse(pnt_in_triangle(A,B,C, A-[one,one ]), 'pnt_in_triangle wrong for outside case 1')
-    @assertFalse(pnt_in_triangle(A,B,C, B+[one,zero]), 'pnt_in_triangle wrong for outside case 2')
-    @assertFalse(pnt_in_triangle(A,B,C, C+[one,one] ), 'pnt_in_triangle wrong for outside case 3')
-
-
-    ! vector from C to pnt halfway between (AB):
-    P = A+(B-A)/2 - C
-    @assertTrue(pnt_in_triangle(A,B,C, C+P), 'pnt_in_triangle wrong for edge case on line between A and B')
-    @assertFalse(pnt_in_triangle(A,B,C, C+(one+sqrt(epsilon(one)))*P), 'pnt_in_triangle wrong for edge case epsilon after line between A and B')
-
-    ! Check if distance caluclations are OK
-    distance = hit_plane([A(1),A(2),one], [zero,zero,-one], [A(1),A(2),zero], normal)
-    @assertEqual(one, distance, 'distance calculation not correct 1')
-
-    distance = hit_plane([A(1),A(2),one], [zero,zero,+one], [A(1),A(2),zero], normal)
-    @assertEqual(-one, distance, 'distance calculation not correct 2')
-
-
-    distance = hit_plane([A(1),A(2),one], [zero,zero,-one], [C(1),C(2),zero], normal)
-    @assertEqual(one, distance, 'distance calculation not correct 3')
-
-    distance = hit_plane([A(1),A(2),one], [zero,zero,+one], [C(1),C(2),zero], normal)
-    @assertEqual(-one, distance, 'distance calculation not correct 4')
-
-    ! test routines that determine direction of normal
-    normal = [zero, zero, one]
-    center_face = [zero, zero, zero]
-    center_cell = [zero, zero, one]
-    normal_direction = determine_normal_direction(normal, center_face, center_cell)
-    @assertEqual(1_iintegers, normal_direction, 'direction of normal not towards cell center (case 1)')
-
-    center_cell = [zero, zero, -one]
-    normal_direction = determine_normal_direction(normal, center_face, center_cell)
-    @assertEqual(-1_iintegers, normal_direction, 'direction of normal not towards cell center (case 2)')
+    @assertEqual(mean, sireals, epsilon(v_ireals), 'ireals reduce_mean is not correct Nranks:'//toStr(numnodes))
 end subroutine
 
 @test(npes=[1])

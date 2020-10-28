@@ -20,11 +20,23 @@
 module m_boxmc_geometry
   use iso_fortran_env, only: REAL32, REAL64
   use m_data_parameters, only : mpiint, iintegers, ireals, ireal_dp, one, zero
-  use m_helper_functions, only : CHKERR, itoa, compute_normal_3d, angle_between_two_vec, triangle_inner_circle_center
-  use m_helper_functions_dp, only: pnt_in_triangle, distance_to_edge, &
-    determine_normal_direction, &
-    distances_to_triangle_edges, norm, mean, approx, &
-    triangle_intersection, square_intersection
+  use m_helper_functions, only : &
+    & angle_between_two_vec, &
+    & approx, &
+    & CHKERR, &
+    & compute_normal_3d, &
+    & determine_normal_direction, &
+    & distances_to_triangle_edges, &
+    & distance_to_edge, &
+    & meanval, &
+    & toStr, &
+    & triangle_inner_circle_center
+
+  use m_intersection, only: &
+    & hit_plane, &
+    & pnt_in_triangle, &
+    & square_intersection, &
+    & triangle_intersection
 
   implicit none
 
@@ -63,8 +75,8 @@ module m_boxmc_geometry
           C(1:2) = vertices(5:6); C(3) = 0
           D(1:2) = vertices(7:8); D(3) = 0
 
-          dx = mean([norm(B-A), norm(D-C)])
-          dy = mean([norm(C-A), norm(D-B)])
+          dx = meanval([norm2(B-A), norm2(D-C)])
+          dy = meanval([norm2(C-A), norm2(D-B)])
           dz = one
         elseif(size(vertices).eq.2*4*3) then ! 3D coords
           A = vertices( 1: 3)
@@ -76,11 +88,12 @@ module m_boxmc_geometry
           G = vertices(19:21)
           H = vertices(22:24)
 
-          dx = mean([norm(B-A), norm(D-C), norm(F-E), norm(H-G)])
-          dy = mean([norm(C-A), norm(D-B), norm(G-E), norm(H-F)])
-          dz = mean([norm(E-A), norm(F-B), norm(H-D), norm(G-C)])
+          dx = meanval([norm2(B-A), norm2(D-C), norm2(F-E), norm2(H-G)])
+          dy = meanval([norm2(C-A), norm2(D-B), norm2(G-E), norm2(H-F)])
+          dz = meanval([norm2(E-A), norm2(F-B), norm2(H-D), norm2(G-C)])
         else
-          call CHKERR(1_mpiint, 'dont know how to handle coords with '//itoa(size(vertices, kind=iintegers))//' vertex entries')
+          call CHKERR(1_mpiint, 'dont know how to handle coords with '//&
+            & toStr(size(vertices, kind=iintegers))//' vertex entries')
         endif
       else
         if(size(vertices).eq.4*2) then ! given are vertices on the top of a cube(x,y)
@@ -92,7 +105,8 @@ module m_boxmc_geometry
           dy = vertices(8) - vertices(2)
           dz = vertices(15) - vertices(3)
         else
-          call CHKERR(1_mpiint, 'dont know how to handle coords with '//itoa(size(vertices, kind=iintegers))//' vertex entries')
+          call CHKERR(1_mpiint, 'dont know how to handle coords with '//&
+            & toStr(size(vertices, kind=iintegers))//' vertex entries')
         endif
       endif
     end subroutine
@@ -213,12 +227,12 @@ module m_boxmc_geometry
       E = vertices(13:14)
       F = vertices(16:17)
 
-      nAB = (A-B); nAB = nAB([2,1]); nAB = nAB *[one, -one] / norm(nAB)
-      nBC = (B-C); nBC = nBC([2,1]); nBC = nBC *[one, -one] / norm(nBC)
-      nCA = (C-A); nCA = nCA([2,1]); nCA = nCA *[one, -one] / norm(nCA)
+      nAB = (A-B); nAB = nAB([2,1]); nAB = nAB *[one, -one] / norm2(nAB)
+      nBC = (B-C); nBC = nBC([2,1]); nBC = nBC *[one, -one] / norm2(nBC)
+      nCA = (C-A); nCA = nCA([2,1]); nCA = nCA *[one, -one] / norm2(nCA)
 
-      dx = norm(B-A)
-      dy = norm(C-A)
+      dx = norm2(B-A)
+      dy = norm2(C-A)
       dz = vertices(12)-vertices(3)
       if(any(approx([dx,dy,dz], 0._ireal_dp))) then
         do i=1,6
@@ -348,7 +362,6 @@ module m_boxmc_geometry
 
     subroutine intersect_cube(vertices, ploc, pdir, pscattercnt, psrc_side, &
         pside, max_dist)
-      use m_helper_functions_dp, only: hit_plane
       real(ireal_dp),intent(in) :: vertices(:)
       real(ireal_dp),intent(in) :: pdir(:), ploc(:)
       integer(iintegers),intent(in) :: pscattercnt, psrc_side
@@ -429,10 +442,10 @@ module m_boxmc_geometry
         endif
       enddo
 
-      if(max_dist.gt.norm([dx,dy,dz])) then
+      if(max_dist.gt.norm2([dx,dy,dz])) then
         print *,'should actually not be here at the end of crossings in intersect distance! '// &
                 '- however, please check if distance makes sense?:', &
-        max_dist, norm([dx,dy,dz]), '::', dist, ':', vertices, &
+        max_dist, norm2([dx,dy,dz]), '::', dist, ':', vertices, &
           'pdir', pdir, 'ploc side', ploc, psrc_side, 'target_side', pside
         call CHKERR(1_mpiint, 'DEBUG')
       endif

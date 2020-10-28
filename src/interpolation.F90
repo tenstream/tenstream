@@ -20,8 +20,10 @@
 module m_tenstream_interpolation
   use iso_fortran_env, only: REAL32, REAL64
   use m_data_parameters, only: iintegers, irealLUT, mpiint, i1
-  use m_helper_functions, only: approx, CHKERR, itoa, ftoa, &
-    triangle_area_by_vertices, ind_nd_to_1d, ind_1d_to_nd, pnt_in_triangle
+  use m_helper_functions, only: approx, CHKERR, toStr, &
+    triangle_area_by_vertices, ind_nd_to_1d, ind_1d_to_nd
+  use m_intersection, only: pnt_in_triangle
+
   implicit none
 
   private
@@ -427,7 +429,7 @@ contains
               db, db_offsets, db_intermediate(:,1))
     case default
       call CHKERR(1_mpiint, 'interp_vec_simplex_recursive not implemented for '// &
-              itoa(size(interp_dims, kind=iintegers))//' dimensions')
+              toStr(size(interp_dims, kind=iintegers))//' dimensions')
     end select
 
     pti_intermediate(interp_dims(Ninterpdim)) = ceiling(pti(interp_dims(Ninterpdim)))
@@ -443,7 +445,7 @@ contains
               db, db_offsets, db_intermediate(:,2))
     case default
       call CHKERR(1_mpiint, 'interp_vec_simplex_recursive not implemented for '// &
-              itoa(size(interp_dims, kind=iintegers))//' dimensions')
+              toStr(size(interp_dims, kind=iintegers))//' dimensions')
     end select
 
     wgt_1d = modulo(pti(interp_dims(Ninterpdim)), one)

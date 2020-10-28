@@ -32,14 +32,18 @@ module m_boxmc
   use iso_c_binding
   use mpi
 
-  use m_helper_functions_dp, only : &
-    hit_plane, square_intersection, triangle_intersection, pnt_in_cube
+  use m_intersection, only: &
+    & hit_plane, &
+    & pnt_in_cube, &
+    & pnt_in_triangle, &
+    & square_intersection, &
+    & triangle_intersection
 
   use m_helper_functions, only : CHKERR, CHKWARN, get_arg, itoa, ftoa, cstr, &
     rotate_angle_x, rotate_angle_y, rotate_angle_z, &
     angle_between_two_vec, rotation_matrix_local_basis_to_world, &
     approx, meanval, rmse, imp_reduce_sum, &
-    deg2rad, rad2deg, pnt_in_triangle, &
+    deg2rad, rad2deg, &
     compute_normal_3d, spherical_2_cartesian, &
     cross_3d, triangle_area_by_vertices
 

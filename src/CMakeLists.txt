@@ -53,7 +53,6 @@ set( general_sources
   "c_syscall_wrappers.F90"
   "data_parameters.F90"
   "eddington.F90"
-  "helper_functions_dp.F90"
   "interpolation.F90"
   "mcrts_dmda.F90"
   "mmap.F90"

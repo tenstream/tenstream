@@ -30,9 +30,7 @@ module m_mcrts_dmda
 
   use m_helper_functions, only: CHKERR, spherical_2_cartesian, &
     ind_nd_to_1d, ind_1d_to_nd, ndarray_offsets, imp_allreduce_sum, &
-    get_arg, itoa, ftoa, cstr
-
-  use m_helper_functions_dp, only : deg2rad
+    get_arg, itoa, ftoa, cstr, deg2rad
 
   use m_boxmc, only: t_photon, print_photon, scatter_photon, roulette, R, &
     tau, distance, update_photon_loc, &

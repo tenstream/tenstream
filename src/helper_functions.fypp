@@ -43,23 +43,87 @@ module m_helper_functions
   implicit none
 
   private
-  public imp_bcast,cross_2d, cross_3d,rad2deg,deg2rad,rmse,meanval,approx,rel_approx,                                &
-    delta_scale_optprop,delta_scale,cumsum,cumprod,                                                                  &
-    inc, mpi_logical_and, mpi_logical_or, mpi_logical_all_same,                                                      &
-    imp_allreduce_min, imp_allreduce_max, imp_allreduce_sum, imp_allreduce_mean,                                     &
-    imp_reduce_sum, imp_reduce_mean, imp_min_mean_max,                                                               &
-    gradient, read_ascii_file_2d, meanvec, swap, imp_allgather_int_inplace, reorder_mpi_comm,                        &
-    CHKERR, CHKWARN, assertEqual,                                                                                    &
-    compute_normal_3d, determine_normal_direction, spherical_2_cartesian, hit_plane,                                 &
-    angle_between_two_vec, angle_between_two_normed_vec, normalize_vec,                                              &
-    pnt_in_triangle, distance_to_edge, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world,   &
-    vec_proj_on_plane, get_arg, unique, toStr, ltoa, itoa, ftoa, char_arr_to_str, cstr, strF2C,                      &
-    distance, triangle_area_by_edgelengths, triangle_area_by_vertices,                                               &
-    ind_1d_to_nd, ind_nd_to_1d, ndarray_offsets, get_mem_footprint,            &
-    resize_arr, reverse, rotate_angle_x, rotate_angle_y, rotate_angle_z, rotation_matrix_around_axis_vec,            &
-    solve_quadratic, linspace, assert_arr_is_monotonous, is_between, is_inrange, sEXP, transposed_arr,               &
-    triangle_inner_circle_center, domain_decompose_2d, domain_decompose_2d_petsc, deallocate_allocatable,            &
-    char_to_lower, char_to_upper, colored_str_by_range
+  public &
+    & angle_between_two_normed_vec, &
+    & angle_between_two_vec, &
+    & approx, &
+    & assert_arr_is_monotonous, &
+    & assertEqual, &
+    & char_arr_to_str, &
+    & char_to_lower, &
+    & char_to_upper, &
+    & CHKERR, &
+    & CHKWARN, &
+    & colored_str_by_range, &
+    & compute_normal_3d, &
+    & cross_2d, &
+    & cross_3d, &
+    & cstr, &
+    & cumprod, &
+    & cumsum, &
+    & deallocate_allocatable, &
+    & deg2rad, &
+    & delta_scale, &
+    & delta_scale_optprop, &
+    & determine_normal_direction, &
+    & distance, &
+    & distances_to_triangle_edges, &
+    & distance_to_edge, &
+    & domain_decompose_2d, &
+    & domain_decompose_2d_petsc, &
+    & ftoa, &
+    & get_arg, &
+    & get_mem_footprint, &
+    & gradient, &
+    & imp_allgather_int_inplace, &
+    & imp_allreduce_max, &
+    & imp_allreduce_mean, &
+    & imp_allreduce_min, &
+    & imp_allreduce_sum, &
+    & imp_bcast, &
+    & imp_min_mean_max, &
+    & imp_reduce_mean, &
+    & imp_reduce_sum, &
+    & inc, &
+    & ind_1d_to_nd, &
+    & ind_nd_to_1d, &
+    & is_between, &
+    & is_inrange, &
+    & itoa, &
+    & linspace, &
+    & ltoa, &
+    & meanval, &
+    & meanvec, &
+    & mpi_logical_all_same, &
+    & mpi_logical_and, &
+    & mpi_logical_or, &
+    & ndarray_offsets, &
+    & normalize_vec, &
+    & rad2deg, &
+    & read_ascii_file_2d, &
+    & rel_approx, &
+    & reorder_mpi_comm, &
+    & resize_arr, &
+    & reverse, &
+    & rmse, &
+    & rotate_angle_x, &
+    & rotate_angle_y, &
+    & rotate_angle_z, &
+    & rotation_matrix_around_axis_vec, &
+    & rotation_matrix_local_basis_to_world, &
+    & rotation_matrix_world_to_local_basis, &
+    & sEXP, &
+    & solve_quadratic, &
+    & spherical_2_cartesian, &
+    & strF2C, &
+    & swap, &
+    & toStr, &
+    & transposed_arr, &
+    & triangle_area_by_edgelengths, &
+    & triangle_area_by_vertices, &
+    & triangle_inner_circle_center, &
+    & unique, &
+    & vec_proj_on_plane
 
   interface rotate_angle_x
 #:for dtype in ['REAL32', 'REAL64', 'REAL128']
@@ -78,10 +142,14 @@ module m_helper_functions
   end interface
 
   interface rmse
-    module procedure rmse_r32, rmse_r64
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    module procedure rmse_${dtype}$
+    #:endfor
   end interface
   interface spherical_2_cartesian
-    module procedure spherical_2_cartesian_r32, spherical_2_cartesian_r64
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    module procedure spherical_2_cartesian_${dtype}$
+    #:endfor
   end interface
   interface rad2deg
     module procedure rad2deg_r32, rad2deg_r64, rad2deg_r128
@@ -132,10 +200,11 @@ module m_helper_functions
 
   interface meanval
     #:for intype,dtype,otype in [ &
-      ('integer', 'INT32' ,'ireals'), &
-      ('integer', 'INT64' ,'ireals'), &
-      ('real'   , 'REAL32','REAL32'), &
-      ('real'   , 'REAL64','REAL64')]
+      ('integer', 'INT32'  ,'ireals'), &
+      ('integer', 'INT64'  ,'ireals'), &
+      ('real'   , 'REAL32' ,'REAL32'), &
+      ('real'   , 'REAL64' ,'REAL64'), &
+      ('real'   , 'REAL128','REAL128')]
     #:for RANK in range(1, 8)
     module procedure meanval_intype_${intype}$_${dtype}$_${RANK}$d_out${otype}$
     #:endfor
@@ -243,50 +312,62 @@ module m_helper_functions
     module procedure assertEqual_i32, assertEqual_i64
   end interface
 
-  interface pnt_in_triangle
-    module procedure pnt_in_triangle_r32, pnt_in_triangle_r64
-  end interface
-  interface pnt_in_rectangle
-    module procedure pnt_in_rectangle_r32, pnt_in_rectangle_r64
-  end interface
-  interface pnt_in_triangle_convex_hull
-    module procedure pnt_in_triangle_convex_hull_r32, pnt_in_triangle_convex_hull_r64
-  end interface
   interface cross_2d
-    module procedure cross_2d_r32, cross_2d_r64
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    module procedure cross_2d_${dtype}$
+    #:endfor
   end interface
   interface cross_3d
-    module procedure cross_3d_r32, cross_3d_r64
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    module procedure cross_3d_${dtype}$
+    #:endfor
   end interface
   interface angle_between_two_vec
-#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
     module procedure angle_between_two_vec_${dtype}$
-#:endfor
+    #:endfor
   end interface
   interface angle_between_two_normed_vec
-#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
     module procedure angle_between_two_normed_vec_${dtype}$
-#:endfor
+    #:endfor
   end interface
   interface compute_normal_3d
-    module procedure compute_normal_3d_r32, compute_normal_3d_r64
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    module procedure compute_normal_3d_${dtype}$
+    #:endfor
   end interface
   interface normalize_vec
-#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
     module procedure normalize_vec_${dtype}$
     module procedure normalize_vec_inplace_${dtype}$
-#:endfor
+    #:endfor
   end interface
+
   interface rotation_matrix_local_basis_to_world
-    module procedure rotation_matrix_local_basis_to_world_r32, rotation_matrix_local_basis_to_world_r64
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    module procedure rotation_matrix_local_basis_to_world_${dtype}$
+    #:endfor
+  end interface
+
+  interface determine_normal_direction
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    module procedure determine_normal_direction_${dtype}$
+    #:endfor
   end interface
 
   interface distances_to_triangle_edges
-    module procedure distances_to_triangle_edges_r32, distances_to_triangle_edges_r64
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    module procedure distances_to_triangle_edges_${dtype}$
+    #:endfor
   end interface
+
   interface distance_to_edge
-    module procedure distance_to_edge_r32, distance_to_edge_r64
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    module procedure distance_to_edge_${dtype}$
+    #:endfor
   end interface
+
   interface triangle_area_by_vertices
 #:for dtype in ['REAL32', 'REAL64']
     module procedure triangle_area_by_vertices_${dtype}$
@@ -539,35 +620,22 @@ module m_helper_functions
     end function
 
     !> @brief Cross product, right hand rule, a(thumb), b(pointing finger)
-    pure function cross_3d_r32(a, b) result(cross_3d)
-      real(REAL32), dimension(3), intent(in) :: a, b
-      real(REAL32), dimension(3) :: cross_3d
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    pure function cross_3d_${dtype}$(a, b) result(cross_3d)
+      real(${dtype}$), dimension(3), intent(in) :: a, b
+      real(${dtype}$), dimension(3) :: cross_3d
 
       cross_3d(1) = a(2) * b(3) - a(3) * b(2)
       cross_3d(2) = a(3) * b(1) - a(1) * b(3)
       cross_3d(3) = a(1) * b(2) - a(2) * b(1)
     end function
-    pure function cross_3d_r64(a, b) result(cross_3d)
-      real(REAL64), dimension(3), intent(in) :: a, b
-      real(REAL64), dimension(3) :: cross_3d
-
-      cross_3d(1) = a(2) * b(3) - a(3) * b(2)
-      cross_3d(2) = a(3) * b(1) - a(1) * b(3)
-      cross_3d(3) = a(1) * b(2) - a(2) * b(1)
-    end function
-
-    pure function cross_2d_r32(a, b) result(cross_2d)
-      real(REAL32), dimension(2), intent(in) :: a, b
-      real(REAL32) :: cross_2d
+    pure function cross_2d_${dtype}$(a, b) result(cross_2d)
+      real(${dtype}$), dimension(2), intent(in) :: a, b
+      real(${dtype}$) :: cross_2d
 
       cross_2d = a(1) * b(2) - a(2) * b(1)
     end function
-    pure function cross_2d_r64(a, b) result(cross_2d)
-      real(REAL64), dimension(2), intent(in) :: a, b
-      real(REAL64) :: cross_2d
-
-      cross_2d = a(1) * b(2) - a(2) * b(1)
-    end function
+    #:endfor
 
     subroutine resize_arr_3d_r32(N, arr, dim, fillval, lrepeat)
       integer(iintegers), intent(in) :: N
@@ -956,24 +1024,21 @@ module m_helper_functions
       r = rad / pi128 * 180
     end function
 
-    pure function rmse_r32(a,b) result(rmse)
-      real(REAL32) :: rmse(2)
-      real(REAL32),intent(in) :: a(:),b(:)
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    pure function rmse_${dtype}$(a,b) result(rmse)
+      real(${dtype}$) :: rmse(2)
+      real(${dtype}$),intent(in) :: a(:),b(:)
       rmse(1) = sqrt( meanval( (a-b)**2 ) )
       rmse(2) = rmse(1)/max( meanval(b), epsilon(rmse) )
     end function
-    pure function rmse_r64(a,b) result(rmse)
-      real(REAL64) :: rmse(2)
-      real(REAL64),intent(in) :: a(:),b(:)
-      rmse(1) = sqrt( meanval( (a-b)**2 ) )
-      rmse(2) = rmse(1)/max( meanval(b), epsilon(rmse) )
-    end function
+    #:endfor
 
 #:for intype,dtype,otype in [ &
   ('integer', 'INT32' , 'ireals'), &
   ('integer', 'INT64' , 'ireals'), &
   ('real'   , 'REAL32', 'REAL32'), &
-  ('real'   , 'REAL64', 'REAL64')]
+  ('real'   , 'REAL64', 'REAL64'), &
+  ('real'   , 'REAL128','REAL128')]
 #:for RANK in range(1, 8)
     pure function meanval_intype_${intype}$_${dtype}$_${RANK}$d_out${otype}$(arr) result(mean)
       ${intype}$(${dtype}$), intent(in) :: arr${ranksuffix(RANK)}$
@@ -1626,13 +1691,14 @@ module m_helper_functions
       !print *,'setup_petsc_comm: MPI_COMM_WORLD',orig_id,'calc_id',petsc_id
     end subroutine
 
-    pure function compute_normal_3d_r32(p1,p2,p3) result(compute_normal_3d)
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    pure function compute_normal_3d_${dtype}$(p1,p2,p3) result(compute_normal_3d)
       ! for a triangle p1, p2, p3, if the vector U = p2 - p1 and the vector V = p3 - p1
       ! then the normal (right hand rotation)
       ! N = U X V and can be calculated by:
-      real(REAL32), intent(in) :: p1(:), p2(:), p3(:)
-      real(REAL32) :: compute_normal_3d(size(p1))
-      real(REAL32) :: U(3), V(3)
+      real(${dtype}$), intent(in) :: p1(:), p2(:), p3(:)
+      real(${dtype}$) :: compute_normal_3d(size(p1))
+      real(${dtype}$) :: U(3), V(3)
 
       U = p2-p1
       V = p3-p1
@@ -1641,53 +1707,28 @@ module m_helper_functions
 
       compute_normal_3d = compute_normal_3d / norm2(compute_normal_3d)
     end function
-    pure function compute_normal_3d_r64(p1,p2,p3) result(compute_normal_3d)
-      ! for a triangle p1, p2, p3, if the vector U = p2 - p1 and the vector V = p3 - p1
-      ! then the normal (right hand rotation)
-      ! N = U X V and can be calculated by:
-      real(REAL64), intent(in) :: p1(:), p2(:), p3(:)
-      real(REAL64) :: compute_normal_3d(size(p1))
-      real(REAL64) :: U(size(p1)), V(size(p1))
+    #:endfor
 
-      U = p2-p1
-      V = p3-p1
-
-      compute_normal_3d = cross_3d(U,V)
-
-      compute_normal_3d = compute_normal_3d / norm2(compute_normal_3d)
-    end function
-
-    pure function determine_normal_direction(normal, center_face, center_cell)
-      ! return 1 if normal is pointing towards cell_center, -1 if its pointing
-      ! away from it
-      real(ireals), intent(in) :: normal(3), center_face(3), center_cell(3)
-      integer(iintegers) :: determine_normal_direction
-      real(ireals) :: dot
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    !> @brief return 1 if normal is pointing towards cell_center, -1 if its pointing away from it
+    pure function determine_normal_direction_${dtype}$(normal, center_face, center_cell) result(d)
+      real(${dtype}$), intent(in) :: normal(3), center_face(3), center_cell(3)
+      integer(iintegers) :: d
+      real(${dtype}$) :: dot
       dot = dot_product(normal, center_cell - center_face)
-      determine_normal_direction = int(sign(one, dot), kind=iintegers)
+      d = int(sign(1._${dtype}$, dot), kind=kind(d))
     end function
+#:endfor
 
     !> @brief For local azimuth and zenith angles, return the local cartesian vectors phi azimuth, theta zenith angles, angles are input in degrees.
     !> @details theta == 0 :: z = -1, i.e. downward
     !> @details azimuth == 0 :: vector going toward minus y, i.e. sun shines from the north
     !> @details azimuth == 90 :: vector going toward minus x, i.e. sun shines from the east
-    pure function spherical_2_cartesian_r32(phi, theta, r) result(spherical_2_cartesian)
-      real(real32), intent(in) :: phi, theta
-      real(real32), intent(in), optional :: r
-
-      real(real32) :: spherical_2_cartesian(3)
-
-      spherical_2_cartesian(1) = -sin(deg2rad(theta)) * sin(deg2rad(phi))
-      spherical_2_cartesian(2) = -sin(deg2rad(theta)) * cos(deg2rad(phi))
-      spherical_2_cartesian(3) = -cos(deg2rad(theta))
-
-      if(present(r)) spherical_2_cartesian = spherical_2_cartesian*r
-    end function
-    pure function spherical_2_cartesian_r64(phi, theta, r) result(spherical_2_cartesian)
-      real(real64), intent(in) :: phi, theta
-      real(real64), intent(in), optional :: r
-
-      real(real64) :: spherical_2_cartesian(3)
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    pure function spherical_2_cartesian_${dtype}$(phi, theta, r) result(spherical_2_cartesian)
+      real(${dtype}$), intent(in) :: phi, theta
+      real(${dtype}$), intent(in), optional :: r
+      real(${dtype}$) :: spherical_2_cartesian(3)
 
       spherical_2_cartesian(1) = -sin(deg2rad(theta)) * sin(deg2rad(phi))
       spherical_2_cartesian(2) = -sin(deg2rad(theta)) * cos(deg2rad(phi))
@@ -1695,6 +1736,7 @@ module m_helper_functions
 
       if(present(r)) spherical_2_cartesian = spherical_2_cartesian*r
     end function
+#:endfor
 
 #:for dtype in ['REAL32', 'REAL64', 'REAL128']
     subroutine normalize_vec_${dtype}$(vec, normed_vec, ierr)
@@ -1808,207 +1850,24 @@ module m_helper_functions
     end subroutine
 #:endfor
 
-    !> @brief determine distance where a photon p intersects with a plane
-    !> @details inputs are the location and direction of a photon aswell as the origin and surface normal of the plane
-    pure function hit_plane(p_loc, p_dir, po, pn)
-      real(ireals) :: hit_plane
-      real(ireals),intent(in) :: p_loc(3), p_dir(3)
-      real(ireals),intent(in) :: po(3), pn(3)
-      real(ireals) :: discr
-      discr = dot_product(p_dir,pn)
-      if( ( discr.le. epsilon(discr) ) .and. ( discr.gt.-epsilon(discr)  ) ) then
-        hit_plane = huge(hit_plane)
-      else
-        hit_plane = dot_product(po-p_loc, pn) / discr
-      endif
-    end function
-
-    !> @brief determine if point is inside a rectangle p1,p2,p3
-    function pnt_in_rectangle_r32(p1,p2,p3, p) result(pnt_in_rectangle)
-      real(REAL32), intent(in), dimension(2) :: p1,p2,p3, p
-      logical :: pnt_in_rectangle
-      real(REAL32),parameter :: eps = epsilon(eps), eps2 = sqrt(eps)
-
-      ! check for rectangular bounding box
-      if ( p(1).lt.minval([p1(1),p2(1),p3(1)])-eps2 .or. p(1).gt.maxval([p1(1),p2(1),p3(1)])+eps2 ) then ! outside of xrange
-        pnt_in_rectangle=.False.
-        return
-      endif
-      if ( p(2).lt.minval([p1(2),p2(2),p3(2)])-eps2 .or. p(2).gt.maxval([p1(2),p2(2),p3(2)])+eps2 ) then ! outside of yrange
-        pnt_in_rectangle=.False.
-        return
-      endif
-      pnt_in_rectangle=.True.
-    end function
-    function pnt_in_rectangle_r64(p1,p2,p3, p) result(pnt_in_rectangle)
-      real(REAL64), intent(in), dimension(2) :: p1,p2,p3, p
-      logical :: pnt_in_rectangle
-      real(REAL64),parameter :: eps = epsilon(eps), eps2 = sqrt(eps)
-
-      ! check for rectangular bounding box
-      if ( p(1).lt.minval([p1(1),p2(1),p3(1)])-eps2 .or. p(1).gt.maxval([p1(1),p2(1),p3(1)])+eps2 ) then ! outside of xrange
-        pnt_in_rectangle=.False.
-        return
-      endif
-      if ( p(2).lt.minval([p1(2),p2(2),p3(2)])-eps2 .or. p(2).gt.maxval([p1(2),p2(2),p3(2)])+eps2 ) then ! outside of yrange
-        pnt_in_rectangle=.False.
-        return
-      endif
-      pnt_in_rectangle=.True.
-    end function
-
-    !> @brief determine if point is inside a triangle p1,p2,p3
-    function pnt_in_triangle_r32(p1,p2,p3, p) result(pnt_in_triangle)
-      real(REAL32), intent(in), dimension(2) :: p1,p2,p3, p
-      logical :: pnt_in_triangle
-      real(REAL32),parameter :: eps = epsilon(eps)
-      real(REAL32) :: a, b, c, edge_dist
-
-      logical, parameter :: ldebug=.False.
-
-      pnt_in_triangle = pnt_in_rectangle(p1,p2,p3, p)
-      if(ldebug) print *,'pnt_in_triangle::pnt in rectangle:', p1, p2, p3, 'p', p, '::', pnt_in_triangle
-      if (.not.pnt_in_triangle) then ! if pnt is not in rectangle, it is not in triangle!
-        ! Then check for sides
-        a = ((p2(2)- p3(2))*(p(1) - p3(1)) + (p3(1) - p2(1))*(p(2) - p3(2))) / &
-          ((p2(2) - p3(2))*(p1(1) - p3(1)) + (p3(1) - p2(1))*(p1(2) - p3(2)))
-        b = ((p3(2) - p1(2))*(p(1) - p3(1)) + (p1(1) - p3(1))*(p(2) - p3(2))) / &
-          ((p2(2) - p3(2))*(p1(1) - p3(1)) + (p3(1) - p2(1))*(p1(2) - p3(2)))
-        c = 1._REAL32 - (a + b)
-
-        pnt_in_triangle = all([a,b,c].ge.0._REAL32)
-        if(ldebug) print *,'pnt_in_triangle::1st check:', a, b, c, '::', pnt_in_triangle
-      endif
-
-      if(.not.pnt_in_triangle) then
-        pnt_in_triangle = pnt_in_triangle_convex_hull(p1,p2,p3, p)
-        if(ldebug) print *,'pnt_in_triangle::convex hull:', pnt_in_triangle
-      endif
-
-      if(.not.pnt_in_triangle) then ! Compute distances to each edge and allow the check to be positive if the distance is small
-        edge_dist = minval(distances_to_triangle_edges(p1,p2,p3,p))
-        if(edge_dist.le.eps) then
-          if((p(1).lt.min(p1(1),p2(1))) .or. (p(1).gt.max(p1(1),p2(1)) )) then
-            ! is on line but ouside of segment
-            continue
-          else
-            pnt_in_triangle=.True.
-          endif
-          if(ldebug) print *,'pnt_in_triangle edgedist:',edge_dist,'=>', pnt_in_triangle
-        endif
-      endif
-
-      if(ldebug.and..not.pnt_in_triangle) print *,'pnt_in_triangle final:', pnt_in_triangle,'::',a,b,c,':',p, &
-        'edgedist',distances_to_triangle_edges(p1,p2,p3,p),distances_to_triangle_edges(p1,p2,p3,p).le.eps
-    end function
-    function pnt_in_triangle_r64(p1,p2,p3, p) result(pnt_in_triangle)
-      real(REAL64), intent(in), dimension(2) :: p1,p2,p3, p
-      logical :: pnt_in_triangle
-      real(REAL64),parameter :: eps = epsilon(eps)
-      real(REAL64) :: a, b, c, edge_dist
-
-      logical, parameter :: ldebug=.False.
-
-      pnt_in_triangle = pnt_in_rectangle(p1,p2,p3, p)
-      if(ldebug) print *,'pnt_in_triangle::pnt in rectangle:', p1, p2, p3, 'p', p, '::', pnt_in_triangle
-      if (.not.pnt_in_triangle) then ! if pnt is not in rectangle, it is not in triangle!
-        ! Then check for sides
-        a = ((p2(2)- p3(2))*(p(1) - p3(1)) + (p3(1) - p2(1))*(p(2) - p3(2))) / &
-          ((p2(2) - p3(2))*(p1(1) - p3(1)) + (p3(1) - p2(1))*(p1(2) - p3(2)))
-        b = ((p3(2) - p1(2))*(p(1) - p3(1)) + (p1(1) - p3(1))*(p(2) - p3(2))) / &
-          ((p2(2) - p3(2))*(p1(1) - p3(1)) + (p3(1) - p2(1))*(p1(2) - p3(2)))
-        c = one - (a + b)
-
-        pnt_in_triangle = all([a,b,c].ge.zero)
-        if(ldebug) print *,'pnt_in_triangle::1st check:', a, b, c, '::', pnt_in_triangle
-      endif
-
-      if(.not.pnt_in_triangle) then
-        pnt_in_triangle = pnt_in_triangle_convex_hull(p1,p2,p3, p)
-        if(ldebug) print *,'pnt_in_triangle::convex hull:', pnt_in_triangle
-      endif
-
-      if(.not.pnt_in_triangle) then ! Compute distances to each edge and allow the check to be positive if the distance is small
-        edge_dist = minval(distances_to_triangle_edges(p1,p2,p3,p))
-        if(edge_dist.le.eps) then
-          if((p(1).lt.min(p1(1),p2(1))) .or. (p(1).gt.max(p1(1),p2(1)) )) then
-            ! is on line but ouside of segment
-            continue
-          else
-            pnt_in_triangle=.True.
-          endif
-          if(ldebug) print *,'pnt_in_triangle edgedist:',edge_dist,'=>', pnt_in_triangle
-        endif
-      endif
-
-      if(ldebug.and..not.pnt_in_triangle) print *,'pnt_in_triangle final:', pnt_in_triangle,'::',a,b,c,':',p, &
-        'edgedist',distances_to_triangle_edges(p1,p2,p3,p),distances_to_triangle_edges(p1,p2,p3,p).le.eps
-    end function
-
-    function pnt_in_triangle_convex_hull_r32(p1,p2,p3, p) result(pnt_in_triangle_convex_hull)
-      real(REAL32), intent(in), dimension(2) :: p1,p2,p3, p
-      logical :: pnt_in_triangle_convex_hull
-      real(REAL32), dimension(2) :: v0, v1, v2
-      real(REAL32) :: a,b
-
-      v0 = p1
-      v1 = p2-p1
-      v2 = p3-p1
-
-      a =  (cross_2d(p, v2) - cross_2d(v0, v2)) / cross_2d(v1, v2)
-      b = -(cross_2d(p, v1) - cross_2d(v0, v1)) / cross_2d(v1, v2)
-
-      pnt_in_triangle_convex_hull = all([a,b].ge.0._REAL32) .and. (a+b).le.1._REAL32
-
-      !print *,'points',p1,p2,p3,'::',p
-      !print *,'a,b',a,b,'::',a+b, '::>',pnt_in_triangle_convex_hull
-    end function
-    function pnt_in_triangle_convex_hull_r64(p1,p2,p3, p) result(pnt_in_triangle_convex_hull)
-      real(REAL64), intent(in), dimension(2) :: p1,p2,p3, p
-      logical :: pnt_in_triangle_convex_hull
-      real(REAL64), dimension(2) :: v0, v1, v2
-      real(REAL64) :: a,b
-
-      v0 = p1
-      v1 = p2-p1
-      v2 = p3-p1
-
-      a =  (cross_2d(p, v2) - cross_2d(v0, v2)) / cross_2d(v1, v2)
-      b = -(cross_2d(p, v1) - cross_2d(v0, v1)) / cross_2d(v1, v2)
-
-      pnt_in_triangle_convex_hull = all([a,b].ge.0._REAL64) .and. (a+b).le.1._REAL64
-
-      !print *,'points',p1,p2,p3,'::',p
-      !print *,'a,b',a,b,'::',a+b, '::>',pnt_in_triangle_convex_hull
-    end function
-
-    pure function distances_to_triangle_edges_r32(p1,p2,p3,p) result(distances_to_triangle_edges)
-      real(REAL32), intent(in), dimension(2) :: p1,p2,p3, p
-      real(REAL32) :: distances_to_triangle_edges(3)
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    pure function distances_to_triangle_edges_${dtype}$(p1,p2,p3,p) result(distances_to_triangle_edges)
+      real(${dtype}$), intent(in), dimension(2) :: p1,p2,p3, p
+      real(${dtype}$) :: distances_to_triangle_edges(3)
       distances_to_triangle_edges(1) = distance_to_edge(p1,p2,p)
       distances_to_triangle_edges(2) = distance_to_edge(p2,p3,p)
       distances_to_triangle_edges(3) = distance_to_edge(p1,p3,p)
     end function
-    pure function distances_to_triangle_edges_r64(p1,p2,p3,p) result(distances_to_triangle_edges)
-      real(REAL64), intent(in), dimension(2) :: p1,p2,p3, p
-      real(REAL64) :: distances_to_triangle_edges(3)
-      distances_to_triangle_edges(1) = distance_to_edge(p1,p2,p)
-      distances_to_triangle_edges(2) = distance_to_edge(p2,p3,p)
-      distances_to_triangle_edges(3) = distance_to_edge(p1,p3,p)
-    end function
+#:endfor
 
-    pure function distance_to_edge_r32(p1,p2,p) result(distance_to_edge)
-      real(REAL32), intent(in), dimension(2) :: p1,p2, p
-      real(REAL32) :: distance_to_edge
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    pure function distance_to_edge_${dtype}$(p1,p2,p) result(distance_to_edge)
+      real(${dtype}$), intent(in), dimension(2) :: p1,p2, p
+      real(${dtype}$) :: distance_to_edge
 
       distance_to_edge = abs( (p2(2)-p1(2))*p(1) - (p2(1)-p1(1))*p(2) + p2(1)*p1(2) - p2(2)*p1(1) ) / norm2(p2-p1)
     end function
-    pure function distance_to_edge_r64(p1,p2,p) result(distance_to_edge)
-      real(REAL64), intent(in), dimension(2) :: p1,p2, p
-      real(REAL64) :: distance_to_edge
-
-      distance_to_edge = abs( (p2(2)-p1(2))*p(1) - (p2(1)-p1(1))*p(2) + p2(1)*p1(2) - p2(2)*p1(1) ) / norm2(p2-p1)
-    end function
+#:endfor
 
 #:for dtype in ['REAL32', 'REAL64', 'REAL128']
       !> @brief: rotate vector around given axis by angle [deg] with left hand rule
@@ -2092,10 +1951,11 @@ module m_helper_functions
     end function
 
     ! the resulting matrix will transform a vector from the given coord system into the world coordinate system
-    pure function rotation_matrix_local_basis_to_world_r32(ex, ey, ez) result(M)
-      real(real32), dimension(3), intent(in) :: ex, ey, ez
-      real(real32), dimension(3), parameter :: kx=[1,0,0], ky=[0,1,0], kz=[0,0,1]
-      real(real32), dimension(3,3) :: M
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    pure function rotation_matrix_local_basis_to_world_${dtype}$(ex, ey, ez) result(M)
+      real(${dtype}$), dimension(3), intent(in) :: ex, ey, ez
+      real(${dtype}$), dimension(3), parameter :: kx=[1,0,0], ky=[0,1,0], kz=[0,0,1]
+      real(${dtype}$), dimension(3,3) :: M
       M(1,1) = dot_product(kx, ex)
       M(2,1) = dot_product(ky, ex)
       M(3,1) = dot_product(kz, ex)
@@ -2106,20 +1966,7 @@ module m_helper_functions
       M(2,3) = dot_product(ky, ez)
       M(3,3) = dot_product(kz, ez)
     end function
-    pure function rotation_matrix_local_basis_to_world_r64(ex, ey, ez) result(M)
-      real(real64), dimension(3), intent(in) :: ex, ey, ez
-      real(real64), dimension(3), parameter :: kx=[1,0,0], ky=[0,1,0], kz=[0,0,1]
-      real(real64), dimension(3,3) :: M
-      M(1,1) = dot_product(kx, ex)
-      M(2,1) = dot_product(ky, ex)
-      M(3,1) = dot_product(kz, ex)
-      M(1,2) = dot_product(kx, ey)
-      M(2,2) = dot_product(ky, ey)
-      M(3,2) = dot_product(kz, ey)
-      M(1,3) = dot_product(kx, ez)
-      M(2,3) = dot_product(ky, ez)
-      M(3,3) = dot_product(kz, ez)
-    end function
+#:endfor
 
     ! https://www.maplesoft.com/support/help/maple/view.aspx?path=MathApps%2FProjectionOfVectorOntoPlane
     pure function vec_proj_on_plane(v, plane_normal)

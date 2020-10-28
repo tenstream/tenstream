@@ -19,8 +19,9 @@
 
 module m_tenstream_options
 
-  use m_data_parameters, only : init_mpi_data_parameters, ireals, iintegers, mpiint, &
-    zero, one, i0, default_str_len
+  use m_data_parameters, only : init_mpi_data_parameters, &
+    & ireals, irealLUT, iintegers, mpiint, &
+    & zero, one, i0, default_str_len
   use m_optprop_parameters, only: lut_basename, stddev_atol, stddev_rtol
   use m_helper_functions, only: CHKERR, CHKWARN
 
