@@ -173,6 +173,7 @@ contains
 
       integer(mpiint) :: comm_size, myid, ierr
       logical :: lskip_load_LUT, load_diffuse_LUT_first, lflg
+      logical :: lskip_load_LUT_dir, lskip_load_LUT_diff
 
       if(OPP%initialized) return
 
@@ -271,15 +272,24 @@ contains
       lskip_load_LUT = get_arg(.True., skip_load_LUT)
       call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
         '-skip_load_LUT', lskip_load_LUT, lflg, ierr); call CHKERR(ierr)
-      if(.not.lskip_load_LUT .and. myid.eq.0) &
-        print *,'loading and checking LUT`s from netCDF', .not.lskip_load_LUT
+
+      lskip_load_LUT_dir  = lskip_load_LUT
+      lskip_load_LUT_diff = lskip_load_LUT
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+        '-skip_load_LUT_dir', lskip_load_LUT_dir, lflg, ierr); call CHKERR(ierr)
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+        '-skip_load_LUT_diff', lskip_load_LUT_diff, lflg, ierr); call CHKERR(ierr)
+
+      if((.not.lskip_load_LUT_dir.or..not.lskip_load_LUT_diff) .and. myid.eq.0) &
+        & print *,'loading and checking LUT`s from netCDF', &
+        & .not.lskip_load_LUT_dir, .not.lskip_load_LUT_diff
 
       if(load_diffuse_LUT_first) then
-        call OPP%loadLUT_diff(comm, lskip_load_LUT)
-        call OPP%loadLUT_dir(comm, lskip_load_LUT)
+        call OPP%loadLUT_diff(comm, lskip_load_LUT_diff)
+        call OPP%loadLUT_dir(comm, lskip_load_LUT_dir)
       else
-        call OPP%loadLUT_dir(comm, lskip_load_LUT)
-        call OPP%loadLUT_diff(comm, lskip_load_LUT)
+        call OPP%loadLUT_dir(comm, lskip_load_LUT_dir)
+        call OPP%loadLUT_diff(comm, lskip_load_LUT_diff)
       endif
 
       call OPP%scatter_LUTtables(comm)
