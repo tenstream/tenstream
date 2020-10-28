@@ -1027,9 +1027,15 @@ subroutine rand_pnt_on_triangle(A,B,C, pnt)
   real(ireal_dp), dimension(:), intent(in) :: A, B, C
   real(ireal_dp), dimension(:), intent(out) :: pnt
   real(ireal_dp) :: r1, r2
+  real(ireal_dp), dimension(size(A)) :: center, cA, cB, cC
+  real(ireal_dp), parameter :: eps=1e-2 ! move all points a wee bit towards the center
+  center = (A+B+C)/3
+  cA = A + (center-A) * eps
+  cB = B + (center-B) * eps
+  cC = C + (center-C) * eps
   r1 = R()
   r2 = R()
-  pnt = (one - sqrt(r1)) * A + sqrt(r1) * (one - r2) * B + sqrt(r1) * r2 * C
+  pnt = (one - sqrt(r1)) * cA + sqrt(r1) * (one - r2) * cB + sqrt(r1) * r2 * cC
 end subroutine
 subroutine rand_pnt_on_plane(A,B,C,D, pnt, normal, U,V)
   real(ireal_dp), dimension(3), intent(in) :: A, B, C, D
