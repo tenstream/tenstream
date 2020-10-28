@@ -5,25 +5,33 @@ module m_wetterstein
 
   use m_tenstream_options, only: read_commandline_options
 
-  use m_helper_functions, only : imp_bcast, CHKERR, spherical_2_cartesian
+  use m_helper_functions, only : &
+    & CHKERR, &
+    & domain_decompose_2d_petsc, &
+    & imp_bcast, &
+    & spherical_2_cartesian
 
   use m_netcdfIO, only : ncwrite, ncload
 
   use m_pprts_rrtmg, only : pprts_rrtmg, destroy_pprts_rrtmg
-  use m_pprts_base, only : t_solver_3_10
+  use m_pprts_base, only : t_solver, allocate_pprts_solver_from_commandline
   use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm
 
   implicit none
 
 contains
-  subroutine ex_wetterstein()
+  subroutine ex_wetterstein(comm)
+    integer(mpiint), intent(in) :: comm
 
-    implicit none
-
-    type(t_solver_3_10) :: solver
-    type(t_tenstr_atm)  :: atm
     ! MPI variables and domain decomposition sizes
-    integer(mpiint) :: numnodes, comm, myid, N_ranks_x, N_ranks_y
+    integer(mpiint) :: numnodes, myid
+
+    integer(iintegers) :: Nx, Ny, Nlay   ! global domain size
+    integer(iintegers) :: nxp, nyp, xs, ys ! local domain size in x and y aswell as start indices
+    integer(iintegers),allocatable :: nxproc(:), nyproc(:)
+
+    class(t_solver), allocatable :: solver
+    type(t_tenstr_atm)  :: atm
 
     real(ireals),parameter :: dx=100,dy=dx
     real(ireals),parameter :: phi0=180, theta0=60
@@ -40,29 +48,16 @@ contains
 
     real(ireals) :: sundir(3)
     integer(iintegers) :: k
-    integer(iintegers) :: nxp,nyp,nlay
-    integer(iintegers),allocatable :: nxproc(:), nyproc(:)
     integer(mpiint) :: ncerr, ierr
 
     logical, parameter :: lthermal=.False., lsolar=.True.
     logical, parameter :: ldebug=.True.
 
-    comm = MPI_COMM_WORLD
+    call init_mpi_data_parameters(comm)
     call mpi_comm_size(comm, numnodes, ierr)
     call mpi_comm_rank(comm, myid, ierr)
 
-    N_ranks_y = int(sqrt(1.*numnodes))
-    N_ranks_x = numnodes / N_ranks_y
-    if(N_ranks_y*N_ranks_x .ne. numnodes) then
-      N_ranks_x = numnodes
-      N_ranks_y = 1
-    endif
-    if(myid.eq.0) print *, myid, 'Domain Decomposition will be', N_ranks_x, 'and', N_ranks_y, '::', numnodes
-
-    allocate(nxproc(N_ranks_x), source=nxp) ! dimension will determine how many ranks are used along the axis
-    allocate(nyproc(N_ranks_y), source=nyp) ! values have to define the local domain sizes on each rank (here constant on all processes)
-
-    call init_mpi_data_parameters(comm)
+    call allocate_pprts_solver_from_commandline(solver, '3_10', ierr); call CHKERR(ierr)
 
     if(myid.eq.0) then
       nc_path(1) = 'input.nc'
@@ -74,9 +69,14 @@ contains
     call imp_bcast(comm, plev  , 0_mpiint)
     call imp_bcast(comm, tlev  , 0_mpiint)
 
-    nlay= ubound(plev,1)-1
-    nxp = ubound(plev,2)
-    nyp = ubound(plev,3)
+    Nlay = ubound(plev,1)-1
+    Nx   = ubound(plev,2)
+    Ny   = ubound(plev,3)
+
+    call domain_decompose_2d_petsc(comm, Nx, Ny, &
+      & nxp, nyp, xs, ys, nxproc, nyproc, ierr); call CHKERR(ierr)
+
+    if(myid.eq.0) print *, myid, 'Domain Decomposition on', numnodes, 'ranks will be', nxproc, 'and', nyproc
 
     call CHKERR(1_mpiint, 'TODO: need to define tlev and overall, this example is not tested at all')
 
@@ -145,13 +145,13 @@ contains
 end module
 
 program main
-  use mpi
+  use mpi, only: mpi_init, mpi_finalize, MPI_COMM_WORLD
   use m_wetterstein
 
   integer ierr
   call mpi_init(ierr)
 
-  call ex_wetterstein()
+  call ex_wetterstein(MPI_COMM_WORLD)
 
   call mpi_finalize(ierr)
 end program
