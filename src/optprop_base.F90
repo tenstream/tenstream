@@ -379,11 +379,11 @@ contains
       case('LUT_3_6')
         call setup_pprts_mockup()
       case('LUT_wedge_5_8')
-        call setup_wedge_mockup()
+        call setup_wedge_mockup([real(irealLUT) :: .35,.65], [real(irealLUT) :: 0.7760254, 0.9560254])
       case('LUT_rectilinear_wedge_5_8')
-        call setup_wedge_mockup()
+        call setup_wedge_mockup([real(irealLUT) :: -0.000001,1.000001], [real(irealLUT) :: .499999,1.000001])
       case('LUT_wedge_18_8')
-        call setup_wedge_mockup()
+        call setup_wedge_mockup([real(irealLUT) :: .35,.65], [real(irealLUT) :: 0.7760254, 0.9560254])
       case default
         call CHKERR(1_mpiint, 'set_parameter space: unexpected type for optprop object name: '//trim(cname))
       end select
@@ -426,25 +426,22 @@ contains
       call populate_op_dim('aspect_zx', 2_iintegers, OPP%diffconfig%dims(3), vrange=real([1e-2,2.], irealLUT))
       call populate_op_dim('g',         2_iintegers, OPP%diffconfig%dims(4), vrange=real([0,1], irealLUT))
     end subroutine
-    subroutine setup_wedge_mockup()
+    subroutine setup_wedge_mockup(Cx, Cy)
+      real(irealLUT), intent(in) :: Cx(2), Cy(2)
       allocate(OPP%dirconfig%dims(7))
       call populate_op_dim('tau',       2_iintegers, OPP%dirconfig%dims(1), vrange=real([1e-30,1e3], irealLUT))
       call populate_op_dim('w0',        2_iintegers, OPP%dirconfig%dims(2), vrange=real([0,1], irealLUT))
       call populate_op_dim('aspect_zx', 2_iintegers, OPP%dirconfig%dims(3), vrange=real([1e-2,2.], irealLUT))
-      call populate_op_dim('wedge_coord_Cx', 2_iintegers, OPP%dirconfig%dims(4), &
-        vrange=real([.35,.65], irealLUT))
-      call populate_op_dim('wedge_coord_Cy', 2_iintegers, OPP%dirconfig%dims(5), &
-        vrange=real([0.7760254, 0.9560254], irealLUT))
+      call populate_op_dim('wedge_coord_Cx', 3_iintegers, OPP%dirconfig%dims(4), vrange=Cx)
+      call populate_op_dim('wedge_coord_Cy', 2_iintegers, OPP%dirconfig%dims(5), vrange=Cy)
       call populate_op_dim('param_phi'  , OPP%dirconfig%dims(6), preset=preset_param_phi6)
       call populate_op_dim('param_theta', OPP%dirconfig%dims(7), preset=preset_param_theta4)
       allocate(OPP%diffconfig%dims(5))
       call populate_op_dim('tau',       2_iintegers, OPP%diffconfig%dims(1), vrange=real([1e-30,1e3], irealLUT))
       call populate_op_dim('w0',        2_iintegers, OPP%diffconfig%dims(2), vrange=real([0,1], irealLUT))
       call populate_op_dim('aspect_zx', 2_iintegers, OPP%diffconfig%dims(3), vrange=real([1e-2,2.], irealLUT))
-      call populate_op_dim('wedge_coord_Cx', 2_iintegers, OPP%diffconfig%dims(4), &
-        vrange=real([.35,.65], irealLUT))
-      call populate_op_dim('wedge_coord_Cy', 2_iintegers, OPP%diffconfig%dims(5), &
-        vrange=real([0.7760254, 0.9560254], irealLUT))
+      call populate_op_dim('wedge_coord_Cx', 3_iintegers, OPP%diffconfig%dims(4), vrange=Cx)
+      call populate_op_dim('wedge_coord_Cy', 2_iintegers, OPP%diffconfig%dims(5), vrange=Cy)
     end subroutine
   end subroutine
 
