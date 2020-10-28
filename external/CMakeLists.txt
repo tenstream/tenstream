@@ -1,7 +1,85 @@
+if(ENABLE_PFUNIT)
+  message(STATUS "Installing pfUnit  --  Installation taken from https://github.com/bast/pfunit-demo/blob/master/CMakeLists.txt")
+  enable_testing()
 
-message(STATUS "Installing pfUnit  --  Installation taken from https://github.com/bast/pfunit-demo/blob/master/CMakeLists.txt")
+  set(PFUNIT_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} ${PFUNIT_Fortran_FLAGS} -DUSE_MPI")
 
-cmake_minimum_required(VERSION 2.8 FATAL_ERROR)
+  string(COMPARE EQUAL ${CMAKE_Fortran_COMPILER_ID} "Intel" _is_Intel)
+  if(${_is_Intel})
+    # Find out if the compiler is Intel and if so add compile flag for parameter tests
+    set(EXTRA_TESTDRIVER_COMPILE_FLAGS "-warn noerrors -warn nounused"
+      CACHE INTERNAL "FLAGS used to compile pfunit driver files")
+    set(EXTRA_TEST_COMPILE_FLAGS
+      "-warn noerrors -warn nounused"
+      CACHE INTERNAL "FLAGS used to compile files after they have been parsed by pfunit")
+    set(PFUNIT_Fortran_FLAGS "${PFUNIT_Fortran_FLAGS} -assume realloc_lhs -check nobounds -nowarn")
+  else()
+    set(EXTRA_TESTDRIVER_COMPILE_FLAGS "-Wno-error -w"
+      CACHE INTERNAL "FLAGS used to compile pfunit driver files")
+    set(EXTRA_TEST_COMPILE_FLAGS
+      "-Wno-error -Wno-unused-dummy-argument -ffree-line-length-none"
+      CACHE INTERNAL
+      "FLAGS used to compile files after they have been parsed by pfunit")
+    set(PFUNIT_Fortran_FLAGS
+      "${PFUNIT_Fortran_FLAGS} \
+      -Wno-compare-reals \
+      -Wno-conversion \
+      -Wno-intrinsic-shadow \
+      -Wno-maybe-uninitialized \
+      -Wno-unused-dummy-argument \
+      -Wno-unused-function \
+      -Wno-unused-parameter \
+      -Wno-unused-variable \
+    ")
+  endif(${_is_Intel})
+
+  message(STATUS "Using PFUNIT_Fortran_FLAGS: ${PFUNIT_Fortran_FLAGS}")
+
+  if(DEFINED PFUNIT_INSTALL)
+    message(STATUS "Manual setup of variable PFUNIT_INSTALL : ${PFUNIT_INSTALL}")
+    set(PFUNIT_DIR ${PFUNIT_INSTALL})
+  else()
+    add_custom_target(
+      git_update
+      COMMAND git submodule init
+      COMMAND git submodule update
+      WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+      )
+
+    include(ExternalProject)
+
+    file(MAKE_DIRECTORY ${PROJECT_BINARY_DIR}/generated)
+
+    set(ExternalProjectCMakeArgs
+      -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+      -DCMAKE_INSTALL_PREFIX=${PROJECT_BINARY_DIR}/external/pfunit
+      -DCMAKE_Fortran_COMPILER=${CMAKE_Fortran_COMPILER}
+      -DCMAKE_Fortran_FLAGS=${PFUNIT_Fortran_FLAGS}
+      -DCMAKE_Fortran_FLAGS_RELEASE=${PFUNIT_Fortran_FLAGS}
+      -DCMAKE_Fortran_FLAGS_DEBUG=${PFUNIT_Fortran_FLAGS}
+      -DMPI_USE_MPIEXEC=YES
+      -DMPI=YES
+      )
+    ExternalProject_Add(pfunit
+      DOWNLOAD_COMMAND git submodule update
+      DOWNLOAD_DIR ${PROJECT_SOURCE_DIR}
+      SOURCE_DIR ${PROJECT_SOURCE_DIR}/external/pfunit
+      BINARY_DIR ${PROJECT_BINARY_DIR}/external/pfunit-build
+      STAMP_DIR ${PROJECT_BINARY_DIR}/external/pfunit-stamp
+      TMP_DIR ${PROJECT_BINARY_DIR}/external/pfunit-tmp
+      INSTALL_DIR ${PROJECT_BINARY_DIR}/external
+      CMAKE_ARGS ${ExternalProjectCMakeArgs}
+      )
+    #include_directories(${PROJECT_BINARY_DIR}/external/pfunit/mod)
+    add_dependencies(pfunit git_update)
+    set(PFUNIT_DIR ${PROJECT_BINARY_DIR}/external/pfunit CACHE INTERNAL "PFUNIT install directory")
+  endif()
+
+  #include_directories(${PFUNIT_DIR}/mod)
+
+endif(ENABLE_PFUNIT)
+
+
 message(STATUS "Installing fypp - Fortran Preprocessor")
 #ExternalProject_Add(fypp
 #  GIT_REPOSITORY https://github.com/aradi/fypp.git
