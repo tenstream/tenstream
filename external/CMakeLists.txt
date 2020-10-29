@@ -7,17 +7,21 @@ if(ENABLE_PFUNIT)
   string(COMPARE EQUAL ${CMAKE_Fortran_COMPILER_ID} "Intel" _is_Intel)
   if(${_is_Intel})
     # Find out if the compiler is Intel and if so add compile flag for parameter tests
-    set(EXTRA_TESTDRIVER_COMPILE_FLAGS "-warn noerrors -warn nounused"
+    set(EXTRA_TESTDRIVER_COMPILE_FLAGS
+      "${PFUNIT_Fortran_FLAGS} -warn noerrors -warn nounused"
       CACHE INTERNAL "FLAGS used to compile pfunit driver files")
     set(EXTRA_TEST_COMPILE_FLAGS
-      "-warn noerrors -warn nounused"
+      "${PFUNIT_Fortran_FLAGS} -warn noerrors -warn nounused"
       CACHE INTERNAL "FLAGS used to compile files after they have been parsed by pfunit")
     set(PFUNIT_Fortran_FLAGS "${PFUNIT_Fortran_FLAGS} -assume realloc_lhs -check nobounds -nowarn")
   else()
-    set(EXTRA_TESTDRIVER_COMPILE_FLAGS "-Wno-error -w"
+    set(EXTRA_TESTDRIVER_COMPILE_FLAGS "${PFUNIT_Fortran_FLAGS} -Wno-error -w"
       CACHE INTERNAL "FLAGS used to compile pfunit driver files")
     set(EXTRA_TEST_COMPILE_FLAGS
-      "-Wno-error -Wno-unused-dummy-argument -ffree-line-length-none"
+      "${PFUNIT_Fortran_FLAGS} \
+      -Wno-error \
+      -Wno-unused-dummy-argument \
+      -ffree-line-length-none"
       CACHE INTERNAL
       "FLAGS used to compile files after they have been parsed by pfunit")
     set(PFUNIT_Fortran_FLAGS
@@ -37,7 +41,7 @@ if(ENABLE_PFUNIT)
 
   if(DEFINED PFUNIT_INSTALL)
     message(STATUS "Manual setup of variable PFUNIT_INSTALL : ${PFUNIT_INSTALL}")
-    set(PFUNIT_DIR ${PFUNIT_INSTALL})
+    set(PFUNIT_DIR ${PFUNIT_INSTALL} CACHE INTERNAL "PFUNIT install directory")
   else()
     add_custom_target(
       git_update
@@ -74,9 +78,6 @@ if(ENABLE_PFUNIT)
     add_dependencies(pfunit git_update)
     set(PFUNIT_DIR ${PROJECT_BINARY_DIR}/external/pfunit CACHE INTERNAL "PFUNIT install directory")
   endif()
-
-  #include_directories(${PFUNIT_DIR}/mod)
-
 endif(ENABLE_PFUNIT)
 
 
