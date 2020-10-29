@@ -630,8 +630,8 @@ subroutine createLUT(OPP, comm, config, S, T)
             endif
 
             if( ldoneS .and. ldoneT ) then
-              if( mod(cnt-1, total_size*1/100).eq.0 ) & !every 1 percent report status
-                  print *,'Resuming from LUT... ',cnt/(total_size/100),'%'
+              if( mod(cnt-1, max(i1, total_size/100)).eq.0 ) & !every 1 percent report status
+                  print *,'Resuming from LUT... ',cnt/max(i1,total_size/100),'%'
               cnt=cnt+1
               cycle
             endif
