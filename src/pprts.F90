@@ -69,7 +69,7 @@ module m_pprts
     & PPRTS_REAR_FACE , &
     & PPRTS_FRONT_FACE
 
-  use m_pprts_external_solvers, only: twostream, schwarz, pprts_rayli_wrapper
+  use m_pprts_external_solvers, only: twostream, schwarz, pprts_rayli_wrapper, disort
 
   implicit none
   private
@@ -1957,7 +1957,7 @@ module m_pprts
     type(t_pprts_buildings), optional, intent(in) :: opt_buildings
 
     integer(iintegers) :: uid
-    logical            :: lflg, derived_lsolar, luse_rayli, lrayli_snapshot
+    logical            :: lflg, derived_lsolar, luse_rayli, lrayli_snapshot, luse_disort
     integer(mpiint) :: ierr
 
     if(.not.allocated(solver%atm)) call CHKERR(1_mpiint, 'atmosphere is not allocated?!')
@@ -2024,13 +2024,24 @@ module m_pprts
     call PetscLogEventBegin(solver%logs%solve_mcrts, ierr)
     luse_rayli = .False.
     call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-      "-pprts_use_rayli", luse_rayli, lflg,ierr) ; call CHKERR(ierr)
+      "-pprts_use_rayli", luse_rayli, lflg, ierr) ; call CHKERR(ierr)
     lrayli_snapshot = .False.
     call PetscOptionsHasName(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
       "-rayli_snapshot", lrayli_snapshot, ierr) ; call CHKERR(ierr)
     call pprts_rayli_wrapper(luse_rayli, lrayli_snapshot, solver, edirTOA, solution, opt_buildings)
     call PetscLogEventEnd(solver%logs%solve_mcrts, ierr)
     if(luse_rayli) goto 99
+
+    ! --------- Calculate Radiative Transfer with Disort ------------
+    luse_disort = .False.
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+      "-pprts_use_disort", luse_disort, lflg, ierr) ; call CHKERR(ierr)
+    if(luse_disort) then
+      call PetscLogEventBegin(solver%logs%solve_disort, ierr)
+      call disort(solver, edirTOA, solution)
+      call PetscLogEventEnd(solver%logs%solve_disort, ierr)
+      goto 99
+    endif
 
     ! --------- Calculate 1D Radiative Transfer ------------
     if(  ltwostr &
@@ -2044,7 +2055,7 @@ module m_pprts
         call PetscLogEventEnd(solver%logs%solve_schwarzschild, ierr)
       else
         call PetscLogEventBegin(solver%logs%solve_twostream, ierr)
-        call twostream(solver, edirTOA,  solution, opt_buildings)
+        call twostream(solver, edirTOA, solution, opt_buildings)
         call PetscLogEventEnd(solver%logs%solve_twostream, ierr)
       endif
 
