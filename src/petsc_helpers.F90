@@ -24,7 +24,7 @@ module m_petsc_helpers
     module procedure f90VecToPetsc_2d, f90VecToPetsc_3d, f90VecToPetsc_4d
   end interface
   interface petscVecToF90
-    module procedurepetscVecToF90_2d, petscVecToF90_3d, petscVecToF90_4d
+    module procedure petscVecToF90_2d, petscVecToF90_3d, petscVecToF90_4d
   end interface
   interface getVecPointer
     module procedure getVecPointer_2d, getVecPointer_3d
