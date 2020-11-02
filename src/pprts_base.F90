@@ -113,6 +113,7 @@ module m_pprts_base
     PetscLogEvent :: solve_schwarzschild
     PetscLogEvent :: solve_rayli
     PetscLogEvent :: solve_mcrts
+    PetscLogEvent :: solve_disort
     PetscLogEvent :: rayli_tracing
     PetscLogEvent :: get_coeff_dir2dir
     PetscLogEvent :: get_coeff_dir2diff
@@ -284,6 +285,7 @@ module m_pprts_base
       call PetscLogEventRegister(trim(s)//'solve_twostr', cid, logs%solve_twostream, ierr); call CHKERR(ierr)
       call PetscLogEventRegister(trim(s)//'solve_schwarz', cid, logs%solve_schwarzschild, ierr); call CHKERR(ierr)
       call PetscLogEventRegister(trim(s)//'solve_rayli', cid, logs%solve_rayli, ierr); call CHKERR(ierr)
+      call PetscLogEventRegister(trim(s)//'solve_disort', cid, logs%solve_disort, ierr); call CHKERR(ierr)
       call PetscLogEventRegister(trim(s)//'solve_mcrts', cid, logs%solve_mcrts, ierr); call CHKERR(ierr)
       call PetscLogEventRegister(trim(s)//'rayli_tracing', cid, logs%rayli_tracing, ierr); call CHKERR(ierr)
       call PetscLogEventRegister(trim(s)//'dir2dir', cid, logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)

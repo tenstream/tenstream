@@ -43,6 +43,8 @@ module m_pprts_external_solvers
   use m_plex2rayli, only: rayli_wrapper
   use m_pprts2plex, only: pprts_buildings_to_plex, find_face_idx_by_orientation, pprts_cell_to_plex_cell_idx
 
+  use m_tenstr_disort, only: default_flx_computation
+
   use m_buildings, only: &
     & t_pprts_buildings, t_plex_buildings, &
     & clone_buildings, &
@@ -55,7 +57,7 @@ module m_pprts_external_solvers
 
   implicit none
   private
-  public :: twostream, schwarz, pprts_rayli_wrapper, destroy_rayli_info
+  public :: disort, twostream, schwarz, pprts_rayli_wrapper, destroy_rayli_info
 
   logical,parameter :: ldebug=.False.
 
@@ -1232,6 +1234,116 @@ contains
     end associate
   end subroutine
 
+  !> @brief wrapper for the disort solver
+  subroutine disort(solver, edirTOA, solution)
+    class(t_solver), intent(inout) :: solver
+    real(ireals),intent(in)       :: edirTOA
+    type(t_state_container)       :: solution
+
+    real(ireals),pointer,dimension(:,:,:,:) :: xv_dir=>null(),xv_diff=>null()
+    real(ireals),pointer,dimension(:) :: xv_dir1d=>null(),xv_diff1d=>null()
+    integer(iintegers) :: i,j,src, nstreams
+
+    real(ireals),allocatable :: col_Bfrac(:), dtau(:),kext(:),w0(:),g(:),RFLDIR(:),RFLDN(:),FLUP(:),DFDT(:),UAVG(:), col_temper(:)
+    real(ireals) :: mu0, incSolar, fac, Ag
+    integer(mpiint) :: ierr
+    logical :: lflg
+
+    associate(atm         => solver%atm, &
+        C_diff      => solver%C_diff, &
+        C_dir       => solver%C_dir, &
+        C_one_atm   => solver%C_one_atm, &
+        C_one_atm1  => solver%C_one_atm1)
+
+      nstreams = 16
+      call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+        "-disort_streams", nstreams, lflg, ierr); call CHKERR(ierr)
+
+      if(solution%lsolar_rad) then
+
+        call PetscObjectSetName(solution%edir,'twostream_edir_vec uid='//toStr(solution%uid),ierr) ; call CHKERR(ierr)
+        call VecSet(solution%edir ,zero,ierr); call CHKERR(ierr)
+      else
+        call CHKERR(1_mpiint, 'pprts_disort not allowed for thermal computations')
+      endif
+
+      call PetscObjectSetName(solution%ediff,'twostream_ediff_vec uid='//toStr(solution%uid),ierr) ; call CHKERR(ierr)
+      call VecSet(solution%ediff,zero,ierr); call CHKERR(ierr)
+
+      allocate( dtau(C_one_atm%zs:C_one_atm%ze) )
+      allocate( kext(C_one_atm%zs:C_one_atm%ze) )
+      allocate(   w0(C_one_atm%zs:C_one_atm%ze) )
+      allocate(    g(C_one_atm%zs:C_one_atm%ze) )
+
+      if(solution%lsolar_rad) &
+        call getVecPointer(C_dir%da, solution%edir, xv_dir1d, xv_dir)
+      call getVecPointer(C_diff%da, solution%ediff, xv_diff1d, xv_diff)
+
+      allocate( RFLDIR  (C_one_atm1%zs:C_one_atm1%ze) )
+      allocate( RFLDN   (C_one_atm1%zs:C_one_atm1%ze) )
+      allocate( FLUP    (C_one_atm1%zs:C_one_atm1%ze) )
+      allocate( DFDT    (C_one_atm1%zs:C_one_atm1%ze) )
+      allocate( UAVG    (C_one_atm1%zs:C_one_atm1%ze) )
+
+      allocate( col_temper (C_one_atm1%zs:C_one_atm%ze) )
+      do j=C_one_atm%ys,C_one_atm%ye
+        do i=C_one_atm%xs,C_one_atm%xe
+
+          mu0 = solver%sun%costheta(C_one_atm1%zs,i,j)
+          incSolar = edirTOA* mu0
+
+          kext = atm%kabs(:,i,j) + atm%ksca(:,i,j)
+          dtau = atm%dz(:,i,j)* kext
+          w0   = atm%ksca(:,i,j) / max(kext, epsilon(kext))
+          g    = atm%g(:,i,j)
+          Ag = atm%albedo(i,j)
+
+          call default_flx_computation(&
+            mu0, &
+            edirTOA, &
+            Ag, &
+            0., & !col_tskin = srfc temperature
+            .False., [0., 0.], col_Bfrac, & !thermal wavelength's 0,0
+            dtau, &
+            w0, &
+            g, &
+            col_temper, & !col_temper ???
+            RFLDIR, RFLDN, FLUP, DFDT, UAVG, &
+            int(nstreams), lverbose=.False.)
+
+          if(solution%lsolar_rad) then
+            fac = real(solver%dirtop%area_divider, ireals) / real(solver%dirtop%streams, ireals)
+            do src=i0,solver%dirtop%dof-1
+              xv_dir(src,C_dir%zs+1:C_dir%ze,i,j) = RFLDIR(atmk(atm, C_one_atm1%zs)+1:C_one_atm1%ze) * fac
+              xv_dir(src,C_dir%zs           ,i,j) = RFLDIR(C_one_atm1%zs) * fac
+            enddo
+          endif
+
+          fac = real(solver%difftop%area_divider, ireals) / real(solver%difftop%streams, ireals)
+          do src = 1, solver%difftop%dof
+            if(solver%difftop%is_inward(src)) then
+              xv_diff(src-1,C_diff%zs+1:C_diff%ze,i,j) = RFLDN(atmk(atm, C_one_atm1%zs)+1:C_one_atm1%ze) * fac
+              xv_diff(src-1,C_diff%zs            ,i,j) = RFLDN(C_one_atm1%zs) * fac
+            else
+              xv_diff(src-1,C_diff%zs+1:C_diff%ze,i,j) = FLUP(atmk(atm, C_one_atm1%zs)+1:C_one_atm1%ze) * fac
+              xv_diff(src-1,C_diff%zs            ,i,j) = FLUP(C_one_atm1%zs) * fac
+            endif
+          enddo
+        enddo
+      enddo
+
+      if(solution%lsolar_rad) &
+        call restoreVecPointer(C_dir%da, solution%edir, xv_dir1d, xv_dir  )
+      call restoreVecPointer(C_diff%da, solution%ediff, xv_diff1d, xv_diff )
+
+      !Disort returns fluxes as [W]
+      solution%lWm2_dir  = .True.
+      solution%lWm2_diff = .True.
+      ! and mark solution that it is not up to date
+      solution%lchanged  = .True.
+
+    end associate
+  end subroutine
   !> @brief simple schwarzschild solver
   !> @details Wrapper for the schwarzschild solver for the radiative transfer equation
   !> \n The solver neglects the scattering term and just solves for lambert beerschen transport + emission
