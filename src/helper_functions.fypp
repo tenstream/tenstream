@@ -400,7 +400,9 @@ module m_helper_functions
   end interface
 
   interface assert_arr_is_monotonous
-    module procedure assert_arr_is_monotonous_r32, assert_arr_is_monotonous_r64
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    module procedure assert_arr_is_monotonous_${dtype}$
+    #:endfor
   end interface
 
   interface deallocate_allocatable
@@ -2442,16 +2444,20 @@ end function
 
 
 ! determine if array is (strictly) monotoneous increasing/decreasing
-pure function assert_arr_is_monotonous_r32(arr, lincreasing, lstrict) result(lis_linear)
-  real(REAL32), intent(in) :: arr(:)
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+function assert_arr_is_monotonous_${dtype}$(arr, lincreasing, lstrict, lverbose) result(lis_linear)
+  real(${dtype}$), intent(in) :: arr(:)
   logical, intent(in) :: lincreasing, lstrict
-  logical :: lis_linear
+  logical, intent(in), optional :: lverbose
+  logical :: lis_linear, is_verbose
   integer(iintegers) :: k
+  is_verbose = get_arg(.False., lverbose)
   if(lincreasing) then
     if(lstrict) then
       do k=2,size(arr)
         if(arr(k).le.arr(k-1)) then
           lis_linear = .False.
+          if(is_verbose) print *,'non monotonicity @ k='//toStr(k)
           return
         endif
       enddo
@@ -2459,6 +2465,7 @@ pure function assert_arr_is_monotonous_r32(arr, lincreasing, lstrict) result(lis
       do k=2,size(arr)
         if(arr(k).lt.arr(k-1)) then
           lis_linear = .False.
+          if(is_verbose) print *,'non monotonicity @ k='//toStr(k)
           return
         endif
       enddo
@@ -2468,6 +2475,7 @@ pure function assert_arr_is_monotonous_r32(arr, lincreasing, lstrict) result(lis
       do k=2,size(arr)
         if(arr(k).ge.arr(k-1)) then
           lis_linear = .False.
+          if(is_verbose) print *,'non monotonicity @ k='//toStr(k)
           return
         endif
       enddo
@@ -2475,6 +2483,7 @@ pure function assert_arr_is_monotonous_r32(arr, lincreasing, lstrict) result(lis
       do k=2,size(arr)
         if(arr(k).gt.arr(k-1)) then
           lis_linear = .False.
+          if(is_verbose) print *,'non monotonicity @ k='//toStr(k)
           return
         endif
       enddo
@@ -2482,46 +2491,7 @@ pure function assert_arr_is_monotonous_r32(arr, lincreasing, lstrict) result(lis
   endif
   lis_linear = .True.
 end function
-pure function assert_arr_is_monotonous_r64(arr, lincreasing, lstrict) result(lis_linear)
-  real(REAL64), intent(in) :: arr(:)
-  logical, intent(in) :: lincreasing, lstrict
-  logical :: lis_linear
-  integer(iintegers) :: k
-  if(lincreasing) then
-    if(lstrict) then
-      do k=2,size(arr)
-        if(arr(k).le.arr(k-1)) then
-          lis_linear = .False.
-          return
-        endif
-      enddo
-    else
-      do k=2,size(arr)
-        if(arr(k).lt.arr(k-1)) then
-          lis_linear = .False.
-          return
-        endif
-      enddo
-    endif
-  else
-    if(lstrict) then
-      do k=2,size(arr)
-        if(arr(k).ge.arr(k-1)) then
-          lis_linear = .False.
-          return
-        endif
-      enddo
-    else
-      do k=2,size(arr)
-        if(arr(k).gt.arr(k-1)) then
-          lis_linear = .False.
-          return
-        endif
-      enddo
-    endif
-  endif
-  lis_linear = .True.
-end function
+#:endfor
 
 ! Determine Domain Decomposition in 2D
 subroutine domain_decompose_2d(comm, N_ranks_x, N_ranks_y, ierr)
