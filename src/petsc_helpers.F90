@@ -24,7 +24,7 @@ module m_petsc_helpers
     module procedure f90VecToPetsc_2d, f90VecToPetsc_3d, f90VecToPetsc_4d
   end interface
   interface petscVecToF90
-    module procedure petscVecToF90_3d, petscVecToF90_4d
+    module procedurepetscVecToF90_2d, petscVecToF90_3d, petscVecToF90_4d
   end interface
   interface getVecPointer
     module procedure getVecPointer_2d, getVecPointer_3d
@@ -268,6 +268,72 @@ contains
     if(.not.l_has_global_dimensions) then
       call getVecPointer(dm, vec, x1d, x4d)
       arr = x4d(i0,:,:,:)
+      call restoreVecPointer(dm, vec, x1d, x4d)
+    else
+      call VecGetArrayF90(vec,x1d,ierr); call CHKERR(ierr)
+      arr = reshape( x1d, dims )
+      call VecRestoreArrayF90(vec,x1d,ierr); call CHKERR(ierr)
+    endif
+  end subroutine
+  subroutine petscVecToF90_2d(vec, dm, arr, only_on_rank0)
+    type(tVec), intent(in)    :: vec
+    type(tDM), intent(in)     :: dm
+    real(ireals), intent(inout), allocatable :: arr(:,:)
+    logical, intent(in), optional :: only_on_rank0
+    logical :: l_only_on_rank0, l_has_global_dimensions
+
+    VecType :: vtype
+    integer(iintegers) :: vecsize
+    real(ireals),pointer :: x1d(:)=>null(),x4d(:,:,:,:)=>null()
+
+    integer(mpiint) :: comm, myid, ierr
+    integer(iintegers) :: zs, xs, ys, zm, xm, ym
+    integer(iintegers) :: dims(2)
+
+    integer(iintegers) :: dmdim, dof, glob_xm, glob_ym, glob_zm
+    integer(iintegers) :: nprocz, nprocx, nprocy
+    integer(iintegers) :: stencil_width, stencil_type
+    integer(iintegers) :: boundary_z, boundary_x, boundary_y
+
+    l_only_on_rank0 = get_arg(.False., only_on_rank0)
+
+    call DMDAGetInfo(dm, dmdim,             &
+      & glob_zm, glob_xm, glob_ym,          &
+      & nprocz, nprocx, nprocy,             &
+      & dof, stencil_width,                 &
+      & boundary_z, boundary_x, boundary_y, &
+      & stencil_type, ierr) ;call CHKERR(ierr)
+
+    call DMDAGetCorners(dm, zs, xs, ys, zm, xm, ym, ierr) ;call CHKERR(ierr)
+
+    if(dof.ne.1) &
+      call CHKERR(1_mpiint, 'petscVecToF90_3d should only be called with anything else than DM%dof of 1')
+
+    call PetscObjectGetComm(dm, comm, ierr); call CHKERR(ierr)
+    call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+
+
+    if(l_only_on_rank0 .and. myid.ne.0) &
+      call CHKERR(myid, 'Only rank 0 should call the routine petscVecToF90 with opt_l_only_on_rank0=.T.')
+
+    l_has_global_dimensions = l_only_on_rank0
+    call VecGetType(vec, vtype, ierr); call CHKERR(ierr)
+    if(vtype.eq.VECSEQ) l_has_global_dimensions = .True.
+
+    dims(:) = [xm, ym]
+    if(l_has_global_dimensions) dims(:) = [glob_xm, glob_ym]
+
+    if(.not.allocated(arr)) allocate(arr(dims(1), dims(2)))
+
+    call VecGetLocalSize(vec, vecsize, ierr); call CHKERR(ierr)
+    if(vecsize.ne.size(arr)) then
+      print *,'petscVecToF90 Vecsizes dont match! petsc:', vecsize, 'f90 arr', size(arr)
+      call CHKERR(1_mpiint, 'petscVecToF90 Vecsizes dont match!')
+    endif
+
+    if(.not.l_has_global_dimensions) then
+      call getVecPointer(dm, vec, x1d, x4d)
+      arr = x4d(i0,i0,:,:)
       call restoreVecPointer(dm, vec, x1d, x4d)
     else
       call VecGetArrayF90(vec,x1d,ierr); call CHKERR(ierr)
