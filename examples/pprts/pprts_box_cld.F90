@@ -32,7 +32,7 @@ contains
     real(ireals),allocatable,dimension(:,:,:) :: kabs,ksca,g
     real(ireals),allocatable,dimension(:,:,:) :: fdir,fdn,fup,fdiv
 
-  class(t_solver), allocatable :: solver
+    class(t_solver), allocatable :: solver
 
     ! Have to call init_mpi_data_parameters() to define datatypes
     call init_mpi_data_parameters(MPI_COMM_WORLD)

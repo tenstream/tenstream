@@ -1,97 +1,113 @@
 module m_examples_pprts_ex1
     use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint, zero, pi
-    use m_helper_functions, only : spherical_2_cartesian
+    use m_helper_functions, only : CHKERR, spherical_2_cartesian, get_arg, cstr, toStr
     use m_pprts, only : init_pprts, set_optical_properties, solve_pprts, pprts_get_result, set_angles
-    use m_pprts_base, only: t_solver, t_solver_1_2, t_solver_3_6, t_solver_3_10, &
-      t_solver_8_10, t_solver_3_16, t_solver_8_16, t_solver_8_18, destroy_pprts
+    use m_pprts_base, only: t_solver, allocate_pprts_solver_from_commandline, destroy_pprts
     use m_tenstream_options, only: read_commandline_options
-
-    use mpi, only : MPI_COMM_WORLD
 
   implicit none
 
   contains
-subroutine pprts_ex1()
-    integer(iintegers),parameter :: nxp=9,nyp=9,nv=40
-    real(ireals),parameter :: dx=100,dy=dx
-    real(ireals),parameter :: phi0=270, theta0=20
-    real(ireals),parameter :: albedo=0., dz=100
-    real(ireals),parameter :: incSolar = 1364
-    real(ireals) :: dz1d(nv)
+    subroutine pprts_ex1( &
+      & comm, &
+      & nxp, nyp, nv, &
+      & dx, dy, &
+      & phi0, theta0, &
+      & albedo, dz, &
+      & incSolar, &
+      & dtau_clearsky, w0_clearsky, g_clearsky, &
+      & cld_layer_idx, &
+      & dtau_cloud, w0_cloud, g_cloud, &
+      & fdir,fdn,fup,fdiv, &
+      & lverbose )
 
-    real(ireals) :: sundir(3)
-    real(ireals),allocatable,dimension(:,:,:) :: kabs,ksca,g
-    real(ireals),allocatable,dimension(:,:,:) :: fdir,fdn,fup,fdiv
+      integer(mpiint), intent(in) :: comm
 
-    class(t_solver), allocatable :: solver
+      integer(iintegers),intent(in) :: nxp,nyp,nv
+      real(ireals), intent(in) :: dx,dy
+      real(ireals), intent(in) :: phi0, theta0
+      real(ireals), intent(in) :: albedo, dz
+      real(ireals), intent(in) :: incSolar
+      real(ireals), intent(in) :: dtau_clearsky, w0_clearsky, g_clearsky
+      integer(iintegers), intent(in) :: cld_layer_idx(2)
+      real(ireals), intent(in) :: dtau_cloud, w0_cloud, g_cloud
+      real(ireals), allocatable,dimension(:,:,:), intent(out) :: fdir,fdn,fup,fdiv
+      logical, intent(in), optional :: lverbose
 
-    integer(iintegers) :: mid_idx_x, mid_idx_y, mid_idx_z
-    character(len=80) :: arg
+      real(ireals), allocatable,dimension(:,:,:) :: kabs,ksca,g
+      real(ireals) :: dz1d(nv)
+      real(ireals) :: sundir(3)
 
-    dz1d = dz
+      class(t_solver), allocatable :: solver
 
-    call get_command_argument(1, arg)
+      integer(mpiint) :: myid, numnodes, ierr
+      integer(iintegers) :: i, k, Ncld
 
-    select case(arg)
-      case('-solver_1_2')
-        allocate(t_solver_1_2::solver)
-      case('-solver_3_6')
-        allocate(t_solver_3_6::solver)
-      case ('-solver_3_10')
-        allocate(t_solver_3_10::solver)
-      case ('-solver_8_10')
-        allocate(t_solver_8_10::solver)
-      case ('-solver_3_16')
-        allocate(t_solver_3_16::solver)
-      case ('-solver_8_16')
-        allocate(t_solver_8_16::solver)
-      case ('-solver_8_18')
-        allocate(t_solver_8_18::solver)
-      case default
-        print *,'error, have to provide solver type as argument, e.g.'
-        print *,'-solver_1_2'
-        print *,'-solver_3_6'
-        print *,'-solver_3_10'
-        print *,'-solver_8_10'
-        print *,'-solver_3_16'
-        print *,'-solver_8_16'
-        print *,'-solver_8_18'
-        stop
-    end select
+      call init_mpi_data_parameters(comm)
+      call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
-    sundir = spherical_2_cartesian(phi0, theta0)
-    call init_pprts(mpi_comm_world, nv, nxp, nyp, dx,dy, sundir, solver, dz1d)
+      call allocate_pprts_solver_from_commandline(solver, '3_10', ierr); call CHKERR(ierr)
 
-    allocate(kabs(solver%C_one%zm , solver%C_one%xm,  solver%C_one%ym ))
-    allocate(ksca(solver%C_one%zm , solver%C_one%xm,  solver%C_one%ym ))
-    allocate(g   (solver%C_one%zm , solver%C_one%xm,  solver%C_one%ym ))
+      dz1d = dz
+      sundir = spherical_2_cartesian(phi0, theta0)
 
-    kabs = .1_ireals/(dz*nv)
-    ksca = 1e-3_ireals/(dz*nv)
-    g    = zero
+      call init_pprts(comm, nv, nxp, nyp, dx,dy, sundir, solver, dz1d)
 
-    mid_idx_x = int(real(nxp+1)/2)
-    mid_idx_y = int(real(nyp+1)/2)
-    mid_idx_z = int(real(nv +1)/2)
+      allocate(kabs(solver%C_one%zm , solver%C_one%xm,  solver%C_one%ym ))
+      allocate(ksca(solver%C_one%zm , solver%C_one%xm,  solver%C_one%ym ))
+      allocate(g   (solver%C_one%zm , solver%C_one%xm,  solver%C_one%ym ))
 
-    kabs(mid_idx_z, mid_idx_x, :) = 1/dz
-    ksca(mid_idx_z, mid_idx_x, :) = 1/dz
-    g   (mid_idx_z, mid_idx_x, :) = .9
+      kabs = dtau_clearsky/(dz*nv) * (1._ireals - w0_clearsky)
+      ksca = dtau_clearsky/(dz*nv) * w0_clearsky
+      g    = g_clearsky
 
-    call set_optical_properties(solver, albedo, kabs, ksca, g)
-    call set_angles(solver, sundir)
+      Ncld = 1 + cld_layer_idx(2) - cld_layer_idx(1)
+      if(myid.eq.0 .and. lverbose) print *,'Have '//tostr(Ncld)//' cloud layer(s) between '//toStr(cld_layer_idx)
+      do k = cld_layer_idx(1), cld_layer_idx(2)
+        kabs(k, :, :) = kabs(k,:,:) + dtau_cloud / Ncld / dz * (1._ireals - w0_cloud)
+        ksca(k, :, :) = ksca(k,:,:) + dtau_cloud / Ncld / dz * w0_cloud
+        g   (k, :, :) = &
+          & ( dtau_clearsky * w0_clearsky * g_clearsky &
+          & + dtau_cloud * w0_cloud * g_cloud ) &
+          & / (dtau_clearsky * w0_clearsky + dtau_cloud * w0_cloud)
+      enddo
 
-    call solve_pprts(solver, &
-      & lthermal=.False., &
-      & lsolar=.True., &
-      & edirTOA=incSolar )
+      call set_optical_properties(solver, albedo, kabs, ksca, g)
+      call set_angles(solver, sundir)
 
-    call pprts_get_result(solver, fdn,fup,fdiv,fdir)
+      call solve_pprts(solver, &
+        & lthermal=.False., &
+        & lsolar=.True., &
+        & edirTOA=incSolar )
 
-    print *,'edir', fdir(:, mid_idx_x, mid_idx_y)
-    print *,'edn:', fdn (:, mid_idx_x, mid_idx_y)
-    print *,'eup:', fup (:, mid_idx_x, mid_idx_y)
-    print *,'divE', fdiv(:, mid_idx_x, mid_idx_y)
-    call destroy_pprts(solver, .True.)
-end subroutine
-end module
+      call pprts_get_result(solver, fdn,fup,fdiv,fdir)
+
+      if(get_arg(.False., lverbose)) then
+        call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
+        do i = 0, numnodes-1
+          if(myid.eq.i) then
+            print *,''
+            print *,cstr('rank '//toStr(myid), 'red')
+            do k = 1, nv+1
+              print *,k, cstr('fdir x=1', 'red'), fdir(k,1,:), 'y=1', fdir(k,:,1)
+            enddo
+            print *,''
+            do k = 1, nv+1
+              print *,k, cstr('fdn  x=1', 'blue'), fdn (k,1,:), 'y=1', fdn (k,:,1)
+            enddo
+            print *,''
+            do k = 1, nv+1
+              print *,k, cstr('fup  x=1', 'red'), fup (k,1,:), 'y=1', fup (k,:,1)
+            enddo
+            print *,''
+            do k = 1, nv
+              print *,k, cstr('fdiv x=1', 'blue'), fdiv(k,1,:), 'y=1', fdiv(k,:,1)
+            enddo
+          endif
+          call mpi_barrier(comm, ierr); call CHKERR(ierr)
+        enddo
+      endif
+
+      call destroy_pprts(solver, .False.)
+    end subroutine
+  end module
