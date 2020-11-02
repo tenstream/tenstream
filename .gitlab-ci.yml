@@ -33,9 +33,9 @@ stages:
     MPIRUN_FLAGS: '' #--allow-run-as-root;-A;bm0974;-p;shared
     CMAKE_OPTS: ''
 
-build:docker:ubuntu-rolling:
+build:docker:ubuntu-latest:
   extends: .build:default
-  image: ubuntu:rolling
+  image: ubuntu:latest
   before_script:
     - DEBIAN_FRONTEND=noninteractive apt-get -qq update
     - DEBIAN_FRONTEND=noninteractive apt-get -qq install -fy build-essential cmake gfortran git libhdf5-mpi-dev libnetcdf-dev libnetcdff-dev libopenblas-dev libopenmpi-dev m4 openmpi-bin python wget
