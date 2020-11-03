@@ -1,0 +1,4 @@
+-skip_load_LUT
+-pprts_use_rayli
+-rayli_cyclic_bc
+-rayli_photons 1e5
