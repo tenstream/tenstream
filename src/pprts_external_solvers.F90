@@ -92,7 +92,9 @@ contains
     if(.not.allocated(rayli_info)) return
     associate(ri => rayli_info)
       call destroy_solution(ri%plex_solution)
-      call destroy_plexgrid(ri%plex)
+      if(allocated(ri%plex)) then
+        call destroy_plexgrid(ri%plex)
+      endif
       call mpi_comm_free(ri%subcomm, ierr); call CHKERR(ierr)
       call VecScatterDestroy(ri%ctx_hhl    , ierr); call CHKERR(ierr)
       call VecScatterDestroy(ri%ctx_albedo , ierr); call CHKERR(ierr)
@@ -104,8 +106,12 @@ contains
       call VecDestroy(ri%kabs  , ierr); call CHKERR(ierr)
       call VecDestroy(ri%ksca  , ierr); call CHKERR(ierr)
       call VecDestroy(ri%g     , ierr); call CHKERR(ierr)
-      call destroy_buildings(ri%buildings_info%subcomm_buildings, ierr); call CHKERR(ierr)
-      call destroy_buildings(ri%buildings_info%plex_buildings, ierr); call CHKERR(ierr)
+      if(allocated(ri%buildings_info%subcomm_buildings)) then
+        call destroy_buildings(ri%buildings_info%subcomm_buildings, ierr); call CHKERR(ierr)
+      endif
+      if(allocated(ri%buildings_info%plex_buildings)) then
+        call destroy_buildings(ri%buildings_info%plex_buildings, ierr); call CHKERR(ierr)
+      endif
     end associate
 
     deallocate(rayli_info)
