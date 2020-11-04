@@ -1250,8 +1250,20 @@ contains
     real(ireals),pointer,dimension(:) :: xv_dir1d=>null(),xv_diff1d=>null()
     integer(iintegers) :: i,j,src, nstreams
 
-    real(ireals),allocatable :: col_Bfrac(:), dtau(:),kext(:),w0(:),g(:),RFLDIR(:),RFLDN(:),FLUP(:),DFDT(:),UAVG(:), col_temper(:)
-    real(ireals) :: mu0, incSolar, fac, Ag
+    real, allocatable :: &
+      & Bfrac(:), &
+      & tlev(:), &
+      & kext(:), &
+      & dtau(:), &
+      & w0(:), &
+      & g(:), &
+      & FLDIR(:),&
+      & FLDN(:), &
+      & FLUP(:), &
+      & DFDT(:), &
+      & UAVG(:)
+    real :: mu0, Ag
+    real(ireals) :: fac
     integer(mpiint) :: ierr
     logical :: lflg
 
@@ -1280,56 +1292,58 @@ contains
       allocate( kext(C_one_atm%zs:C_one_atm%ze) )
       allocate(   w0(C_one_atm%zs:C_one_atm%ze) )
       allocate(    g(C_one_atm%zs:C_one_atm%ze) )
+      allocate(Bfrac(C_one_atm%zs:C_one_atm%ze) )
 
       if(solution%lsolar_rad) &
         call getVecPointer(C_dir%da, solution%edir, xv_dir1d, xv_dir)
       call getVecPointer(C_diff%da, solution%ediff, xv_diff1d, xv_diff)
 
-      allocate( RFLDIR  (C_one_atm1%zs:C_one_atm1%ze) )
-      allocate( RFLDN   (C_one_atm1%zs:C_one_atm1%ze) )
+      allocate( tlev    (C_one_atm1%zs:C_one_atm1%ze) )
+      allocate( FLDIR   (C_one_atm1%zs:C_one_atm1%ze) )
+      allocate( FLDN    (C_one_atm1%zs:C_one_atm1%ze) )
       allocate( FLUP    (C_one_atm1%zs:C_one_atm1%ze) )
       allocate( DFDT    (C_one_atm1%zs:C_one_atm1%ze) )
       allocate( UAVG    (C_one_atm1%zs:C_one_atm1%ze) )
 
-      allocate( col_temper (C_one_atm1%zs:C_one_atm%ze) )
       do j=C_one_atm%ys,C_one_atm%ye
         do i=C_one_atm%xs,C_one_atm%xe
 
-          mu0 = solver%sun%costheta(C_one_atm1%zs,i,j)
-          incSolar = edirTOA* mu0
+          mu0      = real(solver%sun%costheta(C_one_atm1%zs,i,j))
 
-          kext = atm%kabs(:,i,j) + atm%ksca(:,i,j)
-          dtau = atm%dz(:,i,j)* kext
-          w0   = atm%ksca(:,i,j) / max(kext, epsilon(kext))
-          g    = atm%g(:,i,j)
-          Ag = atm%albedo(i,j)
+          kext = real(atm%kabs(:,i,j) + atm%ksca(:,i,j))
+          dtau = real(atm%dz(:,i,j)* kext)
+          w0   = real(atm%ksca(:,i,j) / max(kext, epsilon(kext)))
+          g    = real(atm%g(:,i,j))
+          Ag   = real(atm%albedo(i,j))
 
           call default_flx_computation(&
-            mu0, &
-            edirTOA, &
-            Ag, &
-            0., & !col_tskin = srfc temperature
-            .False., [0., 0.], col_Bfrac, & !thermal wavelength's 0,0
+            & mu0,     &
+            & real(edirTOA), &
+            & Ag,      &
+            & 0.,            & ! tskin
+            & .False.,       & ! lthermal
+            & [0., 0.],      & ! wavenumbers
+            Bfrac, &
             dtau, &
             w0, &
             g, &
-            col_temper, & !col_temper ???
-            RFLDIR, RFLDN, FLUP, DFDT, UAVG, &
+            tlev, &
+            FLDIR, FLDN, FLUP, DFDT, UAVG, &
             int(nstreams), lverbose=.False.)
 
           if(solution%lsolar_rad) then
             fac = real(solver%dirtop%area_divider, ireals) / real(solver%dirtop%streams, ireals)
             do src=i0,solver%dirtop%dof-1
-              xv_dir(src,C_dir%zs+1:C_dir%ze,i,j) = RFLDIR(atmk(atm, C_one_atm1%zs)+1:C_one_atm1%ze) * fac
-              xv_dir(src,C_dir%zs           ,i,j) = RFLDIR(C_one_atm1%zs) * fac
+              xv_dir(src,C_dir%zs+1:C_dir%ze,i,j) = FLDIR(atmk(atm, C_one_atm1%zs)+1:C_one_atm1%ze) * fac
+              xv_dir(src,C_dir%zs           ,i,j) = FLDIR(C_one_atm1%zs) * fac
             enddo
           endif
 
           fac = real(solver%difftop%area_divider, ireals) / real(solver%difftop%streams, ireals)
           do src = 1, solver%difftop%dof
             if(solver%difftop%is_inward(src)) then
-              xv_diff(src-1,C_diff%zs+1:C_diff%ze,i,j) = RFLDN(atmk(atm, C_one_atm1%zs)+1:C_one_atm1%ze) * fac
-              xv_diff(src-1,C_diff%zs            ,i,j) = RFLDN(C_one_atm1%zs) * fac
+              xv_diff(src-1,C_diff%zs+1:C_diff%ze,i,j) = FLDN(atmk(atm, C_one_atm1%zs)+1:C_one_atm1%ze) * fac
+              xv_diff(src-1,C_diff%zs            ,i,j) = FLDN(C_one_atm1%zs) * fac
             else
               xv_diff(src-1,C_diff%zs+1:C_diff%ze,i,j) = FLUP(atmk(atm, C_one_atm1%zs)+1:C_one_atm1%ze) * fac
               xv_diff(src-1,C_diff%zs            ,i,j) = FLUP(C_one_atm1%zs) * fac
