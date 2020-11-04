@@ -18,15 +18,15 @@ int main() {
     size_t Nverts = 6;
     int    cyclic = 1;
     float  *kabs, *ksca, *g, *albedo;
-    float *flx_through_faces_edir, *flx_through_faces_ediff, *abso_in_cells;
+    double *flx_through_faces_edir, *flx_through_faces_ediff, *abso_in_cells;
     float sundir[] = {0,1/sqrt(2.),1/sqrt(2.)}; // vec towards the sun
 
     kabs = malloc(Nwedges*sizeof(float)); VecSet(Nwedges, kabs, 0e-0);
     ksca = malloc(Nwedges*sizeof(float)); VecSet(Nwedges, ksca, 0e-0);
     g    = malloc(Nwedges*sizeof(float)); VecSet(Nwedges, g   , 1e-1);
-    flx_through_faces_edir  = malloc(Nfaces*sizeof(float));
-    flx_through_faces_ediff = malloc(2*Nfaces*sizeof(float));
-    abso_in_cells           = malloc(Nwedges*sizeof(float));
+    flx_through_faces_edir  = malloc(Nfaces*sizeof(double));
+    flx_through_faces_ediff = malloc(2*Nfaces*sizeof(double));
+    abso_in_cells           = malloc(Nwedges*sizeof(double));
     albedo                  = malloc(Nfaces*sizeof(float)); VecSet(Nfaces, albedo, -1);
 
     double vert_coords[]={ // 3 * Nverts

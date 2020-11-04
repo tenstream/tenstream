@@ -46,9 +46,9 @@ module m_f2c_rayli
       real(c_float ) :: kabs(1:Nwedges), ksca(1:Nwedges), g(1:Nwedges)
       real(c_float) :: albedo_on_faces(1:Nfaces)
       real(c_float) :: sundir(1:3)
-      real(c_float) :: flx_through_faces_edir(1:Nfaces)
-      real(c_float) :: flx_through_faces_ediff(1:Nfaces)
-      real(c_float) :: abso_in_cells(1:Nwedges)
+      real(c_double) :: flx_through_faces_edir(1:Nfaces)
+      real(c_double) :: flx_through_faces_ediff(1:Nfaces)
+      real(c_double) :: abso_in_cells(1:Nwedges)
     end function
   end interface
   interface
@@ -104,9 +104,9 @@ contains
       real(c_float ), intent(in) :: kabs(:), ksca(:), g(:)
       real(c_float ), intent(in) :: albedo_on_faces(1:Nfaces)
       real(c_float ), intent(in) :: sundir(:)
-      real(c_float ), intent(out) :: flx_through_faces_edir(:)
-      real(c_float ), intent(out) :: flx_through_faces_ediff(:)
-      real(c_float ), intent(out) :: abso_in_cells(:)
+      real(c_double ), intent(out) :: flx_through_faces_edir(:)
+      real(c_double ), intent(out) :: flx_through_faces_ediff(:)
+      real(c_double ), intent(out) :: abso_in_cells(:)
 
       rfft_wedgeF90 = 1
       call CHKERR(1_mpiint, "You tried calling The RayLi Monte Carlo solver "// &
@@ -115,10 +115,11 @@ contains
 
       if(.False.) then ! unused var warnings
         flx_through_faces_edir(1) = &
-          & real(Nthreads+Nphotons+Nwedges+Nfaces+Nverts+verts_of_face(1,1)+faces_of_wedges(1,1), c_float) + &
-          & real(cyclic, c_float)
-        flx_through_faces_ediff(1) = real(vert_coords(1,1), c_float) + kabs(1) + ksca(1) + g(1) + sundir(1) + &
-          albedo_on_faces(1)
+          & real(Nthreads+Nphotons+Nwedges+Nfaces+Nverts+verts_of_face(1,1)+faces_of_wedges(1,1), c_double) + &
+          & real(cyclic, c_double)
+        flx_through_faces_ediff(1) = &
+          & real(vert_coords(1,1), c_double) + &
+          & real(kabs(1) + ksca(1) + g(1) + sundir(1) + albedo_on_faces(1), c_double)
         abso_in_cells(1) = 0
       endif
     end function

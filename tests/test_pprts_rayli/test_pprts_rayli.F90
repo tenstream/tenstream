@@ -1,8 +1,12 @@
 module test_pprts_rayli
 
-  use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint
+  use m_data_parameters, only : &
+    & init_mpi_data_parameters, &
+    & finalize_mpi, &
+    & iintegers, ireals, mpiint
   use pfunit_mod
-  use m_helper_functions, only: deg2rad, meanval
+  use m_helper_functions, only: deg2rad, imp_allreduce_mean
+  use m_pprts_external_solvers, only: destroy_rayli_info
   use m_examples_pprts_ex1, only: pprts_ex1
 
   implicit none
@@ -11,26 +15,29 @@ contains
   @before
   subroutine setup(this)
     class (MpiTestMethod), intent(inout) :: this
-    continue
+    call init_mpi_data_parameters(this%getMpiCommunicator())
   end subroutine setup
 
   @after
   subroutine teardown(this)
     class (MpiTestMethod), intent(inout) :: this
-    continue
+    call finalize_mpi(&
+      & this%getMpiCommunicator(), &
+      & lfinalize_mpi=.False., &
+      & lfinalize_petsc=.True.)
   end subroutine teardown
 
-  @test(npes = [1])
+  @test(npes = [1,4])
   subroutine test_pprts_rayli_clear_sky(this)
     class (MpiTestMethod), intent(inout) :: this
 
     integer(mpiint) :: myid, numnodes, comm
 
-    integer(iintegers), parameter :: Nx = 3, Ny = 3, Nlay = 10
-    real(ireals), parameter :: dx = 100000, dy = dx, dz = 500
-    real(ireals), parameter :: phi0 = 180, theta0 = 0
+    integer(iintegers), parameter :: Nx = 3, Ny = 3, Nlay = 1
+    real(ireals), parameter :: dx = 1, dy = dx, dz = 1
+    real(ireals), parameter :: phi0 = 180, theta0 = 60
     real(ireals), parameter :: albedo = 0
-    real(ireals), parameter :: incSolar = 1000
+    real(ireals), parameter :: incSolar = 1
 
     real(ireals), parameter :: dtau_clearsky = 1, w0_clearsky = 0, g_clearsky = 0
     integer(iintegers), parameter :: cld_layer_idx(2) = [0,-1]
@@ -38,7 +45,8 @@ contains
     logical, parameter :: lverbose=.True.
 
     real(ireals) :: trgt
-    !real(ireals), parameter :: eps = sqrt(epsilon(trgt))
+    real(ireals) :: val
+    real(ireals), parameter :: eps = sqrt(epsilon(eps))
 
     real(ireals),allocatable,dimension(:,:,:) :: fdir,fdn,fup,fdiv
     integer(iintegers) :: i
@@ -61,42 +69,46 @@ contains
         & lverbose )
 
     trgt = incSolar * cos(deg2rad(theta0))
-    @assertEqual(trgt, fdir(1,:,:), trgt * 0.03, 'TOA edir')
+    call imp_allreduce_mean(comm, fdir(1,:,:), val)
+    @mpiassertEqual(trgt, val, eps, 'TOA edir')
 
     trgt = incSolar * cos(deg2rad(theta0)) * exp(-dtau_clearsky/cos(deg2rad(theta0)))
-    @assertEqual(trgt, fdir(Nlay + 1,:,:), trgt * 0.03, 'SRFC edir')
-    print *, ' i', ' wahrheit', ' calced', ' rel. abweichung'
+    call imp_allreduce_mean(comm, fdir(Nlay+1,:,:), val)
+    @mpiassertEqual(trgt, val, eps, 'SRFC edir')
+
+    ! check that flx divergence is same as absorption output
     do i = 1, size(fdiv, 1)
-      trgt = meanval(((fdir(i,:,:) + fdn(i,:,:) - fup(i,:,:)) - (fdir(i+1,:,:) + fdn(i+1,:,:) - fup(i+1,:,:))) / dz)
-      print *, i, meanval(fdiv(i,:,:)), trgt, (trgt - meanval(fdiv(i,:,:))) / meanval(fdiv(i,:,:))
-    enddo
-    do i = 1, size(fdiv, 1)
-      trgt = meanval(((fdir(i,:,:) + fdn(i,:,:) - fup(i,:,:)) - (fdir(i+1,:,:) + fdn(i+1,:,:) - fup(i+1,:,:))) / dz)
-      @assertEqual(trgt, meanval(fdiv(i,:,:)), trgt *  1e-3, 'flx div consistency')
-      print *, i, meanval(fdiv(i,:,:)), trgt, (trgt - meanval(fdiv(i,:,:))) / meanval(fdiv(i,:,:))
+      call imp_allreduce_mean(comm, &
+        & ((fdir(i,:,:) + fdn(i,:,:) - fup(i,:,:)) - (fdir(i+1,:,:) + fdn(i+1,:,:) - fup(i+1,:,:))) / dz, &
+        & trgt)
+      call imp_allreduce_mean(comm, fdiv(i,:,:), val)
+      @mpiassertEqual(trgt, val, eps, 'flx div consistency')
+
+      trgt = incSolar*cos(deg2rad(theta0)) * (1._ireals - exp(-dtau_clearsky/cos(deg2rad(theta0))))
+      @mpiassertEqual(trgt, val, eps, 'absorption wrong')
     enddo
 
   end subroutine
 
-  !@test(npes = [1])
+  @test(npes = [1,4])
   subroutine test_pprts_rayli_single_cld_lay(this)
     class (MpiTestMethod), intent(inout) :: this
 
     integer(mpiint) :: myid, numnodes, comm
 
-    integer(iintegers), parameter :: Nx = 3, Ny = 3, Nlay = 10
-    real(ireals), parameter :: dx = 100, dy = 100, dz = 500
+    integer(iintegers), parameter :: Nx = 3, Ny = 3, Nlay = 4
+    real(ireals), parameter :: dx = 1, dy = 1, dz = 5
     real(ireals), parameter :: phi0 = 180, theta0 = 0
     real(ireals), parameter :: albedo = 0.1
-    real(ireals), parameter :: incSolar = 1000
+    real(ireals), parameter :: incSolar = 1
 
     real(ireals), parameter :: dtau_clearsky = 1, w0_clearsky = 0, g_clearsky = 0
-    integer(iintegers), parameter :: cld_layer_idx(2) = [4,6]
+    integer(iintegers), parameter :: cld_layer_idx(2) = [2,3]
     real(ireals), parameter :: dtau_cloud = 1, w0_cloud = 0.2, g_cloud = 0.2
     logical, parameter :: lverbose = .True.
 
-    real(ireals) :: trgt
-    !real(ireals), parameter :: eps = sqrt(epsilon(trgt))
+    real(ireals), parameter :: eps = 1e-2
+    real(ireals) :: trgt, val
     real(ireals),allocatable,dimension(:,:,:) :: fdir,fdn,fup,fdiv
     integer(iintegers) :: i
 
@@ -117,18 +129,23 @@ contains
         & fdir,fdn,fup,fdiv, &
         & lverbose )
 
-    trgt = incSolar * cos( deg2rad( theta0 ) )
-    @assertEqual(trgt, fdir(1,:,:), trgt * 0.03, 'TOA edir')
 
-    trgt = incSolar * cos( deg2rad( theta0 ) ) * exp( - ( dtau_clearsky + dtau_cloud ) / cos( deg2rad( theta0 ) ) )
-    @assertEqual(trgt, fdir(Nlay + 1,:,:), trgt * 0.03, 'SRFC edir')
+    trgt = incSolar * cos(deg2rad(theta0))
+    call imp_allreduce_mean(comm, fdir(1,:,:), val)
+    @mpiassertEqual(trgt, val, eps, 'TOA edir')
 
+    trgt = incSolar * cos(deg2rad(theta0)) * exp(-(dtau_clearsky+dtau_cloud)/cos(deg2rad(theta0)))
+    call imp_allreduce_mean(comm, fdir(Nlay+1,:,:), val)
+    @mpiassertEqual(trgt, val, eps, 'SRFC edir')
+
+    ! check that flx divergence is same as absorption output
     do i = 1, size(fdiv, 1)
-      trgt = meanval(((fdir(i,:,:) + fdn(i,:,:) - fup(i,:,:)) - (fdir(i+1,:,:) + fdn(i+1,:,:) - fup(i+1,:,:))) / dz)
-      @assertEqual(trgt, meanval(fdiv(i,:,:)), trgt * 1e-3, 'flx div consistency')
+      call imp_allreduce_mean(comm, &
+        & ((fdir(i,:,:) + fdn(i,:,:) - fup(i,:,:)) - (fdir(i+1,:,:) + fdn(i+1,:,:) - fup(i+1,:,:))) / dz, &
+        & trgt)
+      call imp_allreduce_mean(comm, fdiv(i,:,:), val)
+      @mpiassertEqual(trgt, val, eps, 'flx div consistency')
     enddo
-
   end subroutine
-
 
 end module
