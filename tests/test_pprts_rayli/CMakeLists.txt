@@ -1,6 +1,7 @@
 get_filename_component(CDIR ${CMAKE_CURRENT_LIST_DIR} NAME)
 set(TESTDIR "${PROJECT_BINARY_DIR}/generated/${CDIR}" )
 
+if(RAYLI_DIR)
 message( STATUS "Creating Cmake Test wrapper for directory :: ${TESTDIR} :: CDIR ${CDIR}" )
 
 file(MAKE_DIRECTORY  ${TESTDIR} )
@@ -57,3 +58,7 @@ add_test(
   NAME pfunit_${CDIR}
   COMMAND ${MPIEXEC} ${CTEST_MPIRUN_FLAGS} ${MPIEXEC_NUMPROC_FLAG} ${NUMPROC} ${PROJECT_BINARY_DIR}/bin/pfunit_${CDIR}
   WORKING_DIRECTORY ${TESTDIR})
+
+else(RAYLI_DIR)
+  message( STATUS "Skipping Cmake Test wrapper for directory :: ${TESTDIR} :: CDIR ${CDIR}" )
+endif(RAYLI_DIR)

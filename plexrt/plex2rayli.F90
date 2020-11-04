@@ -264,9 +264,9 @@ module m_plex2rayli
     real(c_float),     allocatable :: rkabs(:), rksca(:), rg(:)
     real(c_float),     allocatable :: ralbedo_on_faces(:)
     real(c_float)                  :: rsundir(3)
-    real(c_float),     allocatable :: flx_through_faces_edir(:)
-    real(c_float),     allocatable :: flx_through_faces_ediff(:)
-    real(c_float),     allocatable :: abso_in_cells(:)
+    real(c_double),    allocatable :: flx_through_faces_edir(:)
+    real(c_double),    allocatable :: flx_through_faces_ediff(:)
+    real(c_double),    allocatable :: abso_in_cells(:)
 
     integer(c_size_t) :: Nthreads, Nphotons, Nwedges, Nfaces, Nverts
     integer(iintegers) :: opt_photons_int, opt_Nthreads_int
@@ -432,9 +432,9 @@ module m_plex2rayli
         abso_in_cells, &
         solution)
       type(t_plexgrid), intent(in) :: plex
-      real(c_float), intent(in) :: flx_through_faces_edir(:)
-      real(c_float), intent(in) :: flx_through_faces_ediff(:)
-      real(c_float), intent(in) :: abso_in_cells(:)
+      real(c_double), intent(in) :: flx_through_faces_edir(:)
+      real(c_double), intent(in) :: flx_through_faces_ediff(:)
+      real(c_double), intent(in) :: abso_in_cells(:)
       type(t_state_container), intent(inout) :: solution
 
       type(tIS) :: toa_ids
