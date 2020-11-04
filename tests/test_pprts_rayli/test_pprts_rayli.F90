@@ -21,6 +21,7 @@ contains
   @after
   subroutine teardown(this)
     class (MpiTestMethod), intent(inout) :: this
+    call destroy_rayli_info()
     call finalize_mpi(&
       & this%getMpiCommunicator(), &
       & lfinalize_mpi=.False., &
