@@ -385,10 +385,15 @@ module m_helper_functions
   end interface
 
   interface delta_scale
-    module procedure delta_scale_r32, delta_scale_r64
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    module procedure delta_scale_${dtype}$
+    #:endfor
   end interface
+
   interface delta_scale_optprop
-    module procedure delta_scale_optprop_r32, delta_scale_optprop_r64
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    module procedure delta_scale_optprop_${dtype}$
+    #:endfor
   end interface
 
   interface solve_quadratic
@@ -1404,10 +1409,11 @@ module m_helper_functions
 #:endfor
 #:endfor
 
-    elemental subroutine delta_scale_r32(kabs, ksca, g, opt_f, max_g)
-      real(REAL32),intent(inout) :: kabs, ksca, g
-      real(REAL32),intent(in), optional :: opt_f, max_g
-      real(REAL32) :: dtau, w0, f
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    elemental subroutine delta_scale_${dtype}$(kabs, ksca, g, opt_f, max_g)
+      real(${dtype}$),intent(inout) :: kabs, ksca, g
+      real(${dtype}$),intent(in), optional :: opt_f, max_g
+      real(${dtype}$) :: dtau, w0, f
 
       if(present(opt_f)) then
         f = opt_f
@@ -1417,61 +1423,33 @@ module m_helper_functions
 
       if(present(max_g)) then
         if(g.lt.max_g) return
-        f = (max_g - g) / (max_g - 1._REAL32)
+        f = (max_g - g) / (max_g - 1._${dtype}$)
       endif
 
-      dtau = max( kabs+ksca, epsilon(dtau) )
+      dtau = kabs+ksca
+      if(dtau.lt.epsilon(dtau)) return
+
       w0   = ksca/dtau
       g    = g
 
       call delta_scale_optprop( dtau, w0, g, f)
 
-      kabs= dtau * (1._REAL32-w0)
-      ksca= dtau * w0
+      kabs = dtau * (1._${dtype}$-w0)
+      ksca = dtau * w0
     end subroutine
-    elemental subroutine delta_scale_r64(kabs, ksca, g, opt_f, max_g)
-      real(REAL64),intent(inout) :: kabs, ksca, g
-      real(REAL64),intent(in), optional :: opt_f, max_g
-      real(REAL64) :: dtau, w0, f
+    #:endfor
 
-      if(present(opt_f)) then
-        f = opt_f
-      else
-        f = g**2
-      endif
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    elemental subroutine delta_scale_optprop_${dtype}$(dtau, w0, g, f)
+      real(${dtype}$), intent(inout) :: dtau,w0,g
+      real(${dtype}$), intent(in) :: f
 
-      if(present(max_g)) then
-        if(g.lt.max_g) return
-        f = (max_g - g) / (max_g - 1._REAL64)
-      endif
-
-      dtau = max( kabs+ksca, epsilon(dtau) )
-      w0   = ksca/dtau
-      g    = g
-
-      call delta_scale_optprop( dtau, w0, g, f)
-
-      kabs= dtau * (1._REAL64-w0)
-      ksca= dtau * w0
+      g = min( g, 1._${dtype}$-epsilon(g)*10)
+      dtau = dtau * ( 1._${dtype}$ - w0 * f )
+      g    = ( g - f ) / ( 1._${dtype}$ - f )
+      w0   = w0 * ( 1._${dtype}$ - f ) / ( 1._${dtype}$ - f * w0 )
     end subroutine
-    elemental subroutine delta_scale_optprop_r32(dtau, w0, g, f)
-      real(REAL32), intent(inout) :: dtau,w0,g
-      real(REAL32), intent(in) :: f
-
-      g = min( g, 1._REAL32-epsilon(g)*10)
-      dtau = dtau * ( 1._REAL32 - w0 * f )
-      g    = ( g - f ) / ( 1._REAL32 - f )
-      w0   = w0 * ( 1._REAL32 - f ) / ( 1._REAL32 - f * w0 )
-    end subroutine
-    elemental subroutine delta_scale_optprop_r64(dtau, w0, g, f)
-      real(REAL64), intent(inout) :: dtau,w0,g
-      real(REAL64), intent(in) :: f
-
-      g = min( g, 1._REAL64-epsilon(g)*10)
-      dtau = dtau * ( 1._REAL64 - w0 * f )
-      g    = ( g - f ) / ( 1._REAL64 - f )
-      w0   = w0 * ( 1._REAL64 - f ) / ( 1._REAL64 - f * w0 )
-    end subroutine
+    #:endfor
 
     function cumsum_ireals(arr) result(cumsum)
       real(ireals),intent(in) :: arr(:)
