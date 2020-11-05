@@ -1624,7 +1624,7 @@ module m_pprts
                 atm%dz(k,i,j) * max(tiny(one), atm%kabs(k,i,j) + atm%ksca(k,i,j)), & ! tau
                 atm%ksca(k,i,j) / max(tiny(one), atm%kabs(k,i,j) + atm%ksca(k,i,j)), & ! w0
                 atm%g(k,i,j), &
-                sun%costheta(i1,i,j), &
+                sun%costheta(i0,i,j), &
                 atm%a11(k,i,j),          &
                 atm%a12(k,i,j),          &
                 atm%a13(k,i,j),          &
