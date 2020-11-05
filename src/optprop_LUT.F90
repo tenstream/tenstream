@@ -172,8 +172,9 @@ contains
       logical, intent(in), optional :: skip_load_LUT
 
       integer(mpiint) :: comm_size, myid, ierr
-      logical :: lskip_load_LUT, load_diffuse_LUT_first, lflg
+      logical :: lskip_load_LUT, load_diffuse_LUT_first
       logical :: lskip_load_LUT_dir, lskip_load_LUT_diff
+      logical :: lshow_LUT, lflg
 
       if(OPP%initialized) return
 
@@ -295,8 +296,13 @@ contains
       call OPP%scatter_LUTtables(comm)
 
       OPP%initialized=.True.
-      if(ldebug.and.myid.eq.0) call print_configs(OPP)
+
       if(OPP%optprop_LUT_debug .and. myid.eq.0) print *,'Initializing LUT`s... finished'
+
+      lshow_LUT = ldebug
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+        '-LUT_view', lshow_LUT, lflg, ierr); call CHKERR(ierr)
+      if(lshow_LUT.and.myid.eq.0) call print_configs(OPP)
   end subroutine
 
   subroutine destroy(OPP, ierr)
