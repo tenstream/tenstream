@@ -667,7 +667,7 @@ module m_dyn_atm_to_rrtmg
 
       ierr = 0
 
-      lerr = .not.assert_arr_is_monotonous(plev, lincreasing=lTOA_to_srfc, lstrict=.True.)
+      lerr = .not.assert_arr_is_monotonous(plev, lincreasing=lTOA_to_srfc, lstrict=.True., lverbose=.True.)
       if(lerr) then
         print *,'Pressure is not strictly monotous decreasing, however, '// &
           'we need this for hydrostatic integration. '// &
