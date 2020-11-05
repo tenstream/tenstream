@@ -736,7 +736,7 @@ contains
   end subroutine
 
   @test(npes =[1])
-  subroutine test_boxmc_select_cases_diffuse_src1_rectilinear_C(this)
+  subroutine test_boxmc_custom_case_1_diffuse_src1_rectilinear_C(this)
       class (MpiTestMethod), intent(inout) :: this
       integer(iintegers),parameter :: src=1
       real(ireal_dp) :: aspect_zx, dz, Atop, dtau, w0
@@ -784,6 +784,44 @@ contains
       bg = [dtau*(1._ireal_dp-w0), dtau*w0, 0._ireal_dp ]
       S_target = [0.0000, 0.2114, 0.0000, 0.2828, 0.0000, 0.2114, 0.0000, 0.2945]
       call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src1_C01')
+
+      deallocate(vertices)
+  end subroutine
+
+  @test(npes =[1])
+  subroutine test_boxmc_custom_case_2_diffuse_src1_rectilinear_C(this)
+      class (MpiTestMethod), intent(inout) :: this
+      integer(iintegers),parameter :: src=1
+      real(ireal_dp) :: aspect_zx, dz, Atop, dtau, w0
+      real(ireal_dp), dimension(2) :: A, B, C
+      myid     = this%getProcessRank()
+
+      aspect_zx = 1
+      dtau = 100
+      w0 = 0
+
+      A = [0._ireal_dp, 0._ireal_dp]
+      B = [1._ireal_dp, 0._ireal_dp]
+      C = [1.0_ireal_dp, 1.0_ireal_dp]
+
+      Atop = triangle_area_by_vertices(A,B,C)
+      dz = LUT_wedge_dz(real(Atop, irealLUT), real(aspect_zx, irealLUT))
+      if(allocated(vertices)) deallocate(vertices)
+      call setup_default_wedge_geometry(&
+        A, B, C, &
+        real(dz, ireal_dp), &
+        vertices)
+
+      print *,'vertices', vertices, 'dz', dz
+
+      ! ----------------------------------
+
+      bg = [dtau*(1._ireal_dp-w0)/dz, dtau*w0/dz, 0._ireal_dp ]
+      S_target = zero
+      call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+
+      print *,'S',S
       call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src1_C01')
 
       deallocate(vertices)
