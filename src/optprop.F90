@@ -568,7 +568,7 @@ contains
       real(irealLUT) :: S_tol (OPP%dev%diff_streams),T_tol(OPP%dev%dir_streams)
       integer(iintegers) :: isrc
 
-      real(irealLUT), parameter :: atol=5e-3_irealLUT, rtol=5e-2_irealLUT
+      real(irealLUT), parameter :: atol=1e-3_irealLUT, rtol=1e-2_irealLUT
 
       if(present(angles)) then
           do isrc=1,OPP%dev%dir_streams
@@ -925,29 +925,29 @@ contains
     real(irealLUT)               :: newcoeff(size(coeff))
     if(lswitch_east) then
       newcoeff = coeff
-      !coeff( 1: 3) = newcoeff([1, 2, 3]        )
-      !coeff( 4: 6) = newcoeff([1, 2, 3] + dof*1)
-      coeff( 7: 9) = newcoeff([1, 2, 3] + dof*3)
-      coeff(10:12) = newcoeff([1, 2, 3] + dof*2)
-      coeff(13:15) = newcoeff([1, 2, 3] + dof*5)
-      coeff(16:18) = newcoeff([1, 2, 3] + dof*4)
-      ! coeff(19:21) = newcoeff([1, 2, 3] + dof*6)
-      ! coeff(22:24) = newcoeff([1, 2, 3] + dof*7)
-      ! coeff(25:27) = newcoeff([1, 2, 3] + dof*8)
-      ! coeff(28:30) = newcoeff([1, 2, 3] + dof*9)
+      !coeff(1+( 1-1)*dof: 1*dof) = newcoeff([1, 2, 3] + dof*( 1-1) )
+      !coeff(1+( 2-1)*dof: 2*dof) = newcoeff([1, 2, 3] + dof*( 2-1) )
+       coeff(1+( 3-1)*dof: 3*dof) = newcoeff([1, 2, 3] + dof*( 4-1) )
+       coeff(1+( 4-1)*dof: 4*dof) = newcoeff([1, 2, 3] + dof*( 3-1) )
+       coeff(1+( 5-1)*dof: 5*dof) = newcoeff([1, 2, 3] + dof*( 6-1) )
+       coeff(1+( 6-1)*dof: 6*dof) = newcoeff([1, 2, 3] + dof*( 5-1) )
+      !coeff(1+( 7-1)*dof: 7*dof) = newcoeff([1, 2, 3] + dof*( 7-1) )
+      !coeff(1+( 8-1)*dof: 8*dof) = newcoeff([1, 2, 3] + dof*( 8-1) )
+      !coeff(1+( 9-1)*dof: 9*dof) = newcoeff([1, 2, 3] + dof*( 9-1) )
+      !coeff(1+(10-1)*dof:10*dof) = newcoeff([1, 2, 3] + dof*(10-1) )
     endif
     if(lswitch_north) then
       newcoeff = coeff
-      !coeff( 1: 3) = newcoeff([1, 2, 3]        )
-      !coeff( 4: 6) = newcoeff([1, 2, 3] + dof*1)
-      !coeff( 7: 9) = newcoeff([1, 2, 3] + dof*2)
-      !coeff(10:12) = newcoeff([1, 2, 3] + dof*3)
-      !coeff(13:15) = newcoeff([1, 2, 3] + dof*4)
-      !coeff(16:18) = newcoeff([1, 2, 3] + dof*5)
-      coeff(19:21) = newcoeff([1, 2, 3] + dof*6)
-      coeff(22:24) = newcoeff([1, 2, 3] + dof*8)
-      coeff(25:27) = newcoeff([1, 2, 3] + dof*7)
-      coeff(28:30) = newcoeff([1, 2, 3] + dof*9)
+      !coeff(1+( 1-1)*dof: 1*dof) = newcoeff([1, 2, 3] + dof*( 1-1) )
+      !coeff(1+( 2-1)*dof: 2*dof) = newcoeff([1, 2, 3] + dof*( 2-1) )
+      !coeff(1+( 3-1)*dof: 3*dof) = newcoeff([1, 2, 3] + dof*( 4-1) )
+      !coeff(1+( 4-1)*dof: 4*dof) = newcoeff([1, 2, 3] + dof*( 3-1) )
+      !coeff(1+( 5-1)*dof: 5*dof) = newcoeff([1, 2, 3] + dof*( 6-1) )
+      !coeff(1+( 6-1)*dof: 6*dof) = newcoeff([1, 2, 3] + dof*( 5-1) )
+       coeff(1+( 7-1)*dof: 7*dof) = newcoeff([1, 2, 3] + dof*( 8-1) )
+       coeff(1+( 8-1)*dof: 8*dof) = newcoeff([1, 2, 3] + dof*( 7-1) )
+       coeff(1+( 9-1)*dof: 9*dof) = newcoeff([1, 2, 3] + dof*(10-1) )
+       coeff(1+(10-1)*dof:10*dof) = newcoeff([1, 2, 3] + dof*( 9-1) )
     endif
     if(.False.) then ! remove compiler unused warnings
       select type(OPP)
@@ -959,11 +959,45 @@ contains
     class(t_optprop_3_16)        :: OPP
     logical, intent(in)          :: lswitch_east, lswitch_north
     real(irealLUT),intent(inout) :: coeff(:)
+    integer(iintegers), parameter:: dof = 3
+    real(irealLUT)               :: newcoeff(size(coeff))
     if(lswitch_east) then
-      call CHKERR(1_mpiint, 'dir3_to_diff16_coeff_symmetry_lswitch_east_not yet implemented')
+      newcoeff = coeff
+      !coeff(1+( 1-1)*dof: 1*dof) = newcoeff([1, 2, 3] + dof*( 1-1) )
+      !coeff(1+( 2-1)*dof: 2*dof) = newcoeff([1, 2, 3] + dof*( 2-1) )
+       coeff(1+( 3-1)*dof: 3*dof) = newcoeff([1, 2, 3] + dof*( 7-1) )
+       coeff(1+( 4-1)*dof: 4*dof) = newcoeff([1, 2, 3] + dof*( 8-1) )
+      !coeff(1+( 5-1)*dof: 5*dof) = newcoeff([1, 2, 3] + dof*( 5-1) )
+      !coeff(1+( 6-1)*dof: 6*dof) = newcoeff([1, 2, 3] + dof*( 6-1) )
+       coeff(1+( 7-1)*dof: 7*dof) = newcoeff([1, 2, 3] + dof*( 3-1) )
+       coeff(1+( 8-1)*dof: 8*dof) = newcoeff([1, 2, 3] + dof*( 4-1) )
+       coeff(1+( 9-1)*dof: 9*dof) = newcoeff([1, 2, 3] + dof*(10-1) )
+       coeff(1+(10-1)*dof:10*dof) = newcoeff([1, 2, 3] + dof*( 9-1) )
+       coeff(1+(11-1)*dof:11*dof) = newcoeff([1, 2, 3] + dof*(12-1) )
+       coeff(1+(12-1)*dof:12*dof) = newcoeff([1, 2, 3] + dof*(11-1) )
+      !coeff(1+(13-1)*dof:13*dof) = newcoeff([1, 2, 3] + dof*(13-1) )
+      !coeff(1+(14-1)*dof:14*dof) = newcoeff([1, 2, 3] + dof*(14-1) )
+      !coeff(1+(15-1)*dof:15*dof) = newcoeff([1, 2, 3] + dof*(15-1) )
+      !coeff(1+(16-1)*dof:16*dof) = newcoeff([1, 2, 3] + dof*(16-1) )
     endif
-    if (lswitch_north) then
-      call CHKERR(1_mpiint, 'dir3_to_diff16_coeff_symmetry_lswitch_north_not yet implemented')
+    if(lswitch_north) then
+      newcoeff = coeff
+       coeff(1+( 1-1)*dof: 1*dof) = newcoeff([1, 2, 3] + dof*( 5-1) )
+       coeff(1+( 2-1)*dof: 2*dof) = newcoeff([1, 2, 3] + dof*( 6-1) )
+      !coeff(1+( 3-1)*dof: 3*dof) = newcoeff([1, 2, 3] + dof*( 3-1) )
+      !coeff(1+( 4-1)*dof: 4*dof) = newcoeff([1, 2, 3] + dof*( 4-1) )
+       coeff(1+( 5-1)*dof: 5*dof) = newcoeff([1, 2, 3] + dof*( 1-1) )
+       coeff(1+( 6-1)*dof: 6*dof) = newcoeff([1, 2, 3] + dof*( 2-1) )
+      !coeff(1+( 7-1)*dof: 7*dof) = newcoeff([1, 2, 3] + dof*( 7-1) )
+      !coeff(1+( 8-1)*dof: 8*dof) = newcoeff([1, 2, 3] + dof*( 8-1) )
+      !coeff(1+( 9-1)*dof: 9*dof) = newcoeff([1, 2, 3] + dof*( 9-1) )
+      !coeff(1+(10-1)*dof:10*dof) = newcoeff([1, 2, 3] + dof*(10-1) )
+      !coeff(1+(11-1)*dof:11*dof) = newcoeff([1, 2, 3] + dof*(11-1) )
+      !coeff(1+(12-1)*dof:12*dof) = newcoeff([1, 2, 3] + dof*(12-1) )
+       coeff(1+(13-1)*dof:13*dof) = newcoeff([1, 2, 3] + dof*(14-1) )
+       coeff(1+(14-1)*dof:14*dof) = newcoeff([1, 2, 3] + dof*(13-1) )
+       coeff(1+(15-1)*dof:15*dof) = newcoeff([1, 2, 3] + dof*(16-1) )
+       coeff(1+(16-1)*dof:16*dof) = newcoeff([1, 2, 3] + dof*(15-1) )
     endif
     if(.False.) then ! remove compiler unused warnings
       select type(OPP)
@@ -977,33 +1011,33 @@ contains
     class(t_optprop_8_10)        :: OPP
     logical, intent(in)          :: lswitch_east, lswitch_north
     real(irealLUT),intent(inout) :: coeff(:)
-    integer(iintegers), parameter :: dof = 8
+    integer(iintegers), parameter:: dof = 8
     real(irealLUT)               :: newcoeff(size(coeff))
     if(lswitch_east) then
       newcoeff = coeff
-      !coeff(1:8)   = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]        )
-      !coeff(9:16)  = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*1 )
-      coeff(17:24) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*3 )
-      coeff(25:32) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*2 )
-      coeff(33:40) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*5 )
-      coeff(41:48) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*4 )
-      !coeff(49:56) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*6 )
-      !coeff(57:64) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*7 )
-      !coeff(65:72) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*8 )
-      !coeff(73:80) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*9 )
+      !coeff(1+( 1-1)*dof: 1*dof) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] + dof*( 1-1) )
+      !coeff(1+( 2-1)*dof: 2*dof) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] + dof*( 2-1) )
+       coeff(1+( 3-1)*dof: 3*dof) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] + dof*( 4-1) )
+       coeff(1+( 4-1)*dof: 4*dof) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] + dof*( 3-1) )
+       coeff(1+( 5-1)*dof: 5*dof) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] + dof*( 6-1) )
+       coeff(1+( 6-1)*dof: 6*dof) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] + dof*( 5-1) )
+      !coeff(1+( 7-1)*dof: 7*dof) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] + dof*( 7-1) )
+      !coeff(1+( 8-1)*dof: 8*dof) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] + dof*( 8-1) )
+      !coeff(1+( 9-1)*dof: 9*dof) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] + dof*( 9-1) )
+      !coeff(1+(10-1)*dof:10*dof) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] + dof*(10-1) )
     endif
     if (lswitch_north) then
       newcoeff = coeff
-      !coeff(1:8)   = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]        )
-      !coeff(9:16)  = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*1 )
-      !coeff(17:24) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*2 )
-      !coeff(25:32) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*3 )
-      !coeff(33:40) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*4 )
-      !coeff(41:48) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*5 )
-      coeff(49:56) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*6 )
-      coeff(57:64) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*8 )
-      coeff(65:72) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*7 )
-      coeff(73:80) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*9 )
+      !coeff(1+( 1-1)*dof: 1*dof) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] + dof*( 1-1) )
+      !coeff(1+( 2-1)*dof: 2*dof) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] + dof*( 2-1) )
+      !coeff(1+( 3-1)*dof: 3*dof) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] + dof*( 4-1) )
+      !coeff(1+( 4-1)*dof: 4*dof) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] + dof*( 3-1) )
+      !coeff(1+( 5-1)*dof: 5*dof) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] + dof*( 6-1) )
+      !coeff(1+( 6-1)*dof: 6*dof) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] + dof*( 5-1) )
+       coeff(1+( 7-1)*dof: 7*dof) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] + dof*( 8-1) )
+       coeff(1+( 8-1)*dof: 8*dof) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] + dof*( 7-1) )
+       coeff(1+( 9-1)*dof: 9*dof) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] + dof*(10-1) )
+       coeff(1+(10-1)*dof:10*dof) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] + dof*( 9-1) )
     endif
     if(.False.) then ! remove compiler unused warnings
       select type(OPP)
@@ -1015,16 +1049,53 @@ contains
     class(t_optprop_8_16)        :: OPP
     logical, intent(in)          :: lswitch_east, lswitch_north
     real(irealLUT),intent(inout) :: coeff(:)
+    real(irealLUT)               :: newcoeff(size(coeff)) ! dim(src,dst)
+    integer(iintegers), parameter:: dof = 8
     if(lswitch_east) then
-      call CHKERR(1_mpiint, 'dir8_to_diff16_coeff_symmetry_lswitch_east_not yet implemented')
+      newcoeff(:) = coeff
+      !coeff(1+( 1-1)*dof: 1*dof) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+( 1-1)*dof)
+      !coeff(1+( 2-1)*dof: 2*dof) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+( 2-1)*dof)
+       coeff(1+( 3-1)*dof: 3*dof) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+( 7-1)*dof)
+       coeff(1+( 4-1)*dof: 4*dof) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+( 8-1)*dof)
+      !coeff(1+( 5-1)*dof: 5*dof) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+( 5-1)*dof)
+      !coeff(1+( 6-1)*dof: 6*dof) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+( 6-1)*dof)
+       coeff(1+( 7-1)*dof: 7*dof) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+( 3-1)*dof)
+       coeff(1+( 8-1)*dof: 8*dof) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+( 4-1)*dof)
+       coeff(1+( 9-1)*dof: 9*dof) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+(10-1)*dof)
+       coeff(1+(10-1)*dof:10*dof) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+( 9-1)*dof)
+       coeff(1+(11-1)*dof:11*dof) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+(12-1)*dof)
+       coeff(1+(12-1)*dof:12*dof) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+(11-1)*dof)
+      !coeff(1+(13-1)*dof:13*dof) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+(13-1)*dof)
+      !coeff(1+(14-1)*dof:14*dof) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+(14-1)*dof)
+      !coeff(1+(15-1)*dof:15*dof) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+(15-1)*dof)
+      !coeff(1+(16-1)*dof:16*dof) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+(16-1)*dof)
     endif
     if (lswitch_north) then
-      call CHKERR(1_mpiint, 'dir8_to_diff16_coeff_symmetry_lswitch_north_not yet implemented')
+      newcoeff(:) = coeff
+       coeff(1+( 1-1)*dof: 1*dof) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+( 5-1)*dof)
+       coeff(1+( 2-1)*dof: 2*dof) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+( 6-1)*dof)
+      !coeff(1+( 3-1)*dof: 3*dof) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+( 3-1)*dof)
+      !coeff(1+( 4-1)*dof: 4*dof) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+( 4-1)*dof)
+       coeff(1+( 5-1)*dof: 5*dof) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+( 1-1)*dof)
+       coeff(1+( 6-1)*dof: 6*dof) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+( 2-1)*dof)
+      !coeff(1+( 7-1)*dof: 7*dof) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+( 7-1)*dof)
+      !coeff(1+( 8-1)*dof: 8*dof) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+( 8-1)*dof)
+      !coeff(1+( 9-1)*dof: 9*dof) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+( 9-1)*dof)
+      !coeff(1+(10-1)*dof:10*dof) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+(10-1)*dof)
+      !coeff(1+(11-1)*dof:11*dof) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+(11-1)*dof)
+      !coeff(1+(12-1)*dof:12*dof) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+(12-1)*dof)
+       coeff(1+(13-1)*dof:13*dof) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+(14-1)*dof)
+       coeff(1+(14-1)*dof:14*dof) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+(13-1)*dof)
+       coeff(1+(15-1)*dof:15*dof) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+(16-1)*dof)
+       coeff(1+(16-1)*dof:16*dof) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+(15-1)*dof)
+    endif
+    if(lswitch_east) then
+    endif
+    if (lswitch_north) then
     endif
     if(.False.) then ! remove compiler unused warnings
       select type(OPP)
       end select
-      if(lswitch_east .or. lswitch_north) coeff=coeff
     endif
   end subroutine
 

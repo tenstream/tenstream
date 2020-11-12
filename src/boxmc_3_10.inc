@@ -64,15 +64,25 @@ subroutine init_dir_photon_3_10(bmc, p, src, ldirect, initial_dir, vertices, ier
 
   call setup_cube_coords_from_vertices(vertices, dx, dy, dz)
 
+  p%dir        = initial_dir
+
   p%alive = .False.
 
   select case(src)
   case (1)
     p%loc = [R()*dx, R()*dy, dz*(one-e)]
   case (2)
-    p%loc = [e, R()*dy, R()*dz]
+    if(p%dir(1).ge.0) then
+      p%loc = [e, R()*dy, R()*dz]
+    else
+      p%loc = [dx-e, R()*dy, R()*dz]
+    endif
   case (3)
-    p%loc = [R()*dx, e, R()*dz]
+    if(p%dir(2).ge.0) then
+      p%loc = [R()*dx, e, R()*dz]
+    else
+      p%loc = [R()*dx, dy-e, R()*dz]
+    endif
   case default
     print *,'Dont know what to do with source spec:',src
     call exit
@@ -84,7 +94,6 @@ subroutine init_dir_photon_3_10(bmc, p, src, ldirect, initial_dir, vertices, ier
   p%side       = int(nil)
   p%src        = src
   p%scattercnt = 0
-  p%dir        = initial_dir
   select type(bmc)
   end select
 
