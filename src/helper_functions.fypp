@@ -1050,7 +1050,7 @@ module m_helper_functions
     pure function meanval_intype_${intype}$_${dtype}$_${RANK}$d_out${otype}$(arr) result(mean)
       ${intype}$(${dtype}$), intent(in) :: arr${ranksuffix(RANK)}$
       real(${otype}$) :: mean
-      mean = real(sum(arr), kind=kind(mean)) / real(size(arr), kind=kind(mean))
+      mean = real(sum(arr), kind=kind(mean)) / real(max(1,size(arr)), kind=kind(mean))
     end function
 #:endfor
 #:endfor
