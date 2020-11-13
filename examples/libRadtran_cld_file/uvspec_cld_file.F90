@@ -44,12 +44,12 @@ contains
   subroutine example_uvspec_cld_file(comm, &
       cldfile, atm_filename, outfile, &
       albedo_th, albedo_sol, &
-      lsolar, lthermal, &
+      lsolar, lthermal, opt_solar_constant, &
       phi0, theta0)
 
     integer(mpiint), intent(in) :: comm
     character(len=*), intent(in) :: cldfile, atm_filename, outfile
-    real(ireals), intent(in) :: albedo_th, albedo_sol
+    real(ireals), intent(in) :: albedo_th, albedo_sol, opt_solar_constant
     logical, intent(in) :: lsolar, lthermal
     real(ireals), intent(in) :: phi0, theta0 ! Sun's angles, azimuth phi(0=North, 90=East), zenith(0 high sun, 80=low sun)
 
@@ -153,7 +153,7 @@ contains
       & lwc(:, is:ie, js:je), &
       & reliq(:, is:ie, js:je), &
       & albedo_th, albedo_sol, &
-      & lsolar, lthermal, &
+      & lsolar, lthermal, opt_solar_constant, &
       & edir, edn, eup, abso)
 
     groups(1) = trim(outfile)
@@ -193,10 +193,11 @@ contains
   end subroutine
 
   subroutine run_rrtmg_lw_sw(pprts_solver, nxproc, nyproc, atm_filename, dx, dy, phi0, theta0, &
-      plev, tlev, lwc, reliq, albedo_th, albedo_sol, lsolar, lthermal, &
+      plev, tlev, lwc, reliq, albedo_th, albedo_sol, lsolar, lthermal, opt_solar_constant, &
       edir, edn, eup, abso)
     class(t_solver) :: pprts_solver
     integer(iintegers),intent(in) :: nxproc(:), nyproc(:)
+    real(ireals), intent(in) :: opt_solar_constant
     real(ireals),intent(in) :: dx, dy       ! horizontal grid spacing in [m]
     real(ireals), intent(in) :: phi0, theta0 ! Sun's angles, azimuth phi(0=North, 90=East), zenith(0 high sun, 80=low sun)
     real(ireals), intent(in), dimension(:,:,:), contiguous, target :: lwc, reliq ! dim(Nz,Nx,Ny)
@@ -275,7 +276,8 @@ contains
       albedo_th, albedo_sol,                   &
       lthermal, lsolar,                        &
       edir, edn, eup, abso,                    &
-      nxproc=nxproc, nyproc=nyproc, opt_time=zero)
+      nxproc=nxproc, nyproc=nyproc, &
+      opt_time=zero, opt_solar_constant=opt_solar_constant)
 
     nlev = ubound(edn,1)
     if(myid.eq.0) then
@@ -567,7 +569,7 @@ program main
   integer(mpiint) :: ierr, myid
   logical :: lthermal, lsolar, lflg
   character(len=10*default_str_len) :: cldfile, outfile
-  real(ireals) :: Ag, phi0, theta0, Tsrfc, dTdz
+  real(ireals) :: Ag, phi0, theta0, Tsrfc, dTdz, opt_solar_constant
   character(len=default_str_len) :: atm_filename
 
   logical :: luse_plexrt
@@ -594,6 +596,9 @@ program main
   call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-solar", lsolar, lflg,ierr) ; call CHKERR(ierr)
   call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-thermal", lthermal, lflg,ierr) ; call CHKERR(ierr)
 
+  opt_solar_constant = 1365.417
+  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-opt_solar_constant", opt_solar_constant, lflg,ierr) ;&
+    call CHKERR(ierr)
 
   phi0 = 270
   call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-phi", phi0, lflg,ierr) ; call CHKERR(ierr)
@@ -613,7 +618,7 @@ program main
       zero, Ag, lsolar, lthermal, phi0, theta0, Tsrfc, dTdz)
   else
     call example_uvspec_cld_file(mpi_comm_world, cldfile, atm_filename, outfile, &
-      zero, Ag, lsolar, lthermal, phi0, theta0)
+      zero, Ag, lsolar, lthermal, opt_solar_constant, phi0, theta0)
   endif
   call mpi_finalize(ierr)
 end program
