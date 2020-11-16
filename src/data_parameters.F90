@@ -182,7 +182,8 @@ subroutine init_mpi_data_parameters(comm)
   endif
 
   PETSC_COMM_WORLD = comm
-  if(.not.lpetsc_is_initialized) call PetscInitialize(PETSC_NULL_CHARACTER, mpierr)
+  if(.not.lpetsc_is_initialized) &
+    & call PetscInitialize('tenstream.options', mpierr)
   if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
 end subroutine
 

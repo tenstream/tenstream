@@ -652,6 +652,9 @@ module m_pprts
           C%da                    , ierr) ;call CHKERR(ierr)
       endif
 
+      ! need this first setfromoptions call because of a bug which happens with intel compilers
+      call DMSetFromOptions(C%da, ierr)                                    ; call CHKERR(ierr)
+
       call DMSetMatType(C%da, MATAIJ, ierr)                                ; call CHKERR(ierr)
       if(lprealloc) call DMSetMatrixPreallocateOnly(C%da, PETSC_TRUE,ierr) ; call CHKERR(ierr)
       call DMSetFromOptions(C%da, ierr)                                    ; call CHKERR(ierr)
@@ -3230,6 +3233,7 @@ module m_pprts
 
   KSPConvergedReason :: reason
 
+  character(len=default_str_len) :: prefix
   KSPType :: old_ksp_type
 
   logical :: lskip_ksp_solve, laccept_incomplete_solve, lflg
@@ -3266,7 +3270,9 @@ module m_pprts
   if(laccept_incomplete_solve) return
 
   if(reason.le.0) then
-    if(solver%myid.eq.0) call CHKWARN(int(reason, mpiint), 'Resetted initial guess to zero and try again with gmres')
+    call KSPGetOptionsPrefix(ksp, prefix, ierr); call CHKERR(ierr)
+    if(solver%myid.eq.0) &
+      & call CHKWARN(int(reason, mpiint), trim(prefix)//' :: Resetted initial guess to zero and try again with gmres')
     call VecSet(x,zero,ierr) ;call CHKERR(ierr)
     call KSPGetType(ksp,old_ksp_type,ierr); call CHKERR(ierr)
     call KSPSetType(ksp,KSPGMRES,ierr) ;call CHKERR(ierr)
