@@ -88,6 +88,7 @@ subroutine init_mpi_data_parameters(comm)
   integer(mpiint),intent(in) :: comm
   integer(mpiint) :: dtsize, ierr, myid, numnodes, mpierr
   logical :: lmpi_is_initialized, lpetsc_is_initialized, lallsame
+  logical :: file_exists
 
   call mpi_initialized( lmpi_is_initialized, mpierr)
   if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
@@ -182,9 +183,15 @@ subroutine init_mpi_data_parameters(comm)
   endif
 
   PETSC_COMM_WORLD = comm
-  if(.not.lpetsc_is_initialized) &
-    & call PetscInitialize('tenstream.options', mpierr)
-  if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
+  if(.not.lpetsc_is_initialized) then
+    inquire(file='tenstream.options', exist=file_exists)
+    if(file_exists) then
+      call PetscInitialize('tenstream.options', mpierr)
+    else
+      call PetscInitialize(PETSC_NULL_CHARACTER, mpierr)
+    endif
+    if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
+  endif
 end subroutine
 
 subroutine finalize_mpi(comm, lfinalize_mpi, lfinalize_petsc)

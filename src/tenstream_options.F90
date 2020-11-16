@@ -89,6 +89,7 @@ contains
     integer(mpiint) :: ierr
     logical :: lshow_options=.False.
     logical :: ltenstr_view=.False.
+    logical :: file_exists
 
     integer(mpiint) :: myid, numnodes
     character(len=default_str_len) :: env_lut_basename
@@ -98,7 +99,10 @@ contains
     call MPI_COMM_RANK( comm, myid, ierr); call CHKERR(ierr)
     call MPI_Comm_size( comm, numnodes, ierr); call CHKERR(ierr)
 
-    call PetscOptionsInsertFile(comm, PETSC_NULL_OPTIONS, 'tenstream.options', PETSC_FALSE, ierr); call CHKERR(ierr)
+    inquire(file='tenstream.options', exist=file_exists)
+    if(file_exists) then
+      call PetscOptionsInsertFile(comm, PETSC_NULL_OPTIONS, 'tenstream.options', PETSC_FALSE, ierr); call CHKERR(ierr)
+    endif
 
     call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,"-show_options",lshow_options,lflg,ierr) ;call CHKERR(ierr)
     if(lflg.eqv.PETSC_FALSE) then
