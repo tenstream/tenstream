@@ -174,8 +174,8 @@ contains
       lLUT_mockup , lflg , ierr) ;call CHKERR(ierr)
     if(lLUT_mockup) then
       call CHKWARN(1_mpiint, 'Using LUT_mockup, setting the LUT constraints to zero. Your results will be wrong!')
-      stddev_atol = 1._ireals
-      stddev_rtol = 1._ireals
+      stddev_atol = .1_irealLUT
+      stddev_rtol = .5_irealLUT
     endif
 
     call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-calc_nca", &
