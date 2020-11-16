@@ -1,12 +1,27 @@
 module pprts_error_growth_tracking
-  use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint, one, zero
+  use m_data_parameters, only : &
+    & init_mpi_data_parameters, &
+    & finalize_mpi, &
+    & iintegers, ireals, mpiint, &
+    & one, zero
+
   use m_helper_functions, only : spherical_2_cartesian
 
   use m_adaptive_spectral_integration, only: need_new_solution
-  use m_pprts_base, only : t_coord, t_solver, t_solver_3_10, t_solver_8_16, destroy_pprts
-  use m_pprts, only : init_pprts, set_angles, &
-    set_optical_properties, solve_pprts, &
-    pprts_get_result
+
+  use m_pprts_base, only : &
+    & t_coord, &
+    & t_solver, &
+    & t_solver_3_10, &
+    & t_solver_8_16, &
+    & destroy_pprts
+
+  use m_pprts, only : &
+    & init_pprts, &
+    & set_angles, &
+    & set_optical_properties, &
+    & solve_pprts, &
+    & pprts_get_result
 
   use m_tenstream_options, only: read_commandline_options
 
@@ -25,10 +40,13 @@ contains
   @after
   subroutine teardown(this)
     class (MpiTestMethod), intent(inout) :: this
-    continue
+    call finalize_mpi(&
+      & comm=this%getMpiCommunicator(), &
+      & lfinalize_mpi=.False., &
+      & lfinalize_petsc=.True.)
   end subroutine teardown
 
-  @test(npes =[2])
+  @test(npes =[1,2])
   subroutine error_growth_tracking(this)
     class (MpiTestMethod), intent(inout) :: this
 
@@ -103,8 +121,7 @@ contains
           deallocate(fdir, fdn, fup, fdiv)
         enddo
       enddo
-      call destroy_pprts(solver, lfinalizepetsc=.True.)
+      call destroy_pprts(solver, lfinalizepetsc=.False.)
     end subroutine
-    end subroutine
-
+  end subroutine
 end module

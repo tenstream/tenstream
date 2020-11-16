@@ -1028,7 +1028,7 @@ subroutine rand_pnt_on_triangle(A,B,C, pnt)
   real(ireal_dp), dimension(:), intent(out) :: pnt
   real(ireal_dp) :: r1, r2
   real(ireal_dp), dimension(size(A)) :: center, cA, cB, cC
-  real(ireal_dp), parameter :: eps=1e-2 ! move all points a wee bit towards the center
+  real(ireal_dp), parameter :: eps=1e-1 ! move all points a wee bit towards the center
   center = (A+B+C)/3
   cA = A + (center-A) * eps
   cB = B + (center-B) * eps
