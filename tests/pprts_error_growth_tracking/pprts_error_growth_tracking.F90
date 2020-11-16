@@ -46,7 +46,7 @@ contains
       & lfinalize_petsc=.True.)
   end subroutine teardown
 
-  @test(npes =[1,2])
+  @test(npes =[2,1])
   subroutine error_growth_tracking(this)
     class (MpiTestMethod), intent(inout) :: this
 
