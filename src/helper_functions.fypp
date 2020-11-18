@@ -278,7 +278,14 @@ module m_helper_functions
     module procedure sEXP_r32, sEXP_r64
   end interface
   interface swap
-    module procedure swap_iintegers, swap_r32, swap_r64
+    #:for basetype, dtype, ctype in [&
+      ('integer', 'INT32'  ), &
+      ('integer', 'INT64'  ), &
+      ('real'   , 'REAL32' ), &
+      ('real'   , 'REAL64' ), &
+      ('real'   , 'REAL128')]
+    module procedure swap_${dtype}$
+    #:endfor
   end interface
   interface transposed_arr
     module procedure transposed_arr_3d_ireals
@@ -462,23 +469,18 @@ module m_helper_functions
       r = exp(sign( min(exp_maxval, abs(x)), x))
     end function
 
-    pure elemental subroutine swap_r32(x,y)
-      real(REAL32),intent(inout) :: x,y
-      real(REAL32) :: tmp
-      tmp = x; x = y; y = tmp
-    end subroutine
-    pure elemental subroutine swap_r64(x,y)
-      real(REAL64),intent(inout) :: x,y
-      real(REAL64) :: tmp
-      tmp = x; x = y; y = tmp
-    end subroutine
-    pure elemental subroutine swap_iintegers(x,y)
-      integer(iintegers),intent(inout) :: x,y
-      integer(iintegers) :: tmp
-      tmp = x
-      x = y
-      y = tmp
-    end subroutine
+#:for basetype, dtype, ctype in [&
+  ('integer', 'INT32'  ), &
+  ('integer', 'INT64'  ), &
+  ('real'   , 'REAL32' ), &
+  ('real'   , 'REAL64' ), &
+  ('real'   , 'REAL128')]
+  pure elemental subroutine swap_${dtype}$(x,y)
+    ${basetype}$ (${dtype}$),intent(inout) :: x,y
+    ${basetype}$ (${dtype}$) :: tmp
+    tmp = x; x = y; y = tmp
+  end subroutine
+#:endfor
 
     function transposed_arr_3d_ireals(arr) result(trans)
       real(ireals), intent(in) :: arr(:,:,:)
