@@ -943,7 +943,7 @@ contains
                 & sundir, plex_solution, &
                 & nr_photons=Nphotons, petsc_log=solver%logs%rayli_tracing, &
                 & opt_buildings=ri%buildings_info%plex_buildings, &
-                & opt_Nthreads=subnumnodes)
+                & opt_Nthreads=int(subnumnodes, iintegers))
             else
               call rayli_wrapper(lcall_solver, lcall_snap, &
                 ri%plex, ri%kabs, ri%ksca, ri%g, ri%albedo, &

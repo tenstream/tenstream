@@ -70,7 +70,7 @@ module m_buildings
     !integer(iintegers), pointer :: iface(:) => null() ! face indices dim(Nbuilding_faces) valid in range [fStart, fEnd-1]
   end type
 
-  integer, parameter :: &
+  integer(iintegers), parameter :: &
     & PPRTS_TOP_FACE  =1, & ! z+0
     & PPRTS_BOT_FACE  =2, & ! z+1
     & PPRTS_LEFT_FACE =3, & ! x+0
