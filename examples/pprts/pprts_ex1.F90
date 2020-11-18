@@ -57,15 +57,15 @@ module m_examples_pprts_ex1
       allocate(ksca(solver%C_one%zm , solver%C_one%xm,  solver%C_one%ym ))
       allocate(g   (solver%C_one%zm , solver%C_one%xm,  solver%C_one%ym ))
 
-      kabs = dtau_clearsky/(dz*nv) * (1._ireals - w0_clearsky)
-      ksca = dtau_clearsky/(dz*nv) * w0_clearsky
+      kabs = dtau_clearsky/dz/real(nv, ireals) * (1._ireals - w0_clearsky)
+      ksca = dtau_clearsky/dz/real(nv, ireals) * w0_clearsky
       g    = g_clearsky
 
       Ncld = 1 + cld_layer_idx(2) - cld_layer_idx(1)
       if(myid.eq.0 .and. lverbose) print *,'Have '//tostr(Ncld)//' cloud layer(s) between '//toStr(cld_layer_idx)
       do k = cld_layer_idx(1), cld_layer_idx(2)
-        kabs(k, :, :) = kabs(k,:,:) + dtau_cloud / Ncld / dz * (1._ireals - w0_cloud)
-        ksca(k, :, :) = ksca(k,:,:) + dtau_cloud / Ncld / dz * w0_cloud
+        kabs(k, :, :) = kabs(k,:,:) + dtau_cloud / real(Ncld,ireals) / dz * (1._ireals - w0_cloud)
+        ksca(k, :, :) = ksca(k,:,:) + dtau_cloud / real(Ncld,ireals) / dz * w0_cloud
         g   (k, :, :) = &
           & ( dtau_clearsky * w0_clearsky * g_clearsky &
           & + dtau_cloud * w0_cloud * g_cloud ) &

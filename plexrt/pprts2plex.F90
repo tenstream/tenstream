@@ -192,7 +192,7 @@ contains
     call DMPlexGetDepthStratum(plex%dm, 3_iintegers, cStart, cEnd, ierr); call CHKERR(ierr)
     do i=1,2
       if(.not.is_inrange(plex_cell(i), cStart, cEnd-1)) then
-        ierr = ierr+i
+        ierr = ierr+int(i, mpiint)
         call CHKWARN(ierr, 'when looking for pprts_cell '//toStr(pprts_cell)// &
           & ' found icell ('//toStr(plex_cell(i))//')'// &
           & ' but is not in range cStart/cEnd-1 ('//toStr(cStart)//' - '//toStr(cEnd-1)//')')
