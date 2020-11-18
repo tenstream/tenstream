@@ -71,7 +71,7 @@ contains
     real(ireals),allocatable,dimension(:,:,:) :: fdir,fdn,fup,fdiv
 
     class(t_solver), allocatable :: solver
-    integer :: Nbuildings
+    integer(iintegers) :: Nbuildings
     logical :: lhave_box
 
     character(len=default_str_len) :: groups(2)
@@ -102,8 +102,8 @@ contains
         plck(Ca%zm+1,:,:) = 0
       endif
 
-      kabs = dtau*(one-w0)/(dz*Nlay)
-      ksca = dtau*w0/(dz*Nlay)
+      kabs = dtau*(one-w0)/dz/real(Nlay, ireals)
+      ksca = dtau*w0/dz/real(Nlay, ireals)
       g    = zero
 
       box_k = glob_box_k - C1%zs

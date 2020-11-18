@@ -1,10 +1,10 @@
 make -j ex_pprts_hill || exit 1
 baseopt="\
   -atm_filename $HOME/tenstream/examples/pprts_hill/afglus_100m.dat \
-  -dx 100 \
-  -dy 100 \
+  -dx 1000 \
+  -dy 1000 \
   -thermal no \
-  -lwc .1 \
+  -lwc .0 \
   -cld_width 5 \
   -cld_bot 700 \
   -cld_top 600 \
@@ -105,9 +105,9 @@ plt.savefig(args.out)
 EOF
 
 [ ! -e res_1d.nc ] && $bin $baseopt -twostr_only -pprts_slope_correction -out res_1d.nc
-[ ! -e res_rayli.nc ] && $bin $baseopt $rayli_opt -pprts_atm_correction -pprts_slope_correction -out res_rayli.nc
 [ ! -e res_10str.nc ] && $bin $baseopt -out res_10str.nc
-[ ! -e res_10str_topo.nc ] && $bin $baseopt -topography -out res_10str_topo.nc
+#[ ! -e res_10str_topo.nc ] && $bin $baseopt -topography -out res_10str_topo.nc
+#[ ! -e res_rayli.nc ] && $bin $baseopt $rayli_opt -pprts_atm_correction -pprts_slope_correction -out res_rayli.nc
 
 for f in res_*.nc
 do

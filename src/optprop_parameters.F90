@@ -168,7 +168,7 @@ module m_optprop_parameters
 
 !      real(irealLUT),parameter :: stddev_atol=1e-2_irealLUT
 !      real(irealLUT),parameter :: stddev_atol=5e-3_irealLUT
-      real(irealLUT) :: stddev_atol=1e-4_irealLUT
+      real(irealLUT) :: stddev_atol=1e-3_irealLUT
 !      real(irealLUT),parameter :: stddev_atol=2e-4_irealLUT
 !      real(irealLUT),parameter :: stddev_atol=5e-6_irealLUT
 

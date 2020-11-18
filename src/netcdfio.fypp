@@ -418,7 +418,7 @@ module m_netcdfIO
       call nccheck(ncerr); ierr = ierr + ncerr
       call CHKWARN(ierr, "Could not open File "//fname)
 
-      do k=1,N
+      do k=1,int(N)
         ncerr = nf90_inq_attname(ncid, varid=nf90_global, attnum=k, name=attNames(k))
         call nccheck(ncerr); ierr = ierr + ncerr
         call CHKWARN(ierr, "Could not determine attribute name for attribute number "//itoa(k))
@@ -429,7 +429,7 @@ module m_netcdfIO
       ncerr = nf90_close(ncid); call nccheck(ncerr); ierr = ierr + ncerr
       return
 
-      do k=1,N
+      do k=1,int(N)
         call get_global_attribute(fname, attNames(k), attrs(k), ierr2)
         ierr = ierr + ierr2
         print *,'Attribute '//itoa(k)//' : '//trim(attNames(k))//' => '//trim(attrs(k))
