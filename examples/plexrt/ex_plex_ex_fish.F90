@@ -11,8 +11,6 @@ program main
   logical :: lverbose, lregular_mesh, lthermal, lsolar
   real(ireals), allocatable, dimension(:,:) :: edir, edn, eup, abso
 
-  integer(iintegers) :: k
-
   call PetscInitialize(PETSC_NULL_CHARACTER,ierr); call CHKERR(ierr)
   comm = PETSC_COMM_WORLD
 
@@ -84,10 +82,6 @@ program main
     & sundir, &
     & dtau, w0, B0, &
     & edir, edn, eup, abso)
-
-  do k = 1, size(abso,dim=1)
-    print *,'abso',k,abso(k,:)
-  enddo
 
   call PetscFinalize(ierr)
 

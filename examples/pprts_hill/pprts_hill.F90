@@ -131,7 +131,7 @@ contains
     call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-cld_top", cld_top, lflg, ierr)
 
     do j=yStart,yStart+nyp-1
-      if( abs(j - int(real(sum(nyproc)-1, ireals)/2, iintegers)).le.cld_width) then
+      if( abs(j - real(sum(nyproc)-1, ireals)/2).le.cld_width) then
         icld(1) = nint(search_sorted_bisection(plev(:,1,j), cld_bot))
         icld(2) = nint(search_sorted_bisection(plev(:,1,j), cld_top))
 

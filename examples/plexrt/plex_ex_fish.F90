@@ -5,20 +5,9 @@ module m_examples_plex_ex_fish
 
   use m_tenstream_options, only : read_commandline_options
 
-  use m_helper_functions, only: &
-    & angle_between_two_vec, &
-    & CHKERR, &
-    & cstr, &
-    & deallocate_allocatable, &
-    & deg2rad, &
-    & determine_normal_direction, &
-    & imp_bcast, &
-    & imp_reduce_mean, &
-    & meanval, &
-    & rad2deg, &
-    & reverse, &
-    & spherical_2_cartesian, &
-    & toStr
+  use m_helper_functions, only: CHKERR, imp_bcast, determine_normal_direction, &
+    spherical_2_cartesian, angle_between_two_vec, rad2deg, deg2rad, reverse, itoa, cstr, &
+    meanval, deallocate_allocatable
 
   use m_data_parameters, only : ireals, iintegers, mpiint, &
     default_str_len, &
@@ -80,7 +69,6 @@ contains
     class(t_plex_solver), allocatable :: solver
 
     real(ireals) :: first_normal(3), kabs, ksca
-    real(ireals) :: medir, medn, meup, mabso
     integer(iintegers) :: i, k, icol
     integer(mpiint) :: myid, numnodes, ierr
 
@@ -124,10 +112,7 @@ contains
 
     kabs = dtau * (one - w0)
     ksca = dtau * w0
-    call set_plex_rt_optprop(solver, &
-      & vert_integrated_kabs=dtau * (one - w0), &
-      & vert_integrated_ksca=dtau * w0, &
-      & lverbose=lverbose)
+    call set_plex_rt_optprop(solver, vert_integrated_kabs=kabs, vert_integrated_ksca=ksca, lverbose=lverbose)
 
     if(.not.allocated(solver%albedo)) then
       allocate(solver%albedo)
@@ -152,7 +137,7 @@ contains
         if(myid.eq.i) then
           do icol = 1, size(abso,dim=2)
             print *,''
-            print *,cstr('Column ','blue')//cstr(toStr(icol),'red')//&
+            print *,cstr('Column ','blue')//cstr(itoa(icol),'red')//&
               cstr('  k  Edir              Edn              Eup              abso', 'blue')
             do k = 1, ubound(abso,1)
               print *,k, edir(k,icol), edn(k,icol), eup(k,icol), abso(k,icol)
@@ -160,27 +145,15 @@ contains
             print *,k, edir(k,icol), edn(k,icol), eup(k,icol)
           enddo
 
+          print *, ''
+          print *, 'Averages'
+          do k = 1, ubound(abso,1)
+            print *,k, meanval(edir(k,:)), meanval(edn(k,:)), meanval(eup(k,:)), meanval(abso(k,:))
+          enddo
+          print *,k, meanval(edir(k,:)), meanval(edn(k,:)), meanval(eup(k,:))
         endif
         call mpi_barrier(comm, ierr); call CHKERR(ierr)
       enddo ! ranks
-      call mpi_barrier(comm, ierr); call CHKERR(ierr)
-
-      if(myid.eq.0) then
-        print *, ''
-        print *, 'Averages'
-      endif
-      do k = 1, ubound(abso,1)
-        call imp_reduce_mean(comm, edir(k,:), medir)
-        call imp_reduce_mean(comm, edn (k,:), medn)
-        call imp_reduce_mean(comm, eup (k,:), meup)
-        call imp_reduce_mean(comm, abso(k,:), mabso)
-        if(myid.eq.0) print *,k, medir, medn, meup, mabso
-      enddo
-      k=size(edn,1)
-      call imp_reduce_mean(comm, edir(k,:), medir)
-      call imp_reduce_mean(comm, edn (k,:), medn)
-      call imp_reduce_mean(comm, eup (k,:), meup)
-      if(myid.eq.0) print *,k, medir, medn, meup
     endif
 
     call destroy_plexrt_solver(solver, lfinalizepetsc=.False.)

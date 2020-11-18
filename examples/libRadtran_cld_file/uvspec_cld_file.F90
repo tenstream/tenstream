@@ -110,8 +110,8 @@ contains
 
     ! Determine Domain Decomposition
     call domain_decompose_2d_petsc(comm, &
-      & Nx_global = size(lwc, dim=2, kind=iintegers), &
-      & Ny_global = size(lwc, dim=3, kind=iintegers), &
+      & Nx_global = size(lwc, dim=2), &
+      & Ny_global = size(lwc, dim=3), &
       & Nx_local  = nxp, &
       & Ny_local  = nyp, &
       & xStart    = is, &
