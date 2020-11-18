@@ -437,7 +437,7 @@ contains
       call populate_op_dim('param_phi'  , OPP%dirconfig%dims(6), preset=preset_param_phi6)
       call populate_op_dim('param_theta', OPP%dirconfig%dims(7), preset=preset_param_theta4)
       allocate(OPP%diffconfig%dims(5))
-      call populate_op_dim('tau',       2_iintegers, OPP%diffconfig%dims(1), vrange=real([1e-30,1e3], irealLUT))
+      call populate_op_dim('tau',       2_iintegers, OPP%diffconfig%dims(1), vrange=real([0e-30,1e3], irealLUT))
       call populate_op_dim('w0',        2_iintegers, OPP%diffconfig%dims(2), vrange=real([0,1], irealLUT))
       call populate_op_dim('aspect_zx', 2_iintegers, OPP%diffconfig%dims(3), vrange=real([1e-2,2.], irealLUT))
       call populate_op_dim('wedge_coord_Cx', 3_iintegers, OPP%diffconfig%dims(4), vrange=Cx)
