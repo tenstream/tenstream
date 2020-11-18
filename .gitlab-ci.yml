@@ -52,6 +52,26 @@ build:docker:ubuntu-latest:
     PETSC_DEBUGGING: 1
     BUILD_TYPE: DEBUG
 
+build:docker:ubuntu-rolling:
+  extends: .build:default
+  image: ubuntu:rolling
+  before_script:
+    - DEBIAN_FRONTEND=noninteractive apt-get -qq update
+    - DEBIAN_FRONTEND=noninteractive apt-get -qq install -fy build-essential cmake gfortran git libhdf5-mpi-dev libnetcdf-dev libnetcdff-dev libopenblas-dev libopenmpi-dev m4 openmpi-bin python wget
+    - *template_build_PETSC
+  tags:
+    - docker.meteo.physik.lmu.de
+  variables:
+    CTEST_ARGS: '-E boxmc|LUT|pfunit_test_pprts_symmetry|pfunit_test_rrtm_lw_Bsrfc|pfunit_test_rrtm_lw_sw'
+    MPIRUN_FLAGS: "--allow-run-as-root;--oversubscribe"
+    PETSC_DIR: petsc
+    PETSC_ARCH: default
+    PETSC_PRECISION: single
+    PETSC_64_INTEGERS: 1
+    PETSC_DEBUGGING: 1
+    BUILD_TYPE: DEBUG
+    CMAKE_OPTS: '-DCMAKE_Fortran_FLAGS="--std=legacy"'
+
 # MIM runs
 .build:mim:default:
   extends: .build:default
