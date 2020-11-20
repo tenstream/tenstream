@@ -1,0 +1,4 @@
+-skip_load_LUT
+-plexrt_use_rayli
+-rayli_cyclic_bc
+-rayli_photons 1e4
