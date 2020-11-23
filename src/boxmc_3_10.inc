@@ -60,33 +60,52 @@ subroutine init_dir_photon_3_10(bmc, p, src, ldirect, initial_dir, vertices, ier
   integer(mpiint)   ,intent(out)    :: ierr
 
   real(ireal_dp), parameter  :: e=1e-6_ireal_dp
+  real(ireal_dp), dimension(3) :: normal, U, V
   real(ireal_dp) :: dx, dy, dz
 
   call setup_cube_coords_from_vertices(vertices, dx, dy, dz)
 
-  p%dir        = initial_dir
-
+  p%dir   = initial_dir
   p%alive = .False.
 
-  select case(src)
-  case (1)
-    p%loc = [R()*dx, R()*dy, dz*(one-e)]
-  case (2)
-    if(p%dir(1).ge.0) then
-      p%loc = [e, R()*dy, R()*dz]
-    else
-      p%loc = [dx-e, R()*dy, R()*dz]
-    endif
-  case (3)
-    if(p%dir(2).ge.0) then
-      p%loc = [R()*dx, e, R()*dz]
-    else
-      p%loc = [R()*dx, dy-e, R()*dz]
-    endif
-  case default
-    print *,'Dont know what to do with source spec:',src
-    call exit
-  end select
+  call CHKERR(size(vertices)-24, 'wrong size of vertices, expected 24 but found '//toStr(size(vertices)))
+  associate( &
+      pA => vertices(1:3), &
+      pB => vertices(4:6), &
+      pC => vertices(7:9), &
+      pD => vertices(10:12), &
+      pE => vertices(13:15), &
+      pF => vertices(16:18), &
+      pG => vertices(19:21), &
+      pH => vertices(22:24) &
+      )
+    select case(src)
+    case (1)
+      call rand_pnt_on_plane(pE,pG,pH,pF, p%loc, normal, U, V)
+      !p%loc = [R()*dx, R()*dy, dz*(one-e)]
+    case (2)
+      if(p%dir(1).ge.0) then
+        call rand_pnt_on_plane(pA,pC,pG,pE, p%loc, normal, U, V)
+        !p%loc = [e, R()*dy, R()*dz]
+      else
+        call rand_pnt_on_plane(pB,pF,pH,pD, p%loc, normal, U, V)
+        !p%loc = [dx-e, R()*dy, R()*dz]
+      endif
+    case (3)
+      if(p%dir(2).ge.0) then
+        call rand_pnt_on_plane(pE,pF,pB,pA, p%loc, normal, U, V)
+        !p%loc = [R()*dx, e, R()*dz]
+      else
+        call rand_pnt_on_plane(pG,pC,pD,pH, p%loc, normal, U, V)
+        !p%loc = [R()*dx, dy-e, R()*dz]
+      endif
+    case default
+      print *,'Dont know what to do with source spec:',src
+      call exit
+    end select
+  end associate
+
+  p%loc = p%loc + normal*e
 
   p%weight     = one
   p%alive      = .True.
