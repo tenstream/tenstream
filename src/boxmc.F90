@@ -39,7 +39,7 @@ module m_boxmc
     & square_intersection, &
     & triangle_intersection
 
-  use m_helper_functions, only : CHKERR, CHKWARN, get_arg, itoa, ftoa, cstr, &
+  use m_helper_functions, only : CHKERR, CHKWARN, get_arg, toStr, cstr, &
     rotate_angle_x, rotate_angle_y, rotate_angle_z, &
     angle_between_two_vec, rotation_matrix_local_basis_to_world, &
     approx, meanval, rmse, imp_reduce_sum, &
@@ -459,20 +459,20 @@ contains
       print *,'S tol', ret_S_tol
       call CHKERR(1_mpiint, 'BOXMC violates stddev constraints!')
     endif
-    if(any(ret_S_out.lt.0)) call CHKERR(1_mpiint, 'Have a negative coeff in S(:) '//ftoa(ret_S_out))
-    if(any(ret_T_out.lt.0)) call CHKERR(1_mpiint, 'Have a negative coeff in T(:) '//ftoa(ret_T_out))
-    if(any(ret_S_tol.lt.0)) call CHKERR(1_mpiint, 'Have a negative tolerance in S(:) '//ftoa(ret_S_tol))
-    if(any(ret_T_tol.lt.0)) call CHKERR(1_mpiint, 'Have a negative tolerance in T(:) '//ftoa(ret_T_tol))
+    if(any(ret_S_out.lt.0)) call CHKERR(1_mpiint, 'Have a negative coeff in S(:) '//toStr(ret_S_out))
+    if(any(ret_T_out.lt.0)) call CHKERR(1_mpiint, 'Have a negative coeff in T(:) '//toStr(ret_T_out))
+    if(any(ret_S_tol.lt.0)) call CHKERR(1_mpiint, 'Have a negative tolerance in S(:) '//toStr(ret_S_tol))
+    if(any(ret_T_tol.lt.0)) call CHKERR(1_mpiint, 'Have a negative tolerance in T(:) '//toStr(ret_T_tol))
 
     retnorm = sum(ret_S_out)+sum(ret_T_out)
     if( retnorm.gt.1 ) then
       if(ldebug) then
         call CHKWARN(1_mpiint, 'norm of coeffs '// &
-          'internal '//ftoa([sum(S_out), sum(T_out), sum(S_out)+sum(T_out)])// &
-          'returned '//ftoa([sum(ret_S_out), sum(ret_T_out), sum(ret_S_out)+sum(ret_T_out)])// &
+          'internal '//toStr([sum(S_out), sum(T_out), sum(S_out)+sum(T_out)])// &
+          'returned '//toStr([sum(ret_S_out), sum(ret_T_out), sum(ret_S_out)+sum(ret_T_out)])// &
           ' is quite large! ... will try to renormalize ...'//new_line('')// &
-          'T = '//ftoa(ret_T_out)//new_line('')// &
-          'S = '//ftoa(ret_S_out))
+          'T = '//toStr(ret_T_out)//new_line('')// &
+          'S = '//toStr(ret_S_out))
       endif
 
       ret_S_out = ret_S_out / (retnorm+epsilon(retnorm)*100)
@@ -480,11 +480,11 @@ contains
 
       if( (sum(ret_S_out)+sum(ret_T_out)).gt.1 ) then
         call CHKERR(1_mpiint, 'norm of coeffs '// &
-          'internal '//ftoa([sum(S_out), sum(T_out), sum(S_out)+sum(T_out)])// &
-          'returned '//ftoa([sum(ret_S_out), sum(ret_T_out), sum(ret_S_out)+sum(ret_T_out)])// &
+          'internal '//toStr([sum(S_out), sum(T_out), sum(S_out)+sum(T_out)])// &
+          'returned '//toStr([sum(ret_S_out), sum(ret_T_out), sum(ret_S_out)+sum(ret_T_out)])// &
           ' is still too big! '//new_line('')// &
-          'T = '//ftoa(ret_T_out)//new_line('')// &
-          'S = '//ftoa(ret_S_out))
+          'T = '//toStr(ret_T_out)//new_line('')// &
+          'S = '//toStr(ret_S_out))
       endif
     endif
   end subroutine

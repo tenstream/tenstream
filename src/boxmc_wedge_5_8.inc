@@ -65,7 +65,7 @@ subroutine init_dir_photon_wedge_5_8(bmc, p, src, ldirect, initial_dir, vertices
     call rand_pnt_on_triangle(pA,pB,pC, p%loc)
     normal = compute_normal_3d(pA,pB,pC)
   case default
-    call CHKERR(1_mpiint, 'Dont know what to do with source spec: '//itoa(src))
+    call CHKERR(1_mpiint, 'Dont know what to do with source spec: '//toStr(src))
     call exit
   end select
 
@@ -186,7 +186,7 @@ subroutine update_diff_stream_wedge_5_8(bmc,vertices,p,S)
       elseif(p%subface.eq.2) then
         determine_normal = compute_normal_3d(A,C,D)
       else
-        call CHKERR(1_mpiint, 'subface not determined?'//itoa(p%subface))
+        call CHKERR(1_mpiint, 'subface not determined?'//toStr(p%subface))
       endif
     end function
 end subroutine
@@ -229,7 +229,7 @@ subroutine init_diff_photon_wedge_5_8(bmc, p, src, vertices, ierr)
     normal = compute_normal_3d(pA,pB,pC)
     p%src_side = 5
   case default
-    call CHKERR(1_mpiint, 'Dont know what to do with source spec: '//itoa(src))
+    call CHKERR(1_mpiint, 'Dont know what to do with source spec: '//toStr(src))
     call exit
   end select
 
@@ -241,7 +241,7 @@ subroutine init_diff_photon_wedge_5_8(bmc, p, src, vertices, ierr)
   case(2:7)
     phi= deg2rad( interv_R(0._ireal_dp, 180._ireal_dp) ) ! from +x to -x through +y
   case default
-    call CHKERR(1_mpiint, 'Dont know what to do with source spec: '//itoa(src))
+    call CHKERR(1_mpiint, 'Dont know what to do with source spec: '//toStr(src))
     call exit
   end select
 
