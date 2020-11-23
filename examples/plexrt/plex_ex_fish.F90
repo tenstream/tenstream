@@ -58,7 +58,7 @@ contains
       & lregular_mesh, &
       & Nx, Ny, Nz, &
       & dz, Ag, sundir, &
-      & dtau, w0, Bplck, &
+      & dtau, w0, g, Bplck, &
       & edir, edn, eup, abso)
 
     integer(mpiint), intent(in) :: comm
@@ -68,7 +68,7 @@ contains
     integer(iintegers), intent(in) :: Nx, Ny, Nz ! domain size
     real(ireals), intent(in) :: dz, Ag           ! vertical height of wedges and surface albedo
     real(ireals), intent(in) :: sundir(3)        ! cartesian direction of sun rays in a global reference system
-    real(ireals), intent(in) :: dtau, w0         ! vertically integrated optical depth and assym. parameter
+    real(ireals), intent(in) :: dtau, w0, g      ! vertically integrated optical depth and assym. parameter
     real(ireals), intent(in) :: Bplck            ! constant planck emission value
     real(ireals), allocatable, dimension(:,:), intent(out) :: edir, edn, eup, abso
 
@@ -127,6 +127,7 @@ contains
     call set_plex_rt_optprop(solver, &
       & vert_integrated_kabs=dtau * (one - w0), &
       & vert_integrated_ksca=dtau * w0, &
+      & asymmetry_param=g, &
       & lverbose=lverbose)
 
     if(.not.allocated(solver%albedo)) then

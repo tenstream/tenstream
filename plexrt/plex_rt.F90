@@ -321,11 +321,11 @@ module m_plex_rt
       end subroutine
     end subroutine
 
-    subroutine set_plex_rt_optprop(solver, vlwc, viwc, vert_integrated_kabs, vert_integrated_ksca, lverbose)
+    subroutine set_plex_rt_optprop(solver, vlwc, viwc, vert_integrated_kabs, vert_integrated_ksca, asymmetry_param, lverbose)
       use m_helper_functions, only : delta_scale
       class(t_plex_solver), allocatable, intent(inout) :: solver
       type(tVec),intent(in), optional :: vlwc, viwc
-      real(ireals), optional :: vert_integrated_kabs, vert_integrated_ksca
+      real(ireals), optional :: vert_integrated_kabs, vert_integrated_ksca, asymmetry_param
       logical, intent(in), optional :: lverbose
       real(ireals), pointer :: xlwc(:), xiwc(:)
       real(ireals), pointer :: xkabs(:), xksca(:), xg(:)
@@ -423,6 +423,10 @@ module m_plex_rt
       endif
       if(present(viwc)) then
         call VecRestoreArrayReadF90(viwc, xiwc, ierr); call CHKERR(ierr)
+      endif
+
+      if(present(asymmetry_param)) then
+        xg(:) = asymmetry_param
       endif
 
       if(get_arg(.False., lverbose)) then
