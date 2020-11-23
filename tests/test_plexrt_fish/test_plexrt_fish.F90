@@ -45,7 +45,7 @@ contains
 
     integer(iintegers), parameter :: Nx=4, Ny=5, Nz=3
     logical, parameter :: lthermal=.False., lsolar=.True., lverbose=.True.
-    real(ireals), parameter :: dz=1, dtau=1, Bplck = -1
+    real(ireals), parameter :: dz=1, dtau=1, g=0, Bplck = -1
     real(ireals), parameter :: eps=1e-2 ! better than 1 percent
 
     logical, parameter :: lregular_mesh=.True.
@@ -65,7 +65,7 @@ contains
       & lregular_mesh, &
       & Nx, Ny, Nz, &
       & dz, Ag, sundir, &
-      & dtau, w0, Bplck, &
+      & dtau, w0, g, Bplck, &
       & edir, edn, eup, abso)
 
     @assertEqual(-sundir(3), edir(1,:), eps, 'TOA direct radiation should only depend on sundir')
@@ -80,7 +80,7 @@ contains
 
     integer(iintegers), parameter :: Nx=6, Ny=3, Nz=3
     logical, parameter :: lthermal=.False., lsolar=.True., lverbose=.True.
-    real(ireals), parameter :: dz=1, dtau=1, Bplck = -1
+    real(ireals), parameter :: dz=1, dtau=1, g=0, Bplck = -1
     real(ireals), parameter :: eps=2e-2 ! better than 1 percent
 
     logical, parameter :: lregular_mesh=.True.
@@ -100,7 +100,7 @@ contains
       & lregular_mesh, &
       & Nx, Ny, Nz, &
       & dz, Ag, sundir, &
-      & dtau, w0, Bplck, &
+      & dtau, w0, g, Bplck, &
       & edir, edn, eup, abso)
 
     @assertEqual(-sundir(3), edir(1,:), eps, 'TOA direct radiation should only depend on sundir')
@@ -115,7 +115,7 @@ contains
 
     integer(iintegers), parameter :: Nx=6, Ny=3, Nz=4
     logical, parameter :: lthermal=.False., lsolar=.True., lverbose=.True.
-    real(ireals), parameter :: dz=1, dtau=1, Bplck = -1
+    real(ireals), parameter :: dz=1, dtau=1, g=0, Bplck = -1
     real(ireals), parameter :: eps=5e-2
 
     logical, parameter :: lregular_mesh=.True.
@@ -135,7 +135,7 @@ contains
       & lregular_mesh, &
       & Nx, Ny, Nz, &
       & dz, Ag, sundir, &
-      & dtau, w0, Bplck, &
+      & dtau, w0, g, Bplck, &
       & edir, edn, eup, abso)
 
     @assertEqual(-sundir(3), edir(1,:), eps, 'TOA direct radiation should only depend on sundir')
@@ -151,7 +151,7 @@ contains
 
     integer(iintegers), parameter :: Nx=2, Ny=3, Nz=3
     logical, parameter :: lthermal=.True., lsolar=.False., lverbose=.True.
-    real(ireals), parameter :: dz=1, dtau=1000*(Nz-1), Bplck = 1
+    real(ireals), parameter :: dz=1, dtau=1000*(Nz-1), g=0, Bplck = 1
     real(ireals), parameter :: eps=1e-2 ! better than 1 percent
 
     logical, parameter :: lregular_mesh=.True.
@@ -174,7 +174,7 @@ contains
       & lregular_mesh, &
       & Nx, Ny, Nz, &
       & dz, Ag, sundir, &
-      & dtau, w0, Bplck, &
+      & dtau, w0, g, Bplck, &
       & edir, edn, eup, abso)
 
 
@@ -197,7 +197,7 @@ contains
 
     integer(iintegers), parameter :: Nx=2, Ny=3, Nz=10
     logical, parameter :: lthermal=.True., lsolar=.False., lverbose=.True.
-    real(ireals), parameter :: dz=1, dtau=0*(Nz-1), Bplck = 100
+    real(ireals), parameter :: dz=1, dtau=0*(Nz-1), g=0, Bplck = 100
     real(ireals), parameter :: eps=1e-2 ! better than 1 percent
 
     logical, parameter :: lregular_mesh=.True.
@@ -220,7 +220,7 @@ contains
       & lregular_mesh, &
       & Nx, Ny, Nz, &
       & dz, Ag, sundir, &
-      & dtau, w0, Bplck, &
+      & dtau, w0, g, Bplck, &
       & edir, edn, eup, abso)
 
     @mpiassertEqual(0._ireals, edir, 'thermal computation, edir should be zero')
@@ -241,7 +241,7 @@ contains
 
     integer(iintegers), parameter :: Nx=4, Ny=5, Nz=3
     logical, parameter :: lthermal=.False., lsolar=.True., lverbose=.True.
-    real(ireals), parameter :: dz=1, dtau=1, Bplck = -1
+    real(ireals), parameter :: dz=1, dtau=1, g=0, Bplck = -1
     real(ireals), parameter :: eps=1e-2 ! better than 1 percent
 
     logical, parameter :: lregular_mesh=.False.
@@ -261,7 +261,7 @@ contains
       & lregular_mesh, &
       & Nx, Ny, Nz, &
       & dz, Ag, sundir, &
-      & dtau, w0, Bplck, &
+      & dtau, w0, g, Bplck, &
       & edir, edn, eup, abso)
 
     @assertEqual(-sundir(3), edir(1,:), eps, 'TOA direct radiation should only depend on sundir')
@@ -276,7 +276,7 @@ contains
 
     integer(iintegers), parameter :: Nx=6, Ny=3, Nz=3
     logical, parameter :: lthermal=.False., lsolar=.True., lverbose=.True.
-    real(ireals), parameter :: dz=1, dtau=1, Bplck = -1
+    real(ireals), parameter :: dz=1, dtau=1, g=0, Bplck = -1
     real(ireals), parameter :: eps=2e-2 ! better than 1 percent
 
     logical, parameter :: lregular_mesh=.False.
@@ -296,7 +296,7 @@ contains
       & lregular_mesh, &
       & Nx, Ny, Nz, &
       & dz, Ag, sundir, &
-      & dtau, w0, Bplck, &
+      & dtau, w0, g, Bplck, &
       & edir, edn, eup, abso)
 
     @assertEqual(-sundir(3), edir(1,:), eps, 'TOA direct radiation should only depend on sundir')
@@ -311,7 +311,7 @@ contains
 
     integer(iintegers), parameter :: Nx=6, Ny=3, Nz=3
     logical, parameter :: lthermal=.False., lsolar=.True., lverbose=.True.
-    real(ireals), parameter :: dz=1, dtau=1, Bplck = -1
+    real(ireals), parameter :: dz=1, dtau=1, g=0, Bplck = -1
     real(ireals), parameter :: eps=5e-2 ! better than 1 percent
 
     logical, parameter :: lregular_mesh=.False.
@@ -331,7 +331,7 @@ contains
       & lregular_mesh, &
       & Nx, Ny, Nz, &
       & dz, Ag, sundir, &
-      & dtau, w0, Bplck, &
+      & dtau, w0, g, Bplck, &
       & edir, edn, eup, abso)
 
     @assertEqual(-sundir(3), edir(1,:), eps, 'TOA direct radiation should only depend on sundir')

@@ -84,10 +84,10 @@ module m_pprts_base
     logical             :: lWm2_dir=.False. , lWm2_diff=.False.
 
     !save error statistics
-    real(ireals)        :: time   (30) = -one
-    real(ireals)        :: maxnorm(30) = zero
-    real(ireals),allocatable :: dir_ksp_residual_history(:)
-    real(ireals),allocatable :: diff_ksp_residual_history(:)
+    real(ireals) :: time   (30) = -one
+    real(ireals) :: maxnorm(30) = zero
+    real(ireals) :: dir_ksp_residual_history(100)
+    real(ireals) :: diff_ksp_residual_history(100)
 
     integer(iintegers) :: Niter_dir=-1, Niter_diff=-1
   end type
@@ -139,9 +139,9 @@ module m_pprts_base
     type(t_coord), allocatable         :: C_two1
     type(t_coord), allocatable         :: Cvert_one_atm1
     type(t_coord), allocatable         :: Csrfc_one
-    type(t_atmosphere),allocatable     :: atm
+    type(t_atmosphere), allocatable    :: atm
     type(t_suninfo)                    :: sun
-    type(tMat),allocatable             :: Mdir,Mdiff
+    type(tMat), allocatable            :: Mdir,Mdiff
     type(tKSP), allocatable            :: ksp_solar_dir
     type(tKSP), allocatable            :: ksp_solar_diff
     type(tKSP), allocatable            :: ksp_thermal_diff
@@ -158,7 +158,7 @@ module m_pprts_base
     logical                            :: linitialized=.False.
     type(t_solver_log_events)          :: logs
     type(t_pprts_shell_ctx)            :: shell_ctx
-    type(t_state_container), allocatable  :: solutions(:)
+    type(t_state_container), allocatable :: solutions(:)
   end type
 
   type, extends(t_solver) :: t_solver_1_2
@@ -226,8 +226,6 @@ module m_pprts_base
 
         call deallocate_allocatable(solution%ediff)
         call deallocate_allocatable(solution%abso)
-        call deallocate_allocatable(solution%dir_ksp_residual_history)
-        call deallocate_allocatable(solution%diff_ksp_residual_history)
 
         solution%lset = .False.
       endif

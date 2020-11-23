@@ -93,7 +93,7 @@ contains
       ! First solve for solar radiation
 
       kabs = 1._ireals/nlyr
-      ksca = 1e-8
+      ksca = 1._ireals/nlyr
       g    = zero
 
       do iter=1,5
