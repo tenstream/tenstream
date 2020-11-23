@@ -2993,12 +2993,6 @@ module m_plex_rt
         max_g(3:4) = 0._irealLUT
       endif
 
-      if(ldebug) then
-        print *,'found LUT max_g to be:', max_g
-        print *,'found direct LUT range tau to be:', OPP%LUT%dirconfig%dims(dimidx(itaudir))%vrange
-        print *,'found direct LUT range  w0 to be:', OPP%LUT%dirconfig%dims(dimidx(iw0dir ))%vrange
-      endif
-
       call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
         "-plexrt_delta_scale_max_g", max_g_delta, lflg , ierr) ;call CHKERR(ierr)
       if(lflg) then
@@ -3007,6 +3001,16 @@ module m_plex_rt
       endif
       max_g([2,4]) = max(max_g([1,3]), max_g([2,4]) - sqrt(epsilon(max_g)))
 
+      if(ldebug) then
+        print *,'found direct LUT range tau to be:', OPP%LUT%dirconfig%dims(dimidx(itaudir))%vrange
+        print *,'found direct LUT range  w0 to be:', OPP%LUT%dirconfig%dims(dimidx(iw0dir ))%vrange
+        print *,'found direct LUT range   g to be:', max_g(1:2)
+
+        print *,'found diffuse LUT range tau to be:', OPP%LUT%diffconfig%dims(dimidx(itaudiff))%vrange
+        print *,'found diffuse LUT range  w0 to be:', OPP%LUT%diffconfig%dims(dimidx(iw0diff ))%vrange
+        print *,'found diffuse LUT range   g to be:', max_g(3:4)
+      endif
+
       linit_idx = .True.
     endif
 
@@ -3014,17 +3018,17 @@ module m_plex_rt
     dksca = real(ksca, kind(dksca))
     dg    = real(g,    kind(dg   ))
 
-    tauz = real((dkabs+dksca) * dz, irealLUT)
-    w0 = real(dksca / max(dkabs+dksca, tiny(dksca)), irealLUT)
-
     if(present(angles)) then
-      tauz = snap_limits(tauz, OPP%LUT%dirconfig%dims(dimidx(itaudir))%vrange)
-      w0   = snap_limits(w0  , OPP%LUT%dirconfig%dims(dimidx(iw0dir ))%vrange)
-
       param_phi = max(OPP%LUT%dirconfig%dims(dimidx(iphidir))%vrange(1), &
         min(OPP%LUT%dirconfig%dims(dimidx(iphidir))%vrange(2), angles(1)))
 
       call delta_scale( dkabs, dksca, dg, max_g=max_g(2))
+
+      tauz = real((dkabs+dksca) * dz, irealLUT)
+      w0 = real(dksca / max(dkabs+dksca, tiny(dksca)), irealLUT)
+
+      tauz = snap_limits(tauz, OPP%LUT%dirconfig%dims(dimidx(itaudir))%vrange)
+      w0   = snap_limits(w0  , OPP%LUT%dirconfig%dims(dimidx(iw0dir ))%vrange)
 
       call OPP%get_coeff(tauz, w0, real(dg, irealLUT), real(aspect_zx, irealLUT), &
         ldir, coeff, ierr, &
@@ -3038,10 +3042,13 @@ module m_plex_rt
       !    '::', dksca / (dkabs+dksca), ':', max(dkabs+dksca, tiny(dksca))
       !endif
     else
+      call delta_scale( dkabs, dksca, dg, max_g=max_g(4))
+
+      tauz = real((dkabs+dksca) * dz, irealLUT)
+      w0 = real(dksca / max(dkabs+dksca, tiny(dksca)), irealLUT)
+
       tauz = snap_limits(tauz, OPP%LUT%diffconfig%dims(dimidx(itaudiff))%vrange)
       w0   = snap_limits(w0  , OPP%LUT%diffconfig%dims(dimidx(iw0diff ))%vrange)
-
-      call delta_scale( dkabs, dksca, dg, max_g=max_g(4))
 
       call OPP%get_coeff(tauz, w0, real(dg, irealLUT), real(aspect_zx, irealLUT), &
         ldir, coeff, ierr, &

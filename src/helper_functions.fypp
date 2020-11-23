@@ -1446,7 +1446,12 @@ module m_helper_functions
       real(${dtype}$), intent(inout) :: dtau,w0,g
       real(${dtype}$), intent(in) :: f
 
-      g = min( g, 1._${dtype}$-epsilon(g)*10)
+      if(g.ge.1._${dtype}$-epsilon(g)*10) then
+        dtau = dtau * (1._${dtype}$ - w0)
+        w0   = zero
+        g    = zero
+        return
+      endif
       dtau = dtau * ( 1._${dtype}$ - w0 * f )
       g    = ( g - f ) / ( 1._${dtype}$ - f )
       w0   = w0 * ( 1._${dtype}$ - f ) / ( 1._${dtype}$ - f * w0 )
