@@ -2440,6 +2440,7 @@ module m_pprts
     type(t_pprts_buildings), optional, intent(in) :: opt_buildings
 
     logical :: lflg, lskip_diffuse_solve, lshell_pprts
+    real(ireals) :: b_norm, rtol, atol
     integer(mpiint) :: ierr
 
     lshell_pprts = .False.
@@ -2485,14 +2486,25 @@ module m_pprts
 
 
     ! ---------------------------- Source Term -------------
-    call PetscLogEventBegin(solver%logs%compute_Ediff, ierr)
-    call setup_b(solver, solution,solver%b, opt_buildings)
+    call PetscLogEventBegin(solver%logs%compute_Ediff, ierr); call CHKERR(ierr)
+    call setup_b(solver, solution, solver%b, opt_buildings)
 
-    lskip_diffuse_solve = .False.
+    if( solution%lsolar_rad ) then
+      call determine_ksp_tolerances(solver%C_diff, solver%atm%l1d, rtol, atol, solver%ksp_solar_diff)
+    else
+      call determine_ksp_tolerances(solver%C_diff, solver%atm%l1d, rtol, atol, solver%ksp_thermal_diff)
+    endif
+    call VecNorm(solver%b, NORM_1, b_norm, ierr); call CHKERR(ierr)
+    lskip_diffuse_solve = b_norm.lt.atol
     call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
       "-skip_diffuse_solve", lskip_diffuse_solve, lflg , ierr) ;call CHKERR(ierr)
+
     if(lskip_diffuse_solve) then
-      call VecCopy(solver%b, solution%ediff, ierr)
+      if(ldebug) &
+        & call CHKWARN(1_mpiint, 'Skipping diffuse solver :: b_norm='//toStr(b_norm))
+      call VecCopy(solver%b, solution%ediff, ierr); call CHKERR(ierr)
+      solution%Niter_diff = i0
+      solution%diff_ksp_residual_history = atol
     else
       ! ---------------------------- Ediff -------------------
       if(lshell_pprts) then
@@ -3224,186 +3236,220 @@ module m_pprts
   !> \n -- this may be handy later to decide next time if we have to calculate radiation again
   !> \n if we did not get convergence, we try again with standard GMRES and a resetted(zero) initial guess -- if that doesnt help, we got a problem!
   subroutine solve(solver, ksp, b, x, iter, ksp_residual_history)
-  class(t_solver) :: solver
-  type(tKSP) :: ksp
-  type(tVec) :: b
-  type(tVec) :: x
-  integer(iintegers), intent(out) :: iter
-  real(ireals), allocatable, intent(inout), optional :: ksp_residual_history(:)
+    class(t_solver) :: solver
+    type(tKSP) :: ksp
+    type(tVec) :: b
+    type(tVec) :: x
+    integer(iintegers), intent(out) :: iter
+    real(ireals), intent(inout), optional :: ksp_residual_history(:)
 
-  KSPConvergedReason :: reason
+    KSPConvergedReason :: reason
 
-  character(len=default_str_len) :: prefix
-  KSPType :: old_ksp_type
+    character(len=default_str_len) :: prefix
+    KSPType :: old_ksp_type
 
-  logical :: lskip_ksp_solve, laccept_incomplete_solve, lflg
-  integer(mpiint) :: ierr
+    logical :: lskip_ksp_solve, laccept_incomplete_solve, lflg
+    integer(mpiint) :: ierr
 
-  if(solver%myid.eq.0.and.ldebug) print *,'Solving Matrix'
+    if(solver%myid.eq.0.and.ldebug) print *,'Solving Matrix'
 
-  if(present(ksp_residual_history)) then
-    if(.not.allocated( ksp_residual_history) ) allocate(ksp_residual_history(100) )
-    ksp_residual_history = -1
-    call KSPSetResidualHistory(ksp, ksp_residual_history, 100_iintegers, PETSC_TRUE, ierr); call CHKERR(ierr)
-  endif
-
-  lskip_ksp_solve=.False.
-  call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
-    "-skip_ksp_solve" , lskip_ksp_solve, lflg , ierr) ;call CHKERR(ierr)
-  if(lskip_ksp_solve) then
-    call VecCopy(b, x, ierr); call CHKERR(ierr)
-    return
-  endif
-
-  call hegedus_trick(ksp, b, x)
-  call KSPSolve(ksp,b,x,ierr); call CHKERR(ierr)
-  call KSPGetIterationNumber(ksp,iter,ierr); call CHKERR(ierr)
-  call KSPGetConvergedReason(ksp,reason,ierr); call CHKERR(ierr)
-
-  ! if(reason.eq.KSP_DIVERGED_ITS) then
-  !   if(solver%myid.eq.0) print *,'We take our chances, that this is a meaningful output.... and just go on'
-  !   return
-  ! endif
-  laccept_incomplete_solve = .False.
-  call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-    "-accept_incomplete_solve", laccept_incomplete_solve, lflg, ierr); call CHKERR(ierr)
-  if(laccept_incomplete_solve) return
-
-  if(reason.le.0) then
-    call KSPGetOptionsPrefix(ksp, prefix, ierr); call CHKERR(ierr)
-    if(solver%myid.eq.0) &
-      & call CHKWARN(int(reason, mpiint), trim(prefix)//' :: Resetted initial guess to zero and try again with gmres')
-    call VecSet(x,zero,ierr) ;call CHKERR(ierr)
-    call KSPGetType(ksp,old_ksp_type,ierr); call CHKERR(ierr)
-    call KSPSetType(ksp,KSPGMRES,ierr) ;call CHKERR(ierr)
-    call KSPSetUp(ksp,ierr) ;call CHKERR(ierr)
-    call KSPSolve(ksp,b,x,ierr) ;call CHKERR(ierr)
-    call KSPGetIterationNumber(ksp,iter,ierr) ;call CHKERR(ierr)
-    call KSPGetConvergedReason(ksp,reason,ierr) ;call CHKERR(ierr)
-
-    ! And return to normal solver...
-    call KSPSetType(ksp,old_ksp_type,ierr) ;call CHKERR(ierr)
-    call KSPSetFromOptions(ksp,ierr) ;call CHKERR(ierr)
-    call KSPSetUp(ksp,ierr) ;call CHKERR(ierr)
-    if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'Solver took',iter,'iterations and converged',reason.gt.0,'because',reason
-  endif
-
-  if(reason.le.0) then
-    call CHKERR(int(reason, mpiint), &
-      & '***** SOLVER did NOT converge :( -- '// &
-      & 'if you know what you are doing, you can use the option -accept_incomplete_solve to continue')
-  endif
-end subroutine
-
-!> @brief initialize PETSc Krylov Subspace Solver
-!> @details default KSP solver is a FGMRES with BJCAOBI // ILU(1)
-!> \n -- the default does however not scale well -- and we configure petsc solvers per commandline anyway
-!> \n -- see documentation for details on how to do so
-subroutine setup_ksp(solver, ksp, C, A, prefix)
-  class(t_solver) :: solver
-  type(tKSP), intent(inout), allocatable :: ksp
-  type(t_coord) :: C
-  type(tMat) :: A
-  type(tPC)  :: prec
-  logical :: linit
-
-  character(len=*), intent(in), optional :: prefix
-
-  real(ireals),parameter :: rtol=1e-5_ireals, rel_atol=1e-4_ireals
-  integer(iintegers),parameter  :: maxiter=1000
-
-  integer(mpiint) :: myid, numnodes
-
-  real(ireals) :: atol
-
-  logical :: prec_is_set
-  integer(mpiint) :: ierr
-  character(len=default_str_len) :: kspprefix
-
-  linit = allocated(ksp)
-  if(linit) return
-
-  call set_dmda_cell_coordinates(solver, solver%atm, C%da, ierr); call CHKERR(ierr)
-
-  call mpi_comm_rank(C%comm, myid, ierr)    ; call CHKERR(ierr)
-  call mpi_comm_size(C%comm, numnodes, ierr); call CHKERR(ierr)
-
-  call imp_allreduce_min(C%comm, &
-    rel_atol * real(C%dof*C%glob_xm*C%glob_ym*C%glob_zm, ireals) &
-    * count(.not.solver%atm%l1d)/real(size(solver%atm%l1d), ireals), atol)
-  atol = max(1e-8_ireals, atol)
-
-  if(myid.eq.0.and.ldebug) &
-    print *,'Setup KSP -- tolerances:', rtol, atol, &
-      '::', rel_atol, C%dof * C%glob_xm * C%glob_ym * C%glob_zm, count(.not.solver%atm%l1d), one * size(solver%atm%l1d)
-
-  allocate(ksp)
-  call KSPCreate(C%comm, ksp, ierr); call CHKERR(ierr)
-  if(present(prefix)) then
-    call KSPAppendOptionsPrefix(ksp, trim(prefix), ierr); call CHKERR(ierr)
-  endif
-  call KSPGetOptionsPrefix(ksp, kspprefix, ierr); call CHKERR(ierr)
-
-  call KSPSetType(ksp, KSPBCGS, ierr); call CHKERR(ierr)
-  call KSPSetInitialGuessNonzero(ksp, PETSC_TRUE, ierr); call CHKERR(ierr)
-
-  prec_is_set = .False.
-  call PetscOptionsHasName(PETSC_NULL_OPTIONS, trim(kspprefix), '-pc_type', prec_is_set, ierr); call CHKERR(ierr)
-
-  if(.not.prec_is_set) then
-    !call CHKWARN(1_mpiint, 'no preconditioner setting found, applying defaults')
-    call KSPGetPC(ksp, prec, ierr); call CHKERR(ierr)
-    if(numnodes.eq.0) then
-      call PCSetType(prec, PCILU, ierr); call CHKERR(ierr)
-    else
-      call PCSetType(prec, PCASM, ierr); call CHKERR(ierr)
-      call PCASMSetOverlap(prec, i1, ierr); call CHKERR(ierr)
+    if(present(ksp_residual_history)) then
+      call KSPSetResidualHistory(ksp, ksp_residual_history, &
+        & size(ksp_residual_history, kind=iintegers), PETSC_TRUE, ierr); call CHKERR(ierr)
     endif
-  endif
 
-  call KSPSetTolerances(ksp, rtol, atol, PETSC_DEFAULT_REAL, maxiter, ierr); call CHKERR(ierr)
+    lskip_ksp_solve=.False.
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+      "-skip_ksp_solve" , lskip_ksp_solve, lflg , ierr) ;call CHKERR(ierr)
+    if(lskip_ksp_solve) then
+      call VecCopy(b, x, ierr); call CHKERR(ierr)
+      return
+    endif
 
-  call KSPSetConvergenceTest(ksp, MyKSPConverged, 0, PETSC_NULL_FUNCTION, ierr); call CHKERR(ierr)
+    call hegedus_trick(ksp, b, x)
+    call KSPSolve(ksp,b,x,ierr); call CHKERR(ierr)
+    call KSPGetIterationNumber(ksp,iter,ierr); call CHKERR(ierr)
+    call KSPGetConvergedReason(ksp,reason,ierr); call CHKERR(ierr)
 
-  call KSPSetOperators(ksp, A, A, ierr); call CHKERR(ierr)
-  call KSPSetDM(ksp, C%da, ierr); call CHKERR(ierr)
-  call KSPSetDMActive(ksp, PETSC_FALSE, ierr); call CHKERR(ierr)
+    ! if(reason.eq.KSP_DIVERGED_ITS) then
+    !   if(solver%myid.eq.0) print *,'We take our chances, that this is a meaningful output.... and just go on'
+    !   return
+    ! endif
+    laccept_incomplete_solve = .False.
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+      "-accept_incomplete_solve", laccept_incomplete_solve, lflg, ierr); call CHKERR(ierr)
+    if(laccept_incomplete_solve) return
 
-  call KSPSetFromOptions(ksp, ierr); call CHKERR(ierr)
-  call KSPSetUp(ksp, ierr); call CHKERR(ierr)
+    if(reason.le.0) then
+      call KSPGetOptionsPrefix(ksp, prefix, ierr); call CHKERR(ierr)
+      if(solver%myid.eq.0) &
+        & call CHKWARN(int(reason, mpiint), trim(prefix)//' :: Resetted initial guess to zero and try again with gmres')
+      call VecSet(x,zero,ierr) ;call CHKERR(ierr)
+      call KSPGetType(ksp,old_ksp_type,ierr); call CHKERR(ierr)
+      call KSPSetType(ksp,KSPGMRES,ierr) ;call CHKERR(ierr)
+      call KSPSetUp(ksp,ierr) ;call CHKERR(ierr)
+      call KSPSolve(ksp,b,x,ierr) ;call CHKERR(ierr)
+      call KSPGetIterationNumber(ksp,iter,ierr) ;call CHKERR(ierr)
+      call KSPGetConvergedReason(ksp,reason,ierr) ;call CHKERR(ierr)
 
-  if(.not.prec_is_set) then
-    default_preconditioner_settings: block
-      integer(iintegers) :: i, asm_N, asm_iter
-      integer(iintegers) :: first_local
-      type(tKSP), allocatable :: asm_ksps(:)
-      type(tPC) :: subpc
-      logical :: lflg
+      ! And return to normal solver...
+      call KSPSetType(ksp,old_ksp_type,ierr) ;call CHKERR(ierr)
+      call KSPSetFromOptions(ksp,ierr) ;call CHKERR(ierr)
+      call KSPSetUp(ksp,ierr) ;call CHKERR(ierr)
+      if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'Solver took',iter,'iterations and converged',reason.gt.0,'because',reason
+    endif
 
-      asm_iter = 2
-      call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-        "-ts_ksp_iter", asm_iter, lflg, ierr) ;call CHKERR(ierr)
+    if(reason.le.0) then
+      call CHKERR(int(reason, mpiint), &
+        & '***** SOLVER did NOT converge :( -- '// &
+        & 'if you know what you are doing, you can use the option -accept_incomplete_solve to continue')
+    endif
+  end subroutine
 
-      call PCASMGetSubKSP(prec, asm_N, first_local, PETSC_NULL_KSP, ierr); call CHKERR(ierr)
-      allocate(asm_ksps(asm_N))
-      call PCASMGetSubKSP(prec, asm_N, first_local, asm_ksps, ierr); call CHKERR(ierr)
-      do i = 1, asm_N
-        call KSPSetType(asm_ksps(i), KSPRICHARDSON, ierr); call CHKERR(ierr)
-        call KSPRichardsonSetSelfScale(asm_ksps(i), PETSC_TRUE, ierr); call CHKERR(ierr)
-        call KSPSetNormType(asm_ksps(i), KSP_NORM_PRECONDITIONED, ierr); call CHKERR(ierr)
-        call KSPSetTolerances(asm_ksps(i), &
-          & PETSC_DEFAULT_REAL, PETSC_DEFAULT_REAL, PETSC_DEFAULT_REAL, &
-          & asm_iter, ierr); call CHKERR(ierr)
-        call KSPGetPC(asm_ksps(i), subpc, ierr); call CHKERR(ierr)
-        call PCSetType(subpc, PCSOR, ierr); call CHKERR(ierr)
-        call KSPSetFromOptions(asm_ksps(i), ierr); call CHKERR(ierr)
-      enddo
-    end block default_preconditioner_settings
-  endif
+  !> @brief initialize PETSc Krylov Subspace Solver
+  !> @details default KSP solver is a FGMRES with BJCAOBI // ILU(1)
+  !> \n -- the default does however not scale well -- and we configure petsc solvers per commandline anyway
+  !> \n -- see documentation for details on how to do so
+  subroutine setup_ksp(solver, ksp, C, A, prefix)
+    class(t_solver) :: solver
+    type(tKSP), intent(inout), allocatable :: ksp
+    type(t_coord) :: C
+    type(tMat) :: A
+    type(tPC)  :: prec
+    logical :: linit
 
-  linit = .True.
-  if(myid.eq.0.and.ldebug) print *,'Setup KSP done'
-end subroutine
+    character(len=*), intent(in), optional :: prefix
+
+    integer(iintegers),parameter  :: maxiter=1000
+
+    integer(mpiint) :: myid, numnodes
+
+    real(ireals) :: rtol, atol
+
+    logical :: prec_is_set
+    integer(mpiint) :: ierr
+    character(len=default_str_len) :: kspprefix
+
+    linit = allocated(ksp)
+    if(linit) return
+
+    call set_dmda_cell_coordinates(solver, solver%atm, C%da, ierr); call CHKERR(ierr)
+
+    call mpi_comm_rank(C%comm, myid, ierr)    ; call CHKERR(ierr)
+    call mpi_comm_size(C%comm, numnodes, ierr); call CHKERR(ierr)
+
+
+    allocate(ksp)
+    call KSPCreate(C%comm, ksp, ierr); call CHKERR(ierr)
+    if(present(prefix)) then
+      call KSPAppendOptionsPrefix(ksp, trim(prefix), ierr); call CHKERR(ierr)
+    endif
+    call KSPGetOptionsPrefix(ksp, kspprefix, ierr); call CHKERR(ierr)
+
+    call KSPSetType(ksp, KSPBCGS, ierr); call CHKERR(ierr)
+    call KSPSetInitialGuessNonzero(ksp, PETSC_TRUE, ierr); call CHKERR(ierr)
+
+    prec_is_set = .False.
+    call PetscOptionsHasName(PETSC_NULL_OPTIONS, trim(kspprefix), '-pc_type', prec_is_set, ierr); call CHKERR(ierr)
+
+    if(.not.prec_is_set) then
+      !call CHKWARN(1_mpiint, 'no preconditioner setting found, applying defaults')
+      call KSPGetPC(ksp, prec, ierr); call CHKERR(ierr)
+      if(numnodes.eq.0) then
+        call PCSetType(prec, PCILU, ierr); call CHKERR(ierr)
+      else
+        call PCSetType(prec, PCASM, ierr); call CHKERR(ierr)
+        call PCASMSetOverlap(prec, i1, ierr); call CHKERR(ierr)
+      endif
+    endif
+
+    call determine_ksp_tolerances(C, solver%atm%l1d, rtol, atol)
+    call KSPSetTolerances(ksp, rtol, atol, PETSC_DEFAULT_REAL, maxiter, ierr); call CHKERR(ierr)
+
+    call KSPSetConvergenceTest(ksp, MyKSPConverged, 0, PETSC_NULL_FUNCTION, ierr); call CHKERR(ierr)
+
+    call KSPSetOperators(ksp, A, A, ierr); call CHKERR(ierr)
+    call KSPSetDM(ksp, C%da, ierr); call CHKERR(ierr)
+    call KSPSetDMActive(ksp, PETSC_FALSE, ierr); call CHKERR(ierr)
+
+    call KSPSetFromOptions(ksp, ierr); call CHKERR(ierr)
+    call KSPSetUp(ksp, ierr); call CHKERR(ierr)
+
+    if(.not.prec_is_set) then
+      default_preconditioner_settings: block
+        integer(iintegers) :: i, asm_N, asm_iter
+        integer(iintegers) :: first_local
+        type(tKSP), allocatable :: asm_ksps(:)
+        type(tPC) :: subpc
+        logical :: lflg
+
+        asm_iter = 2
+        call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+          "-ts_ksp_iter", asm_iter, lflg, ierr) ;call CHKERR(ierr)
+
+        call PCASMGetSubKSP(prec, asm_N, first_local, PETSC_NULL_KSP, ierr); call CHKERR(ierr)
+        allocate(asm_ksps(asm_N))
+        call PCASMGetSubKSP(prec, asm_N, first_local, asm_ksps, ierr); call CHKERR(ierr)
+        do i = 1, asm_N
+          call KSPSetType(asm_ksps(i), KSPRICHARDSON, ierr); call CHKERR(ierr)
+          call KSPRichardsonSetSelfScale(asm_ksps(i), PETSC_TRUE, ierr); call CHKERR(ierr)
+          call KSPSetNormType(asm_ksps(i), KSP_NORM_PRECONDITIONED, ierr); call CHKERR(ierr)
+          call KSPSetTolerances(asm_ksps(i), &
+            & PETSC_DEFAULT_REAL, PETSC_DEFAULT_REAL, PETSC_DEFAULT_REAL, &
+            & asm_iter, ierr); call CHKERR(ierr)
+          call KSPGetPC(asm_ksps(i), subpc, ierr); call CHKERR(ierr)
+          call PCSetType(subpc, PCSOR, ierr); call CHKERR(ierr)
+          call KSPSetFromOptions(asm_ksps(i), ierr); call CHKERR(ierr)
+        enddo
+      end block default_preconditioner_settings
+    endif
+
+    linit = .True.
+    if(myid.eq.0.and.ldebug) print *,'Setup KSP done'
+  end subroutine
+
+
+  !> @brief: determine tolerances for solvers
+  subroutine determine_ksp_tolerances(C, l1d, rtol, atol, ksp)
+    type(t_coord), intent(in) :: C
+    logical, intent(in) :: l1d(:,:,:)
+    real(ireals), intent(out) :: rtol, atol
+    type(tKSP), intent(in), allocatable, optional:: ksp
+    real(ireals) :: rel_atol=1e-4_ireals
+    real(ireals) :: unconstrained_fraction
+    integer(mpiint) :: myid, ierr
+    integer(iintegers) :: maxit
+    real(ireals) :: dtol
+
+    if(present(ksp)) then
+      if(allocated(ksp)) then
+        call KSPGetTolerances(ksp, rtol, atol, dtol, maxit, ierr); call CHKERR(ierr)
+        if(ldebug) then
+          call mpi_comm_rank(C%comm, myid, ierr); call CHKERR(ierr)
+          if(myid.eq.0) print *,cstr('Read tolerances from ksp','red'), rtol, atol, dtol, maxit
+        endif
+        return
+      endif
+    endif
+
+    rtol = 1e-5_ireals
+    unconstrained_fraction = real(count(.not.l1d), ireals) / real(size(l1d), ireals)
+    call imp_allreduce_min(C%comm, &
+      & rel_atol &
+      & * real(C%dof*C%glob_xm*C%glob_ym*C%glob_zm, ireals) &
+      & * unconstrained_fraction, atol)
+    atol = max(1e-8_ireals, atol)
+
+    if(ldebug) then
+      call mpi_comm_rank(C%comm, myid, ierr); call CHKERR(ierr)
+      if(myid.eq.0) &
+        print *,'KSP ', &
+        & '-- tolerances:', rtol, atol, &
+        & ':: rel_atol', rel_atol, &
+        & ':: total dof', C%dof * C%glob_xm * C%glob_ym * C%glob_zm, &
+        & ':: unconstrained fraction', unconstrained_fraction
+    endif
+  end subroutine
 
 
   !> @brief override convergence tests -- the normal KSPConverged returns bad solution if no iterations are needed for convergence

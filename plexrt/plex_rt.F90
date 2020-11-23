@@ -1756,7 +1756,7 @@ module m_plex_rt
       type(tDM), intent(inout) :: dm
       type(tMat), allocatable, intent(in) :: A
       type(tKSP), allocatable, intent(inout) :: ksp
-      real(ireals), allocatable, intent(inout), optional :: ksp_residual_history(:)
+      real(ireals), intent(inout), optional :: ksp_residual_history(:)
       character(len=*), intent(in), optional :: prefix
 
       real(ireals),parameter :: rtol=1e-6_ireals, rel_atol=1e-6_ireals
@@ -1769,7 +1769,6 @@ module m_plex_rt
 
       integer(iintegers) :: Nrows_global
 
-      integer(iintegers), parameter :: Nmaxhistory=1000
       integer(mpiint) :: comm, myid, numnodes, ierr
 
       if(allocated(ksp)) return
@@ -1802,9 +1801,8 @@ module m_plex_rt
       call KSPSetOperators(ksp, A, A, ierr); call CHKERR(ierr)
 
       if(present(ksp_residual_history)) then
-        if(.not.allocated(ksp_residual_history)) &
-          allocate(ksp_residual_history(Nmaxhistory), source=-one)
-        call KSPSetResidualHistory(ksp, ksp_residual_history, Nmaxhistory, PETSC_TRUE, ierr); call CHKERR(ierr)
+        call KSPSetResidualHistory(ksp, ksp_residual_history, &
+          & size(ksp_residual_history, kind=iintegers), PETSC_TRUE, ierr); call CHKERR(ierr)
       endif
 
       call KSPSetType(ksp, KSPFGMRES, ierr); call CHKERR(ierr)
