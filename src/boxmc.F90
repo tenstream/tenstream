@@ -39,26 +39,66 @@ module m_boxmc
     & square_intersection, &
     & triangle_intersection
 
-  use m_helper_functions, only : CHKERR, CHKWARN, get_arg, toStr, cstr, &
-    rotate_angle_x, rotate_angle_y, rotate_angle_z, &
-    angle_between_two_vec, rotation_matrix_local_basis_to_world, &
-    approx, meanval, rmse, imp_reduce_sum, &
-    deg2rad, rad2deg, &
-    compute_normal_3d, spherical_2_cartesian, &
-    cross_3d, triangle_area_by_vertices
+  use m_helper_functions, only : &
+    & angle_between_two_vec, &
+    & approx, &
+    & CHKERR, &
+    & CHKWARN, &
+    & compute_normal_3d, &
+    & cross_3d, &
+    & cstr, &
+    & deg2rad, &
+    & get_arg, &
+    & imp_reduce_sum, &
+    & meanval, &
+    & rad2deg, &
+    & rmse, &
+    & rotate_angle_x, &
+    & rotate_angle_y, &
+    & rotate_angle_z, &
+    & rotation_matrix_local_basis_to_world, &
+    & spherical_2_cartesian, &
+    & toStr
 
   use m_data_parameters, only: &
-    mpiint, iintegers, ireals, ireal_dp, irealbmc, &
-    i0, i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, inil, pi64, &
-    init_mpi_data_parameters, imp_iinteger, imp_real_dp, imp_logical
+    & i0, &
+    & i1, &
+    & i10, &
+    & i2, &
+    & i3, &
+    & i4, &
+    & i5, &
+    & i6, &
+    & i7, &
+    & i8, &
+    & i9, &
+    & iintegers, &
+    & imp_iinteger, &
+    & imp_logical, &
+    & imp_real_dp, &
+    & inil, &
+    & init_mpi_data_parameters, &
+    & irealbmc, &
+    & ireal_dp, &
+    & ireals, &
+    & mpiint, &
+    & pi64
 
-  use m_optprop_parameters, only : delta_scale_truncate, &
-    & stddev_atol, stddev_rtol, ldebug_optprop
+  use m_optprop_parameters, only : &
+    & delta_scale_truncate, &
+    & ldebug_optprop, &
+    & stddev_atol, &
+    & stddev_rtol
 
   use m_boxmc_geometry, only : &
-    & setup_cube_coords_from_vertices, setup_wedge_coords_from_vertices, &
-    & intersect_cube, intersect_wedge, &
-    & box_halfspaces, wedge_halfspaces
+    & box_halfspaces, &
+    & intersect_cube, &
+    & intersect_wedge, &
+    & rand_pnt_on_plane, &
+    & rand_pnt_on_triangle, &
+    & setup_cube_coords_from_vertices, &
+    & setup_wedge_coords_from_vertices, &
+    & wedge_halfspaces
 
   use m_kiss_rng, only: kiss_real, kiss_init
 
@@ -1020,44 +1060,6 @@ contains
   call gen_mpi_photon_type(comm)
 
   bmc%initialized = .True.
-end subroutine
-
-! Distribute Photons on triangles: https://doi.org/10.1145/571647.571648
-subroutine rand_pnt_on_triangle(A,B,C, pnt)
-  real(ireal_dp), dimension(:), intent(in) :: A, B, C
-  real(ireal_dp), dimension(:), intent(out) :: pnt
-  real(ireal_dp) :: r1, r2
-  real(ireal_dp), dimension(size(A)) :: center, cA, cB, cC
-  real(ireal_dp), parameter :: eps=1e-1 ! move all points a wee bit towards the center
-  center = (A+B+C)/3
-  cA = A + (center-A) * eps
-  cB = B + (center-B) * eps
-  cC = C + (center-C) * eps
-  r1 = R()
-  r2 = R()
-  pnt = (one - sqrt(r1)) * cA + sqrt(r1) * (one - r2) * cB + sqrt(r1) * r2 * cC
-end subroutine
-subroutine rand_pnt_on_plane(A,B,C,D, pnt, normal, U,V)
-  real(ireal_dp), dimension(3), intent(in) :: A, B, C, D
-  real(ireal_dp), dimension(3), intent(out) :: pnt, normal, U, V
-  real(ireal_dp) :: area(2)
-
-  area(1) = triangle_area_by_vertices(A,B,C)
-  area(2) = triangle_area_by_vertices(A,C,D)
-
-  if(R().lt.area(1)/sum(area)) then
-    call rand_pnt_on_triangle(A,B,C,pnt)
-    normal = compute_normal_3d(A,B,C)
-    U = (C-B)
-    U = U/norm2(U)
-    V = -cross_3d(U,normal)
-  else
-    call rand_pnt_on_triangle(A,C,D,pnt)
-    normal = compute_normal_3d(A,C,D)
-    U = (D-A)
-    U = U/norm2(U)
-    V = -cross_3d(U,normal)
-  endif
 end subroutine
 
 

@@ -25,11 +25,13 @@ module m_boxmc_geometry
     & approx, &
     & CHKERR, &
     & compute_normal_3d, &
+    & cross_3d, &
     & determine_normal_direction, &
     & distances_to_triangle_edges, &
     & distance_to_edge, &
     & meanval, &
     & toStr, &
+    & triangle_area_by_vertices, &
     & triangle_inner_circle_center
 
   use m_intersection, only: &
@@ -142,8 +144,8 @@ module m_boxmc_geometry
       else
         allocate(vertices(2*4*3))
       endif
-      vertices( 1: 2) = [zero,zero]
 
+      vertices( 1: 2) = [zero,zero]
       vertices( 4: 5) = [  dx,zero]
       vertices( 7: 8) = [zero,  dy]
       vertices(10:11) = [  dx,  dy]
@@ -168,8 +170,8 @@ module m_boxmc_geometry
       else
         allocate(vertices(2*4*3))
       endif
-      vertices( 1: 2) = [zero,zero]
 
+      vertices( 1: 2) = [zero,zero]
       vertices( 4: 5) = [  dx,zero]
       vertices( 7: 8) = [zero,  dy]
       vertices(10:11) = [  dx,  dy]
@@ -630,6 +632,52 @@ module m_boxmc_geometry
       normals(:,4) = compute_normal_3d(E,F,B)
       normals(:,5) = compute_normal_3d(A,B,C)
     end associate
-    end subroutine
+  end subroutine
 
-  end module
+  ! Distribute Photons on triangles: https://doi.org/10.1145/571647.571648
+  subroutine rand_pnt_on_triangle(A,B,C, pnt, eps)
+    real(ireal_dp), dimension(:), intent(in) :: A, B, C
+    real(ireal_dp), dimension(:), intent(out) :: pnt
+    real(ireal_dp) :: r1, r2
+    real(ireal_dp), dimension(size(A)) :: center, cA, cB, cC
+    real(ireal_dp), intent(in), optional :: eps ! move all points a wee bit towards the center
+
+    call random_number(r1)
+    call random_number(r2)
+
+    if(present(eps)) then
+      call triangle_inner_circle_center(A, B, C, center)
+      cA = A + (center-A) * eps
+      cB = B + (center-B) * eps
+      cC = C + (center-C) * eps
+      pnt = (one - sqrt(r1)) * cA + sqrt(r1) * (one - r2) * cB + sqrt(r1) * r2 * cC
+    else
+      pnt = (one - sqrt(r1)) * A + sqrt(r1) * (one - r2) * B + sqrt(r1) * r2 * C
+    endif
+  end subroutine
+
+  subroutine rand_pnt_on_plane(A,B,C,D, pnt, normal, U,V)
+    real(ireal_dp), dimension(3), intent(in) :: A, B, C, D
+    real(ireal_dp), dimension(3), intent(out) :: pnt, normal, U, V
+    real(ireal_dp) :: r, area(2)
+
+    area(1) = triangle_area_by_vertices(A,B,C)
+    area(2) = triangle_area_by_vertices(A,C,D)
+
+    call random_number(r)
+    if(r.lt.area(1)/sum(area)) then
+      call rand_pnt_on_triangle(A,B,C,pnt)
+      normal = compute_normal_3d(A,B,C)
+      U = (C-B)
+      U = U/norm2(U)
+      V = -cross_3d(U,normal)
+    else
+      call rand_pnt_on_triangle(A,C,D,pnt)
+      normal = compute_normal_3d(A,C,D)
+      U = (D-A)
+      U = U/norm2(U)
+      V = -cross_3d(U,normal)
+    endif
+  end subroutine
+
+end module
