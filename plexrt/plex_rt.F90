@@ -169,7 +169,12 @@ module m_plex_rt
 
             call DMGetStratumIS(plex%edir_dm, 'DomainBoundary', TOAFACE, boundary_ids, ierr); call CHKERR(ierr)
             if (boundary_ids.eq.PETSC_NULL_IS) then ! dont have TOA boundary faces
-              allocate(dz(plex%Nlay,0), vol(plex%Nlay,0), top_area(plex%Nlay,0), bot_area(plex%Nlay,0))
+              allocate(&
+                & l1d(plex%Nlay), &
+                & dz(plex%Nlay,0), &
+                & vol(plex%Nlay,0), &
+                & top_area(plex%Nlay,0), &
+                & bot_area(plex%Nlay,0))
             else
               call DMGetSection(geom_dm, geom_section, ierr); CHKERRQ(ierr)
               call VecGetArrayReadF90(plex%geomVec, xgeoms, ierr); call CHKERR(ierr)
@@ -220,6 +225,7 @@ module m_plex_rt
             '                '//cstr(' cell_top_area    ', 'blue')//'                   '// &
             '                '//cstr(' cell_bot_area    ', 'red')
 
+              print *,myid,'size l1d', allocated(l1d),shape(l1d)
           do k = 1, size(dz,dim=1)
             call imp_min_mean_max(comm, dz      (k,:), mdz      )
             call imp_min_mean_max(comm, vol     (k,:), mvol     )
@@ -728,6 +734,10 @@ module m_plex_rt
             solver%diff_scalevec_Wm2_to_W, solver%diff_scalevec_W_to_Wm2, &
             solution, lWm2=.True., logevent=solver%logs%scale_flx)
           call debug_dump_vec(solver%plex%edir_dm, solver%dirsrc, solver%dir_scalevec_W_to_Wm2)
+          call scale_flx(solver, solver%plex, &
+            solver%dir_scalevec_Wm2_to_W, solver%dir_scalevec_W_to_Wm2, &
+            solver%diff_scalevec_Wm2_to_W, solver%diff_scalevec_W_to_Wm2, &
+            solution, lWm2=.False., logevent=solver%logs%scale_flx)
         endif
 
         ! Create Direct Matrix & KSP
@@ -772,6 +782,10 @@ module m_plex_rt
             solver%diff_scalevec_Wm2_to_W, solver%diff_scalevec_W_to_Wm2, &
             solution, lWm2=.True., logevent=solver%logs%scale_flx)
           call debug_dump_vec(solver%plex%edir_dm, solution%edir, solver%dir_scalevec_W_to_Wm2)
+          call scale_flx(solver, solver%plex, &
+            solver%dir_scalevec_Wm2_to_W, solver%dir_scalevec_W_to_Wm2, &
+            solver%diff_scalevec_Wm2_to_W, solver%diff_scalevec_W_to_Wm2, &
+            solution, lWm2=.False., logevent=solver%logs%scale_flx)
         endif
 
         call PetscLogEventEnd(solver%logs%compute_Edir, ierr)
@@ -779,6 +793,12 @@ module m_plex_rt
 
       ! Create Diffuse Src
       call PetscLogEventBegin(solver%logs%compute_Ediff, ierr)
+
+      call scale_flx(solver, solver%plex, &
+        solver%dir_scalevec_Wm2_to_W, solver%dir_scalevec_W_to_Wm2, &
+        solver%diff_scalevec_Wm2_to_W, solver%diff_scalevec_W_to_Wm2, &
+        solution, lWm2=.False., logevent=solver%logs%scale_flx)
+
       call PetscLogEventBegin(solver%logs%setup_diff_src, ierr)
       call create_ediff_src_vec(solver, solver%plex, solver%OPP, solver%plex%ediff_dm, &
         solver%kabs, solver%ksca, solver%g, solver%albedo, &
@@ -788,8 +808,9 @@ module m_plex_rt
       call PetscLogEventEnd(solver%logs%setup_diff_src, ierr)
 
       ! Output of Diffuse Src Vec
-      if(ldebug) &
+      if(ldebug) then
         call debug_dump_vec(solver%plex%ediff_dm, solver%diffsrc, solver%diff_scalevec_W_to_Wm2)
+      endif
 
       ! Create Diffuse Matrix & KSP
       call PetscLogEventBegin(solver%logs%setup_Mdiff, ierr)
@@ -1546,6 +1567,7 @@ module m_plex_rt
             call PetscSectionGetDof(ediffSection, iface, num_dof, ierr); call CHKERR(ierr)
             do idof = 1, num_dof
               xsrc(face_offset+idof) = xsrc(face_offset+idof) * area
+              !print *,'iface', iface, 'area', area, 'xsrc', xsrc(face_offset+idof)
             enddo
           enddo
 
@@ -1618,8 +1640,9 @@ module m_plex_rt
             call PetscLogEventEnd(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
 
             call PetscSectionGetFieldOffset(plckSection, faces_of_cell(1), i0, plck_offset, ierr); call CHKERR(ierr)
-            b0 = xplanck(i1+plck_offset)  * pi ! top planck value
-            b1 = xplanck(i1+plck_offset+1)* pi ! bot planck value
+            b0 = xplanck(i1+plck_offset)* pi ! top planck value
+            call PetscSectionGetFieldOffset(plckSection, faces_of_cell(2), i0, plck_offset, ierr); call CHKERR(ierr)
+            b1 = xplanck(i1+plck_offset)* pi ! bot planck value
             call B_eff(b1, b0, xkabs(i1+icell), btop)
             call B_eff(b0, b1, xkabs(i1+icell), bbot)
             bside = (btop+bbot)/2
@@ -1646,6 +1669,7 @@ module m_plex_rt
                 emissivity = max(zero, one - sum(diff2diff))
 
                 xsrc(i1+icol) = Beff * emissivity / real(numDof/2, ireals)
+                !print *,'src: icol', icol, 'Beff', Beff, 'emis', emissivity, '=>', xsrc(i1+icol)
                 i = i+1
               enddo
             enddo
@@ -1660,9 +1684,7 @@ module m_plex_rt
           real(ireals), pointer :: xalbedo(:)
           type(tIS) :: srfc_ids
           integer(iintegers), pointer :: xi(:)
-          integer(iintegers) :: i, ke1, iface, offset_Eup, offset_srfc, plck_offset
-
-          ke1 = solver%plex%Nlay+1
+          integer(iintegers) :: i, iface, offset_Eup, offset_srfc, plck_offset
 
           call VecGetArrayReadF90(plckVec, xplanck, ierr); call CHKERR(ierr)
           call VecGetArrayReadF90(albedo, xalbedo, ierr); call CHKERR(ierr)
@@ -1733,7 +1755,7 @@ module m_plex_rt
       real(ireals), allocatable, intent(inout), optional :: ksp_residual_history(:)
       character(len=*), intent(in), optional :: prefix
 
-      real(ireals),parameter :: rtol=1e-5_ireals, rel_atol=1e-4_ireals
+      real(ireals),parameter :: rtol=1e-6_ireals, rel_atol=1e-6_ireals
       integer(iintegers),parameter  :: maxiter=1000
       real(ireals) :: atol
 
@@ -2974,7 +2996,7 @@ module m_plex_rt
       endif
 
       call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
-        "-plexrt_delta_scale_maxg", max_g_delta, lflg , ierr) ;call CHKERR(ierr)
+        "-plexrt_delta_scale_max_g", max_g_delta, lflg , ierr) ;call CHKERR(ierr)
       if(lflg) then
         max_g([2,4]) = max(max_g([1,3]), min(max_g([2,4]), real(max_g_delta, kind(max_g))))
         if(ldebug) print *,'found deltascaling max_g -> setting limits to:', cstr(toStr(max_g), 'green')
@@ -3042,8 +3064,8 @@ module m_plex_rt
     endif
 
     contains
-      function snap_limits(val, vrange) result (res)
-        real(irealLUT), intent(in) :: val, vrange(:)
+      pure function snap_limits(val, vrange) result (res)
+        real(irealLUT), intent(in) :: val, vrange(2)
         real(irealLUT) :: res
         res = max(vrange(1), min( val, vrange(2) ))
       end function
@@ -3151,9 +3173,18 @@ module m_plex_rt
 
       call PetscLogEventBegin(solver%logs%compute_absorption, ierr)
         if(by_flx_divergence) then
-          call compute_ediff_absorption(solver%plex, solver%IS_diff_in_out_dof, solution%ediff, solution%abso)
+          call compute_ediff_absorption(&
+            & solver%plex, &
+            & solver%IS_diff_in_out_dof, &
+            & solution%ediff, &
+            & solution%abso)
         else
-          call compute_ediff_absorption_by_coeff_divergence(solver, solver%plex, solution%ediff, solution%abso)
+          call compute_ediff_absorption_by_coeff_divergence(&
+            & solver, &
+            & solver%plex, &
+            & solution%ediff, &
+            & solver%diffsrc, &
+            & solution%abso)
         endif
       call PetscLogEventEnd(solver%logs%compute_absorption, ierr)
     endif
@@ -3515,15 +3546,15 @@ module m_plex_rt
     call DMRestoreLocalVector(plex%ediff_dm, local_ediff, ierr); call CHKERR(ierr)
     !if(ldebug) print *,'plex_rt::compute_ediff_absorption....finished'
   end subroutine
-  subroutine compute_ediff_absorption_by_coeff_divergence(solver, plex, ediff, abso)
+  subroutine compute_ediff_absorption_by_coeff_divergence(solver, plex, ediff, srcVec, abso)
     class(t_plex_solver), intent(in) :: solver
     type(t_plexgrid), allocatable, intent(in) :: plex
-    type(tVec), intent(in) :: ediff
+    type(tVec), intent(in) :: ediff, srcVec
     type(tVec), allocatable, intent(inout) :: abso
 
-    type(tVec) :: local_ediff
+    type(tVec) :: local_ediff, local_srcVec
 
-    real(ireals), pointer :: xediff(:), xabso(:)
+    real(ireals), pointer :: xediff(:), xsrc(:), xabso(:)
     real(ireals), pointer :: xkabs(:), xksca(:), xg(:)
     integer(iintegers), pointer :: faces_of_cell(:)
     integer(iintegers), pointer :: xinoutdof(:)
@@ -3549,7 +3580,8 @@ module m_plex_rt
     integer(iintegers) :: face_plex2bmc(5)
     integer(iintegers) :: diff_plex2bmc(solver%diffdof/2)
 
-    real(irealLUT) :: coeff((solver%diffdof/2)**2) ! coefficients for each src=[1..8] and dst[1..8]
+    real(irealLUT), target :: coeff((solver%diffdof/2)**2) ! coefficients for each src=[1..8] and dst[1..8]
+    real(irealLUT), pointer :: diff2diff(:,:) ! dim(dst, src)
 
     real(ireals) :: inv_volume, cell_abso
 
@@ -3564,6 +3596,8 @@ module m_plex_rt
       call CHKERR(myid+1, 'called compute_ediff_absorption with an unallocated abso vec')
 
     !if(ldebug) print *,'plex_rt::compute_ediff_absorption....'
+
+    diff2diff(1:solver%diffdof/2, 1:solver%diffdof/2) => coeff(:)
 
     call DMGetSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
     call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
@@ -3585,7 +3619,12 @@ module m_plex_rt
     call DMGlobalToLocalBegin(plex%ediff_dm, ediff, INSERT_VALUES, local_ediff, ierr); call CHKERR(ierr)
     call DMGlobalToLocalEnd  (plex%ediff_dm, ediff, INSERT_VALUES, local_ediff, ierr); call CHKERR(ierr)
 
+    call DMGetLocalVector(plex%ediff_dm, local_srcVec, ierr); call CHKERR(ierr)
+    call DMGlobalToLocalBegin(plex%ediff_dm, srcVec, INSERT_VALUES, local_srcVec, ierr); call CHKERR(ierr)
+    call DMGlobalToLocalEnd  (plex%ediff_dm, srcVec, INSERT_VALUES, local_srcVec, ierr); call CHKERR(ierr)
+
     call VecGetArrayReadF90(local_ediff, xediff, ierr); call CHKERR(ierr)
+    call VecGetArrayReadF90(local_srcVec, xsrc, ierr); call CHKERR(ierr)
     call VecGetArrayF90(abso, xabso, ierr); call CHKERR(ierr)
 
     call ISGetIndicesF90(solver%IS_diff_in_out_dof, xinoutdof, ierr); call CHKERR(ierr)
@@ -3613,17 +3652,28 @@ module m_plex_rt
         Cy=wedgeorient(wedge_offset4+i2), &
         ldir=.False., coeff=coeff, ierr=ierr)
 
+      !do i = 1, solver%diffdof/2
+      !  print *,'src', i, diff2diff(:,diff_plex2bmc(i))
+      !enddo
+
       cell_abso = zero
 
       do i = 1, size(incoming_offsets)
         if(incoming_offsets(i).ge.0) then
-          associate( diff2diff => coeff(diff_plex2bmc(i):size(coeff):solver%diffdof/2) )
-            div = one - sum(diff2diff)
-            div = max(zero, min(one, one - sum(diff2diff)))
+          !associate( diff2diff => coeff(diff_plex2bmc(i):size(coeff):solver%diffdof/2) )
+            div = one - sum(diff2diff(:,diff_plex2bmc(i)))
+            div = max(zero, min(one, div))
             cell_abso = cell_abso + div * xediff(i1+incoming_offsets(i))
             !print *,'Adding diffuse cell abso cell='//toStr(icell)//' inc_offset='//toStr(incoming_offsets(i))// &
-            !  ' ediff='//toStr(xediff(i1+incoming_offsets(i))), 'div', div
-          end associate
+            !  ' ediff='//toStr(xediff(i1+incoming_offsets(i))), 'div', div, '=', div * xediff(i1+incoming_offsets(i))
+          !end associate
+        endif
+      enddo
+      do i = 1, size(outgoing_offsets)
+        if(outgoing_offsets(i).ge.0) then
+          cell_abso = cell_abso - xsrc(i1+outgoing_offsets(i))
+          !print *,'Subtracting diffuse cell abso cell='//toStr(icell)//' out_offset='//toStr(outgoing_offsets(i))// &
+          !  ' xsrc='//toStr(xsrc(i1+outgoing_offsets(i)))
         endif
       enddo
 
@@ -3636,6 +3686,7 @@ module m_plex_rt
     call ISRestoreIndicesF90(solver%IS_diff_in_out_dof, xinoutdof, ierr); call CHKERR(ierr)
 
     call VecRestoreArrayReadF90(local_ediff, xediff, ierr); call CHKERR(ierr)
+    call VecRestoreArrayReadF90(local_srcVec, xsrc, ierr); call CHKERR(ierr)
     call DMRestoreLocalVector(plex%ediff_dm, local_ediff, ierr); call CHKERR(ierr)
 
     call VecRestoreArrayF90(abso, xabso, ierr); call CHKERR(ierr)
