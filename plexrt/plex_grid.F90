@@ -26,19 +26,42 @@ module m_plex_grid
   implicit none
 
   private
-  public :: t_plexgrid, &
-    icell_icon_2_plex, iface_top_icon_2_plex, update_plex_indices, &
-    compute_face_geometry, &
-    setup_cell1_dmplex, setup_edir_dmplex, setup_ediff_dmplex, setup_abso_dmplex, &
-    print_dmplex, ncvar2d_to_globalvec, facevec2cellvec, &
-    orient_face_normals_along_sundir, compute_wedge_orientation, is_solar_src, &
-    compute_local_wedge_ordering, compute_local_vertex_coordinates, &
-    get_inward_face_normal, create_plex_section, setup_plexgrid, &
-    get_consecutive_vertical_cell_idx, get_top_bot_face_of_cell, gen_test_mat, &
-    TOAFACE, BOTFACE, SIDEFACE, INNERSIDEFACE, destroy_plexgrid, &
-    determine_diff_incoming_outgoing_offsets, get_normal_of_first_TOA_face, &
-    interpolate_horizontal_face_var_onto_vertices, get_horizontal_faces_around_vertex, &
-    atm_dz_to_vertex_heights, dmplex_set_new_section
+  public :: &
+    & atm_dz_to_vertex_heights, &
+    & BOTFACE, &
+    & compute_face_geometry, &
+    & compute_face_geometry_info, &
+    & compute_local_vertex_coordinates, &
+    & compute_local_wedge_ordering, &
+    & compute_wedge_orientation, &
+    & create_plex_section, &
+    & destroy_plexgrid, &
+    & determine_diff_incoming_outgoing_offsets, &
+    & dmplex_set_new_section, &
+    & facevec2cellvec, &
+    & gen_test_mat, &
+    & get_consecutive_vertical_cell_idx, &
+    & get_horizontal_faces_around_vertex, &
+    & get_inward_face_normal, &
+    & get_normal_of_first_TOA_face, &
+    & get_top_bot_face_of_cell, &
+    & icell_icon_2_plex, &
+    & iface_top_icon_2_plex, &
+    & INNERSIDEFACE, &
+    & interpolate_horizontal_face_var_onto_vertices, &
+    & is_solar_src, &
+    & ncvar2d_to_globalvec, &
+    & orient_face_normals_along_sundir, &
+    & print_dmplex, &
+    & setup_abso_dmplex, &
+    & setup_cell1_dmplex, &
+    & setup_ediff_dmplex, &
+    & setup_edir_dmplex, &
+    & setup_plexgrid, &
+    & SIDEFACE, &
+    & TOAFACE, &
+    & t_plexgrid, &
+    & update_plex_indices
 
   logical, parameter :: ldebug=.False.
 

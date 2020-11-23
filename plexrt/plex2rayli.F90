@@ -11,8 +11,10 @@ module m_plex2rayli
 
   use m_netcdfio, only: ncwrite
 
-  use m_plex_grid, only: t_plexgrid, &
-    TOAFACE
+  use m_plex_grid, only: &
+    & compute_face_geometry_info, &
+    & TOAFACE, &
+    & t_plexgrid
 
   use m_pprts_base, only : t_state_container
 
@@ -439,11 +441,12 @@ module m_plex2rayli
 
       type(tIS) :: toa_ids
       integer(iintegers) :: Ncol, ridx, numFields, numDof, geom_offset
-      integer(iintegers) :: icell, iface, ifield, idof, voff, voff0, voff1, orientation
+      integer(iintegers) :: icell, iface, ifield, idof, voff, voff0, orientation
       integer(iintegers) :: fStart, fEnd, cStart, cEnd
       integer(iintegers), pointer :: cells_of_face(:)
       real(ireals), pointer :: xedir(:), xediff(:), xabso(:), geoms(:)
-      real(ireals), pointer :: face_normal(:), face_center(:), cell_center(:)
+      real(ireals), pointer :: cell_center(:)
+      real(ireals) :: face_center(3), face_normal(3), face_area
       type(tPetscSection) :: edir_section, ediff_section, abso_section, geomSection
       integer(mpiint) :: ierr
 
@@ -482,10 +485,7 @@ module m_plex2rayli
         call PetscSectionGetFieldOffset(geomSection, icell, i0, voff0, ierr); call CHKERR(ierr)
         cell_center => geoms(voff0+i1: voff0+i3)
 
-        call PetscSectionGetFieldOffset(geomSection, iface, i0, voff0, ierr); call CHKERR(ierr)
-        call PetscSectionGetFieldOffset(geomSection, iface, i1, voff1, ierr); call CHKERR(ierr)
-        face_center => geoms(voff0+i1: voff0+i3)
-        face_normal => geoms(voff1+i1: voff1+i3)
+        call compute_face_geometry_info(plex%dm, iface, face_center, face_normal, face_area)
 
         orientation = determine_normal_direction(face_normal, face_center, cell_center)
         ridx = i1 + 2*(iface - fStart)
@@ -502,6 +502,9 @@ module m_plex2rayli
               xediff(i2+voff) = real(abs( flx_through_faces_ediff(ridx  ) ), ireals)
               xediff(i1+voff) = real(abs( flx_through_faces_ediff(ridx+1) ), ireals)
             endif
+            !print *,'icell', icell, 'iface', iface, 'orient', orientation, &
+            !  & 'ifield', ifield, 'ndof', numDof, 'voff', voff, voff+1, 'ridx', ridx, ridx+1, &
+            !  & 'ediff',xediff(voff+1:voff+2)
           else
             !call CHKWARN(1_mpiint, 'DEBUG '//toStr(numDof))
           endif

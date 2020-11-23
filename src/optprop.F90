@@ -568,7 +568,7 @@ contains
       real(irealLUT) :: S_tol (OPP%dev%diff_streams),T_tol(OPP%dev%dir_streams)
       integer(iintegers) :: isrc
 
-      real(irealLUT), parameter :: atol=1e-3_irealLUT, rtol=1e-2_irealLUT
+      real(irealLUT), parameter :: atol=1e-3_irealLUT, rtol=1e-1_irealLUT
 
       if(present(angles)) then
           do isrc=1,OPP%dev%dir_streams
