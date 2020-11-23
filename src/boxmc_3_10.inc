@@ -162,7 +162,7 @@ subroutine init_diff_photon_3_10(bmc, p, src, vertices, ierr)
         case (10)
                 p%loc = (/ L(dx) , zero  , L(dz) /)
         case default
-                call CHKERR(1_mpiint, 'Dont know what to do with source spec: '//itoa(src))
+                call CHKERR(1_mpiint, 'Dont know what to do with source spec: '//toStr(src))
         end select
 
         select case(src)
@@ -171,7 +171,7 @@ subroutine init_diff_photon_3_10(bmc, p, src, vertices, ierr)
           case(3:10)
             phi = deg2rad( interv_R(-90._ireal_dp,90._ireal_dp) )
           case default
-            call CHKERR(1_mpiint, 'Dont know what to do with source spec: '//itoa(src))
+            call CHKERR(1_mpiint, 'Dont know what to do with source spec: '//toStr(src))
             call exit
         end select
 
