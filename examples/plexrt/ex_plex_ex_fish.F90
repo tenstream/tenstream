@@ -7,7 +7,7 @@ program main
   integer(mpiint) :: comm, ierr
   character(len=10*default_str_len) :: default_options
   integer(iintegers) :: Nx, Ny, Nz
-  real(ireals) :: dz, Ag, sundir(3), dtau, w0, B0
+  real(ireals) :: dz, Ag, sundir(3), dtau, w0, g, B0
   logical :: lverbose, lregular_mesh, lthermal, lsolar
   real(ireals), allocatable, dimension(:,:) :: edir, edn, eup, abso
 
@@ -31,6 +31,8 @@ program main
   call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-tau", dtau, lflg,ierr) ; call CHKERR(ierr)
   w0 = zero
   call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-w0", w0, lflg,ierr) ; call CHKERR(ierr)
+  g = zero
+  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-g", g, lflg,ierr) ; call CHKERR(ierr)
   B0 = 100
   call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-B0", B0, lflg,ierr) ; call CHKERR(ierr)
 
@@ -80,7 +82,7 @@ program main
     & Nx, Ny, Nz, &
     & dz, Ag, &
     & sundir, &
-    & dtau, w0, B0, &
+    & dtau, w0, g, B0, &
     & edir, edn, eup, abso)
 
   call PetscFinalize(ierr)
