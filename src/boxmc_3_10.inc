@@ -59,11 +59,8 @@ subroutine init_dir_photon_3_10(bmc, p, src, ldirect, initial_dir, vertices, ier
   logical           ,intent(in)     :: ldirect
   integer(mpiint)   ,intent(out)    :: ierr
 
-  real(ireal_dp), parameter  :: e=1e-6_ireal_dp
-  real(ireal_dp), dimension(3) :: normal, U, V
-  real(ireal_dp) :: dx, dy, dz
+  real(ireal_dp), dimension(3) :: normal, U, V, cube_center, dir_p_to_cube_center
 
-  call setup_cube_coords_from_vertices(vertices, dx, dy, dz)
 
   p%dir   = initial_dir
   p%alive = .False.
@@ -81,31 +78,45 @@ subroutine init_dir_photon_3_10(bmc, p, src, ldirect, initial_dir, vertices, ier
       )
     select case(src)
     case (1)
-      call rand_pnt_on_plane(pE,pG,pH,pF, p%loc, normal, U, V)
-      !p%loc = [R()*dx, R()*dy, dz*(one-e)]
+      if(p%dir(3).le.0) then
+        !p%loc = [R()*dx, R()*dy, dz*(one-e)]
+        call rand_pnt_on_plane(pE,pG,pH,pF, p%loc, normal, U, V)
+        p%src_side = 1
+      else
+        call rand_pnt_on_plane(pA,pB,pD,pC, p%loc, normal, U, V)
+        p%src_side = 2
+      endif
     case (2)
       if(p%dir(1).ge.0) then
         call rand_pnt_on_plane(pA,pC,pG,pE, p%loc, normal, U, V)
+        p%src_side = 3
         !p%loc = [e, R()*dy, R()*dz]
       else
         call rand_pnt_on_plane(pB,pF,pH,pD, p%loc, normal, U, V)
+        p%src_side = 4
         !p%loc = [dx-e, R()*dy, R()*dz]
       endif
     case (3)
       if(p%dir(2).ge.0) then
         call rand_pnt_on_plane(pE,pF,pB,pA, p%loc, normal, U, V)
+        p%src_side = 5
         !p%loc = [R()*dx, e, R()*dz]
       else
         call rand_pnt_on_plane(pG,pC,pD,pH, p%loc, normal, U, V)
+        p%src_side = 6
         !p%loc = [R()*dx, dy-e, R()*dz]
       endif
     case default
       print *,'Dont know what to do with source spec:',src
       call exit
     end select
-  end associate
 
-  p%loc = p%loc + normal*e
+    ! always nudge the photon a little bit inside the volume
+    cube_center = (pA+pB+pC+pD+pE+pF+pG+pH)/8._ireal_dp
+    dir_p_to_cube_center = cube_center - p%loc
+
+    p%loc = p%loc + sqrt(epsilon(p%loc)) * dir_p_to_cube_center
+  end associate
 
   p%weight     = one
   p%alive      = .True.
@@ -160,26 +171,37 @@ subroutine init_diff_photon_3_10(bmc, p, src, vertices, ierr)
         case (-1) ! thermal emission
                 p%loc = (/ L(dx) , L(dy) , L(dz) /)
                 mu = 2*mu2 - one
+                p%src_side = -1
         case (1)
                 p%loc = (/ L(dx) , L(dy) , zero  /)
+                p%src_side = 2
         case (2)
                 p%loc = (/ L(dx) , L(dy) , dz    /)
+                p%src_side = 1
         case (3)
                 p%loc = (/ dx    , L(dy) , L(dz) /)
+                p%src_side = 4
         case (4)
                 p%loc = (/ zero  , L(dy) , L(dz) /)
+                p%src_side = 3
         case (5)
                 p%loc = (/ dx    , L(dy) , L(dz) /)
+                p%src_side = 4
         case (6)
                 p%loc = (/ zero  , L(dy) , L(dz) /)
+                p%src_side = 3
         case (7)
                 p%loc = (/ L(dx) , dy    , L(dz) /)
+                p%src_side = 6
         case (8)
                 p%loc = (/ L(dx) , zero  , L(dz) /)
+                p%src_side = 5
         case (9)
                 p%loc = (/ L(dx) , dy    , L(dz) /)
+                p%src_side = 6
         case (10)
                 p%loc = (/ L(dx) , zero  , L(dz) /)
+                p%src_side = 5
         case default
                 call CHKERR(1_mpiint, 'Dont know what to do with source spec: '//toStr(src))
         end select
@@ -308,10 +330,12 @@ subroutine intersect_distance_3_10(bmc,vertices,p,max_dist)
   real(ireal_dp),intent(in) :: vertices(:)
   type(t_photon),intent(inout) :: p
   real(ireal_dp),intent(out) :: max_dist
+  integer(mpiint) :: ierr
+  call intersect_cube_general(vertices, p%loc, p%dir, p%scattercnt, p%src_side, &
+    & p%side, p%weight, max_dist, p%subface, ierr)
 
-
-  call intersect_cube(vertices, p%loc, p%dir, p%scattercnt, p%src_side, &
-    p%side, max_dist)
+  !call intersect_cube(vertices, p%loc, p%dir, p%scattercnt, p%src_side, &
+  !  & p%side, max_dist)
 
   select type(bmc)
   end select
