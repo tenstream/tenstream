@@ -245,6 +245,129 @@ contains
 
   end subroutine
 
+  @test(npes =[1])
+  subroutine test_boxmc_distorted_cube_dir45_east_west_distortion(this)
+    class (MpiTestMethod), intent(inout) :: this
+    integer(iintegers) :: src
+    real(ireal_dp), allocatable :: verts(:)
+    real(ireal_dp), parameter :: dx=1, dy=dx, dz=dx
+
+    bg  = [0e-0_ireal_dp/dz, 0._ireal_dp, 1._ireal_dp/2 ]
+    S_target = zero
+
+    !right side up
+    call setup_default_unit_cube_geometry(dx, dy, dz, verts)
+    verts([6,12,18,24]) = verts([6,12,18,24]) + dz
+
+    phi = 90; theta = 45
+    src = 1
+    T_target = [ real(ireals) :: 0.5, 0.5, 0]
+    call bmc_3_10%get_coeff(comm,bg,src,.True.,phi,theta,verts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+    call check(S_target,T_target, S,T, msg=' test_boxmc_distorted_cube_dir45_up_src1')
+
+    phi = 90; theta = 45
+    src = 2
+    T_target = [ real(ireals) :: 1, 0, 0]
+    call bmc_3_10%get_coeff(comm,bg,src,.True.,phi,theta,verts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+    call check(S_target,T_target, S,T, msg=' test_boxmc_distorted_cube_dir45_up_src2_case1')
+
+    phi = -90; theta = 45
+    src = 2
+    T_target = [ real(ireals) :: 0, 1, 0]
+    call bmc_3_10%get_coeff(comm,bg,src,.True.,phi,theta,verts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+    call check(S_target,T_target, S,T, msg=' test_boxmc_distorted_cube_dir45_up_src2_case2')
+
+
+    !right side down
+    call setup_default_unit_cube_geometry(dx, dy, dz, verts)
+    verts([6,12,18,24]) = verts([6,12,18,24]) - dz
+
+    phi = -90; theta = 45
+    src = 1
+    T_target = [ real(ireals) :: 0.5, 0.5, 0]
+    call bmc_3_10%get_coeff(comm,bg,src,.True.,phi,theta,verts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+    call check(S_target,T_target, S,T, msg=' test_boxmc_distorted_cube_dir45_down_src1_case1')
+
+    phi = 90; theta = 45
+    src = 1
+    T_target = [ real(ireals) :: 0, 1, 0]
+    call bmc_3_10%get_coeff(comm,bg,src,.True.,phi,theta,verts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+    call check(S_target,T_target, S,T, msg=' test_boxmc_distorted_cube_dir45_down_src1_case2')
+
+    phi = 90; theta = 45
+    src = 2
+    T_target = [ real(ireals) :: 0, 1, 0]
+    call bmc_3_10%get_coeff(comm,bg,src,.True.,phi,theta,verts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+    call check(S_target,T_target, S,T, msg=' test_boxmc_distorted_cube_dir45_down_src2_case1')
+
+    phi = -90; theta = 45
+    src = 2
+    T_target = [ real(ireals) :: 1, 0, 0]
+    call bmc_3_10%get_coeff(comm,bg,src,.True.,phi,theta,verts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+    call check(S_target,T_target, S,T, msg=' test_boxmc_distorted_cube_dir45_down_src2_case2')
+  end subroutine
+
+  @test(npes =[1])
+  subroutine test_boxmc_distorted_cube_dir45_north_south_distortion(this)
+    class (MpiTestMethod), intent(inout) :: this
+    integer(iintegers) :: src
+    real(ireal_dp), allocatable :: verts(:)
+    real(ireal_dp), parameter :: dx=1, dy=dx, dz=dx
+
+    bg  = [0e-0_ireal_dp/dz, 0._ireal_dp, 1._ireal_dp/2 ]
+    S_target = zero
+
+    !back side up
+    call setup_default_unit_cube_geometry(dx, dy, dz, verts)
+    verts([9,12,21,24]) = verts([9,12,21,24]) + dz
+
+    phi = 0; theta = 45
+    src = 1
+    T_target = [ real(ireals) :: 0.5, 0, 0.5]
+    call bmc_3_10%get_coeff(comm,bg,src,.True.,phi,theta,verts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+    call check(S_target,T_target, S,T, msg=' test_boxmc_distorted_ns_cube_dir45_up_src1')
+
+    phi = 0; theta = 45
+    src = 3
+    T_target = [ real(ireals) :: 1, 0, 0]
+    call bmc_3_10%get_coeff(comm,bg,src,.True.,phi,theta,verts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+    call check(S_target,T_target, S,T, msg=' test_boxmc_distorted_ns_cube_dir45_up_src2_case1')
+
+    phi = 180; theta = 45
+    src = 3
+    T_target = [ real(ireals) :: 0, 0, 1]
+    call bmc_3_10%get_coeff(comm,bg,src,.True.,phi,theta,verts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+    call check(S_target,T_target, S,T, msg=' test_boxmc_distorted_ns_cube_dir45_up_src2_case2')
+
+
+    !back side down
+    call setup_default_unit_cube_geometry(dx, dy, dz, verts)
+    verts([9,12,21,24]) = verts([9,12,21,24]) - dz
+
+    phi = 180; theta = 45
+    src = 1
+    T_target = [ real(ireals) :: 0.5, 0, 0.5]
+    call bmc_3_10%get_coeff(comm,bg,src,.True.,phi,theta,verts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+    call check(S_target,T_target, S,T, msg=' test_boxmc_distorted_ns_cube_dir45_down_src1_case1')
+
+    phi = 0; theta = 45
+    src = 1
+    T_target = [ real(ireals) :: 0, 0, 1]
+    call bmc_3_10%get_coeff(comm,bg,src,.True.,phi,theta,verts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+    call check(S_target,T_target, S,T, msg=' test_boxmc_distorted_ns_cube_dir45_down_src1_case2')
+
+    phi = 0; theta = 45
+    src = 3
+    T_target = [ real(ireals) :: 0, 0, 1]
+    call bmc_3_10%get_coeff(comm,bg,src,.True.,phi,theta,verts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+    call check(S_target,T_target, S,T, msg=' test_boxmc_distorted_ns_cube_dir45_down_src2_case1')
+
+    phi = 180; theta = 45
+    src = 3
+    T_target = [ real(ireals) :: 1, 0, 0]
+    call bmc_3_10%get_coeff(comm,bg,src,.True.,phi,theta,verts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+    call check(S_target,T_target, S,T, msg=' test_boxmc_distorted_ns_cube_dir45_down_src2_case2')
+  end subroutine
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 

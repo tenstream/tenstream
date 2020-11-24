@@ -93,6 +93,7 @@ module m_boxmc
   use m_boxmc_geometry, only : &
     & box_halfspaces, &
     & intersect_cube, &
+    & intersect_cube_general, &
     & intersect_wedge, &
     & rand_pnt_on_plane, &
     & rand_pnt_on_triangle, &

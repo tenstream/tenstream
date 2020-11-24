@@ -454,6 +454,96 @@ module m_boxmc_geometry
 
     end subroutine
 
+    !> @brief: computes intersection of a distorted cube,
+    !> i.e. the generalized version of intersect_cube
+    subroutine intersect_cube_general(vertices, ploc, pdir, pscattercnt, psrc_side, &
+        pside, pweight, max_dist, psubface, ierr)
+      real(ireal_dp),intent(in) :: vertices(:)
+      real(ireal_dp),intent(in) :: pdir(:), ploc(:)
+      integer(iintegers),intent(in) :: pscattercnt, psrc_side
+      integer(iintegers),intent(inout) :: pside
+      real(ireal_dp),intent(inout) :: pweight
+      real(ireal_dp),intent(out) :: max_dist
+      integer(iintegers), intent(out) :: psubface
+      integer(mpiint) :: ierr
+
+      logical            :: lhit (6)
+      real(ireal_dp)     :: hit  (6, 4)
+      integer(iintegers) :: i, iface(6)
+
+      associate( &
+          A => vertices( 1: 3), &
+          B => vertices( 4: 6), &
+          C => vertices( 7: 9), &
+          D => vertices(10:12), &
+          E => vertices(13:15), &
+          F => vertices(16:18), &
+          G => vertices(19:21), &
+          H => vertices(22:24) )
+
+        lhit = .False.
+        hit = huge(hit)
+        iface(:) = -1
+        !crossing with bottom and top plane:
+        call square_intersection(ploc, pdir, E, F, H, G, lhit(1), hit(1,:), iface(1))
+        call square_intersection(ploc, pdir, A, C, D, B, lhit(2), hit(2,:), iface(2))
+
+        !crossing with side planes:
+        call square_intersection(ploc, pdir, A, E, G, C, lhit(3), hit(3,:), iface(3))
+        call square_intersection(ploc, pdir, B, D, H, F, lhit(4), hit(4,:), iface(4))
+        call square_intersection(ploc, pdir, A, B, F, E, lhit(5), hit(5,:), iface(5))
+        call square_intersection(ploc, pdir, C, G, H, D, lhit(6), hit(6,:), iface(6))
+
+        pside=0
+        max_dist = huge(max_dist)
+        do i=1,6
+          if(hit(i,4).lt.zero) cycle
+          if(pscattercnt.eq.0 .and. i.eq.psrc_side) cycle
+          if(hit(i,4).lt.max_dist) then
+            max_dist = hit(i,4)
+            pside    = i
+            psubface = iface(i)
+          endif
+        enddo
+
+        ! If we did not hit anything else, I assume that we point towards the src side.
+        ! We collect it there but set energy to 0
+        !if(pscattercnt.eq.0 .and. pside.eq.psrc_side .and. lhit(psrc_side) ) then
+        !  max_dist = hit(psrc_side,4)
+        !  pside = psrc_side
+        !  pweight = zero ! we dont allow energy to hit the src face, at least not right after it started!
+        !  psubface = iface(psrc_side)
+        !endif
+
+        !print *,pside,'hit',hit(pside,1:3)
+
+        if(count(lhit).eq.0) then
+          print *,'should actually not be here at the end of crossings in intersect distance!'
+          print *,'max dist, pside', max_dist, pside, 'src_side', psrc_side
+          print *,'ploc', ploc
+          print *,'pdir', pdir
+          print *,'pwgt', pweight
+          print *,'A', A
+          print *,'B', B
+          print *,'C', C
+          print *,'D', D
+          print *,'E', E
+          print *,'F', F
+          print *,'G', G
+          print *,'H', H
+          print *,'lhit', lhit
+          print *,'hit1', hit(1,:)
+          print *,'hit2', hit(2,:)
+          print *,'hit3', hit(3,:)
+          print *,'hit4', hit(4,:)
+          print *,'hit5', hit(5,:)
+          print *,'hit6', hit(6,:)
+          ierr = 1_mpiint
+          call CHKERR(1_mpiint, 'ERROR in Raytracer, didnt hit anything!')
+        endif
+      end associate
+    end subroutine
+
     subroutine intersect_wedge(vertices, ploc, pdir, pscattercnt, psrc_side, &
         pside, pweight, max_dist, psubface, ierr)
       real(ireal_dp),intent(in) :: vertices(:)
