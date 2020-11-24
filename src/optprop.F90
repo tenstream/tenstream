@@ -25,7 +25,7 @@ module m_optprop
 #endif
 
 use m_optprop_parameters, only : ldebug_optprop, wedge_sphere_radius, param_eps
-use m_helper_functions, only : rmse, CHKERR, CHKWARN, itoa, ftoa, approx, deg2rad, rad2deg, swap, is_between, char_arr_to_str
+use m_helper_functions, only : rmse, CHKERR, CHKWARN, toStr, cstr, approx, deg2rad, rad2deg, swap, is_between, char_arr_to_str
 use m_data_parameters, only: ireals,ireal_dp,irealLUT,ireal_params,iintegers,one,zero,i0,i1,inil,mpiint
 use m_optprop_base, only: t_optprop_base, t_op_config, find_op_dim_by_name
 use m_optprop_LUT, only : t_optprop_LUT, t_optprop_LUT_1_2,t_optprop_LUT_3_6, t_optprop_LUT_3_10, &
@@ -594,7 +594,7 @@ contains
                   'Divergence', (1- (sum(T_dir)+sum(S_diff))), any(S_tol.gt.0), any(T_tol.gt.0)
                 if(abs(1- (sum(T_dir)+sum(S_diff))).ge.1e-6_irealLUT) then
                   call CHKWARN(1_mpiint, 'divergence '// &
-                    ftoa(1- (sum(T_dir)+sum(S_diff)))//' seems quite large for w0='//ftoa(w0))
+                    toStr(1- (sum(T_dir)+sum(S_diff)))//' seems quite large for w0='//toStr(w0))
                 endif
               endif
             endif
@@ -619,7 +619,7 @@ contains
                 'Divergence', (1- (sum(T_dir)+sum(S_diff))), any(S_tol.gt.0), any(T_tol.gt.0)
               if(abs(1- (sum(T_dir)+sum(S_diff))).ge.1e-6_irealLUT) then
                 call CHKWARN(1_mpiint, 'divergence '// &
-                  ftoa(1- (sum(T_dir)+sum(S_diff)))//' seems quite large for w0='//ftoa(w0))
+                  toStr(1- (sum(T_dir)+sum(S_diff)))//' seems quite large for w0='//toStr(w0))
               endif
             endif
           endif
@@ -639,7 +639,7 @@ contains
 
     if( (any([tauz, w0, g, aspect_zx].lt.zero)) .or. (any(isnan([tauz, w0, g, aspect_zx]))) ) then
       call CHKERR(1_mpiint,'optprop_lookup_coeff :: '// &
-        'corrupt optical properties: bg:: '//ftoa([tauz, w0, g, aspect_zx]))
+        'corrupt optical properties: bg:: '//toStr([tauz, w0, g, aspect_zx]))
     endif
 
     if(dir) then
@@ -699,8 +699,8 @@ contains
           if(.not.is_between(val, &
             config%dims(dimindex)%vrange(1)-tiny(val), &
             config%dims(dimindex)%vrange(2)+tiny(val))) then
-              call CHKERR(1_mpiint, 'value ('//ftoa(val)//') is not in the range of the LUT for dimension '// &
-                trim(config%dims(dimindex)%dimname)//' ( '//ftoa(config%dims(dimindex)%vrange)//' )')
+              call CHKERR(1_mpiint, 'value ('//toStr(val)//') is not in the range of the LUT for dimension '// &
+                trim(config%dims(dimindex)%dimname)//' ( '//toStr(config%dims(dimindex)%vrange)//' )')
           endif
         else if(dimindex.eq.-1) then
           if(.not.present(default_val)) then
@@ -712,7 +712,7 @@ contains
               print *, 'Available LUT Dimensions are: '//char_arr_to_str(config%dims(:)%dimname, ', ')
               call CHKERR(1_mpiint, 'currently the LUT calls do not have a dimension for '// &
                 char_arr_to_str(dimnames, ',')// &
-                ' and should probably be limited to the default val: '//ftoa(default_val))
+                ' and should probably be limited to the default val: '//toStr(default_val))
             endif
           endif
         endif
