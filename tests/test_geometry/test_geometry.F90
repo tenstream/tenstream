@@ -1,7 +1,7 @@
 module test_geometry
   use m_data_parameters, only :     &
     mpiint, iintegers, ireals, ireal_dp, &
-    one, zero, i1, default_str_len, &
+    one, zero, i1, i2, i3, default_str_len, &
     init_mpi_data_parameters
   use m_boxmc_geometry, only : &
     & setup_default_unit_cube_geometry, &
@@ -46,12 +46,12 @@ contains
         & G => vertices(19:21), &
         & H => vertices(22:24)  )
 
-      call check_equal_distribution_on_plane(A,B,D,C, 1, dx, 2, dy) ! bot plane
-      call check_equal_distribution_on_plane(E,G,H,F, 1, dx, 2, dy) ! top plane
-      call check_equal_distribution_on_plane(A,E,F,B, 1, dx, 3, dz) ! back plane
-      call check_equal_distribution_on_plane(G,C,D,H, 1, dx, 3, dz) ! front plane
-      call check_equal_distribution_on_plane(A,C,G,E, 2, dy, 3, dz) ! left plane
-      call check_equal_distribution_on_plane(B,F,H,D, 2, dy, 3, dz) ! right plane
+      call check_equal_distribution_on_plane(A,B,D,C, i1, dx, i2, dy) ! bot plane
+      call check_equal_distribution_on_plane(E,G,H,F, i1, dx, i2, dy) ! top plane
+      call check_equal_distribution_on_plane(A,E,F,B, i1, dx, i3, dz) ! back plane
+      call check_equal_distribution_on_plane(G,C,D,H, i1, dx, i3, dz) ! front plane
+      call check_equal_distribution_on_plane(A,C,G,E, i2, dy, i3, dz) ! left plane
+      call check_equal_distribution_on_plane(B,F,H,D, i2, dy, i3, dz) ! right plane
 
     end associate
 
