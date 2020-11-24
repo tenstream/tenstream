@@ -4486,13 +4486,22 @@ module m_pprts
     integer(mpiint) :: ierr
 
     aspect_zx = real(dz / solver%atm%dx, irealLUT)
-    aspect_zx = max(solver%OPP%dev%diffconfig%dims(3)%vrange(1),aspect_zx) !DEBUG
+    w0        = real(ksca / max(kabs+ksca, epsilon(kabs)), irealLUT)
+    tauz      = real((kabs+ksca) * dz, irealLUT)
 
-    tauz = max(solver%OPP%dev%diffconfig%dims(1)%vrange(1), &
-      min(solver%OPP%dev%diffconfig%dims(1)%vrange(2), real((kabs+ksca) * dz, irealLUT)))
-    w0 = real(ksca / max(kabs+ksca, epsilon(kabs)), irealLUT)
-    w0 = max(solver%OPP%dev%diffconfig%dims(2)%vrange(1), &
-      min(solver%OPP%dev%diffconfig%dims(2)%vrange(2), w0))
+    if(present(angles)) then
+      aspect_zx = max(solver%OPP%dev%dirconfig%dims(3)%vrange(1), aspect_zx)
+      tauz = max(solver%OPP%dev%dirconfig%dims(1)%vrange(1), &
+           & min(solver%OPP%dev%dirconfig%dims(1)%vrange(2), tauz ))
+      w0   = max(solver%OPP%dev%dirconfig%dims(2)%vrange(1), &
+           & min(solver%OPP%dev%dirconfig%dims(2)%vrange(2), w0))
+    else
+      aspect_zx = max(solver%OPP%dev%diffconfig%dims(3)%vrange(1), aspect_zx)
+      tauz = max(solver%OPP%dev%diffconfig%dims(1)%vrange(1), &
+           & min(solver%OPP%dev%diffconfig%dims(1)%vrange(2), tauz ))
+      w0   = max(solver%OPP%dev%diffconfig%dims(2)%vrange(1), &
+           & min(solver%OPP%dev%diffconfig%dims(2)%vrange(2), w0))
+    endif
 
     if(lone_dimensional) then
       call CHKERR(1_mpiint, 'currently, we dont support using LUT Twostream for l1d layers')
