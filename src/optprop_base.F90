@@ -6,9 +6,14 @@ module m_optprop_base
     & default_str_len, inil, i1, i2, i3
 
   use m_helper_functions, only: &
-    & CHKERR, get_arg, &
-    & toStr, linspace, &
-    & ind_1d_to_nd, ind_nd_to_1d, ndarray_offsets
+    & CHKERR, &
+    & get_arg, &
+    & ind_1d_to_nd, &
+    & ind_nd_to_1d, &
+    & linspace, &
+    & meanval, &
+    & ndarray_offsets, &
+    & toStr
 
   use m_boxmc, only: t_boxmc
 
@@ -513,7 +518,7 @@ contains
     logical,intent(in) :: dir
     integer(mpiint),intent(in) :: comm
     real(irealLUT), intent(in) :: tauz, w0, g, phi, theta
-    real(ireal_dp) :: vertices(:)
+    real(ireal_dp) :: mean_height, vertices(:)
 
     real(irealLUT),intent(out) :: S_diff(OPP%diff_streams),T_dir(OPP%dir_streams)
     real(irealLUT),intent(out) :: S_tol (OPP%diff_streams),T_tol(OPP%dir_streams)
@@ -529,14 +534,16 @@ contains
     atol = atol-epsilon(atol)*10
     rtol = rtol-epsilon(rtol)*10
 
-    dz = real(vertices(size(vertices)), kind(dz))
+    mean_height = meanval(vertices(3:size(vertices):3))
+    dz = real(meanval(2*abs(mean_height - vertices(3:size(vertices):3))), kind(dz))
 
     bg(1) = tauz / dz * (1._irealLUT-w0)
     bg(2) = tauz / dz * w0
     bg(3) = g
 
     !print *,comm,'BMC :: calling bmc_get_coeff tauz',tauz,'w0,g',w0,g,phi,theta
-    !print *,comm,'BMC :: calling bmc_get_coeff dz bg',vertices(size(vertices)),bg, '=>', sum(bg(1:2))*vertices(size(vertices)),'/',tauz
+    !print *,comm,'BMC :: calling bmc_get_coeff dz bg',vertices(size(vertices)),bg, &
+    !  & '=>', sum(bg(1:2))*vertices(size(vertices)),'/',tauz
     !print *,comm,'BMC :: calling bmc_get_coeff verts', vertices(1:3) ,':', vertices(10:12)
     !print *,comm,'BMC :: calling bmc_get_coeff verts', vertices(4:6) ,':', vertices(13:15)
     !print *,comm,'BMC :: calling bmc_get_coeff verts', vertices(7:9) ,':', vertices(16:18)
