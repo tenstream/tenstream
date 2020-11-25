@@ -508,16 +508,16 @@ module m_boxmc_geometry
 
         ! If we did not hit anything else, I assume that we point towards the src side.
         ! We collect it there but set energy to 0
-        !if(pscattercnt.eq.0 .and. pside.eq.psrc_side .and. lhit(psrc_side) ) then
-        !  max_dist = hit(psrc_side,4)
-        !  pside = psrc_side
-        !  pweight = zero ! we dont allow energy to hit the src face, at least not right after it started!
-        !  psubface = iface(psrc_side)
-        !endif
+        ! if(pscattercnt.eq.0 .and. pside.eq.psrc_side .and. lhit(psrc_side) ) then
+        !   max_dist = hit(psrc_side,4)
+        !   pside = psrc_side
+        !   pweight = zero ! we dont allow energy to hit the src face, at least not right after it started!
+        !   psubface = iface(psrc_side)
+        ! endif
 
         !print *,pside,'hit',hit(pside,1:3)
 
-        if(count(lhit).eq.0) then
+        if(count(lhit).eq.0.or.pside.eq.0) then
           print *,'should actually not be here at the end of crossings in intersect distance!'
           print *,'max dist, pside', max_dist, pside, 'src_side', psrc_side
           print *,'ploc', ploc
