@@ -53,13 +53,29 @@ module m_pprts
 
   use m_mcrts_dmda, only : solve_mcrts
 
-  use m_pprts_base, only : t_solver, t_solver_1_2, t_solver_3_6, t_solver_3_10, &
-    t_solver_8_10, t_solver_3_16, t_solver_8_16, t_solver_8_18, &
-    t_pprts_shell_ctx, &
-    t_coord, t_suninfo, t_atmosphere, compute_gradient, atmk, &
-    t_state_container, prepare_solution, destroy_solution, &
-    t_dof, t_solver_log_events, setup_log_events, &
-    set_dmda_cell_coordinates
+  use m_pprts_base, only : &
+    & t_solver, &
+    & atmk, &
+    & compute_gradient, &
+    & destroy_solution, &
+    & interpolate_cell_values_to_vertices, &
+    & prepare_solution, &
+    & set_dmda_cell_coordinates, &
+    & setup_log_events, &
+    & t_atmosphere, &
+    & t_coord, &
+    & t_dof, &
+    & t_pprts_shell_ctx, &
+    & t_solver_1_2, &
+    & t_solver_3_10, &
+    & t_solver_3_16, &
+    & t_solver_3_6, &
+    & t_solver_8_10, &
+    & t_solver_8_16, &
+    & t_solver_8_18, &
+    & t_solver_log_events, &
+    & t_state_container, &
+    & t_suninfo
 
   use m_buildings, only: t_pprts_buildings, &
     & PPRTS_TOP_FACE  , &
@@ -70,6 +86,8 @@ module m_pprts
     & PPRTS_FRONT_FACE
 
   use m_pprts_external_solvers, only: twostream, schwarz, pprts_rayli_wrapper, disort
+
+  use m_boxmc_geometry, only : setup_default_unit_cube_geometry
 
   implicit none
   private
@@ -3549,6 +3567,9 @@ module m_pprts
     type(t_coord), intent(in)   :: C
     type(t_pprts_buildings), optional, intent(in) :: opt_buildings
 
+    type(tVec) :: gvec_vertex_hhl, vertex_hhl
+    real(ireals), pointer :: xhhl(:,:,:,:) => null(), xhhl1d(:) => null()
+    real(ireals), allocatable :: vertices(:)
     integer(iintegers) :: i,j,k
     integer(mpiint) :: ierr
 
@@ -3556,6 +3577,24 @@ module m_pprts
 
     call MatZeroEntries(A, ierr) ;call CHKERR(ierr)
     call mat_set_diagonal(A)
+
+    call setup_default_unit_cube_geometry(solver%atm%dx, solver%atm%dy, one, vertices)
+
+    call DMGetGlobalVector(solver%Cvert_one_atm1%da, gvec_vertex_hhl, ierr); call CHKERR(ierr)
+
+    call interpolate_cell_values_to_vertices(&
+      & solver%C_one_atm1_box, solver%atm%hhl, &
+      & solver%Cvert_one_atm1, gvec_vertex_hhl)
+
+    call DMGetLocalVector(solver%Cvert_one_atm1%da, vertex_hhl, ierr); call CHKERR(ierr)
+    call VecSet(vertex_hhl, zero, ierr); call CHKERR(ierr)
+
+    call DMGlobalToLocalBegin(solver%Cvert_one_atm1%da, gvec_vertex_hhl, ADD_VALUES, vertex_hhl, ierr); call CHKERR(ierr)
+    call DMGlobalToLocalEnd  (solver%Cvert_one_atm1%da, gvec_vertex_hhl, ADD_VALUES, vertex_hhl, ierr); call CHKERR(ierr)
+
+    call DMRestoreGlobalVector(solver%Cvert_one_atm1%da, gvec_vertex_hhl, ierr); call CHKERR(ierr)
+
+    call getVecPointer(solver%Cvert_one_atm1%da, vertex_hhl, xhhl1d, xhhl, readonly=.True.)
 
     do j=C%ys,C%ye
       do i=C%xs,C%xe
@@ -3570,6 +3609,9 @@ module m_pprts
         enddo
       enddo
     enddo
+
+    call restoreVecPointer(solver%Cvert_one_atm1%da, vertex_hhl, xhhl1d, xhhl, readonly=.True.)
+    call DMRestoreLocalVector(solver%Cvert_one_atm1%da, vertex_hhl, ierr); call CHKERR(ierr)
 
     if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'setup_direct_matrix done'
 
@@ -3647,162 +3689,185 @@ module m_pprts
        col(MatStencil_c,src) = src-i1 ! Define transmission towards the front/back lid
      enddo
 
+     call setup_default_unit_cube_geometry(solver%atm%dx, solver%atm%dy, &
+       & solver%atm%dz(atmk(solver%atm,k),i,j), vertices)
+     !vertices( 6) = xhhl(i0,atmk(solver%atm,k+1),i,j)
+     !vertices( 3) = xhhl(i0,atmk(solver%atm,k+1),i+1,j)
+     !vertices(12) = xhhl(i0,atmk(solver%atm,k+1),i,j+1)
+     !vertices( 9) = xhhl(i0,atmk(solver%atm,k+1),i+1,j+1)
+     !vertices(18) = xhhl(i0,atmk(solver%atm,k),i,j)
+     !vertices(15) = xhhl(i0,atmk(solver%atm,k),i+1,j)
+     !vertices(24) = xhhl(i0,atmk(solver%atm,k),i,j+1)
+     !vertices(21) = xhhl(i0,atmk(solver%atm,k),i+1,j+1)
 
-      call PetscLogEventBegin(solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
-      call get_coeff(solver, &
-        solver%atm%kabs(atmk(solver%atm,k),i,j), &
-        solver%atm%ksca(atmk(solver%atm,k),i,j), &
-        solver%atm%g(atmk(solver%atm,k),i,j), &
-        solver%atm%dz(atmk(solver%atm,k),i,j), .True., v, &
-        solver%atm%l1d(atmk(solver%atm,k),i,j), &
-        [real(sun%symmetry_phi(k,i,j), irealLUT), real(sun%theta(k,i,j), irealLUT)], &
-        lswitch_east=xinc.eq.0, lswitch_north=yinc.eq.0)
-      call PetscLogEventEnd(solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
+     vertices( 3) = xhhl(i0,atmk(solver%atm,k+1),i,j)
+     vertices( 6) = xhhl(i0,atmk(solver%atm,k+1),i+1,j)
+     vertices( 9) = xhhl(i0,atmk(solver%atm,k+1),i,j+1)
+     vertices(12) = xhhl(i0,atmk(solver%atm,k+1),i+1,j+1)
+     vertices(15) = xhhl(i0,atmk(solver%atm,k),i,j)
+     vertices(18) = xhhl(i0,atmk(solver%atm,k),i+1,j)
+     vertices(21) = xhhl(i0,atmk(solver%atm,k),i,j+1)
+     vertices(24) = xhhl(i0,atmk(solver%atm,k),i+1,j+1)
 
-      call MatSetValuesStencil(A, C%dof, row, C%dof, col, real(-v, ireals), INSERT_VALUES, ierr) ;call CHKERR(ierr)
+     vertices(3:24:3) = vertices(3:24:3) - vertices(3)
+     print *,'dir2dir',k,i,j
 
-      if(ldebug) then
-        do src=1,C%dof
-          norm = sum( v(src:C%dof**2:C%dof) )
-          if( norm.gt.one+10._ireals*epsilon(norm) ) then ! could renormalize
-            if( norm.gt.one+10._ireals*sqrt(epsilon(norm)) ) then ! fatally off
-              print *,'direct sum(dst==',dst,') gt one',norm
-              print *,'direct coeff',norm,'::',v
-              call CHKERR(1_mpiint, 'omg.. shouldnt be happening')
-            endif ! fatally off
-          endif ! could renormalize
-        enddo
-      endif
-    end subroutine
+     call PetscLogEventBegin(solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
+     call get_coeff(solver, &
+       solver%atm%kabs(atmk(solver%atm,k),i,j), &
+       solver%atm%ksca(atmk(solver%atm,k),i,j), &
+       solver%atm%g(atmk(solver%atm,k),i,j), &
+       solver%atm%dz(atmk(solver%atm,k),i,j), .True., v, &
+       solver%atm%l1d(atmk(solver%atm,k),i,j), &
+       [real(sun%symmetry_phi(k,i,j), irealLUT), real(sun%theta(k,i,j), irealLUT)], &
+       lswitch_east=xinc.eq.0, lswitch_north=yinc.eq.0, &
+       opt_vertices=vertices)
+     call PetscLogEventEnd(solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
 
-    subroutine set_eddington_coeff(atm,A,k,i,j)
-      type(t_atmosphere), intent(in) :: atm
-      type(tMat),intent(inout)       :: A
-      integer(iintegers),intent(in)  :: i,j,k
+     call MatSetValuesStencil(A, C%dof, row, C%dof, col, real(-v, ireals), INSERT_VALUES, ierr) ;call CHKERR(ierr)
 
-      MatStencil :: row(4,1), col(4,1)
-      real(irealLUT) :: v(1)
-      integer(iintegers) :: src
+     if(ldebug) then
+       do src=1,C%dof
+         norm = sum( v(src:C%dof**2:C%dof) )
+         if( norm.gt.one+10._ireals*epsilon(norm) ) then ! could renormalize
+           if( norm.gt.one+10._ireals*sqrt(epsilon(norm)) ) then ! fatally off
+             print *,'direct sum(dst==',dst,') gt one',norm
+             print *,'direct coeff',norm,'::',v
+             call CHKERR(1_mpiint, 'omg.. shouldnt be happening')
+           endif ! fatally off
+         endif ! could renormalize
+       enddo
+     endif
+   end subroutine
 
-      if(luse_eddington) then
-        v = real(atm%a33(atmk(atm,k),i,j), irealLUT)
-      else
-        call get_coeff(solver, &
-          atm%kabs(atmk(atm,k),i,j), &
-          atm%ksca(atmk(atm,k),i,j), &
-          atm%g(atmk(atm,k),i,j), &
-          atm%dz(atmk(atm,k),i,j),.True., v, &
-          atm%l1d(atmk(atm,k),i,j), &
-          [real(sun%symmetry_phi(k,i,j), irealLUT), real(sun%theta(k,i,j), irealLUT)] )
-      endif
+   subroutine set_eddington_coeff(atm,A,k,i,j)
+     type(t_atmosphere), intent(in) :: atm
+     type(tMat),intent(inout)       :: A
+     integer(iintegers),intent(in)  :: i,j,k
 
-      col(MatStencil_j,i1) = i      ; col(MatStencil_k,i1) = j       ; col(MatStencil_i,i1) = k
-      row(MatStencil_j,i1) = i      ; row(MatStencil_k,i1) = j       ; row(MatStencil_i,i1) = k+1
+     MatStencil :: row(4,1), col(4,1)
+     real(irealLUT) :: v(1)
+     integer(iintegers) :: src
 
-      do src=i1,solver%dirtop%dof
-        col(MatStencil_c,i1) = src-i1 ! Source may be the upper/lower lid:
-        row(MatStencil_c,i1) = src-i1 ! Define transmission towards the lower/upper lid
-        call MatSetValuesStencil(A, i1, row, i1, col, real(-v, ireals), INSERT_VALUES, ierr); call CHKERR(ierr)
-      enddo
-    end subroutine
+     if(luse_eddington) then
+       v = real(atm%a33(atmk(atm,k),i,j), irealLUT)
+     else
+       call get_coeff(solver, &
+         atm%kabs(atmk(atm,k),i,j), &
+         atm%ksca(atmk(atm,k),i,j), &
+         atm%g(atmk(atm,k),i,j), &
+         atm%dz(atmk(atm,k),i,j),.True., v, &
+         atm%l1d(atmk(atm,k),i,j), &
+         [real(sun%symmetry_phi(k,i,j), irealLUT), real(sun%theta(k,i,j), irealLUT)] )
+     endif
 
-    !> @brief   apply blocking of direct radiation from buildings
-    !> @details Goal: set all src dof on a buildings face towards all dst dof to zero
-    !> \n       albedo is not used in the dir2dir case, we only set blocking of radiation
-    subroutine set_buildings_coeff(solver, C, opt_buildings, A, ierr)
-      class(t_solver)                     :: solver
-      type(t_coord),intent(in)            :: C
-      type(t_pprts_buildings), intent(in) :: opt_buildings
-      type(tMat),intent(inout)            :: A
-      integer(mpiint), intent(out)        :: ierr
+     col(MatStencil_j,i1) = i      ; col(MatStencil_k,i1) = j       ; col(MatStencil_i,i1) = k
+     row(MatStencil_j,i1) = i      ; row(MatStencil_k,i1) = j       ; row(MatStencil_i,i1) = k+1
 
-      MatStencil         :: row(4,0:C%dof-1)  ,col(4,1)
-      integer(iintegers) :: m, isrc, idst, dst, idx(4)
-      integer(iintegers) :: xinc, yinc, zinc
-      real(ireals) :: v(C%dof)
+     do src=i1,solver%dirtop%dof
+       col(MatStencil_c,i1) = src-i1 ! Source may be the upper/lower lid:
+       row(MatStencil_c,i1) = src-i1 ! Define transmission towards the lower/upper lid
+       call MatSetValuesStencil(A, i1, row, i1, col, real(-v, ireals), INSERT_VALUES, ierr); call CHKERR(ierr)
+     enddo
+   end subroutine
 
-      v(:) = -zero
+   !> @brief   apply blocking of direct radiation from buildings
+   !> @details Goal: set all src dof on a buildings face towards all dst dof to zero
+   !> \n       albedo is not used in the dir2dir case, we only set blocking of radiation
+   subroutine set_buildings_coeff(solver, C, opt_buildings, A, ierr)
+   class(t_solver)                     :: solver
+     type(t_coord),intent(in)            :: C
+     type(t_pprts_buildings), intent(in) :: opt_buildings
+     type(tMat),intent(inout)            :: A
+     integer(mpiint), intent(out)        :: ierr
 
-      ierr = 0
+     MatStencil         :: row(4,0:C%dof-1)  ,col(4,1)
+     integer(iintegers) :: m, isrc, idst, dst, idx(4)
+     integer(iintegers) :: xinc, yinc, zinc
+     real(ireals) :: v(C%dof)
 
-      associate( B => opt_buildings )
-        do m = 1, size(B%iface)
-          call ind_1d_to_nd(B%da_offsets, B%iface(m), idx)
-          idx(2:4) = idx(2:4) -1 + [C%zs, C%xs, C%ys]
+     v(:) = -zero
 
-          associate(k => idx(2), i => idx(3), j => idx(4))
+     ierr = 0
 
-            !print *, m, 'face', B%iface(m), 'idx', idx, 'Ag', B%albedo(m), 'x/y inc', sun%xinc(k,i,j), sun%yinc(k,i,j)
-            !lsun_east  = sun%xinc(idx(k,i,j).eq.i0
-            !lsun_north = sun%yinc(idx(k,i,j).eq.i0
+     associate( B => opt_buildings )
+       do m = 1, size(B%iface)
+         call ind_1d_to_nd(B%da_offsets, B%iface(m), idx)
+         idx(2:4) = idx(2:4) -1 + [C%zs, C%xs, C%ys]
 
-            xinc = sun%xinc(k,i,j)
-            yinc = sun%yinc(k,i,j)
-            zinc = 0
-            if(idx(1).eq.PPRTS_BOT_FACE) zinc = 1
+         associate(k => idx(2), i => idx(3), j => idx(4))
 
-            dst = 0
-            do idst = 0, solver%dirtop%dof-1
-              row(MatStencil_j,dst) = i
-              row(MatStencil_k,dst) = j
-              row(MatStencil_i,dst) = k+1+zinc
-              row(MatStencil_c,dst) = dst
-              dst = dst + 1
-            enddo
+           !print *, m, 'face', B%iface(m), 'idx', idx, 'Ag', B%albedo(m), 'x/y inc', sun%xinc(k,i,j), sun%yinc(k,i,j)
+           !lsun_east  = sun%xinc(idx(k,i,j).eq.i0
+           !lsun_north = sun%yinc(idx(k,i,j).eq.i0
 
-            do idst = 1, solver%dirside%dof
-              row(MatStencil_j,dst) = i+xinc
-              row(MatStencil_k,dst) = j
-              row(MatStencil_i,dst) = k+zinc
-              row(MatStencil_c,dst) = dst ! Define transmission towards the left/right lid
-              dst = dst + 1
-            enddo
+           xinc = sun%xinc(k,i,j)
+           yinc = sun%yinc(k,i,j)
+           zinc = 0
+           if(idx(1).eq.PPRTS_BOT_FACE) zinc = 1
 
-            do idst = 1, solver%dirside%dof
-              row(MatStencil_j,dst) = i
-              row(MatStencil_k,dst) = j+yinc
-              row(MatStencil_i,dst) = k+zinc
-              row(MatStencil_c,dst) = dst ! Define transmission towards the front/back lid
-              dst = dst + 1
-            enddo
+           dst = 0
+           do idst = 0, solver%dirtop%dof-1
+             row(MatStencil_j,dst) = i
+             row(MatStencil_k,dst) = j
+             row(MatStencil_i,dst) = k+1+zinc
+             row(MatStencil_c,dst) = dst
+             dst = dst + 1
+           enddo
 
-            select case(idx(1))
-            case(PPRTS_TOP_FACE, PPRTS_BOT_FACE)
-              do isrc = 0, solver%dirtop%dof-1
-                col(MatStencil_j,1) = i
-                col(MatStencil_k,1) = j
-                col(MatStencil_i,1) = k+zinc
-                col(MatStencil_c,1) = isrc
-                call MatSetValuesStencil(A, C%dof, row, i1, col, v, INSERT_VALUES, ierr); call CHKERR(ierr)
-              enddo
+           do idst = 1, solver%dirside%dof
+             row(MatStencil_j,dst) = i+xinc
+             row(MatStencil_k,dst) = j
+             row(MatStencil_i,dst) = k+zinc
+             row(MatStencil_c,dst) = dst ! Define transmission towards the left/right lid
+             dst = dst + 1
+           enddo
 
-            case(PPRTS_LEFT_FACE, PPRTS_RIGHT_FACE)
-              do isrc = solver%dirtop%dof, solver%dirtop%dof + solver%dirside%dof - 1
-                col(MatStencil_j,1) = i+1-xinc
-                col(MatStencil_k,1) = j
-                col(MatStencil_i,1) = k+zinc
-                col(MatStencil_c,1) = isrc
-                call MatSetValuesStencil(A, C%dof, row, i1, col, v, INSERT_VALUES, ierr); call CHKERR(ierr)
-              enddo
+           do idst = 1, solver%dirside%dof
+             row(MatStencil_j,dst) = i
+             row(MatStencil_k,dst) = j+yinc
+             row(MatStencil_i,dst) = k+zinc
+             row(MatStencil_c,dst) = dst ! Define transmission towards the front/back lid
+             dst = dst + 1
+           enddo
 
-            case(PPRTS_REAR_FACE, PPRTS_FRONT_FACE)
-              do isrc = solver%dirtop%dof + solver%dirside%dof, solver%dirtop%dof + solver%dirside%dof + solver%dirside%dof - 1
-                col(MatStencil_j,1) = i
-                col(MatStencil_k,1) = j+1-yinc
-                col(MatStencil_i,1) = k+zinc
-                col(MatStencil_c,1) = isrc
-                call MatSetValuesStencil(A, C%dof, row, i1, col, v, INSERT_VALUES, ierr); call CHKERR(ierr)
-              enddo
+           select case(idx(1))
+           case(PPRTS_TOP_FACE, PPRTS_BOT_FACE)
+             do isrc = 0, solver%dirtop%dof-1
+               col(MatStencil_j,1) = i
+               col(MatStencil_k,1) = j
+               col(MatStencil_i,1) = k+zinc
+               col(MatStencil_c,1) = isrc
+               call MatSetValuesStencil(A, C%dof, row, i1, col, v, INSERT_VALUES, ierr); call CHKERR(ierr)
+             enddo
 
-            case default
-              call CHKERR(1_mpiint, 'wrong building fidx '//toStr(idx(1)))
-            end select
-          end associate
-        enddo
-      end associate
-    end subroutine
+           case(PPRTS_LEFT_FACE, PPRTS_RIGHT_FACE)
+             do isrc = solver%dirtop%dof, solver%dirtop%dof + solver%dirside%dof - 1
+               col(MatStencil_j,1) = i+1-xinc
+               col(MatStencil_k,1) = j
+               col(MatStencil_i,1) = k+zinc
+               col(MatStencil_c,1) = isrc
+               call MatSetValuesStencil(A, C%dof, row, i1, col, v, INSERT_VALUES, ierr); call CHKERR(ierr)
+             enddo
 
-  end subroutine set_dir_coeff
+           case(PPRTS_REAR_FACE, PPRTS_FRONT_FACE)
+             do isrc = solver%dirtop%dof + solver%dirside%dof, solver%dirtop%dof + solver%dirside%dof + solver%dirside%dof - 1
+               col(MatStencil_j,1) = i
+               col(MatStencil_k,1) = j+1-yinc
+               col(MatStencil_i,1) = k+zinc
+               col(MatStencil_c,1) = isrc
+               call MatSetValuesStencil(A, C%dof, row, i1, col, v, INSERT_VALUES, ierr); call CHKERR(ierr)
+             enddo
+
+           case default
+             call CHKERR(1_mpiint, 'wrong building fidx '//toStr(idx(1)))
+           end select
+         end associate
+       enddo
+     end associate
+   end subroutine
+
+ end subroutine set_dir_coeff
 
   !> @brief setup source term for diffuse radiation
   !> @details this is either direct radiation scattered into one of the diffuse coeffs:
@@ -4472,7 +4537,7 @@ module m_pprts
   !> @brief retrieve transport coefficients from optprop module
   !> @detail this may get the coeffs from a LUT or ANN or whatever and return diff2diff or dir2diff or dir2dir coeffs
   subroutine get_coeff(solver, kabs, ksca, g, dz, ldir, coeff, &
-      lone_dimensional, angles, lswitch_east, lswitch_north)
+      lone_dimensional, angles, lswitch_east, lswitch_north, opt_vertices)
     class(t_solver), intent(in)       :: solver
     real(ireals),intent(in)           :: kabs, ksca, g, dz
     logical,intent(in)                :: ldir
@@ -4481,6 +4546,7 @@ module m_pprts
     logical,intent(in)                :: lone_dimensional
     real(irealLUT),intent(in),optional:: angles(2)
     logical,intent(in),optional       :: lswitch_east, lswitch_north
+    real(ireals), intent(in), optional:: opt_vertices(:)
 
     real(irealLUT) :: aspect_zx, tauz, w0
     integer(mpiint) :: ierr
@@ -4508,7 +4574,7 @@ module m_pprts
       !call OPP_1_2%get_coeff (aspect, tauz, w0, g,ldir,coeff,angles)
     else
       call solver%OPP%get_coeff(tauz, w0, real(g, irealLUT), aspect_zx, ldir, coeff, ierr, &
-        angles, lswitch_east, lswitch_north); call CHKERR(ierr)
+        angles, lswitch_east, lswitch_north, opt_vertices); call CHKERR(ierr)
     endif
   end subroutine
 

@@ -507,7 +507,7 @@ contains
       end function
   end subroutine
 
-  subroutine get_coeff_cube(OPP, tauz, w0, g, aspect_zx, dir, C, ierr, angles, lswitch_east, lswitch_north)
+  subroutine get_coeff_cube(OPP, tauz, w0, g, aspect_zx, dir, C, ierr, angles, lswitch_east, lswitch_north, opt_vertices)
     class(t_optprop_cube)             :: OPP
     logical,intent(in)                :: dir
     real(irealLUT),intent(in)           :: tauz, w0, g, aspect_zx
@@ -515,20 +515,15 @@ contains
     logical,intent(in)                  :: lswitch_east, lswitch_north
     real(irealLUT),intent(out)          :: C(:)
     integer(mpiint), intent(out) :: ierr
+    real(ireals), intent(in), optional :: opt_vertices(:)
 
-    logical,parameter :: compute_coeff_online=.False.
+    logical,parameter :: compute_coeff_online=.True.
     real(ireals), allocatable :: vertices(:)
+    real(irealLUT), allocatable :: Clut(:), Cbmc(:), Cbmc2(:)
     real(irealLUT) :: save_aspect_zx
     ierr = 0
 
-    if(compute_coeff_online) then
-      call setup_default_unit_cube_geometry(one, one, real(aspect_zx, ireals), vertices)
-      call get_coeff_bmc(OPP, vertices, real(tauz, ireals), real(w0, ireals), real(g, ireals), dir, C, angles)
-      return
-    endif
-
     if(ldebug_optprop) call check_inp(OPP, tauz, w0, g, aspect_zx, dir, C, angles)
-
 
     if(present(angles)) then ! obviously we want the direct coefficients
       if(aspect_zx.lt.OPP%dev%dirconfig%dims(3)%vrange(1)) then
@@ -555,6 +550,24 @@ contains
       call OPP%dev%get_diff2diff([tauz, w0, save_aspect_zx, g], C)
       call OPP%diff2diff_coeff_symmetry(C)
     endif
+
+    if(dir.and.compute_coeff_online) then
+      allocate(Clut(size(C)), Cbmc(size(C)))
+      Clut = C
+      call setup_default_unit_cube_geometry(one, one, real(aspect_zx, ireals), vertices)
+      call get_coeff_bmc(OPP, vertices, real(tauz, ireals), real(w0, ireals), real(g, ireals), dir, Cbmc, angles)
+      C = Cbmc
+
+      if(present(opt_vertices)) then
+        allocate(Cbmc2(size(C)))
+        call get_coeff_bmc(OPP, opt_vertices, real(tauz, ireals), real(w0, ireals), real(g, ireals), dir, Cbmc2, angles)
+        C = Cbmc2
+        print *,new_line(''),opt_vertices(3:24:3),':',angles,new_line('')//&
+          cstr('LUT            '//toStr(Clut) , 'black')//new_line('')//&
+          cstr('bmc (regular  )'//toStr(Cbmc) , 'blue' )//new_line('')//&
+          cstr('bmc (distorted)'//toStr(Cbmc2), 'green')
+      endif
+    endif
   end subroutine
 
   subroutine get_coeff_bmc(OPP, vertices, tauz, w0, g, dir, C, angles)
@@ -568,7 +581,7 @@ contains
       real(irealLUT) :: S_tol (OPP%dev%diff_streams),T_tol(OPP%dev%dir_streams)
       integer(iintegers) :: isrc
 
-      real(irealLUT), parameter :: atol=1e-3_irealLUT, rtol=1e-1_irealLUT
+      real(irealLUT), parameter :: atol=1e-3_irealLUT, rtol=5e-1_irealLUT
 
       if(present(angles)) then
           do isrc=1,OPP%dev%dir_streams
