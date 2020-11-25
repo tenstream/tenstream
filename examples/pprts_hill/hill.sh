@@ -14,12 +14,13 @@ baseopt="\
   -hill_shape 10 \
   -theta0 40 -phi0 180 \
   -log_view \
+  -rrtmg_bands 1,1 \
   $1"
 
 rayli_opt="\
   -pprts_use_rayli \
-  -rayli_diff_flx_origin 0,0,-inf \
-  -rayli_cylic_bc \
+  -pprts_rayli_photons 1e7 \
+  -rayli_cyclic_bc \
   -show_rayli_dm3d hdf5:dm.h5 \
   "
 
