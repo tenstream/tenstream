@@ -143,7 +143,7 @@ subroutine update_dir_stream_3_10(bmc,vertices,p,T)
         case(5,6)
           T(3)=T(3)+p%weight
         case default
-          stop 'called update dirstream with incorrect source'
+          call CHKERR(1_mpiint, 'called update dirstream with incorrect source'//toStr(p%side))
           print *,'remove unused compiler warning', vertices
         end select
         select type(bmc)
