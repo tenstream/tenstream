@@ -158,11 +158,8 @@ subroutine init_dir_photon_8_10(bmc,p,src,ldirect,initial_dir,vertices,ierr)
         logical,intent(in)            :: ldirect
         integer(mpiint),intent(out)   :: ierr
 
-        real(ireal_dp),parameter :: h=.5_ireal_dp
-        real(ireal_dp),parameter :: e=1e-6_ireal_dp
-        real(ireal_dp) :: dx, dy, dz
+        real(ireal_dp), dimension(3) :: normal, U, V, cube_center, dir_p_to_cube_center
 
-        call setup_cube_coords_from_vertices(vertices, dx, dy, dz)
 
         p%dir = initial_dir
         p%alive = .False.
@@ -176,43 +173,120 @@ subroutine init_dir_photon_8_10(bmc,p,src,ldirect,initial_dir,vertices,ierr)
 !        |               |
 !        |    7          |
 !      5 |_______________|
-        select case(src)
-        case (1)
-                p%loc = [ L(dx)*h     , L(dy)*h     , dz*(one-e)   ]
-        case (2)
-                p%loc = [ dx*h+L(dx)*h, L(dy)*h     , dz*(one-e)   ]
-        case (3)
-                p%loc = [ L(dx)*h     , dy*h+L(dy)*h, dz*(one-e)   ]
-        case (4)
-                p%loc = [ dx*h+L(dx)*h, dy*h+L(dy)*h, dz*(one-e)   ]
-        case (5)
-          if(p%dir(1).ge.0) then
-                p%loc = [ zero+dx*e   , L(dy)       , L(dz)*h      ]
-          else
-                p%loc = [ dx  -dx*e   , L(dy)       , L(dz)*h      ]
-          endif
-        case (6)
-          if(p%dir(1).ge.0) then
-                p%loc = [ zero+dx*e   , L(dy)       , dz*h+L(dz)*h ]
-          else
-                p%loc = [ dx  -dx*e   , L(dy)       , dz*h+L(dz)*h ]
-          endif
-        case (7)
-          if(p%dir(2).ge.0) then
-                p%loc = [ L(dx)       , zero+dy*e   , L(dz)*h      ]
-          else
-                p%loc = [ L(dx)       , dy  -dy*e   , L(dz)*h      ]
-          endif
-        case (8)
-          if(p%dir(2).ge.0) then
-                p%loc = [ L(dx)       , zero+dy*e   , dz*h+L(dz)*h ]
-          else
-                p%loc = [ L(dx)       , dy  -dy*e   , dz*h+L(dz)*h ]
-          endif
-        case default
-                print *,'Dont know what to do with source spec:',src
-                call exit
-        end select
+
+        call CHKERR(size(vertices)-24, 'wrong size of vertices, expected 24 but found '//toStr(size(vertices)))
+        associate( &
+            pA => vertices(1:3), &
+            pB => vertices(4:6), &
+            pC => vertices(7:9), &
+            pD => vertices(10:12), &
+            pE => vertices(13:15), &
+            pF => vertices(16:18), &
+            pG => vertices(19:21), &
+            pH => vertices(22:24), &
+            mid_bot => (vertices( 1: 3)+vertices( 4: 6)+vertices( 7: 9)+vertices(10:12))/4, &
+            mid_top => (vertices(13:15)+vertices(16:18)+vertices(19:21)+vertices(22:24))/4, &
+            AB => (vertices( 1: 3)+vertices( 4: 6))/2, &
+            CD => (vertices( 7: 9)+vertices(10:12))/2, &
+            AC => (vertices( 1: 3)+vertices( 7: 9))/2, &
+            BD => (vertices( 4: 6)+vertices(10:12))/2, &
+            EF => (vertices(13:15)+vertices(16:18))/2, &
+            GH => (vertices(19:21)+vertices(22:24))/2, &
+            EG => (vertices(13:15)+vertices(19:21))/2, &
+            FH => (vertices(16:18)+vertices(22:24))/2, &
+            AE => (vertices( 1: 3)+vertices(13:15))/2, &
+            BF => (vertices( 4: 6)+vertices(16:18))/2, &
+            CG => (vertices( 7: 9)+vertices(19:21))/2, &
+            DH => (vertices(10:12)+vertices(22:24))/2  &
+            )
+          select case(src)
+          case (1)
+            !p%loc = [ L(dx)*h     , L(dy)*h     , dz*(one-e)   ]
+            if(p%dir(3).le.0) then
+              call rand_pnt_on_plane(pE, EG, mid_top, EF, p%loc, normal, U, V)
+              p%src_side = 1
+            else
+              call rand_pnt_on_plane(pA, AC, mid_bot, AB, p%loc, normal, U, V)
+              p%src_side = 2
+            endif
+          case (2)
+            !p%loc = [ dx*h+L(dx)*h, L(dy)*h     , dz*(one-e)   ]
+            if(p%dir(3).le.0) then
+              call rand_pnt_on_plane(EF, mid_top, FH, pF, p%loc, normal, U, V)
+              p%src_side = 1
+            else
+              call rand_pnt_on_plane(AB, mid_bot, BD, pB, p%loc, normal, U, V)
+              p%src_side = 2
+            endif
+          case (3)
+            !p%loc = [ L(dx)*h     , dy*h+L(dy)*h, dz*(one-e)   ]
+            if(p%dir(3).le.0) then
+              call rand_pnt_on_plane(EG, pG, GH, mid_top, p%loc, normal, U, V)
+              p%src_side = 1
+            else
+              call rand_pnt_on_plane(AC, pC, CD, mid_bot, p%loc, normal, U, V)
+              p%src_side = 2
+            endif
+          case (4)
+            !p%loc = [ dx*h+L(dx)*h, dy*h+L(dy)*h, dz*(one-e)   ]
+            if(p%dir(3).le.0) then
+              call rand_pnt_on_plane(GH, pH, FH, mid_top, p%loc, normal, U, V)
+              p%src_side = 1
+            else
+              call rand_pnt_on_plane(CD, pD, BD, mid_bot, p%loc, normal, U, V)
+              p%src_side = 2
+            endif
+          case (5)
+            if(p%dir(1).ge.0) then
+              p%src_side = 3
+              !p%loc = [ zero+dx*e   , L(dy)       , L(dz)*h      ]
+              call rand_pnt_on_plane(pA, pC, CG, AE, p%loc, normal, U, V)
+            else
+              p%src_side = 4
+              !p%loc = [ dx  -dx*e   , L(dy)       , L(dz)*h      ]
+              call rand_pnt_on_plane(pB, BF, DH, pD, p%loc, normal, U, V)
+            endif
+          case (6)
+            if(p%dir(1).ge.0) then
+              p%src_side = 3
+              !p%loc = [ zero+dx*e   , L(dy)       , dz*h+L(dz)*h ]
+              call rand_pnt_on_plane(AE, CG, pG, pE, p%loc, normal, U, V)
+            else
+              p%src_side = 4
+              !p%loc = [ dx  -dx*e   , L(dy)       , dz*h+L(dz)*h ]
+              call rand_pnt_on_plane(BF, pF, pH, DH, p%loc, normal, U, V)
+            endif
+          case (7)
+            if(p%dir(2).ge.0) then
+              p%src_side = 5
+              !p%loc = [ L(dx)       , zero+dy*e   , L(dz)*h      ]
+              call rand_pnt_on_plane(pA, AE, BF, pB, p%loc, normal, U, V)
+            else
+              p%src_side = 6
+              !p%loc = [ L(dx)       , dy  -dy*e   , L(dz)*h      ]
+              call rand_pnt_on_plane(pC, pD, DH, CG, p%loc, normal, U, V)
+            endif
+          case (8)
+            if(p%dir(2).ge.0) then
+              p%src_side = 5
+              !p%loc = [ L(dx)       , zero+dy*e   , dz*h+L(dz)*h ]
+              call rand_pnt_on_plane(AE, pE, pF, BF, p%loc, normal, U, V)
+            else
+              p%src_side = 6
+              !p%loc = [ L(dx)       , dy  -dy*e   , dz*h+L(dz)*h ]
+              call rand_pnt_on_plane(pG, CG, DH, pH, p%loc, normal, U, V)
+            endif
+          case default
+            print *,'Dont know what to do with source spec:',src
+            call exit
+          end select
+
+          ! always nudge the photon a little bit inside the volume
+          cube_center = (pA+pB+pC+pD+pE+pF+pG+pH)/8._ireal_dp
+          dir_p_to_cube_center = cube_center - p%loc
+
+          p%loc = p%loc + sqrt(epsilon(p%loc)) * dir_p_to_cube_center
+        end associate
 
         p%weight=one
         p%alive = .True.
@@ -340,9 +414,12 @@ subroutine intersect_distance_8_10(bmc,vertices,p,max_dist)
         real(ireal_dp),intent(in) :: vertices(:)
         type(t_photon),intent(inout) :: p
         real(ireal_dp),intent(out) :: max_dist
+        integer(mpiint) :: ierr
+        call intersect_cube_general(vertices, p%loc, p%dir, p%scattercnt, p%src_side, &
+          & p%side, p%weight, max_dist, p%subface, ierr)
 
-        call intersect_cube(vertices, p%loc, p%dir, p%scattercnt, p%src_side, &
-          p%side, max_dist)
+        !call intersect_cube(vertices, p%loc, p%dir, p%scattercnt, p%src_side, &
+        !  p%side, max_dist)
 
         select type(bmc)
         end select
