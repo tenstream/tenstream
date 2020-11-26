@@ -166,7 +166,7 @@ module m_pprts
     character(len=*), optional, intent(in) :: solvername     !< @param[in] primarily for logging purposes, name will be prefix to logging stages
 
     integer(iintegers) :: k,i,j
-    logical :: lpetsc_is_initialized
+    logical :: lpetsc_is_initialized, lview, lflg
 
     integer(mpiint) :: ierr
 
@@ -303,7 +303,11 @@ module m_pprts
       if(.not.approx(dx,dy)) &
         call CHKERR(1_mpiint, 'dx and dy currently have to be the same '//toStr(dx)//' vs '//toStr(dy))
 
-      if(ldebug.and.solver%myid.eq.0) then
+      lview = .False.
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+        & "-pprts_solver_view", lview, lflg, ierr) ;call CHKERR(ierr)
+
+      if(lview.and.solver%myid.eq.0) then
         print *,'Solver dirtop:', solver%dirtop%is_inward, ':', solver%dirtop%dof
         print *,'Solver dirside:', solver%dirside%is_inward, ':', solver%dirside%dof
         print *,'Solver difftop:', solver%difftop%is_inward, ':', solver%difftop%dof
@@ -3710,7 +3714,6 @@ module m_pprts
      vertices(24) = xhhl(i0,atmk(solver%atm,k),i+1,j+1)
 
      vertices(3:24:3) = vertices(3:24:3) - vertices(3)
-     print *,'dir2dir',k,i,j
 
      call PetscLogEventBegin(solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
      call get_coeff(solver, &
