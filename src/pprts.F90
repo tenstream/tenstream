@@ -28,12 +28,32 @@ module m_pprts
     & nil, i0, i1, i2, i3, i4, i5, i6, i7, i8, i10, pi,      &
     & default_str_len
 
-  use m_helper_functions, only : CHKERR, CHKWARN, deg2rad, rad2deg, imp_allreduce_min, &
-    & imp_bcast, imp_allreduce_max, delta_scale, mpi_logical_and, meanval, get_arg, approx, &
-    & inc, cstr, toStr, imp_allreduce_mean, imp_min_mean_max, &
-    & normalize_vec, vec_proj_on_plane, angle_between_two_normed_vec, cross_3d, &
-    & rotation_matrix_world_to_local_basis, deallocate_allocatable, &
-    & ind_1d_to_nd
+  use m_helper_functions, only : &
+    & angle_between_two_normed_vec, &
+    & approx, &
+    & CHKERR, &
+    & CHKWARN, &
+    & cross_3d, &
+    & cstr, &
+    & deallocate_allocatable, &
+    & deg2rad, &
+    & delta_scale, &
+    & get_arg, &
+    & imp_allreduce_max, &
+    & imp_allreduce_mean, &
+    & imp_allreduce_min, &
+    & imp_bcast, &
+    & imp_min_mean_max, &
+    & inc, &
+    & ind_1d_to_nd, &
+    & meanval, &
+    & mpi_logical_and, &
+    & normalize_vec, &
+    & rad2deg, &
+    & rotation_matrix_world_to_local_basis, &
+    & toStr, &
+    & triangle_area_by_vertices, &
+    & vec_proj_on_plane
 
   use m_schwarzschild, only: schwarzschild, B_eff
   use m_optprop, only: t_optprop, &
@@ -410,6 +430,8 @@ module m_pprts
           solver%C_one_atm%ys:solver%C_one_atm%ye ) )
       endif
 
+      call determine_vertex_heights()
+
       !TODO if we have a horiz. staggered grid, this may lead to the point where one 3d box has a outgoing sideward flux but the adjacent
       !1d box does not send anything back --> therefore huge absorption :( -- would need to introduce mirror boundary conditions for
       !sideward fluxes in 1d boxes
@@ -436,6 +458,32 @@ module m_pprts
         endif
       endif
 
+    end subroutine
+
+    subroutine determine_vertex_heights()
+      type(tVec) :: gvec_vertex_hhl
+      if(allocated(solver%atm%vert_heights)) &
+        & call CHKERR(1_mpiint, 'solver%vert_heights already allocated? Did not expect that could happen')
+
+      call DMGetGlobalVector(solver%Cvert_one_atm1%da, gvec_vertex_hhl, ierr); call CHKERR(ierr)
+
+      call interpolate_cell_values_to_vertices(&
+        & solver%C_one_atm1_box, solver%atm%hhl, &
+        & solver%Cvert_one_atm1, gvec_vertex_hhl)
+
+      allocate(solver%atm%vert_heights)
+
+      call DMCreateLocalVector(solver%Cvert_one_atm1%da, &
+        & solver%atm%vert_heights, ierr); call CHKERR(ierr)
+
+      call VecSet(solver%atm%vert_heights, zero, ierr); call CHKERR(ierr)
+
+      call DMGlobalToLocalBegin(solver%Cvert_one_atm1%da, gvec_vertex_hhl, &
+        & ADD_VALUES, solver%atm%vert_heights, ierr); call CHKERR(ierr)
+      call DMGlobalToLocalEnd  (solver%Cvert_one_atm1%da, gvec_vertex_hhl, &
+        & ADD_VALUES, solver%atm%vert_heights, ierr); call CHKERR(ierr)
+
+      call DMRestoreGlobalVector(solver%Cvert_one_atm1%da, gvec_vertex_hhl, ierr); call CHKERR(ierr)
     end subroutine
   end subroutine
 
@@ -2626,63 +2674,93 @@ module m_pprts
     call PetscLogEventEnd(solver%logs%scale_flx, ierr); call CHKERR(ierr)
 
   contains
-    subroutine gen_scale_dir_flx_vec(solver, v, C)
+    subroutine gen_scale_dir_flx_vec(solver, v, coord)
       class(t_solver)      :: solver
       type(tVec)           :: v
-      type(t_coord)        :: C
+      type(t_coord)        :: coord
       real(ireals),pointer :: xv  (:,:,:,:) =>null()
       real(ireals),pointer :: xv1d(:)       =>null()
-      integer(iintegers)   :: i, j, k, d, iside, ak
+      integer(iintegers)   :: i, j, k, l, iside, ak
       real(ireals)         :: Ax, Ay, Az, fac
 
-      associate( atm => solver%atm )
+      real(ireals), allocatable :: vertices(:)
+      real(ireals), pointer :: xhhl(:,:,:,:) => null(), xhhl1d(:) => null()
 
-      if(solver%myid.eq.0.and.ldebug) print *,'rescaling direct fluxes',C%zm,C%xm,C%ym
-      call getVecPointer(C%da, v, xv1d, xv)
+      call getVecPointer(solver%Cvert_one_atm1%da, solver%atm%vert_heights, xhhl1d, xhhl, readonly=.True.)
+      call setup_default_unit_cube_geometry(solver%atm%dx, solver%atm%dy, one, vertices)
 
-      Az  = solver%atm%dx*solver%atm%dy / real(solver%dirtop%area_divider, ireals)  ! size of a direct stream in m**2
-      fac = Az
+      associate( &
+         & atm => solver%atm,    &
+         & A => vertices( 1: 3), &
+         & B => vertices( 4: 6), &
+         & C => vertices( 7: 9), &
+         & D => vertices(10:12), &
+         & E => vertices(13:15), &
+         & F => vertices(16:18), &
+         & G => vertices(19:21)  )
+         !& H => vertices(22:24)  )
+
+      if(solver%myid.eq.0.and.ldebug) print *,'rescaling direct fluxes',coord%zm, coord%xm, coord%ym
+      call getVecPointer(coord%da, v, xv1d, xv)
 
       ! Scaling top faces
-      do j=C%ys,C%ye
-        do i=C%xs,C%xe
-          do k=C%zs,C%ze
-            do iside=1,solver%dirtop%dof
-              d = iside-1
-              xv(d,k,i,j) = fac
+      do j=coord%ys,coord%ye
+        do i=coord%xs,coord%xe
+          do k=coord%zs,coord%ze
+            ak = atmk(atm, k)
+            A(3) = xhhl(i0,ak,i,j)
+            B(3) = xhhl(i0,ak,i+1,j)
+            C(3) = xhhl(i0,ak,i,j+1)
+            D(3) = xhhl(i0,ak,i+1,j+1)
+
+            Az  = triangle_area_by_vertices(A,B,D) + triangle_area_by_vertices(A,D,C)
+            fac = Az / real(solver%dirtop%area_divider, ireals)
+            do iside=0,solver%dirtop%dof-1
+              xv(iside,k,i,j) = fac
             enddo
           enddo
         enddo
       enddo
 
       ! Scaling side faces
-      do j=C%ys,C%ye
-        do i=C%xs,C%xe
-          do k=C%zs,C%ze-1
+      do j=coord%ys,coord%ye
+        do i=coord%xs,coord%xe
+          do k=coord%zs,coord%ze-1
             ak = atmk(atm, k)
 
             ! First the faces in x-direction
-            Ax = solver%atm%dy*solver%atm%dz(ak,i,j) / real(solver%dirside%area_divider, ireals)
-            fac = Ax
+            A(3) = xhhl(i0,ak+1,i  ,j  )
+            B(3) = xhhl(i0,ak+1,i+1,j  )
+            C(3) = xhhl(i0,ak+1,i  ,j+1)
+            E(3) = xhhl(i0,ak  ,i  ,j  )
+            F(3) = xhhl(i0,ak  ,i+1,j  )
+            G(3) = xhhl(i0,ak  ,i  ,j+1)
+
+            !Ax = solver%atm%dy*solver%atm%dz(ak,i,j)
+            Ax = triangle_area_by_vertices(A,B,F) + triangle_area_by_vertices(A,F,E)
+            fac = Ax / real(solver%dirside%area_divider, ireals)
             do iside=0,solver%dirside%dof-1
-              d = solver%dirtop%dof + iside
-              xv(d,k,i,j) = fac
+              l = solver%dirtop%dof + iside
+              xv(l,k,i,j) = fac
             enddo
 
             ! Then the rest of the faces in y-direction
-            Ay = atm%dy*atm%dz(ak,i,j) / real(solver%dirside%area_divider, ireals)
-            fac = Ay
+            !Ay = atm%dy*atm%dz(ak,i,j) / real(solver%dirside%area_divider, ireals)
+            Ay = triangle_area_by_vertices(A,C,G) + triangle_area_by_vertices(A,G,E)
+            fac = Ay / real(solver%dirside%area_divider, ireals)
             do iside=0,solver%dirside%dof-1
-              d = solver%dirtop%dof + solver%dirside%dof + iside
-              xv(d,k,i,j) = fac
+              l = solver%dirtop%dof + solver%dirside%dof + iside
+              xv(l,k,i,j) = fac
             enddo
           enddo
           ! the side faces underneath the surface are always scaled by unity
-          xv(solver%dirtop%dof:ubound(xv,dim=1),k,i,j) = one
+          xv(solver%dirtop%dof:ubound(xv,dim=1),coord%ze,i,j) = one
         enddo
       enddo
-      call restoreVecPointer(C%da, v, xv1d, xv)
+      call restoreVecPointer(coord%da, v, xv1d, xv)
       end associate
+
+      call restoreVecPointer(solver%Cvert_one_atm1%da, solver%atm%vert_heights, xhhl1d, xhhl, readonly=.True.)
     end subroutine
     subroutine gen_scale_diff_flx_vec(solver, v, C)
       class(t_solver)      :: solver
@@ -3571,7 +3649,6 @@ module m_pprts
     type(t_coord), intent(in)   :: C
     type(t_pprts_buildings), optional, intent(in) :: opt_buildings
 
-    type(tVec) :: gvec_vertex_hhl, vertex_hhl
     real(ireals), pointer :: xhhl(:,:,:,:) => null(), xhhl1d(:) => null()
     real(ireals), allocatable :: vertices(:)
     integer(iintegers) :: i,j,k
@@ -3584,21 +3661,7 @@ module m_pprts
 
     call setup_default_unit_cube_geometry(solver%atm%dx, solver%atm%dy, one, vertices)
 
-    call DMGetGlobalVector(solver%Cvert_one_atm1%da, gvec_vertex_hhl, ierr); call CHKERR(ierr)
-
-    call interpolate_cell_values_to_vertices(&
-      & solver%C_one_atm1_box, solver%atm%hhl, &
-      & solver%Cvert_one_atm1, gvec_vertex_hhl)
-
-    call DMGetLocalVector(solver%Cvert_one_atm1%da, vertex_hhl, ierr); call CHKERR(ierr)
-    call VecSet(vertex_hhl, zero, ierr); call CHKERR(ierr)
-
-    call DMGlobalToLocalBegin(solver%Cvert_one_atm1%da, gvec_vertex_hhl, ADD_VALUES, vertex_hhl, ierr); call CHKERR(ierr)
-    call DMGlobalToLocalEnd  (solver%Cvert_one_atm1%da, gvec_vertex_hhl, ADD_VALUES, vertex_hhl, ierr); call CHKERR(ierr)
-
-    call DMRestoreGlobalVector(solver%Cvert_one_atm1%da, gvec_vertex_hhl, ierr); call CHKERR(ierr)
-
-    call getVecPointer(solver%Cvert_one_atm1%da, vertex_hhl, xhhl1d, xhhl, readonly=.True.)
+    call getVecPointer(solver%Cvert_one_atm1%da, solver%atm%vert_heights, xhhl1d, xhhl, readonly=.True.)
 
     do j=C%ys,C%ye
       do i=C%xs,C%xe
@@ -3614,8 +3677,7 @@ module m_pprts
       enddo
     enddo
 
-    call restoreVecPointer(solver%Cvert_one_atm1%da, vertex_hhl, xhhl1d, xhhl, readonly=.True.)
-    call DMRestoreLocalVector(solver%Cvert_one_atm1%da, vertex_hhl, ierr); call CHKERR(ierr)
+    call restoreVecPointer(solver%Cvert_one_atm1%da, solver%atm%vert_heights, xhhl1d, xhhl, readonly=.True.)
 
     if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'setup_direct_matrix done'
 

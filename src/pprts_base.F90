@@ -59,6 +59,7 @@ module m_pprts_base
     integer(iintegers)                           :: icollapse=1
     logical                                      :: lcollapse = .False.
     type(tVec),allocatable                       :: hhl   ! vertical level heights, local vec on C_one_atm1_box
+    type(tVec),allocatable                       :: vert_heights ! vertical level heights, local vec on Cvert_one_atm1
     type(tVec),allocatable                       :: hgrad ! horizontal gradient of heights, C_two1
   end type
 
@@ -382,6 +383,7 @@ module m_pprts_base
     call deallocate_allocatable(atm%Bbot)
     call deallocate_allocatable(atm%Bsrfc)
     call deallocate_allocatable(atm%hhl)
+    call deallocate_allocatable(atm%vert_heights)
     call deallocate_allocatable(atm%hgrad)
   end subroutine
   subroutine destroy_pprts(solver, lfinalizepetsc)
