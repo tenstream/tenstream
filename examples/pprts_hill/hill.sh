@@ -1,8 +1,14 @@
-make -j ex_pprts_hill || exit 1
+#!/bin/bash
+
+SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+
+bin="ex_pprts_hill"
+
+make -j $bin || exit 1
 baseopt="\
-  -atm_filename $HOME/tenstream/examples/pprts_hill/afglus_100m.dat \
   -dx 100 \
   -dy 100 \
+  -atm_filename $SCRIPTDIR/atm.dat \
   -thermal no \
   -lwc .1 \
   -cld_width 5 \
