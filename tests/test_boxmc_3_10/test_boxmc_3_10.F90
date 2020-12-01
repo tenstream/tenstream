@@ -1,11 +1,13 @@
 module test_boxmc_3_10
   use m_boxmc, only : t_boxmc, t_boxmc_3_10
   use m_data_parameters, only :     &
-    mpiint, iintegers, ireals, ireal_dp,     &
+    mpiint, iintegers, ireals, irealLUT, ireal_dp,     &
     one, zero, i1, default_str_len, &
     init_mpi_data_parameters
   use m_optprop_parameters, only : stddev_atol
   use m_boxmc_geometry, only : setup_default_unit_cube_geometry
+  use m_optprop, only : dir2dir3_coeff_correction_x_dir, dir2dir3_coeff_correction_y_dir
+  use m_helper_functions, only : spherical_2_cartesian
 
   use pfunit_mod
   implicit none
@@ -58,7 +60,7 @@ contains
     if(myid.eq.0) print *,'Finishing boxmc tests module'
   end subroutine teardown
 
-  @test(npes =[1])
+  !@test(npes =[1])
   subroutine test_boxmc_select_cases_direct_srctopface(this)
     class (MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: src
@@ -83,7 +85,7 @@ contains
 
   end subroutine
 
-  @test(npes =[1])
+  !@test(npes =[1])
   subroutine test_boxmc_select_cases_direct_srctopface_45(this)
     class (MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: src
@@ -110,7 +112,7 @@ contains
 
   end subroutine
 
-  @test(npes =[1])
+  !@test(npes =[1])
   subroutine test_boxmc_select_cases_direct_srcsidefaces(this)
     class (MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: src, iphi
@@ -139,7 +141,7 @@ contains
     enddo
   end subroutine
 
-  @test(npes =[1])
+  !@test(npes =[1])
   subroutine test_boxmc_select_cases_diff_srctopface(this)
     class (MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: src
@@ -163,7 +165,7 @@ contains
     call check(S_target,T_target, S,T, msg=' test_boxmc_select_cases_diff_srctopface')
   end subroutine
 
-  @test(npes =[1])
+  !@test(npes =[1])
   subroutine test_boxmc_select_cases_diff_srcbottomface(this)
     class (MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: src
@@ -187,7 +189,7 @@ contains
   end subroutine
 
 
-  @test(npes =[1])
+  !@test(npes =[1])
   subroutine test_boxmc_select_cases_diff_srcsideface(this)
      class (MpiTestMethod), intent(inout) :: this
      integer(iintegers) :: src
@@ -245,7 +247,7 @@ contains
 
   end subroutine
 
-  @test(npes =[1])
+  !@test(npes =[1])
   subroutine test_boxmc_distorted_cube_dir45_east_west_distortion(this)
     class (MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: src
@@ -307,7 +309,7 @@ contains
     call check(S_target,T_target, S,T, msg=' test_boxmc_distorted_cube_dir45_down_src2_case2')
   end subroutine
 
-  @test(npes =[1])
+  !@test(npes =[1])
   subroutine test_boxmc_distorted_cube_dir45_north_south_distortion(this)
     class (MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: src
@@ -369,6 +371,78 @@ contains
     call check(S_target,T_target, S,T, msg=' test_boxmc_distorted_ns_cube_dir45_down_src2_case2')
   end subroutine
 
+  @test(npes =[1])
+  subroutine test_boxmc_distorted_cube_east_west_distortion_gomtc_corr(this)
+    class (MpiTestMethod), intent(inout) :: this
+    integer(iintegers) :: src
+    real(ireal_dp), allocatable :: verts(:)
+    real(ireal_dp), parameter :: dx=1, dy=dx, dz=dx
+    real(irealLUT) :: V(3)
+    real(ireals) :: sundir(3)
+
+    bg  = [0e-0_ireal_dp/dz, 0._ireal_dp, 1._ireal_dp/2 ]
+    S_target = zero
+
+    phi = 90; theta = 20
+    src = 1
+
+    !right side up
+    call setup_default_unit_cube_geometry(dx, dy, dz, verts)
+    call bmc_3_10%get_coeff(comm,bg,src,.True.,phi,theta,verts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+    V = real(T, irealLUT)
+
+    print *, 'vertices'
+    print *, 'A', verts(1), verts(2), verts(3)
+    print *, 'B', verts(4), verts(5), verts(6)
+    print *, 'C', verts(7), verts(8), verts(9)
+    print *, 'D', verts(10), verts(11), verts(12)
+    print *, 'E', verts(13), verts(14), verts(15)
+    print *, 'F', verts(16), verts(17), verts(18)
+    print *, 'G', verts(19), verts(20), verts(21)
+    print *, 'H', verts(22), verts(23), verts(24)
+
+    V = real(T, irealLUT)
+    print *, 'regular not corrected', V(2), V(3), V(1)
+    sundir = spherical_2_cartesian(real(phi, ireals), real(theta, ireals)) * [-one, -one, one]
+    call dir2dir3_coeff_correction_x_dir(V, verts, sundir, dz)
+    print *, 'regular corrected', V(2), V(3), V(1)
+
+
+    verts([6,12,18,24]) = verts([6,12,18,24]) + dz
+    call bmc_3_10%get_coeff(comm,bg,src,.True.,phi,theta,verts,S,T_target,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+    print *, 'distorted', T_target(2), T_target(3), T_target(1)
+
+    !call check(S_target,T_target, S,T, msg=' test_boxmc_distorted_cube_dir45_up_src1')
+
+  end subroutine
+
+  !@test(npes =[1])
+  subroutine test_boxmc_distorted_cube_north_south_distortion_gomtc_corr(this)
+    class (MpiTestMethod), intent(inout) :: this
+    integer(iintegers) :: src
+    real(ireal_dp), allocatable :: verts(:)
+    real(ireal_dp), parameter :: dx=1, dy=dx, dz=dx
+    real(irealLUT) :: V(3)
+
+    bg  = [0e-0_ireal_dp/dz, 0._ireal_dp, 1._ireal_dp/2 ]
+    S_target = zero
+
+    phi = 30; theta = 40
+    src = 1
+    !right side up
+    call setup_default_unit_cube_geometry(dx, dy, dz, verts)
+    call bmc_3_10%get_coeff(comm,bg,src,.True.,phi,theta,verts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+    V = real(T, irealLUT)
+    print *, 'regular not corrected', V
+    verts([9,12,21,24]) = verts([9,12,21,24]) + dz
+    call bmc_3_10%get_coeff(comm,bg,src,.True.,phi,theta,verts,S,T_target,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+    call dir2dir3_coeff_correction_y_dir(V, real(verts, ireals), spherical_2_cartesian(real(phi, ireals), real(theta, ireals)))
+    print *, 'regular', V
+    print *, 'distorted', T_target
+
+    !call check(S_target,T_target, S,T, msg=' test_boxmc_distorted_cube_dir45_up_src1')
+
+  end subroutine
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   subroutine check(S_target,T_target, S,T, msg)

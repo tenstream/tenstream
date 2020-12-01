@@ -3653,7 +3653,7 @@ module m_pprts
     real(ireals), allocatable :: vertices(:)
     integer(iintegers) :: i,j,k
     integer(mpiint) :: ierr
-
+    real(ireals), pointer :: grad(:,:,:,:) => null()
     if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'setup_direct_matrix ...'
 
     call MatZeroEntries(A, ierr) ;call CHKERR(ierr)
@@ -3701,7 +3701,9 @@ module m_pprts
 
       MatStencil         :: row(4,C%dof)  ,col(4,C%dof)
       real(irealLUT)     :: v(C%dof**2), norm
-
+      real(ireals) :: s, st, sy, syt
+      real(irealLUT) :: f
+      logical :: lsuneast, lsunnorth
       integer(iintegers) :: dst,src, xinc, yinc, isrc, idst
 
       xinc = sun%xinc(k,i,j)
@@ -3766,10 +3768,10 @@ module m_pprts
      !vertices(24) = xhhl(i0,atmk(solver%atm,k),i,j+1)
      !vertices(21) = xhhl(i0,atmk(solver%atm,k),i+1,j+1)
 
-     vertices( 3) = xhhl(i0,atmk(solver%atm,k+1),i,j)
-     vertices( 6) = xhhl(i0,atmk(solver%atm,k+1),i+1,j)
-     vertices( 9) = xhhl(i0,atmk(solver%atm,k+1),i,j+1)
-     vertices(12) = xhhl(i0,atmk(solver%atm,k+1),i+1,j+1)
+     vertices( 3) = xhhl(i0,atmk(solver%atm,k+1),i,j) ! a
+     vertices( 6) = xhhl(i0,atmk(solver%atm,k+1),i+1,j) ! b
+     vertices( 9) = xhhl(i0,atmk(solver%atm,k+1),i,j+1) ! c
+     vertices(12) = xhhl(i0,atmk(solver%atm,k+1),i+1,j+1) ! d
      vertices(15) = xhhl(i0,atmk(solver%atm,k),i,j)
      vertices(18) = xhhl(i0,atmk(solver%atm,k),i+1,j)
      vertices(21) = xhhl(i0,atmk(solver%atm,k),i,j+1)
@@ -3789,6 +3791,70 @@ module m_pprts
        opt_vertices=vertices)
      call PetscLogEventEnd(solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
 
+      ! HERE
+
+      associate(&
+          dz => solver%atm%dz(atmk(solver%atm, k), i, j),&
+          dx => solver%atm%dx,&
+          dy => solver%atm%dy,&
+          gx => grad(i0, atmk(solver%atm, k), i, j),&
+          gy => grad(i1, atmk(solver%atm, k), i, j),&
+          theta => sun%theta(k, i, j)&
+          )
+        lsuneast = xinc .eq. i0
+        lsunnorth = yinc .ne. i1
+
+        ! WORKS for dx = dy down to 200, breaks at dx = dy = 100
+        sy = max(min(dz * tan(deg2rad(theta)), dy), 0._ireals) ! need to exclude theta = 0 here two avoid divide by zero
+        syt = max(min(dz * tan(deg2rad(theta)) / (1._ireals - gy * tan(deg2rad(theta))), dy), 0._ireals)
+        !sy = max(min(dz * tan(deg2rad(theta)), dy), tiny(sy))
+        !syt = min((dz + dy * gy) * tan(deg2rad(theta)), dy)
+!        f = real(syt / sy, irealLUT)
+
+       s = max(min(&
+          dz * tan(deg2rad(theta)) / dy,&
+          1._ireals), 0._ireals)
+        st = max(min(&
+          sqrt(dz ** 2 + gy ** 2 * dz ** 2) * cos(atan(gy)) / (dy * (1._ireals - gy * tan(deg2rad(theta)))),&
+          1._ireals), 0._ireals) ! missing the mysterious dz -> not anymore
+        f = real(st / s, irealLUT)
+        if (k == C%ze-1 .and. i == C%xs) then
+          print *, j, 'v7', v(7), v(7) * f, 'v1', v(1), v(1)+(1._irealLUT-f)*v(7), 'gy', gy, 's', s, 'st', st, 'dz', dz
+        endif
+        !if (gy <= 0._ireals) then
+        !v(1) = v(1) + (1._irealLUT - f) * v(7)
+        !v(7) = v(7) * f
+        !endif
+        ! END WORKS
+
+
+
+        !f = real(st/s, irealLUT)
+        !if (f < 1._irealLUT) then
+        !  f = f * 9._irealLUT /  10._irealLUT
+        !else if ( f > 1._irealLUT) then
+        !  f = f * 11._irealLUT / 10._irealLUT
+        !endif
+        !v(1) = v(1) + (1._irealLUT - f) * v(7)
+        !v(7) = v(7) + (1._irealLUT - f) * v(1)
+        !v(7) = v(7) * f
+        !v(1) = v(1) * f
+
+!        else if (lsunnorth .and. gy < zero) then
+ !         v(1) = v(1) + (1._irealLUT - f) * v(7)
+  !        v(7) = v(7) * f
+        !endif
+        !if (k == C%ze-1 .and. i == C%xs) then
+        !  print *, 'j', j, 'sy', sy, 'syt', syt, 'f', f, 'v(7) v', v(7), 'v(7) n', v(7) * f,&
+        !    'v(1) v', v(1), 'v(1) n', v(1) + v(7) * (1 -f)
+        !endif
+        !v(1) = v(1) + v(7) * (1 - f) !reduce v(1) by the incerase of v(7)
+        !v(7) = v(7) * f
+        !else if (lsunnorth .and. gy < zero) then
+        !  v(1) = v(1) + v(7) * (1 - f) !reduce v(1) by the incerase of v(7)
+        !  v(7) = v(7) * f
+        !endif
+      end associate
      call MatSetValuesStencil(A, C%dof, row, C%dof, col, real(-v, ireals), INSERT_VALUES, ierr) ;call CHKERR(ierr)
 
      if(ldebug) then
