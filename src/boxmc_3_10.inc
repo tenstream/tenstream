@@ -63,6 +63,7 @@ subroutine init_dir_photon_3_10(bmc, p, src, ldirect, initial_dir, vertices, ier
 
 
   p%dir   = initial_dir
+!  print *, 'initial direction', initial_dir
   p%alive = .False.
 
   call CHKERR(size(vertices)-24, 'wrong size of vertices, expected 24 but found '//toStr(size(vertices)))

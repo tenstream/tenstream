@@ -1177,27 +1177,19 @@ contains
     endif
   end subroutine
 
-  subroutine dir2dir3_coeff_correction_x_dir(coeff, verts, sundir, dz)
+  subroutine dir2dir3_coeff_correction_x_dir(coeff, verts, verts_dtd, sundir)
     real(irealLUT), intent(inout) :: coeff(:)
     real(ireals), intent(in) :: verts(:)
+    real(ireals), intent(in) :: verts_dtd(:)
     real(ireals), intent(in) :: sundir(:)
-    real(ireals), intent(in) :: dz
 
     real(ireals) :: s, st
     real(irealLUT) :: f, coeff_mod_x
-    real(ireals) :: verts_dtd(24)
 
     print *, 'sundir', sundir
+
     s = (verts(6) - verts(18)) / (verts(16) - verts(13)) * sundir(1) / sundir(3)
 
-    verts_dtd = verts
-    verts_dtd([6,12,18,24]) = verts([6,12,18,24]) + dz
-    print *, verts_dtd(18) - verts_dtd(6)
-    print *, sundir(1)/ sundir(3)
-    print *, verts_dtd(13) - verts_dtd(16)
-    print *, verts_dtd(18) - verts_dtd(15)
-    print *, verts_dtd(18)
-    print *, verts_dtd(15)
     st = ((verts_dtd(18) - verts_dtd(6)) * sundir(1) / sundir(3)) /&
       (verts_dtd(13) - verts_dtd(16) + (verts_dtd(18) - verts_dtd(15)) * sundir(1) / sundir(3))
 
@@ -1212,24 +1204,30 @@ contains
 
   end subroutine
 
-  subroutine dir2dir3_coeff_correction_y_dir(coeff, verts, sundir)
+  subroutine dir2dir3_coeff_correction_y_dir(coeff, verts, verts_dtd, sundir)
     real(irealLUT), intent(inout) :: coeff(:)
     real(ireals), intent(in) :: verts(:)
+    real(ireals), intent(in) :: verts_dtd(:)
     real(ireals), intent(in) :: sundir(:)
 
     real(ireals) :: s, st
-    real(irealLUT) :: f
-    s = (verts(12) - verts(24) + (verts(23) - verts(11)) * sundir(3) / sundir(2)) /&
-      (verts(18) - verts(24) - (verts(17) - verts(23)) * sundir(3) / sundir(2))
+    real(irealLUT) :: f, coeff_mod_y
 
-    st = (verts(11) - verts(23) + (verts(24) - verts(12)) * sundir(2) / sundir(3)) / &
-      (verts(17) - verts(23) - (verts(18) - verts(24)) * sundir(2) / sundir(3))
-    f = real(min(max(st / s, 0._ireals), 1._ireals), irealLUT)
-    print *, 'f', f
+    print *, 'sundir', sundir
 
-    coeff(1) = coeff(1) + (1._irealLUT - f) * coeff(2)
-    coeff(2) = coeff(2) * f
-    coeff(3) = coeff(3)
+    s = (verts(6) - verts(21)) / (verts(20) - verts(14)) * sundir(2) / sundir(3)
+
+    st = ((verts_dtd(21) - verts_dtd(9)) * sundir(2) / sundir(3)) /&
+      (verts_dtd(14) - verts_dtd(20) + (verts_dtd(21) - verts_dtd(15)) * sundir(2) / sundir(3))
+
+    f = real(abs(st) / abs(s), irealLUT)
+
+    print *, 's', s, 'st', st, 'f', f
+
+    coeff_mod_y = max(min((1._irealLUT - f) * coeff(3), coeff(3)), -coeff(1))
+    coeff(1) = coeff(1) + coeff_mod_y
+    coeff(2) = coeff(2)
+    coeff(3) = coeff(3) - coeff_mod_y
 
   end subroutine
 
