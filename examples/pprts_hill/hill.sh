@@ -42,10 +42,6 @@ snap_opt="\
 -visit_view_up -0.6270958235924525,-0.3397617048659849,0.7009370955652606 \
   "
 
-bin="mpirun bin/ex_pprts_hill"
-out="out_pprts_hill.nc"
-rm -f $out
-
 cat > plot_snapshot.py << EOF
 import xarray as xr
 from pylab import *
@@ -73,6 +69,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument('inp', type=str)
 parser.add_argument('out', type=str)
 args = parser.parse_args()
+
+print(f"Plotting irradiance cross_sections for {args.inp} -> {args.out}")
 
 D = xr.open_dataset(args.inp)
 
@@ -108,15 +106,77 @@ plt.subplot(414)
 plt.pcolormesh(y,z, D['abso'].mean(axis=1))
 cbar = plt.colorbar(); cbar.set_label('abso [W/m^3]'); plt.ylim(*yrng)
 
-plt.savefig(args.out)
+plt.savefig(args.out, bbox_inches='tight')
 EOF
 
-[ ! -e res_1d.nc ] && $bin $baseopt -twostr_only -pprts_slope_correction -out res_1d.nc
-[ ! -e res_rayli.nc ] && $bin $baseopt $rayli_opt -pprts_atm_correction -pprts_slope_correction -out res_rayli.nc
-[ ! -e res_10str.nc ] && $bin $baseopt -out res_10str.nc
-[ ! -e res_10str_topo.nc ] && $bin $baseopt -topography -out res_10str_topo.nc
+cat > plot_distorted.py << EOF
+import glob
+from pylab import *
+import xarray as xr
+import argparse
 
-for f in res_*.nc
+parser = argparse.ArgumentParser()
+parser.add_argument('basename', help='files prefix which should be read')
+parser.add_argument('-o', '--out', help='plot output path')
+args = parser.parse_args()
+
+print("Plotting distorted surface irradiance")
+
+basename = args.basename
+out = 'plot_srfc_'+basename+'.pdf' if args.out is None else args.out
+
+plt.figure(figsize=(12,6))
+
+bias = lambda a,b: (mean(a)/mean(b) - 1.) * 100
+rmse = lambda a,b: sqrt(mean((a-b)**2))
+rrmse = lambda a,b: rmse(a,b)/mean(b) * 100
+#E = lambda D: D['edir'][:,0,-1].data + D['edn'][:,0,-1].data
+E = lambda D: D['edir'][:,0,-1].data
+
+files = glob.glob(f'{basename}*.nc')
+
+D3 = xr.open_dataset(f'{basename}rayli_ac.nc')
+
+for f in sorted(files):
+    print(f)
+    with xr.open_dataset(f) as D:
+        kw = {
+                'label': f+'({:.2f}, {:.2f})'.format(rrmse(E(D),E(D3)), bias(E(D),E(D3))),
+                'linestyle': '--' if '3_10' in f else '-',
+                'alpha': .7 if '_ac' in f else 1,
+                }
+        plot(E(D), **kw)
+
+plt.legend(loc='best')
+print("saving to", out)
+plt.savefig(out)
+EOF
+
+function runex {
+  EXEC=$1
+  OUT=$2
+  OPT=$3
+
+  if [ -e $OUT ]; then
+    echo "Skipping $OUT"
+  else
+    ($EXEC $bin $baseopt -out $OUT $OPT) &
+  fi
+}
+
+mpiexec="srun --time=08:00:00 -n 40 -N 1-4 -p met-ws,cluster --mpi=pmix"
+rayexec="srun --time=08:00:00 -n 2 -N 2 -c 10 -p met-ws,cluster --mpi=pmix"
+
+for SZA in 0 20 40 60
 do
-  [ ! -e $(basename $f .nc).png ] && python plot_cross_section.py $f $(basename $f .nc).png
+  runex "$mpiexec" "res_${SZA}_1d.nc                  "  "-theta0 $SZA  -twostr_only"
+  runex "$rayexec" "res_${SZA}_rayli_ac.nc            "  "-theta0 $SZA  -pprts_atm_correction $rayli_opt"
+  runex "$mpiexec" "res_${SZA}_3_10str.nc             "  "-theta0 $SZA "
+  runex "$mpiexec" "res_${SZA}_3_10str_distorted_ac.nc"  "-theta0 $SZA  -pprts_atm_correction -bmc_online"
+  wait
+
+  python plot_distorted.py res_${SZA}_
+  for f in res_${SZA}_*.nc; do
+    python plot_cross_section.py $f plot_cross_$f.pdf
+  done
 done
