@@ -125,29 +125,46 @@ print("Plotting distorted surface irradiance")
 basename = args.basename
 out = 'plot_srfc_'+basename+'.pdf' if args.out is None else args.out
 
-plt.figure(figsize=(12,6))
-
-bias = lambda a,b: (mean(a)/mean(b) - 1.) * 100
-rmse = lambda a,b: sqrt(mean((a-b)**2))
-rrmse = lambda a,b: rmse(a,b)/mean(b) * 100
-#E = lambda D: D['edir'][:,0,-1].data + D['edn'][:,0,-1].data
-E = lambda D: D['edir'][:,0,-1].data
-
 files = glob.glob(f'{basename}*.nc')
 
 D3 = xr.open_dataset(f'{basename}rayli_ac.nc')
 
-for f in sorted(files):
-    print(f)
-    with xr.open_dataset(f) as D:
-        kw = {
-                'label': f+'({:.2f}, {:.2f})'.format(rrmse(E(D),E(D3)), bias(E(D),E(D3))),
-                'linestyle': '--' if '3_10' in f else '-',
-                'alpha': .7 if '_ac' in f else 1,
-                }
-        plot(E(D), **kw)
 
-plt.legend(loc='best')
+bias = lambda a,b: (mean(a)/mean(b) - 1.) * 100
+rmse = lambda a,b: sqrt(mean((a-b)**2))
+rrmse = lambda a,b: rmse(a,b)/mean(b) * 100
+
+def plot(E, title):
+  plt.title(title)
+  for f in sorted(files):
+      print(f)
+      with xr.open_dataset(f) as D:
+          kw = {
+                  'label': f+'({:.2f}, {:.2f})'.format(rrmse(E(D),E(D3)), bias(E(D),E(D3))),
+                  'linestyle': '--' if '3_10' in f else '-',
+                  'alpha': .7 if '_ac' in f else 1,
+                  }
+          plt.plot(E(D), **kw)
+  plt.legend(loc='best')
+
+
+#E = lambda D: D['edir'][:,0,-1].data + D['edn'][:,0,-1].data
+E = lambda D: D['edir'][:,0,-1].data
+
+plt.figure(figsize=(12,9))
+
+plt.subplot(4,1,1)
+plot(lambda D: D['edir'][:,0,-1].data, 'edir')
+
+plt.subplot(4,1,2)
+plot(lambda D: D['edn' ][:,0,-1].data, 'edn')
+
+plt.subplot(4,1,3)
+plot(lambda D: D['eup' ][:,0,-1].data, 'eup')
+
+plt.subplot(4,1,4)
+plot(lambda D: D['abso' ][:,0,-1].data, 'abso')
+
 print("saving to", out)
 plt.savefig(out)
 EOF
@@ -160,7 +177,7 @@ function runex {
   if [ -e $OUT ]; then
     echo "Skipping $OUT"
   else
-    ($EXEC $bin $baseopt -out $OUT $OPT) &
+    ($EXEC bin/$bin $baseopt -out $OUT $OPT) &
   fi
 }
 

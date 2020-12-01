@@ -34,18 +34,24 @@ contains
     dP = hill_dP / ( 1._ireals + ((real(jglob, ireals)-(real(ny_glob, ireals)-1._ireals)/2._ireals)/hill_shape)**2 )
   end function
 
-  subroutine example_pprts_rrtmg_hill(comm, nxp, nyp, nzp, dx, dy, nxproc, nyproc, xstart, ystart)
+  subroutine example_pprts_rrtmg_hill(&
+      & comm, &
+      & nxp, nyp, nzp, &
+      & dx, dy, &
+      & Ag_thermal, Ag_solar, &
+      & nxproc, nyproc, &
+      & xstart, ystart)
     integer(mpiint), intent(in) :: comm
     integer(iintegers), intent(in) :: nxp, nyp, nzp  ! local domain size for each rank
     integer(iintegers), intent(in) :: nxproc(:), nyproc(:) ! local domain sizes on 2d cartesian decomposition
     integer(iintegers), intent(in) :: xStart, yStart ! start indices of local domains
     real(ireals), intent(in) :: dx, dy               ! horizontal grid spacing in [m]
+    real(ireals), intent(in) :: Ag_thermal, Ag_solar ! Broadband surface albedo
 
     ! MPI variables and domain decomposition sizes
     integer(mpiint) :: numnodes, myid, ierr
 
     real(ireals) :: phi0, theta0 ! Sun's angles, azimuth phi(0=North, 90=East), zenith(0 high sun, 80=low sun)
-    real(ireals),parameter :: albedo_th=0, albedo_sol=.12 ! broadband ground albedo for solar and thermal spectrum
 
     real(ireals), dimension(nzp+1,xStart:xStart+nxp-1,yStart:yStart+nyp-1), target :: plev ! pressure on layer interfaces [hPa]
     real(ireals), dimension(nzp+1,xStart:xStart+nxp-1,yStart:yStart+nyp-1), target :: tlev ! Temperature on layer interfaces [K]
@@ -173,7 +179,7 @@ contains
 
     call pprts_rrtmg(comm, pprts_solver, atm, nxp, nyp, &
       dx, dy, spherical_2_cartesian(phi0, theta0),   &
-      albedo_th, albedo_sol,  &
+      Ag_thermal, Ag_solar,   &
       lthermal, lsolar,       &
       edir, edn, eup, abso,   &
       nxproc=nxproc, nyproc=nyproc )
@@ -274,7 +280,8 @@ contains
         call set_global_attribute(outpath(1), 'dy', dy, ierr); call CHKERR(ierr)
         call set_global_attribute(outpath(1), 'phi0', phi0, ierr); call CHKERR(ierr)
         call set_global_attribute(outpath(1), 'theta0', theta0, ierr); call CHKERR(ierr)
-        call set_global_attribute(outpath(1), 'Ag_solar', albedo_sol, ierr); call CHKERR(ierr)
+        call set_global_attribute(outpath(1), 'Ag_solar', Ag_solar, ierr); call CHKERR(ierr)
+        call set_global_attribute(outpath(1), 'Ag_thermal', Ag_thermal, ierr); call CHKERR(ierr)
       endif
     end associate
 
@@ -319,7 +326,7 @@ program main
   integer(mpiint) :: ierr, myid
   integer(iintegers),allocatable :: nxproc(:), nyproc(:)
   integer(iintegers) :: Nx, Ny, Nz, nxp, nyp, xStart, yStart
-  real(ireals)       :: dx, dy
+  real(ireals)       :: dx, dy, Ag_thermal, Ag_solar
   logical :: lflg
 
   call mpi_init(ierr)
@@ -337,6 +344,13 @@ program main
   call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-dx", dx, lflg, ierr); call CHKERR(ierr)
   call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-dy", dy, lflg, ierr); call CHKERR(ierr)
 
+  Ag_solar = 0.12
+  Ag_thermal = 0
+  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+    & "-Ag_thermal", Ag_thermal, lflg, ierr); call CHKERR(ierr)
+  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+    & "-Ag_solar", Ag_solar, lflg, ierr); call CHKERR(ierr)
+
   call domain_decompose_2d_petsc(mpi_comm_world, Nx, Ny, &
     & nxp, nyp, xStart, yStart, nxproc, nyproc, ierr); call CHKERR(ierr)
 
@@ -345,7 +359,11 @@ program main
       & '(decomp:',nxproc,nyproc,')'
   endif
 
-  call example_pprts_rrtmg_hill(mpi_comm_world, nxp, nyp, Nz, dx, dy, nxproc, nyproc, xStart, yStart)
+  call example_pprts_rrtmg_hill(mpi_comm_world, &
+    & nxp, nyp, Nz, &
+    & dx, dy, &
+    & Ag_thermal, Ag_solar, &
+    & nxproc, nyproc, xStart, yStart)
 
   call mpi_finalize(ierr)
 end program
