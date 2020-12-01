@@ -62,7 +62,9 @@ public ::                          &
   t_optprop_rectilinear_wedge_5_8, &
   t_optprop_wedge_18_8,            &
   OPP_1D_RETCODE,                  &
-  OPP_TINYASPECT_RETCODE
+  OPP_TINYASPECT_RETCODE,          &
+  dir2dir3_coeff_correction_x_dir, &
+  dir2dir3_coeff_correction_y_dir
 
 type,abstract :: t_optprop
   logical :: optprop_debug=ldebug_optprop
@@ -572,7 +574,7 @@ contains
         call get_coeff_bmc(OPP, opt_vertices, real(tauz, ireals), real(w0, ireals), real(g, ireals), dir, Cbmc2, angles)
         C = Cbmc2
         print *,new_line(''),opt_vertices(3:24:3),':',angles,new_line('')//&
-          cstr('LUT            '//toStr(Clut) , 'black')//new_line('')//&
+          cstr('LUT            '//toStr(Clut) , 'red')//new_line('')//&
           cstr('bmc (regular  )'//toStr(Cbmc) , 'blue' )//new_line('')//&
           cstr('bmc (distorted)'//toStr(Cbmc2), 'green')
       endif
@@ -590,7 +592,7 @@ contains
       real(irealLUT) :: S_tol (OPP%dev%diff_streams),T_tol(OPP%dev%dir_streams)
       integer(iintegers) :: isrc
 
-      real(irealLUT), parameter :: atol=1e-3_irealLUT, rtol=5e-1_irealLUT
+      real(irealLUT), parameter :: atol=1e-2_irealLUT, rtol=5e-1_irealLUT
 
       if(present(angles)) then
           do isrc=1,OPP%dev%dir_streams
@@ -1183,4 +1185,61 @@ contains
       end select
     endif
   end subroutine
+
+  subroutine dir2dir3_coeff_correction_x_dir(coeff, verts, sundir, dz)
+    real(irealLUT), intent(inout) :: coeff(:)
+    real(ireals), intent(in) :: verts(:)
+    real(ireals), intent(in) :: sundir(:)
+    real(ireals), intent(in) :: dz
+
+    real(ireals) :: s, st
+    real(irealLUT) :: f, coeff_mod_x
+    real(ireals) :: verts_dtd(24)
+
+    print *, 'sundir', sundir
+    s = (verts(6) - verts(18)) / (verts(16) - verts(13)) * sundir(1) / sundir(3)
+
+    verts_dtd = verts
+    verts_dtd([6,12,18,24]) = verts([6,12,18,24]) + dz
+    print *, verts_dtd(18) - verts_dtd(6)
+    print *, sundir(1)/ sundir(3)
+    print *, verts_dtd(13) - verts_dtd(16)
+    print *, verts_dtd(18) - verts_dtd(15)
+    print *, verts_dtd(18)
+    print *, verts_dtd(15)
+    st = ((verts_dtd(18) - verts_dtd(6)) * sundir(1) / sundir(3)) /&
+      (verts_dtd(13) - verts_dtd(16) + (verts_dtd(18) - verts_dtd(15)) * sundir(1) / sundir(3))
+
+    f = real(abs(st) / abs(s), irealLUT)
+
+    print *, 's', s, 'st', st, 'f', f
+
+    coeff_mod_x = max(min((1._irealLUT - f) * coeff(2), coeff(2)), -coeff(1))
+    coeff(1) = coeff(1) + coeff_mod_x
+    coeff(2) = coeff(2) - coeff_mod_x
+    coeff(3) = coeff(3)
+
+  end subroutine
+
+  subroutine dir2dir3_coeff_correction_y_dir(coeff, verts, sundir)
+    real(irealLUT), intent(inout) :: coeff(:)
+    real(ireals), intent(in) :: verts(:)
+    real(ireals), intent(in) :: sundir(:)
+
+    real(ireals) :: s, st
+    real(irealLUT) :: f
+    s = (verts(12) - verts(24) + (verts(23) - verts(11)) * sundir(3) / sundir(2)) /&
+      (verts(18) - verts(24) - (verts(17) - verts(23)) * sundir(3) / sundir(2))
+
+    st = (verts(11) - verts(23) + (verts(24) - verts(12)) * sundir(2) / sundir(3)) / &
+      (verts(17) - verts(23) - (verts(18) - verts(24)) * sundir(2) / sundir(3))
+    f = real(min(max(st / s, 0._ireals), 1._ireals), irealLUT)
+    print *, 'f', f
+
+    coeff(1) = coeff(1) + (1._irealLUT - f) * coeff(2)
+    coeff(2) = coeff(2) * f
+    coeff(3) = coeff(3)
+
+  end subroutine
+
 end module
