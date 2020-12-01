@@ -1560,7 +1560,7 @@ module m_pprts
     real(ireals)        :: pprts_delta_scale_max_g
     integer(iintegers)  :: k, i, j
     logical :: lpprts_delta_scale, lflg
-    real(ireals) :: pprts_set_absorption, pprts_set_scatter
+    real(ireals) :: pprts_set_absorption, pprts_set_scatter, pprts_set_asymmetry
     integer(mpiint) :: ierr
 
     call PetscLogEventBegin(solver%logs%set_optprop, ierr); call CHKERR(ierr)
@@ -1644,6 +1644,11 @@ module m_pprts
       atm%ksca = pprts_set_scatter
     endif
 
+    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_set_asymmetry", &
+      pprts_set_asymmetry, lflg , ierr) ;call CHKERR(ierr)
+    if(lflg) then
+      atm%g = pprts_set_asymmetry
+    endif
 
     lpprts_delta_scale = get_arg(.True., ldelta_scaling)
     call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_delta_scale", &
