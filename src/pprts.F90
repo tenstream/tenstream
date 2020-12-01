@@ -1560,7 +1560,7 @@ module m_pprts
     real(ireals)        :: pprts_delta_scale_max_g
     integer(iintegers)  :: k, i, j
     logical :: lpprts_delta_scale, lflg
-    logical :: lpprts_no_absorption, lpprts_no_scatter
+    real(ireals) :: pprts_set_absorption, pprts_set_scatter
     integer(mpiint) :: ierr
 
     call PetscLogEventBegin(solver%logs%set_optprop, ierr); call CHKERR(ierr)
@@ -1632,20 +1632,16 @@ module m_pprts
       endif
     endif
 
-    lpprts_no_absorption = .False.
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_no_absorption", &
-      lpprts_no_absorption, lflg , ierr) ;call CHKERR(ierr)
-
-    if(lpprts_no_absorption) then
-      atm%kabs = 0
+    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_set_absorption", &
+      pprts_set_absorption, lflg , ierr) ;call CHKERR(ierr)
+    if(lflg) then
+      atm%kabs = pprts_set_absorption
     endif
 
-    lpprts_no_scatter = .False.
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_no_scatter", &
-      lpprts_no_scatter, lflg , ierr) ;call CHKERR(ierr)
-
-    if(lpprts_no_scatter) then
-      atm%ksca = 0
+    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_set_scatter", &
+      pprts_set_scatter, lflg , ierr) ;call CHKERR(ierr)
+    if(lflg) then
+      atm%ksca = pprts_set_scatter
     endif
 
 
