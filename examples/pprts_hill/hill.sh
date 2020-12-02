@@ -11,6 +11,8 @@ baseopt="\
   -atm_filename $SCRIPTDIR/atm.dat \
   -thermal no \
   -lwc .1 \
+  -Ag_solar .2 \
+  -Ag_thermal 0 \
   -cld_width 5 \
   -cld_bot 700 \
   -cld_top 600 \
@@ -19,8 +21,7 @@ baseopt="\
   -hill_dP 100 \
   -hill_shape 10 \
   -theta0 40 -phi0 180 \
-  -log_view \
-  -rrtmg_bands 1,1 \
+  -rrtmg_bands 60,60 \
   $1"
 
 rayli_opt="\
@@ -137,7 +138,7 @@ rrmse = lambda a,b: rmse(a,b)/mean(b) * 100
 def plot(E, title):
   plt.title(title)
   for f in sorted(files):
-      print(f)
+      print(title, f)
       with xr.open_dataset(f) as D:
           kw = {
                   'label': f+'({:.2f}, {:.2f})'.format(rrmse(E(D),E(D3)), bias(E(D),E(D3))),
@@ -151,7 +152,7 @@ def plot(E, title):
 #E = lambda D: D['edir'][:,0,-1].data + D['edn'][:,0,-1].data
 E = lambda D: D['edir'][:,0,-1].data
 
-plt.figure(figsize=(12,9))
+plt.figure(figsize=(10,12))
 
 plt.subplot(4,1,1)
 plot(lambda D: D['edir'][:,0,-1].data, 'edir')
@@ -165,6 +166,8 @@ plot(lambda D: D['eup' ][:,0,-1].data, 'eup')
 plt.subplot(4,1,4)
 plot(lambda D: D['abso' ][:,0,-1].data, 'abso')
 
+plt.tight_layout()
+
 print("saving to", out)
 plt.savefig(out)
 EOF
@@ -177,6 +180,7 @@ function runex {
   if [ -e $OUT ]; then
     echo "Skipping $OUT"
   else
+    echo "Running $OUT"
     ($EXEC bin/$bin $baseopt -out $OUT $OPT) &
   fi
 }
@@ -192,8 +196,8 @@ do
   runex "$mpiexec" "res_${SZA}_3_10str_distorted_ac.nc"  "-theta0 $SZA  -pprts_atm_correction -bmc_online"
   wait
 
-  python plot_distorted.py res_${SZA}_
+  [ ! -e plot_srfc_${SZA}.pdf ] && python plot_distorted.py res_${SZA}_ --out plot_srfc_${SZA}.pdf
   for f in res_${SZA}_*.nc; do
-    python plot_cross_section.py $f plot_cross_$f.pdf
+    [ ! -e plot_cross_$f.pdf ] && python plot_cross_section.py $f plot_cross_$f.pdf
   done
 done
