@@ -351,6 +351,12 @@ module m_helper_functions
     #:endfor
   end interface
 
+  interface rotation_matrix_around_axis_vec
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    module procedure rotation_matrix_around_axis_vec_${dtype}$
+    #:endfor
+  end interface
+
   interface rotation_matrix_local_basis_to_world
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
     module procedure rotation_matrix_local_basis_to_world_${dtype}$
@@ -1900,11 +1906,12 @@ module m_helper_functions
 #:endfor
 
     ! https://en.wikipedia.org/wiki/Rotation_matrix#General_rotations
-    pure function rotation_matrix_around_axis_vec(angle, rot_axis) result(M)
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    pure function rotation_matrix_around_axis_vec_${dtype}$(angle, rot_axis) result(M)
       ! left hand rule
-      real(ireals) :: M(3,3)
-      real(ireals),intent(in) :: angle, rot_axis(3)
-      real(ireals) :: s,c,u(3),omc
+      real(${dtype}$) :: M(3,3)
+      real(${dtype}$),intent(in) :: angle, rot_axis(3)
+      real(${dtype}$) :: s,c,u(3),omc
       if(norm2(rot_axis).lt.epsilon(rot_axis)) then ! cannot rotate into a zero vec
         M(:,1) = [1,0,0]
         M(:,2) = [0,1,0]
@@ -1914,12 +1921,13 @@ module m_helper_functions
       u = rot_axis / norm2(rot_axis)
       s=sin(angle)
       c=cos(angle)
-      omc = 1._ireals - c
+      omc = 1._${dtype}$ - c
 
       M(1,:)=[u(1)*u(1)*omc + c     , u(1)*u(2)*omc - u(3)*s, u(1)*u(3)*omc + u(2)*s]
       M(2,:)=[u(2)*u(1)*omc + u(3)*s, u(2)*u(2)*omc + c     , u(2)*U(3)*omc - u(1)*s]
       M(3,:)=[u(3)*u(1)*omc - u(2)*s, u(3)*u(2)*omc + u(1)*s, u(3)*u(3)*omc + c     ]
     end function
+#:endfor
 
     ! the resulting matrix will transform a vector from world coords into the given new coord system
     pure function rotation_matrix_world_to_local_basis(ex, ey, ez) result(M)
