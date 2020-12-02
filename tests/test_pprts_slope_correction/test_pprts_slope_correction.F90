@@ -185,7 +185,10 @@ contains
         else
           y_index =  ( j - 1 ) / nxp + 1
         end if
-        edir_target( x_index, y_index ) = E0 * cos(deg2rad(theta0)) * dot_product( - sundir, nnormal( j, : ) ) / dot_product( - sundir, [ zero, zero, one ] )
+        edir_target( x_index, y_index ) = &
+          & E0 * cos(deg2rad(theta0)) &
+          & * dot_product( - sundir, nnormal( j, : ) ) &
+          & / dot_product( - sundir, [ zero, zero, one ] )
       enddo
 
       do j=1, nyp
