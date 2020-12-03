@@ -1186,16 +1186,12 @@ contains
     real(ireals) :: s, st
     real(irealLUT) :: f, coeff_mod_x
 
-    print *, 'sundir', sundir
-
     s = (verts(6) - verts(18)) / (verts(16) - verts(13)) * sundir(1) / sundir(3)
 
     st = ((verts_dtd(18) - verts_dtd(6)) * sundir(1) / sundir(3)) /&
       (verts_dtd(13) - verts_dtd(16) + (verts_dtd(18) - verts_dtd(15)) * sundir(1) / sundir(3))
 
     f = real(abs(st) / abs(s), irealLUT)
-
-    print *, 's', s, 'st', st, 'f', f
 
     coeff_mod_x = max(min((1._irealLUT - f) * coeff(2), coeff(2)), -coeff(1))
     coeff(1) = coeff(1) + coeff_mod_x
@@ -1213,7 +1209,6 @@ contains
     real(ireals) :: s, st
     real(irealLUT) :: f, coeff_mod_y
 
-    print *, 'sundir', sundir
 
     s = (verts(6) - verts(21)) / (verts(20) - verts(14)) * sundir(2) / sundir(3)
 
@@ -1221,8 +1216,6 @@ contains
       (verts_dtd(14) - verts_dtd(20) + (verts_dtd(21) - verts_dtd(15)) * sundir(2) / sundir(3))
 
     f = real(abs(st) / abs(s), irealLUT)
-
-    print *, 's', s, 'st', st, 'f', f
 
     coeff_mod_y = max(min((1._irealLUT - f) * coeff(3), coeff(3)), -coeff(1))
     coeff(1) = coeff(1) + coeff_mod_y
