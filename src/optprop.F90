@@ -18,6 +18,8 @@
 !-------------------------------------------------------------------------
 
 module m_optprop
+#include "petsc/finclude/petsc.h"
+  use petsc
 
 #ifdef _XLF
       use ieee_arithmetic
@@ -519,7 +521,8 @@ contains
     integer(mpiint), intent(out) :: ierr
     real(ireals), intent(in), optional :: opt_vertices(:)
 
-    logical,parameter :: compute_coeff_online=.True.
+    logical, save :: compute_coeff_online=.False., lset=.False.
+    logical :: lflg
     real(ireals), allocatable :: vertices(:)
     real(irealLUT), allocatable :: Clut(:), Cbmc(:), Cbmc2(:)
     real(irealLUT) :: save_aspect_zx
@@ -553,7 +556,13 @@ contains
       call OPP%diff2diff_coeff_symmetry(C)
     endif
 
-    if(dir.and.compute_coeff_online) then
+    if(.not.lset) then
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+        & "-bmc_online", compute_coeff_online, lflg, ierr); call CHKERR(ierr)
+      lset = .True.
+    endif
+
+    if(compute_coeff_online) then
       allocate(Clut(size(C)), Cbmc(size(C)))
       Clut = C
       call setup_default_unit_cube_geometry(one, one, real(aspect_zx, ireals), vertices)
