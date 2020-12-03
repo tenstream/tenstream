@@ -53,13 +53,15 @@ module m_pprts
     & rotation_matrix_world_to_local_basis, &
     & toStr, &
     & triangle_area_by_vertices, &
-    & vec_proj_on_plane
+    & vec_proj_on_plane, &
+    & spherical_2_cartesian
 
   use m_schwarzschild, only: schwarzschild, B_eff
   use m_optprop, only: t_optprop, &
     & t_optprop_1_2, t_optprop_3_6, t_optprop_3_10, &
     & t_optprop_8_10, t_optprop_3_16, t_optprop_8_16, t_optprop_8_18, &
-    & t_optprop_3_10_ann
+    & t_optprop_3_10_ann, &
+    & dir2dir3_coeff_correction_x_dir, dir2dir3_coeff_correction_y_dir
   use m_eddington, only : eddington_coeff_zdun
 
   use m_tenstream_options, only : read_commandline_options, ltwostr, luse_eddington, twostr_ratio, &
@@ -3687,18 +3689,20 @@ module m_pprts
     type(t_pprts_buildings), optional, intent(in) :: opt_buildings
 
     real(ireals), pointer :: xhhl(:,:,:,:) => null(), xhhl1d(:) => null()
-    real(ireals), allocatable :: vertices(:)
     integer(iintegers) :: i,j,k
     integer(mpiint) :: ierr
-    real(ireals), pointer :: grad(:,:,:,:) => null()
+    logical :: lgeometric_correction, lflg
+
     if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'setup_direct_matrix ...'
 
     call MatZeroEntries(A, ierr) ;call CHKERR(ierr)
     call mat_set_diagonal(A)
 
-    call setup_default_unit_cube_geometry(solver%atm%dx, solver%atm%dy, one, vertices)
-
     call getVecPointer(solver%Cvert_one_atm1%da, solver%atm%vert_heights, xhhl1d, xhhl, readonly=.True.)
+
+    lgeometric_correction = .False.
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+        & "-pprts_geometric_correction", lgeometric_correction, lflg, ierr) ;call CHKERR(ierr)
 
     do j=C%ys,C%ye
       do i=C%xs,C%xe
@@ -3737,10 +3741,9 @@ module m_pprts
       integer(iintegers),intent(in) :: i,j,k
 
       MatStencil         :: row(4,C%dof)  ,col(4,C%dof)
+      real(ireals), allocatable :: vertices(:), vertices_dtd(:)
       real(irealLUT)     :: v(C%dof**2), norm
-      real(ireals) :: s, st, sy, syt
-      real(irealLUT) :: f
-      logical :: lsuneast, lsunnorth
+      real(irealLUT) :: v_dummy(3)
       integer(iintegers) :: dst,src, xinc, yinc, isrc, idst
 
       xinc = sun%xinc(k,i,j)
@@ -3796,25 +3799,19 @@ module m_pprts
 
      call setup_default_unit_cube_geometry(solver%atm%dx, solver%atm%dy, &
        & solver%atm%dz(atmk(solver%atm,k),i,j), vertices)
-     !vertices( 6) = xhhl(i0,atmk(solver%atm,k+1),i,j)
-     !vertices( 3) = xhhl(i0,atmk(solver%atm,k+1),i+1,j)
-     !vertices(12) = xhhl(i0,atmk(solver%atm,k+1),i,j+1)
-     !vertices( 9) = xhhl(i0,atmk(solver%atm,k+1),i+1,j+1)
-     !vertices(18) = xhhl(i0,atmk(solver%atm,k),i,j)
-     !vertices(15) = xhhl(i0,atmk(solver%atm,k),i+1,j)
-     !vertices(24) = xhhl(i0,atmk(solver%atm,k),i,j+1)
-     !vertices(21) = xhhl(i0,atmk(solver%atm,k),i+1,j+1)
 
-     vertices( 3) = xhhl(i0,atmk(solver%atm,k+1),i,j) ! a
-     vertices( 6) = xhhl(i0,atmk(solver%atm,k+1),i+1,j) ! b
-     vertices( 9) = xhhl(i0,atmk(solver%atm,k+1),i,j+1) ! c
-     vertices(12) = xhhl(i0,atmk(solver%atm,k+1),i+1,j+1) ! d
-     vertices(15) = xhhl(i0,atmk(solver%atm,k),i,j)
-     vertices(18) = xhhl(i0,atmk(solver%atm,k),i+1,j)
-     vertices(21) = xhhl(i0,atmk(solver%atm,k),i,j+1)
-     vertices(24) = xhhl(i0,atmk(solver%atm,k),i+1,j+1)
+     vertices_dtd = vertices
 
-     vertices(3:24:3) = vertices(3:24:3) - vertices(3)
+     vertices_dtd( 3) = xhhl(i0,atmk(solver%atm,k+1),i,j) ! a
+     vertices_dtd( 6) = xhhl(i0,atmk(solver%atm,k+1),i+1,j) ! b
+     vertices_dtd( 9) = xhhl(i0,atmk(solver%atm,k+1),i,j+1) ! c
+     vertices_dtd(12) = xhhl(i0,atmk(solver%atm,k+1),i+1,j+1) ! d
+     vertices_dtd(15) = xhhl(i0,atmk(solver%atm,k),i,j)
+     vertices_dtd(18) = xhhl(i0,atmk(solver%atm,k),i+1,j)
+     vertices_dtd(21) = xhhl(i0,atmk(solver%atm,k),i,j+1)
+     vertices_dtd(24) = xhhl(i0,atmk(solver%atm,k),i+1,j+1)
+
+     vertices_dtd(3:24:3) = vertices_dtd(3:24:3) - vertices_dtd(3)
 
      call PetscLogEventBegin(solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
      call get_coeff(solver, &
@@ -3824,74 +3821,29 @@ module m_pprts
        solver%atm%dz(atmk(solver%atm,k),i,j), .True., v, &
        solver%atm%l1d(atmk(solver%atm,k),i,j), &
        [real(sun%symmetry_phi(k,i,j), irealLUT), real(sun%theta(k,i,j), irealLUT)], &
-       lswitch_east=xinc.eq.0, lswitch_north=yinc.eq.0, &
-       opt_vertices=vertices)
+       lswitch_east=xinc.eq.0, lswitch_north=yinc.eq.0)!, &
+       !opt_vertices=vertices_dtd)
      call PetscLogEventEnd(solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
 
-      ! HERE
+     if (lgeometric_correction) then
+       v_dummy = [v(1), v(4), v(7)]
 
-      associate(&
-          dz => solver%atm%dz(atmk(solver%atm, k), i, j),&
-          dx => solver%atm%dx,&
-          dy => solver%atm%dy,&
-          gx => grad(i0, atmk(solver%atm, k), i, j),&
-          gy => grad(i1, atmk(solver%atm, k), i, j),&
-          theta => sun%theta(k, i, j)&
-          )
-        lsuneast = xinc .eq. i0
-        lsunnorth = yinc .ne. i1
+       call dir2dir3_coeff_correction_x_dir(v_dummy, vertices, vertices_dtd, sun%sundir)
+       call dir2dir3_coeff_correction_y_dir(v_dummy, vertices, vertices_dtd, sun%sundir)
 
-        ! WORKS for dx = dy down to 200, breaks at dx = dy = 100
-        sy = max(min(dz * tan(deg2rad(theta)), dy), 0._ireals) ! need to exclude theta = 0 here two avoid divide by zero
-        syt = max(min(dz * tan(deg2rad(theta)) / (1._ireals - gy * tan(deg2rad(theta))), dy), 0._ireals)
-        !sy = max(min(dz * tan(deg2rad(theta)), dy), tiny(sy))
-        !syt = min((dz + dy * gy) * tan(deg2rad(theta)), dy)
-!        f = real(syt / sy, irealLUT)
+       v(1) = v_dummy(1)
+       v(4) = v_dummy(2)
+       v(7) = v_dummy(3)
 
-       s = max(min(&
-          dz * tan(deg2rad(theta)) / dy,&
-          1._ireals), 0._ireals)
-        st = max(min(&
-          sqrt(dz ** 2 + gy ** 2 * dz ** 2) * cos(atan(gy)) / (dy * (1._ireals - gy * tan(deg2rad(theta)))),&
-          1._ireals), 0._ireals) ! missing the mysterious dz -> not anymore
-        f = real(st / s, irealLUT)
-        if (k == C%ze-1 .and. i == C%xs) then
-          print *, j, 'v7', v(7), v(7) * f, 'v1', v(1), v(1)+(1._irealLUT-f)*v(7), 'gy', gy, 's', s, 'st', st, 'dz', dz
-        endif
-        !if (gy <= 0._ireals) then
-        !v(1) = v(1) + (1._irealLUT - f) * v(7)
-        !v(7) = v(7) * f
-        !endif
-        ! END WORKS
+       if (ldebug) then
+         call dir2dir3_coeff_correction_y_dir(v_dummy, vertices, vertices_dtd, sun%sundir)
+         call dir2dir3_coeff_correction_x_dir(v_dummy, vertices, vertices_dtd, sun%sundir)
+         if (any(abs(v_dummy - v([1,4,7])) > epsilon(v_dummy))) then
+           call CHKERR(1_mpiint, 'dir2dir3_coeff_corrections are not symmetric')
+         endif
+       endif
+     endif
 
-
-
-        !f = real(st/s, irealLUT)
-        !if (f < 1._irealLUT) then
-        !  f = f * 9._irealLUT /  10._irealLUT
-        !else if ( f > 1._irealLUT) then
-        !  f = f * 11._irealLUT / 10._irealLUT
-        !endif
-        !v(1) = v(1) + (1._irealLUT - f) * v(7)
-        !v(7) = v(7) + (1._irealLUT - f) * v(1)
-        !v(7) = v(7) * f
-        !v(1) = v(1) * f
-
-!        else if (lsunnorth .and. gy < zero) then
- !         v(1) = v(1) + (1._irealLUT - f) * v(7)
-  !        v(7) = v(7) * f
-        !endif
-        !if (k == C%ze-1 .and. i == C%xs) then
-        !  print *, 'j', j, 'sy', sy, 'syt', syt, 'f', f, 'v(7) v', v(7), 'v(7) n', v(7) * f,&
-        !    'v(1) v', v(1), 'v(1) n', v(1) + v(7) * (1 -f)
-        !endif
-        !v(1) = v(1) + v(7) * (1 - f) !reduce v(1) by the incerase of v(7)
-        !v(7) = v(7) * f
-        !else if (lsunnorth .and. gy < zero) then
-        !  v(1) = v(1) + v(7) * (1 - f) !reduce v(1) by the incerase of v(7)
-        !  v(7) = v(7) * f
-        !endif
-      end associate
      call MatSetValuesStencil(A, C%dof, row, C%dof, col, real(-v, ireals), INSERT_VALUES, ierr) ;call CHKERR(ierr)
 
      if(ldebug) then
