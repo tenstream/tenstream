@@ -10,11 +10,15 @@ module m_examples_pprts_ex1
   contains
     subroutine pprts_ex1( &
       & comm, &
+      & lthermal, &
+      & lsolar, &
       & nxp, nyp, nv, &
       & dx, dy, &
       & phi0, theta0, &
       & albedo, dz, &
       & incSolar, &
+      & Bplck, &
+      & Bplck_srfc, &
       & dtau_clearsky, w0_clearsky, g_clearsky, &
       & cld_layer_idx, &
       & dtau_cloud, w0_cloud, g_cloud, &
@@ -23,18 +27,20 @@ module m_examples_pprts_ex1
 
       integer(mpiint), intent(in) :: comm
 
+      logical, intent(in) :: lthermal, lsolar
       integer(iintegers),intent(in) :: nxp,nyp,nv
       real(ireals), intent(in) :: dx,dy
       real(ireals), intent(in) :: phi0, theta0
       real(ireals), intent(in) :: albedo, dz
-      real(ireals), intent(in) :: incSolar
+      real(ireals), intent(in) :: incSolar, Bplck, Bplck_srfc
       real(ireals), intent(in) :: dtau_clearsky, w0_clearsky, g_clearsky
       integer(iintegers), intent(in) :: cld_layer_idx(2)
       real(ireals), intent(in) :: dtau_cloud, w0_cloud, g_cloud
       real(ireals), allocatable,dimension(:,:,:), intent(out) :: fdir,fdn,fup,fdiv
       logical, intent(in), optional :: lverbose
 
-      real(ireals), allocatable,dimension(:,:,:) :: kabs,ksca,g
+      real(ireals), allocatable,dimension(:,:,:) :: kabs, ksca, g, planck
+      real(ireals), allocatable,dimension(:,:)   :: planck_srfc
       real(ireals) :: dz1d(nv)
       real(ireals) :: sundir(3)
 
@@ -53,9 +59,19 @@ module m_examples_pprts_ex1
 
       call init_pprts(comm, nv, nxp, nyp, dx,dy, sundir, solver, dz1d)
 
-      allocate(kabs(solver%C_one%zm , solver%C_one%xm,  solver%C_one%ym ))
-      allocate(ksca(solver%C_one%zm , solver%C_one%xm,  solver%C_one%ym ))
-      allocate(g   (solver%C_one%zm , solver%C_one%xm,  solver%C_one%ym ))
+      associate( &
+          & Catm  => solver%C_one_atm, &
+          & Catm1 => solver%C_one_atm1 )
+
+        allocate(kabs(Catm%zm, Catm%xm, Catm%ym))
+        allocate(ksca(Catm%zm, Catm%xm, Catm%ym))
+        allocate(g   (Catm%zm, Catm%xm, Catm%ym))
+
+        if(lthermal) then
+          allocate(planck     (Catm1%zm, Catm1%xm, Catm1%ym), source=Bplck)
+          allocate(planck_srfc(          Catm1%xm, Catm1%ym), source=Bplck_srfc)
+        endif
+      end associate
 
       kabs = dtau_clearsky/dz/real(nv, ireals) * (1._ireals - w0_clearsky)
       ksca = dtau_clearsky/dz/real(nv, ireals) * w0_clearsky
@@ -72,12 +88,17 @@ module m_examples_pprts_ex1
           & / (dtau_clearsky * w0_clearsky + dtau_cloud * w0_cloud)
       enddo
 
-      call set_optical_properties(solver, albedo, kabs, ksca, g)
+      if(lthermal) then
+        call set_optical_properties(solver, albedo, kabs, ksca, g, &
+          & planck=planck, planck_srfc=planck_srfc)
+      else
+        call set_optical_properties(solver, albedo, kabs, ksca, g)
+      endif
       call set_angles(solver, sundir)
 
       call solve_pprts(solver, &
-        & lthermal=.False., &
-        & lsolar=.True., &
+        & lthermal=lthermal, &
+        & lsolar=lsolar, &
         & edirTOA=incSolar )
 
       call pprts_get_result(solver, fdn,fup,fdiv,fdir)

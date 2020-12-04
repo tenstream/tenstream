@@ -39,6 +39,8 @@ contains
     real(ireals), parameter :: phi0 = 180, theta0 = 60
     real(ireals), parameter :: albedo = 0
     real(ireals), parameter :: incSolar = 1
+    real(ireals), parameter :: Bplck=0, Bplck_srfc=0
+    logical, parameter :: lthermal=.False., lsolar=.True.
 
     real(ireals), parameter :: dtau_clearsky = 1, w0_clearsky = 0, g_clearsky = 0
     integer(iintegers), parameter :: cld_layer_idx(2) = [0,-1]
@@ -58,11 +60,15 @@ contains
 
     call pprts_ex1( &
         & comm, &
+        & lthermal, &
+        & lsolar, &
         & Nx, Ny, Nlay, &
         & dx, dy, &
         & phi0, theta0, &
         & albedo, dz, &
         & incSolar, &
+        & Bplck, &
+        & Bplck_srfc, &
         & dtau_clearsky, w0_clearsky, g_clearsky, &
         & cld_layer_idx, &
         & dtau_cloud, w0_cloud, g_cloud, &
@@ -102,6 +108,8 @@ contains
     real(ireals), parameter :: phi0 = 180, theta0 = 0
     real(ireals), parameter :: albedo = 0.1
     real(ireals), parameter :: incSolar = 1
+    real(ireals), parameter :: Bplck=0, Bplck_srfc=0
+    logical, parameter :: lthermal=.False., lsolar=.True.
 
     real(ireals), parameter :: dtau_clearsky = 1, w0_clearsky = 0, g_clearsky = 0
     integer(iintegers), parameter :: cld_layer_idx(2) = [2,3]
@@ -119,11 +127,15 @@ contains
 
     call pprts_ex1( &
         & comm, &
+        & lthermal, &
+        & lsolar, &
         & Nx, Ny, Nlay, &
         & dx, dy, &
         & phi0, theta0, &
         & albedo, dz, &
         & incSolar, &
+        & Bplck, &
+        & Bplck_srfc, &
         & dtau_clearsky, w0_clearsky, g_clearsky, &
         & cld_layer_idx, &
         & dtau_cloud, w0_cloud, g_cloud, &

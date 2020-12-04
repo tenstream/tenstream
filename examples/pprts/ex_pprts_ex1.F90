@@ -1,7 +1,7 @@
 program main
 #include "petsc/finclude/petsc.h"
   use petsc
-  use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint
+  use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint, pi
   use m_helper_functions, only : CHKERR
   use m_examples_pprts_ex1, only: pprts_ex1
 
@@ -12,6 +12,8 @@ program main
   real(ireals) :: phi0, theta0
   real(ireals) :: albedo
   real(ireals) :: incSolar
+  real(ireals) :: Bplck, Bplck_srfc
+  logical :: lthermal, lsolar
 
   real(ireals) :: dtau_clearsky, w0_clearsky, g_clearsky
   integer(iintegers) :: cld_layer_idx(2)
@@ -39,6 +41,11 @@ program main
   call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-dy", dy, lflg, ierr); call CHKERR(ierr)
   call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-dz", dz, lflg, ierr); call CHKERR(ierr)
 
+  lthermal=.False.
+  lsolar  =.True.
+  call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-thermal", lthermal, lflg, ierr); call CHKERR(ierr)
+  call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-solar", lsolar, lflg, ierr); call CHKERR(ierr)
+
   phi0 = 180
   theta0 = 0
   call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-phi", phi0, lflg, ierr); call CHKERR(ierr)
@@ -49,6 +56,11 @@ program main
 
   incSolar = 1
   call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-S0", incSolar, lflg, ierr); call CHKERR(ierr)
+
+  Bplck = 100._ireals / pi
+  Bplck_srfc = 100
+  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-B0", Bplck, lflg, ierr); call CHKERR(ierr)
+  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Bs", Bplck_srfc, lflg, ierr); call CHKERR(ierr)
 
 
   dtau_clearsky=1; w0_clearsky=.5; g_clearsky=0
@@ -72,11 +84,15 @@ program main
 
   call pprts_ex1( &
       & mpi_comm_world, &
+      & lthermal, &
+      & lsolar, &
       & Nx, Ny, Nlay, &
       & dx, dy, &
       & phi0, theta0, &
       & albedo, dz, &
       & incSolar, &
+      & Bplck, &
+      & Bplck_srfc, &
       & dtau_clearsky, w0_clearsky, g_clearsky, &
       & cld_layer_idx, &
       & dtau_cloud, w0_cloud, g_cloud, &
