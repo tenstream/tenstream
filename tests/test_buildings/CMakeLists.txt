@@ -1,7 +1,7 @@
 get_filename_component(CDIR ${CMAKE_CURRENT_LIST_DIR} NAME)
 set(TESTDIR "${PROJECT_BINARY_DIR}/generated/${CDIR}" )
 
-message( STATUS "Creating Cmake Test wrapper for directory :: ${TESTDIR} :: CDIR ${CDIR}" )
+message( STATUS "Adding test :: ${CDIR}" )
 
 file(MAKE_DIRECTORY  ${TESTDIR} )
 include_directories( ${TESTDIR} )

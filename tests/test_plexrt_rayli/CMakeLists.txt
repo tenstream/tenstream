@@ -2,7 +2,7 @@ get_filename_component(CDIR ${CMAKE_CURRENT_LIST_DIR} NAME)
 set(TESTDIR "${PROJECT_BINARY_DIR}/generated/${CDIR}" )
 
 if(RAYLI_DIR)
-message( STATUS "Creating Cmake Test wrapper for directory :: ${TESTDIR} :: CDIR ${CDIR}" )
+message( STATUS "Adding test :: ${CDIR}" )
 
 file(MAKE_DIRECTORY  ${TESTDIR} )
 include_directories( ${TESTDIR} )
@@ -60,5 +60,5 @@ add_test(
   WORKING_DIRECTORY ${TESTDIR})
 
 else(RAYLI_DIR)
-  message( STATUS "Skipping Cmake Test wrapper for directory :: ${TESTDIR} :: CDIR ${CDIR}" )
+  message( STATUS "Skipping test :: ${CDIR}" )
 endif(RAYLI_DIR)

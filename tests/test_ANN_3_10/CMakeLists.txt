@@ -5,7 +5,7 @@ if(NOT BUILD_FORNADO)
   return()
 endif(NOT BUILD_FORNADO)
 
-message( STATUS "Creating Cmake Test wrapper for directory :: ${TESTDIR} :: CDIR ${CDIR}" )
+message( STATUS "Adding test :: ${CDIR}" )
 
 file(MAKE_DIRECTORY  ${TESTDIR} )
 include_directories( ${TESTDIR} )
