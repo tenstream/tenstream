@@ -2880,8 +2880,8 @@ module m_pprts
     if( .not. solution%lchanged ) return
 
     if(present(time) .and. solver%lenable_solutions_err_estimates) then ! Create working vec to determine difference between old and new absorption vec
-      call DMGetGlobalVector(solver%C_one%da, abso_old, ierr) ; call CHKERR(ierr)
-      call VecCopy( solution%abso, abso_old, ierr)     ; call CHKERR(ierr)
+      call DMGetGlobalVector(solver%C_one%da, abso_old, ierr); call CHKERR(ierr)
+      call VecCopy(solution%abso, abso_old, ierr); call CHKERR(ierr)
     endif
 
     ! update absorption
@@ -2965,7 +2965,7 @@ module m_pprts
     type(tVec)         :: ledir,lediff ! local copies of vectors, including ghosts
     real(ireals)       :: Volume,Az
 
-    logical :: by_flx_divergence, lflg
+    logical :: by_coeff_divergence, lflg
     integer(mpiint) :: ierr
 
     if(allocated(solution%edir)) then
@@ -2995,14 +2995,14 @@ module m_pprts
       goto 99
     endif
 
-    by_flx_divergence = .True.
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-absorption_by_flx_divergence",&
-      by_flx_divergence, lflg, ierr) ;call CHKERR(ierr)
+    by_coeff_divergence = .False.
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-absorption_by_coeff_divergence",&
+      by_coeff_divergence, lflg, ierr) ;call CHKERR(ierr)
 
-    if(by_flx_divergence) then
-      call compute_absorption_by_flx_divergence()
-    else
+    if(by_coeff_divergence) then
       call compute_absorption_by_coeff_divergence()
+    else
+      call compute_absorption_by_flx_divergence()
     endif
 
     99 continue ! cleanup
@@ -3057,6 +3057,11 @@ module m_pprts
       real(irealLUT), pointer :: dir2dir(:,:) ! dim(dst, src)
       real(irealLUT), pointer :: dir2diff(:,:) ! dim(dst, src)
       real(irealLUT), pointer :: diff2diff(:,:) ! dim(dst, src)
+
+      type(tVec) :: local_b
+      real(ireals),pointer,dimension(:,:,:,:) :: xsrc=>null()
+      real(ireals),pointer,dimension(:) :: xsrc1d=>null()
+
       integer(iintegers) :: xinc, yinc, idof, msrc
 
       call getVecPointer(solver%C_one%da, solution%abso, xabso1d, xabso)
@@ -3207,6 +3212,40 @@ module m_pprts
             enddo
           enddo
         enddo
+
+        if(solution%lthermal_rad) then ! subtract local emissions
+          call DMGetLocalVector(C_diff%da, local_b, ierr); call CHKERR(ierr)
+          call VecSet(local_b, zero, ierr); call CHKERR(ierr)
+          call DMGlobalToLocalBegin(C_diff%da, solver%b, ADD_VALUES, local_b, ierr); call CHKERR(ierr)
+          call DMGlobalToLocalEnd  (C_diff%da, solver%b, ADD_VALUES, local_b, ierr); call CHKERR(ierr)
+
+          call getVecPointer(C_diff%da, local_b, xsrc1d, xsrc, readonly=.True.)
+          do j=C_one%ys,C_one%ye
+            do i=C_one%xs,C_one%xe
+              do k=C_one%zs,C_one%ze
+                idof = 0
+                do isrc = 0, solver%difftop%dof-1
+                  msrc = merge(k+1, k, solver%difftop%is_inward(i1+isrc))
+                  xabso(i0,k,i,j) = xabso(i0,k,i,j) - xsrc(idof, msrc, i, j)
+                  idof = idof+1
+                enddo
+                do isrc = 0, solver%diffside%dof-1
+                  msrc = merge(i+1, i, solver%diffside%is_inward(i1+isrc))
+                  xabso(i0,k,i,j) = xabso(i0,k,i,j) - xsrc(idof, k, msrc, j)
+                  idof = idof+1
+                enddo
+                do isrc = 0, solver%diffside%dof-1
+                  msrc = merge(j+1, j, solver%diffside%is_inward(i1+isrc))
+                  xabso(i0,k,i,j) = xabso(i0,k,i,j) - xsrc(idof, k, i, msrc)
+                  idof = idof+1
+                enddo
+              enddo
+            enddo
+          enddo
+          call restoreVecPointer(C_diff%da, local_b, xsrc1d, xsrc, readonly=.True.)
+
+        endif
+
 
         call restoreVecPointer(C_diff%da, lediff, xediff1d, xediff, readonly=.True.)
         call DMRestoreLocalVector(C_diff%da, lediff, ierr); call CHKERR(ierr)
