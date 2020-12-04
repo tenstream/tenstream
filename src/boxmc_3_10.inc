@@ -124,8 +124,22 @@ subroutine init_dir_photon_3_10(bmc, p, src, ldirect, initial_dir, vertices, ier
   p%side       = int(nil)
   p%src        = src
   p%scattercnt = 0
+
   select type(bmc)
   end select
+
+
+  if(dot_product(p%dir, normal).lt.zero) then
+    ierr = 1000_mpiint + int(angle_between_two_vec(p%dir, normal), kind=mpiint)
+    call CHKWARN(1_mpiint, 'initial direction of the photon is pointing outside of the cube')
+    print *,'UUPS, are we starting in a wrong direction?'// &
+      & ' :: init_dir_photon_wedge_5_8', rad2deg(angle_between_two_vec(p%dir, normal))
+    print *,'src', src, 'initial_dir', initial_dir
+    print *,'normal',normal,'direction',p%dir
+    call print_photon(p)
+    call CHKERR(ierr)
+    return
+  endif
 
   ierr = 0
 end subroutine
@@ -143,7 +157,7 @@ subroutine update_dir_stream_3_10(bmc,vertices,p,T)
         case(5,6)
           T(3)=T(3)+p%weight
         case default
-          stop 'called update dirstream with incorrect source'
+          call CHKERR(1_mpiint, 'called update dirstream with incorrect source'//toStr(p%side))
           print *,'remove unused compiler warning', vertices
         end select
         select type(bmc)

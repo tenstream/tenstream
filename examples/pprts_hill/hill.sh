@@ -1,10 +1,18 @@
-make -j ex_pprts_hill || exit 1
+#!/bin/bash
+
+SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+
+bin="ex_pprts_hill"
+
+make -j $bin || exit 1
 baseopt="\
-  -atm_filename $HOME/tenstream/examples/pprts_hill/afglus_100m.dat \
   -dx 100 \
   -dy 100 \
+  -atm_filename $SCRIPTDIR/atm.dat \
   -thermal no \
   -lwc .1 \
+  -Ag_solar .2 \
+  -Ag_thermal 0 \
   -cld_width 5 \
   -cld_bot 700 \
   -cld_top 600 \
@@ -13,13 +21,13 @@ baseopt="\
   -hill_dP 100 \
   -hill_shape 10 \
   -theta0 40 -phi0 180 \
-  -log_view \
+  -rrtmg_bands 60,60 \
   $1"
 
 rayli_opt="\
   -pprts_use_rayli \
-  -rayli_diff_flx_origin 0,0,-inf \
-  -rayli_cylic_bc \
+  -pprts_rayli_photons 1e7 \
+  -rayli_cyclic_bc \
   -show_rayli_dm3d hdf5:dm.h5 \
   "
 
@@ -34,10 +42,6 @@ snap_opt="\
 -visit_view_normal 0.6212888997511092,0.3246068765558223,0.7131833416020943 \
 -visit_view_up -0.6270958235924525,-0.3397617048659849,0.7009370955652606 \
   "
-
-bin="mpirun bin/ex_pprts_hill"
-out="out_pprts_hill.nc"
-rm -f $out
 
 cat > plot_snapshot.py << EOF
 import xarray as xr
@@ -66,6 +70,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument('inp', type=str)
 parser.add_argument('out', type=str)
 args = parser.parse_args()
+
+print(f"Plotting irradiance cross_sections for {args.inp} -> {args.out}")
 
 D = xr.open_dataset(args.inp)
 
@@ -101,15 +107,97 @@ plt.subplot(414)
 plt.pcolormesh(y,z, D['abso'].mean(axis=1))
 cbar = plt.colorbar(); cbar.set_label('abso [W/m^3]'); plt.ylim(*yrng)
 
-plt.savefig(args.out)
+plt.savefig(args.out, bbox_inches='tight')
 EOF
 
-[ ! -e res_1d.nc ] && $bin $baseopt -twostr_only -pprts_slope_correction -out res_1d.nc
-[ ! -e res_rayli.nc ] && $bin $baseopt $rayli_opt -pprts_atm_correction -pprts_slope_correction -out res_rayli.nc
-[ ! -e res_10str.nc ] && $bin $baseopt -out res_10str.nc
-[ ! -e res_10str_topo.nc ] && $bin $baseopt -topography -out res_10str_topo.nc
+cat > plot_distorted.py << EOF
+import glob
+from pylab import *
+import xarray as xr
+import argparse
 
-for f in res_*.nc
+parser = argparse.ArgumentParser()
+parser.add_argument('basename', help='files prefix which should be read')
+parser.add_argument('-o', '--out', help='plot output path')
+args = parser.parse_args()
+
+print("Plotting distorted surface irradiance")
+
+basename = args.basename
+out = 'plot_srfc_'+basename+'.pdf' if args.out is None else args.out
+
+files = glob.glob(f'{basename}*.nc')
+
+D3 = xr.open_dataset(f'{basename}rayli_ac.nc')
+
+
+bias = lambda a,b: (mean(a)/mean(b) - 1.) * 100
+rmse = lambda a,b: sqrt(mean((a-b)**2))
+rrmse = lambda a,b: rmse(a,b)/mean(b) * 100
+
+def plot(E, title):
+  plt.title(title)
+  for f in sorted(files):
+      print(title, f)
+      with xr.open_dataset(f) as D:
+          kw = {
+                  'label': f+'({:.2f}, {:.2f})'.format(rrmse(E(D),E(D3)), bias(E(D),E(D3))),
+                  'linestyle': '--' if '3_10' in f else '-',
+                  'alpha': .7 if '_ac' in f else 1,
+                  }
+          plt.plot(E(D), **kw)
+  plt.legend(loc='best')
+
+
+#E = lambda D: D['edir'][:,0,-1].data + D['edn'][:,0,-1].data
+E = lambda D: D['edir'][:,0,-1].data
+
+plt.figure(figsize=(10,12))
+
+plt.subplot(4,1,1)
+plot(lambda D: D['edir'][:,0,-1].data, 'edir')
+
+plt.subplot(4,1,2)
+plot(lambda D: D['edn' ][:,0,-1].data, 'edn')
+
+plt.subplot(4,1,3)
+plot(lambda D: D['eup' ][:,0,-1].data, 'eup')
+
+plt.subplot(4,1,4)
+plot(lambda D: D['abso' ][:,0,-1].data, 'abso')
+
+plt.tight_layout()
+
+print("saving to", out)
+plt.savefig(out)
+EOF
+
+function runex {
+  EXEC=$1
+  OUT=$2
+  OPT=$3
+
+  if [ -e $OUT ]; then
+    echo "Skipping $OUT"
+  else
+    echo "Running $OUT"
+    ($EXEC bin/$bin $baseopt -out $OUT $OPT) &
+  fi
+}
+
+mpiexec="srun --time=08:00:00 -n 40 -N 1-4 -p met-ws,cluster --mpi=pmix"
+rayexec="srun --time=08:00:00 -n 2 -N 2 -c 10 -p met-ws,cluster --mpi=pmix"
+
+for SZA in 0 20 40 60
 do
-  [ ! -e $(basename $f .nc).png ] && python plot_cross_section.py $f $(basename $f .nc).png
+  runex "$mpiexec" "res_${SZA}_1d.nc                  "  "-theta0 $SZA  -twostr_only"
+  runex "$rayexec" "res_${SZA}_rayli_ac.nc            "  "-theta0 $SZA  -pprts_atm_correction $rayli_opt"
+  runex "$mpiexec" "res_${SZA}_3_10str.nc             "  "-theta0 $SZA "
+  runex "$mpiexec" "res_${SZA}_3_10str_distorted_ac.nc"  "-theta0 $SZA  -pprts_atm_correction -bmc_online"
+  wait
+
+  [ ! -e plot_srfc_${SZA}.pdf ] && python plot_distorted.py res_${SZA}_ --out plot_srfc_${SZA}.pdf
+  for f in res_${SZA}_*.nc; do
+    [ ! -e plot_cross_$f.pdf ] && python plot_cross_section.py $f plot_cross_$f.pdf
+  done
 done
