@@ -3,15 +3,15 @@ module m_icon_plex_utils
 #include "petsc/finclude/petsc.h"
   use petsc
 
-  use m_data_parameters, only : ireals, iintegers, mpiint, &
+  use m_data_parameters, only : ireals, ireal_dp, iintegers, mpiint, &
     i0, i1, i2, i3, i4, i5, zero, one, default_str_len, pi
 
-  use m_helper_functions, only: chkerr, chkwarn, itoa, get_arg, imp_bcast, deg2rad, reverse
+  use m_helper_functions, only: chkerr, chkwarn, itoa, get_arg, imp_bcast, deg2rad, reverse, meanval, normalize_vec
 
   use m_plex_grid, only: t_plexgrid, print_dmplex, dmplex_set_new_section, TOAFACE, &
     get_horizontal_faces_around_vertex
 
-  use m_netcdfio, only: ncload
+  use m_netcdfio, only: ncload, get_global_attribute
 
   implicit none
 
@@ -56,14 +56,14 @@ module m_icon_plex_utils
 
   contains
 
-    subroutine dmplex_2D_to_3D(dm2d, ke1, hhl, dm3d, zindex, lpolar_coords, lverbose)
+    subroutine dmplex_2D_to_3D(dm2d, ke1, hhl, proj_origin, dm3d, zindex, lverbose)
       type(tDM), intent(in) :: dm2d
       integer(iintegers), intent(in) :: ke1 ! number of levels for the 3D DMPlex
       real(ireals), intent(in) :: hhl(:) ! height levels of interfaces, those will be added to base height of 2D elements, either of shape(nlev) or shape(nlev*nverts)
+      real(ireals), intent(in) :: proj_origin(3) ! from which point the proj should happen, i.e. use [0,0,0] for a sphere, of [0,0,-inf] for a regular mesh
       type(tDM), intent(out) :: dm3d
       ! vertical layer / level of cells/faces/edges/vertices , pStart..pEnd-1, fortran indexing, i.e. start with k=1
       integer(iintegers), allocatable, intent(out) :: zindex(:)
-      logical, intent(in), optional :: lpolar_coords ! assume that coordinates are projected on a sphere in the origin default(True)
       logical, intent(in), optional :: lverbose
 
       integer(iintegers) :: p2dStart, p2dEnd
@@ -122,7 +122,7 @@ module m_icon_plex_utils
 
       call set_sf_graph(dm2d, dm3d)
 
-      call set_coords(dm2d, dm3d, lpolar_coords)
+      call set_coords(dm2d, dm3d, proj_origin)
 
       call DMGetBasicAdjacency(dm2d, luseCone, luseClosure, ierr); call CHKERR(ierr)
       call DMSetBasicAdjacency(dm3d, luseCone, luseClosure, ierr); call CHKERR(ierr)
@@ -136,7 +136,6 @@ module m_icon_plex_utils
         call gen_test_mat(dm3d)
         call gen_test_mat(dm2d)
       endif
-      !call CHKERR(1_mpiint, 'DEBUG')
 
     contains
 
@@ -507,10 +506,10 @@ module m_icon_plex_utils
         call DMPlexStratify(dm3d, ierr); call CHKERR(ierr)
       end subroutine
 
-      subroutine set_coords(dm2d, dm3d, lpolar_coords)
+      subroutine set_coords(dm2d, dm3d, proj_origin)
         type(tDM), intent(in) :: dm2d
         type(tDM), intent(inout) :: dm3d
-        logical, intent(in), optional :: lpolar_coords
+        real(ireals), intent(in) :: proj_origin(3)
 
         real(ireals), pointer :: coords2d(:), coords3d(:)
         type(tVec)            :: vec_coord2d, vec_coord3d
@@ -519,10 +518,10 @@ module m_icon_plex_utils
         integer(iintegers)    :: v2dStart, v2dEnd
         integer(iintegers)    :: v3dStart, v3dEnd
 
-        real(ireals) :: distance, inv_distance, vert_height
+        real(ireals) :: vert_height, direction(3)
         integer(mpiint) :: ierr
         integer(iintegers) :: i, k, ivertex
-        logical :: lpolar, lflg, lhave_3d_surface_heights
+        logical :: lhave_3d_surface_heights
 
         if(size(hhl).eq.ke1) then
           lhave_3d_surface_heights = .False.
@@ -536,9 +535,6 @@ module m_icon_plex_utils
 
         call DMPlexGetDepthStratum (dm3d, i0, v3dStart, v3dEnd, ierr); call CHKERR(ierr) ! 3D vertices
         call DMPlexGetDepthStratum (dm2d, i0, v2dStart, v2dEnd, ierr); call CHKERR(ierr) ! 2D vertices
-
-        lpolar=get_arg(.True., lpolar_coords)
-        call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-polar_coords', lpolar, lflg, ierr); call CHKERR(ierr)
 
         ! Create Coordinate stuff for 3D DM
         call DMGetCoordinateSection(dm3d, coordSection3d, ierr); call CHKERR(ierr)
@@ -583,18 +579,10 @@ module m_icon_plex_utils
               vert_height = hhl(i1+k)
             endif
 
-            if(lpolar) then
-              distance = norm2(coords2d(voff2d+i1 : voff2d+i3))
-              inv_distance = one / distance
+            direction = coords2d(voff2d+i1:voff2d+i3) - proj_origin
+            call normalize_vec(direction, ierr); call CHKERR(ierr)
 
-              coords3d(voff3d+1:voff3d+3) = coords2d(voff2d+1:voff2d+3) * (distance + vert_height) * inv_distance
-              !if(ldebug) print *,'Setting coord for 2d', i, '3d vert', ivertex,':', &
-              !  coords2d(voff2d+1:voff2d+3), '=>', &
-              !  coords3d(voff3d+1:voff3d+3), &
-              !  '(',(distance + hhl(k+1)) * inv_distance,')'
-            else
-              coords3d(voff3d+1:voff3d+3) = coords2d(voff2d+1:voff2d+3) + [zero, zero, vert_height]
-            endif
+            coords3d(voff3d+1:voff3d+3) = coords2d(voff2d+1:voff2d+3) + direction * vert_height
           enddo
         enddo
 
@@ -1313,21 +1301,23 @@ module m_icon_plex_utils
         end subroutine
       end subroutine
 
-    subroutine gen_2d_plex_from_icongridfile(comm, gridfile, dm, dmdist, migration_sf, cell_ao_2d)
+    subroutine gen_2d_plex_from_icongridfile(comm, gridfile, dm, dmdist, migration_sf, cell_ao_2d, coord_displacement)
       integer(mpiint), intent(in) :: comm
       character(len=*), intent(in) :: gridfile
       type(tDM), intent(out) :: dm, dmdist
       type(tPetscSF), intent(out) :: migration_sf
       AO, allocatable, intent(out), optional :: cell_ao_2d
+      real(ireals), intent(out), optional :: coord_displacement(3) ! cartesian vector giving the displacement of origin
 
       integer(iintegers) :: Nfaces, Nedges, Nverts ! number of entries in base icon grid
       integer(iintegers), allocatable :: cell_index(:)
       integer(iintegers), allocatable :: edge_index(:)
       integer(iintegers), allocatable :: vert_index(:)
       real(ireals)      , allocatable :: cell_elevation(:)       ! dim(local_cells)
-      real(ireals)      , allocatable :: cartesian_x_vertices(:) ! dim(local_cells)
-      real(ireals)      , allocatable :: cartesian_y_vertices(:) ! dim(local_cells)
-      real(ireals)      , allocatable :: cartesian_z_vertices(:) ! dim(local_cells)
+      real(ireal_dp)    , allocatable :: cartesian_x_vertices(:) ! dim(local_cells)
+      real(ireal_dp)    , allocatable :: cartesian_y_vertices(:) ! dim(local_cells)
+      real(ireal_dp)    , allocatable :: cartesian_z_vertices(:) ! dim(local_cells)
+      real(ireal_dp)                  :: sphere_radius
 
       integer(iintegers), allocatable, dimension(:,:) :: edges_of_cell ! edges of each cell, dim(local_cells, 3)
       integer(iintegers), allocatable, dimension(:,:) :: edge_verts    ! vertices at edge  , dim(local_edges, 2)
@@ -1349,10 +1339,15 @@ module m_icon_plex_utils
         varname(2) = 'vertex_index'         ; call ncload(varname, vert_index   , ierr); call CHKERR(ierr);
         varname(2) = 'edge_of_cell'         ; call ncload(varname, edges_of_cell, ierr); call CHKERR(ierr)
         varname(2) = 'edge_vertices'        ; call ncload(varname, edge_verts   , ierr); call CHKERR(ierr)
-        varname(2) = 'cell_elevation'       ; call ncload(varname, cell_elevation,ierr) ; call CHKERR(ierr);
-        varname(2) = 'cartesian_x_vertices' ; call ncload(varname, cartesian_x_vertices, ierr) ; call CHKERR(ierr);
-        varname(2) = 'cartesian_y_vertices' ; call ncload(varname, cartesian_y_vertices, ierr) ; call CHKERR(ierr);
-        varname(2) = 'cartesian_z_vertices' ; call ncload(varname, cartesian_z_vertices, ierr) ; call CHKERR(ierr);
+        varname(2) = 'cell_elevation'       ; call ncload(varname, cell_elevation,ierr); call CHKERR(ierr);
+        varname(2) = 'cartesian_x_vertices' ; call ncload(varname, cartesian_x_vertices, ierr); call CHKERR(ierr);
+        varname(2) = 'cartesian_y_vertices' ; call ncload(varname, cartesian_y_vertices, ierr); call CHKERR(ierr);
+        varname(2) = 'cartesian_z_vertices' ; call ncload(varname, cartesian_z_vertices, ierr); call CHKERR(ierr);
+
+        call get_global_attribute(varname(1), 'sphere_radius', sphere_radius, ierr); call CHKERR(ierr)
+        if(ierr.ne.0) then
+          sphere_radius = 6371229._ireal_dp
+        endif
 
         Nfaces = size(cell_index)
         Nedges = size(edge_index)
@@ -1436,8 +1431,7 @@ module m_icon_plex_utils
           integer(iintegers)   :: vStart, vEnd, i, j
           integer(iintegers), allocatable :: faces_around_vertex(:)
 
-          real(ireals) :: cart_coord(3), vert_elevation
-          real(ireals), parameter :: sphere_radius = 6371229._ireals
+          real(ireal_dp) :: cart_coord(3), vert_elevation, vertices_centroid(3)
 
           call DMGetCoordinateSection(dm, coordSection, ierr); call CHKERR(ierr)
 
@@ -1455,7 +1449,6 @@ module m_icon_plex_utils
 
           call PetscSectionSetUp(coordSection, ierr); call CHKERR(ierr)
           call PetscSectionGetStorageSize(coordSection, coordSize, ierr); call CHKERR(ierr)
-          !print *,'Coord Section has size:', coordSize
 
           call VecCreate(comm, coordinates, ierr); call CHKERR(ierr)
           call VecSetSizes(coordinates, coordSize, PETSC_DETERMINE, ierr);call CHKERR(ierr)
@@ -1465,7 +1458,13 @@ module m_icon_plex_utils
           call PetscObjectSetName(coordinates, "coordinates", ierr); call CHKERR(ierr)
 
           call VecGetArrayF90(coordinates, coords, ierr); call CHKERR(ierr)
-          !print *,'bounds coords:', lbound(coords), ubound(coords)
+
+          vertices_centroid(:) = 0
+          if(present(coord_displacement)) then
+            vertices_centroid(:) = sphere_radius * &
+              & [ meanval(cartesian_x_vertices), meanval(cartesian_y_vertices), meanval(cartesian_z_vertices) ]
+            coord_displacement = real(vertices_centroid, ireals)
+          endif
 
           ! set vertices as coordinates
           do i = i1, Nverts
@@ -1480,12 +1479,9 @@ module m_icon_plex_utils
             vert_elevation = vert_elevation / size(faces_around_vertex)
 
             cart_coord = [cartesian_x_vertices(i), cartesian_y_vertices(i), cartesian_z_vertices(i)]
-            !cart_coord = [icongrid%cartesian_x_vertices(i), icongrid%cartesian_y_vertices(i)]
-            coords(voff+i1 : voff+i3) = cart_coord * (sphere_radius + vert_elevation)
-            !print *,'setting coords',cart_coord,'to',voff+i1 , voff+dimEmbed
+            coords(voff+i1 : voff+i3) = real(cart_coord * (sphere_radius + vert_elevation) - vertices_centroid, ireals)
           enddo
 
-          !print *,'coords', shape(coords), '::', coords
           call VecRestoreArrayF90(coordinates, coords, ierr); call CHKERR(ierr)
 
           call DMSetCoordinateSection(dm, i3, coordSection, ierr); call CHKERR(ierr)

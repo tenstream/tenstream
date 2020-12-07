@@ -68,7 +68,7 @@ implicit none
         hhl(k) = hhl(k-1) - dz
       enddo
 
-      call dmplex_2D_to_3D(dm2d, Nz, hhl, dm3d, zindex, lpolar_coords=.False.)
+      call dmplex_2D_to_3D(dm2d, Nz, hhl, [zero, zero, -huge(one)], dm3d, zindex)
 
       call setup_plexgrid(dm2d, dm3d, Nz-1, zindex, plex, hhl)
       deallocate(zindex)

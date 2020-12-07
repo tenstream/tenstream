@@ -197,7 +197,7 @@ contains
         call VecGetArrayReadF90(hhl, xhhl1d, ierr); call CHKERR(ierr)
         xhhl(i1:i1, i1:Cv%glob_zm, i1:Cv%glob_xm, i1:Cv%glob_ym) => xhhl1d
 
-        call dmplex_2D_to_3D(dm2d, Ca1%glob_zm, xhhl(i1, :, i1, i1), dm3d, zindex, lpolar_coords=.False.)
+        call dmplex_2D_to_3D(dm2d, Ca1%glob_zm, xhhl(i1, :, i1, i1), [zero, zero, -huge(zero)], dm3d, zindex)
 
         !set height lvls on vertices
         call DMGetCoordinateSection(dm3d, coord_section, ierr); call CHKERR(ierr)
@@ -212,7 +212,7 @@ contains
         enddo
         call VecRestoreArrayF90(coordinates, coords, ierr); call CHKERR(ierr)
 
-        call setup_plexgrid(dm2d, dm3d, Ca%glob_zm, zindex, rayli_info%plex, xhhl(i1, :, i1, i1))
+        call setup_plexgrid(dm2d, dm3d, Ca%glob_zm, zindex, rayli_info%plex)
 
         call PetscObjectViewFromOptions(dm3d, PETSC_NULL_DM, '-show_rayli_dm3d', ierr); call CHKERR(ierr)
         nullify(xhhl)

@@ -100,7 +100,7 @@ contains
     hhl = reverse(hhl)
     if(lverbose.and.myid.eq.0) print *,'hhl', hhl
 
-    call dmplex_2D_to_3D(dm2d_dist, Nz, hhl, dm3d, zindex, lverbose=lverbose, lpolar_coords=.False.)
+    call dmplex_2D_to_3D(dm2d_dist, Nz, hhl, [zero, zero, -huge(zero)], dm3d, zindex, lverbose=lverbose)
 
     call setup_plexgrid(dm2d_dist, dm3d, Nz-1, zindex, plex, hhl)
     deallocate(zindex)

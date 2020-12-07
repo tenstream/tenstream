@@ -3,13 +3,31 @@ module m_plex_grid
   use petsc
   use m_netcdfIO, only: ncload
 
-  use m_helper_functions, only: CHKERR, compute_normal_3d, approx, strF2C, distance, &
-    triangle_area_by_vertices, swap, determine_normal_direction, &
-    vec_proj_on_plane, cross_3d, rad2deg, is_between, &
-    angle_between_two_vec, angle_between_two_normed_vec, &
-    resize_arr, get_arg, normalize_vec, &
-    imp_bcast, itoa, ftoa, imp_allreduce_max, &
-    rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world
+  use m_helper_functions, only: &
+    & angle_between_two_normed_vec, &
+    & angle_between_two_vec, &
+    & approx, &
+    & CHKERR, &
+    & CHKWARN, &
+    & compute_normal_3d, &
+    & cross_3d, &
+    & determine_normal_direction, &
+    & distance, &
+    & get_arg, &
+    & imp_allreduce_max, &
+    & imp_bcast, &
+    & is_between, &
+    & itoa, &
+    & normalize_vec, &
+    & rad2deg, &
+    & resize_arr, &
+    & rotation_matrix_local_basis_to_world, &
+    & rotation_matrix_world_to_local_basis, &
+    & strF2C, &
+    & swap, &
+    & toStr, &
+    & triangle_area_by_vertices, &
+    & vec_proj_on_plane
 
   use m_data_parameters, only : ireals, irealLUT, ireal_params, &
     iintegers, mpiint, zero, one, pi, &
@@ -106,7 +124,6 @@ module m_plex_grid
     logical,allocatable :: l1d(:)                        ! constrained 1D cell, cStart..cEnd-1
     logical,allocatable :: ltopfacepos(:)                ! TOP_BOT_FACE or SIDE_FACE of faces and edges, fStart..eEnd-1
     integer(iintegers),allocatable :: zindex(:)          ! vertical layer / level of cells/faces/edges/vertices , pStart..pEnd-1
-    real(ireals), allocatable :: hhl1d(:)                ! 1D vertical height levels which were used in 2D_to_3D extrusion
     integer(iintegers),allocatable :: localiconindex(:)  ! local index of face, edge, vertex on icongrid, pStart, pEnd-1, i.e. on each rank from 1..Ncell, 1..Nedges etc..
     integer(iintegers),allocatable :: globaliconindex(:) ! global index of face, edge, vertex on icongrid, pStart, pEnd-1, i.e. for each rank has the indices of the global icon grid as it is read from nc
 
@@ -230,7 +247,7 @@ module m_plex_grid
       type(tDM), intent(in) :: dm2d, dm3d
       integer(iintegers), intent(in) :: Nlay, zindex(:)
       type(t_plexgrid), allocatable, intent(inout) :: plex
-      real(ireals), optional :: hhl(:)
+      real(ireals), optional :: hhl(:) ! only used for a consistency check. If dz should be same everywhere, i.e. if there is no topography, provide this and we check that the mesh adheres to that.
 
       integer(iintegers) :: pStart, pEnd
       integer(mpiint) :: ierr
@@ -268,10 +285,36 @@ module m_plex_grid
       call setup_cell1_dmplex(plex%dm, plex%cell1_dm)
 
       if(present(hhl)) then
-        allocate(plex%hhl1d(size(hhl)), source=hhl)
+        call check_height_for_consistency()
       endif
 
       call set_1D_constraints(plex)
+    contains
+      subroutine check_height_for_consistency()
+        type(tPetscSection) :: geom_section
+        real(ireals), pointer :: xgeoms(:) ! pointer to coordinates vec
+        integer(iintegers) :: geom_offset
+        integer(iintegers) :: icell, k
+        real(ireals) :: dz
+        real(ireals), parameter :: eps=1e-6
+
+        call DMGetSection(plex%geom_dm, geom_section, ierr); CHKERRQ(ierr)
+        call VecGetArrayReadF90(plex%geomVec, xgeoms, ierr); call CHKERR(ierr)
+
+        do icell = plex%cStart, plex%cEnd-1
+          k = plex%zindex(icell)
+          dz = hhl(k) - hhl(k+1)
+          call PetscSectionGetFieldOffset(geom_section, icell, i3, geom_offset, ierr); call CHKERR(ierr)
+          if(.not.approx(dz, xgeoms(i1+geom_offset), dz*eps)) then
+            call CHKERR(1_mpiint, "hhl1d does not match the computed wedge heights: "// &
+              & " k ="//toStr(k)//" hhl1d ="//tostr(dz)//" wedge dz ="//toStr(xgeoms(i1+geom_offset))//new_line('')// &
+              & " This could be a result of floating point precision deterioration. "//new_line('')// &
+              & " Consider using more precision to suit large coordinates.")
+          endif
+        enddo
+
+        call VecRestoreArrayReadF90(plex%geomVec, xgeoms, ierr); call CHKERR(ierr)
+      end subroutine
     end subroutine
 
     subroutine gen_test_mat(dm)
@@ -1037,7 +1080,7 @@ module m_plex_grid
           print *,'Have '//itoa(num_constrained)//' constrained dofs : 100% '
         else
           print *,'Have '//itoa(num_constrained)//' constrained dofs :'// &
-            & ftoa(real(num_constrained, ireals)*100._ireals/real(num_unconstrained+num_constrained, ireals))//' %'
+            & toStr(real(num_constrained, ireals)*100._ireals/real(num_unconstrained+num_constrained, ireals))//' %'
         endif
       endif
     end subroutine
@@ -1250,7 +1293,7 @@ module m_plex_grid
       if(ldebug) then
         if(.not.approx(one, norm2(face_normal))) then
           print *,'cell', icell, 'face', iface, 'Face Normal:', face_normal
-          call CHKERR(1_mpiint, 'face_normal not normed :( '//ftoa(face_normal))
+          call CHKERR(1_mpiint, 'face_normal not normed :( '//toStr(face_normal))
         endif
       endif
 
@@ -1416,14 +1459,14 @@ module m_plex_grid
 
       zenith = angle_between_two_vec(sundir, face_normals(:, upper_face))
       proj_sundir = vec_proj_on_plane(sundir, face_normals(:,upper_face))
-      call normalize_vec(proj_sundir, ierr) !; call CHKERR(ierr, 'bad proj_sundir'//ftoa(proj_sundir))
+      call normalize_vec(proj_sundir, ierr) !; call CHKERR(ierr, 'bad proj_sundir'//toStr(proj_sundir))
 
       do iface=1,size(side_faces)
         side_face_normal_projected_on_upperface(:, iface) = &
           vec_proj_on_plane(face_normals(:,side_faces(iface)), face_normals(:,upper_face))
         call normalize_vec(side_face_normal_projected_on_upperface(:, iface), &
                            side_face_normal_projected_on_upperface(:, iface), ierr)
-        call CHKERR(ierr, 'bad side face normal '//ftoa(side_face_normal_projected_on_upperface(:, iface)))
+        call CHKERR(ierr, 'bad side face normal '//toStr(side_face_normal_projected_on_upperface(:, iface)))
         !if(norm2(proj_sundir).lt.epsilon(zero)) then
         !  proj_angles_to_sun(iface) = zero
         !  lsrc(side_faces(iface)) = .False.
@@ -2260,7 +2303,7 @@ module m_plex_grid
 
       normal = compute_normal_3d(vertex_coord(:,1),vertex_coord(:,2),vertex_coord(:,3))
       if(.not.approx(norm2(normal), one, 10*epsilon(one))) &
-        call CHKERR(1_mpiint, 'face normal not normed :( '//ftoa(normal)//' ( '//ftoa(norm2(normal))//' )')
+        call CHKERR(1_mpiint, 'face normal not normed :( '//toStr(normal)//' ( '//toStr(norm2(normal))//' )')
 
       if(Nvertices.eq.3) then
         area = triangle_area_by_vertices(vertex_coord(:,1), vertex_coord(:,2), vertex_coord(:,3))

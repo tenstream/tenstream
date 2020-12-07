@@ -420,7 +420,7 @@ contains
 
     if(ldebug) print *,myid,'plexrt_f2c_init: Local Domain sizes are:', Ncol, Nlev
 
-    call dmplex_2D_to_3D(dm2d_dist, Nlev, hhl, dm3d, zindex, lpolar_coords=.False.)
+    call dmplex_2D_to_3D(dm2d_dist, Nlev, hhl, [zero, zero, -huge(zero)], dm3d, zindex)
 
     call setup_plexgrid(dm2d_dist, dm3d, Nlev-1,zindex, plex, hhl)
     call DMDestroy(dm3d, ierr); call CHKERR(ierr)

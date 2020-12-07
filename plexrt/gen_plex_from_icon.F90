@@ -33,6 +33,7 @@ module m_gen_plex_from_icon
 
       integer(iintegers) :: Nlev
       integer(iintegers), allocatable :: zindex(:)
+      real(ireals) :: coord_displacement(3)
 
       call PetscInitialize(PETSC_NULL_CHARACTER,ierr); call CHKERR(ierr)
       comm = MPI_COMM_WORLD
@@ -54,9 +55,9 @@ module m_gen_plex_from_icon
         call CHKERR(1_mpiint, 'Required Option missing')
       endif
 
-      call gen_2d_plex_from_icongridfile(comm, gridfile, dm2d, dm2d_dist, distribute_point_sf, cell_ao_2d)
+      call gen_2d_plex_from_icongridfile(comm, gridfile, dm2d, dm2d_dist, distribute_point_sf, cell_ao_2d, coord_displacement)
       Nlev = size(icon_hdcp2_default_hhl, kind=iintegers)
-      call dmplex_2D_to_3D(dm2d_dist, Nlev, icon_hdcp2_default_hhl, dm3d, zindex)
+      call dmplex_2D_to_3D(dm2d_dist, Nlev, icon_hdcp2_default_hhl, -coord_displacement, dm3d, zindex)
 
       call dump_ownership(dm3d, '-dump_ownership', '-show_plex')
       call setup_plexgrid(dm2d_dist, dm3d, Nlev-1, zindex, plex, icon_hdcp2_default_hhl)

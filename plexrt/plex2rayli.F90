@@ -367,7 +367,7 @@ module m_plex2rayli
 
     do ivert = vStart, vEnd-1
       call PetscSectionGetOffset(coord_section, ivert, voff, ierr); call CHKERR(ierr)
-      vert_coords(:, ivert-vStart+1) = coords(voff+1:voff+3)
+      vert_coords(:, ivert-vStart+1) = real(coords(voff+1:voff+3), kind=kind(vert_coords))
     enddo
     call VecRestoreArrayF90(coordinates, coords, ierr); call CHKERR(ierr)
 

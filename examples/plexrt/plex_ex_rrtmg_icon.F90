@@ -64,6 +64,7 @@ contains
     real(ireals), allocatable, dimension(:,:) :: edir,edn,eup,abso
 
     real(ireals) :: sundir(3) ! cartesian direction of sun rays in a global reference system
+    real(ireals) :: coord_displacement(3) ! cartesian displacement of origin
 
     class(t_plex_solver), allocatable :: solver
 
@@ -74,7 +75,7 @@ contains
     call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
 
     call gen_2d_plex_from_icongridfile(comm, gridfile, dm2d, dm2d_dist, &
-      migration_sf, cell_ao_2d)
+      migration_sf, cell_ao_2d, coord_displacement)
 
     call DMPlexGetHeightStratum(dm2d_dist, i0, fStart, fEnd, ierr); call CHKERR(ierr)
     Ncol = fEnd - fStart
@@ -115,8 +116,8 @@ contains
     !call print_tenstr_atm(atm)
 
     ! Setup 3D DMPLEX grid
-    call dmplex_2D_to_3D(dm2d_dist, Nlev, reverse(atm%zt(:, i1)), dm3d, zindex)
-    !call atm_dz_to_vertex_heights(atm%dz, dm3d)
+    call dmplex_2D_to_3D(dm2d_dist, Nlev, reverse(atm%zt(:, i1)), coord_displacement, dm3d, zindex)
+    ! call atm_dz_to_vertex_heights(atm%dz, dm3d)
 
     call dump_ownership(dm3d, '-dump_ownership', '-show_plex')
     call setup_plexgrid(dm2d_dist, dm3d, Nlev-1, zindex, plex, reverse(atm%zt(:, i1)))

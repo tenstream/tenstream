@@ -57,7 +57,7 @@ program main
 
   call init_sundir()
 
-  default_options='-polar_coords no'
+  default_options=''
   default_options=trim(default_options)//' -show_plex hdf5:'//trim(outfile)
   default_options=trim(default_options)//' -show_ownership hdf5:'//trim(outfile)//'::append'
   default_options=trim(default_options)//' -show_abso hdf5:'//trim(outfile)//'::append'
