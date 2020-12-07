@@ -316,7 +316,9 @@ module m_helper_functions
 #:endfor
   end interface
   interface assertEqual
-    module procedure assertEqual_i32, assertEqual_i64
+    #:for dtype in ['INT32', 'INT64']
+    module procedure assertEqual_${dtype}$, assertEqual_${dtype}$_with_msg
+    #:endfor
   end interface
 
   interface cross_2d
@@ -556,28 +558,21 @@ module m_helper_functions
       endif
     end subroutine
 
-    subroutine assertEqual_i32(t, i, msg)
-      integer(INT32),intent(in) :: t, i
-      character(len=*), intent(in), optional :: msg
+    #:for dtype in ['INT32', 'INT64']
+    subroutine assertEqual_${dtype}$(t, i)
+      integer(${dtype}$),intent(in) :: t, i
       if(t.ne.i) then
-        if(present(msg)) then
-          call CHKERR(int(t-i, mpiint), itoa(i)//'.ne.'//itoa(t)//' :: '//msg)
-        else
           call CHKERR(int(t-i, mpiint), itoa(i)//'.ne.'//itoa(t))
-        endif
       endif
     end subroutine
-    subroutine assertEqual_i64(t, i, msg)
-      integer(INT64),intent(in) :: t, i
-      character(len=*), intent(in), optional :: msg
+    subroutine assertEqual_${dtype}$_with_msg(t, i, msg)
+      integer(${dtype}$),intent(in) :: t, i
+      character(len=*), intent(in) :: msg
       if(t.ne.i) then
-        if(present(msg)) then
           call CHKERR(int(t-i, mpiint), itoa(i)//'.ne.'//itoa(t)//' :: '//msg)
-        else
-          call CHKERR(int(t-i, mpiint), itoa(i)//'.ne.'//itoa(t))
-        endif
       endif
     end subroutine
+    #:endfor
 
     elemental function ltoa(l) result(res)
       character(len=1) :: res
