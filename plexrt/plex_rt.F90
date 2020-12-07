@@ -3157,12 +3157,12 @@ module m_plex_rt
       end subroutine
   end subroutine
 
-  subroutine compute_absorption(solver, solution, absorption_by_flx_divergence)
+  subroutine compute_absorption(solver, solution, absorption_by_coeff_divergence)
     class(t_plex_solver), allocatable, intent(inout) :: solver
     type(t_state_container), intent(inout) :: solution
 
-    logical, intent(in), optional :: absorption_by_flx_divergence
-    logical :: by_flx_divergence, lflg
+    logical, intent(in), optional :: absorption_by_coeff_divergence
+    logical :: by_coeff_divergence, lflg
     integer(mpiint) :: ierr
 
     if(.not.solution%lset) call CHKERR(1_mpiint, 'compute_absorption needs to get an initialized solution obj')
@@ -3174,9 +3174,9 @@ module m_plex_rt
 
     if(solution%lchanged) then
 
-      by_flx_divergence = get_arg(.True., absorption_by_flx_divergence)
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-absorption_by_flx_divergence",&
-        by_flx_divergence, lflg, ierr) ;call CHKERR(ierr)
+      by_coeff_divergence = get_arg(.False., absorption_by_coeff_divergence)
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-absorption_by_coeff_divergence",&
+        by_coeff_divergence, lflg, ierr) ;call CHKERR(ierr)
 
 
       if(solution%lsolar_rad .and. .not.allocated(solution%edir)) &
@@ -3193,10 +3193,10 @@ module m_plex_rt
 
       if(solution%lsolar_rad) then
         call PetscLogEventBegin(solver%logs%compute_absorption, ierr)
-        if(by_flx_divergence) then
-          call compute_edir_absorption(solver%plex, solution%edir, solution%abso)
-        else
+        if(by_coeff_divergence) then
           call compute_edir_absorption_by_coeff_divergence(solver, solution%edir, solution%abso)
+        else
+          call compute_edir_absorption_by_flx_divergence(solver%plex, solution%edir, solution%abso)
         endif
         call PetscLogEventEnd(solver%logs%compute_absorption, ierr)
 
@@ -3207,18 +3207,18 @@ module m_plex_rt
       endif
 
       call PetscLogEventBegin(solver%logs%compute_absorption, ierr)
-        if(by_flx_divergence) then
-          call compute_ediff_absorption(&
-            & solver%plex, &
-            & solver%IS_diff_in_out_dof, &
-            & solution%ediff, &
-            & solution%abso)
-        else
+        if(by_coeff_divergence) then
           call compute_ediff_absorption_by_coeff_divergence(&
             & solver, &
             & solver%plex, &
             & solution%ediff, &
             & solver%diffsrc, &
+            & solution%abso)
+        else
+          call compute_ediff_absorption(&
+            & solver%plex, &
+            & solver%IS_diff_in_out_dof, &
+            & solution%ediff, &
             & solution%abso)
         endif
       call PetscLogEventEnd(solver%logs%compute_absorption, ierr)
@@ -3230,7 +3230,7 @@ module m_plex_rt
     call PetscLogEventEnd(solver%logs%debug_output, ierr)
   end subroutine
 
-  subroutine compute_edir_absorption(plex, edir, abso)
+  subroutine compute_edir_absorption_by_flx_divergence(plex, edir, abso)
     type(t_plexgrid), allocatable, intent(inout) :: plex
     type(tVec), intent(in) :: edir
     type(tVec), allocatable, intent(inout) :: abso
