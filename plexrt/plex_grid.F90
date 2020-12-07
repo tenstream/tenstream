@@ -296,7 +296,7 @@ module m_plex_grid
         integer(iintegers) :: geom_offset
         integer(iintegers) :: icell, k
         real(ireals) :: dz
-        real(ireals), parameter :: eps=1e-6
+        real(ireals), parameter :: eps=1e-4
 
         call DMGetSection(plex%geom_dm, geom_section, ierr); CHKERRQ(ierr)
         call VecGetArrayReadF90(plex%geomVec, xgeoms, ierr); call CHKERR(ierr)

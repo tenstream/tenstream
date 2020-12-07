@@ -8,11 +8,17 @@ module m_examples_plex_ex_rrtmg_icon
   use m_helper_functions, only: CHKERR, imp_bcast, determine_normal_direction, &
     spherical_2_cartesian, angle_between_two_vec, rad2deg, deg2rad, meanvec, reverse
 
-  use m_data_parameters, only : ireals, iintegers, mpiint, imp_ireals, &
-    default_str_len, &
-    i0, i1, i2, i3, i4, i5,  &
-    zero, one,       &
-    init_mpi_data_parameters
+  use m_data_parameters, only : &
+    & i0, i1, i2, i3, i4, i5,  &
+    & default_str_len, &
+    & iintegers, &
+    & imp_ireals, &
+    & init_mpi_data_parameters, &
+    & ireal_dp, &
+    & ireals, &
+    & mpiint, &
+    & one, &
+    & zero
 
   use m_icon_plex_utils, only: gen_2d_plex_from_icongridfile, icon_hdcp2_default_hhl, &
     dump_ownership, dmplex_2D_to_3D, icon_ncvec_to_plex, celldm_veccopy, celldm1_vec_to_nz_ncol, &
