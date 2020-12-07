@@ -124,7 +124,7 @@ if(BUILD_RAYLI)
     add_subdirectory(${rayli_SOURCE_DIR} ${rayli_BINARY_DIR})
   endif()
 
-  set(RAYLI_LIBS rayli_c_wrapper rayli_common CACHE INTERNAL "RAYLI Libraries")
+  set(RAYLI_LIBS rayli_c_wrapper rayli_common spdlog fmt CACHE INTERNAL "RAYLI Libraries")
   message(STATUS " Rayli Libraries => ${RAYLI_LIBS}")
 
 else(BUILD_RAYLI) # else, check if we have a custom RAYLI_DIR set as environment variable
