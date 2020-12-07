@@ -1245,18 +1245,7 @@ contains
     real(ireals) :: s, st
     real(irealLUT) :: f, coeff_mod
 
-    if (sundir(2) > epsilon(sundir(2)) * 10) then
-      s = (verts(12) - verts(6) + (verts(5) - verts(11)) * sundir(3) / sundir(2)) / (verts(18) - verts(6))
-      st = (verts_dtd(12) - verts_dtd(6) + (verts_dtd(5) - verts_dtd(11)) * sundir(3) / sundir(2)) / &
-        (verts_dtd(18) - verts_dtd(6))
-      print *, 's', s, 'st', st
-      f = real(abs(st) / abs(s), irealLUT)
-      print *, 'coeffs', coeffs
-      coeff_mod = max(min((1._irealLUT - f) * coeffs(3), coeffs(3)), - coeffs(9))
-      print *, 'f', f, 'coeff_mod', coeff_mod, 'test',(1._irealLUT - f), coeffs(9), (1._irealLUT - f) *coeffs(9)
-      coeffs(3) = coeffs(3) - coeff_mod
-      coeffs(9) = coeffs(9) + coeff_mod
-    else if (sundir(2) < epsilon(sundir(2)) * 10) then
+    if (abs(sundir(2)) > epsilon(sundir(2)) * 10) then
       s = max(min(abs(&
         (verts(6) - verts(12) + (verts(11) - verts(5)) * sundir(3) / sundir(2)) / (verts(24) - verts(12))),&
         1._ireals), 0._ireals)
