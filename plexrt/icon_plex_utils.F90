@@ -1461,7 +1461,7 @@ module m_icon_plex_utils
 
           vertices_centroid(:) = 0
           if(present(coord_displacement)) then
-            vertices_centroid(:) = sphere_radius * &
+            vertices_centroid(:) = (sphere_radius+meanval(cell_elevation)) * &
               & [ meanval(cartesian_x_vertices), meanval(cartesian_y_vertices), meanval(cartesian_z_vertices) ]
             coord_displacement = real(vertices_centroid, ireals)
           endif
