@@ -64,7 +64,9 @@ public ::                          &
   OPP_1D_RETCODE,                  &
   OPP_TINYASPECT_RETCODE,          &
   dir2dir3_coeff_correction_x_dir, &
-  dir2dir3_coeff_correction_y_dir
+  dir2dir3_coeff_correction_y_dir, &
+  dir2dir3_coeff_correction_x,     &
+  dir2dir3_coeff_correction_y
 
 type,abstract :: t_optprop
   logical :: optprop_debug=ldebug_optprop
@@ -1186,51 +1188,115 @@ contains
     endif
   end subroutine
 
-  subroutine dir2dir3_coeff_correction_x_dir(coeff, verts, verts_dtd, sundir)
-    real(irealLUT), intent(inout) :: coeff(:)
+  subroutine dir2dir3_coeff_correction_x_dir(coeffs, verts, verts_dtd, sundir)
+    real(irealLUT), intent(inout) :: coeffs(:)
     real(ireals), intent(in) :: verts(:)
     real(ireals), intent(in) :: verts_dtd(:)
     real(ireals), intent(in) :: sundir(:)
 
     real(ireals) :: s, st
-    real(irealLUT) :: f, coeff_mod_x
+    real(irealLUT) :: f, coeff_mod
 
-    s = (verts(6) - verts(18)) / (verts(16) - verts(13)) * sundir(1) / sundir(3)
+    if (sundir(1) > epsilon(sundir(1)) * 10) then
+      s = (verts(6) - verts(18)) / (verts(16) - verts(13)) * sundir(1) / sundir(3)
+      st = ((verts_dtd(18) - verts_dtd(6)) * sundir(1) / sundir(3)) /&
+        (verts_dtd(13) - verts_dtd(16) + (verts_dtd(18) - verts_dtd(15)) * sundir(1) / sundir(3))
+      f = real(abs(st) / abs(s), irealLUT)
 
-    st = ((verts_dtd(18) - verts_dtd(6)) * sundir(1) / sundir(3)) /&
-      (verts_dtd(13) - verts_dtd(16) + (verts_dtd(18) - verts_dtd(15)) * sundir(1) / sundir(3))
-
-    f = real(abs(st) / abs(s), irealLUT)
-
-    coeff_mod_x = max(min((1._irealLUT - f) * coeff(2), coeff(2)), -coeff(1))
-    coeff(1) = coeff(1) + coeff_mod_x
-    coeff(2) = coeff(2) - coeff_mod_x
-    coeff(3) = coeff(3)
+      coeff_mod = max(min((1._irealLUT - f) * coeffs(4), coeffs(4)), - coeffs(1))
+      coeffs(1) = coeffs(1) + coeff_mod
+      coeffs(4) = coeffs(4) - coeff_mod
+    else
+      coeffs = coeffs
+    endif
 
   end subroutine
 
-  subroutine dir2dir3_coeff_correction_y_dir(coeff, verts, verts_dtd, sundir)
-    real(irealLUT), intent(inout) :: coeff(:)
+  subroutine dir2dir3_coeff_correction_y_dir(coeffs, verts, verts_dtd, sundir)
+    real(irealLUT), intent(inout) :: coeffs(:)
     real(ireals), intent(in) :: verts(:)
     real(ireals), intent(in) :: verts_dtd(:)
     real(ireals), intent(in) :: sundir(:)
 
     real(ireals) :: s, st
-    real(irealLUT) :: f, coeff_mod_y
+    real(irealLUT) :: f, coeff_mod
 
+    if (sundir(2) > epsilon(sundir(2)) * 10) then
+      s = (verts(6) - verts(21)) / (verts(20) - verts(14)) * sundir(2) / sundir(3)
+      st = ((verts_dtd(21) - verts_dtd(9)) * sundir(2) / sundir(3)) /&
+        (verts_dtd(14) - verts_dtd(20) + (verts_dtd(21) - verts_dtd(15)) * sundir(2) / sundir(3))
+      f = real(abs(st) / abs(s), irealLUT)
 
-    s = (verts(6) - verts(21)) / (verts(20) - verts(14)) * sundir(2) / sundir(3)
+      coeff_mod = max(min((1._irealLUT - f) * coeffs(7), coeffs(7)), - coeffs(1))
+      coeffs(1) = coeffs(1) + coeff_mod
+      coeffs(7) = coeffs(7) - coeff_mod
+    else
+      coeffs = coeffs
+    endif
 
-    st = ((verts_dtd(21) - verts_dtd(9)) * sundir(2) / sundir(3)) /&
-      (verts_dtd(14) - verts_dtd(20) + (verts_dtd(21) - verts_dtd(15)) * sundir(2) / sundir(3))
+  end subroutine
 
-    f = real(abs(st) / abs(s), irealLUT)
+  subroutine dir2dir3_coeff_correction_y(coeffs, verts, verts_dtd, sundir)
+    real(irealLUT), intent(inout) :: coeffs(:)
+    real(ireals), intent(in) :: verts(:)
+    real(ireals), intent(in) :: verts_dtd(:)
+    real(ireals), intent(in) :: sundir(:)
 
-    coeff_mod_y = max(min((1._irealLUT - f) * coeff(3), coeff(3)), -coeff(1))
-    coeff(1) = coeff(1) + coeff_mod_y
-    coeff(2) = coeff(2)
-    coeff(3) = coeff(3) - coeff_mod_y
+    real(ireals) :: s, st
+    real(irealLUT) :: f, coeff_mod
 
+    if (sundir(2) > epsilon(sundir(2)) * 10) then
+      s = (verts(12) - verts(6) + (verts(5) - verts(11)) * sundir(3) / sundir(2)) / (verts(18) - verts(6))
+      st = (verts_dtd(12) - verts_dtd(6) + (verts_dtd(5) - verts_dtd(11)) * sundir(3) / sundir(2)) / &
+        (verts_dtd(18) - verts_dtd(6))
+      print *, 's', s, 'st', st
+      f = real(abs(st) / abs(s), irealLUT)
+      print *, 'coeffs', coeffs
+      coeff_mod = max(min((1._irealLUT - f) * coeffs(3), coeffs(3)), - coeffs(9))
+      print *, 'f', f, 'coeff_mod', coeff_mod, 'test',(1._irealLUT - f), coeffs(9), (1._irealLUT - f) *coeffs(9)
+      coeffs(3) = coeffs(3) - coeff_mod
+      coeffs(9) = coeffs(9) + coeff_mod
+    else if (sundir(2) < epsilon(sundir(2)) * 10) then
+      s = max(min(abs(&
+        (verts(6) - verts(12) + (verts(11) - verts(5)) * sundir(3) / sundir(2)) / (verts(24) - verts(12))),&
+        1._ireals), 0._ireals)
+      st = max(min(abs(&
+        (verts_dtd(6) - verts_dtd(12) + (verts_dtd(11) - verts_dtd(5)) * sundir(3) / sundir(2)) / &
+        (verts_dtd(24) - verts_dtd(12))), &
+        1._ireals), 0._ireals)
+      print *, 's', s, 'st', st
+      f = real(abs(st) / abs(s), irealLUT)
+      print *, 'coeffs', coeffs
+      coeff_mod = max(min((1._irealLUT - f) * coeffs(3), coeffs(3)), - coeffs(9))
+      print *, 'f', f, 'coeff_mod', coeff_mod, 'test',(1._irealLUT - f), coeffs(9), (1._irealLUT - f) *coeffs(9)
+      coeffs(3) = coeffs(3) - coeff_mod
+      coeffs(9) = coeffs(9) + coeff_mod
+    else
+      coeffs = coeffs
+    endif
+  end subroutine
+
+  subroutine dir2dir3_coeff_correction_x(coeffs, verts, verts_dtd, sundir)
+    real(irealLUT), intent(inout) :: coeffs(:)
+    real(ireals), intent(in) :: verts(:)
+    real(ireals), intent(in) :: verts_dtd(:)
+    real(ireals), intent(in) :: sundir(:)
+
+    real(ireals) :: s, st
+    real(irealLUT) :: f, coeff_mod
+
+    if (sundir(1) > epsilon(sundir(1)) * 10) then
+      s = (verts(6) - verts(3) + (verts(2) - verts(5)) * sundir(3) / sundir(1)) / (verts(18) - verts(6))
+      st = (verts_dtd(6) - verts_dtd(3) + (verts_dtd(2) - verts_dtd(5)) * sundir(3) / sundir(1)) / &
+        (verts_dtd(18) - verts_dtd(6))
+      print *, 's', s, 'st', st
+      f = real(st / s, irealLUT)
+      coeff_mod = max(min((1._irealLUT - f) * coeffs(8), -coeffs(8)), coeffs(2))
+      coeffs(2) = coeffs(2) + coeff_mod
+      coeffs(8) = coeffs(8) - coeff_mod
+    else
+      coeffs = coeffs
+    endif
   end subroutine
 
 end module
