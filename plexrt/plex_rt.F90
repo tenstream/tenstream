@@ -1376,12 +1376,16 @@ module m_plex_rt
           real(ireals) :: param_phi, param_theta, area_bot, area_top, dz, incsol
           logical :: lsrc(5)
 
-          real(irealLUT) :: coeff(solver%dirdof*(solver%diffdof/2)), sumcoeff
+          real(irealLUT), target  :: coeff(solver%dirdof*(solver%diffdof/2))
+          real(irealLUT), pointer :: dir2diff(:,:) ! dim(src,dst)
+          real(irealLUT) :: sumcoeff
           integer(iintegers), pointer :: xinoutdof(:)
 
           integer(mpiint) :: myid, cerr
 
           if(.not.allocated(edirVec)) return
+
+          dir2diff(1:solver%dirdof, 1:solver%diffdof/2) => coeff(:)
 
           call mpi_comm_rank(plex%comm, myid, ierr); call CHKERR(ierr)
           if(any([present(edirdm),present(edirVec)]).and. &
@@ -1462,9 +1466,8 @@ module m_plex_rt
                   icol = icol + dof_src_offset
                   incsol = xedir(i1+icol)
 
-                  associate( dir2diff => coeff(bmcsrcdof:size(coeff):solver%dirdof) ) ! dir2diff in src ordering
                     !print *,'icell '//toStr(icell)//' in_dof '//toStr(in_dof)//' bmsrc '//toStr(bmcsrcdof)// &
-                    !  'dir2diff', dir2diff, ':', cstr(toStr(sum(dir2diff)), 'green')
+                    !  'dir2diff', dir2diff(bmcsrcdof,:), ':', cstr(toStr(sum(dir2diff(bmcsrcdof,:))), 'green')
 
                     do idst = 1, size(outgoing_offsets)
                       !if(dir2diff(diff_plex2bmc(idst)).gt.zero) then
@@ -1473,9 +1476,9 @@ module m_plex_rt
                       if(outgoing_offsets(idst).lt.0) cycle
 
                       xb(i1+outgoing_offsets(idst)) = xb(i1+outgoing_offsets(idst)) + &
-                        incsol * dir2diff(diff_plex2bmc(idst))
+                        incsol * dir2diff(bmcsrcdof, diff_plex2bmc(idst))
 
-                      if(ldebug) sumcoeff = sumcoeff + dir2diff(diff_plex2bmc(idst))
+                      if(ldebug) sumcoeff = sumcoeff + dir2diff(bmcsrcdof, diff_plex2bmc(idst))
                       if(.False.) then
                         call PetscSectionGetFieldOffset(geomSection, faces_of_cell(1), i2, geom_offset, ierr); call CHKERR(ierr)
                         area_top = geoms(i1+geom_offset)
@@ -1487,13 +1490,12 @@ module m_plex_rt
                           ' edir='//toStr(incsol/area_top)//  &
                           ' * idst ('//toStr(idst)//')'// &
                           ' p2bmc '//toStr(diff_plex2bmc(idst))// &
-                          ' coeff:'//toStr(dir2diff(diff_plex2bmc(idst)))// &
+                          ' coeff:'//toStr(dir2diff(bmcsrcdof, diff_plex2bmc(idst)))// &
                           ' xb '//toStr(xb(i1+outgoing_offsets(idst))/area_top)// &
                           ' ('//toStr(xb(i1+outgoing_offsets(idst)))//')'
                       endif
 
                     enddo ! outgoing_offsets
-                  end associate
                 enddo ! numSrc
             enddo ! srcfaces
             if(ldebug) then
@@ -1501,7 +1503,7 @@ module m_plex_rt
                 print *,'faces_of_cell', faces_of_cell, ' lsrc? ', lsrc
                 do isrc=1,solver%dirdof
                   call CHKWARN(1_mpiint, 'dir2diff src '//toStr(isrc)//' : '//&
-                    toStr(coeff(isrc:size(coeff):solver%dirdof)))
+                    toStr(dir2diff(isrc,:)))
                 enddo
                 call CHKERR(1_mpiint, 'have we used all coefficients? '// &
                   'used '//toStr(sumcoeff)//' out of '//toStr(sum(coeff)))
@@ -1609,15 +1611,18 @@ module m_plex_rt
 
           integer(iintegers), allocatable :: incoming_offsets(:), outgoing_offsets(:)
           integer(iintegers) :: i, j, icell, icol, iface, idof, numDof
-          real(irealLUT) :: coeff((solver%diffdof/2)**2) ! coefficients for each src=[1..8] and dst[1..8]
+          real(irealLUT), target  :: coeff((solver%diffdof/2)**2) ! coefficients for each src=[1..8] and dst[1..8]
+          real(irealLUT), pointer :: diff2diff(:,:) ! dim(src,dst)
 
           integer(iintegers), pointer :: xinoutdof(:)
           real(ireals), pointer :: xplanck(:)
-          real(ireals) :: diff2diff(8), dz
+          real(ireals) :: dz
           real(ireals) :: emissivity, b0, b1, btop, bbot, bside, Beff
 
           call ISGetIndicesF90(solver%IS_diff_in_out_dof, xinoutdof, ierr); call CHKERR(ierr)
           call VecGetArrayReadF90(plckVec, xplanck, ierr); call CHKERR(ierr)
+
+          diff2diff(1:solver%diffdof/2, 1:solver%diffdof/2) => coeff(:)
 
           do icell = plex%cStart, plex%cEnd-1
 
@@ -1687,9 +1692,7 @@ module m_plex_rt
               do idof = 1, numDof/2
                 icol = outgoing_offsets(i)
 
-                diff2diff = coeff(diff_plex2bmc(i): size(coeff): i8)
-
-                emissivity = max(zero, one - sum(diff2diff))
+                emissivity = max(zero, one - sum(diff2diff(diff_plex2bmc(i),:)))
 
                 xsrc(i1+icol) = Beff * emissivity / real(numDof/2, ireals)
                 !print *,'src: icol', icol, 'Beff', Beff, 'emis', emissivity, '=>', xsrc(i1+icol)
@@ -2408,12 +2411,15 @@ module m_plex_rt
 
         real(ireals) :: dz
 
-        real(irealLUT) :: dir2dir(solver%dirdof)
         logical :: lsrc(5) ! is src or destination of solar beam (5 faces in a wedge)
         integer(iintegers) :: numSrc, numDst
 
         real(ireals) :: Cx, Cy, aspect_zx, param_phi, param_theta
-        real(irealLUT) :: coeff(solver%dirdof**2), sumcoeff ! coefficients for each src=[1..5] and dst[1..5]
+        real(irealLUT), target  :: coeff(solver%dirdof**2) ! coefficients for each src=[1..5] and dst[1..5]
+        real(irealLUT), pointer :: dir2dir(:,:) ! dim(src,dst)
+        real(irealLUT) :: sumcoeff
+
+        dir2dir(1:solver%dirdof, 1:solver%dirdof) => coeff
 
         do icell = plex%cStart, plex%cEnd-1
           if(plex%l1d(icell)) cycle
@@ -2446,31 +2452,30 @@ module m_plex_rt
           dz = geoms(i1+geom_offset)
 
           call PetscLogEventBegin(solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
-          call get_coeff(OPP, xkabs(i1+icell), xksca(i1+icell), xg(i1+icell), dz, &
-            aspect_zx=aspect_zx, &
-            Cx=Cx, &
-            Cy=Cy, &
-            ldir=.True., coeff=coeff, ierr=ierr, &
-            angles=[real(param_phi, irealLUT), real(param_theta, irealLUT)])
+          call get_coeff(OPP, &
+            & xkabs(i1+icell), &
+            & xksca(i1+icell), &
+            & xg(i1+icell), &
+            & dz, &
+            & aspect_zx=aspect_zx, &
+            & Cx=Cx, &
+            & Cy=Cy, &
+            & ldir=.True., &
+            & coeff=coeff, &
+            & ierr=ierr, &
+            & angles=[real(param_phi, irealLUT), real(param_theta, irealLUT)])
           l1d = ierr.eq.OPP_1D_RETCODE
 
           !print *,'tau',xkabs(i1+icell)+xksca(i1+icell),aspect_zx, ':', param_phi, param_theta, 'l1d', l1d
           !print *,'tau',xkabs(i1+icell)+xksca(i1+icell),dz, cos(zenith), ':', exp(-(xkabs(i1+icell)+xksca(i1+icell))*dz / cos(zenith))
 
           if(ldebug) then
-            do out_dof = 1, solver%dirdof
-              bmcdstdof = plex2bmc(out_dof)
-              dir2dir = coeff(1+(bmcdstdof-1)*solver%dirdof:bmcdstdof*solver%dirdof)
-              !write(*, FMT='("out_dof " I2  " bmc_dst " I2 " : " 18(f10.5))') out_dof, bmcdstdof, dir2dir
-              !print *,out_dof, 'bmcdst', bmcdstdof, dir2dir
-            enddo
             do in_dof = 1, solver%dirdof
               bmcsrcdof = plex2bmc(in_dof)
-              dir2dir = coeff(bmcsrcdof:size(coeff):solver%dirdof)
               !print *, icell, in_dof, 'dir2dir', dir2dir, ':', cstr(toStr(sum(dir2dir)),'green')
-              if(sum(dir2dir).gt.1+sqrt(epsilon(dir2dir))*100) then
-                print *,in_dof,': bmcface', bmcsrcdof, 'dir2dir gt one', dir2dir,':',sum(dir2dir)
-                call CHKERR(1_mpiint, 'energy conservation violated! '//toStr(sum(dir2dir)))
+              if(sum(dir2dir(bmcsrcdof,:)).gt.1+sqrt(epsilon(dir2dir))*100) then
+                print *,in_dof,': bmcface', bmcsrcdof, 'dir2dir gt one', dir2dir(bmcsrcdof,:),':',sum(dir2dir(bmcsrcdof,:))
+                call CHKERR(1_mpiint, 'energy conservation violated! '//toStr(sum(dir2dir(bmcsrcdof,:))))
               endif
             enddo
             !print *,'-----'
@@ -2492,8 +2497,8 @@ module m_plex_rt
               call PetscSectionGetOffset(sec, faces_of_cell(isrc_side), icol, ierr); call CHKERR(ierr)
               icol = icol + dof_src_offset
 
-              dir2dir = coeff(bmcsrcdof:size(coeff):solver%dirdof)
-              if(sum(dir2dir).gt.1+sqrt(epsilon(dir2dir))) dir2dir = dir2dir / sum(dir2dir)
+              !dir2dir = coeff(bmcsrcdof:size(coeff):solver%dirdof)
+              !if(sum(dir2dir(bmcsrcdof,:)).gt.1+sqrt(epsilon(dir2dir))) dir2dir(bmcsrcdof,:) = dir2dir.. / sum(dir2dir..)
 
               out_dof = 0
               do idst_side = 1, size(faces_of_cell)
@@ -2509,7 +2514,7 @@ module m_plex_rt
                   call PetscSectionGetOffset(sec, faces_of_cell(idst_side), irow, ierr); call CHKERR(ierr)
                   irow = irow + dof_dst_offset
 
-                  c = -real(dir2dir(bmcdstdof), kind(c))
+                  c = -real(dir2dir(bmcsrcdof,bmcdstdof), kind(c))
 
                   if(c.lt.zero .and. .not.lsrc(isrc_side)) then
                     call CHKERR(1_mpiint, 'found transport coeff but I thought this incoming side is not a designated src face')
@@ -2542,7 +2547,7 @@ module m_plex_rt
                   endif
                   if(c.ge.zero) cycle
 
-                  if(ldebug) sumcoeff = sumcoeff + dir2dir(bmcdstdof)
+                  if(ldebug) sumcoeff = sumcoeff + dir2dir(bmcsrcdof,bmcdstdof)
                   call MatSetValuesLocal(A, i1, irow, i1, icol, c, INSERT_VALUES, ierr); call CHKERR(ierr)
 
                 enddo
@@ -2555,11 +2560,9 @@ module m_plex_rt
             if(.not.approx(sumcoeff, sum(coeff), sqrt(epsilon(coeff)) )) then
               print *,'faces_of_cell', faces_of_cell, ' lsrc? ', lsrc
               do isrc=1,solver%dirdof
-                call CHKWARN(1_mpiint, 'dir2dir src '//toStr(isrc)//' : '//&
-                  toStr(coeff(isrc:size(coeff):solver%dirdof)))
+                call CHKWARN(1_mpiint, 'dir2dir src '//toStr(isrc)//' : '//toStr(dir2dir(isrc,:)))
               enddo
-              call CHKERR(1_mpiint, 'have we used all coefficients? '// &
-                'used '//toStr(sumcoeff)//' out of '//toStr(sum(coeff)))
+              call CHKERR(1_mpiint, 'have we used all coefficients? used '//toStr(sumcoeff)//' out of '//toStr(sum(coeff)))
             endif
           endif
 
@@ -2865,16 +2868,18 @@ module m_plex_rt
 
         integer(iintegers), allocatable :: incoming_offsets(:), outgoing_offsets(:)
         integer(iintegers), pointer :: xinoutdof(:)
-        real(ireals), allocatable :: c(:)
+        real(ireals), target, allocatable :: c(:,:)
+        real(ireals), pointer :: c1d(:)
 
         ! face_plex2bmc :: mapping from plex_indices, i.e. iface(1..5) to boxmc wedge numbers,
         ! i.e. face_plex2bmc(1) gives the wedge boxmc position of first dmplex face
         integer(iintegers) :: face_plex2bmc(5)
         integer(iintegers) :: diff_plex2bmc(solver%diffdof/2)
 
-        !real(ireals) :: diff2diff(solver%diffdof/2)
+        real(irealLUT), target :: coeff((solver%diffdof/2)**2) ! coefficients for each src=[1..8] and dst[1..8]
+        real(irealLUT), pointer :: diff2diff(:,:) ! dim(src,dst)
+        real(irealLUT) :: sumcoeff
 
-        real(irealLUT) :: coeff((solver%diffdof/2)**2), sumcoeff ! coefficients for each src=[1..8] and dst[1..8]
         real(ireals) :: dz
         real(ireals), parameter :: coeff_norm_err_tolerance=one+100*sqrt(epsilon(one))
 
@@ -2883,7 +2888,9 @@ module m_plex_rt
 
         allocate(irows(size(outgoing_offsets)))
         allocate(icols(size(incoming_offsets)))
-        allocate(c    (size(outgoing_offsets)*size(incoming_offsets)))
+        allocate(c    (size(incoming_offsets),size(outgoing_offsets)))
+        c1d(1:size(c)) => c
+        diff2diff(1:solver%diffdof/2, 1:solver%diffdof/2) => coeff(:)
 
         do icell = plex%cStart, plex%cEnd-1
           if(plex%l1d(icell)) cycle
@@ -2916,13 +2923,11 @@ module m_plex_rt
 
           if(ldebug_optprop) then
             do i = 1, size(incoming_offsets)
-              associate(diff2diff => coeff(diff_plex2bmc(i):size(coeff):solver%diffdof/2))
-                if(sum(diff2diff).gt.coeff_norm_err_tolerance) then
+                if(sum(diff2diff(diff_plex2bmc(i),:)).gt.coeff_norm_err_tolerance) then
                   print *,i,': bmcface', diff_plex2bmc(i), 'diff2diff gt one', diff2diff, &
                     ':', sum(diff2diff), 'l1d', ierr.eq.OPP_1D_RETCODE, 'tol', coeff_norm_err_tolerance
                   call CHKERR(1_mpiint, '1 energy conservation violated! '//toStr(sum(diff2diff)))
                 endif
-              end associate
             enddo
           endif
           call PetscLogEventEnd(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
@@ -2932,20 +2937,22 @@ module m_plex_rt
             do i = 1, size(incoming_offsets)
               if(ldebug) then
                 if(outgoing_offsets(j).ge.0 .and. incoming_offsets(i).ge.0) &
-                  sumcoeff = sumcoeff + coeff((diff_plex2bmc(j)-1)*(solver%diffdof/2) + diff_plex2bmc(i))
+                  !sumcoeff = sumcoeff + coeff((diff_plex2bmc(j)-1)*(solver%diffdof/2) + diff_plex2bmc(i))
+                  sumcoeff = sumcoeff + diff2diff(diff_plex2bmc(i), diff_plex2bmc(j))
               endif
-              c((j-1)*size(outgoing_offsets) + i) = -coeff((diff_plex2bmc(j)-1)*(solver%diffdof/2) + diff_plex2bmc(i))
+              !c((j-1)*size(outgoing_offsets) + i) = -coeff((diff_plex2bmc(j)-1)*(solver%diffdof/2) + diff_plex2bmc(i))
+              c(i,j) = -diff2diff(diff_plex2bmc(i), diff_plex2bmc(j))
             enddo
           enddo
           call MatSetValuesLocal(A, &
-            size(outgoing_offsets, kind=iintegers), outgoing_offsets, &
-            size(incoming_offsets, kind=iintegers), incoming_offsets, c, INSERT_VALUES, ierr); call CHKERR(ierr)
+            & size(outgoing_offsets, kind=iintegers), outgoing_offsets, &
+            & size(incoming_offsets, kind=iintegers), incoming_offsets, &
+            & c1d, INSERT_VALUES, ierr); call CHKERR(ierr)
 
           if(ldebug) then
             if(.not.approx(sumcoeff, sum(coeff), sqrt(epsilon(coeff)))) then
               do i = 1, solver%diffdof/2
-                call CHKWARN(1_mpiint, 'diff2diff src '//toStr(i)//' : '//&
-                  toStr(coeff(i:size(coeff):solver%diffdof/2)))
+                call CHKWARN(1_mpiint, 'diff2diff src '//toStr(i)//' : '//toStr(diff2diff(i,:)))
               enddo
               call CHKERR(1_mpiint, 'have we used all coefficients? '// &
                 'used '//toStr(sumcoeff)//' out of '//toStr(sum(coeff)))
@@ -3609,7 +3616,7 @@ module m_plex_rt
     integer(iintegers) :: diff_plex2bmc(solver%diffdof/2)
 
     real(irealLUT), target :: coeff((solver%diffdof/2)**2) ! coefficients for each src=[1..8] and dst[1..8]
-    real(irealLUT), pointer :: diff2diff(:,:) ! dim(dst, src)
+    real(irealLUT), pointer :: diff2diff(:,:) ! dim(src,dst)
 
     real(ireals) :: inv_volume, cell_abso
 
@@ -3688,13 +3695,11 @@ module m_plex_rt
 
       do i = 1, size(incoming_offsets)
         if(incoming_offsets(i).ge.0) then
-          !associate( diff2diff => coeff(diff_plex2bmc(i):size(coeff):solver%diffdof/2) )
-            div = one - sum(diff2diff(:,diff_plex2bmc(i)))
-            div = max(zero, min(one, div))
-            cell_abso = cell_abso + div * xediff(i1+incoming_offsets(i))
-            !print *,'Adding diffuse cell abso cell='//toStr(icell)//' inc_offset='//toStr(incoming_offsets(i))// &
-            !  ' ediff='//toStr(xediff(i1+incoming_offsets(i))), 'div', div, '=', div * xediff(i1+incoming_offsets(i))
-          !end associate
+          div = one - sum(diff2diff(diff_plex2bmc(i),:))
+          div = max(zero, min(one, div))
+          cell_abso = cell_abso + div * xediff(i1+incoming_offsets(i))
+          !print *,'Adding diffuse cell abso cell='//toStr(icell)//' inc_offset='//toStr(incoming_offsets(i))// &
+          !  ' ediff='//toStr(xediff(i1+incoming_offsets(i))), 'div', div, '=', div * xediff(i1+incoming_offsets(i))
         endif
       enddo
       do i = 1, size(outgoing_offsets)
