@@ -572,6 +572,8 @@ module m_plex_rt
           fill_kabs=zero, fill_ksca=zero, fill_g=zero)
       endif
 
+      call scale_optprop(solver%kabs, solver%ksca, solver%g)
+
       call dump_optical_properties( &
         & solver%kabs, &
         & solver%ksca, &
@@ -711,6 +713,23 @@ module m_plex_rt
             call CHKERR(1_mpiint, 'solver%plex%ediff_dm not allocated, should have happened in init_solver?')
           if(.not.allocated(solver%plex%abso_dm))  &
             call CHKERR(1_mpiint, 'solver%plex%abso_dm not allocated, should have happened in init_solver?')
+        end subroutine
+        subroutine scale_optprop(kabs, ksca, g)
+          type(tVec), intent(inout) :: kabs, ksca, g
+          real(ireals) :: v
+
+          call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,"-plexrt_scale_kabs", v, lflg, ierr); call CHKERR(ierr)
+          if(lflg) then
+            call VecScale(kabs, v, ierr); call CHKERR(ierr)
+          endif
+          call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,"-plexrt_scale_ksca", v, lflg, ierr); call CHKERR(ierr)
+          if(lflg) then
+            call VecScale(ksca, v, ierr); call CHKERR(ierr)
+          endif
+          call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,"-plexrt_scale_g", v, lflg, ierr); call CHKERR(ierr)
+          if(lflg) then
+            call VecScale(g, v, ierr); call CHKERR(ierr)
+          endif
         end subroutine
     end subroutine
 
