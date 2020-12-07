@@ -61,7 +61,8 @@ module m_pprts
     & t_optprop_1_2, t_optprop_3_6, t_optprop_3_10, &
     & t_optprop_8_10, t_optprop_3_16, t_optprop_8_16, t_optprop_8_18, &
     & t_optprop_3_10_ann, &
-    & dir2dir3_coeff_correction_x_dir, dir2dir3_coeff_correction_y_dir
+    & dir2dir3_coeff_correction_x_dir, dir2dir3_coeff_correction_y_dir, &
+    dir2dir3_coeff_correction_x, dir2dir3_coeff_correction_y
   use m_eddington, only : eddington_coeff_zdun
 
   use m_tenstream_options, only : read_commandline_options, ltwostr, luse_eddington, twostr_ratio, &
@@ -3828,8 +3829,19 @@ module m_pprts
      if (lgeometric_correction) then
        v_dummy = [v(1), v(4), v(7)]
 
+       !print *, 'A', vertices(1:3)
+       !print *, 'B', vertices(4:6)
+       !print *, 'C', vertices(7:9)
+       !print *, 'D', vertices(10:12)
+       !print *, 'E', vertices(13:15)
+       !print *, 'F', vertices(16:18)
+       !print *, 'G', vertices(19:21)
+       !print *, 'H', vertices(22:24)
+
        call dir2dir3_coeff_correction_x_dir(v_dummy, vertices, vertices_dtd, sun%sundir)
        call dir2dir3_coeff_correction_y_dir(v_dummy, vertices, vertices_dtd, sun%sundir)
+       !call dir2dir3_coeff_correction_x(v, vertices, vertices_dtd, sun%sundir)
+       call dir2dir3_coeff_correction_y(v, vertices, vertices_dtd, sun%sundir)
 
        v(1) = v_dummy(1)
        v(4) = v_dummy(2)
