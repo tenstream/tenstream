@@ -2763,102 +2763,66 @@ module m_pprts
 
       call restoreVecPointer(solver%Cvert_one_atm1%da, solver%atm%vert_heights, xhhl1d, xhhl, readonly=.True.)
     end subroutine
-
-    subroutine gen_scale_diff_flx_vec(solver, v, coord)
+    subroutine gen_scale_diff_flx_vec(solver, v, C)
       class(t_solver)      :: solver
       type(tVec)           :: v
-      type(t_coord)        :: coord
+      type(t_coord)        :: C
       real(ireals),pointer :: xv(:,:,:,:)=>null()
       real(ireals),pointer :: xv1d(:)=>null()
 
       integer(iintegers)  :: iside, src, i, j, k, ak
       real(ireals)        :: Az, Ax, Ay, fac
 
-      real(ireals), allocatable :: vertices(:)
-      real(ireals), pointer :: xhhl(:,:,:,:) => null(), xhhl1d(:) => null()
+      if(solver%myid.eq.0.and.ldebug) print *,'rescaling fluxes',C%zm,C%xm,C%ym
+      call getVecPointer(C%da, v, xv1d, xv)
 
-      if(solver%myid.eq.0.and.ldebug) print *,'rescaling fluxes',coord%zm,coord%xm,coord%ym
-      call getVecPointer(coord%da, v, xv1d, xv)
-
-      if(coord%dof.eq.i3 .or. coord%dof.eq.i8) then
+      if(C%dof.eq.i3 .or. C%dof.eq.i8) then
         print *,'scale_flx_vec is just for diffuse radia'
       endif
 
-      call getVecPointer(solver%Cvert_one_atm1%da, solver%atm%vert_heights, xhhl1d, xhhl, readonly=.True.)
-      call setup_default_unit_cube_geometry(solver%atm%dx, solver%atm%dy, one, vertices)
+      ! Scaling top faces
+      Az = solver%atm%dx*solver%atm%dy / real(solver%difftop%area_divider, ireals)
+      fac = Az
 
-      associate( &
-          & atm => solver%atm,    &
-          & A => vertices( 1: 3), &
-          & B => vertices( 4: 6), &
-          & C => vertices( 7: 9), &
-          & D => vertices(10:12), &
-          & E => vertices(13:15), &
-          & F => vertices(16:18), &
-          & G => vertices(19:21)  )
-        !& H => vertices(22:24)  )
-
-        ! Scaling top faces
-        do j=coord%ys,coord%ye
-          do i=coord%xs,coord%xe
-            do k=coord%zs,coord%ze
-              ak = atmk(atm, k)
-              A(3) = xhhl(i0,ak,i,j)
-              B(3) = xhhl(i0,ak,i+1,j)
-              C(3) = xhhl(i0,ak,i,j+1)
-              D(3) = xhhl(i0,ak,i+1,j+1)
-
-              Az  = triangle_area_by_vertices(A,B,D) + triangle_area_by_vertices(A,D,C)
-              fac = Az / real(solver%difftop%area_divider, ireals)
-
-              do iside = 0, solver%difftop%dof-1
-                xv(iside,k,i,j) = fac
-              enddo
+      do j=C%ys,C%ye
+        do i=C%xs,C%xe
+          do k=C%zs,C%ze
+            do iside=1,solver%difftop%dof
+              src = iside -1
+              xv(src ,k,i,j) = fac                  ! diffuse radiation
             enddo
           enddo
         enddo
+      enddo
 
-        ! Scaling side faces
-        do j=coord%ys,coord%ye
-          do i=coord%xs,coord%xe
-            do k=coord%zs,coord%ze-1
-              ak = atmk(solver%atm, k)
+      ! Scaling side faces
+      do j=C%ys,C%ye
+        do i=C%xs,C%xe
+          do k=C%zs,C%ze-1
+            ak = atmk(solver%atm, k)
+            ! faces in x-direction
+            Ax = solver%atm%dy*solver%atm%dz(ak,i,j) / real(solver%diffside%area_divider, ireals)
+            fac = Ax
 
-              A(3) = xhhl(i0,ak+1,i  ,j  )
-              B(3) = xhhl(i0,ak+1,i+1,j  )
-              C(3) = xhhl(i0,ak+1,i  ,j+1)
-              E(3) = xhhl(i0,ak  ,i  ,j  )
-              F(3) = xhhl(i0,ak  ,i+1,j  )
-              G(3) = xhhl(i0,ak  ,i  ,j+1)
-
-              ! faces in x-direction
-              Ax = triangle_area_by_vertices(A,B,F) + triangle_area_by_vertices(A,F,E)
-              fac = Ax / real(solver%diffside%area_divider, ireals)
-
-              do iside=1,solver%diffside%dof
-                src = solver%difftop%dof + iside -1
-                xv(src ,k,i,j) = fac
-              enddo
-
-              ! faces in y-direction
-              Ay = triangle_area_by_vertices(A,C,G) + triangle_area_by_vertices(A,G,E)
-              fac = Ay / real(solver%diffside%area_divider, ireals)
-
-
-              do iside=1,solver%diffside%dof
-                src = solver%difftop%dof + solver%diffside%dof + iside -1
-                xv(src ,k,i,j) = fac
-              enddo
+            do iside=1,solver%diffside%dof
+              src = solver%difftop%dof + iside -1
+              xv(src ,k,i,j) = fac
             enddo
-            ! the side faces underneath the surface are always scaled by unity
-            k = coord%ze
-            xv(solver%difftop%dof:ubound(xv,dim=1),k,i,j) = one
-          enddo
-        enddo
 
-      end associate
-      call restoreVecPointer(coord%da, v, xv1d, xv )
-      call restoreVecPointer(solver%Cvert_one_atm1%da, solver%atm%vert_heights, xhhl1d, xhhl, readonly=.True.)
+            ! faces in y-direction
+            Ay = solver%atm%dx*solver%atm%dz(ak,i,j) / real(solver%difftop%area_divider, ireals)
+            fac = Ay
+
+            do iside=1,solver%diffside%dof
+              src = solver%difftop%dof + solver%diffside%dof + iside -1
+              xv(src ,k,i,j) = fac
+            enddo
+          enddo
+          ! the side faces underneath the surface are always scaled by unity
+          xv(solver%difftop%dof:ubound(xv,dim=1),k,i,j) = one
+        enddo
+      enddo
+      call restoreVecPointer(C%da, v, xv1d, xv )
 
     end subroutine
   end subroutine
