@@ -7,6 +7,7 @@ module test_buildings
     finalize_mpi,               &
     iintegers, ireals, mpiint,  &
     zero, one, pi, default_str_len
+
   use m_helper_functions, only : &
     & CHKERR, &
     & deg2rad, &
@@ -592,8 +593,8 @@ contains
   end subroutine
 
 
-  @test(npes=[1,2,4])
-  subroutine test_pprts_rrtmg_buildings_example(this)
+  !@test(npes=[4,2,1])
+  subroutine test_pprts_rrtmg_buildings_example_solar(this)
     class (MpiTestMethod), intent(inout) :: this
     integer(mpiint) :: comm, myid, ierr
 
@@ -625,18 +626,20 @@ contains
     Ag_solar   = 0
     Ag_thermal = 0
 
-    call ex_pprts_rrtm_buildings(           &
-      & comm, lverbose,                     &
-      & lthermal, lsolar,                   &
-      & Nx, Ny, Nlay,                       &
-      & buildings_albedo, buildings_temp,   &
-      & dx, dy,                             &
-      & atm_filename,                       &
-      & phi0, theta0,                       &
-      & Ag_solar, Ag_thermal,               &
-      & gedir, gedn, geup, gabso,           &
-      & buildings_solar, buildings_thermal, &
-      & local_dims )
+    do i=1,2
+      call ex_pprts_rrtm_buildings(           &
+        & comm, lverbose,                     &
+        & lthermal, lsolar,                   &
+        & Nx, Ny, Nlay,                       &
+        & buildings_albedo, buildings_temp,   &
+        & dx, dy,                             &
+        & atm_filename,                       &
+        & phi0, theta0,                       &
+        & Ag_solar, Ag_thermal,               &
+        & gedir, gedn, geup, gabso,           &
+        & buildings_solar, buildings_thermal, &
+        & local_dims )
+    enddo
 
     print *,myid, 'shape edir', shape(gedir)
 
@@ -674,6 +677,110 @@ contains
 
           if(d.ne.PPRTS_TOP_FACE) then
             @assertEqual(0._ireals, Bs%edir(iface), rtol, 'edir on all but the top face should be zero because sza=0')
+          endif
+        end associate
+      enddo
+
+    end associate
+    call destroy_buildings(buildings_solar,  ierr); call CHKERR(ierr)
+    call destroy_buildings(buildings_thermal,ierr); call CHKERR(ierr)
+  end subroutine
+
+  @test(npes=[4,2,1])
+  subroutine test_pprts_rrtmg_buildings_example_thermal(this)
+    class (MpiTestMethod), intent(inout) :: this
+    integer(mpiint) :: comm, myid, ierr
+
+    integer(iintegers), parameter :: Nx=6, Ny=6, Nlay=10
+    real(ireals), parameter :: dx=100, dy=100
+    character(len=*), parameter :: atm_filename='afglus_100m.dat'
+    logical, parameter :: lverbose=.True.
+    real(ireals), parameter :: rtol=1e-2_ireals, sb=5.67e-8
+    logical :: lsolar, lthermal
+    real(ireals) :: buildings_albedo, buildings_temp
+    real(ireals) :: phi0, theta0
+    real(ireals) :: Ag_solar, Ag_thermal
+    real(ireals),allocatable,dimension(:,:,:) :: gedir, gedn, geup, gabso
+    type(t_pprts_buildings), allocatable :: buildings_solar, buildings_thermal
+
+    real(ireals) :: trgt
+    integer(iintegers) :: local_dims(6)
+    integer(iintegers) :: ke, iface, idx(4)
+    integer(iintegers) :: k, i, j
+
+    comm = this%getMpiCommunicator()
+    myid     = this%getProcessRank()
+
+    lsolar   = .False.
+    lthermal = .True.
+    buildings_albedo = 0
+    buildings_temp   = 288._ireals
+    phi0   = 0
+    theta0 = -1
+    Ag_solar   = 0
+    Ag_thermal = 0
+
+    do i=1,2
+      call ex_pprts_rrtm_buildings(           &
+        & comm, lverbose,                     &
+        & lthermal, lsolar,                   &
+        & Nx, Ny, Nlay,                       &
+        & buildings_albedo, buildings_temp,   &
+        & dx, dy,                             &
+        & atm_filename,                       &
+        & phi0, theta0,                       &
+        & Ag_solar, Ag_thermal,               &
+        & gedir, gedn, geup, gabso,           &
+        & buildings_solar, buildings_thermal, &
+        & local_dims )
+    enddo
+
+    if(myid.eq.0.and.lverbose) then
+      do k=ubound(gedn,1)-Nlay, ubound(gedn,1)
+        print *,'j(center) k', k, 'edn', gedn(k,:,Ny/2)
+      enddo
+      do k=ubound(gedn,1)-Nlay, ubound(gedn,1)
+        print *,'j(center) k', k, 'eup', geup(k,:,Ny/2)
+      enddo
+    endif
+    call mpi_barrier(comm, ierr); call CHKERR(ierr)
+
+    associate( Bs => buildings_solar, Bt => buildings_thermal )
+      @mpiassertFalse(allocated(Bt%edir),     'edir in thermal should never be allocated')
+      @mpiassertFalse(allocated(Bs%edir),     'buildings_solar should not have results allocated because lsolar=.F.')
+      @mpiassertFalse(allocated(Bs%incoming), 'buildings_solar should not have results allocated because lsolar=.F.')
+      @mpiassertFalse(allocated(Bs%outgoing), 'buildings_solar should not have results allocated because lsolar=.F.')
+
+      ke = size(gabso,dim=1)
+
+      if(lverbose) then
+        do iface = 1, size(Bt%outgoing)
+          call ind_1d_to_nd(Bt%da_offsets, Bt%iface(iface), idx)
+          associate(d => idx(1), lk => idx(2), li => idx(3), lj => idx(4))
+            k = local_dims(1)+lk
+            i = local_dims(3)+li
+            j = local_dims(5)+lj
+
+            print *,myid, 'Building iface', iface, 'idx =>', idx, 'inc', Bt%incoming(iface), 'out', Bt%outgoing(iface)
+          end associate
+        enddo
+      endif
+
+      trgt = sb*buildings_temp**4
+      do iface = 1, size(Bt%outgoing)
+        @assertEqual(trgt, Bt%outgoing(iface), trgt*rtol, 'outgoing fluxes should be stefan boltzmann emission because buildings_albedo=0:')
+      enddo
+
+      do iface = 1, size(Bt%incoming)
+
+        call ind_1d_to_nd(Bt%da_offsets, Bt%iface(iface), idx)
+        associate(d => idx(1), lk => idx(2), li => idx(3), lj => idx(4))
+          k = local_dims(1)+lk
+          i = local_dims(3)+li
+          j = local_dims(5)+lj
+
+          if(k.eq.ke .and. i.eq.3 .and. j.eq.3) then ! center pyramid box
+            @assertEqual(Bt%outgoing(iface), Bt%incoming(iface), rtol, 'all in fluxes of center building should be same as outgoing bc it is encircled by others')
           endif
         end associate
       enddo
