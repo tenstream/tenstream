@@ -292,7 +292,7 @@ contains
             & buildings_thermal, &
             & l_copy_data=.True., &
             & ierr=ierr); call CHKERR(ierr)
-          allocate(buildings_thermal%temp(Nfaces))
+          if(.not.allocated(buildings_thermal%temp)) allocate(buildings_thermal%temp(Nfaces))
           buildings_thermal%temp(:) = buildings_temp
 
           call check_buildings_consistency(buildings_solar, C1%zm, C1%xm, C1%ym, ierr); call CHKERR(ierr)

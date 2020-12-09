@@ -124,37 +124,51 @@ contains
     logical, intent(in) :: l_copy_data
     integer(mpiint), intent(out) :: ierr
     ierr = 0
-    if(allocated(buildings_clone)) ierr = 1
-    call CHKERR(ierr, 'buildings_clone already allocated')
 
-    allocate(buildings_clone)
+    if(allocated(buildings_clone)) then
+      ierr = int(size(buildings%iface)-size(buildings_clone%iface), mpiint)
+      call CHKERR(ierr, 'clone already allocated but with a non-matching size faces'//&
+        & '(orig:'//toStr(size(buildings%iface))//'.vs.clone:'//toStr(size(buildings_clone%iface)) )
+      ierr = int(size(buildings%da_offsets)-size(buildings_clone%da_offsets), mpiint)
+      call CHKERR(ierr, 'clone already allocated but with a non-matching size offsets'//&
+        & ' '//toStr(size(buildings%da_offsets))//' vs '//toStr(size(buildings_clone%da_offsets)))
+    else
+      allocate(buildings_clone)
+      if(allocated(buildings%da_offsets)) then
+        allocate(buildings_clone%da_offsets(size(buildings%da_offsets)), source=buildings%da_offsets)
+      endif
+    endif
+
     associate( B => buildings, C => buildings_clone )
       C%iface      => B%iface
       C%iface_data => B%iface_data
       C%iface_data%ref_count = C%iface_data%ref_count+1
 
-      if(allocated(B%da_offsets)) then
-        allocate(C%da_offsets(size(B%da_offsets)), source=B%da_offsets)
-      endif
-
       if(l_copy_data) then
-        if(allocated(B%albedo)) then
-          allocate(C%albedo(size(B%albedo)), source=B%albedo)
-        endif
-        if(allocated(B%planck)) then
-          allocate(C%planck(size(B%planck)), source=B%planck)
-        endif
-        if(allocated(B%edir)) then
-          allocate(C%edir(size(B%edir)), source=B%edir)
-        endif
-        if(allocated(B%incoming)) then
-          allocate(C%incoming(size(B%incoming)), source=B%incoming)
-        endif
-        if(allocated(B%outgoing)) then
-          allocate(C%outgoing(size(B%outgoing)), source=B%outgoing)
-        endif
+        !call copy_var(B%edir    , C%edir)
+        !call copy_var(B%incoming, C%incoming)
+        !call copy_var(B%outgoing, C%outgoing)
+        call copy_var(B%albedo  , C%albedo)
+        call copy_var(B%temp    , C%temp)
+        call copy_var(B%planck  , C%planck)
       endif
     end associate
+    contains
+      subroutine copy_var(var_in, var_clone) ! allocate with same size of if already allocated, check that size matches
+        real(ireals), intent(in), allocatable :: var_in(:)
+        real(ireals), intent(inout), allocatable :: var_clone(:)
+        if(allocated(var_in)) then
+          if(.not.allocated(var_clone)) then
+            allocate(var_clone(size(var_in)))
+          else
+            call CHKERR(int(size(var_in)-size(var_clone), mpiint), &
+              & 'wrong size in clone ('//toStr(size(var_in))//'/'//toStr(size(var_clone))//')')
+          endif
+          var_clone = var_in
+        else
+          if(allocated(var_clone)) deallocate(var_clone)
+        endif
+      end subroutine
   end subroutine
 
 

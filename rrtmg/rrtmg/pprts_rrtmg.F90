@@ -553,13 +553,19 @@ contains
     allocate(spec_eup (solver%C_one1%zm, solver%C_one1%xm, solver%C_one1%ym))
     allocate(spec_abso(solver%C_one%zm , solver%C_one%xm , solver%C_one%ym ))
     if(present(opt_buildings)) then
+
       call clone_buildings(opt_buildings, spec_buildings, l_copy_data=.False., ierr=ierr); call CHKERR(ierr)
-      allocate(opt_buildings%incoming(size(opt_buildings%iface)), source=zero)
-      allocate(opt_buildings%outgoing(size(opt_buildings%iface)), source=zero)
-      allocate(spec_buildings%albedo (size(opt_buildings%albedo)), source=opt_buildings%albedo)
+      if(.not.allocated(spec_buildings%albedo )) allocate(spec_buildings%albedo (size(opt_buildings%albedo)))
+      if(.not.allocated(opt_buildings%incoming)) allocate(opt_buildings%incoming(size(opt_buildings%iface)))
+      if(.not.allocated(opt_buildings%outgoing)) allocate(opt_buildings%outgoing(size(opt_buildings%iface)))
+      spec_buildings%albedo  = opt_buildings%albedo
+      opt_buildings%incoming = zero
+      opt_buildings%outgoing = zero
+
       if(.not.(allocated(opt_buildings%temp))) call CHKERR(1_mpiint, 'Thermal computation but opt_buildings%temp is not allocated')
       if((allocated(opt_buildings%planck))) call CHKERR(1_mpiint, 'Thermal computation but opt_buildings%planck is allocated... '//&
         & 'you should only provide temperatures. I`ll take care of planck emissison')
+
       allocate(spec_buildings%temp  (size(opt_buildings%temp)))
       allocate(spec_buildings%planck(size(opt_buildings%temp)))
     endif
@@ -741,7 +747,7 @@ contains
             call ind_1d_to_nd(spec_buildings%da_offsets, spec_buildings%iface(icol), idx)
             associate(d => idx(1), k => idx(2), i => idx(3), j => idx(4))
               if(d.eq.PPRTS_BOT_FACE) then
-                ak = atmk(solver%atm, k)+1
+                ak = atmk(solver%atm, k+1)
               else
                 ak = atmk(solver%atm, k)
               endif
@@ -905,10 +911,14 @@ contains
 
     if(present(opt_buildings)) then
       call clone_buildings(opt_buildings, spec_buildings, l_copy_data=.False., ierr=ierr); call CHKERR(ierr)
-      allocate(spec_buildings%albedo (size(opt_buildings%albedo)), source=opt_buildings%albedo)
-      allocate(opt_buildings%edir    (size(opt_buildings%iface)), source=zero)
-      allocate(opt_buildings%incoming(size(opt_buildings%iface)), source=zero)
-      allocate(opt_buildings%outgoing(size(opt_buildings%iface)), source=zero)
+      if(.not.allocated(spec_buildings%albedo )) allocate(spec_buildings%albedo (size(opt_buildings%albedo)))
+      if(.not.allocated(opt_buildings%edir    )) allocate(opt_buildings%edir    (size(opt_buildings%iface)))
+      if(.not.allocated(opt_buildings%incoming)) allocate(opt_buildings%incoming(size(opt_buildings%iface)))
+      if(.not.allocated(opt_buildings%outgoing)) allocate(opt_buildings%outgoing(size(opt_buildings%iface)))
+      spec_buildings%albedo  = opt_buildings%albedo
+      opt_buildings%edir     = zero
+      opt_buildings%incoming = zero
+      opt_buildings%outgoing = zero
     endif
 
     need_any_new_solution=.False.
