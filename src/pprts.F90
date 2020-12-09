@@ -4573,8 +4573,6 @@ module m_pprts
               do idiff = 0, solver%difftop%dof-1
                 if (.not.solver%difftop%is_inward(i1+idiff)) then ! eup on upper face
                   xsrc(idiff,k,i,j) = Az * emis / real(solver%difftop%streams, ireals)
-                else                                              ! edn on upper face
-                  xsrc(idiff,k,i,j) = 0
                 endif
               enddo
 
@@ -4582,8 +4580,6 @@ module m_pprts
               do idiff = 0, solver%difftop%dof-1
                 if (solver%difftop%is_inward(i1+idiff)) then ! edn on lower face
                   xsrc(idiff,k+1,i,j) = Az * emis / real(solver%difftop%streams, ireals)
-                else                                         ! eup on lower face
-                  xsrc(idiff,k+1,i,j) = 0
                 endif
               enddo
 
@@ -4592,8 +4588,6 @@ module m_pprts
               do idiff = 0, solver%diffside%dof-1
                 if (.not.solver%diffside%is_inward(i1+idiff)) then ! e_left on left face
                   xsrc(dof_offset+idiff,k,i,j) = Ax * emis / real(solver%diffside%streams, ireals)
-                else
-                  xsrc(dof_offset+idiff,k,i,j) = 0
                 endif
               enddo
 
@@ -4602,8 +4596,6 @@ module m_pprts
               do idiff = 0, solver%diffside%dof-1
                 if (solver%diffside%is_inward(i1+idiff)) then ! e_right on right face
                   xsrc(dof_offset+idiff,k,i+1,j) = Ax * emis / real(solver%diffside%streams, ireals)
-                else
-                  xsrc(dof_offset+idiff,k,i+1,j) = 0
                 endif
               enddo
 
@@ -4612,8 +4604,6 @@ module m_pprts
               do idiff = 0, solver%diffside%dof-1
                 if (.not.solver%diffside%is_inward(i1+idiff)) then ! e_backward
                   xsrc(dof_offset+idiff,k,i,j) = Ay * emis / real(solver%diffside%streams, ireals)
-                else
-                  xsrc(dof_offset+idiff,k,i,j) = 0
                 endif
               enddo
 
@@ -4622,8 +4612,6 @@ module m_pprts
               do idiff = 0, solver%diffside%dof-1
                 if (solver%diffside%is_inward(i1+idiff)) then ! e_forward
                   xsrc(dof_offset+idiff,k,i,j+1) = Ay * emis / real(solver%diffside%streams, ireals)
-                else
-                  xsrc(dof_offset+idiff,k,i,j+1) = 0
                 endif
               enddo
 
@@ -5393,8 +5381,9 @@ module m_pprts
           if(.not.allocated(B%edir)) allocate(B%edir(size(B%iface)))
 
           call DMGetLocalVector(C%da, ledir, ierr); call CHKERR(ierr)
-          call DMGlobalToLocalBegin(C%da, solution%edir, INSERT_VALUES, ledir, ierr) ;call CHKERR(ierr)
-          call DMGlobalToLocalEnd  (C%da, solution%edir, INSERT_VALUES, ledir, ierr) ;call CHKERR(ierr)
+          call VecSet(ledir, zero, ierr); call CHKERR(ierr)
+          call DMGlobalToLocalBegin(C%da, solution%edir, ADD_VALUES, ledir, ierr) ;call CHKERR(ierr)
+          call DMGlobalToLocalEnd  (C%da, solution%edir, ADD_VALUES, ledir, ierr) ;call CHKERR(ierr)
 
           call getVecPointer(C%da, ledir, x1d, x4d, readonly=.True.)
           ! average of direct radiation of all fluxes through top faces
@@ -5451,8 +5440,9 @@ module m_pprts
         if(.not.allocated(B%outgoing)) allocate(B%outgoing(size(B%iface)))
 
         call DMGetLocalVector(C%da, lediff, ierr); call CHKERR(ierr)
-        call DMGlobalToLocalBegin(C%da, solution%ediff, INSERT_VALUES, lediff, ierr) ;call CHKERR(ierr)
-        call DMGlobalToLocalEnd  (C%da, solution%ediff, INSERT_VALUES, lediff, ierr) ;call CHKERR(ierr)
+        call VecSet(lediff, zero, ierr); call CHKERR(ierr)
+        call DMGlobalToLocalBegin(C%da, solution%ediff, ADD_VALUES, lediff, ierr) ;call CHKERR(ierr)
+        call DMGlobalToLocalEnd  (C%da, solution%ediff, ADD_VALUES, lediff, ierr) ;call CHKERR(ierr)
         call getVecPointer(C%da, lediff, x1d, x4d, readonly=.True.)
 
         do m = 1, size(B%iface)
