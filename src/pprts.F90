@@ -4053,7 +4053,7 @@ module m_pprts
       real(irealLUT) :: diff2diff(solver%C_diff%dof**2)
       integer(iintegers) :: k,i,j,src,iside, ak
 
-      associate(  atm     => solver%atm, &
+      associate(atm     => solver%atm, &
                 C_diff  => solver%C_diff)
 
       if(.not.allocated(atm%planck)) then
@@ -5256,45 +5256,12 @@ module m_pprts
           & call CHKERR(1_mpiint, 'solution vecs for diffuse radiation are not in W/m2 ... this is not what I expected')
       endif
 
-      if(allocated(redn)) then
-        if(.not.all(shape(redn).eq.[solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym])) then
-          print *,'Shape redn', shape(redn), 'vs', [solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym]
-          call CHKERR(1_mpiint, 'the shape of edn result array which you provided does not conform to output size. '// &
-            'Either call with unallocated object or make sure it has the correct size')
-        endif
-      else
-        allocate(redn(solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym))
-      endif
-
-      if(allocated(reup)) then
-        if(.not.all(shape(reup).eq.[solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym])) then
-          print *,'Shape reup', shape(reup), 'vs', [solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym]
-          call CHKERR(1_mpiint, 'the shape of eup result array which you provided does not conform to output size. '// &
-            'Either call with unallocated object or make sure it has the correct size')
-        endif
-      else
-        allocate(reup(solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym))
-      endif
-
-      if(allocated(rabso)) then
-        if(.not.all(shape(rabso).eq.[solver%C_one%zm, solver%C_one%xm, solver%C_one%ym])) then
-          print *,'Shape rabso', shape(rabso), 'vs', [solver%C_one%zm, solver%C_one%xm, solver%C_one%ym]
-          call CHKERR(1_mpiint, 'the shape of absorption result array which you provided does not conform to output size. '//&
-            'Either call with unallocated object or make sure it has the correct size')
-        endif
-      else
-        allocate(rabso(solver%C_one%zm, solver%C_one%xm, solver%C_one%ym))
-      endif
+      call alloc_or_check_size(solver%C_diff, redn , 'edn')
+      call alloc_or_check_size(solver%C_diff, reup , 'eup')
+      call alloc_or_check_size(solver%C_one , rabso, 'abso')
 
       if(present(redir)) then
-        if(allocated(redir)) then
-          if(.not.all(shape(redir).eq.[solver%C_dir%zm, solver%C_dir%xm, solver%C_dir%ym])) then
-            print *,'Shape redir', shape(redir), 'vs', [solver%C_dir%zm, solver%C_dir%xm, solver%C_dir%ym]
-            call CHKERR(1_mpiint, 'pprts_get_result :: you should not call it with an allocated redir array')
-          endif
-        else
-          allocate(redir(solver%C_dir%zm, solver%C_dir%xm, solver%C_dir%ym))
-        endif
+        call alloc_or_check_size(solver%C_dir, redir, 'edir')
 
         if( .not. solution%lsolar_rad ) then
           if(ldebug) then
@@ -5535,6 +5502,21 @@ module m_pprts
         call restoreVecPointer(C%da, solution%ediff, x1d, x4d, readonly=.True.)
         call DMRestoreLocalVector(C%da, lediff, ierr); call CHKERR(ierr)
       end associate
+    end subroutine
+
+    subroutine alloc_or_check_size(C, arr, varname)
+      type(t_coord), intent(in) :: C
+      real(ireals), intent(inout), allocatable :: arr(:,:,:)
+      character(len=*) :: varname
+      if(allocated(arr)) then
+        if(.not.all(shape(arr).eq.[C%zm, C%xm, C%ym])) then
+          call CHKERR(1_mpiint, 'the shape of result array which you provided does not conform to output size. '// &
+            & 'Either call with unallocated object or make sure it has the correct size! var='//trim(varname)// &
+            & ' you provided arr with shape: '//toStr(shape(arr))//' but expect '//toStr([C%zm, C%xm, C%ym]))
+        endif
+      else
+        allocate(arr(C%zm, C%xm, C%ym))
+      endif
     end subroutine
   end subroutine
 
