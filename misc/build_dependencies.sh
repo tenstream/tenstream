@@ -60,9 +60,10 @@ PETSC_OPTIONS="\
   --download-zlib \
   "
 
-echo "Petsc Options: CC=$CC FC=$FC F90=$FC CXX=$CXX $PETSC_OPTIONS"
 cd $PETSC_DIR
-./configure CC=$CC FC=$FC F90=$FC CXX=$CXX $PETSC_OPTIONS
+COPT="CC=$CC FC=$FC F90=$FC CXX=$CXX $PETSC_OPTIONS PETSC_DIR=$(pwd)"
+echo "Running configure with: $COPT"
+./configure $COPT
 make
 
 
