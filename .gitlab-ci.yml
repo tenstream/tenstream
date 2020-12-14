@@ -4,12 +4,7 @@ stages:
 .template_build_PETSC: &template_build_PETSC
     - export PETSC_DIR=$CI_PROJECT_DIR/$PETSC_DIR
     - echo "Installing Petsc in ${PETSC_DIR}/${PETSC_ARCH}"
-    - misc/build_dependencies.sh \
-        $PETSC_DIR \
-        default \
-        $PETSC_PRECISION \
-        $PETSC_DEBUGGING \
-        $PETSC_64_INTEGERS
+    - misc/build_dependencies.sh "$PETSC_DIR" "default" "$PETSC_PRECISION" "$PETSC_DEBUGGING" "$PETSC_64_INTEGERS"
     - cd $CI_PROJECT_DIR
 
 # Build Stage
