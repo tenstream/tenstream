@@ -39,7 +39,7 @@ fi
 
 PETSC_ARCH=default
 PETSC_OPTIONS="\
-  --with-fortran \
+  --with-debugging=0 \
   --download-hdf5 \
   --download-szlib \
   --download-zlib \
