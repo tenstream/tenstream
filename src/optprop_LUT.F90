@@ -104,7 +104,7 @@ module m_optprop_LUT
   integer(mpiint) :: mpierr
 
   type t_table
-    real(irealLUT), contiguous, pointer :: c(:,:) => NULL() ! depending on config has Ndim_1*Ndim_2*etc. many entries
+    real(irealLUT), pointer :: c(:,:) => NULL() ! depending on config has Ndim_1*Ndim_2*etc. many entries
     real(irealLUT), allocatable :: stddev_tol(:) ! maxval of tolerance for a given entry
     character(default_str_len), allocatable :: table_name_c(:)
     character(default_str_len), allocatable :: table_name_tol(:)
@@ -1240,7 +1240,7 @@ end subroutine
       class(t_optprop_LUT) :: OPP
 
       integer(mpiint) :: myid, ierr
-      real(irealLUT), contiguous, pointer :: mmap_ptr(:,:)
+      real(irealLUT), pointer :: mmap_ptr(:,:)
 
       call MPI_Comm_rank(comm, myid, mpierr); call CHKERR(mpierr)
 
