@@ -76,13 +76,13 @@ function download_file() {
     return
   fi
   echo "Download '$URL' to '$DST'"
-  WGET_BIN=$(command -v wget || true)
-  if [ -z $WGET_BIN ]; then
-    echo "Could not find wget but I need it to download a file"
-    echo "Either download it yourself or make sure we have wget available"
+  CURL_BIN=$(command -v curl || true)
+  if [ -z $CURL_BIN ]; then
+    echo "Could not find curl but I need it to download a file"
+    echo "Either download it yourself or make sure we have curl available"
     exit 1
   fi
-  wget $URL -O $DST
+  curl --progress-bar $URL --output $DST
   }
 
 function install_netcdf() {
