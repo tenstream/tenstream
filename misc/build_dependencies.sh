@@ -4,8 +4,8 @@ set -euo pipefail
 SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 PROJECT_ROOT="$SCRIPTDIR/../"
 
-PETSC_DIR=${1:-$PROJECT_ROOT/external/petsc}
-PETSC_ARCH=${2:-default}
+export PETSC_DIR=${1:-$PROJECT_ROOT/external/petsc}
+export PETSC_ARCH=${2:-default}
 PETSC_PRECISION=${3:-double}
 PETSC_DEBUGGING=${4:-0}
 PETSC_64_INTEGERS=${5:-0}
