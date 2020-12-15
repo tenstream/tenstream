@@ -32,7 +32,7 @@ build:docker:ubuntu-latest:
   image: ubuntu:latest
   before_script:
     - DEBIAN_FRONTEND=noninteractive apt-get -qq update
-    - DEBIAN_FRONTEND=noninteractive apt-get -qq install -fy build-essential cmake gfortran git libhdf5-mpi-dev libnetcdf-dev libnetcdff-dev libopenblas-dev libopenmpi-dev m4 openmpi-bin python curl
+    - DEBIAN_FRONTEND=noninteractive apt-get -qq install -fy build-essential cmake gfortran git libhdf5-mpi-dev libnetcdf-dev libnetcdff-dev libopenblas-dev libopenmpi-dev m4 openmpi-bin python curl libcurl3-dev
     - *template_build_PETSC
   tags:
     - docker.meteo.physik.lmu.de
@@ -51,7 +51,7 @@ build:docker:ubuntu-rolling:
   image: ubuntu:rolling
   before_script:
     - DEBIAN_FRONTEND=noninteractive apt-get -qq update
-    - DEBIAN_FRONTEND=noninteractive apt-get -qq install -fy build-essential cmake gfortran git libhdf5-mpi-dev libnetcdf-dev libnetcdff-dev libopenblas-dev libopenmpi-dev m4 openmpi-bin python curl
+    - DEBIAN_FRONTEND=noninteractive apt-get -qq install -fy build-essential cmake gfortran git libopenblas-dev libopenmpi-dev m4 openmpi-bin python curl libcurl3-dev
     - *template_build_PETSC
   tags:
     - docker.meteo.physik.lmu.de
@@ -71,7 +71,7 @@ build:docker:intel:
   extends: .build:default
   image: intel/oneapi-hpckit
   before_script:
-    - DEBIAN_FRONTEND=noninteractive apt-get -qq update && DEBIAN_FRONTEND=noninteractive apt-get -qq install -fy cmake git m4 python curl
+    - DEBIAN_FRONTEND=noninteractive apt-get -qq update && DEBIAN_FRONTEND=noninteractive apt-get -qq install -fy cmake git m4 python curl libcurl3-dev
     - *template_build_PETSC
   tags:
     - docker.meteo.physik.lmu.de
