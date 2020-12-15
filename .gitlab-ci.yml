@@ -63,7 +63,7 @@ build:docker:ubuntu-rolling:
     PETSC_PRECISION: single
     PETSC_64_INTEGERS: 1
     PETSC_DEBUGGING: 1
-    BUILD_TYPE: DEBUG
+    BUILD_TYPE: RELEASE
     CMAKE_OPTS: '-DCMAKE_Fortran_FLAGS=--std=legacy'
 
 
