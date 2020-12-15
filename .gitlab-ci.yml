@@ -64,7 +64,7 @@ build:docker:ubuntu-rolling:
     PETSC_64_INTEGERS: 1
     PETSC_DEBUGGING: 1
     BUILD_TYPE: DEBUG
-    CMAKE_OPTS: '-DCMAKE_Fortran_FLAGS="--std=legacy"'
+    CMAKE_OPTS: '-DCMAKE_Fortran_FLAGS=--std=legacy'
 
 
 build:docker:intel:
