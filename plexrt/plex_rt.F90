@@ -582,8 +582,14 @@ module m_plex_rt
         & plck=solver%plck, &
         & postfix='_'//toStr(suid))
 
-      call print_optical_properties_summary(solver%plex%comm, solver%plex%Nlay, &
-        solver%kabs, solver%ksca, solver%g, solver%albedo, solver%plck)
+      call print_optical_properties_summary( &
+        & solver%plex%comm, &
+        & solver%plex%Nlay, &
+        & solver%kabs, &
+        & solver%ksca, &
+        & solver%g, &
+        & solver%albedo, &
+        & solver%plck)
 
       associate( solution => solver%solutions(suid) )
 
@@ -598,9 +604,18 @@ module m_plex_rt
           call PetscLogEventEnd(solver%logs%orient_face_normals, ierr)
 
           call PetscLogEventBegin(solver%logs%compute_orientation, ierr)
-          call compute_wedge_orientation(solver%plex, sundir, solver%plex%wedge_orientation_dm, &
-            solver%plex%wedge_orientation)
+          call compute_wedge_orientation(&
+            & solver%plex, &
+            & sundir, &
+            & solver%plex%wedge_orientation_dm, &
+            & solver%plex%wedge_orientation)
           call PetscLogEventEnd(solver%logs%compute_orientation, ierr)
+
+          call print_wedge_orientation_summary(&
+            & solver%plex, &
+            & sundir, &
+            & solver%plex%wedge_orientation_dm, &
+            & solver%plex%wedge_orientation)
 
           last_sundir = sundir/norm2(sundir)
         endif
@@ -1033,6 +1048,120 @@ module m_plex_rt
         if(associated(xxv)) nullify(xxv)
         if(allocated(vec)) call VecRestoreArrayF90(vec, xv, ierr); call CHKERR(ierr)
       end subroutine
+    end subroutine
+
+    subroutine print_wedge_orientation_summary(plex, sundir, wedge_orientation_dm, wedge_orientation)
+      type(t_plexgrid), intent(in) :: plex
+      real(ireals), intent(in) :: sundir(3)
+      type(tDM), allocatable, intent(inout) :: wedge_orientation_dm
+      type(tVec), allocatable, intent(inout) :: wedge_orientation
+
+      integer(mpiint) :: comm, myid, ierr
+      type(tIS) :: boundary_ids
+      integer(iintegers), pointer :: xitoa(:), cell_support(:)
+      integer(iintegers), allocatable :: cell_idx(:)
+      type(tPetscSection) :: wedgeSection
+      real(ireals), pointer :: xorient(:)
+      real(ireals), allocatable, dimension(:,:) :: zenith, azimuth, param_phi, param_theta, aspect_zx, Cx, Cy
+
+      ! min mean max vals:
+      real(ireals), dimension(3) :: mzenith, mazimuth, mparam_phi, mparam_theta, maspect_zx, mCx, mCy
+      integer(iintegers) :: i, icell, iface, k, Ncol, wedge_offset
+      logical :: lview, lflg
+
+      lview=.False.
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-plexrt_view_wedge_orientation",&
+        lview, lflg, ierr) ;call CHKERR(ierr)
+      if(.not.lview) return
+
+      call PetscObjectGetComm(wedge_orientation_dm, comm, ierr); call CHKERR(ierr)
+      call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+
+      call DMGetSection(wedge_orientation_dm, wedgeSection, ierr); call CHKERR(ierr)
+      call VecGetArrayReadF90(wedge_orientation, xorient, ierr); call CHKERR(ierr)
+
+      call DMGetStratumIS(plex%edir_dm, 'DomainBoundary', TOAFACE, boundary_ids, ierr); call CHKERR(ierr)
+
+      if (boundary_ids.eq.PETSC_NULL_IS) then ! dont have TOA boundary faces
+        Ncol = 0
+      else
+        call ISGetIndicesF90(boundary_ids, xitoa, ierr); call CHKERR(ierr)
+        Ncol = size(xitoa)
+      endif
+
+      allocate(&
+        & Cx(plex%Nlay,Ncol), &
+        & Cy(plex%Nlay,Ncol), &
+        & zenith(plex%Nlay,Ncol), &
+        & azimuth(plex%Nlay,Ncol), &
+        & param_phi(plex%Nlay,Ncol), &
+        & param_theta(plex%Nlay,Ncol), &
+        & aspect_zx(plex%Nlay,Ncol))
+
+      do i = 1, Ncol
+        iface = xitoa(i)
+
+        call DMPlexGetSupport(wedge_orientation_dm, iface, cell_support, ierr); call CHKERR(ierr) ! support of face is cell
+        icell = cell_support(1)
+        call DMPlexRestoreSupport(wedge_orientation_dm, iface, cell_support, ierr); call CHKERR(ierr) ! support of face is cell
+        call get_consecutive_vertical_cell_idx(plex, icell, cell_idx)
+
+        do k = 1, size(cell_idx)
+          icell = cell_idx(k)
+
+          call PetscSectionGetFieldOffset(wedgeSection, icell, i0, wedge_offset, ierr); call CHKERR(ierr)
+          zenith     (k,i) = xorient(wedge_offset+i1)
+          azimuth    (k,i) = xorient(wedge_offset+i2)
+          param_phi  (k,i) = xorient(wedge_offset+i3)
+          param_theta(k,i) = xorient(wedge_offset+i4)
+          aspect_zx  (k,i) = xorient(wedge_offset+i5)
+
+          call PetscSectionGetFieldOffset(wedgeSection, icell, i3, wedge_offset, ierr); call CHKERR(ierr)
+          Cx         (k,i) = xorient(wedge_offset+i1)
+          Cy         (k,i) = xorient(wedge_offset+i2)
+        enddo
+      enddo
+
+      if(boundary_ids.ne.PETSC_NULL_IS) then
+        call ISRestoreIndicesF90(boundary_ids, xitoa, ierr); call CHKERR(ierr)
+      endif
+      call VecRestoreArrayReadF90(wedge_orientation, xorient, ierr); call CHKERR(ierr)
+
+      if(myid.eq.0) print *,'*        k  '// &
+        '                '//cstr('Cx    (min/mean/max)', 'blue')//'                '// &
+        '                '//cstr('Cy                  ', 'red' )//'                '// &
+        '                '//cstr('aspect_zx           ', 'blue' )
+      if(myid.eq.0) print *,cstr('---------------------------------------------------------------------------------------', 'blue')
+      do k=1,plex%Nlay
+        call imp_min_mean_max(comm, aspect_zx  (k,:), maspect_zx  )
+        call imp_min_mean_max(comm, Cx         (k,:), mCx         )
+        call imp_min_mean_max(comm, Cy         (k,:), mCy         )
+        if(myid.eq.0) print *, k, &
+          & cstr(toStr(mCx),'blue'), &
+          & cstr(toStr(mCy),'red'), &
+          & cstr(toStr(maspect_zx),'blue')
+      enddo
+      if(myid.eq.0) print *,cstr('---------------------------------------------------------------------------------------', 'blue')
+
+      if(myid.eq.0) print *,'*        k  '// &
+        '                '//cstr('zenith(min/mean/max)', 'blue')//'                '// &
+        '                '//cstr('azimuth             ', 'red' )//'                '// &
+        '                '//cstr('param_phi           ', 'blue')//'                '// &
+        '                '//cstr('param_theta         ', 'red' )
+      if(myid.eq.0) print *,cstr('---------------------------------------------------------------------------------------', 'blue')
+      do k=1,plex%Nlay
+        call imp_min_mean_max(comm, zenith     (k,:), mzenith     )
+        call imp_min_mean_max(comm, azimuth    (k,:), mazimuth    )
+        call imp_min_mean_max(comm, param_phi  (k,:), mparam_phi  )
+        call imp_min_mean_max(comm, param_theta(k,:), mparam_theta)
+        if(myid.eq.0) print *, k, &
+          & cstr(toStr(mzenith),'blue'), &
+          & cstr(toStr(mazimuth),'red'), &
+          & cstr(toStr(mparam_phi),'blue'), &
+          & cstr(toStr(mazimuth),'red')
+      enddo
+      if(myid.eq.0) print *,cstr('---------------------------------------------------------------------------------------', 'blue')
+      if(myid.eq.0) print *,cstr('Sundir '//toStr(sundir), 'red')
     end subroutine
 
     subroutine create_edir_src_vec(solver, plex, edirdm, E0, kabs, ksca, g, sundir, srcVec)
