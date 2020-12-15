@@ -73,11 +73,10 @@ build:docker:intel:
   before_script:
     - DEBIAN_FRONTEND=noninteractive apt-get -qq update && DEBIAN_FRONTEND=noninteractive apt-get -qq install -fy cmake git m4 python wget curl
     - *template_build_PETSC
-    - misc/download_LUT.sh
   tags:
     - docker.meteo.physik.lmu.de
   variables:
-    CTEST_ARGS: '-E boxmc|LUT'
+    CTEST_ARGS: '-E boxmc|LUT|test_pprts_symmetry|test_rrtm_lw_Bsrfc|test_rrtm_lw_sw|test_plexrt_fish|test_plexrt_rrtmg_lw_sw|test_pprts_absorption_by_coeff_divergence'
     PETSC_DIR: petsc
     PETSC_ARCH: default
     PETSC_PRECISION: single
