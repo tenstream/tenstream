@@ -77,6 +77,7 @@ build:docker:intel:
     - docker.meteo.physik.lmu.de
   variables:
     CTEST_ARGS: '-E boxmc|LUT|test_pprts_symmetry|test_rrtm_lw_Bsrfc|test_rrtm_lw_sw|test_plexrt_fish|test_plexrt_rrtmg_lw_sw|test_pprts_absorption_by_coeff_divergence'
+    MPIRUN_FLAGS: "--allow-run-as-root;--oversubscribe"
     PETSC_DIR: petsc
     PETSC_ARCH: default
     PETSC_PRECISION: single
