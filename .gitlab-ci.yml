@@ -51,7 +51,7 @@ build:docker:ubuntu-rolling:
   image: ubuntu:rolling
   before_script:
     - DEBIAN_FRONTEND=noninteractive apt-get -qq update
-    - DEBIAN_FRONTEND=noninteractive apt-get -qq install -fy build-essential cmake gfortran git libopenblas-dev libopenmpi-dev m4 openmpi-bin python curl libcurl3-dev
+    - DEBIAN_FRONTEND=noninteractive apt-get -qq install -fy build-essential cmake gfortran git libopenblas-dev libopenmpi-dev m4 openmpi-bin python curl libcurl3-dev pkg-config
     - *template_build_PETSC
   tags:
     - docker.meteo.physik.lmu.de
@@ -82,7 +82,7 @@ build:docker:intel:
     PETSC_PRECISION: single
     PETSC_64_INTEGERS: 0
     PETSC_DEBUGGING: 1
-    BUILD_TYPE: DEBUG
+    BUILD_TYPE: RELEASE
     CC: mpiicc
     FC: mpiifort
     CXX: mpiicpc
