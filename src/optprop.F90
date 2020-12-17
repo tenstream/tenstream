@@ -27,7 +27,8 @@ module m_optprop
 #endif
 
 use m_optprop_parameters, only : ldebug_optprop, wedge_sphere_radius, param_eps
-use m_helper_functions, only : rmse, CHKERR, CHKWARN, toStr, cstr, approx, deg2rad, rad2deg, swap, is_between, char_arr_to_str
+use m_helper_functions, only : rmse, CHKERR, CHKWARN, toStr, cstr, approx, deg2rad, rad2deg, swap, is_between, char_arr_to_str,
+triangle_area_by_vertices
 use m_data_parameters, only: ireals,ireal_dp,irealLUT,ireal_params,iintegers,one,zero,i0,i1,inil,mpiint
 use m_optprop_base, only: t_optprop_base, t_op_config, find_op_dim_by_name
 use m_optprop_LUT, only : t_optprop_LUT, t_optprop_LUT_1_2,t_optprop_LUT_3_6, t_optprop_LUT_3_10, &
@@ -38,6 +39,7 @@ use m_optprop_ANN, only : t_optprop_ANN, t_optprop_ANN_3_10
 use m_boxmc_geometry, only : setup_default_unit_cube_geometry, setup_default_wedge_geometry
 use m_eddington, only: eddington_coeff_zdun
 use m_tenstream_options, only: twostr_ratio
+use m_intersection, only: hit_plane
 
 use m_LUT_param_phi, only: theta_from_param_theta, iterative_phi_theta_from_param_phi_and_param_theta
 
@@ -67,7 +69,8 @@ public ::                          &
   dir2dir3_coeff_corr_zy,          &
   dir2dir3_coeff_corr_xx,          &
   dir2dir3_coeff_corr_xy,          &
-  dir2dir3_coeff_corr_yy
+  dir2dir3_coeff_corr_yy,          &
+  dir2dir3_coeff_corr_src_x
 
 type,abstract :: t_optprop
   logical :: optprop_debug=ldebug_optprop
@@ -1195,22 +1198,11 @@ contains
     real(ireals), intent(in) :: verts_dtd(:)
     real(ireals), intent(in) :: sundir(:)
 
-    real(ireals) :: s, st
     real(irealLUT) :: f, coeff_mod
 
     ! xx
     if (abs(sundir(1)) > epsilon(sundir(1)) * 10) then
-      s = max(min(abs(( &
-        (verts(3) - verts(6) + (verts(4) - verts(1)) * sundir(3) / sundir(1)) / (verts(18) - verts(6)) + &
-        (verts(9) - verts(12) + (verts(10) - verts(7)) * sundir(3) / sundir(1)) / (verts(24) - verts(12)) &
-        ) / 2._ireals), 1._ireals), 0._ireals)
-      st = max(min(abs((&
-        (verts_dtd(3) - verts_dtd(6) + (verts_dtd(4) - verts_dtd(1)) * sundir(3) / sundir(1)) / &
-        (verts_dtd(18) - verts_dtd(6)) + &
-        (verts_dtd(9) - verts_dtd(12) + (verts_dtd(10) - verts_dtd(7)) * sundir(3) / sundir(1)) / &
-        (verts_dtd(24) - verts_dtd(12)) &
-        ) / 2._ireals), 1._ireals), 0._ireals)
-      f = real(st / s, irealLUT)
+      f = real(s(verts_dtd) / s(verts), irealLUT)
       coeff_mod = max(min((1._irealLUT - f) * coeffs(2), coeffs(2)), - coeffs(5))
       coeffs(2) = coeffs(2) - coeff_mod
       coeffs(5) = coeffs(5) + coeff_mod
@@ -1221,6 +1213,17 @@ contains
     !    (verts(
     !endif
 
+    contains
+      function s(vertz)
+        real(ireals), intent(in) :: vertz(:)
+        real(ireals) :: s
+
+        s = max(min(abs(( &
+          (vertz(3) - vertz(6) + (vertz(4) - vertz(1)) * sundir(3) / sundir(1)) / (vertz(18) - vertz(6)) + &
+          (vertz(9) - vertz(12) + (vertz(10) - vertz(7)) * sundir(3) / sundir(1)) / (vertz(24) - vertz(12)) &
+          ) / 2._ireals), 1._ireals), 0._ireals)
+      end function
+
   end subroutine
 
   subroutine dir2dir3_coeff_corr_xy(coeffs, verts, verts_dtd, sundir)
@@ -1229,29 +1232,27 @@ contains
     real(ireals), intent(in) :: verts_dtd(:)
     real(ireals), intent(in) :: sundir(:)
 
-    real(ireals) :: s, st
     real(irealLUT) :: f, coeff_mod
 
-    ! xx
-    if (1._ireals .eq. 2._ireals) then
-      if (abs(sundir(1)) > epsilon(sundir(1)) * 10 .and. abs(sundir(2)) > epsilon(sundir(2)) * 10) then
-        s = max(min(abs(( &
-          (verts(3) - verts(6) + (verts(4) - verts(1)) * sundir(3) / sundir(1)) / (verts(18) - verts(6)) + &
-          (verts(9) - verts(12) + (verts(10) - verts(7)) * sundir(3) / sundir(1)) / (verts(24) - verts(12)) &
-          ) / 2._ireals), 1._ireals), 0._ireals)
-        st = max(min(abs((&
-          (verts_dtd(3) - verts_dtd(6) + (verts_dtd(4) - verts_dtd(1)) * sundir(3) / sundir(1)) / &
-          (verts_dtd(18) - verts_dtd(6)) + &
-          (verts_dtd(9) - verts_dtd(12) + (verts_dtd(10) - verts_dtd(7)) * sundir(3) / sundir(1)) / &
-          (verts_dtd(24) - verts_dtd(12)) &
-          ) / 2._ireals), 1._ireals), 0._ireals)
-        f = real(st / s, irealLUT)
-        coeff_mod = max(min((1._irealLUT - f) * coeffs(2), coeffs(2)), - coeffs(5))
-        coeffs(2) = coeffs(2) - coeff_mod
-        coeffs(5) = coeffs(5) + coeff_mod
-      endif
+    if (abs(sundir(2)) > epsilon(sundir(2)) * 10) then
+      f = real(s(verts) / s(verts_dtd), irealLUT)
+      coeff_mod = max(min((1._irealLUT - f) * coeffs(2), coeffs(2)), - coeffs(8))
+      print *, 'st', s(verts_dtd), 's', s(verts), 'f', f, 'coeff_mod', coeff_mod
+      coeffs(2) = coeffs(2) + coeff_mod
+      coeffs(8) = coeffs(8) - coeff_mod
     endif
-  end subroutine
+
+    contains
+      function s(vertz)
+        real(ireals), intent(in) :: vertz(:)
+        real(ireals) :: s
+
+        s = max(min(abs(( &
+          (vertz(3) - vertz(6) + (vertz(4) - vertz(1)) * sundir(3) / sundir(1)) / (vertz(18) - vertz(6)) + &
+          (vertz(9) - vertz(12) + (vertz(10) - vertz(7)) * sundir(3) / sundir(1)) / (vertz(24) - vertz(12)) &
+          ) / 2._ireals), 1._ireals), 0._ireals)
+      end function
+  end subroutine dir2dir3_coeff_corr_xy
 
 
   subroutine dir2dir3_coeff_corr_yy(coeffs, verts, verts_dtd, sundir)
@@ -1260,20 +1261,9 @@ contains
     real(ireals), intent(in) :: verts_dtd(:)
     real(ireals), intent(in) :: sundir(:)
 
-    real(ireals) :: si, st
     real(irealLUT) :: f, coeff_mod
 
     if (abs(sundir(2)) > epsilon(sundir(2)) * 10) then
-      si = max(min(abs(( &
-        (verts(6) - verts(12) + (verts(11) - verts(5)) * sundir(3) / sundir(2)) / (verts(24) - verts(12)) + &
-        (verts(3) - verts(9) + (verts(8) - verts(2)) * sundir(3) / sundir(2)) / (verts(21) - verts(9)) &
-        ) / 2._ireals), 1._ireals), 0._ireals)
-      st = max(min(abs(( &
-        (verts_dtd(6) - verts_dtd(12) + (verts_dtd(11) - verts_dtd(5)) * sundir(3) / sundir(2)) / &
-        (verts_dtd(24) - verts_dtd(12)) + &
-        (verts_dtd(3) - verts_dtd(9) + (verts_dtd(8) - verts_dtd(2)) * sundir(3) / sundir(2)) / &
-        (verts_dtd(21) - verts_dtd(9)) &
-        ) / 2._ireals), 1._ireals), 0._ireals)
       f = real(s(verts_dtd) / s(verts), irealLUT)
       coeff_mod = max(min((1._irealLUT - f) * coeffs(3), coeffs(3)), - coeffs(9))
       coeffs(3) = coeffs(3) - coeff_mod
@@ -1286,8 +1276,8 @@ contains
         real(ireals) :: s
 
         s = max(min(abs(( &
-          (vertz(6) - vertz(12) + (vertz(11) - vertz(5)) * sundir(3) / sundir(2)) / (vertz(24) - vertz(12)) + &
-          (vertz(3) - vertz(9) + (vertz(8) - vertz(2)) * sundir(3) / sundir(2)) / (vertz(21) - vertz(9)) &
+          (vertz(9) - vertz(3) + (vertz(2) - vertz(8)) * sundir(3) / sundir(2)) / (vertz(15) - vertz(3)) + &
+          (vertz(12) - vertz(6) + (vertz(5) - vertz(11)) * sundir(3) / sundir(2)) / (vertz(18) - vertz(6)) &
           ) / 2._ireals), 1._ireals), 0._ireals)
       end function
   end subroutine dir2dir3_coeff_corr_yy
@@ -1349,4 +1339,112 @@ contains
       end function
 
   end subroutine dir2dir3_coeff_corr_zy
+
+  subroutine dir2dir3_coeff_corr_src_x(coeffs, verts, verts_dtd, sundir)
+    real(irealLUT), intent(inout) :: coeffs(:)
+    real(ireals), intent(in) :: verts(:), verts_dtd(:), sundir(:)
+
+    real(ireals) :: D(3), D_pd(3), D_dtd(3), D_pd_dtd(3), A(3), A_dtd(3), n(3)
+    real(ireals) :: B(3), B_pd(3), B_dtd(3), B_pd_dtd(3), H(3), H_pd(3), H_dtd(3), H_pd_dtd(3)
+    real(irealLUT) :: f_xx, coeff_mod_xx, f_xy, coeff_mod_xy
+
+    ! if z * y < 0
+    n = ([1,0,0])
+    A = verts(1:3)
+    A_dtd = verts_dtd(1:3)
+
+    B = verts(4:6)
+    B_pd = B + hit_plane(B, sundir, A, n) * sundir
+    B_dtd = verts_dtd(4:6)
+    B_pd_dtd = B_dtd + hit_plane(B_dtd, sundir, A_dtd, n) * sundir
+
+    D = verts(10:12)
+    D_pd = D + hit_plane(D, sundir, A, n) * sundir
+    D_dtd = verts_dtd(10:12)
+    D_pd_dtd = D_dtd + hit_plane(D_dtd, sundir, A_dtd, n) * sundir
+
+    print *, 'B', B_pd_dtd
+    print *, 'D', D_pd_dtd
+
+    H = verts([22,23,24])
+    H_pd = H + hit_plane(H, sundir, A, n) * sundir
+    H_dtd = verts_dtd([22,23,24])
+    H_pd_dtd = H + hit_plane(H_dtd, sundir, A_dtd, n) * sundir
+
+    if (sundir(1) > epsilon(sundir(1)) * 10) then
+      print *, 'Ax_dtd', Ax(verts_dtd, B_pd_dtd, D_pd_dtd), 'Ax', Ax(verts, B_pd, D_pd)
+      if (Ax(verts, B_pd, D_pd) > epsilon(1._ireals)) then
+        f_xx = real(Ax(verts_dtd, B_pd_dtd, D_pd_dtd) / Ax(verts, B_pd, D_pd), irealLUT)
+        coeff_mod_xx = (f_xx - 1._irealLUT) * coeffs(5) ! always goes into z
+        coeffs(5) = coeffs(5) + coeff_mod_xx
+        coeffs(2) = coeffs(2) - coeff_mod_xx
+      else if (Ax(verts_dtd, B_pd_dtd, D_pd_dtd) > epsilon(1._ireals) * 10) then
+        f_xx = real(Ax(verts, B_pd, D_pd) / Ax(verts_dtd, B_pd_dtd, D_pd_dtd), irealLUT)
+        coeff_mod_xx = (f_xx - 1._irealLUT) * coeffs(2) ! always goes into z
+        coeffs(5) = coeffs(5) - coeff_mod_xx
+        coeffs(2) = coeffs(2) + coeff_mod_xx
+      endif
+      print *, 'Ax_dtd', Ax(verts_dtd, B_pd_dtd, D_pd_dtd), 'Ax', Ax(verts, B_pd, D_pd), 'f_xx', f_xx
+    endif
+    if (sundir(2) > epsilon(sundir(2)) * 10) then
+      !print *, 'Ay_dtd', Ay(verts_dtd, D_pd_dtd), 'Ay', Ay(verts, D_pd)
+      f_xy = real(Ay(verts_dtd, D_pd_dtd) / Ay(verts, D_pd), irealLUT)
+      print *, 'Ay_dtd', Ay(verts_dtd, D_pd_dtd), 'Ay', Ay(verts, D_pd), 'f_xy', f_xy
+      coeff_mod_xy = (f_xy - 1._irealLUT) * coeffs(8)
+      coeffs(8) = coeffs(8) + coeff_mod_xy
+      coeffs(2) = coeffs(2) - coeff_mod_xy
+    endif
+  ! NOT working for uncorrected coeff = 0 and corr coeff != 0
+      contains
+        function Ax(vs, Bpd, Dpd)
+          real(ireals), intent(in) :: vs(:), Bpd(:), Dpd(:)
+          real(ireals) :: a, b, c, Ax1, Ax2, Ax3, Ax
+
+          a = max(min(abs( &
+            (D(2) - vs(14)) / (vs(20) - vs(14)) * (vs(21) - vs(15))), &
+            abs(vs(15) - vs(21))), &
+            0._ireals)
+          b = max(min( &
+            (vs(2) - Dpd(2)) / (Bpd(2) - Dpd(2)) * (Bpd(3) - Dpd(3)), &
+            vs(8) - vs(2)), &
+            0._ireals)
+          c = max(min( &
+            Dpd(2) - vs(14), &
+            vs(8) - vs(2)), &
+            0._ireals)
+
+          Ax1 = a / 2._ireals * c
+          Ax2 = (vs(15) - Dpd(3) - a - b) * c
+          Ax3 = b / 2._ireals * c
+
+          Ax = Ax1 + Ax2 + Ax3
+        end function
+        ! works for phi from 40 to 90 degrees
+        function Ay(vs, Dpd)
+          real(ireals), intent(in) :: vs(:), Dpd(:)
+          real(ireals) :: a, b, c, d, Ay1, Ay2, Ay3, Ay
+          ! NOT working for sudnir || y
+          a = vs(15) + (Dpd(2) - vs(14)) / (vs(20) - vs(14)) * (vs(21) - vs(15)) - vs(21)
+          b = max(min( &
+            Dpd(3) - vs(9), &
+            vs(21) + (vs(9) - vs(21)) * (vs(15) - vs(21)) / &
+            (vs(15) - vs(21) - (vs(14) - vs(20)) / (Dpd(2) - vs(8)) * (Dpd(3) - vs(9))) &
+            ), 0._ireals)
+          c = max(min( &
+            vs(20) - Dpd(2), &
+            vs(20) - vs(14) &
+            ), 0._ireals)
+          if (vs(21) >  Dpd(3)) then
+            d = vs(21) - Dpd(3)
+          else
+            d = 0._ireals
+          endif
+          !print *, 'abcd', a, b, c, d
+          Ay1 = a / 2._ireals * c
+          Ay2 = d * c
+          Ay3 = b / 2._ireals * c
+
+          Ay = Ay1 + Ay2 + Ay3
+        end function
+  end subroutine dir2dir3_coeff_corr_src_x
 end module
