@@ -112,10 +112,11 @@ subroutine test_search_runtime(this)
   class (MpiTestMethod), intent(inout) :: this
   integer(iintegers), parameter :: Nsize=200, Niter=100000*Nsize
   integer(iintegers) :: i, s, itest
-  real(ireals) :: A(Nsize), r(Niter)
+  real(ireals), allocatable :: A(:), r(:)
   real(ireal_dp) :: tstart, tend
   real(ireals) :: sum_res(4), time(4)
   print *,'Running performance test for search routines'
+  allocate(A(Niter), r(Niter))
   do i=1,size(A)
     A(i) = real(i-1, ireals)
   enddo
