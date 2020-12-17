@@ -8,8 +8,8 @@ module test_boxmc_3_10
   use m_boxmc_geometry, only : setup_default_unit_cube_geometry
   use m_optprop, only : dir2dir3_coeff_corr_zy, dir2dir3_coeff_corr_zx, &
     dir2dir3_coeff_corr_xx, dir2dir3_coeff_corr_xy, &
-    dir2dir3_coeff_corr_yy
-  use m_helper_functions, only : spherical_2_cartesian
+    dir2dir3_coeff_corr_yy, dir2dir3_coeff_corr_src_x
+  use m_helper_functions, only : spherical_2_cartesian, cstr
 
   use pfunit_mod
   implicit none
@@ -478,7 +478,7 @@ contains
     bg  = [0e-0_ireal_dp/dz, 0._ireal_dp, 1._ireal_dp/2 ]
     S_target = zero
 
-    phi = 70; theta = 60
+    phi = 300; theta = 60
     src = 2
 
     call setup_default_unit_cube_geometry(dx, dy, dz, verts)
@@ -518,7 +518,7 @@ contains
     print *, 'sundir', sundir
 
     call dir2dir3_coeff_corr_xx(v, verts, verts_dtd, sundir)
-    print *, 'regular corrected', v(5), v(8), v(2)
+    print *, cstr('regular corrected', 'red'), v(5), v(8), v(2)
 
     call bmc_3_10%get_coeff(comm,bg,src,.True.,phi,theta,verts_dtd,S,T_target,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
     print *, 'distorted', T_target(2), T_target(3), T_target(1)
@@ -539,13 +539,13 @@ contains
     bg  = [0e-0_ireal_dp/dz, 0._ireal_dp, 1._ireal_dp/2 ]
     S_target = zero
 
-    phi = 70; theta = 60
+    phi = 70; theta = 70
     src = 2
 
     call setup_default_unit_cube_geometry(dx, dy, dz, verts)
     verts_dtd = verts
-    !verts_dtd([6,12,18,24]) = verts_dtd([6,12,18,24]) + dz / 4
-    verts_dtd([18,6]) = verts_dtd([18,6]) + dz/4
+    verts_dtd([6,12,18,24]) = verts_dtd([6,12,18,24]) + dz / 4
+    !verts_dtd([18,6]) = verts_dtd([18,6]) + dz/4
 
     print *, 'vertices'
     print *, 'A', verts(1), verts(2), verts(3)
@@ -578,17 +578,19 @@ contains
     sundir = spherical_2_cartesian(real(phi, ireals), real(theta, ireals)) * [-one, -one, one]
     print *, 'sundir', sundir
 
+    call dir2dir3_coeff_corr_xx(v, verts, verts_dtd, sundir)
+    print *, cstr('regular xx corrected', 'yellow'), v(5), v(8), v(2)
     call dir2dir3_coeff_corr_xy(v, verts, verts_dtd, sundir)
-    print *, 'regular corrected', v(5), v(8), v(2)
+    print *, cstr('regular xy corrected', 'red'), v(5), v(8), v(2)
 
     call bmc_3_10%get_coeff(comm,bg,src,.True.,phi,theta,verts_dtd,S,T_target,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-    print *, 'distorted', T_target(2), T_target(3), T_target(1)
+    print *, cstr('distorted', 'green'), T_target(2), T_target(3), T_target(1)
 
     !call check(S_target,T_target, S,T, msg=' test_boxmc_distorted_cube_dir45_up_src1')
 
   end subroutine
 
-  @test(npes =[1])
+  !@test(npes =[1])
   subroutine test_boxmc_distorted_cube_dir2dir2_coeff_corr_yy(this)
     class (MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: src
@@ -705,6 +707,67 @@ contains
 
     call bmc_3_10%get_coeff(comm,bg,src,.True.,phi,theta,verts_dtd,S,T_target,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
     print *, 'distorted', T_target(2), T_target(3), T_target(1)
+
+    !call check(S_target,T_target, S,T, msg=' test_boxmc_distorted_cube_dir45_up_src1')
+
+  end subroutine
+
+  @test(npes =[1])
+  subroutine test_boxmc_distorted_cube_dir2dir3_coeff_corr_y_trgt_x_src(this)
+    class (MpiTestMethod), intent(inout) :: this
+    integer(iintegers) :: src
+    real(ireal_dp), allocatable :: verts(:), verts_dtd(:)
+    real( ireal_dp), parameter :: dx=1, dy=dx, dz=dx
+    real(irealLUT) :: v(9)
+    real(ireals) :: sundir(3)
+
+    bg  = [0e-0_ireal_dp/dz, 0._ireal_dp, 1._ireal_dp/2 ]
+    S_target = zero
+
+    phi = 50; theta = 55
+    src = 2
+
+    call setup_default_unit_cube_geometry(dx, dy, dz, verts)
+    verts_dtd = verts
+    verts_dtd([3,15,21,9]) = verts_dtd([3,15,21,9]) + dz / 2
+    !verts_dtd([18,6]) = verts_dtd([18,6]) + dz/4
+
+    print *, 'vertices'
+    print *, 'A', verts(1), verts(2), verts(3)
+    print *, 'B', verts(4), verts(5), verts(6)
+    print *, 'C', verts(7), verts(8), verts(9)
+    print *, 'D', verts(10), verts(11), verts(12)
+    print *, 'E', verts(13), verts(14), verts(15)
+    print *, 'F', verts(16), verts(17), verts(18)
+    print *, 'G', verts(19), verts(20), verts(21)
+    print *, 'H', verts(22), verts(23), verts(24)
+
+    print *, 'vertices'
+    print *, 'A', verts_dtd(1), verts_dtd(2), verts_dtd(3)
+    print *, 'B', verts_dtd(4), verts_dtd(5), verts_dtd(6)
+    print *, 'C', verts_dtd(7), verts_dtd(8), verts_dtd(9)
+    print *, 'D', verts_dtd(10), verts_dtd(11), verts_dtd(12)
+    print *, 'E', verts_dtd(13), verts_dtd(14), verts_dtd(15)
+    print *, 'F', verts_dtd(16), verts_dtd(17), verts_dtd(18)
+    print *, 'G', verts_dtd(19), verts_dtd(20), verts_dtd(21)
+    print *, 'H', verts_dtd(22), verts_dtd(23), verts_dtd(24)
+
+    call bmc_3_10%get_coeff(comm,bg,src,.True.,phi,theta,verts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+    v = 0
+    v(2) = real(T(1), irealLUT)
+    v(5) = real(T(2), irealLUT)
+    v(8) = real(T(3), irealLUT)
+
+    print *, 'regular not corrected', v(5), v(8), v(2)
+
+    sundir = spherical_2_cartesian(real(phi, ireals), real(theta, ireals)) * [-one, -one, one]
+    print *, 'sundir', sundir
+
+    call dir2dir3_coeff_corr_src_x(v, verts, verts_dtd, sundir)
+    print *, 'regular corrected', v(5), v(8), v(2)
+
+    call bmc_3_10%get_coeff(comm,bg,src,.True.,phi,theta,verts_dtd,S,T_target,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+    print *, cstr('distorted', 'green'), T_target(2), T_target(3), T_target(1)
 
     !call check(S_target,T_target, S,T, msg=' test_boxmc_distorted_cube_dir45_up_src1')
 

@@ -61,8 +61,7 @@ module m_pprts
     & t_optprop_1_2, t_optprop_3_6, t_optprop_3_10, &
     & t_optprop_8_10, t_optprop_3_16, t_optprop_8_16, t_optprop_8_18, &
     & t_optprop_3_10_ann, &
-    & dir2dir3_coeff_correction_x_dir, dir2dir3_coeff_correction_y_dir, &
-    dir2dir3_coeff_correction_x, dir2dir3_coeff_correction_y
+    & dir2dir3_coeff_corr_zx, dir2dir3_coeff_corr_zy
   use m_eddington, only : eddington_coeff_zdun
 
   use m_tenstream_options, only : read_commandline_options, ltwostr, luse_eddington, twostr_ratio, &
@@ -3744,7 +3743,6 @@ module m_pprts
       MatStencil         :: row(4,C%dof)  ,col(4,C%dof)
       real(ireals), allocatable :: vertices(:), vertices_dtd(:)
       real(irealLUT)     :: v(C%dof**2), norm
-      real(irealLUT) :: v_dummy(3)
       integer(iintegers) :: dst,src, xinc, yinc, isrc, idst
 
       xinc = sun%xinc(k,i,j)
@@ -3827,33 +3825,17 @@ module m_pprts
      call PetscLogEventEnd(solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
 
      if (lgeometric_correction) then
-       v_dummy = [v(1), v(4), v(7)]
+       call dir2dir3_coeff_corr_zx(v, vertices, vertices_dtd, sun%sundir)
+       call dir2dir3_coeff_corr_zy(v, vertices, vertices_dtd, sun%sundir)
 
-       !print *, 'A', vertices(1:3)
-       !print *, 'B', vertices(4:6)
-       !print *, 'C', vertices(7:9)
-       !print *, 'D', vertices(10:12)
-       !print *, 'E', vertices(13:15)
-       !print *, 'F', vertices(16:18)
-       !print *, 'G', vertices(19:21)
-       !print *, 'H', vertices(22:24)
-
-       call dir2dir3_coeff_correction_x_dir(v_dummy, vertices, vertices_dtd, sun%sundir)
-       call dir2dir3_coeff_correction_y_dir(v_dummy, vertices, vertices_dtd, sun%sundir)
-       !call dir2dir3_coeff_correction_x(v, vertices, vertices_dtd, sun%sundir)
-       call dir2dir3_coeff_correction_y(v, vertices, vertices_dtd, sun%sundir)
-
-       v(1) = v_dummy(1)
-       v(4) = v_dummy(2)
-       v(7) = v_dummy(3)
-
-       if (ldebug) then
-         call dir2dir3_coeff_correction_y_dir(v_dummy, vertices, vertices_dtd, sun%sundir)
-         call dir2dir3_coeff_correction_x_dir(v_dummy, vertices, vertices_dtd, sun%sundir)
-         if (any(abs(v_dummy - v([1,4,7])) > epsilon(v_dummy))) then
-           call CHKERR(1_mpiint, 'dir2dir3_coeff_corrections are not symmetric')
-         endif
-       endif
+       !if (ldebug) then
+       !  v_prime = v
+       !  call dir2dir3_coeff_corr_zy(v_prime, vertices, vertices_dtd, sun%sundir)
+       !  call dir2dir3_coeff_corr_zx(v_prime, vertices, vertices_dtd, sun%sundir)
+       !  if (any(abs(v_prime([1,4,7]) - v([1,4,7])) > epsilon(v([1,4,7])))) then
+       !    call CHKERR(1_mpiint, 'dir2dir3_coeff_corrections are not symmetric')
+       !  endif
+       !endif
      endif
 
      call MatSetValuesStencil(A, C%dof, row, C%dof, col, real(-v, ireals), INSERT_VALUES, ierr) ;call CHKERR(ierr)
