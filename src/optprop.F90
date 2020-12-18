@@ -1342,34 +1342,108 @@ contains
 
   subroutine dir2dir3_coeff_corr_src_x(coeffs, verts, verts_dtd, sundir)
     real(irealLUT), intent(inout) :: coeffs(:)
-    real(ireals), intent(in) :: verts(:), verts_dtd(:), sundir(:)
+      real(ireals), intent(in) :: verts(:), verts_dtd(:), sundir(:)
+
 
     real(ireals) :: D(3), D_pd(3), D_dtd(3), D_pd_dtd(3), A(3), A_dtd(3), n(3)
     real(ireals) :: B(3), B_pd(3), B_dtd(3), B_pd_dtd(3), H(3), H_pd(3), H_dtd(3), H_pd_dtd(3)
     real(irealLUT) :: f_xx, coeff_mod_xx, f_xy, coeff_mod_xy
 
-    ! if z * y < 0
-    n = ([1,0,0])
-    A = verts(1:3)
-    A_dtd = verts_dtd(1:3)
+    !
+    !
+    !                                                                     H'
+    !                                                                      x
+    !                                                                      |
+    !                                                                      |
+    !                                                                      |
+    !                                         H'                           |
+    !                                            x                         |
+    !                                            |                         |                                    D'
+    !       T                               T    |                         |               D'       P              x
+    !         x                               x  |                         |                 x----x                 \ T
+    !         |\    H'                        |\ |                    R  Q | E         G   Q |\ R | E     G          x
+    !         | \     x         B'          P | \| D'                   x--x---x-----x       x-x--x------x         E |\ R     G
+    !         |  \    |           x-----------x--x                       \ |   |     |          \ |      |           x-x-----x
+    !       E |   \ R | Q   G      \          |  |\                B'   D'\|   | P   |           \|      |           |  \    |
+    !         x----x--x---x         \         |  | \                 x-----x---x     |            x      |           |   \   |
+    !         |     \ |   |          \        |  |  \                       \  |     |          T |\     |           |    \  |
+    ! B'    P |      \| D'|           \ S   E |  | Q \  R      G             \ |     |            | \    |           |     \ |
+    !   x-----x-------x   |            x------x--x----x------x                \| T   |            |  \   |           |      \|
+    !         |        \  |             \     |        \     |                 x     |            |   \  |           x-------x
+    !         |         \ |              \    |         \    |                 |\    |            |    \ |         A           C
+    !         |          \|               \   |          \   |                 | \   |            |     \|
+    !         x-----------x                \  |           \  |                 |  \  |            x------x
+    !       A               C               \ |            \ |                 |   \ |          A          C
+    !                                        \|             \|                 |    \|
+    !         Ax = D'PE + EQD'                x--------------x                 x-----x
+    !         Ay = CD'G + D'QG              A                  C             A         C
+    !                                         Ax = D'PE + EQD'
+    !                                           Ay =
+    !
+    !
+    !   if (|CD'| < |CR| .and. |CD'| < |CT|) then
+    !     Ay = CD'G + D'QG
+    !     Ax = D'PE + EQD'
+    !   else if (|CD'| > |CR| .and. |CD'| < |CT|) then
+    !     Ay = CRG
+    !     Ax = 0
+    !   else if (|CD'| < |CR| .and. |CD'| > |CT|) then
+    !     Ay = CTG + TEG
+    !     Ax = 0
+    !   else if (|CD'| > |CR| .and. |CD'| > |CT|) then
+    !     Ay = CRG
+    !     Ax = 0
+    !   endif
+    !
 
-    B = verts(4:6)
-    B_pd = B + hit_plane(B, sundir, A, n) * sundir
+    n = ([1,0,0])
+
+    subroutine rel_as(vertz)
+      real(ireals), intent(in) :: vertz(:)
+      A = verts(1:3)
+      B = verts(4:6)
+      D = verts(10:12)
+      E = verts(13:15)
+      G = verts(19:21)
+      H = verts(22:24)
+
+      B_pd = B + hit_plane(B, sundir, A, n) * sundir
+      D_pd = D + hit_plane(D, sundir, A, n) * sundir
+      H_pd = H + hit_plane(H, sundir, A, n) * sundir
+
+      P = line_line_interesection_2d(D_pd(2:3), (B_pd - D_pd)(2:3), A(2:3), (E - A)(2:3))
+      Q = line_line_intersection_2d(D_pd(2:3), (H_pd - D_pd)(2:3), E(2:3), (G - E)(2:3))
+      R = line_line_intersection_2d(C(2:3), sundir(2:3), E(2:3), (G - E)(2:3))
+      T = line_line_intersection_2d(C(2:3), sundir(2:3), A(2:3), (E - A)(2:3))
+
+      l_C_D_pd = vector_length(D_pd - C)
+      l_C_R = vector_length(R - C)
+      l_C_T = vector_length(T - C)
+
+      if (vector_length(C - D_pd)| < vector_length(C - R) .and. vector_length(C - D_pd) < vector_length(C - T)) then
+        Ay = triangle_area_by_vertices(C,D_pd,G) + triangle_area_by_vertices(D_pd,Q,G)
+        Ax = triangle_area_by_vertices(D_pd,P,E) + triangle_area_by_vertices(E,Q,D_pd)
+      else if (vector_length(C - D_pd) > vector_length(C - R) .and. vector_length(C - D_pd) < vector_length(C - T)) then
+        Ay = triangle_area_by_vertices(C,R,G)
+        Ax = 0._ireals
+      else if (vector_length(C - D_pd) < vector_length(C - R) .and. vector_length(C - D_pd) > vector_length(C - T)) then
+        Ay = triangle_area_by_vertices(C,T,G) + triangle_area_by_vertices(T,E,G)
+        Ax = 0._ireals
+      else if (vector_length(C - D_pd) > vector_length(C - R) .and. vector_length(C - D_pd) > vector_length(C - T)) then
+        Ay = triangle_area_by_vertices(C,R,G)
+        Ax = 0._ireals
+      endif
+    end subroutine
+
+    A_dtd = verts_dtd(1:3)
     B_dtd = verts_dtd(4:6)
     B_pd_dtd = B_dtd + hit_plane(B_dtd, sundir, A_dtd, n) * sundir
-
-    D = verts(10:12)
-    D_pd = D + hit_plane(D, sundir, A, n) * sundir
     D_dtd = verts_dtd(10:12)
     D_pd_dtd = D_dtd + hit_plane(D_dtd, sundir, A_dtd, n) * sundir
-
-    print *, 'B', B_pd_dtd
-    print *, 'D', D_pd_dtd
-
-    H = verts([22,23,24])
-    H_pd = H + hit_plane(H, sundir, A, n) * sundir
     H_dtd = verts_dtd([22,23,24])
     H_pd_dtd = H + hit_plane(H_dtd, sundir, A_dtd, n) * sundir
+
+
 
     if (sundir(1) > epsilon(sundir(1)) * 10) then
       print *, 'Ax_dtd', Ax(verts_dtd, B_pd_dtd, D_pd_dtd), 'Ax', Ax(verts, B_pd, D_pd)
@@ -1445,6 +1519,45 @@ contains
           Ay3 = b / 2._ireals * c
 
           Ay = Ay1 + Ay2 + Ay3
+        end function
+
+        function line_line_intersection_2d(o1, d1, o2, d2)
+          real(ireals), intent(in) :: o1(:), d(:), o2(:), d2(:)
+          real(ireals) :: line_line_intersection_2d(2), c1, c2
+
+          !      \   /
+          !       \ /
+          !        x line_line_intersection_2d
+          !       / \
+          !      /   \
+          !  o1 x     x o2
+
+          c1 = (d2(1) * (o1(2) - o2(2)) - d2(2) * (o1(1) - o2(1))) / (d2(2) * d1(1) - d2(1) * d1(2))
+          !c2 = (d1(1) * (o1(2) - o2(2)) - d1(2) * (o1(1) - o2(1))) / (d2(2) * d1(1) - d2(1) * d1(2))
+          line_line_intersection_2d = o1 + c1 * d1
+        end function
+
+        function line_plane_intersection(o_line, d_line, o_plane, n_plane)
+          real(ireals), intent(in) :: o_line(:), d_line(:), o_plane(:), n_plane(:)
+          real(ireals) :: line_plane_intersection(3), c
+
+          !                 ___________
+          !                 |         |
+          !        o_line   |  line_plane_intersection
+          !          x------|---x     |
+          !                 |     x o_plane
+          !                 |_________|
+          !
+
+          c = dot(n, o_plane - o_line) / dot(n, d_line)
+          line_plane_intersection = o_line + c * d_line
+        end function
+
+        function vector_length(v)
+          real(ireals), intent(in) :: v(:)
+          real(ireals) :: vector_length
+
+          vector_length = sqrt(v(1) ** 2 + v(2) ** 2 + v(3) ** 2)
         end function
   end subroutine dir2dir3_coeff_corr_src_x
 end module
