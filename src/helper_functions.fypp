@@ -1733,18 +1733,20 @@ module m_helper_functions
       integer(mpiint), intent(out) :: ierr
       real(kind(vec)) :: norm
       ierr = 0
-      norm = norm2(vec)
+      normed_vec = vec /  max(tiny(vec), maxval(abs(vec)))
+      norm = norm2(normed_vec)
       if(norm.le.tiny(norm)) then
         ierr = 1
         norm = 1
       endif
-      normed_vec = vec/norm
+      normed_vec = normed_vec/norm
     end subroutine
     subroutine normalize_vec_inplace_${dtype}$(vec, ierr)
       real(${dtype}$), intent(inout) :: vec(:)
       integer(mpiint), intent(out) :: ierr
       real(kind(vec)) :: norm
       ierr = 0
+      vec = vec /  max(tiny(vec), maxval(abs(vec)))
       norm = norm2(vec)
       if(norm.le.tiny(norm)) then
         ierr = 1

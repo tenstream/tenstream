@@ -910,7 +910,7 @@ contains
         type(t_state_container),intent(inout) :: plex_solution
         logical :: gotmsg
         integer(iintegers) :: idummy
-        integer(mpiint) :: isub, status(MPI_STATUS_SIZE), mpi_request
+        integer(mpiint) :: isub, status(MPI_STATUS_SIZE), imp_request
         integer(mpiint), parameter :: FINALIZEMSG=1
         integer(mpiint) :: run_rank=0
 
@@ -958,7 +958,7 @@ contains
             do isub=0,subnumnodes-1 ! send finalize msg to all others to stop waiting
               if(isub.ne.run_rank) then
                 call mpi_isend(-i1, 1_mpiint, imp_iinteger, isub, FINALIZEMSG, &
-                  & ri%subcomm, mpi_request, ierr); call CHKERR(ierr)
+                  & ri%subcomm, imp_request, ierr); call CHKERR(ierr)
               endif
             enddo
           else

@@ -4,16 +4,7 @@ stages:
 .template_build_PETSC: &template_build_PETSC
     - export PETSC_DIR=$CI_PROJECT_DIR/$PETSC_DIR
     - echo "Installing Petsc in ${PETSC_DIR}/${PETSC_ARCH}"
-    - git clone -q --depth=1 https://gitlab.com/petsc/petsc.git $PETSC_DIR
-    - cd $PETSC_DIR
-    - >
-      CMD="./configure
-      --with-fortran
-      --with-fortran-interfaces
-      --with-precision=$PETSC_PRECISION
-      --with-64-bit-indices=$PETSC_64_INTEGERS
-      --with-debugging=$PETSC_DEBUGGING"
-    - echo $CMD && $CMD && make PETSC_DIR=$PETSC_DIR PETSC_ARCH=$PETSC_ARCH all
+    - misc/build_dependencies.sh "${PETSC_DIR}" "${PETSC_ARCH}" "${PETSC_PRECISION}" "${PETSC_DEBUGGING}" "${PETSC_64_INTEGERS}"
     - cd $CI_PROJECT_DIR
 
 # Build Stage
@@ -32,13 +23,16 @@ stages:
     MPIEXEC: "mpirun"
     MPIRUN_FLAGS: '' #--allow-run-as-root;-A;bm0974;-p;shared
     CMAKE_OPTS: ''
+    CC: mpicc
+    FC: mpif90
+    CXX: mpicxx
 
 build:docker:ubuntu-latest:
   extends: .build:default
   image: ubuntu:latest
   before_script:
     - DEBIAN_FRONTEND=noninteractive apt-get -qq update
-    - DEBIAN_FRONTEND=noninteractive apt-get -qq install -fy build-essential cmake gfortran git libhdf5-mpi-dev libnetcdf-dev libnetcdff-dev libopenblas-dev libopenmpi-dev m4 openmpi-bin python wget
+    - DEBIAN_FRONTEND=noninteractive apt-get -qq install -fy build-essential cmake gfortran git libhdf5-mpi-dev libnetcdf-dev libnetcdff-dev libopenblas-dev libopenmpi-dev m4 openmpi-bin python curl libcurl3-dev
     - *template_build_PETSC
   tags:
     - docker.meteo.physik.lmu.de
@@ -57,7 +51,7 @@ build:docker:ubuntu-rolling:
   image: ubuntu:rolling
   before_script:
     - DEBIAN_FRONTEND=noninteractive apt-get -qq update
-    - DEBIAN_FRONTEND=noninteractive apt-get -qq install -fy build-essential cmake gfortran git libhdf5-mpi-dev libnetcdf-dev libnetcdff-dev libopenblas-dev libopenmpi-dev m4 openmpi-bin python wget
+    - DEBIAN_FRONTEND=noninteractive apt-get -qq install -fy build-essential cmake gfortran git libopenblas-dev libopenmpi-dev m4 openmpi-bin python curl libcurl3-dev pkg-config
     - *template_build_PETSC
   tags:
     - docker.meteo.physik.lmu.de
@@ -69,8 +63,29 @@ build:docker:ubuntu-rolling:
     PETSC_PRECISION: single
     PETSC_64_INTEGERS: 1
     PETSC_DEBUGGING: 1
-    BUILD_TYPE: DEBUG
-    CMAKE_OPTS: '-DCMAKE_Fortran_FLAGS="--std=legacy"'
+    BUILD_TYPE: RELEASE
+    CMAKE_OPTS: '-DCMAKE_Fortran_FLAGS=--std=legacy'
+
+
+build:docker:intel:
+  extends: .build:default
+  image: intel/oneapi-hpckit
+  before_script:
+    - DEBIAN_FRONTEND=noninteractive apt-get -qq update && DEBIAN_FRONTEND=noninteractive apt-get -qq install -fy cmake git m4 python curl libcurl3-dev
+    - *template_build_PETSC
+  tags:
+    - docker.meteo.physik.lmu.de
+  variables:
+    CTEST_ARGS: '-V -E boxmc|LUT|test_pprts_symmetry|test_rrtm_lw_Bsrfc|test_rrtm_lw_sw|test_plexrt_fish|test_plexrt_rrtmg_lw_sw|test_pprts_absorption_by_coeff_divergence'
+    PETSC_DIR: petsc
+    PETSC_ARCH: default
+    PETSC_PRECISION: single
+    PETSC_64_INTEGERS: 0
+    PETSC_DEBUGGING: 1
+    BUILD_TYPE: RELEASE
+    CC: mpiicc
+    FC: mpiifort
+    CXX: mpiicpc
 
 # MIM runs
 .build:mim:default:
@@ -85,23 +100,6 @@ build:docker:ubuntu-rolling:
     MPIEXEC: "srun"
     MPIRUN_FLAGS: '--mpi=pmix'
     CTEST_ARGS: '-V -E boxmc|LUT'
-
-# INTEL
-build:mim:icc:single:
-  extends: .build:mim:default
-  variables:
-    MODULES: "petsc/single-icc-19"
-    SRUN_OPTIONS: "--time 02:00:00 --mem 8G -n 9"
-    PETSC_OPTIONS: "-vecscatter_type mpi1"
-
-build:mim:icc:debug:
-  extends: .build:mim:default
-  variables:
-    MODULES: "petsc/single-icc-19"
-    SRUN_OPTIONS: "--time 02:00:00 --mem 8G -n 9"
-    PETSC_OPTIONS: "-vecscatter_type mpi1"
-    BUILD_TYPE: DEBUG
-
 
 # GCC
 build:mim:gcc:single:

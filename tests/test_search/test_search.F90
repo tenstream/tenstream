@@ -112,10 +112,15 @@ subroutine test_search_runtime(this)
   class (MpiTestMethod), intent(inout) :: this
   integer(iintegers), parameter :: Nsize=200, Niter=100000*Nsize
   integer(iintegers) :: i, s, itest
-  real(ireals) :: A(Nsize), r(Niter)
+  real(ireals), allocatable :: A(:), r(:)
   real(ireal_dp) :: tstart, tend
   real(ireals) :: sum_res(4), time(4)
   print *,'Running performance test for search routines'
+  print *,'                    find_real_location, '// &
+    & 'find_real_location_linear, '// &
+    & 'search_sorted_bisection, '// &
+    & 'find_real_location_petsc'
+  allocate(A(Niter), r(Niter))
   do i=1,size(A)
     A(i) = real(i-1, ireals)
   enddo
@@ -167,7 +172,7 @@ subroutine test_search_runtime(this)
       print *, 'arr size', s, 'time', time, ':', time / minval(time), ': auto_select algorithm', time(1), '( ratio=',time(1)/minval(time),')'
       ! make sure that the generic version of search algorithm is selected well,
       ! i.e. that we are not off by a factor of 3
-      @assertTrue(time(1).lt.minval(time)*3, 'the auto selected search algorithm was the wrong one')
+      @assertTrue(time(1).lt.minval(time)*2, 'the auto selected search algorithm was the wrong one')
     end associate
   enddo
 end subroutine

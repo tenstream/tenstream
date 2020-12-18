@@ -4,9 +4,14 @@ set -euo pipefail
 SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 PROJECT_ROOT="$SCRIPTDIR/../"
 
+export PETSC_DIR=${1:-$PROJECT_ROOT/external/petsc}
+export PETSC_ARCH=${2:-default}
+PETSC_PRECISION=${3:-double}
+PETSC_DEBUGGING=${4:-0}
+PETSC_64_INTEGERS=${5:-0}
+
 echo ""
-echo "** Downloading Petsc, and netcdf libs and install them in ${PROJECT_ROOT}/external"
-echo ""
+echo "** Downloading Petsc, and netcdf libs and install them"
 
 if [ -z ${FC:-} ]; then
   echo " Need to define FC, e.g. set with FC=mpif90"
@@ -21,15 +26,21 @@ if [ -z ${CXX:-} ]; then
   exit 3
 fi
 
-printf "Using Compilers:\n\
+printf "Using:\n\
+  PETSC_DIR:          $PETSC_DIR \n\
+  PETSC_ARCH          $PETSC_ARCH \n\
+  PETSC_PRECISION     $PETSC_PRECISION \n\
+  PETSC_DEBUGGING     $PETSC_DEBUGGING \n\
+  PETSC_64_INTEGERS   $PETSC_64_INTEGERS \n\
+
   C-Compiler:   ${CC}\n\
   F-Compiler:   ${FC}\n\
-  C++ Compiler: ${CXX}\n"
+  C++ Compiler: ${CXX}\n\
+  \n"
 
 PETSC_URL=https://gitlab.com/petsc/petsc.git
 PETSC_BRANCH=master
 
-PETSC_DIR=$PROJECT_ROOT/external/petsc
 if [ -e "$PETSC_DIR" ]
 then
   echo "Using PETSC_DIR: $PETSC_DIR"
@@ -37,17 +48,22 @@ else
   git clone $PETSC_URL -b $PETSC_BRANCH $PETSC_DIR
 fi
 
-PETSC_ARCH=default
 PETSC_OPTIONS="\
-  --with-debugging=0 \
+  COPTFLAGS='-O3 -g' \
+  CXXOPTFLAGS='-O3 -g' \
+  FOPTFLAGS='-O3 -g' \
+  --with-debugging=$PETSC_DEBUGGING \
+  --with-precision=$PETSC_PRECISION \
+  --with-64-bit-indices=$PETSC_64_INTEGERS \
   --download-hdf5 \
   --download-szlib \
   --download-zlib \
   "
 
-echo "Using Petsc Options: $PETSC_OPTIONS"
 cd $PETSC_DIR
-./configure CC=$CC FC=$FC F90=$FC CXX=$CXX $PETSC_OPTIONS
+COPT="CC=$CC FC=$FC F90=$FC CXX=$CXX $PETSC_OPTIONS PETSC_DIR=$(pwd)"
+echo "Running configure with: $COPT"
+./configure $COPT
 make
 
 
@@ -60,13 +76,13 @@ function download_file() {
     return
   fi
   echo "Download '$URL' to '$DST'"
-  WGET_BIN=$(command -v wget || true)
-  if [ -z $WGET_BIN ]; then
-    echo "Could not find wget but I need it to download a file"
-    echo "Either download it yourself or make sure we have wget available"
+  CURL_BIN=$(command -v curl || true)
+  if [ -z $CURL_BIN ]; then
+    echo "Could not find curl but I need it to download a file"
+    echo "Either download it yourself or make sure we have curl available"
     exit 1
   fi
-  wget $URL -O $DST
+  curl --progress-bar $URL --output $DST
   }
 
 function install_netcdf() {
