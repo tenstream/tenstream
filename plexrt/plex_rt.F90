@@ -5,12 +5,29 @@ module m_plex_rt
 
   use m_tenstream_options, only : read_commandline_options, ltwostr_only, lschwarzschild, lcalc_nca
 
-  use m_helper_functions, only: CHKERR, CHKWARN, determine_normal_direction, &
-    angle_between_two_vec, rad2deg, deg2rad, strF2C, get_arg, meanval, &
-    vec_proj_on_plane, cross_3d, rotation_matrix_world_to_local_basis, &
-    approx, swap, delta_scale, delta_scale_optprop, toStr, cstr, &
-    imp_reduce_mean, imp_min_mean_max, rotation_matrix_around_axis_vec, &
-    mpi_logical_all_same
+  use m_helper_functions, only: &
+    & angle_between_two_vec, &
+    & approx, &
+    & CHKERR, &
+    & CHKWARN, &
+    & cross_3d, &
+    & cstr, &
+    & deg2rad, &
+    & delta_scale, &
+    & delta_scale_optprop, &
+    & determine_normal_direction, &
+    & get_arg, &
+    & imp_min_mean_max, &
+    & imp_reduce_mean, &
+    & meanval, &
+    & mpi_logical_all_same, &
+    & rad2deg, &
+    & rotation_matrix_around_axis_vec, &
+    & rotation_matrix_world_to_local_basis, &
+    & strF2C, &
+    & swap, &
+    & toStr, &
+    & vec_proj_on_plane
 
   use m_data_parameters, only : ireals, iintegers, mpiint, irealLUT, imp_ireals, &
     i0, i1, i2, i3, i4, i5, i6, i7, i8, default_str_len, &
@@ -44,7 +61,7 @@ module m_plex_rt
   use m_plex2rayli, only: rayli_wrapper
   use m_schwarzschild, only: B_eff
   use m_netcdfio, only: ncwrite
-  use m_petsc_helpers, only: hegedus_trick
+  use m_petsc_helpers, only: hegedus_trick, print_vec_min_mean_max
   use m_eddington, only: eddington_coeff_zdun
 
   implicit none
@@ -1040,6 +1057,9 @@ module m_plex_rt
 
           call VecGetArrayF90(vec, xv, ierr); call CHKERR(ierr)
           xxv(1:N, 1:Ncol) => xv(:)
+        else
+          nullify(xxv)
+          nullify(xv)
         endif
       end subroutine
       subroutine restore_col_vec(vec, xv, xxv)
@@ -1259,6 +1279,9 @@ module m_plex_rt
 
       call DMRestoreLocalVector(edirdm, localVec, ierr); call CHKERR(ierr)
       call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+
+
+      call print_vec_min_mean_max(srcVec, 'srcVec')
 
       contains
         subroutine set_sidewards_direct_fluxes()

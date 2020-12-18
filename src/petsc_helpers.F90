@@ -5,20 +5,24 @@ module m_petsc_helpers
   use m_data_parameters, only : ireals, iintegers, mpiint, &
     zero, i0, i1, i2, i3, default_str_len, init_mpi_data_parameters
 
-  use m_helper_functions, only : get_arg, CHKERR, char_to_upper
+  use m_helper_functions, only : get_arg, CHKERR, char_to_upper, imp_min_mean_max
 
   implicit none
 
   private
-  public :: petscGlobalVecToZero, scatterZerotoPetscGlobal, &
-    petscGlobalVecToAll, &
-    petscVecToF90, &
-    f90VecToPetsc, &
-    getVecPointer, restoreVecPointer, &
+  public :: &
     dmda_convolve_ediff_srfc, &
+    f90VecToPetsc, &
+    gen_shared_scatter_ctx, &
+    gen_shared_subcomm, &
+    getVecPointer, restoreVecPointer, &
     hegedus_trick, &
-    gen_shared_subcomm, gen_shared_scatter_ctx, &
-    is_local_vec
+    is_local_vec, &
+    petscGlobalVecToAll, &
+    petscGlobalVecToZero, &
+    petscVecToF90, &
+    print_vec_min_mean_max, &
+    scatterZerotoPetscGlobal
 
   interface f90VecToPetsc
     module procedure f90VecToPetsc_2d, f90VecToPetsc_3d, f90VecToPetsc_4d
@@ -997,5 +1001,22 @@ contains
     call DMDAGetNumCells(da, ncx, ncy, ncz, numCells, ierr); call CHKERR(ierr)
 
     is_local = vsize.eq.numCells
+  end subroutine
+
+  subroutine print_vec_min_mean_max(v, label)
+    type(tVec), intent(in) :: v
+    character(len=*), intent(in) :: label
+
+    integer(mpiint) :: comm, myid, ierr
+    real(ireals), pointer :: xv(:)
+    real(ireals) :: mmm(3)
+    character(len=default_str_len) :: vecname
+
+    call VecGetArrayReadF90(v, xv, ierr); call CHKERR(ierr)
+    call PetscObjectGetComm(v, comm, ierr); call CHKERR(ierr)
+    call imp_min_mean_max(comm, xv, mmm)
+    call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+    call PetscObjectGetName(v, vecname, ierr);call CHKERR(ierr)
+    if(myid.eq.0) print *,trim(label)//' ( '//trim(vecname)//' ) min mean max ',mmm
   end subroutine
 end module
