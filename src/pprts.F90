@@ -1858,6 +1858,7 @@ module m_pprts
       class(t_solver), intent(in) :: solver
       logical, intent(in), optional :: opt_lview
 
+      type(tVec) :: valbedo
       logical :: lview, lflg
       real(ireals), dimension(3) :: mkabs, mksca, mg, malbedo, mplck
       integer(mpiint) :: myid, ierr
@@ -1897,6 +1898,12 @@ module m_pprts
         if(allocated(atm%albedo)) then
           call imp_min_mean_max(solver%comm, atm%albedo(:,:), malbedo)
           if(myid.eq.0) print *, ' * Albedo (min/mean,max)', malbedo
+
+          call DMGetGlobalVector(solver%Csrfc_one%da, valbedo, ierr) ; call CHKERR(ierr)
+          call f90VecToPetsc(atm%albedo, solver%Csrfc_one%da, valbedo)
+          print *,'view albedo:', atm%albedo
+          call PetscObjectViewFromOptions(valbedo, PETSC_NULL_VEC, "-pprts_view_albedo", ierr); call CHKERR(ierr)
+          call DMRestoreGlobalVector(solver%Csrfc_one%da, valbedo, ierr) ; call CHKERR(ierr)
         endif
 
 
