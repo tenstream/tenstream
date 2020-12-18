@@ -1380,18 +1380,19 @@ module m_plex_rt
               icell = cell_support(1)
               call DMPlexRestoreSupport(edirdm, iface_side, cell_support, ierr); call CHKERR(ierr)
 
-              call get_inward_face_normal(iface_side, icell, geomSection, geoms, side_face_normal)
-              if(.not.is_solar_src(side_face_normal, sundir)) cycle ! if sun is not shining on this side face, skip this
-
-              call PetscSectionGetFieldOffset(geomSection, icell, i3, geom_offset, ierr); call CHKERR(ierr)
-              dz = geoms(i1+geom_offset)
-
               call DMPlexGetCone(edirdm, icell, faces_of_cell, ierr); call CHKERR(ierr)
               topface = faces_of_cell(1)
               botface = faces_of_cell(2)
               call DMPlexRestoreCone(edirdm, icell, faces_of_cell, ierr); call CHKERR(ierr)
 
               call PetscSectionGetOffset(edirsection, topface, topoffset, ierr); call CHKERR(ierr)
+              if(xedir(i1+topoffset).lt.zero) cycle ! no direct radiation coming here from top
+
+              call get_inward_face_normal(iface_side, icell, geomSection, geoms, side_face_normal)
+              if(.not.is_solar_src(side_face_normal, sundir)) cycle ! if sun is not shining on this side face, skip this
+
+              call PetscSectionGetFieldOffset(geomSection, icell, i3, geom_offset, ierr); call CHKERR(ierr)
+              dz = geoms(i1+geom_offset)
 
               call PetscSectionGetFieldOffset(geomSection, iface_side, i2, geom_offset, ierr); call CHKERR(ierr)
               area = geoms(i1+geom_offset) / real(solver%dirtop%area_divider, ireals)
@@ -1572,6 +1573,7 @@ module m_plex_rt
               face_plex2bmc(int(wedgeorient(wedge_offset2+isrc), iintegers)) = isrc
               lsrc(isrc) = wedgeorient(wedge_offset3+isrc) .gt. zero
             enddo
+            if(.not.lsrc(1)) cycle ! if top face is not source, skip this cell
             call face_idx_to_diff_bmc_idx(face_plex2bmc, diff_plex2bmc)
             call face_idx_to_bmc_idx(solver%dirtop, solver%dirside, face_plex2bmc, dir_plex2bmc)
             !print *,'icell', icell, 'face_plex2bmc', face_plex2bmc, 'dir_plex2bmc', dir_plex2bmc
@@ -2340,6 +2342,7 @@ module m_plex_rt
       if(myid.eq.0.and.ldebug) print *,'Creating Direct Matrix...'
       call DMCreateMatrix(plex%edir_dm, A, ierr); call CHKERR(ierr)
       call MatSetBlockSize(A,i1,ierr); call CHKERR(ierr)
+      call MatSetOption(A, MAT_NEW_NONZERO_ALLOCATION_ERR, PETSC_FALSE, ierr); call CHKERR(ierr)
       if(myid.eq.0.and.ldebug) print *,'Creating Direct Matrix... done'
     endif
 
@@ -2598,6 +2601,7 @@ module m_plex_rt
             face_plex2bmc(int(wedgeorient(wedge_offset2+iface), iintegers)) = iface
             lsrc(iface) = wedgeorient(wedge_offset3+iface) .gt. zero
           enddo
+          if(.not.lsrc(1)) cycle ! if top face is not source, skip this cell
           call face_idx_to_bmc_idx(solver%dirtop, solver%dirside, face_plex2bmc, plex2bmc)
 
           call PetscSectionGetFieldOffset(geomSection, icell, i3, geom_offset, ierr); call CHKERR(ierr)
@@ -2855,8 +2859,7 @@ module m_plex_rt
       if(myid.eq.0.and.ldebug) print *,'Creating Diffuse Matrix...'
       call DMCreateMatrix(plex%ediff_dm, A, ierr); call CHKERR(ierr)
       call MatSetBlockSize(A,i2,ierr); call CHKERR(ierr)
-      call MatSetOption(A, MAT_NEW_NONZERO_LOCATION_ERR, PETSC_TRUE, ierr); call CHKERR(ierr)
-      call MatSetOption(A, MAT_NEW_NONZERO_ALLOCATION_ERR, PETSC_TRUE, ierr); call CHKERR(ierr)
+      call MatSetOption(A, MAT_NEW_NONZERO_ALLOCATION_ERR, PETSC_FALSE, ierr); call CHKERR(ierr)
     endif
 
     lreset_mat = .False.
@@ -2912,13 +2915,16 @@ module m_plex_rt
             do istream = 1, num_fields
               call PetscSectionGetFieldDof(ediffSection, iface, istream-i1, numDof, ierr); call CHKERR(ierr)
               if(numDof.eq.i2) then
-                ! field offset for field 0 gives Eup because field 0 is flux from lower cell id to higher cell id
+                ! field offset for field 0 gives Ein because field 0 is flux from lower cell id to higher cell id
                 ! in case of boundary faces: from cell_id -1 (boundary face) to some icell
                 call PetscSectionGetFieldOffset(ediffSection, iface, istream-i1, offset_Ein, ierr); call CHKERR(ierr)
                 offset_Eout = offset_Ein+i1
 
-                call MatSetValuesLocal(A, i1, offset_Ein, i1, offset_Eout, -xalbedo(i1+offset_srfc), INSERT_VALUES, ierr)
-                call CHKERR(ierr)
+                call MatSetValuesLocal(A, &
+                  & i1, offset_Ein, &
+                  & i1, offset_Eout, &
+                  & -xalbedo(i1+offset_srfc), &
+                  & INSERT_VALUES, ierr); call CHKERR(ierr)
               endif
             enddo
           enddo
@@ -2937,21 +2943,25 @@ module m_plex_rt
           call ISGetIndicesF90(bc_ids, xi, ierr); call CHKERR(ierr)
           do i = 1, size(xi)
             iface = xi(i)
-            call PetscSectionGetOffset(srfcSection, iface, offset_srfc, ierr); call CHKERR(ierr)
-            do istream = 1, num_fields
-              call PetscSectionGetFieldDof(ediffSection, iface, istream-i1, numDof, ierr); call CHKERR(ierr)
+            do istream = 0, num_fields-1
+              call PetscSectionGetFieldDof(ediffSection, iface, istream, numDof, ierr); call CHKERR(ierr)
               if(numDof.eq.i2) then
                 ! field offset for field 0 gives Eup because field 0 is flux from lower cell id to higher cell id
                 ! in case of boundary faces: from cell_id -1 (boundary face) to some icell
-                call PetscSectionGetFieldOffset(ediffSection, iface, istream-i1, offset_Ein, ierr); call CHKERR(ierr)
+                call PetscSectionGetFieldOffset(ediffSection, iface, istream, offset_Ein, ierr); call CHKERR(ierr)
                 offset_Eout = offset_Ein+i1
 
-                call MatSetValuesLocal(A, i1, offset_Ein, i1, offset_Eout, sideward_bc_coeff, INSERT_VALUES, ierr)
-                call CHKERR(ierr)
-                if(ldebug.and.offset_Ein.eq.offset_Eout) call CHKERR(1_mpiint, &
-                  'src and dst are the same :( ... should not happen here'// &
-                  ' row '//toStr(offset_Ein)// &
-                  ' col '//toStr(offset_Eout))
+                call MatSetValuesLocal(A, &
+                  & i1, offset_Ein, &
+                  & i1, offset_Eout, &
+                  & sideward_bc_coeff, &
+                  & INSERT_VALUES, ierr); !call CHKERR(ierr)
+
+                if(ldebug.and.offset_Ein.eq.offset_Eout) &
+                  & call CHKERR(1_mpiint, &
+                    & 'src and dst are the same :( ... should not happen here'// &
+                    & ' row '//toStr(offset_Ein)// &
+                    & ' col '//toStr(offset_Eout))
               elseif (numDof.eq.i0) then
               else
                 call CHKERR(1_mpiint, 'dont expect to have this numbering of dof, please check')
