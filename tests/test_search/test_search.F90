@@ -24,6 +24,12 @@ subroutine test_search_sorted_bisection(this)
   @assertEqual(2.5, search_sorted_bisection(A,   1._ireals))
   @assertEqual(3.0, search_sorted_bisection(A,   2._ireals))
   @assertEqual(3.0, search_sorted_bisection(A,   3._ireals))
+  @assertEqual(1.0, search_sorted_bisection([1._ireals], -1._ireals))
+  @assertEqual(1.0, search_sorted_bisection([1._ireals],  1._ireals))
+  @assertEqual(1.0, search_sorted_bisection([1._ireals],  2._ireals))
+  @assertEqual(1.0, search_sorted_bisection([0._ireals, 1._ireals], -1._ireals))
+  @assertEqual(2.0, search_sorted_bisection([0._ireals, 1._ireals],  1._ireals))
+  @assertEqual(2.0, search_sorted_bisection([0._ireals, 1._ireals],  2._ireals))
 end subroutine
 
 @test(npes=[1])

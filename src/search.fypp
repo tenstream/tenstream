@@ -114,6 +114,10 @@ module m_search
       real(${dtype}$),intent(in) :: val
       real(${dtype}$)            :: res
 
+      if(size(arr).eq.1) then
+        res = 1
+        return
+      endif
       if(arr(1).le.arr(2)) then ! ascending order
         res = find_real_location_linear_asc(arr, val)
       else !descending order
