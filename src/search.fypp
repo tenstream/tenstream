@@ -33,20 +33,43 @@ module m_search
 #:endfor
   end interface
 
-  integer(iintegers), save :: LINEAR_SEARCH_LIMIT=10
 
   contains
 
-    subroutine determine_linear_search_limits()
+    ! return index+residula i where val is between arr(i) and arr(i+1)
+    ! chooses different implementations depending on input array size
+#:for dtype in ['REAL32', 'REAL64']
+    function find_real_location_${dtype}$(arr, val) result(loc)
+      real(${dtype}$),intent(in) :: arr(:)
+      real(${dtype}$),intent(in) :: val
+      real(${dtype}$)            :: loc
+      integer(iintegers), save   :: LINEAR_SEARCH_LIMIT=-1
+
+      if(LINEAR_SEARCH_LIMIT.lt.1) then
+        call determine_linear_search_limits_${dtype}$(LINEAR_SEARCH_LIMIT, lverbose=.False.)
+      endif
+
+      ! Note: Seems that the Petsc Func is always the slowest implementation but unnoticeable after N>100
+      !       Anyway, we use linear search for small arrays and bisection search for larger ones
+      if(size(arr).lt.LINEAR_SEARCH_LIMIT) then
+        loc = find_real_location_linear(arr, val)
+      else
+        loc = search_sorted_bisection(arr,val)
+      endif
+    end function
+
+    subroutine determine_linear_search_limits_${dtype}$(LINEAR_SEARCH_LIMIT, lverbose)
+      integer(iintegers), intent(out) :: LINEAR_SEARCH_LIMIT
+      logical, intent(in) :: lverbose
       integer(iintegers), parameter :: Nsize=100, Niter=10000*Nsize
-      real(ireals), allocatable :: A(:), r(:)
-      real(ireals) :: sum_res(2), time(2)
+      real(${dtype}$), allocatable :: A(:), r(:)
+      real(${dtype}$) :: sum_res(2), time(2)
       integer(iintegers) :: i, s, itest
       real(ireal_dp) :: tstart, tend
 
       allocate(A(Niter), r(Niter))
       do i=1,size(A)
-        A(i) = real(i-1, ireals)
+        A(i) = real(i-1, kind(A))
       enddo
       do i=1,Niter
         call random_number(r(i))
@@ -64,7 +87,7 @@ module m_search
             sum_res(itest) = sum_res(itest) + find_real_location_linear(arr, r(i))
           enddo
           call cpu_time(tend)
-          time(itest) = real(tend - tstart, ireals)
+          time(itest) = real(tend - tstart, kind(time))
 
           itest = 2
           call cpu_time(tstart)
@@ -72,42 +95,21 @@ module m_search
             sum_res(itest) = sum_res(itest) + search_sorted_bisection(arr, r(i))
           enddo
           call cpu_time(tend)
-          time(itest) = real(tend - tstart, ireals)
+          time(itest) = real(tend - tstart, kind(time))
 
           if(.not.approx(sum_res(1),sum_res(2), epsilon(sum_res))) &
             & call CHKERR(1_mpiint, 'search routines did not give the correct (same) answers')
         end associate
-        !print *,'size', s, 'timings:', time
+        if(lverbose) print *,'size', s, 'timings:', time
         if( time(1) .gt. time(2) ) then
           LINEAR_SEARCH_LIMIT = s
           exit
         endif
       enddo
-      !print *,'LINEAR_SEARCH_LIMIT:', LINEAR_SEARCH_LIMIT
+      if(lverbose) print *,'LINEAR_SEARCH_LIMIT now ', LINEAR_SEARCH_LIMIT
     end subroutine
 
 
-    ! return index+residula i where val is between arr(i) and arr(i+1)
-    ! chooses different implementations depending on input array size
-#:for dtype in ['REAL32', 'REAL64']
-    function find_real_location_${dtype}$(arr, val) result(loc)
-      real(${dtype}$),intent(in) :: arr(:)
-      real(${dtype}$),intent(in) :: val
-      real(${dtype}$)            :: loc
-      logical, save :: firstcall=.True.
-
-      if(firstcall) then
-        call determine_linear_search_limits()
-        firstcall = .False.
-      endif
-
-      ! Seems that the Petsc Func is always the slowest implementation but unnoticeable after N>100
-      if(size(arr).lt.LINEAR_SEARCH_LIMIT) then
-        loc = find_real_location_linear(arr, val)
-      else
-        loc = search_sorted_bisection(arr,val)
-      endif
-    end function
 
     pure function find_real_location_linear_${dtype}$(arr, val) result(res)
       real(${dtype}$),intent(in) :: arr(:)
