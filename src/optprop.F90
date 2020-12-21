@@ -27,8 +27,8 @@ module m_optprop
 #endif
 
 use m_optprop_parameters, only : ldebug_optprop, wedge_sphere_radius, param_eps
-use m_helper_functions, only : rmse, CHKERR, CHKWARN, toStr, cstr, approx, deg2rad, rad2deg, swap, is_between, char_arr_to_str,
-triangle_area_by_vertices
+use m_helper_functions, only : rmse, CHKERR, CHKWARN, toStr, cstr, approx, deg2rad, rad2deg, swap, is_between, &
+  char_arr_to_str, triangle_area_by_vertices
 use m_data_parameters, only: ireals,ireal_dp,irealLUT,ireal_params,iintegers,one,zero,i0,i1,inil,mpiint
 use m_optprop_base, only: t_optprop_base, t_op_config, find_op_dim_by_name
 use m_optprop_LUT, only : t_optprop_LUT, t_optprop_LUT_1_2,t_optprop_LUT_3_6, t_optprop_LUT_3_10, &
@@ -1342,12 +1342,10 @@ contains
 
   subroutine dir2dir3_coeff_corr_src_x(coeffs, verts, verts_dtd, sundir)
     real(irealLUT), intent(inout) :: coeffs(:)
-      real(ireals), intent(in) :: verts(:), verts_dtd(:), sundir(:)
+    real(ireals), intent(in) :: verts(:), verts_dtd(:), sundir(:)
 
-
-    real(ireals) :: D(3), D_pd(3), D_dtd(3), D_pd_dtd(3), A(3), A_dtd(3), n(3)
-    real(ireals) :: B(3), B_pd(3), B_dtd(3), B_pd_dtd(3), H(3), H_pd(3), H_dtd(3), H_pd_dtd(3)
-    real(irealLUT) :: f_xx, coeff_mod_xx, f_xy, coeff_mod_xy
+    real(ireals) :: As(3), As_dtd(3), n(3)
+    real(irealLUT) :: dz, fx, fy, coeff_mod_x, coeff_mod_y, coeff_mod_z
 
     !
     !
@@ -1381,6 +1379,19 @@ contains
     !                                           Ay =
     !
     !
+    !
+    !                  E ________ G            z                   carthesic     verts-indice
+    !                   /|      /|             |              A = ( 0, 0, 0 ) = (  1,  2,  3 )
+    !                  / |     / |             |              B = ( 1, 0, 0 ) = (  4,  5,  6 )
+    !                 /  |    /  |             |_____ y       C = ( 0, 1, 0 ) = (  7,  8,  9 )
+    !              F /___|___/ H |             /              D = ( 1, 1, 0 ) = ( 10, 11, 12 )
+    !               |  A |___|___| C          /               E = ( 0, 0, 1 ) = ( 13, 14, 15 )
+    !               |   /    |   /           /                F = ( 1, 0, 1 ) = ( 16, 17, 18 )
+    !               |  /     |              x                 G = ( 0, 1, 1 ) = ( 19, 20, 21 )
+    !               | /      | /                              H = ( 1, 1, 1 ) = ( 22, 23, 24 )
+    !             B |/_______|/ D
+    !
+    !
     !   if (|CD'| < |CR| .and. |CD'| < |CT|) then
     !     Ay = CD'G + D'QG
     !     Ax = D'PE + EQD'
@@ -1397,133 +1408,106 @@ contains
     !
 
     n = ([1,0,0])
+    As = Ax_Ay_Az(verts, n, sundir)
+    As_dtd = Ax_Ay_Az(verts_dtd, n, sundir)
+    print *, 'As', As, 'As_dtd', As_dtd
 
-    subroutine rel_as(vertz)
-      real(ireals), intent(in) :: vertz(:)
-      A = verts(1:3)
-      B = verts(4:6)
-      D = verts(10:12)
-      E = verts(13:15)
-      G = verts(19:21)
-      H = verts(22:24)
-
-      B_pd = B + hit_plane(B, sundir, A, n) * sundir
-      D_pd = D + hit_plane(D, sundir, A, n) * sundir
-      H_pd = H + hit_plane(H, sundir, A, n) * sundir
-
-      P = line_line_interesection_2d(D_pd(2:3), (B_pd - D_pd)(2:3), A(2:3), (E - A)(2:3))
-      Q = line_line_intersection_2d(D_pd(2:3), (H_pd - D_pd)(2:3), E(2:3), (G - E)(2:3))
-      R = line_line_intersection_2d(C(2:3), sundir(2:3), E(2:3), (G - E)(2:3))
-      T = line_line_intersection_2d(C(2:3), sundir(2:3), A(2:3), (E - A)(2:3))
-
-      l_C_D_pd = vector_length(D_pd - C)
-      l_C_R = vector_length(R - C)
-      l_C_T = vector_length(T - C)
-
-      if (vector_length(C - D_pd)| < vector_length(C - R) .and. vector_length(C - D_pd) < vector_length(C - T)) then
-        Ay = triangle_area_by_vertices(C,D_pd,G) + triangle_area_by_vertices(D_pd,Q,G)
-        Ax = triangle_area_by_vertices(D_pd,P,E) + triangle_area_by_vertices(E,Q,D_pd)
-      else if (vector_length(C - D_pd) > vector_length(C - R) .and. vector_length(C - D_pd) < vector_length(C - T)) then
-        Ay = triangle_area_by_vertices(C,R,G)
-        Ax = 0._ireals
-      else if (vector_length(C - D_pd) < vector_length(C - R) .and. vector_length(C - D_pd) > vector_length(C - T)) then
-        Ay = triangle_area_by_vertices(C,T,G) + triangle_area_by_vertices(T,E,G)
-        Ax = 0._ireals
-      else if (vector_length(C - D_pd) > vector_length(C - R) .and. vector_length(C - D_pd) > vector_length(C - T)) then
-        Ay = triangle_area_by_vertices(C,R,G)
-        Ax = 0._ireals
+    if (As(3) > epsilon(As(3))) then
+      dz = real(As_dtd(3) / As(3), irealLUT)
+      coeff_mod_z = (1._irealLUT - dz) * coeffs(2)
+      if (As(1) > epsilon(As(1))) then ! Ax > 0
+        fx = real(As_dtd(1) / As(1), irealLUT)
+        if (As(2) > epsilon(As(2))) then ! Ay > 0
+          fy = real(As_dtd(2) / As(2), irealLUT)
+          coeff_mod_x = sign(fx / (fx + fy), 1._irealLUT - fx) * coeff_mod_z
+          coeff_mod_y = sign(fy / (fx + fy), 1._irealLUT - fy) * coeff_mod_z
+        else ! Ay == 0
+          coeff_mod_x = - coeff_mod_z
+          coeff_mod_y = 0._irealLUT
+        endif
+      else ! Ax == 0
+        if (As(2) > epsilon(As(2))) then ! Ay > 0
+          fy = real(As_dtd(2) / As(2), irealLUT)
+          coeff_mod_y = coeffs(8) * (1._irealLUT - fy)
+          coeff_mod_x = coeff_mod_z - coeff_mod_y
+        else ! Ay == 0
+          coeff_mod_x = - coeff_mod_z
+        endif
       endif
-    end subroutine
-
-    A_dtd = verts_dtd(1:3)
-    B_dtd = verts_dtd(4:6)
-    B_pd_dtd = B_dtd + hit_plane(B_dtd, sundir, A_dtd, n) * sundir
-    D_dtd = verts_dtd(10:12)
-    D_pd_dtd = D_dtd + hit_plane(D_dtd, sundir, A_dtd, n) * sundir
-    H_dtd = verts_dtd([22,23,24])
-    H_pd_dtd = H + hit_plane(H_dtd, sundir, A_dtd, n) * sundir
-
-
-
-    if (sundir(1) > epsilon(sundir(1)) * 10) then
-      print *, 'Ax_dtd', Ax(verts_dtd, B_pd_dtd, D_pd_dtd), 'Ax', Ax(verts, B_pd, D_pd)
-      if (Ax(verts, B_pd, D_pd) > epsilon(1._ireals)) then
-        f_xx = real(Ax(verts_dtd, B_pd_dtd, D_pd_dtd) / Ax(verts, B_pd, D_pd), irealLUT)
-        coeff_mod_xx = (f_xx - 1._irealLUT) * coeffs(5) ! always goes into z
-        coeffs(5) = coeffs(5) + coeff_mod_xx
-        coeffs(2) = coeffs(2) - coeff_mod_xx
-      else if (Ax(verts_dtd, B_pd_dtd, D_pd_dtd) > epsilon(1._ireals) * 10) then
-        f_xx = real(Ax(verts, B_pd, D_pd) / Ax(verts_dtd, B_pd_dtd, D_pd_dtd), irealLUT)
-        coeff_mod_xx = (f_xx - 1._irealLUT) * coeffs(2) ! always goes into z
-        coeffs(5) = coeffs(5) - coeff_mod_xx
-        coeffs(2) = coeffs(2) + coeff_mod_xx
-      endif
-      print *, 'Ax_dtd', Ax(verts_dtd, B_pd_dtd, D_pd_dtd), 'Ax', Ax(verts, B_pd, D_pd), 'f_xx', f_xx
+    else ! As(3) == 0
+      coeff_mod_x = 0._irealLUT
+      coeff_mod_y = 0._irealLUT
+      coeff_mod_z = 0._irealLUT
     endif
-    if (sundir(2) > epsilon(sundir(2)) * 10) then
-      !print *, 'Ay_dtd', Ay(verts_dtd, D_pd_dtd), 'Ay', Ay(verts, D_pd)
-      f_xy = real(Ay(verts_dtd, D_pd_dtd) / Ay(verts, D_pd), irealLUT)
-      print *, 'Ay_dtd', Ay(verts_dtd, D_pd_dtd), 'Ay', Ay(verts, D_pd), 'f_xy', f_xy
-      coeff_mod_xy = (f_xy - 1._irealLUT) * coeffs(8)
-      coeffs(8) = coeffs(8) + coeff_mod_xy
-      coeffs(2) = coeffs(2) - coeff_mod_xy
-    endif
-  ! NOT working for uncorrected coeff = 0 and corr coeff != 0
+
+    coeffs(2) = coeffs(2) + coeff_mod_z
+    coeffs(5) = coeffs(5) + coeff_mod_x
+    coeffs(8) = coeffs(8) + coeff_mod_y
+
+    !fy = real(As_dtd(2) / As(2), irealLUT)
+
+    !coeff_mod_x = max(min((1._irealLUT - fx) * coeffs(5), coeffs(5)), - coeffs(2))
+    !coeff_mod_y = max(min((1._irealLUT - fy) * coeffs(8), coeffs(8)), - coeffs(2))
+    !print *, 'coeff mods', coeff_mod_x, coeff_mod_y
+    !coeffs(5) = coeffs(5) - coeff_mod_x
+    !coeffs(8) = coeffs(8) - coeff_mod_y
+    !coeffs(2) = coeffs(2) + coeff_mod_x + coeff_mod_y
+
+
       contains
-        function Ax(vs, Bpd, Dpd)
-          real(ireals), intent(in) :: vs(:), Bpd(:), Dpd(:)
-          real(ireals) :: a, b, c, Ax1, Ax2, Ax3, Ax
+        function Ax_Ay_Az(vertz, normal, sun_dir)
+          real(ireals), intent(in) :: vertz(:), normal(:), sun_dir(:)
+          real(ireals) :: Ax, Ay, Az, Ax_Ay_Az(3)
+          real(ireals) :: A(3), B(3), C(3), D(3), E(3), G(3), H(3), B_pd(3), D_pd(3), H_pd(3), P(3), Q(3), R(3), T(3)
+          real(ireals) :: l_CD_pd, l_CR, l_CT
 
-          a = max(min(abs( &
-            (D(2) - vs(14)) / (vs(20) - vs(14)) * (vs(21) - vs(15))), &
-            abs(vs(15) - vs(21))), &
-            0._ireals)
-          b = max(min( &
-            (vs(2) - Dpd(2)) / (Bpd(2) - Dpd(2)) * (Bpd(3) - Dpd(3)), &
-            vs(8) - vs(2)), &
-            0._ireals)
-          c = max(min( &
-            Dpd(2) - vs(14), &
-            vs(8) - vs(2)), &
-            0._ireals)
+          A = vertz(1:3)
+          B = vertz(4:6)
+          C = vertz(7:9)
+          D = vertz(10:12)
+          E = vertz(13:15)
+          G = vertz(19:21)
+          H = vertz(22:24)
 
-          Ax1 = a / 2._ireals * c
-          Ax2 = (vs(15) - Dpd(3) - a - b) * c
-          Ax3 = b / 2._ireals * c
+          B_pd = B + hit_plane(B, sun_dir, A, normal) * sun_dir
+          D_pd = D + hit_plane(D, sun_dir, A, normal) * sun_dir
+          H_pd = H + hit_plane(H, sun_dir, A, normal) * sun_dir
 
-          Ax = Ax1 + Ax2 + Ax3
-        end function
-        ! works for phi from 40 to 90 degrees
-        function Ay(vs, Dpd)
-          real(ireals), intent(in) :: vs(:), Dpd(:)
-          real(ireals) :: a, b, c, d, Ay1, Ay2, Ay3, Ay
-          ! NOT working for sudnir || y
-          a = vs(15) + (Dpd(2) - vs(14)) / (vs(20) - vs(14)) * (vs(21) - vs(15)) - vs(21)
-          b = max(min( &
-            Dpd(3) - vs(9), &
-            vs(21) + (vs(9) - vs(21)) * (vs(15) - vs(21)) / &
-            (vs(15) - vs(21) - (vs(14) - vs(20)) / (Dpd(2) - vs(8)) * (Dpd(3) - vs(9))) &
-            ), 0._ireals)
-          c = max(min( &
-            vs(20) - Dpd(2), &
-            vs(20) - vs(14) &
-            ), 0._ireals)
-          if (vs(21) >  Dpd(3)) then
-            d = vs(21) - Dpd(3)
-          else
-            d = 0._ireals
+          P = ([A(1), line_line_intersection_2d(D_pd(2:3), B_pd(2:3) - D_pd(2:3), A(2:3), E(2:3) - A(2:3))])
+          Q = ([A(1), line_line_intersection_2d(D_pd(2:3), H_pd(2:3) - D_pd(2:3), E(2:3), G(2:3) - E(2:3))])
+          R = ([A(1), line_line_intersection_2d(C(2:3), sun_dir(2:3), E(2:3), G(2:3) - E(2:3))])
+          T = ([A(1), line_line_intersection_2d(C(2:3), sun_dir(2:3), A(2:3), E(2:3) - A(2:3))])
+
+          l_CD_pd = vector_length_2d(D_pd(2:3) - C(2:3))
+          l_CR = vector_length_2d(R(2:3) - C(2:3))
+          l_CT = vector_length_2d(T(2:3) - C(2:3))
+
+          !print *, 'CD`', l_CD_pd, 'CR', l_CR, 'CT', l_CT
+
+          if (l_CD_pd < l_CR .and. l_CD_pd < l_CT) then
+            print *, 'first case Ax', triangle_area_by_vertices(D_pd, P,E) + triangle_area_by_vertices(E,Q,D_pd)
+            Az = triangle_area_by_vertices(C,A,D_pd) + triangle_area_by_vertices(A,P,D_pd)
+            Ay = triangle_area_by_vertices(C,D_pd,G) + triangle_area_by_vertices(D_pd,Q,G)
+            Ax = triangle_area_by_vertices(D_pd,P,E) + triangle_area_by_vertices(E,Q,D_pd)
+          else if (l_CD_pd > l_CR .and. l_CD_pd < l_CT) then
+            Az = triangle_area_by_vertices(C,A,R) + triangle_area_by_vertices(A,E,R)
+            Ay = triangle_area_by_vertices(C,R,G)
+            Ax = 0._ireals
+          else if (l_CD_pd < l_CR .and. l_CD_pd > l_CT) then
+            Az = triangle_area_by_vertices(C,A,T)
+            Ay = triangle_area_by_vertices(C,T,G) + triangle_area_by_vertices(T,E,G)
+            Ax = 0._ireals
+          else if (l_CD_pd > l_CR .and. l_CD_pd > l_CT) then
+            Az = triangle_area_by_vertices(C,A,G) + triangle_area_by_vertices(E,G,C) - triangle_area_by_vertices(C,R,G)
+            Ay = triangle_area_by_vertices(C,R,G)
+            Ax = 0._ireals
           endif
-          !print *, 'abcd', a, b, c, d
-          Ay1 = a / 2._ireals * c
-          Ay2 = d * c
-          Ay3 = b / 2._ireals * c
-
-          Ay = Ay1 + Ay2 + Ay3
+          Ax_Ay_Az = ([Ax, Ay, Az])
         end function
 
         function line_line_intersection_2d(o1, d1, o2, d2)
-          real(ireals), intent(in) :: o1(:), d(:), o2(:), d2(:)
-          real(ireals) :: line_line_intersection_2d(2), c1, c2
+          real(ireals), intent(in) :: o1(:), d1(:), o2(:), d2(:)
+          real(ireals) :: line_line_intersection_2d(2), c2
 
           !      \   /
           !       \ /
@@ -1532,9 +1516,10 @@ contains
           !      /   \
           !  o1 x     x o2
 
-          c1 = (d2(1) * (o1(2) - o2(2)) - d2(2) * (o1(1) - o2(1))) / (d2(2) * d1(1) - d2(1) * d1(2))
-          !c2 = (d1(1) * (o1(2) - o2(2)) - d1(2) * (o1(1) - o2(1))) / (d2(2) * d1(1) - d2(1) * d1(2))
-          line_line_intersection_2d = o1 + c1 * d1
+          !c1 = (d2(1) * (o1(2) - o2(2)) - d2(2) * (o1(1) - o2(1))) / (d2(2) * d1(1) - d2(1) * d1(2))
+          c2 = (d1(1) * (o1(2) - o2(2)) - d1(2) * (o1(1) - o2(1))) / (d2(2) * d1(1) - d2(1) * d1(2))
+          !line_line_intersection_2d = o1 + c1 * d1
+          line_line_intersection_2d = o2 + c2 * d2
         end function
 
         function line_plane_intersection(o_line, d_line, o_plane, n_plane)
@@ -1549,15 +1534,15 @@ contains
           !                 |_________|
           !
 
-          c = dot(n, o_plane - o_line) / dot(n, d_line)
+          c = dot_product(n, o_plane - o_line) / dot_product(n_plane, d_line)
           line_plane_intersection = o_line + c * d_line
         end function
 
-        function vector_length(v)
+        function vector_length_2d(v)
           real(ireals), intent(in) :: v(:)
-          real(ireals) :: vector_length
+          real(ireals) :: vector_length_2d
 
-          vector_length = sqrt(v(1) ** 2 + v(2) ** 2 + v(3) ** 2)
+          vector_length_2d = sqrt(v(1) ** 2 + v(2) ** 2)
         end function
   end subroutine dir2dir3_coeff_corr_src_x
 end module
