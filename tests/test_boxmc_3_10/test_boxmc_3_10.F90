@@ -724,12 +724,13 @@ contains
     bg  = [0e-0_ireal_dp/dz, 0._ireal_dp, 1._ireal_dp/2 ]
     S_target = zero
 
-    phi = 50; theta = 55
+    phi = 55; theta = 50
     src = 2
 
     call setup_default_unit_cube_geometry(dx, dy, dz, verts)
     verts_dtd = verts
-    verts_dtd([3,15,21,9]) = verts_dtd([3,15,21,9]) + dz / 2
+    verts_dtd([3,9,15,21]) = verts_dtd([3,9,15,21]) + dz
+    verts_dtd([6,12,18,24]) = verts_dtd([6,12,18,24]) + dz / 2
     !verts_dtd([18,6]) = verts_dtd([18,6]) + dz/4
 
     print *, 'vertices'
@@ -758,13 +759,13 @@ contains
     v(5) = real(T(2), irealLUT)
     v(8) = real(T(3), irealLUT)
 
-    print *, 'regular not corrected', v(5), v(8), v(2)
+    print *, cstr('regular not corrected', 'red'), v(5), v(8), v(2)
 
     sundir = spherical_2_cartesian(real(phi, ireals), real(theta, ireals)) * [-one, -one, one]
     print *, 'sundir', sundir
 
     call dir2dir3_coeff_corr_src_x(v, verts, verts_dtd, sundir)
-    print *, 'regular corrected', v(5), v(8), v(2)
+    print *, cstr('regular corrected', 'blue'), v(5), v(8), v(2)
 
     call bmc_3_10%get_coeff(comm,bg,src,.True.,phi,theta,verts_dtd,S,T_target,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
     print *, cstr('distorted', 'green'), T_target(2), T_target(3), T_target(1)
