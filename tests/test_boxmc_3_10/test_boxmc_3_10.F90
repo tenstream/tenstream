@@ -724,7 +724,7 @@ contains
     bg  = [0e-0_ireal_dp/dz, 0._ireal_dp, 1._ireal_dp/2 ]
     S_target = zero
 
-    phi = 55; theta = 50
+    phi = 80; theta = 40
     src = 2
 
     call setup_default_unit_cube_geometry(dx, dy, dz, verts)
@@ -764,7 +764,7 @@ contains
     sundir = spherical_2_cartesian(real(phi, ireals), real(theta, ireals)) * [-one, -one, one]
     print *, 'sundir', sundir
 
-    call dir2dir3_coeff_corr_src_x(v, verts, verts_dtd, sundir)
+    call dir2dir3_coeff_corr_src_x(v, verts_dtd, sundir)
     print *, cstr('regular corrected', 'blue'), v(5), v(8), v(2)
 
     call bmc_3_10%get_coeff(comm,bg,src,.True.,phi,theta,verts_dtd,S,T_target,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
