@@ -1340,12 +1340,12 @@ contains
 
   end subroutine dir2dir3_coeff_corr_zy
 
-  subroutine dir2dir3_coeff_corr_src_x(coeffs, verts, verts_dtd, sundir)
+  subroutine dir2dir3_coeff_corr_src_x(coeffs, verts_dtd, sundir)
     real(irealLUT), intent(inout) :: coeffs(:)
-    real(ireals), intent(in) :: verts(:), verts_dtd(:), sundir(:)
+    real(ireals), intent(in) :: verts_dtd(:), sundir(:)
 
-    real(ireals) :: As(3), As_dtd(3), n(3)
-    real(irealLUT) :: dz, fx, fy, coeff_mod_x, coeff_mod_y, coeff_mod_z
+    real(ireals) :: As_dtd(3), n(3), As_tot
+    real(irealLUT) :: coeff_tot
 
     !
     !
@@ -1408,56 +1408,21 @@ contains
     !
 
     n = ([1,0,0])
-    As = Ax_Ay_Az(verts, n, sundir)
     As_dtd = Ax_Ay_Az(verts_dtd, n, sundir)
-    print *, 'As', As, 'As_dtd', As_dtd
+    print *, 'as', As_dtd
 
-    if (As(3) > epsilon(As(3))) then
-      dz = real(As_dtd(3) / As(3), irealLUT)
-      coeff_mod_z = (1._irealLUT - dz) * coeffs(2)
-      if (As(1) > epsilon(As(1))) then ! Ax > 0
-        fx = real(As_dtd(1) / As(1), irealLUT)
-        if (As(2) > epsilon(As(2))) then ! Ay > 0
-          fy = real(As_dtd(2) / As(2), irealLUT)
-          coeff_mod_x = sign(fx / (fx + fy), 1._irealLUT - fx) * coeff_mod_z
-          coeff_mod_y = sign(fy / (fx + fy), 1._irealLUT - fy) * coeff_mod_z
-        else ! Ay == 0
-          coeff_mod_x = - coeff_mod_z
-          coeff_mod_y = 0._irealLUT
-        endif
-      else ! Ax == 0
-        if (As(2) > epsilon(As(2))) then ! Ay > 0
-          fy = real(As_dtd(2) / As(2), irealLUT)
-          coeff_mod_y = coeffs(8) * (1._irealLUT - fy)
-          coeff_mod_x = coeff_mod_z - coeff_mod_y
-        else ! Ay == 0
-          coeff_mod_x = - coeff_mod_z
-        endif
-      endif
-    else ! As(3) == 0
-      coeff_mod_x = 0._irealLUT
-      coeff_mod_y = 0._irealLUT
-      coeff_mod_z = 0._irealLUT
-    endif
+    coeff_tot = coeffs(2) + coeffs(5) + coeffs(8)
+    As_tot = As_dtd(1) + As_dtd(2) + As_dtd(3)
 
-    coeffs(2) = coeffs(2) + coeff_mod_z
-    coeffs(5) = coeffs(5) + coeff_mod_x
-    coeffs(8) = coeffs(8) + coeff_mod_y
-
-    !fy = real(As_dtd(2) / As(2), irealLUT)
-
-    !coeff_mod_x = max(min((1._irealLUT - fx) * coeffs(5), coeffs(5)), - coeffs(2))
-    !coeff_mod_y = max(min((1._irealLUT - fy) * coeffs(8), coeffs(8)), - coeffs(2))
-    !print *, 'coeff mods', coeff_mod_x, coeff_mod_y
-    !coeffs(5) = coeffs(5) - coeff_mod_x
-    !coeffs(8) = coeffs(8) - coeff_mod_y
-    !coeffs(2) = coeffs(2) + coeff_mod_x + coeff_mod_y
+    coeffs(2) = real(As_dtd(3) / As_tot, irealLUT) * coeff_tot
+    coeffs(5) = real(As_dtd(1) / As_tot, irealLUT) * coeff_tot
+    coeffs(8) = real(As_dtd(2) / As_tot, irealLUT) * coeff_tot
 
 
       contains
         function Ax_Ay_Az(vertz, normal, sun_dir)
           real(ireals), intent(in) :: vertz(:), normal(:), sun_dir(:)
-          real(ireals) :: Ax, Ay, Az, Ax_Ay_Az(3)
+          real(ireals) :: A_tot, Ax, Ay, Az, Ax_Ay_Az(3)
           real(ireals) :: A(3), B(3), C(3), D(3), E(3), G(3), H(3), B_pd(3), D_pd(3), H_pd(3), P(3), Q(3), R(3), T(3)
           real(ireals) :: l_CD_pd, l_CR, l_CT
 
@@ -1468,6 +1433,8 @@ contains
           E = vertz(13:15)
           G = vertz(19:21)
           H = vertz(22:24)
+
+          A_tot = triangle_area_by_vertices(C,A,E) + triangle_area_by_vertices(E,G,C)
 
           B_pd = B + hit_plane(B, sun_dir, A, normal) * sun_dir
           D_pd = D + hit_plane(D, sun_dir, A, normal) * sun_dir
@@ -1481,8 +1448,6 @@ contains
           l_CD_pd = vector_length_2d(D_pd(2:3) - C(2:3))
           l_CR = vector_length_2d(R(2:3) - C(2:3))
           l_CT = vector_length_2d(T(2:3) - C(2:3))
-
-          !print *, 'CD`', l_CD_pd, 'CR', l_CR, 'CT', l_CT
 
           if (l_CD_pd < l_CR .and. l_CD_pd < l_CT) then
             print *, 'first case Ax', triangle_area_by_vertices(D_pd, P,E) + triangle_area_by_vertices(E,Q,D_pd)
@@ -1498,11 +1463,18 @@ contains
             Ay = triangle_area_by_vertices(C,T,G) + triangle_area_by_vertices(T,E,G)
             Ax = 0._ireals
           else if (l_CD_pd > l_CR .and. l_CD_pd > l_CT) then
-            Az = triangle_area_by_vertices(C,A,G) + triangle_area_by_vertices(E,G,C) - triangle_area_by_vertices(C,R,G)
-            Ay = triangle_area_by_vertices(C,R,G)
+            print *, 'case'
+            if (l_CT > l_CR) then
+              Az = triangle_area_by_vertices(C,A,E) + triangle_area_by_vertices(E,G,C) - triangle_area_by_vertices(C,R,G)
+              Ay = triangle_area_by_vertices(C,R,G)
+            else
+              Az = triangle_area_by_vertices(C,A,T)
+              Ay = triangle_area_by_vertices(C,A,E) + triangle_area_by_vertices(E,G,C) - triangle_area_by_vertices(C,A,T)
+            endif
             Ax = 0._ireals
           endif
-          Ax_Ay_Az = ([Ax, Ay, Az])
+
+          Ax_Ay_Az = ([Ax, Ay, Az]) / A_tot
         end function
 
         function line_line_intersection_2d(o1, d1, o2, d2)
