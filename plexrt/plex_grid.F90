@@ -243,11 +243,13 @@ module m_plex_grid
       if(ldebug) print *,'plex_set_ltopfacepos... end'
     end subroutine
 
-    subroutine setup_plexgrid(dm2d, dm3d, Nlay, zindex, plex, hhl)
+    subroutine setup_plexgrid(dm2d, dm3d, Nlay, zindex, plex, hhl, constraint_height, constraint_radius)
       type(tDM), intent(in) :: dm2d, dm3d
       integer(iintegers), intent(in) :: Nlay, zindex(:)
       type(t_plexgrid), allocatable, intent(inout) :: plex
       real(ireals), optional :: hhl(:) ! only used for a consistency check. If dz should be same everywhere, i.e. if there is no topography, provide this and we check that the mesh adheres to that.
+      real(ireals), intent(in), optional :: constraint_height ! max z-component height [m] above which cells are treated 1D, meaningful for regular wedge meshes
+      real(ireals), intent(in), optional :: constraint_radius ! max radius from origin [m] above which cells are treated 1D, meaningful for extruded wedge meshes, e.g. ICON runs
 
       integer(iintegers) :: pStart, pEnd
       integer(mpiint) :: ierr
@@ -288,7 +290,7 @@ module m_plex_grid
         call check_height_for_consistency()
       endif
 
-      call set_1D_constraints(plex)
+      call set_1D_constraints(plex, constraint_height, constraint_radius)
     contains
       subroutine check_height_for_consistency()
         type(tPetscSection) :: geom_section
@@ -927,8 +929,9 @@ module m_plex_grid
       call DMSetFromOptions(dm, ierr); call CHKERR(ierr)
     end subroutine
 
-    subroutine set_1D_constraints(plex)
+    subroutine set_1D_constraints(plex, constraint_height, constraint_radius)
       type(t_plexgrid), intent(inout) :: plex
+      real(ireals), intent(in), optional :: constraint_height, constraint_radius
 
       type(tPetscSection) :: geomSection
       real(ireals), pointer :: geoms(:)
@@ -949,11 +952,11 @@ module m_plex_grid
       if(.not.allocated(plex%geomVec)) &
         & call CHKERR(1_mpiint, 'find_1D_constraints: plex%geomVec has to allocated')
 
-      max_height = inf
+      max_height = get_arg(inf, constraint_height)
       call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
         "-plexrt_1d_height", max_height, lflg, ierr) ; call CHKERR(ierr)
 
-      max_radius = inf
+      max_radius = get_arg(inf, constraint_radius)
       call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
         "-plexrt_1d_radius", max_radius, lflg, ierr) ; call CHKERR(ierr)
 
