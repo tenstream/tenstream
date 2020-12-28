@@ -1408,8 +1408,11 @@ contains
     !
 
     n = ([1,0,0])
-    As_dtd = Ax_Ay_Az(verts_dtd, n, sundir)
-    print *, 'as', As_dtd
+    if (sundir(2) * sundir(3) > 0._ireals) then
+      As_dtd = Ax_Ay_Az_1(verts_dtd, n, sundir)
+    else
+      As_dtd = Ax_Ay_Az_2(verts_dtd, n, sundir)
+    endif
 
     coeff_tot = coeffs(2) + coeffs(5) + coeffs(8)
     As_tot = As_dtd(1) + As_dtd(2) + As_dtd(3)
@@ -1420,9 +1423,9 @@ contains
 
 
       contains
-        function Ax_Ay_Az(vertz, normal, sun_dir)
+        function Ax_Ay_Az_2(vertz, normal, sun_dir)
           real(ireals), intent(in) :: vertz(:), normal(:), sun_dir(:)
-          real(ireals) :: A_tot, Ax, Ay, Az, Ax_Ay_Az(3)
+          real(ireals) :: A_tot, Ax, Ay, Az, Ax_Ay_Az_2(3)
           real(ireals) :: A(3), B(3), C(3), D(3), E(3), G(3), H(3), B_pd(3), D_pd(3), H_pd(3), P(3), Q(3), R(3), T(3)
           real(ireals) :: l_CD_pd, l_CR, l_CT
 
@@ -1474,9 +1477,63 @@ contains
             Ax = 0._ireals
           endif
 
-          Ax_Ay_Az = ([Ax, Ay, Az]) / A_tot
+          Ax_Ay_Az_2 = ([Ax, Ay, Az]) / A_tot
         end function
 
+        function Ax_Ay_Az_1(vertz, normal, sun_dir)
+          real(ireals), intent(in) :: vertz(:), normal(:), sun_dir(:)
+          real(ireals) :: A_tot, Ax, Ay, Az, Ax_Ay_Az_1(3)
+          real(ireals) :: A(3), B(3), C(3), D(3), E(3), G(3), H(3), B_pd(3), D_pd(3), H_pd(3), P(3), Q(3), R(3), T(3)
+          real(ireals) :: l_AD_pd, l_AR, l_AT!
+
+          A = vertz(1:3)
+          B = vertz(4:6)
+          C = vertz(7:9)
+          D = vertz(10:12)
+          E = vertz(13:15)
+          G = vertz(19:21)
+          H = vertz(22:24)
+
+          A_tot = triangle_area_by_vertices(C,A,E) + triangle_area_by_vertices(E,G,C)
+
+          B_pd = B + hit_plane(B, sun_dir, A, normal) * sun_dir
+          D_pd = D + hit_plane(D, sun_dir, A, normal) * sun_dir
+          H_pd = H + hit_plane(H, sun_dir, A, normal) * sun_dir
+
+          P = ([A(1), line_line_intersection_2d(D_pd(2:3), B_pd(2:3) - D_pd(2:3), C(2:3), G(2:3) - C(2:3))])!
+          Q = ([A(1), line_line_intersection_2d(D_pd(2:3), H_pd(2:3) - D_pd(2:3), E(2:3), G(2:3) - E(2:3))])
+          R = ([A(1), line_line_intersection_2d(A(2:3), sun_dir(2:3), E(2:3), G(2:3) - E(2:3))])!
+          T = ([A(1), line_line_intersection_2d(A(2:3), sun_dir(2:3), C(2:3), G(2:3) - C(2:3))])!
+
+          l_AD_pd = vector_length_2d(D_pd(2:3) - A(2:3))!
+          l_AR = vector_length_2d(R(2:3) - A(2:3))!
+          l_AT = vector_length_2d(T(2:3) - A(2:3))!
+
+          if (l_AD_pd < l_AR .and. l_AD_pd < l_AT) then!
+            Az = triangle_area_by_vertices(C,A,D_pd) + triangle_area_by_vertices(C,D_pd,P)!
+            Ay = triangle_area_by_vertices(P,D_pd,G) + triangle_area_by_vertices(D_pd,R,G)!
+            Ax = triangle_area_by_vertices(A,E,D_pd) + triangle_area_by_vertices(E,Q,D_pd)!
+          else if (l_AD_pd > l_AR .and. l_AD_pd < l_AT) then!
+            Az = triangle_area_by_vertices(C,A,R) + triangle_area_by_vertices(R,G,C)!
+            Ay = triangle_area_by_vertices(A,E,R)!
+            Ax = 0._ireals
+          else if (l_AD_pd < l_AR .and. l_AD_pd > l_AT) then
+            Az = triangle_area_by_vertices(C,A,T)
+            Ay = triangle_area_by_vertices(A,E,T) + triangle_area_by_vertices(T,E,G)!
+            Ax = 0._ireals
+          else if (l_AD_pd > l_AR .and. l_AD_pd > l_AT) then
+            if (l_AT > l_AR) then
+              Az = triangle_area_by_vertices(C,A,E) + triangle_area_by_vertices(E,G,C) - triangle_area_by_vertices(A,E,R)
+              Ay = triangle_area_by_vertices(A,E,R)
+            else
+              Az = triangle_area_by_vertices(A,T,C)
+              Ay = triangle_area_by_vertices(C,A,E) + triangle_area_by_vertices(E,G,C) - triangle_area_by_vertices(A,T,C)
+            endif
+            Ax = 0._ireals
+          endif
+
+          Ax_Ay_Az_1 = ([Ax, Ay, Az]) / A_tot
+        end function
         function line_line_intersection_2d(o1, d1, o2, d2)
           real(ireals), intent(in) :: o1(:), d1(:), o2(:), d2(:)
           real(ireals) :: line_line_intersection_2d(2), c2
