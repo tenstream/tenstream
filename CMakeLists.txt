@@ -48,6 +48,23 @@ set(CMAKE_C_STANDARD 99)
 # For python interfaces need -fPIC:
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+# Add IPO support if compiler allows it -- default is off because it A) doesnt work or B) compiles super slow
+option(ENABLE_IPO "enable link time optimizations, also called INTERPROCEDURAL_OPTIMIZATIONs" OFF)
+if(ENABLE_IPO)
+  cmake_minimum_required (VERSION 3.9.6)
+  cmake_policy(SET CMP0069 NEW)
+  set(CMAKE_POLICY_DEFAULT_CMP0069 NEW)
+  include(CheckIPOSupported)
+  check_ipo_supported(RESULT ipo_supported OUTPUT ipo_errmsg)
+  if(ipo_supported)
+    message(STATUS "IPO Enabled")
+    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+  else()
+    message(WARNING "IPO could not be enabled ${ipo_errmsg}")
+  endif()
+endif()
+
+
 set(CMAKE_C_FLAGS               "${USER_C_FLAGS} ${CMAKE_C_FLAGS} " )
 set(CMAKE_Fortran_FLAGS         "${USER_Fortran_FLAGS} ${CMAKE_Fortran_FLAGS} " )
 set(CMAKE_Fortran_FLAGS_RELEASE "${USER_Fortran_FLAGS_RELEASE} ${CMAKE_Fortran_FLAGS_RELEASE} " )
@@ -264,20 +281,6 @@ if(ENABLE_ALL)
   set(ENABLE_EXAMPLES ON CACHE BOOL "Enable EXAMPLES" FORCE)
 endif(ENABLE_ALL)
 
-# Add IPO support if compiler allows it -- default is off because it A) doesnt work or B) compiles super slow
-option(ENABLE_IPO "enable link time optimizations, also called INTERPROCEDURAL_OPTIMIZATIONs" OFF)
-if(ENABLE_IPO)
-  cmake_minimum_required (VERSION 3.9.6)
-  include(CheckIPOSupported)
-  check_ipo_supported(RESULT ipo_supported OUTPUT ipo_errmsg)
-  if(ipo_supported)
-    message(STATUS "IPO Enabled")
-    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
-  else()
-    message(WARNING "IPO could not be enabled ${ipo_errmsg}")
-  endif()
-endif()
-
 
 # Add Source Directories
 add_subdirectory(external)
@@ -348,7 +351,9 @@ if(NOT BUILD_SHARED_LIBS)
       COMMAND ${CMAKE_AR} -qc ${FULL_OUTPUT_PATH} *.o)
   endfunction(combine_archives)
 
-	combine_archives(tenstream "${TENSTR_LIBS}")
+
+  SET(TENSTR_SINGLE_LIB "tenstream")
+	combine_archives(${TENSTR_SINGLE_LIB} "${TENSTR_LIBS}")
 endif()
 
 option(ENABLE_RRTM "Enable use of RRTM" OFF)

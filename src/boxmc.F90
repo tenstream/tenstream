@@ -101,7 +101,7 @@ module m_boxmc
     & setup_wedge_coords_from_vertices, &
     & wedge_halfspaces
 
-  use m_kiss_rng, only: kiss_real, kiss_init
+  use m_ranlux, only: ranlux, rluxgo
 
   implicit none
 
@@ -917,7 +917,6 @@ contains
     call RANLUX(rvec,1)  ! use Luxury Pseudorandom Numbers from M. Luscher, slow but good
     R = real(rvec(1), kind=ireal_dp)
     ! call random_number(R) ! bad
-    ! call kiss_real(R) ! good but faster
   end function
 
   subroutine init_random_seed(myid, luse_random_seed)
@@ -945,10 +944,8 @@ contains
       s = int(rn*1000)*(myid+1)
 
       call RLUXGO(2, int(s), 0, 0) ! seed ranlux rng
-      !call kiss_init(s)
     else
       call RLUXGO(2, int(myid+1), 0, 0) ! seed ranlux rng
-      !call kiss_init(myid+1)
     endif
     lRNGseeded=.True.
   end subroutine
