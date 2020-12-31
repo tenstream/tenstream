@@ -38,7 +38,7 @@ contains
       call RLUXGO(ilvl, 1, 0, 0)
       call cpu_time(s)
       do i = 1, iter
-        call RANLUX(R, N)
+        call RANLUX(R, int(N))
       enddo
       call cpu_time(e)
       @assertGreaterThan(1, R)

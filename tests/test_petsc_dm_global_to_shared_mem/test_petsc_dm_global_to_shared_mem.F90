@@ -150,7 +150,7 @@ contains
         k = 0
       endif
       call imp_allreduce_sum(comm, k, num_shared_masters)
-      call VecScale(gvec, one/num_shared_masters, ierr); call CHKERR(ierr)
+      call VecScale(gvec, one/real(num_shared_masters, ireals), ierr); call CHKERR(ierr)
 
       call PetscObjectViewFromOptions(gvec, PETSC_NULL_VEC, '-show_gvec', ierr); call CHKERR(ierr)
 
