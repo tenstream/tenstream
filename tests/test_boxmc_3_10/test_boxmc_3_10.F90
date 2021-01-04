@@ -663,7 +663,7 @@ contains
     bg  = [0e-0_ireal_dp/dz, 0._ireal_dp, 1._ireal_dp/2 ]
     S_target = zero
 
-    phi = 180; theta = 20
+    phi = 300; theta = 20
     src = 1
 
     call setup_default_unit_cube_geometry(dx, dy, dz, verts)
@@ -724,13 +724,13 @@ contains
     bg  = [0e-0_ireal_dp/dz, 0._ireal_dp, 1._ireal_dp/2 ]
     S_target = zero
 
-    phi = 80; theta = 40
+    phi = 90; theta = 50
     src = 2
 
     call setup_default_unit_cube_geometry(dx, dy, dz, verts)
     verts_dtd = verts
     verts_dtd([3,9,15,21]) = verts_dtd([3,9,15,21]) + dz
-    verts_dtd([6,12,18,24]) = verts_dtd([6,12,18,24]) + dz / 2
+!    verts_dtd([6,12,18,24]) = verts_dtd([6,12,18,24]) + dz / 2
     !verts_dtd([18,6]) = verts_dtd([18,6]) + dz/4
 
     print *, 'vertices'
@@ -768,7 +768,7 @@ contains
     print *, cstr('regular corrected', 'blue'), v(5), v(8), v(2)
 
     call bmc_3_10%get_coeff(comm,bg,src,.True.,phi,theta,verts_dtd,S,T_target,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-    print *, cstr('distorted', 'green'), T_target(2), T_target(3), T_target(1)
+    print *, cstr('montecarlo distorted', 'green'), T_target(2), T_target(3), T_target(1)
 
     !call check(S_target,T_target, S,T, msg=' test_boxmc_distorted_cube_dir45_up_src1')
 
