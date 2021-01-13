@@ -1387,7 +1387,7 @@ contains
     !              F /___|___/ H |             /              D = ( 1, 1, 0 ) = ( 10, 11, 12 )
     !               |  A |___|___| C          /               E = ( 0, 0, 1 ) = ( 13, 14, 15 )
     !               |   /    |   /           /                F = ( 1, 0, 1 ) = ( 16, 17, 18 )
-    !               |  /     |              x                 G = ( 0, 1, 1 ) = ( 19, 20, 21 )
+    !               |  /     |  /           x                 G = ( 0, 1, 1 ) = ( 19, 20, 21 )
     !               | /      | /                              H = ( 1, 1, 1 ) = ( 22, 23, 24 )
     !             B |/_______|/ D
     !
@@ -1434,14 +1434,15 @@ contains
         function Ax_Ay_Az_2(vertz, normal, sun_dir)
           real(ireals), intent(in) :: vertz(:), normal(:), sun_dir(:)
           real(ireals) :: A_tot, Ax, Ay, Az, Ax_Ay_Az_2(3)
-          real(ireals) :: A(3), B(3), C(3), D(3), E(3), G(3), H(3), B_pd(3), D_pd(3), H_pd(3), P(3), Q(3), R(3), T(3), R_correct(3)
-          real(ireals) :: l_CD_pd, l_CR, l_CT
+          real(ireals) :: A(3), B(3), C(3), D(3), E(3), F(3), G(3), H(3)
+          real(ireals) :: B_pd(3), D_pd(3), F_pd(3), H_pd(3), P(3), Q(3), R(3), T(3)
 
           A = vertz(1:3)
           B = vertz(4:6)
           C = vertz(7:9)
           D = vertz(10:12)
           E = vertz(13:15)
+          F = vertz(16:18)
           G = vertz(19:21)
           H = vertz(22:24)
 
@@ -1449,56 +1450,40 @@ contains
 
           B_pd = B + hit_plane(B, sun_dir, A, normal) * sun_dir
           D_pd = D + hit_plane(D, sun_dir, A, normal) * sun_dir
+          F_pd = F + hit_plane(F, sun_dir, A, normal) * sun_dir
           H_pd = H + hit_plane(H, sun_dir, A, normal) * sun_dir
-
+          print *, cstr('here', 'green')
+          print *, 'D', D_pd
+          print *, 'H', H_pd
           P = ([A(1), line_line_intersection_2d(D_pd(2:3), B_pd(2:3) - D_pd(2:3), A(2:3), E(2:3) - A(2:3))])
+          P(3) = max(min(P(3), E(3)), A(3))
           Q = ([A(1), line_line_intersection_2d(D_pd(2:3), H_pd(2:3) - D_pd(2:3), E(2:3), G(2:3) - E(2:3))])
+          Q(2) = max(min(Q(2), G(2)), E(2))
           R = ([A(1), line_line_intersection_2d(C(2:3), sun_dir(2:3), G(2:3), E(2:3) - G(2:3))])
+          !R(2) = max(min(R(2), G(2)), E(2))
           T = ([A(1), line_line_intersection_2d(C(2:3), sun_dir(2:3), A(2:3), E(2:3) - A(2:3))])
 
-          print *, cstr('Ax_Ay_Az_2', 'red')
+          D_pd(2) = min(max(D_pd(2), E(2)), G(2))
+          print *, 'A, E', A(3), E(3)
+          D_pd(3) = min(max(D_pd(3), A(3)), E(3))
+          print *, cstr('D before', 'green'), D_pd
+          print *, P(2), Q(2), R(2), T(2), C(2), A(2)
+          !D_pd(2) = max(min(max(D_pd(2), P(2), Q(2), R(2), T(2)), C(2)), A(2))
+          ! Need to change D_pd(3) in current case
+          D_pd(3) = min(max(min(D_pd(3), P(3), Q(3), R(3), T(3)), min(A(3), C(3))), max(E(3), G(3)))
+
           print *, 'B_pd', B_pd
           print *, 'D_pd', D_pd
           print *, 'H_pd', H_pd
           print *, 'P', P
           print *, 'Q', Q
-          print *, 'R', R, 'R_correct', R_correct
+          print *, 'R', R
           print *, 'T', T
 
-          l_CD_pd = vector_length_2d(D_pd(2:3) - C(2:3))
-          l_CR = vector_length_2d(R(2:3) - C(2:3))
-          l_CT = vector_length_2d(T(2:3) - C(2:3))
-
-          if (l_CD_pd < l_CR .and. l_CD_pd < l_CT) then
-            print *, cstr('first case Ax', 'green'), triangle_area_by_vertices(D_pd, P,E) + triangle_area_by_vertices(E,Q,D_pd)
-            Az = triangle_area_by_vertices(C,A,D_pd) + triangle_area_by_vertices(A,P,D_pd)
-            Ay = triangle_area_by_vertices(C,D_pd,G) + triangle_area_by_vertices(D_pd,Q,G)
-            Ax = triangle_area_by_vertices(D_pd,P,E) + triangle_area_by_vertices(E,Q,D_pd)
-          else if (l_CD_pd > l_CR .and. l_CD_pd < l_CT) then
-            print *, cstr('second case', 'green')
-            Az = triangle_area_by_vertices(C,A,R) + triangle_area_by_vertices(A,E,R)
-            Ay = triangle_area_by_vertices(C,R,G)
-            Ax = 0._ireals
-          else if (l_CD_pd < l_CR .and. l_CD_pd > l_CT) then
-            print *, cstr('third case', 'green')
-            Az = triangle_area_by_vertices(C,A,T)
-            Ay = triangle_area_by_vertices(C,T,G) + triangle_area_by_vertices(T,E,G)
-            Ax = 0._ireals
-          else if (l_CD_pd > l_CR .and. l_CD_pd > l_CT) then
-            m
-            print *, cstr('fourth case','green')
-            if (l_CT > l_CR) then
-              print *, cstr('1', 'green')
-              Az = triangle_area_by_vertices(C,A,E) + triangle_area_by_vertices(E,G,C) - triangle_area_by_vertices(C,R,G)
-              Ay = triangle_area_by_vertices(C,R,G)
-            else
-              print *, cstr('2', 'green')
-              Az = triangle_area_by_vertices(C,A,T)
-              Ay = triangle_area_by_vertices(C,A,E) + triangle_area_by_vertices(E,G,C) - triangle_area_by_vertices(C,A,T)
-            endif
-            Ax = 0._ireals
-          endif
-
+          Ax = triangle_area_by_vertices(D_pd,P,E) + triangle_area_by_vertices(D_pd,E,Q)
+          Ay = triangle_area_by_vertices(C,D_pd,G) + triangle_area_by_vertices(D_pd,Q,G)
+          Az = triangle_area_by_vertices(C,A,D_pd) + triangle_area_by_vertices(A,P,D_pd)
+          print *, cstr('Ax_Ay_Az_2', 'red'), Ax, Ay, Az
           Ax_Ay_Az_2 = ([Ax, Ay, Az]) / A_tot
         end function
 

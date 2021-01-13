@@ -724,7 +724,7 @@ contains
     bg  = [0e-0_ireal_dp/dz, 0._ireal_dp, 1._ireal_dp/2 ]
     S_target = zero
 
-    phi = 90; theta = 50
+    phi = 30; theta = 50
     src = 2
 
     call setup_default_unit_cube_geometry(dx, dy, dz, verts)
