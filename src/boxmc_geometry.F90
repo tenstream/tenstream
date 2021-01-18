@@ -470,7 +470,7 @@ module m_boxmc_geometry
       logical            :: lhit (6)
       real(ireal_dp)     :: hit  (6, 4)
       integer(iintegers) :: i, iface(6)
-
+      ierr = 0_mpiint
       associate( &
           A => vertices( 1: 3), &
           B => vertices( 4: 6), &
