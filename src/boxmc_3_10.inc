@@ -150,8 +150,23 @@ subroutine update_dir_stream_3_10(bmc,vertices,p,T)
         real(ireal_dp),intent(in)    :: vertices(:)
         type(t_photon),intent(in)    :: p
         real(irealbmc),intent(inout) :: T(:)
-        select case(p%side)
-        case(1,2)
+        real(ireal_dp) :: verts(size(vertices))
+        integer(iintegers) :: pside
+        real(ireal_dp) :: pweight
+        real(ireal_dp) :: max_dist
+        integer(iintegers) :: psubface
+        integer(mpiint) :: ierr
+
+        pside = p%side
+        if (pside .eq. 1) then
+          verts = vertices
+          verts([15,18,21,24]) = verts([15,18,21,24]) * 10000
+          call intersect_cube_general(verts, p%loc, p%dir, p%scattercnt, p%src_side, &
+            & pside, pweight, max_dist, psubface, ierr)
+          call CHKERR(ierr)
+        endif
+        select case(pside)
+        case(2)
           T(1)=T(1)+p%weight
         case(3,4)
           T(2)=T(2)+p%weight
