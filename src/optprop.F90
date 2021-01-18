@@ -1392,19 +1392,20 @@ contains
     !             B |/_______|/ D
     !
     !
-    !   if (|CD'| < |CR| .and. |CD'| < |CT|) then
-    !     Ay = CD'G + D'QG
-    !     Ax = D'PE + EQD'
-    !   else if (|CD'| > |CR| .and. |CD'| < |CT|) then
-    !     Ay = CRG
-    !     Ax = 0
-    !   else if (|CD'| < |CR| .and. |CD'| > |CT|) then
-    !     Ay = CTG + TEG
-    !     Ax = 0
-    !   else if (|CD'| > |CR| .and. |CD'| > |CT|) then
-    !     Ay = CRG
-    !     Ax = 0
-    !   endif
+    !
+    !
+    !
+    !         E    Q_t     G            Q_t   E            G
+    !           x-x------x                  x---x--------x
+    !      P_tl | |      | P_tr F'          | H'| P_t    |
+    !     x-----x-x------x         x--------x---x        |
+    !  F' |     | | H'   |         |        |   |        |
+    !     |   A | |      | C       |    Q_b |   |        |
+    !     |     x-x------x         |        x---x--------x
+    !     |     | | Q_b            |        | A |          C
+    !     x-----x-x                x--------x---x
+    !   B'   P_b    D'          B'            D'  P_b
+    !
     !
 
     n = ([1,0,0])
@@ -1423,7 +1424,7 @@ contains
     endif
 
     coeff_tot = coeffs(2) + coeffs(5) + coeffs(8)
-    As_tot = As_dtd(1) + As_dtd(2) + As_dtd(3)
+    As_tot = sum(As_dtd)
 
     coeffs(2) = real(As_dtd(3) / As_tot, irealLUT) * coeff_tot
     coeffs(5) = real(As_dtd(1) / As_tot, irealLUT) * coeff_tot
@@ -1433,7 +1434,72 @@ contains
       contains
         function Ax_Ay_Az_2(vertz, normal, sun_dir)
           real(ireals), intent(in) :: vertz(:), normal(:), sun_dir(:)
-          real(ireals) :: A_tot, Ax, Ay, Az, Ax_Ay_Az_2(3)
+          real(ireals) :: Ax, Ay, Az, Ax_Ay_Az_2(3)
+          real(ireals) :: B_pd(3), D_pd(3), F_pd(3), H_pd(3), P_b(3), P_t(3), Q_b(3), Q_t(3), R(3), T(3)
+
+          associate( &
+          A => vertz(1:3), &
+          B => vertz(4:6), &
+          C => vertz(7:9), &
+          D => vertz(10:12), &
+          E => vertz(13:15), &
+          F => vertz(16:18), &
+          G => vertz(19:21), &
+          H => vertz(22:24) &
+          )
+
+          B_pd = B + hit_plane(B, sun_dir, A, normal) * sun_dir
+          D_pd = D + hit_plane(D, sun_dir, A, normal) * sun_dir
+          F_pd = F + hit_plane(F, sun_dir, A, normal) * sun_dir
+          H_pd = H + hit_plane(H, sun_dir, A, normal) * sun_dir
+          print *, cstr('here', 'green')
+          print *, 'D', D_pd
+          print *, 'H', H_pd
+          P_b = ([A(1), line_line_intersection_2d(D_pd(2:3), B_pd(2:3) - D_pd(2:3), A(2:3), E(2:3) - A(2:3))])
+          P_b(3) = max(min(P_b(3), E(3)), A(3))
+          P_t = ([A(1), line_line_intersection_2d(H_pd(2:3), F_pd(2:3) - H_pd(2:3), A(2:3), E(2:3) - A(2:3))])
+          P_t(3) = max(min(P_t(3), E(3)), A(3))
+          Q_t = ([A(1), line_line_intersection_2d(D_pd(2:3), H_pd(2:3) - D_pd(2:3), E(2:3), G(2:3) - E(2:3))])
+          Q_t(2) = max(min(Q_t(2), G(2)), E(2))
+          Q_b = ([A(1), line_line_intersection_2d(D_pd(2:3), H_pd(2:3) - D_pd(2:3), A(2:3), C(2:3) - A(2:3))])
+          Q_b(2) = max(min(Q_b(2), C(2)), A(2))
+          R = ([A(1), line_line_intersection_2d(C(2:3), D_pd(2:3) - C(2:3), G(2:3), E(2:3) - G(2:3))])
+          R(2) = max(min(R(2), G(2)), E(2))
+          T = ([A(1), line_line_intersection_2d(C(2:3), D_pd(2:3) - C(2:3), A(2:3), E(2:3) - A(2:3))])
+
+          D_pd(2) = min(max(D_pd(2), E(2)), G(2))
+          print *, 'A, E', A(3), E(3)
+          D_pd(3) = min(max(D_pd(3), A(3)), E(3))
+          print *, cstr('D before', 'green'), D_pd
+          !print *, P_b(2), Q_t(2), R(2), T(2), C(2), A(2)
+          if (R(2) > C(2) - epsilon(C(2))) then
+            D_pd(2) = max(min(max(D_pd(2), P_b(2), Q_t(2), T(2)), C(2)), A(2))
+          else
+            D_pd(2) = max(min(max(D_pd(2), P_b(2), Q_t(2), R(2), T(2)), C(2)), A(2))
+          endif
+          ! Need to change D_pd(3) in current case
+          D_pd(3) = min(max(min(D_pd(3), P_b(3), Q_t(3), R(3), T(3)), min(A(3), C(3))), max(E(3), G(3)))
+
+          print *, 'B_pd', B_pd
+          print *, 'D_pd', D_pd
+          print *, 'H_pd', H_pd
+          print *, 'P_b', P_b
+          print *, 'P_t', P_t
+          print *, 'Q_t', Q_t
+          print *, 'Q_b', Q_b
+          print *, 'R', R
+          print *, 'T', T
+
+          Ax = triangle_area_by_vertices(D_pd,P_b,E) + triangle_area_by_vertices(D_pd,E,Q_t)
+          Ay = triangle_area_by_vertices(C,D_pd,G) + triangle_area_by_vertices(D_pd,Q_t,G)
+          Az = triangle_area_by_vertices(C,A,D_pd) + triangle_area_by_vertices(A,P_b,D_pd)
+          Ax_Ay_Az_2 = ([Ax, Ay, Az])
+        end associate
+        end function
+
+        function Ax_Ay_Az_1(vertz, normal, sun_dir)
+          real(ireals), intent(in) :: vertz(:), normal(:), sun_dir(:)
+          real(ireals) :: A_tot, Ax, Ay, Az, Ax_Ay_Az_1(3)
           real(ireals) :: A(3), B(3), C(3), D(3), E(3), F(3), G(3), H(3)
           real(ireals) :: B_pd(3), D_pd(3), F_pd(3), H_pd(3), P(3), Q(3), R(3), T(3)
 
@@ -1452,97 +1518,29 @@ contains
           D_pd = D + hit_plane(D, sun_dir, A, normal) * sun_dir
           F_pd = F + hit_plane(F, sun_dir, A, normal) * sun_dir
           H_pd = H + hit_plane(H, sun_dir, A, normal) * sun_dir
-          print *, cstr('here', 'green')
-          print *, 'D', D_pd
-          print *, 'H', H_pd
-          P = ([A(1), line_line_intersection_2d(D_pd(2:3), B_pd(2:3) - D_pd(2:3), A(2:3), E(2:3) - A(2:3))])
+
+          P = ([A(1), line_line_intersection_2d(B_pd(2:3), D_pd(2:3) - B_pd(2:3), C(2:3), G(2:3) - C(2:3))])
           P(3) = max(min(P(3), E(3)), A(3))
-          Q = ([A(1), line_line_intersection_2d(D_pd(2:3), H_pd(2:3) - D_pd(2:3), E(2:3), G(2:3) - E(2:3))])
+          Q = ([A(1), line_line_intersection_2d(B_pd(2:3), F_pd(2:3) - B_pd(2:3), E(2:3), G(2:3) - E(2:3))])
           Q(2) = max(min(Q(2), G(2)), E(2))
-          R = ([A(1), line_line_intersection_2d(C(2:3), sun_dir(2:3), G(2:3), E(2:3) - G(2:3))])
-          !R(2) = max(min(R(2), G(2)), E(2))
-          T = ([A(1), line_line_intersection_2d(C(2:3), sun_dir(2:3), A(2:3), E(2:3) - A(2:3))])
+          R = ([A(1), line_line_intersection_2d(A(2:3), B_pd(2:3) - A(2:3), G(2:3), E(2:3) - G(2:3))])
+          R(2) = max(min(R(2), G(2)), E(2))
+          T = ([A(1), line_line_intersection_2d(A(2:3), B_pd(2:3) - A(2:3), C(2:3), G(2:3) - A(2:3))])
 
-          D_pd(2) = min(max(D_pd(2), E(2)), G(2))
-          print *, 'A, E', A(3), E(3)
-          D_pd(3) = min(max(D_pd(3), A(3)), E(3))
-          print *, cstr('D before', 'green'), D_pd
-          print *, P(2), Q(2), R(2), T(2), C(2), A(2)
-          !D_pd(2) = max(min(max(D_pd(2), P(2), Q(2), R(2), T(2)), C(2)), A(2))
-          ! Need to change D_pd(3) in current case
-          D_pd(3) = min(max(min(D_pd(3), P(3), Q(3), R(3), T(3)), min(A(3), C(3))), max(E(3), G(3)))
+          B_pd(2) = min(max(B_pd(2), E(2)), G(2))
+          B_pd(3) = min(max(B_pd(3), A(3)), E(3))
 
-          print *, 'B_pd', B_pd
-          print *, 'D_pd', D_pd
-          print *, 'H_pd', H_pd
-          print *, 'P', P
-          print *, 'Q', Q
-          print *, 'R', R
-          print *, 'T', T
-
-          Ax = triangle_area_by_vertices(D_pd,P,E) + triangle_area_by_vertices(D_pd,E,Q)
-          Ay = triangle_area_by_vertices(C,D_pd,G) + triangle_area_by_vertices(D_pd,Q,G)
-          Az = triangle_area_by_vertices(C,A,D_pd) + triangle_area_by_vertices(A,P,D_pd)
-          print *, cstr('Ax_Ay_Az_2', 'red'), Ax, Ay, Az
-          Ax_Ay_Az_2 = ([Ax, Ay, Az]) / A_tot
-        end function
-
-        function Ax_Ay_Az_1(vertz, normal, sun_dir)
-          real(ireals), intent(in) :: vertz(:), normal(:), sun_dir(:)
-          real(ireals) :: A_tot, Ax, Ay, Az, Ax_Ay_Az_1(3)
-          real(ireals) :: A(3), B(3), C(3), D(3), E(3), G(3), H(3), B_pd(3), D_pd(3), H_pd(3), P(3), Q(3), R(3), T(3)
-          real(ireals) :: l_AD_pd, l_AR, l_AT!
-
-          A = vertz(1:3)
-          B = vertz(4:6)
-          C = vertz(7:9)
-          D = vertz(10:12)
-          E = vertz(13:15)
-          G = vertz(19:21)
-          H = vertz(22:24)
-
-          A_tot = triangle_area_by_vertices(C,A,E) + triangle_area_by_vertices(E,G,C)
-
-          B_pd = B + hit_plane(B, sun_dir, A, normal) * sun_dir
-          D_pd = D + hit_plane(D, sun_dir, A, normal) * sun_dir
-          H_pd = H + hit_plane(H, sun_dir, A, normal) * sun_dir
-
-          print *, 'B_pd', B_pd
-          print *, 'D_pd', D_pd
-          print *, 'H_pd', H_pd
-
-          P = ([A(1), line_line_intersection_2d(D_pd(2:3), B_pd(2:3) - D_pd(2:3), C(2:3), G(2:3) - C(2:3))])!
-          Q = ([A(1), line_line_intersection_2d(D_pd(2:3), H_pd(2:3) - D_pd(2:3), E(2:3), G(2:3) - E(2:3))])
-          R = ([A(1), line_line_intersection_2d(A(2:3), sun_dir(2:3), E(2:3), G(2:3) - E(2:3))])!
-          T = ([A(1), line_line_intersection_2d(A(2:3), sun_dir(2:3), C(2:3), G(2:3) - C(2:3))])!
-
-          l_AD_pd = vector_length_2d(D_pd(2:3) - A(2:3))!
-          l_AR = vector_length_2d(R(2:3) - A(2:3))!
-          l_AT = vector_length_2d(T(2:3) - A(2:3))!
-
-          if (l_AD_pd < l_AR .and. l_AD_pd < l_AT) then!
-            Az = triangle_area_by_vertices(C,A,D_pd) + triangle_area_by_vertices(C,D_pd,P)!
-            Ay = triangle_area_by_vertices(P,D_pd,G) + triangle_area_by_vertices(D_pd,R,G)!
-            Ax = triangle_area_by_vertices(A,E,D_pd) + triangle_area_by_vertices(E,Q,D_pd)!
-          else if (l_AD_pd > l_AR .and. l_AD_pd < l_AT) then!
-            Az = triangle_area_by_vertices(C,A,R) + triangle_area_by_vertices(R,G,C)!
-            Ay = triangle_area_by_vertices(A,E,R)!
-            Ax = 0._ireals
-          else if (l_AD_pd < l_AR .and. l_AD_pd > l_AT) then
-            Az = triangle_area_by_vertices(C,A,T)
-            Ay = triangle_area_by_vertices(A,E,T) + triangle_area_by_vertices(T,E,G)!
-            Ax = 0._ireals
-          else if (l_AD_pd > l_AR .and. l_AD_pd > l_AT) then
-            if (l_AT > l_AR) then
-              Az = triangle_area_by_vertices(C,A,E) + triangle_area_by_vertices(E,G,C) - triangle_area_by_vertices(A,E,R)
-              Ay = triangle_area_by_vertices(A,E,R)
-            else
-              Az = triangle_area_by_vertices(A,T,C)
-              Ay = triangle_area_by_vertices(C,A,E) + triangle_area_by_vertices(E,G,C) - triangle_area_by_vertices(A,T,C)
-            endif
-            Ax = 0._ireals
+          if (R(2) > A(2)) then
+            B_pd(2) = max(min(max(B_pd(2), P(2), Q(2), T(2)), C(2)), A(2))
+          else
+            B_pd(2) = max(min(max(B_pd(2), P(2), Q(2), R(2), T(2)), C(2)), A(2))
           endif
 
+          B_pd(3) = min(max(min(B_pd(3), P(3), Q(3), R(3), T(3)), min(A(3), C(3))), max(E(3), G(3)))
+
+          Ax = triangle_area_by_vertices(B_pd,P,E) + triangle_area_by_vertices(B_pd,E,Q)
+          Ay = triangle_area_by_vertices(C,B_pd,G) + triangle_area_by_vertices(B_pd,Q,G)
+          Az = triangle_area_by_vertices(C,A,B_pd) + triangle_area_by_vertices(A,P,B_pd)
           Ax_Ay_Az_1 = ([Ax, Ay, Az]) / A_tot
         end function
 
