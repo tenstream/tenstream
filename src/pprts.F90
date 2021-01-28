@@ -61,7 +61,7 @@ module m_pprts
     & t_optprop_1_2, t_optprop_3_6, t_optprop_3_10, &
     & t_optprop_8_10, t_optprop_3_16, t_optprop_8_16, t_optprop_8_18, &
     & t_optprop_3_10_ann, &
-    & dir2dir3_coeff_corr_zx, dir2dir3_coeff_corr_zy
+    & dir2dir3_coeff_corr_zx, dir2dir3_coeff_corr_zy, dir2dir3_coeff_corr
   use m_eddington, only : eddington_coeff_zdun
 
   use m_tenstream_options, only : read_commandline_options, ltwostr, luse_eddington, twostr_ratio, &
@@ -3827,6 +3827,7 @@ module m_pprts
      if (lgeometric_correction) then
        call dir2dir3_coeff_corr_zx(v, vertices, vertices_dtd, sun%sundir)
        call dir2dir3_coeff_corr_zy(v, vertices, vertices_dtd, sun%sundir)
+       call dir2dir3_coeff_corr_(v, vertices_dtd, sun%sundir)
 
        !if (ldebug) then
        !  v_prime = v
