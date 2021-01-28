@@ -8,7 +8,7 @@ module test_boxmc_3_10
   use m_boxmc_geometry, only : setup_default_unit_cube_geometry
   use m_optprop, only : dir2dir3_coeff_corr_zy, dir2dir3_coeff_corr_zx, &
     dir2dir3_coeff_corr_xx, dir2dir3_coeff_corr_xy, &
-    dir2dir3_coeff_corr_yy, dir2dir3_coeff_corr_src_x
+    dir2dir3_coeff_corr_yy, dir2dir3_coeff_corr
   use m_helper_functions, only : spherical_2_cartesian, cstr
 
   use pfunit_mod
@@ -713,7 +713,7 @@ contains
   end subroutine
 
   @test(npes =[1])
-  subroutine test_boxmc_distorted_cube_dir2dir3_coeff_corr_y_trgt_x_src(this)
+  subroutine test_boxmc_distorted_cube_dir2dir3_coeff_corr(this)
     class (MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: src
     real(ireal_dp), allocatable :: verts(:), verts_dtd(:)
@@ -724,7 +724,7 @@ contains
     bg  = [0e-0_ireal_dp/dz, 0._ireal_dp, 1._ireal_dp/2 ]
     S_target = zero
 
-    phi = 30; theta = 50
+    phi = 0; theta = 40
     src = 2
 
     call setup_default_unit_cube_geometry(dx, dy, dz, verts)
@@ -743,7 +743,7 @@ contains
     print *, 'G', verts(19), verts(20), verts(21)
     print *, 'H', verts(22), verts(23), verts(24)
 
-    print *, 'vertices'
+    print *, 'vertices distorted'
     print *, 'A', verts_dtd(1), verts_dtd(2), verts_dtd(3)
     print *, 'B', verts_dtd(4), verts_dtd(5), verts_dtd(6)
     print *, 'C', verts_dtd(7), verts_dtd(8), verts_dtd(9)
@@ -759,16 +759,19 @@ contains
     v(5) = real(T(2), irealLUT)
     v(8) = real(T(3), irealLUT)
 
-    print *, cstr('regular not corrected', 'red'), v(5), v(8), v(2)
+    print *, cstr('regular not corrected', 'red')
+    print *, v
 
     sundir = spherical_2_cartesian(real(phi, ireals), real(theta, ireals)) * [-one, -one, one]
     print *, 'sundir', sundir
 
-    call dir2dir3_coeff_corr_src_x(v, verts_dtd, sundir)
-    print *, cstr('regular corrected', 'blue'), v(5), v(8), v(2)
+    call dir2dir3_coeff_corr(v, verts_dtd, sundir)
+    print *, cstr('regular corrected', 'blue')
+    print *, v
 
     call bmc_3_10%get_coeff(comm,bg,src,.True.,phi,theta,verts_dtd,S,T_target,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-    print *, cstr('montecarlo distorted', 'green'), T_target(2), T_target(3), T_target(1)
+    print *, cstr('montecarlo distorted', 'green')
+    print *, T_target
 
     !call check(S_target,T_target, S,T, msg=' test_boxmc_distorted_cube_dir45_up_src1')
 
