@@ -28,7 +28,7 @@ module m_optprop
 
 use m_optprop_parameters, only : ldebug_optprop, wedge_sphere_radius, param_eps
 use m_helper_functions, only : rmse, CHKERR, CHKWARN, toStr, cstr, approx, deg2rad, rad2deg, swap, is_between, &
-  char_arr_to_str, triangle_area_by_vertices, cross_3d
+  char_arr_to_str, triangle_area_by_vertices, compute_normal_3d
 use m_data_parameters, only: ireals,ireal_dp,irealLUT,ireal_params,iintegers,one,zero,i0,i1,inil,mpiint
 use m_optprop_base, only: t_optprop_base, t_op_config, find_op_dim_by_name
 use m_optprop_LUT, only : t_optprop_LUT, t_optprop_LUT_1_2,t_optprop_LUT_3_6, t_optprop_LUT_3_10, &
@@ -1340,63 +1340,55 @@ contains
 
   end subroutine dir2dir3_coeff_corr_zy
 
-  subroutine dir2dir3_coeff_corr(coeffs, verts, sundir)
+  subroutine dir2dir3_coeff_corr(verts, sundir, coeffs)
     real(irealLUT), intent(inout) :: coeffs(:)
     real(ireals), intent(in) :: verts(:), sundir(:)
+    real(irealLUT) :: coeffs_total
+    real(ireals) :: areas(3), a(3), b(3), c(3), d(3), e(3), f(3), g(3), h(3)
+    integer :: rel_slice(2)
 
-    associate( &
-        a => verts(1:3), &
-        b => verts(4:6), &
-        c => verts(7:9), &
-        d => verts(10:12), &
-        e => verts(13:15), &
-        f => verts(16:18), &
-        g => verts(19:21), &
-        h => verts(22:24) &
-        )
+    a = verts(1:3)
+    b = verts(4:6)
+    c = verts(7:9)
+    d = verts(10:12)
+    e = verts(13:15)
+    f = verts(16:18)
+    g = verts(19:21)
+    h = verts(22:24)
 
-      ! src x
-      call project_points(h, d, b, f, sundir, cross_3d(e-a,c-a), a)
-      associate( &
-          i => g(2:3), &
-          j => c(2:3), &
-          k => a(2:3), &
-          l => e(2:3), &
-          w => h(2:3), &
-          x => d(2:3), &
-          y => b(2:3), &
-          z => f(2:3) &
-          )
-        call rearange_projections(a,b,c,d,w,x,y,z)
-        call compute_areas(i,j,k,l,w,x,y,z)
-        coeffs_total = sum(coeffs(2:8:3))
-        coeffs([2,5,8]) = real(areas, irealLUT) * coeffs_total
-      end associate
+    ! src x
+    ! x is the problem, y is in question
+    rel_slice = (/2,3/)
+    call project_points(h, d, b, f, sundir, compute_normal_3d(c,a,e), a)
+    call rearange_projections(rel_slice,g,c,a,e,h,d,b,f)
+    !print *, 'points'
+    !print *, 'a', g
+    !print *, 'b', c
+    !print *, 'c', a
+    !print *, 'd', e
+    !print *, 'w', h
+    !print *, 'x', d
+    !print *, 'y', b
+    !print *, 'z', f
+    call compute_areas(g,c,a,e,h,d,b,f,areas)
+    !print *, areas
+    coeffs_total = sum(coeffs(2:9:3))
+    coeffs([2,5,8]) = real(areas, irealLUT) * coeffs_total
 
-      ! is there a smarter solution to reset the associations?
-      h = verts(22:24)
-      d = verts(10:12)
-      b = verts(4:6)
-      f = verts(16:18)
 
-      ! src y
-      call project_points(g, c, d, h, sundir, cross_3d(f-b,a-b), b)
-      associate( &
-          i => g([1,3]), &
-          j => c([1,3]), &
-          k => d([1,3]), &
-          l => h([1,3]), &
-          w => e([1,3]), &
-          x => a([1,3]), &
-          y => b([1,3]), &
-          z => f([1,3]) &
-          )
-        call rearange_projections(i,j,k,l,w,x,y,z)
-        call compute_areas(i,j,k,l,w,x,y,z)
-        coeffs_total = sum(coeffs(3:9:3))
-        coeffs([3,6,9]) = real(areas, irealLUT) * coeffs_total
-      end associate
-    end associate
+    ! is there a smarter solution to reset the associations?
+    h = verts(22:24)
+    d = verts(10:12)
+    b = verts(4:6)
+    f = verts(16:18)
+
+    ! src y
+    rel_slice = (/1,3/)
+    call project_points(g, c, d, h, sundir, compute_normal_3d(a,b,f), b)
+    call rearange_projections(rel_slice,g,c,d,h,e,a,b,f)
+    call compute_areas(g,c,d,h,e,a,b,f,areas)
+    coeffs_total = sum(coeffs(3:9:3))
+    coeffs([3,6,9]) = real(areas, irealLUT) * coeffs_total
 
   contains
       subroutine project_points(w, x, y, z, sundir, normal, origin)
@@ -1409,55 +1401,63 @@ contains
         z = z + hit_plane(z, sundir, origin, normal) * sundir
       end subroutine
 
-      subroutine rearange_projections(a, b, c, d, w, x, y, z)
-        real(ireals), intent(inout) :: w(2), x(2), y(2), z(2)
-        real(ireals), intent(in) :: a(2), b(2), c(2), d(2)
-        real(ireals) :: c_x, c_y, c_w, c_z, k_x, k_y, k_w, k_z
+      subroutine rearange_projections(rel_slice, a, b, c, d, w, x, y, z)
+        real(ireals), intent(inout) :: w(3), x(3), y(3), z(3)
+        real(ireals), intent(in) :: a(3), b(3), c(3), d(3)
+        integer, intent(in) :: rel_slice(2)
+        real(ireals) :: c_x, c_y, c_w, c_z, t, k_x, k_y, k_w, k_z
         integer(mpiint) :: ierr
 
-        call line_intersection_2d(x, y-x, b, a-b, ierr, c_x)
-        call line_intersection_2d(x, y-x, c, d-c, ierr, c_y)
-        call line_intersection_2d(w, z-w, b, a-b, ierr, c_w)
-        call line_intersection_2d(w, z-w, c, d-c, ierr, c_z)
+        call line_intersection_3_2d(x, y-x, b, a-b, rel_slice, c_x, t, ierr)
+        call line_intersection_3_2d(x, y-x, c, d-c, rel_slice, c_y, t, ierr)
+        call line_intersection_3_2d(w, z-w, b, a-b, rel_slice, c_w, t, ierr)
+        call line_intersection_3_2d(w, z-w, c, d-c, rel_slice, c_z, t, ierr)
 
-        x = x + max(c_x, 0) * (y-x)
-        y = x + min(c_y, 1) * (y-x)
-        w = w + max(c_w, 0) * (z-w)
-        z = w + min(c_z, 1) * (z-w)
+        call rearange_point(x, y-x, max(c_x, zero), rel_slice, x)
+        call rearange_point(w, z-w, max(c_w, zero), rel_slice, w)
+        call rearange_point(x, y-x, min(c_y, one), rel_slice, y)
+        call rearange_point(w, z-w, min(c_z, one), rel_slice, z)
 
-        call line_intersection_2d(x, w-x, b, c-b, ierr, c_x)
-        call line_intersection_2d(y, z-y, b, c-b, ierr, c_y)
-        call line_intersection_2d(x, w-x, d, a-d, ierr, c_w)
-        call line_intersection_2d(y, z-y, d, a-d, ierr, c_z)
+        call line_intersection_3_2d(x, w-x, b, c-b, rel_slice, c_x, t, ierr)
+        call line_intersection_3_2d(y, z-y, b, c-b, rel_slice, c_y, t, ierr)
+        call line_intersection_3_2d(x, w-x, d, a-d, rel_slice, c_w, t, ierr)
+        call line_intersection_3_2d(y, z-y, d, a-d, rel_slice, c_z, t, ierr)
 
-        x = x + max(c_x, 0) * (w-x)
-        y = y + max(c_y, 0) * (z-y)
-        w = x + min(c_w, 1) * (w-x)
-        z = y + min(c_z, 1) * (z-y)
+        call rearange_point(x, w-x, max(c_x, zero), rel_slice, x)
+        call rearange_point(y, z-y, max(c_y, zero), rel_slice, y)
+        call rearange_point(x, w-x, min(c_w, one), rel_slice, w)
+        call rearange_point(y, z-y, min(c_z, one), rel_slice, z)
 
-        call line_intersection_2d(b, x-b, c, d-c, ierr, c_x)
-        call line_intersection_2d(b, x-b, d, a-d, ierr, k_x)
-        call line_intersection_2d(c, y-c, b, a-b, ierr, c_y)
-        call line_intersection_2d(c, y-c, d, a-d, ierr, k_y)
-        call line_intersection_2d(a, w-a, c, d-c, ierr, c_w)
-        call line_intersection_2d(a, w-a, b, c-b, ierr, k_w)
-        call line_intersection_2d(d, z-d, b, a-b, ierr, c_z)
-        call line_intersection_2d(d, z-d, b, c-b, ierr, k_z)
+        call line_intersection_3_2d(b, x-b, c, d-c, rel_slice, c_x, t, ierr)
+        call line_intersection_3_2d(b, x-b, d, a-d, rel_slice, k_x, t, ierr)
+        call line_intersection_3_2d(c, y-c, b, a-b, rel_slice, c_y, t, ierr)
+        call line_intersection_3_2d(c, y-c, d, a-d, rel_slice, k_y, t, ierr)
+        call line_intersection_3_2d(a, w-a, c, d-c, rel_slice, c_w, t, ierr)
+        call line_intersection_3_2d(a, w-a, b, c-b, rel_slice, k_w, t, ierr)
+        call line_intersection_3_2d(d, z-d, b, a-b, rel_slice, c_z, t, ierr)
+        call line_intersection_3_2d(d, z-d, b, c-b, rel_slice, k_z, t, ierr)
 
-        x = b + max(min(c_x, k_x, 1), 0) * (x-b)
-        y = c + max(min(c_y, k_y, 1), 0) * (y-c)
-        w = a + max(min(c_w, k_w, 1), 0) * (w-a)
-        z = d + max(min(c_z, k_z, 1), 0) * (z-d)
+        call rearange_point(b, x-b, max(min(c_x, k_x, one), zero), rel_slice, x)
+        call rearange_point(c, y-c, max(min(c_y, k_y, one), zero), rel_slice, y)
+        call rearange_point(a, w-a, max(min(c_w, k_w, one), zero), rel_slice, w)
+        call rearange_point(d, z-d, max(min(c_z, k_z, one), zero), rel_slice, z)
       end subroutine
 
-      subroutine compute_areas(a, b, c, d, w, x, y, z)
-        real(ireals), intent(in) :: a(2), b(2), c(2), d(2), w(2), x(2), y(2), z(2)
+      subroutine rearange_point(origin, direction, coefficient, rel_slice, point)
+        real(ireals), intent(inout) :: point(3)
+        real(ireals), intent(in) :: origin(3), direction(3), coefficient
+        integer, intent(in) :: rel_slice(2)
+
+        point(rel_slice) = origin(rel_slice) + coefficient * direction(rel_slice)
+      end subroutine
+
+      subroutine compute_areas(a, b, c, d, w, x, y, z, areas)
+        real(ireals), intent(in) :: a(3), b(3), c(3), d(3), w(3), x(3), y(3), z(3)
         real(ireals), intent(out) :: areas(3)
-        real(ireals) :: a1, a2, a3, normal(2)
+        real(ireals) :: a1, a2, a3, normal(3)
 
-        normal = cross_3d(a-b, d-a)
-        normal = normal / norm(normal)
-
+        normal = compute_normal_3d(a,b,c)
+        ! rectangle area by vertices
         a1 = triangle_area_by_vertices(x,y,z) + triangle_area_by_vertices(x,z,w)
         a2 = triangle_area_by_vertices(b,x,w) * rotation(b,x,w,normal) + &
           triangle_area_by_vertices(b,w,a) * rotation(b,w,a,normal) + &
@@ -1465,45 +1465,66 @@ contains
           triangle_area_by_vertices(c,z,y) * rotation(c,z,y,normal)
         a3 = triangle_area_by_vertices(b,c,y) + triangle_area_by_vertices(b,y,x) + &
           triangle_area_by_vertices(w,d,a) + triangle_area_by_vertices(w,z,d)
-        areas = (/a1,a2,a3/) / (triangle_area_by_vertices(a,b,c) + triangle_area_by_vertices(a,c,d))
+
+        areas = (/a3,a1,a2/) / (triangle_area_by_vertices(a,b,c) + triangle_area_by_vertices(a,c,d))
       end subroutine
 
-      subroutine line_intersection_2d(origin1, direction1, origin2, direction2, ierr, s1, s2)
+      subroutine line_intersection_2d(origin1, direction1, origin2, direction2, s1, s2, ierr)
         real(ireals), intent(in) :: origin1(2), direction1(2), origin2(2), direction2(2)
         real(ireals), intent(out) :: s1
-        real(ireals), intent(out), optional :: s2
+        real(ireals), intent(out) :: s2
         integer(mpiint), intent(out) :: ierr
         real(ireals) :: numerator1, numerator2, denominator
 
+        !print *, 'dir1, dir2'
+        !print *, direction1, direction2
+        !print *, '__________'
         numerator1 = direction2(1) * (origin1(2) - origin2(2)) - direction2(2) * (origin1(1) - origin2(1))
         numerator2 = direction1(1) * (origin1(2) - origin2(2)) - direction1(2) * (origin1(1) - origin2(1))
         denominator = direction2(2) * direction1(1) - direction2(1) * direction1(2)
-
-        if (denominator < epsilon(denominator) .and. &
-          numerator1 < epsilon(numerator1) .and. &
-          numerator2 < epsilon(numerator2)) then
+        if (abs(denominator) < epsilon(denominator) .and. &
+          abs(numerator1) < epsilon(numerator1) .and. &
+          abs(numerator2) < epsilon(numerator2)) then
           ! lines are coincident
           ierr = 2
           s1 = huge(s1)
           s2 = huge(s2)
-        else if (denominator < epsilon(denominator)) then
+        !  print *, 'coincident'
+        else if (abs(denominator) < epsilon(denominator)) then
           ! lines are parallel
           ierr = 1
           s1 = huge(s1)
           s2 = huge(s2)
+        !  print *, 'parallel'
         else
           ierr = 0
           s1 = numerator1 / denominator
           s2 = numerator2 / denominator
+        !  print *, 'intersecting'
         endif
+        !print *, 'coeff', s1
+      end subroutine
+
+      subroutine line_intersection_3_2d(origin1, direction1, origin2, direction2, rel_slice, s1, s2, ierr)
+        real(ireals), intent(in) :: origin1(3), direction1(3), origin2(3), direction2(3)
+        integer, intent(in) :: rel_slice(2)
+        real(ireals), intent(out) :: s1
+        real(ireals), intent(out) :: s2
+        integer(mpiint), intent(out) :: ierr
+
+        call line_intersection_2d( &
+          origin1(rel_slice), direction1(rel_slice), &
+          origin2(rel_slice), direction2(rel_slice), &
+          s1, s2, ierr)
+
       end subroutine
 
       function rotation(a, b, c, normal)
-        real(ireals), intent(in) :: a(2), b(2), c(2), normal(3)
-        real(ireals) :: rotation, area_normal
+        real(ireals), intent(in) :: a(3), b(3), c(3), normal(3)
+        real(ireals) :: rotation, area_normal(3)
 
         area_normal = compute_normal_3d(a,b,c)
-        rotation = dot_product(area_normal / norm(area_normal), normal / norm(normal))
+        rotation = dot_product(area_normal, normal)
       end function
   end subroutine dir2dir3_coeff_corr
 end module

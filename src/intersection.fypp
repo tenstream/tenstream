@@ -19,7 +19,8 @@ module m_intersection
     & pnt_in_triangle, &
     & pnt_in_triangle_convex_hull, &
     & square_intersection, &
-    & triangle_intersection
+    & triangle_intersection, &
+    & line_intersection_2d
 
   interface hit_plane
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
@@ -62,6 +63,12 @@ module m_intersection
   interface triangle_intersection
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
     module procedure triangle_intersection_${dtype}$
+    #:endfor
+  end interface
+
+  interface line_intersection_2d
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    module procedure line_intersection_2d_${dtype}$
     #:endfor
   end interface
 contains
@@ -382,4 +389,39 @@ contains
     if(ldebug) print *,'Hit triangle', lhit, '::', hit
   end subroutine
   #:endfor
+
+  !> @brief determine line function coefficients of intersection of two lines in 2d
+  !> @details inputs are the origins and directions of the two lines
+  #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    pure subroutine line_intersection_2d_${dtype}$(o1, d1, o2, d2, c1, c2, ierr)
+      ! optional:  2d slice -> o1, .... 3d variablen; mit slice auf 22d reduziere
+      ! 2d slice nicht input -> o1, ... 2d var
+      real(${dtype}$), intent(in) :: o1(2), d1(2), o2(2), d2(2)
+      real(${dtype}$), intent(out) :: c1
+      real(${dtype}$), intent(out) :: c2
+      integer(mpiint), intent(out) :: ierr
+      real(${dtype}$) :: num1, num2, den
+
+      num1 = d2(1) * (o1(2)-o2(2)) - d2(2) * (o1(1)-o2(1))
+      num2 = d1(1) * (o1(2)-o2(2)) - d1(2) * (o1(1)-o2(1))
+      den = d2(2) * d1(1) - d2(1) * d1(2)
+
+      if ( ( den .le. epsilon(den) ) .and. &
+        & ( num1 .le. epsilon(num1) ) .and. &
+        & ( num2 .le. epsilon(num2) ) ) then
+        ierr = 1
+        c1 = huge(c1)
+        c2 = huge(c2)
+      else if ( ( den .le. epsilon(den) ) ) then
+        ierr = 2
+        c1 = huge(c1)
+        c2 = huge(c2)
+      else
+        ierr = 0
+        c1 = num1 / den
+        c2 = num2 / den
+      endif
+    end subroutine
+  #:endfor
+
 end module
