@@ -12,7 +12,8 @@ module test_intersection
   use m_intersection, only : &
     & hit_plane, &
     & pnt_in_triangle, &
-    & triangle_intersection
+    & triangle_intersection, &
+    & line_intersection_2d
 
   use pfunit_mod
 
@@ -20,7 +21,7 @@ module test_intersection
 
 contains
 
-  @test(npes =[1])
+  !@test(npes =[1])
   subroutine test_triangle_functions_dp(this)
     class (MpiTestMethod), intent(inout) :: this
 
@@ -91,7 +92,7 @@ contains
     @assertEqual(-one, distance, 'distance calculation not correct 4')
   end subroutine
 
-  @test(npes =[1])
+  !@test(npes =[1])
   subroutine test_triangle_functions_sp(this)
     class (MpiTestMethod), intent(inout) :: this
 
@@ -172,7 +173,7 @@ contains
     @assertEqual(-1_iintegers, normal_direction, 'direction of normal not towards cell center (case 2)')
   end subroutine
 
-  @test(npes =[1])
+  !@test(npes =[1])
   subroutine test_triangle_intersection(this)
     class (MpiTestMethod), intent(inout) :: this
 
@@ -239,6 +240,34 @@ contains
     origin    = [dx/2,epsilon(dx), dx/2]
     call triangle_intersection(origin, direction, B, A, C, rng, lhit, hit)
     @assertFalse(lhit)
+  end subroutine
+
+  @test(npes =[1])
+  subroutine test_line_intersection_2d(this)
+    class (MpiTestMethod), intent(inout) :: this
+
+    real(ireal_dp) :: o1(2), d1(2), o2(2), d2(2)
+    integer(mpiint) :: ierr
+    real(ireal_dp) :: c1, c2
+
+    call random_seed()
+    call random_number(o1)
+
+    call random_seed()
+    call random_number(d1)
+
+    call random_seed()
+    call random_number(o2)
+
+    call random_seed()
+    call random_number(d2)
+
+    call line_intersection(o1, d1, o2, d2, ierr, c1, c2)
+
+    @assertTrue(lhit)
+    @assertEqual(origin(1), hit(1), atol)
+    @assertEqual(zero,      hit(2), atol)
+    @assertEqual(origin(3), hit(3), atol)
   end subroutine
 
 end module

@@ -718,19 +718,18 @@ contains
     integer(iintegers) :: src
     real(ireal_dp), allocatable :: verts(:), verts_dtd(:)
     real( ireal_dp), parameter :: dx=1, dy=dx, dz=dx
-    real(irealLUT) :: v(9)
+    real(irealLUT) :: v(9), v_mc(9)
     real(ireals) :: sundir(3)
 
     bg  = [0e-0_ireal_dp/dz, 0._ireal_dp, 1._ireal_dp/2 ]
     S_target = zero
 
-    phi = 0; theta = 40
-    src = 2
+    phi = 45; theta = 40
 
     call setup_default_unit_cube_geometry(dx, dy, dz, verts)
     verts_dtd = verts
-    verts_dtd([3,9,15,21]) = verts_dtd([3,9,15,21]) + dz
-!    verts_dtd([6,12,18,24]) = verts_dtd([6,12,18,24]) + dz / 2
+    !verts_dtd([3,9,15,21]) = verts_dtd([3,9,15,21]) + dz
+    verts_dtd([6,12,18,24]) = verts_dtd([6,12,18,24]) + dz / 2
     !verts_dtd([18,6]) = verts_dtd([18,6]) + dz/4
 
     print *, 'vertices'
@@ -753,25 +752,29 @@ contains
     print *, 'G', verts_dtd(19), verts_dtd(20), verts_dtd(21)
     print *, 'H', verts_dtd(22), verts_dtd(23), verts_dtd(24)
 
-    call bmc_3_10%get_coeff(comm,bg,src,.True.,phi,theta,verts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-    v = 0
-    v(2) = real(T(1), irealLUT)
-    v(5) = real(T(2), irealLUT)
-    v(8) = real(T(3), irealLUT)
-
-    print *, cstr('regular not corrected', 'red')
-    print *, v
+    do src = 1,3
+      call bmc_3_10%get_coeff(comm,bg,src,.True.,phi,theta,verts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      v(src:3**2:3) = real(T, irealLUT)
+    enddo
 
     sundir = spherical_2_cartesian(real(phi, ireals), real(theta, ireals)) * [-one, -one, one]
     print *, 'sundir', sundir
 
-    call dir2dir3_coeff_corr(v, verts_dtd, sundir)
+    print *, cstr('regular not corrected', 'red')
+    print *, v
+
+    call dir2dir3_coeff_corr_zx(v, verts, verts_dtd, sundir)
+    call dir2dir3_coeff_corr_zy(v, verts, verts_dtd, sundir)
+    call dir2dir3_coeff_corr(verts_dtd, sundir, v)
     print *, cstr('regular corrected', 'blue')
     print *, v
 
-    call bmc_3_10%get_coeff(comm,bg,src,.True.,phi,theta,verts_dtd,S,T_target,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+    do src = 1,3
+      call bmc_3_10%get_coeff(comm,bg,src,.True.,phi,theta,verts_dtd,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      v_mc(src:3**2:3) = real(T, irealLUT)
+    enddo
     print *, cstr('montecarlo distorted', 'green')
-    print *, T_target
+    print *, v_mc
 
     !call check(S_target,T_target, S,T, msg=' test_boxmc_distorted_cube_dir45_up_src1')
 

@@ -1691,14 +1691,17 @@ module m_helper_functions
       ! N = U X V and can be calculated by:
       real(${dtype}$), intent(in) :: p1(:), p2(:), p3(:)
       real(${dtype}$) :: compute_normal_3d(size(p1))
-      real(${dtype}$) :: U(3), V(3)
+      real(${dtype}$) :: U(3), V(3), norm
 
       U = p2-p1
       V = p3-p1
 
       compute_normal_3d = cross_3d(U,V)
 
-      compute_normal_3d = compute_normal_3d / norm2(compute_normal_3d)
+      norm = norm2(compute_normal_3d)
+      if (norm .gt. tiny(norm)) then
+        compute_normal_3d = compute_normal_3d / norm
+      endif
     end function
     #:endfor
 
