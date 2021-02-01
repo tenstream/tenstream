@@ -732,25 +732,25 @@ contains
     verts_dtd([6,12,18,24]) = verts_dtd([6,12,18,24]) + dz / 2
     !verts_dtd([18,6]) = verts_dtd([18,6]) + dz/4
 
-    print *, 'vertices'
-    print *, 'A', verts(1), verts(2), verts(3)
-    print *, 'B', verts(4), verts(5), verts(6)
-    print *, 'C', verts(7), verts(8), verts(9)
-    print *, 'D', verts(10), verts(11), verts(12)
-    print *, 'E', verts(13), verts(14), verts(15)
-    print *, 'F', verts(16), verts(17), verts(18)
-    print *, 'G', verts(19), verts(20), verts(21)
-    print *, 'H', verts(22), verts(23), verts(24)
+    !print *, 'vertices'
+    !print *, 'A', verts(1), verts(2), verts(3)
+    !print *, 'B', verts(4), verts(5), verts(6)
+    !print *, 'C', verts(7), verts(8), verts(9)
+    !print *, 'D', verts(10), verts(11), verts(12)
+    !print *, 'E', verts(13), verts(14), verts(15)
+    !print *, 'F', verts(16), verts(17), verts(18)
+    !print *, 'G', verts(19), verts(20), verts(21)
+    !print *, 'H', verts(22), verts(23), verts(24)
 
-    print *, 'vertices distorted'
-    print *, 'A', verts_dtd(1), verts_dtd(2), verts_dtd(3)
-    print *, 'B', verts_dtd(4), verts_dtd(5), verts_dtd(6)
-    print *, 'C', verts_dtd(7), verts_dtd(8), verts_dtd(9)
-    print *, 'D', verts_dtd(10), verts_dtd(11), verts_dtd(12)
-    print *, 'E', verts_dtd(13), verts_dtd(14), verts_dtd(15)
-    print *, 'F', verts_dtd(16), verts_dtd(17), verts_dtd(18)
-    print *, 'G', verts_dtd(19), verts_dtd(20), verts_dtd(21)
-    print *, 'H', verts_dtd(22), verts_dtd(23), verts_dtd(24)
+    !print *, 'vertices distorted'
+    !print *, 'A', verts_dtd(1), verts_dtd(2), verts_dtd(3)
+    !print *, 'B', verts_dtd(4), verts_dtd(5), verts_dtd(6)
+    !print *, 'C', verts_dtd(7), verts_dtd(8), verts_dtd(9)
+    !print *, 'D', verts_dtd(10), verts_dtd(11), verts_dtd(12)
+    !print *, 'E', verts_dtd(13), verts_dtd(14), verts_dtd(15)
+    !print *, 'F', verts_dtd(16), verts_dtd(17), verts_dtd(18)
+    !print *, 'G', verts_dtd(19), verts_dtd(20), verts_dtd(21)
+    !print *, 'H', verts_dtd(22), verts_dtd(23), verts_dtd(24)
 
     do src = 1,3
       call bmc_3_10%get_coeff(comm,bg,src,.True.,phi,theta,verts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
@@ -761,20 +761,24 @@ contains
     print *, 'sundir', sundir
 
     print *, cstr('regular not corrected', 'red')
-    print *, v
+    print *, 'src z', v(1:9:3)
+    print *, 'src x', v(2:9:3)
+    print *, 'src y', v(3:9:3)
 
-    call dir2dir3_coeff_corr_zx(v, verts, verts_dtd, sundir)
-    call dir2dir3_coeff_corr_zy(v, verts, verts_dtd, sundir)
     call dir2dir3_coeff_corr(verts_dtd, sundir, v)
     print *, cstr('regular corrected', 'blue')
-    print *, v
+    print *, 'src z', v(1:9:3)
+    print *, 'src x', v(2:9:3)
+    print *, 'src y', v(3:9:3)
 
     do src = 1,3
       call bmc_3_10%get_coeff(comm,bg,src,.True.,phi,theta,verts_dtd,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       v_mc(src:3**2:3) = real(T, irealLUT)
     enddo
     print *, cstr('montecarlo distorted', 'green')
-    print *, v_mc
+    print *, 'src z', v_mc(1:9:3)
+    print *, 'src x', v_mc(2:9:3)
+    print *, 'src y', v_mc(3:9:3)
 
     !call check(S_target,T_target, S,T, msg=' test_boxmc_distorted_cube_dir45_up_src1')
 
