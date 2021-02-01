@@ -1356,38 +1356,37 @@ contains
     h = verts(22:24)
 
     ! src x
-    call project_points(h, d, b, f, sundir, compute_normal_3d(c,a,e), a)
-    call rearange_projections(g,c,a,e,h,d,b,f)
-    call compute_areas(g,c,a,e,h,d,b,f,areas)
-    coeffs_total = sum(coeffs(2:9:3))
-    coeffs([2,5,8]) = real(areas, irealLUT) * coeffs_total
+    !call project_points(h, d, b, f, sundir, compute_normal_3d(c,a,e), a)
+    !call rearange_projections(g,c,a,e,h,d,b,f)
+    !call compute_areas(g,c,a,e,h,d,b,f,areas)
+    !coeffs_total = sum(coeffs(2:9:3))
+    !coeffs([2,5,8]) = real(areas, irealLUT) * coeffs_total
 
 
     ! is there a smarter solution to reset the associations?
-    h = verts(22:24)
-    d = verts(10:12)
     b = verts(4:6)
+    d = verts(10:12)
     f = verts(16:18)
+    h = verts(22:24)
 
     ! src y
-    call project_points(g, c, d, h, sundir, compute_normal_3d(a,b,f), b)
-    call rearange_projections(g,c,d,h,e,a,b,f)
-    call compute_areas(g,c,d,h,e,a,b,f,areas)
-    coeffs_total = sum(coeffs(3:9:3))
-    coeffs([3,9,6]) = real(areas, irealLUT) * coeffs_total
+    !call project_points(g, c, d, h, sundir, compute_normal_3d(a, b, f), b)
+    !call rearange_projections(e, a, b, f, g, c, h, d)
+    !call compute_areas(g,c,d,h,e,a,b,f,areas)
+    !coeffs_total = sum(coeffs(3:9:3))
+    !coeffs([3,9,6]) = real(areas, irealLUT) * coeffs_total
 
-    ! is there a smarter solution to reset the associations?
-    !g = verts(19:21)
-    !c = verts(7:9)
-    !d = verts(10:12)
-    !h = verts(22:24)
+    a = verts(1:3)
+    b = verts(4:6)
+    e = verts(13:15)
+    f = verts(16:18)
 
     ! src z
-    !call project_points(a, c, d, b, sundir, compute_normal_3d(e, g, h), e)
-    !call rearange_projections(a, c, d, b, e, g, h, f)
-    !call compute_areas(a, c, d, b, e, g, h, f, areas)
-    !coeffs_total = sum(coeffs(1:9:3))
-    !coeffs([1,4,7]) = real(areas, irealLUT) * coeffs_total
+    call project_points(a, c, d, b, sundir, compute_normal_3d(e, g, h), e)
+    call rearange_projections(a, c, d, b, e, g, h, f)
+    call compute_areas(a, c, d, b, e, g, h, f, areas)
+    coeffs_total = sum(coeffs(1:9:3))
+    coeffs([7,1,4]) = real(areas, irealLUT) * coeffs_total
 
   contains
       subroutine project_points(w, x, y, z, sundir, normal, origin)
@@ -1401,8 +1400,8 @@ contains
       end subroutine
 
       subroutine rearange_projections(a, b, c, d, w, x, y, z)
-        real(ireals), intent(inout) :: w(3), x(3), y(3), z(3)
         real(ireals), intent(in) :: a(3), b(3), c(3), d(3)
+        real(ireals), intent(inout) :: w(3), x(3), y(3), z(3)
         real(ireals) :: c_x, c_y, c_w, c_z, t, k_x, k_y, k_w, k_z
         integer(mpiint) :: ierr
 
@@ -1415,7 +1414,8 @@ contains
         call rearange_point(w, z-w, max(c_w, zero), w)
         call rearange_point(x, y-x, min(c_y, one), y)
         call rearange_point(w, z-w, min(c_z, one), z)
-
+        !print *, 'x'
+        !print *, x
         call line_intersection_3d(x, w-x, b, c-b, c_x, t, ierr)
         call line_intersection_3d(y, z-y, b, c-b, c_y, t, ierr)
         call line_intersection_3d(x, w-x, d, a-d, c_w, t, ierr)
@@ -1425,7 +1425,7 @@ contains
         call rearange_point(y, z-y, max(c_y, zero), y)
         call rearange_point(x, w-x, min(c_w, one), w)
         call rearange_point(y, z-y, min(c_z, one), z)
-
+        !print *, x
         call line_intersection_3d(b, x-b, c, d-c, c_x, t, ierr)
         call line_intersection_3d(b, x-b, d, a-d, k_x, t, ierr)
         call line_intersection_3d(c, y-c, b, a-b, c_y, t, ierr)
@@ -1463,6 +1463,10 @@ contains
         a3 = triangle_area_by_vertices(b,c,y) + triangle_area_by_vertices(b,y,x) + &
           triangle_area_by_vertices(w,d,a) + triangle_area_by_vertices(w,z,d)
 
+        if ( abs(a1 + a2 + a3 - triangle_area_by_vertices(a,b,c) - triangle_area_by_vertices(a,c,d)) > epsilon(a1) ) then
+          print *, cstr('error: Energieerhaltung verletzt', 'red')
+          print *, abs(a1 + a2 + a3 - triangle_area_by_vertices(a,b,c) - triangle_area_by_vertices(a,c,d))
+        endif
         areas = (/a3,a1,a2/) / (triangle_area_by_vertices(a,b,c) + triangle_area_by_vertices(a,c,d))
       end subroutine
 
