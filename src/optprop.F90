@@ -1356,11 +1356,12 @@ contains
     h = verts(22:24)
 
     ! src x
-    !call project_points(h, d, b, f, sundir, compute_normal_3d(c,a,e), a)
-    !call rearange_projections(g,c,a,e,h,d,b,f)
-    !call compute_areas(g,c,a,e,h,d,b,f,areas)
-    !coeffs_total = sum(coeffs(2:9:3))
-    !coeffs([2,5,8]) = real(areas, irealLUT) * coeffs_total
+    call project_points(h, d, b, f, sundir, compute_normal_3d(c, a, e), a)
+    print *, 'src x'
+    call rearange_projections(g, c, a, e, h, d, b, f)
+    call compute_areas(g, c, a, e, h, d, b, f, areas)
+    coeffs_total = sum(coeffs(2:9:3))
+    coeffs([2,5,8]) = real(areas, irealLUT) * coeffs_total
 
 
     ! is there a smarter solution to reset the associations?
@@ -1370,144 +1371,206 @@ contains
     h = verts(22:24)
 
     ! src y
-    !call project_points(g, c, d, h, sundir, compute_normal_3d(a, b, f), b)
-    !call rearange_projections(e, a, b, f, g, c, h, d)
-    !call compute_areas(g,c,d,h,e,a,b,f,areas)
-    !coeffs_total = sum(coeffs(3:9:3))
-    !coeffs([3,9,6]) = real(areas, irealLUT) * coeffs_total
+    call project_points(g, c, d, h, sundir, compute_normal_3d(a, b, f), b)
+    print *, 'src y'
+    call rearange_projections(e, a, b, f, g, c, d, h)
+    !print *, 'e', e
+    !print *, 'a', a
+    !print *, 'b', b
+    !print *, 'f', f
+    !print *, 'g', g
+    !print *, 'c', c
+    !print *, 'd', d
+    !print *, 'h', h
+    call compute_areas(e, a, b, f, g, c, d, h, areas)
+    coeffs_total = sum(coeffs(3:9:3))
+    coeffs([3,9,6]) = real(areas, irealLUT) * coeffs_total
 
-    a = verts(1:3)
-    b = verts(4:6)
-    e = verts(13:15)
-    f = verts(16:18)
+    c = verts(7:9)
+    d = verts(10:12)
+    g = verts(19:21)
+    h = verts(22:24)
 
     ! src z
     call project_points(a, c, d, b, sundir, compute_normal_3d(e, g, h), e)
+    print *, 'src z'
     call rearange_projections(a, c, d, b, e, g, h, f)
     call compute_areas(a, c, d, b, e, g, h, f, areas)
     coeffs_total = sum(coeffs(1:9:3))
     coeffs([7,1,4]) = real(areas, irealLUT) * coeffs_total
 
+    e = verts(13:15)
+    f = verts(16:18)
+    g = verts(19:21)
+    h = verts(22:24)
+
+    if (.false.) then
+      call correct_by_gradient(e, f, g, h, coeffs)
+    endif
+
   contains
-      subroutine project_points(w, x, y, z, sundir, normal, origin)
-        real(ireals), intent(inout) :: w(3), x(3), y(3), z(3)
-        real(ireals), intent(in) :: sundir(3), normal(3), origin(3)
+    subroutine correct_by_gradient(e, f, g, h, coeffs)
+      real(ireals), intent(in) :: e(3), f(3), g(3), h(3)
+      real(irealLUT), intent(inout) :: coeffs(9)
+      real(irealLUT) :: grad_x, grad_y
 
-        w = w + hit_plane(w, sundir, origin, normal) * sundir
-        x = x + hit_plane(x, sundir, origin, normal) * sundir
-        y = y + hit_plane(y, sundir, origin, normal) * sundir
-        z = z + hit_plane(z, sundir, origin, normal) * sundir
-      end subroutine
+      print *, 'correct_by_gradient'
+      ! src x
+      grad_x = real(((f(3) - e(3)) / (f(1) - e(1)) + (h(3) - g(3)) / (h(1) - g(1))) / 2, irealLUT)
+      if ( grad_x - real(sundir(1) / sundir(3), irealLUT) > epsilon(coeffs) ) then
+        print *, 'correcting x'
+        print *, 'beofre'
+        print *, coeffs(2:9:3)
+        !coeffs(5) = coeffs(5) + coeffs(5) / sum(coeffs([5,8])) * coeffs(2)
+        !coeffs(8) = coeffs(8) + coeffs(8) / sum(coeffs([5,8])) * coeffs(2)
+        !coeffs(2) = 0
+      endif
+      ! src y
+      grad_y = real(((g(3) - e(3)) / (g(2) - e(2)) + (h(3) - f(3)) / (h(2) - f(2))) / 2, irealLUT)
+      if ( grad_y - real(sundir(2) / sundir(3), irealLUT) > epsilon(coeffs) ) then
+        print *, 'correcting y'
+        print *, 'before'
+        print *, coeffs(3:9:3)
+        coeffs(3) = coeffs(3) + coeffs(3) / sum(coeffs([6,3])) * coeffs(9)
+        coeffs(6) = coeffs(6) + coeffs(6) / sum(coeffs([6,3])) * coeffs(9)
+        coeffs(9) = 0
+      endif
+    end subroutine
 
-      subroutine rearange_projections(a, b, c, d, w, x, y, z)
-        real(ireals), intent(in) :: a(3), b(3), c(3), d(3)
-        real(ireals), intent(inout) :: w(3), x(3), y(3), z(3)
-        real(ireals) :: c_x, c_y, c_w, c_z, t, k_x, k_y, k_w, k_z
-        integer(mpiint) :: ierr
+    subroutine project_points(w, x, y, z, sundir, normal, origin)
+      real(ireals), intent(inout) :: w(3), x(3), y(3), z(3)
+      real(ireals), intent(in) :: sundir(3), normal(3), origin(3)
 
-        call line_intersection_3d(x, y-x, b, a-b, c_x, t, ierr)
-        call line_intersection_3d(x, y-x, c, d-c, c_y, t, ierr)
-        call line_intersection_3d(w, z-w, b, a-b, c_w, t, ierr)
-        call line_intersection_3d(w, z-w, c, d-c, c_z, t, ierr)
+      w = w + hit_plane(w, sundir, origin, normal) * sundir
+      x = x + hit_plane(x, sundir, origin, normal) * sundir
+      y = y + hit_plane(y, sundir, origin, normal) * sundir
+      z = z + hit_plane(z, sundir, origin, normal) * sundir
+    end subroutine
 
-        call rearange_point(x, y-x, max(c_x, zero), x)
-        call rearange_point(w, z-w, max(c_w, zero), w)
-        call rearange_point(x, y-x, min(c_y, one), y)
-        call rearange_point(w, z-w, min(c_z, one), z)
-        !print *, 'x'
-        !print *, x
-        call line_intersection_3d(x, w-x, b, c-b, c_x, t, ierr)
-        call line_intersection_3d(y, z-y, b, c-b, c_y, t, ierr)
-        call line_intersection_3d(x, w-x, d, a-d, c_w, t, ierr)
-        call line_intersection_3d(y, z-y, d, a-d, c_z, t, ierr)
+    subroutine rearange_projections(a, b, c, d, w, x, y, z)
+      real(ireals), intent(in) :: a(3), b(3), c(3), d(3)
+      real(ireals), intent(inout) :: w(3), x(3), y(3), z(3)
+      real(ireals) :: c_x, c_y, c_w, c_z, t, k_x, k_y, k_w, k_z
+      integer(mpiint) :: ierr
+      print *, 'before'
+      print *, 'w', w
+      print *, 'x', x
+      print *, 'y', y
+      print *, 'z', z
+      print *, 'after'
 
-        call rearange_point(x, w-x, max(c_x, zero), x)
-        call rearange_point(y, z-y, max(c_y, zero), y)
-        call rearange_point(x, w-x, min(c_w, one), w)
-        call rearange_point(y, z-y, min(c_z, one), z)
-        !print *, x
-        call line_intersection_3d(b, x-b, c, d-c, c_x, t, ierr)
-        call line_intersection_3d(b, x-b, d, a-d, k_x, t, ierr)
-        call line_intersection_3d(c, y-c, b, a-b, c_y, t, ierr)
-        call line_intersection_3d(c, y-c, d, a-d, k_y, t, ierr)
-        call line_intersection_3d(a, w-a, c, d-c, c_w, t, ierr)
-        call line_intersection_3d(a, w-a, b, c-b, k_w, t, ierr)
-        call line_intersection_3d(d, z-d, b, a-b, c_z, t, ierr)
-        call line_intersection_3d(d, z-d, b, c-b, k_z, t, ierr)
+      call line_intersection_3d(x, y-x, b, a-b, c_x, t, ierr)
+      call line_intersection_3d(x, y-x, c, d-c, c_y, t, ierr)
+      call line_intersection_3d(w, z-w, b, a-b, c_w, t, ierr)
+      call line_intersection_3d(w, z-w, c, d-c, c_z, t, ierr)
 
-        call rearange_point(b, x-b, max(min(c_x, k_x, one), zero), x)
-        call rearange_point(c, y-c, max(min(c_y, k_y, one), zero), y)
-        call rearange_point(a, w-a, max(min(c_w, k_w, one), zero), w)
-        call rearange_point(d, z-d, max(min(c_z, k_z, one), zero), z)
-      end subroutine
+      call rearange_point(x, y-x, max(c_x, zero), x)
+      call rearange_point(w, z-w, max(c_w, zero), w)
+      call rearange_point(x, y-x, min(max(c_y, epsilon(c_y)), one), y)
+      call rearange_point(w, z-w, min(max(c_z, epsilon(c_z)), one), z)
+      print *, 'w', w
+      print *, 'x', x
+      print *, 'y', y
+      print *, 'z', z
+      call line_intersection_3d(x, w-x, b, c-b, c_x, t, ierr)
+      call line_intersection_3d(y, z-y, b, c-b, c_y, t, ierr)
+      call line_intersection_3d(x, w-x, d, a-d, c_w, t, ierr)
+      call line_intersection_3d(y, z-y, d, a-d, c_z, t, ierr)
 
-      subroutine rearange_point(origin, direction, coefficient, point)
-        real(ireals), intent(inout) :: point(3)
-        real(ireals), intent(in) :: origin(3), direction(3), coefficient
+      call rearange_point(x, w-x, max(c_x, zero), x)
+      call rearange_point(y, z-y, max(c_y, zero), y)
+      call rearange_point(x, w-x, min(c_w, one), w)
+      call rearange_point(y, z-y, min(c_z, one), z)
+      print *, 'w', w
+      print *, 'x', x
+      print *, 'y', y
+      print *, 'z', z
+      call line_intersection_3d(b, x-b, c, d-c, c_x, t, ierr)
+      call line_intersection_3d(b, x-b, d, a-d, k_x, t, ierr)
+      call line_intersection_3d(c, y-c, b, a-b, c_y, t, ierr)
+      call line_intersection_3d(c, y-c, d, a-d, k_y, t, ierr)
+      call line_intersection_3d(a, w-a, c, d-c, c_w, t, ierr)
+      call line_intersection_3d(a, w-a, b, c-b, k_w, t, ierr)
+      call line_intersection_3d(d, z-d, b, a-b, c_z, t, ierr)
+      call line_intersection_3d(d, z-d, b, c-b, k_z, t, ierr)
 
-        point = origin + coefficient * direction
-      end subroutine
+      call rearange_point(b, x-b, max(min(c_x, k_x, one), zero), x)
+      call rearange_point(c, y-c, max(min(c_y, k_y, one), zero), y)
+      call rearange_point(a, w-a, max(min(c_w, k_w, one), zero), w)
+      call rearange_point(d, z-d, max(min(c_z, k_z, one), zero), z)
+      print *, 'w', w
+      print *, 'x', x
+      print *, 'y', y
+      print *, 'z', z
+    end subroutine
 
-      subroutine compute_areas(a, b, c, d, w, x, y, z, areas)
-        real(ireals), intent(in) :: a(3), b(3), c(3), d(3), w(3), x(3), y(3), z(3)
-        real(ireals), intent(out) :: areas(3)
-        real(ireals) :: a1, a2, a3, normal(3)
+    subroutine rearange_point(origin, direction, coefficient, point)
+      real(ireals), intent(inout) :: point(3)
+      real(ireals), intent(in) :: origin(3), direction(3), coefficient
 
-        normal = compute_normal_3d(a,b,c)
-        ! rectangle area by vertices
-        a1 = triangle_area_by_vertices(x,y,z) + triangle_area_by_vertices(x,z,w)
-        a2 = triangle_area_by_vertices(b,x,w) * rotation(b,x,w,normal) + &
-          triangle_area_by_vertices(b,w,a) * rotation(b,w,a,normal) + &
-          triangle_area_by_vertices(c,d,z) * rotation(c,d,z,normal) + &
-          triangle_area_by_vertices(c,z,y) * rotation(c,z,y,normal)
-        a3 = triangle_area_by_vertices(b,c,y) + triangle_area_by_vertices(b,y,x) + &
-          triangle_area_by_vertices(w,d,a) + triangle_area_by_vertices(w,z,d)
+      point = origin + coefficient * direction
+    end subroutine
 
-        if ( abs(a1 + a2 + a3 - triangle_area_by_vertices(a,b,c) - triangle_area_by_vertices(a,c,d)) > epsilon(a1) ) then
-          print *, cstr('error: Energieerhaltung verletzt', 'red')
-          print *, abs(a1 + a2 + a3 - triangle_area_by_vertices(a,b,c) - triangle_area_by_vertices(a,c,d))
+    subroutine compute_areas(a, b, c, d, w, x, y, z, areas)
+      real(ireals), intent(in) :: a(3), b(3), c(3), d(3), w(3), x(3), y(3), z(3)
+      real(ireals), intent(out) :: areas(3)
+      real(ireals) :: a1, a2, a3, normal(3)
+
+      normal = compute_normal_3d(a,b,c)
+      ! rectangle area by vertices
+      a1 = triangle_area_by_vertices(x,y,z) + triangle_area_by_vertices(x,z,w)
+      a2 = triangle_area_by_vertices(b,x,w) * rotation(b,x,w,normal) + &
+        triangle_area_by_vertices(b,w,a) * rotation(b,w,a,normal) + &
+        triangle_area_by_vertices(c,d,z) * rotation(c,d,z,normal) + &
+        triangle_area_by_vertices(c,z,y) * rotation(c,z,y,normal)
+      a3 = triangle_area_by_vertices(b,c,y) + triangle_area_by_vertices(b,y,x) + &
+        triangle_area_by_vertices(w,d,a) + triangle_area_by_vertices(w,z,d)
+
+      if ( abs(a1 + a2 + a3 - triangle_area_by_vertices(a,b,c) - triangle_area_by_vertices(a,c,d)) > epsilon(a1) ) then
+        print *, cstr('error: Energieerhaltung verletzt', 'red')
+        print *, abs(a1 + a2 + a3 - triangle_area_by_vertices(a,b,c) - triangle_area_by_vertices(a,c,d))
+      endif
+      areas = (/a3,a1,a2/) / (triangle_area_by_vertices(a,b,c) + triangle_area_by_vertices(a,c,d))
+    end subroutine
+
+    subroutine line_intersection_3d(origin1, direction1, origin2, direction2, s1, s2, ierr)
+      real(ireals), intent(in) :: origin1(:), direction1(:), origin2(:), direction2(:)
+      real(ireals), intent(out) :: s1, s2
+      integer(mpiint), intent(out) :: ierr
+      real(ireals) :: denominator
+      associate( &
+          p1 => origin1, &
+          p2 => origin1 + direction1, &
+          p3 => origin2, &
+          p4 => origin2 + direction2 &
+          )
+        denominator = d_mnop(p2,p1,p2,p1) * d_mnop(p4,p3,p4,p3) - d_mnop(p4,p3,p2,p1) * d_mnop(p4,p3,p2,p1)
+        if ( abs(denominator) < epsilon(denominator)) then
+          ierr = 1 ! lines are parallel or coincident
+          s1 = huge(s1)
+          s2 = huge(s2)
+        else
+          s1 = ( d_mnop(p1,p3,p4,p3) * d_mnop(p4,p3,p2,p1) - d_mnop(p1,p3,p2,p1) * d_mnop(p4,p3,p4,p3) ) / denominator
+          s2 = ( d_mnop(p1,p3,p4,p3) + s1 * d_mnop(p4,p3,p2,p1) ) / d_mnop(p4,p3,p4,p3)
         endif
-        areas = (/a3,a1,a2/) / (triangle_area_by_vertices(a,b,c) + triangle_area_by_vertices(a,c,d))
-      end subroutine
+      end associate
+    end subroutine
 
-      subroutine line_intersection_3d(origin1, direction1, origin2, direction2, s1, s2, ierr)
-        real(ireals), intent(in) :: origin1(:), direction1(:), origin2(:), direction2(:)
-        real(ireals), intent(out) :: s1, s2
-        integer(mpiint), intent(out) :: ierr
-        real(ireals) :: denominator
-        associate( &
-            p1 => origin1, &
-            p2 => origin1 + direction1, &
-            p3 => origin2, &
-            p4 => origin2 + direction2 &
-            )
-          denominator = d_mnop(p2,p1,p2,p1) * d_mnop(p4,p3,p4,p3) - d_mnop(p4,p3,p2,p1) * d_mnop(p4,p3,p2,p1)
-          if ( abs(denominator) < epsilon(denominator)) then
-            ierr = 1 ! lines are parallel or coincident
-            s1 = huge(s1)
-            s2 = huge(s2)
-          else
-            s1 = ( d_mnop(p1,p3,p4,p3) * d_mnop(p4,p3,p2,p1) - d_mnop(p1,p3,p2,p1) * d_mnop(p4,p3,p4,p3) ) / denominator
-            s2 = ( d_mnop(p1,p3,p4,p3) + s1 * d_mnop(p4,p3,p2,p1) ) / d_mnop(p4,p3,p4,p3)
-          endif
-        end associate
-      end subroutine
+    function d_mnop(m,n,o,p)
+      real(ireals), intent(in) :: m(:), n(:), o(:), p(:)
+      real(ireals) :: d_mnop
+      d_mnop = &
+        (m(1) - n(1)) * (o(1) - p(1)) + &
+        (m(2) - n(2)) * (o(2) - p(2)) + &
+        (m(3) - n(3)) * (o(3) - p(3))
+    end function
 
-      function d_mnop(m,n,o,p)
-        real(ireals), intent(in) :: m(:), n(:), o(:), p(:)
-        real(ireals) :: d_mnop
-        d_mnop = &
-          (m(1) - n(1)) * (o(1) - p(1)) + &
-          (m(2) - n(2)) * (o(2) - p(2)) + &
-          (m(3) - n(3)) * (o(3) - p(3))
-      end function
+    function rotation(a, b, c, normal)
+      real(ireals), intent(in) :: a(3), b(3), c(3), normal(3)
+      real(ireals) :: rotation, area_normal(3)
 
-      function rotation(a, b, c, normal)
-        real(ireals), intent(in) :: a(3), b(3), c(3), normal(3)
-        real(ireals) :: rotation, area_normal(3)
-
-        area_normal = compute_normal_3d(a,b,c)
-        rotation = dot_product(area_normal, normal)
-      end function
+      area_normal = compute_normal_3d(a,b,c)
+      rotation = dot_product(area_normal, normal)
+    end function
   end subroutine dir2dir3_coeff_corr
 end module
