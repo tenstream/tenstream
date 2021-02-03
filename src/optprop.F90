@@ -27,7 +27,7 @@ module m_optprop
 #endif
 
 use m_optprop_parameters, only : ldebug_optprop, wedge_sphere_radius, param_eps
-use m_helper_functions, only : rmse, CHKERR, CHKWARN, toStr, cstr, approx, deg2rad, rad2deg, swap, is_between, &
+use m_helper_functions, only : rmse, CHKERR, CHKWARN, toStr, cstr, approx, deg2rad, rad2deg, swap, is_between, vec_proj_on_plane, &
   char_arr_to_str, triangle_area_by_vertices, compute_normal_3d
 use m_data_parameters, only: ireals,ireal_dp,irealLUT,ireal_params,iintegers,one,zero,i0,i1,inil,mpiint
 use m_optprop_base, only: t_optprop_base, t_op_config, find_op_dim_by_name
@@ -1440,11 +1440,15 @@ contains
     subroutine project_points(w, x, y, z, sundir, normal, origin)
       real(ireals), intent(inout) :: w(3), x(3), y(3), z(3)
       real(ireals), intent(in) :: sundir(3), normal(3), origin(3)
-
-      w = w + hit_plane(w, sundir, origin, normal) * sundir
-      x = x + hit_plane(x, sundir, origin, normal) * sundir
-      y = y + hit_plane(y, sundir, origin, normal) * sundir
-      z = z + hit_plane(z, sundir, origin, normal) * sundir
+      real(ireals), parameter :: eps = 1._ireals / sqrt(epsilon(eps))
+      w = w + min(hit_plane(w, sundir, origin, normal), eps) * sundir
+      w = vec_proj_on_plane(w, normal)
+      x = x + min(hit_plane(x, sundir, origin, normal), eps) * sundir
+      x = vec_proj_on_plane(x, normal)
+      y = y + min(hit_plane(y, sundir, origin, normal), eps) * sundir
+      y = vec_proj_on_plane(y, normal)
+      z = z + min(hit_plane(z, sundir, origin, normal), eps) * sundir
+      z = vec_proj_on_plane(z, normal)
     end subroutine
 
     subroutine rearange_projections(a, b, c, d, w, x, y, z)
@@ -1453,6 +1457,11 @@ contains
       real(ireals) :: c_x, c_y, c_w, c_z, t, k_x, k_y, k_w, k_z
       integer(mpiint) :: ierr
       print *, 'before'
+      print *, 'a', a
+      print *, 'b', b
+      print *, 'c', c
+      print *, 'd', d
+      print *, '______________________'
       print *, 'w', w
       print *, 'x', x
       print *, 'y', y
@@ -1460,14 +1469,15 @@ contains
       print *, 'after'
 
       call line_intersection_3d(x, y-x, b, a-b, c_x, t, ierr)
-      call line_intersection_3d(x, y-x, c, d-c, c_y, t, ierr)
+      print *, 'c_x', c_x
+      call line_intersection_3d(y, x-y, c, d-c, c_y, t, ierr)
       call line_intersection_3d(w, z-w, b, a-b, c_w, t, ierr)
-      call line_intersection_3d(w, z-w, c, d-c, c_z, t, ierr)
+      call line_intersection_3d(z, w-z, c, d-c, c_z, t, ierr)
 
       call rearange_point(x, y-x, max(c_x, zero), x)
       call rearange_point(w, z-w, max(c_w, zero), w)
-      call rearange_point(x, y-x, min(max(c_y, epsilon(c_y)), one), y)
-      call rearange_point(w, z-w, min(max(c_z, epsilon(c_z)), one), z)
+      call rearange_point(y, x-y, max(c_y, zero), y)
+      call rearange_point(z, w-z, max(c_z, zero), z)
       print *, 'w', w
       print *, 'x', x
       print *, 'y', y
