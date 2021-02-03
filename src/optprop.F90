@@ -1347,7 +1347,7 @@ contains
     real(ireals) :: areas(3), a(3), b(3), c(3), d(3), e(3), f(3), g(3), h(3)
 
     call reset_points()
-
+    print *, 'sundir', sundir
     ! src x
     call project_points(sundir, a, compute_normal_3d(c, a, e), g, c, a, e, h, d, b, f)
     print *, 'src x'
@@ -1485,16 +1485,25 @@ contains
       call line_intersection_3d(f2, v2-f2, f3, f4-f3, c2, t, ierr)
       call line_intersection_3d(f2, v2-f2, f4, f1-f4, k2, t, ierr)
       call line_intersection_3d(f3, v3-f3, f2, f1-f2, c3, t, ierr)
-      call line_intersection_3d(f3, v3-f3, f4, f1-f4, k3, t, ierr) ! sis is se prof2lem
-      call line_intersection_3d(f1, v1-f1, f3, f4-f3, c1, t, ierr)
-      call line_intersection_3d(f1, v1-f1, f2, f3-f2, k1, t, ierr)
-      call line_intersection_3d(f4, v4-f4, f2, f1-f2, c4, t, ierr)
-      call line_intersection_3d(f4, v4-f4, f2, f3-f2, k4, t, ierr)
+      call line_intersection_3d(f3, v3-f3, f4, f1-f4, k3, t, ierr)
+
+     ! call line_intersection_3d(f1, v1-f1, f3, f4-f3, c1, t, ierr)
+     ! call line_intersection_3d(f1, v1-f1, f2, f3-f2, k1, t, ierr)
+      call line_intersection_3d(v1, f1-v1, f3, f4-f3, c1, t, ierr)
+      call line_intersection_3d(v1, f1-v1, f2, f3-f2, k1, t, ierr)
+
+!      call line_intersection_3d(f4, v4-f4, f2, f1-f2, c4, t, ierr)
+!      call line_intersection_3d(f4, v4-f4, f2, f3-f2, k4, t, ierr)
+      call line_intersection_3d(v4, f4-v4, f2, f1-f2, c4, t, ierr)
+      call line_intersection_3d(v4, f4-v4, f2, f3-f2, k4, t, ierr)
 
       call rearange_point(f2, v2-f2, max(min(c2, k2, one), zero), v2)
       call rearange_point(f3, v3-f3, max(min(c3, k3, one), zero), v3)
-      call rearange_point(f1, v1-f1, max(min(c1, k1, one), zero), v1)
-      call rearange_point(f4, v4-f4, max(min(c4, k4, one), zero), v4)
+      print *, 'v1 coeffs', c1, k1
+      call rearange_point(v1, f1-v1, min(max(c1, k1), one), v1)
+      !call rearange_point(f1, v1-f1, max(min(c1, k1, one), zero), v1)
+      !call rearange_point(f4, v4-f4, max(min(c4, k4, one), zero), v4)
+      call rearange_point(v4, f4-v4, min(max(c4, k4), one), v4)
       print *, 'v1', v1
       print *, 'v2', v2
       print *, 'v3', v3
@@ -1520,6 +1529,7 @@ contains
         triangle_area_by_vertices(f2, v1, f1) * rotation(f2, v1, f1, normal) + &
         triangle_area_by_vertices(f3, f4, v4) * rotation(f3, f4, v4, normal) + &
         triangle_area_by_vertices(f3, v4, v3) * rotation(f3, v4, v3, normal)
+
       a3 = triangle_area_by_vertices(f2, f3, v3) + triangle_area_by_vertices(f2, v3, v2) + &
         triangle_area_by_vertices(v1, f4, f1) + triangle_area_by_vertices(v1, v4, f4)
 
