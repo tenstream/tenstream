@@ -3825,9 +3825,7 @@ module m_pprts
      call PetscLogEventEnd(solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
 
      if (lgeometric_correction) then
-       call dir2dir3_coeff_corr_zx(v, vertices, vertices_dtd, sun%sundir)
-       call dir2dir3_coeff_corr_zy(v, vertices, vertices_dtd, sun%sundir)
-       call dir2dir3_coeff_corr_(v, vertices_dtd, sun%sundir)
+       call dir2dir3_coeff_corr(vertices_dtd, sun%sundir, v)
 
        !if (ldebug) then
        !  v_prime = v
