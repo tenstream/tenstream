@@ -1808,14 +1808,19 @@ module m_helper_functions
     end function
 #:endfor
 
-    !> @brief Use Herons Formula to determine the area of a triangle given the 3 edge lengths
+    !> @brief Use William Kahan's formula (equivalent to Herons Formula) to determine the area of a triangle given the 3 edge lengths
 #:for dtype in ['REAL32', 'REAL64']
     function triangle_area_by_edgelengths_${dtype}$(e1,e2,e3) result(triangle_area_by_edgelengths)
       real(${dtype}$), intent(in) :: e1,e2,e3
       real(${dtype}$) :: triangle_area_by_edgelengths
-      real(${dtype}$) :: p
-      p = (e1+e2+e3)/2
-      triangle_area_by_edgelengths = sqrt(p*(p-e1)*(p-e2)*(p-e3))
+      real(${dtype}$) :: a, b, c
+      a = e1
+      b = e2
+      c = e3
+      if ( a < b ) call swap(a,b)
+      if ( a < c ) call swap(a,c)
+      if ( b < c ) call swap(b,c)
+      triangle_area_by_edgelengths = 0.25_${dtype}$*sqrt((a+(b+c))*max(c-(a-b), 0._${dtype}$)*(c+(a-b))*(a+(b-c)))
     end function
 #:endfor
 
