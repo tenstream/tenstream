@@ -281,13 +281,13 @@ contains
       endif
     endif
 
-    @assertEqual(eup0(1,1,1), eup(1,1,1), 2e0_ireals, 'TOA thermal up radiation')
+    @assertEqual(eup0(1,1,1), eup(1,1,1), 5e0_ireals, 'TOA thermal up radiation')
     @assertEqual(edn0(1,1,1), edn(1,1,1), 1e-8_ireals, 'TOA thermal up radiation')
 
     do k=2,ubound(edn,1)
       k0 = ubound(edn0,1) - ubound(edn,1) + k
-      @assertEqual(edn0(k0,1,1), edn(k,1,1), 3e-0_ireals, 'thermal down radiation @level '//itoa(k0)//' collapsed '//itoa(k))
-      @assertEqual(eup0(k0,1,1), eup(k,1,1), 3e-0_ireals, 'thermal up radiation @level '//itoa(k0)//' collapsed '//itoa(k))
+      @assertEqual(edn0(k0,1,1), edn(k,1,1), 5e-0_ireals, 'thermal down radiation @level '//itoa(k0)//' collapsed '//itoa(k))
+      @assertEqual(eup0(k0,1,1), eup(k,1,1), 5e-0_ireals, 'thermal up radiation @level '//itoa(k0)//' collapsed '//itoa(k))
     enddo
     do k=2,ubound(abso,1)
       k0 = ubound(abso0,1) - ubound(abso,1) + k
