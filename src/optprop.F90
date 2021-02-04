@@ -1345,34 +1345,39 @@ contains
     real(ireals), intent(in) :: verts(:), sundir(:)
     real(irealLUT) :: coeffs_total
     real(ireals) :: areas(3), a(3), b(3), c(3), d(3), e(3), f(3), g(3), h(3)
+    real(ireals) :: src_normal(3) ! NOT NECESSARY SINCE EACH ONLY USED ONCE
 
     call reset_points()
     print *, 'sundir', sundir
     ! src x
-    call project_points(sundir, a, compute_normal_3d(c, a, e), g, c, a, e, h, d, b, f)
     print *, 'src x'
+    src_normal = compute_normal_3d(c, a, e)
+    call project_points(sundir, a, src_normal, g, c, a, e, h, d, b, f)
     call rearange_projections(g, c, a, e, h, d, b, f)
     call compute_areas(g, c, a, e, h, d, b, f, areas)
     coeffs_total = sum(coeffs(2:9:3))
-    coeffs([2,5,8]) = real(areas, irealLUT) * coeffs_total
+    coeffs([5,8,2]) = real(areas, irealLUT) * coeffs_total
     call reset_points()
 
     ! src y
-    call project_points(sundir, b, compute_normal_3d(a, b, f), e, a, b, f, g, c, d, h)
     print *, 'src y'
-    call rearange_projections(e, a, b, f, g, c, d, h)
-    call compute_areas(e, a, b, f, g, c, d, h, areas)
+    src_normal = compute_normal_3d(a, b, f)
+    call project_points(sundir, b, src_normal, e, a, b, f, g, c, d, h)
+    call rearange_projections(f, b, a, e, h, d, c, g)
+    call compute_areas(f, b, a, e, h, d, c, g, areas)
     coeffs_total = sum(coeffs(3:9:3))
-    coeffs([3,9,6]) = real(areas, irealLUT) * coeffs_total
+    coeffs([9,6,3]) = real(areas, irealLUT) * coeffs_total
     call reset_points()
 
     ! src z
-    call project_points(sundir, h, compute_normal_3d(g, h, f), g, h, f, e, c, d, b, a)
     print *, 'src z'
-    call rearange_projections(g, h, f, e, c, d, b, a)
-    call compute_areas(g, h, f, e, c, d, b, a, areas)
+    src_normal = compute_normal_3d(g, h, f)
+    print *, 'src_normal', src_normal
+    call project_points(sundir, h, src_normal, g, h, f, e, c, d, b, a)
+    call rearange_projections(h, f, e, g, d, b, a, c)
+    call compute_areas(h, f, e, g, d, b, a, c, areas)
     coeffs_total = sum(coeffs(1:9:3))
-    coeffs([4,1,7]) = real(areas, irealLUT) * coeffs_total
+    coeffs([1,4,7]) = real(areas, irealLUT) * coeffs_total
     call reset_points()
 
     if (.false.) then
@@ -1456,61 +1461,22 @@ contains
       print *, 'v4', v4
       print *, 'after'
 
-      call line_intersection_3d(v2, v3-v2, f2, f1-f2, c2, t, ierr)
-      call line_intersection_3d(v3, v2-v3, f3, f4-f3, c3, t, ierr)
-      call line_intersection_3d(v1, v4-v1, f2, f1-f2, c1, t, ierr)
-      call line_intersection_3d(v4, v1-v4, f3, f4-f3, c4, t, ierr)
-
-      call rearange_point(v2, v3-v2, max(c2, zero), v2)
-      call rearange_point(v1, v4-v1, max(c1, zero), v1)
-      call rearange_point(v3, v2-v3, max(c3, zero), v3)
-      call rearange_point(v4, v1-v4, max(c4, zero), v4)
-      print *, 'v1', v1
-      print *, 'v2', v2
-      print *, 'v3', v3
-      print *, 'v4', v4
-      call line_intersection_3d(v2, v1-v2, f2, f3-f2, c2, t, ierr)
-      call line_intersection_3d(v3, v4-v3, f2, f3-f2, c3, t, ierr)
-      call line_intersection_3d(v1, v2-v1, f4, f1-f4, c1, t, ierr)
-      call line_intersection_3d(v4, v3-v4, f4, f1-f4, c4, t, ierr)
-
-      call rearange_point(v2, v1-v2, max(c2, zero), v2)
-      call rearange_point(v3, v4-v3, max(c3, zero), v3)
-      call rearange_point(v1, v2-v1, max(c1, zero), v1)
-      call rearange_point(v4, v3-v4, max(c4, zero), v4)
-      print *, 'v1', v1
-      print *, 'v2', v2
-      print *, 'v3', v3
-      print *, 'v4', v4
-      !call line_intersection_3d(f2, v2-f2, f3, f4-f3, c2, t, ierr)
-      !call line_intersection_3d(f2, v2-f2, f4, f1-f4, k2, t, ierr)
-      !call line_intersection_3d(f3, v3-f3, f2, f1-f2, c3, t, ierr)
-      !call line_intersection_3d(f3, v3-f3, f4, f1-f4, k3, t, ierr)
-      call line_intersection_3d(v2, f2-v2, f3, f4-f3, c2, t, ierr)
-      call line_intersection_3d(v2, f2-v2, f4, f1-f4, k2, t, ierr)
-      print *, 'v2 coeffs', c2, k2
-      call line_intersection_3d(v3, f3-v3, f2, f1-f2, c3, t, ierr)
-      call line_intersection_3d(v3, f3-v3, f4, f1-f4, k3, t, ierr)
-
-     ! call line_intersection_3d(f1, v1-f1, f3, f4-f3, c1, t, ierr)
-     ! call line_intersection_3d(f1, v1-f1, f2, f3-f2, k1, t, ierr)
       call line_intersection_3d(v1, f1-v1, f3, f4-f3, c1, t, ierr)
       call line_intersection_3d(v1, f1-v1, f2, f3-f2, k1, t, ierr)
+      call rearange_point(v1, f1-v1, min(max(c1, k1, zero), one), v1)
 
-!      call line_intersection_3d(f4, v4-f4, f2, f1-f2, c4, t, ierr)
-!      call line_intersection_3d(f4, v4-f4, f2, f3-f2, k4, t, ierr)
+      call line_intersection_3d(v2, f2-v2, f3, f4-f3, c2, t, ierr)
+      call line_intersection_3d(v2, f2-v2, f4, f1-f4, k2, t, ierr)
+      call rearange_point(v2, f2-v2, min(max(c2, k2, zero), one), v2)
+
+      call line_intersection_3d(v3, f3-v3, f2, f1-f2, c3, t, ierr)
+      call line_intersection_3d(v3, f3-v3, f4, f1-f4, k3, t, ierr)
+      call rearange_point(v3, f3-v3, min(max(c3, k3, zero), one), v3)
+
       call line_intersection_3d(v4, f4-v4, f2, f1-f2, c4, t, ierr)
       call line_intersection_3d(v4, f4-v4, f2, f3-f2, k4, t, ierr)
-
-      !call rearange_point(f2, v2-f2, max(min(c2, k2, one), zero), v2)
-      !call rearange_point(f3, v3-f3, max(min(c3, k3, one), zero), v3)
-      call rearange_point(v2, f2-v2, min(max(c2, k2, zero), one), v2)
-      call rearange_point(v3, f3-v3, min(max(c3, k3, zero), one), v3)
-      print *, 'v1 coeffs', c1, k1
-      call rearange_point(v1, f1-v1, min(max(c1, k1, zero), one), v1)
-      !call rearange_point(f1, v1-f1, max(min(c1, k1, one), zero), v1)
-      !call rearange_point(f4, v4-f4, max(min(c4, k4, one), zero), v4)
       call rearange_point(v4, f4-v4, min(max(c4, k4, zero), one), v4)
+
       print *, 'v1', v1
       print *, 'v2', v2
       print *, 'v3', v3
@@ -1527,21 +1493,55 @@ contains
     subroutine compute_areas(f1, f2, f3, f4, v1, v2, v3, v4, areas)
       real(ireals), intent(in) :: f1(3), f2(3), f3(3), f4(3), v1(3), v2(3), v3(3), v4(3)
       real(ireals), intent(out) :: areas(3)
-      real(ireals) :: a1, a2, a3, normal(3)
+      integer(mpiint) :: ierr
+      real(ireals) :: a1, a2, a3, normal(3), a
+      real(ireals) :: p1l(3), p1b(3), p2l(3), p2t(3), p3r(3), p3t(3), p4r(3), p4b(3), c, t
 
       normal = compute_normal_3d(f1, f2, f3)
-      ! rectangle area by vertices
-      !a1 = triangle_area_by_vertices(v2, v3, v4) + triangle_area_by_vertices(v2, v4, v1)
-      a2 = triangle_area_by_vertices(f2, v2, v1) * rotation(f2, v2, v1, normal) + &
-        triangle_area_by_vertices(f2, v1, f1) * rotation(f2, v1, f1, normal) + &
-        triangle_area_by_vertices(f3, f4, v4) * rotation(f3, f4, v4, normal) + &
-        triangle_area_by_vertices(f3, v4, v3) * rotation(f3, v4, v3, normal)
+      !create subroutine for the following 4 lines
+      call line_intersection_3d(v1, f4-f1, f3, f4-f3, c, t, ierr)
+      call rearange_point(v1, f4-f1, c, p1l)
+      call line_intersection_3d(v1, f2-f1, f2, f3-f2, c, t, ierr)
+      call rearange_point(v1, f2-f1, c, p1b)
 
-      a3 = triangle_area_by_vertices(f2, f3, v3) + triangle_area_by_vertices(f2, v3, v2) + &
-        triangle_area_by_vertices(v1, f4, f1) + triangle_area_by_vertices(v1, v4, f4)
-      a1 = triangle_area_by_vertices(f1, f2, f3) + triangle_area_by_vertices(f1, f3, f4) - a2 - a3
+      call line_intersection_3d(v2, f3-f2, f3, f4-f3, c, t, ierr)
+      call rearange_point(v2, f3-f2, c, p2l)
+      call line_intersection_3d(v2, f1-f2, f1, f4-f1, c, t, ierr)
+      call rearange_point(v2, f1-f2, c, p2t)
+
+      call line_intersection_3d(v3, f1-f4, f2, f1-f2, c, t, ierr)
+      call rearange_point(v3, f1-f4, c, p3r)
+      call line_intersection_3d(v3, f4-f3, f4, f1-f4, c, t, ierr)
+      call rearange_point(v3, f4-f3, c, p3t)
+
+      call line_intersection_3d(v4, f1-f4, f2, f1-f2, c, t, ierr)
+      call rearange_point(v4, f1-f4, c, p4r)
+      call line_intersection_3d(v4, f3-f4, f2, f3-f2, c, t, ierr)
+      call rearange_point(v4, f3-f4, c, p4b)
+
+      print *, 'p1b', p1b, 'p1l', p1l
+      print *, 'p2t', p2t, 'p2l', p2l
+      print *, 'p3t', p3t, 'p3r', p3r
+      print *, 'p4b', p4b, 'p4r', p4r
+
+      ! rectangle area by vertices
+      a = triangle_area_by_vertices(f1, f2, f3) + triangle_area_by_vertices(f1, f3, f4)
+      a1 = &
+        triangle_area_by_vertices(v1, p1b, p1l) + triangle_area_by_vertices(f3, p1l, p1b) + &
+        triangle_area_by_vertices(v2, p2l, p2t) + triangle_area_by_vertices(f4, p2t, p2l) + &
+        triangle_area_by_vertices(v3, p3t, p3r) + triangle_area_by_vertices(f1, p3r, p3t) + &
+        triangle_area_by_vertices(v4, p4r, p4b) + triangle_area_by_vertices(f2, p4b, p4r) - &
+        3._ireals * a
+
+      a2 = &
+        triangle_area_by_vertices(v1, f2, p1b) + triangle_area_by_vertices(v1, f1, f2) + &
+        triangle_area_by_vertices(v2, p2t, f1) + triangle_area_by_vertices(p2t, f1, f2) + &
+        triangle_area_by_vertices(v3, f4, p3t) + triangle_area_by_vertices(v3, f3, f4) + &
+        triangle_area_by_vertices(v4, p4b, f3) + triangle_area_by_vertices(v4, f3, f4)
+
+      a3 = a - a1 - a2
       print *, 'areas', a1, a2, a3
-      areas = max([a3,a1,a2], zero)
+      areas = max([a1,a2,a3], zero)
       areas = areas / sum(areas)
     end subroutine
 
