@@ -50,3 +50,20 @@ void pprts_f2c_set_global_optical_properties(int Nz,int Nx,int Ny, float *albedo
 void pprts_f2c_solve(int fcomm, float edirTOA);
 void pprts_f2c_destroy(int *lfinalizepetsc);
 void pprts_f2c_get_result(int Nz,int Nx,int Ny, float *edn, float *eup, float *abso, float *edir);
+
+void pprts_f2c_opp_init(const int comm, const int solver_id, int* Ndir, int *Ndiff, void** opp, int* ierr);
+void pprts_f2c_opp_get_coeff(
+    void* opp,
+    const float tauz,
+    const float w0,
+    const float g,
+    const float aspect_zx,
+    const float phi,
+    const float theta,
+    const int imode,
+    const int lswitch_east,
+    const int lswitch_north,
+    const int Ncoeff,
+    float* coeff,
+    int* ierr);
+void pprts_f2c_opp_destroy(void* opp, int* ierr);

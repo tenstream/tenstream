@@ -13,9 +13,13 @@ if(ENABLE_RRTM)
     DESTINATION ${CMAKE_BINARY_DIR}/include/
     FILES_MATCHING PATTERN "*.h" )
 
+  add_executable( "cwrapper_opp" "opp.c" )
+  target_link_libraries( "cwrapper_opp" ${TENSTR_LIBS} )
+
   add_executable( "cwrapper_pprts" "pprts.c" )
   target_link_libraries( "cwrapper_pprts" ${TENSTR_LIBS} )
 
   add_executable( "cwrapper_pprts_rrtmg" "pprts_rrtmg.c" )
   target_link_libraries( "cwrapper_pprts_rrtmg" ${TENSTR_LIBS} )
+
 endif()
