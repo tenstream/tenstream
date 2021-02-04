@@ -203,6 +203,7 @@ contains
   subroutine destroy(OPP, ierr)
       class(t_optprop) :: OPP
       integer(mpiint), intent(out) :: ierr
+      ierr = 0
       if(allocated(OPP%LUT)) then
           call OPP%LUT%destroy(ierr); call CHKERR(ierr)
           deallocate(OPP%LUT)

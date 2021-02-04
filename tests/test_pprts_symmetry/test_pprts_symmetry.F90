@@ -10,7 +10,7 @@ module test_pprts_symmetry
   use m_pprts, only : init_pprts, set_optical_properties, &
     solve_pprts, set_angles, pprts_get_result_toZero
   use m_tenstream_options, only: read_commandline_options
-  use m_helper_functions, only: toStr, cstr, spherical_2_cartesian
+  use m_helper_functions, only: CHKERR, toStr, cstr, spherical_2_cartesian
 
   use m_optprop, only: t_optprop, t_optprop_cube, &
     & t_optprop_3_10, &
@@ -36,8 +36,9 @@ contains
   @after
   subroutine teardown(this)
     class (MpiTestMethod), intent(inout) :: this
+    integer(mpiint) :: ierr
     if(allocated(OPP)) then
-      call OPP%destroy()
+      call OPP%destroy(ierr); call CHKERR(ierr)
       deallocate(OPP)
     endif
 
@@ -134,7 +135,7 @@ contains
         @mpiassertEqual(dir2diff_rot, dir2diff, eps, 'computed two opposite directions with BMC and then applied east_west symmetry on first one')
       enddo
 
-      call OPP%destroy()
+      call OPP%destroy(ierr); call CHKERR(ierr)
 
       call PetscFinalize(ierr)
     end subroutine
@@ -191,7 +192,7 @@ contains
         @mpiassertEqual(dir2diff_rot, dir2diff, eps, 'computed two opposite directions with BMC and then applied north_south symmetry on first one')
       enddo
 
-      call OPP%destroy()
+      call OPP%destroy(ierr); call CHKERR(ierr)
 
       call PetscFinalize(ierr)
     end subroutine
@@ -263,7 +264,7 @@ contains
 
       deallocate(dir2dir)
       deallocate(dir2diff)
-      call OPP%destroy()
+      call OPP%destroy(ierr); call CHKERR(ierr)
 
       call PetscFinalize(ierr)
     end subroutine
