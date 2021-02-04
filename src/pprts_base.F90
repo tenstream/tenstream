@@ -429,7 +429,10 @@ module m_pprts_base
       call deallocate_allocatable(solver%sun%xinc        )
       call deallocate_allocatable(solver%sun%yinc        )
 
-      if(allocated(solver%OPP)) call solver%OPP%destroy()
+      if(allocated(solver%OPP)) then
+        call solver%OPP%destroy(ierr)
+        call CHKERR(ierr)
+      endif
 
       call destroy_coord(solver%C_dir         )
       call destroy_coord(solver%C_diff        )

@@ -75,7 +75,7 @@ contains
       class (MpiTestMethod), intent(inout) :: this
       integer(mpiint) :: ierr
       call OPPLUT%destroy(ierr); call CHKERR(ierr)
-      call OPP%destroy()
+      call OPP%destroy(ierr); call CHKERR(ierr)
       call PetscFinalize(ierr)
   end subroutine teardown
 

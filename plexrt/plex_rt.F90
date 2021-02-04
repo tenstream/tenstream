@@ -271,7 +271,8 @@ module m_plex_rt
         endif
 
         if(allocated(solver%OPP)) then
-          call solver%OPP%destroy()
+          call solver%OPP%destroy(ierr)
+          call CHKERR(ierr)
           deallocate(solver%OPP)
         endif
 

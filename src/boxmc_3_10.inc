@@ -34,6 +34,7 @@
 ! 3 -> side face between (A,B)/(C,D)
 
 ! Distribution Code for diffuse streams/targets:
+! Src numbering
 !         _______2_______
 !        |            9  |
 !      6 |            7  | 5
@@ -43,13 +44,24 @@
 !      4 |_______________| 3
 !                1
 !
-! Face numbering is
+! i.e. numbering is
 ! 2 -> top
 ! 1 -> bottom face
 ! 3,4 -> side faces in x-plane downwards
 ! 5,6 -> side faces in x-plane upwards
 ! 7,8 -> side faces in y-plane downwards
 ! 9,10-> side faces in y-plane upwards
+!
+! Dst numbering
+!         _______1_______
+!        |           10  |
+!      5 |            8  | 6
+!        |               |
+!        |   9           |
+!        |   7           |
+!      3 |_______________| 4
+!                2
+!
 
 subroutine init_dir_photon_3_10(bmc, p, src, ldirect, initial_dir, vertices, ierr)
   class(t_boxmc_3_10)               :: bmc
@@ -284,6 +296,7 @@ subroutine update_diff_stream_3_10(bmc,vertices,p,S)
   type(t_photon),intent(in)    :: p
   real(irealbmc),intent(inout) :: S(:)
 
+  ! dst numbering
   !         _______1_______
   !        |           10  |
   !      5 |            8  | 6

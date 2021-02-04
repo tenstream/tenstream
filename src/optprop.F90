@@ -200,9 +200,10 @@ contains
       endif
 
   end subroutine
-  subroutine destroy(OPP)
+  subroutine destroy(OPP, ierr)
       class(t_optprop) :: OPP
-      integer(mpiint) :: ierr
+      integer(mpiint), intent(out) :: ierr
+      ierr = 0
       if(allocated(OPP%LUT)) then
           call OPP%LUT%destroy(ierr); call CHKERR(ierr)
           deallocate(OPP%LUT)
@@ -514,7 +515,7 @@ contains
     logical,intent(in)                :: dir
     real(irealLUT),intent(in)           :: tauz, w0, g, aspect_zx
     real(irealLUT),intent(in),optional  :: angles(:)
-    logical,intent(in)                  :: lswitch_east, lswitch_north
+    logical,intent(in),optional         :: lswitch_east, lswitch_north
     real(irealLUT),intent(out)          :: C(:)
     integer(mpiint), intent(out) :: ierr
     real(ireals), intent(in), optional :: opt_vertices(:)

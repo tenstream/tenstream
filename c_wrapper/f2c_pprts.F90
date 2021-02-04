@@ -23,17 +23,41 @@ module m_f2c_pprts
 
       use iso_c_binding
 
-      use m_data_parameters, only : init_mpi_data_parameters, &
-        iintegers, ireals, mpiint, default_str_len, &
-        i0, i1, zero, one
+      use m_data_parameters, only : &
+        & init_mpi_data_parameters, &
+        & iintegers, &
+        & mpiint, &
+        & ireals, &
+        & irealLUT, &
+        & default_str_len, &
+        & i0, i1, &
+        & zero, one
 
       use m_tenstream_options, only: read_commandline_options
 
-      use m_helper_functions, only: imp_bcast, meanval, CHKERR, &
-        resize_arr, spherical_2_cartesian, itoa
+      use m_helper_functions, only: &
+        & CHKERR, &
+        & imp_bcast, &
+        & meanval, &
+        & resize_arr, &
+        & spherical_2_cartesian, &
+        & toStr
 
-      use m_pprts_base, only : t_solver, t_solver_3_10, t_solver_3_6, t_solver_1_2, t_coord, &
-        t_solver_8_10, t_solver_3_16, t_solver_8_16, t_solver_8_18, destroy_pprts
+      use m_pprts_base, only : &
+        & destroy_pprts, &
+        & t_coord, &
+        & t_solver, &
+        & t_solver_1_2, &
+        & t_solver_3_10, &
+        & t_solver_3_16, &
+        & t_solver_3_6, &
+        & t_solver_8_10, &
+        & t_solver_8_16, &
+        & t_solver_8_18
+
+      use m_optprop, only: &
+        & t_optprop, &
+        & t_optprop_3_10
 
       use m_pprts, only : init_pprts, set_global_optical_properties, solve_pprts, &
         pprts_get_result_toZero
@@ -56,8 +80,15 @@ module m_f2c_pprts
       implicit none
 
       private
-      public :: pprts_f2c_init, pprts_f2c_set_global_optical_properties, &
-        pprts_f2c_solve, pprts_f2c_get_result, pprts_f2c_destroy
+      public :: &
+        & pprts_f2c_destroy, &
+        & pprts_f2c_get_result, &
+        & pprts_f2c_init, &
+        & pprts_f2c_set_global_optical_properties, &
+        & pprts_f2c_solve, &
+        & pprts_f2c_OPP_init, &
+        & pprts_f2c_OPP_get_coeff, &
+        & pprts_f2c_OPP_destroy
 
       class(t_solver), allocatable :: pprts_solver
       class(t_plex_solver), allocatable :: plex_solver
@@ -66,6 +97,12 @@ module m_f2c_pprts
       real(ireals) :: sundir(3)
 
       logical, parameter :: ldebug=.False.
+
+      type f2c_OPP_container
+        ! need hardcoded types here because C interface cannot have polymorphic types.
+        ! i.e. at compile time it has to know which type it is
+        type(t_optprop_3_10), allocatable :: OPP_3_10
+      end type
 
 #include "f2c_solver_ids.h"
 
@@ -203,7 +240,7 @@ contains
     case(SOLVER_ID_PLEXRT_RECTILINEAR_5_8); ierr=0
       call plexrt_f2c_init(comm, osolver_id, oNx, oNy, oNz+1, odx, ohhl, ophi0, otheta0)
     end select
-    call CHKERR(ierr, 'Could not find a suitable solver to allocate for solver_id: '//itoa(solver_id))
+    call CHKERR(ierr, 'Could not find a suitable solver to allocate for solver_id: '//toStr(solver_id))
 
     initialized=.True.
   end subroutine
@@ -358,7 +395,7 @@ contains
         if(myid.eq.0) then
           call VecGetArrayF90(r0var, xv,ierr); call CHKERR(ierr)
           call CHKERR(int(size(xv)/2-size(var0), mpiint), 'Global array sizes do not match, expected input size ('// &
-            itoa(shape(var0))//') to be half the size of the plexrt mesh result: ('//itoa(shape(xv))//')')
+            toStr(shape(var0))//') to be half the size of the plexrt mesh result: ('//toStr(shape(xv))//')')
           xxv(1:size(var,dim=1), 1:2*Nx, 1:Ny) => xv
           var0 = real( xxv(:, 1:size(xxv,2):2, :) + xxv(:, 2:size(xxv,2):2, :), c_float) / 2
           nullify(xxv)
@@ -430,7 +467,7 @@ contains
     case(SOLVER_ID_PLEXRT_RECTILINEAR_5_8)
       call allocate_plexrt_solver_from_commandline(plex_solver, 'rectilinear_5_8')
     case default
-      call CHKERR(1_mpiint, 'unknown solver id::'//itoa(solver_id))
+      call CHKERR(1_mpiint, 'unknown solver id::'//toStr(solver_id))
     end select
 
     call init_plex_rt_solver(plex, plex_solver)
@@ -497,6 +534,108 @@ contains
         col_arr, parCellSection, solvervec)
       call PetscSectionDestroy(parCellSection, ierr); call CHKERR(ierr)
     end subroutine
+  end subroutine
+
+
+  ! --------------------- OPP Routines -------------------------------
+  subroutine pprts_f2c_OPP_init(comm, solver_id, Ndir, Ndiff, opp_ptr, ierr) bind(c)
+    integer(c_int), value :: comm
+    integer(c_int), value, intent(in) :: solver_id
+    integer(c_int), intent(out) :: Ndir, Ndiff
+    type(c_ptr), intent(out) :: opp_ptr
+    integer(c_int), intent(out) :: ierr
+
+    type(f2c_OPP_container), pointer :: OPP_container
+
+    ierr = 0
+
+    call init_mpi_data_parameters(comm)
+    call read_commandline_options(comm)
+
+    allocate(OPP_container)
+
+    select case(solver_id)
+    case (SOLVER_ID_PPRTS_3_10)
+      allocate(OPP_container%OPP_3_10)
+      call OPP_container%OPP_3_10%init(comm)
+      Ndir  = OPP_container%OPP_3_10%LUT%dir_streams
+      Ndiff = OPP_container%OPP_3_10%LUT%diff_streams
+    case default
+      print *,'pprts_f2c_init_OPP not implemented for solver_id', solver_id
+      ierr = 1
+      call CHKERR(ierr)
+    end select
+
+    opp_ptr = c_loc(OPP_container)
+  end subroutine
+
+  subroutine pprts_f2c_OPP_destroy(opp_ptr, ierr) bind(c)
+    type(c_ptr), value, intent(in) :: opp_ptr
+    integer(c_int), intent(out) :: ierr
+
+    type(f2c_OPP_container), pointer :: OPP_container
+
+    call c_f_pointer(opp_ptr, OPP_container)
+    call OPP_container%OPP_3_10%destroy(ierr)
+  end subroutine
+
+  subroutine pprts_f2c_OPP_get_coeff(&
+      & opp_ptr, &
+      & tauz, &
+      & w0, &
+      & g, &
+      & aspect_zx, &
+      & phi, &
+      & theta, &
+      & imode, &
+      & lswitch_east, &
+      & lswitch_north, &
+      & Ncoeff, &
+      & coeff, &
+      & ierr) bind(c)
+
+    type(c_ptr), value, intent(in) :: opp_ptr
+    real(c_float), value, intent(in) :: tauz, w0, g, aspect_zx, phi, theta
+    integer(c_int), value, intent(in) :: imode, lswitch_east, lswitch_north, Ncoeff
+    real(c_float), intent(out) :: coeff(Ncoeff)
+    integer(c_int), intent(out) :: ierr
+
+    type(f2c_OPP_container), pointer :: OPP_container
+
+    !real(irealLUT), pointer :: coeff(:)
+
+    if(irealLUT.ne.c_float) &
+      & call CHKERR(1_mpiint, 'irealLUT not the same kind as c_float... would need a copy here.. not yet implemented though')
+
+    call c_f_pointer(opp_ptr, OPP_container)
+
+    select case(imode)
+    case(1)
+      call OPP_container%OPP_3_10%get_coeff(&
+        & tauz, w0, g, aspect_zx, &
+        & .True., coeff, ierr, &
+        & [phi,theta], &
+        & lswitch_east.ne.0, &
+        & lswitch_north.ne.0)
+      call CHKERR(ierr)
+
+    case(2)
+      call OPP_container%OPP_3_10%get_coeff(&
+        & tauz, w0, g, aspect_zx, &
+        & .False., coeff, ierr, &
+        & [phi,theta], &
+        & lswitch_east.ne.0, &
+        & lswitch_north.ne.0)
+      call CHKERR(ierr)
+    case(3)
+      call OPP_container%OPP_3_10%get_coeff(&
+        & tauz, w0, g, aspect_zx, &
+        & .False., coeff, ierr)
+      call CHKERR(ierr)
+    case default
+      ierr = 1
+      call CHKERR(ierr, "imode option "//toStr(imode)//" not recognized")
+    end select
   end subroutine
 
 end module
