@@ -1482,10 +1482,15 @@ contains
       print *, 'v2', v2
       print *, 'v3', v3
       print *, 'v4', v4
-      call line_intersection_3d(f2, v2-f2, f3, f4-f3, c2, t, ierr)
-      call line_intersection_3d(f2, v2-f2, f4, f1-f4, k2, t, ierr)
-      call line_intersection_3d(f3, v3-f3, f2, f1-f2, c3, t, ierr)
-      call line_intersection_3d(f3, v3-f3, f4, f1-f4, k3, t, ierr)
+      !call line_intersection_3d(f2, v2-f2, f3, f4-f3, c2, t, ierr)
+      !call line_intersection_3d(f2, v2-f2, f4, f1-f4, k2, t, ierr)
+      !call line_intersection_3d(f3, v3-f3, f2, f1-f2, c3, t, ierr)
+      !call line_intersection_3d(f3, v3-f3, f4, f1-f4, k3, t, ierr)
+      call line_intersection_3d(v2, f2-v2, f3, f4-f3, c2, t, ierr)
+      call line_intersection_3d(v2, f2-v2, f4, f1-f4, k2, t, ierr)
+      print *, 'v2 coeffs', c2, k2
+      call line_intersection_3d(v3, f3-v3, f2, f1-f2, c3, t, ierr)
+      call line_intersection_3d(v3, f3-v3, f4, f1-f4, k3, t, ierr)
 
      ! call line_intersection_3d(f1, v1-f1, f3, f4-f3, c1, t, ierr)
      ! call line_intersection_3d(f1, v1-f1, f2, f3-f2, k1, t, ierr)
@@ -1497,13 +1502,15 @@ contains
       call line_intersection_3d(v4, f4-v4, f2, f1-f2, c4, t, ierr)
       call line_intersection_3d(v4, f4-v4, f2, f3-f2, k4, t, ierr)
 
-      call rearange_point(f2, v2-f2, max(min(c2, k2, one), zero), v2)
-      call rearange_point(f3, v3-f3, max(min(c3, k3, one), zero), v3)
+      !call rearange_point(f2, v2-f2, max(min(c2, k2, one), zero), v2)
+      !call rearange_point(f3, v3-f3, max(min(c3, k3, one), zero), v3)
+      call rearange_point(v2, f2-v2, min(max(c2, k2, zero), one), v2)
+      call rearange_point(v3, f3-v3, min(max(c3, k3, zero), one), v3)
       print *, 'v1 coeffs', c1, k1
-      call rearange_point(v1, f1-v1, min(max(c1, k1), one), v1)
+      call rearange_point(v1, f1-v1, min(max(c1, k1, zero), one), v1)
       !call rearange_point(f1, v1-f1, max(min(c1, k1, one), zero), v1)
       !call rearange_point(f4, v4-f4, max(min(c4, k4, one), zero), v4)
-      call rearange_point(v4, f4-v4, min(max(c4, k4), one), v4)
+      call rearange_point(v4, f4-v4, min(max(c4, k4, zero), one), v4)
       print *, 'v1', v1
       print *, 'v2', v2
       print *, 'v3', v3
@@ -1524,7 +1531,7 @@ contains
 
       normal = compute_normal_3d(f1, f2, f3)
       ! rectangle area by vertices
-      a1 = triangle_area_by_vertices(v2, v3, v4) + triangle_area_by_vertices(v2, v4, v1)
+      !a1 = triangle_area_by_vertices(v2, v3, v4) + triangle_area_by_vertices(v2, v4, v1)
       a2 = triangle_area_by_vertices(f2, v2, v1) * rotation(f2, v2, v1, normal) + &
         triangle_area_by_vertices(f2, v1, f1) * rotation(f2, v1, f1, normal) + &
         triangle_area_by_vertices(f3, f4, v4) * rotation(f3, f4, v4, normal) + &
@@ -1532,7 +1539,8 @@ contains
 
       a3 = triangle_area_by_vertices(f2, f3, v3) + triangle_area_by_vertices(f2, v3, v2) + &
         triangle_area_by_vertices(v1, f4, f1) + triangle_area_by_vertices(v1, v4, f4)
-
+      a1 = triangle_area_by_vertices(f1, f2, f3) + triangle_area_by_vertices(f1, f3, f4) - a2 - a3
+      print *, 'areas', a1, a2, a3
       areas = max([a3,a1,a2], zero)
       areas = areas / sum(areas)
     end subroutine
@@ -1551,8 +1559,8 @@ contains
         denominator = d_mnop(p2,p1,p2,p1) * d_mnop(p4,p3,p4,p3) - d_mnop(p4,p3,p2,p1) * d_mnop(p4,p3,p2,p1)
         if ( abs(denominator) < epsilon(denominator)) then
           ierr = 1 ! lines are parallel or coincident
-          s1 = huge(s1)
-          s2 = huge(s2)
+          s1 = -huge(s1)
+          s2 = -huge(s2)
         else
           s1 = ( d_mnop(p1,p3,p4,p3) * d_mnop(p4,p3,p2,p1) - d_mnop(p1,p3,p2,p1) * d_mnop(p4,p3,p4,p3) ) / denominator
           s2 = ( d_mnop(p1,p3,p4,p3) + s1 * d_mnop(p4,p3,p2,p1) ) / d_mnop(p4,p3,p4,p3)
