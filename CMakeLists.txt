@@ -382,7 +382,7 @@ if(CTAGS_PATH)
     add_custom_target(tags ALL
       COMMAND ctags -R
       ${CMAKE_CURRENT_BINARY_DIR}/external
-      ${CMAKE_CURRENT_SOURCE_DIR}/C_wrapper
+      ${CMAKE_CURRENT_SOURCE_DIR}/c_wrapper
       ${CMAKE_CURRENT_SOURCE_DIR}/disort
       ${CMAKE_CURRENT_SOURCE_DIR}/examples
       ${CMAKE_CURRENT_SOURCE_DIR}/plexrt
@@ -407,7 +407,7 @@ endif(ENABLE_PYTHON)
 
 option(ENABLE_C_WRAPPER "Enable creation of C Wrapper " ON)
 if(ENABLE_C_WRAPPER)
-	add_subdirectory(C_wrapper)
+	add_subdirectory(c_wrapper)
 endif(ENABLE_C_WRAPPER)
 
 GET_DIRECTORY_PROPERTY(output INCLUDE_DIRECTORIES)
