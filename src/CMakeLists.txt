@@ -6,9 +6,9 @@ include_directories(${INCLUDE_DIRS})
 
 string(COMPARE EQUAL ${CMAKE_Fortran_COMPILER_ID} "Intel" _is_Intel)
 if(${_is_Intel})
-  SET_SOURCE_FILES_PROPERTIES(ranlux.for PROPERTIES COMPILE_FLAGS -nowarn)
+  SET_SOURCE_FILES_PROPERTIES(ranlux.F90 PROPERTIES COMPILE_FLAGS -nowarn)
 else()
-  SET_SOURCE_FILES_PROPERTIES(ranlux.for PROPERTIES COMPILE_FLAGS -Wno-error)
+  SET_SOURCE_FILES_PROPERTIES(ranlux.F90 PROPERTIES COMPILE_FLAGS -Wno-error)
 endif(${_is_Intel})
 SET_SOURCE_FILES_PROPERTIES(c_syscall_constants.c PROPERTIES COMPILE_FLAGS "-D_BSD_SOURCE")
 
@@ -47,23 +47,23 @@ endforeach ()
 
 set( general_sources
   ${preprocessed_files}
-  "helper_functions_dp.F90"
-  "c_syscall_wrappers.F90"
+  "adaptive_spectral_integration.F90"
+  "buildings.F90"
   "c_syscall_constants.c"
+  "c_syscall_wrappers.F90"
   "data_parameters.F90"
   "eddington.F90"
   "interpolation.F90"
-  "ranlux.for" "kiss.F90"
   "mcrts_dmda.F90"
-  "twostream.F90"
-  "schwarzschild.F90"
-  "tenstream_options.F90"
-  "petsc_helpers.F90"
-  "nca.F90"
   "mmap.F90"
+  "nca.F90"
+  "petsc_helpers.F90"
   "pprts_base.F90"
-  "adaptive_spectral_integration.F90"
+  "ranlux.F90"
+  "schwarzschild.F90"
   "search.F90"
+  "tenstream_options.F90"
+  "twostream.F90"
   )
 
 set( optprop_sources
@@ -73,20 +73,40 @@ set( optprop_sources
   "LUT_param_phi.F90"
   "optprop_LUT.F90"
   "optprop_ANN.F90"
+  "optprop_base.F90"
   "optprop.F90"
   )
 
+set( solver_sources
+  "pprts.F90"
+  "pprts_external_solvers.F90"
+  )
+
+if(BUILD_FORNADO)
+  SET_SOURCE_FILES_PROPERTIES(optprop_ANN.F90
+    PROPERTIES COMPILE_DEFINITIONS HAVE_FORNADO)
+endif()
+
+include(CheckSymbolExists)
+check_symbol_exists(OMPI_MPI_H "mpi.h" HAVE_OMPI)
+if(HAVE_OMPI)
+  SET_SOURCE_FILES_PROPERTIES(petsc_helpers.F90
+    PROPERTIES COMPILE_DEFINITIONS HAVE_OMPI)
+endif()
 
 # pprts_base libs
 add_library( pprts_base_objs OBJECT ${general_sources} ${optprop_sources} )
+if(BUILD_FORNADO)
+  add_dependencies(pprts_base_objs ${FORNADO_LIBS})
+endif()
 add_library( pprts_base             $<TARGET_OBJECTS:pprts_base_objs> )
-target_link_libraries( pprts_base   ${EXTLIB})
+target_link_libraries( pprts_base ${FORNADO_LIBS} ${EXTLIB})
 
 # pprts libs
-add_library( pprts_objs OBJECT "pprts.F90")
-add_dependencies( pprts_objs pprts_base_objs )
+add_library( pprts_objs OBJECT ${solver_sources} )
+add_dependencies( pprts_objs pprts_base plexrt )
 add_library( pprts        $<TARGET_OBJECTS:pprts_objs> )
-target_link_libraries( pprts     pprts_base        ${EXTLIB})
+target_link_libraries( pprts    pprts_base plexrt   ${EXTLIB})
 
 # CreateLUT binaries
 file( GLOB streams createLUT*.[fF]90 )

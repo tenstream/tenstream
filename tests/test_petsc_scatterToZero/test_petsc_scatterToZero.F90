@@ -3,8 +3,8 @@ module test_petsc_scatterToZero
 #include "petsc/finclude/petsc.h"
   use petsc
   use m_data_parameters, only : iintegers, ireals, mpiint, zero, one
-  use m_pprts_base, only : t_solver_3_10
-  use m_pprts, only : init_pprts, destroy_pprts
+  use m_pprts_base, only : t_solver_3_10, destroy_pprts
+  use m_pprts, only : init_pprts
   use m_petsc_helpers, only : petscVecToF90, petscGlobalVecToZero, f90VecToPetsc
   use m_helper_functions, only : CHKERR
 
@@ -42,7 +42,7 @@ contains
 
     integer(iintegers),parameter :: nxp=9,nyp=9,nv=2
     real(ireals),parameter :: dx=100,dy=dx
-    real(ireals),parameter :: phi0=0, theta0=60
+    real(ireals),parameter :: sundir(3) = 0
     real(ireals),parameter :: dz=dx
     real(ireals) :: dz1d(nv)
 
@@ -58,7 +58,7 @@ contains
     numnodes = this%getNumProcesses()
     myid     = this%getProcessRank()
 
-    call init_pprts(comm, nv, nxp, nyp, dx,dy, phi0, theta0, solver, dz1d)
+    call init_pprts(comm, nv, nxp, nyp, dx,dy, sundir, solver, dz1d)
 
     associate(C=>solver%C_one)
     allocate(local_arr(C%dof, C%zm, C%xm, C%ym))
@@ -95,7 +95,7 @@ contains
 
     ! Put data from petsc vec into fortran array
     if(myid.eq.0) then
-      call petscVecToF90(lvec, C%da, global_arr_on_rank0, opt_l_only_on_rank0=.True.)
+      call petscVecToF90(lvec, C%da, global_arr_on_rank0, only_on_rank0=.True.)
       do j=1,ubound(global_arr_on_rank0,4)
         do i=1,ubound(global_arr_on_rank0,3)
           do k=1,ubound(global_arr_on_rank0,2)

@@ -68,7 +68,7 @@ implicit none
         hhl(k) = hhl(k-1) - dz
       enddo
 
-      call dmplex_2D_to_3D(dm2d, Nz, hhl, dm3d, zindex, lpolar_coords=.False.)
+      call dmplex_2D_to_3D(dm2d, Nz, hhl, [zero, zero, -huge(one)], dm3d, zindex)
 
       call setup_plexgrid(dm2d, dm3d, Nz-1, zindex, plex, hhl)
       deallocate(zindex)
@@ -76,7 +76,8 @@ implicit none
       call allocate_plexrt_solver_from_commandline(solver, '5_8')
       call init_plex_rt_solver(plex, solver)
 
-      call prepare_solution(solver%plex%edir_dm, solver%plex%ediff_dm, solver%plex%abso_dm, lsolar=.True., solution=solution)
+      call prepare_solution(solver%plex%edir_dm, solver%plex%ediff_dm, solver%plex%abso_dm, &
+        & lsolar=.True., lthermal=.False., solution=solution)
 
       print *,'Testing Scalevec Direct'
       call init_and_scalevecs(solution, one, solution%edir, solution%lWm2_dir)

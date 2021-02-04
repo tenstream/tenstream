@@ -10,7 +10,7 @@ def load_srtm_wetterstein():
     D = NC.Dataset('means_wetterstein.cdf')
     elev = D['elevation'][255:511, 255:511]
     D.close()
-    return elev.T[:, ::-1]
+    return elev.T
 
 def create_var(varname, var, dim_prefix):
     """ Write regridded data to netcdf file """
@@ -41,6 +41,7 @@ def create_var(varname, var, dim_prefix):
 
     data = D.createVariable(varname, 'd', (dim_prefix+'Ny', dim_prefix+'Nx', dim_prefix+'Nz'))
     data[:] = np.swapaxes(var, 0, 1)
+    data[:,:,:] = data[:,:,::-1]
 
     D.close()
 
@@ -68,8 +69,13 @@ def create_srtm_input():
 
     # wetterstein = load_srtm_wetterstein(xmin=3000, xmax=3200, ymin=1100, ymax=1300)
     wetterstein = load_srtm_wetterstein()
-    # wetterstein = gf(wetterstein,2, mode='wrap')
-    wetterstein = wetterstein[:, ::-1]
+
+    # make sure that height values around the border are cyclic
+    wetterstein[:,0] = wetterstein[:,-1] = wetterstein[:,[0,-1]].mean(axis=1)
+    wetterstein[0,:] = wetterstein[-1,:] = wetterstein[[0,-1],:].mean(axis=0)
+
+    # smooth topography
+    wetterstein = gf(wetterstein, 1.5, mode='wrap')
 
     Nx, Ny = np.shape(wetterstein)
 
@@ -81,7 +87,7 @@ def create_srtm_input():
 
     pressure_by_height = interp1d(z, p, kind='linear')
 
-    hhl = np.tile(z, Nx*Ny).reshape((Nx, Ny, Nz))[:, :, ::-1]  # hhl now begins at surface 
+    hhl = np.tile(z, Nx*Ny).reshape((Nx, Ny, Nz))[:, :, ::-1]  # hhl now begins at surface
     hill = hhl.copy()
 
     # Create surface following sigma coordinates with coordinate stretching in the vertical
@@ -92,19 +98,22 @@ def create_srtm_input():
     hill = hill[:, :, ::-1]  # hhl now begins at TOA
     p_hill = pressure_by_height(hill)
 
-    lev_coord = p_hill
+    kmax = np.argmax(p_hill > 100) # drop everything above 100hPa
+    lev_coord = p_hill[:,:,kmax:]
 
     create_var('plev', interp_var(p, afglus[:, 1], lev_coord), 'lev')
+    create_var('tlev', interp_var(p, afglus[:, 2], lev_coord), 'lev')
 
-    lay_coord = (lev_coord[:, :, 1:] + lev_coord[:, :, :-1]) / 2
+    if False:
+        lay_coord = (lev_coord[:, :, 1:] + lev_coord[:, :, :-1]) / 2
 
-    create_var('tlay',   interp_var(p, afglus[:, 2], lay_coord), 'lay')
-    create_var('air',    interp_var(p, afglus[:, 3], lay_coord), 'lay')
-    create_var('o3vmr',  interp_var(p, afglus[:, 4], lay_coord), 'lay')
-    create_var('o2vmr',  interp_var(p, afglus[:, 5], lay_coord), 'lay')
-    create_var('h2ovmr', interp_var(p, afglus[:, 6], lay_coord), 'lay')
-    create_var('co2vmr', interp_var(p, afglus[:, 7], lay_coord), 'lay')
-    create_var('n2ovmr', interp_var(p, afglus[:, 8], lay_coord), 'lay')
+        create_var('tlay',   interp_var(p, afglus[:, 2], lay_coord), 'lay')
+        create_var('air',    interp_var(p, afglus[:, 3], lay_coord), 'lay')
+        create_var('o3vmr',  interp_var(p, afglus[:, 4], lay_coord), 'lay')
+        create_var('o2vmr',  interp_var(p, afglus[:, 5], lay_coord), 'lay')
+        create_var('h2ovmr', interp_var(p, afglus[:, 6], lay_coord), 'lay')
+        create_var('co2vmr', interp_var(p, afglus[:, 7], lay_coord), 'lay')
+        create_var('n2ovmr', interp_var(p, afglus[:, 8], lay_coord), 'lay')
 
 
 if __name__ == '__main__':

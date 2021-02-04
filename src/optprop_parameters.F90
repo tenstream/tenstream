@@ -38,16 +38,6 @@ module m_optprop_parameters
 
       character(default_str_len) :: lut_basename='./LUT'
 
-      !-----------------------------------------
-      !> Define the mode to calculate coeffs   -
-      !!-----------------------------------------
-      !! 0 :: retrieve directly from Lookuptable
-      !! 1 :: retrieve from ANN (experimental) ::
-      !!        this assumes you actually have a
-      !!        ANN that can be queried....
-      !!
-      integer(iintegers) :: coeff_mode = 0
-
       logical, parameter :: luse_memory_map=.True.
 
       !-----------------------------------------
@@ -167,7 +157,7 @@ module m_optprop_parameters
 
       real(irealLUT), parameter :: preset_g2(2) = [0.0, 0.5]
       real(irealLUT), parameter :: preset_g3(3) = [0.0, 0.2670, 0.5]
-      real(irealLUT), parameter :: preset_g4(4) = [0.0, 0.1936, 0.4258, 0.65]
+      real(irealLUT), parameter :: preset_g4(4) = [0.0, 0.4, 0.65, 0.85]
       real(irealLUT), parameter :: preset_g6(6) = [0.0, 0.2424, 0.4137, 0.5717, 0.7144, 0.85]
 
       !-----------------------------------------
@@ -178,11 +168,11 @@ module m_optprop_parameters
 
 !      real(irealLUT),parameter :: stddev_atol=1e-2_irealLUT
 !      real(irealLUT),parameter :: stddev_atol=5e-3_irealLUT
-      real(irealLUT) :: stddev_atol=1e-3_irealLUT
+      real(irealLUT) :: stddev_atol=1e-4_irealLUT
 !      real(irealLUT),parameter :: stddev_atol=2e-4_irealLUT
 !      real(irealLUT),parameter :: stddev_atol=5e-6_irealLUT
 
-      real(irealLUT) :: stddev_rtol=2e-1_irealLUT
+      real(irealLUT) :: stddev_rtol=5e-2_irealLUT
 !      real(irealLUT),parameter :: stddev_rtol=1e-3_irealLUT
 
       ! Do some sanity checks on coefficients -- only disable if you are sure
@@ -190,9 +180,6 @@ module m_optprop_parameters
       ! logical,parameter :: ldebug_optprop=.False.
       logical,parameter :: ldebug_optprop=.True.
 
-      ! Use delta scaling on optical properties? -- this significantly reduces
-      ! the size of the lookuptables.
-      logical,parameter :: ldelta_scale=.True.
 
       ! Treat direct2diffuse radiation in a cone around solar angle as direct
       ! radiation.
@@ -205,6 +192,6 @@ module m_optprop_parameters
       ! this is tuned towards earth radius and average dx = 1000m sized elements
       real(irealLUT), parameter :: wedge_sphere_radius = 6371e3_irealLUT / 1000._irealLUT
 
-      real(irealLUT), parameter :: LUT_dump_interval=3600 ! dump the LUT every 60 minutes
-      real(irealLUT), parameter :: LUT_max_create_jobtime=3600*3 ! after 3hrs, cancel the createLUT jobs in any case
+      real(irealLUT), parameter :: LUT_dump_interval=3600*3 ! dump the LUT every 60 minutes
+      real(irealLUT), parameter :: LUT_max_create_jobtime=3600*10 ! after 3hrs, cancel the createLUT jobs in any case
 end module

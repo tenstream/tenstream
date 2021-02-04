@@ -5,7 +5,7 @@ use petsc
 use m_tenstream_options, only : read_commandline_options
 use m_data_parameters, only: init_mpi_data_parameters, &
   iintegers, ireals, mpiint, default_str_len, &
-  i0, pi
+  i0, zero, pi
 use m_helper_functions, only: triangle_area_by_edgelengths, chkerr, itoa, &
   approx, meanval, imp_allreduce_mean
 
@@ -187,7 +187,7 @@ contains
     hhl(k) = hhl(k-1) - dz
     enddo
 
-    call dmplex_2D_to_3D(dm2d, Nz, hhl, dm3d, zindex, lpolar_coords=.False.)
+    call dmplex_2D_to_3D(dm2d, Nz, hhl, [zero, zero, -huge(zero)], dm3d, zindex)
     call dump_ownership(dm3d, '-dump_ownership', '-show_plex')
 
     call setup_plexgrid(dm2d, dm3d, Nz-1, zindex, plex, hhl)

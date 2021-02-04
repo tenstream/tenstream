@@ -18,20 +18,23 @@
 !-------------------------------------------------------------------------
 
 module m_optprop
+#include "petsc/finclude/petsc.h"
+  use petsc
 
 #ifdef _XLF
       use ieee_arithmetic
 #define isnan ieee_is_nan
 #endif
 
-use m_optprop_parameters, only : ldebug_optprop, coeff_mode, wedge_sphere_radius, param_eps
-use m_helper_functions, only : rmse, CHKERR, CHKWARN, itoa, ftoa, approx, deg2rad, rad2deg, swap, is_between, char_arr_to_str
+use m_optprop_parameters, only : ldebug_optprop, wedge_sphere_radius, param_eps
+use m_helper_functions, only : rmse, CHKERR, CHKWARN, toStr, cstr, approx, deg2rad, rad2deg, swap, is_between, char_arr_to_str
 use m_data_parameters, only: ireals,ireal_dp,irealLUT,ireal_params,iintegers,one,zero,i0,i1,inil,mpiint
+use m_optprop_base, only: t_optprop_base, t_op_config, find_op_dim_by_name
 use m_optprop_LUT, only : t_optprop_LUT, t_optprop_LUT_1_2,t_optprop_LUT_3_6, t_optprop_LUT_3_10, &
   t_optprop_LUT_8_10, t_optprop_LUT_3_16, t_optprop_LUT_8_16, t_optprop_LUT_8_18, &
-  t_optprop_LUT_wedge_5_8, t_optprop_LUT_rectilinear_wedge_5_8, t_optprop_LUT_wedge_18_8, &
-  find_lut_dim_by_name, t_lut_config
-use m_optprop_ANN, only : ANN_init, ANN_get_dir2dir, ANN_get_dir2diff, ANN_get_diff2diff
+  t_optprop_LUT_wedge_5_8, t_optprop_LUT_rectilinear_wedge_5_8, t_optprop_LUT_wedge_18_8
+
+use m_optprop_ANN, only : t_optprop_ANN, t_optprop_ANN_3_10
 use m_boxmc_geometry, only : setup_default_unit_cube_geometry, setup_default_wedge_geometry
 use m_eddington, only: eddington_coeff_zdun
 use m_tenstream_options, only: twostr_ratio
@@ -43,15 +46,29 @@ use mpi!, only: MPI_Comm_rank,MPI_DOUBLE_PRECISION,MPI_INTEGER,MPI_Bcast
 implicit none
 
 private
-public :: t_optprop, t_optprop_cube, t_optprop_wedge, &
-  t_optprop_1_2, t_optprop_3_6, t_optprop_3_10, &
-  t_optprop_wedge_5_8, t_optprop_rectilinear_wedge_5_8, t_optprop_wedge_18_8, &
-  t_optprop_8_10, t_optprop_3_16, t_optprop_8_16, t_optprop_8_18, &
-  OPP_1D_RETCODE, OPP_TINYASPECT_RETCODE
+public ::                          &
+  t_optprop,                       &
+  t_optprop_cube,                  &
+  t_optprop_wedge,                 &
+  t_optprop_1_2,                   &
+  t_optprop_3_6,                   &
+  t_optprop_3_10,                  &
+  t_optprop_3_10_ann,              &
+  t_optprop_8_10,                  &
+  t_optprop_3_16,                  &
+  t_optprop_8_16,                  &
+  t_optprop_8_18,                  &
+  t_optprop_wedge_5_8,             &
+  t_optprop_rectilinear_wedge_5_8, &
+  t_optprop_wedge_18_8,            &
+  OPP_1D_RETCODE,                  &
+  OPP_TINYASPECT_RETCODE
 
 type,abstract :: t_optprop
   logical :: optprop_debug=ldebug_optprop
-  class(t_optprop_LUT), allocatable :: OPP_LUT
+  class(t_optprop_LUT), allocatable :: LUT
+  class(t_optprop_ANN), allocatable :: ANN
+  class(t_optprop_base), pointer :: dev
   contains
     procedure :: init
     procedure :: get_coeff_bmc
@@ -64,6 +81,7 @@ type,abstract,extends(t_optprop) :: t_optprop_cube
     procedure :: get_coeff => get_coeff_cube
     procedure :: dir2dir_coeff_symmetry => dir2dir_coeff_symmetry_none
     procedure :: dir2diff_coeff_symmetry => dir2diff_coeff_symmetry_none
+    procedure :: diff2diff_coeff_symmetry => diff2diff_coeff_symmetry
 end type
 
 ! we introduce one special cube type for 8 direct streams, this way, all of them can share dir2dir_coeff_symmetry
@@ -83,6 +101,9 @@ end type
 type,extends(t_optprop_cube) :: t_optprop_3_10
   contains
     procedure :: dir2diff_coeff_symmetry => dir3_to_diff10_coeff_symmetry
+end type
+
+type,extends(t_optprop_cube) :: t_optprop_3_10_ann
 end type
 
 type,extends(t_optprop_cube) :: t_optprop_3_16
@@ -126,60 +147,69 @@ integer(mpiint), parameter :: OPP_TINYASPECT_RETCODE = -2_mpiint
 contains
 
   subroutine init(OPP, comm, skip_load_LUT)
-      class(t_optprop), intent(inout) :: OPP
+      class(t_optprop), target, intent(inout) :: OPP
       integer(mpiint) ,intent(in) :: comm
       logical, intent(in), optional :: skip_load_LUT
       integer(mpiint) :: ierr
 
-      select case (coeff_mode)
-          case(i0) ! LookUpTable Mode
-            select type(OPP)
-              class is (t_optprop_1_2)
-               if(.not.allocated(OPP%OPP_LUT) ) allocate(t_optprop_LUT_1_2::OPP%OPP_LUT)
+      select type(OPP)
+      class is (t_optprop_1_2)
+        if(.not.allocated(OPP%LUT) ) allocate(t_optprop_LUT_1_2::OPP%LUT)
 
-              class is (t_optprop_3_6)
-               if(.not.allocated(OPP%OPP_LUT) ) allocate(t_optprop_LUT_3_6::OPP%OPP_LUT)
+      class is (t_optprop_3_6)
+        if(.not.allocated(OPP%LUT) ) allocate(t_optprop_LUT_3_6::OPP%LUT)
 
-              class is (t_optprop_3_10)
-               if(.not.allocated(OPP%OPP_LUT) ) allocate(t_optprop_LUT_3_10::OPP%OPP_LUT)
+      class is (t_optprop_3_10)
+        if(.not.allocated(OPP%LUT) ) allocate(t_optprop_LUT_3_10::OPP%LUT)
 
-              class is (t_optprop_8_10)
-               if(.not.allocated(OPP%OPP_LUT) ) allocate(t_optprop_LUT_8_10::OPP%OPP_LUT)
+      class is (t_optprop_8_10)
+        if(.not.allocated(OPP%LUT) ) allocate(t_optprop_LUT_8_10::OPP%LUT)
 
-              class is (t_optprop_3_16)
-               if(.not.allocated(OPP%OPP_LUT) ) allocate(t_optprop_LUT_3_16::OPP%OPP_LUT)
+      class is (t_optprop_3_16)
+        if(.not.allocated(OPP%LUT) ) allocate(t_optprop_LUT_3_16::OPP%LUT)
 
-              class is (t_optprop_8_16)
-               if(.not.allocated(OPP%OPP_LUT) ) allocate(t_optprop_LUT_8_16::OPP%OPP_LUT)
+      class is (t_optprop_8_16)
+        if(.not.allocated(OPP%LUT) ) allocate(t_optprop_LUT_8_16::OPP%LUT)
 
-              class is (t_optprop_8_18)
-               if(.not.allocated(OPP%OPP_LUT) ) allocate(t_optprop_LUT_8_18::OPP%OPP_LUT)
+      class is (t_optprop_8_18)
+        if(.not.allocated(OPP%LUT) ) allocate(t_optprop_LUT_8_18::OPP%LUT)
 
-              class is (t_optprop_wedge_5_8)
-               if(.not.allocated(OPP%OPP_LUT) ) allocate(t_optprop_LUT_wedge_5_8::OPP%OPP_LUT)
+      class is (t_optprop_wedge_5_8)
+        if(.not.allocated(OPP%LUT) ) allocate(t_optprop_LUT_wedge_5_8::OPP%LUT)
 
-              class is (t_optprop_rectilinear_wedge_5_8)
-               if(.not.allocated(OPP%OPP_LUT) ) allocate(t_optprop_LUT_rectilinear_wedge_5_8::OPP%OPP_LUT)
+      class is (t_optprop_rectilinear_wedge_5_8)
+        if(.not.allocated(OPP%LUT) ) allocate(t_optprop_LUT_rectilinear_wedge_5_8::OPP%LUT)
 
-              class is (t_optprop_wedge_18_8)
-               if(.not.allocated(OPP%OPP_LUT) ) allocate(t_optprop_LUT_wedge_18_8::OPP%OPP_LUT)
-              class default
-                call CHKERR(1_mpiint, ' init optprop : unexpected type for optprop object!')
-            end select
-            call OPP%OPP_LUT%init(comm, skip_load_LUT)
+      class is (t_optprop_wedge_18_8)
+        if(.not.allocated(OPP%LUT) ) allocate(t_optprop_LUT_wedge_18_8::OPP%LUT)
 
-          case(i1) ! ANN
-            call ANN_init(comm, ierr)
-  !          stop 'ANN not yet implemented'
-          case default
-            call CHKERR(1_mpiint, 'coeff mode optprop initialization not defined')
-        end select
+      class is (t_optprop_3_10_ann)
+        if(.not.allocated(OPP%ANN) ) allocate(t_optprop_ANN_3_10::OPP%ANN)
+
+      class default
+        call CHKERR(1_mpiint, ' init optprop : unexpected type for optprop object!')
+      end select
+
+      if(allocated(OPP%LUT)) then
+        call OPP%LUT%init(comm, skip_load_LUT)
+        OPP%dev => OPP%LUT
+      endif
+      if(allocated(OPP%ANN)) then
+        call OPP%ANN%init(comm, ierr); call CHKERR(ierr)
+        OPP%dev => OPP%ANN
+      endif
+
   end subroutine
-  subroutine destroy(OPP)
+  subroutine destroy(OPP, ierr)
       class(t_optprop) :: OPP
-      if(allocated(OPP%OPP_LUT)) then
-          call OPP%OPP_LUT%destroy()
-          deallocate(OPP%OPP_LUT)
+      integer(mpiint), intent(out) :: ierr
+      if(allocated(OPP%LUT)) then
+          call OPP%LUT%destroy(ierr); call CHKERR(ierr)
+          deallocate(OPP%LUT)
+      endif
+      if(allocated(OPP%ANN)) then
+          call OPP%ANN%destroy(ierr); call CHKERR(ierr)
+          deallocate(OPP%ANN)
       endif
   end subroutine
 
@@ -253,9 +283,9 @@ contains
 
         err = rmse(real(C, ireals), real(Cbmc, ireals))
         print *,'rmse', err
-        do isrc=1,OPP%OPP_LUT%dir_streams
-          print *, 'lut src', isrc, ':', C(isrc:OPP%OPP_LUT%dir_streams**2:OPP%OPP_LUT%dir_streams)
-          print *, 'bmc src', isrc, ':', Cbmc(isrc:OPP%OPP_LUT%dir_streams**2:OPP%OPP_LUT%dir_streams)
+        do isrc=1,OPP%dev%dir_streams
+          print *, 'lut src', isrc, ':', C(isrc:OPP%dev%dir_streams**2:OPP%dev%dir_streams)
+          print *, 'bmc src', isrc, ':', Cbmc(isrc:OPP%dev%dir_streams**2:OPP%dev%dir_streams)
         enddo
         if(err(2).gt.one) then
           !call CHKERR(1_mpiint, 'DEBUG')
@@ -274,66 +304,61 @@ contains
         logical, save :: linit=.False.
 
         if(.not.linit) then
-          dimidx_dir(1) = find_lut_dim_by_name(OPP%OPP_LUT%dirconfig, 'tau')
-          dimidx_dir(2) = find_lut_dim_by_name(OPP%OPP_LUT%dirconfig, 'w0')
-          dimidx_dir(3) = find_lut_dim_by_name(OPP%OPP_LUT%dirconfig, 'aspect_zx')
-          dimidx_dir(4) = find_lut_dim_by_name(OPP%OPP_LUT%dirconfig, 'g')
-          dimidx_dir(5) = find_lut_dim_by_name(OPP%OPP_LUT%dirconfig, 'wedge_coord_Cx')
-          dimidx_dir(6) = find_lut_dim_by_name(OPP%OPP_LUT%dirconfig, 'wedge_coord_Cy')
-          dimidx_dir(7) = find_lut_dim_by_name(OPP%OPP_LUT%dirconfig, 'param_phi')
-          dimidx_dir(8) = find_lut_dim_by_name(OPP%OPP_LUT%dirconfig, 'param_theta')
+          dimidx_dir(1) = find_op_dim_by_name(OPP%dev%dirconfig, 'tau')
+          dimidx_dir(2) = find_op_dim_by_name(OPP%dev%dirconfig, 'w0')
+          dimidx_dir(3) = find_op_dim_by_name(OPP%dev%dirconfig, 'aspect_zx')
+          dimidx_dir(4) = find_op_dim_by_name(OPP%dev%dirconfig, 'g')
+          dimidx_dir(5) = find_op_dim_by_name(OPP%dev%dirconfig, 'wedge_coord_Cx')
+          dimidx_dir(6) = find_op_dim_by_name(OPP%dev%dirconfig, 'wedge_coord_Cy')
+          dimidx_dir(7) = find_op_dim_by_name(OPP%dev%dirconfig, 'param_phi')
+          dimidx_dir(8) = find_op_dim_by_name(OPP%dev%dirconfig, 'param_theta')
           allocate(inp_arr_dir(count(dimidx_dir.gt.0)))
 
-          dimidx_diff(1) = find_lut_dim_by_name(OPP%OPP_LUT%dirconfig, 'tau')
-          dimidx_diff(2) = find_lut_dim_by_name(OPP%OPP_LUT%dirconfig, 'w0')
-          dimidx_diff(3) = find_lut_dim_by_name(OPP%OPP_LUT%dirconfig, 'aspect_zx')
-          dimidx_diff(4) = find_lut_dim_by_name(OPP%OPP_LUT%dirconfig, 'g')
-          dimidx_diff(5) = find_lut_dim_by_name(OPP%OPP_LUT%dirconfig, 'wedge_coord_Cx')
-          dimidx_diff(6) = find_lut_dim_by_name(OPP%OPP_LUT%dirconfig, 'wedge_coord_Cy')
+          dimidx_diff(1) = find_op_dim_by_name(OPP%dev%dirconfig, 'tau')
+          dimidx_diff(2) = find_op_dim_by_name(OPP%dev%dirconfig, 'w0')
+          dimidx_diff(3) = find_op_dim_by_name(OPP%dev%dirconfig, 'aspect_zx')
+          dimidx_diff(4) = find_op_dim_by_name(OPP%dev%dirconfig, 'g')
+          dimidx_diff(5) = find_op_dim_by_name(OPP%dev%dirconfig, 'wedge_coord_Cx')
+          dimidx_diff(6) = find_op_dim_by_name(OPP%dev%dirconfig, 'wedge_coord_Cy')
           allocate(inp_arr_diff(count(dimidx_diff.gt.0)))
           linit = .True.
         endif
 
-          select case (coeff_mode)
-          case(i0) ! LookUpTable Mode
-            if(present(angles)) then ! obviously we want the direct coefficients
+        if(present(angles)) then ! obviously we want the direct coefficients
 
-              associate(&
-                  param_phi => angles(1), &
-                  param_theta => angles(2) )
+          associate(&
+              param_phi => angles(1), &
+              param_theta => angles(2) )
 
-                call handle_critical_param_phi(param_phi, save_param_phi)
-                call handle_critical_param_theta(param_theta, save_param_theta)
+            call handle_critical_param_phi(param_phi, save_param_phi)
+            call handle_critical_param_theta(param_theta, save_param_theta)
 
-                if(dimidx_dir(1).gt.0) inp_arr_dir(dimidx_dir(1)) = tauz
-                if(dimidx_dir(2).gt.0) inp_arr_dir(dimidx_dir(2)) = w0
-                if(dimidx_dir(3).gt.0) inp_arr_dir(dimidx_dir(3)) = aspect_zx
-                if(dimidx_dir(4).gt.0) inp_arr_dir(dimidx_dir(4)) = g
-                if(dimidx_dir(5).gt.0) inp_arr_dir(dimidx_dir(5)) = wedge_coords(1)
-                if(dimidx_dir(6).gt.0) inp_arr_dir(dimidx_dir(6)) = wedge_coords(2)
-                if(dimidx_dir(7).gt.0) inp_arr_dir(dimidx_dir(7)) = save_param_phi
-                if(dimidx_dir(8).gt.0) inp_arr_dir(dimidx_dir(8)) = save_param_theta
+            if(dimidx_dir(1).gt.0) inp_arr_dir(dimidx_dir(1)) = tauz
+            if(dimidx_dir(2).gt.0) inp_arr_dir(dimidx_dir(2)) = w0
+            if(dimidx_dir(3).gt.0) inp_arr_dir(dimidx_dir(3)) = aspect_zx
+            if(dimidx_dir(4).gt.0) inp_arr_dir(dimidx_dir(4)) = g
+            if(dimidx_dir(5).gt.0) inp_arr_dir(dimidx_dir(5)) = wedge_coords(1)
+            if(dimidx_dir(6).gt.0) inp_arr_dir(dimidx_dir(6)) = wedge_coords(2)
+            if(dimidx_dir(7).gt.0) inp_arr_dir(dimidx_dir(7)) = save_param_phi
+            if(dimidx_dir(8).gt.0) inp_arr_dir(dimidx_dir(8)) = save_param_theta
 
-                if(ldir) then ! dir2dir
-                  call OPP%OPP_LUT%LUT_get_dir2dir(inp_arr_dir, C)
-                else ! dir2diff
-                  call OPP%OPP_LUT%LUT_get_dir2diff(inp_arr_dir, C)
-                endif
-              end associate
-            else
-              ! diff2diff
-              if(dimidx_diff(1).gt.0) inp_arr_diff(dimidx_diff(1)) = tauz
-              if(dimidx_diff(2).gt.0) inp_arr_diff(dimidx_diff(2)) = w0
-              if(dimidx_diff(3).gt.0) inp_arr_diff(dimidx_diff(3)) = aspect_zx
-              if(dimidx_diff(4).gt.0) inp_arr_diff(dimidx_diff(4)) = g
-              if(dimidx_diff(5).gt.0) inp_arr_diff(dimidx_diff(5)) = wedge_coords(1)
-              if(dimidx_diff(6).gt.0) inp_arr_diff(dimidx_diff(6)) = wedge_coords(2)
-              call OPP%OPP_LUT%LUT_get_diff2diff(inp_arr_diff, C)
+            if(ldir) then ! dir2dir
+              call OPP%dev%get_dir2dir(inp_arr_dir, C)
+            else ! dir2diff
+              call OPP%dev%get_dir2diff(inp_arr_dir, C)
             endif
+          end associate
+        else
+          ! diff2diff
+          if(dimidx_diff(1).gt.0) inp_arr_diff(dimidx_diff(1)) = tauz
+          if(dimidx_diff(2).gt.0) inp_arr_diff(dimidx_diff(2)) = w0
+          if(dimidx_diff(3).gt.0) inp_arr_diff(dimidx_diff(3)) = aspect_zx
+          if(dimidx_diff(4).gt.0) inp_arr_diff(dimidx_diff(4)) = g
+          if(dimidx_diff(5).gt.0) inp_arr_diff(dimidx_diff(5)) = wedge_coords(1)
+          if(dimidx_diff(6).gt.0) inp_arr_diff(dimidx_diff(6)) = wedge_coords(2)
+          call OPP%dev%get_diff2diff(inp_arr_diff, C)
+        endif
 
-          case default
-            call CHKERR(1_mpiint, 'particular value of coeff mode in optprop_parameters is not defined: '//itoa(coeff_mode))
-          end select
       end subroutine
 
       subroutine handle_critical_param_phi(param_phi, save_param_phi)
@@ -441,9 +466,9 @@ contains
             handle_aspect_zx_1D_case = .True.
             ierr = OPP_1D_RETCODE
 
-          elseif(aspect_zx.lt.OPP%OPP_LUT%dirconfig%dims(3)%vrange(1)) then
-            restricted_aspect_zx = min(max(aspect_zx, OPP%OPP_LUT%dirconfig%dims(3)%vrange(1)), &
-              OPP%OPP_LUT%dirconfig%dims(3)%vrange(2))
+          elseif(aspect_zx.lt.OPP%dev%dirconfig%dims(3)%vrange(1)) then
+            restricted_aspect_zx = min(max(aspect_zx, OPP%dev%dirconfig%dims(3)%vrange(1)), &
+              OPP%dev%dirconfig%dims(3)%vrange(2))
             call do_wedge_lookup(tauz, w0, restricted_aspect_zx, ldir, angles)
             handle_aspect_zx_1D_case = .True.
             ierr = OPP_TINYASPECT_RETCODE
@@ -451,7 +476,7 @@ contains
 
         else ! diffuse
 
-          !if(aspect_zx.gt.OPP%OPP_LUT%diffconfig%dims(3)%vrange(2)) then
+          !if(aspect_zx.gt.OPP%dev%diffconfig%dims(3)%vrange(2)) then
           if(aspect_zx.ge.twostr_ratio) then
             C = zero
 
@@ -472,9 +497,9 @@ contains
             handle_aspect_zx_1D_case = .True.
             ierr = OPP_1D_RETCODE
 
-          elseif(aspect_zx.lt.OPP%OPP_LUT%diffconfig%dims(3)%vrange(1)) then
-            restricted_aspect_zx = min(max(aspect_zx, OPP%OPP_LUT%diffconfig%dims(3)%vrange(1)), &
-              OPP%OPP_LUT%diffconfig%dims(3)%vrange(2))
+          elseif(aspect_zx.lt.OPP%dev%diffconfig%dims(3)%vrange(1)) then
+            restricted_aspect_zx = min(max(aspect_zx, OPP%dev%diffconfig%dims(3)%vrange(1)), &
+              OPP%dev%diffconfig%dims(3)%vrange(2))
             call do_wedge_lookup(tauz, w0, restricted_aspect_zx, ldir, angles)
             handle_aspect_zx_1D_case = .True.
             ierr = OPP_TINYASPECT_RETCODE
@@ -484,76 +509,74 @@ contains
       end function
   end subroutine
 
-  subroutine get_coeff_cube(OPP, tauz, w0, g, aspect_zx, dir, C, ierr, angles, lswitch_east, lswitch_north)
+  subroutine get_coeff_cube(OPP, tauz, w0, g, aspect_zx, dir, C, ierr, angles, lswitch_east, lswitch_north, opt_vertices)
     class(t_optprop_cube)             :: OPP
     logical,intent(in)                :: dir
     real(irealLUT),intent(in)           :: tauz, w0, g, aspect_zx
     real(irealLUT),intent(in),optional  :: angles(:)
-    logical,intent(in)                  :: lswitch_east, lswitch_north
+    logical,intent(in),optional         :: lswitch_east, lswitch_north
     real(irealLUT),intent(out)          :: C(:)
     integer(mpiint), intent(out) :: ierr
+    real(ireals), intent(in), optional :: opt_vertices(:)
 
-    logical,parameter :: compute_coeff_online=.False.
+    logical, save :: compute_coeff_online=.False., lset=.False.
+    logical :: lflg
     real(ireals), allocatable :: vertices(:)
+    real(irealLUT), allocatable :: Clut(:), Cbmc(:), Cbmc2(:)
     real(irealLUT) :: save_aspect_zx
     ierr = 0
 
-    if(compute_coeff_online) then
-      call setup_default_unit_cube_geometry(one, one, real(aspect_zx, ireals), vertices)
-      call get_coeff_bmc(OPP, vertices, real(tauz, ireals), real(w0, ireals), real(g, ireals), dir, C, angles)
-      return
-    endif
-
     if(ldebug_optprop) call check_inp(OPP, tauz, w0, g, aspect_zx, dir, C, angles)
 
-
-    select case (coeff_mode)
-
-    case(i0) ! LookUpTable Mode
-
-      if(present(angles)) then ! obviously we want the direct coefficients
-        if(aspect_zx.lt.OPP%OPP_LUT%dirconfig%dims(3)%vrange(1)) then
-          save_aspect_zx = OPP%OPP_LUT%dirconfig%dims(3)%vrange(1)
-          ierr = OPP_TINYASPECT_RETCODE
-        else
-          save_aspect_zx = aspect_zx
-        endif
-        if(dir) then ! dir2dir
-          call OPP%OPP_LUT%LUT_get_dir2dir([tauz, w0, save_aspect_zx, g, angles(1), angles(2)], C)
-          call OPP%dir2dir_coeff_symmetry(C, lswitch_east, lswitch_north)
-        else         ! dir2diff
-          call OPP%OPP_LUT%LUT_get_dir2diff([tauz, w0, save_aspect_zx, g, angles(1), angles(2)], C)
-          call OPP%dir2diff_coeff_symmetry(C, lswitch_east, lswitch_north)
-        endif
+    if(present(angles)) then ! obviously we want the direct coefficients
+      if(aspect_zx.lt.OPP%dev%dirconfig%dims(3)%vrange(1)) then
+        save_aspect_zx = OPP%dev%dirconfig%dims(3)%vrange(1)
+        ierr = OPP_TINYASPECT_RETCODE
       else
-        ! diff2diff
-        if(aspect_zx.lt.OPP%OPP_LUT%diffconfig%dims(3)%vrange(1)) then
-          save_aspect_zx = OPP%OPP_LUT%diffconfig%dims(3)%vrange(1)
-          ierr = OPP_TINYASPECT_RETCODE
-        else
-          save_aspect_zx = aspect_zx
-        endif
-        call OPP%OPP_LUT%LUT_get_diff2diff([tauz, w0, save_aspect_zx, g], C)
+        save_aspect_zx = aspect_zx
       endif
-
-
-    case(i1) ! ANN
-
-      if(present(angles)) then ! obviously we want the direct coefficients
-        if(dir) then ! specifically the dir2dir
-          call ANN_get_dir2dir(tauz, w0, g, aspect_zx, angles(1), angles(2), C)
-        else ! dir2diff
-          call ANN_get_dir2diff(tauz, w0, g, aspect_zx, angles(1), angles(2), C)
-        endif
+      if(dir) then ! dir2dir
+        call OPP%dev%get_dir2dir([tauz, w0, save_aspect_zx, g, angles(1), angles(2)], C)
+        call OPP%dir2dir_coeff_symmetry(C, lswitch_east, lswitch_north)
+      else         ! dir2diff
+        call OPP%dev%get_dir2diff([tauz, w0, save_aspect_zx, g, angles(1), angles(2)], C)
+        call OPP%dir2diff_coeff_symmetry(C, lswitch_east, lswitch_north)
+      endif
+    else
+      ! diff2diff
+      if(aspect_zx.lt.OPP%dev%diffconfig%dims(3)%vrange(1)) then
+        save_aspect_zx = OPP%dev%diffconfig%dims(3)%vrange(1)
+        ierr = OPP_TINYASPECT_RETCODE
       else
-        ! diff2diff
-        call ANN_get_diff2diff(tauz, w0, g, aspect_zx, C)
+        save_aspect_zx = aspect_zx
       endif
+      call OPP%dev%get_diff2diff([tauz, w0, save_aspect_zx, g], C)
+      call OPP%diff2diff_coeff_symmetry(C)
+    endif
 
-    case default
-      call CHKERR(1_mpiint, 'particular value of coeff mode in optprop_parameters is not defined: '//itoa(coeff_mode))
-    end select
+    if(.not.lset) then
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+        & "-bmc_online", compute_coeff_online, lflg, ierr); call CHKERR(ierr)
+      lset = .True.
+    endif
 
+    if(compute_coeff_online) then
+      allocate(Clut(size(C)), Cbmc(size(C)))
+      Clut = C
+      call setup_default_unit_cube_geometry(one, one, real(aspect_zx, ireals), vertices)
+      call get_coeff_bmc(OPP, vertices, real(tauz, ireals), real(w0, ireals), real(g, ireals), dir, Cbmc, angles)
+      C = Cbmc
+
+      if(present(opt_vertices)) then
+        allocate(Cbmc2(size(C)))
+        call get_coeff_bmc(OPP, opt_vertices, real(tauz, ireals), real(w0, ireals), real(g, ireals), dir, Cbmc2, angles)
+        C = Cbmc2
+        print *,new_line(''),opt_vertices(3:24:3),':',angles,new_line('')//&
+          cstr('LUT            '//toStr(Clut) , 'black')//new_line('')//&
+          cstr('bmc (regular  )'//toStr(Cbmc) , 'blue' )//new_line('')//&
+          cstr('bmc (distorted)'//toStr(Cbmc2), 'green')
+      endif
+    endif
   end subroutine
 
   subroutine get_coeff_bmc(OPP, vertices, tauz, w0, g, dir, C, angles)
@@ -563,15 +586,15 @@ contains
       real(irealLUT),intent(out):: C(:)
       real(irealLUT),intent(in),optional :: angles(2)
 
-      real(irealLUT) :: S_diff(OPP%OPP_LUT%diff_streams),T_dir(OPP%OPP_LUT%dir_streams)
-      real(irealLUT) :: S_tol (OPP%OPP_LUT%diff_streams),T_tol(OPP%OPP_LUT%dir_streams)
+      real(irealLUT) :: S_diff(OPP%dev%diff_streams),T_dir(OPP%dev%dir_streams)
+      real(irealLUT) :: S_tol (OPP%dev%diff_streams),T_tol(OPP%dev%dir_streams)
       integer(iintegers) :: isrc
 
-      real(irealLUT), parameter :: atol=5e-3_irealLUT, rtol=5e-2_irealLUT
+      real(irealLUT), parameter :: atol=1e-3_irealLUT, rtol=5e-1_irealLUT
 
       if(present(angles)) then
-          do isrc=1,OPP%OPP_LUT%dir_streams
-            call OPP%OPP_LUT%bmc_wrapper(isrc, &
+          do isrc=1,OPP%dev%dir_streams
+            call OPP%dev%bmc_wrapper(isrc, &
               real(vertices, ireal_dp), &
               real(tauz, irealLUT), &
               real(w0, irealLUT), &
@@ -583,9 +606,9 @@ contains
               S_diff, T_dir, S_tol, T_tol, &
               inp_atol=real(atol, irealLUT), inp_rtol=real(rtol, irealLUT))
             if(dir) then !dir2dir
-              C(isrc:OPP%OPP_LUT%dir_streams**2:OPP%OPP_LUT%dir_streams) = T_dir
+              C(isrc:OPP%dev%dir_streams**2:OPP%dev%dir_streams) = T_dir
             else ! dir2diff
-              C(isrc:OPP%OPP_LUT%dir_streams*OPP%OPP_LUT%diff_streams:OPP%OPP_LUT%dir_streams) = S_diff
+              C(isrc:OPP%dev%dir_streams*OPP%dev%diff_streams:OPP%dev%dir_streams) = S_diff
             endif
             if(w0.ge.1) then
               if(any(S_tol.gt.0).or.any(T_tol.gt.0)) then
@@ -593,15 +616,15 @@ contains
                   'Divergence', (1- (sum(T_dir)+sum(S_diff))), any(S_tol.gt.0), any(T_tol.gt.0)
                 if(abs(1- (sum(T_dir)+sum(S_diff))).ge.1e-6_irealLUT) then
                   call CHKWARN(1_mpiint, 'divergence '// &
-                    ftoa(1- (sum(T_dir)+sum(S_diff)))//' seems quite large for w0='//ftoa(w0))
+                    toStr(1- (sum(T_dir)+sum(S_diff)))//' seems quite large for w0='//toStr(w0))
                 endif
               endif
             endif
           enddo
       else
         ! diff2diff
-        do isrc=1,OPP%OPP_LUT%diff_streams
-            call OPP%OPP_LUT%bmc_wrapper(isrc, &
+        do isrc=1,OPP%dev%diff_streams
+            call OPP%dev%bmc_wrapper(isrc, &
               real(vertices, ireal_dp), &
               real(tauz, irealLUT), &
               real(w0, irealLUT), &
@@ -611,14 +634,14 @@ contains
               mpi_comm_self, &
               S_diff, T_dir, S_tol, T_tol, &
               inp_atol=real(atol, irealLUT), inp_rtol=real(rtol, irealLUT))
-          C(isrc:OPP%OPP_LUT%diff_streams**2:OPP%OPP_LUT%diff_streams) = S_diff
+          C(isrc:OPP%dev%diff_streams**2:OPP%dev%diff_streams) = S_diff
           if(w0.ge.1) then
             if(any(S_tol.gt.0).or.any(T_tol.gt.0)) then
               print *,'SumT', sum(T_dir), 'SumS', sum(S_diff), &
                 'Divergence', (1- (sum(T_dir)+sum(S_diff))), any(S_tol.gt.0), any(T_tol.gt.0)
               if(abs(1- (sum(T_dir)+sum(S_diff))).ge.1e-6_irealLUT) then
                 call CHKWARN(1_mpiint, 'divergence '// &
-                  ftoa(1- (sum(T_dir)+sum(S_diff)))//' seems quite large for w0='//ftoa(w0))
+                  toStr(1- (sum(T_dir)+sum(S_diff)))//' seems quite large for w0='//toStr(w0))
               endif
             endif
           endif
@@ -638,49 +661,49 @@ contains
 
     if( (any([tauz, w0, g, aspect_zx].lt.zero)) .or. (any(isnan([tauz, w0, g, aspect_zx]))) ) then
       call CHKERR(1_mpiint,'optprop_lookup_coeff :: '// &
-        'corrupt optical properties: bg:: '//ftoa([tauz, w0, g, aspect_zx]))
+        'corrupt optical properties: bg:: '//toStr([tauz, w0, g, aspect_zx]))
     endif
 
     if(dir) then
-      call check_LUT_dimension_limits(OPP%OPP_LUT%dirconfig ,[      'tau'], tauz, dimidx_dir(1))
-      call check_LUT_dimension_limits(OPP%OPP_LUT%dirconfig ,[       'w0'], w0  , dimidx_dir(2))
-      call check_LUT_dimension_limits(OPP%OPP_LUT%dirconfig ,[        'g'], g   , dimidx_dir(3), default_val=0._irealLUT)
-      call check_LUT_dimension_limits(OPP%OPP_LUT%dirconfig ,['aspect_zx'], aspect_zx, dimidx_dir(4))
-      call check_LUT_dimension_limits(OPP%OPP_LUT%dirconfig ,['phi        ', 'param_phi  '], angles(1), dimidx_dir(5))
-      call check_LUT_dimension_limits(OPP%OPP_LUT%dirconfig ,['theta      ', 'param_theta'], angles(2), dimidx_dir(6))
+      call check_LUT_dimension_limits(OPP%dev%dirconfig ,[      'tau'], tauz, dimidx_dir(1))
+      call check_LUT_dimension_limits(OPP%dev%dirconfig ,[       'w0'], w0  , dimidx_dir(2))
+      call check_LUT_dimension_limits(OPP%dev%dirconfig ,[        'g'], g   , dimidx_dir(3), default_val=0._irealLUT)
+      call check_LUT_dimension_limits(OPP%dev%dirconfig ,['aspect_zx'], aspect_zx, dimidx_dir(4))
+      call check_LUT_dimension_limits(OPP%dev%dirconfig ,['phi        ', 'param_phi  '], angles(1), dimidx_dir(5))
+      call check_LUT_dimension_limits(OPP%dev%dirconfig ,['theta      ', 'param_theta'], angles(2), dimidx_dir(6))
     else
-      call check_LUT_dimension_limits(OPP%OPP_LUT%diffconfig,[      'tau'], tauz, dimidx_diff(1))
-      call check_LUT_dimension_limits(OPP%OPP_LUT%diffconfig,[       'w0'], w0  , dimidx_diff(2))
-      call check_LUT_dimension_limits(OPP%OPP_LUT%diffconfig,[        'g'], g   , dimidx_diff(3), default_val=0._irealLUT)
-      call check_LUT_dimension_limits(OPP%OPP_LUT%diffconfig,['aspect_zx'], aspect_zx, dimidx_diff(4))
+      call check_LUT_dimension_limits(OPP%dev%diffconfig,[      'tau'], tauz, dimidx_diff(1))
+      call check_LUT_dimension_limits(OPP%dev%diffconfig,[       'w0'], w0  , dimidx_diff(2))
+      call check_LUT_dimension_limits(OPP%dev%diffconfig,[        'g'], g   , dimidx_diff(3), default_val=0._irealLUT)
+      call check_LUT_dimension_limits(OPP%dev%diffconfig,['aspect_zx'], aspect_zx, dimidx_diff(4))
     endif
 
     if(present(angles)) then
-      if(dir .and. size(C).ne. OPP%OPP_LUT%dir_streams**2) then
-        print *,'direct called get_coeff with wrong shaped output array:',size(C),'should be ',OPP%OPP_LUT%dir_streams**2
+      if(dir .and. size(C).ne. OPP%dev%dir_streams**2) then
+        print *,'direct called get_coeff with wrong shaped output array:',size(C),'should be ',OPP%dev%dir_streams**2
       endif
-      if(.not.dir .and. size(C).ne. OPP%OPP_LUT%diff_streams*OPP%OPP_LUT%dir_streams) then
+      if(.not.dir .and. size(C).ne. OPP%dev%diff_streams*OPP%dev%dir_streams) then
         print *,'dir2diffuse called get_coeff with wrong shaped output array:',size(C), &
-          'should be',OPP%OPP_LUT%diff_streams*OPP%OPP_LUT%dir_streams
+          'should be',OPP%dev%diff_streams*OPP%dev%dir_streams
       endif
     else
-      if(dir .and. size(C).ne. OPP%OPP_LUT%diff_streams) then
-        print *,'diff2diff called get_coeff with wrong shaped output array:',size(C),'should be ',OPP%OPP_LUT%diff_streams
+      if(dir .and. size(C).ne. OPP%dev%diff_streams) then
+        print *,'diff2diff called get_coeff with wrong shaped output array:',size(C),'should be ',OPP%dev%diff_streams
       endif
-      if(.not.dir .and. size(C).ne. OPP%OPP_LUT%diff_streams**2) then
-        print *,'diff2diff called get_coeff with wrong shaped output array:',size(C),'should be ',OPP%OPP_LUT%diff_streams**2
+      if(.not.dir .and. size(C).ne. OPP%dev%diff_streams**2) then
+        print *,'diff2diff called get_coeff with wrong shaped output array:',size(C),'should be ',OPP%dev%diff_streams**2
       endif
     endif
 
     if(present(wedge_coords)) then
-      call check_LUT_dimension_limits(OPP%OPP_LUT%dirconfig ,['wedge_coord_Cx'], wedge_coords(1), dimidx_dir(7))
-      call check_LUT_dimension_limits(OPP%OPP_LUT%dirconfig ,['wedge_coord_Cy'], wedge_coords(2), dimidx_dir(8))
-      call check_LUT_dimension_limits(OPP%OPP_LUT%diffconfig ,['wedge_coord_Cx'], wedge_coords(1), dimidx_diff(5))
-      call check_LUT_dimension_limits(OPP%OPP_LUT%diffconfig ,['wedge_coord_Cy'], wedge_coords(2), dimidx_diff(6))
+      call check_LUT_dimension_limits(OPP%dev%dirconfig ,['wedge_coord_Cx'], wedge_coords(1), dimidx_dir(7))
+      call check_LUT_dimension_limits(OPP%dev%dirconfig ,['wedge_coord_Cy'], wedge_coords(2), dimidx_dir(8))
+      call check_LUT_dimension_limits(OPP%dev%diffconfig ,['wedge_coord_Cx'], wedge_coords(1), dimidx_diff(5))
+      call check_LUT_dimension_limits(OPP%dev%diffconfig ,['wedge_coord_Cy'], wedge_coords(2), dimidx_diff(6))
     endif
     contains
       subroutine check_LUT_dimension_limits(config, dimnames, val, dimindex, default_val)
-        type(t_lut_config), intent(in) :: config
+        type(t_op_config), intent(in) :: config
         character(len=*), intent(in) :: dimnames(:)
         real(irealLUT), intent(in) :: val
         integer(iintegers), intent(inout) :: dimindex
@@ -689,7 +712,7 @@ contains
         if(dimindex.lt.-1) then
           tmpidx = dimindex
           do i = 1, size(dimnames)
-            if(tmpidx.le.-1) dimindex = find_lut_dim_by_name(config, trim(dimnames(i)))
+            if(tmpidx.le.-1) dimindex = find_op_dim_by_name(config, trim(dimnames(i)))
             !print *,'Looking for dim: '//trim(dimnames(i)),' -> ', dimindex
           enddo
           dimindex = tmpidx
@@ -698,8 +721,8 @@ contains
           if(.not.is_between(val, &
             config%dims(dimindex)%vrange(1)-tiny(val), &
             config%dims(dimindex)%vrange(2)+tiny(val))) then
-              call CHKERR(1_mpiint, 'value ('//ftoa(val)//') is not in the range of the LUT for dimension '// &
-                trim(config%dims(dimindex)%dimname)//' ( '//ftoa(config%dims(dimindex)%vrange)//' )')
+              call CHKERR(1_mpiint, 'value ('//toStr(val)//') is not in the range of the LUT for dimension '// &
+                trim(config%dims(dimindex)%dimname)//' ( '//toStr(config%dims(dimindex)%vrange)//' )')
           endif
         else if(dimindex.eq.-1) then
           if(.not.present(default_val)) then
@@ -711,11 +734,173 @@ contains
               print *, 'Available LUT Dimensions are: '//char_arr_to_str(config%dims(:)%dimname, ', ')
               call CHKERR(1_mpiint, 'currently the LUT calls do not have a dimension for '// &
                 char_arr_to_str(dimnames, ',')// &
-                ' and should probably be limited to the default val: '//ftoa(default_val))
+                ' and should probably be limited to the default val: '//toStr(default_val))
             endif
           endif
         endif
       end subroutine
+  end subroutine
+
+  subroutine diff2diff_coeff_symmetry(OPP, coeff)
+    class(t_optprop_cube)        :: OPP
+    real(irealLUT), target, intent(inout) :: coeff(:)
+    real(irealLUT), pointer :: v(:,:) ! dim(src, dst)
+    integer(iintegers) :: i
+    real(irealLUT) :: norm(0:9)
+
+    if(OPP%dev%diff_streams.eq.10) then
+      v(0:9,0:9) => coeff(1:100)
+
+      do i = 0,9
+        norm(i) = sum(v(i,:))
+      enddo
+
+      v(0,0) = (v(0,0) + v(1,1)) * .5_irealLUT
+      v(1,1) = v(0,0)
+
+      v(0,1) = (v(0,1) + v(1,0)) * .5_irealLUT
+      v(1,0) = v(0,1)
+
+      v(1,0) = (v(0,1) + v(1,0)) * .5_irealLUT
+      v(0,1) = v(1,0)
+
+
+      ! v(0,2) = v(0,3) = v(0,6) = v(0,7) = v(1,4) = v(1,5) = v(1,8) = v(1,9) = np.mean(v(0,(2,3,6,7)) + v(1,(4,5,8,9)), axis=-1)/2
+      v(0,2) = ( v(0,2) + v(0,3) + v(0,6) + v(0,7) + &
+        & v(1,4) + v(1,5) + v(1,8) + v(1,9) ) / 8._irealLUT
+      v(0,3) = v(0,2)
+      v(0,6) = v(0,2)
+      v(0,7) = v(0,2)
+      v(1,4) = v(0,2)
+      v(1,5) = v(0,2)
+      v(1,8) = v(0,2)
+      v(1,9) = v(0,2)
+
+      !v(1,2) = v(1,3) = v(1,6) = v(1,7) = v(0,4) = v(0,5) = v(0,8) = v(0,9) = np.mean(v(1,(2,3,6,7)) + v(0,(4,5,8,9)), axis=-1)/2
+      v(1,2) = ( v(0,4) + v(0,5) + v(0,8) + v(0,9) + &
+        & v(1,2) + v(1,3) + v(1,6) + v(1,7) ) / 8._irealLUT
+      v(1,3) = v(1,2)
+      v(1,6) = v(1,2)
+      v(1,7) = v(1,2)
+      v(0,4) = v(1,2)
+      v(0,5) = v(1,2)
+      v(0,8) = v(1,2)
+      v(0,9) = v(1,2)
+
+      !v(2,0) = v(3,0) = v(4,1) = v(5,1) = v(6,0) = v(7,0) = v(8,1) = v(9,1) = np.mean(v((2,3,6,7),0) + v((4,5,8,9),1), axis=-1)/2
+      v(2,0) = ( v(2,0) + v(3,0) + v(6,0) + v(7,0) + &
+        & v(4,1) + v(5,1) + v(8,1) + v(9,1) ) / 8._irealLUT
+      v(3,0) = v(2,0)
+      v(6,0) = v(2,0)
+      v(7,0) = v(2,0)
+      v(4,1) = v(2,0)
+      v(5,1) = v(2,0)
+      v(8,1) = v(2,0)
+      v(9,1) = v(2,0)
+
+
+      !v(2,1) = v(3,1) = v(4,0) = v(5,0) = v(6,1) = v(7,1) = v(8,0) = v(9,0) = np.mean(v((2,3,6,7),1) + v((4,5,8,9),0), axis=-1)/2
+      v(2,1) = ( v(4,0) + v(5,0) + v(8,0) + v(9,0) + &
+        & v(2,1) + v(3,1) + v(6,1) + v(7,1) ) / 8._irealLUT
+      v(4,0) = v(2,1)
+      v(5,0) = v(2,1)
+      v(8,0) = v(2,1)
+      v(9,0) = v(2,1)
+      v(3,1) = v(2,1)
+      v(6,1) = v(2,1)
+      v(7,1) = v(2,1)
+
+      !v(2,2) = v(3,3) = v(4,4) = v(5,5) = v(6,6) = v(7,7) = v(8,8) = v(9,9) = np.mean(( v(_,_) for _ in range(2,10)), axis=0)
+      v(2,2) = ( v(2,2) + v(3,3) + v(4,4) + v(5,5) + v(6,6) + v(7,7) + v(8,8) + v(9,9) ) / 8._irealLUT
+      v(3,3) = v(2,2)
+      v(4,4) = v(2,2)
+      v(5,5) = v(2,2)
+      v(6,6) = v(2,2)
+      v(7,7) = v(2,2)
+      v(8,8) = v(2,2)
+      v(9,9) = v(2,2)
+
+      !v(2,3) = v(3,2) = v(4,5) = v(5,4) = v(6,7) = v(7,6) = v(8,9) = v(9,8) = np.mean(( v(i1,i2) for i1,i2 in zip(range(2,10),(3,2,5,4,7,6,9,8))), axis=0)
+      v(2,3) = ( v(2,3) + v(3,2) + v(4,5) + v(5,4) + v(6,7) + v(7,6) + v(8,9) + v(9,8) ) / 8._irealLUT
+      v(3,2) = v(2,3)
+      v(4,5) = v(2,3)
+      v(5,4) = v(2,3)
+      v(6,7) = v(2,3)
+      v(7,6) = v(2,3)
+      v(8,9) = v(2,3)
+      v(9,8) = v(2,3)
+
+      !v(2,4) = v(3,5) = v(4,2) = v(5,3) = v(6,8) = v(7,9) = v(8,6) = v(9,7) = np.mean(( v(i1,i2) for i1,i2 in zip(range(2,10),(4,5,2,3,8,9,6,7))), axis=0)
+      v(2,4) = ( v(2,4) + v(3,5) + v(4,2) + v(5,3) + v(6,8) + v(7,9) + v(8,6) + v(9,7) ) / 8._irealLUT
+      v(3,5) = v(2,4)
+      v(4,2) = v(2,4)
+      v(5,3) = v(2,4)
+      v(6,8) = v(2,4)
+      v(7,9) = v(2,4)
+      v(8,6) = v(2,4)
+      v(9,7) = v(2,4)
+
+      !v(2,6) = v(2,7) = v(3,6) = v(3,7) = v(4,8) = v(4,9) = v(5,8) = v(5,9) = v(6,2) = v(6,3) = v(7,2) = v(7,3) = v(8,4) = v(8,5) = v(9,4) = v(9,5) = np.mean(( v(i1,i2) for i1,i2 in zip(sorted(list(range(2,10))*2),(6,7,6,7, 8,9,8,9, 2,3,2,3, 4,5,4,5,))), axis=0)
+      v(2,6) = ( v(2,6) + v(2,7) + v(3,6) + v(3,7) + &
+        & v(4,8) + v(4,9) + v(5,8) + v(5,9) + &
+        & v(6,2) + v(6,3) + v(7,2) + v(7,3) + &
+        & v(8,4) + v(8,5) + v(9,4) + v(9,5) ) / 16._irealLUT
+      v(2,7) = v(2,6)
+      v(3,6) = v(2,6)
+      v(3,7) = v(2,6)
+      v(4,8) = v(2,6)
+      v(4,9) = v(2,6)
+      v(5,8) = v(2,6)
+      v(5,9) = v(2,6)
+      v(6,2) = v(2,6)
+      v(6,3) = v(2,6)
+      v(7,2) = v(2,6)
+      v(7,3) = v(2,6)
+      v(8,4) = v(2,6)
+      v(8,5) = v(2,6)
+      v(9,4) = v(2,6)
+      v(9,5) = v(2,6)
+
+      !v(2,8) = v(2,9) = v(3,8) = v(3,9) = v(4,6) = v(4,7) = v(5,6) = v(5,7) = v(6,4) = v(6,5) = v(7,4) = v(7,5) = v(8,2) = v(8,3) = v(9,2) = v(9,3) = np.mean(( v(i1,i2) for i1,i2 in zip(sorted(list(range(2,10))*2),(8,9,8,9, 6,7,6,7, 4,5,4,5, 2,3,2,3,))), axis=0)
+      v(2,8) = ( v(2,8) + v(2,9) + v(3,8) + v(3,9) + &
+        & v(4,6) + v(4,7) + v(5,6) + v(5,7) + &
+        & v(6,4) + v(6,5) + v(7,4) + v(7,5) + &
+        & v(8,2) + v(8,3) + v(9,2) + v(9,3) ) / 16._irealLUT
+      v(2,9) = v(2,8)
+      v(3,8) = v(2,8)
+      v(3,9) = v(2,8)
+      v(4,6) = v(2,8)
+      v(4,7) = v(2,8)
+      v(5,6) = v(2,8)
+      v(5,7) = v(2,8)
+      v(6,4) = v(2,8)
+      v(6,5) = v(2,8)
+      v(7,4) = v(2,8)
+      v(7,5) = v(2,8)
+      v(8,2) = v(2,8)
+      v(8,3) = v(2,8)
+      v(9,2) = v(2,8)
+      v(9,3) = v(2,8)
+
+      !v(2,5) = v(3,4) = v(4,3) = v(5,2) = v(6,9) = v(7,8) = v(8,7) = v(9,6) = np.mean(( v(i1,i2) for i1,i2 in zip(range(2,10),(5,4,3,2,9,8,7,6))), axis=0)
+      v(2,5) = ( v(2,5) + v(3,4) + v(4,3) + v(5,2) + v(6,9) + v(7,8) + v(8,7) + v(9,6) ) / 8._irealLUT
+      v(3,4) = v(2,5)
+      v(4,3) = v(2,5)
+      v(5,2) = v(2,5)
+      v(6,9) = v(2,5)
+      v(7,8) = v(2,5)
+      v(8,7) = v(2,5)
+      v(9,6) = v(2,5)
+
+      do i = 0,9
+        v(i,:) = v(i,:) / max(tiny(v), sum(v(i,:))) * norm(i)
+      enddo
+    endif
+
+    if(.False.) then
+      select type(OPP)
+      end select
+    endif
   end subroutine
 
   subroutine dir2diff_coeff_symmetry_none(OPP, coeff, lswitch_east, lswitch_north)
@@ -762,29 +947,29 @@ contains
     real(irealLUT)               :: newcoeff(size(coeff))
     if(lswitch_east) then
       newcoeff = coeff
-      !coeff( 1: 3) = newcoeff([1, 2, 3]        )
-      !coeff( 4: 6) = newcoeff([1, 2, 3] + dof*1)
-      coeff( 7: 9) = newcoeff([1, 2, 3] + dof*3)
-      coeff(10:12) = newcoeff([1, 2, 3] + dof*2)
-      coeff(13:15) = newcoeff([1, 2, 3] + dof*5)
-      coeff(16:18) = newcoeff([1, 2, 3] + dof*4)
-      ! coeff(19:21) = newcoeff([1, 2, 3] + dof*6)
-      ! coeff(22:24) = newcoeff([1, 2, 3] + dof*7)
-      ! coeff(25:27) = newcoeff([1, 2, 3] + dof*8)
-      ! coeff(28:30) = newcoeff([1, 2, 3] + dof*9)
+      !coeff(1+( 1-1)*dof: 1*dof) = newcoeff([1, 2, 3] + dof*( 1-1) )
+      !coeff(1+( 2-1)*dof: 2*dof) = newcoeff([1, 2, 3] + dof*( 2-1) )
+       coeff(1+( 3-1)*dof: 3*dof) = newcoeff([1, 2, 3] + dof*( 4-1) )
+       coeff(1+( 4-1)*dof: 4*dof) = newcoeff([1, 2, 3] + dof*( 3-1) )
+       coeff(1+( 5-1)*dof: 5*dof) = newcoeff([1, 2, 3] + dof*( 6-1) )
+       coeff(1+( 6-1)*dof: 6*dof) = newcoeff([1, 2, 3] + dof*( 5-1) )
+      !coeff(1+( 7-1)*dof: 7*dof) = newcoeff([1, 2, 3] + dof*( 7-1) )
+      !coeff(1+( 8-1)*dof: 8*dof) = newcoeff([1, 2, 3] + dof*( 8-1) )
+      !coeff(1+( 9-1)*dof: 9*dof) = newcoeff([1, 2, 3] + dof*( 9-1) )
+      !coeff(1+(10-1)*dof:10*dof) = newcoeff([1, 2, 3] + dof*(10-1) )
     endif
     if(lswitch_north) then
       newcoeff = coeff
-      !coeff( 1: 3) = newcoeff([1, 2, 3]        )
-      !coeff( 4: 6) = newcoeff([1, 2, 3] + dof*1)
-      !coeff( 7: 9) = newcoeff([1, 2, 3] + dof*2)
-      !coeff(10:12) = newcoeff([1, 2, 3] + dof*3)
-      !coeff(13:15) = newcoeff([1, 2, 3] + dof*4)
-      !coeff(16:18) = newcoeff([1, 2, 3] + dof*5)
-      coeff(19:21) = newcoeff([1, 2, 3] + dof*6)
-      coeff(22:24) = newcoeff([1, 2, 3] + dof*8)
-      coeff(25:27) = newcoeff([1, 2, 3] + dof*7)
-      coeff(28:30) = newcoeff([1, 2, 3] + dof*9)
+      !coeff(1+( 1-1)*dof: 1*dof) = newcoeff([1, 2, 3] + dof*( 1-1) )
+      !coeff(1+( 2-1)*dof: 2*dof) = newcoeff([1, 2, 3] + dof*( 2-1) )
+      !coeff(1+( 3-1)*dof: 3*dof) = newcoeff([1, 2, 3] + dof*( 4-1) )
+      !coeff(1+( 4-1)*dof: 4*dof) = newcoeff([1, 2, 3] + dof*( 3-1) )
+      !coeff(1+( 5-1)*dof: 5*dof) = newcoeff([1, 2, 3] + dof*( 6-1) )
+      !coeff(1+( 6-1)*dof: 6*dof) = newcoeff([1, 2, 3] + dof*( 5-1) )
+       coeff(1+( 7-1)*dof: 7*dof) = newcoeff([1, 2, 3] + dof*( 8-1) )
+       coeff(1+( 8-1)*dof: 8*dof) = newcoeff([1, 2, 3] + dof*( 7-1) )
+       coeff(1+( 9-1)*dof: 9*dof) = newcoeff([1, 2, 3] + dof*(10-1) )
+       coeff(1+(10-1)*dof:10*dof) = newcoeff([1, 2, 3] + dof*( 9-1) )
     endif
     if(.False.) then ! remove compiler unused warnings
       select type(OPP)
@@ -796,11 +981,45 @@ contains
     class(t_optprop_3_16)        :: OPP
     logical, intent(in)          :: lswitch_east, lswitch_north
     real(irealLUT),intent(inout) :: coeff(:)
+    integer(iintegers), parameter:: dof = 3
+    real(irealLUT)               :: newcoeff(size(coeff))
     if(lswitch_east) then
-      call CHKERR(1_mpiint, 'not yet implemented')
+      newcoeff = coeff
+      !coeff(1+( 1-1)*dof: 1*dof) = newcoeff([1, 2, 3] + dof*( 1-1) )
+      !coeff(1+( 2-1)*dof: 2*dof) = newcoeff([1, 2, 3] + dof*( 2-1) )
+       coeff(1+( 3-1)*dof: 3*dof) = newcoeff([1, 2, 3] + dof*( 7-1) )
+       coeff(1+( 4-1)*dof: 4*dof) = newcoeff([1, 2, 3] + dof*( 8-1) )
+      !coeff(1+( 5-1)*dof: 5*dof) = newcoeff([1, 2, 3] + dof*( 5-1) )
+      !coeff(1+( 6-1)*dof: 6*dof) = newcoeff([1, 2, 3] + dof*( 6-1) )
+       coeff(1+( 7-1)*dof: 7*dof) = newcoeff([1, 2, 3] + dof*( 3-1) )
+       coeff(1+( 8-1)*dof: 8*dof) = newcoeff([1, 2, 3] + dof*( 4-1) )
+       coeff(1+( 9-1)*dof: 9*dof) = newcoeff([1, 2, 3] + dof*(10-1) )
+       coeff(1+(10-1)*dof:10*dof) = newcoeff([1, 2, 3] + dof*( 9-1) )
+       coeff(1+(11-1)*dof:11*dof) = newcoeff([1, 2, 3] + dof*(12-1) )
+       coeff(1+(12-1)*dof:12*dof) = newcoeff([1, 2, 3] + dof*(11-1) )
+      !coeff(1+(13-1)*dof:13*dof) = newcoeff([1, 2, 3] + dof*(13-1) )
+      !coeff(1+(14-1)*dof:14*dof) = newcoeff([1, 2, 3] + dof*(14-1) )
+      !coeff(1+(15-1)*dof:15*dof) = newcoeff([1, 2, 3] + dof*(15-1) )
+      !coeff(1+(16-1)*dof:16*dof) = newcoeff([1, 2, 3] + dof*(16-1) )
     endif
-    if (lswitch_north) then
-      call CHKERR(1_mpiint, 'not yet implemented')
+    if(lswitch_north) then
+      newcoeff = coeff
+       coeff(1+( 1-1)*dof: 1*dof) = newcoeff([1, 2, 3] + dof*( 5-1) )
+       coeff(1+( 2-1)*dof: 2*dof) = newcoeff([1, 2, 3] + dof*( 6-1) )
+      !coeff(1+( 3-1)*dof: 3*dof) = newcoeff([1, 2, 3] + dof*( 3-1) )
+      !coeff(1+( 4-1)*dof: 4*dof) = newcoeff([1, 2, 3] + dof*( 4-1) )
+       coeff(1+( 5-1)*dof: 5*dof) = newcoeff([1, 2, 3] + dof*( 1-1) )
+       coeff(1+( 6-1)*dof: 6*dof) = newcoeff([1, 2, 3] + dof*( 2-1) )
+      !coeff(1+( 7-1)*dof: 7*dof) = newcoeff([1, 2, 3] + dof*( 7-1) )
+      !coeff(1+( 8-1)*dof: 8*dof) = newcoeff([1, 2, 3] + dof*( 8-1) )
+      !coeff(1+( 9-1)*dof: 9*dof) = newcoeff([1, 2, 3] + dof*( 9-1) )
+      !coeff(1+(10-1)*dof:10*dof) = newcoeff([1, 2, 3] + dof*(10-1) )
+      !coeff(1+(11-1)*dof:11*dof) = newcoeff([1, 2, 3] + dof*(11-1) )
+      !coeff(1+(12-1)*dof:12*dof) = newcoeff([1, 2, 3] + dof*(12-1) )
+       coeff(1+(13-1)*dof:13*dof) = newcoeff([1, 2, 3] + dof*(14-1) )
+       coeff(1+(14-1)*dof:14*dof) = newcoeff([1, 2, 3] + dof*(13-1) )
+       coeff(1+(15-1)*dof:15*dof) = newcoeff([1, 2, 3] + dof*(16-1) )
+       coeff(1+(16-1)*dof:16*dof) = newcoeff([1, 2, 3] + dof*(15-1) )
     endif
     if(.False.) then ! remove compiler unused warnings
       select type(OPP)
@@ -814,33 +1033,33 @@ contains
     class(t_optprop_8_10)        :: OPP
     logical, intent(in)          :: lswitch_east, lswitch_north
     real(irealLUT),intent(inout) :: coeff(:)
-    integer(iintegers), parameter :: dof = 8
+    integer(iintegers), parameter:: dof = 8
     real(irealLUT)               :: newcoeff(size(coeff))
     if(lswitch_east) then
       newcoeff = coeff
-      !coeff(1:8)   = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]        )
-      !coeff(9:16)  = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*1 )
-      coeff(17:24) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*3 )
-      coeff(25:32) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*2 )
-      coeff(33:40) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*5 )
-      coeff(41:48) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*4 )
-      !coeff(49:56) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*6 )
-      !coeff(57:64) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*7 )
-      !coeff(65:72) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*8 )
-      !coeff(73:80) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*9 )
+      !coeff(1+( 1-1)*dof: 1*dof) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] + dof*( 1-1) )
+      !coeff(1+( 2-1)*dof: 2*dof) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] + dof*( 2-1) )
+       coeff(1+( 3-1)*dof: 3*dof) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] + dof*( 4-1) )
+       coeff(1+( 4-1)*dof: 4*dof) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] + dof*( 3-1) )
+       coeff(1+( 5-1)*dof: 5*dof) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] + dof*( 6-1) )
+       coeff(1+( 6-1)*dof: 6*dof) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] + dof*( 5-1) )
+      !coeff(1+( 7-1)*dof: 7*dof) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] + dof*( 7-1) )
+      !coeff(1+( 8-1)*dof: 8*dof) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] + dof*( 8-1) )
+      !coeff(1+( 9-1)*dof: 9*dof) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] + dof*( 9-1) )
+      !coeff(1+(10-1)*dof:10*dof) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] + dof*(10-1) )
     endif
     if (lswitch_north) then
       newcoeff = coeff
-      !coeff(1:8)   = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]        )
-      !coeff(9:16)  = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*1 )
-      !coeff(17:24) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*2 )
-      !coeff(25:32) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*3 )
-      !coeff(33:40) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*4 )
-      !coeff(41:48) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*5 )
-      coeff(49:56) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*6 )
-      coeff(57:64) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*8 )
-      coeff(65:72) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*7 )
-      coeff(73:80) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*9 )
+      !coeff(1+( 1-1)*dof: 1*dof) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] + dof*( 1-1) )
+      !coeff(1+( 2-1)*dof: 2*dof) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] + dof*( 2-1) )
+      !coeff(1+( 3-1)*dof: 3*dof) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] + dof*( 4-1) )
+      !coeff(1+( 4-1)*dof: 4*dof) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] + dof*( 3-1) )
+      !coeff(1+( 5-1)*dof: 5*dof) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] + dof*( 6-1) )
+      !coeff(1+( 6-1)*dof: 6*dof) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] + dof*( 5-1) )
+       coeff(1+( 7-1)*dof: 7*dof) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] + dof*( 8-1) )
+       coeff(1+( 8-1)*dof: 8*dof) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] + dof*( 7-1) )
+       coeff(1+( 9-1)*dof: 9*dof) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] + dof*(10-1) )
+       coeff(1+(10-1)*dof:10*dof) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] + dof*( 9-1) )
     endif
     if(.False.) then ! remove compiler unused warnings
       select type(OPP)
@@ -852,16 +1071,53 @@ contains
     class(t_optprop_8_16)        :: OPP
     logical, intent(in)          :: lswitch_east, lswitch_north
     real(irealLUT),intent(inout) :: coeff(:)
+    real(irealLUT)               :: newcoeff(size(coeff)) ! dim(src,dst)
+    integer(iintegers), parameter:: dof = 8
     if(lswitch_east) then
-      call CHKERR(1_mpiint, 'not yet implemented')
+      newcoeff(:) = coeff
+      !coeff(1+( 1-1)*dof: 1*dof) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+( 1-1)*dof)
+      !coeff(1+( 2-1)*dof: 2*dof) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+( 2-1)*dof)
+       coeff(1+( 3-1)*dof: 3*dof) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+( 7-1)*dof)
+       coeff(1+( 4-1)*dof: 4*dof) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+( 8-1)*dof)
+      !coeff(1+( 5-1)*dof: 5*dof) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+( 5-1)*dof)
+      !coeff(1+( 6-1)*dof: 6*dof) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+( 6-1)*dof)
+       coeff(1+( 7-1)*dof: 7*dof) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+( 3-1)*dof)
+       coeff(1+( 8-1)*dof: 8*dof) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+( 4-1)*dof)
+       coeff(1+( 9-1)*dof: 9*dof) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+(10-1)*dof)
+       coeff(1+(10-1)*dof:10*dof) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+( 9-1)*dof)
+       coeff(1+(11-1)*dof:11*dof) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+(12-1)*dof)
+       coeff(1+(12-1)*dof:12*dof) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+(11-1)*dof)
+      !coeff(1+(13-1)*dof:13*dof) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+(13-1)*dof)
+      !coeff(1+(14-1)*dof:14*dof) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+(14-1)*dof)
+      !coeff(1+(15-1)*dof:15*dof) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+(15-1)*dof)
+      !coeff(1+(16-1)*dof:16*dof) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+(16-1)*dof)
     endif
     if (lswitch_north) then
-      call CHKERR(1_mpiint, 'not yet implemented')
+      newcoeff(:) = coeff
+       coeff(1+( 1-1)*dof: 1*dof) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+( 5-1)*dof)
+       coeff(1+( 2-1)*dof: 2*dof) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+( 6-1)*dof)
+      !coeff(1+( 3-1)*dof: 3*dof) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+( 3-1)*dof)
+      !coeff(1+( 4-1)*dof: 4*dof) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+( 4-1)*dof)
+       coeff(1+( 5-1)*dof: 5*dof) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+( 1-1)*dof)
+       coeff(1+( 6-1)*dof: 6*dof) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+( 2-1)*dof)
+      !coeff(1+( 7-1)*dof: 7*dof) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+( 7-1)*dof)
+      !coeff(1+( 8-1)*dof: 8*dof) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+( 8-1)*dof)
+      !coeff(1+( 9-1)*dof: 9*dof) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+( 9-1)*dof)
+      !coeff(1+(10-1)*dof:10*dof) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+(10-1)*dof)
+      !coeff(1+(11-1)*dof:11*dof) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+(11-1)*dof)
+      !coeff(1+(12-1)*dof:12*dof) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+(12-1)*dof)
+       coeff(1+(13-1)*dof:13*dof) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+(14-1)*dof)
+       coeff(1+(14-1)*dof:14*dof) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+(13-1)*dof)
+       coeff(1+(15-1)*dof:15*dof) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+(16-1)*dof)
+       coeff(1+(16-1)*dof:16*dof) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+(15-1)*dof)
+    endif
+    if(lswitch_east) then
+    endif
+    if (lswitch_north) then
     endif
     if(.False.) then ! remove compiler unused warnings
       select type(OPP)
       end select
-      if(lswitch_east .or. lswitch_north) coeff=coeff
     endif
   end subroutine
 
@@ -870,11 +1126,11 @@ contains
     logical, intent(in)          :: lswitch_east, lswitch_north
     real(irealLUT),intent(inout) :: coeff(:)
     if(lswitch_east) then
-      call CHKERR(1_mpiint, 'not yet implemented')
+      call CHKERR(1_mpiint, 'dir8_to_diff18_coeff_symmetry_lswitch_east_not yet implemented')
       coeff = coeff
     endif
     if (lswitch_north) then
-      call CHKERR(1_mpiint, 'not yet implemented')
+      call CHKERR(1_mpiint, 'dir8_to_diff18_coeff_symmetry_lswitch_north_not yet implemented')
       coeff = coeff
     endif
     select type(OPP)

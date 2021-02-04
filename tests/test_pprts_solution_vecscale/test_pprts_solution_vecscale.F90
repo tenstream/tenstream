@@ -6,8 +6,8 @@ module test_pprts_solution_vecscale
   use petsc
 
   use m_pprts_base, only : t_solver, t_solver_3_10, t_solver_8_10, t_solver_8_16, &
-    prepare_solution, print_solution
-  use m_pprts, only : init_pprts, scale_flx, destroy_pprts
+    prepare_solution, print_solution, destroy_pprts
+  use m_pprts, only : init_pprts, scale_flx
   use m_tenstream_options, only: read_commandline_options
   use m_helper_functions, only: CHKERR
 
@@ -44,20 +44,9 @@ contains
 
     integer(iintegers),parameter :: nxp=5,nyp=5,nv=5,uid=0
     real(ireals),parameter :: dx=100,dy=dx
-    real(ireals),parameter :: phi0=10, theta0=60
-    real(ireals),parameter :: albedo=0., dz=dx
-    real(ireals),parameter :: incSolar=1000
-    real(ireals),parameter :: atolerance=.1
+    real(ireals),parameter :: sundir(3) = 0
+    real(ireals),parameter :: dz=dx
     real(ireals) :: dz1d(nv)
-
-    real(ireals),allocatable,dimension(:,:,:) :: kabs,ksca,g
-    real(ireals),allocatable,dimension(:,:,:) :: fdir0,fdn0,fup0,fdiv0
-    real(ireals),allocatable,dimension(:,:,:) :: fdir1,fdn1,fup1,fdiv1
-    real(ireals),allocatable,dimension(:,:,:) :: fdir2,fdn2,fup2,fdiv2
-    real(ireals),allocatable,dimension(:,:,:) :: fdir3,fdn3,fup3,fdiv3
-
-    integer(iintegers) :: j
-    integer(iintegers) :: cx, cy      ! global indices of cloud
 
     dz1d = dz
     dz1d(1) = 10*dx
@@ -76,11 +65,11 @@ contains
         real(ireals) :: target_dirnorm, target_diffnorm
         real(ireals) :: dirnorm, diffnorm
         integer(mpiint) :: ierr
-        call init_pprts(comm, nv, nxp, nyp, dx,dy, phi0, theta0, solver, dz1d)
+        call init_pprts(comm, nv, nxp, nyp, dx,dy, sundir, solver, dz1d)
 
         associate( S => solver%solutions(uid) )
           call prepare_solution(solver%C_dir%da, solver%C_diff%da, solver%C_one%da, &
-            lsolar=.True., solution=S, uid=uid)
+            lsolar=.True., lthermal=.False., solution=S, uid=uid)
 
           call VecSet(S%edir , one, ierr); call CHKERR(ierr)
           S%lWm2_dir  = .True.

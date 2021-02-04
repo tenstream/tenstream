@@ -16,7 +16,6 @@
 !  --------------------------------------------------------------------------
 
 ! ------- Modules -------
-
       use m_tenstr_parkind_sw, only : im => kind_im, rb => kind_rb
       use m_tenstr_parrrsw, only : nbndsw, jpband, jpb1, jpb2
       use m_tenstr_rrsw_cld, only : extliq1, ssaliq1, asyliq1, &
@@ -33,7 +32,8 @@
 ! ----------------------------------------------------------------------------
       subroutine cldprop_sw(nlayers, inflag, iceflag, liqflag, cldfrac, &
                             tauc, ssac, asmc, fsfc, ciwp, clwp, rei, rel, &
-                            taucldorig, taucloud, ssacloud, asmcloud)
+                            taucldorig, taucloud, ssacloud, asmcloud, &
+                            lrrtmg_delta_scaling)
 ! ----------------------------------------------------------------------------
 
 ! Purpose: Compute the cloud optical properties for each cloudy layer.
@@ -75,6 +75,7 @@
                                                       !    Dimensions: (nbndsw,nlayers)
       real(kind=rb), intent(in) :: fsfc(:,:)          ! forward scattering fraction
                                                       !    Dimensions: (nbndsw,nlayers)
+      logical, intent(in) :: lrrtmg_delta_scaling
 
 ! ------- Output -------
 
@@ -156,7 +157,7 @@
                enddo
 
 ! (inflag=2): Separate treatement of ice clouds and water clouds.
-            elseif (inflag .eq. 2) then       
+            elseif (inflag .eq. 2) then
                radice = rei(lay)
 
 ! Calculation of absorption coefficients due to ice clouds.
@@ -291,6 +292,13 @@
                       if (gliq(ib) .gt. 1.0_rb) stop 'LIQUID ASYM GRTR THAN 1.0'
                       if (gliq(ib) .lt. 0.0_rb) stop 'LIQUID ASYM LESS THAN 0.0'
                    enddo
+                endif
+
+                if (.not.lrrtmg_delta_scaling) then
+                  do ib = ib1 , ib2
+                    forwice(ib) = 0
+                    forwliq(ib) = 0
+                  enddo
                 endif
 
                 do ib = ib1 , ib2

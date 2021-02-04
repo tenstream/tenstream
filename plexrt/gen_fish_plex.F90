@@ -43,7 +43,7 @@ module m_gen_fish_plex
       call mpi_comm_size(PETSC_COMM_WORLD, numnodes, ierr); call CHKERR(ierr)
 
       call create_2d_fish_plex(PETSC_COMM_WORLD, Nx, Ny, dm2d, dm2d_dist)
-      call dmplex_2D_to_3D(dm2d_dist, size(hhl, kind=iintegers), hhl, dm3d, zindex)
+      call dmplex_2D_to_3D(dm2d_dist, size(hhl, kind=iintegers), hhl, [zero,zero,-huge(zero)], dm3d, zindex)
 
       call PetscObjectViewFromOptions(dm2d_dist, PETSC_NULL_DM, "-default_option_show_plex", ierr); call CHKERR(ierr)
       call PetscObjectViewFromOptions(dm2d_dist, PETSC_NULL_DM, "-show_plex", ierr); call CHKERR(ierr)

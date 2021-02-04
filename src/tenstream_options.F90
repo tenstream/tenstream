@@ -19,9 +19,10 @@
 
 module m_tenstream_options
 
-  use m_data_parameters, only : init_mpi_data_parameters, ireals, iintegers, mpiint, &
-    zero, one, i0, default_str_len
-  use m_optprop_parameters, only: lut_basename, coeff_mode, stddev_atol, stddev_rtol
+  use m_data_parameters, only : init_mpi_data_parameters, &
+    & ireals, irealLUT, iintegers, mpiint, &
+    & zero, one, i0, default_str_len
+  use m_optprop_parameters, only: lut_basename, stddev_atol, stddev_rtol
   use m_helper_functions, only: CHKERR, CHKWARN
 
 #include "petsc/finclude/petsc.h"
@@ -39,15 +40,11 @@ module m_tenstream_options
     lmcrts            =.False., & ! use monte carlo solver
     lskip_thermal     =.False., & ! Skip thermal calculations and just return zero for fluxes and absorption
     ltopography       =.False., & ! use raybending to include surface topography
-    lforce_phi        =.False., & ! Force to use the phi given in options entries(overrides values given to tenstream calls
-    lforce_theta      =.False., & !
     lLUT_mockup       =.False.
 
   real(ireals) :: twostr_ratio, &
     ident_dx,               &
     ident_dy,               &
-    options_phi,            &
-    options_theta,          &
     options_max_solution_err, options_max_solution_time
 
   integer(iintegers) :: pert_xshift, pert_yshift, mcrts_photons_per_pixel
@@ -66,8 +63,6 @@ contains
     print *,'-out                  :: output prefix (default = ts)                                                             '
     print *,'-basepath             :: output directory (default = ./)                                                          '
     print *,'-dx -dy               :: domain size in [m] (mandatory if running with -ident <run_*> )                           '
-    print *,'-phi -theta           :: solar azimuth and zenith angle (default = (180,0) == south,overhead sun)                 '
-    print *,'-force_phi/theta      :: force using options provided phi/theta                                                   '
     print *,'-writeall             :: dump intermediate results                                                                '
     print *,'-twostr_only          :: only calculate twostream solution -- dont bother calculating 3D Radiation                '
     print *,'-twostr               :: calculate delta eddington twostream solution                                             '
@@ -94,6 +89,7 @@ contains
     integer(mpiint) :: ierr
     logical :: lshow_options=.False.
     logical :: ltenstr_view=.False.
+    logical :: file_exists
 
     integer(mpiint) :: myid, numnodes
     character(len=default_str_len) :: env_lut_basename
@@ -103,7 +99,10 @@ contains
     call MPI_COMM_RANK( comm, myid, ierr); call CHKERR(ierr)
     call MPI_Comm_size( comm, numnodes, ierr); call CHKERR(ierr)
 
-    call PetscOptionsInsertFile(comm, PETSC_NULL_OPTIONS, 'tenstream.options', PETSC_FALSE, ierr); call CHKERR(ierr)
+    inquire(file='tenstream.options', exist=file_exists)
+    if(file_exists) then
+      call PetscOptionsInsertFile(comm, PETSC_NULL_OPTIONS, 'tenstream.options', PETSC_FALSE, ierr); call CHKERR(ierr)
+    endif
 
     call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,"-show_options",lshow_options,lflg,ierr) ;call CHKERR(ierr)
     if(lflg.eqv.PETSC_FALSE) then
@@ -140,12 +139,6 @@ contains
     call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,"-dy",ident_dy, lflg,ierr)  ; call CHKERR(ierr)
     if(lflg.eqv.PETSC_FALSE) ident_dy = ident_dx
 
-    options_phi=180; options_theta=0
-    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-phi"  , options_phi, lflg,ierr); call CHKERR(ierr)
-    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-theta", options_theta, lflg,ierr); call CHKERR(ierr)
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-force_phi", lforce_phi, lflg , ierr); call CHKERR(ierr)
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-force_theta", lforce_theta, lflg, ierr); call CHKERR(ierr)
-
     call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-eddington",luse_eddington,lflg,ierr); call CHKERR(ierr)
 
     call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-twostr", ltwostr, lflg, ierr); call CHKERR(ierr)
@@ -181,8 +174,8 @@ contains
       lLUT_mockup , lflg , ierr) ;call CHKERR(ierr)
     if(lLUT_mockup) then
       call CHKWARN(1_mpiint, 'Using LUT_mockup, setting the LUT constraints to zero. Your results will be wrong!')
-      stddev_atol = 1._ireals
-      stddev_rtol = 1._ireals
+      stddev_atol = .1_irealLUT
+      stddev_rtol = .5_irealLUT
     endif
 
     call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-calc_nca", &
@@ -212,17 +205,12 @@ contains
     call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-mcrts_photons_per_px", &
       mcrts_photons_per_pixel, lflg,ierr); call CHKERR(ierr)
 
-    coeff_mode=0 ! use LUT by default
-    call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-coeff_mode", &
-      coeff_mode, lflg, ierr); call CHKERR(ierr)
-
     call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-tenstr_view", &
       ltenstr_view, lflg, ierr); call CHKERR(ierr)
     if(myid.eq.0.and.ltenstr_view) then
       print *,'********************************************************************'
       print *,'***   nr. of Nodes:',numnodes
       print *,'***   eddington    ',luse_eddington
-      print *,'***   coeff_mode   ',coeff_mode
       print *,'***   twostr_only  ',ltwostr_only
       print *,'***   twostr       ',ltwostr
       print *,'***   twostr_guess ',luse_twostr_guess
@@ -234,8 +222,6 @@ contains
       print *,'***   hdf5_guess   ',luse_hdf5_guess
       print *,'***   twostr_ratio ',twostr_ratio
       print *,'***   out          ',trim(output_prefix)
-      print *,'***   solar azimuth',options_phi, lforce_phi
-      print *,'***   solar zenith ',options_theta, lforce_theta
       print *,'***   size_of ireal/iintegers',sizeof(one),sizeof(i0)
       print *,'***   max_solution_err       ',options_max_solution_err
       print *,'***   max_solution_time      ',options_max_solution_time

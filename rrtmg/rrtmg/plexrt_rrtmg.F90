@@ -71,7 +71,7 @@ module m_plexrt_rrtmg
 !  logical,parameter :: ldebug=.True.
   logical,parameter :: ldebug=.False.
 
-  type(t_rrtmg_log_events), allocatable :: log_events
+  type(t_rrtmg_log_events) :: log_events
 contains
 
   subroutine plexrt_rrtmg(solver, atm, sundir,     &
@@ -116,10 +116,8 @@ contains
 
     if(.not.allocated(solver)) call CHKERR(1_mpiint, 'solver has to be setup beforehand')
     if(.not.allocated(solver%plex)) call CHKERR(1_mpiint, 'Solver has to have a ready to go Plexgrid')
-    if(.not.allocated(log_events)) then
-      allocate(log_events)
-      call setup_log_events(log_events, 'plexrt_')
-    endif
+
+    call setup_log_events(log_events, 'plexrt_')
 
     call PetscObjectGetComm(solver%plex%dm, comm, ierr); call CHKERR(ierr)
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
@@ -176,7 +174,7 @@ contains
       call PetscLogStagePush(log_events%stage_rrtmg_thermal, ierr); call CHKERR(ierr)
       call compute_thermal(comm, solver, atm, &
         Ncol, ke1, &
-        albedo_thermal, &
+        sundir, albedo_thermal, &
         edn, eup, abso, &
         opt_time=opt_time, &
         thermal_albedo_2d=thermal_albedo_2d, &
@@ -275,7 +273,7 @@ contains
       end subroutine
   end subroutine
 
-  subroutine compute_thermal(comm, solver, atm, Ncol, ke1, albedo, &
+  subroutine compute_thermal(comm, solver, atm, Ncol, ke1, sundir, albedo, &
       edn, eup, abso, opt_time, thermal_albedo_2d, lrrtmg_only)
 
     use m_tenstr_rrlw_wvn, only : ngb, wavenum1, wavenum2
@@ -286,6 +284,7 @@ contains
     type(t_tenstr_atm), intent(in), target :: atm
     integer(iintegers),intent(in) :: Ncol, ke1
 
+    real(ireals),intent(in) :: sundir(:)
     real(ireals),intent(in) :: albedo
 
     real(ireals),intent(inout),dimension(:,:) :: edn, eup, abso
@@ -298,12 +297,12 @@ contains
     real(ireals),allocatable, dimension(:,:)   :: spec_abso           ! [nlyr(+1), ncol ]
     real(ireals),allocatable, dimension(:,:)   :: spec_edn, spec_eup  ! [nlyr(+1), ncol ]
 
-    real(ireals), dimension(ke1-1,Ncol,ngptlw) :: tau                 ! [nlyr, ncol, ngptlw]
-    real(ireals), dimension(ke1  ,Ncol,ngptlw) :: Bfrac               ! [nlyr+1, ncol, ngptlw]
-    real(ireals), dimension(ke1-1)             :: integral_coeff      ! [nlyr]
+    real(ireals), allocatable, dimension(:,:,:):: tau                 ! [nlyr, ncol, ngptlw]
+    real(ireals), allocatable, dimension(:,:,:):: Bfrac               ! [nlyr+1, ncol, ngptlw]
+    real(ireals), allocatable, dimension(:)    :: integral_coeff      ! [nlyr]
 
-    real(ireals), dimension(ke1-1,ncol,ngptlw) :: tau_f               ! [nlyr, ncol, ngptlw]
-    real(ireals), dimension(ke1  ,Ncol)        :: Blev                ! [nlyr+1, ncol ]
+    real(ireals), allocatable, dimension(:,:,:):: tau_f               ! [nlyr, ncol, ngptlw]
+    real(ireals), allocatable, dimension(:,:)  :: Blev                ! [nlyr+1, ncol ]
 
     real(ireals), dimension(ke1-1), target     :: cfrac  ! [nlyr]
     real(ireals), dimension(:,:), pointer      :: xcfrac ! points to default 1D col cfrac or to atm%cfrac if allocated
@@ -338,7 +337,14 @@ contains
     endif
 
     ! Compute optical properties with RRTMG
+    allocate(tau(ke, Ncol, ngptlw))
+    allocate(Bfrac(ke1, Ncol, ngptlw))
+    allocate(Blev (ke1, Ncol))
+    allocate(integral_coeff(ke))
 
+    if(allocated(atm%cfrac)) then
+      allocate(tau_f(ke, Ncol, ngptlw))
+    endif
 
     col_albedo = albedo
 
@@ -364,20 +370,36 @@ contains
             endwhere
           endif
 
-          call optprop_rrtm_lw(i1, ke, col_albedo, &
-            atm%plev(:,i), atm%tlev(:,i),          &
-            atm%tlay(:,i), col_tskin,              &
-            atm%h2o_lay(:,i), atm%o3_lay(:,i), atm%co2_lay(:,i), &
-            atm%ch4_lay(:,i), atm%n2o_lay(:,i), atm%o2_lay(:,i), &
-            atm%lwc(:,i)*integral_coeff, atm%reliq(:,i), &
-            atm%iwc(:,i)*integral_coeff, atm%reice(:,i), &
-            tau=tau(:,i:i,:), Bfrac=Bfrac(2:ke1,i:i,:), &
-            opt_tau_f=tau_f(:,i:i,:),   &
-            opt_lwuflx=spec_eup(:,i:i), &
-            opt_lwdflx=spec_edn(:,i:i), &
-            opt_lwhr=spec_abso(:,i:i),  &
-            opt_cldfr=xcfrac,           &
-            log_event=log_events%rrtmg_optprop_lw)
+          if(allocated(atm%cfrac)) then
+            call optprop_rrtm_lw(i1, ke, col_albedo, &
+              atm%plev(:,i), atm%tlev(:,i),          &
+              atm%tlay(:,i), col_tskin,              &
+              atm%h2o_lay(:,i), atm%o3_lay(:,i), atm%co2_lay(:,i), &
+              atm%ch4_lay(:,i), atm%n2o_lay(:,i), atm%o2_lay(:,i), &
+              atm%lwc(:,i)*integral_coeff, atm%reliq(:,i), &
+              atm%iwc(:,i)*integral_coeff, atm%reice(:,i), &
+              tau=tau(:,i:i,:), Bfrac=Bfrac(2:ke1,i:i,:), &
+              opt_tau_f=tau_f(:,i:i,:),   &
+              opt_lwuflx=spec_eup(:,i:i), &
+              opt_lwdflx=spec_edn(:,i:i), &
+              opt_lwhr=spec_abso(:,i:i),  &
+              opt_cldfr=xcfrac,           &
+              log_event=log_events%rrtmg_optprop_lw)
+          else
+            call optprop_rrtm_lw(i1, ke, col_albedo, &
+              atm%plev(:,i), atm%tlev(:,i),          &
+              atm%tlay(:,i), col_tskin,              &
+              atm%h2o_lay(:,i), atm%o3_lay(:,i), atm%co2_lay(:,i), &
+              atm%ch4_lay(:,i), atm%n2o_lay(:,i), atm%o2_lay(:,i), &
+              atm%lwc(:,i)*integral_coeff, atm%reliq(:,i), &
+              atm%iwc(:,i)*integral_coeff, atm%reice(:,i), &
+              tau=tau(:,i:i,:), Bfrac=Bfrac(2:ke1,i:i,:), &
+              opt_lwuflx=spec_eup(:,i:i), &
+              opt_lwdflx=spec_edn(:,i:i), &
+              opt_lwhr=spec_abso(:,i:i),  &
+              opt_cldfr=xcfrac,           &
+              log_event=log_events%rrtmg_optprop_lw)
+          endif
 
           eup (:,i) = eup (:,i) + reverse(spec_eup (:,i))
           edn (:,i) = edn (:,i) + reverse(spec_edn (:,i))
@@ -398,16 +420,28 @@ contains
             col_tskin = atm%tlev(1,i)
           endif
 
-          call optprop_rrtm_lw(i1, ke, col_albedo, &
-            atm%plev(:,i), atm%tlev(:,i),          &
-            atm%tlay(:,i), col_tskin,              &
-            atm%h2o_lay(:,i), atm%o3_lay(:,i), atm%co2_lay(:,i), &
-            atm%ch4_lay(:,i), atm%n2o_lay(:,i), atm%o2_lay(:,i), &
-            atm%lwc(:,i)*integral_coeff, atm%reliq(:,i), &
-            atm%iwc(:,i)*integral_coeff, atm%reice(:,i), &
-            tau=tau(:,i:i,:), Bfrac=Bfrac(2:ke1,i:i,:), &
-            opt_tau_f=tau_f(:,i:i,:),                   &
-            log_event=log_events%rrtmg_optprop_lw)
+          if(allocated(atm%cfrac)) then
+            call optprop_rrtm_lw(i1, ke, col_albedo, &
+              atm%plev(:,i), atm%tlev(:,i),          &
+              atm%tlay(:,i), col_tskin,              &
+              atm%h2o_lay(:,i), atm%o3_lay(:,i), atm%co2_lay(:,i), &
+              atm%ch4_lay(:,i), atm%n2o_lay(:,i), atm%o2_lay(:,i), &
+              atm%lwc(:,i)*integral_coeff, atm%reliq(:,i), &
+              atm%iwc(:,i)*integral_coeff, atm%reice(:,i), &
+              tau=tau(:,i:i,:), Bfrac=Bfrac(2:ke1,i:i,:), &
+              opt_tau_f=tau_f(:,i:i,:),                   &
+              log_event=log_events%rrtmg_optprop_lw)
+          else
+            call optprop_rrtm_lw(i1, ke, col_albedo, &
+              atm%plev(:,i), atm%tlev(:,i),          &
+              atm%tlay(:,i), col_tskin,              &
+              atm%h2o_lay(:,i), atm%o3_lay(:,i), atm%co2_lay(:,i), &
+              atm%ch4_lay(:,i), atm%n2o_lay(:,i), atm%o2_lay(:,i), &
+              atm%lwc(:,i)*integral_coeff, atm%reliq(:,i), &
+              atm%iwc(:,i)*integral_coeff, atm%reice(:,i), &
+              tau=tau(:,i:i,:), Bfrac=Bfrac(2:ke1,i:i,:), &
+              log_event=log_events%rrtmg_optprop_lw)
+          endif
         enddo
     endif
     Bfrac(1,:,:) = Bfrac(2,:,:)
@@ -462,7 +496,7 @@ contains
 
         call Nz_Ncol_vec_to_horizface1_dm(solver%plex, reverse(Blev * Bfrac(:,:,ib)), solver%plck)
 
-        call run_plex_rt_solver(solver, lthermal=.True., lsolar=.False., sundir=[zero, zero, one], &
+        call run_plex_rt_solver(solver, lthermal=.True., lsolar=.False., sundir=sundir, &
           opt_solution_uid=500+ib, opt_solution_time=opt_time)
 
       endif
@@ -704,9 +738,11 @@ contains
     allocate(g  (ke, Ncol, ngptsw))
     allocate(integral_coeff(ke))
 
-    allocate(tau_f(ke, Ncol, ngptsw))
-    allocate(w0_f (ke, Ncol, ngptsw))
-    allocate(g_f  (ke, Ncol, ngptsw))
+    if(allocated(atm%cfrac)) then
+      allocate(tau_f(ke, Ncol, ngptsw))
+      allocate(w0_f (ke, Ncol, ngptsw))
+      allocate(g_f  (ke, Ncol, ngptsw))
+    endif
 
     xcfrac(1:1,1:ke) => cfrac
 
@@ -733,24 +769,42 @@ contains
               endwhere
             endif
 
-            call optprop_rrtm_sw(i1, ke, &
-              theta0, col_albedo, &
-              atm%plev(:,i), atm%tlev(:,i), atm%tlay(:,i), &
-              atm%h2o_lay(:,i), atm%o3_lay(:,i), atm%co2_lay(:,i), &
-              atm%ch4_lay(:,i), atm%n2o_lay(:,i), atm%o2_lay(:,i), &
-              atm%lwc(:,i)*integral_coeff, atm%reliq(:,i), &
-              atm%iwc(:,i)*integral_coeff, atm%reice(:,i), &
-              tau(:,i:i,:), w0(:,i:i,:), g(:,i:i,:), &
-              opt_swdirflx=spec_edir(:,i:i), &
-              opt_swuflx=spec_eup(:,i:i), &
-              opt_swdflx=spec_edn(:,i:i), &
-              opt_swhr=spec_abso(:,i:i), &
-              opt_solar_constant=opt_solar_constant, &
-              opt_tau_f=tau_f(:,i:i,:), &
-              opt_w0_f=w0_f(:,i:i,:), &
-              opt_g_f=g_f(:,i:i,:), &
-              opt_cldfr=xcfrac, &
-              log_event=log_events%rrtmg_optprop_sw)
+            if(allocated(atm%cfrac)) then
+              call optprop_rrtm_sw(i1, ke, &
+                theta0, col_albedo, &
+                atm%plev(:,i), atm%tlev(:,i), atm%tlay(:,i), &
+                atm%h2o_lay(:,i), atm%o3_lay(:,i), atm%co2_lay(:,i), &
+                atm%ch4_lay(:,i), atm%n2o_lay(:,i), atm%o2_lay(:,i), &
+                atm%lwc(:,i)*integral_coeff, atm%reliq(:,i), &
+                atm%iwc(:,i)*integral_coeff, atm%reice(:,i), &
+                tau(:,i:i,:), w0(:,i:i,:), g(:,i:i,:), &
+                opt_swdirflx=spec_edir(:,i:i), &
+                opt_swuflx=spec_eup(:,i:i), &
+                opt_swdflx=spec_edn(:,i:i), &
+                opt_swhr=spec_abso(:,i:i), &
+                opt_solar_constant=opt_solar_constant, &
+                opt_tau_f=tau_f(:,i:i,:), &
+                opt_w0_f=w0_f(:,i:i,:), &
+                opt_g_f=g_f(:,i:i,:), &
+                opt_cldfr=xcfrac, &
+                log_event=log_events%rrtmg_optprop_sw)
+            else
+              call optprop_rrtm_sw(i1, ke, &
+                theta0, col_albedo, &
+                atm%plev(:,i), atm%tlev(:,i), atm%tlay(:,i), &
+                atm%h2o_lay(:,i), atm%o3_lay(:,i), atm%co2_lay(:,i), &
+                atm%ch4_lay(:,i), atm%n2o_lay(:,i), atm%o2_lay(:,i), &
+                atm%lwc(:,i)*integral_coeff, atm%reliq(:,i), &
+                atm%iwc(:,i)*integral_coeff, atm%reice(:,i), &
+                tau(:,i:i,:), w0(:,i:i,:), g(:,i:i,:), &
+                opt_swdirflx=spec_edir(:,i:i), &
+                opt_swuflx=spec_eup(:,i:i), &
+                opt_swdflx=spec_edn(:,i:i), &
+                opt_swhr=spec_abso(:,i:i), &
+                opt_solar_constant=opt_solar_constant, &
+                opt_cldfr=xcfrac, &
+                log_event=log_events%rrtmg_optprop_sw)
+            endif
 
             edir(:,i) = edir(:,i) + reverse(spec_edir(:,i))
             eup (:,i) = eup (:,i) + reverse(spec_eup (:,i))
@@ -780,19 +834,32 @@ contains
 
           integral_coeff = vert_integral_coeff(atm%plev(1:ke,i), atm%plev(2:ke1,i))
 
-          call optprop_rrtm_sw(i1, ke, &
-            theta0, col_albedo, &
-            atm%plev(:,i), atm%tlev(:,i), atm%tlay(:,i), &
-            atm%h2o_lay(:,i), atm%o3_lay(:,i), atm%co2_lay(:,i), &
-            atm%ch4_lay(:,i), atm%n2o_lay(:,i), atm%o2_lay(:,i), &
-            atm%lwc(:,i)*integral_coeff, atm%reliq(:,i), &
-            atm%iwc(:,i)*integral_coeff, atm%reice(:,i), &
-            tau(:,i:i,:), w0(:,i:i,:), g(:,i:i,:), &
-            opt_solar_constant=opt_solar_constant, &
-            opt_tau_f=tau_f(:,i:i,:), &
-            opt_w0_f=w0_f(:,i:i,:), &
-            opt_g_f=g_f(:,i:i,:), &
-            log_event=log_events%rrtmg_optprop_sw)
+          if(allocated(atm%cfrac)) then
+            call optprop_rrtm_sw(i1, ke, &
+              theta0, col_albedo, &
+              atm%plev(:,i), atm%tlev(:,i), atm%tlay(:,i), &
+              atm%h2o_lay(:,i), atm%o3_lay(:,i), atm%co2_lay(:,i), &
+              atm%ch4_lay(:,i), atm%n2o_lay(:,i), atm%o2_lay(:,i), &
+              atm%lwc(:,i)*integral_coeff, atm%reliq(:,i), &
+              atm%iwc(:,i)*integral_coeff, atm%reice(:,i), &
+              tau(:,i:i,:), w0(:,i:i,:), g(:,i:i,:), &
+              opt_solar_constant=opt_solar_constant, &
+              opt_tau_f=tau_f(:,i:i,:), &
+              opt_w0_f=w0_f(:,i:i,:), &
+              opt_g_f=g_f(:,i:i,:), &
+              log_event=log_events%rrtmg_optprop_sw)
+          else
+            call optprop_rrtm_sw(i1, ke, &
+              theta0, col_albedo, &
+              atm%plev(:,i), atm%tlev(:,i), atm%tlay(:,i), &
+              atm%h2o_lay(:,i), atm%o3_lay(:,i), atm%co2_lay(:,i), &
+              atm%ch4_lay(:,i), atm%n2o_lay(:,i), atm%o2_lay(:,i), &
+              atm%lwc(:,i)*integral_coeff, atm%reliq(:,i), &
+              atm%iwc(:,i)*integral_coeff, atm%reice(:,i), &
+              tau(:,i:i,:), w0(:,i:i,:), g(:,i:i,:), &
+              opt_solar_constant=opt_solar_constant, &
+              log_event=log_events%rrtmg_optprop_sw)
+          endif
         enddo
       endif
     if(ldebug) then
@@ -851,7 +918,7 @@ contains
     enddo ! ib 1 -> nbndsw , i.e. spectral integration
   contains
     function compute_solar_disort() result(ldisort_only)
-      logical :: ldisort_only, ldelta_scale
+      logical :: ldisort_only, ldelta_scale, ldisort_verbose
       integer(iintegers) :: nstreams
       integer(iintegers) :: icol, ib
       real :: mu0
@@ -862,16 +929,21 @@ contains
 
       ldisort_only = .False.
       call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
-        "-disort_only" , ldisort_only , lflg , ierr) ;call CHKERR(ierr)
+        "-disort_only", ldisort_only, lflg,ierr) ;call CHKERR(ierr)
 
       ldelta_scale = .False.
       call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
-        "-disort_delta_scale" , ldelta_scale , lflg , ierr) ;call CHKERR(ierr)
+        "-disort_delta_scale", ldelta_scale, lflg ,ierr) ;call CHKERR(ierr)
 
       if(ldisort_only) then
         nstreams = 16
         call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
-          "-disort_streams" , nstreams , lflg , ierr) ;call CHKERR(ierr)
+          "-disort_streams", nstreams ,lflg, ierr) ;call CHKERR(ierr)
+
+        ldisort_verbose=.False.
+        call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+          "-disort_verbose", ldisort_verbose, lflg ,ierr) ;call CHKERR(ierr)
+
 
         col_tskin = 0
         col_temper = 0
@@ -914,7 +986,7 @@ contains
                 col_g,    &
                 col_temper, &
                 RFLDIR, RFLDN, FLUP, DFDT, UAVG, &
-                int(nstreams), lverbose=.False.)
+                int(nstreams), lverbose=ldisort_verbose)
 
               edir(:,icol) = edir(:,icol) + RFLDIR
               eup (:,icol) = eup (:,icol) + FLUP

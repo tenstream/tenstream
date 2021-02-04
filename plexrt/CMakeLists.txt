@@ -2,14 +2,15 @@ include_directories ("${CMAKE_CURRENT_SOURCE_DIR}")
 install(DIRECTORY ./ DESTINATION include/ FILES_MATCHING PATTERN "*.h")
 
 set( general_sources
-  "plex_rt_base.F90"
-  "plex_rt.F90"
-  "plex_grid.F90"
-  "plexrt_external_solvers.F90"
-  "plex2rayli.F90"
   "icon_grid.F90"
   "icon_plex_utils.F90"
   "nca_multi_tri.F90"
+  "plex2rayli.F90"
+  "plex_grid.F90"
+  "plex_rt_base.F90"
+  "plexrt_external_solvers.F90"
+  "plex_rt.F90"
+  "pprts2plex.F90"
   )
 
 add_library( plexrt_objs OBJECT ${general_sources} )

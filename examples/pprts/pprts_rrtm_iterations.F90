@@ -9,7 +9,7 @@ module m_example_pprts_rrtm_iterations
   ! the Tenstream uses.
   use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint, zero, one, default_str_len
 
-  use m_helper_functions, only : linspace, CHKERR, meanval
+  use m_helper_functions, only : linspace, CHKERR, meanval, spherical_2_cartesian
   use m_search, only: search_sorted_bisection
 
   ! Import specific solver type: 3_10 for example uses 3 streams direct, 10 streams for diffuse radiation
@@ -33,7 +33,7 @@ contains
     ! MPI variables and domain decomposition sizes
     integer(mpiint) :: numnodes, comm, myid, N_ranks_x, N_ranks_y, ierr
 
-    real(ireals) :: phi0, theta0, theta              ! Sun's angles, azimuth phi(0=North, 90=East), zenith(0 high sun, 80=low sun)
+    real(ireals) :: phi0, theta0, theta, sundir(3)   ! Sun's angles, azimuth phi(0=North, 90=East), zenith(0 high sun, 80=low sun)
     real(ireals) :: lwc0                             ! cloud lwc content
     real(ireals),parameter :: albedo_th=0, albedo_sol=.3 ! broadband ground albedo for solar and thermal spectrum
 
@@ -161,7 +161,7 @@ contains
     call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-solar", lsolar, lflg,ierr); call CHKERR(ierr)
     call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-thermal", lthermal, lflg,ierr); call CHKERR(ierr)
 
-    call allocate_pprts_solver_from_commandline(pprts_solver, '3_10')
+    call allocate_pprts_solver_from_commandline(pprts_solver, '3_10', ierr); call CHKERR(ierr)
 
     solve_iterations = 1
     call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-solve_iterations", &
@@ -193,8 +193,10 @@ contains
       if(iter.eq.1.and.myid.eq.0) call print_tenstr_atm(atm)
 
       if(lsolar.and.myid.eq.0) print *,'theta0 =', theta
+      sundir = spherical_2_cartesian(phi0, theta)
+
       call pprts_rrtmg(comm, pprts_solver, atm, nxp, nyp, &
-        dx, dy, phi0, theta,   &
+        dx, dy, sundir,        &
         albedo_th, albedo_sol,  &
         lthermal, lsolar,       &
         edir, edn, eup, abso,   &
@@ -236,39 +238,4 @@ contains
     call destroy_pprts_rrtmg(pprts_solver, lfinalizepetsc=.True.)
     call destroy_tenstr_atm(atm)
   end subroutine
-
 end module
-
-program main
-#include "petsc/finclude/petsc.h"
-  use petsc
-  use mpi
-  use m_data_parameters, only : iintegers, mpiint, ireals
-  use m_example_pprts_rrtm_iterations, only: example_rrtm_lw_sw
-
-  implicit none
-
-  integer(mpiint) :: ierr, myid
-  integer(iintegers) :: Nx, Ny, Nz
-  real(ireals)       :: dx, dy
-  logical :: lflg
-
-  call mpi_init(ierr)
-  call mpi_comm_rank(mpi_comm_world, myid, ierr)
-
-  call PetscInitialize(PETSC_NULL_CHARACTER ,ierr)
-
-  Nx=3; Ny=3; Nz=5
-  call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Nx", Nx, lflg, ierr)
-  call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Ny", Ny, lflg, ierr)
-  call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Nz", Nz, lflg, ierr)
-
-  dx = 500
-  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-dx", dx, lflg, ierr)
-  dy = dx
-  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-dy", dy, lflg, ierr)
-
-  call example_rrtm_lw_sw(Nx, Ny, Nz, dx, dy)
-
-  call mpi_finalize(ierr)
-end program

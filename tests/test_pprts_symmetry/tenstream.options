@@ -6,9 +6,11 @@
 -dir_ksp_monitor
 -diff_ksp_monitor
 
--dir_ksp_rtol 1e-8
--diff_ksp_rtol 1e-8
--dir_ksp_atol 1e-30
--diff_ksp_atol 1e-30
+-solar_dir_ksp_rtol 1e-8
+-solar_diff_ksp_rtol 1e-8
+-thermal_diff_ksp_rtol 1e-8
+-solar_dir_ksp_atol 1e-30
+-solar_diff_ksp_atol 1e-30
+-thermal_diff_ksp_atol 1e-30
 
 -skip_diffuse_solve

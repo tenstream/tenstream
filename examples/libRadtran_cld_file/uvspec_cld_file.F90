@@ -14,11 +14,15 @@ module m_example_uvspec_cld_file
   ! main entry point for solver, and desctructor
   use m_pprts_rrtmg, only : pprts_rrtmg, destroy_pprts_rrtmg
 
-  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, destroy_tenstr_atm, hydrostat_dp
+  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, destroy_tenstr_atm, &
+    hydrostat_dp, load_atmfile, t_bg_atm, print_tenstr_atm
 
+  use m_tenstream_options, only: read_commandline_options
   use m_helper_functions, only: CHKERR, itoa, imp_bcast, reverse, spherical_2_cartesian, resize_arr, &
-    domain_decompose_2d
+    domain_decompose_2d_petsc
   use m_netcdfio, only: ncload, ncwrite, get_global_attribute
+
+  use m_petsc_helpers, only: getvecpointer, restorevecpointer
 
   use m_icon_plex_utils, only: create_2d_regular_plex, dmplex_2D_to_3D, &
     rank0_f90vec_to_plex, dmplex_gvec_from_f90_array, plex_gvec_tozero
@@ -32,6 +36,8 @@ module m_example_uvspec_cld_file
 
   use m_plexrt_rrtmg, only: plexrt_rrtmg, destroy_plexrt_rrtmg
 
+  use m_tenstream_interpolation, only: interp_1d
+  use m_search, only: find_real_location
   implicit none
 
 contains
@@ -39,41 +45,50 @@ contains
       cldfile, atm_filename, outfile, &
       albedo_th, albedo_sol, &
       lsolar, lthermal, &
-      phi0, theta0, &
-      Tsrfc, dTdz)
+      phi0, theta0)
+
     integer(mpiint), intent(in) :: comm
     character(len=*), intent(in) :: cldfile, atm_filename, outfile
     real(ireals), intent(in) :: albedo_th, albedo_sol
     logical, intent(in) :: lsolar, lthermal
     real(ireals), intent(in) :: phi0, theta0 ! Sun's angles, azimuth phi(0=North, 90=East), zenith(0 high sun, 80=low sun)
-    real(ireals), intent(in) :: Tsrfc, dTdz
 
     real(ireals), dimension(:,:,:), allocatable, target :: lwc, reliq ! will have global shape Nz, Nx, Ny
     real(ireals), dimension(:,:,:), allocatable, target :: plev, tlev ! will have local shape nzp+1, nxp, nyp
     real(ireals), dimension(:), allocatable :: hhl ! dim Nz+1
+    real(ireals), pointer :: z(:,:,:,:)=>null(), z1d(:)=>null() ! dim Nz+1
     character(len=default_str_len) :: groups(2)
 
     real(ireals),allocatable, dimension(:,:,:) :: edir, edn, eup, abso ! [nlev_merged(-1), nxp, nyp]
     real(ireals),allocatable, dimension(:,:,:) :: gedir, gedn, geup, gabso ! global arrays which we will dump to netcdf
+    type(t_bg_atm), allocatable :: bg_atm
 
     class(t_solver), allocatable :: pprts_solver
 
-    real(ireals) :: dx, dy
-    integer(mpiint) :: myid, N_ranks_x, N_ranks_y, ierr
-    integer(iintegers) :: iproc, jproc, is, ie, js, je
+    real(ireals) :: dx, dy, z_location
+    integer(mpiint) :: myid, ierr
+    integer(iintegers) :: is, ie, js, je
     integer(iintegers) :: nxp, nyp, nzp ! local sizes of domain, nzp being number of layers
+    integer(iintegers),allocatable :: nxproc(:), nyproc(:)
 
     integer(iintegers) :: k
 
     call mpi_comm_rank(comm, myid, ierr)
 
     ! Load LibRadtran Cloud File
-    call get_global_attribute(cldfile, 'dx', dx)
-    call get_global_attribute(cldfile, 'dy', dy)
-    groups(1) = trim(cldfile)
-    groups(2) = trim('lwc'); call ncload(groups, lwc, ierr); call CHKERR(ierr)
-    groups(2) = trim('reff'); call ncload(groups, reliq, ierr); call CHKERR(ierr)
-    groups(2) = trim('z'); call ncload(groups, hhl, ierr); call CHKERR(ierr)
+    if(myid.eq.0) then
+      call get_global_attribute(cldfile, 'dx', dx, ierr); call CHKERR(ierr)
+      call get_global_attribute(cldfile, 'dy', dy, ierr); call CHKERR(ierr)
+      groups(1) = trim(cldfile)
+      groups(2) = trim('lwc'); call ncload(groups, lwc, ierr); call CHKERR(ierr)
+      groups(2) = trim('reff'); call ncload(groups, reliq, ierr); call CHKERR(ierr)
+      groups(2) = trim('z'); call ncload(groups, hhl, ierr); call CHKERR(ierr)
+    endif
+    call imp_bcast(comm, dx, 0_mpiint)
+    call imp_bcast(comm, dy, 0_mpiint)
+    call imp_bcast(comm, lwc, 0_mpiint)
+    call imp_bcast(comm, reliq, 0_mpiint)
+    call imp_bcast(comm, hhl, 0_mpiint)
 
     if(size(lwc  ,dim=2).eq.1) call resize_arr(3_iintegers, lwc  , dim=2, lrepeat=.True.)
     if(size(reliq,dim=2).eq.1) call resize_arr(3_iintegers, reliq, dim=2, lrepeat=.True.)
@@ -94,85 +109,94 @@ contains
     endif
 
     ! Determine Domain Decomposition
-    call domain_decompose_2d(comm, N_ranks_x, N_ranks_y, ierr); call CHKERR(ierr)
-    if(myid.eq.0) print *, myid, 'Domain Decomposition will be', N_ranks_x, 'and', N_ranks_y
+    call domain_decompose_2d_petsc(comm, &
+      & Nx_global = size(lwc, dim=2, kind=iintegers), &
+      & Ny_global = size(lwc, dim=3, kind=iintegers), &
+      & Nx_local  = nxp, &
+      & Ny_local  = nyp, &
+      & xStart    = is, &
+      & yStart    = js, &
+      & nxproc    = nxproc, &
+      & nyproc    = nyproc, &
+      & ierr=ierr); call CHKERR(ierr)
+    is = is+1 ! fortran based indices
+    js = js+1 ! fortran based indices
+    ie = is + nxp-1
+    je = js + nyp-1
 
-    nxp = size(lwc, dim=2) / N_ranks_x
-    nyp = size(lwc, dim=3) / N_ranks_y
-    call CHKERR(modulo(size(lwc, dim=2,kind=mpiint), int(N_ranks_x,mpiint)), &
-      'x-dimension is not evenly distributable on given communicator!'// &
-      'cant put'//itoa(size(lwc, dim=2))//' pixels on '//itoa(N_ranks_x)//' ranks')
-    call CHKERR(modulo(size(lwc, dim=3, kind=mpiint), int(N_ranks_y, mpiint)), &
-      'y-dimension is not evenly distributable on given communicator!'// &
-      'cant put'//itoa(size(lwc, dim=3))//' pixels on '//itoa(N_ranks_y)//' ranks')
+    print *,'myid', myid, 'is,ie', is,ie, 'js,je', js,je
 
-    if(myid.eq.0) then
-      print *,'Local Domain sizes are:',nxp,nyp
-    endif
-    jproc = myid / N_ranks_x
-    iproc = modulo(myid, int(N_ranks_x, mpiint))
-
-    js = 1 + jproc * nyp
-    je = js + nyp -1
-
-    is = 1 + (myid - jproc*N_ranks_x) * nxp
-    ie = is + nxp -1
-
-    call mpi_barrier(comm, ierr)
-    print *,myid,'i,j proc', iproc, jproc,' local portion: ', is, ie, 'and', js, je
-
-    ! Start with a dynamics grid starting at 1000 hPa with a specified lapse rate and surface temperature
+    ! Load the background atmosphere file and interpolate pressure and temperature from that
     nzp = size(hhl)-1
     allocate(plev(nzp+1, nxp, nyp), tlev(nzp+1, nxp, nyp))
-    plev(1,:,:) = 1000_ireals
-    tlev(1,:,:) = Tsrfc
-    do k=2,nzp+1
-      tlev(k,:,:) = tlev(k-1,:,:) + dTdz * (hhl(k)-hhl(k-1))
-      plev(k,:,:) = plev(k-1,:,:) - hydrostat_dp(hhl(k)-hhl(k-1), plev(k-1,:,:), (tlev(k,:,:)+tlev(k-1,:,:))/2)
+    call load_atmfile(comm, atm_filename, bg_atm)
+    do k = 1, nzp + 1
+      z_location  = find_real_location(bg_atm%zt, hhl(k))
+      plev(k,:,:) = interp_1d(z_location, bg_atm%plev)
+      tlev(k,:,:) = interp_1d(z_location, bg_atm%tlev)
     enddo
+    deallocate(bg_atm)
 
     if(myid.eq.0) then
-      do k=1,nzp+1
+      do k = 1, nzp+1
         print *, k, 'plev', plev(k,is,js), 'Tlev', tlev(k,is,js)
       enddo
     endif
 
-    call allocate_pprts_solver_from_commandline(pprts_solver, default_solver='8_10')
+    call allocate_pprts_solver_from_commandline(pprts_solver, default_solver='3_10', ierr=ierr); call CHKERR(ierr)
 
-    call run_rrtmg_lw_sw(pprts_solver, atm_filename, dx, dy, phi0, theta0, &
-      plev, tlev, &
-      lwc(:, is:ie, js:je), reliq(:, is:ie, js:je), &
-      albedo_th, albedo_sol, lsolar, lthermal, &
-      edir, edn, eup, abso)
+    call run_rrtmg_lw_sw(pprts_solver, &
+      & nxproc, nyproc, &
+      & atm_filename, &
+      & dx, dy, phi0, theta0, &
+      & plev, tlev, &
+      & lwc(:, is:ie, js:je), &
+      & reliq(:, is:ie, js:je), &
+      & albedo_th, albedo_sol, &
+      & lsolar, lthermal, &
+      & edir, edn, eup, abso)
 
     groups(1) = trim(outfile)
 
-    if(allocated(edir)) then
-      call gather_all_toZero(pprts_solver%C_one_atm1, edir, gedir)
-      if(myid.eq.0) then
-        print *,'dumping direct radiation with local and global shape', shape(edir), ':', shape(gedir)
-        groups(2) = 'edir'; call ncwrite(groups, gedir, ierr); call CHKERR(ierr)
+    associate(&
+        & C  => pprts_solver%C_one,     &
+        & C1 => pprts_solver%C_one1,    &
+        & Ca => pprts_solver%C_one_atm, &
+        & Ca1=> pprts_solver%C_one_atm1_box )
+
+      if(allocated(edir)) then
+        call gather_all_toZero(pprts_solver%C_one_atm1, edir, gedir)
+        if(myid.eq.0) then
+          print *,'dumping direct radiation with local and global shape', shape(edir), ':', shape(gedir)
+          groups(2) = 'edir'; call ncwrite(groups, gedir, ierr); call CHKERR(ierr)
+        endif
       endif
-    endif
-    call gather_all_toZero(pprts_solver%C_one_atm1, edn, gedn)
-    call gather_all_toZero(pprts_solver%C_one_atm1, eup, geup)
-    call gather_all_toZero(pprts_solver%C_one_atm, abso, gabso)
-    if(myid.eq.0) then
-      print *,'dumping edn radiation with local and global shape', shape(edn), ':', shape(gedn)
-      groups(2) = 'edn' ; call ncwrite(groups, gedn , ierr); call CHKERR(ierr)
-      print *,'dumping eup radiation with local and global shape', shape(eup), ':', shape(geup)
-      groups(2) = 'eup' ; call ncwrite(groups, geup , ierr); call CHKERR(ierr)
-      print *,'dumping abso radiation with local and global shape', shape(abso), ':', shape(gabso)
-      groups(2) = 'abso'; call ncwrite(groups, gabso, ierr); call CHKERR(ierr)
-    endif
+      call gather_all_toZero(pprts_solver%C_one_atm1, edn, gedn)
+      call gather_all_toZero(pprts_solver%C_one_atm1, eup, geup)
+      call gather_all_toZero(pprts_solver%C_one_atm, abso, gabso)
+      if(myid.eq.0) then
+        print *,'dumping edn radiation with local and global shape', shape(edn), ':', shape(gedn)
+        groups(2) = 'edn' ; call ncwrite(groups, gedn , ierr); call CHKERR(ierr)
+        print *,'dumping eup radiation with local and global shape', shape(eup), ':', shape(geup)
+        groups(2) = 'eup' ; call ncwrite(groups, geup , ierr); call CHKERR(ierr)
+        print *,'dumping abso radiation with local and global shape', shape(abso), ':', shape(gabso)
+        groups(2) = 'abso'; call ncwrite(groups, gabso, ierr); call CHKERR(ierr)
+        print *,'dumping hhl'
+        call getVecPointer(Ca1%da, pprts_solver%atm%hhl, z1d, z)
+        groups(2) = 'hhl'; call ncwrite(groups, z(0,Ca1%zs:Ca1%ze, Ca1%xs:Ca1%xs, Ca1%ys:Ca1%ys), ierr); call CHKERR(ierr)
+        call restoreVecPointer(Ca1%da, pprts_solver%atm%hhl, z1d, z)
+      endif
+
+    end associate
 
     call destroy_pprts_rrtmg(pprts_solver, lfinalizepetsc=.True.)
   end subroutine
 
-  subroutine run_rrtmg_lw_sw(pprts_solver, atm_filename, dx, dy, phi0, theta0, &
+  subroutine run_rrtmg_lw_sw(pprts_solver, nxproc, nyproc, atm_filename, dx, dy, phi0, theta0, &
       plev, tlev, lwc, reliq, albedo_th, albedo_sol, lsolar, lthermal, &
       edir, edn, eup, abso)
     class(t_solver) :: pprts_solver
+    integer(iintegers),intent(in) :: nxproc(:), nyproc(:)
     real(ireals),intent(in) :: dx, dy       ! horizontal grid spacing in [m]
     real(ireals), intent(in) :: phi0, theta0 ! Sun's angles, azimuth phi(0=North, 90=East), zenith(0 high sun, 80=low sun)
     real(ireals), intent(in), dimension(:,:,:), contiguous, target :: lwc, reliq ! dim(Nz,Nx,Ny)
@@ -182,7 +206,7 @@ contains
     real(ireals), dimension(:,:,:), contiguous, target, intent(in) :: tlev ! Temperature on layer interfaces [K]  dim=nzp+1,nxp,nyp
 
     ! MPI variables and domain decomposition sizes
-    integer(mpiint) :: comm, myid, N_ranks_x, N_ranks_y, ierr
+    integer(mpiint) :: comm, myid, ierr
 
 
     ! Layer values for the atmospheric constituents -- those are actually all
@@ -208,10 +232,10 @@ contains
 
     !------------ Local vars ------------------
     integer(iintegers) :: k, nlev
-    integer(iintegers),allocatable :: nxproc(:), nyproc(:)
 
     ! reshape pointer to convert i,j vecs to column vecs
     real(ireals), pointer, dimension(:,:) :: pplev, ptlev, plwc, preliq
+    real(ireals) :: sundir(3)
 
     logical,parameter :: ldebug=.True.
 
@@ -219,13 +243,6 @@ contains
 
     comm = mpi_comm_world
     call mpi_comm_rank(comm, myid, ierr)
-
-    ! Determine Domain Decomposition
-    call domain_decompose_2d(comm, N_ranks_x, N_ranks_y, ierr); call CHKERR(ierr)
-    if(myid.eq.0) print *, myid, 'Domain Decomposition will be', N_ranks_x, 'and', N_ranks_y
-
-    allocate(nxproc(N_ranks_x), source=size(plev,2, kind=iintegers)) ! dimension will determine how many ranks are used along the axis
-    allocate(nyproc(N_ranks_y), source=size(plev,3, kind=iintegers)) ! values have to define the local domain sizes on each rank (here constant on all processes)
 
     ! Not much going on in the dynamics grid, we actually don't supply trace
     ! gases to the TenStream solver... this will then be interpolated from the
@@ -244,13 +261,17 @@ contains
     plwc (1:size(lwc ,1),1:size(lwc ,2)*size(lwc ,3)) => lwc
     preliq(1:size(reliq,1),1:size(reliq,2)*size(reliq,3)) => reliq
 
+    sundir = spherical_2_cartesian(phi0,theta0)
+
     call setup_tenstr_atm(comm, .False., atm_filename, &
       pplev, ptlev, atm, &
       d_lwc=plwc, d_reliq=preliq)
 
+    call print_tenstr_atm(atm)
+
     call pprts_rrtmg(comm, pprts_solver, atm, &
       size(plev,2, kind=iintegers), size(plev,3, kind=iintegers), &
-      dx, dy, phi0, theta0,                    &
+      dx, dy, sundir,                          &
       albedo_th, albedo_sol,                   &
       lthermal, lsolar,                        &
       edir, edn, eup, abso,                    &
@@ -331,8 +352,8 @@ contains
 
     if(myid.eq.0) then
       ! Load LibRadtran Cloud File
-      call get_global_attribute(cldfile, 'dx', dx)
-      call get_global_attribute(cldfile, 'dy', dy)
+      call get_global_attribute(cldfile, 'dx', dx, ierr); call CHKERR(ierr)
+      call get_global_attribute(cldfile, 'dy', dy, ierr); call CHKERR(ierr)
       groups(1) = trim(cldfile)
       groups(2) = trim('lwc') ; call ncload(groups, glob_lwc,   ierr); call CHKERR(ierr)
       groups(2) = trim('reff'); call ncload(groups, glob_reliq, ierr); call CHKERR(ierr)
@@ -401,7 +422,7 @@ contains
       plev, tlev, atm)
 
     Nlev = size(atm%plev,1,kind=iintegers)
-    call dmplex_2D_to_3D(dm2d_dist, Nlev, reverse(atm%zt(:, i1)), dm3d, zindex, lpolar_coords=.False.)
+    call dmplex_2D_to_3D(dm2d_dist, Nlev, reverse(atm%zt(:, i1)), [zero, zero, -huge(one)], dm3d, zindex)
 
     call setup_plexgrid(dm2d_dist, dm3d, Nlev-1, zindex, plex, reverse(atm%zt(:, i1)))
     deallocate(zindex)
@@ -553,6 +574,7 @@ program main
 
   call mpi_init(ierr)
   call init_mpi_data_parameters(mpi_comm_world)
+  call read_commandline_options(mpi_comm_world)
   call mpi_comm_rank(mpi_comm_world, myid, ierr)
 
   call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-cld', cldfile, lflg, ierr); call CHKERR(ierr)
@@ -591,8 +613,7 @@ program main
       zero, Ag, lsolar, lthermal, phi0, theta0, Tsrfc, dTdz)
   else
     call example_uvspec_cld_file(mpi_comm_world, cldfile, atm_filename, outfile, &
-      zero, Ag, lsolar, lthermal, phi0, theta0, Tsrfc, dTdz)
+      zero, Ag, lsolar, lthermal, phi0, theta0)
   endif
-  call PetscFinalize(ierr)
   call mpi_finalize(ierr)
 end program

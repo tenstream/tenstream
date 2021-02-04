@@ -199,8 +199,8 @@ contains
 
         call OPP%init(comm)
 
-        call OPP%LUT_get_dir2dir ([tauz, w0, g , tauz/taux, phi, theta], LUT_dir2dir)
-        call OPP%LUT_get_dir2diff([tauz, w0, g , tauz/taux, phi, theta], LUT_dir2diff)
+        call OPP%get_dir2dir ([tauz, w0, tauz/taux, g , phi, theta], LUT_dir2dir)
+        call OPP%get_dir2diff([tauz, w0, tauz/taux, g , phi, theta], LUT_dir2diff)
         print*,taux, tauz
         do src=1,8
 
@@ -247,7 +247,7 @@ contains
 
         call OPP%init(comm)
 
-        call OPP%LUT_get_diff2diff([tauz, w0, g, tauz/taux], LUT_diff2diff)
+        call OPP%get_diff2diff([tauz, w0, tauz/taux, g], LUT_diff2diff)
         do src=1,10
 
           call bmc_8_10%get_coeff(comm,real([kabs,ksca,g], ireal_dp), &
@@ -290,8 +290,8 @@ contains
 
       call OPP%init(this%getMpiCommunicator())
 
-      call OPP%LUT_get_dir2dir ([tauz, w0, bg(3), tauz/taux, phi, theta], LUT_dir2dir)
-      call OPP%LUT_get_dir2diff([tauz, w0, bg(3), tauz/taux, phi, theta], LUT_dir2diff)
+      call OPP%get_dir2dir ([tauz, w0, tauz/taux, bg(3), phi, theta], LUT_dir2dir)
+      call OPP%get_dir2diff([tauz, w0, tauz/taux, bg(3), phi, theta], LUT_dir2diff)
 
       do src=1,4
         T_target = zero
@@ -353,12 +353,12 @@ contains
         endif
 
         @assertEqual(real(S_target, irealLUT), S, atol*sigma, local_msgS )
-        @assertLessThanOrEqual   (zero, S)
-        @assertGreaterThanOrEqual(one , S)
+        @assertTrue(S.gt.0._irealLUT-sqrt(epsilon(S)), "S coeffs have all to be larger 0")
+        @assertTrue(S.lt.1._irealLUT+sqrt(epsilon(S)), "S coeffs have all to be smaller 1")
 
         @assertEqual(real(T_target, irealLUT), T, atol*sigma, local_msgT )
-        @assertLessThanOrEqual   (zero, T)
-        @assertGreaterThanOrEqual(one , T)
+        @assertTrue(T.gt.0._irealLUT-sqrt(epsilon(T)), "T coeffs have all to be larger 0")
+        @assertTrue(T.lt.1._irealLUT+sqrt(epsilon(T)), "T coeffs have all to be smaller 1")
       endif
   end subroutine
 

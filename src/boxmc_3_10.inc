@@ -34,6 +34,7 @@
 ! 3 -> side face between (A,B)/(C,D)
 
 ! Distribution Code for diffuse streams/targets:
+! Src numbering
 !         _______2_______
 !        |            9  |
 !      6 |            7  | 5
@@ -43,13 +44,24 @@
 !      4 |_______________| 3
 !                1
 !
-! Face numbering is
+! i.e. numbering is
 ! 2 -> top
 ! 1 -> bottom face
 ! 3,4 -> side faces in x-plane downwards
 ! 5,6 -> side faces in x-plane upwards
 ! 7,8 -> side faces in y-plane downwards
 ! 9,10-> side faces in y-plane upwards
+!
+! Dst numbering
+!         _______1_______
+!        |           10  |
+!      5 |            8  | 6
+!        |               |
+!        |   9           |
+!        |   7           |
+!      3 |_______________| 4
+!                2
+!
 
 subroutine init_dir_photon_3_10(bmc, p, src, ldirect, initial_dir, vertices, ierr)
   class(t_boxmc_3_10)               :: bmc
@@ -59,24 +71,64 @@ subroutine init_dir_photon_3_10(bmc, p, src, ldirect, initial_dir, vertices, ier
   logical           ,intent(in)     :: ldirect
   integer(mpiint)   ,intent(out)    :: ierr
 
-  real(ireal_dp), parameter  :: e=1e-6_ireal_dp
-  real(ireal_dp) :: dx, dy, dz
+  real(ireal_dp), dimension(3) :: normal, U, V, cube_center, dir_p_to_cube_center
 
-  call setup_cube_coords_from_vertices(vertices, dx, dy, dz)
 
+  p%dir   = initial_dir
   p%alive = .False.
 
-  select case(src)
-  case (1)
-    p%loc = [R()*dx, R()*dy, dz*(one-e)]
-  case (2)
-    p%loc = [e, R()*dy, R()*dz]
-  case (3)
-    p%loc = [R()*dx, e, R()*dz]
-  case default
-    print *,'Dont know what to do with source spec:',src
-    call exit
-  end select
+  call CHKERR(size(vertices)-24, 'wrong size of vertices, expected 24 but found '//toStr(size(vertices)))
+  associate( &
+      pA => vertices(1:3), &
+      pB => vertices(4:6), &
+      pC => vertices(7:9), &
+      pD => vertices(10:12), &
+      pE => vertices(13:15), &
+      pF => vertices(16:18), &
+      pG => vertices(19:21), &
+      pH => vertices(22:24) &
+      )
+    select case(src)
+    case (1)
+      if(p%dir(3).le.0) then
+        !p%loc = [R()*dx, R()*dy, dz*(one-e)]
+        call rand_pnt_on_plane(pE,pG,pH,pF, p%loc, normal, U, V)
+        p%src_side = 1
+      else
+        call rand_pnt_on_plane(pA,pB,pD,pC, p%loc, normal, U, V)
+        p%src_side = 2
+      endif
+    case (2)
+      if(p%dir(1).ge.0) then
+        call rand_pnt_on_plane(pA,pC,pG,pE, p%loc, normal, U, V)
+        p%src_side = 3
+        !p%loc = [e, R()*dy, R()*dz]
+      else
+        call rand_pnt_on_plane(pB,pF,pH,pD, p%loc, normal, U, V)
+        p%src_side = 4
+        !p%loc = [dx-e, R()*dy, R()*dz]
+      endif
+    case (3)
+      if(p%dir(2).ge.0) then
+        call rand_pnt_on_plane(pE,pF,pB,pA, p%loc, normal, U, V)
+        p%src_side = 5
+        !p%loc = [R()*dx, e, R()*dz]
+      else
+        call rand_pnt_on_plane(pG,pC,pD,pH, p%loc, normal, U, V)
+        p%src_side = 6
+        !p%loc = [R()*dx, dy-e, R()*dz]
+      endif
+    case default
+      print *,'Dont know what to do with source spec:',src
+      call exit
+    end select
+
+    ! always nudge the photon a little bit inside the volume
+    cube_center = (pA+pB+pC+pD+pE+pF+pG+pH)/8._ireal_dp
+    dir_p_to_cube_center = cube_center - p%loc
+
+    p%loc = p%loc + sqrt(epsilon(p%loc)) * dir_p_to_cube_center
+  end associate
 
   p%weight     = one
   p%alive      = .True.
@@ -84,9 +136,22 @@ subroutine init_dir_photon_3_10(bmc, p, src, ldirect, initial_dir, vertices, ier
   p%side       = int(nil)
   p%src        = src
   p%scattercnt = 0
-  p%dir        = initial_dir
+
   select type(bmc)
   end select
+
+
+  if(dot_product(p%dir, normal).lt.zero) then
+    ierr = 1000_mpiint + int(angle_between_two_vec(p%dir, normal), kind=mpiint)
+    call CHKWARN(1_mpiint, 'initial direction of the photon is pointing outside of the cube')
+    print *,'UUPS, are we starting in a wrong direction?'// &
+      & ' :: init_dir_photon_wedge_5_8', rad2deg(angle_between_two_vec(p%dir, normal))
+    print *,'src', src, 'initial_dir', initial_dir
+    print *,'normal',normal,'direction',p%dir
+    call print_photon(p)
+    call CHKERR(ierr)
+    return
+  endif
 
   ierr = 0
 end subroutine
@@ -104,7 +169,7 @@ subroutine update_dir_stream_3_10(bmc,vertices,p,T)
         case(5,6)
           T(3)=T(3)+p%weight
         case default
-          stop 'called update dirstream with incorrect source'
+          call CHKERR(1_mpiint, 'called update dirstream with incorrect source'//toStr(p%side))
           print *,'remove unused compiler warning', vertices
         end select
         select type(bmc)
@@ -132,28 +197,39 @@ subroutine init_diff_photon_3_10(bmc, p, src, vertices, ierr)
         case (-1) ! thermal emission
                 p%loc = (/ L(dx) , L(dy) , L(dz) /)
                 mu = 2*mu2 - one
+                p%src_side = -1
         case (1)
                 p%loc = (/ L(dx) , L(dy) , zero  /)
+                p%src_side = 2
         case (2)
                 p%loc = (/ L(dx) , L(dy) , dz    /)
+                p%src_side = 1
         case (3)
                 p%loc = (/ dx    , L(dy) , L(dz) /)
+                p%src_side = 4
         case (4)
                 p%loc = (/ zero  , L(dy) , L(dz) /)
+                p%src_side = 3
         case (5)
                 p%loc = (/ dx    , L(dy) , L(dz) /)
+                p%src_side = 4
         case (6)
                 p%loc = (/ zero  , L(dy) , L(dz) /)
+                p%src_side = 3
         case (7)
                 p%loc = (/ L(dx) , dy    , L(dz) /)
+                p%src_side = 6
         case (8)
                 p%loc = (/ L(dx) , zero  , L(dz) /)
+                p%src_side = 5
         case (9)
                 p%loc = (/ L(dx) , dy    , L(dz) /)
+                p%src_side = 6
         case (10)
                 p%loc = (/ L(dx) , zero  , L(dz) /)
+                p%src_side = 5
         case default
-                call CHKERR(1_mpiint, 'Dont know what to do with source spec: '//itoa(src))
+                call CHKERR(1_mpiint, 'Dont know what to do with source spec: '//toStr(src))
         end select
 
         select case(src)
@@ -162,7 +238,7 @@ subroutine init_diff_photon_3_10(bmc, p, src, vertices, ierr)
           case(3:10)
             phi = deg2rad( interv_R(-90._ireal_dp,90._ireal_dp) )
           case default
-            call CHKERR(1_mpiint, 'Dont know what to do with source spec: '//itoa(src))
+            call CHKERR(1_mpiint, 'Dont know what to do with source spec: '//toStr(src))
             call exit
         end select
 
@@ -220,6 +296,7 @@ subroutine update_diff_stream_3_10(bmc,vertices,p,S)
   type(t_photon),intent(in)    :: p
   real(irealbmc),intent(inout) :: S(:)
 
+  ! dst numbering
   !         _______1_______
   !        |           10  |
   !      5 |            8  | 6
@@ -280,10 +357,12 @@ subroutine intersect_distance_3_10(bmc,vertices,p,max_dist)
   real(ireal_dp),intent(in) :: vertices(:)
   type(t_photon),intent(inout) :: p
   real(ireal_dp),intent(out) :: max_dist
+  integer(mpiint) :: ierr
+  call intersect_cube_general(vertices, p%loc, p%dir, p%scattercnt, p%src_side, &
+    & p%side, p%weight, max_dist, p%subface, ierr)
 
-
-  call intersect_cube(vertices, p%loc, p%dir, p%scattercnt, p%src_side, &
-    p%side, max_dist)
+  !call intersect_cube(vertices, p%loc, p%dir, p%scattercnt, p%src_side, &
+  !  & p%side, max_dist)
 
   select type(bmc)
   end select

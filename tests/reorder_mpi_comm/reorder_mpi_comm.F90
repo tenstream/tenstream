@@ -2,8 +2,8 @@
 subroutine test_tenstream_ex1(this)
 
     use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint
-    use m_pprts_base, only : t_coord, t_solver_3_10
-    use m_pprts, only : init_pprts, destroy_pprts
+    use m_pprts_base, only : t_coord, t_solver_3_10, destroy_pprts
+    use m_pprts, only : init_pprts
     use m_helper_functions, only : reorder_mpi_comm, chkerr
     use m_tenstream_options, only: read_commandline_options
     use pfunit_mod
@@ -16,7 +16,7 @@ subroutine test_tenstream_ex1(this)
 
     integer(iintegers),parameter :: nxp=9,nyp=9,nv=3
     real(ireals),parameter :: dx=10000,dy=dx
-    real(ireals),parameter :: phi0=-1, theta0=-1
+    real(ireals),parameter :: sundir(3) = 0
     real(ireals),parameter :: dz=dx/1000
     real(ireals) :: dz1d(nv)
 
@@ -39,7 +39,7 @@ subroutine test_tenstream_ex1(this)
     call init_mpi_data_parameters(comm)
 
     call PetscOptionsInsertString(PETSC_NULL_OPTIONS, "-twostr_only", mpierr); call CHKERR(mpierr)
-    call init_pprts(comm, nv, nxp, nyp, dx, dy, phi0, theta0, solver, dz1d=dz1d)
+    call init_pprts(comm, nv, nxp, nyp, dx, dy, sundir, solver, dz1d=dz1d)
     call mpi_comm_rank( comm, myid, mpierr)
     print *,'I am originally', orig_id, 'my rank is now', myid, &
       ' and Neighbors are', solver%C_one%neighbors([10,4,16,22])
@@ -53,7 +53,7 @@ subroutine test_tenstream_ex1(this)
     call reorder_mpi_comm(comm, Nrank_x, Nrank_y, reorder_comm)
 
     call init_mpi_data_parameters(reorder_comm)
-    call init_pprts(reorder_comm, nv, nxp, nyp, dx, dy, phi0, theta0, solver, dz1d=dz1d)
+    call init_pprts(reorder_comm, nv, nxp, nyp, dx, dy, sundir, solver, dz1d=dz1d)
     call mpi_comm_rank( comm, myid, mpierr)
     print *,'I am originally', orig_id, 'my rank is now', myid, &
       ' and Neighbors are', solver%C_one%neighbors([10,4,16,22])

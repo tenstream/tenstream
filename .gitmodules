@@ -3,4 +3,4 @@
 	url = git@github.com:tenstream/tenstream.wiki.git
 [submodule "pfunit"]
 	path = external/pfunit
-	url = git://git.code.sf.net/p/pfunit/code
+	url = http://git.code.sf.net/p/pfunit/code

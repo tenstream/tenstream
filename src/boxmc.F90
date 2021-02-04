@@ -29,30 +29,79 @@ module m_boxmc
 #define isnan ieee_is_nan
 #endif
 
-  use m_helper_functions_dp, only : &
-    hit_plane, square_intersection, triangle_intersection, pnt_in_cube
-
-  use m_helper_functions, only : CHKERR, CHKWARN, get_arg, itoa, ftoa, cstr, &
-    rotate_angle_x, rotate_angle_y, rotate_angle_z, &
-    angle_between_two_vec, rotation_matrix_local_basis_to_world, &
-    approx, meanval, rmse, imp_reduce_sum, &
-    deg2rad, rad2deg, pnt_in_triangle, &
-    compute_normal_3d, spherical_2_cartesian, &
-    cross_3d, triangle_area_by_vertices
   use iso_c_binding
   use mpi
+
+  use m_intersection, only: &
+    & hit_plane, &
+    & pnt_in_cube, &
+    & pnt_in_triangle, &
+    & square_intersection, &
+    & triangle_intersection
+
+  use m_helper_functions, only : &
+    & angle_between_two_vec, &
+    & approx, &
+    & CHKERR, &
+    & CHKWARN, &
+    & compute_normal_3d, &
+    & cross_3d, &
+    & cstr, &
+    & deg2rad, &
+    & get_arg, &
+    & imp_reduce_sum, &
+    & meanval, &
+    & rad2deg, &
+    & rmse, &
+    & rotate_angle_x, &
+    & rotate_angle_y, &
+    & rotate_angle_z, &
+    & rotation_matrix_local_basis_to_world, &
+    & spherical_2_cartesian, &
+    & toStr
+
   use m_data_parameters, only: &
-    mpiint,iintegers,ireals,ireal_dp,irealbmc, &
-    i0,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10, inil, pi64, &
-    imp_iinteger, imp_real_dp, imp_logical
+    & i0, &
+    & i1, &
+    & i10, &
+    & i2, &
+    & i3, &
+    & i4, &
+    & i5, &
+    & i6, &
+    & i7, &
+    & i8, &
+    & i9, &
+    & iintegers, &
+    & imp_iinteger, &
+    & imp_logical, &
+    & imp_real_dp, &
+    & inil, &
+    & init_mpi_data_parameters, &
+    & irealbmc, &
+    & ireal_dp, &
+    & ireals, &
+    & mpiint, &
+    & pi64
 
-  use m_optprop_parameters, only : delta_scale_truncate,stddev_atol,stddev_rtol,ldebug_optprop
+  use m_optprop_parameters, only : &
+    & delta_scale_truncate, &
+    & ldebug_optprop, &
+    & stddev_atol, &
+    & stddev_rtol
 
-  use m_boxmc_geometry, only : setup_cube_coords_from_vertices, setup_wedge_coords_from_vertices, &
-      intersect_cube, intersect_wedge, &
-      box_halfspaces, wedge_halfspaces
+  use m_boxmc_geometry, only : &
+    & box_halfspaces, &
+    & intersect_cube, &
+    & intersect_cube_general, &
+    & intersect_wedge, &
+    & rand_pnt_on_plane, &
+    & rand_pnt_on_triangle, &
+    & setup_cube_coords_from_vertices, &
+    & setup_wedge_coords_from_vertices, &
+    & wedge_halfspaces
 
-  use m_kiss_rng, only: kiss_real, kiss_init
+  use m_ranlux, only: ranlux, rluxgo
 
   implicit none
 
@@ -299,13 +348,16 @@ module m_boxmc
 
 contains
 
-  subroutine gen_mpi_photon_type()
+  subroutine gen_mpi_photon_type(comm)
+    integer(mpiint),intent(in) :: comm
     type(t_photon) :: dummy
     integer(mpiint),parameter :: block_cnt=3  ! Number of blocks
     integer(mpiint) :: blocklengths(block_cnt) ! Number of elements in each block
     integer(mpiint) :: dtypes(block_cnt) ! Type of elements in each block (array of handles to data-type objects)
     integer(mpi_address_kind) :: displacements(block_cnt), base ! byte displacement of each block
     integer(mpiint) :: ierr
+
+    call init_mpi_data_parameters(comm)
 
     blocklengths(1) = 8 ! doubles to begin with
     blocklengths(2) = 10 ! ints
@@ -448,20 +500,20 @@ contains
       print *,'S tol', ret_S_tol
       call CHKERR(1_mpiint, 'BOXMC violates stddev constraints!')
     endif
-    if(any(ret_S_out.lt.0)) call CHKERR(1_mpiint, 'Have a negative coeff in S(:) '//ftoa(ret_S_out))
-    if(any(ret_T_out.lt.0)) call CHKERR(1_mpiint, 'Have a negative coeff in T(:) '//ftoa(ret_T_out))
-    if(any(ret_S_tol.lt.0)) call CHKERR(1_mpiint, 'Have a negative tolerance in S(:) '//ftoa(ret_S_tol))
-    if(any(ret_T_tol.lt.0)) call CHKERR(1_mpiint, 'Have a negative tolerance in T(:) '//ftoa(ret_T_tol))
+    if(any(ret_S_out.lt.0)) call CHKERR(1_mpiint, 'Have a negative coeff in S(:) '//toStr(ret_S_out))
+    if(any(ret_T_out.lt.0)) call CHKERR(1_mpiint, 'Have a negative coeff in T(:) '//toStr(ret_T_out))
+    if(any(ret_S_tol.lt.0)) call CHKERR(1_mpiint, 'Have a negative tolerance in S(:) '//toStr(ret_S_tol))
+    if(any(ret_T_tol.lt.0)) call CHKERR(1_mpiint, 'Have a negative tolerance in T(:) '//toStr(ret_T_tol))
 
     retnorm = sum(ret_S_out)+sum(ret_T_out)
     if( retnorm.gt.1 ) then
       if(ldebug) then
         call CHKWARN(1_mpiint, 'norm of coeffs '// &
-          'internal '//ftoa([sum(S_out), sum(T_out), sum(S_out)+sum(T_out)])// &
-          'returned '//ftoa([sum(ret_S_out), sum(ret_T_out), sum(ret_S_out)+sum(ret_T_out)])// &
+          'internal '//toStr([sum(S_out), sum(T_out), sum(S_out)+sum(T_out)])// &
+          'returned '//toStr([sum(ret_S_out), sum(ret_T_out), sum(ret_S_out)+sum(ret_T_out)])// &
           ' is quite large! ... will try to renormalize ...'//new_line('')// &
-          'T = '//ftoa(ret_T_out)//new_line('')// &
-          'S = '//ftoa(ret_S_out))
+          'T = '//toStr(ret_T_out)//new_line('')// &
+          'S = '//toStr(ret_S_out))
       endif
 
       ret_S_out = ret_S_out / (retnorm+epsilon(retnorm)*100)
@@ -469,11 +521,11 @@ contains
 
       if( (sum(ret_S_out)+sum(ret_T_out)).gt.1 ) then
         call CHKERR(1_mpiint, 'norm of coeffs '// &
-          'internal '//ftoa([sum(S_out), sum(T_out), sum(S_out)+sum(T_out)])// &
-          'returned '//ftoa([sum(ret_S_out), sum(ret_T_out), sum(ret_S_out)+sum(ret_T_out)])// &
+          'internal '//toStr([sum(S_out), sum(T_out), sum(S_out)+sum(T_out)])// &
+          'returned '//toStr([sum(ret_S_out), sum(ret_T_out), sum(ret_S_out)+sum(ret_T_out)])// &
           ' is still too big! '//new_line('')// &
-          'T = '//ftoa(ret_T_out)//new_line('')// &
-          'S = '//ftoa(ret_S_out))
+          'T = '//toStr(ret_T_out)//new_line('')// &
+          'S = '//toStr(ret_S_out))
       endif
     endif
   end subroutine
@@ -865,7 +917,6 @@ contains
     call RANLUX(rvec,1)  ! use Luxury Pseudorandom Numbers from M. Luscher, slow but good
     R = real(rvec(1), kind=ireal_dp)
     ! call random_number(R) ! bad
-    ! call kiss_real(R) ! good but faster
   end function
 
   subroutine init_random_seed(myid, luse_random_seed)
@@ -893,10 +944,8 @@ contains
       s = int(rn*1000)*(myid+1)
 
       call RLUXGO(2, int(s), 0, 0) ! seed ranlux rng
-      !call kiss_init(s)
     else
       call RLUXGO(2, int(myid+1), 0, 0) ! seed ranlux rng
-      !call kiss_init(myid+1)
     endif
     lRNGseeded=.True.
   end subroutine
@@ -1006,41 +1055,9 @@ contains
     stop 'initialize: unexpected type for boxmc object!'
   end select
 
-  call gen_mpi_photon_type()
+  call gen_mpi_photon_type(comm)
 
   bmc%initialized = .True.
-end subroutine
-
-! Distribute Photons on triangles: https://doi.org/10.1145/571647.571648
-subroutine rand_pnt_on_triangle(A,B,C, pnt)
-  real(ireal_dp), dimension(:), intent(in) :: A, B, C
-  real(ireal_dp), dimension(:), intent(out) :: pnt
-  real(ireal_dp) :: r1, r2
-  r1 = R()
-  r2 = R()
-  pnt = (one - sqrt(r1)) * A + sqrt(r1) * (one - r2) * B + sqrt(r1) * r2 * C
-end subroutine
-subroutine rand_pnt_on_plane(A,B,C,D, pnt, normal, U,V)
-  real(ireal_dp), dimension(3), intent(in) :: A, B, C, D
-  real(ireal_dp), dimension(3), intent(out) :: pnt, normal, U, V
-  real(ireal_dp) :: area(2)
-
-  area(1) = triangle_area_by_vertices(A,B,C)
-  area(2) = triangle_area_by_vertices(A,C,D)
-
-  if(R().lt.area(1)/sum(area)) then
-    call rand_pnt_on_triangle(A,B,C,pnt)
-    normal = compute_normal_3d(A,B,C)
-    U = (C-B)
-    U = U/norm2(U)
-    V = -cross_3d(U,normal)
-  else
-    call rand_pnt_on_triangle(A,C,D,pnt)
-    normal = compute_normal_3d(A,C,D)
-    U = (D-A)
-    U = U/norm2(U)
-    V = -cross_3d(U,normal)
-  endif
 end subroutine
 
 

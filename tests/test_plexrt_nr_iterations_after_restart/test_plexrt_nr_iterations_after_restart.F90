@@ -47,11 +47,6 @@ contains
     real(ireals),parameter :: sundir(3) = [zero, zero, -one]
     real(ireals),parameter :: albedo=0, dz=dx
 
-    real(ireals),allocatable,dimension(:,:) :: fdir,fdn,fup,fdiv
-
-    real(ireals) :: time
-    logical :: lneed
-
     type(tDM) :: dm_serial, dm2d, dm3d
     real(ireals) :: hhl(Nz)
     type(t_plexgrid), allocatable :: plex
@@ -74,7 +69,7 @@ contains
 
     call DMPlexGetDepthStratum(dm2d, i0, vStart, vEnd, ierr); call CHKERR(ierr) ! 2D vertices
 
-    call dmplex_2D_to_3D(dm2d, Nz, hhl, dm3d, zindex, lpolar_coords=.False.)
+    call dmplex_2D_to_3D(dm2d, Nz, hhl, [zero, zero, -huge(one)], dm3d, zindex)
 
     call setup_plexgrid(dm2d,dm3d, Nz-1, zindex, plex, hhl)
     deallocate(zindex)

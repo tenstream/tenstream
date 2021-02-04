@@ -20,11 +20,25 @@
 module m_boxmc_geometry
   use iso_fortran_env, only: REAL32, REAL64
   use m_data_parameters, only : mpiint, iintegers, ireals, ireal_dp, one, zero
-  use m_helper_functions, only : CHKERR, itoa, compute_normal_3d, angle_between_two_vec, triangle_inner_circle_center
-  use m_helper_functions_dp, only: pnt_in_triangle, distance_to_edge, &
-    determine_normal_direction, &
-    distances_to_triangle_edges, norm, mean, approx, &
-    triangle_intersection, square_intersection
+  use m_helper_functions, only : &
+    & angle_between_two_vec, &
+    & approx, &
+    & CHKERR, &
+    & compute_normal_3d, &
+    & cross_3d, &
+    & determine_normal_direction, &
+    & distances_to_triangle_edges, &
+    & distance_to_edge, &
+    & meanval, &
+    & toStr, &
+    & triangle_area_by_vertices, &
+    & triangle_inner_circle_center
+
+  use m_intersection, only: &
+    & hit_plane, &
+    & pnt_in_triangle, &
+    & square_intersection, &
+    & triangle_intersection
 
   implicit none
 
@@ -63,8 +77,8 @@ module m_boxmc_geometry
           C(1:2) = vertices(5:6); C(3) = 0
           D(1:2) = vertices(7:8); D(3) = 0
 
-          dx = mean([norm(B-A), norm(D-C)])
-          dy = mean([norm(C-A), norm(D-B)])
+          dx = meanval([norm2(B-A), norm2(D-C)])
+          dy = meanval([norm2(C-A), norm2(D-B)])
           dz = one
         elseif(size(vertices).eq.2*4*3) then ! 3D coords
           A = vertices( 1: 3)
@@ -76,11 +90,12 @@ module m_boxmc_geometry
           G = vertices(19:21)
           H = vertices(22:24)
 
-          dx = mean([norm(B-A), norm(D-C), norm(F-E), norm(H-G)])
-          dy = mean([norm(C-A), norm(D-B), norm(G-E), norm(H-F)])
-          dz = mean([norm(E-A), norm(F-B), norm(H-D), norm(G-C)])
+          dx = meanval([norm2(B-A), norm2(D-C), norm2(F-E), norm2(H-G)])
+          dy = meanval([norm2(C-A), norm2(D-B), norm2(G-E), norm2(H-F)])
+          dz = meanval([norm2(E-A), norm2(F-B), norm2(H-D), norm2(G-C)])
         else
-          call CHKERR(1_mpiint, 'dont know how to handle coords with '//itoa(size(vertices, kind=iintegers))//' vertex entries')
+          call CHKERR(1_mpiint, 'dont know how to handle coords with '//&
+            & toStr(size(vertices, kind=iintegers))//' vertex entries')
         endif
       else
         if(size(vertices).eq.4*2) then ! given are vertices on the top of a cube(x,y)
@@ -92,7 +107,8 @@ module m_boxmc_geometry
           dy = vertices(8) - vertices(2)
           dz = vertices(15) - vertices(3)
         else
-          call CHKERR(1_mpiint, 'dont know how to handle coords with '//itoa(size(vertices, kind=iintegers))//' vertex entries')
+          call CHKERR(1_mpiint, 'dont know how to handle coords with '//&
+            & toStr(size(vertices, kind=iintegers))//' vertex entries')
         endif
       endif
     end subroutine
@@ -128,8 +144,8 @@ module m_boxmc_geometry
       else
         allocate(vertices(2*4*3))
       endif
-      vertices( 1: 2) = [zero,zero]
 
+      vertices( 1: 2) = [zero,zero]
       vertices( 4: 5) = [  dx,zero]
       vertices( 7: 8) = [zero,  dy]
       vertices(10:11) = [  dx,  dy]
@@ -154,8 +170,8 @@ module m_boxmc_geometry
       else
         allocate(vertices(2*4*3))
       endif
-      vertices( 1: 2) = [zero,zero]
 
+      vertices( 1: 2) = [zero,zero]
       vertices( 4: 5) = [  dx,zero]
       vertices( 7: 8) = [zero,  dy]
       vertices(10:11) = [  dx,  dy]
@@ -213,12 +229,12 @@ module m_boxmc_geometry
       E = vertices(13:14)
       F = vertices(16:17)
 
-      nAB = (A-B); nAB = nAB([2,1]); nAB = nAB *[one, -one] / norm(nAB)
-      nBC = (B-C); nBC = nBC([2,1]); nBC = nBC *[one, -one] / norm(nBC)
-      nCA = (C-A); nCA = nCA([2,1]); nCA = nCA *[one, -one] / norm(nCA)
+      nAB = (A-B); nAB = nAB([2,1]); nAB = nAB *[one, -one] / norm2(nAB)
+      nBC = (B-C); nBC = nBC([2,1]); nBC = nBC *[one, -one] / norm2(nBC)
+      nCA = (C-A); nCA = nCA([2,1]); nCA = nCA *[one, -one] / norm2(nCA)
 
-      dx = norm(B-A)
-      dy = norm(C-A)
+      dx = norm2(B-A)
+      dy = norm2(C-A)
       dz = vertices(12)-vertices(3)
       if(any(approx([dx,dy,dz], 0._ireal_dp))) then
         do i=1,6
@@ -348,7 +364,6 @@ module m_boxmc_geometry
 
     subroutine intersect_cube(vertices, ploc, pdir, pscattercnt, psrc_side, &
         pside, max_dist)
-      use m_helper_functions_dp, only: hit_plane
       real(ireal_dp),intent(in) :: vertices(:)
       real(ireal_dp),intent(in) :: pdir(:), ploc(:)
       integer(iintegers),intent(in) :: pscattercnt, psrc_side
@@ -429,14 +444,104 @@ module m_boxmc_geometry
         endif
       enddo
 
-      if(max_dist.gt.norm([dx,dy,dz])) then
+      if(max_dist.gt.norm2([dx,dy,dz])) then
         print *,'should actually not be here at the end of crossings in intersect distance! '// &
                 '- however, please check if distance makes sense?:', &
-        max_dist, norm([dx,dy,dz]), '::', dist, ':', vertices, &
+        max_dist, norm2([dx,dy,dz]), '::', dist, ':', vertices, &
           'pdir', pdir, 'ploc side', ploc, psrc_side, 'target_side', pside
         call CHKERR(1_mpiint, 'DEBUG')
       endif
 
+    end subroutine
+
+    !> @brief: computes intersection of a distorted cube,
+    !> i.e. the generalized version of intersect_cube
+    subroutine intersect_cube_general(vertices, ploc, pdir, pscattercnt, psrc_side, &
+        pside, pweight, max_dist, psubface, ierr)
+      real(ireal_dp),intent(in) :: vertices(:)
+      real(ireal_dp),intent(in) :: pdir(:), ploc(:)
+      integer(iintegers),intent(in) :: pscattercnt, psrc_side
+      integer(iintegers),intent(inout) :: pside
+      real(ireal_dp),intent(inout) :: pweight
+      real(ireal_dp),intent(out) :: max_dist
+      integer(iintegers), intent(out) :: psubface
+      integer(mpiint) :: ierr
+
+      logical            :: lhit (6)
+      real(ireal_dp)     :: hit  (6, 4)
+      integer(iintegers) :: i, iface(6)
+
+      associate( &
+          A => vertices( 1: 3), &
+          B => vertices( 4: 6), &
+          C => vertices( 7: 9), &
+          D => vertices(10:12), &
+          E => vertices(13:15), &
+          F => vertices(16:18), &
+          G => vertices(19:21), &
+          H => vertices(22:24) )
+
+        lhit = .False.
+        hit = huge(hit)
+        iface(:) = -1
+        !crossing with bottom and top plane:
+        call square_intersection(ploc, pdir, E, F, H, G, lhit(1), hit(1,:), iface(1))
+        call square_intersection(ploc, pdir, A, C, D, B, lhit(2), hit(2,:), iface(2))
+
+        !crossing with side planes:
+        call square_intersection(ploc, pdir, A, E, G, C, lhit(3), hit(3,:), iface(3))
+        call square_intersection(ploc, pdir, B, D, H, F, lhit(4), hit(4,:), iface(4))
+        call square_intersection(ploc, pdir, A, B, F, E, lhit(5), hit(5,:), iface(5))
+        call square_intersection(ploc, pdir, C, G, H, D, lhit(6), hit(6,:), iface(6))
+
+        pside=0
+        max_dist = huge(max_dist)
+        do i=1,6
+          if(hit(i,4).lt.zero) cycle
+          if(pscattercnt.eq.0 .and. i.eq.psrc_side) cycle
+          if(hit(i,4).lt.max_dist) then
+            max_dist = hit(i,4)
+            pside    = i
+            psubface = iface(i)
+          endif
+        enddo
+
+        ! If we did not hit anything else, I assume that we point towards the src side.
+        ! We collect it there but set energy to 0
+        ! if(pscattercnt.eq.0 .and. pside.eq.psrc_side .and. lhit(psrc_side) ) then
+        !   max_dist = hit(psrc_side,4)
+        !   pside = psrc_side
+        !   pweight = zero ! we dont allow energy to hit the src face, at least not right after it started!
+        !   psubface = iface(psrc_side)
+        ! endif
+
+        !print *,pside,'hit',hit(pside,1:3)
+
+        if(count(lhit).eq.0.or.pside.eq.0) then
+          print *,'should actually not be here at the end of crossings in intersect distance!'
+          print *,'max dist, pside', max_dist, pside, 'src_side', psrc_side
+          print *,'ploc', ploc
+          print *,'pdir', pdir
+          print *,'pwgt', pweight
+          print *,'A', A
+          print *,'B', B
+          print *,'C', C
+          print *,'D', D
+          print *,'E', E
+          print *,'F', F
+          print *,'G', G
+          print *,'H', H
+          print *,'lhit', lhit
+          print *,'hit1', hit(1,:)
+          print *,'hit2', hit(2,:)
+          print *,'hit3', hit(3,:)
+          print *,'hit4', hit(4,:)
+          print *,'hit5', hit(5,:)
+          print *,'hit6', hit(6,:)
+          ierr = 1_mpiint
+          call CHKERR(1_mpiint, 'ERROR in Raytracer, didnt hit anything!')
+        endif
+      end associate
     end subroutine
 
     subroutine intersect_wedge(vertices, ploc, pdir, pscattercnt, psrc_side, &
@@ -617,6 +722,52 @@ module m_boxmc_geometry
       normals(:,4) = compute_normal_3d(E,F,B)
       normals(:,5) = compute_normal_3d(A,B,C)
     end associate
-    end subroutine
+  end subroutine
 
-  end module
+  ! Distribute Photons on triangles: https://doi.org/10.1145/571647.571648
+  subroutine rand_pnt_on_triangle(A,B,C, pnt, eps)
+    real(ireal_dp), dimension(:), intent(in) :: A, B, C
+    real(ireal_dp), dimension(:), intent(out) :: pnt
+    real(ireal_dp) :: r1, r2
+    real(ireal_dp), dimension(size(A)) :: center, cA, cB, cC
+    real(ireal_dp), intent(in), optional :: eps ! move all points a wee bit towards the center
+
+    call random_number(r1)
+    call random_number(r2)
+
+    if(present(eps)) then
+      call triangle_inner_circle_center(A, B, C, center)
+      cA = A + (center-A) * eps
+      cB = B + (center-B) * eps
+      cC = C + (center-C) * eps
+      pnt = (one - sqrt(r1)) * cA + sqrt(r1) * (one - r2) * cB + sqrt(r1) * r2 * cC
+    else
+      pnt = (one - sqrt(r1)) * A + sqrt(r1) * (one - r2) * B + sqrt(r1) * r2 * C
+    endif
+  end subroutine
+
+  subroutine rand_pnt_on_plane(A,B,C,D, pnt, normal, U,V)
+    real(ireal_dp), dimension(3), intent(in) :: A, B, C, D
+    real(ireal_dp), dimension(3), intent(out) :: pnt, normal, U, V
+    real(ireal_dp) :: r, area(2)
+
+    area(1) = triangle_area_by_vertices(A,B,C)
+    area(2) = triangle_area_by_vertices(A,C,D)
+
+    call random_number(r)
+    if(r.lt.area(1)/sum(area)) then
+      call rand_pnt_on_triangle(A,B,C,pnt)
+      normal = compute_normal_3d(A,B,C)
+      U = (C-B)
+      U = U/norm2(U)
+      V = -cross_3d(U,normal)
+    else
+      call rand_pnt_on_triangle(A,C,D,pnt)
+      normal = compute_normal_3d(A,C,D)
+      U = (D-A)
+      U = U/norm2(U)
+      V = -cross_3d(U,normal)
+    endif
+  end subroutine
+
+end module

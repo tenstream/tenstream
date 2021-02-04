@@ -22,8 +22,8 @@ module m_data_parameters
       use petsc
 
       use iso_fortran_env, only: INT32, INT64, REAL32, REAL64, REAL128
-      use ieee_arithmetic, only: ieee_support_nan, ieee_quiet_nan, ieee_value
-
+      use ieee_arithmetic, only: ieee_support_nan, ieee_quiet_nan, ieee_value, &
+        & ieee_support_inf, ieee_positive_inf, ieee_negative_inf
       implicit none
 
       private
@@ -34,10 +34,13 @@ module m_data_parameters
              ireals,ireal128,ireal_dp,irealLUT,                  &
              ireal_params, irealbmc, irealeddington,             &
              nan32, nan64, nan,                                  &
+             neginf, inf,                                        &
              imp_iinteger,imp_int4, imp_int8,                    &
-             imp_ireals,imp_real_dp,imp_irealLUT,imp_logical,    &
+             imp_ireals,imp_real_dp,imp_irealLUT,                &
+             imp_logical, imp_character,                         &
              imp_REAL32, imp_REAL64,                             &
-             init_mpi_data_parameters, default_str_len,          &
+             init_mpi_data_parameters, finalize_mpi,             &
+             default_str_len,                                    &
              EXP_MINVAL, EXP_MAXVAL, EXP_MINVAL128, EXP_MAXVAL128
 
       integer :: mpiint_dummy
@@ -75,15 +78,17 @@ module m_data_parameters
       real(real32) :: nan32 =  transfer(-4194304_int32, 1._real32)
       real(real64) :: nan64 =  transfer(-2251799813685248_int64, 1._real64)
 
-      integer(mpiint) :: imp_irealLUT, imp_ireals, imp_real_dp, imp_logical, imp_REAL32, imp_REAL64
+      integer(mpiint) :: imp_irealLUT, imp_ireals, imp_real_dp, imp_REAL32, imp_REAL64
+      integer(mpiint) :: imp_logical, imp_character
       integer(mpiint) :: imp_iinteger, imp_int4, imp_int8
-      real(ireals) :: nan
+      real(ireals) :: nan, inf, neginf
 
 contains
 subroutine init_mpi_data_parameters(comm)
   integer(mpiint),intent(in) :: comm
   integer(mpiint) :: dtsize, ierr, myid, numnodes, mpierr
   logical :: lmpi_is_initialized, lpetsc_is_initialized, lallsame
+  logical :: file_exists
 
   call mpi_initialized( lmpi_is_initialized, mpierr)
   if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
@@ -137,6 +142,7 @@ subroutine init_mpi_data_parameters(comm)
   if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
 
   imp_logical = mpi_logical
+  imp_character = mpi_character
 
   if(ireal128.lt.i0) then
     if(myid.eq.0) print *,'128 bit reals not supported :( -- '// &
@@ -148,6 +154,13 @@ subroutine init_mpi_data_parameters(comm)
 
   !if(ieee_support_nan(nan32)) nan32=ieee_value(1._real32, ieee_quiet_nan)
   !if(ieee_support_nan(nan64)) nan64=ieee_value(1._real64, ieee_quiet_nan)
+  if(ieee_support_inf(inf)) then
+    inf   = ieee_value(1._ireals, ieee_positive_inf)
+    neginf= ieee_value(1._ireals, ieee_negative_inf)
+  else
+    inf   = huge(1._ireals)
+    neginf= -huge(1._ireals)
+  endif
 
 !  if(myid.eq.0) print *,myid,'init_mpi_data_parameters :: imp_int',imp_int,' :: imp_real',imp_real,'epsilon(real)',epsilon(one)
 !  print *,'init_mpi_data_parameters :: MPI_INTEGER',MPI_INTEGER,' :: MPI_DOUBLE_PRECISION',MPI_DOUBLE_PRECISION,' :: MPI_REAL',MPI_REAL
@@ -170,28 +183,63 @@ subroutine init_mpi_data_parameters(comm)
   endif
 
   PETSC_COMM_WORLD = comm
-  if(.not.lpetsc_is_initialized) call PetscInitialize(PETSC_NULL_CHARACTER, mpierr)
+  if(.not.lpetsc_is_initialized) then
+    inquire(file='tenstream.options', exist=file_exists)
+    if(file_exists) then
+      call PetscInitialize('tenstream.options', mpierr)
+    else
+      call PetscInitialize(PETSC_NULL_CHARACTER, mpierr)
+    endif
+    if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
+  endif
+end subroutine
+
+subroutine finalize_mpi(comm, lfinalize_mpi, lfinalize_petsc)
+  integer(mpiint),intent(in) :: comm
+  logical, intent(in) :: lfinalize_mpi, lfinalize_petsc
+  integer(mpiint) :: ierr, mpierr
+  logical :: lmpi_is_initialized, lpetsc_is_initialized
+
+  call mpi_initialized( lmpi_is_initialized, mpierr)
+  if(.not.lmpi_is_initialized) return ! if we dont even have mpi, petsc cant live either
+
+  call PetscInitialized(lpetsc_is_initialized, mpierr)
   if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
 
-  contains
-    !duplicate of helper function. otherwise get circular dependency
-    function mpi_logical_all_same(comm,lval) result(lsame)
-      integer(mpiint),intent(in) :: comm
-      logical :: lsame
-      logical,intent(in) :: lval
-      integer(mpiint) :: i, isum, commsize, ierr
-      if(lval) then
-        i = 1
-      else
-        i = 0
-      endif
-      call mpi_allreduce(i, isum, 1_mpiint, imp_int4, MPI_SUM, comm, ierr)
-      if(lval) then
-        call MPI_Comm_size( comm, commsize, ierr)
-        lsame = isum.eq.commsize
-      else
-        lsame = isum.eq.0
-      endif
-    end function
+  if(lpetsc_is_initialized) then
+    if(lfinalize_petsc) then
+      call PetscFinalize(mpierr)
+      if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
+    endif
+  endif
+
+  if(lfinalize_mpi) then
+    if(lmpi_is_initialized) call MPI_Finalize(mpierr)
+    if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
+  endif
 end subroutine
+
+!duplicate of helper function. otherwise get circular dependency
+function mpi_logical_all_same(comm,lval) result(lsame)
+  integer(mpiint),intent(in) :: comm
+  logical :: lsame
+  logical,intent(in) :: lval
+  integer(mpiint) :: i, isum, commsize, ierr
+  call mpi_comm_size(comm, commsize, ierr)
+  if(commsize.gt.1_mpiint) then
+    if(lval) then
+      i = 1
+    else
+      i = 0
+    endif
+    call mpi_allreduce(i, isum, 1_mpiint, imp_int4, MPI_SUM, comm, ierr)
+    if(lval) then
+      lsame = isum.eq.commsize
+    else
+      lsame = isum.eq.0
+    endif
+  else
+    lsame = .True.
+  endif
+end function
 end module

@@ -1,7 +1,7 @@
 module m_tenstr_rrtmg_base
 #include "petsc/finclude/petsc.h"
   use petsc
-  use m_data_parameters, only : iintegers, mpiint, default_str_len, i0
+  use m_data_parameters, only : iintegers, ireals, mpiint, default_str_len, i0
   use m_helper_functions, only : CHKERR, get_arg
   implicit none
 
@@ -22,10 +22,11 @@ module m_tenstr_rrtmg_base
       type(t_rrtmg_log_events), intent(inout) :: logs
       character(len=*), optional :: solvername
       character(len=default_str_len) :: s
-      PetscClassId, parameter :: cid=0
+      PetscClassId :: cid
       integer(mpiint) :: ierr
 
-      s = get_arg('pprts.', solvername)
+      s = get_arg('tenstr_rrtmg.', solvername)
+      call PetscClassIdRegister(trim(s), cid, ierr); call CHKERR(ierr)
 
       call setup_stage(trim(s)//'rrtmg_solar'  , logs%stage_rrtmg_solar  )
       call setup_stage(trim(s)//'rrtmg_thermal', logs%stage_rrtmg_thermal)
@@ -45,4 +46,6 @@ module m_tenstr_rrtmg_base
           endif
         end subroutine
     end subroutine
+
+
 end module

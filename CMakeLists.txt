@@ -48,10 +48,27 @@ set(CMAKE_C_STANDARD 99)
 # For python interfaces need -fPIC:
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-set(CMAKE_C_FLAGS               "${USER_C_FLAGS}               ${CMAKE_C_FLAGS}               " )
-set(CMAKE_Fortran_FLAGS         "${USER_Fortran_FLAGS}         ${CMAKE_Fortran_FLAGS}         " )
+# Add IPO support if compiler allows it -- default is off because it A) doesnt work or B) compiles super slow
+option(ENABLE_IPO "enable link time optimizations, also called INTERPROCEDURAL_OPTIMIZATIONs" OFF)
+if(ENABLE_IPO)
+  cmake_minimum_required (VERSION 3.9.6)
+  cmake_policy(SET CMP0069 NEW)
+  set(CMAKE_POLICY_DEFAULT_CMP0069 NEW)
+  include(CheckIPOSupported)
+  check_ipo_supported(RESULT ipo_supported OUTPUT ipo_errmsg)
+  if(ipo_supported)
+    message(STATUS "IPO Enabled")
+    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+  else()
+    message(WARNING "IPO could not be enabled ${ipo_errmsg}")
+  endif()
+endif()
+
+
+set(CMAKE_C_FLAGS               "${USER_C_FLAGS} ${CMAKE_C_FLAGS} " )
+set(CMAKE_Fortran_FLAGS         "${USER_Fortran_FLAGS} ${CMAKE_Fortran_FLAGS} " )
 set(CMAKE_Fortran_FLAGS_RELEASE "${USER_Fortran_FLAGS_RELEASE} ${CMAKE_Fortran_FLAGS_RELEASE} " )
-set(CMAKE_Fortran_FLAGS_DEBUG   "${USER_Fortran_FLAGS_DEBUG}   ${CMAKE_Fortran_FLAGS_DEBUG}   ")
+set(CMAKE_Fortran_FLAGS_DEBUG   "${USER_Fortran_FLAGS_DEBUG} ${CMAKE_Fortran_FLAGS_DEBUG} ")
 
 # Add PGO Options
 set(ENABLE_PGO "OFF" CACHE STRING "Use PGO in build, first compile with PGO set to `generate`, run make check, and then set to `use`")
@@ -249,10 +266,11 @@ if(${_is_XLF})
 endif(${_is_XLF})
 
 # Set preprocessor Flag if Compiler is out of GNU Family
-string(COMPARE EQUAL ${CMAKE_Fortran_COMPILER_ID} "GNU" _is_GNU)
-if(${_is_GNU})
-    add_definitions(-D_GNU)
-endif(${_is_GNU})
+if ("${CMAKE_Fortran_COMPILER_ID}" STREQUAL "GNU")
+  add_definitions(-D_GNU)
+elseif ("${CMAKE_Fortran_COMPILER_ID}" STREQUAL "Intel")
+  add_definitions(-D_INTEL)
+endif()
 
 option(ENABLE_ALL "Enable use of all additional modules " ON)
 if(ENABLE_ALL)
@@ -262,20 +280,6 @@ if(ENABLE_ALL)
   set(ENABLE_C_WRAPPER ON CACHE BOOL "Enable C_WRAPPER" FORCE)
   set(ENABLE_EXAMPLES ON CACHE BOOL "Enable EXAMPLES" FORCE)
 endif(ENABLE_ALL)
-
-# Add IPO support if compiler allows it -- default is off because it A) doesnt work or B) compiles super slow
-option(ENABLE_IPO "enable link time optimizations, also called INTERPROCEDURAL_OPTIMIZATIONs" OFF)
-if(ENABLE_IPO)
-  cmake_minimum_required (VERSION 3.9.6)
-  include(CheckIPOSupported)
-  check_ipo_supported(RESULT ipo_supported OUTPUT ipo_errmsg)
-  if(ipo_supported)
-    message(STATUS "IPO Enabled")
-    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
-  else()
-    message(WARNING "IPO could not be enabled ${ipo_errmsg}")
-  endif()
-endif()
 
 
 # Add Source Directories
@@ -311,34 +315,45 @@ endif()
 if(ENABLE_RRTM)
   list(APPEND TENSTR_LIBS pprts_rrtm_sw pprts_rrtm_lw pprts_rrtmg)
 endif()
-
+if(BUILD_RAYLI)
+  list(APPEND TENSTR_LIBS ${RAYLI_LIBS})
+endif()
+if(BUILD_FORNADO)
+  list(APPEND TENSTR_LIBS ${FORNADO_LIBS})
+endif()
 
 # Generate Master Library which contains all symbols
 if(NOT BUILD_SHARED_LIBS)
-	function(combine_archives output_archive list_of_input_archives)
-		set(mri_file ${CMAKE_BINARY_DIR}/${output_archive}.mri)
-		set(FULL_OUTPUT_PATH ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/lib${output_archive}.a)
-		message(STATUS "Generating one lib to rule them all: ${FULL_OUTPUT_PATH} :: ${mri_file}")
-		file(WRITE ${mri_file} "create ${FULL_OUTPUT_PATH}\n")
-		FOREACH(in_archive ${list_of_input_archives})
-			message(STATUS "Adding static lib: ${in_archive}")
-			file(APPEND ${mri_file} "addlib ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/lib${in_archive}.a\n")
-		ENDFOREACH()
-		file(APPEND ${mri_file} "save\n")
-		file(APPEND ${mri_file} "end\n")
+  function(combine_archives output_archive list_of_input_archives)
+    set(obj_folder ${CMAKE_BINARY_DIR}/objs/)
+    file(MAKE_DIRECTORY ${obj_folder})
+    set(FULL_OUTPUT_PATH ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/lib${output_archive}.a)
+    message(STATUS "Generating one lib to rule them all: ${FULL_OUTPUT_PATH}")
 
-		set(output_archive_dummy_file ${CMAKE_BINARY_DIR}/${output_archive}.dummy.F90)
-		add_custom_command(OUTPUT ${output_archive_dummy_file}
-			COMMAND touch ${output_archive_dummy_file}
-			DEPENDS ${list_of_input_archives})
+    set(output_archive_dummy_file ${CMAKE_BINARY_DIR}/${output_archive}.dummy.F90)
+    add_custom_command(OUTPUT ${output_archive_dummy_file}
+      COMMAND touch ${output_archive_dummy_file}
+      DEPENDS ${list_of_input_archives})
 
-		add_library(${output_archive} STATIC ${output_archive_dummy_file})
-		add_custom_command(TARGET ${output_archive}
-			POST_BUILD
-			COMMAND ${CMAKE_AR} -M < ${mri_file})
-	endfunction(combine_archives)
+    add_library(${output_archive} STATIC ${output_archive_dummy_file})
 
-	combine_archives(tenstream "${TENSTR_LIBS}")
+    FOREACH(in_archive ${list_of_input_archives})
+      message(STATUS "Adding static lib: ${in_archive}")
+      add_custom_command(TARGET ${output_archive}
+        PRE_BUILD ${output_archive}
+        WORKING_DIRECTORY ${obj_folder}
+        COMMAND ${CMAKE_AR} x ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/lib${in_archive}.a)
+    ENDFOREACH()
+
+    add_custom_command(TARGET ${output_archive}
+      POST_BUILD
+      WORKING_DIRECTORY ${obj_folder}
+      COMMAND ${CMAKE_AR} -qc ${FULL_OUTPUT_PATH} *.o)
+  endfunction(combine_archives)
+
+
+  SET(TENSTR_SINGLE_LIB "tenstream")
+	combine_archives(${TENSTR_SINGLE_LIB} "${TENSTR_LIBS}")
 endif()
 
 option(ENABLE_RRTM "Enable use of RRTM" OFF)
@@ -355,7 +370,8 @@ endif(ENABLE_EXAMPLES)
 option(ENABLE_PFUNIT "Enable pfUnit testing Framework" OFF)
 if(ENABLE_PFUNIT)
   add_subdirectory(tests)
-  add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} -E 'boxmc|LUT')
+  add_custom_target(check    COMMAND ${CMAKE_CTEST_COMMAND} -E 'boxmc|LUT')
+  add_custom_target(checkLUT COMMAND ${CMAKE_CTEST_COMMAND} -R 'LUT')
   set(CTEST_MPIRUN_FLAGS "" CACHE STRING "Additional mpiexec flags to run tests with")
 endif(ENABLE_PFUNIT)
 
@@ -365,13 +381,15 @@ if(CTAGS_PATH)
     set_source_files_properties( tags PROPERTIES GENERATED true)
     add_custom_target(tags ALL
       COMMAND ctags -R
-      ${CMAKE_CURRENT_SOURCE_DIR}/src
+      ${CMAKE_CURRENT_BINARY_DIR}/external
+      ${CMAKE_CURRENT_SOURCE_DIR}/c_wrapper
       ${CMAKE_CURRENT_SOURCE_DIR}/disort
-      ${CMAKE_CURRENT_SOURCE_DIR}/rrtmg
-      ${CMAKE_CURRENT_SOURCE_DIR}/C_wrapper
+      ${CMAKE_CURRENT_SOURCE_DIR}/examples
       ${CMAKE_CURRENT_SOURCE_DIR}/plexrt
-      ${CMAKE_CURRENT_SOURCE_DIR}/rayli_wrapper
       ${CMAKE_CURRENT_SOURCE_DIR}/python
+      ${CMAKE_CURRENT_SOURCE_DIR}/rayli_wrapper
+      ${CMAKE_CURRENT_SOURCE_DIR}/rrtmg
+      ${CMAKE_CURRENT_SOURCE_DIR}/src
       ${CMAKE_CURRENT_SOURCE_DIR}/tests
       ${CMAKE_CURRENT_SOURCE_DIR}/twomax
       WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
@@ -389,7 +407,7 @@ endif(ENABLE_PYTHON)
 
 option(ENABLE_C_WRAPPER "Enable creation of C Wrapper " ON)
 if(ENABLE_C_WRAPPER)
-	add_subdirectory(C_wrapper)
+	add_subdirectory(c_wrapper)
 endif(ENABLE_C_WRAPPER)
 
 GET_DIRECTORY_PROPERTY(output INCLUDE_DIRECTORIES)

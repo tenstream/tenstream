@@ -4,7 +4,8 @@ module test_LUT_wedge_18_8
     iintegers, mpiint, &
     init_mpi_data_parameters, default_str_len, &
     i1, i2, i3, i4, i5
-  use m_optprop_LUT, only : t_optprop_LUT_wedge_18_8, find_lut_dim_by_name, &
+  use m_optprop_base, only : find_op_dim_by_name
+  use m_optprop_LUT, only : t_optprop_LUT_wedge_18_8, &
     azimuth_from_param_phi, param_phi_from_azimuth
   use m_optprop, only : t_optprop_wedge_18_8
   use m_tenstream_options, only: read_commandline_options
@@ -72,7 +73,8 @@ contains
   @after
   subroutine teardown(this)
       class (MpiTestMethod), intent(inout) :: this
-      call OPPLUT%destroy()
+      integer(mpiint) :: ierr
+      call OPPLUT%destroy(ierr); call CHKERR(ierr)
       call OPP%destroy()
       call PetscFinalize(ierr)
   end subroutine teardown
@@ -101,7 +103,7 @@ contains
 
     phi = -0._irealLUT
     param_phi = real(param_phi_from_azimuth(deg2rad(real(phi, ireal_params)), real([Cx, Cy], ireal_params)), irealLUT)
-    call OPPLUT%LUT_get_dir2dir ([tau, w0, aspect, Cx, Cy, param_phi, theta], d2d1)
+    call OPPLUT%get_dir2dir ([tau, w0, aspect, Cx, Cy, param_phi, theta], d2d1)
     call print_dir2dir(d2d1)
 
     !call compute_bmc_coeff(d2d2)
@@ -208,7 +210,7 @@ contains
       end subroutine
   end subroutine
 
-  @test(npes=[2,1])
+  !@test(npes=[2,1])
   subroutine test_LUT_wedge_direct_coeff_onsamplepts(this)
       class (MpiTestMethod), intent(inout) :: this
 
@@ -231,19 +233,19 @@ contains
 
       associate( LUTconfig => OPPLUT%dirconfig )
 
-      idim_tau    = find_lut_dim_by_name(LUTconfig, 'tau')
-      idim_w0     = find_lut_dim_by_name(LUTconfig, 'w0')
-      idim_g      = find_lut_dim_by_name(LUTconfig, 'g')
+      idim_tau    = find_op_dim_by_name(LUTconfig, 'tau')
+      idim_w0     = find_op_dim_by_name(LUTconfig, 'w0')
+      idim_g      = find_op_dim_by_name(LUTconfig, 'g')
       if(idim_g.eq.-1) then
         allocate(g_dim(1), source=zero)
       else
         allocate(g_dim(LUTconfig%dims(idim_g)%N), source=LUTconfig%dims(idim_g     )%v(:))
       endif
-      idim_aspect = find_lut_dim_by_name(LUTconfig, 'aspect_zx')
-      idim_param_phi    = find_lut_dim_by_name(LUTconfig, 'param_phi')
-      idim_theta  = find_lut_dim_by_name(LUTconfig, 'theta')
-      idim_Cx     = find_lut_dim_by_name(LUTconfig, 'wedge_coord_Cx')
-      idim_Cy     = find_lut_dim_by_name(LUTconfig, 'wedge_coord_Cy')
+      idim_aspect = find_op_dim_by_name(LUTconfig, 'aspect_zx')
+      idim_param_phi    = find_op_dim_by_name(LUTconfig, 'param_phi')
+      idim_theta  = find_op_dim_by_name(LUTconfig, 'theta')
+      idim_Cx     = find_op_dim_by_name(LUTconfig, 'wedge_coord_Cx')
+      idim_Cy     = find_op_dim_by_name(LUTconfig, 'wedge_coord_Cy')
 
       do itau = 1, LUTconfig%dims(idim_tau)%N, NSLICE
         do iw0  = 1, LUTconfig%dims(idim_w0)%N, NSLICE
@@ -264,8 +266,8 @@ contains
                       phi    =real(rad2deg(azimuth_from_param_phi(&
                         real(param_phi, ireal_params), real([Cx,Cy], ireal_params))), irealLUT)
 
-                      call OPPLUT%LUT_get_dir2dir ([tau, w0, aspect, Cx, Cy, param_phi, theta], LUT_dir2dir)
-                      call OPPLUT%LUT_get_dir2diff([tau, w0, aspect, Cx, Cy, param_phi, theta], LUT_dir2diff)
+                      call OPPLUT%get_dir2dir ([tau, w0, aspect, Cx, Cy, param_phi, theta], LUT_dir2dir)
+                      call OPPLUT%get_dir2diff([tau, w0, aspect, Cx, Cy, param_phi, theta], LUT_dir2diff)
 
                       call setup_default_wedge_geometry(&
                         [0._ireals, 0._ireals], &

@@ -3,17 +3,36 @@ module m_plex_grid
   use petsc
   use m_netcdfIO, only: ncload
 
-  use m_helper_functions, only: CHKERR, compute_normal_3d, approx, strF2C, distance, &
-    triangle_area_by_vertices, swap, determine_normal_direction, &
-    vec_proj_on_plane, cross_3d, rad2deg, is_between, &
-    angle_between_two_vec, angle_between_two_normed_vec, &
-    resize_arr, get_arg, normalize_vec, &
-    imp_bcast, itoa, ftoa, imp_allreduce_max, &
-    rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world
+  use m_helper_functions, only: &
+    & angle_between_two_normed_vec, &
+    & angle_between_two_vec, &
+    & approx, &
+    & CHKERR, &
+    & CHKWARN, &
+    & compute_normal_3d, &
+    & cross_3d, &
+    & determine_normal_direction, &
+    & distance, &
+    & get_arg, &
+    & imp_allreduce_max, &
+    & imp_bcast, &
+    & is_between, &
+    & itoa, &
+    & normalize_vec, &
+    & rad2deg, &
+    & resize_arr, &
+    & rotation_matrix_local_basis_to_world, &
+    & rotation_matrix_world_to_local_basis, &
+    & strF2C, &
+    & swap, &
+    & toStr, &
+    & triangle_area_by_vertices, &
+    & vec_proj_on_plane
 
   use m_data_parameters, only : ireals, irealLUT, ireal_params, &
     iintegers, mpiint, zero, one, pi, &
-    i0, i1, i2, i3, i4, i5, i6, i7, i8, default_str_len
+    i0, i1, i2, i3, i4, i5, i6, i7, i8, default_str_len, &
+    inf
 
   use m_icon_grid, only : t_icongrid, ICONULL
 
@@ -25,19 +44,42 @@ module m_plex_grid
   implicit none
 
   private
-  public :: t_plexgrid, &
-    icell_icon_2_plex, iface_top_icon_2_plex, update_plex_indices, &
-    compute_face_geometry, &
-    setup_cell1_dmplex, setup_edir_dmplex, setup_ediff_dmplex, setup_abso_dmplex, &
-    print_dmplex, ncvar2d_to_globalvec, facevec2cellvec, &
-    orient_face_normals_along_sundir, compute_wedge_orientation, is_solar_src, &
-    compute_local_wedge_ordering, compute_local_vertex_coordinates, &
-    get_inward_face_normal, create_plex_section, setup_plexgrid, &
-    get_consecutive_vertical_cell_idx, get_top_bot_face_of_cell, gen_test_mat, &
-    TOAFACE, BOTFACE, SIDEFACE, INNERSIDEFACE, destroy_plexgrid, &
-    determine_diff_incoming_outgoing_offsets, get_normal_of_first_TOA_face, &
-    interpolate_horizontal_face_var_onto_vertices, get_horizontal_faces_around_vertex, &
-    atm_dz_to_vertex_heights, dmplex_set_new_section
+  public :: &
+    & atm_dz_to_vertex_heights, &
+    & BOTFACE, &
+    & compute_face_geometry, &
+    & compute_face_geometry_info, &
+    & compute_local_vertex_coordinates, &
+    & compute_local_wedge_ordering, &
+    & compute_wedge_orientation, &
+    & create_plex_section, &
+    & destroy_plexgrid, &
+    & determine_diff_incoming_outgoing_offsets, &
+    & dmplex_set_new_section, &
+    & facevec2cellvec, &
+    & gen_test_mat, &
+    & get_consecutive_vertical_cell_idx, &
+    & get_horizontal_faces_around_vertex, &
+    & get_inward_face_normal, &
+    & get_normal_of_first_TOA_face, &
+    & get_top_bot_face_of_cell, &
+    & icell_icon_2_plex, &
+    & iface_top_icon_2_plex, &
+    & INNERSIDEFACE, &
+    & interpolate_horizontal_face_var_onto_vertices, &
+    & is_solar_src, &
+    & ncvar2d_to_globalvec, &
+    & orient_face_normals_along_sundir, &
+    & print_dmplex, &
+    & setup_abso_dmplex, &
+    & setup_cell1_dmplex, &
+    & setup_ediff_dmplex, &
+    & setup_edir_dmplex, &
+    & setup_plexgrid, &
+    & SIDEFACE, &
+    & TOAFACE, &
+    & t_plexgrid, &
+    & update_plex_indices
 
   logical, parameter :: ldebug=.False.
 
@@ -79,9 +121,9 @@ module m_plex_grid
     integer(iintegers) :: offset_edges_vertical
     integer(iintegers) :: offset_vertices
 
+    logical,allocatable :: l1d(:)                        ! constrained 1D cell, cStart..cEnd-1
     logical,allocatable :: ltopfacepos(:)                ! TOP_BOT_FACE or SIDE_FACE of faces and edges, fStart..eEnd-1
     integer(iintegers),allocatable :: zindex(:)          ! vertical layer / level of cells/faces/edges/vertices , pStart..pEnd-1
-    real(ireals), allocatable :: hhl1d(:)                ! 1D vertical height levels which were used in 2D_to_3D extrusion
     integer(iintegers),allocatable :: localiconindex(:)  ! local index of face, edge, vertex on icongrid, pStart, pEnd-1, i.e. on each rank from 1..Ncell, 1..Nedges etc..
     integer(iintegers),allocatable :: globaliconindex(:) ! global index of face, edge, vertex on icongrid, pStart, pEnd-1, i.e. for each rank has the indices of the global icon grid as it is read from nc
 
@@ -201,11 +243,13 @@ module m_plex_grid
       if(ldebug) print *,'plex_set_ltopfacepos... end'
     end subroutine
 
-    subroutine setup_plexgrid(dm2d, dm3d, Nlay, zindex, plex, hhl)
+    subroutine setup_plexgrid(dm2d, dm3d, Nlay, zindex, plex, hhl, constraint_height, constraint_radius)
       type(tDM), intent(in) :: dm2d, dm3d
       integer(iintegers), intent(in) :: Nlay, zindex(:)
       type(t_plexgrid), allocatable, intent(inout) :: plex
-      real(ireals), optional :: hhl(:)
+      real(ireals), optional :: hhl(:) ! only used for a consistency check. If dz should be same everywhere, i.e. if there is no topography, provide this and we check that the mesh adheres to that.
+      real(ireals), intent(in), optional :: constraint_height ! max z-component height [m] above which cells are treated 1D, meaningful for regular wedge meshes
+      real(ireals), intent(in), optional :: constraint_radius ! max radius from origin [m] above which cells are treated 1D, meaningful for extruded wedge meshes, e.g. ICON runs
 
       integer(iintegers) :: pStart, pEnd
       integer(mpiint) :: ierr
@@ -243,8 +287,36 @@ module m_plex_grid
       call setup_cell1_dmplex(plex%dm, plex%cell1_dm)
 
       if(present(hhl)) then
-        allocate(plex%hhl1d(size(hhl)), source=hhl)
+        call check_height_for_consistency()
       endif
+
+      call set_1D_constraints(plex, constraint_height, constraint_radius)
+    contains
+      subroutine check_height_for_consistency()
+        type(tPetscSection) :: geom_section
+        real(ireals), pointer :: xgeoms(:) ! pointer to coordinates vec
+        integer(iintegers) :: geom_offset
+        integer(iintegers) :: icell, k
+        real(ireals) :: dz
+        real(ireals), parameter :: eps=1e-4
+
+        call DMGetSection(plex%geom_dm, geom_section, ierr); CHKERRQ(ierr)
+        call VecGetArrayReadF90(plex%geomVec, xgeoms, ierr); call CHKERR(ierr)
+
+        do icell = plex%cStart, plex%cEnd-1
+          k = plex%zindex(icell)
+          dz = hhl(k) - hhl(k+1)
+          call PetscSectionGetFieldOffset(geom_section, icell, i3, geom_offset, ierr); call CHKERR(ierr)
+          if(.not.approx(dz, xgeoms(i1+geom_offset), dz*eps)) then
+            call CHKERR(1_mpiint, "hhl1d does not match the computed wedge heights: "// &
+              & " k ="//toStr(k)//" hhl1d ="//tostr(dz)//" wedge dz ="//toStr(xgeoms(i1+geom_offset))//new_line('')// &
+              & " This could be a result of floating point precision deterioration. "//new_line('')// &
+              & " Consider using more precision to suit large coordinates.")
+          endif
+        enddo
+
+        call VecRestoreArrayReadF90(plex%geomVec, xgeoms, ierr); call CHKERR(ierr)
+      end subroutine
     end subroutine
 
     subroutine gen_test_mat(dm)
@@ -813,7 +885,7 @@ module m_plex_grid
       call PetscObjectViewFromOptions(dm, PETSC_NULL_DM, "-show_plex", ierr); call CHKERR(ierr)
 
       call gen_face_section(dm, top_streams=top_streams, side_streams=side_streams, dof_per_stream=dof_per_stream, &
-        section=section, geomdm=plex%geom_dm, geomVec=plex%geomVec, aspect_constraint=twostr_ratio)
+        section=section, plex_l1d=plex%l1d)
 
       call DMSetLocalSection(dm, section, ierr); call CHKERR(ierr)
       call PetscObjectViewFromOptions(section, PETSC_NULL_SECTION, '-show_section', ierr); call CHKERR(ierr)
@@ -849,7 +921,7 @@ module m_plex_grid
       call PetscObjectViewFromOptions(dm, PETSC_NULL_DM, "-show_plex", ierr); call CHKERR(ierr)
 
       call gen_face_section(dm, top_streams=top_streams, side_streams=side_streams, dof_per_stream=dof_per_stream, &
-        section=section, geomdm=plex%geom_dm, geomVec=plex%geomVec, aspect_constraint=twostr_ratio)
+        section=section, plex_l1d=plex%l1d)
 
       call DMSetLocalSection(dm, section, ierr); call CHKERR(ierr)
       call PetscObjectViewFromOptions(section, PETSC_NULL_SECTION, '-show_diff_section', ierr); call CHKERR(ierr)
@@ -857,35 +929,103 @@ module m_plex_grid
       call DMSetFromOptions(dm, ierr); call CHKERR(ierr)
     end subroutine
 
-    subroutine gen_face_section(dm, top_streams, side_streams, dof_per_stream, section, &
-        geomdm, geomVec, aspect_constraint)
+    subroutine set_1D_constraints(plex, constraint_height, constraint_radius)
+      type(t_plexgrid), intent(inout) :: plex
+      real(ireals), intent(in), optional :: constraint_height, constraint_radius
+
+      type(tPetscSection) :: geomSection
+      real(ireals), pointer :: geoms(:)
+
+      integer(iintegers), pointer :: faces_of_cell(:)
+
+      logical :: lflg
+      real(ireals) :: dz, face_area, aspect
+      real(ireals) :: max_height, max_radius
+      integer(iintegers) :: icell, k, max_constrained_k
+      integer(iintegers) :: geom_offset
+      integer(mpiint) :: ierr
+
+      if(allocated(plex%l1d)) return
+
+      if(.not.allocated(plex%geom_dm)) &
+        & call CHKERR(1_mpiint, 'find_1D_constraints: plex%geomdm  has to allocated')
+      if(.not.allocated(plex%geomVec)) &
+        & call CHKERR(1_mpiint, 'find_1D_constraints: plex%geomVec has to allocated')
+
+      max_height = get_arg(inf, constraint_height)
+      call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+        "-plexrt_1d_height", max_height, lflg, ierr) ; call CHKERR(ierr)
+
+      max_radius = get_arg(inf, constraint_radius)
+      call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+        "-plexrt_1d_radius", max_radius, lflg, ierr) ; call CHKERR(ierr)
+
+      if(.not.allocated(plex%l1d)) &
+        & allocate(plex%l1d(plex%cStart:plex%cEnd-1))
+
+      max_constrained_k = -1
+
+      call DMGetSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
+      call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+
+      do icell = plex%cStart, plex%cEnd-1
+        k = modulo(icell, plex%Nlay)
+        if (k.le.max_constrained_k) cycle
+
+        call PetscSectionGetFieldOffset(geomSection, icell, i3, geom_offset, ierr); call CHKERR(ierr)
+        dz = geoms(i1+geom_offset)
+
+        call DMPlexGetCone(plex%geom_dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
+        call PetscSectionGetFieldOffset(geomSection, faces_of_cell(1), i2, geom_offset, ierr); call CHKERR(ierr)
+        face_area = geoms(i1+geom_offset) ! top face area
+        call DMPlexRestoreCone(plex%geom_dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
+
+        aspect = LUT_wedge_aspect_zx(face_area, dz)
+        if(aspect.gt.twostr_ratio) then
+          max_constrained_k = k
+          !print *,'max_constrained_k aspect', icell, k, aspect, max_constrained_k
+          cycle
+        endif
+
+        ! check for max height or radius of cell centroid
+        call PetscSectionGetFieldOffset(geomSection, icell, i0, geom_offset, ierr); call CHKERR(ierr)
+        if(geoms(geom_offset+i3) .gt. max_height) then
+          max_constrained_k = k
+          !print *,'max_constrained_k height', icell, k, geoms(geom_offset+i3), max_constrained_k
+          cycle
+        endif
+        if(norm2(geoms(geom_offset+i1:geom_offset+i3)) .gt. max_radius) then
+          max_constrained_k = k
+          !print *,'max_constrained_k radius', icell, k, norm2(geoms(geom_offset+i1:geom_offset+i3)), max_constrained_k
+          cycle
+        endif
+
+      enddo
+
+      call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+
+      k = max_constrained_k
+      call imp_allreduce_max(plex%comm, k, max_constrained_k)
+
+      do icell = plex%cStart, plex%cEnd-1
+        k = modulo(icell, plex%Nlay)
+        plex%l1d(icell) = k.le.max_constrained_k
+        if(ldebug.and.plex%l1d(icell)) print *,'constrained cell', icell, k, plex%l1d(icell)
+      enddo
+    end subroutine
+
+
+    subroutine gen_face_section(dm, top_streams, side_streams, dof_per_stream, section, plex_l1d)
       type(tDM), intent(in) :: dm
       integer(iintegers), intent(in) :: top_streams, side_streams, dof_per_stream ! number of streams
       type(tPetscSection), intent(inout) :: section
-      type(tDM), intent(in), optional :: geomdm
-      type(tVec), intent(in), optional :: geomVec
-      real(ireals), intent(in), optional :: aspect_constraint
-
+      logical, intent(in), optional :: plex_l1d(:)
+      integer(iintegers) :: num_constrained, num_unconstrained
+      integer(iintegers), pointer :: cells_of_face(:)
       logical :: l1d
-      type(tPetscSection) :: geomSection
-      real(ireals), pointer :: geoms(:)
-      real(ireals) :: face_area, dz, aspect
-      integer(iintegers) :: ic, geom_offset, num_constrained, num_unconstrained
-      integer(iintegers), pointer :: cells_of_face(:), faces_of_cell(:)
 
       integer(iintegers) :: iface, fStart, fEnd, istream, num_edges_of_face, tot_top_dof, tot_side_dof
       integer(mpiint) :: comm, ierr
-
-      if(    any([present(geomdm), present(geomVec), present(aspect_constraint)]) .and. &
-        .not.all([present(geomdm), present(geomVec), present(aspect_constraint)])) then
-        call CHKERR(1_mpiint, 'if you want to constraint dofs with the aspect ratio '// &
-          'you have to provide both, the geom dm and a value for the constraint')
-      endif
-
-      if(present(aspect_constraint)) then
-        call DMGetSection(geomdm, geomSection, ierr); call CHKERR(ierr)
-        call VecGetArrayReadF90(geomVec, geoms, ierr); call CHKERR(ierr)
-      endif
 
       call PetscObjectGetComm(dm, comm, ierr); call CHKERR(ierr)
       call PetscSectionCreate(comm, section, ierr); call CHKERR(ierr)
@@ -912,34 +1052,18 @@ module m_plex_grid
       do iface = fStart,  fEnd-1
         call DMPlexGetConeSize(dm, iface, num_edges_of_face, ierr); call CHKERR(ierr)
 
-        if(num_edges_of_face.eq.i3) then
+        if(num_edges_of_face.eq.i3) then ! top/bot face
           call PetscSectionSetDof(section, iface, tot_top_dof, ierr); call CHKERR(ierr)
           do istream = 1, top_streams
             call PetscSectionSetFieldDof(section, iface, istream-i1, dof_per_stream, ierr); call CHKERR(ierr)
           enddo
 
-        else
+        else ! side face
           l1d = .False.
-          if(present(aspect_constraint)) then
-            l1d = .True.
-
-            call PetscSectionGetFieldOffset(geomSection, iface, i2, geom_offset, ierr); call CHKERR(ierr)
-            face_area = geoms(i1+geom_offset)
-
-            call DMPlexGetSupport(geomdm, iface, cells_of_face, ierr); call CHKERR(ierr)
-            do ic = 1, size(cells_of_face)
-              call PetscSectionGetFieldOffset(geomSection, cells_of_face(ic), i3, geom_offset, ierr); call CHKERR(ierr)
-              dz = geoms(i1+geom_offset)
-
-              call DMPlexGetCone(geomdm, cells_of_face(ic), faces_of_cell, ierr); call CHKERR(ierr)
-              call PetscSectionGetFieldOffset(geomSection, faces_of_cell(1), i2, geom_offset, ierr); call CHKERR(ierr)
-              face_area = geoms(i1+geom_offset) ! top face area
-              call DMPlexRestoreCone(geomdm, cells_of_face(ic), faces_of_cell, ierr); call CHKERR(ierr)
-
-              aspect = LUT_wedge_aspect_zx(face_area, dz)
-              if(aspect.lt.aspect_constraint) l1d=.False.
-            enddo
-            call DMPlexRestoreSupport(geomdm, iface, cells_of_face, ierr); call CHKERR(ierr)
+          if(present(plex_l1d)) then
+            call DMPlexGetSupport(dm, iface, cells_of_face, ierr); call CHKERR(ierr)
+            l1d = any(plex_l1d(i1+cells_of_face))
+            call DMPlexRestoreSupport(dm, iface, cells_of_face, ierr); call CHKERR(ierr)
           endif
 
           if(.not.l1d) then
@@ -949,7 +1073,6 @@ module m_plex_grid
             enddo
             num_unconstrained = num_unconstrained + 1
           else
-            !print *,'Have 1D aspect constraint on face', iface, ':', face_area, dz, dx, '=>', aspect, aspect_constraint, l1d
             num_constrained = num_constrained + 1
           endif
         endif
@@ -957,15 +1080,11 @@ module m_plex_grid
       call PetscSectionSetUp(section, ierr); call CHKERR(ierr)
       if(ldebug) then
         if(num_unconstrained.eq.0) then
-          print *,'Have '//itoa(num_constrained)//' constrained dofs : 100%'
+          print *,'Have '//itoa(num_constrained)//' constrained dofs : 100% '
         else
-          print *,'Have '//itoa(num_constrained)//' constrained dofs :'//&
-            ftoa(real(num_constrained, ireals)*100._ireals/real(num_unconstrained, ireals))//' %'
+          print *,'Have '//itoa(num_constrained)//' constrained dofs :'// &
+            & toStr(real(num_constrained, ireals)*100._ireals/real(num_unconstrained+num_constrained, ireals))//' %'
         endif
-      endif
-
-      if(present(aspect_constraint)) then
-        call VecRestoreArrayReadF90(geomVec, geoms, ierr); call CHKERR(ierr)
       endif
     end subroutine
 
@@ -1177,7 +1296,7 @@ module m_plex_grid
       if(ldebug) then
         if(.not.approx(one, norm2(face_normal))) then
           print *,'cell', icell, 'face', iface, 'Face Normal:', face_normal
-          call CHKERR(1_mpiint, 'face_normal not normed :( '//ftoa(face_normal))
+          call CHKERR(1_mpiint, 'face_normal not normed :( '//toStr(face_normal))
         endif
       endif
 
@@ -1343,14 +1462,14 @@ module m_plex_grid
 
       zenith = angle_between_two_vec(sundir, face_normals(:, upper_face))
       proj_sundir = vec_proj_on_plane(sundir, face_normals(:,upper_face))
-      call normalize_vec(proj_sundir, ierr) !; call CHKERR(ierr, 'bad proj_sundir'//ftoa(proj_sundir))
+      call normalize_vec(proj_sundir, ierr) !; call CHKERR(ierr, 'bad proj_sundir'//toStr(proj_sundir))
 
       do iface=1,size(side_faces)
         side_face_normal_projected_on_upperface(:, iface) = &
           vec_proj_on_plane(face_normals(:,side_faces(iface)), face_normals(:,upper_face))
         call normalize_vec(side_face_normal_projected_on_upperface(:, iface), &
                            side_face_normal_projected_on_upperface(:, iface), ierr)
-        call CHKERR(ierr, 'bad side face normal '//ftoa(side_face_normal_projected_on_upperface(:, iface)))
+        call CHKERR(ierr, 'bad side face normal '//toStr(side_face_normal_projected_on_upperface(:, iface)))
         !if(norm2(proj_sundir).lt.epsilon(zero)) then
         !  proj_angles_to_sun(iface) = zero
         !  lsrc(side_faces(iface)) = .False.
@@ -2187,7 +2306,7 @@ module m_plex_grid
 
       normal = compute_normal_3d(vertex_coord(:,1),vertex_coord(:,2),vertex_coord(:,3))
       if(.not.approx(norm2(normal), one, 10*epsilon(one))) &
-        call CHKERR(1_mpiint, 'face normal not normed :( '//ftoa(normal)//' ( '//ftoa(norm2(normal))//' )')
+        call CHKERR(1_mpiint, 'face normal not normed :( '//toStr(normal)//' ( '//toStr(norm2(normal))//' )')
 
       if(Nvertices.eq.3) then
         area = triangle_area_by_vertices(vertex_coord(:,1), vertex_coord(:,2), vertex_coord(:,3))
