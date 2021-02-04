@@ -35,7 +35,7 @@ contains
   @test( npes=[1] )
   subroutine test_compare_diff2diff_to_LUT(this)
     class (MpiTestMethod), intent(inout) :: this
-    integer(mpiint) :: comm
+    integer(mpiint) :: comm, ierr
 
     type(t_optprop_3_10)     :: OPP_LUT
     type(t_optprop_3_10_ann) :: OPP_ANN
@@ -101,14 +101,14 @@ contains
       print *,'RMSE', sqrt(sum((C_LUT-C_ANN)**2)/size(C_LUT))
 
     end associate
-    call OPP_LUT%destroy()
-    call OPP_ANN%destroy()
+    call OPP_LUT%destroy(ierr); call CHKERR(ierr)
+    call OPP_ANN%destroy(ierr); call CHKERR(ierr)
   endsubroutine
 
   @test( npes=[1] )
   subroutine test_compare_dir2diff_to_LUT(this)
     class (MpiTestMethod), intent(inout) :: this
-    integer(mpiint) :: comm
+    integer(mpiint) :: comm, ierr
 
     type(t_optprop_3_10)     :: OPP_LUT
     type(t_optprop_3_10_ann) :: OPP_ANN
@@ -176,14 +176,14 @@ contains
       print *,'RMSE', sqrt(sum((C_LUT-C_ANN)**2)/size(C_LUT))
 
     end associate
-    call OPP_LUT%destroy()
-    call OPP_ANN%destroy()
+    call OPP_LUT%destroy(ierr); call CHKERR(ierr)
+    call OPP_ANN%destroy(ierr); call CHKERR(ierr)
   endsubroutine
 
   @test( npes=[1] )
   subroutine test_compare_dir2dir_to_LUT(this)
     class (MpiTestMethod), intent(inout) :: this
-    integer(mpiint) :: comm
+    integer(mpiint) :: comm, ierr
 
     type(t_optprop_3_10)     :: OPP_LUT
     type(t_optprop_3_10_ann) :: OPP_ANN
@@ -251,8 +251,8 @@ contains
       print *,'RMSE', sqrt(sum((C_LUT-C_ANN)**2)/size(C_LUT))
 
     end associate
-    call OPP_LUT%destroy()
-    call OPP_ANN%destroy()
+    call OPP_LUT%destroy(ierr); call CHKERR(ierr)
+    call OPP_ANN%destroy(ierr); call CHKERR(ierr)
   endsubroutine
 
 end module

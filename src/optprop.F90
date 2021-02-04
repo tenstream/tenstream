@@ -36,7 +36,7 @@ use m_optprop_LUT, only : t_optprop_LUT, t_optprop_LUT_1_2,t_optprop_LUT_3_6, t_
 
 use m_optprop_ANN, only : t_optprop_ANN, t_optprop_ANN_3_10
 use m_boxmc_geometry, only : setup_default_unit_cube_geometry, setup_default_wedge_geometry
-use m_eddington, only: eddington_coeff_zdun
+use m_eddington, only: eddington_coeff_ec
 use m_tenstream_options, only: twostr_ratio
 
 use m_LUT_param_phi, only: theta_from_param_theta, iterative_phi_theta_from_param_phi_and_param_theta
@@ -419,7 +419,7 @@ contains
             C = zero
             mu = real( cos(theta_from_param_theta(real(angles(2), ireal_params), 0._ireal_params)), irealLUT)
 
-            call eddington_coeff_zdun(&
+            call eddington_coeff_ec(&
               real(tauz, ireals), &
               real(w0, ireals), &
               real(g, ireals), &
@@ -481,7 +481,7 @@ contains
           if(aspect_zx.ge.twostr_ratio) then
             C = zero
 
-            call eddington_coeff_zdun(&
+            call eddington_coeff_ec(&
               real(tauz, ireals), &
               real(w0, ireals), &
               real(g, ireals), &

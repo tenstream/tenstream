@@ -62,7 +62,7 @@ module m_plex_rt
   use m_schwarzschild, only: B_eff
   use m_netcdfio, only: ncwrite
   use m_petsc_helpers, only: hegedus_trick, print_vec_min_mean_max
-  use m_eddington, only: eddington_coeff_zdun
+  use m_eddington, only: eddington_coeff_ec
 
   implicit none
 
@@ -3004,7 +3004,7 @@ module m_plex_rt
           w0   = xksca(i1+icell) / max(tiny(dtau), dtau)
           dtau = dtau * dz
 
-          call eddington_coeff_zdun(dtau, w0, xg(i1+icell), one, c11, c12, c13, c23, c33)
+          call eddington_coeff_ec(dtau, w0, xg(i1+icell), one, c11, c12, c13, c23, c33)
 
           ! edn0 -> eup0, eup1 -> eup0, edn0 -> edn0, eup1 -> edn1
           c(:) = [c12, c11, c11, c12]
