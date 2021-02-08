@@ -1467,6 +1467,8 @@ contains
 
       call line_intersection_3d(v2, f2-v2, f3, f4-f3, c2, t, ierr)
       call line_intersection_3d(v2, f2-v2, f4, f1-f4, k2, t, ierr)
+      print *, 'v2 coeffs', c2, k2
+      print *, v2, f2-v2, f4, f1-f4
       call rearange_point(v2, f2-v2, min(max(c2, k2, zero), one), v2)
 
       call line_intersection_3d(v3, f3-v3, f2, f1-f2, c3, t, ierr)
@@ -1495,7 +1497,7 @@ contains
       real(ireals), intent(out) :: areas(3)
       integer(mpiint) :: ierr
       real(ireals) :: a1, a2, a3, normal(3), a
-      real(ireals) :: p1l(3), p1b(3), p2l(3), p2t(3), p3r(3), p3t(3), p4r(3), p4b(3), c, t
+      real(ireals) :: p1l(3), p1b(3), p2l(3), p2t(3), p3r(3), p3t(3), p4r(3), p4b(3), p1t(3), p2b(3), p3b(3), p4t(3), c, t
 
       normal = compute_normal_3d(f1, f2, f3)
       !create subroutine for the following 4 lines
@@ -1503,35 +1505,43 @@ contains
       call rearange_point(v1, f4-f1, c, p1l)
       call line_intersection_3d(v1, f2-f1, f2, f3-f2, c, t, ierr)
       call rearange_point(v1, f2-f1, c, p1b)
+      call line_intersection_3d(v1, f1-f2, f4, f1-f4, c, t, ierr)
+      call rearange_point(v1, f1-f2, c, p1t)
 
       call line_intersection_3d(v2, f3-f2, f3, f4-f3, c, t, ierr)
       call rearange_point(v2, f3-f2, c, p2l)
       call line_intersection_3d(v2, f1-f2, f1, f4-f1, c, t, ierr)
       call rearange_point(v2, f1-f2, c, p2t)
+      call line_intersection_3d(v2, f2-f3, f2, f1-f2, c, t, ierr)
+      call rearange_point(v2, f2-f3, c, p2b)
 
       call line_intersection_3d(v3, f1-f4, f2, f1-f2, c, t, ierr)
       call rearange_point(v3, f1-f4, c, p3r)
       call line_intersection_3d(v3, f4-f3, f4, f1-f4, c, t, ierr)
       call rearange_point(v3, f4-f3, c, p3t)
+      call line_intersection_3d(v3, f3-f4, f2, f3-f2, c, t, ierr)
+      call rearange_point(v3, f3-f4, c, p3b)
 
       call line_intersection_3d(v4, f1-f4, f2, f1-f2, c, t, ierr)
       call rearange_point(v4, f1-f4, c, p4r)
       call line_intersection_3d(v4, f3-f4, f2, f3-f2, c, t, ierr)
       call rearange_point(v4, f3-f4, c, p4b)
+      call line_intersection_3d(v4, f4-f3, f1, f4-f1, c, t, ierr)
+      call rearange_point(v4, f4-f3, c, p4t)
 
-      print *, 'p1b', p1b, 'p1l', p1l
-      print *, 'p2t', p2t, 'p2l', p2l
-      print *, 'p3t', p3t, 'p3r', p3r
-      print *, 'p4b', p4b, 'p4r', p4r
+      print *, 'p1b', p1b, 'p1l', p1l, 'p1t', p1t
+      print *, 'p2t', p2t, 'p2l', p2l, 'p2b', p2b
+      print *, 'p3t', p3t, 'p3r', p3r, 'p3b', p3b
+      print *, 'p4b', p4b, 'p4r', p4r, 'p4t', p4t
 
       ! rectangle area by vertices
       a = triangle_area_by_vertices(f1, f2, f3) + triangle_area_by_vertices(f1, f3, f4)
-      a1 = &
-        triangle_area_by_vertices(v1, p1b, p1l) + triangle_area_by_vertices(f3, p1l, p1b) + &
-        triangle_area_by_vertices(v2, p2l, p2t) + triangle_area_by_vertices(f4, p2t, p2l) + &
-        triangle_area_by_vertices(v3, p3t, p3r) + triangle_area_by_vertices(f1, p3r, p3t) + &
-        triangle_area_by_vertices(v4, p4r, p4b) + triangle_area_by_vertices(f2, p4b, p4r) - &
-        3._ireals * a
+     ! a1 = &
+     !   triangle_area_by_vertices(v1, p1b, p1l) + triangle_area_by_vertices(f3, p1l, p1b) + &
+     !   triangle_area_by_vertices(v2, p2l, p2t) + triangle_area_by_vertices(f4, p2t, p2l) + &
+     !   triangle_area_by_vertices(v3, p3t, p3r) + triangle_area_by_vertices(f1, p3r, p3t) + &
+     !   triangle_area_by_vertices(v4, p4r, p4b) + triangle_area_by_vertices(f2, p4b, p4r) - &
+     !   3._ireals * a
 
       a2 = &
         triangle_area_by_vertices(v1, f2, p1b) + triangle_area_by_vertices(v1, f1, f2) + &
@@ -1539,7 +1549,13 @@ contains
         triangle_area_by_vertices(v3, f4, p3t) + triangle_area_by_vertices(v3, f3, f4) + &
         triangle_area_by_vertices(v4, p4b, f3) + triangle_area_by_vertices(v4, f3, f4)
 
-      a3 = a - a1 - a2
+      a3 = &
+        triangle_area_by_vertices(v1,p1t,f1) + triangle_area_by_vertices(v1,p1l,f4) + triangle_area_by_vertices(v1,f4,p1t) +  &
+        triangle_area_by_vertices(v2,p2b,f3) + triangle_area_by_vertices(v2,f3,p2l) + triangle_area_by_vertices(v2,f2,p2b) +  &
+        triangle_area_by_vertices(v3,p3b,f3) + triangle_area_by_vertices(v3,p3b,f2) + triangle_area_by_vertices(v3,f2,p3b) +  &
+        triangle_area_by_vertices(v4,p4t,f1) + triangle_area_by_vertices(v4,f4,p4t) + triangle_area_by_vertices(v4,f1,p4r)
+      !a3 = a - a1 - a2
+      a1 = a - a2 - a3
       print *, 'areas', a1, a2, a3
       areas = max([a1,a2,a3], zero)
       areas = areas / sum(areas)
@@ -1557,7 +1573,8 @@ contains
           p4 => origin2 + direction2 &
           )
         denominator = d_mnop(p2,p1,p2,p1) * d_mnop(p4,p3,p4,p3) - d_mnop(p4,p3,p2,p1) * d_mnop(p4,p3,p2,p1)
-        if ( abs(denominator) < epsilon(denominator)) then
+        if ( abs(denominator) < epsilon(denominator) * 1e2) then ! ??? how large should it be? error for phi=90, theta=60, src z if
+! using only single eps
           ierr = 1 ! lines are parallel or coincident
           s1 = -huge(s1)
           s2 = -huge(s2)
