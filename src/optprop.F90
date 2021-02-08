@@ -1496,7 +1496,7 @@ contains
       real(ireals), intent(in) :: f1(3), f2(3), f3(3), f4(3), v1(3), v2(3), v3(3), v4(3)
       real(ireals), intent(out) :: areas(3)
       integer(mpiint) :: ierr
-      real(ireals) :: a1, a2, a3, normal(3), a
+      real(ireals) :: a1, a2, a3, normal(3), a, a2v1, a2v2, a2v3, a2v4, a3v1, a3v2, a3v3, a3v4
       real(ireals) :: p1l(3), p1b(3), p2l(3), p2t(3), p3r(3), p3t(3), p4r(3), p4b(3), p1t(3), p2b(3), p3b(3), p4t(3), c, t
 
       normal = compute_normal_3d(f1, f2, f3)
@@ -1512,8 +1512,8 @@ contains
       call rearange_point(v2, f3-f2, c, p2l)
       call line_intersection_3d(v2, f1-f2, f1, f4-f1, c, t, ierr)
       call rearange_point(v2, f1-f2, c, p2t)
-      call line_intersection_3d(v2, f2-f3, f2, f1-f2, c, t, ierr)
-      call rearange_point(v2, f2-f3, c, p2b)
+      call line_intersection_3d(v2, f2-f1, f2, f3-f2, c, t, ierr)
+      call rearange_point(v2, f2-f1, c, p2b)
 
       call line_intersection_3d(v3, f1-f4, f2, f1-f2, c, t, ierr)
       call rearange_point(v3, f1-f4, c, p3r)
@@ -1536,26 +1536,29 @@ contains
 
       ! rectangle area by vertices
       a = triangle_area_by_vertices(f1, f2, f3) + triangle_area_by_vertices(f1, f3, f4)
-     ! a1 = &
-     !   triangle_area_by_vertices(v1, p1b, p1l) + triangle_area_by_vertices(f3, p1l, p1b) + &
-     !   triangle_area_by_vertices(v2, p2l, p2t) + triangle_area_by_vertices(f4, p2t, p2l) + &
-     !   triangle_area_by_vertices(v3, p3t, p3r) + triangle_area_by_vertices(f1, p3r, p3t) + &
-     !   triangle_area_by_vertices(v4, p4r, p4b) + triangle_area_by_vertices(f2, p4b, p4r) - &
-     !   3._ireals * a
+      !a1 = &
+      !  triangle_area_by_vertices(v1, p1b, p1l) + triangle_area_by_vertices(f3, p1l, p1b) + &
+      !  triangle_area_by_vertices(v2, p2l, p2t) + triangle_area_by_vertices(f4, p2t, p2l) + &
+      !  triangle_area_by_vertices(v3, p3t, p3r) + triangle_area_by_vertices(f1, p3r, p3t) + &
+      !  triangle_area_by_vertices(v4, p4r, p4b) + triangle_area_by_vertices(f2, p4b, p4r) - &
+      !  3._ireals * a
 
-      a2 = &
-        triangle_area_by_vertices(v1, f2, p1b) + triangle_area_by_vertices(v1, f1, f2) + &
-        triangle_area_by_vertices(v2, p2t, f1) + triangle_area_by_vertices(p2t, f1, f2) + &
-        triangle_area_by_vertices(v3, f4, p3t) + triangle_area_by_vertices(v3, f3, f4) + &
-        triangle_area_by_vertices(v4, p4b, f3) + triangle_area_by_vertices(v4, f3, f4)
+      a2v1 = triangle_area_by_vertices(v1, f2, p1b) + triangle_area_by_vertices(v1, f1, f2)
+      a2v2 = triangle_area_by_vertices(v2, p2t, f1) + triangle_area_by_vertices(p2t, f1, f2)
+      a2v3 = triangle_area_by_vertices(v3, f4, p3t) + triangle_area_by_vertices(v3, f3, f4)
+      a2v4 = triangle_area_by_vertices(v4, p4b, f3) + triangle_area_by_vertices(v4, f3, f4)
 
-      a3 = &
-        triangle_area_by_vertices(v1,p1t,f1) + triangle_area_by_vertices(v1,p1l,f4) + triangle_area_by_vertices(v1,f4,p1t) +  &
-        triangle_area_by_vertices(v2,p2b,f3) + triangle_area_by_vertices(v2,f3,p2l) + triangle_area_by_vertices(v2,f2,p2b) +  &
-        triangle_area_by_vertices(v3,p3b,f3) + triangle_area_by_vertices(v3,p3b,f2) + triangle_area_by_vertices(v3,f2,p3b) +  &
-        triangle_area_by_vertices(v4,p4t,f1) + triangle_area_by_vertices(v4,f4,p4t) + triangle_area_by_vertices(v4,f1,p4r)
-      !a3 = a - a1 - a2
+      a2 = max(a2v1, a2v2, a2v3, a2v4)
+
+      a3v1 = triangle_area_by_vertices(v1,p1t,f1) + triangle_area_by_vertices(v1,p1l,f4) + triangle_area_by_vertices(v1,f4,p1t)
+      a3v2 = triangle_area_by_vertices(v2,p2b,f3) + triangle_area_by_vertices(v2,f3,p2l) + triangle_area_by_vertices(v2,f2,p2b)
+      a3v3 = triangle_area_by_vertices(v3,p3b,f3) + triangle_area_by_vertices(v3,p3b,f2) + triangle_area_by_vertices(v3,f2,p3b)
+      a3v4 = triangle_area_by_vertices(v4,p4t,f1) + triangle_area_by_vertices(v4,f4,p4t) + triangle_area_by_vertices(v4,f1,p4r)
+
+      a3 = max(a3v1, a3v2, a3v3, a3v4)
+
       a1 = a - a2 - a3
+
       print *, 'areas', a1, a2, a3
       areas = max([a1,a2,a3], zero)
       areas = areas / sum(areas)
