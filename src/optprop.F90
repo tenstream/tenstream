@@ -28,7 +28,7 @@ module m_optprop
 
 use m_optprop_parameters, only : ldebug_optprop, wedge_sphere_radius, param_eps
 use m_helper_functions, only : rmse, CHKERR, CHKWARN, toStr, cstr, approx, deg2rad, rad2deg, swap, is_between, vec_proj_on_plane, &
-  char_arr_to_str, triangle_area_by_vertices, compute_normal_3d
+  char_arr_to_str, triangle_area_by_vertices, compute_normal_3d, volume_hexahedron
 use m_data_parameters, only: ireals,ireal_dp,irealLUT,ireal_params,iintegers,one,zero,i0,i1,inil,mpiint
 use m_optprop_base, only: t_optprop_base, t_op_config, find_op_dim_by_name
 use m_optprop_LUT, only : t_optprop_LUT, t_optprop_LUT_1_2,t_optprop_LUT_3_6, t_optprop_LUT_3_10, &
@@ -39,7 +39,7 @@ use m_optprop_ANN, only : t_optprop_ANN, t_optprop_ANN_3_10
 use m_boxmc_geometry, only : setup_default_unit_cube_geometry, setup_default_wedge_geometry
 use m_eddington, only: eddington_coeff_zdun
 use m_tenstream_options, only: twostr_ratio
-use m_intersection, only: hit_plane
+use m_intersection, only: hit_plane, line_intersection_3d
 
 use m_LUT_param_phi, only: theta_from_param_theta, iterative_phi_theta_from_param_phi_and_param_theta
 
@@ -1345,42 +1345,54 @@ contains
   subroutine dir2dir3_coeff_corr(verts, vertz, sundir, coeffs)
     real(irealLUT), intent(inout) :: coeffs(:)
     real(ireals), intent(in) :: verts(:), vertz(:), sundir(:)
-    real(irealLUT) :: coeffs_total
-    real(ireals) :: areas(3), a(3), b(3), c(3), d(3), e(3), f(3), g(3), h(3)
-    real(ireals) :: src_normal(3) ! NOT NECESSARY SINCE EACH ONLY USED ONCE
+    real(ireals) :: a(3), b(3), c(3), d(3), e(3), f(3), g(3), h(3)
 
     call reset_points()
 
     if (lDEBUG_geometric_coeff_correction) print *, 'sundir', sundir
 
     if(lDEBUG_geometric_coeff_correction) print *, 'src z'
-    src_normal = compute_normal_3d(g, h, f)
-    call project_points(sundir, h, src_normal, g, h, f, e, c, d, b, a)
-    call rearange_projections(h, f, e, g, d, b, a, c)
-    call compute_areas(h, f, e, g, d, b, a, c, areas)
-    call reset_points()
-    coeffs_total = sum(coeffs(1:9:3))
-    coeffs([1,4,7]) = real(areas, irealLUT) * coeffs_total
+    associate( &
+        o1 => c, &
+        o2 => d, &
+        o3 => b, &
+        o4 => a &
+        )
+      call project_points(sundir, h, compute_normal_3d(g, h, f), g, h, f, e, c, d, b, a)
+      call rearange_projections(h, f, e, g, d, b, a, c)
+      call correct_coeffs(h, f, e, g, d, b, a, c, o1, o2, o3, o4, [1,4,7], coeffs)
+      call reset_points()
+    end associate
 
     if (lDEBUG_geometric_coeff_correction)  print *, 'src x'
-    src_normal = compute_normal_3d(c, a, e)
-    call project_points(sundir, a, src_normal, g, c, a, e, h, d, b, f)
-    call rearange_projections(g, c, a, e, h, d, b, f)
-    call compute_areas(g, c, a, e, h, d, b, f, areas)
-    coeffs_total = sum(coeffs(2:9:3))
-    coeffs([5,8,2]) = real(areas, irealLUT) * coeffs_total
-    call reset_points()
+    associate( &
+        o1 => h, &
+        o2 => d, &
+        o3 => b, &
+        o4 => f &
+        )
+      call project_points(sundir, a, compute_normal_3d(c, a, e), g, c, a, e, h, d, b, f)
+      call rearange_projections(g, c, a, e, h, d, b, f)
+      call correct_coeffs(g, c, a, e, h, d, b, f, o1, o2, o3, o4, [5,8,2], coeffs)
+      call reset_points()
+    end associate
 
     if (lDEBUG_geometric_coeff_correction) print *, 'src y'
-    src_normal = compute_normal_3d(a, b, f)
-    call project_points(sundir, b, src_normal, e, a, b, f, g, c, d, h)
-    call rearange_projections(f, b, a, e, h, d, c, g)
-    call compute_areas(f, b, a, e, h, d, c, g, areas)
-    coeffs_total = sum(coeffs(3:9:3))
-    coeffs([9,6,3]) = real(areas, irealLUT) * coeffs_total
-    call reset_points()
+    associate( &
+        o1 => g, &
+        o2 => c, &
+        o3 => d, &
+        o4 => h &
+        )
+      call project_points(sundir, b, compute_normal_3d(a, b, f), e, a, b, f, g, c, d, h)
+      call rearange_projections(f, b, a, e, h, d, c, g)
+      call correct_coeffs(f, b, a, e, h, d, c, g, o1, o2, o3, o4, [9,6,3], coeffs)
+      call reset_points()
+    end associate
 
-    call respect_absorption(verts, vertz, sundir, coeffs)
+    if (.false.) then
+      call respect_absorption(verts, vertz, sundir, coeffs)
+    endif
 
     if (.false.) then
       call correct_by_gradient(e, f, g, h, coeffs)
@@ -1496,42 +1508,39 @@ contains
       point = origin + coefficient * direction
     end subroutine
 
-    subroutine compute_areas(f1, f2, f3, f4, v1, v2, v3, v4, areas)
-      real(ireals), intent(in) :: f1(3), f2(3), f3(3), f4(3), v1(3), v2(3), v3(3), v4(3)
-      real(ireals), intent(out) :: areas(3)
+    subroutine proj_var_to_edges(c1, c2, c3, c4, v, p1, p2, p3) ! c: corner
+      real(ireals), intent(in) :: c1(3), c2(3), c3(3), c4(3), v(3)
+      real(ireals), intent(out) :: p1(3), p2(3), p3(3)
+      real(ireals) :: c, t
       integer(mpiint) :: ierr
-      real(ireals) :: a1, a2, a3, normal(3), a, a2v1, a2v2, a2v3, a2v4, a3v1, a3v2, a3v3, a3v4
-      real(ireals) :: p1l(3), p1b(3), p2l(3), p2t(3), p3r(3), p3t(3), p4r(3), p4b(3), p1t(3), p2b(3), p3b(3), p4t(3), c, t
 
-      normal = compute_normal_3d(f1, f2, f3)
-      !create subroutine for the following 4 lines
-      call line_intersection_3d(v1, f4-f1, f3, f4-f3, c, t, ierr)
-      call rearange_point(v1, f4-f1, c, p1l)
-      call line_intersection_3d(v1, f2-f1, f2, f3-f2, c, t, ierr)
-      call rearange_point(v1, f2-f1, c, p1b)
-      call line_intersection_3d(v1, f1-f2, f4, f1-f4, c, t, ierr)
-      call rearange_point(v1, f1-f2, c, p1t)
+      call line_intersection_3d(v, c4-c1, c3, c4-c3, c, t, ierr)
+      call rearange_point(v, c4-c1, c, p1)
+      call line_intersection_3d(v, c2-c1, c2, c3-c2, c, t, ierr)
+      call rearange_point(v, c2-c1, c, p2)
+      call line_intersection_3d(v, c1-c2, c4, c1-c4, c, t, ierr)
+      call rearange_point(v, c1-c2, c, p3)
+    end subroutine
 
-      call line_intersection_3d(v2, f3-f2, f3, f4-f3, c, t, ierr)
-      call rearange_point(v2, f3-f2, c, p2l)
-      call line_intersection_3d(v2, f1-f2, f1, f4-f1, c, t, ierr)
-      call rearange_point(v2, f1-f2, c, p2t)
-      call line_intersection_3d(v2, f2-f1, f2, f3-f2, c, t, ierr)
-      call rearange_point(v2, f2-f1, c, p2b)
+    subroutine proj_vars_to_edges(f1,f2,f3,f4,v1,v2,v3,v4,p1l,p1b,p1t,p2l,p2t,p2b,p3r,p3t,p3b,p4r,p4b,p4t)
+      real(ireals), intent(in) :: f1(3),f2(3),f3(3),f4(3),v1(3),v2(3),v3(3),v4(3)
+      real(ireals), intent(out) :: p1l(3),p1b(3),p1t(3),p2l(3),p2t(3),p2b(3),p3r(3),p3t(3),p3b(3),p4r(3),p4b(3),p4t(3)
 
-      call line_intersection_3d(v3, f1-f4, f2, f1-f2, c, t, ierr)
-      call rearange_point(v3, f1-f4, c, p3r)
-      call line_intersection_3d(v3, f4-f3, f4, f1-f4, c, t, ierr)
-      call rearange_point(v3, f4-f3, c, p3t)
-      call line_intersection_3d(v3, f3-f4, f2, f3-f2, c, t, ierr)
-      call rearange_point(v3, f3-f4, c, p3b)
+      call proj_var_to_edges(f1, f2, f3, f4, v1, p1l, p1b, p1t)
+      call proj_var_to_edges(f2, f1, f4, f3, v2, p2l, p2t, p2b)
+      call proj_var_to_edges(f4, f3, f2, f1, v3, p3r, p3b, p3t)
+      call proj_var_to_edges(f4, f3, f2, f1, v4, p4r, p4b, p4t)
+    end subroutine
 
-      call line_intersection_3d(v4, f1-f4, f2, f1-f2, c, t, ierr)
-      call rearange_point(v4, f1-f4, c, p4r)
-      call line_intersection_3d(v4, f3-f4, f2, f3-f2, c, t, ierr)
-      call rearange_point(v4, f3-f4, c, p4b)
-      call line_intersection_3d(v4, f4-f3, f1, f4-f1, c, t, ierr)
-      call rearange_point(v4, f4-f3, c, p4t)
+    subroutine correct_coeffs(f1, f2, f3, f4, v1, v2, v3, v4, o1, o2, o3, o4, slice, coeffs)
+      real(ireals), intent(in) :: f1(3), f2(3), f3(3), f4(3), v1(3), v2(3), v3(3), v4(3), o1(3), o2(3), o3(3), o4(3)
+      integer(iintegers), intent(in) :: slice(3)
+      real(irealLUT), intent(inout) :: coeffs(9)
+      real(ireals) :: area1, area2, area3, area, areas(3), a2v1, a2v2, a2v3, a2v4, a3v1, a3v2, a3v3, a3v4
+      real(ireals) :: v2v1, v2v2, v2v3, v2v4, v3v1, v3v2, v3v3, v3v4, volume2, volume3
+      real(ireals) :: p1l(3), p1b(3), p2l(3), p2t(3), p3r(3), p3t(3), p4r(3), p4b(3), p1t(3), p2b(3), p3b(3), p4t(3)
+
+      call proj_vars_to_edges(f1, f2, f3, f4, v1, v2, v3, v4, p1l, p1b, p1t, p2l, p2t, p2b, p3r, p3t, p3b, p4r, p4b, p4t)
 
       if (lDEBUG_geometric_coeff_correction) then
         print *, 'p1b', p1b, 'p1l', p1l, 'p1t', p1t
@@ -1540,117 +1549,51 @@ contains
         print *, 'p4b', p4b, 'p4r', p4r, 'p4t', p4t
       endif
 
-      a = triangle_area_by_vertices(f1, f2, f3) + triangle_area_by_vertices(f1, f3, f4)
+      area = triangle_area_by_vertices(f1, f2, f3) + triangle_area_by_vertices(f1, f3, f4)
 
-      a2v1 = triangle_area_by_vertices(v1, f2, p1b) + triangle_area_by_vertices(v1, f1, f2)
-      a2v2 = triangle_area_by_vertices(v2, p2t, f1) + triangle_area_by_vertices(p2t, f1, f2)
-      a2v3 = triangle_area_by_vertices(v3, f4, p3t) + triangle_area_by_vertices(v3, f3, f4)
-      a2v4 = triangle_area_by_vertices(v4, p4b, f3) + triangle_area_by_vertices(v4, f3, f4)
+      a2v1 = triangle_area_by_vertices(v1,f2, p1b) + triangle_area_by_vertices(v1, f1,f2)
+      a2v2 = triangle_area_by_vertices(v2,p2t,f1 ) + triangle_area_by_vertices(p2t,f1,f2)
+      a2v3 = triangle_area_by_vertices(v3,f4, p3t) + triangle_area_by_vertices(v3, f3,f4)
+      a2v4 = triangle_area_by_vertices(v4,p4b,f3 ) + triangle_area_by_vertices(v4, f3,f4)
 
-      a2 = max(a2v1, a2v2, a2v3, a2v4)
+      area2 = max(a2v1, a2v2, a2v3, a2v4)
 
-      a3v1 = triangle_area_by_vertices(v1,p1t,f1) + triangle_area_by_vertices(v1,p1l,f4) + triangle_area_by_vertices(v1,f4,p1t)
-      a3v2 = triangle_area_by_vertices(v2,p2b,f3) + triangle_area_by_vertices(v2,f3,p2l) + triangle_area_by_vertices(v2,f2,p2b)
-      a3v3 = triangle_area_by_vertices(v3,p3b,f3) + triangle_area_by_vertices(v3,p3b,f2) + triangle_area_by_vertices(v3,f2,p3b)
-      a3v4 = triangle_area_by_vertices(v4,p4t,f1) + triangle_area_by_vertices(v4,f4,p4t) + triangle_area_by_vertices(v4,f1,p4r)
+      a3v1 = triangle_area_by_vertices(v1,p1t,f1) + triangle_area_by_vertices(v1,p1l,f4 ) + triangle_area_by_vertices(v1,f4,p1t)
+      a3v2 = triangle_area_by_vertices(v2,p2b,f3) + triangle_area_by_vertices(v2,f3, p2l) + triangle_area_by_vertices(v2,f2,p2b)
+      a3v3 = triangle_area_by_vertices(v3,p3b,f3) + triangle_area_by_vertices(v3,p3b,f2 ) + triangle_area_by_vertices(v3,f2,p3b)
+      a3v4 = triangle_area_by_vertices(v4,p4t,f1) + triangle_area_by_vertices(v4,f4, p4t) + triangle_area_by_vertices(v4,f1,p4r)
 
-      a3 = max(a3v1, a3v2, a3v3, a3v4)
+      area3 = max(a3v1, a3v2, a3v3, a3v4)
 
-      a1 = a - a2 - a3
+      area1 = area - area2 - area3
 
-      areas = max([a1,a2,a3], zero)
+      areas = max([area1,area2,area3], zero)
       areas = areas / sum(areas)
+
+      coeffs(slice) = real(areas, irealLUT) * sum(coeffs(slice))
+
+      ! absorption correction
+      v2v1 = volume_hexahedron(o1, o2, o3, o4, v1, f1, f2, p1b)
+      v2v2 = volume_hexahedron(o1, o2, o3, o4, v2, p2t, f1, f2)
+      v2v3 = volume_hexahedron(o1, o2, o3, o4, v3, f3, f4, p3t)
+      v2v4 = volume_hexahedron(o1, o2, o3, o4, v4, f4, f1, p4r)
+
+      volume2 = max(v2v1, v2v2, v2v3, v2v4)
+
+      v3v1 = volume_hexahedron(o1, o2, o3, o4, v1, p1l, f4, f1)
+      v3v2 = volume_hexahedron(o1, o2, o3, o4, v2, f2, f3, p2l)
+      v3v3 = volume_hexahedron(o1, o2, o3, o4, v3, f3, f4, p3t)
+      v3v4 = volume_hexahedron(o1, o2, o3, o4, v4, f4, f1, p4r)
+
+      volume3 = max(v3v1, v3v2, v3v3, v3v4)
+      ! absorption correction example
+      !coeffs(1) = real(exp( - 0.5_ireals * (d_prime_dst - d_prime_reg)), irealLUT) * coeffs(1)
+
+      ! THIS IS HOW IT WORKS
+      !coeffs_total = sum(coeffs(3:9:3))
+      !coeffs([9,6,3]) = real(areas, irealLUT) * coeffs_total
+
       if (lDEBUG_geometric_coeff_correction) print *, 'areas', areas
     end subroutine
-
-    subroutine respect_absorption(verts_dst, verts_reg, sundir, coeffs)
-      real(ireals), intent(in) :: verts_reg(:), verts_dst(:), sundir(3)
-      real(irealLUT), intent(inout) :: coeffs(:)
-      real(ireals) :: d_prime_reg, d_prime_dst, a(3), b(3)!, A_zy_reg, A_zy_dst
-      real(irealLUT) :: abso, coeff_diff
-
-      abso = 0.5_irealLUT
-
-      !d_prime_reg = d + hit_plane(d, sundir, h, compute_normal_3d(f-h, g-h)) * sundir
-      !A_zy_reg = triangle_area_by_vertices(d, h, d_prime_reg) * (d(1) - c(1))
-
-      !d_prime_dst = d + hit_plane(d, sundir, h, compute_normal_3d(f-h, g-h)) * sundir
-      !A_zy_dst = triangle_area_by_vertices(d, h, d_prime_dst) * (d(1) - c(1))
-      associate( &
-          d => verts_reg(10:12), &
-          f => verts_reg(16:18), &
-          g => verts_reg(19:21), &
-          h => verts_reg(22:24) &
-          )
-        a = f-h
-        b = g-h
-        d_prime_reg = norm2(hit_plane(d, sundir, h, compute_normal_3d(h, a, b)) * sundir) * (g(1) - h(1))
-      end associate
-      associate( &
-          d => verts_dst(10:12), &
-          f => verts_dst(16:18), &
-          g => verts_dst(19:21), &
-          h => verts_dst(22:24) &
-          )
-        a = f-h
-        b = g-h
-        d_prime_dst = norm2(hit_plane(d, sundir, h, compute_normal_3d(h, a, b)) * sundir) * (g(1) - h(1))
-      end associate
-      print *, 'factor', d_prime_dst, d_prime_reg
-      print *, 'coeffs before', coeffs(1:9:3)
-      ! montecarlo coefficients sum to larger number than LUT coefficients when absoption turned on
-      ! this makes sence, complicates the correction though.
-      ! I would have to increase or decrease the sum of all coefficients respectively depending on absorption
-      ! and therefore on the path the photons take through the distorted box in relation to the regular box
-      coeff_diff = - coeffs(1)
-      print *, 'coeff1', coeffs(1)
-      coeffs(1) = real(exp( - 0.5_ireals * (d_prime_dst - d_prime_reg)), irealLUT) * coeffs(1)
-      print *, 'coeff1', coeffs(1)
-      coeff_diff = coeff_diff + coeffs(1)
-      print *, 'coeff_diff', coeff_diff
-      coeffs(4) = coeffs(4) - coeff_diff
-      print *, 'coeffs after', coeffs(1:9:3)
-      coeffs = coeffs
-    end subroutine
-
-    subroutine line_intersection_3d(origin1, direction1, origin2, direction2, s1, s2, ierr)
-      real(ireals), intent(in) :: origin1(:), direction1(:), origin2(:), direction2(:)
-      real(ireals), intent(out) :: s1, s2
-      integer(mpiint), intent(out) :: ierr
-      real(ireals) :: denominator
-      associate( &
-          p1 => origin1, &
-          p2 => origin1 + direction1, &
-          p3 => origin2, &
-          p4 => origin2 + direction2 &
-          )
-        denominator = d_mnop(p2,p1,p2,p1) * d_mnop(p4,p3,p4,p3) - d_mnop(p4,p3,p2,p1) * d_mnop(p4,p3,p2,p1)
-        if ( abs(denominator) < sqrt(epsilon(denominator))) then
-          ierr = 1 ! lines are parallel or coincident
-          s1 = -huge(s1)
-          s2 = -huge(s2)
-        else
-          s1 = ( d_mnop(p1,p3,p4,p3) * d_mnop(p4,p3,p2,p1) - d_mnop(p1,p3,p2,p1) * d_mnop(p4,p3,p4,p3) ) / denominator
-          s2 = ( d_mnop(p1,p3,p4,p3) + s1 * d_mnop(p4,p3,p2,p1) ) / d_mnop(p4,p3,p4,p3)
-        endif
-      end associate
-    end subroutine
-
-    function d_mnop(m,n,o,p)
-      real(ireals), intent(in) :: m(:), n(:), o(:), p(:)
-      real(ireals) :: d_mnop
-      d_mnop = &
-        (m(1) - n(1)) * (o(1) - p(1)) + &
-        (m(2) - n(2)) * (o(2) - p(2)) + &
-        (m(3) - n(3)) * (o(3) - p(3))
-    end function
-
-    function rotation(a, b, c, normal)
-      real(ireals), intent(in) :: a(3), b(3), c(3), normal(3)
-      real(ireals) :: rotation, area_normal(3)
-
-      area_normal = compute_normal_3d(a,b,c)
-      rotation = dot_product(area_normal, normal)
-    end function
   end subroutine dir2dir3_coeff_corr
 end module

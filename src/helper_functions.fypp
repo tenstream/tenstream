@@ -94,6 +94,7 @@ module m_helper_functions
     & ltoa, &
     & meanval, &
     & meanvec, &
+    & min_dist_point_plane, &
     & mpi_logical_all_same, &
     & mpi_logical_and, &
     & mpi_logical_or, &
@@ -123,22 +124,51 @@ module m_helper_functions
     & triangle_area_by_vertices, &
     & triangle_inner_circle_center, &
     & unique, &
-    & vec_proj_on_plane
+    & vec_proj_on_plane, &
+    & volume_hexahedron, &
+    & volume_oblique_pyramid, &
+    & volume_tetrahedron
+
+  interface min_dist_point_plane
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    module procedure min_dist_point_plane_${dtype}$
+    #:endfor
+  end interface
+
+  interface volume_hexahedron
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    module procedure volume_hexahedron_${dtype}$
+    #:endfor
+  end interface
+
+  interface volume_oblique_pyramid
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    module procedure volume_oblique_pyramid_${dtype}$
+    #:endfor
+  end interface
+
+  interface volume_tetrahedron
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    module procedure volume_tetrahedron_${dtype}$
+    #:endfor
+  end interface
 
   interface rotate_angle_x
-#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
     module procedure rotate_angle_x_${dtype}$
-#:endfor
+    #:endfor
   end interface
+
   interface rotate_angle_y
-#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
     module procedure rotate_angle_y_${dtype}$
-#:endfor
+    #:endfor
   end interface
+
   interface rotate_angle_z
-#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
     module procedure rotate_angle_z_${dtype}$
-#:endfor
+    #:endfor
   end interface
 
   interface rmse
@@ -146,24 +176,29 @@ module m_helper_functions
     module procedure rmse_${dtype}$
     #:endfor
   end interface
+
   interface spherical_2_cartesian
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
     module procedure spherical_2_cartesian_${dtype}$
     #:endfor
   end interface
+
   interface rad2deg
     module procedure rad2deg_r32, rad2deg_r64, rad2deg_r128
   end interface
+
   interface deg2rad
     module procedure deg2rad_r32, deg2rad_r64, deg2rad_r128
   end interface
+
   interface approx
     module procedure approx_r32, approx_r64, approx_r128
   end interface
+
   interface distance
-#:for dtype in ['REAL32', 'REAL64']
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
     module procedure distance_${dtype}$
-#:endfor
+    #:endfor
   end interface
 
   interface toStr
@@ -382,12 +417,12 @@ module m_helper_functions
   end interface
 
   interface triangle_area_by_vertices
-#:for dtype in ['REAL32', 'REAL64']
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
     module procedure triangle_area_by_vertices_${dtype}$
 #:endfor
   end interface
   interface triangle_area_by_edgelengths
-#:for dtype in ['REAL32', 'REAL64']
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
     module procedure triangle_area_by_edgelengths_${dtype}$
 #:endfor
   end interface
@@ -1795,8 +1830,8 @@ module m_helper_functions
 #:endfor
 
     !> @brief Determine Edge length/ distance between two points
-#:for dtype in ['REAL32', 'REAL64']
-    function distance_${dtype}$(p1,p2) result(distance)
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    pure function distance_${dtype}$(p1,p2) result(distance)
       real(${dtype}$), intent(in) :: p1(:), p2(:)
       real(kind(p1)) :: distance
       integer(iintegers) :: i
@@ -1809,8 +1844,8 @@ module m_helper_functions
 #:endfor
 
     !> @brief Use William Kahan's formula (equivalent to Herons Formula) to determine the area of a triangle given the 3 edge lengths
-#:for dtype in ['REAL32', 'REAL64']
-    function triangle_area_by_edgelengths_${dtype}$(e1,e2,e3) result(triangle_area_by_edgelengths)
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    pure function triangle_area_by_edgelengths_${dtype}$(e1,e2,e3) result(triangle_area_by_edgelengths)
       real(${dtype}$), intent(in) :: e1,e2,e3
       real(${dtype}$) :: triangle_area_by_edgelengths
       real(${dtype}$) :: a, b, c
@@ -1825,8 +1860,8 @@ module m_helper_functions
 #:endfor
 
     !> @brief Use Herons Formula to determine the area of a triangle given the 3 vertices
-#:for dtype in ['REAL32', 'REAL64']
-    function triangle_area_by_vertices_${dtype}$(v1,v2,v3) result(triangle_area_by_vertices)
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    pure function triangle_area_by_vertices_${dtype}$(v1,v2,v3) result(triangle_area_by_vertices)
       real(${dtype}$), intent(in) :: v1(:),v2(:),v3(:)
       real(${dtype}$) :: triangle_area_by_vertices
       real(${dtype}$) :: e1, e2, e3
@@ -2653,6 +2688,55 @@ end subroutine
 
   end function
 #:endfor
+#:endfor
+
+!> @brief compute volume defined by four base and top points each
+!> @details base points and top points can be coincident
+! the edges will be constructed index wise: b_i -> t_i
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+  pure function volume_hexahedron_${dtype}$(b1, b2, b3, b4, t1, t2, t3, t4) result(volume_hexahedron)
+    real(${dtype}$), intent(in) :: b1(3), b2(3), b3(3), b4(3), t1(3), t2(3), t3(3), t4(3)
+    real(${dtype}$) :: volume_hexahedron
+
+    volume_hexahedron = &
+      & volume_oblique_pyramid(t1, t2, t3, t4, b1) + &
+      & volume_oblique_pyramid(t3, b3, b4, t4, b1) + &
+      & volume_oblique_pyramid(t2, b2, b3, t3, b1)
+  end function
+#:endfor
+
+!> @brief compute volume of pyramid with four base points
+!> @details also works when two base points are coincident
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+  pure function volume_oblique_pyramid_${dtype}$(b1, b2, b3, b4, t) result(volume_oblique_pyramid)
+    real(${dtype}$), intent(in) :: b1(3), b2(3), b3(3), b4(3), t(3)
+    real(${dtype}$) :: volume_oblique_pyramid
+
+    volume_oblique_pyramid = volume_tetrahedron(b1, b2, b3, t) + volume_tetrahedron(b1, b3, b4, t)
+  end function
+#:endfor
+
+!> @brief compute volume of pyramid with four base points
+!> @details also works when two base points are coincident
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+  pure function volume_tetrahedron_${dtype}$(b1, b2, b3, t) result(volume_tetrahedron)
+    real(${dtype}$), intent(in) :: b1(3), b2(3), b3(3), t(3)
+    real(${dtype}$) :: volume_tetrahedron
+
+    volume_tetrahedron = triangle_area_by_vertices(b1, b2, b3) * min_dist_point_plane(t, compute_normal_3d(b1, b2, b3), b1) / 3._${dtype}$
+  end function
+#:endfor
+
+!> @brief compute minimum distance of point from plane defined by normal and origin
+!> @details input point in question 'point' along with 'normal' and 'origin' of the plain
+! http://paulbourke.net/geometry/pointlineplane/
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+ pure function min_dist_point_plane_${dtype}$(point, normal, origin) result(min_dist_point_plane)
+   real (${dtype}$), intent(in) :: point(3), normal(3), origin(3)
+   real (${dtype}$) :: min_dist_point_plane
+
+   min_dist_point_plane = dot_product(point - origin, normal)! / norm2(normal))
+  end function
 #:endfor
 
 end module
