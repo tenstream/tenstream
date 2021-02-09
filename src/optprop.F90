@@ -152,6 +152,8 @@ end type
 integer(mpiint), parameter :: OPP_1D_RETCODE = -1_mpiint
 integer(mpiint), parameter :: OPP_TINYASPECT_RETCODE = -2_mpiint
 
+logical, parameter :: lDEBUG_geometric_coeff_correction = .true.
+
 contains
 
   subroutine init(OPP, comm, skip_load_LUT)
@@ -1340,17 +1342,27 @@ contains
 
   end subroutine dir2dir3_coeff_corr_zy
 
-  subroutine dir2dir3_coeff_corr(verts, sundir, coeffs)
+  subroutine dir2dir3_coeff_corr(verts, vertz, sundir, coeffs)
     real(irealLUT), intent(inout) :: coeffs(:)
-    real(ireals), intent(in) :: verts(:), sundir(:)
+    real(ireals), intent(in) :: verts(:), vertz(:), sundir(:)
     real(irealLUT) :: coeffs_total
     real(ireals) :: areas(3), a(3), b(3), c(3), d(3), e(3), f(3), g(3), h(3)
     real(ireals) :: src_normal(3) ! NOT NECESSARY SINCE EACH ONLY USED ONCE
 
     call reset_points()
-    print *, 'sundir', sundir
-    ! src x
-    print *, 'src x'
+
+    if (lDEBUG_geometric_coeff_correction) print *, 'sundir', sundir
+
+    if(lDEBUG_geometric_coeff_correction) print *, 'src z'
+    src_normal = compute_normal_3d(g, h, f)
+    call project_points(sundir, h, src_normal, g, h, f, e, c, d, b, a)
+    call rearange_projections(h, f, e, g, d, b, a, c)
+    call compute_areas(h, f, e, g, d, b, a, c, areas)
+    call reset_points()
+    coeffs_total = sum(coeffs(1:9:3))
+    coeffs([1,4,7]) = real(areas, irealLUT) * coeffs_total
+
+    if (lDEBUG_geometric_coeff_correction)  print *, 'src x'
     src_normal = compute_normal_3d(c, a, e)
     call project_points(sundir, a, src_normal, g, c, a, e, h, d, b, f)
     call rearange_projections(g, c, a, e, h, d, b, f)
@@ -1359,8 +1371,7 @@ contains
     coeffs([5,8,2]) = real(areas, irealLUT) * coeffs_total
     call reset_points()
 
-    ! src y
-    print *, 'src y'
+    if (lDEBUG_geometric_coeff_correction) print *, 'src y'
     src_normal = compute_normal_3d(a, b, f)
     call project_points(sundir, b, src_normal, e, a, b, f, g, c, d, h)
     call rearange_projections(f, b, a, e, h, d, c, g)
@@ -1369,16 +1380,7 @@ contains
     coeffs([9,6,3]) = real(areas, irealLUT) * coeffs_total
     call reset_points()
 
-    ! src z
-    print *, 'src z'
-    src_normal = compute_normal_3d(g, h, f)
-    print *, 'src_normal', src_normal
-    call project_points(sundir, h, src_normal, g, h, f, e, c, d, b, a)
-    call rearange_projections(h, f, e, g, d, b, a, c)
-    call compute_areas(h, f, e, g, d, b, a, c, areas)
-    coeffs_total = sum(coeffs(1:9:3))
-    coeffs([1,4,7]) = real(areas, irealLUT) * coeffs_total
-    call reset_points()
+    call respect_absorption(verts, vertz, sundir, coeffs)
 
     if (.false.) then
       call correct_by_gradient(e, f, g, h, coeffs)
@@ -1449,17 +1451,20 @@ contains
       real(ireals), intent(inout) :: v1(3), v2(3), v3(3), v4(3)
       real(ireals) :: c1, c2, c3, c4, k1, k2, k3, k4, t
       integer(mpiint) :: ierr
-      print *, 'before'
-      print *, 'f1', f1
-      print *, 'f2', f2
-      print *, 'f3', f3
-      print *, 'f4', f4
-      print *, '______________________'
-      print *, 'v1', v1
-      print *, 'v2', v2
-      print *, 'v3', v3
-      print *, 'v4', v4
-      print *, 'after'
+
+      if (lDEBUG_geometric_coeff_correction) then
+        print *, 'before'
+        print *, 'f1', f1
+        print *, 'f2', f2
+        print *, 'f3', f3
+        print *, 'f4', f4
+        print *, '______________________'
+        print *, 'v1', v1
+        print *, 'v2', v2
+        print *, 'v3', v3
+        print *, 'v4', v4
+        print *, 'after'
+      endif
 
       call line_intersection_3d(v1, f1-v1, f3, f4-f3, c1, t, ierr)
       call line_intersection_3d(v1, f1-v1, f2, f3-f2, k1, t, ierr)
@@ -1467,8 +1472,6 @@ contains
 
       call line_intersection_3d(v2, f2-v2, f3, f4-f3, c2, t, ierr)
       call line_intersection_3d(v2, f2-v2, f4, f1-f4, k2, t, ierr)
-      print *, 'v2 coeffs', c2, k2
-      print *, v2, f2-v2, f4, f1-f4
       call rearange_point(v2, f2-v2, min(max(c2, k2, zero), one), v2)
 
       call line_intersection_3d(v3, f3-v3, f2, f1-f2, c3, t, ierr)
@@ -1478,11 +1481,12 @@ contains
       call line_intersection_3d(v4, f4-v4, f2, f1-f2, c4, t, ierr)
       call line_intersection_3d(v4, f4-v4, f2, f3-f2, k4, t, ierr)
       call rearange_point(v4, f4-v4, min(max(c4, k4, zero), one), v4)
-
-      print *, 'v1', v1
-      print *, 'v2', v2
-      print *, 'v3', v3
-      print *, 'v4', v4
+      if (lDEBUG_geometric_coeff_correction) then
+        print *, 'v1', v1
+        print *, 'v2', v2
+        print *, 'v3', v3
+        print *, 'v4', v4
+      endif
     end subroutine
 
     subroutine rearange_point(origin, direction, coefficient, point)
@@ -1529,19 +1533,14 @@ contains
       call line_intersection_3d(v4, f4-f3, f1, f4-f1, c, t, ierr)
       call rearange_point(v4, f4-f3, c, p4t)
 
-      print *, 'p1b', p1b, 'p1l', p1l, 'p1t', p1t
-      print *, 'p2t', p2t, 'p2l', p2l, 'p2b', p2b
-      print *, 'p3t', p3t, 'p3r', p3r, 'p3b', p3b
-      print *, 'p4b', p4b, 'p4r', p4r, 'p4t', p4t
+      if (lDEBUG_geometric_coeff_correction) then
+        print *, 'p1b', p1b, 'p1l', p1l, 'p1t', p1t
+        print *, 'p2t', p2t, 'p2l', p2l, 'p2b', p2b
+        print *, 'p3t', p3t, 'p3r', p3r, 'p3b', p3b
+        print *, 'p4b', p4b, 'p4r', p4r, 'p4t', p4t
+      endif
 
-      ! rectangle area by vertices
       a = triangle_area_by_vertices(f1, f2, f3) + triangle_area_by_vertices(f1, f3, f4)
-      !a1 = &
-      !  triangle_area_by_vertices(v1, p1b, p1l) + triangle_area_by_vertices(f3, p1l, p1b) + &
-      !  triangle_area_by_vertices(v2, p2l, p2t) + triangle_area_by_vertices(f4, p2t, p2l) + &
-      !  triangle_area_by_vertices(v3, p3t, p3r) + triangle_area_by_vertices(f1, p3r, p3t) + &
-      !  triangle_area_by_vertices(v4, p4r, p4b) + triangle_area_by_vertices(f2, p4b, p4r) - &
-      !  3._ireals * a
 
       a2v1 = triangle_area_by_vertices(v1, f2, p1b) + triangle_area_by_vertices(v1, f1, f2)
       a2v2 = triangle_area_by_vertices(v2, p2t, f1) + triangle_area_by_vertices(p2t, f1, f2)
@@ -1559,9 +1558,59 @@ contains
 
       a1 = a - a2 - a3
 
-      print *, 'areas', a1, a2, a3
       areas = max([a1,a2,a3], zero)
       areas = areas / sum(areas)
+      if (lDEBUG_geometric_coeff_correction) print *, 'areas', areas
+    end subroutine
+
+    subroutine respect_absorption(verts_dst, verts_reg, sundir, coeffs)
+      real(ireals), intent(in) :: verts_reg(:), verts_dst(:), sundir(3)
+      real(irealLUT), intent(inout) :: coeffs(:)
+      real(ireals) :: d_prime_reg, d_prime_dst, a(3), b(3)!, A_zy_reg, A_zy_dst
+      real(irealLUT) :: abso, coeff_diff
+
+      abso = 0.5_irealLUT
+
+      !d_prime_reg = d + hit_plane(d, sundir, h, compute_normal_3d(f-h, g-h)) * sundir
+      !A_zy_reg = triangle_area_by_vertices(d, h, d_prime_reg) * (d(1) - c(1))
+
+      !d_prime_dst = d + hit_plane(d, sundir, h, compute_normal_3d(f-h, g-h)) * sundir
+      !A_zy_dst = triangle_area_by_vertices(d, h, d_prime_dst) * (d(1) - c(1))
+      associate( &
+          d => verts_reg(10:12), &
+          f => verts_reg(16:18), &
+          g => verts_reg(19:21), &
+          h => verts_reg(22:24) &
+          )
+        a = f-h
+        b = g-h
+        d_prime_reg = norm2(hit_plane(d, sundir, h, compute_normal_3d(h, a, b)) * sundir) * (g(1) - h(1))
+      end associate
+      associate( &
+          d => verts_dst(10:12), &
+          f => verts_dst(16:18), &
+          g => verts_dst(19:21), &
+          h => verts_dst(22:24) &
+          )
+        a = f-h
+        b = g-h
+        d_prime_dst = norm2(hit_plane(d, sundir, h, compute_normal_3d(h, a, b)) * sundir) * (g(1) - h(1))
+      end associate
+      print *, 'factor', d_prime_dst, d_prime_reg
+      print *, 'coeffs before', coeffs(1:9:3)
+      ! montecarlo coefficients sum to larger number than LUT coefficients when absoption turned on
+      ! this makes sence, complicates the correction though.
+      ! I would have to increase or decrease the sum of all coefficients respectively depending on absorption
+      ! and therefore on the path the photons take through the distorted box in relation to the regular box
+      coeff_diff = - coeffs(1)
+      print *, 'coeff1', coeffs(1)
+      coeffs(1) = real(exp( - 0.5_ireals * (d_prime_dst - d_prime_reg)), irealLUT) * coeffs(1)
+      print *, 'coeff1', coeffs(1)
+      coeff_diff = coeff_diff + coeffs(1)
+      print *, 'coeff_diff', coeff_diff
+      coeffs(4) = coeffs(4) - coeff_diff
+      print *, 'coeffs after', coeffs(1:9:3)
+      coeffs = coeffs
     end subroutine
 
     subroutine line_intersection_3d(origin1, direction1, origin2, direction2, s1, s2, ierr)
@@ -1576,8 +1625,7 @@ contains
           p4 => origin2 + direction2 &
           )
         denominator = d_mnop(p2,p1,p2,p1) * d_mnop(p4,p3,p4,p3) - d_mnop(p4,p3,p2,p1) * d_mnop(p4,p3,p2,p1)
-        if ( abs(denominator) < epsilon(denominator) * 1e2) then ! ??? how large should it be? error for phi=90, theta=60, src z if
-! using only single eps
+        if ( abs(denominator) < sqrt(epsilon(denominator))) then
           ierr = 1 ! lines are parallel or coincident
           s1 = -huge(s1)
           s2 = -huge(s2)
