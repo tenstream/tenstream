@@ -1461,8 +1461,6 @@ contains
     subroutine rearange_projections(f1, f2, f3, f4, v1, v2, v3, v4)
       real(ireals), intent(in) :: f1(3), f2(3), f3(3), f4(3)
       real(ireals), intent(inout) :: v1(3), v2(3), v3(3), v4(3)
-      real(ireals) :: c1, c2, c3, c4, k1, k2, k3, k4, t
-      integer(mpiint) :: ierr
 
       if (lDEBUG_geometric_coeff_correction) then
         print *, 'before'
@@ -1478,27 +1476,28 @@ contains
         print *, 'after'
       endif
 
-      call line_intersection_3d(v1, f1-v1, f3, f4-f3, c1, t, ierr)
-      call line_intersection_3d(v1, f1-v1, f2, f3-f2, k1, t, ierr)
-      call rearange_point(v1, f1-v1, min(max(c1, k1, zero), one), v1)
+      call rearange_projection(f1-v1, f3, f4-f3, f2, f3-f2, v1)
+      call rearange_projection(f2-v2, f3, f4-f3, f4, f1-f4, v2)
+      call rearange_projection(f3-v3, f2, f1-f2, f4, f1-f4, v3)
+      call rearange_projection(f4-v4, f2, f1-f2, f2, f3-f2, v4)
 
-      call line_intersection_3d(v2, f2-v2, f3, f4-f3, c2, t, ierr)
-      call line_intersection_3d(v2, f2-v2, f4, f1-f4, k2, t, ierr)
-      call rearange_point(v2, f2-v2, min(max(c2, k2, zero), one), v2)
-
-      call line_intersection_3d(v3, f3-v3, f2, f1-f2, c3, t, ierr)
-      call line_intersection_3d(v3, f3-v3, f4, f1-f4, k3, t, ierr)
-      call rearange_point(v3, f3-v3, min(max(c3, k3, zero), one), v3)
-
-      call line_intersection_3d(v4, f4-v4, f2, f1-f2, c4, t, ierr)
-      call line_intersection_3d(v4, f4-v4, f2, f3-f2, k4, t, ierr)
-      call rearange_point(v4, f4-v4, min(max(c4, k4, zero), one), v4)
       if (lDEBUG_geometric_coeff_correction) then
         print *, 'v1', v1
         print *, 'v2', v2
         print *, 'v3', v3
         print *, 'v4', v4
       endif
+    end subroutine
+
+    subroutine rearange_projection(direction1, origin2, direction2, origin3, direction3, origin1)
+      real(ireals), intent(in) :: direction1(3), origin2(3), direction2(3), origin3(3), direction3(3)
+      real(ireals), intent(inout) :: origin1(3)
+      real(ireals) :: coeff21, coeff22, coeff31, coeff32
+      integer(mpiint) :: ierr
+
+      call line_intersection_3d(origin1, direction1, origin2, direction2, coeff21, coeff22, ierr)
+      call line_intersection_3d(origin1, direction1, origin3, direction3, coeff31, coeff32, ierr)
+      call rearange_point(origin1, direction1, min(max(coeff21, coeff31, zero), one), origin1)
     end subroutine
 
     subroutine rearange_point(origin, direction, coefficient, point)
