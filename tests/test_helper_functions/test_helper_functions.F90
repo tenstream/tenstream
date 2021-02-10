@@ -896,5 +896,17 @@ subroutine test_volume_hexahedron(this)
   truth = norm2(b1-b2) * norm2(b1-b3) * norm2(t1-b1) / 2._ireals
   volume = volume_hexahedron(t2, b2, b1, t1, t4, b4, b3, t3)
   @assertEqual(truth, volume, 1e-3_ireals, 'truth = ' // toStr(truth) // ' res = ' // toStr(volume))
+
+  b1 = [zero,zero,zero]
+  b2 = [zero,zero,zero]
+  b3 = [zero,zero,zero]
+  b4 = [zero,zero,zero]
+  t1 = [zero,zero,zero]
+  t2 = [zero,zero,zero]
+  t3 = [zero,zero,zero]
+  t4 = [zero,zero,zero]
+  truth = norm2(b1-b2) * norm2(b1-b3) * norm2(t1-b1)
+  volume = volume_hexahedron(b1, b2, b3, b4, t1, t2, t3, t4)
+  @assertEqual(truth, volume, 1e-3_ireals, 'truth = ' // toStr(truth) // ' res = ' // toStr(volume))
 end subroutine
 end module
