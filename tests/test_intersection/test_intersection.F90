@@ -2,7 +2,7 @@ module test_intersection
 
   use m_data_parameters, only: &
     & ireals, ireal_dp, &
-    & iintegers
+    & iintegers, mpiint, zero, one
 
   use m_helper_functions, only : &
     & compute_normal_3d, &
@@ -13,7 +13,7 @@ module test_intersection
     & hit_plane, &
     & pnt_in_triangle, &
     & triangle_intersection, &
-    & line_intersection_2d
+    & line_intersection_3d
 
   use pfunit_mod
 
@@ -243,31 +243,24 @@ contains
   end subroutine
 
   @test(npes =[1])
-  subroutine test_line_intersection_2d(this)
+  subroutine test_line_intersection_3d(this)
     class (MpiTestMethod), intent(inout) :: this
 
-    real(ireal_dp) :: o1(2), d1(2), o2(2), d2(2)
+    real(ireal_dp) :: origin1(3), origin2(3), direction1(3), direction2(3), coeff1, coeff2, atol
     integer(mpiint) :: ierr
-    real(ireal_dp) :: c1, c2
 
-    call random_seed()
-    call random_number(o1)
+    atol = 1e-3_ireal_dp
+    origin1 = [zero, zero, zero]
+    origin2 = [one,  one,  one ]
 
-    call random_seed()
-    call random_number(d1)
+    direction1 = [zero, one, zero]
+    direction2 = [zero, one, zero]
 
-    call random_seed()
-    call random_number(o2)
+    print *, 'test running'
+    call line_intersection_3d(origin1, direction1, origin2, direction2, coeff1, coeff2, ierr)
+    @assertEqual(coeff1, -huge(coeff1), atol)
+    @assertTrue(.false.)
+    print *, 'ierr', ierr
 
-    call random_seed()
-    call random_number(d2)
-
-    call line_intersection(o1, d1, o2, d2, ierr, c1, c2)
-
-    @assertTrue(lhit)
-    @assertEqual(origin(1), hit(1), atol)
-    @assertEqual(zero,      hit(2), atol)
-    @assertEqual(origin(3), hit(3), atol)
   end subroutine
-
 end module
