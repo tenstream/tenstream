@@ -1,7 +1,7 @@
 module test_helper_functions
   use iso_fortran_env, only: REAL32, REAL64
   use iso_c_binding
-  use m_data_parameters, only: ireals, ireal128, iintegers, mpiint, init_mpi_data_parameters
+  use m_data_parameters, only: ireals, ireal128, iintegers, mpiint, init_mpi_data_parameters, one, zero
   use m_helper_functions, only : &
     & approx, &
     & char_arr_to_str, &
@@ -33,7 +33,12 @@ module test_helper_functions
     & rotation_matrix_local_basis_to_world, &
     & rotation_matrix_world_to_local_basis, &
     & solve_quadratic, &
-    & toStr
+    & toStr, &
+    & triangle_area_by_vertices, &
+    & min_dist_point_plane, &
+    & volume_tetrahedron, &
+    & volume_oblique_pyramid, &
+    & volume_hexahedron
 
   use pfunit_mod
 
@@ -58,7 +63,7 @@ class (MpiTestMethod), intent(inout) :: this
   if(lpetsc_is_initialized) call PetscFinalize(ierr)
 end subroutine teardown
 
-@test(npes =[1,2,3])
+!@test(npes =[1,2,3])
 subroutine test_mpi_functions(this)
     class (MpiTestMethod), intent(inout) :: this
 
@@ -212,7 +217,7 @@ subroutine test_mpi_functions(this)
     enddo ! repetitions
 end subroutine
 
-@test(npes =[1,2,3])
+!@test(npes =[1,2,3])
 subroutine test_mpi_reductions(this)
     class (MpiTestMethod), intent(inout) :: this
     integer(mpiint) :: numnodes, comm, myid
@@ -231,7 +236,7 @@ subroutine test_mpi_reductions(this)
 
     sireals = (numnodes-1)*numnodes/2
     s128    = (numnodes-1)*numnodes/2
-    print *,myid, numnodes, 'v128', v_128
+    print *, myid, numnodes, 'v128', v_128
 
     call imp_reduce_sum(comm, v_ireals)
     call imp_reduce_sum(comm, v_128   )
@@ -265,7 +270,7 @@ subroutine test_mpi_reductions(this)
     @assertEqual(mean, sireals, epsilon(v_ireals), 'ireals reduce_mean is not correct Nranks:'//toStr(numnodes))
 end subroutine
 
-@test(npes=[1])
+!@test(npes=[1])
 subroutine test_cumprod(this)
   class (MpiTestMethod), intent(inout) :: this
   integer(iintegers),parameter :: iarr(3) = [1,2,3]
@@ -274,7 +279,7 @@ subroutine test_cumprod(this)
   @assertEqual(real([1,2,6], ireals), cumprod(rarr))
 end subroutine
 
-@test(npes=[1])
+!@test(npes=[1])
 subroutine test_reverse(this)
   class (MpiTestMethod), intent(inout) :: this
   real(ireals),parameter :: arr(3) = [1,2,3]
@@ -295,7 +300,7 @@ subroutine test_reverse(this)
   @assertEqual(reverse(arr), arr2d(2,:))
 end subroutine
 
-@test(npes=[1])
+!@test(npes=[1])
 subroutine test_rotation_matrix_around_axis_vec(this)
   class (MpiTestMethod), intent(inout) :: this
   real(ireals), dimension(3) :: ex, ey, ez, x1
@@ -327,7 +332,7 @@ subroutine test_rotation_matrix_around_axis_vec(this)
   @assertEqual(ez, matmul(Mrot, x1), eps)
 end subroutine
 
-@test(npes=[1])
+!@test(npes=[1])
 subroutine test_rotation_matrix_world_to_local(this)
   class (MpiTestMethod), intent(inout) :: this
   real(ireals), dimension(3) :: ex, ey, ez, x1
@@ -367,7 +372,7 @@ subroutine test_rotation_matrix_world_to_local(this)
   @assertEqual([ sqrt(2._ireals),0._ireals,1._ireals], matmul(Mrot, x1), eps)
 end subroutine
 
-@test(npes=[1])
+!@test(npes=[1])
 subroutine test_rotation_matrix_local_basis_to_world(this)
   class (MpiTestMethod), intent(inout) :: this
   real(ireals), dimension(3) :: ex, ey, ez, x1
@@ -398,7 +403,7 @@ subroutine test_rotation_matrix_local_basis_to_world(this)
   @assertEqual([1,1,1], matmul(Mrot, x1), eps)
 end subroutine
 
-@test(npes=[1])
+!@test(npes=[1])
 subroutine test_char_arr_to_str(this)
   class (MpiTestMethod), intent(inout) :: this
   character(len=4)  :: a(3)
@@ -410,7 +415,7 @@ subroutine test_char_arr_to_str(this)
   @assertEqual('1 :: 23 :: 456', char_arr_to_str(a, ' :: '))
 end subroutine
 
-@test(npes=[1])
+!@test(npes=[1])
 subroutine test_solve_quadratic(this)
   class (MpiTestMethod), intent(inout) :: this
   integer(mpiint) :: ierr
@@ -433,7 +438,7 @@ subroutine test_solve_quadratic(this)
   @assertEqual([-1._ireals, -1._ireals], x, eps)
 end subroutine
 
-@test(npes=[1])
+!@test(npes=[1])
 subroutine test_is_between(this)
   class (MpiTestMethod), intent(inout) :: this
 
@@ -480,7 +485,7 @@ subroutine test_is_inrange(this)
   @assertTrue(is_inrange(780,0,2875391))
 end subroutine
 
-@test(npes=[1])
+!@test(npes=[1])
 subroutine test_normalize_vec(this)
   class (MpiTestMethod), intent(inout) :: this
   real(REAL32) :: v1(2), v2(2)
@@ -513,7 +518,7 @@ subroutine test_normalize_vec(this)
   @assertTrue(0_mpiint.ne.ierr)
 end subroutine
 
-@test(npes=[1])
+!@test(npes=[1])
 subroutine test_resize_arr(this)
   class (MpiTestMethod), intent(inout) :: this
   integer(iintegers), allocatable :: i1d(:)
@@ -578,7 +583,7 @@ subroutine test_resize_arr(this)
   @assertEqual(5, i3d(:,4,:), 'wrong values after fill in dim 2')
 end subroutine
 
-@test(npes=[1])
+!@test(npes=[1])
 subroutine test_approx(this)
   class (MpiTestMethod), intent(inout) :: this
   @assertTrue(     approx(0._ireals, 0.0_ireals, epsilon(0._ireals)))
@@ -596,7 +601,7 @@ subroutine test_approx(this)
   @assertTrue(.not.approx(0._ireals,-1.0_ireals-epsilon(1.0_ireals), 1._ireals))
 end subroutine
 
-@test(npes=[1])
+!@test(npes=[1])
 subroutine test_read_ascii_file(this)
   class (MpiTestMethod), intent(inout) :: this
   character(len=*), parameter :: test_fname="tenstream_test_ascii_file.txt"
@@ -634,7 +639,7 @@ subroutine test_read_ascii_file(this)
   @assertFalse(0_mpiint.eq.ierr)
 end subroutine
 
-@test(npes=[1])
+!@test(npes=[1])
 subroutine test_ndarray_idx(this)
   class (MpiTestMethod), intent(inout) :: this
   integer(iintegers) :: arr_shape(3)
@@ -670,7 +675,7 @@ subroutine test_ndarray_idx(this)
   enddo
 end subroutine
 
-@test(npes=[1])
+!@test(npes=[1])
 subroutine test_ndarray_idx_c_style(this)
   class (MpiTestMethod), intent(inout) :: this
   integer(iintegers) :: arr_shape(3)
@@ -704,5 +709,192 @@ subroutine test_ndarray_idx_c_style(this)
     call ind_1d_to_nd(nd_offsets, i1d, ind, cstyle=.True.)
     @assertEqual(i1d, ind_nd_to_1d(nd_offsets, ind, cstyle=.True.))
   enddo
+end subroutine
+
+!@test(npes=[1])
+subroutine test_william_kahans_formula(this)
+  class (MpiTestMethod), intent(inout) :: this
+  real(ireals) :: a(3), b(3), c(3), area
+
+  a = [0,0,1]
+  b = [1,0,1]
+  c = [1,0,1]
+
+  area = triangle_area_by_vertices(a, b, c)
+  print *, 'area', area
+end subroutine
+
+!@test(npes=[1])
+subroutine test_min_dist_point_plane(this)
+  class (MpiTestMethod), intent(inout) :: this
+  real(ireals) :: normal(3), origin(3), point(3), dist, truth
+
+  normal = [zero,zero,one]
+  origin = [zero,zero,zero]
+
+  point = [one,one,one]
+  truth = one
+  dist = min_dist_point_plane(point, normal, origin)
+  @assertEqual(truth, dist, 1e-3_ireals, 'truth = ' // toStr(truth) // '  res = ' // toStr(dist))
+
+  point = [zero,zero,zero]
+  truth = zero
+  dist = min_dist_point_plane(point, normal, origin)
+  @assertEqual(truth, dist, 1e-3_ireals, 'truth = ' // toStr(truth) // '  res = ' // toStr(dist))
+
+  point = [zero,one,one]
+  truth = one
+  dist = min_dist_point_plane(point, normal, origin)
+  @assertEqual(truth, dist, 1e-3_ireals, 'truth = ' // toStr(truth) // '  res = ' // toStr(dist))
+
+  point = [one,one,zero]
+  truth = zero
+  dist = min_dist_point_plane(point, normal, origin)
+  @assertEqual(truth, dist, 1e-3_ireals, 'truth = ' // toStr(truth) // '  res = ' // toStr(dist))
+
+  point = [zero,zero,one]
+  truth = one
+  dist = min_dist_point_plane(point, normal, origin)
+  @assertEqual(truth, dist, 1e-3_ireals, 'truth = ' // toStr(truth) // '  res = ' // toStr(dist))
+
+  point = [zero,zero,-one]
+  truth = one
+  dist = min_dist_point_plane(point, normal, origin)
+  @assertEqual(truth, dist, 1e-3_ireals, 'truth = ' // toStr(truth) // '  res = ' // toStr(dist))
+
+  point = [-one,-one,-one]
+  truth = one
+  dist = min_dist_point_plane(point, normal, origin)
+  @assertEqual(truth, dist, 1e-3_ireals, 'truth = ' // toStr(truth) // '  res = ' // toStr(dist))
+
+  point = [zero,zero,2._ireals]
+  truth = 2._ireals
+  dist = min_dist_point_plane(point, normal, origin)
+  @assertEqual(truth, dist, 1e-3_ireals, 'truth = ' // toStr(truth) // '  res = ' // toStr(dist))
+end subroutine
+
+!@test(npes=[1])
+subroutine test_volume_tetrahedron(this)
+  class (MpiTestMethod), intent(inout) :: this
+  real(ireals) :: b1(3), b2(3), b3(3), t(3), height, volume, truth, area, volume_alt
+
+  b1 = [zero,zero,zero]
+  b2 = [zero,one,zero]
+  b3 = [one,zero,zero]
+  t = [zero,zero,one]
+  area = triangle_area_by_vertices(b1, b2, b3)
+  height = one
+  truth = area * height / 3._ireals
+  volume = volume_tetrahedron(b1, b2, b3, t)
+  @assertEqual(truth, volume, 1e-3_ireals, 'truth = ' // toStr(truth) // ' res = ' // toStr(volume))
+
+  b1 = [zero,zero,zero]
+  b2 = [zero,one,zero]
+  b3 = [one,zero,zero]
+  t = [zero,zero,2._ireals]
+  area = triangle_area_by_vertices(b1, b2, b3)
+  height = 2_ireals
+  truth = area * height / 3._ireals
+  volume = volume_tetrahedron(b1, b2, b3, t)
+  @assertEqual(truth, volume, 1e-3_ireals, 'truth = ' // toStr(truth) // ' res = ' // toStr(volume))
+
+  b1 = [zero,zero,zero]
+  b2 = [zero,one,zero]
+  b3 = [one,zero,zero]
+  t = [zero,zero,-2._ireals]
+  area = triangle_area_by_vertices(b1, b2, b3)
+  height = 2._ireals
+  truth = area * height / 3._ireals
+  volume = volume_tetrahedron(b1, b2, b3, t)
+  @assertEqual(truth, volume, 1e-3_ireals, 'truth = ' // toStr(truth) // ' res = ' // toStr(volume))
+
+  b1 = [zero,zero,zero]
+  b2 = [zero,one,zero]
+  b3 = [one,zero,zero]
+  t = [-2._ireals,-2._ireals,-2._ireals]
+  area = triangle_area_by_vertices(b1, b2, b3)
+  height = 2._ireals
+  truth = area * height / 3._ireals
+  volume = volume_tetrahedron(b1, b2, b3, t)
+  volume_alt = volume_tetrahedron(b1, b2, t, b3)
+  @assertEqual(volume_alt, volume, 1e-3_ireals, 'truth = ' // toStr(truth) // ' res = ' // toStr(volume))
+
+  b1 = [-zero,-zero,zero]
+  b2 = [-zero,one,zero]
+  b3 = [one,-zero,zero]
+  t = [2._ireals,2._ireals,2._ireals]
+  area = triangle_area_by_vertices(b1, b2, b3)
+  height = 2._ireals
+  truth = area * height / 3._ireals
+  volume = volume_tetrahedron(b1, b2, b3, t)
+  volume_alt = volume_tetrahedron(b1, b2, t, b3)
+  @assertEqual(volume_alt, volume, 1e-3_ireals, 'truth = ' // toStr(truth) // ' res = ' // toStr(volume))
+end subroutine
+
+!@test(npes=[1])
+subroutine test_volume_oblique_pyramid(this)
+  class (MpiTestMethod), intent(inout) :: this
+  real(ireals) :: b1(3), b2(3), b3(3), b4(3), t(3), volume, truth
+
+  b1 = [zero,zero,zero]
+  b2 = [one,zero,zero]
+  b3 = [zero,one,zero]
+  b4 = [one,one,zero]
+  t = [zero,zero,one]
+  truth = norm2(b1-b2) * norm2(b1-b3) * one / 3._ireals
+  volume = volume_oblique_pyramid(b1, b2, b3, b4, t)
+  @assertEqual(truth, volume, 1e-3_ireals, 'truth = ' // toStr(truth) // ' res = ' // toStr(volume))
+
+  t = [zero,zero,2._ireals]
+  truth = norm2(b1-b2) * norm2(b1-b3) * 2._ireals / 3._ireals
+  volume = volume_oblique_pyramid(b1, b2, b3, b4, t)
+  @assertEqual(truth, volume, 1e-3_ireals, 'truth = ' // toStr(truth) // ' res = ' // toStr(volume))
+
+  t = [-one,-one,one]
+  truth = norm2(b1-b2) * norm2(b1-b3) * one / 3._ireals
+  volume = volume_oblique_pyramid(b1, b2, b3, b4, t)
+  @assertEqual(truth, volume, 1e-3_ireals, 'truth = ' // toStr(truth) // ' res = ' // toStr(volume))
+end subroutine
+
+@test(npes=[1])
+subroutine test_volume_hexahedron(this)
+  class (MpiTestMethod), intent(inout) :: this
+  real(ireals) :: b1(3), b2(3), b3(3), b4(3), t1(3), t2(3), t3(3), t4(3), volume, truth
+
+  b1 = [zero,zero,zero]
+  b2 = [one,zero,zero]
+  b3 = [zero,one,zero]
+  b4 = [one,one,zero]
+  t1 = [zero,zero,one]
+  t2 = [one,zero,one]
+  t3 = [zero,one,one]
+  t4 = [one,one,one]
+  truth = norm2(b1-b2) * norm2(b1-b3) * norm2(t1-b1)
+  volume = volume_hexahedron(b1, b2, b3, b4, t1, t2, t3, t4)
+  @assertEqual(truth, volume, 1e-3_ireals, 'truth = ' // toStr(truth) // ' res = ' // toStr(volume))
+
+  t1 = [zero,zero,2._ireals]
+  t2 = [one,zero,2._ireals]
+  t3 = [zero,one,2._ireals]
+  t4 = [one,one,2._ireals]
+  truth = norm2(b1-b2) * norm2(b1-b3) * norm2(t1-b1)
+  volume = volume_hexahedron(b1, b2, b3, b4, t1, t2, t3, t4)
+  @assertEqual(truth, volume, 1e-3_ireals, 'truth = ' // toStr(truth) // ' res = ' // toStr(volume))
+
+  t1 = [zero,zero,one]
+  t2 = [one,zero,one]
+  t3 = [zero,one,zero]
+  t4 = [one,one,zero]
+  truth = norm2(b1-b2) * norm2(b1-b3) * norm2(t1-b1) / 2._ireals
+  volume = volume_hexahedron(b1, b2, b3, b4, t1, t2, t3, t4)
+  @assertEqual(truth, volume, 1e-3_ireals, 'truth = ' // toStr(truth) // ' res = ' // toStr(volume))
+
+  t1 = [zero,zero,one]
+  t2 = [one,zero,one]
+  t3 = [zero,one,zero]
+  t4 = [one,one,zero]
+  truth = norm2(b1-b2) * norm2(b1-b3) * norm2(t1-b1) / 2._ireals
+  volume = volume_hexahedron(t2, b2, b1, t1, t4, b4, b3, t3)
+  @assertEqual(truth, volume, 1e-3_ireals, 'truth = ' // toStr(truth) // ' res = ' // toStr(volume))
 end subroutine
 end module

@@ -1346,68 +1346,76 @@ contains
     real(irealLUT), intent(inout) :: coeffs(:)
     real(ireals), intent(in) :: verts(:), vertz(:), sundir(:)
     real(ireals) :: a(3), b(3), c(3), d(3), e(3), f(3), g(3), h(3)
+    real(ireals) :: c_p(3), d_p(3), b_p(3), a_p(3), h_p(3), f_p(3), g_p(3)
+    real(ireals) :: c_z_p(3), d_z_p(3), b_z_p(3), a_z_p(3), h_z_p(3), f_z_p(3), g_z_p(3)
 
-    call reset_points()
+    associate ( &
+      a => verts(1:3), &
+      b => verts(4:6), &
+      c => verts(7:9), &
+      d => verts(10:12), &
+      e => verts(13:15), &
+      f => verts(16:18), &
+      g => verts(19:21), &
+      h => verts(22:24), &
+      a_z => vertz(1:3), &
+      b_z => vertz(4:6), &
+      c_z => vertz(7:9), &
+      d_z => vertz(10:12), &
+      e_z => vertz(13:15), &
+      f_z => vertz(16:18), &
+      g_z => vertz(19:21), &
+      h_z => vertz(22:24) &
+      )
 
     if (lDEBUG_geometric_coeff_correction) print *, 'sundir', sundir
 
     if(lDEBUG_geometric_coeff_correction) print *, 'src z'
-    associate( &
-        o1 => c, &
-        o2 => d, &
-        o3 => b, &
-        o4 => a &
-        )
-      call project_points(sundir, h, compute_normal_3d(g, h, f), g, h, f, e, c, d, b, a)
-      call rearange_projections(h, f, e, g, d, b, a, c)
-      call correct_coeffs(h, f, e, g, d, b, a, c, o1, o2, o3, o4, [1,4,7], coeffs)
-      call reset_points()
-    end associate
+    call create_proj_copies(c, d, b, a, c_p, d_p, b_p, a_p)
+    call create_proj_copies(c_z, d_z, b_z, a_z, c_z_p, d_z_p, b_z_p, a_z_p)
+
+    call project_points(sundir, h, compute_normal_3d(g, h, f), g, h, f, e, c_p, d_p, b_p, a_p)
+    call rearange_projections(h, f, e, g, d_p, b_p, a_p, c_p)
+    call project_points(sundir, h_z, compute_normal_3d(g_z, h_z, f_z), g_z, h_z, f_z, e_z, c_z_p, d_z_p, b_z_p, a_z_p)
+    call rearange_projections(h_z, f_z, e_z, g_z, d_z_p, b_z_p, a_z_p, c_z_p)
+
+    call correct_coeffs(h, f, e, g, d_p, b_p, a_p, c_p, d, b, a, c, [1,4,7], coeffs)
 
     if (lDEBUG_geometric_coeff_correction)  print *, 'src x'
-    associate( &
-        o1 => h, &
-        o2 => d, &
-        o3 => b, &
-        o4 => f &
-        )
-      call project_points(sundir, a, compute_normal_3d(c, a, e), g, c, a, e, h, d, b, f)
-      call rearange_projections(g, c, a, e, h, d, b, f)
-      call correct_coeffs(g, c, a, e, h, d, b, f, o1, o2, o3, o4, [5,8,2], coeffs)
-      call reset_points()
-    end associate
+    call create_proj_copies(h, d, b, f, h_p, d_p, b_p, f_p)
+    call create_proj_copies(h_z, d_z, b_z, f_z, h_z_p, d_z_p, b_z_p, f_z_p)
+
+    call project_points(sundir, a, compute_normal_3d(c, a, e), g, c, a, e, h_p, d_p, b_p, f_p)
+    call rearange_projections(g, c, a, e, h_p, d_p, b_p, f_p)
+    call project_points(sundir, a_z, compute_normal_3d(c_z, a_z, e_z), g_z, c_z, a_z, e_z, h_z_p, d_z_p, b_z_p, f_z_p)
+    call rearange_projections(g_z, c_z, a_z, e_z, h_z_p, d_z_p, b_z_p, f_z_p)
+
+    call correct_coeffs(g, c, a, e, h_p, d_p, b_p, f_p, h, d, b, f, [5,8,2], coeffs)
 
     if (lDEBUG_geometric_coeff_correction) print *, 'src y'
-    associate( &
-        o1 => g, &
-        o2 => c, &
-        o3 => d, &
-        o4 => h &
-        )
-      call project_points(sundir, b, compute_normal_3d(a, b, f), e, a, b, f, g, c, d, h)
-      call rearange_projections(f, b, a, e, h, d, c, g)
-      call correct_coeffs(f, b, a, e, h, d, c, g, o1, o2, o3, o4, [9,6,3], coeffs)
-      call reset_points()
-    end associate
+    call create_proj_copies(g, c, d, h, g_p, c_p, d_p, h_p)
+    call create_proj_copies(g_z, c_z, d_z, h_z, g_z_p, c_z_p, d_z_p, h_z_p)
 
-    if (.false.) then
-      call respect_absorption(verts, vertz, sundir, coeffs)
-    endif
+    call project_points(sundir, b, compute_normal_3d(a, b, f), e, a, b, f, g_p, c_p, d_p, h_p)
+    call rearange_projections(f, b, a, e, h_p, d_p, c_p, g_p)
+    call project_points(sundir, b_z, compute_normal_3d(a_z, b_z, f_z), e_z, a_z, b_z, f_z, g_z_p, c_z_p, d_z_p, h_z_p)
+    call rearange_projections(f_z, b_z, a_z, e_z, h_z_p, d_z_p, c_z_p, g_z_p)
+
+    call correct_coeffs(f, b, a, e, h_p, d_p, c_p, g_p, h, d, c, g, [9,6,3], coeffs)
 
     if (.false.) then
       call correct_by_gradient(e, f, g, h, coeffs)
     endif
 
   contains
-    subroutine reset_points()
-      a = verts(1:3)
-      b = verts(4:6)
-      c = verts(7:9)
-      d = verts(10:12)
-      e = verts(13:15)
-      f = verts(16:18)
-      g = verts(19:21)
-      h = verts(22:24)
+    subroutine create_proj_copies(p1, p2, p3, p4, c1, c2, c3, c4)
+      real(ireals), intent(in) :: p1(3), p2(3), p3(3), p4(3)
+      real(ireals), intent(out) :: c1(3), c2(3), c3(3), c4(3)
+
+      c1 = p1
+      c2 = p2
+      c3 = p3
+      c4 = p4
     end subroutine
 
     subroutine correct_by_gradient(e, f, g, h, coeffs)
