@@ -3741,7 +3741,8 @@ module m_pprts
       integer(iintegers),intent(in) :: i,j,k
 
       MatStencil         :: row(4,C%dof)  ,col(4,C%dof)
-      real(ireals), allocatable :: vertices(:), vertices_dtd(:)
+      real(ireals), allocatable :: vertices(:)
+      real(ireals) :: vertices_dtd(24)
       real(irealLUT)     :: v(C%dof**2), norm
       integer(iintegers) :: dst,src, xinc, yinc, isrc, idst
 
@@ -3825,7 +3826,7 @@ module m_pprts
      call PetscLogEventEnd(solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
 
      if (lgeometric_correction) then
-       call dir2dir3_coeff_corr(vertices_dtd, sun%sundir, v)
+       call dir2dir3_coeff_corr(vertices, vertices_dtd, sun%sundir, v)
 
        !if (ldebug) then
        !  v_prime = v
