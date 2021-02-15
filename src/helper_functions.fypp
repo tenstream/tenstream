@@ -100,6 +100,8 @@ module m_helper_functions
     & mpi_logical_or, &
     & ndarray_offsets, &
     & normalize_vec, &
+    & pentagon_area_by_vertices, &
+    & quadrangle_area_by_vertices, &
     & rad2deg, &
     & read_ascii_file_2d, &
     & rel_approx, &
@@ -128,6 +130,18 @@ module m_helper_functions
     & volume_hexahedron, &
     & volume_oblique_pyramid, &
     & volume_tetrahedron
+
+  interface pentagon_area_by_vertices
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    module procedure pentagon_area_by_vertices_${dtype}$
+    #:endfor
+  end interface
+
+  interface quadrangle_area_by_vertices
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    module procedure quadrangle_area_by_vertices_${dtype}$
+    #:endfor
+  end interface
 
   interface min_dist_point_plane
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
@@ -2727,16 +2741,41 @@ end subroutine
   end function
 #:endfor
 
-!> @brief compute minimum distance of point from plane defined by normal and origin
+!> @brief compute minimum distance of point from plane defined by normed normal and origin
 !> @details input point in question 'point' along with 'normal' and 'origin' of the plain
+! the normal needs to be normed
 ! http://paulbourke.net/geometry/pointlineplane/
 #:for dtype in ['REAL32', 'REAL64', 'REAL128']
  pure function min_dist_point_plane_${dtype}$(point, normal, origin) result(min_dist_point_plane)
    real (${dtype}$), intent(in) :: point(3), normal(3), origin(3)
    real (${dtype}$) :: min_dist_point_plane
 
-   min_dist_point_plane = dot_product(point - origin, normal)! / norm2(normal))
+   min_dist_point_plane = abs(dot_product(point - origin, normal))
   end function
 #:endfor
 
+!> @brief compute quadrangle area defined by four vertices using two triangles
+!> @details input four vertices ordered clockwise that form either a quadrangle or a triangle
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+ pure function quadrangle_area_by_vertices_${dtype}$(v1, v2, v3, v4) result(quadrangle_area_by_vertices)
+   real (${dtype}$), intent(in), dimension(3) :: v1, v2, v3, v4
+   real (${dtype}$) :: quadrangle_area_by_vertices
+
+   quadrangle_area_by_vertices = triangle_area_by_vertices(v1, v2, v3) + triangle_area_by_vertices(v1, v3, v4)
+ end function
+#:endfor
+
+!> @brief compute pentagon area defined by five vertices using three triangles
+!> @details input five vertices ordered clockwise
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+ pure function pentagon_area_by_vertices_${dtype}$(v1, v2, v3, v4, v5) result(pentagon_area_by_vertices)
+   real (${dtype}$), intent(in), dimension(3) :: v1, v2, v3, v4, v5
+   real (${dtype}$) :: pentagon_area_by_vertices
+
+   pentagon_area_by_vertices = &
+     triangle_area_by_vertices(v1, v2, v3) + &
+     triangle_area_by_vertices(v1, v3, v4) + &
+     triangle_area_by_vertices(v1, v4, v5)
+ end function
+#:endfor
 end module
