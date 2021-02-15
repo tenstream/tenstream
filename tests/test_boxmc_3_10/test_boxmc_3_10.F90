@@ -133,10 +133,12 @@ contains
 
     T_target = zero
     T_target(1) = real((sinh(tau)-cosh(tau)+1)/tau, ireals)
+    !von der Seite nach unten
+    ! ???????? HERE
 
     do iphi=0,360,30
       phi = real(iphi, ireal_dp)
-      do src = 2,3
+      do src = 2,3 ! Seitenflächen
         call bmc_3_10%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
         call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_srcsidefaces')
       enddo
@@ -726,7 +728,7 @@ contains
     bg = [ -log(0.5_ireal_dp)/dz, 0e-0_ireal_dp/dz, 1._ireal_dp/2 ]
     S_target = zero
     iphi=90
-    itheta=45
+    itheta=40
     !do iphi=0,360,30
      ! do itheta=0,90,30
         phi = real(iphi, ireals)
@@ -735,7 +737,7 @@ contains
         call setup_default_unit_cube_geometry(dx, dy, dz, verts)
         verts_dtd = verts
         !verts_dtd([3,9,15,21]) = verts_dtd([3,9,15,21]) + dz
-        !verts_dtd([6,12,18,24]) = verts_dtd([6,12,18,24]) + dz / 2
+        verts_dtd([6,12,18,24]) = verts_dtd([6,12,18,24]) + dz / 2
         !verts_dtd([18,6]) = verts_dtd([18,6]) + dz/4
 
         do src = 1,3
@@ -750,7 +752,7 @@ contains
         print *, 'src x', v(2:9:3)
         print *, 'src y', v(3:9:3)
 
-        call dir2dir3_coeff_corr(verts_dtd, sundir, v)
+        call dir2dir3_coeff_corr(verts, verts_dtd, sundir, v)
 
         print *, cstr('regular corrected', 'blue')
         print *, 'src z', v(1:9:3)
