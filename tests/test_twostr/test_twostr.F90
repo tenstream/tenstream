@@ -52,7 +52,7 @@ contains
 
     @assertEqual(zero, Edn(1))
 
-    @assertEqual((S(ke1)+Edn(ke1))*albedo, Eup(ke1))
+    @assertEqual((S(ke1)+Edn(ke1))*albedo, Eup(ke1), sqrt(epsilon(S)))
 
 
     PETSC_COMM_WORLD = comm
