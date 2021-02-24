@@ -73,6 +73,7 @@ build:docker:intel:
   before_script:
     - DEBIAN_FRONTEND=noninteractive apt-get -qq update && DEBIAN_FRONTEND=noninteractive apt-get -qq install -fy cmake git m4 python curl libcurl3-dev
     - *template_build_PETSC
+    - ulimit -a
   tags:
     - docker.meteo.physik.lmu.de
   variables:
