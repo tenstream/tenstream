@@ -9,6 +9,11 @@ export PETSC_ARCH=${2:-default}
 PETSC_PRECISION=${3:-double}
 PETSC_DEBUGGING=${4:-0}
 PETSC_64_INTEGERS=${5:-0}
+PETSC_OPTS=${@:6}
+
+if [ -z ${PETSC_OPTS} ]; then
+  PETSC_OPTS="--download-hdf5 --download-szlib --download-zlib"
+fi
 
 echo ""
 echo "** Downloading Petsc, and netcdf libs and install them"
@@ -32,6 +37,7 @@ printf "Using:\n\
   PETSC_PRECISION     $PETSC_PRECISION \n\
   PETSC_DEBUGGING     $PETSC_DEBUGGING \n\
   PETSC_64_INTEGERS   $PETSC_64_INTEGERS \n\
+  PETSC_OPTS          $PETSC_OPTS \n\
 
   C-Compiler:   ${CC}\n\
   F-Compiler:   ${FC}\n\
@@ -55,9 +61,7 @@ PETSC_OPTIONS="\
   --with-debugging=$PETSC_DEBUGGING \
   --with-precision=$PETSC_PRECISION \
   --with-64-bit-indices=$PETSC_64_INTEGERS \
-  --download-hdf5 \
-  --download-szlib \
-  --download-zlib \
+  $PETSC_OPTS \
   "
 
 cd $PETSC_DIR
@@ -103,7 +107,7 @@ function install_netcdf() {
   cd $(basename $FILE .tar.gz)
   export LD_LIBRARY_PATH=${PREFIX}/lib:${LD_LIBRARY_PATH:-}
   export PATH=${PREFIX}/bin:${PATH:-}
-  CC=$CC FC=$FC F90=$FC CXX=$CXX CPPFLAGS=-I$PREFIX/include LDFLAGS=-L$PREFIX/lib ./configure --prefix=$PREFIX && make -j install
+  CC=$CC FC=$FC F90=$FC CXX=$CXX CPPFLAGS=-I$PREFIX/include LDFLAGS=-L$PREFIX/lib ./configure --prefix=$PREFIX --disable-dap && make -j install
   echo "Installed NetCDF lib $FILE into $PREFIX -- CC $CC FC $FC CXX $CXX"
 }
 

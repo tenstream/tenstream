@@ -4,7 +4,7 @@ stages:
 .template_build_PETSC: &template_build_PETSC
     - export PETSC_DIR=$CI_PROJECT_DIR/$PETSC_DIR
     - echo "Installing Petsc in ${PETSC_DIR}/${PETSC_ARCH}"
-    - misc/build_dependencies.sh "${PETSC_DIR}" "${PETSC_ARCH}" "${PETSC_PRECISION}" "${PETSC_DEBUGGING}" "${PETSC_64_INTEGERS}"
+    - misc/build_dependencies.sh "${PETSC_DIR}" "${PETSC_ARCH}" "${PETSC_PRECISION}" "${PETSC_DEBUGGING}" "${PETSC_64_INTEGERS}" "${PETSC_OPTS}"
     - cd $CI_PROJECT_DIR
 
 # Build Stage
@@ -32,7 +32,7 @@ build:docker:ubuntu-latest:
   image: ubuntu:latest
   before_script:
     - DEBIAN_FRONTEND=noninteractive apt-get -qq update
-    - DEBIAN_FRONTEND=noninteractive apt-get -qq install -fy build-essential cmake gfortran git libopenblas-dev libopenmpi-dev m4 openmpi-bin python curl libcurl3-dev pkg-config
+    - DEBIAN_FRONTEND=noninteractive apt-get -qq install -fy build-essential cmake gfortran git python openmpi-bin libopenmpi-dev libopenblas-dev curl pkg-config
     - *template_build_PETSC
   tags:
     - docker.meteo.physik.lmu.de
@@ -51,7 +51,7 @@ build:docker:ubuntu-rolling:
   image: ubuntu:rolling
   before_script:
     - DEBIAN_FRONTEND=noninteractive apt-get -qq update
-    - DEBIAN_FRONTEND=noninteractive apt-get -qq install -fy build-essential cmake gfortran git libopenblas-dev libopenmpi-dev m4 openmpi-bin python curl libcurl3-dev pkg-config
+    - DEBIAN_FRONTEND=noninteractive apt-get -qq install -fy build-essential cmake gfortran git python openmpi-bin libopenmpi-dev libopenblas-dev curl pkg-config
     - *template_build_PETSC
   tags:
     - docker.meteo.physik.lmu.de
