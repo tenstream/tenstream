@@ -1543,7 +1543,7 @@ contains
       real(irealLUT), intent(inout) :: coeffs(9)
       real(ireals) :: &
         area1_dst, area2_dst, area3_dst, area_total_src_dst, areas_dst(3), &
-        s1_dst, s3_dst
+        s1_dst, s2_dst, s3_dst
       real(ireals), dimension(3) :: &
         p1l_dst, p1b_dst, p2l_dst, p2t_dst, p3r_dst, p3t_dst, p3l_dst, p4r_dst, p4b_dst, p1t_dst, p2b_dst, p3b_dst, p4t_dst, &
         v1_dst_p, n_dst
@@ -1590,13 +1590,14 @@ contains
         v4_dst, p4b_dst, f4_dst, f3_dst  &
         )
 
-      s3_dst = norm2(v3_dst - (v3_dst + hit_plane(v3_dst, sundir, f3_dst, compute_normal_3d(f3_dst, f6_dst, f4_dst)) * sundir))
-      print *, 'the points', p3l_dst
+      s2_dst = norm2(v3_dst - (v3_dst + hit_plane(v3_dst, sundir, f3_dst, compute_normal_3d(f3_dst, f6_dst, f4_dst)) * sundir))
+      print *, 'the max dist', s2_dst
+      print *, 'the points', v3_dst
       print *, 'the area', triangle_area_by_vertices(v3_dst, f3_dst, p3l_dst)
-      area2_dst = &!quadrangle_area_by_vertices(v3_dst, p3l_dst, f4_dst, p3t_dst) * (one - exp( - extinction_coeff * &
-        !s3_dst)) / (extinction_coeff * s3_dst) + &
-        triangle_area_by_vertices(v3_dst, f3_dst, p3l_dst) * (one - exp( - extinction_coeff * s3_dst)) * (v3_dst(2) / s3_dst) / &
-        (extinction_coeff * v3_dst(2) / v3_dst(1))
+      area2_dst = quadrangle_area_by_vertices(v3_dst, p3l_dst, f4_dst, p3t_dst) * (one - exp( - extinction_coeff * &
+        s2_dst)) / (extinction_coeff * s2_dst) + &
+        triangle_area_by_vertices(v3_dst, f3_dst, p3l_dst) * (one - exp( - extinction_coeff * s2_dst) * (v3_dst(2) / s2_dst) / &
+        (extinction_coeff * v3_dst(2) / v3_dst(3)))
 
       !area3_dst = compute_pentagon_areas( &
       !  v1_dst, p1l_dst, f4_dst, p1t_dst, f1_dst, &
@@ -1611,13 +1612,9 @@ contains
         triangle_area_by_vertices(v3_dst, p3b_dst, f3_dst) * (one - exp( - extinction_coeff * s3_dst) * (v3_dst(3) / s3_dst) / &
         (extinction_coeff * v3_dst(3) / v3_dst(2)))
 
-       print *, 'area3 prime', quadrangle_area_by_vertices(v3_dst, p3r_dst, f2_dst, p3b_dst)
-
       areas_dst = max([area1_dst, area2_dst, area3_dst], zero)
 
       coeffs(slice) = real(areas_dst / area_total_src_dst, irealLUT)
-
-      print *, 'before abs', coeffs(slice)
 
     end subroutine
 
