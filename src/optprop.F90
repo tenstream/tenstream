@@ -29,7 +29,7 @@ module m_optprop
 use m_optprop_parameters, only : ldebug_optprop, wedge_sphere_radius, param_eps
 use m_helper_functions, only : rmse, CHKERR, CHKWARN, toStr, cstr, approx, deg2rad, rad2deg, swap, is_between, vec_proj_on_plane, &
   char_arr_to_str, triangle_area_by_vertices, compute_normal_3d, volume_hexahedron, quadrangle_area_by_vertices, &
-  pentagon_area_by_vertices
+  pentagon_area_by_vertices, volume_pentahedron
 use m_data_parameters, only: ireals,ireal_dp,irealLUT,ireal_params,iintegers,one,zero,i0,i1,inil,mpiint
 use m_optprop_base, only: t_optprop_base, t_op_config, find_op_dim_by_name
 use m_optprop_LUT, only : t_optprop_LUT, t_optprop_LUT_1_2,t_optprop_LUT_3_6, t_optprop_LUT_3_10, &
@@ -1343,9 +1343,9 @@ contains
 
   end subroutine dir2dir3_coeff_corr_zy
 
-  subroutine dir2dir3_coeff_corr(verts_reg, verts_dst, sundir, coeffs)
+  subroutine dir2dir3_coeff_corr(verts_reg, verts_dst, sundir, optical_props, coeffs)
     real(irealLUT), intent(inout) :: coeffs(9)
-    real(ireals), intent(in) :: verts_reg(24), verts_dst(24), sundir(3)
+    real(ireals), intent(in) :: verts_reg(24), verts_dst(24), sundir(3), optical_props(3)
     real(ireals), dimension(3) :: &
       c_p_reg, d_p_reg, b_p_reg, a_p_reg, h_p_reg, f_p_reg, g_p_reg, &
       c_p_dst, d_p_dst, b_p_dst, a_p_dst, h_p_dst, f_p_dst, g_p_dst
@@ -1369,6 +1369,26 @@ contains
       h_reg => verts_reg(22:24)  &
       )
 
+    print *, 'a_reg', a_reg
+    print *, 'b_reg', b_reg
+    print *, 'c_reg', c_reg
+    print *, 'd_reg', d_reg
+    print *, 'e_reg', e_reg
+    print *, 'f_reg', f_reg
+    print *, 'g_reg', g_reg
+    print *, 'h_reg', h_reg
+
+    print *, '____________________________'
+
+    print *, 'a_dst', a_dst
+    print *, 'b_dst', b_dst
+    print *, 'c_dst', c_dst
+    print *, 'd_dst', d_dst
+    print *, 'e_dst', e_dst
+    print *, 'f_dst', f_dst
+    print *, 'g_dst', g_dst
+    print *, 'h_dst', h_dst
+
     if (lDEBUG_geometric_coeff_correction) print *, 'sundir', sundir
 
     if(lDEBUG_geometric_coeff_correction) print *, 'src z'
@@ -1380,15 +1400,13 @@ contains
     call project_points(sundir, h_reg, compute_normal_3d(g_reg, h_reg, f_reg), c_p_reg, d_p_reg, b_p_reg, a_p_reg)
     call rearange_projections(h_reg, f_reg, e_reg, g_reg, d_p_reg, b_p_reg, a_p_reg, c_p_reg)
 
-    print *, 'before'
-    call correct_coeffs( &
-      h_dst   , f_dst   , e_dst   , g_dst,    b_dst, & ! fixed_dst
-      d_p_dst , b_p_dst , a_p_dst , c_p_dst,     & ! projected_dst
-      h_reg   , f_reg   , e_reg   , g_reg,    b_reg, & ! fixed_reg
-      d_p_reg , b_p_reg , a_p_reg , c_p_reg,     & ! projected_reg
-      [1      , 4       , 7]      , coeffs       & ! slice of relevant coefficients , and coefficient array
-      )
-    print *, 'after'
+    !call correct_coeffs( &
+    !  h_dst   , f_dst   , e_dst   , g_dst,    b_dst, & ! fixed_dst
+    !  d_p_dst , b_p_dst , a_p_dst , c_p_dst,     & ! projected_dst
+    !  h_reg   , f_reg   , e_reg   , g_reg,    b_reg, & ! fixed_reg
+    !  d_p_reg , b_p_reg , a_p_reg , c_p_reg,     & ! projected_reg
+    !  [1      , 4       , 7]      , coeffs       & ! slice of relevant coefficients , and coefficient array
+    !  )
 
     if (lDEBUG_geometric_coeff_correction)  print *, 'src x'
     call create_proj_copies(h_dst, d_dst, b_dst, f_dst, h_p_dst, d_p_dst, b_p_dst, f_p_dst)
@@ -1404,7 +1422,7 @@ contains
       h_p_dst , d_p_dst , b_p_dst , f_p_dst,     & ! projected_dst
       g_reg   , c_reg   , a_reg   , e_reg,    d_reg, & ! fixed_reg
       h_p_reg , d_p_reg , b_p_reg , f_p_reg,     & ! projected_reg
-      [8      , 5       , 2]      , coeffs       & ! slice of relevant coefficients , and coefficient array
+      optical_props(1), [5      , 8       , 2]      , coeffs       & ! slice of relevant coefficients , and coefficient array
       )
 
     if (lDEBUG_geometric_coeff_correction) print *, 'src y'
@@ -1416,13 +1434,13 @@ contains
     call project_points(sundir, b_reg, compute_normal_3d(a_reg, b_reg, f_reg), g_p_reg, c_p_reg, d_p_reg, h_p_reg)
     call rearange_projections(f_reg, b_reg, a_reg, e_reg, h_p_reg, d_p_reg, c_p_reg, g_p_reg)
 
-    call correct_coeffs( &
-      e_dst   , a_dst   , b_dst   , f_dst,    c_dst, & ! fixed_dst
-      g_p_dst , c_p_dst , d_p_dst , h_p_dst,     & ! projected_dst
-      e_reg   , a_reg   , b_reg   , f_reg,    c_reg, & ! fixed_reg
-      g_p_reg , c_p_reg , d_p_reg , h_p_reg,     & ! projected_reg
-      [9      , 6       , 3]      , coeffs       & ! slice of relevant coefficients , and coefficient array
-      )
+    !call correct_coeffs( &
+    !  e_dst   , a_dst   , b_dst   , f_dst,    c_dst, & ! fixed_dst
+    !  g_p_dst , c_p_dst , d_p_dst , h_p_dst,     & ! projected_dst
+    !  e_reg   , a_reg   , b_reg   , f_reg,    c_reg, & ! fixed_reg
+    !  g_p_reg , c_p_reg , d_p_reg , h_p_reg,     & ! projected_reg
+    !  [9      , 6       , 3]      , coeffs       & ! slice of relevant coefficients , and coefficient array
+    !  )
     !call correct_coeffs(f, b, a, e, h_p, d_p, c_p, g_p, h, d, c, g, [9,6,3], coeffs)
   end associate
 
@@ -1464,8 +1482,8 @@ contains
     end subroutine
 
     subroutine rearange_projection(direction1, origin2, direction2, origin3, direction3, origin1)
-      real(ireals), intent(in) :: direction1(3), origin2(3), direction2(3), origin3(3), direction3(3)
-      real(ireals), intent(inout) :: origin1(3)
+      real(ireals), intent(in), dimension(3) :: direction1, origin2, direction2, origin3, direction3
+      real(ireals), intent(inout), dimension(3) :: origin1
       real(ireals) :: coeff21, coeff22, coeff31, coeff32
       integer(mpiint) :: ierr
 
@@ -1481,9 +1499,13 @@ contains
       point = origin + coefficient * direction
     end subroutine
 
-    subroutine proj_var_to_edges(c1, c2, c3, c4, v, p1, p2, p3) ! c: corner
-      real(ireals), intent(in) :: c1(3), c2(3), c3(3), c4(3), v(3)
-      real(ireals), intent(out) :: p1(3), p2(3), p3(3)
+    subroutine proj_var_to_edges( &
+        c1, c2, c3, c4, & ! side's corners
+        v, &              ! point to be projected
+        p1, p2, p3 &      ! projections
+        ) ! c: corner
+      real(ireals), intent(in), dimension(3) :: c1, c2, c3, c4, v
+      real(ireals), intent(out), dimension(3) :: p1, p2, p3
       real(ireals) :: c, t
       integer(mpiint) :: ierr
 
@@ -1495,9 +1517,16 @@ contains
       call rearange_point(v, c1-c2, c, p3)
     end subroutine
 
-    subroutine proj_vars_to_edges(f1,f2,f3,f4,v1,v2,v3,v4,p1l,p1b,p1t,p2l,p2t,p2b,p3r,p3t,p3b,p4r,p4b,p4t)
-      real(ireals), intent(in) :: f1(3),f2(3),f3(3),f4(3),v1(3),v2(3),v3(3),v4(3)
-      real(ireals), intent(out) :: p1l(3),p1b(3),p1t(3),p2l(3),p2t(3),p2b(3),p3r(3),p3t(3),p3b(3),p4r(3),p4b(3),p4t(3)
+    subroutine proj_vars_to_edges( &
+        f1, f2, f3, f4, &
+        v1, v2, v3, v4, &
+        p1l, p1b, p1t, &
+        p2l, p2t, p2b, &
+        p3r, p3t, p3b, &
+        p4r, p4b, p4t &
+        )
+      real(ireals), intent(in), dimension(3) :: f1,f2,f3,f4,v1,v2,v3,v4
+      real(ireals), intent(out), dimension(3) :: p1l,p1b,p1t,p2l,p2t,p2b,p3r,p3t,p3b,p4r,p4b,p4t
 
       call proj_var_to_edges(f1, f2, f3, f4, v1, p1l, p1b, p1t)
       call proj_var_to_edges(f2, f1, f4, f3, v2, p2l, p2t, p2b)
@@ -1510,8 +1539,9 @@ contains
         v1_dst, v2_dst, v3_dst, v4_dst, &
         f1_reg, f2_reg, f3_reg, f4_reg, f5_reg, &
         v1_reg, v2_reg, v3_reg, v4_reg, &
-        slice, coeffs &
+        extinction_coeff, slice, coeffs &
         )
+      real(ireals), intent(in) :: extinction_coeff
       real(ireals), intent(in), dimension(3) ::  &
         f1_dst, f2_dst, f3_dst, f4_dst, f5_dst, v1_dst, v2_dst, v3_dst, v4_dst, &
         f1_reg, f2_reg, f3_reg, f4_reg, f5_reg, v1_reg, v2_reg, v3_reg, v4_reg
@@ -1520,11 +1550,12 @@ contains
       real(ireals) :: &
         area1_dst, area2_dst, area3_dst, area_total_src_dst, areas_dst(3), &
         area1_reg, area2_reg, area3_reg, area_total_src_reg, areas_reg(3), &
-        s3_dst, s3_reg, beta
+        s3_dst, s3_reg, factor_reg, factor_dst, s1_dst, s1_reg
       !real(ireals) :: volume2_dst, volume3_dst, volume2_reg, volume3_reg
       real(ireals), dimension(3) :: &
         p1l_dst, p1b_dst, p2l_dst, p2t_dst, p3r_dst, p3t_dst, p4r_dst, p4b_dst, p1t_dst, p2b_dst, p3b_dst, p4t_dst, &
-        p1l_reg, p1b_reg, p2l_reg, p2t_reg, p3r_reg, p3t_reg, p4r_reg, p4b_reg, p1t_reg, p2b_reg, p3b_reg, p4t_reg, tmp
+        p1l_reg, p1b_reg, p2l_reg, p2t_reg, p3r_reg, p3t_reg, p4r_reg, p4b_reg, p1t_reg, p2b_reg, p3b_reg, p4t_reg, tmp, &
+        v1_dst_p, v1_reg_p, n_dst, n_reg
 
       if (.false.) then
         tmp = f5_dst
@@ -1587,29 +1618,106 @@ contains
       area1_dst = area_total_src_dst - area2_dst - area3_dst
       area1_reg = area_total_src_reg - area2_reg - area3_reg
 
-      areas_dst = max([area1_dst, area2_dst, area3_dst], zero)
-      areas_dst = areas_dst / sum(areas_dst)
-      !areas_dst = nint(areas_dst * 1e6) * 1e-6
       areas_reg = max([area1_reg, area2_reg, area3_reg], zero)
       areas_reg = areas_reg / sum(areas_reg)
 
-      coeffs(slice) = real(areas_dst, irealLUT) * sum(coeffs(slice))
+
+      print *, 'areas_reg', areas_reg
+      print *, 'areas_dst', areas_dst
+
+
       !
       ! END direction correction
       !
 
       !
-      ! START absorption correction
+      ! START extinction correction
       !
 
-      beta = 0.5_ireals
-      s3_dst = norm2(f1_dst - v1_dst + hit_plane(v1_dst, sundir, f5_dst, compute_normal_3d(f5_dst, f2_dst, f3_dst)) * sundir)
-      s3_reg = norm2(f1_reg - v1_reg + hit_plane(v1_reg, sundir, f5_reg, compute_normal_3d(f5_reg, f2_reg, f3_reg)) * sundir)
-      print *, 'before', coeffs(slice(3))
-      coeffs(slice(3)) = coeffs(slice(3)) * &
-          real((one - exp(-beta * s3_dst)) / (one - exp(-beta * s3_reg)) * s3_reg / s3_dst, irealLUT)
-      print *, 'after', coeffs(slice(3))
+      n_dst = compute_normal_3d(f5_dst, f2_dst, f3_dst)
+      v1_dst_p = v1_dst + hit_plane(v1_dst, sundir, f5_dst, compute_normal_3d(f5_dst, f2_dst, f3_dst)) * sundir
+      n_reg = compute_normal_3d(f5_reg, f2_reg, f3_reg)
+      v1_reg_p = v1_reg + hit_plane(v1_reg, sundir, f5_reg, compute_normal_3d(f5_reg, f2_reg, f3_reg)) * sundir
 
+      !print *, '1', norm2(f1_dst - v1_dst - hit_plane(v2_dst, sundir, f5_reg, compute_normal_3d(f5_reg, f2_reg, f3_reg)) * sundir)
+      !print *, '2', norm2(f2_dst - v2_dst - hit_plane(v2_dst, sundir, f5_reg, compute_normal_3d(f5_reg, f2_reg, f3_reg)) * sundir)
+
+      if (.true.) then
+       ! volume3_dst = compute_volumes_hencahedron( &
+       !   v1_dst, p1l_dst, f4_dst, p1t_dst, f1_dst, &
+       !   v2_dst, f2_dst, p2b_dst, f3_dst, p2l_dst, &
+       !   v3_dst, p3r_dst, f2_dst, p3b_dst, f3_dst, &
+       !   v4_dst, f4_dst, p4t_dst, f1_dst, p4r_dst, &
+       !   sundir, f5_dst, compute_normal_3d(f2_dst, f3_dst, f5_dst) &
+       !   )
+
+       ! volume3_reg = compute_volumes_hencahedron( &
+       !   v1_reg, p1l_reg, f4_reg, p1t_reg, f1_reg, &
+       !   v2_reg, f2_reg, p2b_reg, f3_reg, p2l_reg, &
+       !   v3_reg, p3r_reg, f2_reg, p3b_reg, f3_reg, &
+       !   v4_reg, f4_reg, p4t_reg, f1_reg, p4r_reg, &
+       !   sundir, f5_reg, compute_normal_3d(f2_reg, f3_reg, f5_reg) &
+       !   )
+
+        ! WORKS
+        s1_dst =  norm2(f1_dst - (f1_dst + hit_plane(f1_dst, sundir, f5_dst, compute_normal_3d(f1_dst, f2_dst, f3_dst)) * sundir))
+
+        print *, 's1_dst', s1_dst
+
+        s1_reg =  norm2(f1_reg - p3r_reg) / sundir(3)
+
+        !area3_dst = compute_pentagon_areas( &
+        !  v1_dst, p1l_dst, f4_dst, p1t_dst, f1_dst, &
+        !  v2_dst, f2_dst, p2b_dst, f3_dst, p2l_dst, &
+        !  v3_dst, p3r_dst, f2_dst, p3b_dst, f3_dst, &
+        !  v4_dst, f4_dst, p4t_dst, f1_dst, p4r_dst  &
+        !  )
+        area1_dst = area1_dst * exp( - extinction_coeff * s1_dst)
+
+        area3_dst = quadrangle_area_by_vertices(v3_dst, p3r_dst, f2_dst, p3b_dst) * exp( - extinction_coeff * &
+          norm2(v3_dst - (v3_dst + hit_plane(v3_dst, sundir, f5_dst, compute_normal_3d(f2_dst, f5_dst, f3_dst)) * sundir))) + &
+          triangle_area_by_vertices(v3_dst, p3b_dst, f3_dst) * &
+          (one - exp( - extinction_coeff * one / 2._ireals * v3_dst(2) * sundir(3) /  sundir(2))) / &
+          (extinction_coeff * one / 2._ireals * v3_dst(2) * sundir(3) / sundir(3))
+
+        areas_dst = max([area1_dst, area2_dst, area3_dst], zero)
+        areas_dst = areas_dst / sum(areas_dst)
+        coeffs(slice) = real(areas_dst, irealLUT) * 1._irealLUT !sum(coeffs(slice))
+
+        s3_dst = max( &
+          norm2(v2_dst - (v2_dst + hit_plane(v2_dst, sundir, f5_dst, compute_normal_3d(f2_dst, f5_dst, f3_dst)) * sundir)), &
+          norm2(v3_dst - (v3_dst + hit_plane(v3_dst, sundir, f5_dst, compute_normal_3d(f2_dst, f5_dst, f3_dst)) * sundir))  &
+          )
+       ! s3_dst = max( &
+       !   norm2(f1_dst - v1_dst - hit_plane(v1_dst, sundir, f2_dst, compute_normal_3d(f5_dst, f2_dst, f3_dst)) * sundir), &
+       !   norm2(f2_dst - v2_dst - hit_plane(v2_dst, sundir, f1_dst, compute_normal_3d(f5_dst, f2_dst, f3_dst)) * sundir) &
+       !   )
+
+        s3_reg = max( &
+          norm2(f1_reg - v1_reg - hit_plane(v1_reg, sundir, f2_reg, compute_normal_3d(f5_reg, f2_reg, f3_reg)) * sundir), &
+          norm2(f2_reg - v2_reg - hit_plane(v2_reg, sundir, f1_reg, compute_normal_3d(f5_reg, f2_reg, f3_reg)) * sundir) &
+          )
+
+        if ( .false.) then
+          factor_dst = extinction_coeff
+          factor_reg = factor_dst
+        endif
+        ! Strahlengang Korrektur hier
+
+
+        print *, 'before abs', coeffs(slice)
+
+        factor_dst = exp(-extinction_coeff * s1_dst)
+        print *, 'factor1', factor_dst
+        !coeffs(slice(1)) = coeffs(slice(1)) * real(factor_dst, irealLUT)
+
+        factor_dst = (one - exp(-extinction_coeff * s1_dst)) / (s1_dst  *  extinction_coeff)
+        print *, 'factor2', factor_dst
+        !coeffs(slice(3)) = coeffs(slice(3)) * real(factor_dst, irealLUT)
+        !coeffs(slice(3)) = coeffs(slice(3)) * real(factor_dst, irealLUT)
+!          real(one / (one - exp(-beta * s3_reg)) * s3_reg * cos(3.14_ireals / 4._ireals) / beta, irealLUT)
+          !real((one - exp(-beta * s3_dst)) / (one - exp(-beta * s3_reg)) * s3_reg / s3_dst, irealLUT)
+      endif
       !volume2_dst = compute_volumes( &
       !  v1_dst, f1_dst, f2_dst, p1b_dst, &
       !  v2_dst, p2t_dst, f1_dst, f2_dst, &
@@ -1626,21 +1734,6 @@ contains
       !  sundir, f5_reg, compute_normal_3d(f1_reg, f2_reg, f5_reg) &
       !  )
 
-      !print *, 'volumes', volume2_dst, volume2_reg
-      !print *, 'areas', area2_dst, area2_reg
-      !print *, 'coeff', coeffs(slice(2))
- !     coeffs(slice(2)) = real(exp(-(volume2_dst - volume2_reg)), irealLUT) * coeffs(slice(2))
-      !coeffs(slice(2)) = real(exp(-volume2_dst / area2_reg + volume2_reg / area2_reg), irealLUT) &
-      !  * coeffs(slice(2))
-      !print *, 'coeff', coeffs(slice(2))
-
-
-      ! absorption correction example
-      !coeffs(1) = real(exp( - 0.5_ireals * (d_prime_dst - d_prime_reg)), irealLUT) * coeffs(1)
-
-      ! THIS IS HOW IT WORKS
-      !coeffs_total = sum(coeffs(3:9:3))
-      !coeffs([9,6,3]) = real(areas, irealLUT) * coeffs_total
     end subroutine
 
     function compute_volume(p1, p2, p3, p4, sundir, origin, normal)
@@ -1677,6 +1770,50 @@ contains
         compute_volume(b1, b2, b3, b4, sundir, origin, normal), &
         compute_volume(c1, c2, c3, c4, sundir, origin, normal), &
         compute_volume(d1, d2, d3, d4, sundir, origin, normal) &
+        )
+    end function
+
+    function compute_volume_hencahedron( &
+        p1, p2, p3, p4, p5, &
+        sundir, origin, normal &
+        )
+      real(ireals), intent(in), dimension(3) :: p1, p2, p3, p4, p5, origin, normal, sundir
+      real(ireals) :: compute_volume_hencahedron, p1p(3), p2p(3), p3p(3), p4p(3), p5p(3)
+
+      p1p = p1
+      p2p = p2
+      p3p = p3
+      p4p = p4
+      p5p = p5
+
+      call project_5_points(sundir, origin, normal, p1p, p2p, p3p, p4p, p5p)
+
+      compute_volume_hencahedron = &
+        volume_pentahedron(p1, p2, p3, p1p, p2p, p3p) + &
+        volume_pentahedron(p1, p3, p4, p1p, p3p, p4p) + &
+        volume_pentahedron(p1, p4, p5, p1p, p4p, p5p)
+    end function
+
+    function compute_volumes_hencahedron( &
+        a1, a2, a3, a4, a5, &
+        b1, b2, b3, b4, b5, &
+        c1, c2, c3, c4, c5, &
+        d1, d2, d3, d4, d5, &
+        sundir, origin, normal &
+        )
+      real(ireals), intent(in), dimension(3) :: &
+        a1, a2, a3, a4, a5, &
+        b1, b2, b3, b4, b5, &
+        c1, c2, c3, c4, c5, &
+        d1, d2, d3, d4, d5, &
+        sundir, origin, normal
+      real(ireals) :: compute_volumes_hencahedron
+
+      compute_volumes_hencahedron = max( &
+        compute_volume_hencahedron(a1, a2, a3, a4, a5, origin, normal, sundir), &
+        compute_volume_hencahedron(b1, b2, b3, b4, b5, origin, normal, sundir), &
+        compute_volume_hencahedron(c1, c2, c3, c4, c5, origin, normal, sundir), &
+        compute_volume_hencahedron(d1, d2, d3, d4, d5, origin, normal, sundir)  &
         )
     end function
 
