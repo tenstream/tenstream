@@ -29,7 +29,7 @@ module m_optprop
 use m_optprop_parameters, only : ldebug_optprop, wedge_sphere_radius, param_eps
 use m_helper_functions, only : rmse, CHKERR, CHKWARN, toStr, cstr, approx, deg2rad, rad2deg, swap, is_between, vec_proj_on_plane, &
   char_arr_to_str, triangle_area_by_vertices, compute_normal_3d, volume_hexahedron, quadrangle_area_by_vertices, &
-  pentagon_area_by_vertices, volume_pentahedron
+  pentagon_area_by_vertices, volume_pentahedron, deg2rad
 use m_data_parameters, only: ireals,ireal_dp,irealLUT,ireal_params,iintegers,one,zero,i0,i1,inil,mpiint
 use m_optprop_base, only: t_optprop_base, t_op_config, find_op_dim_by_name
 use m_optprop_LUT, only : t_optprop_LUT, t_optprop_LUT_1_2,t_optprop_LUT_3_6, t_optprop_LUT_3_10, &
@@ -1543,7 +1543,7 @@ contains
       real(irealLUT), intent(inout) :: coeffs(9)
       real(ireals) :: &
         area1_dst, area2_dst, area3_dst, area_total_src_dst, areas_dst(3), &
-        s1_dst, s2_dst, s3_dst
+        s1_dst, s2_dst, s3_dst, f, sin_theta
       real(ireals), dimension(3) :: &
         p1l_dst, p1b_dst, p2l_dst, p2t_dst, p3r_dst, p3t_dst, p3l_dst, p4r_dst, p4b_dst, p1t_dst, p2b_dst, p3b_dst, p4t_dst, &
         v1_dst_p, n_dst
@@ -1590,14 +1590,14 @@ contains
         v4_dst, p4b_dst, f4_dst, f3_dst  &
         )
 
-      s2_dst = norm2(v3_dst - (v3_dst + hit_plane(v3_dst, sundir, f3_dst, compute_normal_3d(f3_dst, f6_dst, f4_dst)) * sundir))
+      s2_dst = norm2(v3_dst - f6_dst)
       print *, 'the max dist', s2_dst
       print *, 'the points', v3_dst
       print *, 'the area', triangle_area_by_vertices(v3_dst, f3_dst, p3l_dst)
-      area2_dst = quadrangle_area_by_vertices(v3_dst, p3l_dst, f4_dst, p3t_dst) * (one - exp( - extinction_coeff * &
-        s2_dst)) / (extinction_coeff * s2_dst) + &
-        triangle_area_by_vertices(v3_dst, f3_dst, p3l_dst) * (one - exp( - extinction_coeff * s2_dst) * (v3_dst(2) / s2_dst) / &
-        (extinction_coeff * v3_dst(2) / v3_dst(3)))
+      !area2_dst = quadrangle_area_by_vertices(v3_dst, p3l_dst, f4_dst, p3t_dst) * (one - exp( - extinction_coeff * &
+      !  s2_dst)) / (extinction_coeff * s2_dst) + &
+      !  triangle_area_by_vertices(v3_dst, f3_dst, p3l_dst) * (one - exp( - extinction_coeff * s2_dst) * (v3_dst(2) / s2_dst) / &
+      !  (extinction_coeff * v3_dst(2)) * v3_dst(3))
 
       !area3_dst = compute_pentagon_areas( &
       !  v1_dst, p1l_dst, f4_dst, p1t_dst, f1_dst, &
@@ -1606,17 +1606,79 @@ contains
       !  v4_dst, f4_dst, p4t_dst, f1_dst, p4r_dst  &
       !  )
       s3_dst = norm2(v3_dst - (v3_dst + hit_plane(v3_dst, sundir, f5_dst, compute_normal_3d(f2_dst, f5_dst, f3_dst)) * sundir))
-      area3_dst = quadrangle_area_by_vertices(v3_dst, p3r_dst, f2_dst, p3b_dst) * (one - exp( - extinction_coeff * &
-        !norm2(v3_dst - (v3_dst + hit_plane(v3_dst, sundir, f5_dst, compute_normal_3d(f2_dst, f5_dst, f3_dst)) * sundir)))) / &
-        norm2(p3r_dst - f5_dst))) / (extinction_coeff * norm2(p3r_dst - f5_dst)) + &
-        triangle_area_by_vertices(v3_dst, p3b_dst, f3_dst) * (one - exp( - extinction_coeff * s3_dst) * (v3_dst(3) / s3_dst) / &
-        (extinction_coeff * v3_dst(3) / v3_dst(2)))
+      print *, 'v3_rp', (v3_dst + hit_plane(v3_dst, sundir, f5_dst, compute_normal_3d(f2_dst, f5_dst, f3_dst)) * sundir)
+      !area3_dst = quadrangle_area_by_vertices(v3_dst, p3r_dst, f2_dst, p3b_dst) * (one - exp( - extinction_coeff * s3_dst)) / &
+      !  (extinction_coeff * s3_dst) + &
+      !  !norm2(p3r_dst - f5_dst))) / (extinction_coeff * norm2(p3r_dst - f5_dst)) + &
+      !  triangle_area_by_vertices(v3_dst, p3b_dst, f3_dst) * (one - exp( - extinction_coeff * s3_dst) * (v3_dst(3) / s3_dst) / &
+      !  (extinction_coeff * v3_dst(3)) * v3_dst(2))
+
+      associate ( &
+          y => v3_dst(2), &
+          z => v3_dst(3)  &
+          )
+        sin_theta = sin(abs(atan(sundir(3) / sqrt(sundir(1)**2 + sundir(2)**2))))
+        print *, '90 - sza', abs(atan(sundir(3) / ( sqrt(sundir(1)**2 + sundir(2)**2)))) * 180._ireals / 3.14_ireals
+        f = extinction_coeff * z / sin_theta
+        print *, 'f', f
+        area3_dst = &
+          quadrangle_area_by_vertices(v3_dst, p3r_dst, f2_dst, p3b_dst) * &
+          (one - exp(- extinction_coeff * s3_dst)) / (extinction_coeff * s3_dst) + &
+          !triangle_area_by_vertices(v3_dst, p3b_dst, f3_dst) * exponential_integral(f) * sin(deg2rad(87.1376_ireals))
+          num(y, z, extinction_coeff, sin_theta)
+          print *, 'area', triangle_area_by_vertices(v3_dst, p3b_dst, f3_dst)
+          print *, 'expint', exponential_integral(f)
+      end associate
 
       areas_dst = max([area1_dst, area2_dst, area3_dst], zero)
 
       coeffs(slice) = real(areas_dst / area_total_src_dst, irealLUT)
 
     end subroutine
+
+    function num(y0, z0, extinction_coeff, sin_theta)
+      real(ireals), intent(in) :: y0, z0, extinction_coeff, sin_theta
+      integer(mpiint), parameter :: n = 2
+      integer(mpiint) :: i
+      real(ireals) :: dy, num, y, z
+
+      dy = y0 / n
+      num = zero
+      do i=1,n
+        y = (i-0.5_ireals) * dy
+        z = y * z0 / y0
+        num = num + dy * f(z, extinction_coeff, sin_theta)
+      enddo
+    end function
+
+    real(ireals) function f(z, extinction_coeff, sin_theta)
+      real(ireals), intent(in) :: z, extinction_coeff, sin_theta
+
+      f = z * (one - exp(-extinction_coeff * z / sin_theta)) / (extinction_coeff * z / sin_theta)
+    end function
+
+    function faculty(n)
+      integer(mpiint), intent(in) :: n
+      real(ireals) :: faculty
+      integer(mpiint) :: i
+
+      faculty = one
+      do i = 1, n
+        faculty = faculty * i
+      enddo
+    end function
+
+    function exponential_integral(x)
+      real(ireals), intent(in) :: x
+      real(ireals) :: exponential_integral
+      integer(mpiint), parameter :: n = 40
+      integer(mpiint) :: i
+
+      exponential_integral = zero
+      do i = 0, n
+        exponential_integral = exponential_integral + (-x)**i / (faculty(i + 1) * (i + 1))
+      enddo
+    end function
 
     function compute_volume(p1, p2, p3, p4, sundir, origin, normal)
       real(ireals), intent(in), dimension(3) :: p1, p2, p3, p4, origin, normal, sundir
