@@ -1532,122 +1532,124 @@ contains
     end subroutine
 
     subroutine correct_coeffs( &
-        f1_dst, f2_dst, f3_dst, f4_dst, f5_dst, f6_dst, &
-        v1_dst, v2_dst, v3_dst, v4_dst, &
+        f1, f2, f3, f4, f5, f6, &
+        v1, v2, v3, v4, &
         extinction_coeff, slice, coeffs &
         )
       real(ireals), intent(in) :: extinction_coeff
       real(ireals), intent(in), dimension(3) ::  &
-        f1_dst, f2_dst, f3_dst, f4_dst, f5_dst, f6_dst, v1_dst, v2_dst, v3_dst, v4_dst
+        f1, f2, f3, f4, f5, f6, v1, v2, v3, v4
       integer(iintegers), intent(in) :: slice(3)
       real(irealLUT), intent(inout) :: coeffs(9)
       real(ireals) :: &
-        area1_dst, area2_dst, area3_dst, area_total_src_dst, areas_dst(3), &
-        s1_dst, s2_dst, s3_dst, f, sin_theta
+        area1, area2, area3, area_total_src, areas(3), &
+        s1, s2, s3, sin_theta
       real(ireals), dimension(3) :: &
-        p1l_dst, p1b_dst, p2l_dst, p2t_dst, p3r_dst, p3t_dst, p3l_dst, p4r_dst, p4b_dst, p1t_dst, p2b_dst, p3b_dst, p4t_dst, &
-        v1_dst_p, n_dst
+        p1l, p1b, p2l, p2t, p3r, p3t, p3l, p4r, p4b, p1t, p2b, p3b, p4t, &
+        v1_p, n
 
       call proj_vars_to_edges( &
-        f1_dst, f2_dst, f3_dst, f4_dst, &
-        v1_dst, v2_dst, v3_dst, v4_dst, &
-        p1l_dst, p1b_dst, p1t_dst, &
-        p2l_dst, p2t_dst, p2b_dst, &
-        p3r_dst, p3t_dst, p3b_dst, p3l_dst, &
-        p4r_dst, p4b_dst, p4t_dst &
+        f1, f2, f3, f4, &
+        v1, v2, v3, v4, &
+        p1l, p1b, p1t, &
+        p2l, p2t, p2b, &
+        p3r, p3t, p3b, p3l, &
+        p4r, p4b, p4t &
         )
 
-      area_total_src_dst = quadrangle_area_by_vertices(f1_dst, f2_dst, f3_dst, f4_dst)
+      area_total_src = quadrangle_area_by_vertices(f1, f2, f3, f4)
 
-      area2_dst = compute_quadrangle_areas( &
-        v1_dst, p1b_dst, f2_dst, f1_dst, &
-        v2_dst, p2t_dst, f1_dst, f2_dst, &
-        v3_dst, p3t_dst, f4_dst, f3_dst, &
-        v4_dst, p4b_dst, f4_dst, f3_dst  &
+      area2 = compute_quadrangle_areas( &
+        v1, p1b, f2, f1, &
+        v2, p2t, f1, f2, &
+        v3, p3t, f4, f3, &
+        v4, p4b, f4, f3  &
         )
-      area3_dst = compute_pentagon_areas( &
-        v1_dst, p1l_dst, f4_dst, p1t_dst, f1_dst, &
-        v2_dst, f2_dst, p2b_dst, f3_dst, p2l_dst, &
-        v3_dst, p3r_dst, f2_dst, p3b_dst, f3_dst, &
-        v4_dst, f4_dst, p4t_dst, f1_dst, p4r_dst  &
+      area3 = compute_pentagon_areas( &
+        v1, p1l, f4, p1t, f1, &
+        v2, f2, p2b, f3, p2l, &
+        v3, p3r, f2, p3b, f3, &
+        v4, f4, p4t, f1, p4r  &
         )
-      area1_dst = area_total_src_dst - area2_dst - area3_dst
+      area1 = area_total_src - area2 - area3
 
-      n_dst = compute_normal_3d(f5_dst, f2_dst, f3_dst)
-      v1_dst_p = v1_dst + hit_plane(v1_dst, sundir, f5_dst, compute_normal_3d(f5_dst, f2_dst, f3_dst)) * sundir
+      n = compute_normal_3d(f5, f2, f3)
+      v1_p = v1 + hit_plane(v1, sundir, f5, compute_normal_3d(f5, f2, f3)) * sundir
 
 
       ! WORKS
-      s1_dst =  norm2(f1_dst - (f1_dst + hit_plane(f1_dst, sundir, f5_dst, compute_normal_3d(f1_dst, f2_dst, f3_dst)) * sundir))
+      s1 =  norm2(f1 - (f1 + hit_plane(f1, sundir, f5, compute_normal_3d(f1, f2, f3)) * sundir))
 
-      area1_dst = area1_dst * exp( - extinction_coeff * s1_dst)
-      print *, 'area3', area3_dst
+      area1 = area1 * exp( - extinction_coeff * s1)
+      print *, 'area3', area3
 
-      area2_dst = compute_quadrangle_areas( &
-        v1_dst, p1b_dst, f2_dst, f1_dst, &
-        v2_dst, p2t_dst, f1_dst, f2_dst, &
-        v3_dst, p3t_dst, f4_dst, f3_dst, &
-        v4_dst, p4b_dst, f4_dst, f3_dst  &
+      area2 = compute_quadrangle_areas( &
+        v1, p1b, f2, f1, &
+        v2, p2t, f1, f2, &
+        v3, p3t, f4, f3, &
+        v4, p4b, f4, f3  &
         )
 
-      s2_dst = norm2(v3_dst - f6_dst)
-      print *, 'the max dist', s2_dst
-      print *, 'the points', v3_dst
-      print *, 'the area', triangle_area_by_vertices(v3_dst, f3_dst, p3l_dst)
-      !area2_dst = quadrangle_area_by_vertices(v3_dst, p3l_dst, f4_dst, p3t_dst) * (one - exp( - extinction_coeff * &
-      !  s2_dst)) / (extinction_coeff * s2_dst) + &
-      !  triangle_area_by_vertices(v3_dst, f3_dst, p3l_dst) * (one - exp( - extinction_coeff * s2_dst) * (v3_dst(2) / s2_dst) / &
-      !  (extinction_coeff * v3_dst(2)) * v3_dst(3))
 
-      !area3_dst = compute_pentagon_areas( &
-      !  v1_dst, p1l_dst, f4_dst, p1t_dst, f1_dst, &
-      !  v2_dst, f2_dst, p2b_dst, f3_dst, p2l_dst, &
-      !  v3_dst, p3r_dst, f2_dst, p3b_dst, f3_dst, &
-      !  v4_dst, f4_dst, p4t_dst, f1_dst, p4r_dst  &
+
+      !area3 = compute_pentagon_areas( &
+      !  v1, p1l, f4, p1t, f1, &
+      !  v2, f2, p2b, f3, p2l, &
+      !  v3, p3r, f2, p3b, f3, &
+      !  v4, f4, p4t, f1, p4r  &
       !  )
-      s3_dst = norm2(v3_dst - (v3_dst + hit_plane(v3_dst, sundir, f5_dst, compute_normal_3d(f2_dst, f5_dst, f3_dst)) * sundir))
-      print *, 'v3_rp', (v3_dst + hit_plane(v3_dst, sundir, f5_dst, compute_normal_3d(f2_dst, f5_dst, f3_dst)) * sundir)
-      !area3_dst = quadrangle_area_by_vertices(v3_dst, p3r_dst, f2_dst, p3b_dst) * (one - exp( - extinction_coeff * s3_dst)) / &
-      !  (extinction_coeff * s3_dst) + &
-      !  !norm2(p3r_dst - f5_dst))) / (extinction_coeff * norm2(p3r_dst - f5_dst)) + &
-      !  triangle_area_by_vertices(v3_dst, p3b_dst, f3_dst) * (one - exp( - extinction_coeff * s3_dst) * (v3_dst(3) / s3_dst) / &
-      !  (extinction_coeff * v3_dst(3)) * v3_dst(2))
+      !area3 = quadrangle_area_by_vertices(v3, p3r, f2, p3b) * (one - exp( - extinction_coeff * s3)) / &
+      !  (extinction_coeff * s3) + &
+      !  !norm2(p3r - f5))) / (extinction_coeff * norm2(p3r - f5)) + &
+      !  triangle_area_by_vertices(v3, p3b, f3) * (one - exp( - extinction_coeff * s3) * (v3(3) / s3) / &
+      !  (extinction_coeff * v3(3)) * v3(2))
 
+      print *, 'v3', v3
       associate ( &
-          y => v3_dst(2), &
-          z => v3_dst(3)  &
+          y => v3(2), &
+          z => v3(3)  &
           )
+
+        sin_theta = sin(abs(atan(sundir(2) / sqrt(sundir(1)**2 + sundir(3)**2))))
+        s2 = norm2(v3 - f6)! (v3 + hit_plane(v3, sundir, f6, compute_normal_3d(f3, f6, f4) * sundir)))
+        area2 = &
+          quadrangle_area_by_vertices(v3, p3l, f4, p3t) * &
+          (one - exp( - extinction_coeff * s2)) / (extinction_coeff * s2) + &
+          num(z, y, extinction_coeff, sin_theta)
+
+!        triangle_area_by_vertices(v3, f3, p3l) * (one - exp( - extinction_coeff * s2) * (v3(2) / s2) / &
+!        (extinction_coeff * v3(2)) * v3(3))
+
+
         sin_theta = sin(abs(atan(sundir(3) / sqrt(sundir(1)**2 + sundir(2)**2))))
-        print *, '90 - sza', abs(atan(sundir(3) / ( sqrt(sundir(1)**2 + sundir(2)**2)))) * 180._ireals / 3.14_ireals
-        f = extinction_coeff * z / sin_theta
-        print *, 'f', f
-        area3_dst = &
-          quadrangle_area_by_vertices(v3_dst, p3r_dst, f2_dst, p3b_dst) * &
-          (one - exp(- extinction_coeff * s3_dst)) / (extinction_coeff * s3_dst) + &
-          !triangle_area_by_vertices(v3_dst, p3b_dst, f3_dst) * exponential_integral(f) * sin(deg2rad(87.1376_ireals))
+        s3 = norm2(v3 - (v3 + hit_plane(v3, sundir, f5, compute_normal_3d(f2, f5, f3)) * sundir))
+        area3 = &
+          quadrangle_area_by_vertices(v3, p3r, f2, p3b) * &
+          (one - exp(- extinction_coeff * s3)) / (extinction_coeff * s3) + &
           num(y, z, extinction_coeff, sin_theta)
-          print *, 'area', triangle_area_by_vertices(v3_dst, p3b_dst, f3_dst)
-          print *, 'expint', exponential_integral(f)
+        !f = extinction_coeff * z / sin_theta
+          !triangle_area_by_vertices(v3, p3b, f3) * exponential_integral(f) * sin(deg2rad(87.1376_ireals))
+
       end associate
 
-      areas_dst = max([area1_dst, area2_dst, area3_dst], zero)
+      areas = max([area1, area2, area3], zero)
 
-      coeffs(slice) = real(areas_dst / area_total_src_dst, irealLUT)
+      coeffs(slice) = real(areas / area_total_src, irealLUT)
 
     end subroutine
 
-    function num(y0, z0, extinction_coeff, sin_theta)
-      real(ireals), intent(in) :: y0, z0, extinction_coeff, sin_theta
-      integer(mpiint), parameter :: n = 2
+    function num(l0, h0, extinction_coeff, sin_theta)
+      real(ireals), intent(in) :: l0, h0, extinction_coeff, sin_theta
+      integer(mpiint), parameter :: n = 20
       integer(mpiint) :: i
-      real(ireals) :: dy, num, y, z
+      real(ireals) :: dl, num, l, h
 
-      dy = y0 / n
+      dl = l0 / n
       num = zero
       do i=1,n
-        y = (i-0.5_ireals) * dy
-        z = y * z0 / y0
-        num = num + dy * f(z, extinction_coeff, sin_theta)
+        l = (i - 0.5_ireals) * dl
+        h = l * h0 / l0
+        num = num + dl * f(h, extinction_coeff, sin_theta)
       enddo
     end function
 
