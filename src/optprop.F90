@@ -1516,19 +1516,18 @@ contains
     subroutine proj_vars_to_edges( &
         f1, f2, f3, f4, &
         v1, v2, v3, v4, &
-        p1l, p1b, p1t, &
-        p2l, p2t, p2b, &
+        p1l, p1b, p1t, p1r, &
+        p2l, p2t, p2b, p2r, &
         p3r, p3t, p3b, p3l, &
-        p4r, p4b, p4t &
+        p4r, p4b, p4t, p4l  &
         )
       real(ireals), intent(in), dimension(3) :: f1, f2, f3, f4, v1, v2, v3, v4
-      real(ireals), intent(out), dimension(3) :: p1l, p1b, p1t, p2l, p2t, p2b, p3r, p3t, p3b, p3l, p4r, p4b, p4t
-      real(ireals), dimension(3) :: dummy
+      real(ireals), intent(out), dimension(3) :: p1l, p1b, p1t, p1r, p2l, p2t, p2b, p2r, p3r, p3t, p3b, p3l, p4r, p4b, p4t, p4l
 
-      call proj_var_to_edges(f1, f2, f3, f4, v1, p1l, p1b, p1t, dummy)
-      call proj_var_to_edges(f2, f1, f4, f3, v2, p2l, p2t, p2b, dummy)
+      call proj_var_to_edges(f1, f2, f3, f4, v1, p1l, p1b, p1t, p1r)
+      call proj_var_to_edges(f2, f1, f4, f3, v2, p2l, p2t, p2b, p2r)
       call proj_var_to_edges(f4, f3, f2, f1, v3, p3r, p3b, p3t, p3l)
-      call proj_var_to_edges(f4, f3, f2, f1, v4, p4r, p4b, p4t, dummy)
+      call proj_var_to_edges(f4, f3, f2, f1, v4, p4r, p4b, p4t, p4l)
     end subroutine
 
     subroutine correct_coeffs( &
@@ -1543,18 +1542,18 @@ contains
       real(irealLUT), intent(inout) :: coeffs(9)
       real(ireals) :: &
         area1, area2, area3, area_total_src, areas(3), &
-        s1, s2, s3, sin_theta
+        s1, s21, s22, s23, s24, s31, s32, s33, s34, sin_theta
       real(ireals), dimension(3) :: &
-        p1l, p1b, p2l, p2t, p3r, p3t, p3l, p4r, p4b, p1t, p2b, p3b, p4t, &
+        p1l, p1b, p1t, p1r, p2l, p2t, p2b, p2r, p3r, p3t, p3b, p3l, p4r, p4b, p4t, p4l, &
         v1_p, n
 
       call proj_vars_to_edges( &
         f1, f2, f3, f4, &
         v1, v2, v3, v4, &
-        p1l, p1b, p1t, &
-        p2l, p2t, p2b, &
+        p1l, p1b, p1t, p1r, &
+        p2l, p2t, p2b, p2r, &
         p3r, p3t, p3b, p3l, &
-        p4r, p4b, p4t &
+        p4r, p4b, p4t, p4l  &
         )
 
       area_total_src = quadrangle_area_by_vertices(f1, f2, f3, f4)
@@ -1577,11 +1576,9 @@ contains
       v1_p = v1 + hit_plane(v1, sundir, f5, compute_normal_3d(f5, f2, f3)) * sundir
 
 
-      ! WORKS
       s1 =  norm2(f1 - (f1 + hit_plane(f1, sundir, f5, compute_normal_3d(f1, f2, f3)) * sundir))
 
       area1 = area1 * exp( - extinction_coeff * s1)
-      print *, 'area3', area3
 
       area2 = compute_quadrangle_areas( &
         v1, p1b, f2, f1, &
@@ -1604,33 +1601,64 @@ contains
       !  triangle_area_by_vertices(v3, p3b, f3) * (one - exp( - extinction_coeff * s3) * (v3(3) / s3) / &
       !  (extinction_coeff * v3(3)) * v3(2))
 
+      print *, 'v1', v1
+      print *, 'v2', v2
       print *, 'v3', v3
-      associate ( &
-          y => v3(2), &
-          z => v3(3)  &
-          )
+      print *, 'v4', v4
 
-        sin_theta = sin(abs(atan(sundir(2) / sqrt(sundir(1)**2 + sundir(3)**2))))
-        s2 = norm2(v3 - f6)! (v3 + hit_plane(v3, sundir, f6, compute_normal_3d(f3, f6, f4) * sundir)))
-        area2 = &
-          quadrangle_area_by_vertices(v3, p3l, f4, p3t) * &
-          (one - exp( - extinction_coeff * s2)) / (extinction_coeff * s2) + &
-          num(z, y, extinction_coeff, sin_theta)
+      sin_theta = sin(abs(atan(sundir(2) / sqrt(sundir(1)**2 + sundir(3)**2))))
 
-!        triangle_area_by_vertices(v3, f3, p3l) * (one - exp( - extinction_coeff * s2) * (v3(2) / s2) / &
-!        (extinction_coeff * v3(2)) * v3(3))
+      s21 = norm2(v1 - f5)! (v3 + hit_plane(v3, sundir, f6, compute_normal_3d(f3, f6, f4) * sundir)))
+      s22 = norm2(v2 - f5)! (v3 + hit_plane(v3, sundir, f6, compute_normal_3d(f3, f6, f4) * sundir)))
+      s23 = norm2(v3 - f6)! (v3 + hit_plane(v3, sundir, f6, compute_normal_3d(f3, f6, f4) * sundir)))
+      s24 = norm2(v4 - f6)! (v3 + hit_plane(v3, sundir, f6, compute_normal_3d(f3, f6, f4) * sundir)))
+
+      area2 = max( &
+        quadrangle_area_by_vertices(v1, p1r, f2, p1b) * &
+        (one - exp( - extinction_coeff * s21)) / max(tiny(area2), (extinction_coeff * s21)) + &
+        num(f1(3) - v1(3), f1(2) - v1(2), extinction_coeff, sin_theta) &
+        , &
+        quadrangle_area_by_vertices(v2, p2r, f1, p2t) * &
+        (one - exp( - extinction_coeff * s22)) / max(tiny(area2), (extinction_coeff * s22)) + &
+        num(v2(3), f2(2) - v2(2), extinction_coeff, sin_theta) &
+        , &
+        quadrangle_area_by_vertices(v3, p3l, f4, p3t) * &
+        (one - exp( - extinction_coeff * s23)) / max(tiny(area2), (extinction_coeff * s23)) + &
+        num(v3(3), v3(2), extinction_coeff, sin_theta) &
+        , &
+        quadrangle_area_by_vertices(v4, p4l, f3, p4b) * &
+        (one - exp( - extinction_coeff * s24)) / max(tiny(area2), (extinction_coeff * s24)) + &
+        num(f4(3) - v4(3), v4(2), extinction_coeff, sin_theta) &
+        )
+
+      !        triangle_area_by_vertices(v3, f3, p3l) * (one - exp( - extinction_coeff * s2) * (v3(2) / s2) / &
+      !        (extinction_coeff * v3(2)) * v3(3))
 
 
-        sin_theta = sin(abs(atan(sundir(3) / sqrt(sundir(1)**2 + sundir(2)**2))))
-        s3 = norm2(v3 - (v3 + hit_plane(v3, sundir, f5, compute_normal_3d(f2, f5, f3)) * sundir))
-        area3 = &
-          quadrangle_area_by_vertices(v3, p3r, f2, p3b) * &
-          (one - exp(- extinction_coeff * s3)) / (extinction_coeff * s3) + &
-          num(y, z, extinction_coeff, sin_theta)
-        !f = extinction_coeff * z / sin_theta
-          !triangle_area_by_vertices(v3, p3b, f3) * exponential_integral(f) * sin(deg2rad(87.1376_ireals))
+      sin_theta = sin(abs(atan(sundir(2) / sqrt(sundir(1)**2 + sundir(3)**2))))
 
-      end associate
+      a31 = norm2(v1 - (v1 + hit_plane(v1, sundir, f1, compute_normal_3d(f3, f2, f5)) * sundir))
+      s32 = norm2(v2 - (v2 + hit_plane(v2, sundir, f2, compute_normal_3d(f3, f2, f5)) * sundir))
+      s33 = norm2(v3 - (v3 + hit_plane(v3, sundir, f3, compute_normal_3d(f3, f2, f5)) * sundir))
+      s34 = norm2(v4 - (v4 + hit_plane(v4, sundir, f4, compute_normal_3d(f3, f2, f5)) * sundir))
+
+      area3 = max( &
+        quadrangle_area_by_vertices(v1, p1l, f4, p1t) * &
+        (one - exp( - extinction_coeff * s31)) / max(tiny(area3), (extinction_coeff * s31)) + &
+        num(f1(3) - v1(3), f1(2) - v1(2), extinction_coeff, sin_theta) &
+        , &
+        quadrangle_area_by_vertices(v2, p2l, f3, p2b) * &
+        (one - exp(- extinction_coeff * s32)) / max(tiny(area3), (extinction_coeff * s32)) + &
+        num(v2(3), f2(2) - v2(2), extinction_coeff, sin_theta) &
+        , &
+        quadrangle_area_by_vertices(v3, p3r, f2, p3b) * &
+        (one - exp(- extinction_coeff * s33)) / max(tiny(area3), (extinction_coeff * s33)) + &
+        num(v3(3), v3(2), extinction_coeff, sin_theta) &
+        , &
+        quadrangle_area_by_vertices(v4, p4r, f1, p4t) * &
+        (one - exp( - extinction_coeff * s34)) / max(tiny(area3), (extinction_coeff * s34)) + &
+        num(f4(3) - v4(3), v4(2), extinction_coeff, sin_theta) &
+        )
 
       areas = max([area1, area2, area3], zero)
 
@@ -1644,11 +1672,11 @@ contains
       integer(mpiint) :: i
       real(ireals) :: dl, num, l, h
 
-      dl = l0 / n
+      dl = max(tiny(dl), l0 / n)
       num = zero
       do i=1,n
         l = (i - 0.5_ireals) * dl
-        h = l * h0 / l0
+        h = l * max(h0, zero) / max(tiny(l0), l0)
         num = num + dl * f(h, extinction_coeff, sin_theta)
       enddo
     end function
@@ -1656,7 +1684,7 @@ contains
     real(ireals) function f(z, extinction_coeff, sin_theta)
       real(ireals), intent(in) :: z, extinction_coeff, sin_theta
 
-      f = z * (one - exp(-extinction_coeff * z / sin_theta)) / (extinction_coeff * z / sin_theta)
+      f = z * (one - exp(-extinction_coeff * z / sin_theta)) / max(tiny(f), (extinction_coeff * z / sin_theta))
     end function
 
     function faculty(n)
