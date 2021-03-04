@@ -1435,18 +1435,6 @@ contains
       f_p_dst , b_p_dst , a_p_dst , e_p_dst,     & ! projected_dst
       optical_props(1), [9      , 6       , 3]      , coeffs       & ! slice of relevant coefficients , and coefficient array
       )
-    !call correct_coeffs( &
-    !  e_dst   , a_dst   , b_dst   , f_dst,    c_dst, d_dst, & ! fixed_dst
-    !  g_p_dst , c_p_dst , d_p_dst , h_p_dst,     & ! projected_dst
-    !  optical_props(1), [9      , 6       , 3]      , coeffs       & ! slice of relevant coefficients , and coefficient array
-    !  )
-
-    !call correct_coeffs( &
-    !  e_dst   , a_dst   , b_dst   , f_dst,    c_dst, & ! fixed_dst
-    !  g_p_dst , c_p_dst , d_p_dst , h_p_dst,     & ! projected_dst
-    !  [9      , 6       , 3]      , coeffs       & ! slice of relevant coefficients , and coefficient array
-    !  )
-    !call correct_coeffs(f, b, a, e, h_p, d_p, c_p, g_p, h, d, c, g, [9,6,3], coeffs)
   end associate
 
   contains
@@ -1557,6 +1545,7 @@ contains
       real(ireals), dimension(3) :: &
         p1l, p1b, p1t, p1r, p2l, p2t, p2b, p2r, p3r, p3t, p3b, p3l, p4r, p4b, p4t, p4l, &
         v1_p, n
+      integer(iintegers) :: coord_is(3)
 
       call proj_vars_to_edges( &
         f1, f2, f3, f4, &
@@ -1649,10 +1638,21 @@ contains
       !print *, 's23', s23
       !print *, 's24', s24
 
-      !sin_theta = sin(abs(atan(sundir(2) / sqrt(sundir(1)**2 + sundir(3)**2)))) ! src x
-      sin_theta = max(sin(abs(atan(sundir(1) / sqrt(sundir(2)**2 + sundir(3)**2)))), tiny(sin_theta)) ! src y
+
+
+      ! coefficient indice to x y z coord indice:
+      ! [7, 8, 9] -> 1
+      ! [4, 5, 6] -> 2
+      ! [1, 2, 3] -> 3
+
+
       !sin_theta = max(sin(abs(atan(sundir(3) / sqrt(sundir(1)**2 + sundir(2)**2)))), tiny(sin_theta)) ! src z
+      !sin_theta = sin(abs(atan(sundir(2) / sqrt(sundir(3)**2 + sundir(1)**2)))) ! src x
+      sin_theta = max(sin(abs(atan(sundir(1) / sqrt(sundir(2)**2 + sundir(3)**2)))), tiny(sin_theta)) ! src y
       print *, 'sintheta', sin_theta
+
+      call coeff_i_2_coord_i(slice, coord_is)
+      print *, 'coord is', coord_is
 
       s31 = norm2(v1 - (v1 + hit_plane(v1, sundir, f1, compute_normal_3d(f3, f2, f5)) * sundir))
       s32 = norm2(v2 - (v2 + hit_plane(v2, sundir, f2, compute_normal_3d(f3, f2, f5)) * sundir))
@@ -1716,6 +1716,20 @@ contains
 
       coeffs(slice) = real(areas / area_total_src, irealLUT)
 
+    end subroutine
+
+
+
+      ! coefficient indice to x y z coord indice:
+      ! [7, 8, 9] -> 1
+      ! [4, 5, 6] -> 2
+      ! [1, 2, 3] -> 3
+
+    subroutine coeff_i_2_coord_i(coeff_is, coord_is)
+      integer(mpiint), intent(in) :: coeff_is(3)
+      integer(mpiint), intent(out) :: coord_is(3)
+
+      coord_is = - int(real(coeff_is - 1, ireals) / 3._ireals) + 3
     end subroutine
 
     function num(l0, h0, extinction_coeff, sin_theta)
