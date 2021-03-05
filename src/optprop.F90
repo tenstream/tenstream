@@ -1343,99 +1343,63 @@ contains
 
   end subroutine dir2dir3_coeff_corr_zy
 
-  subroutine dir2dir3_coeff_corr(verts_reg, verts_dst, sundir, optical_props, coeffs)
+  subroutine dir2dir3_coeff_corr(verts, sundir, optical_props, coeffs)
     real(irealLUT), intent(inout) :: coeffs(9)
-    real(ireals), intent(in) :: verts_reg(24), verts_dst(24), sundir(3), optical_props(3)
-    real(ireals), dimension(3) :: &
-      c_p_reg, d_p_reg, b_p_reg, a_p_reg, h_p_reg, f_p_reg, g_p_reg, &
-      c_p_dst, d_p_dst, b_p_dst, a_p_dst, h_p_dst, f_p_dst, e_p_dst
+    real(ireals), intent(in) :: verts(24), sundir(3), optical_props(3)
+    real(ireals), dimension(3) :: d_p, b_p, a_p, h_p, f_p, e_p, g_p
 
     associate ( &
-      a_dst => verts_dst( 1: 3), &
-      b_dst => verts_dst( 4: 6), &
-      c_dst => verts_dst( 7: 9), &
-      d_dst => verts_dst(10:12), &
-      e_dst => verts_dst(13:15), &
-      f_dst => verts_dst(16:18), &
-      g_dst => verts_dst(19:21), &
-      h_dst => verts_dst(22:24), &
-      a_reg => verts_reg( 1: 3), &
-      b_reg => verts_reg( 4: 6), &
-      c_reg => verts_reg( 7: 9), &
-      d_reg => verts_reg(10:12), &
-      e_reg => verts_reg(13:15), &
-      f_reg => verts_reg(16:18), &
-      g_reg => verts_reg(19:21), &
-      h_reg => verts_reg(22:24)  &
+      a => verts( 1: 3), &
+      b => verts( 4: 6), &
+      c => verts( 7: 9), &
+      d => verts(10:12), &
+      e => verts(13:15), &
+      f => verts(16:18), &
+      g => verts(19:21), &
+      h => verts(22:24)  &
       )
 
-    print *, 'a_reg', a_reg
-    print *, 'b_reg', b_reg
-    print *, 'c_reg', c_reg
-    print *, 'd_reg', d_reg
-    print *, 'e_reg', e_reg
-    print *, 'f_reg', f_reg
-    print *, 'g_reg', g_reg
-    print *, 'h_reg', h_reg
-
-    print *, '____________________________'
-
-    print *, 'a_dst', a_dst
-    print *, 'b_dst', b_dst
-    print *, 'c_dst', c_dst
-    print *, 'd_dst', d_dst
-    print *, 'e_dst', e_dst
-    print *, 'f_dst', f_dst
-    print *, 'g_dst', g_dst
-    print *, 'h_dst', h_dst
+    print *, 'a', a
+    print *, 'b', b
+    print *, 'c', c
+    print *, 'd', d
+    print *, 'e', e
+    print *, 'f', f
+    print *, 'g', g
+    print *, 'h', h
 
     if (lDEBUG_geometric_coeff_correction) print *, 'sundir', sundir
 
     coeffs=0._irealLUT
 
     if(lDEBUG_geometric_coeff_correction) print *, 'src z'
-    call create_proj_copies(c_dst, d_dst, b_dst, a_dst, c_p_dst, d_p_dst, b_p_dst, a_p_dst)
-    call create_proj_copies(c_reg, d_reg, b_reg, a_reg, c_p_reg, d_p_reg, b_p_reg, a_p_reg)
-
-    call project_points(sundir, h_dst, compute_normal_3d(g_dst, h_dst, f_dst), c_p_dst, d_p_dst, b_p_dst, a_p_dst)
-    call rearange_projections(h_dst, f_dst, e_dst, g_dst, d_p_dst, b_p_dst, a_p_dst, c_p_dst)
-    call project_points(sundir, h_reg, compute_normal_3d(g_reg, h_reg, f_reg), c_p_reg, d_p_reg, b_p_reg, a_p_reg)
-    call rearange_projections(h_reg, f_reg, e_reg, g_reg, d_p_reg, b_p_reg, a_p_reg, c_p_reg)
-
+    call create_proj_copies(h, g, e, f, h_p, g_p, e_p, f_p)
+    call project_points(sundir, d, compute_normal_3d(d, b, a), h_p, g_p, e_p, f_p)
+    call rearange_projections(d, c, a, b, h_p, g_p, e_p, f_p)
     call correct_coeffs( &
-      h_dst   , f_dst   , e_dst   , g_dst,    b_dst, a_dst, & ! fixed_dst
-      d_p_dst , b_p_dst , a_p_dst , c_p_dst,     & ! projected_dst
-      optical_props(1), [1      , 4       , 7]      , coeffs       & ! slice of relevant coefficients , and coefficient array
+      d   , c   , a   , b,    g, e, & ! fixed
+      h_p , g_p , e_p , f_p,     & ! projected
+      optical_props(1), [1      , 7       , 4], [2, 3, 1]      , coeffs       & ! slice of relevant coefficients , and coefficient array
       )
 
     if (lDEBUG_geometric_coeff_correction)  print *, 'src x'
-    call create_proj_copies(h_dst, d_dst, b_dst, f_dst, h_p_dst, d_p_dst, b_p_dst, f_p_dst)
-    call create_proj_copies(h_reg, d_reg, b_reg, f_reg, h_p_reg, d_p_reg, b_p_reg, f_p_reg)
-
-    call project_points(sundir, a_dst, compute_normal_3d(c_dst, a_dst, e_dst), h_p_dst, d_p_dst, b_p_dst, f_p_dst)
-    call rearange_projections(g_dst, c_dst, a_dst, e_dst, h_p_dst, d_p_dst, b_p_dst, f_p_dst)
-    call project_points(sundir, a_reg, compute_normal_3d(c_reg, a_reg, e_reg), h_p_reg, d_p_reg, b_p_reg, f_p_reg)
-    call rearange_projections(g_reg, c_reg, a_reg, e_reg, h_p_reg, d_p_reg, b_p_reg, f_p_reg)
-
+    call create_proj_copies(h, d, b, f, h_p, d_p, b_p, f_p)
+    call project_points(sundir, a, compute_normal_3d(c, a, e), h_p, d_p, b_p, f_p)
+    call rearange_projections(g, c, a, e, h_p, d_p, b_p, f_p)
     call correct_coeffs( &
-      g_dst   , c_dst   , a_dst   , e_dst,    d_dst, b_dst, & ! fixed_dst
-      h_p_dst , d_p_dst , b_p_dst , f_p_dst,     & ! projected_dst
-      optical_props(1), [5      , 8       , 2]      , coeffs       & ! slice of relevant coefficients , and coefficient array
+      g   , c   , a   , e,    d, b, & ! fixed
+      h_p , d_p , b_p , f_p,     & ! projected
+      optical_props(1), [5      , 8       , 2], [2, 1, 3]      , coeffs       & ! slice of relevant coefficients , and coefficient array
       )
 
     if (lDEBUG_geometric_coeff_correction) print *, 'src y'
-    call create_proj_copies(f_dst, b_dst, a_dst, e_dst, f_p_dst, b_p_dst, a_p_dst, e_p_dst)
-    call create_proj_copies(g_reg, c_reg, d_reg, h_reg, g_p_reg, c_p_reg, d_p_reg, h_p_reg)
-
-    call project_points(sundir, d_dst, compute_normal_3d(c_dst, d_dst, h_dst), f_p_dst, b_p_dst, a_p_dst, e_p_dst)
-    call rearange_projections(h_dst, d_dst, c_dst, g_dst, f_p_dst, b_p_dst, a_p_dst, e_p_dst)
-    call project_points(sundir, b_reg, compute_normal_3d(a_reg, b_reg, f_reg), g_p_reg, c_p_reg, d_p_reg, h_p_reg)
-    call rearange_projections(f_reg, b_reg, a_reg, e_reg, h_p_reg, d_p_reg, c_p_reg, g_p_reg)
-
+    call create_proj_copies(f, b, a, e, f_p, b_p, a_p, e_p)
+    call project_points(sundir, d, compute_normal_3d(c, d, h), f_p, b_p, a_p, e_p)
+    call rearange_projections(h, d, c, g, f_p, b_p, a_p, e_p)
     call correct_coeffs( &
-      h_dst   , d_dst   , c_dst   , g_dst,    b_dst, a_dst, & ! fixed_dst
-      f_p_dst , b_p_dst , a_p_dst , e_p_dst,     & ! projected_dst
-      optical_props(1), [9      , 6       , 3]      , coeffs       & ! slice of relevant coefficients , and coefficient array
+      h   , d   , c   , g,    b, a, & ! fixed
+      f_p , b_p , a_p , e_p,     & ! projected
+      optical_props(1), [9      , 6       , 3], [1, 2, 3]      , coeffs       & ! slice of relevant coefficients , and coefficient array
       )
   end associate
 
@@ -1534,12 +1498,12 @@ contains
     subroutine correct_coeffs( &
         f1, f2, f3, f4, f5, f6, &
         v1, v2, v3, v4, &
-        extinction_coeff, slice, coeffs &
+        extinction_coeff, slice, other_slice, coeffs &
         )
       real(ireals), intent(in) :: extinction_coeff
       real(ireals), intent(in), dimension(3) ::  &
         f1, f2, f3, f4, f5, f6, v1, v2, v3, v4
-      integer(iintegers), intent(in) :: slice(3)
+      integer(iintegers), intent(in) :: slice(3), other_slice(3)
       real(irealLUT), intent(inout) :: coeffs(9)
       real(ireals) :: &
         area1, area2, area3, area_total_src, areas(3), &
@@ -1627,14 +1591,16 @@ contains
       !sin_theta = max(sin(abs(atan(sundir(1) / sqrt(sundir(2)**2 + sundir(3)**2)))), tiny(sin_theta)) ! src y
 
       call coeff_i_2_coord_i(slice, coord_is)
+      coord_is = other_slice
       print *, 'coord is', coord_is
       !sin_theta = max(sin(abs(atan(sundir(coord_is(1)) / sqrt(sundir(coord_is(2))**2 + sundir(coord_is(3))**2)))), tiny(sin_theta)) ! src y
 
       sin_theta = max(sin(abs(atan(sundir(coord_is(3)) / sqrt(sundir(coord_is(1))**2 + sundir(coord_is(2))**2)))), tiny(sin_theta))
 
       ! sin_theta for area3 (z -> y ; x -> z ; y -> x)
-      ! z: 
+      ! start WORKS
       sin_theta = max(sin(abs(atan(sundir(coord_is(3)) / sqrt(sundir(coord_is(1))**2 + sundir(coord_is(2))**2)))), tiny(sin_theta))
+      ! end WORKS
 
       s31 = norm2(v1 - (v1 + hit_plane(v1, sundir, f1, compute_normal_3d(f3, f2, f5)) * sundir))
       s32 = norm2(v2 - (v2 + hit_plane(v2, sundir, f2, compute_normal_3d(f3, f2, f5)) * sundir))
@@ -1647,29 +1613,41 @@ contains
         !num(f1(2) - v1(2), f1 (1) - v1(1), extinction_coeff, sin_theta) &! src z
         !num(f1(3) - v1(3), f1(2) - v1(2), extinction_coeff, sin_theta) & ! src x ; probably rather use f4(3) instead of f1(3)
         !num(f1(3) - v1(3), f1(1) - v1(1), extinction_coeff, sin_theta) & ! src y
-        num(f1(coord_is(2)) - v1(coord_is(2)), f1(coord_is(3)) - v1(coord_is(3)), extinction_coeff, sin_theta) & ! src y
+        num(f1(coord_is(1)) - v1(coord_is(1)), f1(coord_is(3)) - v1(coord_is(3)), extinction_coeff, sin_theta) & ! src y
         , &
         quadrangle_area_by_vertices(v2, p2l, f3, p2b) * &
         (one - exp(- extinction_coeff * s32)) / max(tiny(area3), (extinction_coeff * s32)) + &
         !num(v2(2), f2(1) - v2(1), extinction_coeff, sin_theta) & ! src z  wrong way around? rather v2(1), f2(2) - v2(2)
         !num(v2(3), f2(2) - v2(2), extinction_coeff, sin_theta) & ! src x
         !num(v2(3), f2(1) - v2(1), extinction_coeff, sin_theta) & ! src y
-        num(v2(coord_is(3)), f2(coord_is(2)) - v2(coord_is(2)), extinction_coeff, sin_theta) & ! src y
+        !num(v2(coord_is(3)), f2(coord_is(2)) - v2(coord_is(2)), extinction_coeff, sin_theta) & ! src y
+        ! WORKED
+        !num(f2(coord_is(1)) - v2(coord_is(1)), v2(coord_is(3)), extinction_coeff, sin_theta) &
+        !num(f2(coord_is(3)) - v2(coord_is(3)), v2(coord_is(2)), extinction_coeff, sin_theta) & ! z
+        num(f2(coord_is(1)) - v2(coord_is(1)), v2(coord_is(3)), extinction_coeff, sin_theta) & ! z
+
         , &
         quadrangle_area_by_vertices(v3, p3r, f2, p3b) * &
         (one - exp(- extinction_coeff * s33)) / max(tiny(area3), (extinction_coeff * s33)) + &
         !num(v3(2), v3(1), extinction_coeff, sin_theta) & ! src z
         !num(v3(3), v3(2), extinction_coeff, sin_theta) & ! src x ???
         !num(v3(3), v3(1), extinction_coeff, sin_theta) & ! src y ???
-        num(v3(coord_is(2)), v3(coord_is(3)), extinction_coeff, sin_theta) & ! src y
+        ! WORKED
+        !num(v3(coord_is(2)), v3(coord_is(3)), extinction_coeff, sin_theta) & ! src y
+        num(v3(coord_is(1)), v3(coord_is(3)), extinction_coeff, sin_theta) & ! src y
         , &
         quadrangle_area_by_vertices(v4, p4r, f1, p4t) * &
         (one - exp( - extinction_coeff * s34)) / max(tiny(area3), (extinction_coeff * s34)) + &
         !num(f4(2) - v4(2), v4(1), extinction_coeff, sin_theta) & ! src z
         !num(f4(3) - v4(3), v4(2), extinction_coeff, sin_theta) & ! src x
         !num(p4t(3) - v4(3), v4(1), extinction_coeff, sin_theta) & ! src y
-        num(f4(coord_is(2)) - v4(coord_is(2)), v4(coord_is(3)), extinction_coeff, sin_theta) & ! src y
+        !num(f4(coord_is(2)) - v4(coord_is(2)), v4(coord_is(3)), extinction_coeff, sin_theta) & ! src y
+        num(v4(coord_is(1)), f4(coord_is(3)) - v4(coord_is(3)), extinction_coeff, sin_theta) & ! src y
         )
+        print *, 'quad A', quadrangle_area_by_vertices(v2, p2l, f3, p2b)
+        print *, 'quad ext', (one - exp(- extinction_coeff * s32)) / max(tiny(area3), (extinction_coeff * s32))
+        print *, 'num v2', num(v2(coord_is(2)), f2(coord_is(1)) - v2(coord_is(1)), extinction_coeff, sin_theta)
+
 
       areas = max([area1, area2, area3], zero)
 
@@ -1687,13 +1665,8 @@ contains
     subroutine coeff_i_2_coord_i(coeff_is, coord_is)
       integer(mpiint), intent(in) :: coeff_is(3)
       integer(mpiint), intent(out) :: coord_is(3)
-      integer(mpiint) :: b, c
 
       coord_is = - int(real(coeff_is - 1, ireals) / 3._ireals) + 3
-      b = coord_is(2)
-      c = coord_is(3)
-      coord_is(2) = max(b, c)
-      coord_is(3) = min(b, c)
     end subroutine
 
     function num(l0, h0, extinction_coeff, sin_theta)
