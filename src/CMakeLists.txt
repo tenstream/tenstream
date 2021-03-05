@@ -75,6 +75,7 @@ set( optprop_sources
   "optprop_ANN.F90"
   "optprop_base.F90"
   "optprop.F90"
+  "geometric_coeffs.F90"
   )
 
 set( solver_sources
