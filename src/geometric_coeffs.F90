@@ -172,7 +172,7 @@ contains
       area2 = max( &
         quadrangle_area_by_vertices(v1, p1r, f2, p1b) * &
         (one - exp( - extinction_coeff * s21)) / max(tiny(area2), (extinction_coeff * s21)) + &
-        num(f1(3) - v1(3), f1(2) - v1(2), extinction_coeff, sin_theta) &
+        num(f1(coord_is(3)) - v1(coord_is(3)), f1(coord_is(1)) - v1(coord_is(1)), extinction_coeff, sin_theta) &
         , &
         quadrangle_area_by_vertices(v2, p2r, f1, p2t) * &
         (one - exp( - extinction_coeff * s22)) / max(tiny(area2), (extinction_coeff * s22)) + &
