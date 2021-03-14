@@ -107,8 +107,7 @@ contains
         area1, area2, area3, area_total_src, areas(3), &
         s1, s21, s22, s23, s24, s31, s32, s33, s34, sin_theta
       real(ireals), dimension(3) :: &
-        p1l, p1b, p1t, p1r, p2l, p2t, p2b, p2r, p3r, p3t, p3b, p3l, p4r, p4b, p4t, p4l, &
-        v1_p, n
+        p1l, p1b, p1t, p1r, p2l, p2t, p2b, p2r, p3r, p3t, p3b, p3l, p4r, p4b, p4t, p4l
       integer(iintegers) :: coord_is(3)
 
       call proj_vars_to_edges( &
@@ -136,9 +135,6 @@ contains
         )
       area1 = area_total_src - area2 - area3
 
-      n = compute_normal_3d(f5, f2, f3)
-      v1_p = v1 + hit_plane(v1, sundir, f5, compute_normal_3d(f5, f2, f3)) * sundir
-
 
       s1 =  norm2(f1 - (f1 + hit_plane(f1, sundir, f5, compute_normal_3d(f1, f2, f3)) * sundir))
 
@@ -153,13 +149,11 @@ contains
 
       print *, 'v1', v1
       print *, 'v2', v2
-      print *, 'v3', v3
+      print *, 'v3', v3, 'p3r', p3r
       print *, 'v4', v4
 
       coord_is = other_slice
 
-      !sin_theta = sin(abs(atan(sundir(2) / sqrt(sundir(1)**2 + sundir(3)**2)))) !x, z
-      !sin_theta = sin(abs(atan(sundir(1) / sqrt(sundir(3)**2 + sundir(2)**2))))  !y
       sin_theta = max(sin(abs(atan(sundir(coord_is(1)) / sqrt(sundir(coord_is(2))**2 + sundir(coord_is(3))**2)))), tiny(sin_theta))
 
       s21 = norm2(v1 - (v1 + hit_plane(v1, sundir, f1, compute_normal_3d(f1, f2, f5)) * sundir))
@@ -204,7 +198,7 @@ contains
         , &
         quadrangle_area_by_vertices(v3, p3r, f2, p3b) * &
         (one - exp(- extinction_coeff * s33)) / max(tiny(area3), (extinction_coeff * s33)) + &
-        num(v3(coord_is(1)), v3(coord_is(3)), extinction_coeff, sin_theta) &
+        num(norm2(p3b - f3), norm2(p3b - v3), extinction_coeff, sin_theta) &
         , &
         quadrangle_area_by_vertices(v4, p4r, f1, p4t) * &
         (one - exp( - extinction_coeff * s34)) / max(tiny(area3), (extinction_coeff * s34)) + &
