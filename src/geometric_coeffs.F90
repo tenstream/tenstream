@@ -143,6 +143,7 @@ contains
       s1 =  norm2(f1 - (f1 + hit_plane(f1, sundir, f5, compute_normal_3d(f1, f2, f3)) * sundir))
 
       area1 = area1 * exp( - extinction_coeff * s1)
+      area1 = 0._irealLUT
       print *, 'area', area1
 
       area2 = compute_quadrangle_areas( &
@@ -157,8 +158,11 @@ contains
       print *, 'v3', v3
       print *, 'v4', v4
 
-      sin_theta = sin(abs(atan(sundir(2) / sqrt(sundir(1)**2 + sundir(3)**2))))
-      sin_theta = max(sin(abs(atan(sundir(coord_is(3)) / sqrt(sundir(coord_is(1))**2 + sundir(coord_is(2))**2)))), tiny(sin_theta))
+      coord_is = other_slice
+
+      !sin_theta = sin(abs(atan(sundir(2) / sqrt(sundir(1)**2 + sundir(3)**2)))) !x, z
+      !sin_theta = sin(abs(atan(sundir(1) / sqrt(sundir(3)**2 + sundir(2)**2))))  !y
+      sin_theta = max(sin(abs(atan(sundir(coord_is(1)) / sqrt(sundir(coord_is(2))**2 + sundir(coord_is(3))**2)))), tiny(sin_theta))
 
       s21 = norm2(v1 - (v1 + hit_plane(v1, sundir, f1, compute_normal_3d(f1, f2, f5)) * sundir))
       s22 = norm2(v2 - (v2 + hit_plane(v2, sundir, f2, compute_normal_3d(f1, f2, f5)) * sundir))
@@ -172,23 +176,16 @@ contains
         , &
         quadrangle_area_by_vertices(v2, p2r, f1, p2t) * &
         (one - exp( - extinction_coeff * s22)) / max(tiny(area2), (extinction_coeff * s22)) + &
-        num(v2(3), f2(2) - v2(2), extinction_coeff, sin_theta) &
+        num(v2(coord_is(3)), f2(coord_is(1)) - v2(coord_is(1)), extinction_coeff, sin_theta) &
         , &
         quadrangle_area_by_vertices(v3, p3l, f4, p3t) * &
         (one - exp( - extinction_coeff * s23)) / max(tiny(area2), (extinction_coeff * s23)) + &
-        num(v3(3), v3(2), extinction_coeff, sin_theta) &
+        num(v3(coord_is(3)), v3(coord_is(1)), extinction_coeff, sin_theta) &
         , &
         quadrangle_area_by_vertices(v4, p4l, f3, p4b) * &
         (one - exp( - extinction_coeff * s24)) / max(tiny(area2), (extinction_coeff * s24)) + &
-        num(f4(3) - v4(3), v4(2), extinction_coeff, sin_theta) &
+        num(f4(coord_is(3)) - v4(coord_is(3)), v4(coord_is(1)), extinction_coeff, sin_theta) &
         )
-
-
-      !sin_theta = max(sin(abs(atan(sundir(3) / sqrt(sundir(1)**2 + sundir(2)**2)))), tiny(sin_theta)) ! src z
-      !sin_theta = sin(abs(atan(sundir(2) / sqrt(sundir(3)**2 + sundir(1)**2)))) ! src x
-      !sin_theta = max(sin(abs(atan(sundir(1) / sqrt(sundir(2)**2 + sundir(3)**2)))), tiny(sin_theta)) ! src y
-
-      coord_is = other_slice
 
       sin_theta = max(sin(abs(atan(sundir(coord_is(3)) / sqrt(sundir(coord_is(1))**2 + sundir(coord_is(2))**2)))), tiny(sin_theta))
       ! 90 - dotproduct(sundir, facenormal), (dot product = cos)
@@ -215,6 +212,7 @@ contains
         (one - exp( - extinction_coeff * s34)) / max(tiny(area3), (extinction_coeff * s34)) + &
         num(v4(coord_is(1)), f4(coord_is(3)) - v4(coord_is(3)), extinction_coeff, sin_theta) &
         )
+      area3 = 0._irealLUT
 
       areas = max([area1, area2, area3], zero)
 
