@@ -143,8 +143,6 @@ contains
       s1 =  norm2(f1 - (f1 + hit_plane(f1, sundir, f5, compute_normal_3d(f1, f2, f3)) * sundir))
 
       area1 = area1 * exp( - extinction_coeff * s1)
-      area1 = 0._irealLUT
-      print *, 'area', area1
 
       area2 = compute_quadrangle_areas( &
         v1, p1b, f2, f1, &
@@ -212,7 +210,6 @@ contains
         (one - exp( - extinction_coeff * s34)) / max(tiny(area3), (extinction_coeff * s34)) + &
         num(v4(coord_is(1)), f4(coord_is(3)) - v4(coord_is(3)), extinction_coeff, sin_theta) &
         )
-      area3 = 0._irealLUT
 
       areas = max([area1, area2, area3], zero)
 
