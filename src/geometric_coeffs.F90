@@ -107,7 +107,7 @@ contains
         area1, area2, area3, area_total_src, areas(3), &
         s1, s21, s22, s23, s24, s31, s32, s33, s34, sin_theta
       real(ireals), dimension(3) :: &
-        p1l, p1b, p1t, p1r, p2l, p2t, p2b, p2r, p3r, p3t, p3b, p3l, p4r, p4b, p4t, p4l, normal, p4n
+        p1l, p1b, p1t, p1r, p2l, p2t, p2b, p2r, p3r, p3t, p3b, p3l, p4r, p4b, p4t, p4l, normal, p4n, p2n
       integer(iintegers) :: coord_is(3)
       real(ireals) :: c, t
       integer(mpiint) :: ierr
@@ -185,11 +185,11 @@ contains
 
 
 
-      normal = compute_normal_3d(f3, f2, f5)
+      ! need normal top and normal bottom for not parallel bottom and top
+      normal = compute_normal_3d(f3, f2, f5) ! HERE is the PROBLEM only works for src y, not src x
       sin_theta = dot_product(normal, sundir)
       print *, 'sin', sin_theta
       !sin_theta = max(sin(abs(atan(sundir(coord_is(3)) / sqrt(sundir(coord_is(1))**2 + sundir(coord_is(2))**2)))), tiny(sin_theta))
-      print *, 'sin', sin_theta
       ! 90 - dotproduct(sundir, facenormal), (dot product = cos)
 
       s31 = norm2(v1 - (v1 + hit_plane(v1, sundir, f1, normal) * sundir))
@@ -199,6 +199,12 @@ contains
 
       call line_intersection_3d(v4, normal, f1, f4-f1, c, t, ierr)
       call rearange_point(v4, normal, c, p4n)
+
+      call line_intersection_3d(v2, normal, f2, f2-f3, c, t, ierr)
+      call rearange_point(v2, normal, c, p2n)
+      print *, 'normal', normal
+      print *, 'p2n', p2n
+      print *, 'p2b', p2b
       print *, 'p4n', p4n
 
       print *, 'coord_is', coord_is
@@ -210,8 +216,9 @@ contains
         , &
         quadrangle_area_by_vertices(v2, p2l, f3, p2b) * &
         (one - exp(- extinction_coeff * s32)) / max(tiny(area3), (extinction_coeff * s32)) + &
-        num(f2(coord_is(1)) - p2b(coord_is(1)), v2(coord_is(3)) - f2(coord_is(3)), p2b(coord_is(3)) - f2(coord_is(3)), &
-        extinction_coeff, sin_theta) &
+        !num(f2(coord_is(1)) - p2b(coord_is(1)), v2(coord_is(3)) - f2(coord_is(3)), p2b(coord_is(3)) - f2(coord_is(3)), &
+        sign(num(norm2(p2n - p2b), norm2(v2 - p2n), zero, extinction_coeff, sin_theta), p2n(coord_is(1)) - p2b(coord_is(1))) + &
+        num( norm2(p2b - f2), norm2(v2 - p2n), zero, extinction_coeff, sin_theta)   &
         , &
         quadrangle_area_by_vertices(v3, p3r, f2, p3b) * &
         (one - exp(- extinction_coeff * s33)) / max(tiny(area3), (extinction_coeff * s33)) + &
@@ -221,17 +228,18 @@ contains
         quadrangle_area_by_vertices(v4, p4r, f1, p4t) * &
         (one - exp( - extinction_coeff * s34)) / max(tiny(area3), (extinction_coeff * s34)) + &
         !num(v4(coord_is(1)) - f4(coord_is(1)), v4(coord_is(3)) - f4(coord_is(3)), p4t(coord_is(3)) - f4(coord_is(3)), &
-        num(norm2(p4n - p4t), norm2(v4 - p4n), zero, &!p4t(coord_is(3)) - f4(coord_is(3)), &
-        extinction_coeff, sin_theta) - &
-        num(norm2(p4n - f4), norm2(v4 - p4n), zero, &!p4t(coord_is(3)) - f4(coord_is(3)), &
-        extinction_coeff, sin_theta) &
+        num(norm2(p4n - p4t), norm2(v4 - p4n), zero, extinction_coeff, sin_theta) - &
+        num( norm2(p4n - f4), norm2(v4 - p4n), zero, extinction_coeff, sin_theta) &
         )
 
-        print *, 'quad', quadrangle_area_by_vertices(v4, p4r, f1, p4t)
-        print *, 'num+', num(norm2(p4n - p4t), v4(coord_is(3)) - p4n(coord_is(3)), p4t(coord_is(3)) - f4(coord_is(3)), &
-          extinction_coeff, sin_theta)
-        print *, 'num-',  num(norm2(p4n - f4), v4(coord_is(3)) - p4n(coord_is(3)), p4t(coord_is(3)) - f4(coord_is(3)), &
-          extinction_coeff, sin_theta)
+        print *, 'num +-', sign(num(norm2(p2n - p2b), norm2(v2 - p2n), zero, extinction_coeff, sin_theta), &
+          p2n(coord_is(1)) - p2b(coord_is(1)))
+        print *, 'num +', num( norm2(p2b - f2), norm2(v2 - p2n), zero, extinction_coeff, sin_theta)
+        !print *, 'quad', quadrangle_area_by_vertices(v4, p4r, f1, p4t)
+        !print *, 'num+', num(norm2(p4n - p4t), v4(coord_is(3)) - p4n(coord_is(3)), p4t(coord_is(3)) - f4(coord_is(3)), &
+        !  extinction_coeff, sin_theta)
+        !print *, 'num-',  num(norm2(p4n - f4), v4(coord_is(3)) - p4n(coord_is(3)), p4t(coord_is(3)) - f4(coord_is(3)), &
+        !  extinction_coeff, sin_theta)
 
       areas = max([area1, area2, area3], zero)
 
@@ -246,7 +254,7 @@ contains
       integer(iintegers) :: i
       real(ireals) :: dl, num, l, h
 
-      dl = max(tiny(dl), l0 / n)
+      dl = l0 / n
       num = zero
       do i=1,n
         l = (i - 0.5_ireals) * dl
