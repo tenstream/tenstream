@@ -21,7 +21,7 @@ module m_geometric_coeffs
 
 use m_data_parameters, only : irealLUT, ireals, mpiint, iintegers, zero, one
 use m_helper_functions, only : pentagon_area_by_vertices, quadrangle_area_by_vertices, &
-  triangle_area_by_vertices, compute_normal_3d
+  triangle_area_by_vertices, compute_normal_3d, cross_3d
 use m_intersection, only: hit_plane, line_intersection_3d
 
 implicit none
@@ -65,7 +65,7 @@ contains
     call project_points(sundir, d, compute_normal_3d(d, b, a), h_p, g_p, e_p, f_p)
     call rearange_projections(d, c, a, b, h_p, g_p, e_p, f_p)
     call correct_coeffs( &
-      d   , c   , a   , b,    g, e, & ! fixed
+      d   , c   , a   , b,    g, h, & ! fixed
       h_p , g_p , e_p , f_p,     & ! projected
       optical_props(1), [1      , 7       , 4], [2, 3, 1]      , coeffs       & ! slice of relevant coefficients , and coefficient array
       )
@@ -75,7 +75,7 @@ contains
     call project_points(sundir, a, compute_normal_3d(c, a, e), h_p, d_p, b_p, f_p)
     call rearange_projections(g, c, a, e, h_p, d_p, b_p, f_p)
     call correct_coeffs( &
-      g   , c   , a   , e,    d, b, & ! fixed
+      g   , c   , a   , e,    d, h, & ! fixed
       h_p , d_p , b_p , f_p,     & ! projected
       optical_props(1), [5      , 8       , 2], [2, 1, 3]      , coeffs       & ! slice of relevant coefficients , and coefficient array
       )
@@ -85,7 +85,7 @@ contains
     call project_points(sundir, d, compute_normal_3d(c, d, h), f_p, b_p, a_p, e_p)
     call rearange_projections(h, d, c, g, f_p, b_p, a_p, e_p)
     call correct_coeffs( &
-      h   , d   , c   , g,    b, a, & ! fixed
+      h   , d   , c   , g,    b, f, & ! fixed
       f_p , b_p , a_p , e_p,     & ! projected
       optical_props(1), [9      , 6       , 3], [1, 2, 3]      , coeffs       & ! slice of relevant coefficients , and coefficient array
       )
@@ -105,9 +105,12 @@ contains
       real(irealLUT), intent(inout) :: coeffs(9)
       real(ireals) :: &
         area1, area2, area3, area_total_src, areas(3), &
-        s1, s21, s22, s23, s24, s31, s32, s33, s34, sin_theta
+        s1, s21, s22, s23, s24, s31, s32, s33, s34, sin_theta, &
+        a31, a32, a33, a34, cos_src_sundir, cos_trgt_sundir
       real(ireals), dimension(3) :: &
-        p1l, p1b, p1t, p1r, p2l, p2t, p2b, p2r, p3r, p3t, p3b, p3l, p4r, p4b, p4t, p4l, normal, p4n, p2n
+        p1l, p1b, p1t, p1r, p2l, p2t, p2b, p2r, p3r, p3t, p3b, p3l, p4r, p4b, p4t, p4l, &
+        normal_top, normal_bot, p1n, p2n, p3n, p4n, &
+        p1rp, p2rp, p3rp, p4rp
       integer(iintegers) :: coord_is(3)
       real(ireals) :: c, t
       integer(mpiint) :: ierr
@@ -183,69 +186,128 @@ contains
         )
       area2 = 0._ireals
 
+      normal_top = compute_normal_3d(f4, f1, f6)
+      normal_bot = compute_normal_3d(f3, f2, f5) ! HERE is the PROBLEM only works for src y, not src x
 
-
-      ! need normal top and normal bottom for not parallel bottom and top
-      normal = compute_normal_3d(f3, f2, f5) ! HERE is the PROBLEM only works for src y, not src x
-      sin_theta = dot_product(normal, sundir)
-      print *, 'sin', sin_theta
+      !sin_theta = dot_product(normal, sundir)
       !sin_theta = max(sin(abs(atan(sundir(coord_is(3)) / sqrt(sundir(coord_is(1))**2 + sundir(coord_is(2))**2)))), tiny(sin_theta))
       ! 90 - dotproduct(sundir, facenormal), (dot product = cos)
 
-      s31 = norm2(v1 - (v1 + hit_plane(v1, sundir, f1, normal) * sundir))
-      s32 = norm2(v2 - (v2 + hit_plane(v2, sundir, f2, normal) * sundir))
-      s33 = norm2(v3 - (v3 + hit_plane(v3, sundir, f3, normal) * sundir))
-      s34 = norm2(v4 - (v4 + hit_plane(v4, sundir, f4, normal) * sundir))
 
-      call line_intersection_3d(v4, normal, f1, f4-f1, c, t, ierr)
-      call rearange_point(v4, normal, c, p4n)
+      call line_intersection_3d(v1, cross_3d(cross_3d(f1-f2, f1-f4), f1-f4), f1, f1-f4, c, t, ierr)
+      call rearange_point(v1, cross_3d(cross_3d(f1-f2, f1-f4), f1-f4), c, p1n)
 
-      call line_intersection_3d(v2, normal, f2, f2-f3, c, t, ierr)
-      call rearange_point(v2, normal, c, p2n)
-      print *, 'normal', normal
-      print *, 'p2n', p2n
-      print *, 'p2b', p2b
-      print *, 'p4n', p4n
+      call line_intersection_3d(v2, cross_3d(cross_3d(f1-f2, f3-f2), f3-f2), f2, f2-f3, c, t, ierr)
+      call rearange_point(v2, cross_3d(cross_3d(f1-f2, f3-f2), f3-f2), c, p2n)
 
+      call line_intersection_3d(v3, cross_3d(cross_3d(f1-f2, f3-f2), f3-f2), f2, f2-f3, c, t, ierr)
+      call rearange_point(v3, cross_3d(cross_3d(f1-f2, f3-f2), f3-f2), c, p3n)
+
+      call line_intersection_3d(v4, cross_3d(cross_3d(f1-f2, f1-f4), f1-f4), f1, f1-f4, c, t, ierr)
+      call rearange_point(v4, cross_3d(cross_3d(f1-f2, f1-f4), f1-f4), c, p4n)
+
+      p1rp = v1 + hit_plane(v1, sundir, f1, normal_bot) * sundir
+      p2rp = v2 + hit_plane(v2, sundir, f2, normal_top) * sundir
+      p3rp = v3 + hit_plane(v3, sundir, f3, normal_top) * sundir
+      p4rp = v4 + hit_plane(v4, sundir, f4, normal_bot) * sundir
+
+      a31 = norm2(p1n - p1rp)
+      a32 = norm2(p2n - p2rp)
+      a33 = norm2(p3n - p3rp)
+      a34 = norm2(p4n - p4rp)
+
+      cos_src_sundir = dot_product(f2 - f1, sundir) / norm2(f1 - f2)
+      cos_trgt_sundir = dot_product(p2rp - p2n, sundir) / max(tiny(f2), norm2(p2rp - f2) * norm2(sundir))
+      print *, 'coss', cos_src_sundir, cos_trgt_sundir
+
+
+      s31 = norm2(v1 - p1rp)
+      s32 = norm2(v2 - p2rp)
+      s33 = norm2(v3 - p3rp)
+      s34 = norm2(v4 - p4rp)
+
+      print *, 'p2, p2n', v2, p2n
       print *, 'coord_is', coord_is
       area3 = max( &
         quadrangle_area_by_vertices(v1, p1l, f4, p1t) * &
         (one - exp( - extinction_coeff * s31)) / max(tiny(area3), (extinction_coeff * s31)) + &
-        num(p1t(coord_is(1)) - f1(coord_is(1)), f1(coord_is(3)) - v1(coord_is(3)), p1t(coord_is(3)) - v1(coord_is(3)), &
-        extinction_coeff, sin_theta) &
+        sign(num_dst(norm2(p1n - p1t), norm2(v1 - p1n), a31, cos_trgt_sundir, cos_src_sundir, extinction_coeff), &
+          p1n(coord_is(1)) - p1t(coord_is(1))) + &
+        num_dst(norm2(p1t - f1), norm2(v1 - p1n), a31, cos_trgt_sundir, cos_src_sundir, extinction_coeff)   &
         , &
         quadrangle_area_by_vertices(v2, p2l, f3, p2b) * &
         (one - exp(- extinction_coeff * s32)) / max(tiny(area3), (extinction_coeff * s32)) + &
-        !num(f2(coord_is(1)) - p2b(coord_is(1)), v2(coord_is(3)) - f2(coord_is(3)), p2b(coord_is(3)) - f2(coord_is(3)), &
-        sign(num(norm2(p2n - p2b), norm2(v2 - p2n), zero, extinction_coeff, sin_theta), p2n(coord_is(1)) - p2b(coord_is(1))) + &
-        num( norm2(p2b - f2), norm2(v2 - p2n), zero, extinction_coeff, sin_theta)   &
+        sign(num_dst(norm2(p2n - p2b), norm2(v2 - p2n), a32, cos_trgt_sundir, cos_src_sundir, extinction_coeff), &
+          p2n(coord_is(1)) - p2b(coord_is(1))) + &
+        num_dst(norm2(f2 - p2b), norm2(v2 - p2n), a32, cos_trgt_sundir, cos_src_sundir, extinction_coeff)   &
         , &
         quadrangle_area_by_vertices(v3, p3r, f2, p3b) * &
         (one - exp(- extinction_coeff * s33)) / max(tiny(area3), (extinction_coeff * s33)) + &
-        num(v3(coord_is(1)) - f3(coord_is(1)), v3(coord_is(3)) - f3(coord_is(3)), p3b(coord_is(3)) - f3(coord_is(3)), &
-        extinction_coeff, sin_theta) &
+        sign(num_dst(norm2(p3n - p3b), norm2(v3 - p3n), a33, cos_trgt_sundir, cos_src_sundir, extinction_coeff), &
+          p3n(coord_is(1)) - p3b(coord_is(1))) + &
+        num_dst(norm2(p3b - f3), norm2(v3 - p3n), a33, cos_trgt_sundir, cos_src_sundir, extinction_coeff)   &
         , &
         quadrangle_area_by_vertices(v4, p4r, f1, p4t) * &
         (one - exp( - extinction_coeff * s34)) / max(tiny(area3), (extinction_coeff * s34)) + &
-        !num(v4(coord_is(1)) - f4(coord_is(1)), v4(coord_is(3)) - f4(coord_is(3)), p4t(coord_is(3)) - f4(coord_is(3)), &
-        num(norm2(p4n - p4t), norm2(v4 - p4n), zero, extinction_coeff, sin_theta) - &
-        num( norm2(p4n - f4), norm2(v4 - p4n), zero, extinction_coeff, sin_theta) &
+        sign(num_dst(norm2(p4n - f4), norm2(v4 - p4n), a34, cos_trgt_sundir, cos_src_sundir, extinction_coeff), &
+          p4n(coord_is(1)) - p4t(coord_is(1))) + &
+        num_dst(norm2(p4t - p4n), norm2(v4 - p4n), a34, cos_trgt_sundir, cos_src_sundir, extinction_coeff)   &
         )
-
-        print *, 'num +-', sign(num(norm2(p2n - p2b), norm2(v2 - p2n), zero, extinction_coeff, sin_theta), &
+      print *, 'v1'
+      print *, 'quad', quadrangle_area_by_vertices(v1, p1l, f4, p1t) * &
+        (one - exp( - extinction_coeff * s31)) / max(tiny(area3), (extinction_coeff * s31))
+      print *, 'num+-', sign(num_dst(norm2(p1n - p1t), norm2(v1 - p1n), a31, cos_trgt_sundir, cos_src_sundir, extinction_coeff), &
+          p1n(coord_is(1)) - p1t(coord_is(1)))
+      print *, 'num', num_dst(norm2(p1t - f1), norm2(v1 - p1n), a31, cos_trgt_sundir, cos_src_sundir, extinction_coeff)
+      print *, 'v2'
+      print *, 'quad', quadrangle_area_by_vertices(v2, p2l, f3, p2b) * &
+        (one - exp(- extinction_coeff * s32)) / max(tiny(area3), (extinction_coeff * s32))
+      print *, 'num+-', sign(num_dst(norm2(p2n - p2b), norm2(v2 - p2n), a32, cos_trgt_sundir, cos_src_sundir, extinction_coeff), &
           p2n(coord_is(1)) - p2b(coord_is(1)))
-        print *, 'num +', num( norm2(p2b - f2), norm2(v2 - p2n), zero, extinction_coeff, sin_theta)
-        !print *, 'quad', quadrangle_area_by_vertices(v4, p4r, f1, p4t)
-        !print *, 'num+', num(norm2(p4n - p4t), v4(coord_is(3)) - p4n(coord_is(3)), p4t(coord_is(3)) - f4(coord_is(3)), &
-        !  extinction_coeff, sin_theta)
-        !print *, 'num-',  num(norm2(p4n - f4), v4(coord_is(3)) - p4n(coord_is(3)), p4t(coord_is(3)) - f4(coord_is(3)), &
-        !  extinction_coeff, sin_theta)
+      print *, 'num', num_dst(norm2(p2b - f2), norm2(v2 - p2n), a32, cos_trgt_sundir, cos_src_sundir, extinction_coeff)
+      print *, 'v3'
+      print *, 'quad', quadrangle_area_by_vertices(v3, p3r, f2, p3b) * &
+        (one - exp(- extinction_coeff * s33)) / max(tiny(area3), (extinction_coeff * s33))
+      print *, 'num+-', sign(num_dst(norm2(p3n - p3b), norm2(v3 - p3n), a33, cos_trgt_sundir, cos_src_sundir, extinction_coeff), &
+        p3n(coord_is(1)) - p3b(coord_is(1)))
+      print *, 'num', num_dst(norm2(p3b - f3), norm2(v3 - p3n), a33, cos_trgt_sundir, cos_src_sundir, extinction_coeff)
+      print *, 'v4'
+      print *, 'quad', quadrangle_area_by_vertices(v4, p4r, f1, p4t) * &
+        (one - exp( - extinction_coeff * s34)) / max(tiny(area3), (extinction_coeff * s34))
+      print *, 'num+-', sign(num_dst(norm2(p4n - f4), norm2(v4 - p4n), a34, cos_trgt_sundir, cos_src_sundir, extinction_coeff), &
+        p4n(coord_is(1)) - p4t(coord_is(1)))
+      print *, 'num', num_dst(norm2(p4t - p4n), norm2(v4 - p4n), a34, cos_trgt_sundir, cos_src_sundir, extinction_coeff)
 
       areas = max([area1, area2, area3], zero)
 
       coeffs(slice) = real(areas / area_total_src, irealLUT)
 
     end subroutine
+
+    function num_dst(l0, h0, a0, cos1, cos2, extinction_coeff)
+      real(ireals), intent(in) :: l0, h0, a0, extinction_coeff, cos1, cos2
+      integer(iintegers), parameter :: n = 20
+      real(ireals), parameter :: l0_tiny = tiny(l0)
+      integer(iintegers) :: i
+      real(ireals) :: dl, num_dst, l,  d, a1, a2
+
+      dl = l0 / n
+      num_dst = zero
+      do i=1,n
+        l = (i - 0.5_ireals) * dl
+        a1 = l * a0 / max(l0_tiny, l0)
+        a2 = l * h0 / max(l0_tiny, l0)
+        d = max(a1 * cos1 + a2 * cos2, zero)
+
+        num_dst = num_dst + a2 * dl * f_dst(d, extinction_coeff)
+      enddo
+    end function
+
+    real(ireals) function f_dst(s, extinction_coeff)
+      real(ireals), intent(in) :: s, extinction_coeff
+
+      f_dst = (one - exp(-extinction_coeff * s)) / max(tiny(f_dst), (extinction_coeff * s))
+    end function
 
     function num(l0, h0b, h0t, extinction_coeff, sin_theta)
       real(ireals), intent(in) :: l0, h0b, h0t, extinction_coeff, sin_theta
@@ -260,7 +322,7 @@ contains
         l = (i - 0.5_ireals) * dl
         !             max not necessary here
         h = l * max(abs(h0t - h0b), zero) / max(l0_tiny, l0)
-        num = num + dl * f(h, extinction_coeff, sin_theta)
+        num = num + dl * f(h, extinction_coeff, max(sin_theta, tiny(sin_theta)))
       enddo
     end function
 
