@@ -1241,10 +1241,11 @@ contains
   end subroutine
 
   !> @brief wrapper for the disort solver
-  subroutine disort(solver, edirTOA, solution)
+  subroutine disort(solver, edirTOA, solution, opt_buildings)
     class(t_solver), intent(inout) :: solver
     real(ireals),intent(in)       :: edirTOA
     type(t_state_container)       :: solution
+    type(t_pprts_buildings), optional, intent(in) :: opt_buildings
 
     real(ireals),pointer,dimension(:,:,:,:) :: xv_dir=>null(),xv_diff=>null()
     real(ireals),pointer,dimension(:) :: xv_dir1d=>null(),xv_diff1d=>null()
@@ -1266,6 +1267,8 @@ contains
     real(ireals) :: fac
     integer(mpiint) :: ierr
     logical :: lflg
+
+    if(present(opt_buildings)) call CHKERR(1_mpiint, "buildings not implemented for pprts_disort")
 
     associate(atm         => solver%atm, &
         C_diff      => solver%C_diff, &
@@ -1364,13 +1367,16 @@ contains
 
     end associate
   end subroutine
+
+
   !> @brief simple schwarzschild solver
   !> @details Wrapper for the schwarzschild solver for the radiative transfer equation
   !> \n The solver neglects the scattering term and just solves for lambert beerschen transport + emission
   !> \n This is the simplest radiation solver but quite accurate for thermal calculations
-  subroutine schwarz(solver, solution)
+  subroutine schwarz(solver, solution, opt_buildings)
     class(t_solver)         :: solver
     type(t_state_container) :: solution
+    type(t_pprts_buildings), optional, intent(in) :: opt_buildings
 
     real(ireals),pointer,dimension(:,:,:,:) :: xv_diff=>null()
     real(ireals),pointer,dimension(:)       :: xv_diff1d=>null()
@@ -1381,6 +1387,7 @@ contains
     real(ireals),allocatable :: dtau(:),Edn(:),Eup(:)
     integer(mpiint) :: ierr
 
+    if(present(opt_buildings)) call CHKERR(1_mpiint, "buildings not implemented for pprts_schwarzschild")
 
     associate( &
         C_diff => solver%C_diff, &
