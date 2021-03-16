@@ -10,21 +10,37 @@ module test_buildings
 
   use m_helper_functions, only : &
     & CHKERR, &
+    & toStr, cstr, &
     & deg2rad, &
+    & spherical_2_cartesian, &
+    & rotate_angle_z, &
+    & meanval, &
+    & is_inrange, &
     & ind_1d_to_nd
 
-  ! main entry point for solver, and desctructor
-!  use m_pprts_rrtmg, only : pprts_rrtmg, destroy_pprts_rrtmg
+  use m_pprts_base, only: &
+    & t_solver, &
+    & destroy_pprts, &
+    & allocate_pprts_solver_from_commandline
 
-!  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, destroy_tenstr_atm
+  use m_pprts, only : init_pprts, &
+    & set_optical_properties, solve_pprts, &
+    & pprts_get_result, set_angles, &
+    & gather_all_toZero
 
-!  use m_pprts_base, only : t_solver_3_10
   use m_buildings, only: &
     & t_pprts_buildings, &
+    & check_buildings_consistency, &
+    & faceidx_by_cell_plus_offset, &
     & init_buildings,    &
     & clone_buildings,   &
     & destroy_buildings, &
-    & PPRTS_TOP_FACE
+    & PPRTS_TOP_FACE,    &
+    & PPRTS_BOT_FACE,    &
+    & PPRTS_LEFT_FACE,   &
+    & PPRTS_RIGHT_FACE,  &
+    & PPRTS_REAR_FACE,   &
+    & PPRTS_FRONT_FACE
 
   use m_examples_pprts_buildings, only: ex_pprts_buildings
   use m_examples_pprts_rrtm_buildings, only: ex_pprts_rrtm_buildings
@@ -788,5 +804,324 @@ contains
     end associate
     call destroy_buildings(buildings_solar,  ierr); call CHKERR(ierr)
     call destroy_buildings(buildings_thermal,ierr); call CHKERR(ierr)
+  end subroutine
+
+  !@test(npes =[4,2,1])
+  subroutine test_buildings_virtual_faces(this)
+    class (MpiTestMethod), intent(inout) :: this
+
+    integer(mpiint) :: comm, myid
+
+    integer(iintegers), parameter :: Nx=6, Ny=6, Nlay=4, icollapse=1
+    integer(iintegers), parameter :: glob_box_i=3, glob_box_j=4, glob_box_k=2
+    real(ireals), parameter :: dx=100, dy=100, dz=100, S0=1
+    logical, parameter :: lverbose=.True.
+    real(ireals), parameter :: atol=1e-5_ireals
+
+    logical :: lsolar, lthermal
+    real(ireals) :: box_albedo, box_planck
+    real(ireals) :: phi0, theta0
+    real(ireals) :: Ag, dtau, w0
+    real(ireals),allocatable,dimension(:,:,:) :: gedir, gedn, geup, gabso ! global arrays
+    type(t_pprts_buildings), allocatable :: buildings
+
+    real(ireals) :: dz1d(Nlay)
+    real(ireals) :: sundir(3), trgt
+    real(ireals),allocatable,dimension(:,:,:) :: kabs,ksca,g,plck
+    real(ireals),allocatable,dimension(:,:,:) :: fdir,fdn,fup,fdiv
+
+    class(t_solver), allocatable :: solver
+    integer(iintegers) :: Nbuildings, Nvirtual
+    logical :: lhave_box, lhave_virtual_box
+
+    integer(iintegers) :: k, i
+    integer(iintegers) :: box_k, box_i, box_j
+    integer(mpiint) :: numnodes, ierr
+
+
+    comm = this%getMpiCommunicator()
+    myid     = this%getProcessRank()
+
+    lthermal = .False.
+    lsolar   = .True.
+    box_albedo = 0.
+    box_planck = 0
+    phi0       = 0
+    theta0     = 45
+    Ag         = 0
+    dtau       = 0
+    w0         = 0
+
+    dz1d = dz
+
+    call init_mpi_data_parameters(comm)
+    call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+    call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
+
+    call allocate_pprts_solver_from_commandline(solver, '3_10', ierr); call CHKERR(ierr)
+
+    sundir = spherical_2_cartesian(phi0, theta0)
+    call init_pprts(comm, Nlay, Nx, Ny, dx,dy, sundir, solver, dz1d, collapseindex=icollapse)
+
+    associate(Ca => solver%C_one_atm, C1 => solver%C_one)
+      allocate(kabs(Ca%zm  , Ca%xm, Ca%ym ))
+      allocate(ksca(Ca%zm  , Ca%xm, Ca%ym ))
+      allocate(g   (Ca%zm  , Ca%xm, Ca%ym ))
+
+      if(lthermal) then
+        allocate(plck(Ca%zm+1, Ca%xm, Ca%ym ))
+        plck(:,:,:) = 0
+        plck(Ca%zm+1,:,:) = 0
+      endif
+
+      kabs = dtau*(one-w0)/dz/real(Nlay, ireals)
+      ksca = dtau*w0/dz/real(Nlay, ireals)
+      g    = zero
+
+      box_k = glob_box_k - C1%zs
+      box_i = glob_box_i - C1%xs
+      box_j = glob_box_j - C1%ys
+
+      if(lverbose) print *, myid, 'Have box:', &
+        & is_inrange(glob_box_k, C1%zs+1, C1%ze+1), &
+        & is_inrange(glob_box_i, C1%xs+1, C1%xe+1), &
+        & is_inrange(glob_box_j, C1%ys+1, C1%ye+1)
+
+      if( &
+        & is_inrange(glob_box_k, C1%zs+1, C1%ze+1).and. &
+        & is_inrange(glob_box_i, C1%xs+1, C1%xe+1).and. &
+        & is_inrange(glob_box_j, C1%ys+1, C1%ye+1)      ) then
+
+        lhave_box = .True.
+        Nbuildings = 12
+      else
+        lhave_box = .False.
+        Nbuildings = 0
+      endif
+
+      if( &
+        !& .False. .and. &
+        & is_inrange(glob_box_k, C1%zs+1, C1%ze+1).and. &
+        & is_inrange(glob_box_i, C1%xs+1, C1%xe+1).and. &
+        & is_inrange(glob_box_j-1, C1%ys+1, C1%ye+1)      ) then
+
+        if(lverbose) print *, myid, 'Have virtual box'
+        Nvirtual = 3
+        lhave_virtual_box = .True.
+      else
+        Nvirtual = 0
+        lhave_virtual_box = .False.
+      endif
+      Nbuildings = Nbuildings + Nvirtual
+
+      call init_buildings(buildings, &
+        & [integer(iintegers) :: 6, C1%zm, C1%xm,  C1%ym], &
+        & Nbuildings, &
+        & ierr); call CHKERR(ierr)
+
+      if(lthermal) allocate(buildings%planck(Nbuildings))
+      if(lhave_box) then
+        ! upper box
+        buildings%iface( 1) = faceidx_by_cell_plus_offset(buildings%da_offsets, box_k, box_i, box_j, PPRTS_TOP_FACE)
+        buildings%iface( 2) = faceidx_by_cell_plus_offset(buildings%da_offsets, box_k, box_i, box_j, PPRTS_BOT_FACE)
+        buildings%iface( 3) = faceidx_by_cell_plus_offset(buildings%da_offsets, box_k, box_i, box_j, PPRTS_LEFT_FACE)
+        buildings%iface( 4) = faceidx_by_cell_plus_offset(buildings%da_offsets, box_k, box_i, box_j, PPRTS_RIGHT_FACE)
+        buildings%iface( 5) = faceidx_by_cell_plus_offset(buildings%da_offsets, box_k, box_i, box_j, PPRTS_REAR_FACE)
+        buildings%iface( 6) = faceidx_by_cell_plus_offset(buildings%da_offsets, box_k, box_i, box_j, PPRTS_FRONT_FACE)
+
+        ! lower box
+        buildings%iface( 7) = faceidx_by_cell_plus_offset(buildings%da_offsets, box_k+1, box_i, box_j, PPRTS_TOP_FACE)
+        buildings%iface( 8) = faceidx_by_cell_plus_offset(buildings%da_offsets, box_k+1, box_i, box_j, PPRTS_BOT_FACE)
+        buildings%iface( 9) = faceidx_by_cell_plus_offset(buildings%da_offsets, box_k+1, box_i, box_j, PPRTS_LEFT_FACE)
+        buildings%iface(10) = faceidx_by_cell_plus_offset(buildings%da_offsets, box_k+1, box_i, box_j, PPRTS_RIGHT_FACE)
+        buildings%iface(11) = faceidx_by_cell_plus_offset(buildings%da_offsets, box_k+1, box_i, box_j, PPRTS_REAR_FACE)
+        buildings%iface(12) = faceidx_by_cell_plus_offset(buildings%da_offsets, box_k+1, box_i, box_j, PPRTS_FRONT_FACE)
+
+
+        buildings%albedo( 1) = box_albedo
+        buildings%albedo( 2) = box_albedo
+        buildings%albedo( 3) = box_albedo
+        buildings%albedo( 4) = box_albedo
+        buildings%albedo( 5) = box_albedo
+        buildings%albedo( 6) = box_albedo
+
+        ! lower boxbox_albedo
+        buildings%albedo( 7) = box_albedo
+        buildings%albedo( 8) = box_albedo
+        buildings%albedo( 9) = box_albedo
+        buildings%albedo(10) = box_albedo
+        buildings%albedo(11) = box_albedo
+        buildings%albedo(12) = box_albedo
+
+
+        if(lthermal) then
+          buildings%planck(1:12) = box_planck
+        endif
+      endif
+      if(lhave_virtual_box) then
+        ! virtual face to get the side flux but not change anything in the RT
+        k = size(buildings%iface) - Nvirtual+1
+        buildings%iface(k+0) = faceidx_by_cell_plus_offset(buildings%da_offsets, box_k, box_i, box_j-1, PPRTS_TOP_FACE)
+        buildings%iface(k+1) = faceidx_by_cell_plus_offset(buildings%da_offsets, box_k, box_i, box_j-1, PPRTS_BOT_FACE)
+        buildings%iface(k+2) = faceidx_by_cell_plus_offset(buildings%da_offsets, box_k, box_i, box_j-1, PPRTS_FRONT_FACE)
+
+        buildings%albedo(k:k+Nvirtual-1) = -1
+        if(lthermal) buildings%planck(k:k+Nvirtual-1) = -1
+      endif
+
+      call check_buildings_consistency(buildings, C1%zm, C1%xm, C1%ym, ierr); call CHKERR(ierr)
+
+      if(lthermal) then
+        call set_optical_properties(solver, Ag, kabs, ksca, g, plck)
+      else
+        call set_optical_properties(solver, Ag, kabs, ksca, g)
+      endif
+      call set_angles(solver, sundir)
+
+      call solve_pprts(solver, &
+        & lthermal=lthermal, &
+        & lsolar=lsolar, &
+        & edirTOA=S0, &
+        & opt_buildings=buildings)
+
+      call pprts_get_result(solver, fdn, fup, fdiv, fdir, opt_buildings=buildings)
+
+      if(lsolar) then
+        call gather_all_toZero(solver%C_one_atm1, fdir, gedir)
+      endif
+      call gather_all_toZero(solver%C_one_atm1, fdn, gedn)
+      call gather_all_toZero(solver%C_one_atm1, fup, geup)
+      call gather_all_toZero(solver%C_one_atm, fdiv, gabso)
+
+      if(lverbose .and. myid.eq.0) then
+        print *,'y-slice: i='//toStr(box_i)
+        i = box_i
+        if(lsolar) then
+          do k = 1+solver%C_dir%zs, 1+solver%C_dir%ze
+            print *, k, cstr('edir'//toStr( gedir(k, i, :) ), 'red')
+          enddo
+        endif ! lsolar
+        do k = 1+solver%C_diff%zs, 1+solver%C_diff%ze
+          print *, k, cstr(' edn'//toStr( gedn(k, i, :) ), 'green')
+        enddo
+        do k = 1+solver%C_diff%zs, 1+solver%C_diff%ze
+          print *, k, cstr(' eup'//toStr( geup(k, i, :) ), 'blue')
+        enddo
+        do k = 1+solver%C_one%zs, 1+solver%C_one%ze
+          print *, k, cstr('abso'//toStr( gabso(k, i, :) ), 'purple')
+        enddo
+
+        print *,''
+        print *,'x-slice: j='//toStr(box_j)
+        i = box_j
+        if(lsolar) then
+          do k = 1+solver%C_dir%zs, 1+solver%C_dir%ze
+            print *, k, cstr('edir'//toStr( gedir(k, :, i) ), 'red')
+          enddo
+        endif
+        do k = 1+solver%C_diff%zs, 1+solver%C_diff%ze
+          print *, k, cstr(' edn'//toStr( gedn(k, :, i) ), 'green')
+        enddo
+        do k = 1+solver%C_diff%zs, 1+solver%C_diff%ze
+          print *, k, cstr(' eup'//toStr( geup(k, :, i) ), 'blue')
+        enddo
+        do k = 1+solver%C_one%zs, 1+solver%C_one%ze
+          print *, k, cstr('abso'//toStr( gabso(k, :, i) ), 'purple')
+        enddo
+
+        print *,''
+        if(lsolar) then
+          do k = lbound(fdiv,1), ubound(fdiv, 1)
+            print *, k, 'mean ', &
+              & 'edir', meanval(gedir(k,:,:)), &
+              & 'edn' , meanval(gedn(k,:,:)), &
+              & 'eup' , meanval(geup(k,:,:)), &
+              & 'abso', meanval(gabso(k,:,:))
+          enddo
+          k = ubound(fdir, 1)
+          print *, k, 'mean ', &
+            & 'edir', meanval(gedir(k,:,:)), &
+            & 'edn' , meanval(gedn(k,:,:)), &
+            & 'eup' , meanval(geup(k,:,:))
+        else
+          do k = lbound(fdiv,1), ubound(fdiv, 1)
+            print *, k, &
+              & 'mean ', &
+              & 'edn', meanval(gedn(k,:,:)), &
+              & 'eup', meanval(geup(k,:,:)), &
+              & 'abso', meanval(gabso(k,:,:))
+          enddo
+          k = ubound(fdir, 1)
+          print *, k, 'mean ', &
+            & 'edn', meanval(gedn(k,:,:)), &
+            & 'eup', meanval(geup(k,:,:))
+        endif
+      endif
+    end associate
+    call mpi_barrier(comm, ierr); call CHKERR(ierr)
+
+    if(lverbose) then
+      do k = 0, numnodes-1
+        if(k.eq.myid) then
+          if(allocated(buildings%edir)) then
+            print *,cstr(' * Buildings on rank '//toStr(k)//':', 'red')
+            do i=1, size(buildings%iface)
+              print *, 'building_face', i, 'edir', buildings%edir(i), &
+                & 'in/out', buildings%incoming(i), buildings%outgoing(i)
+            enddo
+          else
+            do i=1, size(buildings%iface)
+              print *, 'building_face', i, &
+                & 'in/out', buildings%incoming(i), buildings%outgoing(i)
+            enddo
+          endif
+        endif
+        call mpi_barrier(comm, ierr); call CHKERR(ierr)
+      enddo
+    endif
+
+    call destroy_pprts(solver, .False.)
+
+    if(myid.eq.0) then
+      trgt = S0*cos(deg2rad(theta0))
+      @assertEqual(trgt, gedir(Nlay+1, glob_box_i, glob_box_j), atol, 'edir beneath building should be clear sky value')
+      @assertEqual(trgt, gedir(glob_box_k, glob_box_i, glob_box_j), atol, 'edir at top of building should be the one from clear sky')
+
+      @assertEqual(0, gedir(glob_box_k+1, glob_box_i, glob_box_j  ), atol, 'edir at bot of building should be zero')
+      @assertEqual(0, gedir(glob_box_k+1, glob_box_i, glob_box_j-1), atol, 'edir building shadow should go south and should be zero')
+      @assertEqual(0, gedir(glob_box_k+2, glob_box_i, glob_box_j-1), atol, 'edir building shadow should go south and should be zero')
+      @assertEqual(0, gedir(glob_box_k+2, glob_box_i, glob_box_j-2), atol, 'edir building shadow should go south and should be zero')
+      @assertEqual(0, gedir(glob_box_k+3, glob_box_i, glob_box_j-2), atol, 'edir building shadow should go south and should be zero')
+      @assertEqual(0, gedir(glob_box_k+3, glob_box_i, glob_box_j-3), atol, 'edir building shadow should go south and should be zero')
+
+      @assertEqual(0, gedir(glob_box_k+2, glob_box_i, glob_box_j  ), atol, 'edir at bot of lower building should be zero')
+      @assertEqual(0, gedir(glob_box_k+2, glob_box_i, glob_box_j-1), atol, 'lower building shadow should go south and should be zero')
+      @assertEqual(0, gedir(glob_box_k+3, glob_box_i, glob_box_j-1), atol, 'lower building shadow should go south and should be zero')
+      @assertEqual(0, gedir(glob_box_k+3, glob_box_i, glob_box_j-2), atol, 'lower building shadow should go south and should be zero')
+    endif
+
+    if(lhave_box) then
+      trgt = S0*cos(deg2rad(theta0))
+      @assertEqual(trgt, buildings%edir(1), atol)
+      trgt = S0*cos(deg2rad(theta0)) ! front face bc phi==0 is north)
+      @assertEqual(trgt, buildings%edir(6), atol)
+
+      @assertEqual(0._ireals, buildings%edir(2:5), atol)
+
+      ! second building block below, only have on sunlit face on the side
+      @assertEqual(0._ireals, buildings%edir(7:11), atol)
+      @assertEqual(trgt, buildings%edir(12), atol)
+
+      @assertEqual(0._ireals, buildings%incoming, atol)
+      @assertEqual(0._ireals, buildings%outgoing, atol)
+    endif
+
+    if(lhave_virtual_box) then
+      k = size(buildings%edir) - Nvirtual+1
+      trgt = S0*cos(deg2rad(theta0))
+      @assertEqual(trgt     , buildings%edir(k+0), atol)
+      @assertEqual(0._ireals, buildings%edir(k+1), atol)
+      @assertEqual(0._ireals, buildings%edir(k+2), atol)
+    endif
   end subroutine
 end module

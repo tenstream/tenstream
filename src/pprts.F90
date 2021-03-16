@@ -3904,6 +3904,8 @@ module m_pprts
 
      associate( B => opt_buildings )
        do m = 1, size(B%iface)
+         if (B%albedo(m).lt.0) cycle ! virtual face
+
          call ind_1d_to_nd(B%da_offsets, B%iface(m), idx)
          idx(2:4) = idx(2:4) -1 + [C%zs, C%xs, C%ys]
 
@@ -4442,7 +4444,9 @@ module m_pprts
 
         if(solution%lsolar_rad) then
           call getVecPointer(C%da, local_edir, xedir1d, xedir)
-          do m = 1, size(B%iface)
+          do m =  1, size(B%iface)
+            if (B%albedo(m).lt.0) cycle ! virtual face
+
             call ind_1d_to_nd(B%da_offsets, B%iface(m), idx)
             idx(2:4) = idx(2:4) -1 + [C%zs, C%xs, C%ys]
 
@@ -4563,6 +4567,7 @@ module m_pprts
         Az = atm%dx * atm%dy / real(solver%difftop%area_divider, ireals)
 
         do m = 1, size(B%iface)
+          if (B%albedo(m).lt.0) cycle ! virtual face
 
           call ind_1d_to_nd(B%da_offsets, B%iface(m), idx)
           idx(2:4) = idx(2:4) -1 + [C%zs, C%xs, C%ys]
@@ -5086,6 +5091,7 @@ module m_pprts
 
       associate( B => buildings )
         do m = 1, size(B%iface)
+          if (B%albedo(m).lt.0) cycle ! virtual face
           v(:) = -zero
 
           call ind_1d_to_nd(B%da_offsets, B%iface(m), idx)

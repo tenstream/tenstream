@@ -7,7 +7,9 @@ module m_buildings
   use m_helper_functions, only: &
     & CHKERR, &
     & toStr, &
-    & ind_1d_to_nd, ind_nd_to_1d, ndarray_offsets, &
+    & ind_1d_to_nd, &
+    & ind_nd_to_1d, &
+    & ndarray_offsets, &
     & get_arg, &
     & deallocate_allocatable
 
@@ -264,6 +266,7 @@ contains
     sides = .False.
 
     do m = 1, size(buildings%iface)
+      if (buildings%albedo(m)<0) cycle
       call ind_1d_to_nd(buildings%da_offsets, buildings%iface(m), idx)
       associate(d => idx(1), k => idx(2), i => idx(3), j => idx(4))
         sides(d,k,i,j) = .True.

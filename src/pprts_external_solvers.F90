@@ -1074,6 +1074,7 @@ contains
           buildings_mink(:,:) = C_dir%ze
           buildings_face(:,:) = -1
           do m = 1, size(opt_buildings%iface)
+            if (opt_buildings%albedo(m).lt.0) cycle ! virtual face
             call ind_1d_to_nd(B%da_offsets, B%iface(m), idx)
             idx(2:4) = idx(2:4) -1 + [C_dir%zs, C_dir%xs, C_dir%ys]
 

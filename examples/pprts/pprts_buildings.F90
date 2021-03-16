@@ -8,7 +8,8 @@ module m_examples_pprts_buildings
   use m_helper_functions, only : &
     & CHKERR, &
     & toStr, cstr, &
-    & spherical_2_cartesian, rotate_angle_z, &
+    & spherical_2_cartesian, &
+    & rotate_angle_z, &
     & meanval, &
     & is_inrange
 
