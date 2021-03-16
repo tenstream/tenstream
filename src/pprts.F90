@@ -2119,7 +2119,7 @@ module m_pprts
       "-pprts_use_disort", luse_disort, lflg, ierr) ; call CHKERR(ierr)
     if(luse_disort) then
       call PetscLogEventBegin(solver%logs%solve_disort, ierr)
-      call disort(solver, edirTOA, solution)
+      call disort(solver, edirTOA, solution, opt_buildings)
       call PetscLogEventEnd(solver%logs%solve_disort, ierr)
       goto 99
     endif
@@ -2132,7 +2132,7 @@ module m_pprts
 
       if( solution%lthermal_rad .and. lschwarzschild ) then
         call PetscLogEventBegin(solver%logs%solve_schwarzschild, ierr)
-        call schwarz(solver, solution)
+        call schwarz(solver, solution, opt_buildings)
         call PetscLogEventEnd(solver%logs%solve_schwarzschild, ierr)
       else
         call PetscLogEventBegin(solver%logs%solve_twostream, ierr)
