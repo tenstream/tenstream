@@ -106,7 +106,8 @@ contains
       real(ireals) :: &
         area1, area2, area3, area_total_src, areas(3), &
         s1, s21, s22, s23, s24, s31, s32, s33, s34, sin_theta, &
-        a31, a32, a33, a34, cos_src_sundir, cos_trgt_sundir
+        a31, a32, a33, a34, cos_trgt_sundir, &
+        cos_src_sundir, acos_src_sundir
       real(ireals), dimension(3) :: &
         p1l, p1b, p1t, p1r, p2l, p2t, p2b, p2r, p3r, p3t, p3b, p3l, p4r, p4b, p4t, p4l, &
         normal_top, normal_bot, p1n, p2n, p3n, p4n, &
@@ -217,8 +218,7 @@ contains
       a34 = norm2(p4n - p4rp)
 
       cos_src_sundir = dot_product(f2 - f1, sundir) / norm2(f1 - f2)
-      cos_trgt_sundir = dot_product(p2rp - p2n, sundir) / max(tiny(f2), norm2(p2rp - f2) * norm2(sundir))
-      print *, 'coss', cos_src_sundir, cos_trgt_sundir
+      cos_trgt_sundir = dot_product(p2rp - p2n, sundir) / max(tiny(f2), norm2(p2rp - p2n) * norm2(sundir))
 
 
       s31 = norm2(v1 - p1rp)
@@ -226,57 +226,61 @@ contains
       s33 = norm2(v3 - p3rp)
       s34 = norm2(v4 - p4rp)
 
-      print *, 'p2, p2n', v2, p2n
-      print *, 'coord_is', coord_is
+      ! abs possible since the angle will always be smaller than 90 degrees for light to enter
+      cos_src_sundir = abs(dot_product(f1 - f2, sundir) / norm2(f1 - f2))
+      acos_src_sundir = acos(cos_src_sundir)
+
       area3 = max( &
-        quadrangle_area_by_vertices(v1, p1l, f4, p1t) * &
-        (one - exp( - extinction_coeff * s31)) / max(tiny(area3), (extinction_coeff * s31)) + &
-        sign(num_dst(norm2(p1n - p1t), norm2(v1 - p1n), a31, cos_trgt_sundir, cos_src_sundir, extinction_coeff), &
-          p1n(coord_is(1)) - p1t(coord_is(1))) + &
-        num_dst(norm2(p1t - f1), norm2(v1 - p1n), a31, cos_trgt_sundir, cos_src_sundir, extinction_coeff)   &
-        , &
-        quadrangle_area_by_vertices(v2, p2l, f3, p2b) * &
-        (one - exp(- extinction_coeff * s32)) / max(tiny(area3), (extinction_coeff * s32)) + &
-        sign(num_dst(norm2(p2n - p2b), norm2(v2 - p2n), a32, cos_trgt_sundir, cos_src_sundir, extinction_coeff), &
-          p2n(coord_is(1)) - p2b(coord_is(1))) + &
-        num_dst(norm2(f2 - p2b), norm2(v2 - p2n), a32, cos_trgt_sundir, cos_src_sundir, extinction_coeff)   &
-        , &
-        quadrangle_area_by_vertices(v3, p3r, f2, p3b) * &
-        (one - exp(- extinction_coeff * s33)) / max(tiny(area3), (extinction_coeff * s33)) + &
-        sign(num_dst(norm2(p3n - p3b), norm2(v3 - p3n), a33, cos_trgt_sundir, cos_src_sundir, extinction_coeff), &
-          p3n(coord_is(1)) - p3b(coord_is(1))) + &
-        num_dst(norm2(p3b - f3), norm2(v3 - p3n), a33, cos_trgt_sundir, cos_src_sundir, extinction_coeff)   &
-        , &
-        quadrangle_area_by_vertices(v4, p4r, f1, p4t) * &
-        (one - exp( - extinction_coeff * s34)) / max(tiny(area3), (extinction_coeff * s34)) + &
-        sign(num_dst(norm2(p4n - f4), norm2(v4 - p4n), a34, cos_trgt_sundir, cos_src_sundir, extinction_coeff), &
-          p4n(coord_is(1)) - p4t(coord_is(1))) + &
-        num_dst(norm2(p4t - p4n), norm2(v4 - p4n), a34, cos_trgt_sundir, cos_src_sundir, extinction_coeff)   &
+        area3i( &
+        v1, p1l, f4, p1t, & ! quadrangle vertices
+        p1n, f1, & ! signum num lengthwise vertices
+        p1n, p1t, &   ! positive num lengthwise vertices
+        p1n, &   ! pi normal projection to boarder
+        p1rp, &  ! vi reprojected to src plane
+        !cos(3.14_ireals - acos_src_sundir - acos(dot_product(f1 - f2, f2 - f5) / (norm2(f1 - f2) * norm2(f2 - f5)))), &
+        abs(dot_product(f1 - p1rp, sundir) / max(tiny(f1), norm2(f1 - p1rp))), &
+        cos_src_sundir, & ! cos of num angles
+        sign(one, (p1n(coord_is(1)) - p1t(coord_is(1))) * (f1(coord_is(1)) - p1n(coord_is(1)))), & ! signum of signum num
+        extinction_coeff & ! extinction coefficient
+        ), &
+        ! for phi=120, theta=10: p2b p2n - f2 p2n
+        area3i( &
+        v2, p2l, f3, p2b, & ! quadrangle vertices
+        p2n, f2, & ! signum num lengthwise vertices
+        p2n, p2b, &   ! positive num lengthwise vertices
+        p2n, &   ! pi normal projection to boarder
+        p2rp, &  ! vi reprojected to src plane
+        !cos(3.14_ireals - acos_src_sundir - acos(dot_product(f1 - f2, f5 - f2) / (norm2(f1 - f2) * norm2(f5 - f2)))), &
+        abs(dot_product(f2 - p2rp, sundir) / max(tiny(f2), norm2(f2 - p2rp))), &
+        cos_src_sundir, & ! cos of num angles
+        sign(one, (p2n(coord_is(1)) - p2b(coord_is(1))) * (f2(coord_is(1)) - p2n(coord_is(1)))), & ! signum of signum num
+        extinction_coeff & ! extinction coefficient
+        ), &
+        area3i( &
+        v3, p3r, f2, p3b, & ! quadrangle vertices
+        p3n, p3b, & ! signum num lengthwise vertices
+        p3n, f3, &   ! positive num lengthwise vertices
+        p3n, &   ! pi normal projection to boarder
+        p3rp, &  ! vi reprojected to src plane
+        !cos(3.14_ireals - acos_src_sundir - acos(dot_product(), &
+        abs(dot_product(f3 - p3rp, sundir) / max(tiny(f3), norm2(f3 - p3rp))), &
+        cos_src_sundir, & ! cos of num angles
+        sign(one, (p3b(coord_is(1)) - p3n(coord_is(1))) * (p3b(coord_is(1)) - p3n(coord_is(1)))), & ! signum of signum num
+        extinction_coeff & ! extinction coefficient
+        ), &
+        area3i( &
+        v4, p4r, f1, p4t, & ! quadrangle vertices
+        p4n, f4, & ! signum num lengthwise vertices
+        p4n, p4t, &   ! positive num lengthwise vertices
+        p4n, &   ! pi normal projection to boarder
+        p4rp, &  ! vi reprojected to src plane
+        !cos(3.14_ireals - acos_src_sundir - acos_top), &
+        abs(dot_product(f4 - p4rp, sundir) / max(tiny(f4), norm2(f4 - p4rp))), &
+        cos_src_sundir, & ! cos of num angles
+        sign(one, (p4n(coord_is(1)) - p4t(coord_is(1)))), &! * (f4(coord_is(1)) - p4n(coord_is(1)))), & ! signum of signum num
+        extinction_coeff & ! extinction coefficient
+        )  &
         )
-      print *, 'v1'
-      print *, 'quad', quadrangle_area_by_vertices(v1, p1l, f4, p1t) * &
-        (one - exp( - extinction_coeff * s31)) / max(tiny(area3), (extinction_coeff * s31))
-      print *, 'num+-', sign(num_dst(norm2(p1n - p1t), norm2(v1 - p1n), a31, cos_trgt_sundir, cos_src_sundir, extinction_coeff), &
-          p1n(coord_is(1)) - p1t(coord_is(1)))
-      print *, 'num', num_dst(norm2(p1t - f1), norm2(v1 - p1n), a31, cos_trgt_sundir, cos_src_sundir, extinction_coeff)
-      print *, 'v2'
-      print *, 'quad', quadrangle_area_by_vertices(v2, p2l, f3, p2b) * &
-        (one - exp(- extinction_coeff * s32)) / max(tiny(area3), (extinction_coeff * s32))
-      print *, 'num+-', sign(num_dst(norm2(p2n - p2b), norm2(v2 - p2n), a32, cos_trgt_sundir, cos_src_sundir, extinction_coeff), &
-          p2n(coord_is(1)) - p2b(coord_is(1)))
-      print *, 'num', num_dst(norm2(p2b - f2), norm2(v2 - p2n), a32, cos_trgt_sundir, cos_src_sundir, extinction_coeff)
-      print *, 'v3'
-      print *, 'quad', quadrangle_area_by_vertices(v3, p3r, f2, p3b) * &
-        (one - exp(- extinction_coeff * s33)) / max(tiny(area3), (extinction_coeff * s33))
-      print *, 'num+-', sign(num_dst(norm2(p3n - p3b), norm2(v3 - p3n), a33, cos_trgt_sundir, cos_src_sundir, extinction_coeff), &
-        p3n(coord_is(1)) - p3b(coord_is(1)))
-      print *, 'num', num_dst(norm2(p3b - f3), norm2(v3 - p3n), a33, cos_trgt_sundir, cos_src_sundir, extinction_coeff)
-      print *, 'v4'
-      print *, 'quad', quadrangle_area_by_vertices(v4, p4r, f1, p4t) * &
-        (one - exp( - extinction_coeff * s34)) / max(tiny(area3), (extinction_coeff * s34))
-      print *, 'num+-', sign(num_dst(norm2(p4n - f4), norm2(v4 - p4n), a34, cos_trgt_sundir, cos_src_sundir, extinction_coeff), &
-        p4n(coord_is(1)) - p4t(coord_is(1)))
-      print *, 'num', num_dst(norm2(p4t - p4n), norm2(v4 - p4n), a34, cos_trgt_sundir, cos_src_sundir, extinction_coeff)
 
       areas = max([area1, area2, area3], zero)
 
@@ -284,12 +288,69 @@ contains
 
     end subroutine
 
-    function num_dst(l0, h0, a0, cos1, cos2, extinction_coeff)
+    real(ireals) function area3i( &
+        v, plr, f, ptb, & ! quadrangle vertices
+        ps1, ps2, & ! signum num lengthwise vertices
+        p1, p2, &   ! positive num lengthwise vertices
+        pn, &   ! pi normal projection to boarder
+        prp, &  ! vi reprojected to src plane
+        cos_trgt_sundir, cos_src_sundir, & ! cos of num angles
+        signum, & ! signum of signum num
+        extinction_coeff & ! extinction coefficient
+        )
+      real(ireals), intent(in), dimension(3) :: v, plr, f, ptb, ps1, ps2, p1, p2, pn, prp
+      real(ireals), intent(in) :: extinction_coeff, cos_src_sundir, cos_trgt_sundir, signum
+      real(ireals) :: s, a3, h
+
+      a3 = norm2(pn - prp)
+      s = norm2(v - prp)
+      h = norm2(v - pn)
+
+      area3i = &
+        quadrangle_area_by_vertices(v, plr, f, ptb) * &
+        (one - exp( - extinction_coeff * s)) / max(tiny(area3i), (extinction_coeff * s)) + &
+        signum * num_dst( &
+            norm2(ps1 - ps2), &
+            h, &
+            a3, &
+            cos_trgt_sundir, &
+            cos_src_sundir,  &
+            extinction_coeff&
+            ) + &
+        num_dst( &
+          norm2(p1 - p2), &
+          h,   &
+          a3, &
+          cos_trgt_sundir, &
+          cos_src_sundir,  &
+          extinction_coeff &
+          )
+        print *, 'quad', quadrangle_area_by_vertices(v, plr, f, ptb) * &
+        (one - exp( - extinction_coeff * s)) / max(tiny(area3i), (extinction_coeff * s))
+        print *, 'sign', signum * num_dst( &
+            norm2(ps1 - ps2), &
+            h, &
+            a3, &
+            cos_trgt_sundir, &
+            cos_src_sundir,  &
+            extinction_coeff&
+            )
+        print *, '+', num_dst( &
+          norm2(p1 - p2), &
+          h,   &
+          a3, &
+          cos_trgt_sundir, &
+          cos_src_sundir,  &
+          extinction_coeff &
+          )
+    end function
+
+    real(ireals) function num_dst(l0, h0, a0, cos1, cos2, extinction_coeff)
       real(ireals), intent(in) :: l0, h0, a0, extinction_coeff, cos1, cos2
       integer(iintegers), parameter :: n = 20
       real(ireals), parameter :: l0_tiny = tiny(l0)
       integer(iintegers) :: i
-      real(ireals) :: dl, num_dst, l,  d, a1, a2
+      real(ireals) :: dl, l,  d, a1, a2
 
       dl = l0 / n
       num_dst = zero
@@ -332,7 +393,7 @@ contains
       f = z * (one - exp(-extinction_coeff * z / sin_theta)) / max(tiny(f), (extinction_coeff * z / sin_theta))
     end function
 
-    function compute_quadrangle_areas( &
+    real(ireals) function compute_quadrangle_areas( &
         a1, a2, a3, a4, &
         b1, b2, b3, b4, &
         c1, c2, c3, c4, &
@@ -343,7 +404,6 @@ contains
         b1, b2, b3, b4, &
         c1, c2, c3, c4, &
         d1, d2, d3, d4
-      real(ireals) :: compute_quadrangle_areas
 
       compute_quadrangle_areas = max( &
         quadrangle_area_by_vertices(a1, a2, a3, a4), &
@@ -353,7 +413,7 @@ contains
         )
     end function
 
-    function compute_pentagon_areas( &
+    real(ireals) function compute_pentagon_areas( &
         a1, a2, a3, a4, a5, &
         b1, b2, b3, b4, b5, &
         c1, c2, c3, c4, c5, &
@@ -364,7 +424,6 @@ contains
         b1, b2, b3, b4, b5, &
         c1, c2, c3, c4, c5, &
         d1, d2, d3, d4, d5
-      real(ireals) :: compute_pentagon_areas
 
       compute_pentagon_areas = max( &
         pentagon_area_by_vertices(a1, a2, a3, a4, a5), &
@@ -444,6 +503,7 @@ contains
     call proj_var_to_edges(f4, f3, f2, f1, v3, p3r, p3b, p3t, p3l)
     call proj_var_to_edges(f4, f3, f2, f1, v4, p4r, p4b, p4t, p4l)
   end subroutine
+
   subroutine rearange_projections(f1, f2, f3, f4, v1, v2, v3, v4)
     real(ireals), intent(in) :: f1(3), f2(3), f3(3), f4(3)
     real(ireals), intent(inout) :: v1(3), v2(3), v3(3), v4(3)
