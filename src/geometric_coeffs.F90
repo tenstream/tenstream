@@ -105,16 +105,11 @@ contains
       real(irealLUT), intent(inout) :: coeffs(9)
       real(ireals) :: &
         area1, area2, area3, area_total_src, areas(3), &
-        s1, s21, s22, s23, s24, s31, s32, s33, s34, sin_theta, &
-        a31, a32, a33, a34, cos_trgt_sundir, &
-        cos_src_sundir, acos_src_sundir
+        s1, s21, s22, s23, s24, s31, s32, s33, s34, sin_theta
       real(ireals), dimension(3) :: &
-        p1l, p1b, p1t, p1r, p2l, p2t, p2b, p2r, p3r, p3t, p3b, p3l, p4r, p4b, p4t, p4l, &
-        normal_top, normal_bot, p1n, p2n, p3n, p4n, &
+        p1l, p1b, p1t, p1r, p2l, p2t, p2b, p2r, p3r, p3t, p3b, p3l, p4r, p4b, p4t, p4l, normal, &
         p1rp, p2rp, p3rp, p4rp
       integer(iintegers) :: coord_is(3)
-      real(ireals) :: c, t
-      integer(mpiint) :: ierr
 
       call proj_vars_to_edges( &
         f1, f2, f3, f4, &
@@ -156,7 +151,7 @@ contains
 
       print *, 'v1', v1
       print *, 'v2', v2
-      print *, 'v3', v3, 'p3r', p3r
+      print *, 'v3', v3
       print *, 'v4', v4
 
       coord_is = other_slice
@@ -187,97 +182,55 @@ contains
         )
       area2 = 0._ireals
 
-      normal_top = compute_normal_3d(f4, f1, f6)
-      normal_bot = compute_normal_3d(f3, f2, f5) ! HERE is the PROBLEM only works for src y, not src x
-
-      !sin_theta = dot_product(normal, sundir)
-      !sin_theta = max(sin(abs(atan(sundir(coord_is(3)) / sqrt(sundir(coord_is(1))**2 + sundir(coord_is(2))**2)))), tiny(sin_theta))
-      ! 90 - dotproduct(sundir, facenormal), (dot product = cos)
 
 
-      call line_intersection_3d(v1, cross_3d(cross_3d(f1-f2, f1-f4), f1-f4), f1, f1-f4, c, t, ierr)
-      call rearange_point(v1, cross_3d(cross_3d(f1-f2, f1-f4), f1-f4), c, p1n)
+      normal = compute_normal_3d(f3, f2, f5)
 
-      call line_intersection_3d(v2, cross_3d(cross_3d(f1-f2, f3-f2), f3-f2), f2, f2-f3, c, t, ierr)
-      call rearange_point(v2, cross_3d(cross_3d(f1-f2, f3-f2), f3-f2), c, p2n)
-
-      call line_intersection_3d(v3, cross_3d(cross_3d(f1-f2, f3-f2), f3-f2), f2, f2-f3, c, t, ierr)
-      call rearange_point(v3, cross_3d(cross_3d(f1-f2, f3-f2), f3-f2), c, p3n)
-
-      call line_intersection_3d(v4, cross_3d(cross_3d(f1-f2, f1-f4), f1-f4), f1, f1-f4, c, t, ierr)
-      call rearange_point(v4, cross_3d(cross_3d(f1-f2, f1-f4), f1-f4), c, p4n)
-
-      p1rp = v1 + hit_plane(v1, sundir, f1, normal_bot) * sundir
-      p2rp = v2 + hit_plane(v2, sundir, f2, normal_top) * sundir
-      p3rp = v3 + hit_plane(v3, sundir, f3, normal_top) * sundir
-      p4rp = v4 + hit_plane(v4, sundir, f4, normal_bot) * sundir
-
-      a31 = norm2(p1n - p1rp)
-      a32 = norm2(p2n - p2rp)
-      a33 = norm2(p3n - p3rp)
-      a34 = norm2(p4n - p4rp)
-
-      cos_src_sundir = dot_product(f2 - f1, sundir) / norm2(f1 - f2)
-      cos_trgt_sundir = dot_product(p2rp - p2n, sundir) / max(tiny(f2), norm2(p2rp - p2n) * norm2(sundir))
-
+      p1rp = v1 + hit_plane(v1, sundir, f1, normal) * sundir
+      p2rp = v2 + hit_plane(v2, sundir, f2, normal) * sundir
+      p3rp = v3 + hit_plane(v3, sundir, f3, normal) * sundir
+      p4rp = v4 + hit_plane(v4, sundir, f4, normal) * sundir
 
       s31 = norm2(v1 - p1rp)
       s32 = norm2(v2 - p2rp)
       s33 = norm2(v3 - p3rp)
       s34 = norm2(v4 - p4rp)
 
-      ! abs possible since the angle will always be smaller than 90 degrees for light to enter
-      cos_src_sundir = abs(dot_product(f1 - f2, sundir) / norm2(f1 - f2))
-      acos_src_sundir = acos(cos_src_sundir)
-
       area3 = max( &
         area3i( &
         v1, p1l, f4, p1t, & ! quadrangle vertices
-        p1n, f1, & ! signum num lengthwise vertices
-        p1n, p1t, &   ! positive num lengthwise vertices
-        p1n, &   ! pi normal projection to boarder
-        p1rp, &  ! vi reprojected to src plane
-        abs(dot_product(f1 - p1rp, sundir) / max(tiny(f1), norm2(f1 - p1rp))), &
-        cos_src_sundir, & ! cos of num angles
-        sign(one, (p1n(coord_is(1)) - p1t(coord_is(1))) * (f1(coord_is(1)) - p1n(coord_is(1)))), & ! signum of signum num
+        norm2(f1 - p1t) * cos(acos(dot_product(f1 - f2, f1 - f4) / (norm2(f1 - f2) * norm2(f1 - f4))) - 3.14 / 2), &
+        norm2(p1rp - v1), &
+        norm2(p1t - v1), &
         extinction_coeff & ! extinction coefficient
         ), &
-        ! for phi=120, theta=10: p2b p2n - f2 p2n
         area3i( &
         v2, p2l, f3, p2b, & ! quadrangle vertices
-        p2n, f2, & ! signum num lengthwise vertices
-        p2n, p2b, &   ! positive num lengthwise vertices
-        p2n, &   ! pi normal projection to boarder
-        p2rp, &  ! vi reprojected to src plane
-        abs(dot_product(f2 - p2rp, sundir) / max(tiny(f2), norm2(f2 - p2rp))), &
-        cos_src_sundir, & ! cos of num angles
-        sign(one, (p2n(coord_is(1)) - p2b(coord_is(1))) * (f2(coord_is(1)) - p2n(coord_is(1)))), & ! signum of signum num
+        norm2(f2 - p2b) * cos(acos(dot_product(f2 - f3, f2 - f1) / (norm2(f2 - f3) * norm2(f2 - f1))) - 3.14 / 2), &
+        norm2(p2rp - v2), &
+        norm2(p2b - v2), &
         extinction_coeff & ! extinction coefficient
         ), &
         area3i( &
         v3, p3r, f2, p3b, & ! quadrangle vertices
-        p3n, p3n, & ! signum num lengthwise vertices
-        p3b, f3, &   ! positive num lengthwise vertices
-        p3n, &   ! pi normal projection to boarder
-        p3rp, &  ! vi reprojected to src plane
-        !abs(dot_product(p3b - p3rp, sundir) / max(tiny(f3), norm2(p3b - p3rp))), &
-        abs(dot_product(cross_3d(f2-f3, f2-f5), sundir) / max(tiny(f3), norm2(cross_3d(f2-f3, f2-f5)))), &
-        cos_src_sundir, & ! cos of num angles
-        sign(one, (p3b(coord_is(1)) - p3n(coord_is(1)))), & ! signum of signum num
+        norm2(f3 - p3b) * cos(acos(dot_product(f3 - f4, f3 - f2) / (norm2(f3 - f4) * norm2(f3 - f2))) - 3.14 / 2), &
+        norm2(p3rp - v3), &
+        norm2(p3b - v3), &
         extinction_coeff & ! extinction coefficient
         ), &
         area3i( &
         v4, p4r, f1, p4t, & ! quadrangle vertices
-        p4n, f4, & ! signum num lengthwise vertices
-        p4n, p4t, &   ! positive num lengthwise vertices
-        p4n, &   ! pi normal projection to boarder
-        p4rp, &  ! vi reprojected to src plane
-        abs(dot_product(f4 - p4rp, sundir) / max(tiny(f4), norm2(f4 - p4rp))), &
-        cos_src_sundir, & ! cos of num angles
-        sign(one, (p4n(coord_is(1)) - p4t(coord_is(1)))), &! * (f4(coord_is(1)) - p4n(coord_is(1)))), & ! signum of signum num
+        norm2(f4 - p4t) * cos(acos(dot_product(f4 - f3, f4 - f1) / (norm2(f4 - f3) * norm2(f4 - f1))) - 3.14 / 2), &   ! length
+        norm2(p4rp - v4), &  ! path
+        norm2(p4t - v4), &   ! height
         extinction_coeff & ! extinction coefficient
         )  &
         )
+
+        print *,- norm2(f4 - p4t) * dot_product(f4 - f3, f4 - f1) / (norm2(f4 - f3) * norm2(f4 - f1))
+        print *,norm2(p4rp - v4)
+        print *,norm2(p4t - v4)
+      print *, 'p4rp', p4rp
 
       areas = max([area1, area2, area3], zero)
 
@@ -287,85 +240,61 @@ contains
 
     real(ireals) function area3i( &
         v, plr, f, ptb, & ! quadrangle vertices
-        ps1, ps2, & ! signum num lengthwise vertices
-        p1, p2, &   ! positive num lengthwise vertices
-        pn, &   ! pi normal projection to boarder
-        prp, &  ! vi reprojected to src plane
-        cos_trgt_sundir, cos_src_sundir, & ! cos of num angles
-        signum, & ! signum of signum num
+        l, &
+        s, &
+        h, &
         extinction_coeff & ! extinction coefficient
         )
-      real(ireals), intent(in), dimension(3) :: v, plr, f, ptb, ps1, ps2, p1, p2, pn, prp
-      real(ireals), intent(in) :: extinction_coeff, cos_src_sundir, cos_trgt_sundir, signum
-      real(ireals) :: s, a3, h
-
-      a3 = norm2(ptb - prp)
-      s = norm2(v - prp)
-      h = norm2(v - pn)
-      h = norm2(v - ptb)
+      real(ireals), intent(in), dimension(3) :: v, plr, f, ptb
+      real(ireals), intent(in) :: extinction_coeff, s, l, h
 
       area3i = &
         quadrangle_area_by_vertices(v, plr, f, ptb) * &
         (one - exp( - extinction_coeff * s)) / max(tiny(area3i), (extinction_coeff * s)) + &
-        signum * num_dst( &
-            norm2(ps1 - ps2), &
-            h, &
-            a3, &
-            cos_trgt_sundir, &
-            cos_src_sundir,  &
-            extinction_coeff&
-            ) + &
         num_dst( &
-          norm2(p1 - p2), &
+          s, &
+          l, &
           h,   &
-          a3, &
-          cos_trgt_sundir, &
-          cos_src_sundir,  &
           extinction_coeff &
           )
+
         print *, 'quad', quadrangle_area_by_vertices(v, plr, f, ptb) * &
         (one - exp( - extinction_coeff * s)) / max(tiny(area3i), (extinction_coeff * s))
-        print *, 'sign', signum * num_dst( &
-            norm2(ps1 - ps2), &
-            h, &
-            a3, &
-            cos_trgt_sundir, &
-            cos_src_sundir,  &
-            extinction_coeff&
-            )
-        print *, '+', num_dst( &
-          norm2(p1 - p2), &
+
+        print *, 'num', num_dst( &
+          s, &
+          l, &
           h,   &
-          a3, &
-          cos_trgt_sundir, &
-          cos_src_sundir,  &
           extinction_coeff &
           )
     end function
 
-    real(ireals) function num_dst(l0, h0, a0, cos1, cos2, extinction_coeff)
-      real(ireals), intent(in) :: l0, h0, a0, extinction_coeff, cos1, cos2
+    real(ireals) function num_dst(s0, l0, h0, extinction_coeff)
+      real(ireals), intent(in) :: s0, l0, h0, extinction_coeff
       integer(iintegers), parameter :: n = 20
-      real(ireals), parameter :: l0_tiny = tiny(l0)
+      !real(ireals), parameter :: l0_tiny = tiny(l0)
       integer(iintegers) :: i
-      real(ireals) :: dl, l,  d, a1, a2
+      real(ireals) :: s, dh, ds, dl, h, j
 
       dl = l0 / n
-      num_dst = zero
-      do i=1,n
-        l = (i - 0.5_ireals) * dl
-        a1 = l * a0 / max(l0_tiny, l0)
-        a2 = l * h0 / max(l0_tiny, l0)
-        d = max(a1 * cos1 + a2 * cos2, zero)
+      dh = h0 / n
+      ds = s0 / n
 
-        num_dst = num_dst + a2 * dl * f_dst(d, extinction_coeff)
+      num_dst = zero
+      do i=1, n
+        j = i - 0.5_ireals
+        s = j * ds
+        h = j * dh
+        !                  | area |  |             extinction             |
+        num_dst = num_dst + dl * h * f_dst(s, extinction_coeff)
       enddo
     end function
 
     real(ireals) function f_dst(s, extinction_coeff)
       real(ireals), intent(in) :: s, extinction_coeff
+      real(ireals), parameter :: small = tiny(f_dst)
 
-      f_dst = (one - exp(-extinction_coeff * s)) / max(tiny(f_dst), (extinction_coeff * s))
+      f_dst = (one - exp( - extinction_coeff * s)) / max(small, (extinction_coeff * s))
     end function
 
     function num(l0, h0b, h0t, extinction_coeff, sin_theta)
