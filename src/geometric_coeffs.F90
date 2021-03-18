@@ -237,7 +237,6 @@ contains
         p1n, p1t, &   ! positive num lengthwise vertices
         p1n, &   ! pi normal projection to boarder
         p1rp, &  ! vi reprojected to src plane
-        !cos(3.14_ireals - acos_src_sundir - acos(dot_product(f1 - f2, f2 - f5) / (norm2(f1 - f2) * norm2(f2 - f5)))), &
         abs(dot_product(f1 - p1rp, sundir) / max(tiny(f1), norm2(f1 - p1rp))), &
         cos_src_sundir, & ! cos of num angles
         sign(one, (p1n(coord_is(1)) - p1t(coord_is(1))) * (f1(coord_is(1)) - p1n(coord_is(1)))), & ! signum of signum num
@@ -250,7 +249,6 @@ contains
         p2n, p2b, &   ! positive num lengthwise vertices
         p2n, &   ! pi normal projection to boarder
         p2rp, &  ! vi reprojected to src plane
-        !cos(3.14_ireals - acos_src_sundir - acos(dot_product(f1 - f2, f5 - f2) / (norm2(f1 - f2) * norm2(f5 - f2)))), &
         abs(dot_product(f2 - p2rp, sundir) / max(tiny(f2), norm2(f2 - p2rp))), &
         cos_src_sundir, & ! cos of num angles
         sign(one, (p2n(coord_is(1)) - p2b(coord_is(1))) * (f2(coord_is(1)) - p2n(coord_is(1)))), & ! signum of signum num
@@ -258,14 +256,14 @@ contains
         ), &
         area3i( &
         v3, p3r, f2, p3b, & ! quadrangle vertices
-        p3n, p3b, & ! signum num lengthwise vertices
-        p3n, f3, &   ! positive num lengthwise vertices
+        p3n, p3n, & ! signum num lengthwise vertices
+        p3b, f3, &   ! positive num lengthwise vertices
         p3n, &   ! pi normal projection to boarder
         p3rp, &  ! vi reprojected to src plane
-        !cos(3.14_ireals - acos_src_sundir - acos(dot_product(), &
-        abs(dot_product(f3 - p3rp, sundir) / max(tiny(f3), norm2(f3 - p3rp))), &
+        !abs(dot_product(p3b - p3rp, sundir) / max(tiny(f3), norm2(p3b - p3rp))), &
+        abs(dot_product(cross_3d(f2-f3, f2-f5), sundir) / max(tiny(f3), norm2(cross_3d(f2-f3, f2-f5)))), &
         cos_src_sundir, & ! cos of num angles
-        sign(one, (p3b(coord_is(1)) - p3n(coord_is(1))) * (p3b(coord_is(1)) - p3n(coord_is(1)))), & ! signum of signum num
+        sign(one, (p3b(coord_is(1)) - p3n(coord_is(1)))), & ! signum of signum num
         extinction_coeff & ! extinction coefficient
         ), &
         area3i( &
@@ -274,7 +272,6 @@ contains
         p4n, p4t, &   ! positive num lengthwise vertices
         p4n, &   ! pi normal projection to boarder
         p4rp, &  ! vi reprojected to src plane
-        !cos(3.14_ireals - acos_src_sundir - acos_top), &
         abs(dot_product(f4 - p4rp, sundir) / max(tiny(f4), norm2(f4 - p4rp))), &
         cos_src_sundir, & ! cos of num angles
         sign(one, (p4n(coord_is(1)) - p4t(coord_is(1)))), &! * (f4(coord_is(1)) - p4n(coord_is(1)))), & ! signum of signum num
@@ -302,9 +299,10 @@ contains
       real(ireals), intent(in) :: extinction_coeff, cos_src_sundir, cos_trgt_sundir, signum
       real(ireals) :: s, a3, h
 
-      a3 = norm2(pn - prp)
+      a3 = norm2(ptb - prp)
       s = norm2(v - prp)
       h = norm2(v - pn)
+      h = norm2(v - ptb)
 
       area3i = &
         quadrangle_area_by_vertices(v, plr, f, ptb) * &
