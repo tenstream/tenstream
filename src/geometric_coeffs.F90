@@ -140,7 +140,7 @@ contains
       s1 =  norm2(f1 - (f1 + hit_plane(f1, sundir, f5, compute_normal_3d(f1, f2, f3)) * sundir))
 
       area1 = area1 * exp( - extinction_coeff * s1)
-      area1 = 0._ireals
+      !area1 = 0._ireals
 
       area2 = compute_quadrangle_areas( &
         v1, p1b, f2, f1, &
@@ -154,6 +154,15 @@ contains
       print *, 'v3', v3
       print *, 'v4', v4
 
+
+
+      normal = compute_normal_3d(f1, f2, f5)
+
+      p1rp = v1 + hit_plane(v1, sundir, f1, normal) * sundir
+      p2rp = v2 + hit_plane(v2, sundir, f2, normal) * sundir
+      p3rp = v3 + hit_plane(v3, sundir, f3, normal) * sundir
+      p4rp = v4 + hit_plane(v4, sundir, f4, normal) * sundir
+
       coord_is = other_slice
 
       sin_theta = max(sin(abs(atan(sundir(coord_is(1)) / sqrt(sundir(coord_is(2))**2 + sundir(coord_is(3))**2)))), tiny(sin_theta))
@@ -164,24 +173,54 @@ contains
       s24 = norm2(v4 - (v4 + hit_plane(v4, sundir, f4, compute_normal_3d(f4, f3, f6)) * sundir))
 
       area2 = max( &
-        quadrangle_area_by_vertices(v1, p1r, f2, p1b) * &
-        (one - exp( - extinction_coeff * s21)) / max(tiny(area2), (extinction_coeff * s21)) + &
-        num(f1(coord_is(3)) - p1r(coord_is(3)), f1(coord_is(1)) - v1(coord_is(1)), zero, extinction_coeff, sin_theta) &
-        , &
-        quadrangle_area_by_vertices(v2, p2r, f1, p2t) * &
-        (one - exp( - extinction_coeff * s22)) / max(tiny(area2), (extinction_coeff * s22)) + &
-        num(f2(coord_is(3)) - p2r(coord_is(3)), f2(coord_is(1)) - v2(coord_is(1)), zero, extinction_coeff, sin_theta) &
-        , &
-        quadrangle_area_by_vertices(v3, p3l, f4, p3t) * &
-        (one - exp( - extinction_coeff * s23)) / max(tiny(area2), (extinction_coeff * s23)) + &
-        num(v3(coord_is(3)), v3(coord_is(1)), zero, extinction_coeff, sin_theta) &
-        , &
-        quadrangle_area_by_vertices(v4, p4l, f3, p4b) * &
-        (one - exp( - extinction_coeff * s24)) / max(tiny(area2), (extinction_coeff * s24)) + &
-        num(f4(coord_is(3)) - v4(coord_is(3)), v4(coord_is(1)), zero, extinction_coeff, sin_theta) &
+        area3i( &
+        v1, p1r, f2, p1b, & ! quadrangle vertices
+        norm2(f1 - p1r) * cos(acos(dot_product(f1 - f2, f1 - f4) / (norm2(f1 - f2) * norm2(f1 - f4))) - 3.14 / 2), & ! l
+        norm2(p1rp - v1), & ! s
+        norm2(p1r - v1), & ! h
+        extinction_coeff & ! extinction coefficient
+        ), &
+        area3i( &
+        v2, p2r, f1, p2t, & ! quadrangle vertices
+        norm2(f2 - p2r) * cos(acos(dot_product(f1 - f2, f1 - f4) / (norm2(f1 - f2) * norm2(f1 - f4))) - 3.14 / 2), & ! l
+        norm2(p2rp - v2), & ! s
+        norm2(p2r - v2), & ! h
+        extinction_coeff & ! extinction coefficient
+        ), &
+        area3i( &
+        v3, p3l, f4, p3t, & ! quadrangle vertices
+        norm2(f3 - p3l) * cos(acos(dot_product(f1 - f2, f1 - f4) / (norm2(f1 - f2) * norm2(f1 - f4))) - 3.14 / 2), & ! l
+        norm2(p3rp - v3), & ! s
+        norm2(p3l - v3), & ! h
+        extinction_coeff & ! extinction coefficient
+        ), &
+        area3i( &
+        v4, p4l, f3, p4b, & ! quadrangle vertices
+        norm2(f4 - p4l) * cos(acos(dot_product(f1 - f2, f1 - f4) / (norm2(f1 - f2) * norm2(f1 - f4))) - 3.14 / 2), & ! l
+        norm2(p4rp - v4), & ! s
+        norm2(p4l - v4), & ! h
+        extinction_coeff & ! extinction coefficient
+        )  &
+        !quadrangle_area_by_vertices(v1, p1r, f2, p1b) * &
+        !(one - exp( - extinction_coeff * s21)) / max(tiny(area2), (extinction_coeff * s21)) + &
+        !num(f1(coord_is(3)) - p1r(coord_is(3)), f1(coord_is(1)) - v1(coord_is(1)), zero, extinction_coeff, sin_theta) &
+        !, &
+        !quadrangle_area_by_vertices(v2, p2r, f1, p2t) * &
+        !(one - exp( - extinction_coeff * s22)) / max(tiny(area2), (extinction_coeff * s22)) + &
+        !num(f2(coord_is(3)) - p2r(coord_is(3)), f2(coord_is(1)) - v2(coord_is(1)), zero, extinction_coeff, sin_theta) &
+        !, &
+        !quadrangle_area_by_vertices(v3, p3l, f4, p3t) * &
+        !(one - exp( - extinction_coeff * s23)) / max(tiny(area2), (extinction_coeff * s23)) + &
+        !num(v3(coord_is(3)), v3(coord_is(1)), zero, extinction_coeff, sin_theta) &
+        !, &
+        !quadrangle_area_by_vertices(v4, p4l, f3, p4b) * &
+        !(one - exp( - extinction_coeff * s24)) / max(tiny(area2), (extinction_coeff * s24)) + &
+        !num(f4(coord_is(3)) - v4(coord_is(3)), v4(coord_is(1)), zero, extinction_coeff, sin_theta) &
         )
-      area2 = 0._ireals
-
+      !area2 = 0._ireals
+        print *, 's3', norm2(p3rp - v3) ! s
+        print *, 's23', norm2(s23 - v3)
+        print *, 's4', norm2(p4rp - v4) ! s
 
 
       normal = compute_normal_3d(f3, f2, f5)
@@ -199,9 +238,9 @@ contains
       area3 = max( &
         area3i( &
         v1, p1l, f4, p1t, & ! quadrangle vertices
-        norm2(f1 - p1t) * cos(acos(dot_product(f1 - f2, f1 - f4) / (norm2(f1 - f2) * norm2(f1 - f4))) - 3.14 / 2), &
-        norm2(p1rp - v1), &
-        norm2(p1t - v1), &
+        norm2(f1 - p1t) * cos(acos(dot_product(f1 - f2, f1 - f4) / (norm2(f1 - f2) * norm2(f1 - f4))) - 3.14 / 2), & ! l
+        norm2(p1rp - v1), & ! s
+        norm2(p1t - v1), & ! h
         extinction_coeff & ! extinction coefficient
         ), &
         area3i( &
@@ -227,10 +266,6 @@ contains
         )  &
         )
 
-        print *,- norm2(f4 - p4t) * dot_product(f4 - f3, f4 - f1) / (norm2(f4 - f3) * norm2(f4 - f1))
-        print *,norm2(p4rp - v4)
-        print *,norm2(p4t - v4)
-      print *, 'p4rp', p4rp
 
       areas = max([area1, area2, area3], zero)
 
