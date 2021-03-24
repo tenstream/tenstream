@@ -65,7 +65,7 @@ contains
     call project_points(sundir, d, compute_normal_3d(d, b, a), h_p, g_p, e_p, f_p)
     call rearange_projections(d, c, a, b, h_p, g_p, e_p, f_p)
     call correct_coeffs( &
-      d   , c   , a   , b,    g, h, & ! fixed
+      d   , c   , a   , b,    g, & ! fixed
       h_p , g_p , e_p , f_p,     & ! projected
       optical_props(1), [1      , 7       , 4], [2, 3, 1]      , coeffs       & ! slice of relevant coefficients , and coefficient array
       )
@@ -75,7 +75,7 @@ contains
     call project_points(sundir, a, compute_normal_3d(c, a, e), h_p, d_p, b_p, f_p)
     call rearange_projections(g, c, a, e, h_p, d_p, b_p, f_p)
     call correct_coeffs( &
-      g   , c   , a   , e,    d, h, & ! fixed
+      g   , c   , a   , e,    d, & ! fixed
       h_p , d_p , b_p , f_p,     & ! projected
       optical_props(1), [5      , 8       , 2], [2, 1, 3]      , coeffs       & ! slice of relevant coefficients , and coefficient array
       )
@@ -85,7 +85,7 @@ contains
     call project_points(sundir, d, compute_normal_3d(c, d, h), f_p, b_p, a_p, e_p)
     call rearange_projections(h, d, c, g, f_p, b_p, a_p, e_p)
     call correct_coeffs( &
-      h   , d   , c   , g,    b, f, & ! fixed
+      h   , d   , c   , g,    b, & ! fixed
       f_p , b_p , a_p , e_p,     & ! projected
       optical_props(1), [9      , 6       , 3], [1, 2, 3]      , coeffs       & ! slice of relevant coefficients , and coefficient array
       )
@@ -94,18 +94,17 @@ contains
   contains
 
     subroutine correct_coeffs( &
-        f1, f2, f3, f4, f5, f6, &
+        f1, f2, f3, f4, f5, &
         v1, v2, v3, v4, &
         extinction_coeff, slice, other_slice, coeffs &
         )
       real(ireals), intent(in) :: extinction_coeff
       real(ireals), intent(in), dimension(3) ::  &
-        f1, f2, f3, f4, f5, f6, v1, v2, v3, v4
+        f1, f2, f3, f4, f5, v1, v2, v3, v4
       integer(iintegers), intent(in) :: slice(3), other_slice(3)
       real(irealLUT), intent(inout) :: coeffs(9)
       real(ireals) :: &
-        area1, area2, area3, area_total_src, areas(3), &
-        s1, s21, s22, s23, s24, s31, s32, s33, s34, sin_theta
+        area1, area2, area3, area_total_src, areas(3), sin_theta, cos_src_trgt, s1
       real(ireals), dimension(3) :: &
         p1l, p1b, p1t, p1r, p2l, p2t, p2b, p2r, p3r, p3t, p3b, p3l, p4r, p4b, p4t, p4l, normal, &
         p1rp, p2rp, p3rp, p4rp
@@ -136,11 +135,9 @@ contains
         )
       area1 = area_total_src - area2 - area3
 
-
       s1 =  norm2(f1 - (f1 + hit_plane(f1, sundir, f5, compute_normal_3d(f1, f2, f3)) * sundir))
 
       area1 = area1 * exp( - extinction_coeff * s1)
-      !area1 = 0._ireals
 
       area2 = compute_quadrangle_areas( &
         v1, p1b, f2, f1, &
@@ -148,13 +145,6 @@ contains
         v3, p3t, f4, f3, &
         v4, p4b, f4, f3  &
         )
-
-      print *, 'v1', v1
-      print *, 'v2', v2
-      print *, 'v3', v3
-      print *, 'v4', v4
-
-
 
       normal = compute_normal_3d(f1, f2, f5)
 
@@ -166,62 +156,38 @@ contains
       coord_is = other_slice
 
       sin_theta = max(sin(abs(atan(sundir(coord_is(1)) / sqrt(sundir(coord_is(2))**2 + sundir(coord_is(3))**2)))), tiny(sin_theta))
-
-      s21 = norm2(v1 - (v1 + hit_plane(v1, sundir, f1, compute_normal_3d(f1, f2, f5)) * sundir))
-      s22 = norm2(v2 - (v2 + hit_plane(v2, sundir, f2, compute_normal_3d(f1, f2, f5)) * sundir))
-      s23 = norm2(v3 - (v3 + hit_plane(v3, sundir, f3, compute_normal_3d(f4, f3, f6)) * sundir))
-      s24 = norm2(v4 - (v4 + hit_plane(v4, sundir, f4, compute_normal_3d(f4, f3, f6)) * sundir))
+      cos_src_trgt = cos(acos(dot_product(f1 - f2, f1 - f4) / (norm2(f1 - f2) * norm2(f1 - f4))) - 3.14 / 2)
 
       area2 = max( &
         area3i( &
         v1, p1r, f2, p1b, & ! quadrangle vertices
-        norm2(f1 - p1r) * cos(acos(dot_product(f1 - f2, f1 - f4) / (norm2(f1 - f2) * norm2(f1 - f4))) - 3.14 / 2), & ! l
+        norm2(f1 - p1r) * cos_src_trgt, & ! l
         norm2(p1rp - v1), & ! s
         norm2(p1r - v1), & ! h
         extinction_coeff & ! extinction coefficient
         ), &
         area3i( &
         v2, p2r, f1, p2t, & ! quadrangle vertices
-        norm2(f2 - p2r) * cos(acos(dot_product(f1 - f2, f1 - f4) / (norm2(f1 - f2) * norm2(f1 - f4))) - 3.14 / 2), & ! l
+        norm2(f2 - p2r) * cos_src_trgt, & ! l
         norm2(p2rp - v2), & ! s
         norm2(p2r - v2), & ! h
         extinction_coeff & ! extinction coefficient
         ), &
         area3i( &
         v3, p3l, f4, p3t, & ! quadrangle vertices
-        norm2(f3 - p3l) * cos(acos(dot_product(f1 - f2, f1 - f4) / (norm2(f1 - f2) * norm2(f1 - f4))) - 3.14 / 2), & ! l
+        norm2(f3 - p3l) * cos_src_trgt, & ! l
         norm2(p3rp - v3), & ! s
         norm2(p3l - v3), & ! h
         extinction_coeff & ! extinction coefficient
         ), &
         area3i( &
         v4, p4l, f3, p4b, & ! quadrangle vertices
-        norm2(f4 - p4l) * cos(acos(dot_product(f1 - f2, f1 - f4) / (norm2(f1 - f2) * norm2(f1 - f4))) - 3.14 / 2), & ! l
+        norm2(f4 - p4l) * cos_src_trgt, & ! l
         norm2(p4rp - v4), & ! s
         norm2(p4l - v4), & ! h
         extinction_coeff & ! extinction coefficient
         )  &
-        !quadrangle_area_by_vertices(v1, p1r, f2, p1b) * &
-        !(one - exp( - extinction_coeff * s21)) / max(tiny(area2), (extinction_coeff * s21)) + &
-        !num(f1(coord_is(3)) - p1r(coord_is(3)), f1(coord_is(1)) - v1(coord_is(1)), zero, extinction_coeff, sin_theta) &
-        !, &
-        !quadrangle_area_by_vertices(v2, p2r, f1, p2t) * &
-        !(one - exp( - extinction_coeff * s22)) / max(tiny(area2), (extinction_coeff * s22)) + &
-        !num(f2(coord_is(3)) - p2r(coord_is(3)), f2(coord_is(1)) - v2(coord_is(1)), zero, extinction_coeff, sin_theta) &
-        !, &
-        !quadrangle_area_by_vertices(v3, p3l, f4, p3t) * &
-        !(one - exp( - extinction_coeff * s23)) / max(tiny(area2), (extinction_coeff * s23)) + &
-        !num(v3(coord_is(3)), v3(coord_is(1)), zero, extinction_coeff, sin_theta) &
-        !, &
-        !quadrangle_area_by_vertices(v4, p4l, f3, p4b) * &
-        !(one - exp( - extinction_coeff * s24)) / max(tiny(area2), (extinction_coeff * s24)) + &
-        !num(f4(coord_is(3)) - v4(coord_is(3)), v4(coord_is(1)), zero, extinction_coeff, sin_theta) &
         )
-      !area2 = 0._ireals
-        print *, 's3', norm2(p3rp - v3) ! s
-        print *, 's23', norm2(s23 - v3)
-        print *, 's4', norm2(p4rp - v4) ! s
-
 
       normal = compute_normal_3d(f3, f2, f5)
 
@@ -230,42 +196,36 @@ contains
       p3rp = v3 + hit_plane(v3, sundir, f3, normal) * sundir
       p4rp = v4 + hit_plane(v4, sundir, f4, normal) * sundir
 
-      s31 = norm2(v1 - p1rp)
-      s32 = norm2(v2 - p2rp)
-      s33 = norm2(v3 - p3rp)
-      s34 = norm2(v4 - p4rp)
-
       area3 = max( &
         area3i( &
         v1, p1l, f4, p1t, & ! quadrangle vertices
-        norm2(f1 - p1t) * cos(acos(dot_product(f1 - f2, f1 - f4) / (norm2(f1 - f2) * norm2(f1 - f4))) - 3.14 / 2), & ! l
+        norm2(f1 - p1t) * cos_src_trgt, & ! l
         norm2(p1rp - v1), & ! s
         norm2(p1t - v1), & ! h
         extinction_coeff & ! extinction coefficient
         ), &
         area3i( &
         v2, p2l, f3, p2b, & ! quadrangle vertices
-        norm2(f2 - p2b) * cos(acos(dot_product(f2 - f3, f2 - f1) / (norm2(f2 - f3) * norm2(f2 - f1))) - 3.14 / 2), &
+        norm2(f2 - p2b) * cos_src_trgt, &
         norm2(p2rp - v2), &
         norm2(p2b - v2), &
         extinction_coeff & ! extinction coefficient
         ), &
         area3i( &
         v3, p3r, f2, p3b, & ! quadrangle vertices
-        norm2(f3 - p3b) * cos(acos(dot_product(f3 - f4, f3 - f2) / (norm2(f3 - f4) * norm2(f3 - f2))) - 3.14 / 2), &
+        norm2(f3 - p3b) * cos_src_trgt, &
         norm2(p3rp - v3), &
         norm2(p3b - v3), &
         extinction_coeff & ! extinction coefficient
         ), &
         area3i( &
         v4, p4r, f1, p4t, & ! quadrangle vertices
-        norm2(f4 - p4t) * cos(acos(dot_product(f4 - f3, f4 - f1) / (norm2(f4 - f3) * norm2(f4 - f1))) - 3.14 / 2), &   ! length
+        norm2(f4 - p4t) * cos_src_trgt, &   ! length
         norm2(p4rp - v4), &  ! path
         norm2(p4t - v4), &   ! height
         extinction_coeff & ! extinction coefficient
         )  &
         )
-
 
       areas = max([area1, area2, area3], zero)
 
