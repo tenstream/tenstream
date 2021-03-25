@@ -51,7 +51,7 @@ void pprts_f2c_solve(int fcomm, float edirTOA);
 void pprts_f2c_destroy(int *lfinalizepetsc);
 void pprts_f2c_get_result(int Nz,int Nx,int Ny, float *edn, float *eup, float *abso, float *edir);
 
-void pprts_f2c_opp_init(const int comm, const int solver_id, int* Ndir, int *Ndiff, void** opp, int* ierr);
+void pprts_f2c_opp_init(const int comm, const int solver_id, void** opp, int* ierr);
 void pprts_f2c_opp_get_coeff(
     void* opp,
     const float tauz,
@@ -67,3 +67,17 @@ void pprts_f2c_opp_get_coeff(
     float* coeff,
     int* ierr);
 void pprts_f2c_opp_destroy(void* opp, int* ierr);
+void pprts_f2c_opp_get_info(
+    void* opp,
+    int* Ndir, int* Ndiff,
+    float* diff_tauz_range,
+    float* diff_w0_range,
+    float* diff_g_range,
+    float* diff_aspect_zx_range,
+    float* dir_tauz_range,
+    float* dir_w0_range,
+    float* dir_g_range,
+    float* dir_aspect_zx_range,
+    float* dir_phi_range,
+    float* dir_theta_range,
+    int* ierr);
