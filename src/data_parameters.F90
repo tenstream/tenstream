@@ -48,7 +48,7 @@ module m_data_parameters
       PetscReal :: petscreal_dummy
 
       integer,parameter :: &
-          default_str_len = 256,            &
+          default_str_len = 512,            &
           iintegers = kind(petscint_dummy), &
           irealLUT = REAL32,                &
           ireals = kind(petscreal_dummy),   &
