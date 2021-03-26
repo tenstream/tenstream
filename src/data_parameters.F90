@@ -19,13 +19,7 @@
 
 module m_data_parameters
 #include <petsc/finclude/petsc.h>
-      use petsc, only: PETSC_NULL_CHARACTER, PETSC_COMM_WORLD
-      use mpi, only: &
-        & MPI_CHARACTER, &
-        & MPI_LOGICAL, &
-        & MPI_SUM, &
-        & MPI_TYPECLASS_INTEGER, &
-        & MPI_TYPECLASS_REAL
+      use petsc
 
       use iso_fortran_env, only: INT32, INT64, REAL32, REAL64, REAL128
       use ieee_arithmetic, only: ieee_support_nan, ieee_quiet_nan, ieee_value, &
