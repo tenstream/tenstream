@@ -66,9 +66,9 @@ module m_pprts_base
   type t_suninfo
     !type(t_sunangles),allocatable :: angles(:,:,:) ! defined on DMDA grid
     real(ireals) :: sundir(3)
-    real(ireals), allocatable, dimension(:,:,:) :: & ! C_one%zs:C_one%ze, C_one%xs:C_one%xe, C_one%ys:C_one%ye
+    real(ireals) :: &
       symmetry_phi, theta, phi, costheta, sintheta
-    integer(iintegers), allocatable, dimension(:,:,:) :: xinc, yinc
+    integer(iintegers) :: xinc, yinc
     logical :: luse_topography=.False.
   end type
 
@@ -421,13 +421,13 @@ module m_pprts_base
         deallocate(solver%atm)
       endif
 
-      call deallocate_allocatable(solver%sun%symmetry_phi)
-      call deallocate_allocatable(solver%sun%theta       )
-      call deallocate_allocatable(solver%sun%phi         )
-      call deallocate_allocatable(solver%sun%costheta    )
-      call deallocate_allocatable(solver%sun%sintheta    )
-      call deallocate_allocatable(solver%sun%xinc        )
-      call deallocate_allocatable(solver%sun%yinc        )
+      !call deallocate_allocatable(solver%sun%symmetry_phi)
+      !call deallocate_allocatable(solver%sun%theta       )
+      !call deallocate_allocatable(solver%sun%phi         )
+      !call deallocate_allocatable(solver%sun%costheta    )
+      !call deallocate_allocatable(solver%sun%sintheta    )
+      !call deallocate_allocatable(solver%sun%xinc        )
+      !call deallocate_allocatable(solver%sun%yinc        )
 
       if(allocated(solver%OPP)) then
         call solver%OPP%destroy(ierr)

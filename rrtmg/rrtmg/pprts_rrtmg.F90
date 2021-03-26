@@ -893,7 +893,7 @@ contains
     real(ireals), pointer, dimension(:,:,:) :: patm_dz
     real(ireals), pointer, dimension(:,:) :: pedir, pedn, peup, pabso
 
-    real(ireals) :: col_theta, col_albedo
+    real(ireals) :: col_albedo
 
     integer(iintegers) :: i, j, k, icol, ib
     logical :: need_any_new_solution
@@ -979,15 +979,13 @@ contains
             integral_coeff(k) = vert_integral_coeff(atm%plev(k,icol), atm%plev(k+1,icol))
           enddo
 
-          col_theta = solver%sun%theta(solver%C_one%zs, solver%C_one%xs+i-i1, solver%C_one%ys+j-i1)
-
           if(present(solar_albedo_2d)) then
             col_albedo = solar_albedo_2d(i,j)
           else
             col_albedo = albedo
           endif
           call optprop_rrtm_sw(i1, ke, &
-            col_theta, col_albedo, &
+            solver%sun%theta, col_albedo, &
             atm%plev(:,icol), atm%tlev(:,icol), atm%tlay(:,icol), &
             atm%h2o_lay(:,icol), atm%o3_lay(:,icol), atm%co2_lay(:,icol), &
             atm%ch4_lay(:,icol), atm%n2o_lay(:,icol), atm%o2_lay(:,icol), &
@@ -1021,8 +1019,6 @@ contains
             integral_coeff(k) = vert_integral_coeff(atm%plev(k,icol), atm%plev(k+1,icol))
           enddo
 
-          col_theta = solver%sun%theta(solver%C_one%zs, solver%C_one%xs+i-i1, solver%C_one%ys+j-i1)
-
           if(present(solar_albedo_2d)) then
             col_albedo = solar_albedo_2d(i,j)
           else
@@ -1030,7 +1026,7 @@ contains
           endif
 
           call optprop_rrtm_sw(i1, ke, &
-            col_theta, col_albedo, &
+            solver%sun%theta, col_albedo, &
             atm%plev(:,icol), atm%tlev(:,icol), atm%tlay(:,icol), &
             atm%h2o_lay(:,icol), atm%o3_lay(:,icol), atm%co2_lay(:,icol), &
             atm%ch4_lay(:,icol), atm%n2o_lay(:,icol), atm%o2_lay(:,icol), &
@@ -1141,8 +1137,6 @@ contains
             do i=1,ie
               icol =  i+(j-1)*ie
 
-              col_theta = solver%sun%theta(solver%C_one%zs, solver%C_one%xs+i-i1, solver%C_one%ys+j-i1)
-
               if(present(solar_albedo_2d)) col_albedo = solar_albedo_2d(i,j)
 
               do ib=spectral_bands(1), spectral_bands(2)
@@ -1156,7 +1150,7 @@ contains
                 col_w0     = max(tiny(col_w0  ), real(reverse(w0 (:,i,j,ib))))
                 col_g      = max(tiny(col_g   ), real(reverse(g  (:,i,j,ib))))
 
-                mu0 = real(cos(deg2rad(col_theta)))
+                mu0 = real(cos(deg2rad(solver%sun%theta)))
                 call default_flx_computation(&
                   mu0, &
                   real(edirTOA), &

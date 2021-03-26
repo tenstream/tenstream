@@ -755,7 +755,7 @@ contains
     if(solution%lsolar_rad.eqv..False.) &
       & call CHKERR(1_mpiint, "Cannot use Rayli for thermal computations")
 
-    sundir = spherical_2_cartesian(meanval(solver%sun%phi), meanval(solver%sun%theta)) &
+    sundir = spherical_2_cartesian(solver%sun%phi, solver%sun%theta) &
       & * edirTOA
 
     call init_pprts_rayli_wrapper(solver, solution, rayli_info, opt_buildings=opt_buildings)
@@ -1102,8 +1102,14 @@ contains
       allocate(   w0(C_one_atm%zs:C_one_atm%ze) )
       allocate(    g(C_one_atm%zs:C_one_atm%ze) )
 
-      if(solution%lsolar_rad) &
+      if(solution%lsolar_rad) then
         call getVecPointer(C_dir%da, solution%edir, xv_dir1d, xv_dir)
+        mu0 = real(solver%sun%costheta)
+      else
+        mu0 = 0
+      endif
+      incSolar = edirTOA * mu0
+
       call getVecPointer(C_diff%da, solution%ediff, xv_diff1d, xv_diff)
 
       allocate( S  (C_one_atm1%zs:C_one_atm1%ze) )
@@ -1112,9 +1118,6 @@ contains
 
       do j=C_one_atm%ys,C_one_atm%ye
         do i=C_one_atm%xs,C_one_atm%xe
-
-          mu0 = solver%sun%costheta(C_one_atm1%zs,i,j)
-          incSolar = edirTOA* mu0
 
           kext = atm%kabs(:,i,j) + atm%ksca(:,i,j)
           dtau = atm%dz(:,i,j)* kext
@@ -1297,8 +1300,13 @@ contains
       allocate(    g(C_one_atm%zs:C_one_atm%ze) )
       allocate(Bfrac(C_one_atm%zs:C_one_atm%ze) )
 
-      if(solution%lsolar_rad) &
+      if(solution%lsolar_rad) then
         call getVecPointer(C_dir%da, solution%edir, xv_dir1d, xv_dir)
+        mu0 = real(solver%sun%costheta)
+      else
+        mu0 = 0
+      endif
+
       call getVecPointer(C_diff%da, solution%ediff, xv_diff1d, xv_diff)
 
       allocate( tlev    (C_one_atm1%zs:C_one_atm1%ze) )
@@ -1310,8 +1318,6 @@ contains
 
       do j=C_one_atm%ys,C_one_atm%ye
         do i=C_one_atm%xs,C_one_atm%xe
-
-          mu0      = real(solver%sun%costheta(C_one_atm1%zs,i,j))
 
           kext = real(atm%kabs(:,i,j) + atm%ksca(:,i,j))
           dtau = real(atm%dz(:,i,j)* kext)
