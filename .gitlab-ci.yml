@@ -44,7 +44,7 @@ build:docker:ubuntu-latest:
     PETSC_PRECISION: double
     PETSC_64_INTEGERS: 0
     PETSC_DEBUGGING: 1
-    BUILD_TYPE: DEBUG
+    BUILD_TYPE: RELEASE
 
 build:docker:ubuntu-rolling:
   extends: .build:default
