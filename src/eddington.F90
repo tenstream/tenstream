@@ -201,7 +201,7 @@ contains
     g2 = w0 * (0.75_irealeddington - f)
     g3 = 0.5_irealeddington  - mu0 * f
 
-    dtau_slant = max(dtau / mu0, 0._irealeddington)
+    dtau_slant = real(max(dtau / max(sqrt(tiny(mu0)), mu0), 0._ireals), irealeddington)
 
     if(dtau_slant.gt.1e-6_ireals) then
       g4 = 1._irealeddington - g3
