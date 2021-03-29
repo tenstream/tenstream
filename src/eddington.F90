@@ -201,7 +201,7 @@ contains
     g2 = w0 * (0.75_irealeddington - f)
     g3 = 0.5_irealeddington  - mu0 * f
 
-    dtau_slant = max(dtau / mu0, 0._irealeddington)
+    dtau_slant = real(max(dtau / max(sqrt(tiny(mu0)), mu0), 0._ireals), irealeddington)
 
     if(dtau_slant.gt.1e-6_ireals) then
       g4 = 1._irealeddington - g3
@@ -236,11 +236,11 @@ contains
         &     -(1 + k_mu0) * (alpha2 - k_g3)*e2 &
         &     -k_2_e*(g3 - alpha2*mu0)*e0), ireals)
     else
-      t = 1._irealeddington - g1 * dtau
-      r = g2 * dtau
-      sdir = (1._ireals - g3) * w0 * dtau
-      rdir = g3 * w0 * dtau
-      tdir = 1._ireals - dtau_slant
+      t    = real(1._irealeddington - g1 * real(dtau, irealeddington), ireals)
+      r    = real(g2 * real(dtau, irealeddington), ireals)
+      sdir = real((1._irealeddington - g3) * real(w0 * dtau, irealeddington), ireals)
+      rdir = real(g3 * real(w0 * dtau, irealeddington), ireals)
+      tdir = real(1._irealeddington - dtau_slant, ireals)
     endif
   end subroutine
 end module

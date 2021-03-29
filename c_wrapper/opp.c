@@ -43,14 +43,49 @@ int main(int argc, char *argv[]) {
   const int solver_id = SOLVER_ID_PPRTS_3_10;
 
   int ierr;
-  int Ndir;
-  int Ndiff;
 
   void * opp = NULL; // this is pointer to the tenstream optical properties object
-  pprts_f2c_opp_init(mpi_comm, solver_id, &Ndir, &Ndiff, &opp, &ierr);
+  pprts_f2c_opp_init(mpi_comm, solver_id, &opp, &ierr);
+  CHKERR(ierr);
+
+  int Ndir;
+  int Ndiff;
+  float diff_tauz_range[2];
+  float diff_w0_range[2];
+  float diff_g_range[2];
+  float diff_aspect_zx_range[2];
+  float dir_tauz_range[2];
+  float dir_w0_range[2];
+  float dir_g_range[2];
+  float dir_aspect_zx_range[2];
+  float dir_phi_range[2];
+  float dir_theta_range[2];
+
+  pprts_f2c_opp_get_info(opp, &Ndir, &Ndiff,
+      diff_tauz_range,
+      diff_w0_range,
+      diff_g_range,
+      diff_aspect_zx_range,
+      dir_tauz_range,
+      dir_w0_range,
+      dir_g_range,
+      dir_aspect_zx_range,
+      dir_phi_range,
+      dir_theta_range,
+      &ierr);
   CHKERR(ierr);
 
   fprintf(stderr, "LUT has %d direct and %d diffuse streams\n", Ndir, Ndiff);
+  fprintf(stderr, "LUT range %20s :: %12.6g %12.6g\n", "diff_tauz",     diff_tauz_range[0],     diff_tauz_range[1]);
+  fprintf(stderr, "LUT range %20s :: %12.6g %12.6g\n", "diff_w0",       diff_w0_range[0],       diff_w0_range[1]);
+  fprintf(stderr, "LUT range %20s :: %12.6g %12.6g\n", "diff_g",        diff_g_range[0],        diff_g_range[1]);
+  fprintf(stderr, "LUT range %20s :: %12.6g %12.6g\n", "diff_aspect_zx",diff_aspect_zx_range[0],diff_aspect_zx_range[1]);
+  fprintf(stderr, "LUT range %20s :: %12.6g %12.6g\n", "dir_tauz",      dir_tauz_range[0],      dir_tauz_range[1]);
+  fprintf(stderr, "LUT range %20s :: %12.6g %12.6g\n", "dir_w0",        dir_w0_range[0],        dir_w0_range[1]);
+  fprintf(stderr, "LUT range %20s :: %12.6g %12.6g\n", "dir_g",         dir_g_range[0],         dir_g_range[1]);
+  fprintf(stderr, "LUT range %20s :: %12.6g %12.6g\n", "dir_aspect_zx", dir_aspect_zx_range[0], dir_aspect_zx_range[1]);
+  fprintf(stderr, "LUT range %20s :: %12.6g %12.6g\n", "dir_phi",       dir_phi_range[0],       dir_phi_range[1]);
+  fprintf(stderr, "LUT range %20s :: %12.6g %12.6g\n", "dir_theta",     dir_theta_range[0],     dir_theta_range[1]);
 
   const float tauz        = 1;  // vertically integrated optical thickness
   const float w0          = .5; // single scatter albedo

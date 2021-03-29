@@ -55,6 +55,9 @@ module m_f2c_pprts
         & t_solver_8_16, &
         & t_solver_8_18
 
+      use m_optprop_base, only: &
+        find_op_dim_by_name
+
       use m_optprop, only: &
         & t_optprop, &
         & t_optprop_3_10
@@ -538,10 +541,9 @@ contains
 
 
   ! --------------------- OPP Routines -------------------------------
-  subroutine pprts_f2c_OPP_init(comm, solver_id, Ndir, Ndiff, opp_ptr, ierr) bind(c)
+  subroutine pprts_f2c_OPP_init(comm, solver_id, opp_ptr, ierr) bind(c)
     integer(c_int), value :: comm
     integer(c_int), value, intent(in) :: solver_id
-    integer(c_int), intent(out) :: Ndir, Ndiff
     type(c_ptr), intent(out) :: opp_ptr
     integer(c_int), intent(out) :: ierr
 
@@ -558,8 +560,6 @@ contains
     case (SOLVER_ID_PPRTS_3_10)
       allocate(OPP_container%OPP_3_10)
       call OPP_container%OPP_3_10%init(comm)
-      Ndir  = OPP_container%OPP_3_10%LUT%dir_streams
-      Ndiff = OPP_container%OPP_3_10%LUT%diff_streams
     case default
       print *,'pprts_f2c_init_OPP not implemented for solver_id', solver_id
       ierr = 1
@@ -636,6 +636,79 @@ contains
       ierr = 1
       call CHKERR(ierr, "imode option "//toStr(imode)//" not recognized")
     end select
+  end subroutine
+
+  subroutine pprts_f2c_OPP_get_info(&
+      & opp_ptr, &
+      & Ndir, Ndiff, &
+      & diff_tauz_range, &
+      & diff_w0_range, &
+      & diff_g_range, &
+      & diff_aspect_zx_range, &
+      & dir_tauz_range, &
+      & dir_w0_range, &
+      & dir_g_range, &
+      & dir_aspect_zx_range, &
+      & dir_phi_range, &
+      & dir_theta_range, &
+      & ierr) bind(c)
+
+    type(c_ptr), value, intent(in) :: opp_ptr
+    integer(c_int), intent(out) :: Ndir, Ndiff
+    real(c_float), intent(out) :: diff_tauz_range(2)
+    real(c_float), intent(out) :: diff_w0_range(2)
+    real(c_float), intent(out) :: diff_g_range(2)
+    real(c_float), intent(out) :: diff_aspect_zx_range(2)
+    real(c_float), intent(out) :: dir_tauz_range(2)
+    real(c_float), intent(out) :: dir_w0_range(2)
+    real(c_float), intent(out) :: dir_g_range(2)
+    real(c_float), intent(out) :: dir_aspect_zx_range(2)
+    real(c_float), intent(out) :: dir_phi_range(2)
+    real(c_float), intent(out) :: dir_theta_range(2)
+    integer(c_int), intent(out) :: ierr
+
+    integer(c_int) :: k
+    type(f2c_OPP_container), pointer :: OPP_container
+    ierr = 0
+
+    if(irealLUT.ne.c_float) &
+      & call CHKERR(1_mpiint, 'irealLUT not the same kind as c_float... would need a copy here.. not yet implemented though')
+
+    call c_f_pointer(opp_ptr, OPP_container)
+
+    Ndir  = OPP_container%OPP_3_10%LUT%dir_streams
+    Ndiff = OPP_container%OPP_3_10%LUT%diff_streams
+
+    k = find_op_dim_by_name(OPP_container%OPP_3_10%dev%diffconfig, 'tau')
+    diff_tauz_range = OPP_container%OPP_3_10%dev%diffconfig%dims(k)%vrange
+
+    k = find_op_dim_by_name(OPP_container%OPP_3_10%dev%diffconfig, 'w0')
+    diff_w0_range = OPP_container%OPP_3_10%dev%diffconfig%dims(k)%vrange
+
+    k = find_op_dim_by_name(OPP_container%OPP_3_10%dev%diffconfig, 'g')
+    diff_g_range = OPP_container%OPP_3_10%dev%diffconfig%dims(k)%vrange
+
+    k = find_op_dim_by_name(OPP_container%OPP_3_10%dev%diffconfig, 'aspect_zx')
+    diff_aspect_zx_range = OPP_container%OPP_3_10%dev%diffconfig%dims(k)%vrange
+
+
+    k = find_op_dim_by_name(OPP_container%OPP_3_10%dev%dirconfig, 'tau')
+    dir_tauz_range = OPP_container%OPP_3_10%dev%dirconfig%dims(k)%vrange
+
+    k = find_op_dim_by_name(OPP_container%OPP_3_10%dev%dirconfig, 'w0')
+    dir_w0_range = OPP_container%OPP_3_10%dev%dirconfig%dims(k)%vrange
+
+    k = find_op_dim_by_name(OPP_container%OPP_3_10%dev%dirconfig, 'g')
+    dir_g_range = OPP_container%OPP_3_10%dev%dirconfig%dims(k)%vrange
+
+    k = find_op_dim_by_name(OPP_container%OPP_3_10%dev%dirconfig, 'aspect_zx')
+    dir_aspect_zx_range = OPP_container%OPP_3_10%dev%dirconfig%dims(k)%vrange
+
+    k = find_op_dim_by_name(OPP_container%OPP_3_10%dev%dirconfig, 'phi')
+    dir_phi_range = OPP_container%OPP_3_10%dev%dirconfig%dims(k)%vrange
+
+    k = find_op_dim_by_name(OPP_container%OPP_3_10%dev%dirconfig, 'theta')
+    dir_theta_range = OPP_container%OPP_3_10%dev%dirconfig%dims(k)%vrange
   end subroutine
 
 end module

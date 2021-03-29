@@ -755,7 +755,7 @@ contains
     if(solution%lsolar_rad.eqv..False.) &
       & call CHKERR(1_mpiint, "Cannot use Rayli for thermal computations")
 
-    sundir = spherical_2_cartesian(meanval(solver%sun%phi), meanval(solver%sun%theta)) &
+    sundir = spherical_2_cartesian(solver%sun%phi, solver%sun%theta) &
       & * edirTOA
 
     call init_pprts_rayli_wrapper(solver, solution, rayli_info, opt_buildings=opt_buildings)
@@ -1048,8 +1048,8 @@ contains
     type(t_state_container)       :: solution
     type(t_pprts_buildings), optional, intent(in) :: opt_buildings
 
-    real(ireals),pointer,dimension(:,:,:,:) :: xv_dir=>null(),xv_diff=>null()
-    real(ireals),pointer,dimension(:) :: xv_dir1d=>null(),xv_diff1d=>null()
+    real(ireals),pointer,dimension(:,:,:,:) :: xv_dir=>null(),xv_diff=>null()!, xv_abso=>null()
+    real(ireals),pointer,dimension(:) :: xv_dir1d=>null(),xv_diff1d=>null()!, xv_abso1d=>null()
     integer(iintegers) :: i,j,src
 
     real(ireals),allocatable :: dtau(:),kext(:),w0(:),g(:),S(:),Edn(:),Eup(:)
@@ -1063,6 +1063,7 @@ contains
     associate(atm         => solver%atm, &
         C_diff      => solver%C_diff, &
         C_dir       => solver%C_dir, &
+        C_one       => solver%C_one, &
         C_one_atm   => solver%C_one_atm, &
         C_one_atm1  => solver%C_one_atm1)
 
@@ -1102,9 +1103,16 @@ contains
       allocate(   w0(C_one_atm%zs:C_one_atm%ze) )
       allocate(    g(C_one_atm%zs:C_one_atm%ze) )
 
-      if(solution%lsolar_rad) &
+      if(solution%lsolar_rad) then
         call getVecPointer(C_dir%da, solution%edir, xv_dir1d, xv_dir)
+        mu0 = real(solver%sun%costheta)
+      else
+        mu0 = 0
+      endif
+      incSolar = edirTOA * mu0
+
       call getVecPointer(C_diff%da, solution%ediff, xv_diff1d, xv_diff)
+      !call getVecPointer(C_one%da, solution%abso, xv_abso1d, xv_abso)
 
       allocate( S  (C_one_atm1%zs:C_one_atm1%ze) )
       allocate( Eup(C_one_atm1%zs:C_one_atm1%ze) )
@@ -1112,9 +1120,6 @@ contains
 
       do j=C_one_atm%ys,C_one_atm%ye
         do i=C_one_atm%xs,C_one_atm%xe
-
-          mu0 = solver%sun%costheta(C_one_atm1%zs,i,j)
-          incSolar = edirTOA* mu0
 
           kext = atm%kabs(:,i,j) + atm%ksca(:,i,j)
           dtau = atm%dz(:,i,j)* kext
@@ -1220,12 +1225,25 @@ contains
               xv_diff(src-1,C_diff%zs            ,i,j) = Eup(C_one_atm1%zs) * fac
             endif
           enddo
+
+          !xv_abso(i0,:,i,j) = &
+          !  & + Edn(atmk(atm, C_one_atm1%zs)  :C_one_atm1%ze-1) &
+          !  & - Edn(atmk(atm, C_one_atm1%zs)+1:C_one_atm1%ze  ) &
+          !  & - Eup(atmk(atm, C_one_atm1%zs)  :C_one_atm1%ze-1) &
+          !  & + Eup(atmk(atm, C_one_atm1%zs)+1:C_one_atm1%ze  )
+
+          !if(solution%lsolar_rad) then
+          !  xv_abso(i0,:,i,j) = xv_abso(i0,:,i,j) &
+          !    & + S(atmk(atm, C_one_atm1%zs)  :C_one_atm1%ze-1) &
+          !    & - S(atmk(atm, C_one_atm1%zs)+1:C_one_atm1%ze  )
+          !endif
         enddo
       enddo
 
       if(solution%lsolar_rad) &
         call restoreVecPointer(C_dir%da, solution%edir, xv_dir1d, xv_dir  )
       call restoreVecPointer(C_diff%da, solution%ediff, xv_diff1d, xv_diff )
+      !call restoreVecPointer(C_one%da, solution%abso, xv_abso1d, xv_abso)
 
       !Twostream solver returns fluxes as [W]
       solution%lWm2_dir  = .True.
@@ -1297,8 +1315,13 @@ contains
       allocate(    g(C_one_atm%zs:C_one_atm%ze) )
       allocate(Bfrac(C_one_atm%zs:C_one_atm%ze) )
 
-      if(solution%lsolar_rad) &
+      if(solution%lsolar_rad) then
         call getVecPointer(C_dir%da, solution%edir, xv_dir1d, xv_dir)
+        mu0 = real(solver%sun%costheta)
+      else
+        mu0 = 0
+      endif
+
       call getVecPointer(C_diff%da, solution%ediff, xv_diff1d, xv_diff)
 
       allocate( tlev    (C_one_atm1%zs:C_one_atm1%ze) )
@@ -1310,8 +1333,6 @@ contains
 
       do j=C_one_atm%ys,C_one_atm%ye
         do i=C_one_atm%xs,C_one_atm%xe
-
-          mu0      = real(solver%sun%costheta(C_one_atm1%zs,i,j))
 
           kext = real(atm%kabs(:,i,j) + atm%ksca(:,i,j))
           dtau = real(atm%dz(:,i,j)* kext)
@@ -1456,7 +1477,7 @@ contains
       solution%lWm2_dir  = .True.
       solution%lWm2_diff = .True.
       ! and mark solution that it is not up to date
-      solution%lchanged         = .True.
+      solution%lchanged  = .True.
 
       deallocate(Edn)
       deallocate(Eup)

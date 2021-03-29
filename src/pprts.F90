@@ -665,10 +665,10 @@ module m_pprts
           call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
         endif
         call setup_dmda(solver%comm, solver%Cvert_one_atm1, Nz_in+1, Nx+1,Ny+1, boundaries, &
-          & i1, nxprocp1,nyprocp1)
+          & i1, nxprocp1,nyprocp1, stencil_type=DMDA_STENCIL_BOX)
       else
         call setup_dmda(solver%comm, solver%Cvert_one_atm1, Nz_in+1, Nx+1,Ny+1, boundaries, &
-          & i1)
+          & i1, stencil_type=DMDA_STENCIL_BOX)
       endif
 
       if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'DMDA grid ready'
@@ -873,7 +873,7 @@ module m_pprts
         ierr=1; call CHKERR(ierr)
       endif
 
-      call setup_suninfo(solver, sundir, solver%sun, solver%C_one)
+      call setup_suninfo(solver, sundir, solver%sun)
 
       if(ltwostr_only .or. lmcrts) return ! dont need anything here, we just compute Twostream anyway
 
@@ -919,28 +919,16 @@ module m_pprts
   !> @details save sun azimuth and zenith angle
   !>   \n sun azimuth is reduced to the range of [0,90] and the transmission of direct radiation is contributed for by a integer increment,
   !>   \n determining which neighbouring box is used in the horizontal direction
-  subroutine setup_suninfo(solver, sundir, sun, C_one)
+  subroutine setup_suninfo(solver, sundir, sun)
     class(t_solver), intent(in) :: solver
     real(ireals),intent(in) :: sundir(:)
     type(t_suninfo),intent(inout) :: sun
-    type(t_coord), intent(in) :: C_one
 
-    real(ireals),pointer :: grad   (:,:,:,:) =>null()
-    real(ireals),pointer :: grad_1d(:)       =>null()
-    real(ireals) :: loc_sundir(3), proj_sundir(3), e_x(3), e_y(3), e_z(3), Mrot(3,3)
+    real(ireals) :: proj_sundir(3), e_x(3), e_y(3), e_z(3)
     real(ireals) :: az, zenith
-    integer(iintegers) :: k,i,j
     integer(mpiint) :: ierr
 
     if(.not.allocated(solver%atm%hgrad)) call CHKERR(1_mpiint, 'atm%hgrad not initialized!')
-
-    call alloc_sun_rfield(sun%symmetry_phi)
-    call alloc_sun_rfield(sun%theta)
-    call alloc_sun_rfield(sun%phi)
-    call alloc_sun_rfield(sun%costheta)
-    call alloc_sun_rfield(sun%sintheta)
-    call alloc_sun_ifield(sun%xinc)
-    call alloc_sun_ifield(sun%yinc)
 
     sun%sundir = sundir
     call normalize_vec(sun%sundir, ierr)
@@ -949,37 +937,17 @@ module m_pprts
     e_x = [one, zero, zero]
     e_y = [zero, one, zero]
     e_z = [zero, zero, one]
-    loc_sundir = sun%sundir
 
-    call getVecPointer(solver%C_two1%da, solver%atm%hgrad, grad_1d, grad)
-    do j=C_one%ys,C_one%ye
-      do i=C_one%xs,C_one%xe
-        do k=C_one%zs,C_one%ze
+    proj_sundir = vec_proj_on_plane(sun%sundir, -e_z)
+    call normalize_vec(proj_sundir, ierr)
 
-          if(sun%luse_topography) then
-            e_x = [one, zero, grad(i0, k, i, j)]
-            e_y = [zero, one, grad(i1, k, i, j)]
-            call normalize_vec(e_x, ierr)
-            call normalize_vec(e_y, ierr)
-            e_z = cross_3d(e_x, e_y) ! upward pointing normal on top face
-            Mrot = rotation_matrix_world_to_local_basis(e_x, e_y, e_z)
-            loc_sundir = matmul(Mrot, sun%sundir)
-          endif
+    az = angle_between_two_normed_vec(proj_sundir, -e_y)
+    az = az * sign(one, dot_product(proj_sundir, -e_x))
+    sun%phi = rad2deg(az)
 
-          proj_sundir = vec_proj_on_plane(loc_sundir, -e_z)
-          call normalize_vec(proj_sundir, ierr)
-
-          az = angle_between_two_normed_vec(proj_sundir, -e_y)
-          az = az * sign(one, dot_product(proj_sundir, -e_x))
-          sun%phi(k,i,j) = rad2deg(az)
-
-          zenith = angle_between_two_normed_vec(loc_sundir, -e_z)
-          sun%theta(k,i,j) = rad2deg(zenith)
-          if(sun%theta(k,i,j).ge.90._ireals) sun%theta(k,i,j) = -one
-        enddo
-      enddo
-    enddo
-    call restoreVecPointer(solver%C_two1%da, solver%atm%hgrad, grad_1d, grad)
+    zenith = angle_between_two_normed_vec(sun%sundir, -e_z)
+    sun%theta = rad2deg(zenith)
+    if(sun%theta.ge.90._ireals) sun%theta = -one
 
     sun%costheta = max( cos(deg2rad(sun%theta)), zero)
     sun%sintheta = max( sin(deg2rad(sun%theta)), zero)
@@ -987,17 +955,17 @@ module m_pprts
     ! use symmetry for direct beam: always use azimuth [0,90] an just reverse the order where we insert the coeffs
     sun%symmetry_phi = sym_rot_phi(sun%phi)
 
-    where(sin(deg2rad(sun%phi)).gt.zero ) ! phi between 0 and 180 degreee
-        sun%xinc=i0
-    else where
-        sun%xinc=i1
-    end where
+    if(sin(deg2rad(sun%phi)).gt.zero ) then! phi between 0 and 180 degreee
+      sun%xinc=i0
+    else
+      sun%xinc=i1
+    endif
 
-    where(cos(deg2rad(sun%phi)).lt.zero) ! phi between 90 and 270 degree
-        sun%yinc=i1
-    else where
-        sun%yinc=i0
-    end where
+    if(cos(deg2rad(sun%phi)).lt.zero) then ! phi between 90 and 270 degree
+      sun%yinc=i1
+    else
+      sun%yinc=i0
+    endif
 
     call print_suninfo_summary(solver, ldebug)
 
@@ -1013,15 +981,6 @@ module m_pprts
             !print *,'2nd phi swap',phi,' :: ',sym_rot_phi,'=',&
             ! sin(sym_rot_phi),asin(sin(sym_rot_phi)),asin(sin(sym_rot_phi)) /pi * 180,int(asin(sin(sym_rot_phi)) /pi * 180)
         end function
-
-        subroutine alloc_sun_rfield(f)
-          real(ireals), allocatable, dimension(:,:,:) :: f
-          if(.not.allocated(f)) allocate(f(C_one%zs:C_one%ze, C_one%xs:C_one%xe, C_one%ys:C_one%ye))
-        end subroutine
-        subroutine alloc_sun_ifield(f)
-          integer(iintegers), allocatable, dimension(:,:,:) :: f
-          if(.not.allocated(f)) allocate(f(C_one%zs:C_one%ze, C_one%xs:C_one%xe, C_one%ys:C_one%ye))
-        end subroutine
   end subroutine
 
   !> @brief Print a summary of the sun_info
@@ -1032,7 +991,7 @@ module m_pprts
     logical :: lview, lflg
     integer(mpiint) :: myid, ierr
     integer(iintegers) :: k
-    real(ireals), dimension(3) :: mtheta, mphi, msundir
+    real(ireals), dimension(3) :: msundir
 
     lview = get_arg(.False., opt_lview)
     call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_view_suninfo",&
@@ -1057,19 +1016,11 @@ module m_pprts
 
       if(solver%myid.eq.0) &
         & print *, ' * '//cstr('sundir ['//toStr(sun%sundir)//'] ', 'red'), &
-        & ' count(xinc) ', count(sun%xinc.eq.0),count(sun%xinc.eq.i1), &
-        & ' count(yinc) ', count(sun%yinc.eq.0),count(sun%yinc.eq.i1)
+        & ' xinc', sun%xinc, 'yinc', sun%yinc
 
-      if(myid.eq.0) print *,' * k(layer)  '// &
-        & ' '//cstr('theta(min/mean/max)', 'red')//'                    '// &
-        & ' '//cstr('phi', 'blue')
-      do k = C_one%zs, C_one%ze
-        call imp_min_mean_max(solver%comm, sun%phi(k,:,:), mphi)
-        call imp_min_mean_max(solver%comm, sun%theta(k,:,:), mtheta)
-        if(myid.eq.0) &
-          & print *, k, &
-          & cstr(toStr(mtheta),'red'), ' ', cstr(toStr(mphi),'blue')
-      enddo
+      if(myid.eq.0) print *,' * '// &
+        & ' '//cstr('theta '//toStr(sun%theta), 'red')//'                    '// &
+        & ' '//cstr('phi '//toStr(sun%phi), 'blue')
 
     end associate
     call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
@@ -1192,8 +1143,8 @@ module m_pprts
               call inc( xd(idst, k+1, i,j), one )
             enddo
           else
-            xinc = solver%sun%xinc(k,i,j)
-            yinc = solver%sun%yinc(k,i,j)
+            xinc = solver%sun%xinc
+            yinc = solver%sun%yinc
 
             do idst = 1, solver%dirtop%dof
               dst = idst
@@ -1698,7 +1649,7 @@ module m_pprts
                 atm%dz(k,i,j) * max(tiny(one), atm%kabs(k,i,j) + atm%ksca(k,i,j)), & ! tau
                 atm%ksca(k,i,j) / max(tiny(one), atm%kabs(k,i,j) + atm%ksca(k,i,j)), & ! w0
                 atm%g(k,i,j), &
-                sun%costheta(i0,i,j), &
+                sun%costheta, &
                 atm%a11(k,i,j),          &
                 atm%a12(k,i,j),          &
                 atm%a13(k,i,j),          &
@@ -2058,14 +2009,14 @@ module m_pprts
     derived_lsolar = mpi_logical_and(solver%comm, &
       & lsolar.and. &
       & edirTOA.gt.zero.and. &
-      & any(solver%sun%theta.ge.zero))
+      & solver%sun%theta.ge.zero)
 
     if(ldebug) print *,'uid', uid, 'lsolar', derived_lsolar, &
-      & 'edirTOA', edirTOA, 'any_theta in [0..90]?', any(solver%sun%theta.ge.zero)
+      & 'edirTOA', edirTOA, 'any_theta in [0..90]?', solver%sun%theta.ge.zero
 
     if(derived_lsolar.and.lthermal) then
       print *,'uid', uid, 'lthermal', lthermal, 'lsolar', lsolar, derived_lsolar, &
-        & 'edirTOA', edirTOA, 'any_theta in [0..90]?', any(solver%sun%theta.ge.zero)
+        & 'edirTOA', edirTOA, 'any_theta in [0..90]?', solver%sun%theta.ge.zero
       call CHKERR(1_mpiint, 'Somehow ended up with a request to compute solar and thermal radiation in one call.'//new_line('')// &
         & '       This is currently probably not going to work or at least has to be tested further...'//new_line('')// &
         & '       I recommend you call it one after another')
@@ -2240,8 +2191,8 @@ module m_pprts
               enddo
             else
 
-              xinc = sun%xinc(k,i,j)
-              yinc = sun%yinc(k,i,j)
+              xinc = sun%xinc
+              yinc = sun%yinc
 
               call get_coeff(solver, &
                 atm%kabs(atmk(solver%atm,k),i,j), &
@@ -2249,7 +2200,7 @@ module m_pprts
                 atm%g(atmk(solver%atm,k),i,j), &
                 atm%dz(atmk(solver%atm,k),i,j), .True., coeff, &
                 atm%l1d(atmk(solver%atm,k),i,j), &
-                [real(sun%symmetry_phi(k,i,j), irealLUT), real(sun%theta(k,i,j), irealLUT)], &
+                [real(sun%symmetry_phi, irealLUT), real(sun%theta, irealLUT)], &
                 lswitch_east=xinc.eq.0, lswitch_north=yinc.eq.0)
 
               dst = 0
@@ -3072,8 +3023,8 @@ module m_pprts
 
                 else
 
-                  xinc = sun%xinc(k,i,j)
-                  yinc = sun%yinc(k,i,j)
+                  xinc = sun%xinc
+                  yinc = sun%yinc
 
                   call get_coeff(solver, &
                     atm%kabs(atmk(solver%atm,k),i,j), &
@@ -3081,7 +3032,7 @@ module m_pprts
                     atm%g(atmk(solver%atm,k),i,j), &
                     atm%dz(atmk(solver%atm,k),i,j), .True., cdir2dir, &
                     atm%l1d(atmk(solver%atm,k),i,j), &
-                    [real(sun%symmetry_phi(k,i,j), irealLUT), real(sun%theta(k,i,j), irealLUT)], &
+                    [real(sun%symmetry_phi, irealLUT), real(sun%theta, irealLUT)], &
                     lswitch_east=xinc.eq.0, lswitch_north=yinc.eq.0)
 
                   call get_coeff(solver, &
@@ -3090,7 +3041,7 @@ module m_pprts
                     atm%g(atmk(solver%atm,k),i,j), &
                     atm%dz(atmk(solver%atm,k),i,j), .False., cdir2diff, &
                     atm%l1d(atmk(solver%atm,k),i,j), &
-                    [real(sun%symmetry_phi(k,i,j), irealLUT), real(sun%theta(k,i,j), irealLUT)], &
+                    [real(sun%symmetry_phi, irealLUT), real(sun%theta, irealLUT)], &
                     lswitch_east=xinc.eq.0, lswitch_north=yinc.eq.0)
 
                   idof = 0
@@ -3276,8 +3227,8 @@ module m_pprts
 
                 ! direct part of absorption
                 if(solution%lsolar_rad) then
-                  xinc = solver%sun%xinc(k,i,j)
-                  yinc = solver%sun%yinc(k,i,j)
+                  xinc = solver%sun%xinc
+                  yinc = solver%sun%yinc
 
                   src = 0
                   do isrc = 0,solver%dirtop%dof-1
@@ -3665,7 +3616,7 @@ module m_pprts
     integer(iintegers) :: i,j,src
     integer(mpiint) :: ierr
 
-    fac = edirTOA * solver%atm%dx*solver%atm%dy / real(solver%dirtop%area_divider, ireals)
+    fac = edirTOA * solver%atm%dx*solver%atm%dy / real(solver%dirtop%area_divider, ireals) * solver%sun%costheta
 
     call VecSet(incSolar,zero,ierr) ;call CHKERR(ierr)
 
@@ -3673,8 +3624,8 @@ module m_pprts
 
     do j=solver%C_dir%ys,solver%C_dir%ye
       do i=solver%C_dir%xs,solver%C_dir%xe
-        do src=1, solver%dirtop%dof
-          x4d(src-1,solver%C_dir%zs,i,j) = fac * solver%sun%costheta(solver%C_dir%zs,i,j)
+        do src=0, solver%dirtop%dof-1
+          x4d(src,solver%C_dir%zs,i,j) = fac
         enddo
       enddo
     enddo
@@ -3682,7 +3633,7 @@ module m_pprts
     call restoreVecPointer(solver%C_dir%da, incSolar, x1d, x4d)
 
     if(solver%myid.eq.0 .and. ldebug) print *,solver%myid,'Setup of IncSolar done', edirTOA, &
-      & '(', fac*solver%sun%costheta(solver%C_dir%zs,solver%C_dir%xs,solver%C_dir%ys), ')'
+      & '(', fac, ')'
 
   end subroutine
 
@@ -3751,8 +3702,8 @@ module m_pprts
 
       integer(iintegers) :: dst,src, xinc, yinc, isrc, idst
 
-      xinc = sun%xinc(k,i,j)
-      yinc = sun%yinc(k,i,j)
+      xinc = sun%xinc
+      yinc = sun%yinc
 
       do idst = 1, solver%dirtop%dof
         dst = idst
@@ -3831,7 +3782,7 @@ module m_pprts
        solver%atm%g(atmk(solver%atm,k),i,j), &
        solver%atm%dz(atmk(solver%atm,k),i,j), .True., v, &
        solver%atm%l1d(atmk(solver%atm,k),i,j), &
-       [real(sun%symmetry_phi(k,i,j), irealLUT), real(sun%theta(k,i,j), irealLUT)], &
+       [real(sun%symmetry_phi, irealLUT), real(sun%theta, irealLUT)], &
        lswitch_east=xinc.eq.0, lswitch_north=yinc.eq.0, &
        opt_vertices=vertices)
      call PetscLogEventEnd(solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
@@ -3870,7 +3821,7 @@ module m_pprts
          atm%g(atmk(atm,k),i,j), &
          atm%dz(atmk(atm,k),i,j),.True., v, &
          atm%l1d(atmk(atm,k),i,j), &
-         [real(sun%symmetry_phi(k,i,j), irealLUT), real(sun%theta(k,i,j), irealLUT)] )
+         [real(sun%symmetry_phi, irealLUT), real(sun%theta, irealLUT)] )
      endif
 
      col(MatStencil_j,i1) = i      ; col(MatStencil_k,i1) = j       ; col(MatStencil_i,i1) = k
@@ -3913,8 +3864,8 @@ module m_pprts
            !lsun_east  = sun%xinc(idx(k,i,j).eq.i0
            !lsun_north = sun%yinc(idx(k,i,j).eq.i0
 
-           xinc = sun%xinc(k,i,j)
-           yinc = sun%yinc(k,i,j)
+           xinc = sun%xinc
+           yinc = sun%yinc
            zinc = 0
            if(idx(1).eq.PPRTS_BOT_FACE) zinc = 1
 
@@ -4270,8 +4221,8 @@ module m_pprts
 
 
               else ! Tenstream source terms
-                lsun_east  = sun%xinc(k,i,j).eq.i0
-                lsun_north = sun%yinc(k,i,j).eq.i0
+                lsun_east  = sun%xinc.eq.i0
+                lsun_north = sun%yinc.eq.i0
 
                 call PetscLogEventBegin(solver%logs%get_coeff_dir2diff, ierr); call CHKERR(ierr)
                 call get_coeff(solver, &
@@ -4281,7 +4232,7 @@ module m_pprts
                   atm%dz(atmk(atm,k),i,j), &
                   .False., dir2diff, &
                   atm%l1d(atmk(atm,k),i,j), &
-                  [real(sun%symmetry_phi(k,i,j), irealLUT), real(sun%theta(k,i,j),irealLUT)], &
+                  [real(sun%symmetry_phi, irealLUT), real(sun%theta,irealLUT)], &
                   lswitch_east=lsun_east, lswitch_north=lsun_north)
                 call PetscLogEventEnd(solver%logs%get_coeff_dir2diff, ierr); call CHKERR(ierr)
 
@@ -4300,7 +4251,7 @@ module m_pprts
                   enddo
 
                   do idof = 1, solver%dirside%dof
-                    solrad = xedir( src-1, k , i+i1-sun%xinc(k,i,j) , j )
+                    solrad = xedir(src-1, k, i+i1-sun%xinc, j)
                     if (solver%difftop%is_inward(idofdst)) then
                       xsrc(dst,k+1,i,j)= xsrc(dst,k+1,i,j) + solrad * dir2diff((dst)*C_dir%dof+src)
                     else
@@ -4310,7 +4261,7 @@ module m_pprts
                   enddo
 
                   do idof = 1, solver%dirside%dof
-                    solrad = xedir( src-1 , k , i , j+i1-sun%yinc(k,i,j) )
+                    solrad = xedir(src-1, k, i, j+i1-sun%yinc)
                     if (solver%difftop%is_inward(idofdst)) then
                       xsrc(dst,k+1,i,j)= xsrc(dst,k+1,i,j) + solrad * dir2diff((dst)*C_dir%dof+src)
                     else
@@ -4324,7 +4275,7 @@ module m_pprts
                 do idofdst = 1, solver%diffside%dof
                   src = 1
                   do idof = 1, solver%dirtop%dof
-                    solrad = xedir( src-1 , k , i , j )
+                    solrad = xedir(src-1, k, i, j)
                     if(solver%diffside%is_inward(idofdst)) then
                       xsrc(dst, k, i+1, j) = xsrc(dst, k, i+1, j) + solrad * dir2diff((dst)*C_dir%dof + src)
                     else
@@ -4334,7 +4285,7 @@ module m_pprts
                   enddo
 
                   do idof = 1, solver%dirside%dof
-                    solrad = xedir(src-1, k, i+i1-sun%xinc(k,i,j) , j )
+                    solrad = xedir(src-1, k, i+i1-sun%xinc, j)
                     if (solver%diffside%is_inward(idofdst)) then
                       xsrc(dst, k, i+1, j) = xsrc(dst, k, i+1, j) + solrad * dir2diff((dst)*C_dir%dof + src)
                     else
@@ -4344,7 +4295,7 @@ module m_pprts
                   enddo
 
                   do idof = 1, solver%dirside%dof
-                    solrad = xedir( src-1 , k , i , j+i1-sun%yinc(k,i,j) )
+                    solrad = xedir(src-1, k, i, j+i1-sun%yinc)
                     if (solver%diffside%is_inward(idofdst)) then
                       xsrc(dst, k, i+1, j) = xsrc(dst, k, i+1, j) + solrad * dir2diff((dst)*C_dir%dof + src)
                     else
@@ -4368,7 +4319,7 @@ module m_pprts
                   enddo
 
                   do idof = 1, solver%dirside%dof
-                    solrad = xedir(src-1, k, i+i1-sun%xinc(k,i,j) , j)
+                    solrad = xedir(src-1, k, i+i1-sun%xinc, j)
                     if(solver%diffside%is_inward(idofdst)) then
                       xsrc(dst, k, i, j+1) = xsrc(dst, k, i, j+1) + solrad * dir2diff((dst)*C_dir%dof + src)
                     else
@@ -4378,7 +4329,7 @@ module m_pprts
                   enddo
 
                   do idof = 1, solver%dirside%dof
-                    solrad = xedir( src-1 , k , i , j+i1-sun%yinc(k,i,j) )
+                    solrad = xedir(src-1, k, i, j+i1-sun%yinc)
                     if(solver%diffside%is_inward(idofdst)) then
                       xsrc(dst, k, i, j+1) = xsrc(dst, k, i, j+1) + solrad * dir2diff((dst)*C_dir%dof + src)
                     else

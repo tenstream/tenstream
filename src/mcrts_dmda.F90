@@ -481,14 +481,14 @@ subroutine prepare_locally_owned_photons(solver, bmc, pqueue, Nphotons_per_pixel
 
   call mpi_comm_rank(solver%comm, myid, ierr); call CHKERR(ierr)
 
+  phi0   = solver%sun%phi
+  theta0 = solver%sun%theta
+  initial_dir = spherical_2_cartesian(phi0, theta0)
+
   do i = solver%C_one%xs, solver%C_one%xe
     do j = solver%C_one%ys, solver%C_one%ye
       call setup_default_unit_cube_geometry(solver%atm%dx, solver%atm%dy, &
         solver%atm%dz(i0, i, j), vertices)
-
-      phi0   = solver%sun%phi  (i0, i, j)
-      theta0 = solver%sun%theta(i0, i, j)
-      initial_dir = spherical_2_cartesian(phi0, theta0)
 
       do l = 1,Nphotons_per_pixel
         call bmc%init_dir_photon(p, i1, .True., real(initial_dir, ireal_dp), real(vertices, ireal_dp), ierr)
