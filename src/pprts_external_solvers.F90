@@ -1048,8 +1048,8 @@ contains
     type(t_state_container)       :: solution
     type(t_pprts_buildings), optional, intent(in) :: opt_buildings
 
-    real(ireals),pointer,dimension(:,:,:,:) :: xv_dir=>null(),xv_diff=>null()
-    real(ireals),pointer,dimension(:) :: xv_dir1d=>null(),xv_diff1d=>null()
+    real(ireals),pointer,dimension(:,:,:,:) :: xv_dir=>null(),xv_diff=>null()!, xv_abso=>null()
+    real(ireals),pointer,dimension(:) :: xv_dir1d=>null(),xv_diff1d=>null()!, xv_abso1d=>null()
     integer(iintegers) :: i,j,src
 
     real(ireals),allocatable :: dtau(:),kext(:),w0(:),g(:),S(:),Edn(:),Eup(:)
@@ -1063,6 +1063,7 @@ contains
     associate(atm         => solver%atm, &
         C_diff      => solver%C_diff, &
         C_dir       => solver%C_dir, &
+        C_one       => solver%C_one, &
         C_one_atm   => solver%C_one_atm, &
         C_one_atm1  => solver%C_one_atm1)
 
@@ -1111,6 +1112,7 @@ contains
       incSolar = edirTOA * mu0
 
       call getVecPointer(C_diff%da, solution%ediff, xv_diff1d, xv_diff)
+      !call getVecPointer(C_one%da, solution%abso, xv_abso1d, xv_abso)
 
       allocate( S  (C_one_atm1%zs:C_one_atm1%ze) )
       allocate( Eup(C_one_atm1%zs:C_one_atm1%ze) )
@@ -1223,12 +1225,25 @@ contains
               xv_diff(src-1,C_diff%zs            ,i,j) = Eup(C_one_atm1%zs) * fac
             endif
           enddo
+
+          !xv_abso(i0,:,i,j) = &
+          !  & + Edn(atmk(atm, C_one_atm1%zs)  :C_one_atm1%ze-1) &
+          !  & - Edn(atmk(atm, C_one_atm1%zs)+1:C_one_atm1%ze  ) &
+          !  & - Eup(atmk(atm, C_one_atm1%zs)  :C_one_atm1%ze-1) &
+          !  & + Eup(atmk(atm, C_one_atm1%zs)+1:C_one_atm1%ze  )
+
+          !if(solution%lsolar_rad) then
+          !  xv_abso(i0,:,i,j) = xv_abso(i0,:,i,j) &
+          !    & + S(atmk(atm, C_one_atm1%zs)  :C_one_atm1%ze-1) &
+          !    & - S(atmk(atm, C_one_atm1%zs)+1:C_one_atm1%ze  )
+          !endif
         enddo
       enddo
 
       if(solution%lsolar_rad) &
         call restoreVecPointer(C_dir%da, solution%edir, xv_dir1d, xv_dir  )
       call restoreVecPointer(C_diff%da, solution%ediff, xv_diff1d, xv_diff )
+      !call restoreVecPointer(C_one%da, solution%abso, xv_abso1d, xv_abso)
 
       !Twostream solver returns fluxes as [W]
       solution%lWm2_dir  = .True.
@@ -1462,7 +1477,7 @@ contains
       solution%lWm2_dir  = .True.
       solution%lWm2_diff = .True.
       ! and mark solution that it is not up to date
-      solution%lchanged         = .True.
+      solution%lchanged  = .True.
 
       deallocate(Edn)
       deallocate(Eup)
