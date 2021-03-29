@@ -665,10 +665,10 @@ module m_pprts
           call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
         endif
         call setup_dmda(solver%comm, solver%Cvert_one_atm1, Nz_in+1, Nx+1,Ny+1, boundaries, &
-          & i1, nxprocp1,nyprocp1)
+          & i1, nxprocp1,nyprocp1, stencil_type=DMDA_STENCIL_BOX)
       else
         call setup_dmda(solver%comm, solver%Cvert_one_atm1, Nz_in+1, Nx+1,Ny+1, boundaries, &
-          & i1)
+          & i1, stencil_type=DMDA_STENCIL_BOX)
       endif
 
       if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'DMDA grid ready'
