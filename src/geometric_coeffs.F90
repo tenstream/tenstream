@@ -28,12 +28,12 @@ implicit none
 private
 public :: dir2dir3_geometric_coeff_corr
 
-logical, parameter :: lDEBUG_geometric_coeff_correction = .true.
+logical, parameter :: ldebug= .false.
 contains
 
-  subroutine dir2dir3_geometric_coeff_corr(verts, sundir, optical_props, coeffs)
+  subroutine dir2dir3_geometric_coeff_corr(verts, sundir, extinction_coeff, coeffs)
     real(irealLUT), intent(inout) :: coeffs(9)
-    real(ireals), intent(in) :: verts(24), sundir(3), optical_props(3)
+    real(ireals), intent(in) :: verts(24), sundir(3), extinction_coeff
     real(ireals), dimension(3) :: d_p, b_p, a_p, h_p, f_p, e_p, g_p
 
     associate ( &
@@ -47,47 +47,49 @@ contains
       h => verts(22:24)  &
       )
 
-    print *, 'a', a
-    print *, 'b', b
-    print *, 'c', c
-    print *, 'd', d
-    print *, 'e', e
-    print *, 'f', f
-    print *, 'g', g
-    print *, 'h', h
+    if (ldebug) then
+      print *, 'box vertices'
+      print *, 'a', a
+      print *, 'b', b
+      print *, 'c', c
+      print *, 'd', d
+      print *, 'e', e
+      print *, 'f', f
+      print *, 'g', g
+      print *, 'h', h
+      print *, '_________________________________________________________________'
+      print *, 'sundir', sundir
+      print *, '_________________________________________________________________'
+    endif
 
-    if (lDEBUG_geometric_coeff_correction) print *, 'sundir', sundir
-
-    coeffs=0._irealLUT
-
-    if(lDEBUG_geometric_coeff_correction) print *, 'src z'
+    if(ldebug) print *, 'src z'
     call create_proj_copies(h, g, e, f, h_p, g_p, e_p, f_p)
     call project_points(sundir, d, compute_normal_3d(d, b, a), h_p, g_p, e_p, f_p)
     call rearange_projections(d, c, a, b, h_p, g_p, e_p, f_p)
     call correct_coeffs( &
       d   , c   , a   , b,    g, & ! fixed
       h_p , g_p , e_p , f_p,     & ! projected
-      optical_props(1), [1      , 7       , 4], [2, 3, 1]      , coeffs       & ! slice of relevant coefficients , and coefficient array
+      extinction_coeff, [1      , 7       , 4], [2, 3, 1]      , coeffs       & ! slice of relevant coefficients , and coefficient array
       )
 
-    if (lDEBUG_geometric_coeff_correction)  print *, 'src x'
+    if (ldebug)  print *, 'src x'
     call create_proj_copies(h, d, b, f, h_p, d_p, b_p, f_p)
     call project_points(sundir, a, compute_normal_3d(c, a, e), h_p, d_p, b_p, f_p)
     call rearange_projections(g, c, a, e, h_p, d_p, b_p, f_p)
     call correct_coeffs( &
       g   , c   , a   , e,    d, & ! fixed
       h_p , d_p , b_p , f_p,     & ! projected
-      optical_props(1), [5      , 8       , 2], [2, 1, 3]      , coeffs       & ! slice of relevant coefficients , and coefficient array
+      extinction_coeff, [5      , 8       , 2], [2, 1, 3]      , coeffs       & ! slice of relevant coefficients , and coefficient array
       )
 
-    if (lDEBUG_geometric_coeff_correction) print *, 'src y'
+    if (ldebug) print *, 'src y'
     call create_proj_copies(f, b, a, e, f_p, b_p, a_p, e_p)
     call project_points(sundir, d, compute_normal_3d(c, d, h), f_p, b_p, a_p, e_p)
     call rearange_projections(h, d, c, g, f_p, b_p, a_p, e_p)
     call correct_coeffs( &
       h   , d   , c   , g,    b, & ! fixed
       f_p , b_p , a_p , e_p,     & ! projected
-      optical_props(1), [9      , 6       , 3], [1, 2, 3]      , coeffs       & ! slice of relevant coefficients , and coefficient array
+      extinction_coeff, [9      , 6       , 3], [1, 2, 3]      , coeffs       & ! slice of relevant coefficients , and coefficient array
       )
   end associate
 
@@ -109,6 +111,15 @@ contains
         p1l, p1b, p1t, p1r, p2l, p2t, p2b, p2r, p3r, p3t, p3b, p3l, p4r, p4b, p4t, p4l, normal, &
         p1rp, p2rp, p3rp, p4rp
       integer(iintegers) :: coord_is(3)
+
+      if (ldebug) then
+        print *, 'rearanged projections'
+        print *, 'v1', v1
+        print *, 'v2', v2
+        print *, 'v3', v3
+        print *, 'v4', v4
+      print *, '_________________________________________________________________'
+      endif
 
       call proj_vars_to_edges( &
         f1, f2, f3, f4, &
@@ -247,16 +258,6 @@ contains
         quadrangle_area_by_vertices(v, plr, f, ptb) * &
         (one - exp( - extinction_coeff * s)) / max(tiny(area3i), (extinction_coeff * s)) + &
         num_dst( &
-          s, &
-          l, &
-          h,   &
-          extinction_coeff &
-          )
-
-        print *, 'quad', quadrangle_area_by_vertices(v, plr, f, ptb) * &
-        (one - exp( - extinction_coeff * s)) / max(tiny(area3i), (extinction_coeff * s))
-
-        print *, 'num', num_dst( &
           s, &
           l, &
           h,   &

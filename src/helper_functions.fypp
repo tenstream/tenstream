@@ -129,6 +129,7 @@ module m_helper_functions
     & vec_proj_on_plane, &
     & volume_hexahedron, &
     & volume_oblique_pyramid, &
+    & volume_pentahedron, &
     & volume_tetrahedron
 
   interface pentagon_area_by_vertices
@@ -152,6 +153,12 @@ module m_helper_functions
   interface volume_hexahedron
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
     module procedure volume_hexahedron_${dtype}$
+    #:endfor
+  end interface
+
+  interface volume_pentahedron
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    module procedure volume_pentahedron_${dtype}$
     #:endfor
   end interface
 
@@ -2709,7 +2716,7 @@ end subroutine
 ! the edges will be constructed index wise: b_i -> t_i
 #:for dtype in ['REAL32', 'REAL64', 'REAL128']
   pure function volume_hexahedron_${dtype}$(b1, b2, b3, b4, t1, t2, t3, t4) result(volume_hexahedron)
-    real(${dtype}$), intent(in) :: b1(3), b2(3), b3(3), b4(3), t1(3), t2(3), t3(3), t4(3)
+    real(${dtype}$), intent(in), dimension(3) :: b1, b2, b3, b4, t1, t2, t3, t4
     real(${dtype}$) :: volume_hexahedron
 
     volume_hexahedron = &
@@ -2719,11 +2726,25 @@ end subroutine
   end function
 #:endfor
 
+!> @brief compute volume defined by three base and top points each
+!> @details base points and top points can be coincident
+! the edges will be constructed index wise: b_i -> t_i
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+  pure function volume_pentahedron_${dtype}$(b1, b2, b3, t1, t2, t3) result(volume_pentahedron)
+    real(${dtype}$), intent(in), dimension(3) :: b1, b2, b3, t1, t2, t3
+    real(${dtype}$) :: volume_pentahedron
+
+    volume_pentahedron = &
+      & volume_oblique_pyramid(t1, t2, b2, b1, t3) + &
+      & volume_tetrahedron(b1, b2, b3, t3)
+  end function
+#:endfor
+
 !> @brief compute volume of pyramid with four base points
 !> @details also works when two base points are coincident
 #:for dtype in ['REAL32', 'REAL64', 'REAL128']
   pure function volume_oblique_pyramid_${dtype}$(b1, b2, b3, b4, t) result(volume_oblique_pyramid)
-    real(${dtype}$), intent(in) :: b1(3), b2(3), b3(3), b4(3), t(3)
+    real(${dtype}$), intent(in), dimension(3) :: b1, b2, b3, b4, t
     real(${dtype}$) :: volume_oblique_pyramid
 
     volume_oblique_pyramid = volume_tetrahedron(b1, b2, b3, t) + volume_tetrahedron(b1, b3, b4, t)
@@ -2734,7 +2755,7 @@ end subroutine
 !> @details also works when two base points are coincident
 #:for dtype in ['REAL32', 'REAL64', 'REAL128']
   pure function volume_tetrahedron_${dtype}$(b1, b2, b3, t) result(volume_tetrahedron)
-    real(${dtype}$), intent(in) :: b1(3), b2(3), b3(3), t(3)
+    real(${dtype}$), intent(in), dimension(3) :: b1, b2, b3, t
     real(${dtype}$) :: volume_tetrahedron
 
     volume_tetrahedron = triangle_area_by_vertices(b1, b2, b3) * min_dist_point_plane(t, compute_normal_3d(b1, b2, b3), b1) / 3._${dtype}$
@@ -2747,7 +2768,7 @@ end subroutine
 ! http://paulbourke.net/geometry/pointlineplane/
 #:for dtype in ['REAL32', 'REAL64', 'REAL128']
  pure function min_dist_point_plane_${dtype}$(point, normal, origin) result(min_dist_point_plane)
-   real (${dtype}$), intent(in) :: point(3), normal(3), origin(3)
+   real (${dtype}$), intent(in), dimension(3) :: point, normal, origin
    real (${dtype}$) :: min_dist_point_plane
 
    min_dist_point_plane = abs(dot_product(point - origin, normal))

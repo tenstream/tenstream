@@ -60,9 +60,9 @@ module m_pprts
   use m_optprop, only: t_optprop, &
     & t_optprop_1_2, t_optprop_3_6, t_optprop_3_10, &
     & t_optprop_8_10, t_optprop_3_16, t_optprop_8_16, t_optprop_8_18, &
-    & t_optprop_3_10_ann, &
-    & dir2dir3_coeff_corr_zx, dir2dir3_coeff_corr_zy, dir2dir3_coeff_corr
+    & t_optprop_3_10_ann
   use m_eddington, only : eddington_coeff_zdun
+  use m_geometric_coeffs, only : dir2dir3_geometric_coeff_corr
 
   use m_tenstream_options, only : read_commandline_options, ltwostr, luse_eddington, twostr_ratio, &
     options_max_solution_err, options_max_solution_time, ltwostr_only, luse_twostr_guess,        &
@@ -3702,11 +3702,11 @@ module m_pprts
 
     lgeometric_correction = .False.
     call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-        & "-pprts_geometric_correction", lgeometric_correction, lflg, ierr) ;call CHKERR(ierr)
+        & "-pprts_geometric_coeffs", lgeometric_correction, lflg, ierr) ;call CHKERR(ierr)
 
-    do j=C%ys,C%ye
+      do k=C%ze-1,C%zs,-1
       do i=C%xs,C%xe
-        do k=C%zs,C%ze-1
+      do j=C%ys,C%ye
 
           if( solver%atm%l1d(atmk(solver%atm,k),i,j) ) then
             call set_eddington_coeff(solver%atm, A,k, i,j)
@@ -3743,7 +3743,7 @@ module m_pprts
       MatStencil         :: row(4,C%dof)  ,col(4,C%dof)
       real(ireals), allocatable :: vertices(:)
       real(ireals) :: vertices_dtd(24)
-      real(irealLUT)     :: v(C%dof**2), norm
+      real(irealLUT)     :: v(C%dof**2), norm, v_tmp(C%dof**2)
       integer(iintegers) :: dst,src, xinc, yinc, isrc, idst
 
       xinc = sun%xinc(k,i,j)
@@ -3802,40 +3802,79 @@ module m_pprts
 
      vertices_dtd = vertices
 
-     vertices_dtd( 3) = xhhl(i0,atmk(solver%atm,k+1),i,j) ! a
-     vertices_dtd( 6) = xhhl(i0,atmk(solver%atm,k+1),i+1,j) ! b
-     vertices_dtd( 9) = xhhl(i0,atmk(solver%atm,k+1),i,j+1) ! c
-     vertices_dtd(12) = xhhl(i0,atmk(solver%atm,k+1),i+1,j+1) ! d
-     vertices_dtd(15) = xhhl(i0,atmk(solver%atm,k),i,j)
-     vertices_dtd(18) = xhhl(i0,atmk(solver%atm,k),i+1,j)
-     vertices_dtd(21) = xhhl(i0,atmk(solver%atm,k),i,j+1)
-     vertices_dtd(24) = xhhl(i0,atmk(solver%atm,k),i+1,j+1)
+     vertices_dtd( 3) = xhhl(i0,atmk(solver%atm,k+1),i,j)      ! a
+     vertices_dtd( 6) = xhhl(i0,atmk(solver%atm,k+1),i+1,j)    ! b
+     vertices_dtd( 9) = xhhl(i0,atmk(solver%atm,k+1),i,j+1)    ! c
+     vertices_dtd(12) = xhhl(i0,atmk(solver%atm,k+1),i+1,j+1)  ! d
 
+     ! make bottom and top of box parallel
+     !vertices_dtd([15,18,21,24]) = vertices_dtd([3,6,9,12]) + solver%atm%dz(atmk(solver%atm, k), i, j)
+
+     !vertices_dtd(15) = xhhl(i0,atmk(solver%atm,k),i,j)
+     !vertices_dtd(18) = xhhl(i0,atmk(solver%atm,k),i+1,j)
+     !vertices_dtd(21) = xhhl(i0,atmk(solver%atm,k),i,j+1)
+     !vertices_dtd(24) = xhhl(i0,atmk(solver%atm,k),i+1,j+1)
+
+     ! move box to coordinate origin
      vertices_dtd(3:24:3) = vertices_dtd(3:24:3) - vertices_dtd(3)
 
      call PetscLogEventBegin(solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
-     call get_coeff(solver, &
-       solver%atm%kabs(atmk(solver%atm,k),i,j), &
-       solver%atm%ksca(atmk(solver%atm,k),i,j), &
-       solver%atm%g(atmk(solver%atm,k),i,j), &
-       solver%atm%dz(atmk(solver%atm,k),i,j), .True., v, &
-       solver%atm%l1d(atmk(solver%atm,k),i,j), &
-       [real(sun%symmetry_phi(k,i,j), irealLUT), real(sun%theta(k,i,j), irealLUT)], &
-       lswitch_east=xinc.eq.0, lswitch_north=yinc.eq.0)!, &
-       !opt_vertices=vertices_dtd)
+
      call PetscLogEventEnd(solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
 
      if (lgeometric_correction) then
-       call dir2dir3_coeff_corr(vertices, vertices_dtd, sun%sundir, v)
-
-       !if (ldebug) then
-       !  v_prime = v
-       !  call dir2dir3_coeff_corr_zy(v_prime, vertices, vertices_dtd, sun%sundir)
-       !  call dir2dir3_coeff_corr_zx(v_prime, vertices, vertices_dtd, sun%sundir)
-       !  if (any(abs(v_prime([1,4,7]) - v([1,4,7])) > epsilon(v([1,4,7])))) then
-       !    call CHKERR(1_mpiint, 'dir2dir3_coeff_corrections are not symmetric')
-       !  endif
-       !endif
+       call dir2dir3_geometric_coeff_corr( &
+         vertices_dtd, &
+         sun%sundir * [-one, -one, one], &
+         solver%atm%kabs(atmk(solver%atm, k), i, j) + solver%atm%ksca(atmk(solver%atm, k), i, j), &
+         v)
+     !else
+       call get_coeff(solver, &
+         solver%atm%kabs(atmk(solver%atm,k),i,j), &
+         solver%atm%ksca(atmk(solver%atm,k),i,j), &
+         solver%atm%g(atmk(solver%atm,k),i,j), &
+         solver%atm%dz(atmk(solver%atm,k),i,j), .True., v_tmp, &
+         solver%atm%l1d(atmk(solver%atm,k),i,j), &
+         [real(sun%symmetry_phi(k,i,j), irealLUT), real(sun%theta(k,i,j), irealLUT)], &
+         lswitch_east=xinc.eq.0, lswitch_north=yinc.eq.0, &
+         opt_vertices=vertices_dtd)
+       if (any(abs(v_tmp - v) .ge. 0.1_irealLUT)) then
+         print *, 'v gomtrc', v_tmp
+         print *, 'v get_coeff', v
+         print *, 'sundir', sun%sundir * [-one, -one, one]
+         print *, 'symmetry', sun%symmetry_phi(k,i,j)
+         print *, 'extinction_coeff', solver%atm%kabs(atmk(solver%atm, k), i, j) + solver%atm%ksca(atmk(solver%atm, k), i, j)
+         associate ( &
+             a => vertices_dtd( 1: 3), &
+             b => vertices_dtd( 4: 6), &
+             c => vertices_dtd( 7: 9), &
+             d => vertices_dtd(10:12), &
+             e => vertices_dtd(13:15), &
+             f => vertices_dtd(16:18), &
+             g => vertices_dtd(19:21), &
+             h => vertices_dtd(22:24)  &
+             )
+           print *, 'a', a
+           print *, 'b', b
+           print *, 'c', c
+           print *, 'd', d
+           print *, 'e', e
+           print *, 'f', f
+           print *, 'g', g
+           print *, 'h', h
+         end associate
+         !call CHKERR(1_mpiint, 'debug')
+       endif
+     else
+       call get_coeff(solver, &
+         solver%atm%kabs(atmk(solver%atm,k),i,j), &
+         solver%atm%ksca(atmk(solver%atm,k),i,j), &
+         solver%atm%g(atmk(solver%atm,k),i,j), &
+         solver%atm%dz(atmk(solver%atm,k),i,j), .True., v, &
+         solver%atm%l1d(atmk(solver%atm,k),i,j), &
+         [real(sun%symmetry_phi(k,i,j), irealLUT), real(sun%theta(k,i,j), irealLUT)], &
+         lswitch_east=xinc.eq.0, lswitch_north=yinc.eq.0, &
+         opt_vertices=vertices_dtd)
      endif
 
      call MatSetValuesStencil(A, C%dof, row, C%dof, col, real(-v, ireals), INSERT_VALUES, ierr) ;call CHKERR(ierr)

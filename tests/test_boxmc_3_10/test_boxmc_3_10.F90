@@ -373,7 +373,7 @@ contains
     call check(S_target,T_target, S,T, msg=' test_boxmc_distorted_ns_cube_dir45_down_src2_case2')
   end subroutine
 
-  @test(npes =[1])
+  !@test(npes =[1])
   subroutine test_boxmc_dir2dir3_geometric_coeff_corr(this)
     class (MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: src
@@ -384,12 +384,13 @@ contains
     integer(iintegers) :: itheta, iphi
 
     !bg  = [ 0e-0_ireal_dp/dz, 0e-0_ireal_dp, 1._ireal_dp/2 ]
+    !         absorption            scattering        asymmetry parameter
     bg = [ -log(5e-1_ireal_dp)/dz, 0e-0_ireal_dp/dz, 1._ireal_dp/2 ]
     S_target = zero
     iphi=30
     itheta=5
     do iphi=0,360,30
-      do itheta=10,70,20
+      do itheta=10,50,20
         phi = real(iphi, ireals)
         theta = real(itheta, ireals)
 
@@ -412,7 +413,7 @@ contains
         print *, 'src x', v(2:9:3)
         print *, 'src y', v(3:9:3)
 
-        call dir2dir3_geometric_coeff_corr(verts_dtd, sundir, bg, v)
+        call dir2dir3_geometric_coeff_corr(verts_dtd, sundir, bg(1), v)
 
         print *, cstr('regular corrected', 'blue')
         print *, 'src z', v(1:9:3)
@@ -429,12 +430,66 @@ contains
         print *, 'src x', v_mc(2:9:3)
         print *, 'src y', v_mc(3:9:3)
 
-!        @assertEqual(v_mc, v, max(maxval(v_mc)*0.05_irealLUT, 1e-6_irealLUT), 'failed for phi='//toStr(phi)//'; theta='//toStr(theta))
-        @assertEqual(v_mc([2,3,4]), v([2,3,4]), max(maxval(v_mc([2,3,4]))*0.05_irealLUT, 1e-6_irealLUT), 'failed for phi='//toStr(phi)//'; theta='//toStr(theta))
+        @assertEqual(v_mc, v, max(maxval(v_mc)*0.05_irealLUT, 1e-6_irealLUT), 'failed for phi='//toStr(phi)//'; theta='//toStr(theta))
+!        @assertEqual(v_mc([2,3,4]), v([2,3,4]), max(maxval(v_mc([2,3,4]))*0.05_irealLUT, 1e-6_irealLUT), 'failed for phi='//toStr(phi)//'; theta='//toStr(theta))
       enddo
     enddo
 
   end subroutine
+
+  @test(npes =[1])
+  subroutine test_boxmc_dir2dir3_geometric_coeffs(this)
+    class (MpiTestMethod), intent(inout) :: this
+    integer(iintegers) :: src
+    real(ireal_dp), dimension(24) :: verts_dtd
+    real( ireal_dp), parameter :: dx=1, dy= dx, dz=1 * dx
+    real(irealLUT) :: v(9), v_mc(9)
+    real(ireals) :: sundir(3)
+    integer(iintegers) :: itheta, iphi
+
+    bg = [2.7245631510506538E-006_ireal_dp, 0e-0_ireal_dp/dz, 1._ireal_dp/2 ]
+    S_target = zero
+    iphi=1
+    itheta=40
+    !do iphi=0,360,30
+    !  do itheta=10,50,20
+        phi = real(iphi, ireals)
+        theta = real(itheta, ireals)
+
+        verts_dtd(1:3)   = [   0.0000000000000000_ireals,        0.0000000000000000_ireals,        0.0000000000000000_ireals]
+        verts_dtd(4:6)   = [   100.00000000000000_ireals,        0.0000000000000000_ireals,        0.0000000000000000_ireals]
+        verts_dtd(7:9)   = [   0.0000000000000000_ireals,        100.00000000000000_ireals,        2.2658245368802454E-002_ireals]
+        verts_dtd(10:12) = [   100.00000000000000_ireals,        100.00000000000000_ireals,        2.2658245368802454E-002_ireals]
+        verts_dtd(13:15) = [   0.0000000000000000_ireals,        0.0000000000000000_ireals,        147.47492293885080_ireals]
+        verts_dtd(16:18) = [   100.00000000000000_ireals,        0.0000000000000000_ireals,        147.47492293885080_ireals]
+        verts_dtd(19:21) = [   0.0000000000000000_ireals,        100.00000000000000_ireals,        147.49758118421960_ireals]
+        verts_dtd(22:24) = [   100.00000000000000_ireals,        100.00000000000000_ireals,        147.49758118421960_ireals]
+
+
+        sundir = spherical_2_cartesian(real(phi, ireals), real(theta, ireals)) * [-one, -one, one]
+
+        call dir2dir3_geometric_coeff_corr(verts_dtd, sundir, bg(1), v)
+
+        print *, cstr('regular corrected', 'blue')
+        print *, 'src z', v(1:9:3)
+        print *, 'src x', v(2:9:3)
+        print *, 'src y', v(3:9:3)
+
+        do src = 1,3
+          call bmc_3_10%get_coeff(comm,bg,src,.True.,phi,theta,verts_dtd,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+          v_mc(src:3**2:3) = real(T, irealLUT)
+        enddo
+
+        print *, cstr('montecarlo distorted', 'green')
+        print *, 'src z', v_mc(1:9:3)
+        print *, 'src x', v_mc(2:9:3)
+        print *, 'src y', v_mc(3:9:3)
+
+        @assertEqual(v_mc, v, max(maxval(v_mc)*0.05_irealLUT, 1e-6_irealLUT), 'failed for phi='//toStr(phi)//'; theta='//toStr(theta))
+!        @assertEqual(v_mc([2,3,4]), v([2,3,4]), max(maxval(v_mc([2,3,4]))*0.05_irealLUT, 1e-6_irealLUT), 'failed for phi='//toStr(phi)//'; theta='//toStr(theta))
+    !  enddo
+    !enddo
+    end subroutine
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   subroutine check(S_target,T_target, S,T, msg)
