@@ -711,7 +711,7 @@ end subroutine
 @test(npes=[1])
 subroutine test_spherical2cartesian(this)
   class (MpiTestMethod), intent(inout) :: this
-  real(ireals), parameter :: eps=1e-6_ireals
+  real(ireals), parameter :: eps=max(sqrt(epsilon(eps)), 1e-5_ireals)
   real(ireals) :: sundir(3), sundir2(3), phi, theta
   integer(iintegers) :: iter
   integer(mpiint) :: ierr
