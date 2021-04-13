@@ -94,11 +94,14 @@ module m_helper_functions
     & ltoa, &
     & meanval, &
     & meanvec, &
+    & min_dist_point_plane, &
     & mpi_logical_all_same, &
     & mpi_logical_and, &
     & mpi_logical_or, &
     & ndarray_offsets, &
     & normalize_vec, &
+    & pentagon_area_by_vertices, &
+    & quadrangle_area_by_vertices, &
     & rad2deg, &
     & read_ascii_file_2d, &
     & rel_approx, &
@@ -117,6 +120,7 @@ module m_helper_functions
     & cartesian_2_spherical, &
     & spherical_2_cartesian, &
     & strF2C, &
+    & stripSpaces, &
     & swap, &
     & toStr, &
     & transposed_arr, &
@@ -124,57 +128,136 @@ module m_helper_functions
     & triangle_area_by_vertices, &
     & triangle_inner_circle_center, &
     & unique, &
-    & vec_proj_on_plane
+    & vec_proj_on_plane, &
+    & volume_hexahedron, &
+    & volume_oblique_pyramid, &
+    & volume_pentahedron, &
+    & volume_tetrahedron, &
+    & write_ascii_file_2d
+
+
+  interface write_ascii_file_2d
+    #:for basetype,dtype in [&
+      ('integer', 'INT32'  ), &
+      ('integer', 'INT64'  ), &
+      ('real'   , 'REAL32' ), &
+      ('real'   , 'REAL64' ), &
+      ('real'   , 'REAL128')]
+      module procedure write_ascii_file_2d_${dtype}$
+    #:endfor
+  end interface
+
+  interface read_ascii_file_2d
+    #:for basetype,dtype in [&
+      ('integer', 'INT32'  ), &
+      ('integer', 'INT64'  ), &
+      ('real'   , 'REAL32' ), &
+      ('real'   , 'REAL64' ), &
+      ('real'   , 'REAL128')]
+      module procedure read_ascii_file_2d_${dtype}$
+    #:endfor
+  end interface
+
+  interface pentagon_area_by_vertices
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+      module procedure pentagon_area_by_vertices_${dtype}$
+    #:endfor
+  end interface
+
+  interface quadrangle_area_by_vertices
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+      module procedure quadrangle_area_by_vertices_${dtype}$
+    #:endfor
+  end interface
+
+  interface min_dist_point_plane
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+      module procedure min_dist_point_plane_${dtype}$
+    #:endfor
+  end interface
+
+  interface volume_hexahedron
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+      module procedure volume_hexahedron_${dtype}$
+    #:endfor
+  end interface
+
+  interface volume_pentahedron
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+      module procedure volume_pentahedron_${dtype}$
+    #:endfor
+  end interface
+
+  interface volume_oblique_pyramid
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+      module procedure volume_oblique_pyramid_${dtype}$
+    #:endfor
+  end interface
+
+  interface volume_tetrahedron
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+      module procedure volume_tetrahedron_${dtype}$
+    #:endfor
+  end interface
 
   interface rotate_angle_x
-#:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure rotate_angle_x_${dtype}$
-#:endfor
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+      module procedure rotate_angle_x_${dtype}$
+    #:endfor
   end interface
+
   interface rotate_angle_y
-#:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure rotate_angle_y_${dtype}$
-#:endfor
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+      module procedure rotate_angle_y_${dtype}$
+    #:endfor
   end interface
+
   interface rotate_angle_z
-#:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure rotate_angle_z_${dtype}$
-#:endfor
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+      module procedure rotate_angle_z_${dtype}$
+    #:endfor
   end interface
 
   interface rmse
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure rmse_${dtype}$
+      module procedure rmse_${dtype}$
     #:endfor
   end interface
+
   interface vec_proj_on_plane
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure vec_proj_on_plane_${dtype}$
+      module procedure vec_proj_on_plane_${dtype}$
     #:endfor
   end interface
+
   interface cartesian_2_spherical
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure cartesian_2_spherical_${dtype}$
+      module procedure cartesian_2_spherical_${dtype}$
     #:endfor
   end interface
+
   interface spherical_2_cartesian
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure spherical_2_cartesian_${dtype}$
+      module procedure spherical_2_cartesian_${dtype}$
     #:endfor
   end interface
+
   interface rad2deg
     module procedure rad2deg_r32, rad2deg_r64, rad2deg_r128
   end interface
+
   interface deg2rad
     module procedure deg2rad_r32, deg2rad_r64, deg2rad_r128
   end interface
+
   interface approx
     module procedure approx_r32, approx_r64, approx_r128
   end interface
+
   interface distance
-#:for dtype in ['REAL32', 'REAL64']
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
     module procedure distance_${dtype}$
-#:endfor
+    #:endfor
   end interface
 
   interface toStr
@@ -217,78 +300,84 @@ module m_helper_functions
       ('real'   , 'REAL32' ,'REAL32'), &
       ('real'   , 'REAL64' ,'REAL64'), &
       ('real'   , 'REAL128','REAL128')]
-    #:for RANK in range(1, 8)
-    module procedure meanval_intype_${intype}$_${dtype}$_${RANK}$d_out${otype}$
-    #:endfor
+      #:for RANK in range(1, 8)
+        module procedure meanval_intype_${intype}$_${dtype}$_${RANK}$d_out${otype}$
+      #:endfor
     #:endfor
   end interface
 
   interface imp_allreduce_mean
     module procedure imp_allreduce_mean_0d
-#:for RANK in range(1, 4)
-    module procedure imp_allreduce_mean_${RANK}$d
-#:endfor
+    #:for RANK in range(1, 4)
+      module procedure imp_allreduce_mean_${RANK}$d
+    #:endfor
   end interface
+
   interface imp_allreduce_sum
     module procedure imp_allreduce_sum_ireals, imp_allreduce_sum_i32, imp_allreduce_sum_i64
   end interface
+
   interface imp_allreduce_min
     module procedure imp_allreduce_min_ireals, imp_allreduce_min_iintegers
   end interface
+
   interface imp_allreduce_max
     module procedure imp_allreduce_max_ireals, imp_allreduce_max_iintegers
   end interface
+
   interface imp_reduce_sum
     module procedure imp_reduce_sum_r32, imp_reduce_sum_r64, imp_reduce_sum_r128
   end interface
 
   interface imp_reduce_mean
-#:for method,dtype,mpitype,otype in [ &
-  ('integer', 'INT32' , 'imp_int4'  , 'ireals'), &
-  ('integer', 'INT64' , 'imp_int8'  , 'ireals'), &
-  ('real'   , 'REAL32', 'imp_REAL32', 'REAL32'), &
-  ('real'   , 'REAL64', 'imp_REAL64', 'REAL64')]
-#:for RANK in range(1, 8)
-    module procedure imp_reduce_mean_${method}$_${dtype}$_${RANK}$d_${otype}$
-#:endfor
-#:endfor
+    #:for method,dtype,mpitype,otype in [ &
+      ('integer', 'INT32' , 'imp_int4'  , 'ireals'), &
+      ('integer', 'INT64' , 'imp_int8'  , 'ireals'), &
+      ('real'   , 'REAL32', 'imp_REAL32', 'REAL32'), &
+      ('real'   , 'REAL64', 'imp_REAL64', 'REAL64')]
+      #:for RANK in range(1, 8)
+        module procedure imp_reduce_mean_${method}$_${dtype}$_${RANK}$d_${otype}$
+      #:endfor
+    #:endfor
   end interface
 
   interface imp_min_mean_max
-#:for method,dtype,mpitype,otype in [ &
-  ('integer', 'INT32' , 'imp_int4'  , 'ireals'), &
-  ('integer', 'INT64' , 'imp_int8'  , 'ireals'), &
-  ('real'   , 'REAL32', 'imp_REAL32', 'REAL32'), &
-  ('real'   , 'REAL64', 'imp_REAL64', 'REAL64')]
-#:for RANK in range(0, 8)
-    module procedure imp_min_mean_max_${method}$_${dtype}$_${RANK}$d_${otype}$
-#:endfor
-#:endfor
+    #:for method,dtype,mpitype,otype in [ &
+      ('integer', 'INT32' , 'imp_int4'  , 'ireals'), &
+      ('integer', 'INT64' , 'imp_int8'  , 'ireals'), &
+      ('real'   , 'REAL32', 'imp_REAL32', 'REAL32'), &
+      ('real'   , 'REAL64', 'imp_REAL64', 'REAL64')]
+      #:for RANK in range(0, 8)
+        module procedure imp_min_mean_max_${method}$_${dtype}$_${RANK}$d_${otype}$
+      #:endfor
+    #:endfor
   end interface
 
   interface imp_bcast
-#:for method,dtype,mpitype in [ &
-  ('logical', ''      , 'imp_logical'), &
-  ('integer', 'INT32' , 'imp_int4')   , &
-  ('integer', 'INT64' , 'imp_int8')   , &
-  ('real'   , 'REAL32', 'imp_REAL32') , &
-  ('real'   , 'REAL64', 'imp_REAL64')]
-#:for RANK in range(0, 8)
-#:for modifier in [None, 'allocatable', 'pointer']
-#:if (modifier is None and (RANK==0)) or (modifier is not None and (RANK>0))
-    module procedure imp_bcast_${method}$_${dtype}$_${RANK}$d_${modifier}$
-#:endif
-#:endfor
-#:endfor
-#:endfor
+    #:for method,dtype,mpitype in [ &
+      ('logical', ''      , 'imp_logical'), &
+      ('integer', 'INT32' , 'imp_int4')   , &
+      ('integer', 'INT64' , 'imp_int8')   , &
+      ('real'   , 'REAL32', 'imp_REAL32') , &
+      ('real'   , 'REAL64', 'imp_REAL64')]
+      #:for RANK in range(0, 8)
+        #:for modifier in [None, 'allocatable', 'pointer']
+          #:if (modifier is None and (RANK==0)) or (modifier is not None and (RANK>0))
+            module procedure imp_bcast_${method}$_${dtype}$_${RANK}$d_${modifier}$
+          #:endif
+        #:endfor
+      #:endfor
+    #:endfor
   end interface
 
   interface get_arg
     module procedure get_arg_logical, get_arg_i32, get_arg_i64, get_arg_real32, get_arg_real64, get_arg_char
   end interface
+
   interface sEXP
     module procedure sEXP_r32, sEXP_r64
   end interface
+
   interface swap
     #:for basetype, dtype, ctype in [&
       ('integer', 'INT32'  ), &
@@ -296,130 +385,145 @@ module m_helper_functions
       ('real'   , 'REAL32' ), &
       ('real'   , 'REAL64' ), &
       ('real'   , 'REAL128')]
-    module procedure swap_${dtype}$
+      module procedure swap_${dtype}$
     #:endfor
   end interface
+
   interface transposed_arr
     module procedure transposed_arr_3d_ireals
   end interface
+
   interface cumsum
     module procedure cumsum_iintegers, cumsum_ireals
   end interface
+
   interface cumprod
     module procedure cumprod_i32, cumprod_i64, cumprod_ireals
   end interface
+
   interface resize_arr
     module procedure resize_arr_1d_int32, resize_arr_1d_int64, &
       resize_arr_2d_r32, resize_arr_2d_r64, &
       resize_arr_3d_r32, resize_arr_3d_r64
   end interface
+
   interface reverse
     module procedure reverse_1d_real32, reverse_2d_real32, reverse_1d_real64, reverse_2d_real64, &
         reverse_3d_real32, reverse_3d_real64, reverse_4d_real32, reverse_4d_real64
   end interface
+
   interface is_between
-#:for dtype in ['INT32', 'INT64', 'REAL32', 'REAL64', 'REAL128']
-    module procedure is_between_${dtype}$
-#:endfor
+    #:for dtype in ['INT32', 'INT64', 'REAL32', 'REAL64', 'REAL128']
+      module procedure is_between_${dtype}$
+    #:endfor
   end interface
+
   interface is_inrange
-#:for dtype in ['INT32', 'INT64', 'REAL32', 'REAL64', 'REAL128']
-    module procedure is_inrange_${dtype}$
-#:endfor
+    #:for dtype in ['INT32', 'INT64', 'REAL32', 'REAL64', 'REAL128']
+      module procedure is_inrange_${dtype}$
+    #:endfor
   end interface
+
   interface assertEqual
     #:for dtype in ['INT32', 'INT64']
-    module procedure assertEqual_${dtype}$, assertEqual_${dtype}$_with_msg
+      module procedure assertEqual_${dtype}$, assertEqual_${dtype}$_with_msg
     #:endfor
   end interface
 
   interface cross_2d
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure cross_2d_${dtype}$
+      module procedure cross_2d_${dtype}$
     #:endfor
   end interface
+
   interface cross_3d
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure cross_3d_${dtype}$
+      module procedure cross_3d_${dtype}$
     #:endfor
   end interface
+
   interface angle_between_two_vec
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure angle_between_two_vec_${dtype}$
+      module procedure angle_between_two_vec_${dtype}$
     #:endfor
   end interface
+
   interface angle_between_two_normed_vec
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure angle_between_two_normed_vec_${dtype}$
+      module procedure angle_between_two_normed_vec_${dtype}$
     #:endfor
   end interface
+
   interface compute_normal_3d
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure compute_normal_3d_${dtype}$
+      module procedure compute_normal_3d_${dtype}$
     #:endfor
   end interface
+
   interface normalize_vec
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure normalize_vec_${dtype}$
-    module procedure normalize_vec_inplace_${dtype}$
+      module procedure normalize_vec_${dtype}$
+      module procedure normalize_vec_inplace_${dtype}$
     #:endfor
   end interface
 
   interface rotation_matrix_around_axis_vec
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure rotation_matrix_around_axis_vec_${dtype}$
+      module procedure rotation_matrix_around_axis_vec_${dtype}$
     #:endfor
   end interface
 
   interface rotation_matrix_local_basis_to_world
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure rotation_matrix_local_basis_to_world_${dtype}$
+      module procedure rotation_matrix_local_basis_to_world_${dtype}$
     #:endfor
   end interface
 
   interface determine_normal_direction
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure determine_normal_direction_${dtype}$
+      module procedure determine_normal_direction_${dtype}$
     #:endfor
   end interface
 
   interface distances_to_triangle_edges
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure distances_to_triangle_edges_${dtype}$
+      module procedure distances_to_triangle_edges_${dtype}$
     #:endfor
   end interface
 
   interface distance_to_edge
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure distance_to_edge_${dtype}$
+      module procedure distance_to_edge_${dtype}$
     #:endfor
   end interface
 
   interface triangle_area_by_vertices
-#:for dtype in ['REAL32', 'REAL64']
-    module procedure triangle_area_by_vertices_${dtype}$
-#:endfor
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+      module procedure triangle_area_by_vertices_${dtype}$
+    #:endfor
   end interface
+
   interface triangle_area_by_edgelengths
-#:for dtype in ['REAL32', 'REAL64']
-    module procedure triangle_area_by_edgelengths_${dtype}$
-#:endfor
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+      module procedure triangle_area_by_edgelengths_${dtype}$
+  #:endfor
   end interface
+
   interface triangle_inner_circle_center
-#:for dtype in ['REAL32', 'REAL64']
-    module procedure triangle_inner_circle_center_${dtype}$
-#:endfor
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+      module procedure triangle_inner_circle_center_${dtype}$
+    #:endfor
   end interface
 
   interface delta_scale
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure delta_scale_${dtype}$
+      module procedure delta_scale_${dtype}$
     #:endfor
   end interface
 
   interface delta_scale_optprop
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure delta_scale_optprop_${dtype}$
+      module procedure delta_scale_optprop_${dtype}$
     #:endfor
   end interface
 
@@ -433,7 +537,7 @@ module m_helper_functions
 
   interface assert_arr_is_monotonous
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure assert_arr_is_monotonous_${dtype}$
+      module procedure assert_arr_is_monotonous_${dtype}$
     #:endfor
   end interface
 
@@ -449,20 +553,20 @@ module m_helper_functions
       ('integer'   , 'INT64'  , None                                            ), &
       ('real'      , 'REAL32' , None                                            ), &
       ('real'      , 'REAL64' , None                                            )]
-    #:set dKIND = '' if dtype == None else '('+dtype+')'
-    #:for RANK in range(0, 8)
-    #:if not ((destructor is not None) and (RANK>0))
-    module procedure deallocate_allocatable_${basetype}$_${dtype}$_${RANK}$d
-    #:endif
-    #:endfor
+      #:set dKIND = '' if dtype == None else '('+dtype+')'
+      #:for RANK in range(0, 8)
+        #:if not ((destructor is not None) and (RANK>0))
+          module procedure deallocate_allocatable_${basetype}$_${dtype}$_${RANK}$d
+        #:endif
+      #:endfor
     #:endfor
   end interface
 
   interface colored_str_by_range
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    #:for RANK in range(0, 8)
-    module procedure colored_str_by_range${dtype}$_${RANK}$d
-    #:endfor
+      #:for RANK in range(0, 8)
+        module procedure colored_str_by_range${dtype}$_${RANK}$d
+      #:endfor
     #:endfor
   end interface
 
@@ -483,6 +587,7 @@ module m_helper_functions
       real(kind(x)), parameter :: exp_maxval=-log(epsilon(exp_maxval))
       r = exp(sign( min(exp_maxval, abs(x)), x))
     end function
+
     pure elemental function sEXP_r64(x) result(r)
       real(REAL64),intent(in) :: x
       real(REAL64) :: r
@@ -490,18 +595,18 @@ module m_helper_functions
       r = exp(sign( min(exp_maxval, abs(x)), x))
     end function
 
-#:for basetype, dtype, ctype in [&
-  ('integer', 'INT32'  ), &
-  ('integer', 'INT64'  ), &
-  ('real'   , 'REAL32' ), &
-  ('real'   , 'REAL64' ), &
-  ('real'   , 'REAL128')]
-  pure elemental subroutine swap_${dtype}$(x,y)
-    ${basetype}$ (${dtype}$),intent(inout) :: x,y
-    ${basetype}$ (${dtype}$) :: tmp
-    tmp = x; x = y; y = tmp
-  end subroutine
-#:endfor
+    #:for basetype, dtype, ctype in [&
+      ('integer', 'INT32'  ), &
+      ('integer', 'INT64'  ), &
+      ('real'   , 'REAL32' ), &
+      ('real'   , 'REAL64' ), &
+      ('real'   , 'REAL128')]
+      pure elemental subroutine swap_${dtype}$(x,y)
+        ${basetype}$ (${dtype}$),intent(inout) :: x,y
+        ${basetype}$ (${dtype}$) :: tmp
+        tmp = x; x = y; y = tmp
+      end subroutine
+    #:endfor
 
     function transposed_arr_3d_ireals(arr) result(trans)
       real(ireals), intent(in) :: arr(:,:,:)
@@ -515,25 +620,25 @@ module m_helper_functions
       x=x+i
     end subroutine
 
-#:for basetype, dtype, ctype in [&
-  ('integer', 'INT32'  , 'REAL64'), &
-  ('integer', 'INT64'  , 'REAL64'), &
-  ('real'   , 'REAL32' , 'REAL64'), &
-  ('real'   , 'REAL64' , 'REAL64'), &
-  ('real'   , 'REAL128', 'REAL128')]
-    pure elemental logical function is_between_${dtype}$(x,a,b) result(is_between)
-      ${basetype}$ (${dtype}$), intent(in) :: x,a,b
-      real(${ctype}$) :: r
-      r = real(x-a, kind(r)) * real(x-b, kind(r))
-      is_between = r .lt. 0._${ctype}$
-    end function
-    pure elemental logical function is_inrange_${dtype}$(x,a,b) result(is_between)
-      ${basetype}$ (${dtype}$), intent(in) :: x,a,b
-      real(${ctype}$) :: r
-      r = real(x-a, kind(r)) * real(x-b, kind(r))
-      is_between = r .le. 0._${ctype}$
-    end function
-#:endfor
+    #:for basetype, dtype, ctype in [&
+      ('integer', 'INT32'  , 'REAL64'), &
+      ('integer', 'INT64'  , 'REAL64'), &
+      ('real'   , 'REAL32' , 'REAL64'), &
+      ('real'   , 'REAL64' , 'REAL64'), &
+      ('real'   , 'REAL128', 'REAL128')]
+      pure elemental logical function is_between_${dtype}$(x,a,b) result(is_between)
+        ${basetype}$ (${dtype}$), intent(in) :: x,a,b
+        real(${ctype}$) :: r
+        r = real(x-a, kind(r)) * real(x-b, kind(r))
+        is_between = r .lt. 0._${ctype}$
+      end function
+      pure elemental logical function is_inrange_${dtype}$(x,a,b) result(is_between)
+        ${basetype}$ (${dtype}$), intent(in) :: x,a,b
+        real(${ctype}$) :: r
+        r = real(x-a, kind(r)) * real(x-b, kind(r))
+        is_between = r .le. 0._${ctype}$
+      end function
+    #:endfor
 
     subroutine CHKERR(ierr, descr)
       integer(mpiint),intent(in) :: ierr
@@ -603,32 +708,30 @@ module m_helper_functions
       ('real'   , 'REAL32' , "'(F16.7)'"), &
       ('real'   , 'REAL64' , "'(F16.7)'"), &
       ('real'   , 'REAL128', "'(F16.7)'")]
-    function toStr${dtype}$(inp) result (res)
-      ${basetype}$(${dtype}$), intent(in) :: inp
-      character(len=:), allocatable :: res
-      character(range(inp)+2) :: tmp
-      write(tmp,fmt=${fmt}$) inp
-      res = trim(tmp)
-    end function
+      function toStr${dtype}$(inp) result (res)
+        ${basetype}$(${dtype}$), intent(in) :: inp
+        character(len=:), allocatable :: res
+        character(range(inp)+2) :: tmp
+        write(tmp,fmt=${fmt}$) inp
+        res = trim(tmp)
+      end function
 
-    #:for RANK in range(1, 8)
-    function toStr${dtype}$_${RANK}$d(inp, deliminator) result (res)
-      ${basetype}$(${dtype}$), intent(in) :: inp${ranksuffix(RANK)}$
-      character(len=:), allocatable :: res
-      character(len=*), intent(in), optional :: deliminator
-      character(range(inp)+2) :: tmp(size(inp))
-      ${basetype}$(${dtype}$), allocatable :: inp1d(:)
-      integer(iintegers) :: i
-      inp1d = pack(inp, .True.)
-      do i=1,size(inp1d)
+      #:for RANK in range(1, 8)
+      function toStr${dtype}$_${RANK}$d(inp, deliminator) result (res)
+        ${basetype}$(${dtype}$), intent(in) :: inp${ranksuffix(RANK)}$
+        character(len=:), allocatable :: res
+        character(len=*), intent(in), optional :: deliminator
+        character(range(inp)+2) :: tmp(size(inp))
+        ${basetype}$(${dtype}$), allocatable :: inp1d(:)
+        integer(iintegers) :: i
+        inp1d = pack(inp, .True.)
+        do i=1,size(inp1d)
         tmp(i) = toStr(inp1d(i))
-      enddo
-      res = trim(char_arr_to_str(tmp, deliminator))
-    end function
+        enddo
+        res = trim(char_arr_to_str(tmp, deliminator))
+      end function
+      #:endfor
     #:endfor
-    #:endfor
-
-
 
     pure function gradient(v)
       real(ireals),intent(in) :: v(:)
@@ -644,20 +747,21 @@ module m_helper_functions
 
     !> @brief Cross product, right hand rule, a(thumb), b(pointing finger)
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    pure function cross_3d_${dtype}$(a, b) result(cross_3d)
-      real(${dtype}$), dimension(3), intent(in) :: a, b
-      real(${dtype}$), dimension(3) :: cross_3d
+      pure function cross_3d_${dtype}$(a, b) result(cross_3d)
+        real(${dtype}$), dimension(3), intent(in) :: a, b
+        real(${dtype}$), dimension(3) :: cross_3d
 
-      cross_3d(1) = a(2) * b(3) - a(3) * b(2)
-      cross_3d(2) = a(3) * b(1) - a(1) * b(3)
-      cross_3d(3) = a(1) * b(2) - a(2) * b(1)
-    end function
-    pure function cross_2d_${dtype}$(a, b) result(cross_2d)
-      real(${dtype}$), dimension(2), intent(in) :: a, b
-      real(${dtype}$) :: cross_2d
+        cross_3d(1) = a(2) * b(3) - a(3) * b(2)
+        cross_3d(2) = a(3) * b(1) - a(1) * b(3)
+        cross_3d(3) = a(1) * b(2) - a(2) * b(1)
+      end function
 
-      cross_2d = a(1) * b(2) - a(2) * b(1)
-    end function
+      pure function cross_2d_${dtype}$(a, b) result(cross_2d)
+        real(${dtype}$), dimension(2), intent(in) :: a, b
+        real(${dtype}$) :: cross_2d
+
+        cross_2d = a(1) * b(2) - a(2) * b(1)
+      end function
     #:endfor
 
     subroutine resize_arr_3d_r32(N, arr, dim, fillval, lrepeat)
@@ -1553,114 +1657,174 @@ module m_helper_functions
       end if
     end function
 
-    subroutine read_ascii_file_2d(filename, arr, ierr, skiplines, verbose)
-      character(len=*),intent(in) :: filename
-      integer(iintegers),intent(in),optional :: skiplines
 
-      real(ireals),allocatable,intent(out) :: arr(:,:) ! shape nlines, ncolumns
-      integer(mpiint), intent(out) :: ierr
-      logical, intent(in), optional :: verbose
+    #:for basetype,dtype in [&
+      ('integer', 'INT32'  ), &
+      ('integer', 'INT64'  ), &
+      ('real'   , 'REAL32' ), &
+      ('real'   , 'REAL64' ), &
+      ('real'   , 'REAL128')]
+      subroutine write_ascii_file_2d_${dtype}$(filename, arr, ierr, header, row_major, verbose)
+        character(len=*),intent(in) :: filename
 
-      real(ireals), allocatable :: line(:)
-      character(len=2**14) :: line_str
+        ${basetype}$(${dtype}$), allocatable, intent(in) :: arr(:,:)
 
-      integer :: funit, io
-      integer(iintegers) :: nlines, valid_lines, i, j, max_cols
-      logical :: lverbose, file_exists
+        integer(mpiint), intent(out) :: ierr
 
-      ierr=0
-      inquire(file=filename, exist=file_exists)
+        logical, intent(in), optional :: verbose
+        character(len=*), intent(in), optional :: header
+        logical, intent(in), optional :: row_major
 
-      lverbose = get_arg(.False., verbose)
+        integer :: funit, i
+        logical :: lverbose, file_exists, lrow_major
 
-      if(.not.file_exists) then
-        if(lverbose) print *,'File ',trim(filename), 'does not exist!'
-        ierr=1
-        return
-      endif
+        ierr=0
+        inquire(file=filename, exist=file_exists)
 
-      open(newunit=funit, file=filename)
-      if(present(skiplines)) then
-        do i=1,skiplines
-          read(funit,*)
-        enddo
-      endif
+        lverbose = get_arg(.False., verbose)
+        lrow_major = get_arg(.False., row_major)
 
-      print *,''
-      nlines = 0
-      valid_lines = 0
-      max_cols = 0
-      do
-        read(funit, '(A)', iostat=io) line_str
+        if(file_exists) then
+          if(lverbose) print *,'File ',trim(filename), 'does already exist!'
+          ierr=1
+          return
+        endif
 
-        if(io.eq.0) then
-          call split(line_str, line, ' ', ierr)
+        open(newunit=funit, file=filename)
 
-          if(ierr.eq.0)then
-            valid_lines = valid_lines + 1
-            if(max_cols.gt.1 .and. size(line).ne.max_cols) then
-              ierr = 3
-              if(lverbose) &
-                call CHKWARN(ierr, 'Found a varying number of columns in the ascii file.. cannot read that')
-              return
+        if (present(header)) then
+          write(funit, *) header
+        endif
+
+        if (lrow_major) then
+          do i=1,size(arr, 1)
+            write(funit, *) arr(i,:)
+          enddo
+        else
+          do i=1,size(arr, 2)
+            write(funit, *) arr(:,i)
+          enddo
+        endif
+
+        close(funit)
+      end subroutine
+    #:endfor
+
+    #:for basetype,dtype in [&
+      ('integer', 'INT32'  ), &
+      ('integer', 'INT64'  ), &
+      ('real'   , 'REAL32' ), &
+      ('real'   , 'REAL64' ), &
+      ('real'   , 'REAL128')]
+      subroutine read_ascii_file_2d_${dtype}$(filename, arr, ierr, skiplines, verbose)
+        character(len=*),intent(in) :: filename
+        integer(iintegers),intent(in),optional :: skiplines
+
+        ${basetype}$(${dtype}$),allocatable,intent(out) :: arr(:,:) ! shape nlines, ncolumns
+        integer(mpiint), intent(out) :: ierr
+        logical, intent(in), optional :: verbose
+
+        ${basetype}$(${dtype}$), allocatable :: line(:)
+        character(len=2**14) :: line_str
+
+        integer :: funit, io
+        integer(iintegers) :: nlines, valid_lines, i, j, max_cols
+        logical :: lverbose, file_exists
+
+        ierr=0
+        inquire(file=filename, exist=file_exists)
+
+        lverbose = get_arg(.False., verbose)
+
+        if(.not.file_exists) then
+          if(lverbose) print *,'File ',trim(filename), 'does not exist!'
+          ierr=1
+          return
+        endif
+
+        open(newunit=funit, file=filename)
+        if(present(skiplines)) then
+          do i=1,skiplines
+            read(funit,*)
+          enddo
+        endif
+
+        print *,''
+        nlines = 0
+        valid_lines = 0
+        max_cols = 0
+        do
+          read(funit, '(A)', iostat=io) line_str
+
+          if(io.eq.0) then
+            call split(line_str, line, ' ', ierr)
+
+            if(ierr.eq.0)then
+              valid_lines = valid_lines + 1
+              if(max_cols.gt.1 .and. size(line).ne.max_cols) then
+                ierr = 3
+                if(lverbose) &
+                  call CHKWARN(ierr, 'Found a varying number of columns in the ascii file.. cannot read that')
+                return
+              endif
+              max_cols = size(line)
             endif
-            max_cols = size(line)
+            deallocate(line)
+
+          elseif (io.lt.0) then ! end of file
+            exit
           endif
-          deallocate(line)
 
-        elseif (io.lt.0) then ! end of file
-          exit
+          nlines = nlines + 1
+        end do
+
+        rewind(funit)
+        if(present(skiplines)) then
+          do i=1,skiplines
+            read(funit,*)
+          enddo
         endif
 
-        nlines = nlines + 1
-      end do
+        allocate(line(max_cols))
+        allocate(arr(valid_lines,max_cols))
 
-      rewind(funit)
-      if(present(skiplines)) then
-        do i=1,skiplines
-          read(funit,*)
-        enddo
-      endif
+        j = 1
+        do i=1,nlines
+          read(funit, *, iostat=io) line
+          if(io.eq.0) then
+            arr(j,:) = line
+            j = j + 1
+          endif
+        end do
 
-      allocate(line(max_cols))
-      allocate(arr(valid_lines,max_cols))
-
-      j = 1
-      do i=1,nlines
-        read(funit, *, iostat=io) line
-        if(io.eq.0) then
-          arr(j,:) = line
-          j = j + 1
-        endif
-      end do
-
-      close(funit)
-      if(lverbose) print *,'I read '// &
-        itoa(valid_lines)//' lines of ascii : '// &
-        '('//itoa(nlines)//' total ) '// &
-        'with '//itoa(max_cols)//' columns'
+        close(funit)
+        if(lverbose) print *,'I read '// &
+          itoa(valid_lines)//' lines of ascii : '// &
+          '('//itoa(nlines)//' total ) '// &
+          'with '//itoa(max_cols)//' columns'
 
       contains
         subroutine split(str, a, sep, ierr)
           character(len=*), intent(in) :: str, sep
-          real(ireals), intent(out), allocatable :: a(:)
+          ${basetype}$(${dtype}$), intent(out), allocatable :: a(:)
           integer(mpiint), intent(out) :: ierr
           integer(iintegers) :: i,n
           logical :: last_char_was_sep
           last_char_was_sep = .True.
           n = 0
           do i=1,len(str)
-            if( str(i:i) == sep) then
-              if(.not.last_char_was_sep) n = n + 1
-              last_char_was_sep = .True.
-            else
-              last_char_was_sep = .False.
-            endif
+          if( str(i:i) == sep) then
+            if(.not.last_char_was_sep) n = n + 1
+            last_char_was_sep = .True.
+          else
+            last_char_was_sep = .False.
+          endif
           end do
           allocate (a(n))
           read(unit=str, fmt=*, iostat=ierr) a
         end subroutine
       end subroutine
+    #:endfor
 
 
     subroutine reorder_mpi_comm(icomm, Nrank_x, Nrank_y, new_comm)
@@ -1834,8 +1998,8 @@ module m_helper_functions
 #:endfor
 
     !> @brief Determine Edge length/ distance between two points
-#:for dtype in ['REAL32', 'REAL64']
-    function distance_${dtype}$(p1,p2) result(distance)
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    pure function distance_${dtype}$(p1,p2) result(distance)
       real(${dtype}$), intent(in) :: p1(:), p2(:)
       real(kind(p1)) :: distance
       integer(iintegers) :: i
@@ -1848,19 +2012,20 @@ module m_helper_functions
 #:endfor
 
     !> @brief Use Herons Formula to determine the area of a triangle given the 3 edge lengths
-#:for dtype in ['REAL32', 'REAL64']
-    function triangle_area_by_edgelengths_${dtype}$(e1,e2,e3) result(triangle_area_by_edgelengths)
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    pure function triangle_area_by_edgelengths_${dtype}$(e1,e2,e3) result(triangle_area_by_edgelengths)
       real(${dtype}$), intent(in) :: e1,e2,e3
       real(${dtype}$) :: triangle_area_by_edgelengths
       real(${dtype}$) :: p
       p = (e1+e2+e3)/2
-      triangle_area_by_edgelengths = sqrt(p*(p-e1)*(p-e2)*(p-e3))
+      ! max(discrimant, zero) as to prevent from nan evaluation due to numerical errors
+      triangle_area_by_edgelengths = sqrt(max(p*(p-e1)*(p-e2)*(p-e3), 0._${dtype}$))
     end function
 #:endfor
 
     !> @brief Use Herons Formula to determine the area of a triangle given the 3 vertices
-#:for dtype in ['REAL32', 'REAL64']
-    function triangle_area_by_vertices_${dtype}$(v1,v2,v3) result(triangle_area_by_vertices)
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    pure function triangle_area_by_vertices_${dtype}$(v1,v2,v3) result(triangle_area_by_vertices)
       real(${dtype}$), intent(in) :: v1(:),v2(:),v3(:)
       real(${dtype}$) :: triangle_area_by_vertices
       real(${dtype}$) :: e1, e2, e3
@@ -1872,10 +2037,10 @@ module m_helper_functions
 #:endfor
 
     !> @brief compute the inner circle center of a triangle
-#:for dtype in ['REAL32', 'REAL64']
-    subroutine triangle_inner_circle_center_${dtype}$(p1, p2, p3, center)
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    pure subroutine triangle_inner_circle_center_${dtype}$(p1, p2, p3, center)
       real(${dtype}$), dimension(:), intent(in) :: p1, p2, p3
-      real(kind(p1)), dimension(:) :: center
+      real(kind(p1)), dimension(:), intent(out) :: center
       real(kind(p1)) :: e1, e2, e3
       e1 = distance(p2,p3)
       e2 = distance(p3,p1)
@@ -2302,6 +2467,28 @@ module m_helper_functions
       end select
     end function
 
+    function stripSpaces(string)
+      character(len=*), intent(in) :: string
+      character(len=len(string)) :: stripSpaces
+      integer(iintegers) :: string_len, last, actual
+
+      string_len = len(string)
+      stripSpaces = string
+      last = 1
+      actual = 1
+
+      do while (actual < string_len)
+      if (stripSpaces(last:last) == ' ') THEN
+        actual = actual + 1
+        stripSpaces(last:last) = stripSpaces(actual:actual)
+        stripSpaces(actual:actual) = ' '
+      else
+        last = last +1
+        if (actual < last) actual = last
+      endif
+      enddo
+    end function
+
     function cstr(inp, color)
       character(len=*), intent(in) :: inp, color
       character(len=len(inp)+9) :: cstr
@@ -2693,4 +2880,92 @@ end subroutine
 #:endfor
 #:endfor
 
+!> @brief compute volume defined by four base and top points each
+!> @details base points and top points can be coincident
+! the edges will be constructed index wise: b_i -> t_i
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+  pure function volume_hexahedron_${dtype}$(b1, b2, b3, b4, t1, t2, t3, t4) result(volume_hexahedron)
+    real(${dtype}$), intent(in), dimension(3) :: b1, b2, b3, b4, t1, t2, t3, t4
+    real(${dtype}$) :: volume_hexahedron
+
+    volume_hexahedron = &
+      & volume_oblique_pyramid(t1, t2, t3, t4, b1) + &
+      & volume_oblique_pyramid(t3, b3, b4, t4, b1) + &
+      & volume_oblique_pyramid(t2, b2, b3, t3, b1)
+  end function
+#:endfor
+
+!> @brief compute volume defined by three base and top points each
+!> @details base points and top points can be coincident
+! the edges will be constructed index wise: b_i -> t_i
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+  pure function volume_pentahedron_${dtype}$(b1, b2, b3, t1, t2, t3) result(volume_pentahedron)
+    real(${dtype}$), intent(in), dimension(3) :: b1, b2, b3, t1, t2, t3
+    real(${dtype}$) :: volume_pentahedron
+
+    volume_pentahedron = &
+      & volume_oblique_pyramid(t1, t2, b2, b1, t3) + &
+      & volume_tetrahedron(b1, b2, b3, t3)
+  end function
+#:endfor
+
+!> @brief compute volume of pyramid with four base points
+!> @details also works when two base points are coincident
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+  pure function volume_oblique_pyramid_${dtype}$(b1, b2, b3, b4, t) result(volume_oblique_pyramid)
+    real(${dtype}$), intent(in), dimension(3) :: b1, b2, b3, b4, t
+    real(${dtype}$) :: volume_oblique_pyramid
+
+    volume_oblique_pyramid = volume_tetrahedron(b1, b2, b3, t) + volume_tetrahedron(b1, b3, b4, t)
+  end function
+#:endfor
+
+!> @brief compute volume of pyramid with four base points
+!> @details also works when two base points are coincident
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+  pure function volume_tetrahedron_${dtype}$(b1, b2, b3, t) result(volume_tetrahedron)
+    real(${dtype}$), intent(in), dimension(3) :: b1, b2, b3, t
+    real(${dtype}$) :: volume_tetrahedron
+
+    volume_tetrahedron = triangle_area_by_vertices(b1, b2, b3) * min_dist_point_plane(t, compute_normal_3d(b1, b2, b3), b1) / 3._${dtype}$
+  end function
+#:endfor
+
+!> @brief compute minimum distance of point from plane defined by normed normal and origin
+!> @details input point in question 'point' along with 'normal' and 'origin' of the plain
+! the normal needs to be normed
+! http://paulbourke.net/geometry/pointlineplane/
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+ pure function min_dist_point_plane_${dtype}$(point, normal, origin) result(min_dist_point_plane)
+   real (${dtype}$), intent(in), dimension(3) :: point, normal, origin
+   real (${dtype}$) :: min_dist_point_plane
+
+   min_dist_point_plane = abs(dot_product(point - origin, normal))
+  end function
+#:endfor
+
+!> @brief compute quadrangle area defined by four vertices using two triangles
+!> @details input four vertices ordered clockwise or anti-clockwise that form either a quadrangle or a triangle
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+ pure function quadrangle_area_by_vertices_${dtype}$(v1, v2, v3, v4) result(quadrangle_area_by_vertices)
+   real (${dtype}$), intent(in), dimension(3) :: v1, v2, v3, v4
+   real (${dtype}$) :: quadrangle_area_by_vertices
+
+   quadrangle_area_by_vertices = triangle_area_by_vertices(v1, v2, v3) + triangle_area_by_vertices(v1, v3, v4)
+ end function
+#:endfor
+
+!> @brief compute pentagon area defined by five vertices using three triangles
+!> @details input five vertices ordered clockwise
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+ pure function pentagon_area_by_vertices_${dtype}$(v1, v2, v3, v4, v5) result(pentagon_area_by_vertices)
+   real (${dtype}$), intent(in), dimension(3) :: v1, v2, v3, v4, v5
+   real (${dtype}$) :: pentagon_area_by_vertices
+
+   pentagon_area_by_vertices = &
+     triangle_area_by_vertices(v1, v2, v3) + &
+     triangle_area_by_vertices(v1, v3, v4) + &
+     triangle_area_by_vertices(v1, v4, v5)
+ end function
+#:endfor
 end module

@@ -11,6 +11,7 @@ module test_helper_functions
     & deg2rad, &
     & determine_normal_direction, &
     & distance_to_edge, &
+    & distance, &
     & imp_allgather_int_inplace, &
     & imp_allreduce_mean, &
     & imp_allreduce_sum, &
@@ -26,6 +27,7 @@ module test_helper_functions
     & mpi_logical_or, &
     & ndarray_offsets, &
     & normalize_vec, &
+    & quadrangle_area_by_vertices, &
     & read_ascii_file_2d, &
     & resize_arr, &
     & reverse, &
@@ -33,6 +35,7 @@ module test_helper_functions
     & rotation_matrix_local_basis_to_world, &
     & rotation_matrix_world_to_local_basis, &
     & solve_quadratic, &
+    & triangle_area_by_vertices, &
     & cartesian_2_spherical, &
     & spherical_2_cartesian, &
     & toStr
@@ -762,5 +765,35 @@ subroutine test_spherical2cartesian(this)
     if(.not.all(approx(sundir, sundir2, eps))) print *,'iter', iter, 'sundir', sundir, 'phi/theta', phi, theta, 'sundir_rev', sundir2
     @assertEqual(sundir, sundir2, eps)
   enddo
+end subroutine
+
+@test(npes=[1])
+subroutine test_quadrangle_area_by_vertices(this)
+  class(MpiTestMethod), intent(inout) :: this
+    real(ireals), dimension(3) :: a, b, c, d
+    real(ireals) :: quad_area, tri1, tri2, e1, e2, e3, discr, tri_area, p
+
+    a = [0.0000000000000000_ireals, 26.909927079993750_ireals, 104.36229676251361_ireals]
+    b = [0.0000000000000000_ireals, 100.00000000000001_ireals, 107.12633977857509_ireals]
+    c = [0.0000000000000000_ireals, 100.00000000000000_ireals, 107.12633977857507_ireals]
+    d = [0.0000000000000000_ireals, 26.909927079993750_ireals, 104.36229676251359_ireals]
+
+    tri1 = triangle_area_by_vertices(a, b, c)
+    tri2 = triangle_area_by_vertices(a, c, d)
+
+    e1 = distance(a, b)
+    e2 = distance(a, c)
+    e3 = distance(b, c)
+    p = (e1+e2+e3)/2
+    discr = p*(p-e1)*(p-e2)*(p-e3)
+    tri_area = sqrt(discr)
+
+    quad_area = quadrangle_area_by_vertices(a, b, c, d)
+
+    print *, 'tri1', tri1
+    print *, 'tri2', tri2
+    print *, 'edgelengths', e1, e2, e3
+    print *, 'tri area', tri_area
+    print *, 'quad area', quad_area
 end subroutine
 end module
