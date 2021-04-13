@@ -150,7 +150,6 @@ contains
         p1l, p1b, p1t, p1r, p2l, p2t, p2b, p2r, p3r, p3t, p3b, p3l, p4r, p4b, p4t, p4l, normal, &
         p1rp, p2rp, p3rp, p4rp
 
-
       call proj_vars_to_edges( &
         f1, f2, f3, f4, &
         v1, v2, v3, v4, &

@@ -60,7 +60,8 @@ module m_pprts
   use m_optprop, only: t_optprop, &
     & t_optprop_1_2, t_optprop_3_6, t_optprop_3_10, &
     & t_optprop_8_10, t_optprop_3_16, t_optprop_8_16, t_optprop_8_18, &
-    & t_optprop_3_10_ann
+    & t_optprop_3_10_ann, &
+    & dir2dir3_coeff_corr_zx, dir2dir3_coeff_corr_zy, dir2dir3_coeff_corr
   use m_eddington, only : eddington_coeff_zdun
   use m_geometric_coeffs, only : dir2dir3_geometric_coeff_corr
 
@@ -2845,7 +2846,6 @@ module m_pprts
               ! faces in y-direction
               Ay = triangle_area_by_vertices(A,C,G) + triangle_area_by_vertices(A,G,E)
               fac = Ay / real(solver%diffside%area_divider, ireals)
-
 
               do iside=1,solver%diffside%dof
                 src = solver%difftop%dof + solver%diffside%dof + iside -1
