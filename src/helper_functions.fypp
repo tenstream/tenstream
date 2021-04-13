@@ -114,6 +114,7 @@ module m_helper_functions
     & rotation_matrix_world_to_local_basis, &
     & sEXP, &
     & solve_quadratic, &
+    & cartesian_2_spherical, &
     & spherical_2_cartesian, &
     & strF2C, &
     & swap, &
@@ -144,6 +145,16 @@ module m_helper_functions
   interface rmse
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
     module procedure rmse_${dtype}$
+    #:endfor
+  end interface
+  interface vec_proj_on_plane
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    module procedure vec_proj_on_plane_${dtype}$
+    #:endfor
+  end interface
+  interface cartesian_2_spherical
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    module procedure cartesian_2_spherical_${dtype}$
     #:endfor
   end interface
   interface spherical_2_cartesian
@@ -1708,6 +1719,36 @@ module m_helper_functions
     end function
 #:endfor
 
+    !> @brief reverse of spherical_2_cartesian
+    !> @details theta == 0 :: z = -1, i.e. downward
+    !> @details azimuth == 0 :: vector going toward minus y, i.e. sun shines from the north
+    !> @details azimuth == 90 :: vector going toward minus x, i.e. sun shines from the east
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    subroutine cartesian_2_spherical_${dtype}$(sundir, phi, theta, ierr)
+      real(${dtype}$), intent(in) :: sundir(3)
+      real(${dtype}$), intent(out) :: phi, theta
+      integer(mpiint), intent(out) :: ierr
+
+      real(${dtype}$), parameter :: e_x(3) = [real(${dtype}$) :: 1, 0, 0]
+      real(${dtype}$), parameter :: e_y(3) = [real(${dtype}$) :: 0, 1, 0]
+      real(${dtype}$), parameter :: e_z(3) = [real(${dtype}$) :: 0, 0, 1]
+
+      real(${dtype}$) :: proj_sundir(3), az
+
+      ierr = 0
+
+      theta = rad2deg(angle_between_two_vec(sundir, -e_z))
+
+      proj_sundir = vec_proj_on_plane(sundir, -e_z)
+      call normalize_vec(proj_sundir, ierr);
+
+      az = angle_between_two_normed_vec(proj_sundir, -e_y)
+      az = az * sign(1._${dtype}$, dot_product(proj_sundir, -e_x))
+
+      phi = rad2deg(az)
+    end subroutine
+#:endfor
+
     !> @brief For local azimuth and zenith angles, return the local cartesian vectors phi azimuth, theta zenith angles, angles are input in degrees.
     !> @details theta == 0 :: z = -1, i.e. downward
     !> @details azimuth == 0 :: vector going toward minus y, i.e. sun shines from the north
@@ -1961,11 +2002,13 @@ module m_helper_functions
 #:endfor
 
     ! https://www.maplesoft.com/support/help/maple/view.aspx?path=MathApps%2FProjectionOfVectorOntoPlane
-    pure function vec_proj_on_plane(v, plane_normal)
-      real(ireals), dimension(3), intent(in) :: v, plane_normal
-      real(ireals) :: vec_proj_on_plane(3)
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    pure function vec_proj_on_plane_${dtype}$(v, plane_normal) result(vec_proj_on_plane)
+      real(${dtype}$), dimension(3), intent(in) :: v, plane_normal
+      real(${dtype}$) :: vec_proj_on_plane(3)
       vec_proj_on_plane = v - dot_product(v, plane_normal) * plane_normal  / norm2(plane_normal)**2
     end function
+#:endfor
 
     pure function get_arg_logical(default_value, opt_arg) result(arg)
       logical :: arg

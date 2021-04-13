@@ -33,6 +33,8 @@ module test_helper_functions
     & rotation_matrix_local_basis_to_world, &
     & rotation_matrix_world_to_local_basis, &
     & solve_quadratic, &
+    & cartesian_2_spherical, &
+    & spherical_2_cartesian, &
     & toStr
 
   use pfunit_mod
@@ -703,6 +705,62 @@ subroutine test_ndarray_idx_c_style(this)
   do i1d = 0, 11
     call ind_1d_to_nd(nd_offsets, i1d, ind, cstyle=.True.)
     @assertEqual(i1d, ind_nd_to_1d(nd_offsets, ind, cstyle=.True.))
+  enddo
+end subroutine
+
+@test(npes=[1])
+subroutine test_spherical2cartesian(this)
+  class (MpiTestMethod), intent(inout) :: this
+  real(ireals), parameter :: eps=1e-6_ireals
+  real(ireals) :: sundir(3), sundir2(3), phi, theta
+  integer(iintegers) :: iter
+  integer(mpiint) :: ierr
+
+  sundir = [real(ireals) :: 0, -tiny(sundir), -1]
+  call cartesian_2_spherical(sundir, phi, theta, ierr)
+  @assertEqual(0._ireals, phi, eps)
+  @assertEqual(0._ireals, theta, eps)
+
+  sundir = [real(ireals) :: 0, +tiny(sundir), -1]
+  call cartesian_2_spherical(sundir, phi, theta, ierr)
+  @assertEqual(180._ireals, phi, eps)
+  @assertEqual(0._ireals, theta, eps)
+
+  sundir = [real(ireals) :: -tiny(sundir), 0, -1]
+  call cartesian_2_spherical(sundir, phi, theta, ierr)
+  @assertEqual(90._ireals, phi, eps)
+  @assertEqual(0._ireals, theta, eps)
+
+  sundir = [real(ireals) :: +tiny(sundir), 0, -1]
+  call cartesian_2_spherical(sundir, phi, theta, ierr)
+  @assertEqual(-90._ireals, phi, eps)
+  @assertEqual(0._ireals, theta, eps)
+
+  sundir = [real(ireals) :: 0, -1, -1]
+  call cartesian_2_spherical(sundir, phi, theta, ierr)
+  @assertEqual(0._ireals, phi, eps)
+  @assertEqual(45._ireals, theta, eps)
+
+  sundir = [real(ireals) :: -1, -1, -1]
+  call cartesian_2_spherical(sundir, phi, theta, ierr)
+  @assertEqual(45._ireals, phi, eps)
+  @assertEqual(54.73561_ireals, theta, eps)
+
+  sundir = [real(ireals) :: 1, 1, -1]
+  call cartesian_2_spherical(sundir, phi, theta, ierr)
+  @assertEqual(-135._ireals, phi, eps)
+  @assertEqual(54.73561_ireals, theta, eps)
+
+  ! roundtrips
+  do iter = 1, 1000
+    call random_number(sundir)
+    call normalize_vec(sundir, ierr)
+    @assertEqual(0_mpiint, ierr)
+    call cartesian_2_spherical(sundir, phi, theta, ierr)
+    @assertEqual(0_mpiint, ierr)
+    sundir2 = spherical_2_cartesian(phi, theta)
+    if(.not.all(approx(sundir, sundir2, eps))) print *,'iter', iter, 'sundir', sundir, 'phi/theta', phi, theta, 'sundir_rev', sundir2
+    @assertEqual(sundir, sundir2, eps)
   enddo
 end subroutine
 end module
