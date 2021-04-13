@@ -19,7 +19,9 @@ module m_intersection
     & pnt_in_triangle, &
     & pnt_in_triangle_convex_hull, &
     & square_intersection, &
-    & triangle_intersection
+    & triangle_intersection, &
+    & line_intersection_2d, &
+    & line_intersection_3d
 
   interface hit_plane
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
@@ -62,6 +64,18 @@ module m_intersection
   interface triangle_intersection
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
     module procedure triangle_intersection_${dtype}$
+    #:endfor
+  end interface
+
+  interface line_intersection_2d
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    module procedure line_intersection_2d_${dtype}$
+    #:endfor
+  end interface
+
+  interface line_intersection_3d
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    module procedure line_intersection_3d_${dtype}$
     #:endfor
   end interface
 contains
@@ -381,5 +395,82 @@ contains
     hit(1:3) = b0*tA + b1*tB + b2*tC
     if(ldebug) print *,'Hit triangle', lhit, '::', hit
   end subroutine
+  #:endfor
+
+  !> @brief determine line function coefficients of intersection of two lines in 2d
+  !> @details inputs are the origins and directions of the two lines the return coefficients c_i can be plugged into the line equations
+  !formed by o_i and d_i to determine the point where the two lines intersect. For parallel and coincident lines, the return
+  !coefficients are huge. The cases are distinguishable by error type ierr (1 for coincident lines, 2 for parallel lines, 0 for
+  !intersecting lines).
+  #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    pure subroutine line_intersection_2d_${dtype}$(o1, d1, o2, d2, c1, c2, ierr)
+      ! optional:  2d slice -> o1, .... 3d variablen; mit slice auf 22d reduziere
+      ! 2d slice nicht input -> o1, ... 2d var
+      real(${dtype}$), intent(in) :: o1(2), d1(2), o2(2), d2(2)
+      real(${dtype}$), intent(out) :: c1
+      real(${dtype}$), intent(out) :: c2
+      integer(mpiint), intent(out) :: ierr
+      real(${dtype}$) :: num1, num2, den
+
+      num1 = d2(1) * (o1(2)-o2(2)) - d2(2) * (o1(1)-o2(1))
+      num2 = d1(1) * (o1(2)-o2(2)) - d1(2) * (o1(1)-o2(1))
+      den = d2(2) * d1(1) - d2(1) * d1(2)
+
+      if ( ( den .le. epsilon(den) ) .and. &
+        & ( num1 .le. epsilon(num1) ) .and. &
+        & ( num2 .le. epsilon(num2) ) ) then
+        ierr = 1
+        c1 = huge(c1)
+        c2 = huge(c2)
+      else if ( ( den .le. epsilon(den) ) ) then
+        ierr = 2
+        c1 = huge(c1)
+        c2 = huge(c2)
+      else
+        ierr = 0
+        c1 = num1 / den
+        c2 = num2 / den
+      endif
+    end subroutine
+  #:endfor
+
+  !> @brief determine line function coefficients of possible intersection of two lines in 3d
+  !> @details inputs are the origins and directions of the two lines. The return coeffs_i are the corresponding coefficients of the
+  !line equations formed by origin_i and direction_i. If the lines are either parallel or coincident, -huge is returned for both
+  !coefficients. The minimum distance between the two lines can be determined by plugging the return coefficients into the line
+  !equations and taking the norm of the connecting vector. If the distance is zero, the lines cross or they are coincident, which
+  !can be distinguished by the value of the coefficients (huge for coincident lines).
+  ! http://paulbourke.net/geometry/pointlineplane/
+  #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    pure subroutine line_intersection_3d_${dtype}$(origin1, direction1, origin2, direction2, coeff1, coeff2, ierr)
+      real(${dtype}$), intent(in) :: origin1(3), direction1(3), origin2(3), direction2(3)
+      real(${dtype}$), intent(out) :: coeff1, coeff2
+      integer(mpiint), intent(out) :: ierr
+      real(${dtype}$) :: denominator
+
+      associate( &
+          & p1 => origin1, &
+          & p2 => origin1 + direction1, &
+          & p3 => origin2, &
+          & p4 => origin2 + direction2 &
+          & )
+        denominator = d_mnop(p2,p1,p2,p1) * d_mnop(p4,p3,p4,p3) - d_mnop(p4,p3,p2,p1) ** 2
+        if ( abs(denominator) < sqrt(epsilon(denominator)) ) then
+          ierr = 1 ! lines are parallel or coincident
+          coeff1 = -huge(coeff1) ! try to change this to 0 ?
+          coeff2 = -huge(coeff2)
+        else
+          ierr = 0
+          coeff1 = ( d_mnop(p1,p3,p4,p3) * d_mnop(p4,p3,p2,p1) - d_mnop(p1,p3,p2,p1) * d_mnop(p4,p3,p4,p3) ) / denominator
+          coeff2 = ( d_mnop(p1,p3,p4,p3) + coeff1 * d_mnop(p4,p3,p2,p1) ) / d_mnop(p4,p3,p4,p3)
+        endif
+      end associate
+      contains
+        pure function d_mnop(m, n, o, p)
+          real(${dtype}$), intent(in) :: m(3), n(3), o(3), p(3)
+          real(${dtype}$) :: d_mnop
+          d_mnop = dot_product(m - n, o - p)
+        end function
+    end subroutine
   #:endfor
 end module
