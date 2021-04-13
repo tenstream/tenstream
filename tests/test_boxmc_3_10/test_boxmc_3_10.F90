@@ -442,12 +442,12 @@ contains
     class (MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: src
     real(ireal_dp), dimension(24) :: verts_dtd
-    real( ireal_dp), parameter :: dx=1, dy= dx, dz=1 * dx
+    real( ireal_dp), parameter :: dx=100, dy= dx, dz=1 * dx
     real(irealLUT) :: v(9), v_mc(9)
     real(ireals) :: sundir(3)
     integer(iintegers) :: itheta, iphi
 
-    bg = [2.7245631510506538E-006_ireal_dp, 0e-0_ireal_dp/dz, 1._ireal_dp/2 ]
+    bg = [5.844E-005_ireal_dp, 0e-0_ireal_dp/dz, 1._ireal_dp/2 ]
     S_target = zero
     iphi=1
     itheta=40
@@ -455,15 +455,14 @@ contains
     !  do itheta=10,50,20
         phi = real(iphi, ireals)
         theta = real(itheta, ireals)
-
-        verts_dtd(1:3)   = [   0.0000000000000000_ireals,        0.0000000000000000_ireals,        0.0000000000000000_ireals]
-        verts_dtd(4:6)   = [   100.00000000000000_ireals,        0.0000000000000000_ireals,        0.0000000000000000_ireals]
-        verts_dtd(7:9)   = [   0.0000000000000000_ireals,        100.00000000000000_ireals,        2.2658245368802454E-002_ireals]
-        verts_dtd(10:12) = [   100.00000000000000_ireals,        100.00000000000000_ireals,        2.2658245368802454E-002_ireals]
-        verts_dtd(13:15) = [   0.0000000000000000_ireals,        0.0000000000000000_ireals,        147.47492293885080_ireals]
-        verts_dtd(16:18) = [   100.00000000000000_ireals,        0.0000000000000000_ireals,        147.47492293885080_ireals]
-        verts_dtd(19:21) = [   0.0000000000000000_ireals,        100.00000000000000_ireals,        147.49758118421960_ireals]
-        verts_dtd(22:24) = [   100.00000000000000_ireals,        100.00000000000000_ireals,        147.49758118421960_ireals]
+        verts_dtd(1:3)   = [0.0000000000000000_ireals,        0.0000000000000000_ireals,        0.0000000000000000_ireals]
+        verts_dtd(4:6)   = [100.00000000000000_ireals,        0.0000000000000000_ireals,        0.0000000000000000_ireals]
+        verts_dtd(7:9)   = [0.0000000000000000_ireals,        100.00000000000000_ireals,        22.339499505227650_ireals]
+        verts_dtd(10:12) = [100.00000000000000_ireals,        100.00000000000000_ireals,        22.339499505227650_ireals]
+        verts_dtd(13:15) = [0.0000000000000000_ireals,        0.0000000000000000_ireals,        82.302340639953286_ireals]
+        verts_dtd(16:18) = [100.00000000000000_ireals,        0.0000000000000000_ireals,        82.302340639953286_ireals]
+        verts_dtd(19:21) = [0.0000000000000000_ireals,        100.00000000000000_ireals,        104.64184014518094_ireals]
+        verts_dtd(22:24) = [100.00000000000000_ireals,        100.00000000000000_ireals,        104.64184014518094_ireals]
 
 
         sundir = spherical_2_cartesian(real(phi, ireals), real(theta, ireals)) * [-one, -one, one]

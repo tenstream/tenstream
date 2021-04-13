@@ -21,14 +21,14 @@ module m_geometric_coeffs
 
 use m_data_parameters, only : irealLUT, ireals, mpiint, iintegers, zero, one
 use m_helper_functions, only : pentagon_area_by_vertices, quadrangle_area_by_vertices, &
-  triangle_area_by_vertices, compute_normal_3d, cross_3d
+  triangle_area_by_vertices, compute_normal_3d, cross_3d, cstr
 use m_intersection, only: hit_plane, line_intersection_3d
 
 implicit none
 private
 public :: dir2dir3_geometric_coeff_corr
 
-logical, parameter :: ldebug= .false.
+logical, parameter :: ldebug= .true.
 contains
 
   subroutine dir2dir3_geometric_coeff_corr(verts, sundir, extinction_coeff, coeffs)
@@ -48,7 +48,7 @@ contains
       )
 
     if (ldebug) then
-      print *, 'box vertices'
+      print *, cstr('box vertices', 'green')
       print *, 'a', a
       print *, 'b', b
       print *, 'c', c
@@ -58,21 +58,36 @@ contains
       print *, 'g', g
       print *, 'h', h
       print *, '_________________________________________________________________'
-      print *, 'sundir', sundir
-      print *, '_________________________________________________________________'
+      print *, cstr('sundir', 'yellow'), sundir
     endif
 
-    if(ldebug) print *, 'src z'
+    if(ldebug) then
+      print *, '_________________________________________________________________'
+      print *, cstr('src z', 'blue')
+    endif
     call create_proj_copies(h, g, e, f, h_p, g_p, e_p, f_p)
     call project_points(sundir, d, compute_normal_3d(d, b, a), h_p, g_p, e_p, f_p)
     call rearange_projections(d, c, a, b, h_p, g_p, e_p, f_p)
+ !   if (ldebug) then
+ !     print *, cstr('fixed points', 'orange')
+ !     print *, 'f1', d
+ !     print *, 'f2', c
+ !     print *, 'f3', a
+ !     print *, 'f4', b
+ !     print *, 'f5', g
+ !     print *, '_________________________________________________________________'
+ !   endif
     call correct_coeffs( &
       d   , c   , a   , b,    g, & ! fixed
       h_p , g_p , e_p , f_p,     & ! projected
       extinction_coeff, [1      , 7       , 4], [2, 3, 1]      , coeffs       & ! slice of relevant coefficients , and coefficient array
       )
 
-    if (ldebug)  print *, 'src x'
+
+    if (ldebug) then
+      print *, '_________________________________________________________________'
+      print *, cstr('src x', 'blue')
+    endif
     call create_proj_copies(h, d, b, f, h_p, d_p, b_p, f_p)
     call project_points(sundir, a, compute_normal_3d(c, a, e), h_p, d_p, b_p, f_p)
     call rearange_projections(g, c, a, e, h_p, d_p, b_p, f_p)
@@ -82,16 +97,41 @@ contains
       extinction_coeff, [5      , 8       , 2], [2, 1, 3]      , coeffs       & ! slice of relevant coefficients , and coefficient array
       )
 
-    if (ldebug) print *, 'src y'
+    if (ldebug) then
+      print *, '_________________________________________________________________'
+      print *, cstr('src y', 'blue')
+    endif
     call create_proj_copies(f, b, a, e, f_p, b_p, a_p, e_p)
     call project_points(sundir, d, compute_normal_3d(c, d, h), f_p, b_p, a_p, e_p)
+!    if (ldebug) then
+!      print *, cstr('projections', 'orange')
+!      print *, 'v1', f_p
+!      print *, 'v2', b_p
+!      print *, 'v3', a_p
+!      print *, 'v4', e_p
+!      print *, '_________________________________________________________________'
+!    endif
     call rearange_projections(h, d, c, g, f_p, b_p, a_p, e_p)
+!    if (ldebug) then
+!      print *, cstr('rearangements', 'orange')
+!      print *, 'v1', f_p
+!      print *, 'v2', b_p
+!      print *, 'v3', a_p
+!      print *, 'v4', e_p
+!      print *, '_________________________________________________________________'
+!    endif
     call correct_coeffs( &
       h   , d   , c   , g,    b, & ! fixed
       f_p , b_p , a_p , e_p,     & ! projected
       extinction_coeff, [9      , 6       , 3], [1, 2, 3]      , coeffs       & ! slice of relevant coefficients , and coefficient array
       )
   end associate
+
+  if (ldebug) then
+      print *, '_________________________________________________________________'
+    print *, cstr('coeffs', 'red')
+    print *, coeffs
+  endif
 
   contains
 
@@ -105,21 +145,11 @@ contains
         f1, f2, f3, f4, f5, v1, v2, v3, v4
       integer(iintegers), intent(in) :: slice(3), other_slice(3)
       real(irealLUT), intent(inout) :: coeffs(9)
-      real(ireals) :: &
-        area1, area2, area3, area_total_src, areas(3), sin_theta, cos_src_trgt, s1
+      real(ireals) :: area1, area2, area3, area_total_src, areas(3), sin_theta, cos_src_trgt, s1
       real(ireals), dimension(3) :: &
         p1l, p1b, p1t, p1r, p2l, p2t, p2b, p2r, p3r, p3t, p3b, p3l, p4r, p4b, p4t, p4l, normal, &
         p1rp, p2rp, p3rp, p4rp
-      integer(iintegers) :: coord_is(3)
 
-      if (ldebug) then
-        print *, 'rearanged projections'
-        print *, 'v1', v1
-        print *, 'v2', v2
-        print *, 'v3', v3
-        print *, 'v4', v4
-      print *, '_________________________________________________________________'
-      endif
 
       call proj_vars_to_edges( &
         f1, f2, f3, f4, &
@@ -164,9 +194,8 @@ contains
       p3rp = v3 + hit_plane(v3, sundir, f3, normal) * sundir
       p4rp = v4 + hit_plane(v4, sundir, f4, normal) * sundir
 
-      coord_is = other_slice
-
-      sin_theta = max(sin(abs(atan(sundir(coord_is(1)) / sqrt(sundir(coord_is(2))**2 + sundir(coord_is(3))**2)))), tiny(sin_theta))
+      sin_theta = max(sin(abs(atan(sundir(other_slice(1)) / &
+        sqrt(sundir(other_slice(2))**2 + sundir(other_slice(3))**2)))), tiny(sin_theta))
       cos_src_trgt = cos(acos(dot_product(f1 - f2, f1 - f4) / (norm2(f1 - f2) * norm2(f1 - f4))) - 3.14 / 2)
 
       area2 = max( &
@@ -368,8 +397,8 @@ contains
   end subroutine
 
   subroutine project_points(sundir, origin, normal, v1, v2, v3, v4)
-    real(ireals), intent(in) :: sundir(3), normal(3), origin(3)
-    real(ireals), intent(inout) :: v1(3), v2(3), v3(3), v4(3)
+    real(ireals), intent(in), dimension(3) :: sundir, normal, origin
+    real(ireals), intent(inout), dimension(3) :: v1, v2, v3, v4
     real(ireals), parameter :: eps = 1._ireals / sqrt(epsilon(eps)) ! try to delete this
 
     v1 = v1 + min(hit_plane(v1, sundir, origin, normal), eps) * sundir
@@ -428,8 +457,8 @@ contains
   end subroutine
 
   subroutine rearange_projections(f1, f2, f3, f4, v1, v2, v3, v4)
-    real(ireals), intent(in) :: f1(3), f2(3), f3(3), f4(3)
-    real(ireals), intent(inout) :: v1(3), v2(3), v3(3), v4(3)
+    real(ireals), intent(in), dimension(3) :: f1, f2, f3, f4
+    real(ireals), intent(inout), dimension(3) :: v1, v2, v3, v4
 
     call rearange_projection(f1-v1, f3, f4-f3, f2, f3-f2, v1)
     call rearange_projection(f2-v2, f3, f4-f3, f4, f1-f4, v2)

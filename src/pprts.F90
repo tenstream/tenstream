@@ -667,10 +667,10 @@ module m_pprts
           call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
         endif
         call setup_dmda(solver%comm, solver%Cvert_one_atm1, Nz_in+1, Nx+1,Ny+1, boundaries, &
-          & i1, nxprocp1,nyprocp1)
+          & i1, nxprocp1,nyprocp1, stencil_type=DMDA_STENCIL_BOX)
       else
         call setup_dmda(solver%comm, solver%Cvert_one_atm1, Nz_in+1, Nx+1,Ny+1, boundaries, &
-          & i1)
+          & i1, stencil_type=DMDA_STENCIL_BOX)
       endif
 
       if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'DMDA grid ready'
@@ -3805,10 +3805,13 @@ module m_pprts
      vertices_dtd( 3) = xhhl(i0,atmk(solver%atm,k+1),i,j)      ! a
      vertices_dtd( 6) = xhhl(i0,atmk(solver%atm,k+1),i+1,j)    ! b
      vertices_dtd( 9) = xhhl(i0,atmk(solver%atm,k+1),i,j+1)    ! c
-     vertices_dtd(12) = xhhl(i0,atmk(solver%atm,k+1),i+1,j+1)  ! d
+     vertices_dtd(12) = vertices_dtd(9) +  (vertices_dtd(3) - vertices_dtd(6))
+     !xhhl(i0,atmk(solver%atm,k+1),i+1,j+1)  ! d
 
-     ! make bottom and top of box parallel
-     !vertices_dtd([15,18,21,24]) = vertices_dtd([3,6,9,12]) + solver%atm%dz(atmk(solver%atm, k), i, j)
+     ! not in a plane -> use 3 and construct 4th point
+
+     !make bottom and top of box parallel
+     vertices_dtd([15,18,21,24]) = vertices_dtd([3,6,9,12]) + solver%atm%dz(atmk(solver%atm, k), i, j)
 
      !vertices_dtd(15) = xhhl(i0,atmk(solver%atm,k),i,j)
      !vertices_dtd(18) = xhhl(i0,atmk(solver%atm,k),i+1,j)
@@ -3816,7 +3819,9 @@ module m_pprts
      !vertices_dtd(24) = xhhl(i0,atmk(solver%atm,k),i+1,j+1)
 
      ! move box to coordinate origin
-     vertices_dtd(3:24:3) = vertices_dtd(3:24:3) - vertices_dtd(3)
+     vertices_dtd(1:24:3) =  vertices_dtd(1:24:3) - minval(vertices_dtd(1:24:3))
+     vertices_dtd(2:24:3) =  vertices_dtd(2:24:3) - minval(vertices_dtd(2:24:3))
+     vertices_dtd(3:24:3) = vertices_dtd(3:24:3) - minval(vertices_dtd(3:24:3))
 
      call PetscLogEventBegin(solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
 
@@ -3838,9 +3843,9 @@ module m_pprts
          [real(sun%symmetry_phi(k,i,j), irealLUT), real(sun%theta(k,i,j), irealLUT)], &
          lswitch_east=xinc.eq.0, lswitch_north=yinc.eq.0, &
          opt_vertices=vertices_dtd)
-       if (any(abs(v_tmp - v) .ge. 0.1_irealLUT)) then
-         print *, 'v gomtrc', v_tmp
-         print *, 'v get_coeff', v
+       if (any(abs(v_tmp - v) .ge. 1._irealLUT)) then
+         print *, 'v gomtrc', v
+         print *, 'v get_coeff', v_tmp
          print *, 'sundir', sun%sundir * [-one, -one, one]
          print *, 'symmetry', sun%symmetry_phi(k,i,j)
          print *, 'extinction_coeff', solver%atm%kabs(atmk(solver%atm, k), i, j) + solver%atm%ksca(atmk(solver%atm, k), i, j)
@@ -3863,7 +3868,7 @@ module m_pprts
            print *, 'g', g
            print *, 'h', h
          end associate
-         !call CHKERR(1_mpiint, 'debug')
+         call CHKERR(1_mpiint, 'debug')
        endif
      else
        call get_coeff(solver, &
