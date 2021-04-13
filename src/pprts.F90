@@ -31,6 +31,7 @@ module m_pprts
   use m_helper_functions, only : &
     & angle_between_two_normed_vec, &
     & approx, &
+    & cartesian_2_spherical, &
     & CHKERR, &
     & CHKWARN, &
     & cross_3d, &
@@ -50,6 +51,7 @@ module m_pprts
     & mpi_logical_and, &
     & normalize_vec, &
     & rad2deg, &
+    & spherical_2_cartesian, &
     & rotation_matrix_world_to_local_basis, &
     & toStr, &
     & triangle_area_by_vertices, &
@@ -924,29 +926,20 @@ module m_pprts
     real(ireals),intent(in) :: sundir(:)
     type(t_suninfo),intent(inout) :: sun
 
-    real(ireals) :: proj_sundir(3), e_x(3), e_y(3), e_z(3)
-    real(ireals) :: az, zenith
+    logical :: lflg
     integer(mpiint) :: ierr
 
     if(.not.allocated(solver%atm%hgrad)) call CHKERR(1_mpiint, 'atm%hgrad not initialized!')
 
-    sun%sundir = sundir
-    call normalize_vec(sun%sundir, ierr)
+    call cartesian_2_spherical(sundir, sun%phi, sun%theta, ierr)
 
-    ! default unit vectors (if not ltopography)
-    e_x = [one, zero, zero]
-    e_y = [zero, one, zero]
-    e_z = [zero, zero, one]
+    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,"-pprts_force_zenith",&
+      sun%theta, lflg, ierr)  ; call CHKERR(ierr)
+    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,"-pprts_force_azimuth",&
+      sun%phi, lflg, ierr)  ; call CHKERR(ierr)
 
-    proj_sundir = vec_proj_on_plane(sun%sundir, -e_z)
-    call normalize_vec(proj_sundir, ierr)
+    sun%sundir = spherical_2_cartesian(sun%phi, sun%theta)
 
-    az = angle_between_two_normed_vec(proj_sundir, -e_y)
-    az = az * sign(one, dot_product(proj_sundir, -e_x))
-    sun%phi = rad2deg(az)
-
-    zenith = angle_between_two_normed_vec(sun%sundir, -e_z)
-    sun%theta = rad2deg(zenith)
     if(sun%theta.ge.90._ireals) sun%theta = -one
 
     sun%costheta = max( cos(deg2rad(sun%theta)), zero)
