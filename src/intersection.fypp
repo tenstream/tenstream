@@ -1,6 +1,6 @@
 module m_intersection
   use iso_fortran_env, only: INT32, INT64, REAL32, REAL64, REAL128
-  use m_data_parameters, only: mpiint
+  use m_data_parameters, only: mpiint, one, zero
   use m_helper_functions, only: &
     & approx, &
     & CHKERR, &
@@ -18,12 +18,21 @@ module m_intersection
     & pnt_in_rectangle, &
     & pnt_in_triangle, &
     & pnt_in_triangle_convex_hull, &
+    & project_point_2_plane, &
     & square_intersection, &
-    & triangle_intersection
+    & triangle_intersection, &
+    & line_intersection_2d, &
+    & line_intersection_3d
 
   interface hit_plane
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
     module procedure hit_plane_${dtype}$
+    #:endfor
+  end interface
+
+  interface project_point_2_plane
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    module procedure project_point_2_plane_${dtype}$
     #:endfor
   end interface
 
@@ -64,6 +73,18 @@ module m_intersection
     module procedure triangle_intersection_${dtype}$
     #:endfor
   end interface
+
+  interface line_intersection_2d
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    module procedure line_intersection_2d_${dtype}$
+    #:endfor
+  end interface
+
+  interface line_intersection_3d
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    module procedure line_intersection_3d_${dtype}$
+    #:endfor
+  end interface
 contains
 
   !> @brief determine distance where a photon p intersects with a plane
@@ -81,6 +102,17 @@ contains
       hit_plane = dot_product(po-p_loc, pn) / discr
     endif
   end function
+  #:endfor
+
+  !> @brief project point to plane
+  !> @details inputs are the location of the point, the direction along which to project as well as origin and normal of the plane
+  #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+  pure subroutine project_point_2_plane_${dtype}$(origin, normal, direction, point)
+      real(${dtype}$), intent(in), dimension(3) :: origin, normal, direction
+      real(${dtype}$), intent(inout), dimension(3) :: point(3)
+
+      point = point + hit_plane(point, direction, origin, normal) * direction
+    end subroutine
   #:endfor
 
   !> @brief determine if point is inside a cube, given the corner vertices
@@ -381,5 +413,92 @@ contains
     hit(1:3) = b0*tA + b1*tB + b2*tC
     if(ldebug) print *,'Hit triangle', lhit, '::', hit
   end subroutine
+  #:endfor
+
+  !> @brief determine line function coefficients of intersection of two lines in 2d
+  !> @details inputs are the origins and directions of the two lines the return coefficients c_i can be plugged into the line equations
+  !formed by o_i and d_i to determine the point where the two lines intersect. For parallel and coincident lines, the return
+  !coefficients are huge. The cases are distinguishable by error type ierr (1 for coincident lines, 2 for parallel lines, 0 for
+  !intersecting lines).
+  #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    pure subroutine line_intersection_2d_${dtype}$(o1, d1, o2, d2, c1, c2, ierr)
+      ! optional:  2d slice -> o1, .... 3d variablen; mit slice auf 22d reduziere
+      ! 2d slice nicht input -> o1, ... 2d var
+      real(${dtype}$), intent(in) :: o1(2), d1(2), o2(2), d2(2)
+      real(${dtype}$), intent(out) :: c1
+      real(${dtype}$), intent(out) :: c2
+      integer(mpiint), intent(out) :: ierr
+      real(${dtype}$) :: num1, num2, den
+
+      num1 = d2(1) * (o1(2)-o2(2)) - d2(2) * (o1(1)-o2(1))
+      num2 = d1(1) * (o1(2)-o2(2)) - d1(2) * (o1(1)-o2(1))
+      den = d2(2) * d1(1) - d2(1) * d1(2)
+
+      if ( ( den .le. epsilon(den) ) .and. &
+        & ( num1 .le. epsilon(num1) ) .and. &
+        & ( num2 .le. epsilon(num2) ) ) then
+        ierr = 1
+        c1 = huge(c1)
+        c2 = huge(c2)
+      else if ( ( den .le. epsilon(den) ) ) then
+        ierr = 2
+        c1 = huge(c1)
+        c2 = huge(c2)
+      else
+        ierr = 0
+        c1 = num1 / den
+        c2 = num2 / den
+      endif
+    end subroutine
+  #:endfor
+
+  !> @brief determine line function coefficients of possible intersection of two lines in 3d
+  !> @details inputs are the origins and directions of the two lines. The return cs_i are the corresponding coefficients of the
+  !line equations formed by origin_i and direction_i. If the lines are either parallel or coincident, -huge is returned for both
+  !coefficients. The minimum distance between the two lines can be determined by plugging the return coefficients into the line
+  !equations and taking the norm of the connecting vector. If the distance is zero, the lines cross or they are coincident, which
+  !can be distinguished by the value of the coefficients (huge for coincident lines).
+  ! http://paulbourke.net/geometry/pointlineplane/
+  #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    subroutine line_intersection_3d_${dtype}$(p1, direction1, p3, direction2, c1, c2, ierr)
+      real(${dtype}$), dimension(3), intent(in) :: p1, direction1, p3, direction2
+      real(${dtype}$), intent(out) :: c1, c2
+      integer(mpiint), intent(out) :: ierr
+      real(${dtype}$) :: denominator, p2(3), p4(3)
+      real(${dtype}$), parameter :: huge_val = huge(c1), limit = sqrt(epsilon(c1)) ! limit = 1e-6_${dtype}$
+      ! 1e+2 for single precision, 1e-6 for double precision
+
+      p2 = p1 + direction1
+      p4 = p3 + direction2
+
+      denominator = nd_mnop(p2,p1,p2,p1) * nd_mnop(p4,p3,p4,p3) - nd_mnop(p4,p3,p2,p1) ** 2
+
+      !print *, 'denom', denominator
+      if ( approx(denominator, 0._${dtype}$, limit) ) then
+        ierr = 1 ! lines are parallel or coincident
+        c1 = - huge_val
+        c2 = - huge_val
+      else
+        ierr = 0
+        denominator = d_mnop(p2,p1,p2,p1) * d_mnop(p4,p3,p4,p3) - d_mnop(p4,p3,p2,p1) ** 2
+        c1 = (d_mnop(p1,p3,p4,p3) * d_mnop(p4,p3,p2,p1) - d_mnop(p1,p3,p2,p1) * d_mnop(p4,p3,p4,p3)) / denominator
+        c2 = (d_mnop(p1,p3,p4,p3) + c1 * d_mnop(p4,p3,p2,p1)) / d_mnop(p4,p3,p4,p3)
+      endif
+      contains
+        pure function nd_mnop(m, n, o, p)
+          real(${dtype}$), dimension(3), intent(in) :: m, n, o, p
+          real(${dtype}$) :: nd_mnop, a(3), b(3)
+          a = m - n
+          a = a / norm2(a)
+          b = o - p
+          b = b / norm2(b)
+          nd_mnop = dot_product(a, b)
+        end function
+        pure function d_mnop(m, n, o, p)
+          real(${dtype}$), dimension(3), intent(in) :: m, n, o, p
+          real(${dtype}$) :: d_mnop
+          d_mnop = dot_product(m - n, o - p)
+        end function
+    end subroutine
   #:endfor
 end module
