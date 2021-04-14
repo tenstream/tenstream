@@ -11,22 +11,22 @@ PETSC_DEBUGGING=${4:-0}
 PETSC_64_INTEGERS=${5:-0}
 PETSC_OPTS=${@:6}
 
-if [ -z ${PETSC_OPTS} ]; then
+if [[ -z ${PETSC_OPTS} ]]; then
   PETSC_OPTS="--download-hdf5 --download-szlib --download-zlib"
 fi
 
 echo ""
 echo "** Downloading Petsc, and netcdf libs and install them"
 
-if [ -z ${FC:-} ]; then
+if [[ -z ${FC:-} ]]; then
   echo " Need to define FC, e.g. set with FC=mpif90"
   exit 1
 fi
-if [ -z ${CC:-} ]; then
+if [[ -z ${CC:-} ]]; then
   echo " Need to define CC, e.g. set with CC=mpicc"
   exit 2
 fi
-if [ -z ${CXX:-} ]; then
+if [[ -z ${CXX:-} ]]; then
   echo " Need to define CXX, e.g. set with CXX=mpicxx"
   exit 3
 fi
@@ -55,9 +55,12 @@ else
 fi
 
 PETSC_OPTIONS="\
-  COPTFLAGS='-O3 -g' \
-  CXXOPTFLAGS='-O3 -g' \
-  FOPTFLAGS='-O3 -g' \
+  --with-cc=${CC} \
+  --with-cxx=${CXX} \
+  --with-fc=${FC} \
+  --COPTFLAGS=\"-g\" \
+  --CXXOPTFLAGS=\"-g\" \
+  --FOPTFLAGS=\"-g\" \
   --with-debugging=$PETSC_DEBUGGING \
   --with-precision=$PETSC_PRECISION \
   --with-64-bit-indices=$PETSC_64_INTEGERS \
@@ -65,7 +68,7 @@ PETSC_OPTIONS="\
   "
 
 cd $PETSC_DIR
-COPT="CC=$CC FC=$FC F90=$FC CXX=$CXX $PETSC_OPTIONS PETSC_DIR=$(pwd)"
+COPT="$PETSC_OPTIONS PETSC_DIR=$(pwd)"
 echo "Running configure with: $COPT"
 ./configure $COPT
 make
