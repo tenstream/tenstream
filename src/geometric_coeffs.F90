@@ -19,7 +19,7 @@
 
 module m_geometric_coeffs
 
-use m_data_parameters, only : irealLUT, ireals, mpiint, iintegers, zero, one
+use m_data_parameters, only : irealLUT, ireals, mpiint, iintegers, zero, one, Pi
 use m_helper_functions, only : pentagon_area_by_vertices, quadrangle_area_by_vertices, &
   triangle_area_by_vertices, compute_normal_3d, cross_3d, cstr
 use m_intersection, only: hit_plane, line_intersection_3d
@@ -68,15 +68,6 @@ contains
     call create_proj_copies(h, g, e, f, h_p, g_p, e_p, f_p)
     call project_points(sundir, d, compute_normal_3d(d, b, a), h_p, g_p, e_p, f_p)
     call rearange_projections(d, c, a, b, h_p, g_p, e_p, f_p)
- !   if (ldebug) then
- !     print *, cstr('fixed points', 'orange')
- !     print *, 'f1', d
- !     print *, 'f2', c
- !     print *, 'f3', a
- !     print *, 'f4', b
- !     print *, 'f5', g
- !     print *, '_________________________________________________________________'
- !   endif
     call correct_coeffs( &
       d   , c   , a   , b,    g, & ! fixed
       h_p , g_p , e_p , f_p,     & ! projected
@@ -103,23 +94,7 @@ contains
     endif
     call create_proj_copies(f, b, a, e, f_p, b_p, a_p, e_p)
     call project_points(sundir, d, compute_normal_3d(c, d, h), f_p, b_p, a_p, e_p)
-!    if (ldebug) then
-!      print *, cstr('projections', 'orange')
-!      print *, 'v1', f_p
-!      print *, 'v2', b_p
-!      print *, 'v3', a_p
-!      print *, 'v4', e_p
-!      print *, '_________________________________________________________________'
-!    endif
     call rearange_projections(h, d, c, g, f_p, b_p, a_p, e_p)
-!    if (ldebug) then
-!      print *, cstr('rearangements', 'orange')
-!      print *, 'v1', f_p
-!      print *, 'v2', b_p
-!      print *, 'v3', a_p
-!      print *, 'v4', e_p
-!      print *, '_________________________________________________________________'
-!    endif
     call correct_coeffs( &
       h   , d   , c   , g,    b, & ! fixed
       f_p , b_p , a_p , e_p,     & ! projected
@@ -150,6 +125,13 @@ contains
         p1l, p1b, p1t, p1r, p2l, p2t, p2b, p2r, p3r, p3t, p3b, p3l, p4r, p4b, p4t, p4l, normal, &
         p1rp, p2rp, p3rp, p4rp
 
+      print *, cstr('fixed', 'yellow')
+      print *, 'f1', f1
+      print *, 'f2', f2
+      print *, 'f3', f3
+      print *, 'f4', f4
+      print *, '_________________________________________________________________'
+
       call proj_vars_to_edges( &
         f1, f2, f3, f4, &
         v1, v2, v3, v4, &
@@ -165,26 +147,42 @@ contains
         v1, p1b, f2, f1, &
         v2, p2t, f1, f2, &
         v3, p3t, f4, f3, &
-        v4, p4b, f4, f3  &
+        v4, p4b, f3, f4  &
         )
+
+      if (ldebug) then
+        print *, cstr('area 2', 'green')
+        print *, 'v1', quadrangle_area_by_vertices(v1, p1b, f2, f1)
+        print *, 'v2', quadrangle_area_by_vertices(v2, p2t, f1, f2)
+        print *, 'v3', quadrangle_area_by_vertices(v3, p3t, f4, f3)
+        print *, 'v4', quadrangle_area_by_vertices(v4, p4b, f3, f4)
+      endif
+
       area3 = compute_pentagon_areas( &
         v1, p1l, f4, p1t, f1, &
-        v2, f2, p2b, f3, p2l, &
+        v2, p2l, f3, p2b, f2, &
         v3, p3r, f2, p3b, f3, &
-        v4, f4, p4t, f1, p4r  &
+        v4, p4r, f1, p4t, f4  &
         )
+
+      if (ldebug) then
+        print *, cstr('area 3', 'green')
+        print *, 'v1', pentagon_area_by_vertices(v1, p1l, f4, p1t, f1)
+        print *, 'v2', pentagon_area_by_vertices(v2, p2l, f3, p2b, f2)
+        print *, 'v3', pentagon_area_by_vertices(v3, p3r, f2, p3b, f3)
+        print *, 'v4', pentagon_area_by_vertices(v4, p4r, f1, p4t, f4)
+      endif
+
       area1 = area_total_src - area2 - area3
+
+      if (ldebug) then
+        print *, cstr('areas', 'red')
+        print *, area1, area2, area3
+      endif
 
       s1 =  norm2(f1 - (f1 + hit_plane(f1, sundir, f5, compute_normal_3d(f1, f2, f3)) * sundir))
 
       area1 = area1 * exp( - extinction_coeff * s1)
-
-      area2 = compute_quadrangle_areas( &
-        v1, p1b, f2, f1, &
-        v2, p2t, f1, f2, &
-        v3, p3t, f4, f3, &
-        v4, p4b, f4, f3  &
-        )
 
       normal = compute_normal_3d(f1, f2, f5)
 
@@ -195,7 +193,7 @@ contains
 
       sin_theta = max(sin(abs(atan(sundir(other_slice(1)) / &
         sqrt(sundir(other_slice(2))**2 + sundir(other_slice(3))**2)))), tiny(sin_theta))
-      cos_src_trgt = cos(acos(dot_product(f1 - f2, f1 - f4) / (norm2(f1 - f2) * norm2(f1 - f4))) - 3.14 / 2)
+      cos_src_trgt = cos(acos(dot_product(f1 - f2, f1 - f4) / (norm2(f1 - f2) * norm2(f1 - f4))) - Pi / 2)
 
       area2 = max( &
         area3i( &
@@ -227,6 +225,14 @@ contains
         extinction_coeff & ! extinction coefficient
         )  &
         )
+      if (ldebug) then
+        print *, cstr('area2 computation', 'blue')
+        print *, cstr('quadrangle areas', 'yellow')
+        print *, 'v1', quadrangle_area_by_vertices(v1, p1r, f2, p1b)
+        print *, 'v2', quadrangle_area_by_vertices(v2, p2r, f1, p2t)
+        print *, 'v3', quadrangle_area_by_vertices(v3, p3l, f4, p3t)
+        print *, 'v4', quadrangle_area_by_vertices(v4, p4l, f3, p4b)
+      endif
 
       normal = compute_normal_3d(f3, f2, f5)
 
@@ -265,6 +271,22 @@ contains
         extinction_coeff & ! extinction coefficient
         )  &
         )
+
+      if (ldebug) then
+        print *, cstr('area3 computation', 'blue')
+        print *, cstr('quadrangle areas', 'yellow')
+        print *, 'v1', quadrangle_area_by_vertices(v1, p1l, f4, p1t)
+        print *, 'v2', quadrangle_area_by_vertices(v2, p2l, f3, p2b)
+        print *, 'v3', quadrangle_area_by_vertices(v3, p3r, f2, p3b)
+        print *, 'v4', quadrangle_area_by_vertices(v4, p4r, f1, p4t)
+      endif
+
+      ! do not recompute areas, but just multiply partwise with extincten / replace triangle
+
+      if (ldebug) then
+        print *, cstr('areas extinction included', 'red')
+        print *, area1, area2, area3
+      endif
 
       areas = max([area1, area2, area3], zero)
 
@@ -398,17 +420,34 @@ contains
   subroutine project_points(sundir, origin, normal, v1, v2, v3, v4)
     real(ireals), intent(in), dimension(3) :: sundir, normal, origin
     real(ireals), intent(inout), dimension(3) :: v1, v2, v3, v4
-    real(ireals), parameter :: eps = 1._ireals / sqrt(epsilon(eps)) ! try to delete this
 
-    v1 = v1 + min(hit_plane(v1, sundir, origin, normal), eps) * sundir
-    v2 = v2 + min(hit_plane(v2, sundir, origin, normal), eps) * sundir
-    v3 = v3 + min(hit_plane(v3, sundir, origin, normal), eps) * sundir
-    v4 = v4 + min(hit_plane(v4, sundir, origin, normal), eps) * sundir
+    if (ldebug) then
+      print *, cstr('unprojected', 'yellow')
+      print *, 'v1', v1
+      print *, 'v2', v2
+      print *, 'v3', v3
+      print *, 'v4', v4
+      print *, '_________________________________________________________________'
+    endif
+
+    v1 = v1 + hit_plane(v1, sundir, origin, normal) * sundir
+    v2 = v2 + hit_plane(v2, sundir, origin, normal) * sundir
+    v3 = v3 + hit_plane(v3, sundir, origin, normal) * sundir
+    v4 = v4 + hit_plane(v4, sundir, origin, normal) * sundir
 
     v1 = v1 + hit_plane(v1, normal, origin, normal) * normal
     v2 = v2 + hit_plane(v2, normal, origin, normal) * normal
     v3 = v3 + hit_plane(v3, normal, origin, normal) * normal
     v4 = v4 + hit_plane(v4, normal, origin, normal) * normal
+
+    if (ldebug) then
+      print *, cstr('projections', 'yellow')
+      print *, 'v1', v1
+      print *, 'v2', v2
+      print *, 'v3', v3
+      print *, 'v4', v4
+      print *, '_________________________________________________________________'
+    endif
   end subroutine
 
   subroutine rearange_point(origin, direction, coefficient, point)
@@ -459,10 +498,27 @@ contains
     real(ireals), intent(in), dimension(3) :: f1, f2, f3, f4
     real(ireals), intent(inout), dimension(3) :: v1, v2, v3, v4
 
+    if (ldebug) then
+      print *, cstr('rearangement coeffs', 'green')
+      print *, 'v1'
+    endif
     call rearange_projection(f1-v1, f3, f4-f3, f2, f3-f2, v1)
+    if (ldebug) print *, 'v2'
     call rearange_projection(f2-v2, f3, f4-f3, f4, f1-f4, v2)
+    if (ldebug) print *, 'v3'
     call rearange_projection(f3-v3, f2, f1-f2, f4, f1-f4, v3)
+    if (ldebug) print *, 'v4'
     call rearange_projection(f4-v4, f2, f1-f2, f2, f3-f2, v4)
+
+    if (ldebug) then
+      print *, '_________________________________________________________________'
+      print *, cstr('rearangements', 'yellow')
+      print *, 'v1', v1
+      print *, 'v2', v2
+      print *, 'v3', v3
+      print *, 'v4', v4
+      print *, '_________________________________________________________________'
+    endif
   end subroutine
 
   subroutine rearange_projection(direction1, origin2, direction2, origin3, direction3, origin1)
@@ -471,8 +527,23 @@ contains
     real(ireals) :: coeff21, coeff22, coeff31, coeff32
     integer(mpiint) :: ierr
 
+    if (ldebug) then
+      print *, 'v_i', origin1
+      print *, 'dir1', direction1
+      print *, 'o2', origin2
+      print*, 'dir2', direction2
+      print *, 'o3', origin2
+      print*, 'dir3', direction2
+    endif
+
     call line_intersection_3d(origin1, direction1, origin2, direction2, coeff21, coeff22, ierr)
     call line_intersection_3d(origin1, direction1, origin3, direction3, coeff31, coeff32, ierr)
+
+    if (ldebug) then
+      print *, coeff21, coeff31
+      print *, '_________________________________________________________________'
+    endif
+
     call rearange_point(origin1, direction1, min(max(coeff21, coeff31, zero), one), origin1)
   end subroutine
 end module

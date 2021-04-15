@@ -2,7 +2,7 @@ module test_intersection
 
   use m_data_parameters, only: &
     & ireals, ireal_dp, &
-    & iintegers
+    & iintegers, mpiint, zero
 
   use m_helper_functions, only : &
     & compute_normal_3d, &
@@ -12,7 +12,8 @@ module test_intersection
   use m_intersection, only : &
     & hit_plane, &
     & pnt_in_triangle, &
-    & triangle_intersection
+    & triangle_intersection, &
+    & line_intersection_3d
 
   use pfunit_mod
 
@@ -20,7 +21,7 @@ module test_intersection
 
 contains
 
-  @test(npes =[1])
+  !@test(npes =[1])
   subroutine test_triangle_functions_dp(this)
     class (MpiTestMethod), intent(inout) :: this
 
@@ -241,4 +242,23 @@ contains
     @assertFalse(lhit)
   end subroutine
 
+  @test(npes =[1])
+  subroutine test_line_intersection_3d(this)
+  class (MpiTestMethod), intent(inout) :: this
+    real(ireals), dimension(3) :: o1, d1, o2, d2, o3, d3
+    real(ireals) :: c1, c2
+    integer(mpiint) :: ierr
+
+    o1 = [-1.2246467991473532E-014_ireals, 100.00000000000000_ireals, 119.17535925942096_ireals]
+    d1 = [zero, 0.0000000000000000_ireals, -119.17535925942096_ireals]
+    o2 = [100.00000000000000_ireals, 100.00000000000000_ireals, 0.0000000000000000_ireals]
+    d2 = [0.0000000000000000_ireals, 0.0000000000000000_ireals, 133.27950294401700_ireals]
+    o3 = [100.00000000000000_ireals, 100.00000000000000_ireals, 0.0000000000000000_ireals]
+    d3 = [0.0000000000000000_ireals, 0.0000000000000000_ireals, 133.27950294401700_ireals]
+
+    call line_intersection_3d(o1, d1, o2, d2, c1, c2, ierr)
+    print *, 'c1', c1
+    call line_intersection_3d(o1, d1, o3, d3, c1, c2, ierr)
+    print *, 'c1', c1
+  end subroutine
 end module

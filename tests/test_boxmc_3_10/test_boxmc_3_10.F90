@@ -8,6 +8,7 @@ module test_boxmc_3_10
   use m_boxmc_geometry, only : setup_default_unit_cube_geometry
   use m_geometric_coeffs, only : dir2dir3_geometric_coeffs
   use m_helper_functions, only : spherical_2_cartesian, cstr, toStr
+  use m_intersection, only : line_intersection_3d
 
   use pfunit_mod
   implicit none
@@ -486,6 +487,30 @@ contains
 !        @assertEqual(v_mc([2,3,4]), v([2,3,4]), max(maxval(v_mc([2,3,4]))*0.05_irealLUT, 1e-6_irealLUT), 'failed for phi='//toStr(phi)//'; theta='//toStr(theta))
     !  enddo
     !enddo
+    end subroutine
+
+    !@test(npes =[1])
+    subroutine test_line_intersection_3d(this)
+    class (MpiTestMethod), intent(inout) :: this
+      real(ireals), dimension(3) :: o1, d1, o2, d2, o3, d3
+      real(ireals) :: c1, c2
+      integer(mpiint) :: ierr
+
+      o1 = [-1.2246467991473532E-014_ireals, 100.00000000000000_ireals, 119.17535925942096_ireals]
+      d1 = [1.2246467991473532E-014_ireals, 0.0000000000000000_ireals, -119.17535925942096_ireals]
+      o2 = [100.00000000000000_ireals, 100.00000000000000_ireals, 0.0000000000000000_ireals]
+      d2 = [0.0000000000000000_ireals, 0.0000000000000000_ireals, 133.27950294401700_ireals]
+      o3 = [100.00000000000000_ireals, 100.00000000000000_ireals, 0.0000000000000000_ireals]
+      d3 = [0.0000000000000000_ireals, 0.0000000000000000_ireals, 133.27950294401700_ireals]
+
+      call line_intersection_3d(o1, d1, o2, d2, c1, c2, ierr)
+      print *, 'c1', c1
+      call line_intersection_3d(o1, d1, o3, d3, c1, c2, ierr)
+      print *, 'c1', c1
+
+      !        @assertEqual(v_mc([2,3,4]), v([2,3,4]), max(maxval(v_mc([2,3,4]))*0.05_irealLUT, 1e-6_irealLUT), 'failed for phi='//toStr(phi)//'; theta='//toStr(theta))
+      !  enddo
+      !enddo
     end subroutine
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

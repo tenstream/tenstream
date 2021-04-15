@@ -3815,7 +3815,6 @@ module m_pprts
     type(t_pprts_buildings), optional, intent(in) :: opt_buildings
 
     real(ireals), pointer :: xhhl(:,:,:,:) => null(), xhhl1d(:) => null()
-    real(ireals), allocatable :: vertices(:)
     integer(iintegers) :: i,j,k
     integer(mpiint) :: ierr
     logical :: lgeometric_correction, lflg
@@ -3830,9 +3829,6 @@ module m_pprts
     lgeometric_correction = .False.
     call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
         & "-pprts_geometric_coeffs", lgeometric_correction, lflg, ierr) ;call CHKERR(ierr)
-
-    call setup_default_unit_cube_geometry(solver%atm%dx, solver%atm%dy, &
-      & solver%atm%dz(atmk(solver%atm,k),i,one), vertices)
 
     do j=C%ys,C%ye
       do i=C%xs,C%xe
@@ -3871,6 +3867,7 @@ module m_pprts
       integer(iintegers),intent(in) :: i,j,k
 
       MatStencil         :: row(4,C%dof)  ,col(4,C%dof)
+      real(ireals), allocatable :: vertices(:)
       real(irealLUT)     :: v(C%dof**2), norm, v_tmp(C%dof**2)
       integer(iintegers) :: dst,src, xinc, yinc, isrc, idst
 
@@ -3925,6 +3922,9 @@ module m_pprts
        col(MatStencil_c,src) = src-i1 ! Define transmission towards the front/back lid
      enddo
 
+     call setup_default_unit_cube_geometry(solver%atm%dx, solver%atm%dy, &
+       & solver%atm%dz(atmk(solver%atm,k),i,1), vertices)
+
      vertices( 3) = xhhl(i0,atmk(solver%atm,k+1),i,j)      ! a
      vertices( 6) = xhhl(i0,atmk(solver%atm,k+1),i+1,j)    ! b
      vertices( 9) = xhhl(i0,atmk(solver%atm,k+1),i,j+1)    ! c
@@ -3939,58 +3939,49 @@ module m_pprts
 
      if (lgeometric_correction) then
        !if (ldebug) then
-         call get_coeff(solver, &
-           solver%atm%kabs(atmk(solver%atm,k),i,j), &
-           solver%atm%ksca(atmk(solver%atm,k),i,j), &
-           solver%atm%g(atmk(solver%atm,k),i,j), &
-           solver%atm%dz(atmk(solver%atm,k),i,j), .True., v_tmp, &
-           solver%atm%l1d(atmk(solver%atm,k),i,j), &
-           [real(sun%symmetry_phi, irealLUT), real(sun%theta, irealLUT)], &
-           lswitch_east=xinc.eq.0, lswitch_north=yinc.eq.0, &
-           opt_vertices=vertices)
-       !endif
+       vertices(3:24:3)  = vertices(3:24:3) - minval(vertices(3:24:3))
 
        !not in a plane -> use 3 and construct 4th point
        vertices(12) = vertices(9) +  (vertices(3) - vertices(6))
-       !make bottom and top of box parallel
+       !make bottom and top of box parallel !!! USE MEAN DZ MAYBE?
        vertices([15,18,21,24]) = vertices([3,6,9,12]) + solver%atm%dz(atmk(solver%atm, k), i, j)
+
+       call get_coeff(solver, &
+         solver%atm%kabs(atmk(solver%atm,k),i,j), &
+         solver%atm%ksca(atmk(solver%atm,k),i,j), &
+         solver%atm%g(atmk(solver%atm,k),i,j), &
+         solver%atm%dz(atmk(solver%atm,k),i,j), .True., v_tmp, &
+         solver%atm%l1d(atmk(solver%atm,k),i,j), &
+         [real(sun%symmetry_phi, irealLUT), real(sun%theta, irealLUT)], &
+         lswitch_east=xinc.eq.0, lswitch_north=yinc.eq.0, &
+         opt_vertices=vertices)
+       !endif
+
 
        call dir2dir3_geometric_coeffs( &
          vertices, &
-         sun%sundir * [-one, -one, one], &
+         sun%sundir * [one, one, one], &
          solver%atm%kabs(atmk(solver%atm, k), i, j) + solver%atm%ksca(atmk(solver%atm, k), i, j), &
          v)
-     !else
-       !if (ldebug) then
-       if (any(abs(v_tmp - v) .ge. 1._irealLUT)) then
          print *, 'v gomtrc', v
          print *, 'v get_coeff', v_tmp
+     !else
+       !if (ldebug) then
+       if (any(abs(v_tmp - v) .ge. 0.1_irealLUT)) then
          print *, 'sundir', sun%sundir * [-one, -one, one]
          print *, 'symmetry', sun%symmetry_phi
          print *, 'extinction_coeff', solver%atm%kabs(atmk(solver%atm, k), i, j) + solver%atm%ksca(atmk(solver%atm, k), i, j)
-         associate ( &
-             a => vertices( 1: 3), &
-             b => vertices( 4: 6), &
-             c => vertices( 7: 9), &
-             d => vertices(10:12), &
-             e => vertices(13:15), &
-             f => vertices(16:18), &
-             g => vertices(19:21), &
-             h => vertices(22:24)  &
-             )
-           print *, 'a', a
-           print *, 'b', b
-           print *, 'c', c
-           print *, 'd', d
-           print *, 'e', e
-           print *, 'f', f
-           print *, 'g', g
-           print *, 'h', h
-         end associate
          call CHKERR(1_mpiint, 'debug')
        !endif
        endif
      else
+       vertices(3:24:3)  = vertices(3:24:3) - minval(vertices(3:24:3))
+
+       !not in a plane -> use 3 and construct 4th point
+       vertices(12) = vertices(9) +  (vertices(3) - vertices(6))
+       !make bottom and top of box parallel !!! USE MEAN DZ MAYBE?
+       vertices([15,18,21,24]) = vertices([3,6,9,12]) + solver%atm%dz(atmk(solver%atm, k), i, j)
+
        call get_coeff(solver, &
          solver%atm%kabs(atmk(solver%atm,k),i,j), &
          solver%atm%ksca(atmk(solver%atm,k),i,j), &

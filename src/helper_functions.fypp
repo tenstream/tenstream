@@ -1933,7 +1933,8 @@ module m_helper_functions
       real(${dtype}$) :: triangle_area_by_edgelengths
       real(${dtype}$) :: p
       p = (e1+e2+e3)/2
-      triangle_area_by_edgelengths = sqrt(p*(p-e1)*(p-e2)*(p-e3))
+      ! max(discrimant, zero) as to prevent from nan evaluation due to numerical errors
+      triangle_area_by_edgelengths = sqrt(max(p*(p-e1)*(p-e2)*(p-e3), zero))
     end function
 #:endfor
 
@@ -2837,7 +2838,7 @@ end subroutine
 #:endfor
 
 !> @brief compute quadrangle area defined by four vertices using two triangles
-!> @details input four vertices ordered clockwise that form either a quadrangle or a triangle
+!> @details input four vertices ordered clockwise or anti-clockwise that form either a quadrangle or a triangle
 #:for dtype in ['REAL32', 'REAL64', 'REAL128']
  pure function quadrangle_area_by_vertices_${dtype}$(v1, v2, v3, v4) result(quadrangle_area_by_vertices)
    real (${dtype}$), intent(in), dimension(3) :: v1, v2, v3, v4
