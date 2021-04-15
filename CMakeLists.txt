@@ -2,6 +2,7 @@
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/petsc_cmake_modules/")
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/")
 
+message(STATUS "CMake Version ${CMAKE_VERSION}")
 cmake_minimum_required (VERSION 3.6.0)
 
 # make sure that the default is a RELEASE
