@@ -15,7 +15,7 @@ stages:
     - mkdir -p build && cd build
     - cmake -DCMAKE_BUILD_TYPE="$BUILD_TYPE" -DCTEST_MPIRUN_FLAGS="$MPIRUN_FLAGS" -DMPIEXEC="$MPIEXEC" ${CMAKE_OPTS} .. || exit 1
     - make all -j || exit 2
-    - CMD="ctest $CTEST_ARGS"
+    - CMD="ctest $CTEST_ARGS &> >(tee test.log | grep -v '^[[:digit:]]\:' )"
     - echo $CMD && $CMD || exit 3
   variables:
     CTEST_ARGS: "-V -E 'boxmc|LUT'"
@@ -26,6 +26,10 @@ stages:
     CC: mpicc
     FC: mpif90
     CXX: mpicxx
+  artifacts:
+    paths:
+      - petsc/configure.log
+      - build/test.log
 
 build:docker:ubuntu-latest:
   extends: .build:default
