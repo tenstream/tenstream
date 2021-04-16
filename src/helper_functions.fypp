@@ -1934,7 +1934,7 @@ module m_helper_functions
       real(${dtype}$) :: p
       p = (e1+e2+e3)/2
       ! max(discrimant, zero) as to prevent from nan evaluation due to numerical errors
-      triangle_area_by_edgelengths = sqrt(max(p*(p-e1)*(p-e2)*(p-e3), zero))
+      triangle_area_by_edgelengths = sqrt(max(p*(p-e1)*(p-e2)*(p-e3), 0._${dtype}$))
     end function
 #:endfor
 

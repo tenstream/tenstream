@@ -1,6 +1,6 @@
 module m_intersection
   use iso_fortran_env, only: INT32, INT64, REAL32, REAL64, REAL128
-  use m_data_parameters, only: mpiint
+  use m_data_parameters, only: mpiint, one, zero
   use m_helper_functions, only: &
     & approx, &
     & CHKERR, &
@@ -442,11 +442,12 @@ contains
   !can be distinguished by the value of the coefficients (huge for coincident lines).
   ! http://paulbourke.net/geometry/pointlineplane/
   #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    pure subroutine line_intersection_3d_${dtype}$(origin1, direction1, origin2, direction2, coeff1, coeff2, ierr)
-      real(${dtype}$), intent(in) :: origin1(3), direction1(3), origin2(3), direction2(3)
+    subroutine line_intersection_3d_${dtype}$(origin1, direction1, origin2, direction2, coeff1, coeff2, ierr)
+      real(${dtype}$), dimension(3), intent(in) :: origin1, direction1, origin2, direction2
       real(${dtype}$), intent(out) :: coeff1, coeff2
       integer(mpiint), intent(out) :: ierr
       real(${dtype}$) :: denominator
+      real(${dtype}$), parameter :: huge_val = huge(coeff1), limit = 1e-5_${dtype}$
 
       associate( &
           & p1 => origin1, &
@@ -455,10 +456,11 @@ contains
           & p4 => origin2 + direction2 &
           & )
         denominator = d_mnop(p2,p1,p2,p1) * d_mnop(p4,p3,p4,p3) - d_mnop(p4,p3,p2,p1) ** 2
-        if ( abs(denominator) < sqrt(epsilon(denominator)) ) then
+        !if ( abs(denominator) < sqrt(epsilon(denominator)) ) then
+        if ( approx(denominator, 0._${dtype}$, limit) ) then
           ierr = 1 ! lines are parallel or coincident
-          coeff1 = -huge(coeff1) ! try to change this to 0 ?
-          coeff2 = -huge(coeff2)
+          coeff1 = - huge_val
+          coeff2 = - huge_val
         else
           ierr = 0
           coeff1 = ( d_mnop(p1,p3,p4,p3) * d_mnop(p4,p3,p2,p1) - d_mnop(p1,p3,p2,p1) * d_mnop(p4,p3,p4,p3) ) / denominator

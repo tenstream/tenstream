@@ -21,14 +21,14 @@ module m_geometric_coeffs
 
 use m_data_parameters, only : irealLUT, ireals, mpiint, iintegers, zero, one, Pi
 use m_helper_functions, only : pentagon_area_by_vertices, quadrangle_area_by_vertices, &
-  triangle_area_by_vertices, compute_normal_3d, cross_3d, cstr
+  triangle_area_by_vertices, compute_normal_3d, cross_3d, cstr, CHKERR, toStr
 use m_intersection, only: hit_plane, line_intersection_3d
 
 implicit none
 private
 public :: dir2dir3_geometric_coeffs
 
-logical, parameter :: ldebug= .true.
+logical, parameter :: ldebug= .false.
 contains
 
   subroutine dir2dir3_geometric_coeffs(verts, sundir, extinction_coeff, coeffs)
@@ -125,12 +125,14 @@ contains
         p1l, p1b, p1t, p1r, p2l, p2t, p2b, p2r, p3r, p3t, p3b, p3l, p4r, p4b, p4t, p4l, normal, &
         p1rp, p2rp, p3rp, p4rp
 
-      print *, cstr('fixed', 'yellow')
-      print *, 'f1', f1
-      print *, 'f2', f2
-      print *, 'f3', f3
-      print *, 'f4', f4
-      print *, '_________________________________________________________________'
+      if (ldebug) then
+        print *, cstr('fixed', 'yellow')
+        print *, 'f1', f1
+        print *, 'f2', f2
+        print *, 'f3', f3
+        print *, 'f4', f4
+        print *, '_________________________________________________________________'
+      endif
 
       call proj_vars_to_edges( &
         f1, f2, f3, f4, &
@@ -430,15 +432,26 @@ contains
       print *, '_________________________________________________________________'
     endif
 
-    v1 = v1 + hit_plane(v1, sundir, origin, normal) * sundir
-    v2 = v2 + hit_plane(v2, sundir, origin, normal) * sundir
-    v3 = v3 + hit_plane(v3, sundir, origin, normal) * sundir
-    v4 = v4 + hit_plane(v4, sundir, origin, normal) * sundir
+    if (ldebug) then
+      print *, 'dot_product', dot_product(sundir, normal)
+      print *, 'normal', normal
+      print *, 'epsilon', epsilon(sundir)
+      print *, 'sqrt', sqrt(epsilon(sundir))
+    endif
 
-    v1 = v1 + hit_plane(v1, normal, origin, normal) * normal
-    v2 = v2 + hit_plane(v2, normal, origin, normal) * normal
-    v3 = v3 + hit_plane(v3, normal, origin, normal) * normal
-    v4 = v4 + hit_plane(v4, normal, origin, normal) * normal
+    if (abs(dot_product(sundir, normal)) < sqrt(epsilon(sundir))) then
+      sundir_proj = -(abs(normal) - [one, one, one]) * sundir
+      v1 = v1 + hit_plane(v1, normal, origin, normal) * normal - 1e10_ireals * sundir_proj
+      v2 = v2 + hit_plane(v2, normal, origin, normal) * normal - 1e10_ireals * sundir_proj
+      v3 = v3 + hit_plane(v3, normal, origin, normal) * normal - 1e10_ireals * sundir_proj
+      v4 = v4 + hit_plane(v4, normal, origin, normal) * normal - 1e10_ireals * sundir_proj
+    else
+      v1 = v1 + hit_plane(v1, sundir, origin, normal) * sundir
+      v2 = v2 + hit_plane(v2, sundir, origin, normal) * sundir
+      v3 = v3 + hit_plane(v3, sundir, origin, normal) * sundir
+      v4 = v4 + hit_plane(v4, sundir, origin, normal) * sundir
+    endif
+
 
     if (ldebug) then
       print *, cstr('projections', 'yellow')
@@ -525,22 +538,26 @@ contains
     real(ireals), intent(in), dimension(3) :: direction1, origin2, direction2, origin3, direction3
     real(ireals), intent(inout), dimension(3) :: origin1
     real(ireals) :: coeff21, coeff22, coeff31, coeff32
-    integer(mpiint) :: ierr
+    integer(mpiint) :: ierr1, ierr2
 
     if (ldebug) then
       print *, 'v_i', origin1
       print *, 'dir1', direction1
       print *, 'o2', origin2
       print*, 'dir2', direction2
-      print *, 'o3', origin2
-      print*, 'dir3', direction2
+      print *, 'o3', origin3
+      print*, 'dir3', direction3
     endif
 
-    call line_intersection_3d(origin1, direction1, origin2, direction2, coeff21, coeff22, ierr)
-    call line_intersection_3d(origin1, direction1, origin3, direction3, coeff31, coeff32, ierr)
+    call line_intersection_3d(origin1, direction1, origin2, direction2, coeff21, coeff22, ierr1)
+    call line_intersection_3d(origin1, direction1, origin3, direction3, coeff31, coeff32, ierr2)
+
+    !if (ierr1 .ne. 0_mpiint .and. ierr2 .ne. 0_mpiint) &
+    !  & call CHKERR(1_mpiint, 'One intersection must exist.'// toStr(ierr1)// ' '// toStr(ierr2))
 
     if (ldebug) then
       print *, coeff21, coeff31
+      print *, ierr1, ierr2
       print *, '_________________________________________________________________'
     endif
 

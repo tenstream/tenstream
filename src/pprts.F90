@@ -3866,8 +3866,9 @@ module m_pprts
       type(tMat),intent(inout)      :: A
       integer(iintegers),intent(in) :: i,j,k
 
-      MatStencil         :: row(4,C%dof)  ,col(4,C%dof)
+      MatStencil         :: row(4,C%dof), col(4,C%dof)
       real(ireals), allocatable :: vertices(:)
+      real(ireals) :: vertices_mirrored(24)
       real(irealLUT)     :: v(C%dof**2), norm, v_tmp(C%dof**2)
       integer(iintegers) :: dst,src, xinc, yinc, isrc, idst
 
@@ -3946,15 +3947,19 @@ module m_pprts
        !make bottom and top of box parallel !!! USE MEAN DZ MAYBE?
        vertices([15,18,21,24]) = vertices([3,6,9,12]) + solver%atm%dz(atmk(solver%atm, k), i, j)
 
-       call get_coeff(solver, &
-         solver%atm%kabs(atmk(solver%atm,k),i,j), &
-         solver%atm%ksca(atmk(solver%atm,k),i,j), &
-         solver%atm%g(atmk(solver%atm,k),i,j), &
-         solver%atm%dz(atmk(solver%atm,k),i,j), .True., v_tmp, &
-         solver%atm%l1d(atmk(solver%atm,k),i,j), &
-         [real(sun%symmetry_phi, irealLUT), real(sun%theta, irealLUT)], &
-         lswitch_east=xinc.eq.0, lswitch_north=yinc.eq.0, &
-         opt_vertices=vertices)
+       vertices_mirrored(1:24:3) = -vertices(1:24:3)
+       vertices_mirrored(2:24:3) = -vertices(2:24:3)
+       vertices_mirrored(3:24:3) = vertices(3:24:3)
+
+       !call get_coeff(solver, &
+       !  solver%atm%kabs(atmk(solver%atm,k),i,j), &
+       !  solver%atm%ksca(atmk(solver%atm,k),i,j), &
+       !  solver%atm%g(atmk(solver%atm,k),i,j), &
+       !  solver%atm%dz(atmk(solver%atm,k),i,j), .True., v_tmp, &
+       !  solver%atm%l1d(atmk(solver%atm,k),i,j), &
+       !  [real(sun%symmetry_phi, irealLUT), real(sun%theta, irealLUT)], &
+       !  lswitch_east=xinc.eq.0, lswitch_north=yinc.eq.0, &
+       !  opt_vertices=vertices)
        !endif
 
 
@@ -3963,17 +3968,16 @@ module m_pprts
          sun%sundir * [one, one, one], &
          solver%atm%kabs(atmk(solver%atm, k), i, j) + solver%atm%ksca(atmk(solver%atm, k), i, j), &
          v)
-         print *, 'v gomtrc', v
-         print *, 'v get_coeff', v_tmp
+       !  print *, 'v gomtrc', v
+       !  print *, 'v get_coeff', v_tmp
      !else
        !if (ldebug) then
-       if (any(abs(v_tmp - v) .ge. 0.1_irealLUT)) then
-         print *, 'sundir', sun%sundir * [-one, -one, one]
-         print *, 'symmetry', sun%symmetry_phi
-         print *, 'extinction_coeff', solver%atm%kabs(atmk(solver%atm, k), i, j) + solver%atm%ksca(atmk(solver%atm, k), i, j)
-         call CHKERR(1_mpiint, 'debug')
+       !if (any(abs(v_tmp - v) .ge. 0.1_irealLUT)) then
+       !  print *, 'ijk', i, j, k
+       !  print *, 'extinction_coeff', solver%atm%kabs(atmk(solver%atm, k), i, j) + solver%atm%ksca(atmk(solver%atm, k), i, j)
+       !  call CHKERR(1_mpiint, 'debug')
        !endif
-       endif
+       !endif
      else
        vertices(3:24:3)  = vertices(3:24:3) - minval(vertices(3:24:3))
 

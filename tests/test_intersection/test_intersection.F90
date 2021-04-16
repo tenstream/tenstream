@@ -246,19 +246,45 @@ contains
   subroutine test_line_intersection_3d(this)
   class (MpiTestMethod), intent(inout) :: this
     real(ireals), dimension(3) :: o1, d1, o2, d2, o3, d3
-    real(ireals) :: c1, c2
-    integer(mpiint) :: ierr
+    real(ireals) :: c1, c2, denominator, tmp
+    integer(mpiint) :: ierr1, ierr2
 
-    o1 = [-1.2246467991473532E-014_ireals, 100.00000000000000_ireals, 119.17535925942096_ireals]
-    d1 = [zero, 0.0000000000000000_ireals, -119.17535925942096_ireals]
-    o2 = [100.00000000000000_ireals, 100.00000000000000_ireals, 0.0000000000000000_ireals]
-    d2 = [0.0000000000000000_ireals, 0.0000000000000000_ireals, 133.27950294401700_ireals]
-    o3 = [100.00000000000000_ireals, 100.00000000000000_ireals, 0.0000000000000000_ireals]
-    d3 = [0.0000000000000000_ireals, 0.0000000000000000_ireals, 133.27950294401700_ireals]
+    !o1 = [ 0.0000000000000000_ireals,        1.1555348731080497E+308_ireals,  -1.3771128363944122E+308_ireals]
+    !d1 = [ 0.0000000000000000_ireals,       -1.1555348731080497E+308_ireals,   1.3771128363944122E+308_ireals]
+    !o2 = [ 0.0000000000000000_ireals,        0.0000000000000000_ireals,        0.0000000000000000_ireals]
+    !d2 = [ 0.0000000000000000_ireals,        0.0000000000000000_ireals,        144.31989359576076_ireals]
+    !o3 = [ 0.0000000000000000_ireals,        0.0000000000000000_ireals,        0.0000000000000000_ireals]
+    !d3 = [ 0.0000000000000000_ireals,        0.0000000000000000_ireals,        144.31989359576076_ireals]
 
-    call line_intersection_3d(o1, d1, o2, d2, c1, c2, ierr)
-    print *, 'c1', c1
-    call line_intersection_3d(o1, d1, o3, d3, c1, c2, ierr)
-    print *, 'c1', c1
+    o1 = [real(ireals) ::99.999999999999986     ,   107.02774840784413,        0.0000000000000000]
+    d1 = [real(ireals) ::1.4210854715202004E-014,  -107.02774840784413,        0.0000000000000000]
+    o2 = [real(ireals) ::0.0000000000000000     ,   100.00000000000000,        0.0000000000000000]
+    d2 = [real(ireals) ::100.00000000000000     ,   0.0000000000000000,        0.0000000000000000]
+    o3 = [real(ireals) ::0.0000000000000000     ,   100.00000000000000,        0.0000000000000000]
+    d3 = [real(ireals) ::0.0000000000000000     ,   -100.00000000000000,        0.0000000000000000]
+
+    call line_intersection_3d(o1, d1, o2, d2, c1, tmp, ierr1)
+    call line_intersection_3d(o1, d1, o3, d3, c2, tmp, ierr2)
+    print *, 'cs', c1, c2
+    print *, 'ierrs', ierr1, ierr2
+
+    associate( &
+        & p1 => o1, &
+        & p2 => o1 + d1, &
+        & p3 => o2, &
+        & p4 => o2 + d2 &
+        & )
+
+        print *, 'sum1', d_mnop(p2,p1,p2,p1) * d_mnop(p4,p3,p4,p3)
+        print *, 'sum2', d_mnop(p4,p3,p2,p1) ** 2
+        denominator = d_mnop(p2,p1,p2,p1) * d_mnop(p4,p3,p4,p3) - d_mnop(p4,p3,p2,p1) ** 2
+    end associate
+    print*, 'denominator', denominator
+  contains
+    function d_mnop(m, n, o, p)
+      real(ireals), intent(in) :: m(3), n(3), o(3), p(3)
+      real(ireals) :: d_mnop
+      d_mnop = dot_product(m - n, o - p)
+    end function
   end subroutine
 end module
