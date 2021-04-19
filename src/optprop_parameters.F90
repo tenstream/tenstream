@@ -22,9 +22,12 @@ module m_optprop_parameters
       implicit none
 
       !> \page optprop_parameters Parameters concerning the transport coefficients
-      !! You should define some parameters about how and where to find the Look
-      !! Up Tables foir the transport coefficients
-      !> Have a look at the options in m_optprop_parameters::
+      !! You probably have to define the location to find the Look
+      !! Up Tables for the transport coefficients
+      !! e.g. with `-lut_basename <globally_reacheable_path/LUT>
+      !! as command line option, in the `tenstream.options` file or in your `$HOME/.petscrc`.
+      !!
+      !! This module includes more options that the average should not need to be aware of.
 
       !-----------------------------------------
       !> Define the path to the Lookuptables
