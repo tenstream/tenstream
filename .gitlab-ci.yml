@@ -15,10 +15,11 @@ stages:
     - mkdir -p build && cd build
     - cmake -DCMAKE_BUILD_TYPE="$BUILD_TYPE" -DCTEST_MPIRUN_FLAGS="$MPIRUN_FLAGS" -DMPIEXEC="$MPIEXEC" ${CMAKE_OPTS} .. || exit 1
     - make all -j || exit 2
-    - CMD="ctest $CTEST_ARGS"
-    - echo $CMD && $CMD || exit 3
+    - CMD="ctest --output-on-failure $CTEST_ARGS"
+    - echo $CMD
+    - $CMD &> >(tee $CI_PROJECT_DIR/test.log) || exit 3
   variables:
-    CTEST_ARGS: "-V -E 'boxmc|LUT'"
+    CTEST_ARGS: "-E 'boxmc|LUT'"
     BUILD_TYPE: RELEASE
     MPIEXEC: "mpirun"
     MPIRUN_FLAGS: '' #--allow-run-as-root;-A;bm0974;-p;shared
@@ -26,6 +27,10 @@ stages:
     CC: mpicc
     FC: mpif90
     CXX: mpicxx
+  artifacts:
+    paths:
+      - petsc/configure.log
+      - test.log
 
 build:docker:ubuntu-latest:
   extends: .build:default
@@ -37,7 +42,7 @@ build:docker:ubuntu-latest:
   tags:
     - docker.meteo.physik.lmu.de
   variables:
-    CTEST_ARGS: '-V -E boxmc|LUT|test_pprts_symmetry|test_rrtm_lw_Bsrfc|test_rrtm_lw_sw|test_plexrt_fish|test_plexrt_rrtmg_lw_sw|test_pprts_absorption_by_coeff_divergence'
+    CTEST_ARGS: '-E boxmc|LUT|test_pprts_symmetry|test_rrtm_lw_Bsrfc|test_rrtm_lw_sw|test_plexrt_fish|test_plexrt_rrtmg_lw_sw|test_pprts_absorption_by_coeff_divergence'
     MPIRUN_FLAGS: "--allow-run-as-root;--oversubscribe"
     PETSC_DIR: petsc
     PETSC_ARCH: default
@@ -56,7 +61,7 @@ build:docker:ubuntu-rolling:
   tags:
     - docker.meteo.physik.lmu.de
   variables:
-    CTEST_ARGS: '-V -E boxmc|LUT|test_pprts_symmetry|test_rrtm_lw_Bsrfc|test_rrtm_lw_sw|test_plexrt_fish|test_plexrt_rrtmg_lw_sw|test_pprts_absorption_by_coeff_divergence'
+    CTEST_ARGS: '-E boxmc|LUT|test_pprts_symmetry|test_rrtm_lw_Bsrfc|test_rrtm_lw_sw|test_plexrt_fish|test_plexrt_rrtmg_lw_sw|test_pprts_absorption_by_coeff_divergence'
     MPIRUN_FLAGS: "--allow-run-as-root;--oversubscribe"
     PETSC_DIR: petsc
     PETSC_ARCH: default
@@ -69,14 +74,15 @@ build:docker:ubuntu-rolling:
 
 build:docker:intel:
   extends: .build:default
-  image: intel/oneapi-hpckit
+  #image: intel/oneapi-hpckit
+  image: intel/oneapi-hpckit:2021.1-devel-ubuntu18.04
   before_script:
     - DEBIAN_FRONTEND=noninteractive apt-get -qq update && DEBIAN_FRONTEND=noninteractive apt-get -qq install -fy cmake git m4 curl libcurl3-dev
     - *template_build_PETSC
   tags:
     - docker.meteo.physik.lmu.de
   variables:
-    CTEST_ARGS: '-V -E boxmc|LUT|test_pprts_symmetry|test_rrtm_lw_Bsrfc|test_rrtm_lw_sw|test_plexrt_fish|test_plexrt_rrtmg_lw_sw|test_pprts_absorption_by_coeff_divergence'
+    CTEST_ARGS: '-E boxmc|LUT|test_pprts_symmetry|test_rrtm_lw_Bsrfc|test_rrtm_lw_sw|test_plexrt_fish|test_plexrt_rrtmg_lw_sw|test_pprts_absorption_by_coeff_divergence'
     PETSC_DIR: petsc
     PETSC_ARCH: default
     PETSC_PRECISION: single
@@ -90,14 +96,15 @@ build:docker:intel:
 
 build:docker:intel:debug:
   extends: .build:default
-  image: intel/oneapi-hpckit
+  #image: intel/oneapi-hpckit
+  image: intel/oneapi-hpckit:2021.1-devel-ubuntu18.04
   before_script:
     - DEBIAN_FRONTEND=noninteractive apt-get -qq update && DEBIAN_FRONTEND=noninteractive apt-get -qq install -fy cmake git m4 curl libcurl3-dev
     - *template_build_PETSC
   tags:
     - docker.meteo.physik.lmu.de
   variables:
-    CTEST_ARGS: '-V -E boxmc|LUT|test_pprts_symmetry|test_rrtm_lw_Bsrfc|test_rrtm_lw_sw|test_plexrt_fish|test_plexrt_rrtmg_lw_sw|test_pprts_absorption_by_coeff_divergence'
+    CTEST_ARGS: '-E boxmc|LUT|test_pprts_symmetry|test_rrtm_lw_Bsrfc|test_rrtm_lw_sw|test_plexrt_fish|test_plexrt_rrtmg_lw_sw|test_pprts_absorption_by_coeff_divergence'
     PETSC_DIR: petsc
     PETSC_ARCH: default
     PETSC_PRECISION: double
@@ -121,7 +128,7 @@ build:docker:intel:debug:
     SRUN_OPTIONS: "--time 02:00:00 --mem 4G -n 9"
     MPIEXEC: "srun"
     MPIRUN_FLAGS: '--mpi=pmix'
-    CTEST_ARGS: '-V -E boxmc|LUT'
+    CTEST_ARGS: '-E boxmc|LUT'
 
 # GCC
 build:mim:gcc:single:

@@ -2,6 +2,7 @@
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/petsc_cmake_modules/")
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/")
 
+message(STATUS "CMake Version ${CMAKE_VERSION}")
 cmake_minimum_required (VERSION 3.6.0)
 
 # make sure that the default is a RELEASE
@@ -370,8 +371,8 @@ endif(ENABLE_EXAMPLES)
 option(ENABLE_PFUNIT "Enable pfUnit testing Framework" OFF)
 if(ENABLE_PFUNIT)
   add_subdirectory(tests)
-  add_custom_target(check    COMMAND ${CMAKE_CTEST_COMMAND} -E 'boxmc|LUT')
-  add_custom_target(checkLUT COMMAND ${CMAKE_CTEST_COMMAND} -R 'LUT')
+  add_custom_target(check    COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -E 'boxmc|LUT')
+  add_custom_target(checkLUT COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -R 'LUT')
   set(CTEST_MPIRUN_FLAGS "" CACHE STRING "Additional mpiexec flags to run tests with")
 endif(ENABLE_PFUNIT)
 

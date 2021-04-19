@@ -7,7 +7,8 @@ module m_search
 
   interface find_real_location
 #:for dtype in ['REAL32', 'REAL64']
-    module procedure find_real_location_${dtype}$
+    !module procedure find_real_location_${dtype}$
+    module procedure search_sorted_bisection_${dtype}$
 #:endfor
   end interface
 
