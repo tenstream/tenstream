@@ -2,7 +2,7 @@ module test_intersection
 
   use m_data_parameters, only: &
     & ireals, ireal_dp, &
-    & iintegers, mpiint, zero
+    & iintegers, mpiint, zero, one
 
   use m_helper_functions, only : &
     & compute_normal_3d, &
@@ -256,23 +256,39 @@ contains
     !o3 = [ 0.0000000000000000_ireals,        0.0000000000000000_ireals,        0.0000000000000000_ireals]
     !d3 = [ 0.0000000000000000_ireals,        0.0000000000000000_ireals,        144.31989359576076_ireals]
 
-    o1 = [real(ireals) ::99.999999999999986     ,   107.02774840784413,        0.0000000000000000]
-    d1 = [real(ireals) ::1.4210854715202004E-014,  -107.02774840784413,        0.0000000000000000]
-    o2 = [real(ireals) ::0.0000000000000000     ,   100.00000000000000,        0.0000000000000000]
-    d2 = [real(ireals) ::100.00000000000000     ,   0.0000000000000000,        0.0000000000000000]
-    o3 = [real(ireals) ::0.0000000000000000     ,   100.00000000000000,        0.0000000000000000]
-    d3 = [real(ireals) ::0.0000000000000000     ,   -100.00000000000000,        0.0000000000000000]
+      o1 = [real(ireals) :: -8.74227771E-06 ,  100.000000   ,   -130.427795 ]
+      d1 = [real(ireals) ::   8.74227771E-06,   0.00000000  ,     274.747742 ]
+      o2 = [real(ireals) :: 100.000000      , 100.000000    ,   0.00000000 ]
+      d2 = [real(ireals) ::   0.00000000    ,   0.00000000  ,     144.319946 ]
+      o3 = [real(ireals) :: 100.000000      , 100.000000    ,   0.00000000 ]
+      d3 = [real(ireals) ::  -100.000000    ,   0.00000000  ,     0.00000000 ]
 
     call line_intersection_3d(o1, d1, o2, d2, c1, tmp, ierr1)
-    call line_intersection_3d(o1, d1, o3, d3, c2, tmp, ierr2)
-    print *, 'cs', c1, c2
-    print *, 'ierrs', ierr1, ierr2
-
     associate( &
         & p1 => o1, &
         & p2 => o1 + d1, &
         & p3 => o2, &
         & p4 => o2 + d2 &
+        & )
+
+        print *, 'sum1', d_mnop(p2,p1,p2,p1) * d_mnop(p4,p3,p4,p3)
+        print *, 'sum2', d_mnop(p4,p3,p2,p1) ** 2
+        denominator = d_mnop(p2,p1,p2,p1) * d_mnop(p4,p3,p4,p3) - d_mnop(p4,p3,p2,p1) ** 2
+    end associate
+    call line_intersection_3d(o1, d1, o3, d3, c2, tmp, ierr2)
+    print *, 'cs', c1, c2
+    print *, 'ierrs', ierr1, ierr2
+
+    call rearange_point(o1, d1, min(max(c1, c2, zero), one), o1)
+    print *, 'coeff of choice', min(max(c1, c2, zero), one)
+
+    print *, 'new point', o1
+
+    associate( &
+        & p1 => o1, &
+        & p2 => o1 + d1, &
+        & p3 => o3, &
+        & p4 => o3 + d3 &
         & )
 
         print *, 'sum1', d_mnop(p2,p1,p2,p1) * d_mnop(p4,p3,p4,p3)
@@ -286,5 +302,12 @@ contains
       real(ireals) :: d_mnop
       d_mnop = dot_product(m - n, o - p)
     end function
+    subroutine rearange_point(origin, direction, coefficient, point)
+      real(ireals), intent(inout) :: point(3)
+      real(ireals), intent(in) :: origin(3), direction(3), coefficient
+
+      point = origin + coefficient * direction
+    end subroutine
+
   end subroutine
 end module
