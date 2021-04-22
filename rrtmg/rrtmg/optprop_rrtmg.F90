@@ -83,6 +83,7 @@ contains
 
     integer(im),parameter :: inflglw=2,liqflglw=1,iceflglw=3
     integer(kind=im) :: icld=2         ! Cloud overlap method
+    integer(kind=im) :: iaer=0         ! Aerosol option flag
     integer(kind=im) :: idrv=0         ! Flag for calculation of dFdT
     integer(mpiint) :: ierr
 
@@ -134,7 +135,7 @@ contains
 
     if (present(opt_lwuflx).and.present(opt_lwdflx).and.present(opt_lwhr)) then
       call rrtmg_lw &
-        (ncol, nlay, icld, idrv, &
+        (ncol, nlay, icld, iaer, idrv, &
         real(play,rb), real(plev,rb), &
         real(tlay,rb), real(tlev,rb), real(tsrfc, rb), &
         real(h2ovmr,rb), real(o3vmr,rb), real(co2vmr,rb), &
@@ -150,7 +151,7 @@ contains
       opt_lwhr   = transpose(real(lwhr, ireals))
     else
       call rrtmg_lw &
-        (ncol, nlay, icld, idrv, &
+        (ncol, nlay, icld, iaer, idrv, &
         real(play,rb), real(plev,rb), &
         real(tlay,rb), real(tlev,rb), real(tsrfc, rb), &
         real(h2ovmr,rb), real(o3vmr,rb), real(co2vmr,rb), &

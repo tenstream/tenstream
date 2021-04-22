@@ -81,7 +81,7 @@
 !------------------------------------------------------------------
 
       subroutine rrtmg_lw &
-            (ncol    ,nlay    ,icld    ,idrv    , &
+            (ncol    ,nlay    ,icld    ,iaer    ,idrv    , &
              play    ,plev    ,tlay    ,tlev    ,tsfc    , &
              h2ovmr  ,o3vmr   ,co2vmr  ,ch4vmr  ,n2ovmr  ,o2vmr, &
              cfc11vmr,cfc12vmr,cfc22vmr,ccl4vmr ,emis    , &
@@ -196,6 +196,7 @@
                                                       !    1: Random
                                                       !    2: Maximum/random
                                                       !    3: Maximum
+      integer(kind=im), intent(in) :: iaer            ! aerosol option flag
       integer(kind=im), intent(in) :: idrv            ! Flag for calculation of dFdT, the change
                                                       !    in upward flux as a function of 
                                                       !    surface temperature [0=off, 1=on]
@@ -319,7 +320,6 @@
       integer(kind=im) :: istart              ! beginning band of calculation
       integer(kind=im) :: iend                ! ending band of calculation
       integer(kind=im) :: iout                ! output option flag (inactive)
-      integer(kind=im) :: iaer                ! aerosol option flag
       integer(kind=im) :: iplon               ! column loop index
       integer(kind=im) :: imca                ! flag for mcica [0=off, 1=on]
       integer(kind=im) :: k                   ! layer loop index
@@ -451,7 +451,6 @@
 ! Set iaer to select aerosol option
 ! iaer = 0, no aerosols
 ! icld = 10, input total aerosol optical depth (tauaer) directly
-      iaer = 10
 
 ! Call model and data initialization, compute lookup tables, perform
 ! reduction of g-points from 256 to 140 for input absorption coefficient 
@@ -533,10 +532,18 @@
          endif
 
          do ig=1,ngptlw
-           tenstr_tau(:, iplon, ig)   = taut(1:nlay, ig) + taucloud(1:nlay, ngb(ig)) * cldfrac(1:nlay)
-           tenstr_Bfrac(:, iplon, ig) = fracs(1:nlay,ig)
-           if(present(tenstr_tau_f)) &
-             tenstr_tau_f(:, iplon, ig) = taut(1:nlay, ig)
+           do k = 1, nlay
+             tenstr_tau(k, iplon, ig)   = taut(k, ig)
+             if (cldfrac(k).gt.0) then
+               tenstr_tau(k, iplon, ig)   = tenstr_tau(k, iplon, ig) + taucloud(k, ngb(ig))
+             endif
+             tenstr_Bfrac(k, iplon, ig) = fracs(k,ig)
+           enddo
+           if(present(tenstr_tau_f)) then
+             do k = 1, nlay
+               tenstr_tau_f(k, iplon, ig) = taut(k, ig)
+             enddo
+           endif
          enddo
 
          if(loptprop_only) cycle

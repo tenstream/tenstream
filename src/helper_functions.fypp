@@ -442,6 +442,7 @@ module m_helper_functions
       ('type'      , 'tDM'    , 'call DMDestroy (obj, ierr); call CHKERR(ierr);'), &
       ('type'      , 'tKSP'   , 'call KSPDestroy(obj, ierr); call CHKERR(ierr);'), &
       ('type'      , 'tMat'   , 'call MatDestroy(obj, ierr); call CHKERR(ierr);'), &
+      ('type'      , 'tIS'    , 'call ISDestroy (obj, ierr); call CHKERR(ierr);'), &
       ('logical'   , None     , None                                            ), &
       ('integer'   , 'INT32'  , None                                            ), &
       ('integer'   , 'INT64'  , None                                            ), &
@@ -2589,6 +2590,7 @@ subroutine domain_decompose_2d_petsc(comm, &
   allocate(nxproc(Nranksx))
   allocate(nyproc(Nranksy))
   call DMDAGetOwnershipRanges(dm, nxproc, nyproc, PETSC_NULL_INTEGER, ierr); call CHKERR(ierr)
+  call DMDestroy(dm, ierr); call CHKERR(ierr)
 end subroutine
 
 
@@ -2597,6 +2599,7 @@ end subroutine
   ('type'      , 'tDM'    , 'call DMDestroy (obj, ierr)   ; call CHKERR(ierr);', 'integer(mpiint) :: ierr'), &
   ('type'      , 'tKSP'   , 'call KSPDestroy(obj, ierr)   ; call CHKERR(ierr);', 'integer(mpiint) :: ierr'), &
   ('type'      , 'tMat'   , 'call MatDestroy(obj, ierr)   ; call CHKERR(ierr);', 'integer(mpiint) :: ierr'), &
+  ('type'      , 'tIS'    , 'call ISDestroy (obj, ierr)   ; call CHKERR(ierr);', 'integer(mpiint) :: ierr'), &
   ('logical'   , None     , None                                            , None), &
   ('integer'   , 'INT32'  , None                                            , None), &
   ('integer'   , 'INT64'  , None                                            , None), &

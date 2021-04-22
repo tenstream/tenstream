@@ -104,6 +104,8 @@ module m_pprts_base
     PetscLogEvent :: compute_edir
     PetscLogEvent :: solve_Mdir
     PetscLogEvent :: setup_Mdir
+    PetscLogEvent :: permute_mat
+    PetscLogEvent :: permute_mat_gen
     PetscLogEvent :: setup_diff_src
     PetscLogEvent :: compute_ediff
     PetscLogEvent :: solve_Mdiff
@@ -143,6 +145,7 @@ module m_pprts_base
     type(t_atmosphere), allocatable    :: atm
     type(t_suninfo)                    :: sun
     type(tMat), allocatable            :: Mdir,Mdiff
+    type(tIS), allocatable             :: is_perm_dir, is_perm_diff! col/row permutations
     type(tKSP), allocatable            :: ksp_solar_dir
     type(tKSP), allocatable            :: ksp_solar_diff
     type(tKSP), allocatable            :: ksp_thermal_diff
@@ -275,6 +278,8 @@ module m_pprts_base
       call PetscLogEventRegister(trim(s)//'comp_Edir', cid, logs%compute_Edir, ierr); call CHKERR(ierr)
       call PetscLogEventRegister(trim(s)//'solve_Mdir', cid, logs%solve_Mdir, ierr); call CHKERR(ierr)
       call PetscLogEventRegister(trim(s)//'setup_Mdir', cid, logs%setup_Mdir, ierr); call CHKERR(ierr)
+      call PetscLogEventRegister(trim(s)//'permute_mat', cid, logs%permute_mat, ierr); call CHKERR(ierr)
+      call PetscLogEventRegister(trim(s)//'permute_mat_gen', cid, logs%permute_mat_gen, ierr); call CHKERR(ierr)
       call PetscLogEventRegister(trim(s)//'setup_diff_src', cid, logs%setup_diff_src, ierr); call CHKERR(ierr)
       call PetscLogEventRegister(trim(s)//'comp_Ediff', cid, logs%compute_Ediff, ierr); call CHKERR(ierr)
       call PetscLogEventRegister(trim(s)//'solve_Mdiff', cid, logs%solve_Mdiff, ierr); call CHKERR(ierr)
@@ -421,17 +426,12 @@ module m_pprts_base
         deallocate(solver%atm)
       endif
 
-      !call deallocate_allocatable(solver%sun%symmetry_phi)
-      !call deallocate_allocatable(solver%sun%theta       )
-      !call deallocate_allocatable(solver%sun%phi         )
-      !call deallocate_allocatable(solver%sun%costheta    )
-      !call deallocate_allocatable(solver%sun%sintheta    )
-      !call deallocate_allocatable(solver%sun%xinc        )
-      !call deallocate_allocatable(solver%sun%yinc        )
+      call deallocate_allocatable(solver%is_perm_dir)
+      call deallocate_allocatable(solver%is_perm_diff)
 
       if(allocated(solver%OPP)) then
-        call solver%OPP%destroy(ierr)
-        call CHKERR(ierr)
+        call solver%OPP%destroy(ierr); call CHKERR(ierr)
+        deallocate(solver%OPP)
       endif
 
       call destroy_coord(solver%C_dir         )

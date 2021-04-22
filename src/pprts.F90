@@ -47,12 +47,14 @@ module m_pprts
     & imp_min_mean_max, &
     & inc, &
     & ind_1d_to_nd, &
+    & ind_nd_to_1d, &
     & meanval, &
     & mpi_logical_and, &
+    & ndarray_offsets, &
     & normalize_vec, &
     & rad2deg, &
-    & spherical_2_cartesian, &
     & rotation_matrix_world_to_local_basis, &
+    & spherical_2_cartesian, &
     & toStr, &
     & triangle_area_by_vertices, &
     & vec_proj_on_plane
@@ -2486,6 +2488,19 @@ module m_pprts
         call set_dir_coeff(solver, solver%sun, solver%Mdir, solver%C_dir, opt_buildings)
         call PetscLogEventEnd(solver%logs%setup_Mdir, ierr)
         if(ldebug) call mat_info(solver%comm, solver%Mdir)
+
+        ! prepare mat permutation
+        call PetscLogEventBegin(solver%logs%permute_mat_gen, ierr)
+        call gen_mat_permutation( &
+          & A=solver%Mdir, &
+          & C=solver%C_dir, &
+          & rev_x=solver%sun%xinc.eq.0, & ! reverse if sun is east
+          & rev_y=solver%sun%yinc.eq.0, & ! reverse if sun is north, &
+          & rev_z=.False., &
+          & zlast=.True., &
+          & switch_xy=abs(solver%sun%sundir(2)).gt.abs(solver%sun%sundir(1)), &
+          & is_permute=solver%is_perm_dir )
+        call PetscLogEventEnd(solver%logs%permute_mat_gen, ierr)
       endif
 
       call PetscLogEventBegin(solver%logs%solve_Mdir, ierr)
@@ -2495,7 +2510,8 @@ module m_pprts
         solver%incSolar, &
         solution%edir, &
         solution%Niter_dir, &
-        solution%dir_ksp_residual_history)
+        solution%dir_ksp_residual_history, &
+        is_permute=solver%is_perm_dir)
 
       call PetscLogEventEnd(solver%logs%solve_Mdir, ierr)
 
@@ -2538,6 +2554,19 @@ module m_pprts
         call set_diff_coeff(solver, solver%Mdiff, solver%C_diff, opt_buildings)
         call PetscLogEventEnd(solver%logs%setup_Mdiff, ierr)
         if(ldebug) call mat_info(solver%comm, solver%Mdiff)
+
+        ! prepare mat permutation (does not give a benefit for diffuse rad)
+        !call PetscLogEventBegin(solver%logs%permute_mat_gen, ierr)
+        !call gen_mat_permutation( &
+        !  & A=solver%Mdiff, &
+        !  & C=solver%C_diff, &
+        !  & rev_x=.False., &
+        !  & rev_y=.False., &
+        !  & rev_z=.False., &
+        !  & zlast=.True., &
+        !  & switch_xy=.False., &
+        !  & is_permute=solver%is_perm_diff )
+        !call PetscLogEventEnd(solver%logs%permute_mat_gen, ierr)
       endif
 
       call PetscLogEventBegin(solver%logs%solve_Mdiff, ierr)
@@ -2548,7 +2577,8 @@ module m_pprts
           solver%b, &
           solution%ediff, &
           solution%Niter_diff, &
-          solution%diff_ksp_residual_history)
+          solution%diff_ksp_residual_history, &
+          is_permute=solver%is_perm_diff)
       else
         call setup_ksp(solver, solver%ksp_thermal_diff, solver%C_diff, solver%Mdiff, "thermal_diff_")
         call solve(solver, &
@@ -2556,7 +2586,8 @@ module m_pprts
           solver%b, &
           solution%ediff, &
           solution%Niter_diff, &
-          solution%diff_ksp_residual_history)
+          solution%diff_ksp_residual_history, &
+          is_permute=solver%is_perm_diff)
       endif
       call PetscLogEventEnd(solver%logs%solve_Mdiff, ierr)
     endif
@@ -3321,18 +3352,125 @@ module m_pprts
     end subroutine
   end subroutine
 
+  !> @brief generate matrix col/row permutations
+  subroutine gen_mat_permutation(A, C, rev_x, rev_y, rev_z, zlast, switch_xy, is_permute)
+    type(tMat), intent(in) :: A
+    type(t_coord), intent(in) :: C
+    logical, intent(in) :: rev_x, rev_y, rev_z, zlast, switch_xy
+    type(tIS), allocatable, intent(inout) :: is_permute
+
+    logical :: lrev, lflg, lzlast, lswitch_xy
+    integer, dimension(3) :: dd, dx, dy, dz ! start, end, increment for each dimension
+
+    integer(iintegers), allocatable :: is_data(:)
+    integer(iintegers) :: Astart, Aend, m, k, i, j, d, da_offsets(4)
+
+    integer(mpiint) :: ierr
+
+    if (allocated(is_permute)) return
+    allocate(is_permute)
+
+    call MatGetOwnershipRange(A, Astart, Aend, ierr); call CHKERR(ierr)
+    allocate(is_data(Aend-Astart))
+    call ndarray_offsets([C%dof, C%zm, C%xm, C%ym], da_offsets)
+
+    dd = [i0, C%dof-i1, i1]
+    dz = [i0, C%zm -i1, i1]
+    dx = [i0, C%xm -i1, i1]
+    dy = [i0, C%ym -i1, i1]
+
+    lrev = rev_y
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+      "-mat_permute_rev_y" , lrev, lflg , ierr) ;call CHKERR(ierr)
+    if(lrev) dy = [dy(2), dy(1), -dy(3)]
+
+    lrev = rev_x
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+      "-mat_permute_rev_x" , lrev, lflg , ierr) ;call CHKERR(ierr)
+    if(lrev) dx = [dx(2), dx(1), -dx(3)]
+
+    lrev = rev_z
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+      "-mat_permute_rev_z" , lrev, lflg , ierr) ;call CHKERR(ierr)
+    if(lrev) dz = [dz(2), dz(1), -dz(3)]
+
+    lswitch_xy=switch_xy
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+      "-mat_permute_ij" , lswitch_xy, lflg , ierr) ;call CHKERR(ierr)
+
+    lzlast=zlast
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+      "-mat_permute_z" , lzlast, lflg , ierr) ;call CHKERR(ierr)
+
+    m = 0
+    if(lzlast) then
+      if(lswitch_xy) then
+        do k = dz(1), dz(2), dz(3)
+          do i = dx(1), dx(2), dx(3)
+            do j = dy(1), dy(2), dy(3)
+              do d = dd(1), dd(2), dd(3)
+                m = m+1
+                is_data(m) = Astart + ind_nd_to_1d(da_offsets, [d,k,i,j], cstyle=.True.)
+              enddo
+            enddo
+          enddo
+        enddo
+      else
+        do k = dz(1), dz(2), dz(3)
+          do j = dy(1), dy(2), dy(3)
+            do i = dx(1), dx(2), dx(3)
+              do d = dd(1), dd(2), dd(3)
+                m = m+1
+                is_data(m) = Astart + ind_nd_to_1d(da_offsets, [d,k,i,j], cstyle=.True.)
+              enddo
+            enddo
+          enddo
+        enddo
+      endif
+    else
+      if(lswitch_xy) then
+        do i = dx(1), dx(2), dx(3)
+          do j = dy(1), dy(2), dy(3)
+            do k = dz(1), dz(2), dz(3)
+              do d = dd(1), dd(2), dd(3)
+                m = m+1
+                is_data(m) = Astart + ind_nd_to_1d(da_offsets, [d,k,i,j], cstyle=.True.)
+              enddo
+            enddo
+          enddo
+        enddo
+      else
+        do j = dy(1), dy(2), dy(3)
+          do i = dx(1), dx(2), dx(3)
+            do k = dz(1), dz(2), dz(3)
+              do d = dd(1), dd(2), dd(3)
+                m = m+1
+                is_data(m) = Astart + ind_nd_to_1d(da_offsets, [d,k,i,j], cstyle=.True.)
+              enddo
+            enddo
+          enddo
+        enddo
+      endif
+    endif
+
+    call ISCreateGeneral(PETSC_COMM_SELF, size(is_data), is_data, PETSC_COPY_VALUES, is_permute, ierr); call CHKERR(ierr)
+  end subroutine
 
   !> @brief call PETSc Krylov Subspace Solver
   !> @details solve with ksp and save residual history of solver
   !> \n -- this may be handy later to decide next time if we have to calculate radiation again
   !> \n if we did not get convergence, we try again with standard GMRES and a resetted(zero) initial guess -- if that doesnt help, we got a problem!
-  subroutine solve(solver, ksp, b, x, iter, ksp_residual_history)
+  subroutine solve(solver, ksp, b, x, iter, ksp_residual_history, is_permute)
     class(t_solver) :: solver
     type(tKSP) :: ksp
     type(tVec) :: b
     type(tVec) :: x
     integer(iintegers), intent(out) :: iter
     real(ireals), intent(inout), optional :: ksp_residual_history(:)
+    type(tIS), allocatable, optional :: is_permute
+
+    logical :: lmat_permute
+    type(tMat) :: A, Aperm
 
     KSPConvergedReason :: reason
 
@@ -3357,10 +3495,35 @@ module m_pprts
       return
     endif
 
+    lmat_permute = present(is_permute)
+    if (lmat_permute) lmat_permute = allocated(is_permute)
+    call PetscOptionsHasName(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+      "-disable_mat_permute" ,lflg ,ierr); call CHKERR(ierr)
+    if(lflg) lmat_permute=.False.
+
+    if (lmat_permute) then
+      call PetscLogEventBegin(solver%logs%permute_mat, ierr)
+      call KSPGetOperators(ksp, A, PETSC_NULL_MAT, ierr); call CHKERR(ierr)
+      call MatPermute(A, is_permute, is_permute, Aperm, ierr); call CHKERR(ierr)
+      call VecPermute(b, is_permute, PETSC_FALSE, ierr); call CHKERR(ierr)
+      call VecPermute(x, is_permute, PETSC_FALSE, ierr); call CHKERR(ierr)
+      call KSPSetOperators(ksp, Aperm, Aperm, ierr); call CHKERR(ierr)
+      call PetscLogEventEnd(solver%logs%permute_mat, ierr)
+    endif
+
     call hegedus_trick(ksp, b, x)
     call KSPSolve(ksp,b,x,ierr); call CHKERR(ierr)
     call KSPGetIterationNumber(ksp,iter,ierr); call CHKERR(ierr)
     call KSPGetConvergedReason(ksp,reason,ierr); call CHKERR(ierr)
+
+    if(lmat_permute) then
+      call PetscLogEventBegin(solver%logs%permute_mat, ierr)
+      call VecPermute(b, is_permute, PETSC_TRUE, ierr); call CHKERR(ierr)
+      call VecPermute(x, is_permute, PETSC_TRUE, ierr); call CHKERR(ierr)
+      call KSPSetOperators(ksp, A, A, ierr); call CHKERR(ierr)
+      call MatDestroy(Aperm, ierr); call CHKERR(ierr)
+      call PetscLogEventEnd(solver%logs%permute_mat, ierr)
+    endif
 
     ! if(reason.eq.KSP_DIVERGED_ITS) then
     !   if(solver%myid.eq.0) print *,'We take our chances, that this is a meaningful output.... and just go on'
@@ -3449,8 +3612,13 @@ module m_pprts
       if(numnodes.eq.0) then
         call PCSetType(prec, PCILU, ierr); call CHKERR(ierr)
       else
-        call PCSetType(prec, PCASM, ierr); call CHKERR(ierr)
-        call PCASMSetOverlap(prec, i1, ierr); call CHKERR(ierr)
+        if (trim(prefix).eq.'solar_dir_') then
+          call PCSetType(prec, PCSOR, ierr); call CHKERR(ierr)
+          call PCSORSetSymmetric(prec, SOR_LOCAL_FORWARD_SWEEP, ierr); call CHKERR(ierr)
+        else
+          call PCSetType(prec, PCASM, ierr); call CHKERR(ierr)
+          call PCASMSetOverlap(prec, i1, ierr); call CHKERR(ierr)
+        endif
       endif
     endif
 
@@ -3472,26 +3640,31 @@ module m_pprts
         integer(iintegers) :: first_local
         type(tKSP), allocatable :: asm_ksps(:)
         type(tPC) :: subpc
+        PCType :: pctype
         logical :: lflg
 
-        asm_iter = 2
-        call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-          "-ts_ksp_iter", asm_iter, lflg, ierr) ;call CHKERR(ierr)
+        call PCGetType(prec, pctype, ierr); call CHKERR(ierr)
+        if(pctype.eq.PCASM) then
 
-        call PCASMGetSubKSP(prec, asm_N, first_local, PETSC_NULL_KSP, ierr); call CHKERR(ierr)
-        allocate(asm_ksps(asm_N))
-        call PCASMGetSubKSP(prec, asm_N, first_local, asm_ksps, ierr); call CHKERR(ierr)
-        do i = 1, asm_N
-          call KSPSetType(asm_ksps(i), KSPRICHARDSON, ierr); call CHKERR(ierr)
-          call KSPRichardsonSetSelfScale(asm_ksps(i), PETSC_TRUE, ierr); call CHKERR(ierr)
-          call KSPSetNormType(asm_ksps(i), KSP_NORM_PRECONDITIONED, ierr); call CHKERR(ierr)
-          call KSPSetTolerances(asm_ksps(i), &
-            & PETSC_DEFAULT_REAL, PETSC_DEFAULT_REAL, PETSC_DEFAULT_REAL, &
-            & asm_iter, ierr); call CHKERR(ierr)
-          call KSPGetPC(asm_ksps(i), subpc, ierr); call CHKERR(ierr)
-          call PCSetType(subpc, PCSOR, ierr); call CHKERR(ierr)
-          call KSPSetFromOptions(asm_ksps(i), ierr); call CHKERR(ierr)
-        enddo
+          asm_iter = 1
+          call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+            "-ts_ksp_iter", asm_iter, lflg, ierr) ;call CHKERR(ierr)
+
+          call PCASMGetSubKSP(prec, asm_N, first_local, PETSC_NULL_KSP, ierr); call CHKERR(ierr)
+          allocate(asm_ksps(asm_N))
+          call PCASMGetSubKSP(prec, asm_N, first_local, asm_ksps, ierr); call CHKERR(ierr)
+          do i = 1, asm_N
+            call KSPSetType(asm_ksps(i), KSPRICHARDSON, ierr); call CHKERR(ierr)
+            call KSPRichardsonSetSelfScale(asm_ksps(i), PETSC_TRUE, ierr); call CHKERR(ierr)
+            call KSPSetNormType(asm_ksps(i), KSP_NORM_PRECONDITIONED, ierr); call CHKERR(ierr)
+            call KSPSetTolerances(asm_ksps(i), &
+              & PETSC_DEFAULT_REAL, PETSC_DEFAULT_REAL, PETSC_DEFAULT_REAL, &
+              & asm_iter, ierr); call CHKERR(ierr)
+            call KSPGetPC(asm_ksps(i), subpc, ierr); call CHKERR(ierr)
+            call PCSetType(subpc, PCSOR, ierr); call CHKERR(ierr)
+            call KSPSetFromOptions(asm_ksps(i), ierr); call CHKERR(ierr)
+          enddo
+        endif
       end block default_preconditioner_settings
     endif
 
@@ -5550,8 +5723,8 @@ module m_pprts
 
     if(myid.eq.0) then
       call petscVecToF90(lvec_on_zero, C%da, outp, only_on_rank0=.True.)
-      call VecDestroy(lvec_on_zero, ierr); call CHKERR(ierr)
     endif
+    call VecDestroy(lvec_on_zero, ierr); call CHKERR(ierr)
   end subroutine
 
   subroutine gather_all_to_all(C, inp, outp)
