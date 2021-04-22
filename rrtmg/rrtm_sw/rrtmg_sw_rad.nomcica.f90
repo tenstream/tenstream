@@ -194,7 +194,7 @@
                                                       !    1: Random
                                                       !    2: Maximum/random
                                                       !    3: Maximum
-      integer(kind=im), intent(inout) :: iaer         ! Aerosol option flag
+      integer(kind=im), intent(in) :: iaer            ! Aerosol option flag
                                                       !    0: No aerosol
                                                       !    6: ECMWF method
                                                       !    10:Input aerosol optical 
@@ -494,7 +494,7 @@
 !           input aerosol optical depth at 0.55 microns for each aerosol type (ecaer)
 ! iaer = 10, input total aerosol optical depth, single scattering albedo 
 !            and asymmetry parameter (tauaer, ssaaer, asmaer) directly
-      if (iaer.ne.0.and.iaer.ne.6.and.iaer.ne.10) iaer = 0
+!      if (iaer.ne.0.and.iaer.ne.6.and.iaer.ne.10) iaer = 0
 
 ! Set idelm to select between delta-M scaled or unscaled output direct and diffuse fluxes
 ! NOTE: total downward fluxes are always delta scaled
