@@ -210,6 +210,7 @@ contains
         call set_global_attribute(nc_path(1), 'phi0', phi0, ierr); call CHKERR(ierr)
         call set_global_attribute(nc_path(1), 'theta0', theta0, ierr); call CHKERR(ierr)
         call set_global_attribute(nc_path(1), 'Ag_solar', albedo_sol, ierr); call CHKERR(ierr)
+        call set_global_attribute(nc_path(1), 'Ag_thermal', albedo_th, ierr); call CHKERR(ierr)
       endif
     end associate
 
