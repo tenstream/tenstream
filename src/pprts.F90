@@ -3818,6 +3818,7 @@ module m_pprts
     integer(iintegers) :: i,j,k
     integer(mpiint) :: ierr
     logical :: lgeometric_correction, lflg
+    real(ireals), allocatable :: vertices(:)
 
     if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'setup_direct_matrix ...'
 
@@ -3829,6 +3830,9 @@ module m_pprts
     lgeometric_correction = .False.
     call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
         & "-pprts_geometric_coeffs", lgeometric_correction, lflg, ierr) ;call CHKERR(ierr)
+
+
+    call setup_default_unit_cube_geometry(solver%atm%dx, solver%atm%dy, -one, vertices)
 
     do j=C%ys,C%ye
       do i=C%xs,C%xe
@@ -3867,8 +3871,6 @@ module m_pprts
       integer(iintegers),intent(in) :: i,j,k
 
       MatStencil         :: row(4,C%dof), col(4,C%dof)
-      real(ireals), allocatable :: vertices(:)
-      real(ireals) :: vertices_mirrored(24)
       real(irealLUT)     :: v(C%dof**2), norm, v_tmp(C%dof**2)
       integer(iintegers) :: dst,src, xinc, yinc, isrc, idst
 
@@ -3923,9 +3925,6 @@ module m_pprts
        col(MatStencil_c,src) = src-i1 ! Define transmission towards the front/back lid
      enddo
 
-     call setup_default_unit_cube_geometry(solver%atm%dx, solver%atm%dy, &
-       & solver%atm%dz(atmk(solver%atm,k),i,1), vertices)
-
      vertices( 3) = xhhl(i0,atmk(solver%atm,k+1),i,j)      ! a
      vertices( 6) = xhhl(i0,atmk(solver%atm,k+1),i+1,j)    ! b
      vertices( 9) = xhhl(i0,atmk(solver%atm,k+1),i,j+1)    ! c
@@ -3947,36 +3946,33 @@ module m_pprts
        !make bottom and top of box parallel !!! USE MEAN DZ MAYBE?
        vertices([15,18,21,24]) = vertices([3,6,9,12]) + solver%atm%dz(atmk(solver%atm, k), i, j)
 
-       vertices_mirrored(1:24:3) = -vertices(1:24:3)
-       vertices_mirrored(2:24:3) = -vertices(2:24:3)
-       vertices_mirrored(3:24:3) = vertices(3:24:3)
-
-       !call get_coeff(solver, &
-       !  solver%atm%kabs(atmk(solver%atm,k),i,j), &
-       !  solver%atm%ksca(atmk(solver%atm,k),i,j), &
-       !  solver%atm%g(atmk(solver%atm,k),i,j), &
-       !  solver%atm%dz(atmk(solver%atm,k),i,j), .True., v_tmp, &
-       !  solver%atm%l1d(atmk(solver%atm,k),i,j), &
-       !  [real(sun%symmetry_phi, irealLUT), real(sun%theta, irealLUT)], &
-       !  lswitch_east=xinc.eq.0, lswitch_north=yinc.eq.0, &
-       !  opt_vertices=vertices)
+       call get_coeff(solver, &
+         solver%atm%kabs(atmk(solver%atm,k),i,j), &
+         solver%atm%ksca(atmk(solver%atm,k),i,j), &
+         solver%atm%g(atmk(solver%atm,k),i,j), &
+         solver%atm%dz(atmk(solver%atm,k),i,j), .True., v_tmp, &
+         solver%atm%l1d(atmk(solver%atm,k),i,j), &
+         [real(sun%symmetry_phi, irealLUT), real(sun%theta, irealLUT)], &
+         lswitch_east=xinc.eq.0, lswitch_north=yinc.eq.0, &
+         opt_vertices=vertices)
        !endif
-
 
        call dir2dir3_geometric_coeffs( &
          vertices, &
-         sun%sundir * [one, one, one], &
-         solver%atm%kabs(atmk(solver%atm, k), i, j) + solver%atm%ksca(atmk(solver%atm, k), i, j), &
+         sun%sundir, &
+         [ solver%atm%kabs(atmk(solver%atm, k), i, j), &
+           solver%atm%ksca(atmk(solver%atm, k), i, j), &
+           solver%atm%g(atmk(solver%atm, k), i, j)], &
          v)
-       !  print *, 'v gomtrc', v
-       !  print *, 'v get_coeff', v_tmp
+         print *, 'v gomtrc'
+         print *, v
+         print *, 'v get_coeff'
+         print *, v_tmp
      !else
        !if (ldebug) then
-       !if (any(abs(v_tmp - v) .ge. 0.1_irealLUT)) then
-       !  print *, 'ijk', i, j, k
-       !  print *, 'extinction_coeff', solver%atm%kabs(atmk(solver%atm, k), i, j) + solver%atm%ksca(atmk(solver%atm, k), i, j)
-       !  call CHKERR(1_mpiint, 'debug')
-       !endif
+       if (any(abs(v_tmp - v) .ge. 0.1_irealLUT)) then
+         call CHKERR(1_mpiint, 'debug')
+       endif
        !endif
      else
        vertices(3:24:3)  = vertices(3:24:3) - minval(vertices(3:24:3))

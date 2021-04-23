@@ -98,7 +98,7 @@ def create_srtm_input():
     hill = hill[:, :, ::-1]  # hhl now begins at TOA
     p_hill = pressure_by_height(hill)
 
-    kmax = np.argmax(p_hill > 100) # drop everything above 100hPa
+    kmax = np.argmax(p_hill > 500) # drop everything above 100hPa
     lev_coord = p_hill[:,:,kmax:]
 
     create_var('plev', interp_var(p, afglus[:, 1], lev_coord), 'lev')

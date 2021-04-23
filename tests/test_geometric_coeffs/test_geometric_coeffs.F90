@@ -73,7 +73,7 @@ contains
     real(ireals) :: sundir(3)
     integer(iintegers) :: itheta, iphi
 
-    bg = [real(ireal_dp) ::  -log(5e-1)/dz, 0e-0/dz, 1./2 ]
+    bg = [real(ireal_dp) :: - log(5e-1)/dz, 0e-0/dz, 1./2 ]
     S_target = zero
     iphi=30
     itheta=5
@@ -114,7 +114,7 @@ contains
         print *, 'src x', v(2:9:3)
         print *, 'src y', v(3:9:3)
 
-        call dir2dir3_geometric_coeffs(verts_dtd, sundir * [-one, -one, one], real(bg(1) + bg(2), ireals), v)
+        call dir2dir3_geometric_coeffs(verts_dtd, sundir * [-one, -one, one], bg, v)
 
         print *, cstr('regular corrected', 'blue')
         print *, 'src z', v(1:9:3)
@@ -249,8 +249,8 @@ contains
       endif
 
 
-      call dir2dir3_geometric_coeffs(verts_dtd, sundir, real(bg(1) + bg(2), ireals), v)
-      call dir2dir3_geometric_coeffs(verts_dtd_symmetry, sundir_symmetry, real(bg(1) + bg(2), ireals), v_symmetry)
+      call dir2dir3_geometric_coeffs(verts_dtd, sundir, bg, v)
+      call dir2dir3_geometric_coeffs(verts_dtd_symmetry, sundir_symmetry, bg, v_symmetry)
 
       if (ldebug) then
         print *, cstr('dtd', 'blue')
@@ -290,7 +290,136 @@ contains
 
   end subroutine
 
-  !@test(npes =[1])
+  @test(npes = [1])
+  subroutine test_geometric_coeffs_regular_box_sundir_up_down(this)
+    class(MpiTestMethod), intent(inout) :: this
+    real(ireals), allocatable :: verts(:)
+    real(irealLUT) :: v(9), v_ref(9), v_mc(9)
+    real(ireals) :: sundir(3), verts_dtd(24)
+    real(ireals), parameter :: dx=1, dy=dx, dz=dx
+    integer(iintegers) :: src
+
+    call setup_default_unit_cube_geometry(dx, dy, dz, verts)
+
+    bg = [real(ireal_dp) :: 1e-15, 0, 0.85]
+
+    verts_dtd = verts
+    verts_dtd([3,6,15,18]) = verts_dtd([3,6,15,18]) + dz
+
+    if (ldebug) then
+      print *, cstr('verts', 'red')
+      print *, 'a', verts_dtd( 1: 3)
+      print *, 'b', verts_dtd( 4: 6)
+      print *, 'c', verts_dtd( 7: 9)
+      print *, 'd', verts_dtd(10:12)
+      print *, 'e', verts_dtd(13:15)
+      print *, 'f', verts_dtd(16:18)
+      print *, 'g', verts_dtd(19:21)
+      print *, 'h', verts_dtd(22:24)
+    endif
+
+    if (ldebug) print *, cstr('CASE 1', 'red')
+
+    phi = 180
+    theta = 90
+
+    sundir = spherical_2_cartesian(phi, theta) * [-one, -one, one]
+
+    if (ldebug) then
+      print *, cstr('sundir', 'yellow')
+      print *, sundir
+    endif
+
+    call dir2dir3_geometric_coeffs(verts_dtd, sundir, bg, v)
+    v_ref = [real(irealLUT) :: 0, 0.5, 1, 0, 0, 0, 1, 0.5, 0]
+
+    if (ldebug) then
+      print *, cstr('v_gomtrc', 'blue')
+      !print *, v
+      print *, 'src z', v(1:9:3)
+      print *, 'src x', v(2:9:3)
+      print *, 'src y', v(3:9:3)
+      print *, cstr('v_ref', 'green')
+      !print *, v_ref
+      print *, 'src z', v_ref(1:9:3)
+      print *, 'src x', v_ref(2:9:3)
+      print *, 'src y', v_ref(3:9:3)
+    endif
+
+    @assertEqual(v_ref, v, max(maxval(v_ref)*0.05_irealLUT, 1e-6_irealLUT), 'failed for case 1'//'; phi='//toStr(phi)//'; theta='//toStr(theta))
+
+    if (ldebug) print *, cstr('CASE 2', 'red')
+
+    phi = 0
+    theta = 90
+
+    sundir = spherical_2_cartesian(phi, theta) * [-one, -one, one]
+
+    if (ldebug) then
+      print *, cstr('sundir', 'yellow')
+      print *, sundir
+    endif
+
+    call dir2dir3_geometric_coeffs(verts_dtd, sundir, bg, v)
+    v_ref = [real(irealLUT) :: 0, 0, 0, 0, 0.5, 0, 1, 0.5, 1]
+
+    if (ldebug) then
+      print *, cstr('v_gomtrc', 'blue')
+      !print *, v
+      print *, 'src z', v(1:9:3)
+      print *, 'src x', v(2:9:3)
+      print *, 'src y', v(3:9:3)
+      print *, cstr('v_ref', 'green')
+      !print *, v_ref
+      print *, 'src z', v_ref(1:9:3)
+      print *, 'src x', v_ref(2:9:3)
+      print *, 'src y', v_ref(3:9:3)
+    endif
+
+    @assertEqual(v_ref, v, max(maxval(v_ref)*0.05_irealLUT, 1e-6_irealLUT), 'failed for case 2'//'; phi='//toStr(phi)//'; theta='//toStr(theta))
+
+    ! CASE 3
+
+    phi = 45
+    theta = 90
+
+    sundir = spherical_2_cartesian(phi, theta) * [-one, -one, one]
+
+    if (ldebug) then
+      print *, cstr('sundir', 'yellow')
+      print *, sundir
+    endif
+
+    !do src = 1,3
+    !  call bmc_3_10%get_coeff(comm,bg,src,.True.,phi,theta,real(verts_dtd, ireal_dp),S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+    !  v_mc(src:9:3) = real(T, irealLUT)
+    !enddo
+
+    call dir2dir3_geometric_coeffs(verts_dtd, sundir, bg, v)
+    v_ref = [real(irealLUT) :: 0.5, 0, 0, 0, 0.5, 0.5, 0.5, 0.5, 0.5]
+
+    if (ldebug) then
+    !  print *, cstr('v_mc', 'yellow')
+    !  print *, 'src z', v_mc(1:9:3)
+    !  print *, 'src x', v_mc(2:9:3)
+    !  print *, 'src y', v_mc(3:9:3)
+      print *, cstr('v_gomtrc', 'blue')
+      !print *, v
+      print *, 'src z', v(1:9:3)
+      print *, 'src x', v(2:9:3)
+      print *, 'src y', v(3:9:3)
+      print *, cstr('v_ref', 'green')
+      !print *, v_ref
+      print *, 'src z', v_ref(1:9:3)
+      print *, 'src x', v_ref(2:9:3)
+      print *, 'src y', v_ref(3:9:3)
+    endif
+
+    @assertEqual(v_ref, v, max(maxval(v_ref)*0.05_irealLUT, 1e-6_irealLUT), 'failed for case 1'//'; phi='//toStr(phi)//'; theta='//toStr(theta))
+
+  end subroutine
+
+  !@test(npes = [1])
   subroutine test_geometric_coeffs_distorted_box_no_abso(this)
     class (MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: src, i
@@ -364,7 +493,7 @@ contains
 
       verts_dtd(15:24:3) = verts_dtd(3:12:3) + dz
 
-      call dir2dir3_geometric_coeffs(verts_dtd, sundir, real(bg(1) + bg(2), ireals), v)
+      call dir2dir3_geometric_coeffs(verts_dtd, sundir, bg, v)
 
       !print *, cstr('regular corrected', 'blue')
       !print *, v
@@ -486,7 +615,7 @@ contains
 
       verts_dtd(15:24:3) = verts_dtd(3:12:3) + dz
 
-      call dir2dir3_geometric_coeffs(verts_dtd, sundir, real(bg(1) + bg(2), ireals), v)
+      call dir2dir3_geometric_coeffs(verts_dtd, sundir, bg, v)
 
       print *, cstr('regular corrected', 'blue')
       print *, v
@@ -534,7 +663,7 @@ contains
 
     sundir = spherical_2_cartesian(phi, theta)
 
-    call dir2dir3_geometric_coeffs(verts_dtd, sundir, real(bg(1) + bg(2), ireals), v)
+    call dir2dir3_geometric_coeffs(verts_dtd, sundir, bg, v)
 
     print *, cstr('regular corrected', 'blue')
     print *, 'src z', v(1:9:3)
