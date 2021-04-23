@@ -349,26 +349,14 @@ contains
       real(ireals), intent(in), dimension(3) :: v, plr, f, ptb
       real(ireals), intent(in) :: extinction_coeff, s, l, h
 
-      if (extinction_coeff < epsilon(extinction_coeff)) then
-        area3i = &
-        quadrangle_area_by_vertices(v, plr, f, ptb) + &
+      area3i = &
+        quadrangle_area_by_vertices(v, plr, f, ptb) * f_dst(s, extinction_coeff) + &
         num_dst( &
-          s, &
-          l, &
-          h,   &
-          extinction_coeff &
-          )
-      else
-        area3i = &
-          quadrangle_area_by_vertices(v, plr, f, ptb) * &
-          (one - exp( - extinction_coeff * s)) / max(tiny(area3i), (extinction_coeff * s)) + &
-          num_dst( &
-          s, &
-          l, &
-          h,   &
-          extinction_coeff &
-          )
-      endif
+        s, &
+        l, &
+        h,   &
+        extinction_coeff &
+        )
     end function
 
     real(ireals) function num_dst(s0, l0, h0, extinction_coeff)
@@ -412,14 +400,8 @@ contains
         l = (i - 0.5_ireals) * dl
         !             max not necessary here
         h = l * max(abs(h0t - h0b), zero) / max(l0_tiny, l0)
-        num = num + dl * f(h, extinction_coeff, max(sin_theta, tiny(sin_theta)))
+        num = num + dl * h * f_dst(h / sin_theta, extinction_coeff)
       enddo
-    end function
-
-    real(ireals) function f(z, extinction_coeff, sin_theta)
-      real(ireals), intent(in) :: z, extinction_coeff, sin_theta
-
-      f = z * (one - exp(-extinction_coeff * z / sin_theta)) / max(tiny(f), (extinction_coeff * z / sin_theta))
     end function
 
     real(ireals) function compute_quadrangle_areas( &

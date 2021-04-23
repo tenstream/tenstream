@@ -62,81 +62,6 @@ contains
     if(myid.eq.0) print *,'Finishing boxmc tests module'
   end subroutine teardown
 
-
-  !@test(npes =[1])
-  subroutine test_boxmc_dir2dir3_geometric_coeffs_vs_online_monte_carlo(this)
-    class (MpiTestMethod), intent(inout) :: this
-    integer(iintegers) :: src
-    real(ireals), allocatable :: verts(:), verts_dtd(:)
-    real( ireals), parameter :: dx=1, dy= dx, dz=1 * dx
-    real(irealLUT) :: v(9), v_mc(9)
-    real(ireals) :: sundir(3)
-    integer(iintegers) :: itheta, iphi
-
-    bg = [real(ireal_dp) :: - log(5e-1)/dz, 0e-0/dz, 1./2 ]
-    S_target = zero
-    iphi=30
-    itheta=5
-
-    ! 1. Test: Einzelbox
-    ! ein Winkel: Wahrheit -> trgt(9)
-    ! geometric coeffs -> assertequal
-    ! weitere Winkel
-
-    ! 2. Test: Symmetrie
-    ! 2 Boxen unterschiedlich verschoben (in x/y geschert)
-    ! Winkel drehen -> selbe Werte
-    ! Spiegeln -> selbe Werte
-
-    ! 3. Test: Analytische Werte in Schleife rechtwinklige Box
-    ! schräg einstrahlen (45°) -> x = y
-
-    ! 4. Test: Gaußhügel starten -> abkack Werte -> Special Case
-
-    do iphi=180,360,30
-      do itheta=10,50,20
-        phi = real(iphi, ireals)
-        theta = real(itheta, ireals)
-
-        call setup_default_unit_cube_geometry(dx, dy, dz, verts)
-        verts_dtd = verts
-        verts_dtd([9,12,21,24]) = verts_dtd([9,12,21,24]) + dz / 4
-
-        do src = 1,3
-          call bmc_3_10%get_coeff(comm,bg,src,.True.,phi,theta,real(verts, ireal_dp),S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-          v(src:3**2:3) = real(T, irealLUT)
-        enddo
-
-        sundir = spherical_2_cartesian(real(phi, ireals), real(theta, ireals))
-
-        print *, cstr('regular not corrected', 'red')
-        print *, 'src z', v(1:9:3)
-        print *, 'src x', v(2:9:3)
-        print *, 'src y', v(3:9:3)
-
-        call dir2dir3_geometric_coeffs(verts_dtd, sundir * [-one, -one, one], bg, v)
-
-        print *, cstr('regular corrected', 'blue')
-        print *, 'src z', v(1:9:3)
-        print *, 'src x', v(2:9:3)
-        print *, 'src y', v(3:9:3)
-
-        do src = 1,3
-          call bmc_3_10%get_coeff(comm,bg,src,.True.,phi,theta,real(verts_dtd, ireal_dp),S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-          v_mc(src:3**2:3) = real(T, irealLUT)
-        enddo
-
-        print *, cstr('montecarlo distorted', 'green')
-        print *, 'src z', v_mc(1:9:3)
-        print *, 'src x', v_mc(2:9:3)
-        print *, 'src y', v_mc(3:9:3)
-
-        @assertEqual(v_mc, v, max(maxval(v_mc)*0.05_irealLUT, 1e-6_irealLUT), 'failed for phi='//toStr(phi)//'; theta='//toStr(theta))
-      enddo
-    enddo
-
-  end subroutine
-
   @test(npes =[1])
   subroutine test_geometric_coeffs_distorted_box_no_scatter(this)
     class (MpiTestMethod), intent(inout) :: this
@@ -146,7 +71,6 @@ contains
     real(ireals) :: sundir(3), sundir_symmetry(3), verts_dtd(24), verts_dtd_symmetry(24)
     real(ireals), parameter :: dx=1, dy=dx, dz=dx
 
-    !bg = [real(ireal_dp) :: 1e-6, 1, 0.85]
     bg = [real(ireal_dp) :: 1e-6, 0, 0.85]
 
     call setup_default_unit_cube_geometry(dx, dy, dz, verts)
@@ -156,11 +80,13 @@ contains
     phi = 225._ireals
     theta = 40._ireals
 
-
     sundir = spherical_2_cartesian(phi, theta) * [-one, -one, one]
     sundir_symmetry = spherical_2_cartesian(phi - 180, theta) * [-one, -one, one]
-    print *, 'sundir', sundir
-    print *, 'sundir_symmetry', sundir_symmetry
+
+    if (ldebug) then
+      print *, 'sundir', sundir
+      print *, 'sundir_symmetry', sundir_symmetry
+    endif
 
     v_mc_225_40(1,:) = [ real(irealLUT) :: &
       0.579161942, 0.880491078, 0.880592525, 0.210434467, 0.00000000, 0.119407229, 0.210403204, 0.119508661, 0.00000000 &
@@ -535,7 +461,7 @@ contains
       print *, 'src x', s_mc_dst(2:30:3) / s_mc_reg(2:30:3)
       print *, 'src y', s_mc_dst(3:30:3) / s_mc_reg(3:30:3)
 
-      !@assertEqual(v_mc, v, max(maxval(v_mc)*0.05_irealLUT, 1e-6_irealLUT), 'failed for phi='//toStr(phi)//'; theta='//toStr(theta))
+      !@assertEqual(v_ref, v, max(maxval(v_mc)*0.05_irealLUT, 1e-6_irealLUT), 'failed for phi='//toStr(phi)//'; theta='//toStr(theta))
     enddo
 
   end subroutine
