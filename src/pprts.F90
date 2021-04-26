@@ -89,6 +89,7 @@ module m_pprts
     & t_atmosphere, &
     & t_coord, &
     & t_dof, &
+    & t_mat_permute_info, &
     & t_pprts_shell_ctx, &
     & t_solver_1_2, &
     & t_solver_3_10, &
@@ -2463,7 +2464,7 @@ module m_pprts
     type(t_state_container), intent(inout) :: solution
     type(t_pprts_buildings), optional, intent(in) :: opt_buildings
 
-    logical :: lflg, lskip_diffuse_solve, lshell_pprts
+    logical :: lflg, lskip_diffuse_solve, lshell_pprts, lexplicit_dir
     real(ireals) :: b_norm, rtol, atol
     integer(mpiint) :: ierr
 
@@ -2475,53 +2476,14 @@ module m_pprts
     call scale_flx(solver, solution, lWm2=.False. )
 
     ! ---------------------------- Edir  -------------------
-    if( solution%lsolar_rad ) then
-      call PetscLogEventBegin(solver%logs%compute_Edir, ierr)
-
-      call setup_incSolar(solver, solver%incSolar, edirTOA)
-
-      if(lshell_pprts) then
-        call setup_matshell(solver, solver%C_dir, solver%Mdir, op_mat_mult_edir)
-      else
-        call init_Matrix(solver, solver%C_dir, solver%Mdir, setup_direct_preallocation)
-        call PetscLogEventBegin(solver%logs%setup_Mdir, ierr)
-        call set_dir_coeff(solver, solver%sun, solver%Mdir, solver%C_dir, opt_buildings)
-        call PetscLogEventEnd(solver%logs%setup_Mdir, ierr)
-        if(ldebug) call mat_info(solver%comm, solver%Mdir)
-
-        ! prepare mat permutation
-        call PetscLogEventBegin(solver%logs%permute_mat_gen, ierr)
-        call gen_mat_permutation( &
-          & A=solver%Mdir, &
-          & C=solver%C_dir, &
-          & rev_x=solver%sun%xinc.eq.0, & ! reverse if sun is east
-          & rev_y=solver%sun%yinc.eq.0, & ! reverse if sun is north, &
-          & rev_z=.False., &
-          & zlast=.True., &
-          & switch_xy=abs(solver%sun%sundir(2)).gt.abs(solver%sun%sundir(1)), &
-          & is_permute=solver%is_perm_dir )
-        call PetscLogEventEnd(solver%logs%permute_mat_gen, ierr)
-      endif
-
-      call PetscLogEventBegin(solver%logs%solve_Mdir, ierr)
-      call setup_ksp(solver, solver%ksp_solar_dir, solver%C_dir, solver%Mdir, "solar_dir_")
-      call solve(solver, &
-        solver%ksp_solar_dir, &
-        solver%incSolar, &
-        solution%edir, &
-        solution%Niter_dir, &
-        solution%dir_ksp_residual_history, &
-        is_permute=solver%is_perm_dir)
-
-      call PetscLogEventEnd(solver%logs%solve_Mdir, ierr)
-
-      solution%lchanged=.True.
-      solution%lWm2_dir=.False.
-      call PetscObjectSetName(solution%edir,'debug_edir',ierr) ; call CHKERR(ierr)
-      call PetscObjectViewFromOptions(solution%edir, PETSC_NULL_VEC, "-show_debug_edir", ierr); call CHKERR(ierr)
-      call PetscLogEventEnd(solver%logs%compute_Edir, ierr)
+    lexplicit_dir=.False.
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+      "-pprts_explicit_dir", lexplicit_dir, lflg , ierr) ;call CHKERR(ierr)
+    if(lexplicit_dir) then
+      call explicit_edir()
+    else
+      call edir()
     endif
-
 
     ! ---------------------------- Source Term -------------
     call PetscLogEventBegin(solver%logs%compute_Ediff, ierr); call CHKERR(ierr)
@@ -2532,6 +2494,9 @@ module m_pprts
     else
       call determine_ksp_tolerances(solver%C_diff, solver%atm%l1d, rtol, atol, solver%ksp_thermal_diff)
     endif
+
+
+    ! ---------------------------- Ediff -------------------
     call VecNorm(solver%b, NORM_1, b_norm, ierr); call CHKERR(ierr)
     lskip_diffuse_solve = b_norm.lt.atol
     call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
@@ -2544,111 +2509,242 @@ module m_pprts
       solution%Niter_diff = i0
       solution%diff_ksp_residual_history = atol
     else
-      ! ---------------------------- Ediff -------------------
-      if(lshell_pprts) then
-        call setup_matshell(solver, solver%C_diff, solver%Mdiff, op_mat_mult_ediff)
-      else
-        call init_Matrix(solver, solver%C_diff, solver%Mdiff, setup_diffuse_preallocation)
 
-        call PetscLogEventBegin(solver%logs%setup_Mdiff, ierr)
-        call set_diff_coeff(solver, solver%Mdiff, solver%C_diff, opt_buildings)
-        call PetscLogEventEnd(solver%logs%setup_Mdiff, ierr)
-        if(ldebug) call mat_info(solver%comm, solver%Mdiff)
-
-        ! prepare mat permutation (does not give a benefit for diffuse rad)
-        !call PetscLogEventBegin(solver%logs%permute_mat_gen, ierr)
-        !call gen_mat_permutation( &
-        !  & A=solver%Mdiff, &
-        !  & C=solver%C_diff, &
-        !  & rev_x=.False., &
-        !  & rev_y=.False., &
-        !  & rev_z=.False., &
-        !  & zlast=.True., &
-        !  & switch_xy=.False., &
-        !  & is_permute=solver%is_perm_diff )
-        !call PetscLogEventEnd(solver%logs%permute_mat_gen, ierr)
-      endif
-
-      call PetscLogEventBegin(solver%logs%solve_Mdiff, ierr)
       if( solution%lsolar_rad ) then
-        call setup_ksp(solver, solver%ksp_solar_diff, solver%C_diff, solver%Mdiff, "solar_diff_")
-        call solve(solver, &
-          solver%ksp_solar_diff, &
-          solver%b, &
-          solution%ediff, &
-          solution%Niter_diff, &
-          solution%diff_ksp_residual_history, &
-          is_permute=solver%is_perm_diff)
+        call ediff(solver%Mdiff, solver%Mdiff_perm, solver%ksp_solar_diff, "solar_diff_")
       else
-        call setup_ksp(solver, solver%ksp_thermal_diff, solver%C_diff, solver%Mdiff, "thermal_diff_")
-        call solve(solver, &
-          solver%ksp_thermal_diff, &
-          solver%b, &
-          solution%ediff, &
-          solution%Niter_diff, &
-          solution%diff_ksp_residual_history, &
-          is_permute=solver%is_perm_diff)
+        call ediff(solver%Mth, solver%Mth_perm, solver%ksp_thermal_diff, "thermal_diff_")
       endif
-      call PetscLogEventEnd(solver%logs%solve_Mdiff, ierr)
     endif
 
     solution%lchanged=.True.
     solution%lWm2_diff=.False. !Tenstream solver returns fluxes as [W]
 
     call PetscLogEventEnd(solver%logs%compute_Ediff, ierr)
-  end subroutine
 
-  !> @brief renormalize fluxes with the size of a face(sides or lid)
-  subroutine scale_flx(solver, solution, lWm2)
-    class(t_solver), intent(inout)        :: solver
-    type(t_state_container),intent(inout) :: solution   !< @param solution container with computed fluxes
-    logical,intent(in)                    :: lWm2  !< @param determines direction of scaling, if true, scale to W/m**2
-    integer(mpiint) :: ierr
+    contains
 
-    call PetscLogEventBegin(solver%logs%scale_flx, ierr); call CHKERR(ierr)
-    if(solution%lsolar_rad) then
-      if(.not.allocated(solver%dir_scalevec_Wm2_to_W)) then
-        allocate(solver%dir_scalevec_Wm2_to_W)
-        call VecDuplicate(solution%edir, solver%dir_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
-        call gen_scale_dir_flx_vec(solver, solver%dir_scalevec_Wm2_to_W, solver%C_dir)
-      endif
-      if(.not.allocated(solver%dir_scalevec_W_to_Wm2)) then
-        allocate(solver%dir_scalevec_W_to_Wm2)
-        call VecDuplicate(solver%dir_scalevec_Wm2_to_W, solver%dir_scalevec_W_to_Wm2, ierr); call CHKERR(ierr)
-        call VecSet(solver%dir_scalevec_W_to_Wm2, one, ierr); call CHKERR(ierr)
-        call VecPointwiseDivide( &  ! Computes 1./scalevec_Wm2_to_W
-          solver%dir_scalevec_W_to_Wm2, &
-          solver%dir_scalevec_W_to_Wm2, &
-          solver%dir_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
-      endif
-      if(solution%lWm2_dir .neqv. lWm2) then
-        if(lWm2) then
-          call VecPointwiseMult(solution%edir, solution%edir, solver%dir_scalevec_W_to_Wm2, ierr); call CHKERR(ierr)
-        else
-          call VecPointwiseMult(solution%edir, solution%edir, solver%dir_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
+      subroutine explicit_edir()
+          call setup_incSolar(solver, solver%incSolar, edirTOA)
+
+          call PetscLogEventBegin(solver%logs%compute_Edir, ierr)
+
+          call VecCopy(solver%incSolar, solution%edir, ierr); call CHKERR(ierr)
+      end subroutine
+
+      subroutine edir()
+        logical :: lmat_permute_dir
+        if( solution%lsolar_rad ) then
+
+          call PetscLogEventBegin(solver%logs%compute_Edir, ierr)
+
+          call setup_incSolar(solver, solver%incSolar, edirTOA)
+
+          if(lshell_pprts) then
+            call setup_matshell(solver, solver%C_dir, solver%Mdir, op_mat_mult_edir)
+          else
+            call PetscLogEventBegin(solver%logs%setup_Mdir, ierr)
+            call init_Matrix(solver, solver%C_dir, solver%Mdir, setup_direct_preallocation)
+            call set_dir_coeff(solver, solver%sun, solver%Mdir, solver%C_dir, opt_buildings)
+            call PetscLogEventEnd(solver%logs%setup_Mdir, ierr)
+            if(ldebug) call mat_info(solver%comm, solver%Mdir)
+          endif
+
+          lmat_permute_dir=.True.
+          call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+            "-mat_permute_dir", lmat_permute_dir, lflg ,ierr); call CHKERR(ierr)
+          if(lmat_permute_dir) then ! prepare mat permutation
+            call PetscLogEventBegin(solver%logs%permute_mat_gen_dir, ierr)
+            call gen_mat_permutation( &
+              & A=solver%Mdir, &
+              & C=solver%C_dir, &
+              & rev_x=solver%sun%xinc.eq.0, & ! reverse if sun is east
+              & rev_y=solver%sun%yinc.eq.0, & ! reverse if sun is north, &
+              & rev_z=.False., &
+              & zlast=.True., &
+              & switch_xy=abs(solver%sun%sundir(2)).gt.abs(solver%sun%sundir(1)), &
+              & perm_info=solver%perm_dir)
+            call PetscLogEventEnd(solver%logs%permute_mat_gen_dir, ierr)
+
+            call PetscLogEventBegin(solver%logs%permute_mat_dir, ierr)
+            call VecPermute(solver%incSolar, solver%perm_dir%is, PETSC_FALSE, ierr); call CHKERR(ierr)
+            call VecPermute(solution%edir, solver%perm_dir%is, PETSC_FALSE, ierr); call CHKERR(ierr)
+            if(.not.allocated(solver%Mdir_perm)) then
+              allocate(solver%Mdir_perm)
+              !call MatPermute(solver%Mdir, solver%perm_dir%is, solver%perm_dir%is, solver%Mdir_perm, ierr); call CHKERR(ierr)
+              call MatCreateSubMatrix(solver%Mdir, solver%perm_dir%is, solver%perm_dir%is, &
+                & MAT_INITIAL_MATRIX, solver%Mdir_perm, ierr); call CHKERR(ierr)
+            else
+              ! TODO: we should be able to reuse the mat, but results change, I could not figure out why.
+              ! Instead we destroy the mat and build and initial one every time.
+              ! This hits performance but is still better than not reordering...
+              !call MatCreateSubMatrix(solver%Mdir, solver%perm_dir%is, solver%perm_dir%is, &
+              !  & MAT_REUSE_MATRIX, solver%Mdir_perm, ierr); call CHKERR(ierr)
+              call MatDestroy(solver%Mdir_perm, ierr); call CHKERR(ierr);
+              !call MatPermute(solver%Mdir, solver%perm_dir%is, solver%perm_dir%is, solver%Mdir_perm, ierr); call CHKERR(ierr)
+              call MatCreateSubMatrix(solver%Mdir, solver%perm_dir%is, solver%perm_dir%is, &
+                & MAT_INITIAL_MATRIX, solver%Mdir_perm, ierr); call CHKERR(ierr)
+              call KSPSetOperators(solver%ksp_solar_dir, solver%Mdir_perm, solver%Mdir_perm, ierr); call CHKERR(ierr)
+            endif
+            call PetscLogEventEnd(solver%logs%permute_mat_dir, ierr)
+
+            call setup_ksp(solver, solver%ksp_solar_dir, solver%C_dir, solver%Mdir_perm, prefix="solar_dir_")
+          else
+            call setup_ksp(solver, solver%ksp_solar_dir, solver%C_dir, solver%Mdir, prefix="solar_dir_")
+          endif
+
+          call PetscLogEventBegin(solver%logs%solve_Mdir, ierr)
+          call solve(solver, &
+            solver%ksp_solar_dir, &
+            solver%incSolar, &
+            solution%edir, &
+            solution%Niter_dir, &
+            solution%dir_ksp_residual_history)
+          call PetscLogEventEnd(solver%logs%solve_Mdir, ierr)
+
+          if(lmat_permute_dir) then
+            call PetscLogEventBegin(solver%logs%permute_mat_dir, ierr)
+            call VecPermute(solver%incSolar, solver%perm_dir%is, PETSC_TRUE, ierr); call CHKERR(ierr)
+            call VecPermute(solution%edir, solver%perm_dir%is, PETSC_TRUE, ierr); call CHKERR(ierr)
+            call PetscLogEventEnd(solver%logs%permute_mat_dir, ierr)
+          endif
+
+          solution%lchanged=.True.
+          solution%lWm2_dir=.False.
+          call PetscObjectSetName(solution%edir,'debug_edir',ierr) ; call CHKERR(ierr)
+          call PetscObjectViewFromOptions(solution%edir, PETSC_NULL_VEC, "-show_debug_edir", ierr); call CHKERR(ierr)
+          call PetscLogEventEnd(solver%logs%compute_Edir, ierr)
         endif
-        solution%lWm2_dir = lWm2
+      end subroutine
+
+      subroutine ediff(A, Aperm, ksp, prefix)
+        type(tMat), allocatable, intent(inout) :: A, Aperm
+        type(tKSP), allocatable, intent(inout) :: ksp
+        character(len=*), intent(in) :: prefix
+
+        logical :: lmat_permute_diff
+
+        ! ---------------------------- Ediff -------------------
+        if(lshell_pprts) then
+          call setup_matshell(solver, solver%C_diff, A, op_mat_mult_ediff)
+        else
+          call init_Matrix(solver, solver%C_diff, A, setup_diffuse_preallocation)
+
+          call PetscLogEventBegin(solver%logs%setup_Mdiff, ierr)
+          call set_diff_coeff(solver, A, solver%C_diff, opt_buildings)
+          call PetscLogEventEnd(solver%logs%setup_Mdiff, ierr)
+          if(ldebug) call mat_info(solver%comm, A)
+        endif
+
+        lmat_permute_diff=.True.
+        call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+          "-mat_permute_diff", lmat_permute_diff, lflg ,ierr); call CHKERR(ierr)
+        if(lmat_permute_diff) then ! prepare mat permutation
+          call PetscLogEventBegin(solver%logs%permute_mat_gen_diff, ierr)
+          call gen_mat_permutation( &
+            & A=A, &
+            & C=solver%C_diff, &
+            & rev_x=.False., &
+            & rev_y=.False., &
+            & rev_z=.False., &
+            & zlast=.True., &
+            & switch_xy=.False., &
+            & perm_info=solver%perm_diff )
+          call PetscLogEventEnd(solver%logs%permute_mat_gen_diff, ierr)
+
+          call PetscLogEventBegin(solver%logs%permute_mat_diff, ierr)
+
+          call VecPermute(solver%b, solver%perm_diff%is, PETSC_FALSE, ierr); call CHKERR(ierr)
+          call VecPermute(solution%ediff, solver%perm_diff%is, PETSC_FALSE, ierr); call CHKERR(ierr)
+
+          if(.not.allocated(Aperm)) then
+            allocate(Aperm)
+            call MatCreateSubMatrix(A, solver%perm_diff%is, solver%perm_diff%is, &
+              & MAT_INITIAL_MATRIX, Aperm, ierr); call CHKERR(ierr)
+          else
+            !call MatCreateSubMatrix(A, solver%perm_diff%is, solver%perm_diff%is, &
+            !  & MAT_REUSE_MATRIX, Aperm, ierr); call CHKERR(ierr)
+            call MatDestroy(Aperm, ierr); call CHKERR(ierr);
+            call MatCreateSubMatrix(A, solver%perm_diff%is, solver%perm_diff%is, &
+              & MAT_INITIAL_MATRIX, Aperm, ierr); call CHKERR(ierr)
+            call KSPSetOperators(ksp, Aperm, Aperm, ierr); call CHKERR(ierr)
+          endif
+          call PetscLogEventEnd(solver%logs%permute_mat_diff, ierr)
+
+          call setup_ksp(solver, ksp, solver%C_diff, Aperm, prefix=prefix)
+        else
+          call setup_ksp(solver, ksp, solver%C_diff, A, prefix=prefix)
+        endif
+
+        call PetscLogEventBegin(solver%logs%solve_Mdiff, ierr)
+        call solve(solver, &
+          ksp, &
+          solver%b, &
+          solution%ediff, &
+          solution%Niter_diff, &
+          solution%diff_ksp_residual_history)
+        call PetscLogEventEnd(solver%logs%solve_Mdiff, ierr)
+
+        if(lmat_permute_diff) then
+          call PetscLogEventBegin(solver%logs%permute_mat_diff, ierr)
+          call VecPermute(solution%ediff, solver%perm_diff%is, PETSC_TRUE, ierr); call CHKERR(ierr)
+          call PetscLogEventEnd(solver%logs%permute_mat_diff, ierr)
+        endif
+
+      end subroutine
+    end subroutine
+
+    !> @brief renormalize fluxes with the size of a face(sides or lid)
+    subroutine scale_flx(solver, solution, lWm2)
+    class(t_solver), intent(inout)        :: solver
+      type(t_state_container),intent(inout) :: solution   !< @param solution container with computed fluxes
+      logical,intent(in)                    :: lWm2  !< @param determines direction of scaling, if true, scale to W/m**2
+      integer(mpiint) :: ierr
+
+      call PetscLogEventBegin(solver%logs%scale_flx, ierr); call CHKERR(ierr)
+      if(solution%lsolar_rad) then
+        if(.not.allocated(solver%dir_scalevec_Wm2_to_W)) then
+          allocate(solver%dir_scalevec_Wm2_to_W)
+          call VecDuplicate(solution%edir, solver%dir_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
+          call gen_scale_dir_flx_vec(solver, solver%dir_scalevec_Wm2_to_W, solver%C_dir)
+        endif
+        if(.not.allocated(solver%dir_scalevec_W_to_Wm2)) then
+          allocate(solver%dir_scalevec_W_to_Wm2)
+          call VecDuplicate(solver%dir_scalevec_Wm2_to_W, solver%dir_scalevec_W_to_Wm2, ierr); call CHKERR(ierr)
+          call VecSet(solver%dir_scalevec_W_to_Wm2, one, ierr); call CHKERR(ierr)
+          call VecPointwiseDivide( &  ! Computes 1./scalevec_Wm2_to_W
+            solver%dir_scalevec_W_to_Wm2, &
+            solver%dir_scalevec_W_to_Wm2, &
+            solver%dir_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
+        endif
+        if(solution%lWm2_dir .neqv. lWm2) then
+          if(lWm2) then
+            call VecPointwiseMult(solution%edir, solution%edir, solver%dir_scalevec_W_to_Wm2, ierr); call CHKERR(ierr)
+          else
+            call VecPointwiseMult(solution%edir, solution%edir, solver%dir_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
+          endif
+          solution%lWm2_dir = lWm2
+        endif
       endif
-    endif
 
-    if(.not.allocated(solver%diff_scalevec_Wm2_to_W)) then
-      allocate(solver%diff_scalevec_Wm2_to_W)
-      call VecDuplicate(solution%ediff, solver%diff_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
-      call gen_scale_diff_flx_vec(solver, solver%diff_scalevec_Wm2_to_W, solver%C_diff)
-    endif
-    if(.not.allocated(solver%diff_scalevec_W_to_Wm2)) then
-      allocate(solver%diff_scalevec_W_to_Wm2)
-      call VecDuplicate(solver%diff_scalevec_Wm2_to_W, solver%diff_scalevec_W_to_Wm2, ierr); call CHKERR(ierr)
-      call VecSet(solver%diff_scalevec_W_to_Wm2, one, ierr); call CHKERR(ierr)
-      call VecPointwiseDivide( &  ! Computes 1./scalevec_Wm2_to_W
-        solver%diff_scalevec_W_to_Wm2, &
-        solver%diff_scalevec_W_to_Wm2, &
-        solver%diff_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
-    endif
+      if(.not.allocated(solver%diff_scalevec_Wm2_to_W)) then
+        allocate(solver%diff_scalevec_Wm2_to_W)
+        call VecDuplicate(solution%ediff, solver%diff_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
+        call gen_scale_diff_flx_vec(solver, solver%diff_scalevec_Wm2_to_W, solver%C_diff)
+      endif
+      if(.not.allocated(solver%diff_scalevec_W_to_Wm2)) then
+        allocate(solver%diff_scalevec_W_to_Wm2)
+        call VecDuplicate(solver%diff_scalevec_Wm2_to_W, solver%diff_scalevec_W_to_Wm2, ierr); call CHKERR(ierr)
+        call VecSet(solver%diff_scalevec_W_to_Wm2, one, ierr); call CHKERR(ierr)
+        call VecPointwiseDivide( &  ! Computes 1./scalevec_Wm2_to_W
+          solver%diff_scalevec_W_to_Wm2, &
+          solver%diff_scalevec_W_to_Wm2, &
+          solver%diff_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
+      endif
 
-    if(solution%lWm2_diff .neqv. lWm2) then
-      if(lWm2) then
-        call VecPointwiseMult(solution%ediff, solution%ediff, solver%diff_scalevec_W_to_Wm2, ierr); call CHKERR(ierr)
+      if(solution%lWm2_diff .neqv. lWm2) then
+        if(lWm2) then
+          call VecPointwiseMult(solution%ediff, solution%ediff, solver%diff_scalevec_W_to_Wm2, ierr); call CHKERR(ierr)
       else
         call VecPointwiseMult(solution%ediff, solution%ediff, solver%diff_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
       endif
@@ -3353,64 +3449,84 @@ module m_pprts
   end subroutine
 
   !> @brief generate matrix col/row permutations
-  subroutine gen_mat_permutation(A, C, rev_x, rev_y, rev_z, zlast, switch_xy, is_permute)
+  subroutine gen_mat_permutation(A, C, rev_x, rev_y, rev_z, zlast, switch_xy, perm_info)
     type(tMat), intent(in) :: A
     type(t_coord), intent(in) :: C
     logical, intent(in) :: rev_x, rev_y, rev_z, zlast, switch_xy
-    type(tIS), allocatable, intent(inout) :: is_permute
+    type(t_mat_permute_info), allocatable, intent(inout) :: perm_info
 
-    logical :: lrev, lflg, lzlast, lswitch_xy
+    logical :: lflg
     integer(iintegers), dimension(3) :: dd, dx, dy, dz ! start, end, increment for each dimension
 
     integer(iintegers), allocatable :: is_data(:)
     integer(iintegers) :: Astart, Aend, m, k, i, j, d, da_offsets(4)
+    logical :: opt_rev_x, opt_rev_y, opt_rev_z, opt_zlast, opt_switch_xy
 
     integer(mpiint) :: comm, ierr
-
-    if (allocated(is_permute)) return
-    allocate(is_permute)
-
-    call MatGetOwnershipRange(A, Astart, Aend, ierr); call CHKERR(ierr)
-    allocate(is_data(Aend-Astart))
-    call ndarray_offsets([C%dof, C%zm, C%xm, C%ym], da_offsets)
 
     dd = [i0, C%dof-i1, i1]
     dz = [i0, C%zm -i1, i1]
     dx = [i0, C%xm -i1, i1]
     dy = [i0, C%ym -i1, i1]
 
-    lrev = rev_y
+    opt_rev_y = rev_y
     call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
-      "-mat_permute_rev_y" , lrev, lflg , ierr) ;call CHKERR(ierr)
-    if(lrev) dy = [dy(2), dy(1), -dy(3)]
+      "-mat_permute_rev_y" , opt_rev_y, lflg , ierr) ;call CHKERR(ierr)
+    if(opt_rev_y) dy = [dy(2), dy(1), -dy(3)]
 
-    lrev = rev_x
+    opt_rev_x = rev_x
     call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
-      "-mat_permute_rev_x" , lrev, lflg , ierr) ;call CHKERR(ierr)
-    if(lrev) dx = [dx(2), dx(1), -dx(3)]
+      "-mat_permute_rev_x" , opt_rev_x, lflg , ierr) ;call CHKERR(ierr)
+    if(opt_rev_x) dx = [dx(2), dx(1), -dx(3)]
 
-    lrev = rev_z
+    opt_rev_z = rev_z
     call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
-      "-mat_permute_rev_z" , lrev, lflg , ierr) ;call CHKERR(ierr)
-    if(lrev) dz = [dz(2), dz(1), -dz(3)]
+      "-mat_permute_rev_z" , opt_rev_z, lflg , ierr) ;call CHKERR(ierr)
+    if(opt_rev_z) dz = [dz(2), dz(1), -dz(3)]
 
-    lswitch_xy=switch_xy
+    opt_switch_xy=switch_xy
     call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
-      "-mat_permute_ij" , lswitch_xy, lflg , ierr) ;call CHKERR(ierr)
+      "-mat_permute_ij" , opt_switch_xy, lflg , ierr) ;call CHKERR(ierr)
 
-    lzlast=zlast
+    opt_zlast=zlast
     call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
-      "-mat_permute_z" , lzlast, lflg , ierr) ;call CHKERR(ierr)
+      "-mat_permute_z" , opt_zlast, lflg , ierr) ;call CHKERR(ierr)
 
-    m = 0
-    if(lzlast) then
-      if(lswitch_xy) then
+    if (.not.allocated(perm_info)) then
+      allocate(perm_info)
+    else
+      if(all([ &
+        & opt_rev_x    .eqv.perm_info%rev_x,    &
+        & opt_rev_y    .eqv.perm_info%rev_y,    &
+        & opt_rev_z    .eqv.perm_info%rev_z,    &
+        & opt_zlast    .eqv.perm_info%zlast,    &
+        & opt_switch_xy.eqv.perm_info%switch_xy &
+        & ])) then ! up to date
+        return
+      else
+        call ISDestroy(perm_info%is, ierr); call CHKERR(ierr)
+      endif
+    endif
+
+    perm_info%rev_x      = opt_rev_x
+    perm_info%rev_y      = opt_rev_y
+    perm_info%rev_z      = opt_rev_z
+    perm_info%zlast      = opt_zlast
+    perm_info%switch_xy  = opt_switch_xy
+
+    call MatGetOwnershipRange(A, Astart, Aend, ierr); call CHKERR(ierr)
+    call ndarray_offsets([C%dof, C%zm, C%xm, C%ym], da_offsets)
+
+    allocate(is_data(Astart:Aend-1))
+    m = Astart
+    if(perm_info%zlast) then
+      if(perm_info%switch_xy) then
         do k = dz(1), dz(2), dz(3)
           do i = dx(1), dx(2), dx(3)
             do j = dy(1), dy(2), dy(3)
               do d = dd(1), dd(2), dd(3)
-                m = m+1
                 is_data(m) = Astart + ind_nd_to_1d(da_offsets, [d,k,i,j], cstyle=.True.)
+                m = m+1
               enddo
             enddo
           enddo
@@ -3420,21 +3536,21 @@ module m_pprts
           do j = dy(1), dy(2), dy(3)
             do i = dx(1), dx(2), dx(3)
               do d = dd(1), dd(2), dd(3)
-                m = m+1
                 is_data(m) = Astart + ind_nd_to_1d(da_offsets, [d,k,i,j], cstyle=.True.)
+                m = m+1
               enddo
             enddo
           enddo
         enddo
       endif
     else
-      if(lswitch_xy) then
+      if(perm_info%switch_xy) then
         do i = dx(1), dx(2), dx(3)
           do j = dy(1), dy(2), dy(3)
             do k = dz(1), dz(2), dz(3)
               do d = dd(1), dd(2), dd(3)
-                m = m+1
                 is_data(m) = Astart + ind_nd_to_1d(da_offsets, [d,k,i,j], cstyle=.True.)
+                m = m+1
               enddo
             enddo
           enddo
@@ -3444,8 +3560,8 @@ module m_pprts
           do i = dx(1), dx(2), dx(3)
             do k = dz(1), dz(2), dz(3)
               do d = dd(1), dd(2), dd(3)
-                m = m+1
                 is_data(m) = Astart + ind_nd_to_1d(da_offsets, [d,k,i,j], cstyle=.True.)
+                m = m+1
               enddo
             enddo
           enddo
@@ -3454,24 +3570,20 @@ module m_pprts
     endif
 
     call PetscObjectGetComm(A, comm, ierr); call CHKERR(ierr)
-    call ISCreateGeneral(comm, size(is_data, kind=iintegers), is_data, PETSC_COPY_VALUES, is_permute, ierr); call CHKERR(ierr)
+    call ISCreateGeneral(comm, size(is_data, kind=iintegers), is_data, PETSC_COPY_VALUES, perm_info%is, ierr); call CHKERR(ierr)
   end subroutine
 
   !> @brief call PETSc Krylov Subspace Solver
   !> @details solve with ksp and save residual history of solver
   !> \n -- this may be handy later to decide next time if we have to calculate radiation again
   !> \n if we did not get convergence, we try again with standard GMRES and a resetted(zero) initial guess -- if that doesnt help, we got a problem!
-  subroutine solve(solver, ksp, b, x, iter, ksp_residual_history, is_permute)
+  subroutine solve(solver, ksp, b, x, iter, ksp_residual_history)
     class(t_solver) :: solver
     type(tKSP) :: ksp
     type(tVec) :: b
     type(tVec) :: x
     integer(iintegers), intent(out) :: iter
     real(ireals), intent(inout), optional :: ksp_residual_history(:)
-    type(tIS), allocatable, optional :: is_permute
-
-    logical :: lmat_permute
-    type(tMat) :: A, Aperm
 
     KSPConvergedReason :: reason
 
@@ -3496,35 +3608,10 @@ module m_pprts
       return
     endif
 
-    lmat_permute = present(is_permute)
-    if (lmat_permute) lmat_permute = allocated(is_permute)
-    call PetscOptionsHasName(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
-      "-disable_mat_permute" ,lflg ,ierr); call CHKERR(ierr)
-    if(lflg) lmat_permute=.False.
-
-    if (lmat_permute) then
-      call PetscLogEventBegin(solver%logs%permute_mat, ierr)
-      call KSPGetOperators(ksp, A, PETSC_NULL_MAT, ierr); call CHKERR(ierr)
-      call MatPermute(A, is_permute, is_permute, Aperm, ierr); call CHKERR(ierr)
-      call VecPermute(b, is_permute, PETSC_FALSE, ierr); call CHKERR(ierr)
-      call VecPermute(x, is_permute, PETSC_FALSE, ierr); call CHKERR(ierr)
-      call KSPSetOperators(ksp, Aperm, Aperm, ierr); call CHKERR(ierr)
-      call PetscLogEventEnd(solver%logs%permute_mat, ierr)
-    endif
-
     call hegedus_trick(ksp, b, x)
     call KSPSolve(ksp,b,x,ierr); call CHKERR(ierr)
     call KSPGetIterationNumber(ksp,iter,ierr); call CHKERR(ierr)
     call KSPGetConvergedReason(ksp,reason,ierr); call CHKERR(ierr)
-
-    if(lmat_permute) then
-      call PetscLogEventBegin(solver%logs%permute_mat, ierr)
-      call VecPermute(b, is_permute, PETSC_TRUE, ierr); call CHKERR(ierr)
-      call VecPermute(x, is_permute, PETSC_TRUE, ierr); call CHKERR(ierr)
-      call KSPSetOperators(ksp, A, A, ierr); call CHKERR(ierr)
-      call MatDestroy(Aperm, ierr); call CHKERR(ierr)
-      call PetscLogEventEnd(solver%logs%permute_mat, ierr)
-    endif
 
     ! if(reason.eq.KSP_DIVERGED_ITS) then
     !   if(solver%myid.eq.0) print *,'We take our chances, that this is a meaningful output.... and just go on'
@@ -3568,11 +3655,8 @@ module m_pprts
   subroutine setup_ksp(solver, ksp, C, A, prefix)
     class(t_solver) :: solver
     type(tKSP), intent(inout), allocatable :: ksp
-    type(t_coord) :: C
-    type(tMat) :: A
-    type(tPC)  :: prec
-    logical :: linit
-
+    type(t_coord), intent(inout) :: C
+    type(tMat), intent(in) :: A
     character(len=*), intent(in), optional :: prefix
 
     integer(iintegers),parameter  :: maxiter=1000
@@ -3581,18 +3665,17 @@ module m_pprts
 
     real(ireals) :: rtol, atol
 
+    type(tPC)  :: prec
     logical :: prec_is_set
     integer(mpiint) :: ierr
     character(len=default_str_len) :: kspprefix
 
-    linit = allocated(ksp)
-    if(linit) return
+    if(allocated(ksp)) return
 
     call set_dmda_cell_coordinates(solver, solver%atm, C%da, ierr); call CHKERR(ierr)
 
     call mpi_comm_rank(C%comm, myid, ierr)    ; call CHKERR(ierr)
     call mpi_comm_size(C%comm, numnodes, ierr); call CHKERR(ierr)
-
 
     allocate(ksp)
     call KSPCreate(C%comm, ksp, ierr); call CHKERR(ierr)
@@ -3617,8 +3700,9 @@ module m_pprts
           call PCSetType(prec, PCSOR, ierr); call CHKERR(ierr)
           call PCSORSetSymmetric(prec, SOR_LOCAL_FORWARD_SWEEP, ierr); call CHKERR(ierr)
         else
-          call PCSetType(prec, PCASM, ierr); call CHKERR(ierr)
-          call PCASMSetOverlap(prec, i1, ierr); call CHKERR(ierr)
+          call PCSetType(prec, PCSOR, ierr); call CHKERR(ierr)
+          !call PCSetType(prec, PCASM, ierr); call CHKERR(ierr)
+          !call PCASMSetOverlap(prec, i1, ierr); call CHKERR(ierr)
         endif
       endif
     endif
@@ -3629,6 +3713,7 @@ module m_pprts
     call KSPSetConvergenceTest(ksp, MyKSPConverged, 0, PETSC_NULL_FUNCTION, ierr); call CHKERR(ierr)
 
     call KSPSetOperators(ksp, A, A, ierr); call CHKERR(ierr)
+
     call KSPSetDM(ksp, C%da, ierr); call CHKERR(ierr)
     call KSPSetDMActive(ksp, PETSC_FALSE, ierr); call CHKERR(ierr)
 
@@ -3669,7 +3754,6 @@ module m_pprts
       end block default_preconditioner_settings
     endif
 
-    linit = .True.
     if(myid.eq.0.and.ldebug) print *,'Setup KSP done'
   end subroutine
 
@@ -4923,13 +5007,11 @@ module m_pprts
       call set_buildings_coeff(solver, C, opt_buildings, A, ierr); call CHKERR(ierr)
     endif
 
-    if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'setup_diffuse_matrix done'
-
-    if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'Final diffuse Matrix Assembly:'
+    if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'Final diffuse Matrix Assembly'
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr) ;call CHKERR(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr) ;call CHKERR(ierr)
 
-    call PetscObjectViewFromOptions(solver%Mdiff, PETSC_NULL_MAT, "-show_Mdiff", ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(A, PETSC_NULL_MAT, "-show_Mdiff", ierr); call CHKERR(ierr)
   contains
     subroutine set_pprts_coeff(solver,C,A,k,i,j,ierr)
       class(t_solver)               :: solver
