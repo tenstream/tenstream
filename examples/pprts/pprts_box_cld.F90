@@ -1,6 +1,7 @@
 module m_examples_pprts_box_cld
 
-  use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint, zero, pi
+  use m_data_parameters, only : init_mpi_data_parameters, finalize_mpi, &
+    & iintegers, ireals, mpiint, zero, pi
 
   use m_pprts, only : init_pprts, set_optical_properties, solve_pprts, &
     pprts_get_result
@@ -78,5 +79,6 @@ contains
     print *,myid,'Memory:',get_mem_footprint(MPI_COMM_WORLD)
 
     call destroy_pprts(solver, .True.)
+    call finalize_mpi(MPI_COMM_WORLD, .True., .True.)
   end subroutine
 end module
