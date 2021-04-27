@@ -1,9 +1,3 @@
-cmake_minimum_required(VERSION 2.8 FATAL_ERROR)
-
-enable_language(Fortran)
-
-enable_testing()
-
 macro(subdirlist result curdir)
   file(GLOB children RELATIVE ${curdir} ${curdir}/*)
   set(dirlist "")
