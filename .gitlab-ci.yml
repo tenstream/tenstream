@@ -32,7 +32,7 @@ stages:
       - petsc/configure.log
       - test.log
 
-build:docker:ubuntu-latest:
+ubuntu-latest:
   extends: .build:default
   image: ubuntu:latest
   before_script:
@@ -51,7 +51,7 @@ build:docker:ubuntu-latest:
     PETSC_DEBUGGING: 1
     BUILD_TYPE: RELEASE
 
-build:docker:ubuntu-rolling:
+ubuntu-rolling:
   extends: .build:default
   image: ubuntu:rolling
   before_script:
@@ -72,7 +72,28 @@ build:docker:ubuntu-rolling:
     CMAKE_OPTS: '-DCMAKE_Fortran_FLAGS=--std=legacy'
 
 
-build:docker:intel:
+debian-testing:
+  extends: .build:default
+  image: debian-testing
+  before_script:
+    - DEBIAN_FRONTEND=noninteractive apt-get -qq update
+    - DEBIAN_FRONTEND=noninteractive apt-get -qq install -fy build-essential cmake gfortran git python openmpi-bin libopenmpi-dev libopenblas-dev curl pkg-config
+    - *template_build_PETSC
+  tags:
+    - docker.meteo.physik.lmu.de
+  variables:
+    CTEST_ARGS: '-E boxmc|LUT|test_pprts_symmetry|test_rrtm_lw_Bsrfc|test_rrtm_lw_sw|test_plexrt_fish|test_plexrt_rrtmg_lw_sw|test_pprts_absorption_by_coeff_divergence'
+    MPIRUN_FLAGS: "--allow-run-as-root;--oversubscribe"
+    PETSC_DIR: petsc
+    PETSC_ARCH: default
+    PETSC_PRECISION: double
+    PETSC_64_INTEGERS: 1
+    PETSC_DEBUGGING: 1
+    BUILD_TYPE: RELEASE
+    CMAKE_OPTS: '-DCMAKE_Fortran_FLAGS=--std=legacy'
+
+
+intel:
   extends: .build:default
   #image: intel/oneapi-hpckit
   image: intel/oneapi-hpckit:2021.1-devel-ubuntu18.04
@@ -94,7 +115,7 @@ build:docker:intel:
     CXX: mpiicpc
 
 
-build:docker:intel:debug:
+intel:debug:
   extends: .build:default
   #image: intel/oneapi-hpckit
   image: intel/oneapi-hpckit:2021.1-devel-ubuntu18.04
@@ -131,12 +152,12 @@ build:docker:intel:debug:
     CTEST_ARGS: '-E boxmc|LUT'
 
 # GCC
-build:mim:gcc:single:
+mim:gcc:single:
   extends: .build:mim:default
   variables:
     MODULES: "petsc/single-gcc-9"
 
-build:mim:gcc:debug:
+mim:gcc:debug:
   extends: .build:mim:default
   variables:
     MODULES: "petsc/debug-gcc-9"
