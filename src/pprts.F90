@@ -3871,7 +3871,8 @@ module m_pprts
       integer(iintegers),intent(in) :: i,j,k
 
       MatStencil         :: row(4,C%dof), col(4,C%dof)
-      real(irealLUT)     :: v(C%dof**2), norm!, v_tmp(C%dof**2)
+      real(irealLUT)     :: v(C%dof**2), norm, v_tmp(C%dof**2)
+      real(ireals)       :: v_gomtrc(C%dof**2)
       integer(iintegers) :: dst,src, xinc, yinc, isrc, idst
 
       xinc = sun%xinc
@@ -3938,24 +3939,12 @@ module m_pprts
      call PetscLogEventBegin(solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
 
      if (lgeometric_correction) then
-       !if (ldebug) then
        vertices(3:24:3)  = vertices(3:24:3) - minval(vertices(3:24:3))
 
        !not in a plane -> use 3 and construct 4th point
        vertices(12) = vertices(9) +  (vertices(3) - vertices(6))
        !make bottom and top of box parallel !!! USE MEAN DZ MAYBE?
        vertices([15,18,21,24]) = vertices([3,6,9,12]) + solver%atm%dz(atmk(solver%atm, k), i, j)
-
-       !call get_coeff(solver, &
-       !  solver%atm%kabs(atmk(solver%atm,k),i,j), &
-       !  solver%atm%ksca(atmk(solver%atm,k),i,j), &
-       !  solver%atm%g(atmk(solver%atm,k),i,j), &
-       !  solver%atm%dz(atmk(solver%atm,k),i,j), .True., v_tmp, &
-       !  solver%atm%l1d(atmk(solver%atm,k),i,j), &
-       !  [real(sun%symmetry_phi, irealLUT), real(sun%theta, irealLUT)], &
-       !  lswitch_east=xinc.eq.0, lswitch_north=yinc.eq.0, &
-       !  opt_vertices=vertices)
-       !endif
 
        call dir2dir3_geometric_coeffs( &
          vertices, &
@@ -3963,25 +3952,23 @@ module m_pprts
          [ solver%atm%kabs(atmk(solver%atm, k), i, j), &
            solver%atm%ksca(atmk(solver%atm, k), i, j), &
            solver%atm%g(atmk(solver%atm, k), i, j)], &
-         v)
-        ! print *, 'v gomtrc'
-        ! print *, v
-        ! print *, 'v get_coeff'
-        ! print *, v_tmp
-     !else
-       !if (ldebug) then
-       !if (any(abs(v_tmp - v) .ge. 0.1_irealLUT)) then
-       !  call CHKERR(1_mpiint, 'debug')
-       !endif
-       !endif
+           v_gomtrc)
+
+       call MatSetValuesStencil(A, C%dof, row, C%dof, col, -v_gomtrc, INSERT_VALUES, ierr) ;call CHKERR(ierr)
+
+       if (ldebug) then
+         call get_coeff(solver, &
+           solver%atm%kabs(atmk(solver%atm,k),i,j), &
+           solver%atm%ksca(atmk(solver%atm,k),i,j), &
+           solver%atm%g(atmk(solver%atm,k),i,j), &
+           solver%atm%dz(atmk(solver%atm,k),i,j), .True., v_tmp, &
+           solver%atm%l1d(atmk(solver%atm,k),i,j), &
+           [real(sun%symmetry_phi, irealLUT), real(sun%theta, irealLUT)], &
+           lswitch_east=xinc.eq.0, lswitch_north=yinc.eq.0, &
+           opt_vertices=vertices)
+         if (any(abs(v_tmp - v_gomtrc) .ge. 0.1_irealLUT)) call CHKERR(1_mpiint, 'debug')
+       endif
      else
-       vertices(3:24:3)  = vertices(3:24:3) - minval(vertices(3:24:3))
-
-       !not in a plane -> use 3 and construct 4th point
-       vertices(12) = vertices(9) +  (vertices(3) - vertices(6))
-       !make bottom and top of box parallel !!! USE MEAN DZ MAYBE?
-       vertices([15,18,21,24]) = vertices([3,6,9,12]) + solver%atm%dz(atmk(solver%atm, k), i, j)
-
        call get_coeff(solver, &
          solver%atm%kabs(atmk(solver%atm,k),i,j), &
          solver%atm%ksca(atmk(solver%atm,k),i,j), &
@@ -3991,11 +3978,12 @@ module m_pprts
          [real(sun%symmetry_phi, irealLUT), real(sun%theta, irealLUT)], &
          lswitch_east=xinc.eq.0, lswitch_north=yinc.eq.0, &
          opt_vertices=vertices)
+
+       call MatSetValuesStencil(A, C%dof, row, C%dof, col, real(-v, ireals), INSERT_VALUES, ierr) ;call CHKERR(ierr)
      endif
 
      call PetscLogEventEnd(solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
 
-     call MatSetValuesStencil(A, C%dof, row, C%dof, col, real(-v, ireals), INSERT_VALUES, ierr) ;call CHKERR(ierr)
 
      if(ldebug) then
        do src=1,C%dof

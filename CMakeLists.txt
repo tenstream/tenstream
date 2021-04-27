@@ -65,7 +65,6 @@ if(ENABLE_IPO)
   endif()
 endif()
 
-
 set(CMAKE_C_FLAGS               "${USER_C_FLAGS} ${CMAKE_C_FLAGS} " )
 set(CMAKE_Fortran_FLAGS         "${USER_Fortran_FLAGS} ${CMAKE_Fortran_FLAGS} " )
 set(CMAKE_Fortran_FLAGS_RELEASE "${USER_Fortran_FLAGS_RELEASE} ${CMAKE_Fortran_FLAGS_RELEASE} " )
