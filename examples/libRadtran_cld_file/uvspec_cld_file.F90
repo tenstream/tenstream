@@ -267,7 +267,7 @@ contains
       pplev, ptlev, atm, &
       d_lwc=plwc, d_reliq=preliq)
 
-    call print_tenstr_atm(atm)
+    if(myid.eq.0) call print_tenstr_atm(atm)
 
     call pprts_rrtmg(comm, pprts_solver, atm, &
       size(plev,2, kind=iintegers), size(plev,3, kind=iintegers), &
