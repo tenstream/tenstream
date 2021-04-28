@@ -3360,7 +3360,7 @@ module m_pprts
     type(tIS), allocatable, intent(inout) :: is_permute
 
     logical :: lrev, lflg, lzlast, lswitch_xy
-    integer, dimension(3) :: dd, dx, dy, dz ! start, end, increment for each dimension
+    integer(iintegers), dimension(3) :: dd, dx, dy, dz ! start, end, increment for each dimension
 
     integer(iintegers), allocatable :: is_data(:)
     integer(iintegers) :: Astart, Aend, m, k, i, j, d, da_offsets(4)
