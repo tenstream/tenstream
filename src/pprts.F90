@@ -3453,7 +3453,7 @@ module m_pprts
       endif
     endif
 
-    call ISCreateGeneral(PETSC_COMM_SELF, size(is_data), is_data, PETSC_COPY_VALUES, is_permute, ierr); call CHKERR(ierr)
+    call ISCreateGeneral(PETSC_COMM_SELF, size(is_data, kind=iintegers), is_data, PETSC_COPY_VALUES, is_permute, ierr); call CHKERR(ierr)
   end subroutine
 
   !> @brief call PETSc Krylov Subspace Solver
