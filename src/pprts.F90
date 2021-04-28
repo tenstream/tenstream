@@ -2490,17 +2490,17 @@ module m_pprts
         if(ldebug) call mat_info(solver%comm, solver%Mdir)
 
         ! prepare mat permutation
-        call PetscLogEventBegin(solver%logs%permute_mat_gen, ierr)
-        call gen_mat_permutation( &
-          & A=solver%Mdir, &
-          & C=solver%C_dir, &
-          & rev_x=solver%sun%xinc.eq.0, & ! reverse if sun is east
-          & rev_y=solver%sun%yinc.eq.0, & ! reverse if sun is north, &
-          & rev_z=.False., &
-          & zlast=.True., &
-          & switch_xy=abs(solver%sun%sundir(2)).gt.abs(solver%sun%sundir(1)), &
-          & is_permute=solver%is_perm_dir )
-        call PetscLogEventEnd(solver%logs%permute_mat_gen, ierr)
+        !call PetscLogEventBegin(solver%logs%permute_mat_gen, ierr)
+        !call gen_mat_permutation( &
+        !  & A=solver%Mdir, &
+        !  & C=solver%C_dir, &
+        !  & rev_x=solver%sun%xinc.eq.0, & ! reverse if sun is east
+        !  & rev_y=solver%sun%yinc.eq.0, & ! reverse if sun is north, &
+        !  & rev_z=.False., &
+        !  & zlast=.True., &
+        !  & switch_xy=abs(solver%sun%sundir(2)).gt.abs(solver%sun%sundir(1)), &
+        !  & is_permute=solver%is_perm_dir )
+        !call PetscLogEventEnd(solver%logs%permute_mat_gen, ierr)
       endif
 
       call PetscLogEventBegin(solver%logs%solve_Mdir, ierr)
