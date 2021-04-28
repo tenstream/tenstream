@@ -131,7 +131,9 @@ module m_helper_functions
     & volume_hexahedron, &
     & volume_oblique_pyramid, &
     & volume_pentahedron, &
-    & volume_tetrahedron
+    & volume_tetrahedron, &
+    & write_ascii_file_2d
+
 
   interface pentagon_area_by_vertices
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
@@ -1631,6 +1633,35 @@ module m_helper_functions
         ans(3:n:2)=ans(2:n-1:2)*arr(3:n:2)
       end if
     end function
+
+    subroutine write_ascii_file_2d(filename, arr, ierr, verbose)
+      character(len=*),intent(in) :: filename
+
+      real(irealLUT),allocatable,intent(in) :: arr(:,:) ! shape nlines, ncolumns
+      integer(mpiint), intent(out) :: ierr
+
+      logical, intent(in), optional :: verbose
+
+      integer :: funit, i
+      logical :: lverbose, file_exists
+
+      ierr=0
+      inquire(file=filename, exist=file_exists)
+
+      lverbose = get_arg(.False., verbose)
+
+      if(file_exists) then
+        if(lverbose) print *,'File ',trim(filename), 'does already exist!'
+        ierr=1
+        return
+      endif
+
+      open(newunit=funit, file=filename)
+      do i=1,size(arr, 1)
+        write(funit, *) arr(i,:)
+      enddo
+      close(funit)
+    end subroutine
 
     subroutine read_ascii_file_2d(filename, arr, ierr, skiplines, verbose)
       character(len=*),intent(in) :: filename
