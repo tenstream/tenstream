@@ -16,19 +16,33 @@ module m_pprts_base
   implicit none
 
   private
-  public :: t_solver, t_solver_1_2, t_solver_3_6, t_solver_3_10, &
-    t_solver_8_10, t_solver_3_16, t_solver_8_16, t_solver_8_18, &
-    t_pprts_shell_ctx, &
-    t_coord, t_suninfo, &
-    t_state_container, &
-    t_dof, t_solver_log_events, setup_log_events, &
-    t_atmosphere, &
-    compute_gradient, atmk, &
-    prepare_solution, destroy_solution, print_solution, &
-    destroy_pprts, &
-    allocate_pprts_solver_from_commandline, &
-    set_dmda_cell_coordinates, &
-    interpolate_cell_values_to_vertices
+  public :: &
+    & allocate_pprts_solver_from_commandline, &
+    & atmk, &
+    & compute_gradient, &
+    & destroy_pprts, &
+    & destroy_solution, &
+    & interpolate_cell_values_to_vertices, &
+    & prepare_solution, &
+    & print_solution, &
+    & set_dmda_cell_coordinates, &
+    & setup_log_events, &
+    & t_atmosphere, &
+    & t_coord, &
+    & t_dof, &
+    & t_mat_permute_info, &
+    & t_pprts_shell_ctx, &
+    & t_solver, &
+    & t_solver_1_2, &
+    & t_solver_3_10, &
+    & t_solver_3_16, &
+    & t_solver_3_6, &
+    & t_solver_8_10, &
+    & t_solver_8_16, &
+    & t_solver_8_18, &
+    & t_solver_log_events, &
+    & t_state_container, &
+    & t_suninfo
 
   type t_coord
     integer(iintegers)      :: xs,xe                   ! local domain start and end indices
@@ -104,6 +118,10 @@ module m_pprts_base
     PetscLogEvent :: compute_edir
     PetscLogEvent :: solve_Mdir
     PetscLogEvent :: setup_Mdir
+    PetscLogEvent :: permute_mat_dir
+    PetscLogEvent :: permute_mat_gen_dir
+    PetscLogEvent :: permute_mat_diff
+    PetscLogEvent :: permute_mat_gen_diff
     PetscLogEvent :: setup_diff_src
     PetscLogEvent :: compute_ediff
     PetscLogEvent :: solve_Mdiff
@@ -132,6 +150,12 @@ module m_pprts_base
     class(t_solver), pointer :: solver
   end type
 
+  type t_mat_permute_info
+    type(tIS) :: is ! col/row permutations
+    logical :: rev_x, rev_y, rev_z
+    logical :: zlast, switch_xy
+  end type
+
   type, abstract :: t_solver
     character(len=default_str_len)     :: solvername='' ! name to prefix e.g. log stages. If you create more than one solver, make sure that it has a unique name
     integer(mpiint)                    :: comm, myid, numnodes     ! mpi communicator, my rank and number of ranks in comm
@@ -142,7 +166,9 @@ module m_pprts_base
     type(t_coord), allocatable         :: Csrfc_one
     type(t_atmosphere), allocatable    :: atm
     type(t_suninfo)                    :: sun
-    type(tMat), allocatable            :: Mdir,Mdiff
+    type(tMat), allocatable            :: Mdir, Mdiff, Mth
+    type(tMat), allocatable            :: Mdir_perm, Mdiff_perm, Mth_perm
+    type(t_mat_permute_info), allocatable :: perm_dir, perm_diff ! col/row permutations
     type(tKSP), allocatable            :: ksp_solar_dir
     type(tKSP), allocatable            :: ksp_solar_diff
     type(tKSP), allocatable            :: ksp_thermal_diff
@@ -275,6 +301,10 @@ module m_pprts_base
       call PetscLogEventRegister(trim(s)//'comp_Edir', cid, logs%compute_Edir, ierr); call CHKERR(ierr)
       call PetscLogEventRegister(trim(s)//'solve_Mdir', cid, logs%solve_Mdir, ierr); call CHKERR(ierr)
       call PetscLogEventRegister(trim(s)//'setup_Mdir', cid, logs%setup_Mdir, ierr); call CHKERR(ierr)
+      call PetscLogEventRegister(trim(s)//'perm_mat_dir', cid, logs%permute_mat_dir, ierr); call CHKERR(ierr)
+      call PetscLogEventRegister(trim(s)//'perm_mat_gen_dir', cid, logs%permute_mat_gen_dir, ierr); call CHKERR(ierr)
+      call PetscLogEventRegister(trim(s)//'perm_mat_diff', cid, logs%permute_mat_diff, ierr); call CHKERR(ierr)
+      call PetscLogEventRegister(trim(s)//'perm_mat_gen_diff', cid, logs%permute_mat_gen_diff, ierr); call CHKERR(ierr)
       call PetscLogEventRegister(trim(s)//'setup_diff_src', cid, logs%setup_diff_src, ierr); call CHKERR(ierr)
       call PetscLogEventRegister(trim(s)//'comp_Ediff', cid, logs%compute_Ediff, ierr); call CHKERR(ierr)
       call PetscLogEventRegister(trim(s)//'solve_Mdiff', cid, logs%solve_Mdiff, ierr); call CHKERR(ierr)
@@ -421,17 +451,18 @@ module m_pprts_base
         deallocate(solver%atm)
       endif
 
-      !call deallocate_allocatable(solver%sun%symmetry_phi)
-      !call deallocate_allocatable(solver%sun%theta       )
-      !call deallocate_allocatable(solver%sun%phi         )
-      !call deallocate_allocatable(solver%sun%costheta    )
-      !call deallocate_allocatable(solver%sun%sintheta    )
-      !call deallocate_allocatable(solver%sun%xinc        )
-      !call deallocate_allocatable(solver%sun%yinc        )
+      if(allocated(solver%perm_dir) ) then
+        call ISDestroy(solver%perm_dir%is, ierr); call CHKERR(ierr)
+        deallocate(solver%perm_dir)
+      endif
+      if(allocated(solver%perm_diff)) then
+        call ISDestroy(solver%perm_diff%is, ierr); call CHKERR(ierr)
+        deallocate(solver%perm_diff)
+      endif
 
       if(allocated(solver%OPP)) then
-        call solver%OPP%destroy(ierr)
-        call CHKERR(ierr)
+        call solver%OPP%destroy(ierr); call CHKERR(ierr)
+        deallocate(solver%OPP)
       endif
 
       call destroy_coord(solver%C_dir         )
@@ -466,6 +497,10 @@ module m_pprts_base
 
     call deallocate_allocatable(solver%Mdir)
     call deallocate_allocatable(solver%Mdiff)
+    call deallocate_allocatable(solver%Mth)
+    call deallocate_allocatable(solver%Mdir_perm)
+    call deallocate_allocatable(solver%Mdiff_perm)
+    call deallocate_allocatable(solver%Mth_perm)
   end subroutine
 
   !> @brief define physical coordinates for DMDA to allow for geometric multigrid

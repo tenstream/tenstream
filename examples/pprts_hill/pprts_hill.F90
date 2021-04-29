@@ -226,7 +226,8 @@ contains
         & C  => pprts_solver%C_one,     &
         & C1 => pprts_solver%C_one1,    &
         & Ca => pprts_solver%C_one_atm, &
-        & Ca1=> pprts_solver%C_one_atm1_box )
+        & Ca1=> pprts_solver%C_one_atm1_box, &
+        & Cs => pprts_solver%Csrfc_one )
 
 
       call dump_vec(Ca%da, pprts_solver%atm%dz, 'dz')
@@ -270,6 +271,7 @@ contains
 
       call getVecPointer(Ca1%da, pprts_solver%atm%hhl, hhl1d, hhl)
       call dump_vec(Ca1%da, hhl(0,Ca1%zs:Ca1%ze,Ca1%xs:Ca1%xe,Ca1%ys:Ca1%ye), 'hhl')
+      call dump_vec_2d(Cs%da , hhl(0,Ca1%ze,Ca1%xs:Ca1%xe,Ca1%ys:Ca1%ye), 'hsurf')
       call restoreVecPointer(Ca1%da, pprts_solver%atm%hhl, hhl1d, hhl)
 
       if(myid.eq.0) then
@@ -289,6 +291,27 @@ contains
     call destroy_pprts_rrtmg(pprts_solver, lfinalizepetsc=.True.)
     call destroy_tenstr_atm(atm)
   contains
+    subroutine dump_vec_2d(dm, arr, varname)
+      type(tDM), intent(in) :: dm
+      real(ireals), intent(in) :: arr(:,:)
+      character(len=*), intent(in) :: varname
+      type(tVec) :: gvec, lVec
+      real(ireals), allocatable :: larr(:,:)
+      integer(mpiint) :: ierr
+
+      call DMGetGlobalVector(dm, gvec, ierr); call CHKERR(ierr)
+      call f90VecToPetsc(arr, dm, gvec)
+      call petscGlobalVecToZero(gvec, dm, lVec)
+      if(myid.eq.0) then
+        call petscVecToF90(lVec, dm, larr, only_on_rank0=.True.)
+
+        outpath(2) = trim(varname)
+        call ncwrite(outpath, larr, ierr); call CHKERR(ierr)
+      endif
+      call VecDestroy(lVec, ierr); call CHKERR(ierr)
+
+      call DMRestoreGlobalVector(dm, gvec, ierr); call CHKERR(ierr)
+    end subroutine
     subroutine dump_vec(dm, arr, varname)
       type(tDM), intent(in) :: dm
       real(ireals), intent(in) :: arr(:,:,:)

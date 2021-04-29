@@ -132,6 +132,7 @@ module m_boxmc
     logical :: initialized=.False.
   contains
     procedure :: init
+    procedure :: destroy
     procedure :: get_coeff
     procedure :: move_photon
     procedure(intersect_distance),deferred :: intersect_distance
@@ -270,7 +271,7 @@ module m_boxmc
     logical :: alive=.True.,direct=.False.
   end type
 
-  integer(mpiint) :: imp_t_photon
+  integer(mpiint) :: imp_t_photon=-1_mpiint ! this should not be global but rather attached to a bmc type because we init and destroy it there
 
   type stddev
     real(irealbmc),allocatable,dimension(:) :: inc,delta,mean,mean2,var,relvar
@@ -358,6 +359,8 @@ contains
     integer(mpiint) :: ierr
 
     call init_mpi_data_parameters(comm)
+
+    if (imp_t_photon.ne.-1_mpiint) return
 
     blocklengths(1) = 8 ! doubles to begin with
     blocklengths(2) = 10 ! ints
@@ -1019,46 +1022,59 @@ contains
 
     select type (bmc)
     type is (t_boxmc_1_2)
-    bmc%dir_streams  =  1
-    bmc%diff_streams =  2
+      bmc%dir_streams  =  1
+      bmc%diff_streams =  2
     type is (t_boxmc_3_6)
-    bmc%dir_streams = 3
-    bmc%diff_streams = 6
+      bmc%dir_streams = 3
+      bmc%diff_streams = 6
     type is (t_boxmc_3_10)
-    bmc%dir_streams  =  3
-    bmc%diff_streams = 10
+      bmc%dir_streams  =  3
+      bmc%diff_streams = 10
     type is (t_boxmc_3_16)
-    bmc%dir_streams  =  3
-    bmc%diff_streams = 16
+      bmc%dir_streams  =  3
+      bmc%diff_streams = 16
     type is (t_boxmc_8_10)
-    bmc%dir_streams  =  8
-    bmc%diff_streams = 10
+      bmc%dir_streams  =  8
+      bmc%diff_streams = 10
     type is (t_boxmc_8_12)
-    bmc%dir_streams  =  8
-    bmc%diff_streams = 12
+      bmc%dir_streams  =  8
+      bmc%diff_streams = 12
     type is (t_boxmc_8_16)
-    bmc%dir_streams  =  8
-    bmc%diff_streams = 16
+      bmc%dir_streams  =  8
+      bmc%diff_streams = 16
     type is (t_boxmc_8_18)
-    bmc%dir_streams  =  8
-    bmc%diff_streams = 18
+      bmc%dir_streams  =  8
+      bmc%diff_streams = 18
     type is (t_boxmc_wedge_5_5)
-    bmc%dir_streams  =  5
-    bmc%diff_streams =  5
+      bmc%dir_streams  =  5
+      bmc%diff_streams =  5
     type is (t_boxmc_wedge_5_8)
-    bmc%dir_streams  =  5
-    bmc%diff_streams =  8
+      bmc%dir_streams  =  5
+      bmc%diff_streams =  8
     type is (t_boxmc_wedge_18_8)
-    bmc%dir_streams  =  18
-    bmc%diff_streams =  8
+      bmc%dir_streams  =  18
+      bmc%diff_streams =  8
     class default
     stop 'initialize: unexpected type for boxmc object!'
-  end select
+    end select
 
-  call gen_mpi_photon_type(comm)
+    call gen_mpi_photon_type(comm)
 
-  bmc%initialized = .True.
-end subroutine
+    bmc%initialized = .True.
+  end subroutine
+
+  subroutine destroy(bmc, ierr)
+    class(t_boxmc) :: bmc
+    integer(mpiint), intent(out) :: ierr
+    ierr = 0
+
+    if(imp_t_photon.ne.-1_mpiint) then
+      call MPI_Type_free(imp_t_photon, ierr); call CHKERR(ierr)
+      imp_t_photon = -1_mpiint
+    endif
+
+    bmc%initialized = .False.
+  end subroutine
 
 
 include 'boxmc_8_18.inc'

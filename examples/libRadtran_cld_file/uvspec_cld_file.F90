@@ -165,15 +165,15 @@ contains
         & Ca1=> pprts_solver%C_one_atm1_box )
 
       if(allocated(edir)) then
-        call gather_all_toZero(pprts_solver%C_one_atm1, edir, gedir)
+        call gather_all_toZero(C1, edir, gedir)
         if(myid.eq.0) then
           print *,'dumping direct radiation with local and global shape', shape(edir), ':', shape(gedir)
           groups(2) = 'edir'; call ncwrite(groups, gedir, ierr); call CHKERR(ierr)
         endif
       endif
-      call gather_all_toZero(pprts_solver%C_one_atm1, edn, gedn)
-      call gather_all_toZero(pprts_solver%C_one_atm1, eup, geup)
-      call gather_all_toZero(pprts_solver%C_one_atm, abso, gabso)
+      call gather_all_toZero(C1, edn, gedn)
+      call gather_all_toZero(C1, eup, geup)
+      call gather_all_toZero(C, abso, gabso)
       if(myid.eq.0) then
         print *,'dumping edn radiation with local and global shape', shape(edn), ':', shape(gedn)
         groups(2) = 'edn' ; call ncwrite(groups, gedn , ierr); call CHKERR(ierr)
@@ -267,7 +267,7 @@ contains
       pplev, ptlev, atm, &
       d_lwc=plwc, d_reliq=preliq)
 
-    call print_tenstr_atm(atm)
+    if(myid.eq.0) call print_tenstr_atm(atm)
 
     call pprts_rrtmg(comm, pprts_solver, atm, &
       size(plev,2, kind=iintegers), size(plev,3, kind=iintegers), &

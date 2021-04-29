@@ -309,6 +309,10 @@ contains
       class(t_optprop_LUT) :: OPP
       integer(mpiint), intent(out) :: ierr
       ierr = 0
+      if(allocated(OPP%bmc)) then
+        call OPP%bmc%destroy(ierr); call CHKERR(ierr)
+        deallocate(OPP%bmc)
+      endif
       if(allocated(OPP%Tdir)) then
         if(luse_memory_map) then
           call munmap_mmap_ptr(OPP%Tdir%c, ierr); call CHKERR(ierr)
@@ -327,7 +331,6 @@ contains
         endif
         deallocate(OPP%Sdiff)
       endif
-      if(allocated(OPP%bmc  )) deallocate(OPP%bmc)
       if(allocated(OPP%dirconfig)) deallocate(OPP%dirconfig)
       if(allocated(OPP%diffconfig)) deallocate(OPP%diffconfig)
       OPP%initialized=.False.
