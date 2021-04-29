@@ -2483,7 +2483,6 @@ module m_pprts
         "-pprts_explicit_dir", lexplicit_dir, lflg , ierr) ;call CHKERR(ierr)
       if(lexplicit_dir) then
         call explicit_edir(solver, edirTOA, solution, ierr, opt_buildings); call CHKERR(ierr)
-        call explicit_edir(solver, edirTOA, solution, ierr, opt_buildings); call CHKERR(ierr)
       else
         call edir()
       endif
