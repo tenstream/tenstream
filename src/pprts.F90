@@ -2823,7 +2823,7 @@ module m_pprts
             endif
           endif
 
-          if(iter.eq.maxiter) call CHKERR(iter, "pprts_explicit_edir did not converge")
+          if(iter.eq.maxiter) call CHKERR(int(iter,mpiint), "pprts_explicit_edir did not converge")
         enddo ! iter
 
         ! update solution vec
