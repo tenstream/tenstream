@@ -18,6 +18,7 @@ module m_intersection
     & pnt_in_rectangle, &
     & pnt_in_triangle, &
     & pnt_in_triangle_convex_hull, &
+    & project_point_2_plane, &
     & square_intersection, &
     & triangle_intersection, &
     & line_intersection_2d, &
@@ -26,6 +27,12 @@ module m_intersection
   interface hit_plane
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
     module procedure hit_plane_${dtype}$
+    #:endfor
+  end interface
+
+  interface project_point_2_plane
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    module procedure project_point_2_plane_${dtype}$
     #:endfor
   end interface
 
@@ -95,6 +102,17 @@ contains
       hit_plane = dot_product(po-p_loc, pn) / discr
     endif
   end function
+  #:endfor
+
+  !> @brief project point to plane
+  !> @details inputs are the location of the point, the direction along which to project as well as origin and normal of the plane
+  #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+  pure subroutine project_point_2_plane_${dtype}$(origin, normal, direction, point)
+      real(${dtype}$), intent(in), dimension(3) :: origin, normal, direction
+      real(${dtype}$), intent(inout), dimension(3) :: point(3)
+
+      point = point * hit_plane(point, direction, origin, normal) * direction
+    end subroutine
   #:endfor
 
   !> @brief determine if point is inside a cube, given the corner vertices

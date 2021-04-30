@@ -184,6 +184,7 @@ subroutine init_diff_photon_3_10(bmc, p, src, vertices, ierr)
         integer(iintegers),intent(in) :: src
         integer(mpiint),intent(out)   :: ierr
 
+        real(ireal_dp) :: point(3)
         real(ireal_dp) :: phi,mu,mu1,mu2
         real(ireal_dp) :: dx, dy, dz
 
@@ -199,10 +200,24 @@ subroutine init_diff_photon_3_10(bmc, p, src, vertices, ierr)
                 mu = 2*mu2 - one
                 p%src_side = -1
         case (1)
-                p%loc = (/ L(dx) , L(dy) , zero  /)
+                point = (/ L(dx) , L(dy) , zero /)
+                call project_point_2_plane(&
+                  vertices(1:3), &
+                  compute_normal_3d(vertices(1:3), vertices(4:6), vertices(7:9)), &
+                  (/ zero, zero, one /), &
+                  point)
+                !p%loc = (/ L(dx) , L(dy) , zero  /) !!! PROBLEM zero is located underneath the bottom of the box
+                p%loc = point !!! PROBLEM zero is located underneath the bottom of the box
                 p%src_side = 2
         case (2)
-                p%loc = (/ L(dx) , L(dy) , dz    /)
+                point = (/ L(dx) , L(dy) , dz /)
+                call project_point_2_plane(&
+                  vertices(13:15), &
+                  compute_normal_3d(vertices(1:3), vertices(4:6), vertices(7:9)), &
+                  (/ zero, zero, one /), &
+                  point)
+                p%loc = point
+                !p%loc = (/ L(dx) , L(dy) , dz    /)
                 p%src_side = 1
         case (3)
                 p%loc = (/ dx    , L(dy) , L(dz) /)

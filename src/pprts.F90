@@ -3871,7 +3871,7 @@ module m_pprts
       integer(iintegers),intent(in) :: i,j,k
 
       MatStencil         :: row(4,C%dof), col(4,C%dof)
-      real(irealLUT)     :: v(C%dof**2), norm, v_tmp(C%dof**2)
+      real(irealLUT)     :: v(C%dof**2), norm!, v_tmp(C%dof**2)
       integer(iintegers) :: dst,src, xinc, yinc, isrc, idst
 
       xinc = sun%xinc
@@ -3946,15 +3946,15 @@ module m_pprts
        !make bottom and top of box parallel !!! USE MEAN DZ MAYBE?
        vertices([15,18,21,24]) = vertices([3,6,9,12]) + solver%atm%dz(atmk(solver%atm, k), i, j)
 
-       call get_coeff(solver, &
-         solver%atm%kabs(atmk(solver%atm,k),i,j), &
-         solver%atm%ksca(atmk(solver%atm,k),i,j), &
-         solver%atm%g(atmk(solver%atm,k),i,j), &
-         solver%atm%dz(atmk(solver%atm,k),i,j), .True., v_tmp, &
-         solver%atm%l1d(atmk(solver%atm,k),i,j), &
-         [real(sun%symmetry_phi, irealLUT), real(sun%theta, irealLUT)], &
-         lswitch_east=xinc.eq.0, lswitch_north=yinc.eq.0, &
-         opt_vertices=vertices)
+       !call get_coeff(solver, &
+       !  solver%atm%kabs(atmk(solver%atm,k),i,j), &
+       !  solver%atm%ksca(atmk(solver%atm,k),i,j), &
+       !  solver%atm%g(atmk(solver%atm,k),i,j), &
+       !  solver%atm%dz(atmk(solver%atm,k),i,j), .True., v_tmp, &
+       !  solver%atm%l1d(atmk(solver%atm,k),i,j), &
+       !  [real(sun%symmetry_phi, irealLUT), real(sun%theta, irealLUT)], &
+       !  lswitch_east=xinc.eq.0, lswitch_north=yinc.eq.0, &
+       !  opt_vertices=vertices)
        !endif
 
        call dir2dir3_geometric_coeffs( &
@@ -3964,15 +3964,15 @@ module m_pprts
            solver%atm%ksca(atmk(solver%atm, k), i, j), &
            solver%atm%g(atmk(solver%atm, k), i, j)], &
          v)
-         print *, 'v gomtrc'
-         print *, v
-         print *, 'v get_coeff'
-         print *, v_tmp
+        ! print *, 'v gomtrc'
+        ! print *, v
+        ! print *, 'v get_coeff'
+        ! print *, v_tmp
      !else
        !if (ldebug) then
-       if (any(abs(v_tmp - v) .ge. 0.1_irealLUT)) then
-         call CHKERR(1_mpiint, 'debug')
-       endif
+       !if (any(abs(v_tmp - v) .ge. 0.1_irealLUT)) then
+       !  call CHKERR(1_mpiint, 'debug')
+       !endif
        !endif
      else
        vertices(3:24:3)  = vertices(3:24:3) - minval(vertices(3:24:3))
@@ -4381,8 +4381,11 @@ module m_pprts
       integer(iintegers)  :: idof, idofdst, idiff
       integer(iintegers)  :: k, i, j, src, dst
 
+      real(ireals), pointer :: xhhl(:,:,:,:) => null(), xhhl1d(:) => null()
       real(ireals),pointer,dimension(:,:,:,:) :: xedir=>null()
       real(ireals),pointer,dimension(:)       :: xedir1d=>null()
+
+      real(ireals), allocatable :: vertices(:)
 
       logical :: lsun_east,lsun_north
 
@@ -4393,13 +4396,33 @@ module m_pprts
 
       call getVecPointer(C_dir%da, local_edir, xedir1d, xedir)
 
+      call getVecPointer(solver%Cvert_one_atm1%da, solver%atm%vert_heights, xhhl1d, xhhl, readonly=.True.)
+
       if(solver%myid.eq.0.and.ldebug) print *,'Assembly of SRC-Vector .. setting solar source', &
         sum(xedir(i0,C_dir%zs:C_dir%ze,C_dir%xs:C_dir%xe,C_dir%ys:C_dir%ye)) / &
         size(xedir(i0,C_dir%zs:C_dir%ze,C_dir%xs:C_dir%xe,C_dir%ys:C_dir%ye))
 
+      call setup_default_unit_cube_geometry(solver%atm%dx, solver%atm%dy, -one, vertices)
+
       do j=C_diff%ys,C_diff%ye
         do i=C_diff%xs,C_diff%xe
           do k=C_diff%zs,C_diff%ze-1
+
+            vertices( 3) = xhhl(i0,atmk(solver%atm,k+1),i,j)      ! a
+            vertices( 6) = xhhl(i0,atmk(solver%atm,k+1),i+1,j)    ! b
+            vertices( 9) = xhhl(i0,atmk(solver%atm,k+1),i,j+1)    ! c
+            vertices(12) = xhhl(i0,atmk(solver%atm,k+1),i+1,j+1)  ! d
+            vertices(15) = xhhl(i0,atmk(solver%atm,k),i,j)        ! e
+            vertices(18) = xhhl(i0,atmk(solver%atm,k),i+1,j)      ! f
+            vertices(21) = xhhl(i0,atmk(solver%atm,k),i,j+1)      ! g
+            vertices(24) = xhhl(i0,atmk(solver%atm,k),i+1,j+1)    ! h
+
+            vertices(3:24:3)  = vertices(3:24:3) - minval(vertices(3:24:3))
+
+            !not in a plane -> use 3 and construct 4th point
+            vertices(12) = vertices(9) +  (vertices(3) - vertices(6))
+            !make bottom and top of box parallel !!! USE MEAN DZ MAYBE?
+            vertices([15,18,21,24]) = vertices([3,6,9,12]) + solver%atm%dz(atmk(solver%atm, k), i, j)
 
             if( any (xedir(:,k,i,j) .gt. epsilon(one)) ) then
               if( atm%l1d(atmk(atm,k),i,j) ) then
@@ -4441,7 +4464,7 @@ module m_pprts
                   .False., dir2diff, &
                   atm%l1d(atmk(atm,k),i,j), &
                   [real(sun%symmetry_phi, irealLUT), real(sun%theta,irealLUT)], &
-                  lswitch_east=lsun_east, lswitch_north=lsun_north)
+                  lswitch_east=lsun_east, lswitch_north=lsun_north, opt_vertices=vertices)
                 call PetscLogEventEnd(solver%logs%get_coeff_dir2diff, ierr); call CHKERR(ierr)
 
                 dst = 0
@@ -4581,6 +4604,7 @@ module m_pprts
         enddo
       enddo
 
+      call restoreVecPointer(solver%Cvert_one_atm1%da, solver%atm%vert_heights, xhhl1d, xhhl, readonly=.True.)
       call restoreVecPointer(C_dir%da, local_edir, xedir1d, xedir )
       end associate
     end subroutine
@@ -4936,11 +4960,16 @@ module m_pprts
 
     integer(iintegers) :: i,j,k
     integer(mpiint) :: ierr
+    real(ireals), allocatable :: vertices(:)
+    real(ireals), pointer :: xhhl(:,:,:,:) => null(), xhhl1d(:) => null()
 
     if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'Setting coefficients for diffuse Light'
 
     call MatZeroEntries(A, ierr) ;call CHKERR(ierr)
     call mat_set_diagonal(A)
+
+    call getVecPointer(solver%Cvert_one_atm1%da, solver%atm%vert_heights, xhhl1d, xhhl, readonly=.True.)
+    call setup_default_unit_cube_geometry(solver%atm%dx, solver%atm%dy, -one, vertices)
 
     do j=C%ys,C%ye
       do i=C%xs,C%xe
@@ -4955,6 +4984,8 @@ module m_pprts
         enddo
       enddo
     enddo
+
+    call restoreVecPointer(solver%Cvert_one_atm1%da, solver%atm%vert_heights, xhhl1d, xhhl, readonly=.True.)
 
     call set_albedo_coeff(solver, C, A )
 
@@ -5077,12 +5108,29 @@ module m_pprts
       enddo
 
       call PetscLogEventBegin(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
+
+      vertices( 3) = xhhl(i0,atmk(solver%atm,k+1),i,j)      ! a
+      vertices( 6) = xhhl(i0,atmk(solver%atm,k+1),i+1,j)    ! b
+      vertices( 9) = xhhl(i0,atmk(solver%atm,k+1),i,j+1)    ! c
+      vertices(12) = xhhl(i0,atmk(solver%atm,k+1),i+1,j+1)  ! d
+      vertices(15) = xhhl(i0,atmk(solver%atm,k),i,j)        ! e
+      vertices(18) = xhhl(i0,atmk(solver%atm,k),i+1,j)      ! f
+      vertices(21) = xhhl(i0,atmk(solver%atm,k),i,j+1)      ! g
+      vertices(24) = xhhl(i0,atmk(solver%atm,k),i+1,j+1)    ! h
+
+      vertices(3:24:3)  = vertices(3:24:3) - minval(vertices(3:24:3))
+
+      !not in a plane -> use 3 and construct 4th point
+      vertices(12) = vertices(9) +  (vertices(3) - vertices(6))
+      !make bottom and top of box parallel !!! USE MEAN DZ MAYBE?
+      vertices([15,18,21,24]) = vertices([3,6,9,12]) + solver%atm%dz(atmk(solver%atm, k), i, j)
+
       call get_coeff(solver, &
         solver%atm%kabs(atmk(solver%atm, k),i,j), &
         solver%atm%ksca(atmk(solver%atm, k),i,j), &
         solver%atm%g(atmk(solver%atm, k),i,j), &
         solver%atm%dz(atmk(solver%atm, k),i,j), &
-        .False., v, solver%atm%l1d(atmk(solver%atm, k),i,j))
+        .False., v, solver%atm%l1d(atmk(solver%atm, k),i,j), opt_vertices=vertices)
       call PetscLogEventEnd(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
 
       call MatSetValuesStencil(A,C%dof, row,C%dof, col , real(-v, ireals) ,INSERT_VALUES,ierr) ;call CHKERR(ierr)
