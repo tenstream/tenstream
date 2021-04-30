@@ -111,7 +111,7 @@ contains
       real(${dtype}$), intent(in), dimension(3) :: origin, normal, direction
       real(${dtype}$), intent(inout), dimension(3) :: point(3)
 
-      point = point * hit_plane(point, direction, origin, normal) * direction
+      point = point + hit_plane(point, direction, origin, normal) * direction
     end subroutine
   #:endfor
 
