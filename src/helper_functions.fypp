@@ -136,6 +136,28 @@ module m_helper_functions
     & write_ascii_file_2d
 
 
+  interface write_ascii_file_2d
+    #:for basetype,dtype in [&
+      ('integer', 'INT32'  ), &
+      ('integer', 'INT64'  ), &
+      ('real'   , 'REAL32' ), &
+      ('real'   , 'REAL64' ), &
+      ('real'   , 'REAL128')]
+      module procedure write_ascii_file_2d_${dtype}$
+    #:endfor
+  end interface
+
+  interface read_ascii_file_2d
+    #:for basetype,dtype in [&
+      ('integer', 'INT32'  ), &
+      ('integer', 'INT64'  ), &
+      ('real'   , 'REAL32' ), &
+      ('real'   , 'REAL64' ), &
+      ('real'   , 'REAL128')]
+      module procedure read_ascii_file_2d_${dtype}$
+    #:endfor
+  end interface
+
   interface pentagon_area_by_vertices
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
       module procedure pentagon_area_by_vertices_${dtype}$
@@ -1635,143 +1657,174 @@ module m_helper_functions
       end if
     end function
 
-    subroutine write_ascii_file_2d(filename, arr, ierr, verbose)
-      character(len=*),intent(in) :: filename
 
-      real(irealLUT),allocatable,intent(in) :: arr(:,:) ! shape nlines, ncolumns
-      integer(mpiint), intent(out) :: ierr
+    #:for basetype,dtype in [&
+      ('integer', 'INT32'  ), &
+      ('integer', 'INT64'  ), &
+      ('real'   , 'REAL32' ), &
+      ('real'   , 'REAL64' ), &
+      ('real'   , 'REAL128')]
+      subroutine write_ascii_file_2d_${dtype}$(filename, arr, ierr, header, row_major, verbose)
+        character(len=*),intent(in) :: filename
 
-      logical, intent(in), optional :: verbose
+        ${basetype}$(${dtype}$), allocatable, intent(in) :: arr(:,:)
 
-      integer :: funit, i
-      logical :: lverbose, file_exists
+        integer(mpiint), intent(out) :: ierr
 
-      ierr=0
-      inquire(file=filename, exist=file_exists)
+        logical, intent(in), optional :: verbose
+        character(len=*), intent(in), optional :: header
+        logical, intent(in), optional :: row_major
 
-      lverbose = get_arg(.False., verbose)
+        integer :: funit, i
+        logical :: lverbose, file_exists, lrow_major
 
-      if(file_exists) then
-        if(lverbose) print *,'File ',trim(filename), 'does already exist!'
-        ierr=1
-        return
-      endif
+        ierr=0
+        inquire(file=filename, exist=file_exists)
 
-      open(newunit=funit, file=filename)
-      do i=1,size(arr, 1)
-        write(funit, *) arr(i,:)
-      enddo
-      close(funit)
-    end subroutine
+        lverbose = get_arg(.False., verbose)
+        lrow_major = get_arg(.False., row_major)
 
-    subroutine read_ascii_file_2d(filename, arr, ierr, skiplines, verbose)
-      character(len=*),intent(in) :: filename
-      integer(iintegers),intent(in),optional :: skiplines
+        if(file_exists) then
+          if(lverbose) print *,'File ',trim(filename), 'does already exist!'
+          ierr=1
+          return
+        endif
 
-      real(ireals),allocatable,intent(out) :: arr(:,:) ! shape nlines, ncolumns
-      integer(mpiint), intent(out) :: ierr
-      logical, intent(in), optional :: verbose
+        open(newunit=funit, file=filename)
 
-      real(ireals), allocatable :: line(:)
-      character(len=2**14) :: line_str
+        if (present(header)) then
+          write(funit, *) header
+        endif
 
-      integer :: funit, io
-      integer(iintegers) :: nlines, valid_lines, i, j, max_cols
-      logical :: lverbose, file_exists
+        if (lrow_major) then
+          do i=1,size(arr, 1)
+            write(funit, *) arr(i,:)
+          enddo
+        else
+          do i=1,size(arr, 2)
+            write(funit, *) arr(:,i)
+          enddo
+        endif
 
-      ierr=0
-      inquire(file=filename, exist=file_exists)
+        close(funit)
+      end subroutine
+    #:endfor
 
-      lverbose = get_arg(.False., verbose)
+    #:for basetype,dtype in [&
+      ('integer', 'INT32'  ), &
+      ('integer', 'INT64'  ), &
+      ('real'   , 'REAL32' ), &
+      ('real'   , 'REAL64' ), &
+      ('real'   , 'REAL128')]
+      subroutine read_ascii_file_2d_${dtype}$(filename, arr, ierr, skiplines, verbose)
+        character(len=*),intent(in) :: filename
+        integer(iintegers),intent(in),optional :: skiplines
 
-      if(.not.file_exists) then
-        if(lverbose) print *,'File ',trim(filename), 'does not exist!'
-        ierr=1
-        return
-      endif
+        ${basetype}$(${dtype}$),allocatable,intent(out) :: arr(:,:) ! shape nlines, ncolumns
+        integer(mpiint), intent(out) :: ierr
+        logical, intent(in), optional :: verbose
 
-      open(newunit=funit, file=filename)
-      if(present(skiplines)) then
-        do i=1,skiplines
-          read(funit,*)
-        enddo
-      endif
+        ${basetype}$(${dtype}$), allocatable :: line(:)
+        character(len=2**14) :: line_str
 
-      print *,''
-      nlines = 0
-      valid_lines = 0
-      max_cols = 0
-      do
-        read(funit, '(A)', iostat=io) line_str
+        integer :: funit, io
+        integer(iintegers) :: nlines, valid_lines, i, j, max_cols
+        logical :: lverbose, file_exists
 
-        if(io.eq.0) then
-          call split(line_str, line, ' ', ierr)
+        ierr=0
+        inquire(file=filename, exist=file_exists)
 
-          if(ierr.eq.0)then
-            valid_lines = valid_lines + 1
-            if(max_cols.gt.1 .and. size(line).ne.max_cols) then
-              ierr = 3
-              if(lverbose) &
-                call CHKWARN(ierr, 'Found a varying number of columns in the ascii file.. cannot read that')
-              return
+        lverbose = get_arg(.False., verbose)
+
+        if(.not.file_exists) then
+          if(lverbose) print *,'File ',trim(filename), 'does not exist!'
+          ierr=1
+          return
+        endif
+
+        open(newunit=funit, file=filename)
+        if(present(skiplines)) then
+          do i=1,skiplines
+            read(funit,*)
+          enddo
+        endif
+
+        print *,''
+        nlines = 0
+        valid_lines = 0
+        max_cols = 0
+        do
+          read(funit, '(A)', iostat=io) line_str
+
+          if(io.eq.0) then
+            call split(line_str, line, ' ', ierr)
+
+            if(ierr.eq.0)then
+              valid_lines = valid_lines + 1
+              if(max_cols.gt.1 .and. size(line).ne.max_cols) then
+                ierr = 3
+                if(lverbose) &
+                  call CHKWARN(ierr, 'Found a varying number of columns in the ascii file.. cannot read that')
+                return
+              endif
+              max_cols = size(line)
             endif
-            max_cols = size(line)
+            deallocate(line)
+
+          elseif (io.lt.0) then ! end of file
+            exit
           endif
-          deallocate(line)
 
-        elseif (io.lt.0) then ! end of file
-          exit
+          nlines = nlines + 1
+        end do
+
+        rewind(funit)
+        if(present(skiplines)) then
+          do i=1,skiplines
+            read(funit,*)
+          enddo
         endif
 
-        nlines = nlines + 1
-      end do
+        allocate(line(max_cols))
+        allocate(arr(valid_lines,max_cols))
 
-      rewind(funit)
-      if(present(skiplines)) then
-        do i=1,skiplines
-          read(funit,*)
-        enddo
-      endif
+        j = 1
+        do i=1,nlines
+          read(funit, *, iostat=io) line
+          if(io.eq.0) then
+            arr(j,:) = line
+            j = j + 1
+          endif
+        end do
 
-      allocate(line(max_cols))
-      allocate(arr(valid_lines,max_cols))
-
-      j = 1
-      do i=1,nlines
-        read(funit, *, iostat=io) line
-        if(io.eq.0) then
-          arr(j,:) = line
-          j = j + 1
-        endif
-      end do
-
-      close(funit)
-      if(lverbose) print *,'I read '// &
-        itoa(valid_lines)//' lines of ascii : '// &
-        '('//itoa(nlines)//' total ) '// &
-        'with '//itoa(max_cols)//' columns'
+        close(funit)
+        if(lverbose) print *,'I read '// &
+          itoa(valid_lines)//' lines of ascii : '// &
+          '('//itoa(nlines)//' total ) '// &
+          'with '//itoa(max_cols)//' columns'
 
       contains
         subroutine split(str, a, sep, ierr)
           character(len=*), intent(in) :: str, sep
-          real(ireals), intent(out), allocatable :: a(:)
+          ${basetype}$(${dtype}$), intent(out), allocatable :: a(:)
           integer(mpiint), intent(out) :: ierr
           integer(iintegers) :: i,n
           logical :: last_char_was_sep
           last_char_was_sep = .True.
           n = 0
           do i=1,len(str)
-            if( str(i:i) == sep) then
-              if(.not.last_char_was_sep) n = n + 1
-              last_char_was_sep = .True.
-            else
-              last_char_was_sep = .False.
-            endif
+          if( str(i:i) == sep) then
+            if(.not.last_char_was_sep) n = n + 1
+            last_char_was_sep = .True.
+          else
+            last_char_was_sep = .False.
+          endif
           end do
           allocate (a(n))
           read(unit=str, fmt=*, iostat=ierr) a
         end subroutine
       end subroutine
+    #:endfor
 
 
     subroutine reorder_mpi_comm(icomm, Nrank_x, Nrank_y, new_comm)
