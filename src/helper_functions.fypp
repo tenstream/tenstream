@@ -120,6 +120,7 @@ module m_helper_functions
     & cartesian_2_spherical, &
     & spherical_2_cartesian, &
     & strF2C, &
+    & stripSpaces, &
     & swap, &
     & toStr, &
     & transposed_arr, &
@@ -2411,6 +2412,28 @@ module m_helper_functions
       case default
         call CHKERR(1_mpiint, 'dimension of reverse array does not fit input array')
       end select
+    end function
+
+    function stripSpaces(string)
+      character(len=*), intent(in) :: string
+      character(len=len(string)) :: stripSpaces
+      integer(iintegers) :: string_len, last, actual
+
+      string_len = len(string)
+      stripSpaces = string
+      last = 1
+      actual = 1
+
+      do while (actual < string_len)
+      if (stripSpaces(last:last) == ' ') THEN
+        actual = actual + 1
+        stripSpaces(last:last) = stripSpaces(actual:actual)
+        stripSpaces(actual:actual) = ' '
+      else
+        last = last +1
+        if (actual < last) actual = last
+      endif
+      enddo
     end function
 
     function cstr(inp, color)
