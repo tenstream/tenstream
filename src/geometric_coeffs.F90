@@ -133,7 +133,8 @@ contains
         f1, f2, f3, f4, f5, v1, v2, v3, v4
       integer(iintegers), intent(in) :: slice(3), other_slice(3)
       real(irealLUT), intent(inout) :: coeffs(9)
-      real(ireals) :: area1, area2, area3, area_total_src, areas(3), sin_theta, cos_src_trgt, s1, a31, a32, a33, a34
+      real(ireals) :: area1, area2, area3, area_total_src, areas(3), sin_theta, cos_src_trgt, s1, a31, a32, a33, a34, &
+        a21q, a22q, a23q, a24q, a21t, a22t, a23t, a24t, a31q, a32q, a33q, a34q, a31t, a32t, a33t, a34t
       real(ireals), dimension(3) :: &
         p1l, p1b, p1t, p1r, p2l, p2t, p2b, p2r, p3r, p3t, p3b, p3l, p4r, p4b, p4t, p4l, normal, &
         p1rp, p2rp, p3rp, p4rp
@@ -158,34 +159,44 @@ contains
 
       area_total_src = quadrangle_area_by_vertices(f1, f2, f3, f4)
 
-      area2 = compute_quadrangle_areas( &
-        v1, p1b, f2, f1, &
-        v2, p2t, f1, f2, &
-        v3, p3t, f4, f3, &
-        v4, p4b, f3, f4  &
-        )
+      a21q = quadrangle_area_by_vertices(v1, p1r, f2, p1b)
+      a22q = quadrangle_area_by_vertices(v2, p2r, f1, p2t)
+      a23q = quadrangle_area_by_vertices(v3, p3l, f4, p3t)
+      a24q = quadrangle_area_by_vertices(v4, p4l, f3, p4b)
+
+      a21t = triangle_area_by_vertices(v1, f1, p1r)
+      a22t = triangle_area_by_vertices(v2, f2, p2r)
+      a23t = triangle_area_by_vertices(v3, f3, p3l)
+      a24t = triangle_area_by_vertices(v4, f4, p4l)
+
+      area2 = max(a21q+a21t, a22q+a22t, a23q+a23t, a24q+a24t)
 
       if (ldebug) then
         print *, cstr('area 2', 'green')
-        print *, 'v1', quadrangle_area_by_vertices(v1, p1b, f2, f1)
-        print *, 'v2', quadrangle_area_by_vertices(v2, p2t, f1, f2)
-        print *, 'v3', quadrangle_area_by_vertices(v3, p3t, f4, f3)
-        print *, 'v4', quadrangle_area_by_vertices(v4, p4b, f3, f4)
+        print *, 'v1', a21q+a21t
+        print *, 'v2', a22q+a22t
+        print *, 'v3', a23q+a23t
+        print *, 'v4', a24q+a24t
       endif
 
-      area3 = compute_pentagon_areas( &
-        v1, p1l, f4, p1t, f1, &
-        v2, p2l, f3, p2b, f2, &
-        v3, p3r, f2, p3b, f3, &
-        v4, p4r, f1, p4t, f4  &
-        )
+      a31q = quadrangle_area_by_vertices(v1, p1l, f4, p1t)
+      a32q = quadrangle_area_by_vertices(v2, p2l, f3, p2b)
+      a33q = quadrangle_area_by_vertices(v3, p3r, f2, p3b)
+      a34q = quadrangle_area_by_vertices(v4, p4r, f1, p4t)
+
+      a31t = triangle_area_by_vertices(v1, p1t, f1)
+      a33t = triangle_area_by_vertices(v2, p2b, f2)
+      a33t = triangle_area_by_vertices(v3, p3b, f3)
+      a33t = triangle_area_by_vertices(v4, p4t, f4)
+
+      area3 = max(a31q+a31t, a32q+a32t, a33q+a33t, a34q+a34t)
 
       if (ldebug) then
         print *, cstr('area 3', 'green')
-        print *, 'v1', pentagon_area_by_vertices(v1, p1l, f4, p1t, f1)
-        print *, 'v2', pentagon_area_by_vertices(v2, p2l, f3, p2b, f2)
-        print *, 'v3', pentagon_area_by_vertices(v3, p3r, f2, p3b, f3)
-        print *, 'v4', pentagon_area_by_vertices(v4, p4r, f1, p4t, f4)
+        print *, 'v1', a31q+a31t
+        print *, 'v2', a32q+a32t
+        print *, 'v3', a33q+a33t
+        print *, 'v4', a34q+a34t
       endif
 
       area1 = area_total_src - area2 - area3
@@ -213,58 +224,54 @@ contains
 
       area2 = max( &
         area3i( &
-        v1, p1r, f2, p1b, & ! quadrangle vertices
+        a21q, &
         norm2(f1 - p1r) * cos_src_trgt, & ! l
         norm2(p1rp - v1), & ! s
         norm2(p1r - v1), & ! h
         extinction_coeff & ! extinction coefficient
         ), &
         area3i( &
-        v2, p2r, f1, p2t, & ! quadrangle vertices
+        a22q, &
         norm2(f2 - p2r) * cos_src_trgt, & ! l
         norm2(p2rp - v2), & ! s
         norm2(p2r - v2), & ! h
         extinction_coeff & ! extinction coefficient
         ), &
         area3i( &
-        v3, p3l, f4, p3t, & ! quadrangle vertices
+        a23q, &
         norm2(f3 - p3l) * cos_src_trgt, & ! l
         norm2(p3rp - v3), & ! s
         norm2(p3l - v3), & ! h
         extinction_coeff & ! extinction coefficient
         ), &
         area3i( &
-        v4, p4l, f3, p4b, & ! quadrangle vertices
+        a24q, &
         norm2(f4 - p4l) * cos_src_trgt, & ! l
         norm2(p4rp - v4), & ! s
         norm2(p4l - v4), & ! h
         extinction_coeff & ! extinction coefficient
         )  &
         )
+
       if (ldebug) then
         print *, cstr('area2 computation', 'yellow')
         print *, cstr('quadrangle areas, triangle areas', 'yellow')
-        print *, 'v1', quadrangle_area_by_vertices(v1, p1r, f2, p1b), &
+        print *, 'v1', a21q, &
           num_dst(norm2(p1rp - v1), norm2(f1-p1r)*cos_src_trgt, norm2(p1r-v1), extinction_coeff)
-        print *, 'v2', quadrangle_area_by_vertices(v2, p2r, f1, p2t), &
+        print *, 'v2', a22q, &
           num_dst(norm2(p2rp - v2), norm2(f2-p2r)*cos_src_trgt, norm2(p2r-v2), extinction_coeff)
-        print *, 'v3', quadrangle_area_by_vertices(v3, p3l, f4, p3t), &
+        print *, 'v3', a23q, &
           num_dst(norm2(p3rp - v3), norm2(f3-p3r)*cos_src_trgt, norm2(p3l-v3), extinction_coeff)
-        print *, 'v4', quadrangle_area_by_vertices(v4, p4l, f3, p4b), &
+        print *, 'v4', a24q, &
           num_dst(norm2(p4rp - v4), norm2(f4-p4r)*cos_src_trgt, norm2(p4l-v4), extinction_coeff)
         print *, '_________________________________________________________________'
       endif
 
       normal = compute_normal_3d(f3, f2, f5)
 
-      p1rp = v1 + hit_plane(v1, sundir, f1, normal) * sundir
-      p2rp = v2 + hit_plane(v2, sundir, f2, normal) * sundir
-      p3rp = v3 + hit_plane(v3, sundir, f3, normal) * sundir
-      p4rp = v4 + hit_plane(v4, sundir, f4, normal) * sundir
-
       a31 = &
         area3i( &
-        v1, p1l, f4, p1t, & ! quadrangle vertices
+        a31q, &
         norm2(f1 - p1t) * cos_src_trgt, & ! l
         norm2(p1rp - v1), & ! s
         norm2(p1t - v1), & ! h
@@ -273,7 +280,7 @@ contains
 
       a32 = &
         area3i( &
-        v2, p2l, f3, p2b, & ! quadrangle vertices
+        a32q, &
         norm2(f2 - p2b) * cos_src_trgt, &
         norm2(p2rp - v2), &
         norm2(p2b - v2), &
@@ -282,7 +289,7 @@ contains
 
       a33 = &
         area3i( &
-        v3, p3r, f2, p3b, & ! quadrangle vertices
+        a33q, &
         norm2(f3 - p3b) * cos_src_trgt, &
         norm2(p3rp - v3), &
         norm2(p3b - v3), &
@@ -291,7 +298,7 @@ contains
 
       a34 = &
         area3i( &
-        v4, p4r, f1, p4t, & ! quadrangle vertices
+        a34q, &
         norm2(f4 - p4t) * cos_src_trgt, &   ! length
         norm2(p4rp - v4), &  ! path
         norm2(p4t - v4), &   ! height
@@ -303,13 +310,13 @@ contains
       if (ldebug) then
         print *, cstr('area3 computation', 'yellow')
         print *, cstr('quadrangle areas, triangle areas', 'yellow')
-        print *, 'v1', quadrangle_area_by_vertices(v1, p1l, f4, p1t), &
+        print *, 'v1', a31q, &
           num_dst(norm2(p1rp - v1), norm2(f1 - p1t) * cos_src_trgt, norm2(p1t - v1), extinction_coeff)
-        print *, 'v2', quadrangle_area_by_vertices(v2, p2l, f3, p2b), &
+        print *, 'v2', a32q, &
           num_dst(norm2(p2rp - v2), norm2(f2 - p2b) * cos_src_trgt, norm2(p2b - v2), extinction_coeff)
-        print *, 'v3', quadrangle_area_by_vertices(v3, p3r, f2, p3b), &
+        print *, 'v3', a33q, &
           num_dst(norm2(p3rp - v3), norm2(f3 - p3b) * cos_src_trgt, norm2(p3b - v3), extinction_coeff)
-        print *, 'v4', quadrangle_area_by_vertices(v4, p4r, f1, p4t), &
+        print *, 'v4', a34q, &
           num_dst(norm2(p4rp - v4), norm2(f4 - p4t) * cos_src_trgt, norm2(p4t - v4), extinction_coeff)
         print *, '_________________________________________________________________'
         print *, 'as', a31, a32, a33, a34
@@ -340,17 +347,17 @@ contains
     end subroutine
 
     real(ireals) function area3i( &
-        v, plr, f, ptb, & ! quadrangle vertices
+        quadrangle_area, &
         l, &
         s, &
         h, &
         extinction_coeff & ! extinction coefficient
         )
-      real(ireals), intent(in), dimension(3) :: v, plr, f, ptb
+      real(ireals), intent(in) :: quadrangle_area
       real(ireals), intent(in) :: extinction_coeff, s, l, h
 
       area3i = &
-        quadrangle_area_by_vertices(v, plr, f, ptb) * f_dst(s, extinction_coeff) + &
+        quadrangle_area * f_dst(s, extinction_coeff) + &
         num_dst( &
         s, &
         l, &
@@ -362,7 +369,6 @@ contains
     real(ireals) function num_dst(s0, l0, h0, extinction_coeff)
       real(ireals), intent(in) :: s0, l0, h0, extinction_coeff
       integer(iintegers), parameter :: n = 20
-      !real(ireals), parameter :: l0_tiny = tiny(l0)
       integer(iintegers) :: i
       real(ireals) :: s, dh, ds, dl, h, j
 
@@ -375,7 +381,6 @@ contains
         j = i - 0.5_ireals
         s = j * ds
         h = j * dh
-        !                  | area |  |             extinction             |
         num_dst = num_dst + dl * h * f_dst(s, extinction_coeff)
       enddo
     end function
@@ -404,45 +409,6 @@ contains
       enddo
     end function
 
-    real(ireals) function compute_quadrangle_areas( &
-        a1, a2, a3, a4, &
-        b1, b2, b3, b4, &
-        c1, c2, c3, c4, &
-        d1, d2, d3, d4  &
-        )
-      real(ireals), intent(in), dimension(3) :: &
-        a1, a2, a3, a4, &
-        b1, b2, b3, b4, &
-        c1, c2, c3, c4, &
-        d1, d2, d3, d4
-
-      compute_quadrangle_areas = max( &
-        quadrangle_area_by_vertices(a1, a2, a3, a4), &
-        quadrangle_area_by_vertices(b1, b2, b3, b4), &
-        quadrangle_area_by_vertices(c1, c2, c3, c4), &
-        quadrangle_area_by_vertices(d1, d2, d3, d4)  &
-        )
-    end function
-
-    real(ireals) function compute_pentagon_areas( &
-        a1, a2, a3, a4, a5, &
-        b1, b2, b3, b4, b5, &
-        c1, c2, c3, c4, c5, &
-        d1, d2, d3, d4, d5  &
-        )
-      real(ireals), intent(in), dimension(3) :: &
-        a1, a2, a3, a4, a5, &
-        b1, b2, b3, b4, b5, &
-        c1, c2, c3, c4, c5, &
-        d1, d2, d3, d4, d5
-
-      compute_pentagon_areas = max( &
-        pentagon_area_by_vertices(a1, a2, a3, a4, a5), &
-        pentagon_area_by_vertices(b1, b2, b3, b4, b5), &
-        pentagon_area_by_vertices(c1, c2, c3, c4, c5), &
-        pentagon_area_by_vertices(d1, d2, d3, d4, d5)  &
-        )
-    end function
   end subroutine dir2dir3_geometric_coeffs
 
   subroutine create_proj_copies(p1, p2, p3, p4, c1, c2, c3, c4)
@@ -590,9 +556,6 @@ contains
 
     call line_intersection_3d(origin1, direction1, origin2, direction2, coeff21, coeff22, ierr1)
     call line_intersection_3d(origin1, direction1, origin3, direction3, coeff31, coeff32, ierr2)
-
-    !if (ierr1 .ne. 0_mpiint .and. ierr2 .ne. 0_mpiint) &
-    !  & call CHKERR(1_mpiint, 'One intersection must exist.'// toStr(ierr1)// ' '// toStr(ierr2))
 
     if (ldebug) then
       print *, coeff21, coeff31
