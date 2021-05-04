@@ -2465,7 +2465,8 @@ module m_pprts
     type(t_state_container), intent(inout) :: solution
     type(t_pprts_buildings), optional, intent(in) :: opt_buildings
 
-    logical :: lflg, lskip_diffuse_solve, lshell_pprts, lexplicit_dir
+    logical :: lflg, lskip_diffuse_solve, lshell_pprts
+    logical :: lexplicit_dir, lexplicit_diff
     real(ireals) :: b_norm, rtol, atol
     integer(mpiint) :: ierr
 
@@ -2513,10 +2514,17 @@ module m_pprts
       solution%diff_ksp_residual_history = atol
     else
 
-      if( solution%lsolar_rad ) then
-        call ediff(solver%Mdiff, solver%Mdiff_perm, solver%ksp_solar_diff, "solar_diff_")
+      lexplicit_diff=.True.
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+        "-pprts_explicit_diff", lexplicit_diff, lflg , ierr) ;call CHKERR(ierr)
+      if(lexplicit_diff) then
+        call explicit_ediff(solver, solver%b, solution, ierr, opt_buildings); call CHKERR(ierr)
       else
-        call ediff(solver%Mth, solver%Mth_perm, solver%ksp_thermal_diff, "thermal_diff_")
+        if( solution%lsolar_rad ) then
+          call ediff(solver%Mdiff, solver%Mdiff_perm, solver%ksp_solar_diff, "solar_diff_")
+        else
+          call ediff(solver%Mth, solver%Mth_perm, solver%ksp_thermal_diff, "thermal_diff_")
+        endif
       endif
     endif
 
@@ -2705,7 +2713,6 @@ module m_pprts
       integer(iintegers), dimension(3) :: dx, dy ! start, end, increment for each dimension
       integer(iintegers), parameter :: maxiter=1000
       integer(iintegers) :: iter
-      !real(ireals) :: norm
 
       real(ireals), allocatable :: mpi_send_bfr_x(:,:,:), mpi_send_bfr_y(:,:,:)
       real(ireals), allocatable :: mpi_recv_bfr_x(:,:,:), mpi_recv_bfr_y(:,:,:)
@@ -2762,6 +2769,7 @@ module m_pprts
         endif
 
         allocate(coeff(1:C%dof**2, C%zs:C%ze-1, C%xs:C%xe, C%ys:C%ye))
+        call PetscLogEventBegin(solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
         do k=C%zs,C%ze-1
           do j=C%ys,C%ye
             do i=C%xs,C%xe
@@ -2779,6 +2787,7 @@ module m_pprts
             enddo
           enddo
         enddo
+        call PetscLogEventEnd(solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
 
         if(present(opt_buildings)) then
           call set_buildings_coeff()
@@ -3009,6 +3018,435 @@ module m_pprts
       end subroutine
     end subroutine
 
+    !> @brief explicit loop to compute diffuse radiation
+    subroutine explicit_ediff(solver, vb, solution, ierr, opt_buildings)
+      class(t_solver), intent(in) :: solver
+      type(tVec), intent(in) :: vb
+      type(t_state_container), intent(inout) :: solution
+      type(t_pprts_buildings), optional, intent(in) :: opt_buildings
+
+      real(ireals),pointer,dimension(:,:,:,:) :: x0=>null(), xb=>null(), xg=>null()
+      real(ireals),pointer,dimension(:) :: x01d=>null(), xb1d=>null(), xg1d=>null()
+      real(irealLUT), target, allocatable :: coeff(:,:,:,:) ! dof**2, k, i, j
+      type(tVec) :: lvb, v0
+
+      integer(iintegers), parameter :: maxiter=1000
+      integer(iintegers) :: iter, isub, sub_iter
+
+      real(ireals), allocatable :: mpi_send_bfr_e(:,:,:), mpi_send_bfr_n(:,:,:)
+      real(ireals), allocatable :: mpi_send_bfr_w(:,:,:), mpi_send_bfr_s(:,:,:)
+      real(ireals), allocatable :: mpi_recv_bfr_e(:,:,:), mpi_recv_bfr_n(:,:,:)
+      real(ireals), allocatable :: mpi_recv_bfr_w(:,:,:), mpi_recv_bfr_s(:,:,:)
+      real(ireals) :: residual(maxiter), residual_mmm(3), rel_residual, atol, rtol
+
+      logical :: lskip_residual, lmonitor_residual, lconverged, lflg, lflg2
+
+      integer(mpiint) :: ierr
+
+      ierr = 0
+
+      call PetscLogEventBegin(solver%logs%compute_Ediff, ierr)
+      associate( &
+          & vediff => solution%ediff, &
+          & atm => solver%atm, &
+          & C   => solver%C_diff)
+
+        sub_iter = 1
+        call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+          "-explicit_ediff_sub_iter", sub_iter, lflg, ierr) ;call CHKERR(ierr)
+
+        lskip_residual = .False.
+        call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+          "-explicit_ediff_skip_residual", lskip_residual, lflg , ierr) ;call CHKERR(ierr)
+
+        lmonitor_residual = .True.
+        call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+          "-explicit_ediff_monitor", lmonitor_residual, lflg , ierr) ;call CHKERR(ierr)
+
+        if(lmonitor_residual) then
+          call determine_ksp_tolerances(C, atm%l1d, rtol, atol)
+          call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_explicit_ediff_atol", &
+            atol, lflg , ierr) ;call CHKERR(ierr)
+          call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_explicit_ediff_rtol", &
+            rtol, lflg2, ierr) ;call CHKERR(ierr)
+          if(lflg.or.lflg2) then
+            if(solver%myid.eq.0) print *,'pprts_explicit_ediff setting rtol/atol', rtol, atol
+          endif
+        endif
+
+        call alloc_coeff()
+
+        if(present(opt_buildings)) then
+          !call set_buildings_coeff()
+        endif
+
+        allocate(&
+          & mpi_send_bfr_e(solver%diffside%dof/2, C%zs:C%ze, C%ys:C%ye), &
+          & mpi_send_bfr_w(solver%diffside%dof/2, C%zs:C%ze, C%ys:C%ye), &
+          & mpi_send_bfr_n(solver%diffside%dof/2, C%zs:C%ze, C%xs:C%xe), &
+          & mpi_send_bfr_s(solver%diffside%dof/2, C%zs:C%ze, C%xs:C%xe), &
+          & mpi_recv_bfr_e(solver%diffside%dof/2, C%zs:C%ze, C%ys:C%ye), &
+          & mpi_recv_bfr_w(solver%diffside%dof/2, C%zs:C%ze, C%ys:C%ye), &
+          & mpi_recv_bfr_n(solver%diffside%dof/2, C%zs:C%ze, C%xs:C%xe), &
+          & mpi_recv_bfr_s(solver%diffside%dof/2, C%zs:C%ze, C%xs:C%xe) &
+          & )
+
+        call DMGetLocalVector(C%da, v0, ierr); call CHKERR(ierr)
+        call DMGlobalToLocalBegin(C%da, vediff, INSERT_VALUES, v0, ierr) ;call CHKERR(ierr)
+        call DMGlobalToLocalEnd  (C%da, vediff, INSERT_VALUES, v0, ierr) ;call CHKERR(ierr)
+
+        call DMGetLocalVector(C%da, lvb, ierr); call CHKERR(ierr)
+        call DMGlobalToLocalBegin(C%da, vb, INSERT_VALUES, lvb, ierr) ;call CHKERR(ierr)
+        call DMGlobalToLocalEnd  (C%da, vb, INSERT_VALUES, lvb, ierr) ;call CHKERR(ierr)
+
+        call getVecPointer(C%da, vediff, xg1d, xg)
+        call getVecPointer(C%da, v0, x01d, x0)
+
+        call getVecPointer(C%da, lvb, xb1d, xb, readonly=.True.)
+        !where(xb.gt.zero)
+        !  x0 = xb
+        !end where
+
+        do iter = 1, maxiter
+
+          do isub=1, sub_iter
+            call forward_sweep(&
+              & dx = [C%xs, C%xe, i1], &
+              & dy = [C%ys, C%ye, i1], &
+              & dz = [C%zs, C%ze-1, i1] )
+            call forward_sweep(&
+              & dx = [C%xe, C%xs, -i1], &
+              & dy = [C%ye, C%ys, -i1], &
+              & dz = [C%ze-1, C%zs, -i1] )
+          enddo
+
+          call exchange_boundary()
+
+          ! Residual computations
+          if(.not.lskip_residual) then
+            residual(iter) = max(tiny(one), norm2(xg - x0(:,:,C%xs:C%xe,C%ys:C%ye)))
+            xg = x0(:,:,C%xs:C%xe,C%ys:C%ye)
+            rel_residual = residual(iter)/residual(1)
+            if(solver%myid.eq.0.and.lmonitor_residual) then
+              call imp_min_mean_max(solver%comm, residual(iter), residual_mmm)
+              residual(iter) = residual_mmm(2)
+              rel_residual = residual(iter)/residual(1)
+              print *,'explicit ediff', iter, 'residual (min/mean/max)', residual_mmm, &
+                & 'rel res', rel_residual
+            endif
+            solution%diff_ksp_residual_history(min(size(solution%diff_ksp_residual_history), iter)) = residual(iter)
+
+            lconverged = mpi_logical_and(solver%comm, residual(iter).lt.atol.or.rel_residual.lt.rtol)
+            if(lconverged) then
+              if(solver%myid.eq.0.and.lmonitor_residual) &
+                & print *,'explicit ediff solve converged after', iter, 'iterations'
+              exit
+            endif
+          endif
+
+          if(iter.eq.maxiter) call CHKERR(int(iter,mpiint), "pprts_explicit_ediff did not converge")
+        enddo ! iter
+
+        ! update solution vec
+        xg = x0(:,:,C%xs:C%xe,C%ys:C%ye)
+
+        call restoreVecPointer(C%da, lvb, xb1d, xb, readonly=.True.)
+        call restoreVecPointer(C%da, vediff, xg1d, xg)
+        call restoreVecPointer(C%da, v0, x01d, x0)
+
+        call DMRestoreLocalVector(C%da, v0, ierr); call CHKERR(ierr)
+        call DMRestoreLocalVector(C%da, lvb, ierr); call CHKERR(ierr)
+
+        call PetscObjectSetName(vediff,'debug_ediff',ierr) ; call CHKERR(ierr)
+        call PetscObjectViewFromOptions(vediff, PETSC_NULL_VEC, "-show_debug_ediff", ierr); call CHKERR(ierr)
+      end associate
+
+      solution%lchanged=.True.
+      solution%lWm2_diff=.False.
+      call PetscLogEventEnd(solver%logs%compute_Ediff, ierr)
+
+    contains
+
+      subroutine alloc_coeff()
+        integer(iintegers) :: k,i,j
+        associate( &
+            & atm => solver%atm, &
+            & C   => solver%C_diff)
+          allocate(coeff(1:C%dof**2, C%zs:C%ze-1, C%xs:C%xe, C%ys:C%ye))
+          call PetscLogEventBegin(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
+          do j=C%ys,C%ye
+            do i=C%xs,C%xe
+              do k=C%zs,C%ze-1
+                if(.not.atm%l1d(atmk(atm,k),i,j) ) then
+                  call get_coeff(solver, &
+                    & atm%kabs(atmk(solver%atm,k),i,j), &
+                    & atm%ksca(atmk(solver%atm,k),i,j), &
+                    & atm%g(atmk(solver%atm,k),i,j), &
+                    & atm%dz(atmk(solver%atm,k),i,j), .False., &
+                    & coeff(:,k,i,j), &
+                    & atm%l1d(atmk(solver%atm,k),i,j))
+                endif
+              enddo
+            enddo
+          enddo
+          call PetscLogEventEnd(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
+        end associate
+      end subroutine
+
+      subroutine forward_sweep(dx, dy, dz)
+        integer(iintegers), dimension(3), intent(in) :: dx, dy, dz ! start, end, increment for each dimension
+        integer(iintegers) :: k,i,j
+        integer(iintegers) :: idst, isrc, src, dst
+        real(irealLUT), pointer :: v(:,:) ! dim(src, dst)
+        integer(iintegers) :: msrc, mdst
+
+        associate( &
+            & atm => solver%atm, &
+            & C   => solver%C_diff)
+
+          ! forward sweep through v0
+          do k=dz(1), dz(2), dz(3)
+            do j=dy(1), dy(2), dy(3)
+              do i=dx(1), dx(2), dx(3)
+
+                if( atm%l1d(atmk(atm,k),i,j) ) then
+                  do idst = 0, solver%difftop%dof-1
+                    if (solver%difftop%is_inward(i1+idst)) then ! edn
+                      x0(idst, k+i1, i, j) = xb(idst, k+1, i, j) + &
+                        & x0(        idst , k   , i, j) * atm%a11(atmk(atm,k),i,j) + &
+                        & x0(inv_dof(idst), k+i1, i, j) * atm%a12(atmk(atm,k),i,j)
+                    else ! eup
+                      x0(idst, k, i, j) = xb(idst, k, i, j) + &
+                        & x0(        idst , k+i1, i, j) * atm%a11(atmk(atm,k),i,j) + &
+                        & x0(inv_dof(idst), k   , i, j) * atm%a12(atmk(atm,k),i,j)
+                    endif
+                  enddo
+                else
+
+                  v(0:C%dof-1, 0:C%dof-1) => coeff(1:C%dof**2,k,i,j)
+
+                  dst = 0
+                  do idst = 0, solver%difftop%dof-1
+                    mdst = merge(k+1, k, solver%difftop%is_inward(i1+idst))
+                    x0(dst, mdst, i, j) = xb(dst, mdst, i, j)
+                    src = 0
+                    do isrc = 0, solver%difftop%dof-1
+                      msrc = merge(k, k+1, solver%difftop%is_inward(i1+isrc))
+                      x0(dst, mdst, i, j) = x0(dst, mdst, i, j) + x0(src, msrc, i, j) * v(src, dst)
+                      src = src+1
+                    enddo
+                    do isrc = 0, solver%diffside%dof-1
+                      msrc = merge(i, i+1, solver%diffside%is_inward(i1+isrc))
+                      x0(dst, mdst, i, j) = x0(dst, mdst, i, j) + x0(src, k, msrc, j) * v(src, dst)
+                      src = src+1
+                    enddo
+                    do isrc = 0, solver%diffside%dof-1
+                      msrc = merge(j, j+1, solver%diffside%is_inward(i1+isrc))
+                      x0(dst, mdst, i, j) = x0(dst, mdst, i, j) + x0(src, k, i, msrc) * v(src, dst)
+                      src = src+1
+                    enddo
+                    dst = dst+1
+                  enddo
+
+                  do idst = 0, solver%diffside%dof-1
+                    mdst = merge(i+1, i, solver%diffside%is_inward(i1+idst))
+                    x0(dst, k, mdst, j) = xb(dst, k, mdst, j)
+                    src = 0
+                    do isrc = 0, solver%difftop%dof-1
+                      msrc = merge(k, k+1, solver%difftop%is_inward(i1+isrc))
+                      x0(dst, k, mdst, j) = x0(dst, k, mdst, j) + x0(src, msrc, i, j) * v(src, dst)
+                      src = src+1
+                    enddo
+                    do isrc = 0, solver%diffside%dof-1
+                      msrc = merge(i, i+1, solver%diffside%is_inward(i1+isrc))
+                      x0(dst, k, mdst, j) = x0(dst, k, mdst, j) + x0(src, k, msrc, j) * v(src, dst)
+                      src = src+1
+                    enddo
+                    do isrc = 0, solver%diffside%dof-1
+                      msrc = merge(j, j+1, solver%diffside%is_inward(i1+isrc))
+                      x0(dst, k, mdst, j) = x0(dst, k, mdst, j) + x0(src, k, i, msrc) * v(src, dst)
+                      src = src+1
+                    enddo
+                    dst = dst+1
+                  enddo
+
+                  do idst = 0, solver%diffside%dof-1
+                    mdst = merge(j+1, j, solver%diffside%is_inward(i1+idst))
+                    x0(dst, k, i, mdst) = xb(dst, k, i, mdst)
+                    src = 0
+                    do isrc = 0, solver%difftop%dof-1
+                      msrc = merge(k, k+1, solver%difftop%is_inward(i1+isrc))
+                      x0(dst, k, i, mdst) = x0(dst, k, i, mdst) + x0(src, msrc, i, j) * v(src, dst)
+                      src = src+1
+                    enddo
+                    do isrc = 0, solver%diffside%dof-1
+                      msrc = merge(i, i+1, solver%diffside%is_inward(i1+isrc))
+                      x0(dst, k, i, mdst) = x0(dst, k, i, mdst) + x0(src, k, msrc, j) * v(src, dst)
+                      src = src+1
+                    enddo
+                    do isrc = 0, solver%diffside%dof-1
+                      msrc = merge(j, j+1, solver%diffside%is_inward(i1+isrc))
+                      x0(dst, k, i, mdst) = x0(dst, k, i, mdst) + x0(src, k, i, msrc) * v(src, dst)
+                      src = src+1
+                    enddo
+                    dst = dst+1
+                  enddo
+                endif
+
+              enddo
+            enddo
+          enddo
+
+          do j=dy(1), dy(2), dy(3)
+            do i=dx(1), dx(2), dx(3)
+              do idst = 0, solver%difftop%dof-1
+                if (.not.solver%difftop%is_inward(i1+idst)) then ! Eup
+                  x0(idst, C%ze, i, j) = xb(idst, C%ze, i, j) + &
+                    & x0(inv_dof(idst), C%ze, i, j) * solver%atm%albedo(i,j)
+                endif
+              enddo
+            enddo
+          enddo
+
+        end associate
+      end subroutine
+
+      pure function inv_dof(dof) ! returns the dof that is the same stream but the opposite direction
+        integer(iintegers), intent(in) :: dof
+        integer(iintegers) :: inv_dof, inc
+        if(solver%difftop%is_inward(1)) then ! starting with downward streams
+          inc = 1
+        else
+          inc = -1
+        endif
+        if(solver%difftop%is_inward(i1+dof)) then ! downward stream
+          inv_dof = dof + inc
+        else
+          inv_dof = dof - inc
+        endif
+      end function
+
+!      subroutine set_buildings_coeff()
+!        integer(iintegers) :: m, idx(4)
+!
+!        associate( &
+!            & C => solver%C_dir, &
+!            & B => opt_buildings )
+!          do m = 1, size(B%iface)
+!            call ind_1d_to_nd(B%da_offsets, B%iface(m), idx)
+!            idx(2:4) = idx(2:4) -1 + [C%zs, C%xs, C%ys]
+!
+!            associate(k => idx(2), i => idx(3), j => idx(4))
+!              coeff(:,k,i,j) = -zero
+!            end associate
+!          enddo
+!        end associate
+!      end subroutine
+
+      subroutine exchange_boundary()
+        integer(mpiint), parameter :: tag_e=1, tag_w=2, tag_n=3, tag_s=4
+        integer(mpiint) :: neigh_s, neigh_e, neigh_w, neigh_n
+        integer(mpiint) :: requests(8), statuses(mpi_status_size,8)
+        integer(iintegers) :: k,i,j,d1,d2,dof,idof
+        associate( &
+            & C   => solver%C_diff)
+
+          neigh_s = int(C%neighbors( 4), mpiint)
+          neigh_w = int(C%neighbors(10), mpiint)
+          neigh_e = int(C%neighbors(16), mpiint)
+          neigh_n = int(C%neighbors(22), mpiint)
+
+          call MPI_Irecv(mpi_recv_bfr_w, size(mpi_recv_bfr_w, kind=mpiint), &
+            & imp_ireals, neigh_w, tag_e, solver%comm, requests(1), ierr); call CHKERR(ierr)
+          call MPI_Irecv(mpi_recv_bfr_e, size(mpi_recv_bfr_e, kind=mpiint), &
+            & imp_ireals, neigh_e, tag_w, solver%comm, requests(2), ierr); call CHKERR(ierr)
+
+          call MPI_Irecv(mpi_recv_bfr_s, size(mpi_recv_bfr_s, kind=mpiint), &
+            & imp_ireals, neigh_s, tag_n, solver%comm, requests(3), ierr); call CHKERR(ierr)
+          call MPI_Irecv(mpi_recv_bfr_n, size(mpi_recv_bfr_n, kind=mpiint), &
+            & imp_ireals, neigh_n, tag_s, solver%comm, requests(4), ierr); call CHKERR(ierr)
+
+          ! Boundary exchanges
+          ! x direction scatters, east/west boundary
+          do j=C%ys,C%ye
+            do k=C%zs,C%ze
+              d1=1; d2=1
+              do idof=i0, solver%diffside%dof-1
+                dof = solver%difftop%dof + idof
+                if (solver%diffside%is_inward(i1+idof)) then
+                  mpi_send_bfr_w(d1,k,j) = x0(dof, k, C%xe+1, j)
+                  d1 = d1+1
+                else
+                  mpi_send_bfr_e(d2,k,j) = x0(dof, k, C%xs, j)
+                  d2 = d2+1
+                endif
+              enddo
+            enddo
+          enddo
+          call MPI_Isend(mpi_send_bfr_w, size(mpi_send_bfr_w, kind=mpiint), &
+            & imp_ireals, neigh_w, tag_w, solver%comm, requests(5), ierr); call CHKERR(ierr)
+          call MPI_Isend(mpi_send_bfr_e, size(mpi_send_bfr_e, kind=mpiint), &
+            & imp_ireals, neigh_e, tag_e, solver%comm, requests(6), ierr); call CHKERR(ierr)
+
+          ! y direction scatters, south/north boundary
+          do i=C%xs,C%xe
+            do k=C%zs,C%ze
+              d1=1; d2=1
+              do idof=i0, solver%diffside%dof-1
+                dof = solver%difftop%dof + solver%diffside%dof + idof
+                if (solver%diffside%is_inward(i1+idof)) then
+                  mpi_send_bfr_n(d1,k,i) = x0(dof, k, i, C%ye+1)
+                  d1 = d1+1
+                else
+                  mpi_send_bfr_s(d2,k,i) = x0(dof, k, i, C%ys)
+                  d2 = d2+1
+                endif
+              enddo
+            enddo
+          enddo
+          call MPI_Isend(mpi_send_bfr_s, size(mpi_send_bfr_s, kind=mpiint), &
+            & imp_ireals, neigh_s, tag_s, solver%comm, requests(7), ierr); call CHKERR(ierr)
+          call MPI_Isend(mpi_send_bfr_n, size(mpi_send_bfr_n, kind=mpiint), &
+            & imp_ireals, neigh_n, tag_n, solver%comm, requests(8), ierr); call CHKERR(ierr)
+
+          call MPI_Waitall(8_mpiint, requests, statuses, ierr); call CHKERR(ierr)
+
+          ! receive buffers
+          do j=C%ys,C%ye
+            do k=C%zs,C%ze
+              d1=1; d2=1
+              do idof=i0, solver%diffside%dof-1
+                dof = solver%difftop%dof + idof
+                if (solver%diffside%is_inward(i1+idof)) then
+                  x0(dof, k, C%xs, j) = mpi_recv_bfr_w(d1,k,j)
+                  d1 = d1+1
+                else
+                  x0(dof, k, C%xe+1, j) = mpi_recv_bfr_e(d2,k,j)
+                  d2 = d2+1
+                endif
+              enddo
+            enddo
+          enddo
+
+          do i=C%xs,C%xe
+            do k=C%zs,C%ze
+              d1=1; d2=1
+              do idof=i0, solver%diffside%dof-1
+                dof = solver%difftop%dof + solver%diffside%dof + idof
+                if (solver%diffside%is_inward(i1+idof)) then
+                  x0(dof, k, i, C%ys) = mpi_recv_bfr_s(d1,k,i)
+                  d1 = d1+1
+                else
+                  x0(dof, k, i, C%ye+1) = mpi_recv_bfr_n(d2,k,i)
+                  d2 = d2+1
+                endif
+              enddo
+            enddo
+          enddo
+
+        end associate
+      end subroutine
+    end subroutine
 
 
     !> @brief renormalize fluxes with the size of a face(sides or lid)
