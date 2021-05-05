@@ -2470,6 +2470,8 @@ module m_pprts
     real(ireals) :: b_norm, rtol, atol
     integer(mpiint) :: ierr
 
+    character(len=default_str_len) :: prefix
+
     lshell_pprts = .False.
     call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
       "-pprts_shell", lshell_pprts, lflg,ierr) ; call CHKERR(ierr)
@@ -2479,13 +2481,14 @@ module m_pprts
 
     ! ---------------------------- Edir  -------------------
     if( solution%lsolar_rad ) then
+      prefix = "solar_dir_"
       lexplicit_dir=.True.
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-        "-pprts_explicit_dir", lexplicit_dir, lflg , ierr) ;call CHKERR(ierr)
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, prefix, &
+        "-explicit", lexplicit_dir, lflg , ierr) ;call CHKERR(ierr)
       if(lexplicit_dir) then
-        call explicit_edir(solver, edirTOA, solution, ierr, opt_buildings); call CHKERR(ierr)
+        call explicit_edir(solver, prefix, edirTOA, solution, ierr, opt_buildings); call CHKERR(ierr)
       else
-        call edir()
+        call edir(prefix)
       endif
     endif
 
@@ -2514,16 +2517,21 @@ module m_pprts
       solution%diff_ksp_residual_history = atol
     else
 
+      if( solution%lsolar_rad ) then
+        prefix = "solar_diff_"
+      else
+        prefix = "thermal_diff_"
+      endif
       lexplicit_diff=.True.
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-        "-pprts_explicit_diff", lexplicit_diff, lflg , ierr) ;call CHKERR(ierr)
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, prefix, &
+        "-explicit", lexplicit_diff, lflg , ierr) ;call CHKERR(ierr)
       if(lexplicit_diff) then
-        call explicit_ediff(solver, solver%b, solution, ierr, opt_buildings); call CHKERR(ierr)
+        call explicit_ediff(solver, prefix, solver%b, solution, ierr, opt_buildings); call CHKERR(ierr)
       else
         if( solution%lsolar_rad ) then
-          call ediff(solver%Mdiff, solver%Mdiff_perm, solver%ksp_solar_diff, "solar_diff_")
+          call ediff(solver%Mdiff, solver%Mdiff_perm, solver%ksp_solar_diff, prefix)
         else
-          call ediff(solver%Mth, solver%Mth_perm, solver%ksp_thermal_diff, "thermal_diff_")
+          call ediff(solver%Mth, solver%Mth_perm, solver%ksp_thermal_diff, prefix)
         endif
       endif
     endif
@@ -2535,7 +2543,8 @@ module m_pprts
 
     contains
 
-      subroutine edir()
+      subroutine edir(prefix)
+        character(len=*), intent(in) :: prefix
         logical :: lmat_permute_dir
 
           call PetscLogEventBegin(solver%logs%compute_Edir, ierr)
@@ -2591,9 +2600,9 @@ module m_pprts
             endif
             call PetscLogEventEnd(solver%logs%permute_mat_dir, ierr)
 
-            call setup_ksp(solver, solver%ksp_solar_dir, solver%C_dir, solver%Mdir_perm, prefix="solar_dir_")
+            call setup_ksp(solver, solver%ksp_solar_dir, solver%C_dir, solver%Mdir_perm, prefix=prefix)
           else
-            call setup_ksp(solver, solver%ksp_solar_dir, solver%C_dir, solver%Mdir, prefix="solar_dir_")
+            call setup_ksp(solver, solver%ksp_solar_dir, solver%C_dir, solver%Mdir, prefix=prefix)
           endif
 
           call PetscLogEventBegin(solver%logs%solve_Mdir, ierr)
@@ -2698,8 +2707,9 @@ module m_pprts
 
 
     !> @brief explicit loop to compute direct radiation
-    subroutine explicit_edir(solver, edirTOA, solution, ierr, opt_buildings)
+    subroutine explicit_edir(solver, prefix, edirTOA, solution, ierr, opt_buildings)
       class(t_solver), intent(in) :: solver
+      character(len=*), intent(in) :: prefix
       real(ireals), intent(in) :: edirTOA
       type(t_state_container), intent(inout) :: solution
       type(t_pprts_buildings), optional, intent(in) :: opt_buildings
@@ -2734,17 +2744,17 @@ module m_pprts
         call setup_incSolar(solver, edirTOA, vedir)
 
         lskip_residual = .False.
-        call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
-          "-explicit_edir_skip_residual", lskip_residual, lflg , ierr) ;call CHKERR(ierr)
+        call PetscOptionsGetBool(PETSC_NULL_OPTIONS, prefix, &
+          "-ksp_skip_residual", lskip_residual, lflg , ierr) ;call CHKERR(ierr)
 
         lmonitor_residual = .False.
-        call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
-          "-explicit_edir_monitor", lmonitor_residual, lflg , ierr) ;call CHKERR(ierr)
+        call PetscOptionsGetBool(PETSC_NULL_OPTIONS, prefix, &
+          & "-ksp_monitor", lmonitor_residual, lflg , ierr) ;call CHKERR(ierr)
 
         call determine_ksp_tolerances(C, atm%l1d, rtol, atol)
-        call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_explicit_edir_atol", &
+        call PetscOptionsGetReal(PETSC_NULL_OPTIONS, prefix, "-ksp_atol", &
           atol, lflg , ierr) ;call CHKERR(ierr)
-        call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_explicit_edir_rtol", &
+        call PetscOptionsGetReal(PETSC_NULL_OPTIONS, prefix, "-ksp_rtol", &
           rtol, lflg2, ierr) ;call CHKERR(ierr)
         if(lmonitor_residual) then
           if(lflg.or.lflg2) then
@@ -3019,8 +3029,9 @@ module m_pprts
     end subroutine
 
     !> @brief explicit loop to compute diffuse radiation
-    subroutine explicit_ediff(solver, vb, solution, ierr, opt_buildings)
+    subroutine explicit_ediff(solver, prefix, vb, solution, ierr, opt_buildings)
       class(t_solver), intent(in) :: solver
+      character(len=*), intent(in) :: prefix
       type(tVec), intent(in) :: vb
       type(t_state_container), intent(inout) :: solution
       type(t_pprts_buildings), optional, intent(in) :: opt_buildings
@@ -3052,21 +3063,21 @@ module m_pprts
           & C   => solver%C_diff)
 
         sub_iter = 1
-        call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-          "-explicit_ediff_sub_iter", sub_iter, lflg, ierr) ;call CHKERR(ierr)
+        call PetscOptionsGetInt(PETSC_NULL_OPTIONS, prefix, &
+          "-sub_iter", sub_iter, lflg, ierr) ;call CHKERR(ierr)
 
         lskip_residual = .False.
-        call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
-          "-explicit_ediff_skip_residual", lskip_residual, lflg , ierr) ;call CHKERR(ierr)
+        call PetscOptionsGetBool(PETSC_NULL_OPTIONS, prefix, &
+          "-ksp_skip_residual", lskip_residual, lflg , ierr) ;call CHKERR(ierr)
 
         lmonitor_residual = .False.
-        call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
-          "-explicit_ediff_monitor", lmonitor_residual, lflg , ierr) ;call CHKERR(ierr)
+        call PetscOptionsGetBool(PETSC_NULL_OPTIONS, prefix, &
+          "-ksp_monitor", lmonitor_residual, lflg , ierr) ;call CHKERR(ierr)
 
         call determine_ksp_tolerances(C, atm%l1d, rtol, atol)
-        call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_explicit_ediff_atol", &
+        call PetscOptionsGetReal(PETSC_NULL_OPTIONS, prefix, "-ksp_atol", &
           atol, lflg , ierr) ;call CHKERR(ierr)
-        call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_explicit_ediff_rtol", &
+        call PetscOptionsGetReal(PETSC_NULL_OPTIONS, prefix, "-ksp_rtol", &
           rtol, lflg2, ierr) ;call CHKERR(ierr)
         if(lmonitor_residual) then
           if(lflg.or.lflg2) then
