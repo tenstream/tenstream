@@ -124,7 +124,7 @@ program main
   endif
   if(lthermal) then
     call ex_pprts_buildings(mpi_comm_world, lverbose, &
-      & lsolar, .False., Nx, Ny, Nlay, icollapse, &
+      & lthermal, .False., Nx, Ny, Nlay, icollapse, &
       & glob_box_i, glob_box_j, glob_box_k,       &
       & box_albedo, box_planck,                   &
       & dx, dy, dz,                               &
