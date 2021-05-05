@@ -414,6 +414,9 @@ contains
       !logical, parameter :: lcheckdownward=.False., lcheckupward=.True., lchecksideward=.False.
       !logical, parameter :: lcheckdownward=.False., lcheckupward=.False., lchecksideward=.True.
 
+      real(ireals) :: test_atol
+      test_atol = 2*3*real(atol, ireals)
+
       ! direct tests
       bg  = [1e-3, 0., 0. ]
       phi = 0; theta = 0
@@ -517,7 +520,7 @@ contains
         src = 1
         call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
         call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer_top_plate_towards sidefaces 101')
-        @assertEqual(T(3), T(4), real(2*3*atol, ireals), 'stream should be same 101')
+        @assertEqual(T(3), T(4), test_atol, 'stream should be same 101')
 
         T_target = zero
         T_target([2,4]) = 0.485865_ireals
@@ -525,7 +528,7 @@ contains
         src = 1
         call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
         call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer_top_plate_towards sidefaces 102')
-        @assertEqual(T(2), T(4), real(2*3*atol, ireals), 'stream should be same 102')
+        @assertEqual(T(2), T(4), test_atol, 'stream should be same 102')
 
 
         T_target = zero
@@ -534,7 +537,7 @@ contains
         src = 1
         call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
         call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer_top_plate_towards sidefaces 103')
-        @assertEqual(T(2), T(3), real(2*3*atol, ireals), 'stream should be same 103')
+        @assertEqual(T(2), T(3), test_atol, 'stream should be same 103')
       endif ! lchecksideward
   end subroutine
 
@@ -834,6 +837,8 @@ contains
 
       character(len=*),optional :: msg
       character(default_str_len) :: local_msgS, local_msgT
+      real(ireals) :: test_atol
+      test_atol = real(atol, ireals) * real(sigma, ireals)
 
       if(myid.eq.0) then
         print*,''
@@ -858,11 +863,11 @@ contains
         print*,'---------------------'
         print*,''
 
-        @assertEqual(S_target, S, real(atol*sigma, ireals), local_msgS )
+        @assertEqual(S_target, S, test_atol, local_msgS )
         @assertLessThanOrEqual   (zero, S)
         @assertGreaterThanOrEqual(one , S)
 
-        @assertEqual(T_target, T, real(atol*sigma, ireals), local_msgT )
+        @assertEqual(T_target, T, test_atol, local_msgT )
         @assertLessThanOrEqual   (zero, T)
         @assertGreaterThanOrEqual(one , T)
       endif
