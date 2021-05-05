@@ -2737,16 +2737,16 @@ module m_pprts
         call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
           "-explicit_edir_skip_residual", lskip_residual, lflg , ierr) ;call CHKERR(ierr)
 
-        lmonitor_residual = .True.
+        lmonitor_residual = .False.
         call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
           "-explicit_edir_monitor", lmonitor_residual, lflg , ierr) ;call CHKERR(ierr)
 
+        call determine_ksp_tolerances(C, atm%l1d, rtol, atol)
+        call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_explicit_edir_atol", &
+          atol, lflg , ierr) ;call CHKERR(ierr)
+        call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_explicit_edir_rtol", &
+          rtol, lflg2, ierr) ;call CHKERR(ierr)
         if(lmonitor_residual) then
-          call determine_ksp_tolerances(C, atm%l1d, rtol, atol)
-          call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_explicit_edir_atol", &
-            atol, lflg , ierr) ;call CHKERR(ierr)
-          call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_explicit_edir_rtol", &
-            rtol, lflg2, ierr) ;call CHKERR(ierr)
           if(lflg.or.lflg2) then
             if(solver%myid.eq.0) print *,'pprts_explicit_edir setting rtol/atol', rtol, atol
           endif
@@ -3059,16 +3059,16 @@ module m_pprts
         call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
           "-explicit_ediff_skip_residual", lskip_residual, lflg , ierr) ;call CHKERR(ierr)
 
-        lmonitor_residual = .True.
+        lmonitor_residual = .False.
         call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
           "-explicit_ediff_monitor", lmonitor_residual, lflg , ierr) ;call CHKERR(ierr)
 
+        call determine_ksp_tolerances(C, atm%l1d, rtol, atol)
+        call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_explicit_ediff_atol", &
+          atol, lflg , ierr) ;call CHKERR(ierr)
+        call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_explicit_ediff_rtol", &
+          rtol, lflg2, ierr) ;call CHKERR(ierr)
         if(lmonitor_residual) then
-          call determine_ksp_tolerances(C, atm%l1d, rtol, atol)
-          call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_explicit_ediff_atol", &
-            atol, lflg , ierr) ;call CHKERR(ierr)
-          call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_explicit_ediff_rtol", &
-            rtol, lflg2, ierr) ;call CHKERR(ierr)
           if(lflg.or.lflg2) then
             if(solver%myid.eq.0) print *,'pprts_explicit_ediff setting rtol/atol', rtol, atol
           endif
@@ -3101,11 +3101,7 @@ module m_pprts
 
         call getVecPointer(C%da, vediff, xg1d, xg)
         call getVecPointer(C%da, v0, x01d, x0)
-
         call getVecPointer(C%da, lvb, xb1d, xb, readonly=.True.)
-        !where(xb.gt.zero)
-        !  x0 = xb
-        !end where
 
         do iter = 1, maxiter
 
