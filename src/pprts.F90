@@ -3474,11 +3474,11 @@ module m_pprts
               d1=1; d2=1
               do idof=i0, solver%diffside%dof-1
                 dof = solver%difftop%dof + idof
-                if (solver%diffside%is_inward(i1+idof)) then
-                  mpi_send_bfr_w(d1,k,j) = x0(dof, k, C%xe+1, j)
+                if (solver%diffside%is_inward(i1+idof)) then ! to the right
+                  mpi_send_bfr_e(d1,k,j) = x0(dof, k, C%xe+1, j)
                   d1 = d1+1
-                else
-                  mpi_send_bfr_e(d2,k,j) = x0(dof, k, C%xs, j)
+                else !leftward
+                  mpi_send_bfr_w(d2,k,j) = x0(dof, k, C%xs, j)
                   d2 = d2+1
                 endif
               enddo
@@ -3495,10 +3495,10 @@ module m_pprts
               d1=1; d2=1
               do idof=i0, solver%diffside%dof-1
                 dof = solver%difftop%dof + solver%diffside%dof + idof
-                if (solver%diffside%is_inward(i1+idof)) then
+                if (solver%diffside%is_inward(i1+idof)) then ! forward
                   mpi_send_bfr_n(d1,k,i) = x0(dof, k, i, C%ye+1)
                   d1 = d1+1
-                else
+                else ! backward
                   mpi_send_bfr_s(d2,k,i) = x0(dof, k, i, C%ys)
                   d2 = d2+1
                 endif
@@ -3518,10 +3518,10 @@ module m_pprts
               d1=1; d2=1
               do idof=i0, solver%diffside%dof-1
                 dof = solver%difftop%dof + idof
-                if (solver%diffside%is_inward(i1+idof)) then
+                if (solver%diffside%is_inward(i1+idof)) then ! to the right
                   x0(dof, k, C%xs, j) = mpi_recv_bfr_w(d1,k,j)
                   d1 = d1+1
-                else
+                else ! leftward
                   x0(dof, k, C%xe+1, j) = mpi_recv_bfr_e(d2,k,j)
                   d2 = d2+1
                 endif
