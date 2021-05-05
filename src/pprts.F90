@@ -3151,7 +3151,7 @@ module m_pprts
               call imp_min_mean_max(solver%comm, residual(iter), residual_mmm)
               residual(iter) = residual_mmm(2)
               rel_residual = residual(iter)/residual(1)
-              print *,'explicit ediff', iter, 'residual (min/mean/max)', residual_mmm, &
+              print *,trim(prefix), 'iteration', toStr(iter), 'residual (min/mean/max)', residual_mmm, &
                 & 'rel res', rel_residual
             endif
             solution%diff_ksp_residual_history(min(size(solution%diff_ksp_residual_history), iter)) = residual(iter)
@@ -3159,12 +3159,12 @@ module m_pprts
             lconverged = mpi_logical_and(solver%comm, residual(iter).lt.atol.or.rel_residual.lt.rtol)
             if(lconverged) then
               if(solver%myid.eq.0.and.lmonitor_residual) &
-                & print *,'explicit ediff solve converged after', iter, 'iterations'
+                & print *,trim(prefix),' solve converged after', iter, 'iterations'
               exit
             endif
           endif
 
-          if(iter.eq.maxiter) call CHKERR(int(iter,mpiint), "pprts_explicit_ediff did not converge")
+          if(iter.eq.maxiter) call CHKERR(int(iter,mpiint), trim(prefix)//" did not converge")
         enddo ! iter
 
         ! update solution vec
@@ -3359,10 +3359,9 @@ module m_pprts
             & B => opt_buildings )
           do m = 1, size(B%iface)
             call ind_1d_to_nd(B%da_offsets, B%iface(m), idx)
-            idx(2:4) = idx(2:4) -1 + [C%zs, C%xs, C%ys]
 
             associate(k => idx(2), i => idx(3), j => idx(4))
-              v(0:C%dof-1, 0:C%dof-1) => coeffs(1:C%dof**2,k-C%zs+1,i-C%xs+1,j-C%ys+1)
+              v(0:C%dof-1, 0:C%dof-1) => coeffs(1:C%dof**2,k,i,j)
               select case(idx(1))
               case(PPRTS_TOP_FACE)
                 do idst = 0, solver%difftop%dof-1
@@ -3440,7 +3439,6 @@ module m_pprts
                   endif
                 enddo
               end select
-
             end associate
           enddo
         end associate
