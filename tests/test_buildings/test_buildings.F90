@@ -159,7 +159,7 @@ contains
       end subroutine
   end subroutine
 
-  @test(npes =[4,2,1])
+  @test(npes =[4,1])
   subroutine test_buildings_example_overhead_sun(this)
     class (MpiTestMethod), intent(inout) :: this
 
@@ -215,7 +215,7 @@ contains
     endif
   end subroutine
 
-  @test(npes =[4,2,1])
+  @test(npes =[4,1])
   subroutine test_buildings_example_albedo(this)
     class (MpiTestMethod), intent(inout) :: this
 
@@ -273,7 +273,7 @@ contains
     endif
   end subroutine
 
-  @test(npes =[4,2,1])
+  @test(npes =[4,1])
   subroutine test_buildings_example_emission(this)
     class (MpiTestMethod), intent(inout) :: this
 
@@ -325,7 +325,7 @@ contains
     endif
   end subroutine
 
-  @test(npes =[4,2,1])
+  @test(npes =[4,1])
   subroutine test_buildings_example_fortyfive_sun_azi0(this)
   class (MpiTestMethod), intent(inout) :: this
 
@@ -391,7 +391,7 @@ contains
     endif
   end subroutine
 
-  @test(npes =[4,2,1])
+  @test(npes =[4,1])
   subroutine test_buildings_example_fortyfive_sun_azi180(this)
   class (MpiTestMethod), intent(inout) :: this
 
@@ -458,7 +458,7 @@ contains
     endif
   end subroutine
 
-  @test(npes =[4,2,1])
+  @test(npes =[4,1])
   subroutine test_buildings_example_fortyfive_sun_azi90(this)
   class (MpiTestMethod), intent(inout) :: this
 
@@ -525,7 +525,7 @@ contains
     endif
   end subroutine
 
-  @test(npes =[4,2,1])
+  @test(npes =[4,1])
   subroutine test_buildings_example_fortyfive_sun_azi270(this)
   class (MpiTestMethod), intent(inout) :: this
 
@@ -593,7 +593,7 @@ contains
   end subroutine
 
 
-  !@test(npes=[4,2,1])
+  @test(npes=[4,1])
   subroutine test_pprts_rrtmg_buildings_example_solar(this)
     class (MpiTestMethod), intent(inout) :: this
     integer(mpiint) :: comm, myid, ierr
@@ -686,7 +686,7 @@ contains
     call destroy_buildings(buildings_thermal,ierr); call CHKERR(ierr)
   end subroutine
 
-  @test(npes=[4,2,1])
+  @test(npes=[4,1])
   subroutine test_pprts_rrtmg_buildings_example_thermal(this)
     class (MpiTestMethod), intent(inout) :: this
     integer(mpiint) :: comm, myid, ierr
