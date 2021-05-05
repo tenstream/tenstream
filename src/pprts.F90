@@ -2721,12 +2721,12 @@ module m_pprts
       type(tVec) :: v0
 
       integer(iintegers), dimension(3) :: dx, dy ! start, end, increment for each dimension
-      integer(iintegers), parameter :: maxiter=1000
-      integer(iintegers) :: iter
+      integer(iintegers) :: iter, maxiter
 
       real(ireals), allocatable :: mpi_send_bfr_x(:,:,:), mpi_send_bfr_y(:,:,:)
       real(ireals), allocatable :: mpi_recv_bfr_x(:,:,:), mpi_recv_bfr_y(:,:,:)
-      real(ireals) :: residual(maxiter), residual_mmm(3), rel_residual, atol, rtol
+      real(ireals), allocatable :: residual(:)
+      real(ireals) :: residual_mmm(3), rel_residual, atol, rtol
 
       logical :: lsun_north, lsun_east, lpermute, lskip_residual, lmonitor_residual, lconverged, lflg, lflg2
 
@@ -2742,6 +2742,11 @@ module m_pprts
           & C   => solver%C_dir)
 
         call setup_incSolar(solver, edirTOA, vedir)
+
+        maxiter=1000
+        call PetscOptionsGetInt(PETSC_NULL_OPTIONS, prefix, &
+          "-ksp_max_it", maxiter, lflg, ierr) ;call CHKERR(ierr)
+        allocate(residual(maxiter))
 
         lskip_residual = .False.
         call PetscOptionsGetBool(PETSC_NULL_OPTIONS, prefix, &
@@ -3038,17 +3043,17 @@ module m_pprts
 
       real(ireals),pointer,dimension(:,:,:,:) :: x0=>null(), xb=>null(), xg=>null()
       real(ireals),pointer,dimension(:) :: x01d=>null(), xb1d=>null(), xg1d=>null()
-      real(irealLUT), target, allocatable :: coeff(:,:,:,:) ! dof**2, k, i, j
+      real(irealLUT), allocatable :: transport_coeff(:,:,:,:) ! dof**2, k, i, j
       type(tVec) :: lvb, v0
 
-      integer(iintegers), parameter :: maxiter=1000
-      integer(iintegers) :: iter, isub, sub_iter
+      integer(iintegers) :: iter, isub, maxiter, sub_iter
 
       real(ireals), allocatable :: mpi_send_bfr_e(:,:,:), mpi_send_bfr_n(:,:,:)
       real(ireals), allocatable :: mpi_send_bfr_w(:,:,:), mpi_send_bfr_s(:,:,:)
       real(ireals), allocatable :: mpi_recv_bfr_e(:,:,:), mpi_recv_bfr_n(:,:,:)
       real(ireals), allocatable :: mpi_recv_bfr_w(:,:,:), mpi_recv_bfr_s(:,:,:)
-      real(ireals) :: residual(maxiter), residual_mmm(3), rel_residual, atol, rtol
+      real(ireals), allocatable :: residual(:)
+      real(ireals) :: residual_mmm(3), rel_residual, atol, rtol
 
       logical :: lskip_residual, lmonitor_residual, lconverged, lflg, lflg2
 
@@ -3062,9 +3067,15 @@ module m_pprts
           & atm => solver%atm, &
           & C   => solver%C_diff)
 
+
+        maxiter=1000
+        call PetscOptionsGetInt(PETSC_NULL_OPTIONS, prefix, &
+          "-ksp_max_it", maxiter, lflg, ierr) ;call CHKERR(ierr)
+        allocate(residual(maxiter))
+
         sub_iter = 1
         call PetscOptionsGetInt(PETSC_NULL_OPTIONS, prefix, &
-          "-sub_iter", sub_iter, lflg, ierr) ;call CHKERR(ierr)
+          "-sub_it", sub_iter, lflg, ierr) ;call CHKERR(ierr)
 
         lskip_residual = .False.
         call PetscOptionsGetBool(PETSC_NULL_OPTIONS, prefix, &
@@ -3085,10 +3096,10 @@ module m_pprts
           endif
         endif
 
-        call alloc_coeff()
+        call alloc_coeff(transport_coeff)
 
         if(present(opt_buildings)) then
-          !call set_buildings_coeff()
+          call set_buildings_coeff(transport_coeff)
         endif
 
         allocate(&
@@ -3118,10 +3129,12 @@ module m_pprts
 
           do isub=1, sub_iter
             call forward_sweep(&
+              & transport_coeff, &
               & dx = [C%xs, C%xe, i1], &
               & dy = [C%ys, C%ye, i1], &
               & dz = [C%zs, C%ze-1, i1] )
             call forward_sweep(&
+              & transport_coeff, &
               & dx = [C%xe, C%xs, -i1], &
               & dy = [C%ye, C%ys, -i1], &
               & dz = [C%ze-1, C%zs, -i1] )
@@ -3174,12 +3187,13 @@ module m_pprts
 
     contains
 
-      subroutine alloc_coeff()
+      subroutine alloc_coeff(coeffs)
+        real(irealLUT), allocatable, intent(inout) :: coeffs(:,:,:,:)
         integer(iintegers) :: k,i,j
         associate( &
             & atm => solver%atm, &
             & C   => solver%C_diff)
-          allocate(coeff(1:C%dof**2, C%zs:C%ze-1, C%xs:C%xe, C%ys:C%ye))
+          allocate(coeffs(1:C%dof**2, C%zs:C%ze-1, C%xs:C%xe, C%ys:C%ye))
           call PetscLogEventBegin(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
           do j=C%ys,C%ye
             do i=C%xs,C%xe
@@ -3190,7 +3204,7 @@ module m_pprts
                     & atm%ksca(atmk(solver%atm,k),i,j), &
                     & atm%g(atmk(solver%atm,k),i,j), &
                     & atm%dz(atmk(solver%atm,k),i,j), .False., &
-                    & coeff(:,k,i,j), &
+                    & coeffs(:,k,i,j), &
                     & atm%l1d(atmk(solver%atm,k),i,j))
                 endif
               enddo
@@ -3200,7 +3214,8 @@ module m_pprts
         end associate
       end subroutine
 
-      subroutine forward_sweep(dx, dy, dz)
+      subroutine forward_sweep(coeffs, dx, dy, dz)
+        real(irealLUT), target, intent(in) :: coeffs(:,:,:,:)
         integer(iintegers), dimension(3), intent(in) :: dx, dy, dz ! start, end, increment for each dimension
         integer(iintegers) :: k,i,j
         integer(iintegers) :: idst, isrc, src, dst
@@ -3230,7 +3245,7 @@ module m_pprts
                   enddo
                 else
 
-                  v(0:C%dof-1, 0:C%dof-1) => coeff(1:C%dof**2,k,i,j)
+                  v(0:C%dof-1, 0:C%dof-1) => coeffs(1:C%dof**2,k-C%zs+1,i-C%xs+1,j-C%ys+1)
 
                   dst = 0
                   do idst = 0, solver%difftop%dof-1
@@ -3333,22 +3348,103 @@ module m_pprts
         endif
       end function
 
-!      subroutine set_buildings_coeff()
-!        integer(iintegers) :: m, idx(4)
-!
-!        associate( &
-!            & C => solver%C_dir, &
-!            & B => opt_buildings )
-!          do m = 1, size(B%iface)
-!            call ind_1d_to_nd(B%da_offsets, B%iface(m), idx)
-!            idx(2:4) = idx(2:4) -1 + [C%zs, C%xs, C%ys]
-!
-!            associate(k => idx(2), i => idx(3), j => idx(4))
-!              coeff(:,k,i,j) = -zero
-!            end associate
-!          enddo
-!        end associate
-!      end subroutine
+      subroutine set_buildings_coeff(coeffs)
+        real(irealLUT), target, intent(inout) :: coeffs(:,:,:,:)
+        integer(iintegers) :: m, idx(4)
+        integer(iintegers) :: isrc, idst, off
+        real(irealLUT), pointer :: v(:,:) ! dim(src, dst)
+
+        associate( &
+            & C => solver%C_diff, &
+            & B => opt_buildings )
+          do m = 1, size(B%iface)
+            call ind_1d_to_nd(B%da_offsets, B%iface(m), idx)
+            idx(2:4) = idx(2:4) -1 + [C%zs, C%xs, C%ys]
+
+            associate(k => idx(2), i => idx(3), j => idx(4))
+              v(0:C%dof-1, 0:C%dof-1) => coeffs(1:C%dof**2,k-C%zs+1,i-C%xs+1,j-C%ys+1)
+              select case(idx(1))
+              case(PPRTS_TOP_FACE)
+                do idst = 0, solver%difftop%dof-1
+                  if(.not.solver%difftop%is_inward(i1+idst)) then ! eup
+                    v(:,idst) = 0._irealLUT
+                    do isrc = 0, solver%difftop%dof-1
+                      if(solver%difftop%is_inward(i1+isrc)) then ! edn
+                        v(isrc, idst) = real(B%albedo(m), irealLUT) / real(solver%difftop%streams, irealLUT)
+                      endif
+                    enddo
+                  endif
+                enddo
+
+              case(PPRTS_BOT_FACE)
+                do idst = 0, solver%difftop%dof-1
+                  if(solver%difftop%is_inward(i1+idst)) then ! edn
+                    v(:,idst) = 0._irealLUT
+                    do isrc = 0, solver%difftop%dof-1
+                      if(.not.solver%difftop%is_inward(i1+isrc)) then ! eup
+                        v(isrc, idst) = real(B%albedo(m), irealLUT) / real(solver%difftop%streams, irealLUT)
+                      endif
+                    enddo
+                  endif
+                enddo
+
+              case(PPRTS_LEFT_FACE)
+                off = solver%difftop%dof
+                do idst = 0, solver%diffside%dof-1
+                  if(.not.solver%diffside%is_inward(i1+idst)) then ! leftward
+                    v(:,off+idst) = 0._irealLUT
+                    do isrc = 0, solver%diffside%dof-1
+                      if(solver%diffside%is_inward(i1+isrc)) then ! right ward
+                        v(off+isrc, off+idst) = real(B%albedo(m), irealLUT) / real(solver%diffside%streams, irealLUT)
+                      endif
+                    enddo
+                  endif
+                enddo
+
+              case(PPRTS_RIGHT_FACE)
+                off = solver%difftop%dof
+                do idst = 0, solver%diffside%dof-1
+                  if(solver%diffside%is_inward(i1+idst)) then ! rightward
+                    v(:,off+idst) = 0._irealLUT
+                    do isrc = 0, solver%diffside%dof-1
+                      if(.not.solver%diffside%is_inward(i1+isrc)) then ! leftward
+                        v(off+isrc, off+idst) = real(B%albedo(m), irealLUT) / real(solver%diffside%streams, irealLUT)
+                      endif
+                    enddo
+                  endif
+                enddo
+
+              case(PPRTS_REAR_FACE)
+                off = solver%difftop%dof + solver%diffside%dof
+                do idst = 0, solver%diffside%dof-1
+                  if(.not.solver%diffside%is_inward(i1+idst)) then ! backward
+                    v(:,off+idst) = 0._irealLUT
+                    do isrc = 0, solver%diffside%dof-1
+                      if(solver%diffside%is_inward(i1+isrc)) then ! forward
+                        v(off+isrc, off+idst) = real(B%albedo(m), irealLUT) / real(solver%diffside%streams, irealLUT)
+                      endif
+                    enddo
+                  endif
+                enddo
+
+              case(PPRTS_FRONT_FACE)
+                off = solver%difftop%dof + solver%diffside%dof
+                do idst = 0, solver%diffside%dof-1
+                  if(solver%diffside%is_inward(i1+idst)) then ! forward
+                    v(:,off+idst) = 0._irealLUT
+                    do isrc = 0, solver%diffside%dof-1
+                      if(.not.solver%diffside%is_inward(i1+isrc)) then ! backward
+                        v(off+isrc, off+idst) = real(B%albedo(m), irealLUT) / real(solver%diffside%streams, irealLUT)
+                      endif
+                    enddo
+                  endif
+                enddo
+              end select
+
+            end associate
+          enddo
+        end associate
+      end subroutine
 
       subroutine exchange_boundary()
         integer(mpiint), parameter :: tag_e=1, tag_w=2, tag_n=3, tag_s=4
