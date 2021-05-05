@@ -1,6 +1,5 @@
 stages:
   - build
-  - build2
 
 .template_build_PETSC: &template_build_PETSC
     - export PETSC_DIR=$CI_PROJECT_DIR/$PETSC_DIR
@@ -117,9 +116,7 @@ intel:
 
 
 intel:debug:
-  stage: build2
   extends: .build:default
-  needs: ["intel"]
   #image: intel/oneapi-hpckit
   image: intel/oneapi-hpckit:2021.1-devel-ubuntu18.04
   before_script:
