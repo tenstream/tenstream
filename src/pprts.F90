@@ -2833,7 +2833,7 @@ module m_pprts
               call imp_min_mean_max(solver%comm, residual(iter), residual_mmm)
               residual(iter) = residual_mmm(2)
               rel_residual = residual(iter)/residual(1)
-              print *,'explicit edir', iter, 'residual (min/mean/max)', residual_mmm, &
+              print *,trim(prefix)//" iter "//toStr(iter)//' residual (min/mean/max)', residual_mmm, &
                 & 'rel res', rel_residual
             endif
             solution%dir_ksp_residual_history(min(size(solution%dir_ksp_residual_history), iter)) = residual(iter)
@@ -2841,12 +2841,12 @@ module m_pprts
             lconverged = mpi_logical_and(solver%comm, residual(iter).lt.atol.or.rel_residual.lt.rtol)
             if(lconverged) then
               if(solver%myid.eq.0.and.lmonitor_residual) &
-                & print *,'explicit edir solve converged after', iter, 'iterations'
+                & print *,trim(prefix)//' solve converged after', iter, 'iterations'
               exit
             endif
           endif
 
-          if(iter.eq.maxiter) call CHKERR(int(iter,mpiint), "pprts_explicit_edir did not converge")
+          if(iter.eq.maxiter) call CHKERR(int(iter,mpiint), trim(prefix)//" did not converge")
         enddo ! iter
 
         ! update solution vec
@@ -3151,7 +3151,7 @@ module m_pprts
               call imp_min_mean_max(solver%comm, residual(iter), residual_mmm)
               residual(iter) = residual_mmm(2)
               rel_residual = residual(iter)/residual(1)
-              print *,trim(prefix), 'iteration', toStr(iter), 'residual (min/mean/max)', residual_mmm, &
+              print *,trim(prefix), ' iter ', toStr(iter), ' residual (min/mean/max)', residual_mmm, &
                 & 'rel res', rel_residual
             endif
             solution%diff_ksp_residual_history(min(size(solution%diff_ksp_residual_history), iter)) = residual(iter)
