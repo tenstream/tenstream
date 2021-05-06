@@ -347,7 +347,7 @@ contains
       src = 1
       call bmc_wedge_5_5%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer_top_plate_towards sidefaces 101')
-      @assertEqual(T(3), T(4), real(3*atol, ireals), 'stream should be same 101')
+      @assertEqual(T(3), T(4), 3*real(atol, ireals), 'stream should be same 101')
 
       T_target = zero
       T_target([2,4]) = real(4.85805E-01+4.85883E-01, ireals)/2
@@ -355,7 +355,7 @@ contains
       src = 1
       call bmc_wedge_5_5%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer_top_plate_towards sidefaces 102')
-      @assertEqual(T(2), T(4), real(3*atol, ireals), 'stream should be same 102')
+      @assertEqual(T(2), T(4), 3*real(atol, ireals), 'stream should be same 102')
 
 
       T_target = zero
@@ -364,7 +364,7 @@ contains
       src = 1
       call bmc_wedge_5_5%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer_top_plate_towards sidefaces 103')
-      @assertEqual(T(2), T(3), real(3*atol, ireals), 'stream should be same 103')
+      @assertEqual(T(2), T(3), 3*real(atol, ireals), 'stream should be same 103')
   end subroutine
 
   @test(npes =[1,2])
@@ -456,6 +456,7 @@ contains
 
       character(len=*),optional :: msg
       character(default_str_len) :: local_msgS, local_msgT
+      real(ireals), parameter :: test_atol = real(atol, ireals) * real(sigma, ireals)
 
       if(myid.eq.0) then
         print*,''
@@ -480,11 +481,11 @@ contains
         print*,'---------------------'
         print*,''
 
-        @assertEqual(S_target, S, real(atol*sigma, ireals), local_msgS )
+        @assertEqual(S_target, S, test_atol, local_msgS )
         @assertLessThanOrEqual   (zero, S)
         @assertGreaterThanOrEqual(one , S)
 
-        @assertEqual(T_target, T, real(atol*sigma, ireals), local_msgT )
+        @assertEqual(T_target, T, test_atol, local_msgT )
         @assertLessThanOrEqual   (zero, T)
         @assertGreaterThanOrEqual(one , T)
       endif
