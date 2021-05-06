@@ -1,13 +1,8 @@
 -skip_load_LUT
--dir_ksp_view
--diff_ksp_view
+-solar_dir_ksp_view
+-solar_diff_ksp_view
+-thermal_diff_ksp_view
 
--dir_ksp_monitor
--diff_ksp_monitor
-
--solar_dir_ksp_rtol 1e-7
--solar_diff_ksp_rtol 1e-7
--thermal_diff_ksp_rtol 1e-7
--solar_dir_ksp_atol 1e-30
--solar_diff_ksp_atol 1e-30
--thermal_diff_ksp_atol 1e-30
+-solar_dir_ksp_monitor
+-solar_diff_ksp_monitor
+-thermal_diff_ksp_monitor
