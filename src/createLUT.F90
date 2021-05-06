@@ -19,10 +19,8 @@
 
 program main
 
-#include "petsc/finclude/petsc.h"
-      use petsc
-
-      use m_data_parameters, only: mpiint, init_mpi_data_parameters
+      use mpi, only: MPI_COMM_WORLD
+      use m_data_parameters, only: mpiint, init_mpi_data_parameters, finalize_mpi
       use m_helper_functions, only: CHKERR
       use m_optprop_LUT, only : t_optprop_LUT, &
         t_optprop_LUT_1_2,  &
@@ -39,21 +37,15 @@ program main
         t_optprop_LUT_wedge_18_8
 
       use m_tenstream_options, only : read_commandline_options
+      implicit none
 
-      integer(mpiint) :: myid,comm
+      integer(mpiint) :: comm
 
       character(len=80) :: arg
       class(t_optprop_LUT), allocatable :: OPP
 
-      PetscErrorCode :: ierr
-
-      call mpi_init(ierr)
       comm = MPI_COMM_WORLD
-      call mpi_comm_rank(comm,myid,ierr)
-      call PetscInitialize(PETSC_NULL_CHARACTER ,ierr) ;call CHKERR(ierr)
-
-      call init_mpi_data_parameters(MPI_COMM_WORLD)
-
+      call init_mpi_data_parameters(comm)
       call read_commandline_options(comm)
 
       call get_command_argument(1, arg)
@@ -113,5 +105,5 @@ program main
 
       call OPP%init(comm, skip_load_LUT=.False.)
 
-      call mpi_finalize(ierr)
+      call finalize_mpi(comm, .True., .True.)
 end program
