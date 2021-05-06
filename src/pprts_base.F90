@@ -175,6 +175,7 @@ module m_pprts_base
     class(t_optprop_cube), allocatable :: OPP
 
     type(t_dof)                        :: difftop, diffside, dirtop, dirside
+    real(ireals), allocatable, dimension(:,:,:,:) :: dir2dir, dir2diff, diff2diff
 
     logical                            :: lenable_solutions_err_estimates=.True.  ! if enabled, we can save and load solutions.... just pass an unique identifer to solve()... beware, this may use lots of memory
     type(tVec),allocatable             :: incSolar, b
@@ -464,6 +465,10 @@ module m_pprts_base
         call solver%OPP%destroy(ierr); call CHKERR(ierr)
         deallocate(solver%OPP)
       endif
+
+      call deallocate_allocatable(solver%dir2dir)
+      call deallocate_allocatable(solver%dir2diff)
+      call deallocate_allocatable(solver%diff2diff)
 
       call destroy_coord(solver%C_dir         )
       call destroy_coord(solver%C_diff        )

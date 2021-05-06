@@ -2285,8 +2285,7 @@ module m_pprts
     class(t_solver), pointer :: solver
     real(ireals),pointer,dimension(:,:,:,:) :: xx=>null(), xb=>null()
     real(ireals),pointer,dimension(:) :: xx1d=>null(), xb1d=>null()
-    real(irealLUT), target, allocatable :: coeff(:)
-    real(irealLUT), pointer :: v(:,:) ! dim(src,dst)
+    real(ireals), pointer :: v(:,:) ! dim(src,dst)
     integer(iintegers) :: k,i,j
     integer(iintegers) :: idst, isrc, dst, src
     integer(iintegers) :: mdst, msrc
@@ -2306,8 +2305,6 @@ module m_pprts
     associate( atm => solver%atm, &
                C   => solver%C_diff)
 
-      allocate(coeff(C%dof**2))
-      v(0:C%dof-1, 0:C%dof-1) => coeff(1:C%dof**2)
 
       allocate(row(4,0:C%dof-1), col(4,0:C%dof-1))
 
@@ -2339,14 +2336,7 @@ module m_pprts
 
             else
 
-              call PetscLogEventBegin(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
-              call get_coeff(solver, &
-                atm%kabs(atmk(solver%atm,k),i,j), &
-                atm%ksca(atmk(solver%atm,k),i,j), &
-                atm%g(atmk(solver%atm,k),i,j), &
-                atm%dz(atmk(solver%atm,k),i,j), .False., coeff, &
-                atm%l1d(atmk(solver%atm,k),i,j))
-              call PetscLogEventEnd(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
+              v(0:C%dof-1, 0:C%dof-1) => solver%diff2diff(1:C%dof**2,k,i,j)
 
               dst = 0
               do idst = 0, solver%difftop%dof-1
@@ -2479,6 +2469,13 @@ module m_pprts
     ! --------- scale from [W/m**2] to [W] -----------------
     call scale_flx(solver, solution, lWm2=.False. )
 
+    ! Populate transport coeffs
+    if( solution%lsolar_rad ) then
+      call alloc_coeff_dir2dir(solver, solver%dir2dir, opt_buildings)
+      call alloc_coeff_dir2diff(solver, solver%dir2diff)
+    endif
+    call alloc_coeff_diff2diff(solver, solver%diff2diff, opt_buildings)
+
     ! ---------------------------- Edir  -------------------
     if( solution%lsolar_rad ) then
       prefix = "solar_dir_"
@@ -2486,7 +2483,7 @@ module m_pprts
       call PetscOptionsGetBool(PETSC_NULL_OPTIONS, prefix, &
         "-explicit", lexplicit_dir, lflg , ierr) ;call CHKERR(ierr)
       if(lexplicit_dir) then
-        call explicit_edir(solver, prefix, edirTOA, solution, ierr, opt_buildings); call CHKERR(ierr)
+        call explicit_edir(solver, prefix, edirTOA, solution, ierr); call CHKERR(ierr)
       else
         call edir(prefix)
       endif
@@ -2526,7 +2523,7 @@ module m_pprts
       call PetscOptionsGetBool(PETSC_NULL_OPTIONS, prefix, &
         "-explicit", lexplicit_diff, lflg , ierr) ;call CHKERR(ierr)
       if(lexplicit_diff) then
-        call explicit_ediff(solver, prefix, solver%b, solution, ierr, opt_buildings); call CHKERR(ierr)
+        call explicit_ediff(solver, prefix, solver%b, solution, ierr); call CHKERR(ierr)
       else
         if( solution%lsolar_rad ) then
           call ediff(solver%Mdiff, solver%Mdiff_perm, solver%ksp_solar_diff, prefix)
@@ -2557,7 +2554,7 @@ module m_pprts
           else
             call PetscLogEventBegin(solver%logs%setup_Mdir, ierr)
             call init_Matrix(solver, solver%C_dir, solver%Mdir, setup_direct_preallocation)
-            call set_dir_coeff(solver, solver%sun, solver%Mdir, solver%C_dir, opt_buildings)
+            call set_dir_coeff(solver, solver%sun, solver%Mdir, solver%C_dir)
             call PetscLogEventEnd(solver%logs%setup_Mdir, ierr)
             if(ldebug) call mat_info(solver%comm, solver%Mdir)
           endif
@@ -2642,7 +2639,7 @@ module m_pprts
           call init_Matrix(solver, solver%C_diff, A, setup_diffuse_preallocation)
 
           call PetscLogEventBegin(solver%logs%setup_Mdiff, ierr)
-          call set_diff_coeff(solver, A, solver%C_diff, opt_buildings)
+          call set_diff_coeff(solver, A, solver%C_diff)
           call PetscLogEventEnd(solver%logs%setup_Mdiff, ierr)
           if(ldebug) call mat_info(solver%comm, A)
         endif
@@ -2707,16 +2704,14 @@ module m_pprts
 
 
     !> @brief explicit loop to compute direct radiation
-    subroutine explicit_edir(solver, prefix, edirTOA, solution, ierr, opt_buildings)
-      class(t_solver), intent(in) :: solver
+    subroutine explicit_edir(solver, prefix, edirTOA, solution, ierr)
+      class(t_solver), target, intent(in) :: solver
       character(len=*), intent(in) :: prefix
       real(ireals), intent(in) :: edirTOA
       type(t_state_container), intent(inout) :: solution
-      type(t_pprts_buildings), optional, intent(in) :: opt_buildings
 
       real(ireals),pointer,dimension(:,:,:,:) :: x0=>null(), xg=>null()
       real(ireals),pointer,dimension(:) :: x01d=>null(), xg1d=>null()
-      real(irealLUT), target, allocatable :: coeff(:,:,:,:) ! dof**2, k, i, j
       integer(iintegers) :: k,i,j
       type(tVec) :: v0
 
@@ -2783,31 +2778,6 @@ module m_pprts
             & print *,'Using permutations for pprts_explicit_edir x-iterator:', dx, 'y-iterator:', dy
         endif
 
-        allocate(coeff(1:C%dof**2, C%zs:C%ze-1, C%xs:C%xe, C%ys:C%ye))
-        call PetscLogEventBegin(solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
-        do k=C%zs,C%ze-1
-          do j=C%ys,C%ye
-            do i=C%xs,C%xe
-              if(.not.atm%l1d(atmk(atm,k),i,j) ) then
-                call get_coeff(solver, &
-                  & atm%kabs(atmk(solver%atm,k),i,j), &
-                  & atm%ksca(atmk(solver%atm,k),i,j), &
-                  & atm%g(atmk(solver%atm,k),i,j), &
-                  & atm%dz(atmk(solver%atm,k),i,j), .True., &
-                  & coeff(:,k,i,j), &
-                  & atm%l1d(atmk(solver%atm,k),i,j), &
-                  & [real(sun%symmetry_phi, irealLUT), real(sun%theta, irealLUT)], &
-                  & lswitch_east=lsun_east, lswitch_north=lsun_north)
-              endif
-            enddo
-          enddo
-        enddo
-        call PetscLogEventEnd(solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
-
-        if(present(opt_buildings)) then
-          call set_buildings_coeff()
-        endif
-
         allocate(mpi_send_bfr_x(solver%dirside%dof, C%zm, C%ys:C%ye), mpi_recv_bfr_x(solver%dirside%dof, C%zm, C%ys:C%ye))
         allocate(mpi_send_bfr_y(solver%dirside%dof, C%zm, C%xs:C%xe), mpi_recv_bfr_y(solver%dirside%dof, C%zm, C%xs:C%xe))
 
@@ -2868,7 +2838,7 @@ module m_pprts
 
       subroutine forward_sweep()
         integer(iintegers) :: idst, isrc, src, dst, xinc, yinc
-        real(irealLUT), pointer :: v(:,:) ! dim(src, dst)
+        real(ireals), pointer :: v(:,:) ! dim(src, dst)
         associate( &
             & atm => solver%atm, &
             & C   => solver%C_dir)
@@ -2886,7 +2856,7 @@ module m_pprts
 
                   xinc = solver%sun%xinc
                   yinc = solver%sun%yinc
-                  v(0:C%dof-1, 0:C%dof-1) => coeff(1:C%dof**2,k,i,j)
+                  v(0:C%dof-1, 0:C%dof-1) => solver%dir2dir(:,k,i,j)
 
                   dst = 0
                   do idst = 0, solver%dirtop%dof-1
@@ -2954,23 +2924,6 @@ module m_pprts
         end associate
       end subroutine
 
-      subroutine set_buildings_coeff()
-        integer(iintegers) :: m, idx(4)
-
-        associate( &
-            & C => solver%C_dir, &
-            & B => opt_buildings )
-          do m = 1, size(B%iface)
-            call ind_1d_to_nd(B%da_offsets, B%iface(m), idx)
-            idx(2:4) = idx(2:4) -1 + [C%zs, C%xs, C%ys]
-
-            associate(k => idx(2), i => idx(3), j => idx(4))
-              coeff(:,k,i,j) = -zero
-            end associate
-          enddo
-        end associate
-      end subroutine
-
       subroutine exchange_boundary()
         integer(mpiint), parameter :: tag_x=1, tag_y=2
         integer(mpiint) :: neigh_s, neigh_r, requests(4), statuses(mpi_status_size,4)
@@ -3034,16 +2987,14 @@ module m_pprts
     end subroutine
 
     !> @brief explicit loop to compute diffuse radiation
-    subroutine explicit_ediff(solver, prefix, vb, solution, ierr, opt_buildings)
-      class(t_solver), intent(in) :: solver
+    subroutine explicit_ediff(solver, prefix, vb, solution, ierr)
+      class(t_solver), intent(inout) :: solver
       character(len=*), intent(in) :: prefix
       type(tVec), intent(in) :: vb
       type(t_state_container), intent(inout) :: solution
-      type(t_pprts_buildings), optional, intent(in) :: opt_buildings
 
       real(ireals),pointer,dimension(:,:,:,:) :: x0=>null(), xb=>null(), xg=>null()
       real(ireals),pointer,dimension(:) :: x01d=>null(), xb1d=>null(), xg1d=>null()
-      real(irealLUT), allocatable :: transport_coeff(:,:,:,:) ! dof**2, k, i, j
       type(tVec) :: lvb, v0
 
       integer(iintegers) :: iter, isub, maxiter, sub_iter
@@ -3096,12 +3047,6 @@ module m_pprts
           endif
         endif
 
-        call alloc_coeff(transport_coeff)
-
-        if(present(opt_buildings)) then
-          call set_buildings_coeff(transport_coeff)
-        endif
-
         allocate(&
           & mpi_send_bfr_e(solver%diffside%dof/2, C%zs:C%ze, C%ys:C%ye), &
           & mpi_send_bfr_w(solver%diffside%dof/2, C%zs:C%ze, C%ys:C%ye), &
@@ -3129,12 +3074,12 @@ module m_pprts
 
           do isub=1, sub_iter
             call forward_sweep(&
-              & transport_coeff, &
+              & solver%diff2diff, &
               & dx = [C%xs, C%xe, i1], &
               & dy = [C%ys, C%ye, i1], &
               & dz = [C%zs, C%ze-1, i1] )
             call forward_sweep(&
-              & transport_coeff, &
+              & solver%diff2diff, &
               & dx = [C%xe, C%xs, -i1], &
               & dy = [C%ye, C%ys, -i1], &
               & dz = [C%ze-1, C%zs, -i1] )
@@ -3187,39 +3132,12 @@ module m_pprts
 
     contains
 
-      subroutine alloc_coeff(coeffs)
-        real(irealLUT), allocatable, intent(inout) :: coeffs(:,:,:,:)
-        integer(iintegers) :: k,i,j
-        associate( &
-            & atm => solver%atm, &
-            & C   => solver%C_diff)
-          allocate(coeffs(1:C%dof**2, C%zs:C%ze-1, C%xs:C%xe, C%ys:C%ye))
-          call PetscLogEventBegin(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
-          do j=C%ys,C%ye
-            do i=C%xs,C%xe
-              do k=C%zs,C%ze-1
-                if(.not.atm%l1d(atmk(atm,k),i,j) ) then
-                  call get_coeff(solver, &
-                    & atm%kabs(atmk(solver%atm,k),i,j), &
-                    & atm%ksca(atmk(solver%atm,k),i,j), &
-                    & atm%g(atmk(solver%atm,k),i,j), &
-                    & atm%dz(atmk(solver%atm,k),i,j), .False., &
-                    & coeffs(:,k,i,j), &
-                    & atm%l1d(atmk(solver%atm,k),i,j))
-                endif
-              enddo
-            enddo
-          enddo
-          call PetscLogEventEnd(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
-        end associate
-      end subroutine
-
       subroutine forward_sweep(coeffs, dx, dy, dz)
-        real(irealLUT), target, intent(in) :: coeffs(:,:,:,:)
+        real(ireals), target, intent(in) :: coeffs(:,:,:,:)
         integer(iintegers), dimension(3), intent(in) :: dx, dy, dz ! start, end, increment for each dimension
         integer(iintegers) :: k,i,j
         integer(iintegers) :: idst, isrc, src, dst
-        real(irealLUT), pointer :: v(:,:) ! dim(src, dst)
+        real(ireals), pointer :: v(:,:) ! dim(src, dst)
         integer(iintegers) :: msrc, mdst
 
         associate( &
@@ -3348,102 +3266,6 @@ module m_pprts
         endif
       end function
 
-      subroutine set_buildings_coeff(coeffs)
-        real(irealLUT), target, intent(inout) :: coeffs(:,:,:,:)
-        integer(iintegers) :: m, idx(4)
-        integer(iintegers) :: isrc, idst, off
-        real(irealLUT), pointer :: v(:,:) ! dim(src, dst)
-
-        associate( &
-            & C => solver%C_diff, &
-            & B => opt_buildings )
-          do m = 1, size(B%iface)
-            call ind_1d_to_nd(B%da_offsets, B%iface(m), idx)
-
-            associate(k => idx(2), i => idx(3), j => idx(4))
-              v(0:C%dof-1, 0:C%dof-1) => coeffs(1:C%dof**2,k,i,j)
-              select case(idx(1))
-              case(PPRTS_TOP_FACE)
-                do idst = 0, solver%difftop%dof-1
-                  if(.not.solver%difftop%is_inward(i1+idst)) then ! eup
-                    v(:,idst) = 0._irealLUT
-                    do isrc = 0, solver%difftop%dof-1
-                      if(solver%difftop%is_inward(i1+isrc)) then ! edn
-                        v(isrc, idst) = real(B%albedo(m), irealLUT) / real(solver%difftop%streams, irealLUT)
-                      endif
-                    enddo
-                  endif
-                enddo
-
-              case(PPRTS_BOT_FACE)
-                do idst = 0, solver%difftop%dof-1
-                  if(solver%difftop%is_inward(i1+idst)) then ! edn
-                    v(:,idst) = 0._irealLUT
-                    do isrc = 0, solver%difftop%dof-1
-                      if(.not.solver%difftop%is_inward(i1+isrc)) then ! eup
-                        v(isrc, idst) = real(B%albedo(m), irealLUT) / real(solver%difftop%streams, irealLUT)
-                      endif
-                    enddo
-                  endif
-                enddo
-
-              case(PPRTS_LEFT_FACE)
-                off = solver%difftop%dof
-                do idst = 0, solver%diffside%dof-1
-                  if(.not.solver%diffside%is_inward(i1+idst)) then ! leftward
-                    v(:,off+idst) = 0._irealLUT
-                    do isrc = 0, solver%diffside%dof-1
-                      if(solver%diffside%is_inward(i1+isrc)) then ! right ward
-                        v(off+isrc, off+idst) = real(B%albedo(m), irealLUT) / real(solver%diffside%streams, irealLUT)
-                      endif
-                    enddo
-                  endif
-                enddo
-
-              case(PPRTS_RIGHT_FACE)
-                off = solver%difftop%dof
-                do idst = 0, solver%diffside%dof-1
-                  if(solver%diffside%is_inward(i1+idst)) then ! rightward
-                    v(:,off+idst) = 0._irealLUT
-                    do isrc = 0, solver%diffside%dof-1
-                      if(.not.solver%diffside%is_inward(i1+isrc)) then ! leftward
-                        v(off+isrc, off+idst) = real(B%albedo(m), irealLUT) / real(solver%diffside%streams, irealLUT)
-                      endif
-                    enddo
-                  endif
-                enddo
-
-              case(PPRTS_REAR_FACE)
-                off = solver%difftop%dof + solver%diffside%dof
-                do idst = 0, solver%diffside%dof-1
-                  if(.not.solver%diffside%is_inward(i1+idst)) then ! backward
-                    v(:,off+idst) = 0._irealLUT
-                    do isrc = 0, solver%diffside%dof-1
-                      if(solver%diffside%is_inward(i1+isrc)) then ! forward
-                        v(off+isrc, off+idst) = real(B%albedo(m), irealLUT) / real(solver%diffside%streams, irealLUT)
-                      endif
-                    enddo
-                  endif
-                enddo
-
-              case(PPRTS_FRONT_FACE)
-                off = solver%difftop%dof + solver%diffside%dof
-                do idst = 0, solver%diffside%dof-1
-                  if(solver%diffside%is_inward(i1+idst)) then ! forward
-                    v(:,off+idst) = 0._irealLUT
-                    do isrc = 0, solver%diffside%dof-1
-                      if(.not.solver%diffside%is_inward(i1+isrc)) then ! backward
-                        v(off+isrc, off+idst) = real(B%albedo(m), irealLUT) / real(solver%diffside%streams, irealLUT)
-                      endif
-                    enddo
-                  endif
-                enddo
-              end select
-            end associate
-          enddo
-        end associate
-      end subroutine
-
       subroutine exchange_boundary()
         integer(mpiint), parameter :: tag_e=1, tag_w=2, tag_n=3, tag_s=4
         integer(mpiint) :: neigh_s, neigh_e, neigh_w, neigh_n
@@ -3547,6 +3369,282 @@ module m_pprts
 
         end associate
       end subroutine
+    end subroutine
+
+
+    subroutine alloc_coeff_dir2dir(solver, coeffs, opt_buildings)
+      class(t_solver), intent(in) :: solver
+      real(ireals), allocatable, intent(inout) :: coeffs(:,:,:,:)
+      type(t_pprts_buildings), optional, intent(in) :: opt_buildings
+      real(irealLUT), allocatable :: v(:)
+      integer(iintegers) :: k,i,j
+      integer(mpiint) :: ierr
+
+      real(ireals), pointer :: xhhl(:,:,:,:) => null(), xhhl1d(:) => null()
+      real(ireals), allocatable :: vertices(:)
+
+
+      associate( &
+          & atm     => solver%atm, &
+          & sun     => solver%sun, &
+          & C_dir   => solver%C_dir)
+
+        if(.not.allocated(coeffs)) &
+          & allocate(coeffs(&
+            & 1:C_dir%dof**2, &
+            & C_dir%zs:C_dir%ze-1, &
+            & C_dir%xs:C_dir%xe, &
+            & C_dir%ys:C_dir%ye))
+        allocate(v(1:C_dir%dof**2))
+
+
+        call PetscLogEventBegin(solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
+
+        call setup_default_unit_cube_geometry(atm%dx, atm%dy, -one, vertices)
+        call getVecPointer(solver%Cvert_one_atm1%da, solver%atm%vert_heights, xhhl1d, xhhl, readonly=.True.)
+
+        do j=C_dir%ys,C_dir%ye
+          do i=C_dir%xs,C_dir%xe
+            do k=C_dir%zs,C_dir%ze-1
+              if(.not.atm%l1d(atmk(atm,k),i,j) ) then
+
+                vertices( 3) = xhhl(i0,atmk(solver%atm,k+1),i,j)
+                vertices( 6) = xhhl(i0,atmk(solver%atm,k+1),i+1,j)
+                vertices( 9) = xhhl(i0,atmk(solver%atm,k+1),i,j+1)
+                vertices(12) = xhhl(i0,atmk(solver%atm,k+1),i+1,j+1)
+                vertices(15) = xhhl(i0,atmk(solver%atm,k),i,j)
+                vertices(18) = xhhl(i0,atmk(solver%atm,k),i+1,j)
+                vertices(21) = xhhl(i0,atmk(solver%atm,k),i,j+1)
+                vertices(24) = xhhl(i0,atmk(solver%atm,k),i+1,j+1)
+
+                vertices(3:24:3) = vertices(3:24:3) - vertices(3)
+
+                call get_coeff(solver, &
+                  & atm%kabs(atmk(solver%atm,k),i,j), &
+                  & atm%ksca(atmk(solver%atm,k),i,j), &
+                  & atm%g(atmk(solver%atm,k),i,j), &
+                  & atm%dz(atmk(solver%atm,k),i,j), .True., &
+                  & v, &
+                  & atm%l1d(atmk(solver%atm,k),i,j), &
+                  & [real(sun%symmetry_phi, irealLUT), real(sun%theta, irealLUT)], &
+                  & lswitch_east=sun%xinc.eq.0, lswitch_north=sun%yinc.eq.0)
+                coeffs(:,k,i,j) = real(v, ireals)
+              endif
+            enddo
+          enddo
+        enddo
+        call restoreVecPointer(solver%Cvert_one_atm1%da, solver%atm%vert_heights, xhhl1d, xhhl, readonly=.True.)
+
+        call PetscLogEventEnd(solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
+      end associate
+
+      if(present(opt_buildings)) then
+        call set_buildings_coeff()
+      endif
+
+    contains
+
+      !> @brief   apply blocking of direct radiation from buildings
+      !> @details Goal: set all src dof on a buildings face towards all dst dof to zero
+      !> \n       albedo is not used in the dir2dir case, we only set blocking of radiation
+      subroutine set_buildings_coeff()
+        integer(iintegers) :: m, idx(4)
+
+        associate( &
+            & C => solver%C_dir, &
+            & B => opt_buildings )
+          do m = 1, size(B%iface)
+            call ind_1d_to_nd(B%da_offsets, B%iface(m), idx)
+            idx(2:4) = idx(2:4) -1 + [C%zs, C%xs, C%ys]
+
+            associate(k => idx(2), i => idx(3), j => idx(4))
+              coeffs(:,k,i,j) = -zero
+            end associate
+          enddo
+        end associate
+      end subroutine
+
+    end subroutine
+
+    subroutine alloc_coeff_dir2diff(solver, coeffs)
+      class(t_solver), intent(in) :: solver
+      real(ireals), allocatable, intent(inout) :: coeffs(:,:,:,:)
+      real(irealLUT), allocatable :: v(:)
+      integer(iintegers) :: k,i,j
+      integer(mpiint) :: ierr
+      associate( &
+          & atm     => solver%atm, &
+          & sun     => solver%sun, &
+          & C_dir   => solver%C_dir, &
+          & C_diff  => solver%C_diff )
+        if(.not.allocated(coeffs)) &
+          & allocate(coeffs(&
+            & 1:C_dir%dof*C_diff%dof, &
+            & C_dir%zs:C_dir%ze-1, &
+            & C_dir%xs:C_dir%xe, &
+            & C_dir%ys:C_dir%ye))
+        allocate(v(1:C_dir%dof*C_diff%dof))
+        call PetscLogEventBegin(solver%logs%get_coeff_dir2diff, ierr); call CHKERR(ierr)
+        do j=C_dir%ys,C_dir%ye
+          do i=C_dir%xs,C_dir%xe
+            do k=C_dir%zs,C_dir%ze-1
+              if(.not.atm%l1d(atmk(atm,k),i,j) ) then
+                call get_coeff(solver, &
+                  & atm%kabs(atmk(solver%atm,k),i,j), &
+                  & atm%ksca(atmk(solver%atm,k),i,j), &
+                  & atm%g(atmk(solver%atm,k),i,j), &
+                  & atm%dz(atmk(solver%atm,k),i,j), .False., &
+                  & v, &
+                  & atm%l1d(atmk(solver%atm,k),i,j), &
+                  & [real(sun%symmetry_phi, irealLUT), real(sun%theta, irealLUT)], &
+                  & lswitch_east=sun%xinc.eq.0, lswitch_north=sun%yinc.eq.0)
+                coeffs(:,k,i,j) = real(v, ireals)
+              endif
+            enddo
+          enddo
+        enddo
+        call PetscLogEventEnd(solver%logs%get_coeff_dir2diff, ierr); call CHKERR(ierr)
+      end associate
+    end subroutine
+
+    subroutine alloc_coeff_diff2diff(solver, coeffs, opt_buildings)
+      class(t_solver), intent(in) :: solver
+      real(ireals), allocatable, intent(inout) :: coeffs(:,:,:,:)
+      type(t_pprts_buildings), optional, intent(in) :: opt_buildings
+      real(irealLUT), allocatable :: v(:)
+      integer(iintegers) :: k,i,j
+      integer(mpiint) :: ierr
+      associate( &
+          & atm => solver%atm, &
+          & C   => solver%C_diff)
+        if(.not.allocated(coeffs)) allocate(coeffs(1:C%dof**2, C%zs:C%ze-1, C%xs:C%xe, C%ys:C%ye))
+        allocate(v(1:C%dof**2))
+        call PetscLogEventBegin(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
+        do j=C%ys,C%ye
+          do i=C%xs,C%xe
+            do k=C%zs,C%ze-1
+              if(.not.atm%l1d(atmk(atm,k),i,j) ) then
+                call get_coeff(solver, &
+                  & atm%kabs(atmk(solver%atm,k),i,j), &
+                  & atm%ksca(atmk(solver%atm,k),i,j), &
+                  & atm%g(atmk(solver%atm,k),i,j), &
+                  & atm%dz(atmk(solver%atm,k),i,j), .False., &
+                  & v, &
+                  & atm%l1d(atmk(solver%atm,k),i,j))
+                coeffs(:,k,i,j) = real(v, ireals)
+              endif
+            enddo
+          enddo
+        enddo
+        call PetscLogEventEnd(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
+      end associate
+
+      if(present(opt_buildings)) then
+        call set_buildings_coeff(coeffs)
+      endif
+    contains
+
+      !> @brief   apply blocking of diffuse radiation from buildings and do lambertian reflections
+      !> @details Goal: first set all src dof on a buildings face towards all dst dof to zero
+      !> \n       note, this assumes that the building is the full cell,
+      !> \n       i.e. the albedo is applied on the outside of the cell
+      subroutine set_buildings_coeff(coeffs)
+        real(ireals), target, intent(inout) :: coeffs(:,:,:,:)
+        integer(iintegers) :: m, idx(4)
+        integer(iintegers) :: isrc, idst, off
+        real(ireals), pointer :: v(:,:) ! dim(src, dst)
+
+        associate( &
+            & C => solver%C_diff, &
+            & B => opt_buildings )
+          do m = 1, size(B%iface)
+            call ind_1d_to_nd(B%da_offsets, B%iface(m), idx)
+
+            associate(k => idx(2), i => idx(3), j => idx(4))
+              v(0:C%dof-1, 0:C%dof-1) => coeffs(1:C%dof**2,k,i,j)
+              select case(idx(1))
+              case(PPRTS_TOP_FACE)
+                do idst = 0, solver%difftop%dof-1
+                  if(.not.solver%difftop%is_inward(i1+idst)) then ! eup
+                    v(:,idst) = 0._ireals
+                    do isrc = 0, solver%difftop%dof-1
+                      if(solver%difftop%is_inward(i1+isrc)) then ! edn
+                        v(isrc, idst) = real(B%albedo(m), ireals) / real(solver%difftop%streams, ireals)
+                      endif
+                    enddo
+                  endif
+                enddo
+
+              case(PPRTS_BOT_FACE)
+                do idst = 0, solver%difftop%dof-1
+                  if(solver%difftop%is_inward(i1+idst)) then ! edn
+                    v(:,idst) = 0._ireals
+                    do isrc = 0, solver%difftop%dof-1
+                      if(.not.solver%difftop%is_inward(i1+isrc)) then ! eup
+                        v(isrc, idst) = real(B%albedo(m), ireals) / real(solver%difftop%streams, ireals)
+                      endif
+                    enddo
+                  endif
+                enddo
+
+              case(PPRTS_LEFT_FACE)
+                off = solver%difftop%dof
+                do idst = 0, solver%diffside%dof-1
+                  if(.not.solver%diffside%is_inward(i1+idst)) then ! leftward
+                    v(:,off+idst) = 0._ireals
+                    do isrc = 0, solver%diffside%dof-1
+                      if(solver%diffside%is_inward(i1+isrc)) then ! right ward
+                        v(off+isrc, off+idst) = real(B%albedo(m), ireals) / real(solver%diffside%streams, ireals)
+                      endif
+                    enddo
+                  endif
+                enddo
+
+              case(PPRTS_RIGHT_FACE)
+                off = solver%difftop%dof
+                do idst = 0, solver%diffside%dof-1
+                  if(solver%diffside%is_inward(i1+idst)) then ! rightward
+                    v(:,off+idst) = 0._ireals
+                    do isrc = 0, solver%diffside%dof-1
+                      if(.not.solver%diffside%is_inward(i1+isrc)) then ! leftward
+                        v(off+isrc, off+idst) = real(B%albedo(m), ireals) / real(solver%diffside%streams, ireals)
+                      endif
+                    enddo
+                  endif
+                enddo
+
+              case(PPRTS_REAR_FACE)
+                off = solver%difftop%dof + solver%diffside%dof
+                do idst = 0, solver%diffside%dof-1
+                  if(.not.solver%diffside%is_inward(i1+idst)) then ! backward
+                    v(:,off+idst) = 0._ireals
+                    do isrc = 0, solver%diffside%dof-1
+                      if(solver%diffside%is_inward(i1+isrc)) then ! forward
+                        v(off+isrc, off+idst) = real(B%albedo(m), ireals) / real(solver%diffside%streams, ireals)
+                      endif
+                    enddo
+                  endif
+                enddo
+
+              case(PPRTS_FRONT_FACE)
+                off = solver%difftop%dof + solver%diffside%dof
+                do idst = 0, solver%diffside%dof-1
+                  if(solver%diffside%is_inward(i1+idst)) then ! forward
+                    v(:,off+idst) = 0._ireals
+                    do isrc = 0, solver%diffside%dof-1
+                      if(.not.solver%diffside%is_inward(i1+isrc)) then ! backward
+                        v(off+isrc, off+idst) = real(B%albedo(m), ireals) / real(solver%diffside%streams, ireals)
+                      endif
+                    enddo
+                  endif
+                enddo
+              end select
+            end associate
+          enddo
+        end associate
+      end subroutine
+
+
     end subroutine
 
 
@@ -3852,7 +3950,7 @@ module m_pprts
   !> @details from gauss divergence theorem, the divergence in the volume is the integral of the flux through the surface
   !> \n we therefore sum up the incoming and outgoing fluxes to compute the divergence
   subroutine calc_flx_div(solver, solution)
-    class(t_solver)         :: solver
+    class(t_solver), target :: solver
     type(t_state_container) :: solution
 
     real(ireals),pointer,dimension(:,:,:,:) :: xediff=>null(),xedir=>null(),xabso=>null()
@@ -3951,16 +4049,15 @@ module m_pprts
 
     subroutine compute_absorption_by_coeff_divergence()
       real(ireals) :: cdiv
-      real(irealLUT), target, allocatable :: cdir2dir(:), cdir2diff(:), cdiff2diff(:)
-      real(irealLUT), pointer :: dir2dir(:,:) ! dim(dst, src)
-      real(irealLUT), pointer :: dir2diff(:,:) ! dim(dst, src)
-      real(irealLUT), pointer :: diff2diff(:,:) ! dim(dst, src)
+      real(ireals), pointer :: dir2dir(:,:) ! dim(dst, src)
+      real(ireals), pointer :: dir2diff(:,:) ! dim(dst, src)
+      real(ireals), pointer :: diff2diff(:,:) ! dim(dst, src)
 
       type(tVec) :: local_b
       real(ireals),pointer,dimension(:,:,:,:) :: xsrc=>null()
       real(ireals),pointer,dimension(:) :: xsrc1d=>null()
 
-      integer(iintegers) :: xinc, yinc, idof, msrc
+      integer(iintegers) :: idof, msrc
 
       call getVecPointer(solver%C_one%da, solution%abso, xabso1d, xabso)
 
@@ -3970,12 +4067,6 @@ module m_pprts
           C_dir   => solver%C_dir,  &
           C_diff  => solver%C_diff, &
           C_one   => solver%C_one   )
-
-        allocate(cdir2dir(C_dir%dof**2))
-        dir2dir(0:C_dir%dof-1, 0:C_dir%dof-1) => cdir2dir(1:C_dir%dof**2)
-
-        allocate(cdir2diff(C_dir%dof * C_diff%dof))
-        dir2diff(0:C_dir%dof-1, 0:C_diff%dof-1) => cdir2diff(1:C_dir%dof*C_diff%dof)
 
         if(solution%lsolar_rad) then
           ! Copy ghosted values for direct vec
@@ -3998,27 +4089,8 @@ module m_pprts
                   enddo
 
                 else
-
-                  xinc = sun%xinc
-                  yinc = sun%yinc
-
-                  call get_coeff(solver, &
-                    atm%kabs(atmk(solver%atm,k),i,j), &
-                    atm%ksca(atmk(solver%atm,k),i,j), &
-                    atm%g(atmk(solver%atm,k),i,j), &
-                    atm%dz(atmk(solver%atm,k),i,j), .True., cdir2dir, &
-                    atm%l1d(atmk(solver%atm,k),i,j), &
-                    [real(sun%symmetry_phi, irealLUT), real(sun%theta, irealLUT)], &
-                    lswitch_east=xinc.eq.0, lswitch_north=yinc.eq.0)
-
-                  call get_coeff(solver, &
-                    atm%kabs(atmk(solver%atm,k),i,j), &
-                    atm%ksca(atmk(solver%atm,k),i,j), &
-                    atm%g(atmk(solver%atm,k),i,j), &
-                    atm%dz(atmk(solver%atm,k),i,j), .False., cdir2diff, &
-                    atm%l1d(atmk(solver%atm,k),i,j), &
-                    [real(sun%symmetry_phi, irealLUT), real(sun%theta, irealLUT)], &
-                    lswitch_east=xinc.eq.0, lswitch_north=yinc.eq.0)
+                  dir2dir (0:C_dir%dof-1, 0:C_dir%dof-1 ) => solver%dir2dir (1:C_dir%dof*C_dir%dof ,k,i,j)
+                  dir2diff(0:C_dir%dof-1, 0:C_diff%dof-1) => solver%dir2diff(1:C_dir%dof*C_diff%dof,k,i,j)
 
                   idof = 0
                   do isrc = 0, solver%dirtop%dof-1
@@ -4028,12 +4100,12 @@ module m_pprts
                   enddo
                   do isrc = 0, solver%dirside%dof-1
                     cdiv = one - sum(dir2dir(idof,:)) - sum(dir2diff(idof,:))
-                    xabso(i0,k,i,j) = xabso(i0,k,i,j) + xedir(idof, k, i+1-xinc, j) * cdiv
+                    xabso(i0,k,i,j) = xabso(i0,k,i,j) + xedir(idof, k, i+1-sun%xinc, j) * cdiv
                     idof = idof+1
                   enddo
                   do isrc = 0, solver%dirside%dof-1
                     cdiv = one - sum(dir2dir(idof,:)) - sum(dir2diff(idof,:))
-                    xabso(i0,k,i,j) = xabso(i0,k,i,j) + xedir(idof, k, i, j+1-yinc) * cdiv
+                    xabso(i0,k,i,j) = xabso(i0,k,i,j) + xedir(idof, k, i, j+1-sun%yinc) * cdiv
                     idof = idof+1
                   enddo
 
@@ -4059,9 +4131,6 @@ module m_pprts
         call DMGlobalToLocalEnd   (C_diff%da, solution%ediff  , INSERT_VALUES, lediff,ierr); call CHKERR(ierr)
         call getVecPointer(C_diff%da, lediff, xediff1d, xediff, readonly=.True.)
 
-        allocate(cdiff2diff(C_diff%dof**2))
-        diff2diff(0:C_diff%dof-1, 0:C_diff%dof-1) => cdiff2diff(1:C_diff%dof**2)
-
         do j=C_one%ys,C_one%ye
           do i=C_one%xs,C_one%xe
             do k=C_one%zs,C_one%ze
@@ -4078,12 +4147,7 @@ module m_pprts
 
               else
 
-                call get_coeff(solver, &
-                  atm%kabs(atmk(solver%atm,k),i,j), &
-                  atm%ksca(atmk(solver%atm,k),i,j), &
-                  atm%g(atmk(solver%atm,k),i,j), &
-                  atm%dz(atmk(solver%atm,k),i,j), .False., cdiff2diff, &
-                  atm%l1d(atmk(solver%atm,k),i,j))
+                diff2diff(0:C_diff%dof-1, 0:C_diff%dof-1) => solver%diff2diff(1:C_diff%dof**2,k,i,j)
 
                 idof = 0
                 do isrc = 0, solver%difftop%dof-1
@@ -4744,15 +4808,12 @@ module m_pprts
   !> @brief build direct radiation matrix
   !> @details will get the transfer coefficients for 1D and 3D Tenstream layers and input those into the matrix
   !>   \n get_coeff should provide coefficients in dst_order so that we can set  coeffs for a full block(i.e. all coeffs of one box)
-  subroutine set_dir_coeff(solver, sun, A, C, opt_buildings)
+  subroutine set_dir_coeff(solver, sun, A, C)
     class(t_solver), intent(in) :: solver
     type(t_suninfo), intent(in) :: sun
     type(tMat), intent(inout)   :: A
     type(t_coord), intent(in)   :: C
-    type(t_pprts_buildings), optional, intent(in) :: opt_buildings
 
-    real(ireals), pointer :: xhhl(:,:,:,:) => null(), xhhl1d(:) => null()
-    real(ireals), allocatable :: vertices(:)
     integer(iintegers) :: i,j,k
     integer(mpiint) :: ierr
 
@@ -4760,10 +4821,6 @@ module m_pprts
 
     call MatZeroEntries(A, ierr) ;call CHKERR(ierr)
     call mat_set_diagonal(A)
-
-    call setup_default_unit_cube_geometry(solver%atm%dx, solver%atm%dy, one, vertices)
-
-    call getVecPointer(solver%Cvert_one_atm1%da, solver%atm%vert_heights, xhhl1d, xhhl, readonly=.True.)
 
     do j=C%ys,C%ye
       do i=C%xs,C%xe
@@ -4779,15 +4836,7 @@ module m_pprts
       enddo
     enddo
 
-    call restoreVecPointer(solver%Cvert_one_atm1%da, solver%atm%vert_heights, xhhl1d, xhhl, readonly=.True.)
-
     if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'setup_direct_matrix done'
-
-    if(present(opt_buildings)) then
-      call MatAssemblyBegin(A, MAT_FLUSH_ASSEMBLY, ierr); call CHKERR(ierr)
-      call MatAssemblyEnd  (A, MAT_FLUSH_ASSEMBLY, ierr); call CHKERR(ierr)
-      call set_buildings_coeff(solver, C, opt_buildings, A, ierr); call CHKERR(ierr)
-    endif
 
     call MatAssemblyBegin(A, MAT_FINAL_ASSEMBLY, ierr); call CHKERR(ierr)
     call MatAssemblyEnd  (A, MAT_FINAL_ASSEMBLY, ierr); call CHKERR(ierr)
@@ -4857,41 +4906,8 @@ module m_pprts
        col(MatStencil_c,src) = src-i1 ! Define transmission towards the front/back lid
      enddo
 
-     call setup_default_unit_cube_geometry(solver%atm%dx, solver%atm%dy, &
-       & solver%atm%dz(atmk(solver%atm,k),i,j), vertices)
-     !vertices( 6) = xhhl(i0,atmk(solver%atm,k+1),i,j)
-     !vertices( 3) = xhhl(i0,atmk(solver%atm,k+1),i+1,j)
-     !vertices(12) = xhhl(i0,atmk(solver%atm,k+1),i,j+1)
-     !vertices( 9) = xhhl(i0,atmk(solver%atm,k+1),i+1,j+1)
-     !vertices(18) = xhhl(i0,atmk(solver%atm,k),i,j)
-     !vertices(15) = xhhl(i0,atmk(solver%atm,k),i+1,j)
-     !vertices(24) = xhhl(i0,atmk(solver%atm,k),i,j+1)
-     !vertices(21) = xhhl(i0,atmk(solver%atm,k),i+1,j+1)
-
-     vertices( 3) = xhhl(i0,atmk(solver%atm,k+1),i,j)
-     vertices( 6) = xhhl(i0,atmk(solver%atm,k+1),i+1,j)
-     vertices( 9) = xhhl(i0,atmk(solver%atm,k+1),i,j+1)
-     vertices(12) = xhhl(i0,atmk(solver%atm,k+1),i+1,j+1)
-     vertices(15) = xhhl(i0,atmk(solver%atm,k),i,j)
-     vertices(18) = xhhl(i0,atmk(solver%atm,k),i+1,j)
-     vertices(21) = xhhl(i0,atmk(solver%atm,k),i,j+1)
-     vertices(24) = xhhl(i0,atmk(solver%atm,k),i+1,j+1)
-
-     vertices(3:24:3) = vertices(3:24:3) - vertices(3)
-
-     call PetscLogEventBegin(solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
-     call get_coeff(solver, &
-       solver%atm%kabs(atmk(solver%atm,k),i,j), &
-       solver%atm%ksca(atmk(solver%atm,k),i,j), &
-       solver%atm%g(atmk(solver%atm,k),i,j), &
-       solver%atm%dz(atmk(solver%atm,k),i,j), .True., v, &
-       solver%atm%l1d(atmk(solver%atm,k),i,j), &
-       [real(sun%symmetry_phi, irealLUT), real(sun%theta, irealLUT)], &
-       lswitch_east=xinc.eq.0, lswitch_north=yinc.eq.0, &
-       opt_vertices=vertices)
-     call PetscLogEventEnd(solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
-
-     call MatSetValuesStencil(A, C%dof, row, C%dof, col, real(-v, ireals), INSERT_VALUES, ierr) ;call CHKERR(ierr)
+     call MatSetValuesStencil(A, C%dof, row, C%dof, col, &
+       & real(-solver%dir2dir(:,k,i,j), ireals), INSERT_VALUES, ierr) ;call CHKERR(ierr)
 
      if(ldebug) then
        do src=1,C%dof
@@ -4936,102 +4952,6 @@ module m_pprts
        row(MatStencil_c,i1) = src-i1 ! Define transmission towards the lower/upper lid
        call MatSetValuesStencil(A, i1, row, i1, col, real(-v, ireals), INSERT_VALUES, ierr); call CHKERR(ierr)
      enddo
-   end subroutine
-
-   !> @brief   apply blocking of direct radiation from buildings
-   !> @details Goal: set all src dof on a buildings face towards all dst dof to zero
-   !> \n       albedo is not used in the dir2dir case, we only set blocking of radiation
-   subroutine set_buildings_coeff(solver, C, opt_buildings, A, ierr)
-     class(t_solver)                     :: solver
-     type(t_coord),intent(in)            :: C
-     type(t_pprts_buildings), intent(in) :: opt_buildings
-     type(tMat),intent(inout)            :: A
-     integer(mpiint), intent(out)        :: ierr
-
-     MatStencil         :: row(4,0:C%dof-1)  ,col(4,1)
-     integer(iintegers) :: m, isrc, idst, dst, idx(4)
-     integer(iintegers) :: xinc, yinc, zinc
-     real(ireals) :: v(C%dof)
-
-     v(:) = -zero
-
-     ierr = 0
-
-     associate( B => opt_buildings )
-       do m = 1, size(B%iface)
-         call ind_1d_to_nd(B%da_offsets, B%iface(m), idx)
-         idx(2:4) = idx(2:4) -1 + [C%zs, C%xs, C%ys]
-
-         associate(k => idx(2), i => idx(3), j => idx(4))
-
-           !print *, m, 'face', B%iface(m), 'idx', idx, 'Ag', B%albedo(m), 'x/y inc', sun%xinc(k,i,j), sun%yinc(k,i,j)
-           !lsun_east  = sun%xinc(idx(k,i,j).eq.i0
-           !lsun_north = sun%yinc(idx(k,i,j).eq.i0
-
-           xinc = sun%xinc
-           yinc = sun%yinc
-           zinc = 0
-           if(idx(1).eq.PPRTS_BOT_FACE) zinc = 1
-
-           dst = 0
-           do idst = 0, solver%dirtop%dof-1
-             row(MatStencil_j,dst) = i
-             row(MatStencil_k,dst) = j
-             row(MatStencil_i,dst) = k+1+zinc
-             row(MatStencil_c,dst) = dst
-             dst = dst + 1
-           enddo
-
-           do idst = 1, solver%dirside%dof
-             row(MatStencil_j,dst) = i+xinc
-             row(MatStencil_k,dst) = j
-             row(MatStencil_i,dst) = k+zinc
-             row(MatStencil_c,dst) = dst ! Define transmission towards the left/right lid
-             dst = dst + 1
-           enddo
-
-           do idst = 1, solver%dirside%dof
-             row(MatStencil_j,dst) = i
-             row(MatStencil_k,dst) = j+yinc
-             row(MatStencil_i,dst) = k+zinc
-             row(MatStencil_c,dst) = dst ! Define transmission towards the front/back lid
-             dst = dst + 1
-           enddo
-
-           select case(idx(1))
-           case(PPRTS_TOP_FACE, PPRTS_BOT_FACE)
-             do isrc = 0, solver%dirtop%dof-1
-               col(MatStencil_j,1) = i
-               col(MatStencil_k,1) = j
-               col(MatStencil_i,1) = k+zinc
-               col(MatStencil_c,1) = isrc
-               call MatSetValuesStencil(A, C%dof, row, i1, col, v, INSERT_VALUES, ierr); call CHKERR(ierr)
-             enddo
-
-           case(PPRTS_LEFT_FACE, PPRTS_RIGHT_FACE)
-             do isrc = solver%dirtop%dof, solver%dirtop%dof + solver%dirside%dof - 1
-               col(MatStencil_j,1) = i+1-xinc
-               col(MatStencil_k,1) = j
-               col(MatStencil_i,1) = k+zinc
-               col(MatStencil_c,1) = isrc
-               call MatSetValuesStencil(A, C%dof, row, i1, col, v, INSERT_VALUES, ierr); call CHKERR(ierr)
-             enddo
-
-           case(PPRTS_REAR_FACE, PPRTS_FRONT_FACE)
-             do isrc = solver%dirtop%dof + solver%dirside%dof, solver%dirtop%dof + solver%dirside%dof + solver%dirside%dof - 1
-               col(MatStencil_j,1) = i
-               col(MatStencil_k,1) = j+1-yinc
-               col(MatStencil_i,1) = k+zinc
-               col(MatStencil_c,1) = isrc
-               call MatSetValuesStencil(A, C%dof, row, i1, col, v, INSERT_VALUES, ierr); call CHKERR(ierr)
-             enddo
-
-           case default
-             call CHKERR(1_mpiint, 'wrong building fidx '//toStr(idx(1)))
-           end select
-         end associate
-       enddo
-     end associate
    end subroutine
 
  end subroutine set_dir_coeff
@@ -5112,7 +5032,6 @@ module m_pprts
 
       real(ireals) :: Ax,Ay,Az,emis,b0,b1,btop,bbot,bfac
       real(irealLUT) :: diff2diff1d(4)
-      real(irealLUT) :: diff2diff(solver%C_diff%dof**2)
       integer(iintegers) :: k,i,j,src,iside, ak
 
       associate(atm     => solver%atm, &
@@ -5176,23 +5095,13 @@ module m_pprts
               Ax = atm%dy*atm%dz(ak,i,j) / real(solver%diffside%area_divider, ireals)
               Ay = atm%dx*atm%dz(ak,i,j) / real(solver%diffside%area_divider, ireals)
 
-              call PetscLogEventBegin(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
-              call get_coeff(solver, &
-                atm%kabs(ak,i,j), &
-                atm%ksca(ak,i,j), &
-                atm%g(ak,i,j), &
-                atm%dz(ak,i,j), &
-                .False., diff2diff, &
-                atm%l1d(ak,i,j) )
-              call PetscLogEventEnd(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
-
               call B_eff(b1, b0, atm%kabs(ak,i,j), btop)
               call B_eff(b0, b1, atm%kabs(ak,i,j), bbot)
 
               src = 0
               bfac = pi * Az / real(solver%difftop%streams, ireals)
               do iside=1,solver%difftop%dof
-                emis = one-sum(diff2diff(src+1:C_diff%dof**2:C_diff%dof))
+                emis = one-sum(solver%diff2diff(src+1:C_diff%dof**2:C_diff%dof,k,i,j))
                 if (solver%difftop%is_inward(iside) .eqv. .False.) then ! outgoing means Eup
                   xsrc(src, k  , i, j) = xsrc(src, k  , i, j) + btop * bfac * emis
                 else
@@ -5203,7 +5112,7 @@ module m_pprts
 
               bfac = pi * Ax / real(solver%diffside%streams, ireals)
               do iside=1,solver%diffside%dof
-                emis = one-sum(diff2diff(src+1:C_diff%dof**2:C_diff%dof))
+                emis = one-sum(solver%diff2diff(src+1:C_diff%dof**2:C_diff%dof,k,i,j))
                 if(iside.gt.solver%diffside%dof/2) then ! upward streams
                   emis = btop * emis
                 else
@@ -5219,7 +5128,7 @@ module m_pprts
 
               bfac = pi * Ay / real(solver%diffside%streams, ireals)
               do iside=1,solver%diffside%dof
-                emis = one-sum(diff2diff(src+1:C_diff%dof**2:C_diff%dof))
+                emis = one-sum(solver%diff2diff(src+1:C_diff%dof**2:C_diff%dof,k,i,j))
                 if(iside.gt.solver%diffside%dof/2) then ! upward streams
                   emis = btop * emis
                 else
@@ -5269,18 +5178,16 @@ module m_pprts
     end subroutine
 
     subroutine set_solar_source(solver, local_edir)
-      class(t_solver), intent(in) :: solver
-      type(tVec)     , intent(in) :: local_edir
+      class(t_solver), target, intent(in) :: solver
+      type(tVec), intent(in) :: local_edir
 
-      real(irealLUT)      :: dir2diff(solver%C_dir%dof*solver%C_diff%dof)
+      real(ireals), pointer :: dir2diff(:)
       real(ireals)        :: solrad
       integer(iintegers)  :: idof, idofdst, idiff
       integer(iintegers)  :: k, i, j, src, dst
 
       real(ireals),pointer,dimension(:,:,:,:) :: xedir=>null()
       real(ireals),pointer,dimension(:)       :: xedir1d=>null()
-
-      logical :: lsun_east,lsun_north
 
       associate(atm     => solver%atm, &
                 C_dir   => solver%C_dir, &
@@ -5299,7 +5206,6 @@ module m_pprts
 
             if( any (xedir(:,k,i,j) .gt. epsilon(one)) ) then
               if( atm%l1d(atmk(atm,k),i,j) ) then
-                dir2diff = zero
 
                 if(luse_eddington ) then
                   ! Only transport the 4 tiles from dir0 to the Eup and Edn
@@ -5325,21 +5231,8 @@ module m_pprts
 
 
               else ! Tenstream source terms
-                lsun_east  = sun%xinc.eq.i0
-                lsun_north = sun%yinc.eq.i0
 
-                call PetscLogEventBegin(solver%logs%get_coeff_dir2diff, ierr); call CHKERR(ierr)
-                call get_coeff(solver, &
-                  atm%kabs(atmk(atm,k),i,j), &
-                  atm%ksca(atmk(atm,k),i,j), &
-                  atm%g(atmk(atm,k),i,j), &
-                  atm%dz(atmk(atm,k),i,j), &
-                  .False., dir2diff, &
-                  atm%l1d(atmk(atm,k),i,j), &
-                  [real(sun%symmetry_phi, irealLUT), real(sun%theta,irealLUT)], &
-                  lswitch_east=lsun_east, lswitch_north=lsun_north)
-                call PetscLogEventEnd(solver%logs%get_coeff_dir2diff, ierr); call CHKERR(ierr)
-
+                dir2diff => solver%dir2diff(:,k,i,j)
                 dst = 0
                 do idofdst=1,solver%difftop%dof
                   src = 1
@@ -5824,11 +5717,10 @@ module m_pprts
   !> @brief build diffuse radiation matrix
   !> @details will get the transfer coefficients for 1D and 3D Tenstream layers and input those into the matrix
   !>   \n get_coeff should provide coefficients in dst_order so that we can set  coeffs for a full block(i.e. all coeffs of one box)
-  subroutine set_diff_coeff(solver, A, C, opt_buildings)
+  subroutine set_diff_coeff(solver, A, C)
     class(t_solver) :: solver
     type(tMat)      :: A
     type(t_coord)   :: C
-    type(t_pprts_buildings), intent(in), optional :: opt_buildings
 
     integer(iintegers) :: i,j,k
     integer(mpiint) :: ierr
@@ -5853,12 +5745,6 @@ module m_pprts
     enddo
 
     call set_albedo_coeff(solver, C, A )
-
-    if(present(opt_buildings)) then
-      call MatAssemblyBegin(A, MAT_FLUSH_ASSEMBLY, ierr); call CHKERR(ierr)
-      call MatAssemblyEnd  (A, MAT_FLUSH_ASSEMBLY, ierr); call CHKERR(ierr)
-      call set_buildings_coeff(solver, C, opt_buildings, A, ierr); call CHKERR(ierr)
-    endif
 
     if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'Final diffuse Matrix Assembly'
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr) ;call CHKERR(ierr)
@@ -5970,16 +5856,8 @@ module m_pprts
         dst = dst + 1
       enddo
 
-      call PetscLogEventBegin(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
-      call get_coeff(solver, &
-        solver%atm%kabs(atmk(solver%atm, k),i,j), &
-        solver%atm%ksca(atmk(solver%atm, k),i,j), &
-        solver%atm%g(atmk(solver%atm, k),i,j), &
-        solver%atm%dz(atmk(solver%atm, k),i,j), &
-        .False., v, solver%atm%l1d(atmk(solver%atm, k),i,j))
-      call PetscLogEventEnd(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
-
-      call MatSetValuesStencil(A,C%dof, row,C%dof, col , real(-v, ireals) ,INSERT_VALUES,ierr) ;call CHKERR(ierr)
+      call MatSetValuesStencil(A,C%dof, row,C%dof, col , &
+        & real(-solver%diff2diff(:,k,i,j), ireals) ,INSERT_VALUES,ierr) ;call CHKERR(ierr)
 
       if(ldebug) then
         do src=1,C%dof
@@ -6118,170 +5996,6 @@ module m_pprts
 
         enddo
       enddo
-    end subroutine
-
-    !> @brief   apply blocking of diffuse radiation from buildings and do lambertian reflections
-    !> @details Goal: first set all src dof on a buildings face towards all dst dof to zero
-    !> \n       note, this assumes that the building is the full cell,
-    !> \n       i.e. the albedo is applied on the outside of the cell
-    subroutine set_buildings_coeff(solver, C, buildings, A, ierr)
-    class(t_solver)                     :: solver
-      type(t_coord),intent(in)            :: C
-      type(t_pprts_buildings), intent(in) :: buildings
-      type(tMat),intent(inout)            :: A
-      integer(mpiint), intent(out)        :: ierr
-
-      MatStencil         :: row(4,0:C%dof-1)  ,col(4,1)
-      integer(iintegers) :: m, isrc, idst, dst, idx(4), dof_offset
-      real(ireals) :: v(0:C%dof-1)
-
-      ierr = 0
-
-      associate( B => buildings )
-        do m = 1, size(B%iface)
-          v(:) = -zero
-
-          call ind_1d_to_nd(B%da_offsets, B%iface(m), idx)
-          idx(2:4) = idx(2:4) -1 + [C%zs, C%xs, C%ys]
-
-            associate(k => idx(2), i => idx(3), j => idx(4))
-              dst = 0
-              do idst = 0, solver%difftop%dof-1
-                row(MatStencil_j,dst) = i
-                row(MatStencil_k,dst) = j
-                row(MatStencil_c,dst) = dst
-                if(solver%diffside%is_inward(i1+idst)) then ! edn on bot face
-                  row(MatStencil_i,dst) = k+1
-                else ! eup on top face
-                  row(MatStencil_i,dst) = k
-                endif
-                dst = dst + 1
-              enddo
-
-              do idst = 0, solver%diffside%dof-1
-                row(MatStencil_i,dst) = k
-                row(MatStencil_k,dst) = j
-                row(MatStencil_c,dst) = dst
-                if(solver%diffside%is_inward(i1+idst)) then ! e_right
-                  row(MatStencil_j,dst) = i+1
-                else ! e_left
-                  row(MatStencil_j,dst) = i
-                endif
-                dst = dst + 1
-              enddo
-
-              do idst = 0, solver%diffside%dof-1
-                row(MatStencil_i,dst) = k
-                row(MatStencil_j,dst) = i
-                row(MatStencil_c,dst) = dst
-                if(solver%diffside%is_inward(i1+idst)) then ! e_forward
-                  row(MatStencil_k,dst) = j+1
-                else ! e_back
-                  row(MatStencil_k,dst) = j
-                endif
-                dst = dst + 1
-              enddo
-
-              select case(idx(1))
-              case(PPRTS_TOP_FACE)
-                do idst = 0, solver%difftop%dof-1
-                  if(.not.solver%difftop%is_inward(i1+idst)) v(idst) = -B%albedo(m) / real(solver%difftop%streams, ireals) ! eup
-                enddo
-                do isrc = 0, solver%difftop%dof-1
-                  if(solver%difftop%is_inward(i1+isrc)) then ! edn
-                    col(MatStencil_i,1) = k
-                    col(MatStencil_j,1) = i
-                    col(MatStencil_k,1) = j
-                    col(MatStencil_c,1) = isrc
-                    call MatSetValuesStencil(A, C%dof, row, i1, col, v, INSERT_VALUES, ierr); call CHKERR(ierr)
-                  endif
-                enddo
-
-              case(PPRTS_BOT_FACE)
-                do idst = 0, solver%difftop%dof-1
-                  if(solver%difftop%is_inward(i1+idst)) v(idst) = -B%albedo(m) / real(solver%difftop%streams, ireals) ! eup
-                enddo
-                do isrc = 0, solver%difftop%dof-1
-                  if(.not.solver%difftop%is_inward(i1+isrc)) then ! eup
-                    col(MatStencil_i,1) = k+1
-                    col(MatStencil_j,1) = i
-                    col(MatStencil_k,1) = j
-                    col(MatStencil_c,1) = isrc
-                    call MatSetValuesStencil(A, C%dof, row, i1, col, v, INSERT_VALUES, ierr); call CHKERR(ierr)
-                  endif
-                enddo
-
-              case(PPRTS_LEFT_FACE)
-                dof_offset = solver%difftop%dof
-                do idst = 0, solver%diffside%dof-1
-                  if(.not.solver%diffside%is_inward(i1+idst)) &
-                    & v(dof_offset+idst) = -B%albedo(m) / real(solver%diffside%streams, ireals)
-                enddo
-                do isrc = 0, solver%diffside%dof -1
-                  if(solver%diffside%is_inward(i1+isrc)) then ! e_right
-                    col(MatStencil_j,1) = i
-                    col(MatStencil_k,1) = j
-                    col(MatStencil_i,1) = k
-                    col(MatStencil_c,1) = dof_offset + isrc
-                    call MatSetValuesStencil(A, C%dof, row, i1, col, v, INSERT_VALUES, ierr); call CHKERR(ierr)
-                  endif
-                enddo
-
-              case(PPRTS_RIGHT_FACE)
-                dof_offset = solver%difftop%dof
-                do idst = 0, solver%diffside%dof-1
-                  if(solver%diffside%is_inward(i1+idst)) &
-                    & v(dof_offset+idst) = -B%albedo(m) / real(solver%diffside%streams, ireals)
-                enddo
-                do isrc = 0, solver%diffside%dof -1
-                  if(.not.solver%diffside%is_inward(i1+isrc)) then ! e_left
-                    col(MatStencil_j,1) = i+1
-                    col(MatStencil_k,1) = j
-                    col(MatStencil_i,1) = k
-                    col(MatStencil_c,1) = dof_offset + isrc
-                    call MatSetValuesStencil(A, C%dof, row, i1, col, v, INSERT_VALUES, ierr); call CHKERR(ierr)
-                  endif
-                enddo
-
-              case(PPRTS_REAR_FACE)
-                dof_offset = solver%difftop%dof + solver%diffside%dof
-                do idst = 0, solver%diffside%dof-1
-                  if(.not.solver%diffside%is_inward(i1+idst)) &
-                    & v(dof_offset+idst) = -B%albedo(m) / real(solver%diffside%streams, ireals)
-                enddo
-                do isrc = 0, solver%diffside%dof -1
-                  if(solver%diffside%is_inward(i1+isrc)) then ! e_forward
-                    col(MatStencil_j,1) = i
-                    col(MatStencil_k,1) = j
-                    col(MatStencil_i,1) = k
-                    col(MatStencil_c,1) = dof_offset + isrc
-                    call MatSetValuesStencil(A, C%dof, row, i1, col, v, INSERT_VALUES, ierr); call CHKERR(ierr)
-                  endif
-                enddo
-
-              case(PPRTS_FRONT_FACE)
-                dof_offset = solver%difftop%dof + solver%diffside%dof
-                do idst = 0, solver%diffside%dof-1
-                  if(solver%diffside%is_inward(i1+idst)) &
-                    & v(dof_offset+idst) = -B%albedo(m) / real(solver%diffside%streams, ireals)
-                enddo
-                do isrc = 0, solver%diffside%dof -1
-                  if(.not.solver%diffside%is_inward(i1+isrc)) then ! e_backward
-                    col(MatStencil_j,1) = i
-                    col(MatStencil_k,1) = j+1
-                    col(MatStencil_i,1) = k
-                    col(MatStencil_c,1) = dof_offset + isrc
-                    call MatSetValuesStencil(A, C%dof, row, i1, col, v, INSERT_VALUES, ierr); call CHKERR(ierr)
-                  endif
-                enddo
-
-              case default
-                call CHKERR(1_mpiint, 'wrong building fidx '//toStr(idx(1)))
-              end select
-            end associate
-
-        enddo
-      end associate
     end subroutine
 
   end subroutine
