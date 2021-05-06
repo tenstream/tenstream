@@ -184,11 +184,12 @@ subroutine init_mpi_data_parameters(comm)
 
   PETSC_COMM_WORLD = comm
   if(.not.lpetsc_is_initialized) then
+    call PetscInitialize(PETSC_NULL_CHARACTER, mpierr)
+
     inquire(file='tenstream.options', exist=file_exists)
     if(file_exists) then
-      call PetscInitialize('tenstream.options', mpierr)
-    else
-      call PetscInitialize(PETSC_NULL_CHARACTER, mpierr)
+      call PetscOptionsInsertFile(comm, PETSC_NULL_OPTIONS, 'tenstream.options', PETSC_TRUE, mpierr)
+      if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
     endif
     if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
   endif
