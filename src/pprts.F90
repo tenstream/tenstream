@@ -2798,11 +2798,19 @@ module m_pprts
           if(.not.lskip_residual) then
             residual(iter) = max(tiny(one), norm2(xg - x0(:,:,C%xs:C%xe,C%ys:C%ye)))
             xg = x0(:,:,C%xs:C%xe,C%ys:C%ye)
-            rel_residual = residual(iter)/residual(1)
+            if(residual(1).le.sqrt(tiny(residual))) then
+              rel_residual = 0
+            else
+              rel_residual = residual(iter)/residual(1)
+            endif
             if(solver%myid.eq.0.and.lmonitor_residual) then
               call imp_min_mean_max(solver%comm, residual(iter), residual_mmm)
               residual(iter) = residual_mmm(2)
-              rel_residual = residual(iter)/residual(1)
+              if(residual(1).le.sqrt(tiny(residual))) then
+                rel_residual = 0
+              else
+                rel_residual = residual(iter)/residual(1)
+              endif
               print *,trim(prefix)//" iter "//toStr(iter)//' residual (min/mean/max)', residual_mmm, &
                 & 'rel res', rel_residual
             endif
@@ -3089,13 +3097,21 @@ module m_pprts
 
           ! Residual computations
           if(.not.lskip_residual) then
-            residual(iter) = max(tiny(one), norm2(xg - x0(:,:,C%xs:C%xe,C%ys:C%ye)))
+            residual(iter) = norm2(xg - x0(:,:,C%xs:C%xe,C%ys:C%ye))
             xg = x0(:,:,C%xs:C%xe,C%ys:C%ye)
-            rel_residual = residual(iter)/residual(1)
+            if(residual(1).le.sqrt(tiny(residual))) then
+              rel_residual = 0
+            else
+              rel_residual = residual(iter)/residual(1)
+            endif
             if(solver%myid.eq.0.and.lmonitor_residual) then
               call imp_min_mean_max(solver%comm, residual(iter), residual_mmm)
               residual(iter) = residual_mmm(2)
-              rel_residual = residual(iter)/residual(1)
+              if(residual(1).le.sqrt(tiny(residual))) then
+                rel_residual = 0
+              else
+                rel_residual = residual(iter)/residual(1)
+              endif
               print *,trim(prefix), ' iter ', toStr(iter), ' residual (min/mean/max)', residual_mmm, &
                 & 'rel res', rel_residual
             endif
