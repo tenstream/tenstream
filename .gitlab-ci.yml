@@ -18,6 +18,7 @@ stages:
     - CMD="ctest --output-on-failure $CTEST_ARGS"
     - echo $CMD
     - $CMD &> >(tee $CI_PROJECT_DIR/test.log) || exit 3
+  retry: 2
   variables:
     CTEST_ARGS: "-E 'boxmc|LUT'"
     BUILD_TYPE: RELEASE
