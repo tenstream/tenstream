@@ -135,6 +135,7 @@ contains
 
     character(len=*),optional :: msg
     character(default_str_len) :: local_msgS, local_msgT
+    real(ireals) :: test_tolerance
 
     if(myid.eq.0) then
       print*,''
@@ -159,11 +160,12 @@ contains
       print*,'---------------------'
       print*,''
 
-      @assertEqual(S_target, S, real(atol*sigma, ireals), local_msgS )
+      test_tolerance = real(atol, ireals) * real(sigma, ireals)
+      @assertEqual(S_target, S, test_tolerance, local_msgS )
       @assertLessThanOrEqual   (zero, S)
       @assertGreaterThanOrEqual(one , S)
 
-      @assertEqual(T_target, T, real(atol*sigma, ireals), local_msgT )
+      @assertEqual(T_target, T, test_tolerance, local_msgT )
       @assertLessThanOrEqual   (zero, T)
       @assertGreaterThanOrEqual(one , T)
     endif
