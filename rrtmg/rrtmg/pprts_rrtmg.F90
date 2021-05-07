@@ -499,7 +499,9 @@ contains
         endif
       end subroutine
       subroutine dump_results()
-        call dump_variable(edir, solver%C_one1%da, "-pprts_rrtmg_dump_edir")
+        if(lsolar) then
+          call dump_variable(edir, solver%C_one1%da, "-pprts_rrtmg_dump_edir")
+        endif
         call dump_variable(edn , solver%C_one1%da, "-pprts_rrtmg_dump_edn")
         call dump_variable(eup , solver%C_one1%da, "-pprts_rrtmg_dump_eup")
         call dump_variable(abso, solver%C_one%da,  "-pprts_rrtmg_dump_abso")

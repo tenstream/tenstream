@@ -200,6 +200,7 @@ module m_helper_functions
       #:endfor
     #:endfor
   end interface
+
   interface ftoa
    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
      module procedure toStr${dtype}$

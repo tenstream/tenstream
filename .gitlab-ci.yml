@@ -18,6 +18,7 @@ stages:
     - CMD="ctest --output-on-failure $CTEST_ARGS"
     - echo $CMD
     - $CMD &> >(tee $CI_PROJECT_DIR/test.log) || exit 3
+  retry: 2
   variables:
     CTEST_ARGS: "-E 'boxmc|LUT'"
     BUILD_TYPE: RELEASE
@@ -162,3 +163,16 @@ mim:gcc:debug:
   variables:
     MODULES: "petsc/debug-gcc-9"
     BUILD_TYPE: DEBUG
+
+implicit:mim:gcc:single:
+  extends: .build:mim:default
+  variables:
+    MODULES: "petsc/single-gcc-9"
+    PETSC_OPTIONS: "-solar_dir_explicit no -solar_diff_explicit no -thermal_diff_explicit no"
+
+implicit:mim:gcc:debug:
+  extends: .build:mim:default
+  variables:
+    MODULES: "petsc/debug-gcc-9"
+    BUILD_TYPE: DEBUG
+    PETSC_OPTIONS: "-solar_dir_explicit no -solar_diff_explicit no -thermal_diff_explicit no"
