@@ -2519,7 +2519,7 @@ module m_pprts
       else
         prefix = "thermal_diff_"
       endif
-      lexplicit_diff=.True.
+      lexplicit_diff=.False.
       call PetscOptionsGetBool(PETSC_NULL_OPTIONS, prefix, &
         "-explicit", lexplicit_diff, lflg , ierr) ;call CHKERR(ierr)
       if(lexplicit_diff) then
