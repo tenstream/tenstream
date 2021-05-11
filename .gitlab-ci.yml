@@ -182,4 +182,4 @@ matshell:mim:gcc:debug:
   variables:
     MODULES: "petsc/debug-gcc-9"
     BUILD_TYPE: DEBUG
-    PETSC_OPTIONS: "-pprts_shell -solar_dir_explicit no -solar_diff_explicit no -thermal_diff_explicit no"
+    PETSC_OPTIONS: "-pprts_shell -solar_dir_explicit yes -solar_diff_explicit no -thermal_diff_explicit no"
