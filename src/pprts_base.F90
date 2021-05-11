@@ -65,7 +65,7 @@ module m_pprts_base
     real(ireals), allocatable , dimension(:,:,:) :: planck, kabs, ksca, g
     real(ireals), allocatable , dimension(:,:,:) :: a11, a12, a21, a22, a13, a23, a33
     real(ireals), allocatable , dimension(:,:,:) :: dz
-    logical     , allocatable , dimension(:,:,:) :: l1d
+    logical     , allocatable , dimension(:)     :: l1d
     real(ireals), allocatable , dimension(:,:)   :: albedo
     real(ireals), allocatable , dimension(:,:)   :: Btop, Bbot ! TOA layer planck emissions, special case memory for icollapse
     real(ireals), allocatable , dimension(:,:)   :: Bsrfc      ! Srfc planck emissions

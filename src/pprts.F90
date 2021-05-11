@@ -430,10 +430,7 @@ module m_pprts
       solver%sun%luse_topography = present(dz3d) .and. ltopography  ! if the user supplies 3d height levels and has set the topography option
 
       if(.not.allocated(solver%atm%l1d)) then
-        allocate(solver%atm%l1d( &
-          solver%C_one_atm%zs:solver%C_one_atm%ze, &
-          solver%C_one_atm%xs:solver%C_one_atm%xe, &
-          solver%C_one_atm%ys:solver%C_one_atm%ye ) )
+        allocate(solver%atm%l1d(solver%C_one_atm%zs:solver%C_one_atm%ze) )
       endif
 
       call determine_vertex_heights()
@@ -441,25 +438,23 @@ module m_pprts
       !TODO if we have a horiz. staggered grid, this may lead to the point where one 3d box has a outgoing sideward flux but the adjacent
       !1d box does not send anything back --> therefore huge absorption :( -- would need to introduce mirror boundary conditions for
       !sideward fluxes in 1d boxes
-      do j=solver%C_one_atm%ys,solver%C_one_atm%ye
-        do i=solver%C_one_atm%xs,solver%C_one_atm%xe
-          solver%atm%l1d(solver%C_one_atm%ze,i,j) = (solver%atm%dz(solver%C_one_atm%ze,i,j) / solver%atm%dx) .gt. twostr_ratio
-          do k=solver%C_one_atm%ze-1,solver%C_one_atm%zs,-1
-            solver%atm%l1d(k,i,j) = (solver%atm%dz(k,i,j) / solver%atm%dx) .gt. twostr_ratio
-          enddo
+      associate(C => solver%C_one_atm, dz => solver%atm%dz)
+        solver%atm%l1d(C%ze) = any((dz(C%ze, C%xs:C%xe, C%ys:C%ye) / solver%atm%dx) .gt. twostr_ratio)
+        do k = C%ze-1, C%zs, -1
+          solver%atm%l1d(k) = any((solver%atm%dz(k,C%xs:C%xe, C%ys:C%ye) / solver%atm%dx) .gt. twostr_ratio)
         enddo
-      enddo
+      end associate
       if(ltwostr_only) solver%atm%l1d = .True.
 
       if(present(collapseindex)) then
         solver%atm%lcollapse=collapseindex.gt.i1
         if(solver%atm%lcollapse) then
           solver%atm%icollapse=collapseindex
-          ierr = count(.not.solver%atm%l1d(solver%C_one_atm%zs:atmk(solver%atm, solver%C_one%zs),:,:))
-          call CHKWARN(ierr, 'Found non 1D cells in an area that will be collapsed.'// &
+          ierr = count(.not.solver%atm%l1d(solver%C_one_atm%zs:atmk(solver%atm, solver%C_one%zs)))
+          call CHKWARN(ierr, 'Found non 1D layers in an area that will be collapsed.'// &
             & 'This will change the results! '//&
             & 'collapse index: '//toStr(collapseindex))
-          solver%atm%l1d(solver%C_one_atm%zs:atmk(solver%atm, solver%C_one%zs),:,:) = .True. ! if need to be collapsed, they have to be 1D.
+          solver%atm%l1d(solver%C_one_atm%zs:atmk(solver%atm, solver%C_one%zs)) = .True. ! if need to be collapsed, they have to be 1D.
           if(ldebug) print *,'Using icollapse:',collapseindex, solver%atm%lcollapse
         endif
       endif
@@ -552,8 +547,7 @@ module m_pprts
 
         if(myid.eq.0) &
           & print *, k, &
-          & cstr(toStr(all(atm%l1d(k,:,:))),'blue'), '        ', &
-          & cstr(toStr(any(atm%l1d(k,:,:))),'blue'), '        ', &
+          & cstr(toStr(atm%l1d(k)),'blue'), '        ', &
           & cstr(toStr(mdz),'red'), ' ', cstr(toStr(mhhl*1e-3_ireals),'blue')
       enddo
       call restoreVecPointer(C_one_atm1%da, atm%hhl, hhl1d, hhl, readonly=.True.)
@@ -1135,7 +1129,7 @@ module m_pprts
       do i=C%xs,C%xe
         do k=C%zs,C%ze-1
 
-          if( solver%atm%l1d(atmk(solver%atm,k), i, j) ) then
+          if( solver%atm%l1d(atmk(solver%atm,k)) ) then
             do idst = i0, solver%dirtop%dof-1
               call inc( xd(idst, k+1, i,j), one )
             enddo
@@ -1290,7 +1284,7 @@ module m_pprts
       do i=C%xs,C%xe
         do k=C%zs,C%ze-1
 
-          if( solver%atm%l1d(atmk(solver%atm, k),i,j) ) then
+          if( solver%atm%l1d(atmk(solver%atm, k)) ) then
             do idof=1, solver%difftop%dof
               if (solver%difftop%is_inward(idof)) then
                 call inc( xd(idof-1, k+1, i, j), real(solver%difftop%dof, ireals) )
@@ -1641,7 +1635,7 @@ module m_pprts
       do j=C_one_atm%ys,C_one_atm%ye
         do i=C_one_atm%xs,C_one_atm%xe
           do k=C_one_atm%zs,C_one_atm%ze
-            if( atm%l1d(k,i,j) ) then
+            if( atm%l1d(k) ) then
               call eddington_coeff_ec ( &
                 atm%dz(k,i,j) * max(tiny(one), atm%kabs(k,i,j) + atm%ksca(k,i,j)), & ! tau
                 atm%ksca(k,i,j) / max(tiny(one), atm%kabs(k,i,j) + atm%ksca(k,i,j)), & ! w0
@@ -2178,7 +2172,7 @@ module m_pprts
         do i=C%xs,C%xe
           do k=C%zs,C%ze-1
 
-            if( atm%l1d(atmk(atm,k),i,j) ) then
+            if( atm%l1d(atmk(atm,k)) ) then
               do idst = 0, solver%dirtop%dof-1
                 xb(idst, k+i1, i, j) = xb(idst, k+i1, i, j) - xx(idst, k, i, j) * atm%a33(atmk(atm,k),i,j)
               enddo
@@ -2311,7 +2305,7 @@ module m_pprts
         do i=C%xs,C%xe
           do k=C%zs,C%ze-1
 
-            if( atm%l1d(atmk(atm,k),i,j) ) then
+            if( atm%l1d(atmk(atm,k)) ) then
 
               do idst = 0, solver%difftop%dof-1
                 if (solver%difftop%is_inward(i1+idst)) then ! edn
@@ -2844,7 +2838,7 @@ module m_pprts
             do j=dy(1), dy(2), dy(3)
               do i=dx(1), dx(2), dx(3)
 
-                if( atm%l1d(atmk(atm,k),i,j) ) then
+                if( atm%l1d(atmk(atm,k)) ) then
                   do idst = 0, solver%dirtop%dof-1
                     x0(idst, k+i1, i, j) = x0(idst, k, i, j) * atm%a33(atmk(atm,k),i,j)
                     !print *,k,i,j,'edir', x0(idst, k+i1, i, j), '=', x0(idst, k, i, j) , atm%a33(atmk(atm,k),i,j)
@@ -3411,7 +3405,7 @@ module m_pprts
         do j=C_dir%ys,C_dir%ye
           do i=C_dir%xs,C_dir%xe
             do k=C_dir%zs,C_dir%ze-1
-              if(.not.atm%l1d(atmk(atm,k),i,j) ) then
+              if(.not.atm%l1d(atmk(atm,k)) ) then
 
                 vertices( 3) = xhhl(i0,atmk(solver%atm,k+1),i,j)
                 vertices( 6) = xhhl(i0,atmk(solver%atm,k+1),i+1,j)
@@ -3430,7 +3424,7 @@ module m_pprts
                   & atm%g(atmk(solver%atm,k),i,j), &
                   & atm%dz(atmk(solver%atm,k),i,j), .True., &
                   & v, &
-                  & atm%l1d(atmk(solver%atm,k),i,j), &
+                  & atm%l1d(atmk(solver%atm,k)), &
                   & [real(sun%symmetry_phi, irealLUT), real(sun%theta, irealLUT)], &
                   & lswitch_east=sun%xinc.eq.0, lswitch_north=sun%yinc.eq.0)
                 coeffs(:,k,i,j) = real(v, ireals)
@@ -3493,14 +3487,14 @@ module m_pprts
         do j=C_dir%ys,C_dir%ye
           do i=C_dir%xs,C_dir%xe
             do k=C_dir%zs,C_dir%ze-1
-              if(.not.atm%l1d(atmk(atm,k),i,j) ) then
+              if(.not.atm%l1d(atmk(atm,k)) ) then
                 call get_coeff(solver, &
                   & atm%kabs(atmk(solver%atm,k),i,j), &
                   & atm%ksca(atmk(solver%atm,k),i,j), &
                   & atm%g(atmk(solver%atm,k),i,j), &
                   & atm%dz(atmk(solver%atm,k),i,j), .False., &
                   & v, &
-                  & atm%l1d(atmk(solver%atm,k),i,j), &
+                  & atm%l1d(atmk(solver%atm,k)), &
                   & [real(sun%symmetry_phi, irealLUT), real(sun%theta, irealLUT)], &
                   & lswitch_east=sun%xinc.eq.0, lswitch_north=sun%yinc.eq.0)
                 coeffs(:,k,i,j) = real(v, ireals)
@@ -3528,14 +3522,14 @@ module m_pprts
         do j=C%ys,C%ye
           do i=C%xs,C%xe
             do k=C%zs,C%ze-1
-              if(.not.atm%l1d(atmk(atm,k),i,j) ) then
+              if(.not.atm%l1d(atmk(atm,k)) ) then
                 call get_coeff(solver, &
                   & atm%kabs(atmk(solver%atm,k),i,j), &
                   & atm%ksca(atmk(solver%atm,k),i,j), &
                   & atm%g(atmk(solver%atm,k),i,j), &
                   & atm%dz(atmk(solver%atm,k),i,j), .False., &
                   & v, &
-                  & atm%l1d(atmk(solver%atm,k),i,j))
+                  & atm%l1d(atmk(solver%atm,k)))
                 coeffs(:,k,i,j) = real(v, ireals)
               endif
             enddo
@@ -4086,7 +4080,7 @@ module m_pprts
 
                 ! Divergence = Incoming - Outgoing
 
-                if(atm%l1d(atmk(atm, k),i,j)) then ! one dimensional i.e. twostream
+                if(atm%l1d(atmk(atm, k))) then ! one dimensional i.e. twostream
 
                   cdiv = max(zero, one - atm%a33(atmk(atm,k),i,j) - atm%a13(atmk(atm,k),i,j) - atm%a23(atmk(atm,k),i,j))
                   do isrc = 0, solver%dirtop%dof-1
@@ -4142,7 +4136,7 @@ module m_pprts
 
               ! Divergence = Incoming - Outgoing
 
-              if(atm%l1d(atmk(atm, k),i,j)) then ! one dimensional i.e. twostream
+              if(atm%l1d(atmk(atm, k))) then ! one dimensional i.e. twostream
 
                 cdiv = max(zero, one - atm%a11(atmk(atm,k),i,j) - atm%a12(atmk(atm,k),i,j))
                 do isrc = 0, solver%difftop%dof-1
@@ -4252,7 +4246,7 @@ module m_pprts
 
               ! Divergence = Incoming - Outgoing
 
-              if(atm%l1d(atmk(atm, k),i,j)) then ! one dimensional i.e. twostream
+              if(atm%l1d(atmk(atm, k))) then ! one dimensional i.e. twostream
                 if(solution%lsolar_rad) then
                   do isrc = 0, solver%dirtop%dof-1
                     xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xedir(isrc, k, i, j )  - xedir(isrc , k+i1 , i, j ))
@@ -4686,7 +4680,7 @@ module m_pprts
   !> @brief: determine tolerances for solvers
   subroutine determine_ksp_tolerances(C, l1d, rtol, atol, ksp)
     type(t_coord), intent(in) :: C
-    logical, intent(in) :: l1d(:,:,:)
+    logical, intent(in) :: l1d(:)
     real(ireals), intent(out) :: rtol, atol
     type(tKSP), intent(in), allocatable, optional:: ksp
     real(ireals) :: rel_atol=1e-4_ireals
@@ -4831,7 +4825,7 @@ module m_pprts
       do i=C%xs,C%xe
         do k=C%zs,C%ze-1
 
-          if( solver%atm%l1d(atmk(solver%atm,k),i,j) ) then
+          if( solver%atm%l1d(atmk(solver%atm,k)) ) then
             call set_eddington_coeff(solver%atm, A,k, i,j)
           else
             call set_pprts_coeff(solver, C, A,k,i,j)
@@ -4945,7 +4939,7 @@ module m_pprts
          atm%ksca(atmk(atm,k),i,j), &
          atm%g(atmk(atm,k),i,j), &
          atm%dz(atmk(atm,k),i,j),.True., v, &
-         atm%l1d(atmk(atm,k),i,j), &
+         atm%l1d(atmk(atm,k)), &
          [real(sun%symmetry_phi, irealLUT), real(sun%theta, irealLUT)] )
      endif
 
@@ -5059,7 +5053,7 @@ module m_pprts
             b0 = atm%planck(ak  ,i,j)
             b1 = atm%planck(ak+1,i,j)
 
-            if( atm%l1d(ak,i,j) ) then
+            if( atm%l1d(ak) ) then
 
               bfac = pi * Az / real(solver%difftop%streams, ireals)
 
@@ -5077,7 +5071,7 @@ module m_pprts
                     atm%g(ak,i,j), &
                     atm%dz(ak,i,j), &
                     .False., diff2diff1d, &
-                    atm%l1d(ak,i,j))
+                    atm%l1d(ak))
 
                   emis = one-real(diff2diff1d(1)+diff2diff1d(2), ireals)
                 endif
@@ -5210,7 +5204,7 @@ module m_pprts
           do k=C_diff%zs,C_diff%ze-1
 
             if( any (xedir(:,k,i,j) .gt. epsilon(one)) ) then
-              if( atm%l1d(atmk(atm,k),i,j) ) then
+              if( atm%l1d(atmk(atm,k)) ) then
 
                 if(luse_eddington ) then
                   ! Only transport the 4 tiles from dir0 to the Eup and Edn
@@ -5230,7 +5224,7 @@ module m_pprts
                   enddo
 
                 else
-                  !call get_coeff(atm%op(atmk(atm,k),i,j), atm%dz(atmk(atm,k),i,j),.False., twostr_coeff, atm%l1d(atmk(atm,k),i,j), [sun%angles(k,i,j)%symmetry_phi, sun%angles(k,i,j)%theta])
+                  !call get_coeff(atm%op(atmk(atm,k),i,j), atm%dz(atmk(atm,k),i,j),.False., twostr_coeff, atm%l1d(atmk(atm,k)), [sun%angles(k,i,j)%symmetry_phi, sun%angles(k,i,j)%theta])
                   call CHKERR(1_mpiint, 'set solar source only implemented for use with eddington coeff')
                 endif
 
@@ -5739,7 +5733,7 @@ module m_pprts
       do i=C%xs,C%xe
         do k=C%zs,C%ze-1
 
-          if( solver%atm%l1d(atmk(solver%atm, k),i,j) ) then
+          if( solver%atm%l1d(atmk(solver%atm, k)) ) then
             call set_eddington_coeff(solver%atm, A, k,i,j)
           else
             call set_pprts_coeff(solver, C, A, k,i,j, ierr); call CHKERR(ierr)
@@ -5874,7 +5868,7 @@ module m_pprts
                 solver%atm%ksca(atmk(solver%atm, k),i,j), &
                 solver%atm%g(atmk(solver%atm, k),i,j), &
                 solver%atm%dz(atmk(solver%atm, k),i,j), &
-                .False., solver%atm%l1d(atmk(solver%atm, k),i,j), '=>', v
+                .False., solver%atm%l1d(atmk(solver%atm, k)), '=>', v
               call CHKERR(1_mpiint, 'omg.. shouldnt be happening')
             endif ! fatal
           endif ! could renormalize
