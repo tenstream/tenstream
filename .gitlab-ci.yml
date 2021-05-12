@@ -14,7 +14,7 @@ stages:
     - if [ ! -z "$MODULES" ]; then module load $MODULES || exit 1; module list; fi
     - mkdir -p build && cd build
     - cmake -DCMAKE_BUILD_TYPE="$BUILD_TYPE" -DCTEST_MPIRUN_FLAGS="$MPIRUN_FLAGS" -DMPIEXEC="$MPIEXEC" ${CMAKE_OPTS} .. || exit 1
-    - make all -j || exit 2
+    - make all -j || make all || exit 2
     - CMD="ctest --output-on-failure $CTEST_ARGS"
     - echo $CMD
     - $CMD &> >(tee $CI_PROJECT_DIR/test.log) || exit 3
