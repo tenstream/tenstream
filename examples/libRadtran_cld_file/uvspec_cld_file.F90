@@ -41,17 +41,19 @@ module m_example_uvspec_cld_file
   implicit none
 
 contains
-  subroutine example_uvspec_cld_file(comm, &
+  subroutine example_uvspec_cld_file_pprts(comm, &
       cldfile, atm_filename, outfile, &
       albedo_th, albedo_sol, &
       lsolar, lthermal, &
-      phi0, theta0)
+      phi0, theta0, &
+      scene_shift_x, scene_shift_y, scene_shift_it)
 
     integer(mpiint), intent(in) :: comm
     character(len=*), intent(in) :: cldfile, atm_filename, outfile
     real(ireals), intent(in) :: albedo_th, albedo_sol
     logical, intent(in) :: lsolar, lthermal
     real(ireals), intent(in) :: phi0, theta0 ! Sun's angles, azimuth phi(0=North, 90=East), zenith(0 high sun, 80=low sun)
+    integer(iintegers), intent(in) :: scene_shift_x, scene_shift_y, scene_shift_it
 
     real(ireals), dimension(:,:,:), allocatable, target :: lwc, reliq ! will have global shape Nz, Nx, Ny
     real(ireals), dimension(:,:,:), allocatable, target :: plev, tlev ! will have local shape nzp+1, nxp, nyp
@@ -145,16 +147,22 @@ contains
 
     call allocate_pprts_solver_from_commandline(pprts_solver, default_solver='3_10', ierr=ierr); call CHKERR(ierr)
 
-    call run_rrtmg_lw_sw(pprts_solver, &
-      & nxproc, nyproc, &
-      & atm_filename, &
-      & dx, dy, phi0, theta0, &
-      & plev, tlev, &
-      & lwc(:, is:ie, js:je), &
-      & reliq(:, is:ie, js:je), &
-      & albedo_th, albedo_sol, &
-      & lsolar, lthermal, &
-      & edir, edn, eup, abso)
+    do k = 1, scene_shift_it
+      lwc  = cshift(lwc  , scene_shift_x, dim=2)
+      reliq= cshift(reliq, scene_shift_x, dim=2)
+      lwc  = cshift(lwc  , scene_shift_y, dim=3)
+      reliq= cshift(reliq, scene_shift_y, dim=3)
+      call run_rrtmg_lw_sw(pprts_solver, &
+        & nxproc, nyproc, &
+        & atm_filename, &
+        & dx, dy, phi0, theta0, &
+        & plev, tlev, &
+        & lwc(:, is:ie, js:je), &
+        & reliq(:, is:ie, js:je), &
+        & albedo_th, albedo_sol, &
+        & lsolar, lthermal, &
+        & edir, edn, eup, abso)
+    enddo
 
     groups(1) = trim(outfile)
 
@@ -267,7 +275,7 @@ contains
       pplev, ptlev, atm, &
       d_lwc=plwc, d_reliq=preliq)
 
-    if(myid.eq.0) call print_tenstr_atm(atm)
+    !if(myid.eq.0) call print_tenstr_atm(atm)
 
     call pprts_rrtmg(comm, pprts_solver, atm, &
       size(plev,2, kind=iintegers), size(plev,3, kind=iintegers), &
@@ -313,6 +321,7 @@ contains
       lsolar, lthermal, &
       phi0, theta0, &
       Tsrfc, dTdz)
+
     integer(mpiint), intent(in) :: comm
     character(len=*), intent(in) :: cldfile, atm_filename, outfile
     real(ireals), intent(in) :: albedo_th, albedo_sol
@@ -569,6 +578,7 @@ program main
   character(len=10*default_str_len) :: cldfile, outfile
   real(ireals) :: Ag, phi0, theta0, Tsrfc, dTdz
   character(len=default_str_len) :: atm_filename
+  integer(iintegers) :: scene_shift_x, scene_shift_y, scene_shift_it
 
   logical :: luse_plexrt
 
@@ -594,6 +604,15 @@ program main
   call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-solar", lsolar, lflg,ierr) ; call CHKERR(ierr)
   call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-thermal", lthermal, lflg,ierr) ; call CHKERR(ierr)
 
+  scene_shift_x=0
+  scene_shift_y=0
+  scene_shift_it=1
+  call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+    & '-scene_shift_x', scene_shift_x, lflg, ierr); call CHKERR(ierr)
+  call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+    & '-scene_shift_y', scene_shift_y, lflg, ierr); call CHKERR(ierr)
+  call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+    & '-scene_shift_it',scene_shift_it,lflg, ierr); call CHKERR(ierr)
 
   phi0 = 270
   call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-phi", phi0, lflg,ierr) ; call CHKERR(ierr)
@@ -609,11 +628,17 @@ program main
   call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-use_plexrt", luse_plexrt, lflg,ierr) ; call CHKERR(ierr)
 
   if(luse_plexrt) then
-    call example_uvspec_cld_file_with_plexrt(mpi_comm_world, cldfile, atm_filename, outfile, &
-      zero, Ag, lsolar, lthermal, phi0, theta0, Tsrfc, dTdz)
+    call CHKERR(int(scene_shift_x, mpiint), 'not supported option')
+    call CHKERR(int(scene_shift_y, mpiint), 'not supported option')
+    call CHKERR(int(scene_shift_it-1, mpiint), 'not supported option')
+    call example_uvspec_cld_file_with_plexrt(&
+      & mpi_comm_world, cldfile, atm_filename, outfile, &
+      & zero, Ag, lsolar, lthermal, phi0, theta0, Tsrfc, dTdz)
   else
-    call example_uvspec_cld_file(mpi_comm_world, cldfile, atm_filename, outfile, &
-      zero, Ag, lsolar, lthermal, phi0, theta0)
+    call example_uvspec_cld_file_pprts(&
+      & mpi_comm_world, cldfile, atm_filename, outfile, &
+      & zero, Ag, lsolar, lthermal, phi0, theta0, &
+      & scene_shift_x, scene_shift_y, scene_shift_it)
   endif
   call mpi_finalize(ierr)
 end program

@@ -2145,8 +2145,7 @@ module m_pprts
     class(t_solver), pointer :: solver
     real(ireals),pointer,dimension(:,:,:,:) :: xx=>null(), xb=>null()
     real(ireals),pointer,dimension(:) :: xx1d=>null(), xb1d=>null()
-    real(irealLUT), target, allocatable :: coeff(:)
-    real(irealLUT), pointer :: v(:,:) ! dim(src, dst)
+    real(ireals), pointer :: v(:,:) ! dim(src, dst)
     integer(iintegers) :: k,i,j
     integer(iintegers) :: idst, isrc, src, dst, xinc, yinc
     type(tVec) :: lb, lx
@@ -2164,9 +2163,6 @@ module m_pprts
     associate( sun => solver%sun, &
                atm => solver%atm, &
                C   => solver%C_dir)
-
-      allocate(coeff(C%dof**2))
-      v(0:C%dof-1, 0:C%dof-1) => coeff(1:C%dof**2)
 
       call DMGetLocalVector(C%da, lx, ierr); call CHKERR(ierr)
       call DMGetLocalVector(C%da, lb, ierr); call CHKERR(ierr)
@@ -2191,14 +2187,7 @@ module m_pprts
               xinc = sun%xinc
               yinc = sun%yinc
 
-              call get_coeff(solver, &
-                atm%kabs(atmk(solver%atm,k),i,j), &
-                atm%ksca(atmk(solver%atm,k),i,j), &
-                atm%g(atmk(solver%atm,k),i,j), &
-                atm%dz(atmk(solver%atm,k),i,j), .True., coeff, &
-                atm%l1d(atmk(solver%atm,k),i,j), &
-                [real(sun%symmetry_phi, irealLUT), real(sun%theta, irealLUT)], &
-                lswitch_east=xinc.eq.0, lswitch_north=yinc.eq.0)
+              v(0:C%dof-1, 0:C%dof-1) => solver%dir2dir(:,k,i,j)
 
               dst = 0
               do idst = 0, solver%dirtop%dof-1
