@@ -2363,7 +2363,7 @@ module m_pprts
       do i_its = 1, its
 
         do i_lits = 1, lits
-          call explicit_edir_forward_sweep(solver, solver%dir2dir, dx, dy, lx)
+          call explicit_edir_forward_sweep(solver, solver%dir2dir, dx, dy, lb, lx)
         enddo
 
         call exchange_direct_boundary(solver, lsun_north, lsun_east, lx, ierr); call CHKERR(ierr)
@@ -2946,7 +2946,7 @@ module m_pprts
 
       real(ireals),pointer,dimension(:,:,:,:) :: x0=>null(), xg=>null()
       real(ireals),pointer,dimension(:) :: x01d=>null(), xg1d=>null()
-      type(tVec) :: v0
+      type(tVec) :: v0, b, lb
 
       integer(iintegers), dimension(3) :: dx, dy ! start, end, increment for each dimension
       integer(iintegers) :: iter, maxiter
@@ -2967,7 +2967,6 @@ module m_pprts
           & atm => solver%atm, &
           & C   => solver%C_dir)
 
-        call setup_incSolar(solver, edirTOA, vedir)
 
         maxiter=1000
         call PetscOptionsGetInt(PETSC_NULL_OPTIONS, prefix, &
@@ -3013,13 +3012,19 @@ module m_pprts
             & print *,'Using permutations for pprts_explicit_edir x-iterator:', dx, 'y-iterator:', dy
         endif
 
+        call DMGetGlobalVector(C%da, b, ierr); call CHKERR(ierr)
+        call VecSet(b, zero, ierr); call CHKERR(ierr)
+        call setup_incSolar(solver, edirTOA, b)
+
+        call DMGetLocalVector(C%da, lb, ierr); call CHKERR(ierr)
+        call DMGlobalToLocal(C%da, b, INSERT_VALUES, lb, ierr) ;call CHKERR(ierr)
+
         call DMGetLocalVector(C%da, v0, ierr); call CHKERR(ierr)
-        call DMGlobalToLocalBegin(C%da, vedir, INSERT_VALUES, v0, ierr) ;call CHKERR(ierr)
-        call DMGlobalToLocalEnd  (C%da, vedir, INSERT_VALUES, v0, ierr) ;call CHKERR(ierr)
+        call DMGlobalToLocal(C%da, vedir, INSERT_VALUES, v0, ierr) ;call CHKERR(ierr)
 
         do iter = 1, maxiter
 
-          call explicit_edir_forward_sweep(solver, solver%dir2dir, dx, dy, v0)
+          call explicit_edir_forward_sweep(solver, solver%dir2dir, dx, dy, lb, v0)
 
           call exchange_direct_boundary(solver, lsun_north, lsun_east, v0, ierr); call CHKERR(ierr)
 
@@ -3068,6 +3073,8 @@ module m_pprts
         call restoreVecPointer(C%da, v0, x01d, x0, readonly=.True.)
 
         call DMRestoreLocalVector(C%da, v0, ierr); call CHKERR(ierr)
+        call DMRestoreLocalVector(C%da, lb, ierr); call CHKERR(ierr)
+        call DMRestoreGlobalVector(C%da, b, ierr); call CHKERR(ierr)
 
         call PetscObjectSetName(vedir,'debug_edir',ierr) ; call CHKERR(ierr)
         call PetscObjectViewFromOptions(vedir, PETSC_NULL_VEC, "-show_debug_edir", ierr); call CHKERR(ierr)
@@ -3159,13 +3166,14 @@ module m_pprts
       ierr = 0
     end subroutine
 
-    subroutine explicit_edir_forward_sweep(solver, coeffs, dx, dy, x)
+    subroutine explicit_edir_forward_sweep(solver, coeffs, dx, dy, b, x)
       class(t_solver), intent(in) :: solver
       real(ireals), target, intent(in) :: coeffs(:,:,:,:)
       integer(iintegers), dimension(3), intent(in) :: dx, dy ! start, end, increment for each dimension
-      type(tVec), intent(in) :: x
+      type(tVec), intent(in) :: b, x
 
       real(ireals),pointer :: x0(:,:,:,:)=>null(), x01d(:)=>null()
+      real(ireals),pointer :: xb(:,:,:,:)=>null(), xb1d(:)=>null()
 
       integer(iintegers) :: i, j, k
       integer(iintegers) :: idst, isrc, src, dst
@@ -3178,6 +3186,9 @@ module m_pprts
           & yinc => solver%sun%yinc )
 
         call getVecPointer(C%da, x, x01d, x0)
+        call getVecPointer(C%da, b, xb1d, xb, readonly=.True.)
+        x0(0:solver%dirtop%dof-1, C%zs, :, :) = xb(0:solver%dirtop%dof-1, C%zs, :, :)
+        call restoreVecPointer(C%da, b, xb1d, xb, readonly=.True.)
 
         ! forward sweep through x
         do k=C%zs,C%ze-1
@@ -3187,7 +3198,6 @@ module m_pprts
 
                 do idst = 0, solver%dirtop%dof-1
                   x0(idst, k+i1, i, j) = x0(idst, k, i, j) * atm%a33(atmk(atm,k),i,j)
-                  !print *,k,i,j,'edir', x0(idst, k+i1, i, j), '=', x0(idst, k, i, j) , atm%a33(atmk(atm,k),i,j)
                 enddo
               enddo
             enddo
@@ -3203,8 +3213,6 @@ module m_pprts
                   src = 0
                   do isrc = 0, solver%dirtop%dof-1
                     x0(dst, k+i1, i, j) = x0(dst, k+i1, i, j) + x0(src, k, i, j) * v(src, dst)
-                    !print *,k,i,j,'edir', dst, x0(dst, k+i1, i, j), '=', &
-                    !  & x0(dst, k+1, i, j),'+',src, x0(src, k, i, j),'c',v(src, dst)
                     src = src+1
                   enddo
                   do isrc = 0, solver%dirside%dof-1
@@ -3223,8 +3231,6 @@ module m_pprts
                   src = 0
                   do isrc = 0, solver%dirtop%dof-1
                     x0(dst, k, i+xinc, j) = x0(dst, k, i+xinc, j) + x0(src, k, i, j) * v(src, dst)
-                    !print *,k,i,j,'edir_x', dst, x0(dst, k, i+xinc, j), '=', &
-                    !  & x0(dst, k, i+xinc, j),'+',src, x0(src, k, i, j),'c',v(src, dst)
                     src = src+1
                   enddo
                   do isrc = 0, solver%dirside%dof-1
