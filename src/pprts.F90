@@ -4482,13 +4482,12 @@ module m_pprts
     logical :: by_coeff_divergence, lflg
     integer(mpiint) :: ierr
 
+    if(solver%myid.eq.0.and.ldebug) print *,'Calculating flux divergence solar?',solution%lsolar_rad,'NCA?',lcalc_nca
+
     if(allocated(solution%edir)) then
       call PetscObjectViewFromOptions(solution%edir, PETSC_NULL_VEC, "-show_flxdiv_edir", ierr); call CHKERR(ierr)
     endif
     call PetscObjectViewFromOptions(solution%ediff, PETSC_NULL_VEC, "-show_flxdiv_ediff", ierr); call CHKERR(ierr)
-
-    if(.not.allocated(solver%abso_scalevec)) &
-      & call gen_abso_scalevec()
 
     if( (solution%lsolar_rad.eqv..False.) .and. lcalc_nca ) then ! if we should calculate NCA (Klinger), we can just return afterwards
       call scale_flx(solver, solution, lWm2=.True.)
@@ -4496,7 +4495,11 @@ module m_pprts
       return
     endif
 
-    if(solver%myid.eq.0.and.ldebug) print *,'Calculating flux divergence solar?',solution%lsolar_rad,'NCA?',lcalc_nca
+    call PetscLogEventBegin(solver%logs%compute_absorption, ierr); call CHKERR(ierr)
+
+    if(.not.allocated(solver%abso_scalevec)) &
+      & call gen_abso_scalevec()
+
     call VecSet(solution%abso,zero,ierr) ;call CHKERR(ierr)
 
     ! make sure to bring the fluxes into [W] before the absorption calculation
@@ -4522,6 +4525,7 @@ module m_pprts
     99 continue ! cleanup
     call VecPointwiseMult(solution%abso, solution%abso, solver%abso_scalevec, ierr); call CHKERR(ierr)
 
+    call PetscLogEventEnd(solver%logs%compute_absorption, ierr); call CHKERR(ierr)
   contains
 
     subroutine compute_1D_absorption()
