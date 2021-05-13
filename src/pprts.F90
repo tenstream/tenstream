@@ -2667,16 +2667,12 @@ module m_pprts
     type(t_state_container), intent(inout) :: solution
     type(t_pprts_buildings), optional, intent(in) :: opt_buildings
 
-    logical :: lflg, lskip_diffuse_solve, lshell_pprts
+    logical :: lflg, lskip_diffuse_solve
     logical :: lexplicit_dir, lexplicit_diff
     real(ireals) :: b_norm, rtol, atol
     integer(mpiint) :: ierr
 
     character(len=default_str_len) :: prefix
-
-    lshell_pprts = .False.
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-      "-pprts_shell", lshell_pprts, lflg,ierr) ; call CHKERR(ierr)
 
     ! Populate transport coeffs
     if( solution%lsolar_rad ) then
@@ -2754,14 +2750,18 @@ module m_pprts
 
       subroutine edir(prefix)
         character(len=*), intent(in) :: prefix
-        logical :: lmat_permute, lmat_permute_reuse
+        logical :: lmat_permute, lmat_permute_reuse, lshell
 
           call PetscLogEventBegin(solver%logs%compute_Edir, ierr)
 
           call VecSet(solver%incSolar, zero, ierr); call CHKERR(ierr)
           call setup_incSolar(solver, edirTOA, solver%incSolar)
 
-          if(lshell_pprts) then
+          lshell = .False.
+          call PetscOptionsGetBool(PETSC_NULL_OPTIONS, prefix, &
+            "-shell", lshell, lflg,ierr) ; call CHKERR(ierr)
+
+          if(lshell) then
             call setup_matshell(solver, solver%C_dir, solver%Mdir, op_mat_mult_edir, op_mat_sor_edir, op_mat_getdiagonal)
           else
             call PetscLogEventBegin(solver%logs%setup_Mdir, ierr)
@@ -2852,10 +2852,13 @@ module m_pprts
         type(tKSP), allocatable, intent(inout) :: ksp
         character(len=*), intent(in) :: prefix
 
-        logical :: lmat_permute, lmat_permute_reuse
+        logical :: lmat_permute, lmat_permute_reuse, lshell
 
-        ! ---------------------------- Ediff -------------------
-        if(lshell_pprts) then
+        lshell = .False.
+        call PetscOptionsGetBool(PETSC_NULL_OPTIONS, prefix, &
+          "-shell", lshell, lflg,ierr) ; call CHKERR(ierr)
+
+        if(lshell) then
           call setup_matshell(solver, solver%C_diff, A, op_mat_mult_ediff, op_mat_sor_ediff, op_mat_getdiagonal)
         else
           call init_Matrix(solver, solver%C_diff, A, setup_diffuse_preallocation)
