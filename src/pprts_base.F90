@@ -2,14 +2,22 @@ module m_pprts_base
 #include "petsc/finclude/petsc.h"
   use petsc
 
-  use m_data_parameters, only : ireals, iintegers, mpiint, &
-    zero, one, i0, i1, i2, i3, i4, i5, i6, i7, i8, i10, pi, &
-    default_str_len
+  use m_data_parameters, only : &
+    & ireals, iintegers, mpiint, &
+    & zero, one, pi, &
+    & i0, i1, i2, &
+    & default_str_len
 
-  use m_helper_functions, only : CHKWARN, CHKERR, &
-    & get_arg, toStr, cstr, deallocate_allocatable
+  use m_helper_functions, only : &
+    & CHKWARN, CHKERR, &
+    & cstr, &
+    & deallocate_allocatable, &
+    & get_arg, &
+    & imp_allreduce_min, &
+    & toStr
 
-  use m_petsc_helpers, only: getvecpointer, restorevecpointer, is_local_vec
+  use m_petsc_helpers, only: &
+    & getvecpointer, restorevecpointer, is_local_vec
 
   use m_optprop, only: t_optprop_cube
 
@@ -22,11 +30,13 @@ module m_pprts_base
     & compute_gradient, &
     & destroy_pprts, &
     & destroy_solution, &
+    & determine_ksp_tolerances, &
     & interpolate_cell_values_to_vertices, &
     & prepare_solution, &
     & print_solution, &
     & set_dmda_cell_coordinates, &
     & setup_log_events, &
+    & setup_incSolar, &
     & t_atmosphere, &
     & t_coord, &
     & t_dof, &
@@ -677,5 +687,80 @@ module m_pprts_base
     type(t_atmosphere),intent(in) :: atm
     atmk = k+atm%icollapse-1
   end function
+
+  !> @brief: determine tolerances for solvers
+  subroutine determine_ksp_tolerances(C, l1d, rtol, atol, ksp)
+    type(t_coord), intent(in) :: C
+    logical, intent(in) :: l1d(:)
+    real(ireals), intent(out) :: rtol, atol
+    type(tKSP), intent(in), allocatable, optional:: ksp
+    real(ireals) :: rel_atol=1e-4_ireals
+    real(ireals) :: unconstrained_fraction
+    integer(mpiint) :: myid, ierr
+    integer(iintegers) :: maxit
+    real(ireals) :: dtol
+    logical,parameter :: ldebug=.False.
+
+    if(present(ksp)) then
+      if(allocated(ksp)) then
+        call KSPGetTolerances(ksp, rtol, atol, dtol, maxit, ierr); call CHKERR(ierr)
+        if(ldebug) then
+          call mpi_comm_rank(C%comm, myid, ierr); call CHKERR(ierr)
+          if(myid.eq.0) print *,cstr('Read tolerances from ksp','red'), rtol, atol, dtol, maxit
+        endif
+        return
+      endif
+    endif
+
+    rtol = 1e-5_ireals
+    unconstrained_fraction = real(count(.not.l1d), ireals) / real(size(l1d), ireals)
+    call imp_allreduce_min(C%comm, &
+      & rel_atol &
+      & * real(C%dof*C%glob_xm*C%glob_ym*C%glob_zm, ireals) &
+      & * unconstrained_fraction, atol)
+    atol = max(1e-8_ireals, atol)
+
+    if(ldebug) then
+      call mpi_comm_rank(C%comm, myid, ierr); call CHKERR(ierr)
+      if(myid.eq.0) &
+        print *,'KSP ', &
+        & '-- tolerances:', rtol, atol, &
+        & ':: rel_atol', rel_atol, &
+        & ':: total dof', C%dof * C%glob_xm * C%glob_ym * C%glob_zm, &
+        & ':: unconstrained fraction', unconstrained_fraction
+    endif
+  end subroutine
+
+  !> @brief set solar incoming radiation at Top_of_Atmosphere
+  !> @details todo: in case we do not have periodic boundaries, we should shine light in from the side of the domain...
+  subroutine setup_incSolar(solver, edirTOA, incSolar)
+    class(t_solver), intent(in) :: solver
+    real(ireals),intent(in)     :: edirTOA
+    type(tVec), intent(inout)   :: incSolar
+
+    real(ireals),pointer :: x1d(:)=>null(),x4d(:,:,:,:)=>null()
+
+    real(ireals) :: fac
+    integer(iintegers) :: i,j,src
+    logical,parameter :: ldebug=.False.
+
+    fac = edirTOA * solver%atm%dx*solver%atm%dy / real(solver%dirtop%area_divider, ireals) * solver%sun%costheta
+
+    call getVecPointer(solver%C_dir%da, incSolar, x1d, x4d)
+
+    do j=solver%C_dir%ys,solver%C_dir%ye
+      do i=solver%C_dir%xs,solver%C_dir%xe
+        do src=0, solver%dirtop%dof-1
+          x4d(src,solver%C_dir%zs,i,j) = fac
+        enddo
+      enddo
+    enddo
+
+    call restoreVecPointer(solver%C_dir%da, incSolar, x1d, x4d)
+
+    if(solver%myid.eq.0 .and. ldebug) print *,solver%myid,'Setup of IncSolar done', edirTOA, &
+      & '(', fac, ')'
+
+  end subroutine
 
 end module
