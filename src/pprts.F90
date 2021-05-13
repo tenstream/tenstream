@@ -2958,6 +2958,7 @@ module m_pprts
       real(ireals) :: residual_mmm(3), rel_residual, atol, rtol
 
       logical :: lsun_north, lsun_east, lpermute, lskip_residual, lmonitor_residual, lconverged, lflg, lflg2
+      logical :: laccept_incomplete_solve, lconverged_reason
 
       integer(mpiint) :: ierr
 
@@ -2987,6 +2988,14 @@ module m_pprts
           call PetscOptionsGetBool(PETSC_NULL_OPTIONS, prefix, &
             & "-ksp_monitor_true_residual", lmonitor_residual, lflg , ierr) ;call CHKERR(ierr)
         endif
+
+        lconverged_reason = lmonitor_residual
+        call PetscOptionsGetBool(PETSC_NULL_OPTIONS, prefix, &
+          & "-ksp_converged_reason", lconverged_reason, lflg , ierr) ;call CHKERR(ierr)
+
+        laccept_incomplete_solve = .False.
+        call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+          "-accept_incomplete_solve", laccept_incomplete_solve, lflg, ierr); call CHKERR(ierr)
 
         call determine_ksp_tolerances(C, atm%l1d, rtol, atol)
         call PetscOptionsGetReal(PETSC_NULL_OPTIONS, prefix, "-ksp_atol", &
@@ -3059,13 +3068,17 @@ module m_pprts
 
             lconverged = mpi_logical_and(solver%comm, residual(iter).lt.atol.or.rel_residual.lt.rtol)
             if(lconverged) then
-              if(solver%myid.eq.0.and.lmonitor_residual) &
+              if(solver%myid.eq.0.and.lconverged_reason) &
                 & print *,trim(prefix)//' solve converged after', iter, 'iterations'
               exit
             endif
           endif
 
-          if(iter.eq.maxiter) call CHKERR(int(iter,mpiint), trim(prefix)//" did not converge")
+          if(iter.eq.maxiter) then
+            if(.not.laccept_incomplete_solve) then
+              call CHKERR(int(iter,mpiint), trim(prefix)//" did not converge")
+            endif
+          endif
         enddo ! iter
 
         ! update solution vec
@@ -3291,6 +3304,7 @@ module m_pprts
       real(ireals) :: residual_mmm(3), rel_residual, atol, rtol
 
       logical :: lskip_residual, lmonitor_residual, lconverged, lflg, lflg2
+      logical :: laccept_incomplete_solve, lconverged_reason
 
       integer(mpiint) :: ierr
 
@@ -3323,6 +3337,14 @@ module m_pprts
           call PetscOptionsGetBool(PETSC_NULL_OPTIONS, prefix, &
             & "-ksp_monitor_true_residual", lmonitor_residual, lflg , ierr) ;call CHKERR(ierr)
         endif
+
+        lconverged_reason = lmonitor_residual
+        call PetscOptionsGetBool(PETSC_NULL_OPTIONS, prefix, &
+          & "-ksp_converged_reason", lconverged_reason, lflg , ierr) ;call CHKERR(ierr)
+
+        laccept_incomplete_solve = .False.
+        call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+          "-accept_incomplete_solve", laccept_incomplete_solve, lflg, ierr); call CHKERR(ierr)
 
         call determine_ksp_tolerances(C, atm%l1d, rtol, atol)
         call PetscOptionsGetReal(PETSC_NULL_OPTIONS, prefix, "-ksp_atol", &
@@ -3396,13 +3418,17 @@ module m_pprts
 
             lconverged = mpi_logical_and(solver%comm, residual(iter).lt.atol.or.rel_residual.lt.rtol)
             if(lconverged) then
-              if(solver%myid.eq.0.and.lmonitor_residual) &
+              if(solver%myid.eq.0.and.lconverged_reason) &
                 & print *,trim(prefix),' solve converged after', iter, 'iterations'
               exit
             endif
           endif
 
-          if(iter.eq.maxiter) call CHKERR(int(iter,mpiint), trim(prefix)//" did not converge")
+          if(iter.eq.maxiter) then
+            if(.not.laccept_incomplete_solve) then
+              call CHKERR(int(iter,mpiint), trim(prefix)//" did not converge")
+            endif
+          endif
         enddo ! iter
 
         call getVecPointer(C%da, vediff, xg1d, xg)
