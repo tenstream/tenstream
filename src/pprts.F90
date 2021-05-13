@@ -2678,15 +2678,15 @@ module m_pprts
     call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
       "-pprts_shell", lshell_pprts, lflg,ierr) ; call CHKERR(ierr)
 
-    ! --------- scale from [W/m**2] to [W] -----------------
-    call scale_flx(solver, solution, lWm2=.False. )
-
     ! Populate transport coeffs
     if( solution%lsolar_rad ) then
       call alloc_coeff_dir2dir(solver, solver%dir2dir, opt_buildings)
       call alloc_coeff_dir2diff(solver, solver%dir2diff)
     endif
     call alloc_coeff_diff2diff(solver, solver%diff2diff, opt_buildings)
+
+    ! --------- scale from [W/m**2] to [W] -----------------
+    call scale_flx(solver, solution, lWm2=.False. )
 
     ! ---------------------------- Edir  -------------------
     if( solution%lsolar_rad ) then
@@ -2754,7 +2754,7 @@ module m_pprts
 
       subroutine edir(prefix)
         character(len=*), intent(in) :: prefix
-        logical :: lmat_permute_dir
+        logical :: lmat_permute, lmat_permute_reuse
 
           call PetscLogEventBegin(solver%logs%compute_Edir, ierr)
 
@@ -2771,10 +2771,10 @@ module m_pprts
             if(ldebug) call mat_info(solver%comm, solver%Mdir)
           endif
 
-          lmat_permute_dir=.False.
-          call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
-            "-mat_permute_dir", lmat_permute_dir, lflg ,ierr); call CHKERR(ierr)
-          if(lmat_permute_dir) then ! prepare mat permutation
+          lmat_permute=.False.
+          call PetscOptionsGetBool(PETSC_NULL_OPTIONS, prefix, &
+            "-mat_permute", lmat_permute, lflg ,ierr); call CHKERR(ierr)
+          if(lmat_permute) then ! prepare mat permutation
             call PetscLogEventBegin(solver%logs%permute_mat_gen_dir, ierr)
             call gen_mat_permutation( &
               & A=solver%Mdir, &
@@ -2796,15 +2796,25 @@ module m_pprts
               call MatCreateSubMatrix(solver%Mdir, solver%perm_dir%is, solver%perm_dir%is, &
                 & MAT_INITIAL_MATRIX, solver%Mdir_perm, ierr); call CHKERR(ierr)
             else
+
+              lmat_permute_reuse=.False.
+              call PetscOptionsGetBool(PETSC_NULL_OPTIONS, prefix, &
+                "-mat_permute_reuse", lmat_permute_reuse, lflg ,ierr); call CHKERR(ierr)
               ! TODO: we should be able to reuse the mat, but results change, I could not figure out why.
               ! Instead we destroy the mat and build and initial one every time.
               ! This hits performance but is still better than not reordering...
-              !call MatCreateSubMatrix(solver%Mdir, solver%perm_dir%is, solver%perm_dir%is, &
-              !  & MAT_REUSE_MATRIX, solver%Mdir_perm, ierr); call CHKERR(ierr)
-              call MatDestroy(solver%Mdir_perm, ierr); call CHKERR(ierr);
-              !call MatPermute(solver%Mdir, solver%perm_dir%is, solver%perm_dir%is, solver%Mdir_perm, ierr); call CHKERR(ierr)
-              call MatCreateSubMatrix(solver%Mdir, solver%perm_dir%is, solver%perm_dir%is, &
-                & MAT_INITIAL_MATRIX, solver%Mdir_perm, ierr); call CHKERR(ierr)
+              if (lmat_permute_reuse) then
+                if(solver%myid.eq.0) &
+                  & call CHKWARN(1_mpiint, 'mat_permute_reuse &
+                  & :: not sure if this always gives the correct results, please check carefully')
+                call MatCreateSubMatrix(solver%Mdir, solver%perm_dir%is, solver%perm_dir%is, &
+                  & MAT_REUSE_MATRIX, solver%Mdir_perm, ierr); call CHKERR(ierr)
+              else
+                call MatDestroy(solver%Mdir_perm, ierr); call CHKERR(ierr);
+                !call MatPermute(solver%Mdir, solver%perm_dir%is, solver%perm_dir%is, solver%Mdir_perm, ierr); call CHKERR(ierr)
+                call MatCreateSubMatrix(solver%Mdir, solver%perm_dir%is, solver%perm_dir%is, &
+                  & MAT_INITIAL_MATRIX, solver%Mdir_perm, ierr); call CHKERR(ierr)
+              endif
               call KSPSetOperators(solver%ksp_solar_dir, solver%Mdir_perm, solver%Mdir_perm, ierr); call CHKERR(ierr)
             endif
             call PetscLogEventEnd(solver%logs%permute_mat_dir, ierr)
@@ -2823,7 +2833,7 @@ module m_pprts
             solution%dir_ksp_residual_history)
           call PetscLogEventEnd(solver%logs%solve_Mdir, ierr)
 
-          if(lmat_permute_dir) then
+          if(lmat_permute) then
             call PetscLogEventBegin(solver%logs%permute_mat_dir, ierr)
             call VecPermute(solver%incSolar, solver%perm_dir%is, PETSC_TRUE, ierr); call CHKERR(ierr)
             call VecPermute(solution%edir, solver%perm_dir%is, PETSC_TRUE, ierr); call CHKERR(ierr)
@@ -2842,7 +2852,7 @@ module m_pprts
         type(tKSP), allocatable, intent(inout) :: ksp
         character(len=*), intent(in) :: prefix
 
-        logical :: lmat_permute_diff
+        logical :: lmat_permute, lmat_permute_reuse
 
         ! ---------------------------- Ediff -------------------
         if(lshell_pprts) then
@@ -2856,10 +2866,10 @@ module m_pprts
           if(ldebug) call mat_info(solver%comm, A)
         endif
 
-        lmat_permute_diff=.False.
-        call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
-          "-mat_permute_diff", lmat_permute_diff, lflg ,ierr); call CHKERR(ierr)
-        if(lmat_permute_diff) then ! prepare mat permutation
+        lmat_permute=.False.
+        call PetscOptionsGetBool(PETSC_NULL_OPTIONS, prefix, &
+          "-mat_permute", lmat_permute, lflg ,ierr); call CHKERR(ierr)
+        if(lmat_permute) then ! prepare mat permutation
           call PetscLogEventBegin(solver%logs%permute_mat_gen_diff, ierr)
           call gen_mat_permutation( &
             & A=A, &
@@ -2882,11 +2892,22 @@ module m_pprts
             call MatCreateSubMatrix(A, solver%perm_diff%is, solver%perm_diff%is, &
               & MAT_INITIAL_MATRIX, Aperm, ierr); call CHKERR(ierr)
           else
-            !call MatCreateSubMatrix(A, solver%perm_diff%is, solver%perm_diff%is, &
-            !  & MAT_REUSE_MATRIX, Aperm, ierr); call CHKERR(ierr)
-            call MatDestroy(Aperm, ierr); call CHKERR(ierr);
-            call MatCreateSubMatrix(A, solver%perm_diff%is, solver%perm_diff%is, &
-              & MAT_INITIAL_MATRIX, Aperm, ierr); call CHKERR(ierr)
+
+            lmat_permute_reuse=.False.
+            call PetscOptionsGetBool(PETSC_NULL_OPTIONS, prefix, &
+              "-mat_permute_reuse", lmat_permute_reuse, lflg ,ierr); call CHKERR(ierr)
+
+            if(lmat_permute_reuse) then
+              if(solver%myid.eq.0) &
+                & call CHKWARN(1_mpiint, 'mat_permute_reuse :: &
+                & not sure if this always gives the correct results, please check carefully')
+              call MatCreateSubMatrix(A, solver%perm_diff%is, solver%perm_diff%is, &
+                & MAT_REUSE_MATRIX, Aperm, ierr); call CHKERR(ierr)
+            else
+              call MatDestroy(Aperm, ierr); call CHKERR(ierr);
+              call MatCreateSubMatrix(A, solver%perm_diff%is, solver%perm_diff%is, &
+                & MAT_INITIAL_MATRIX, Aperm, ierr); call CHKERR(ierr)
+            endif
             call KSPSetOperators(ksp, Aperm, Aperm, ierr); call CHKERR(ierr)
           endif
           call PetscLogEventEnd(solver%logs%permute_mat_diff, ierr)
@@ -2905,8 +2926,9 @@ module m_pprts
           solution%diff_ksp_residual_history)
         call PetscLogEventEnd(solver%logs%solve_Mdiff, ierr)
 
-        if(lmat_permute_diff) then
+        if(lmat_permute) then
           call PetscLogEventBegin(solver%logs%permute_mat_diff, ierr)
+          call VecPermute(solver%b, solver%perm_diff%is, PETSC_TRUE, ierr); call CHKERR(ierr)
           call VecPermute(solution%ediff, solver%perm_diff%is, PETSC_TRUE, ierr); call CHKERR(ierr)
           call PetscLogEventEnd(solver%logs%permute_mat_diff, ierr)
         endif
