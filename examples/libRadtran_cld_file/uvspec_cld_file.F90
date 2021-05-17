@@ -55,6 +55,7 @@ contains
     real(ireals), intent(in) :: phi0, theta0 ! Sun's angles, azimuth phi(0=North, 90=East), zenith(0 high sun, 80=low sun)
     integer(iintegers), intent(in) :: scene_shift_x, scene_shift_y, scene_shift_it
 
+    real(ireals), dimension(:,:,:), allocatable :: tmp ! used to resize input data
     real(ireals), dimension(:,:,:), allocatable, target :: lwc, reliq ! will have global shape Nz, Nx, Ny
     real(ireals), dimension(:,:,:), allocatable, target :: plev, tlev ! will have local shape nzp+1, nxp, nyp
     real(ireals), dimension(:), allocatable :: hhl ! dim Nz+1
@@ -72,6 +73,7 @@ contains
     integer(iintegers) :: is, ie, js, je
     integer(iintegers) :: nxp, nyp, nzp ! local sizes of domain, nzp being number of layers
     integer(iintegers),allocatable :: nxproc(:), nyproc(:)
+    logical :: lflg
 
     integer(iintegers) :: k
 
@@ -82,9 +84,26 @@ contains
       call get_global_attribute(cldfile, 'dx', dx, ierr); call CHKERR(ierr)
       call get_global_attribute(cldfile, 'dy', dy, ierr); call CHKERR(ierr)
       groups(1) = trim(cldfile)
-      groups(2) = trim('lwc'); call ncload(groups, lwc, ierr); call CHKERR(ierr)
+      groups(2) = trim('lwc') ; call ncload(groups, lwc  , ierr); call CHKERR(ierr)
       groups(2) = trim('reff'); call ncload(groups, reliq, ierr); call CHKERR(ierr)
-      groups(2) = trim('z'); call ncload(groups, hhl, ierr); call CHKERR(ierr)
+      groups(2) = trim('z')   ; call ncload(groups, hhl  , ierr); call CHKERR(ierr)
+
+      is = lbound(lwc, dim=2); ie = ubound(lwc, dim=2)
+      js = lbound(lwc, dim=3); je = ubound(lwc, dim=3)
+      call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-xs', is, lflg, ierr); call CHKERR(ierr)
+      call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-xe', ie, lflg, ierr); call CHKERR(ierr)
+      call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-ys', js, lflg, ierr); call CHKERR(ierr)
+      call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-ye', je, lflg, ierr); call CHKERR(ierr)
+      allocate(tmp(size(lwc,dim=1), size(lwc,dim=2), size(lwc,dim=3)))
+      tmp = lwc
+      deallocate(lwc)
+      allocate(lwc  (size(tmp,dim=1), ie-is+1, je-js+1), source=tmp(:,is:ie,js:je))
+      deallocate(tmp)
+      allocate(tmp(size(reliq,dim=1), size(reliq,dim=2), size(reliq,dim=3)))
+      tmp = reliq
+      deallocate(reliq)
+      allocate(reliq  (size(tmp,dim=1), ie-is+1, je-js+1), source=tmp(:,is:ie,js:je))
+      deallocate(tmp)
     endif
     call imp_bcast(comm, dx, 0_mpiint)
     call imp_bcast(comm, dy, 0_mpiint)
