@@ -79,6 +79,8 @@ set( optprop_sources
 
 set( solver_sources
   "pprts.F90"
+  "pprts_shell.F90"
+  "pprts_explicit.F90"
   "pprts_external_solvers.F90"
   )
 

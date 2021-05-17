@@ -164,22 +164,23 @@ mim:gcc:debug:
     MODULES: "petsc/debug-gcc-9"
     BUILD_TYPE: DEBUG
 
-implicit:mim:gcc:single:
-  extends: .build:mim:default
-  variables:
-    MODULES: "petsc/single-gcc-9"
-    PETSC_OPTIONS: "-solar_dir_explicit no -solar_diff_explicit no -thermal_diff_explicit no"
-
 implicit:mim:gcc:debug:
   extends: .build:mim:default
   variables:
-    MODULES: "petsc/debug-gcc-9"
+    MODULES: "petsc/single-gcc-9"
     BUILD_TYPE: DEBUG
     PETSC_OPTIONS: "-solar_dir_explicit no -solar_diff_explicit no -thermal_diff_explicit no"
+
+explicit:mim:gcc:debug:
+  extends: .build:mim:default
+  variables:
+    MODULES: "petsc/single-gcc-9"
+    BUILD_TYPE: DEBUG
+    PETSC_OPTIONS: "-solar_dir_explicit -solar_diff_explicit -thermal_diff_explicit"
 
 matshell:mim:gcc:debug:
   extends: .build:mim:default
   variables:
     MODULES: "petsc/debug-gcc-9"
     BUILD_TYPE: DEBUG
-    PETSC_OPTIONS: "-pprts_shell -solar_dir_explicit no -solar_diff_explicit no -thermal_diff_explicit no"
+    PETSC_OPTIONS: "-solar_diff_shell -thermal_diff_shell"
