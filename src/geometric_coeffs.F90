@@ -19,9 +19,9 @@
 
 module m_geometric_coeffs
 
-use m_data_parameters, only : irealLUT, ireals, mpiint, iintegers, zero, one, Pi
+use m_data_parameters, only : ireals, mpiint, iintegers, zero, one, Pi
 use m_helper_functions, only : pentagon_area_by_vertices, quadrangle_area_by_vertices, &
-  triangle_area_by_vertices, compute_normal_3d, cross_3d, cstr, CHKERR, toStr
+  triangle_area_by_vertices, compute_normal_3d, cross_3d, cstr, CHKERR, toStr, stripSpaces
 use m_intersection, only: hit_plane, line_intersection_3d
 
 implicit none
@@ -32,13 +32,14 @@ logical, parameter :: ldebug= .False.
 contains
 
   subroutine dir2dir3_geometric_coeffs(verts, sundir, bg, coeffs)
-    real(irealLUT), intent(inout) :: coeffs(9)
+    real(ireals), intent(inout) :: coeffs(9)
     real(ireals), intent(in) :: verts(24), sundir(3), bg(3)
     real(ireals), dimension(3) :: d_p, b_p, a_p, h_p, f_p, e_p, g_p
     real(ireals) :: sun_up_down, extinction_coeff
+    real(ireals), parameter :: small=sqrt(epsilon(extinction_coeff))
 
     extinction_coeff = bg(1) + bg(2)
-    if (extinction_coeff < 1e-15_ireals) &
+    if (extinction_coeff .lt. small) &
       & call CHKERR(1_mpiint, 'Extinction coeff too small. bg1='// &
         & toStr(bg(1))//'; bg2='//toStr(bg(2)))
 
@@ -69,15 +70,16 @@ contains
 
     if (ldebug) then
       print *, cstr('sun_up_down dot_product', 'red')
-      print *, dot_product( - sundir, compute_normal_3d(a, b, c))
+      print *, dot_product( - sundir, compute_normal_3d(e, f, h))
     endif
 
-    sun_up_down = min(sign(one, dot_product(- sundir, compute_normal_3d(a, b, c))), zero)
+    sun_up_down = min(sign(one, dot_product(- sundir, compute_normal_3d(e, f, h))), zero)
 
     if(ldebug) then
       print *, '_________________________________________________________________'
       print *, cstr('src z', 'blue')
     endif
+
     call create_proj_copies(h, g, e, f, h_p, g_p, e_p, f_p)
     call project_points(sundir, d, compute_normal_3d(d, b, a), h_p, g_p, e_p, f_p)
     call rearange_projections(d, c, a, b, h_p, g_p, e_p, f_p)
@@ -128,12 +130,13 @@ contains
         sun_up_down, &
         extinction_coeff, slice, other_slice, coeffs &
         )
-      real(ireals), intent(in) :: extinction_coeff, sun_up_down
+      real(ireals), intent(in) :: sun_up_down
+      real(ireals), intent(in) :: extinction_coeff
       real(ireals), intent(in), dimension(3) ::  &
         f1, f2, f3, f4, f5, v1, v2, v3, v4
       integer(iintegers), intent(in) :: slice(3), other_slice(3)
-      real(irealLUT), intent(inout) :: coeffs(9)
-      real(ireals) :: area1, area2, area3, area_total_src, areas(3), sin_theta, cos_src_trgt, s1, a31, a32, a33, a34, &
+      real(ireals), intent(inout) :: coeffs(9)
+      real(ireals) :: area1, area2, area3, area_total_src, areas(3), sin_theta, cos_src_trgt, s1, s2, s3, s4, &
         a21q, a22q, a23q, a24q, a21t, a22t, a23t, a24t, a31q, a32q, a33q, a34q, a31t, a32t, a33t, a34t
       real(ireals), dimension(3) :: &
         p1l, p1b, p1t, p1r, p2l, p2t, p2b, p2r, p3r, p3t, p3b, p3l, p4r, p4b, p4t, p4l, normal, &
@@ -185,18 +188,18 @@ contains
       a34q = quadrangle_area_by_vertices(v4, p4r, f1, p4t)
 
       a31t = triangle_area_by_vertices(v1, p1t, f1)
-      a33t = triangle_area_by_vertices(v2, p2b, f2)
+      a32t = triangle_area_by_vertices(v2, p2b, f2)
       a33t = triangle_area_by_vertices(v3, p3b, f3)
-      a33t = triangle_area_by_vertices(v4, p4t, f4)
+      a34t = triangle_area_by_vertices(v4, p4t, f4)
 
       area3 = max(a31q+a31t, a32q+a32t, a33q+a33t, a34q+a34t)
 
       if (ldebug) then
         print *, cstr('area 3', 'green')
-        print *, 'v1', a31q+a31t
-        print *, 'v2', a32q+a32t
-        print *, 'v3', a33q+a33t
-        print *, 'v4', a34q+a34t
+        print *, 'v1, a31q='//toStr(a31q)//', a31t='//toStr(a31t)
+        print *, 'v2, a32q='//toStr(a32q)//', a32t='//toStr(a32t)
+        print *, 'v3, a33q='//toStr(a33q)//', a33t='//toStr(a33t)
+        print *, 'v4, a34q='//toStr(a34q)//', a34t='//toStr(a34t)
       endif
 
       area1 = area_total_src - area2 - area3
@@ -218,108 +221,77 @@ contains
       p3rp = v3 + hit_plane(v3, sundir, f3, normal) * sundir
       p4rp = v4 + hit_plane(v4, sundir, f4, normal) * sundir
 
+      s1 = norm2(p1rp - v1)
+      s2 = norm2(p2rp - v2)
+      s3 = norm2(p3rp - v3)
+      s4 = norm2(p4rp - v4)
+
       sin_theta = max(sin(abs(atan(sundir(other_slice(1)) / &
         sqrt(sundir(other_slice(2))**2 + sundir(other_slice(3))**2)))), tiny(sin_theta))
       cos_src_trgt = cos(acos(dot_product(f1 - f2, f1 - f4) / (norm2(f1 - f2) * norm2(f1 - f4))) - Pi / 2)
 
-      area2 = max( &
-        area3i( &
-        a21q, &
-        norm2(f1 - p1r) * cos_src_trgt, & ! l
-        norm2(p1rp - v1), & ! s
-        norm2(p1r - v1), & ! h
-        extinction_coeff & ! extinction coefficient
-        ), &
-        area3i( &
-        a22q, &
-        norm2(f2 - p2r) * cos_src_trgt, & ! l
-        norm2(p2rp - v2), & ! s
-        norm2(p2r - v2), & ! h
-        extinction_coeff & ! extinction coefficient
-        ), &
-        area3i( &
-        a23q, &
-        norm2(f3 - p3l) * cos_src_trgt, & ! l
-        norm2(p3rp - v3), & ! s
-        norm2(p3l - v3), & ! h
-        extinction_coeff & ! extinction coefficient
-        ), &
-        area3i( &
-        a24q, &
-        norm2(f4 - p4l) * cos_src_trgt, & ! l
-        norm2(p4rp - v4), & ! s
-        norm2(p4l - v4), & ! h
-        extinction_coeff & ! extinction coefficient
-        )  &
-        )
+      a21q = a21q * f_dst(s1, extinction_coeff)
+      a22q = a22q * f_dst(s2, extinction_coeff)
+      a23q = a23q * f_dst(s3, extinction_coeff)
+      a24q = a24q * f_dst(s4, extinction_coeff)
+
+      a21t = num_dst(s1, norm2(f1 - p1r) * cos_src_trgt, norm2(p1r - v1), extinction_coeff)
+      a22t = num_dst(s2, norm2(f2 - p2r) * cos_src_trgt, norm2(p2r - v2), extinction_coeff)
+      a23t = num_dst(s3, norm2(f3 - p3l) * cos_src_trgt, norm2(p3l - v3), extinction_coeff)
+      a24t = num_dst(s4, norm2(f4 - p4l) * cos_src_trgt, norm2(p4l - v4), extinction_coeff)
+
+      area2 = max(a21q + a21t, a22q + a22t, a23q + a23t, a24q + a24t)
 
       if (ldebug) then
         print *, cstr('area2 computation', 'yellow')
         print *, cstr('quadrangle areas, triangle areas', 'yellow')
-        print *, 'v1', a21q, &
-          num_dst(norm2(p1rp - v1), norm2(f1-p1r)*cos_src_trgt, norm2(p1r-v1), extinction_coeff)
-        print *, 'v2', a22q, &
-          num_dst(norm2(p2rp - v2), norm2(f2-p2r)*cos_src_trgt, norm2(p2r-v2), extinction_coeff)
-        print *, 'v3', a23q, &
-          num_dst(norm2(p3rp - v3), norm2(f3-p3r)*cos_src_trgt, norm2(p3l-v3), extinction_coeff)
-        print *, 'v4', a24q, &
-          num_dst(norm2(p4rp - v4), norm2(f4-p4r)*cos_src_trgt, norm2(p4l-v4), extinction_coeff)
+        print *, stripSpaces('v1, s1='//toStr(s1)//', a21q='//toStr(a21q)//', a21t='//toStr(a21t))
+        print *, stripSpaces('v2, s2='//toStr(s2)//', a22q='//toStr(a22q)//', a22t='//toStr(a21t))
+        print *, stripSpaces('v3, s3='//toStr(s3)//', a23q='//toStr(a23q)//', a23t='//toStr(a23t))
+        print *, stripSpaces('v4, s4='//toStr(s4)//', a24q='//toStr(a24q)//', a24t='//toStr(a24t))
         print *, '_________________________________________________________________'
       endif
 
       normal = compute_normal_3d(f3, f2, f5)
 
-      a31 = &
-        area3i( &
-        a31q, &
-        norm2(f1 - p1t) * cos_src_trgt, & ! l
-        norm2(p1rp - v1), & ! s
-        norm2(p1t - v1), & ! h
-        extinction_coeff & ! extinction coefficient
-        )
+      p1rp = v1 + hit_plane(v1, sundir, f1, normal) * sundir
+      p2rp = v2 + hit_plane(v2, sundir, f2, normal) * sundir
+      p3rp = v3 + hit_plane(v3, sundir, f3, normal) * sundir
+      p4rp = v4 + hit_plane(v4, sundir, f4, normal) * sundir
 
-      a32 = &
-        area3i( &
-        a32q, &
-        norm2(f2 - p2b) * cos_src_trgt, &
-        norm2(p2rp - v2), &
-        norm2(p2b - v2), &
-        extinction_coeff & ! extinction coefficient
-        )
+      s1 = norm2(p1rp - v1)
+      s2 = norm2(p2rp - v2)
+      s3 = norm2(p3rp - v3)
+      s4 = norm2(p4rp - v4)
 
-      a33 = &
-        area3i( &
-        a33q, &
-        norm2(f3 - p3b) * cos_src_trgt, &
-        norm2(p3rp - v3), &
-        norm2(p3b - v3), &
-        extinction_coeff & ! extinction coefficient
-        )
+      a31q = a31q * f_dst(s1, extinction_coeff)
+      a32q = a32q * f_dst(s2, extinction_coeff)
+      a33q = a33q * f_dst(s3, extinction_coeff)
+      a34q = a34q * f_dst(s4, extinction_coeff)
 
-      a34 = &
-        area3i( &
-        a34q, &
-        norm2(f4 - p4t) * cos_src_trgt, &   ! length
-        norm2(p4rp - v4), &  ! path
-        norm2(p4t - v4), &   ! height
-        extinction_coeff & ! extinction coefficient
-        )
+      a31t = num_dst(s1, norm2(f1 - p1t) * cos_src_trgt, norm2(p1t - v1), extinction_coeff)
+      a32t = num_dst(s2, norm2(f2 - p2b) * cos_src_trgt, norm2(p2b - v2), extinction_coeff)
+      a33t = num_dst(s3, norm2(f3 - p3b) * cos_src_trgt, norm2(p3b - v3), extinction_coeff)
+      a34t = num_dst(s4, norm2(f4 - p4t) * cos_src_trgt, norm2(p4t - v4), extinction_coeff)
 
-      area3 = max(a31, a32, a33, a34)
+      area3 = max(a31q + a31t, a32q + a32t, a33q + a33t, a34q + a34t)
 
       if (ldebug) then
         print *, cstr('area3 computation', 'yellow')
         print *, cstr('quadrangle areas, triangle areas', 'yellow')
-        print *, 'v1', a31q, &
-          num_dst(norm2(p1rp - v1), norm2(f1 - p1t) * cos_src_trgt, norm2(p1t - v1), extinction_coeff)
-        print *, 'v2', a32q, &
-          num_dst(norm2(p2rp - v2), norm2(f2 - p2b) * cos_src_trgt, norm2(p2b - v2), extinction_coeff)
-        print *, 'v3', a33q, &
-          num_dst(norm2(p3rp - v3), norm2(f3 - p3b) * cos_src_trgt, norm2(p3b - v3), extinction_coeff)
-        print *, 'v4', a34q, &
-          num_dst(norm2(p4rp - v4), norm2(f4 - p4t) * cos_src_trgt, norm2(p4t - v4), extinction_coeff)
+        print *, 'v1, s1='//stripSpaces(toStr(s1))//&
+          &', a31q='//stripSpaces(toStr(a31q))//', f_dst='//stripSpaces(toStr(f_dst(s1, extinction_coeff)))//&
+          &', a31t='//stripSpaces(toStr(a31t))
+        print *, 'v2, s2='//stripSpaces(toStr(s2))//&
+          &', a32q='//stripSpaces(toStr(a32q))//', f_dst='//stripSpaces(toStr(f_dst(s2, extinction_coeff)))//&
+          &', a32t='//stripSpaces(toStr(a31t))
+        print *, 'v3, s3='//stripSpaces(toStr(s3))//&
+          &', a33q='//stripSpaces(toStr(a33q))//', f_dst='//stripSpaces(toStr(f_dst(s3, extinction_coeff)))//&
+          &', a33t='//stripSpaces(toStr(a33t))
+        print *, 'v4, s4='//stripSpaces(toStr(s4))//&
+          &', a34q='//stripSpaces(toStr(a34q))//', f_dst='//stripSpaces(toStr(f_dst(s4, extinction_coeff)))//&
+          &', a34t='//stripSpaces(toStr(a34t))
         print *, '_________________________________________________________________'
-        print *, 'as', a31, a32, a33, a34
       endif
 
       if (ldebug) then
@@ -342,29 +314,9 @@ contains
 
       areas = max([area1, area2, area3], zero)
 
-      coeffs(slice) = real(areas / area_total_src, irealLUT)
+      coeffs(slice) = areas / area_total_src
 
     end subroutine
-
-    real(ireals) function area3i( &
-        quadrangle_area, &
-        l, &
-        s, &
-        h, &
-        extinction_coeff & ! extinction coefficient
-        )
-      real(ireals), intent(in) :: quadrangle_area
-      real(ireals), intent(in) :: extinction_coeff, s, l, h
-
-      area3i = &
-        quadrangle_area * f_dst(s, extinction_coeff) + &
-        num_dst( &
-        s, &
-        l, &
-        h,   &
-        extinction_coeff &
-        )
-    end function
 
     real(ireals) function num_dst(s0, l0, h0, extinction_coeff)
       real(ireals), intent(in) :: s0, l0, h0, extinction_coeff
@@ -391,25 +343,7 @@ contains
 
       f_dst = (one - exp( - extinction_coeff * s)) / max(small, (extinction_coeff * s))
     end function
-
-    function num(l0, h0b, h0t, extinction_coeff, sin_theta)
-      real(ireals), intent(in) :: l0, h0b, h0t, extinction_coeff, sin_theta
-      integer(iintegers), parameter :: n = 20
-      real(ireals), parameter :: l0_tiny = tiny(l0)
-      integer(iintegers) :: i
-      real(ireals) :: dl, num, l, h
-
-      dl = l0 / n
-      num = zero
-      do i=1,n
-        l = (i - 0.5_ireals) * dl
-        !             max not necessary here
-        h = l * max(abs(h0t - h0b), zero) / max(l0_tiny, l0)
-        num = num + dl * h * f_dst(h / sin_theta, extinction_coeff)
-      enddo
-    end function
-
-  end subroutine dir2dir3_geometric_coeffs
+  end subroutine
 
   subroutine create_proj_copies(p1, p2, p3, p4, c1, c2, c3, c4)
     real(ireals), intent(in), dimension(3) :: p1, p2, p3, p4

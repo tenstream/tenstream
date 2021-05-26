@@ -2375,6 +2375,7 @@ module m_pprts
 
     real(ireals), pointer :: xhhl(:,:,:,:) => null(), xhhl1d(:) => null()
     real(ireals), allocatable :: vertices(:)
+    logical :: lgeometric_coeffs, lflg
 
 
     associate( &
@@ -2392,6 +2393,10 @@ module m_pprts
 
 
       call PetscLogEventBegin(solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
+
+      lgeometric_coeffs = .False.
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+        & "-pprts_geometric_coeffs", lgeometric_coeffs, lflg, ierr) ;call CHKERR(ierr)
 
       call setup_default_unit_cube_geometry(atm%dx, atm%dy, -one, vertices)
       call getVecPointer(solver%Cvert_one_atm1%da, solver%atm%vert_heights, xhhl1d, xhhl, readonly=.True.)
@@ -2412,16 +2417,31 @@ module m_pprts
 
               vertices(3:24:3) = vertices(3:24:3) - vertices(3)
 
-              call get_coeff(solver, &
-                & atm%kabs(atmk(solver%atm,k),i,j), &
-                & atm%ksca(atmk(solver%atm,k),i,j), &
-                & atm%g(atmk(solver%atm,k),i,j), &
-                & atm%dz(atmk(solver%atm,k),i,j), .True., &
-                & v, &
-                & atm%l1d(atmk(solver%atm,k)), &
-                & [real(sun%symmetry_phi, irealLUT), real(sun%theta, irealLUT)], &
-                & lswitch_east=sun%xinc.eq.0, lswitch_north=sun%yinc.eq.0)
-              coeffs(:,k,i,j) = real(v, ireals)
+              if (lgeometric_coeffs) then
+                !not in a plane -> use 3 and construct 4th point
+                vertices(12) = vertices(9) +  (vertices(3) - vertices(6))
+                !make bottom and top of box parallel !!! USE MEAN DZ MAYBE?
+                vertices([15,18,21,24]) = vertices([3,6,9,12]) + solver%atm%dz(atmk(solver%atm, k), i, j)
+                call dir2dir3_geometric_coeffs( &
+                  vertices, &
+                  sun%sundir, &
+                  [solver%atm%kabs(atmk(solver%atm, k), i, j), &
+                  solver%atm%ksca(atmk(solver%atm, k), i, j), &
+                  solver%atm%g(atmk(solver%atm, k), i, j)], &
+                  v)
+                coeffs(:,k,i,j) = v
+              else
+                call get_coeff(solver, &
+                  & atm%kabs(atmk(solver%atm,k),i,j), &
+                  & atm%ksca(atmk(solver%atm,k),i,j), &
+                  & atm%g(atmk(solver%atm,k),i,j), &
+                  & atm%dz(atmk(solver%atm,k),i,j), .True., &
+                  & v, &
+                  & atm%l1d(atmk(solver%atm,k)), &
+                  & [real(sun%symmetry_phi, irealLUT), real(sun%theta, irealLUT)], &
+                  & lswitch_east=sun%xinc.eq.0, lswitch_north=sun%yinc.eq.0)
+                coeffs(:,k,i,j) = real(v, ireals)
+              endif
             endif
           enddo
         enddo
@@ -3741,8 +3761,6 @@ module m_pprts
 
     integer(iintegers) :: i,j,k
     integer(mpiint) :: ierr
-    logical :: lgeometric_correction, lflg
-    real(ireals), allocatable :: vertices(:)
 
     if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'setup_direct_matrix ...'
 
@@ -4129,27 +4147,10 @@ module m_pprts
         sum(xedir(i0,C_dir%zs:C_dir%ze,C_dir%xs:C_dir%xe,C_dir%ys:C_dir%ye)) / &
         size(xedir(i0,C_dir%zs:C_dir%ze,C_dir%xs:C_dir%xe,C_dir%ys:C_dir%ye))
 
-      call setup_default_unit_cube_geometry(solver%atm%dx, solver%atm%dy, -one, vertices)
 
       do j=C_diff%ys,C_diff%ye
         do i=C_diff%xs,C_diff%xe
           do k=C_diff%zs,C_diff%ze-1
-
-            vertices( 3) = xhhl(i0,atmk(solver%atm,k+1),i,j)      ! a
-            vertices( 6) = xhhl(i0,atmk(solver%atm,k+1),i+1,j)    ! b
-            vertices( 9) = xhhl(i0,atmk(solver%atm,k+1),i,j+1)    ! c
-            vertices(12) = xhhl(i0,atmk(solver%atm,k+1),i+1,j+1)  ! d
-            vertices(15) = xhhl(i0,atmk(solver%atm,k),i,j)        ! e
-            vertices(18) = xhhl(i0,atmk(solver%atm,k),i+1,j)      ! f
-            vertices(21) = xhhl(i0,atmk(solver%atm,k),i,j+1)      ! g
-            vertices(24) = xhhl(i0,atmk(solver%atm,k),i+1,j+1)    ! h
-
-            vertices(3:24:3)  = vertices(3:24:3) - minval(vertices(3:24:3))
-
-            !not in a plane -> use 3 and construct 4th point
-            vertices(12) = vertices(9) +  (vertices(3) - vertices(6))
-            !make bottom and top of box parallel !!! USE MEAN DZ MAYBE?
-            vertices([15,18,21,24]) = vertices([3,6,9,12]) + solver%atm%dz(atmk(solver%atm, k), i, j)
 
             if( any (xedir(:,k,i,j) .gt. epsilon(one)) ) then
               if( atm%l1d(atmk(atm,k)) ) then
@@ -4172,7 +4173,6 @@ module m_pprts
                   enddo
 
                 else
-                  !call get_coeff(atm%op(atmk(atm,k),i,j), atm%dz(atmk(atm,k),i,j),.False., twostr_coeff, atm%l1d(atmk(atm,k)), [sun%angles(k,i,j)%symmetry_phi, sun%angles(k,i,j)%theta])
                   call CHKERR(1_mpiint, 'set solar source only implemented for use with eddington coeff')
                 endif
 
