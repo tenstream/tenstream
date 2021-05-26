@@ -2370,6 +2370,7 @@ module m_pprts
     real(ireals), allocatable, intent(inout) :: coeffs(:,:,:,:)
     type(t_pprts_buildings), optional, intent(in) :: opt_buildings
     real(irealLUT), allocatable :: v(:)
+    real(ireals), allocatable :: v_gomtrc(:)
     integer(iintegers) :: k,i,j
     integer(mpiint) :: ierr
 
@@ -2390,6 +2391,7 @@ module m_pprts
         & C_dir%xs:C_dir%xe, &
         & C_dir%ys:C_dir%ye))
       allocate(v(1:C_dir%dof**2))
+      allocate(v_gomtrc(1:C_dir%dof**2))
 
 
       call PetscLogEventBegin(solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
@@ -2428,8 +2430,8 @@ module m_pprts
                   [solver%atm%kabs(atmk(solver%atm, k), i, j), &
                   solver%atm%ksca(atmk(solver%atm, k), i, j), &
                   solver%atm%g(atmk(solver%atm, k), i, j)], &
-                  v)
-                coeffs(:,k,i,j) = v
+                  v_gomtrc)
+                coeffs(:,k,i,j) = v_gomtrc
               else
                 call get_coeff(solver, &
                   & atm%kabs(atmk(solver%atm,k),i,j), &

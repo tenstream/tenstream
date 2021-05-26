@@ -32,8 +32,8 @@ logical, parameter :: ldebug= .False.
 contains
 
   subroutine dir2dir3_geometric_coeffs(verts, sundir, bg, coeffs)
-    real(ireals), intent(inout) :: coeffs(9)
-    real(ireals), intent(in) :: verts(24), sundir(3), bg(3)
+    real(ireals), intent(inout) :: coeffs(:)
+    real(ireals), intent(in) :: verts(:), sundir(:), bg(:)
     real(ireals), dimension(3) :: d_p, b_p, a_p, h_p, f_p, e_p, g_p
     real(ireals) :: sun_up_down, extinction_coeff
     real(ireals), parameter :: small=sqrt(epsilon(extinction_coeff))
