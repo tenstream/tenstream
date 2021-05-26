@@ -29,6 +29,10 @@ module m_plex_rt_base
     type(t_plexgrid), allocatable :: plex
     class(t_optprop_wedge), allocatable :: OPP
 
+    real(ireals), allocatable :: dir2dir(:,:)      ! in each cell [0:dirdof**2-1     , pStart..pEnd-1]
+    real(ireals), allocatable :: dir2diff(:,:)     ! in each cell [0:dirdof*diffdof-1, pStart..pEnd-1]
+    real(ireals), allocatable :: diff2diff(:,:)    ! in each cell [0:diffdof**2-1    , pStart..pEnd-1]
+
     type(tVec), allocatable :: kabs, ksca, g       ! in each cell [pStart..pEnd-1]
     type(tVec), allocatable :: albedo              ! on each surface face [defined on plex%srfc_boundary_dm]
 
