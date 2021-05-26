@@ -37,8 +37,7 @@ module m_boxmc
     & pnt_in_cube, &
     & pnt_in_triangle, &
     & square_intersection, &
-    & triangle_intersection, &
-    & project_point_2_plane
+    & triangle_intersection
 
   use m_helper_functions, only : &
     & angle_between_two_vec, &

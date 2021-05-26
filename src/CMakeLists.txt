@@ -13,7 +13,7 @@ endif(${_is_Intel})
 SET_SOURCE_FILES_PROPERTIES(c_syscall_constants.c PROPERTIES COMPILE_FLAGS "-D_BSD_SOURCE")
 
 
-include(CheckSymbolExists)
+-check_function_exists(nc_set_log_level HAVE_NC_SET_LOG_LEVEL)
 check_symbol_exists(nc_set_log_level "netcdf.h" HAVE_NC_SET_LOG_LEVEL)
 if (${HAVE_NC_SET_LOG_LEVEL})
   SET_SOURCE_FILES_PROPERTIES(netcdfio.F90 PROPERTIES COMPILE_DEFINITIONS __HAVE_NC_SET_LOG_LEVEL__=TRUE)

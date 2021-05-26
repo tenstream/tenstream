@@ -1,5 +1,6 @@
 project(tenstr_rrtm_wrapper)
 enable_language(Fortran C)
+-cmake_minimum_required (VERSION 2.8.10)
 
 if (NOT CMAKE_BUILD_TYPE)
   set (CMAKE_BUILD_TYPE RELEASE CACHE STRING

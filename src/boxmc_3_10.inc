@@ -213,7 +213,6 @@ subroutine init_diff_photon_3_10(bmc, p, src, vertices, ierr)
           case (1)
             point = (/ L(dx) , L(dy) , zero /)
             call rand_pnt_on_plane(pA,pB,pD,pC, p%loc, normal, U, V)
-            !p%loc = point !!! PROBLEM zero is located underneath the bottom of the box
             p%src_side = 2
           case (2)
             call rand_pnt_on_plane(pE,pG,pH,pF, p%loc, normal, U, V)
