@@ -87,7 +87,10 @@ contains
       d   , c   , a   , b,    g, & ! fixed
       h_p , g_p , e_p , f_p,     & ! projected
       sun_up_down, &
-      extinction_coeff, [1      , 7       , 4], [2, 3, 1]      , coeffs       & ! slice of relevant coefficients , and coefficient array
+      extinction_coeff, &
+      [integer(iintegers) :: 1, 7, 4], &
+      [integer(iintegers) :: 2, 3, 1], &
+      coeffs & ! slice of relevant coefficients , and coefficient array
       )
 
 
@@ -102,7 +105,10 @@ contains
       g   , c   , a   , e,    d, & ! fixed
       h_p , d_p , b_p , f_p,     & ! projected
       sun_up_down, &
-      extinction_coeff, [5      , 8       , 2], [2, 1, 3]      , coeffs       & ! slice of relevant coefficients , and coefficient array
+      extinction_coeff, &
+      [integer(iintegers) :: 5, 8, 2], &
+      [integer(iintegers) :: 2, 1, 3], &
+      , coeffs & ! slice of relevant coefficients , and coefficient array
       )
 
     if (ldebug) then
@@ -116,7 +122,10 @@ contains
       h   , d   , c   , g,    b, & ! fixed
       f_p , b_p , a_p , e_p,     & ! projected
       sun_up_down, &
-      extinction_coeff, [9      , 6       , 3], [1, 2, 3]      , coeffs       & ! slice of relevant coefficients , and coefficient array
+      extinction_coeff, &
+      [integer(iintegers) :: 9, 6, 3], &
+      [integer(iintegers) ::1, 2, 3], &
+      coeffs       & ! slice of relevant coefficients , and coefficient array
       )
   end associate
 
