@@ -108,7 +108,7 @@ contains
       extinction_coeff, &
       [integer(iintegers) :: 5, 8, 2], &
       [integer(iintegers) :: 2, 1, 3], &
-      , coeffs & ! slice of relevant coefficients , and coefficient array
+      coeffs & ! slice of relevant coefficients , and coefficient array
       )
 
     if (ldebug) then
