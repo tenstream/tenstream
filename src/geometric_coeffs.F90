@@ -28,7 +28,7 @@ implicit none
 private
 public :: dir2dir3_geometric_coeffs
 
-logical, parameter :: ldebug= .False.
+logical, parameter :: ldebug= .True.
 contains
 
   subroutine dir2dir3_geometric_coeffs(verts, sundir, bg, coeffs)
@@ -89,7 +89,10 @@ contains
       h_p_r , g_p_r , e_p_r , f_p_r,     & ! projections rearanged
       sun_up_down, &
       sundir, &
-      extinction_coeff, [1      , 7       , 4], [2, 3, 1]      , coeffs       & ! slice of relevant coefficients , and coefficient array
+      extinction_coeff, &
+      [integer(iintegers) :: 1, 7, 4], &
+      [integer(iintegers) :: 2, 3, 1], &
+      coeffs & ! slice of relevant coefficients , and coefficient array
       )
 
 
@@ -97,6 +100,12 @@ contains
       print *, '_________________________________________________________________'
       print *, cstr('src x', 'blue')
     endif
+    print *, 'normal comp'
+    print *, 'c', c
+    print *, 'a', a
+    print *, 'e', e
+    print *, compute_normal_3d(c,a,e)
+    print *, 'done'
     call create_proj_copies(h, d, b, f, h_p, d_p, b_p, f_p)
     call project_points(sundir, a, compute_normal_3d(c, a, e), h_p, d_p, b_p, f_p)
     call rearange_projections(g, c, a, e, h_p, d_p, b_p, f_p, h_p_r, d_p_r, b_p_r, f_p_r)
@@ -106,7 +115,10 @@ contains
       h_p_r, d_p_r, b_p_r, f_p_r,     & ! projections rearanged
       sun_up_down, &
       sundir, &
-      extinction_coeff, [5      , 8       , 2], [2, 1, 3]      , coeffs       & ! slice of relevant coefficients , and coefficient array
+      extinction_coeff, &
+      [integer(iintegers) :: 5, 8, 2], &
+      [integer(iintegers) :: 2, 1, 3], &
+      coeffs & ! slice of relevant coefficients , and coefficient array
       )
 
     if (ldebug) then
@@ -122,7 +134,10 @@ contains
       f_p_r , b_p_r , a_p_r , e_p_r,     & ! projections rearanged
       sun_up_down, &
       sundir, &
-      extinction_coeff, [9      , 6       , 3], [1, 2, 3]      , coeffs       & ! slice of relevant coefficients , and coefficient array
+      extinction_coeff, &
+      [integer(iintegers) :: 9, 6, 3], &
+      [integer(iintegers) :: 1, 2, 3], &
+      coeffs & ! slice of relevant coefficients , and coefficient array
       )
   end associate
 
@@ -136,7 +151,10 @@ contains
       v1r,  v2r, v3r, v4r, &
       sun_up_down, &
       sundir, &
-      extinction_coeff, slice, other_slice, coeffs &
+      extinction_coeff, &
+      slice, &
+      other_slice, &
+      coeffs &
       )
     real(ireals), intent(in) :: sun_up_down
     real(ireals), intent(in) :: extinction_coeff
@@ -148,80 +166,157 @@ contains
     real(ireals), dimension(3) :: &
       p1l, p1b, p1t, p1r, p2l, p2t, p2b, p2r, p3r, p3t, p3b, p3l, p4r, p4b, p4t, p4l, normal, &
       p1rp, p2rp, p3rp, p4rp
-
-    if (ldebug) then
-      print *, cstr('fixed', 'yellow')
-      print *, 'f1', f1
-      print *, 'f2', f2
-      print *, 'f3', f3
-      print *, 'f4', f4
-      print *, cstr('variable', 'green')
-      print *, 'v1r', v1r
-      print *, 'v2r', v2r
-      print *, 'v3r', v3r
-      print *, 'v4r', v4r
-      print *, '_________________________________________________________________'
-    endif
-
-    call proj_vars_to_edges( &
-      f1, f2, f3, f4, &
-      v1, v2, v3, v4, &
-      v1r, v2r, v3r, v4r, &
-      p1l, p1b, p1t, p1r, &
-      p2l, p2t, p2b, p2r, &
-      p3r, p3t, p3b, p3l, &
-      p4r, p4b, p4t, p4l  &
-      )
+    real(ireals), parameter :: small = sqrt(espilon(one))
 
     area_total_src = quadrangle_area_by_vertices(f1, f2, f3, f4)
+    normal2 = compute_normal_3d(f1,f2,f5)
+    normal3 = compute_normal_3d(f3,f2,f5)
+    sin_theta = max(sin(abs(atan(sundir(other_slice(1)) / &
+      sqrt(sundir(other_slice(2))**2 + sundir(other_slice(3))**2)))), tiny(sin_theta))
+    cos_src_trgt = cos(acos(dot_product(f1 - f2, f1 - f4) / (norm2(f1 - f2) * norm2(f1 - f4))) - Pi / 2)
 
-    a21q = quadrangle_area_by_vertices(v1r, p1r, f2, p1b)
-    a22q = quadrangle_area_by_vertices(v2r, p2r, f1, p2t)
+    if (norm2(p1r-f1) .gt. small) then
+      call proj_var_to_edges(f1, f2, f3, f4, v1, v2, v3, v4, v1r, p1l, p1b, p1t, p1r)
+      a2q = quadrangle_area_by_vertices(v1r, p1r, f2, p1b)
+      a2t = triangle_area_by_vertices(v1r, f1, p1r)
+      area2 = a2q + a2t
+      a3q = quadrangle_area_by_vertices(v1r, p1l, f4, p1t)
+      a3t = triangle_area_by_vertices(v1r, p1t, f1)
+      area3 = a3q + a3t
+      area1 = area_total_src - area2 - area3
+      if (ldebug) then
+        print *, 'area1 pre extinction='//toStr(area1)
+        print *, 'area2 pre extinction='//toStr(area2)//' with a2q='//toStr(a2q)//' and a2t='//toStr(a2t)
+        print *, 'area3 pre extinction='//toStr(area3)//' with a3q='//toStr(a3q)//' and a3t='//toStr(a3t)
+      endif
+      prp = v1 + hit_plane(v1r, sundir, f1, normal2) * sundir
+      s = norm2(prp - v1r)
+
+      a2q = a2q * f_dst(s, extinction_coeff)
+      a2t = num_dst(s, norm2(f1 - p1r) * cos_src_trgt, norm2(p1r - v1r), extinction_coeff)
+
+      prp = v1 + hit_plane(v1r, sundir, f1, normal3) * sundir
+      s = norm2(prp - v1r)
+      a3q = a3q * f_dst(s, extinction_coeff)
+      a3t = num_dst(s1, norm2(f1 - p1t) * cos_src_trgt, norm2(p1t - v1r), extinction_coeff)
+
+    else if (norm2(v2r - f2) .gt. small) then
+      call proj_var_to_edges(f2, f1, f4, f3, v1, v2, v3, v4, v2r, p2l, p2t, p2b, p2r)
+      a2q = quadrangle_area_by_vertices(v2r, p2r, f1, p2t)
+      a2t = triangle_area_by_vertices(v2r, f2, p2r)
+      area2 = a2q + a2t
+      a3q = quadrangle_area_by_vertices(v2r, p2l, f3, p2b)
+      a3t = triangle_area_by_vertices(v2r, p2b, f2)
+      area3 = a3q + a3t
+      area1 = area_total_src - area2 - area3
+      if (ldebug) then
+        print *, 'area1 pre extinction='//toStr(area1)
+        print *, 'area2 pre extinction='//toStr(area2)//' with a2q='//toStr(a2q)//' and a2t='//toStr(a2t)
+        print *, 'area3 pre extinction='//toStr(area3)//' with a3q='//toStr(a3q)//' and a3t='//toStr(a3t)
+      endif
+      prp = v2 + hit_plane(v2r, sundir, f2, normal2) * sundir
+      s = norm2(prp - v2r)
+      a2q = a2q * f_dst(s, extinction_coeff)
+      a2t = num_dst(s, norm2(f2 - p2r) * cos_src_trgt, norm2(p2r - v2r), extinction_coeff)
+      prp = v2 + hit_plane(v2r, sundir, f1, normal3) * sundir
+      s = norm2(prp - v2r)
+      a3q = a3q * f_dst(s, extinction_coeff)
+      a3t = num_dst(s, norm2(f2 - p2t) * cos_src_trgt, norm2(p2t - v2r), extinction_coeff)
+
+    else if (norm2(v3r - f3) .gt. small) then
+      call proj_var_to_edges(f4, f3, f2, f1, v1, v2, v3, v4, v3r, p3r, p3b, p3t, p3l)
+      a2q = quadrangle_area_by_vertices(v3r, p3l, f4, p3t)
+      a2t = triangle_area_by_vertices(v3r, f3, p3l)
+      area2 = a2q + a2t
+      a3q = quadrangle_area_by_vertices(v3r, p3r, f2, p3b)
+      a3t = triangle_area_by_vertices(v3r, p3b, f4)
+      area3 = a3q + a3t
+      area1 = area_total_src - area2 - area3
+      if (ldebug) then
+        print *, 'area1 pre extinction='//toStr(area1)
+        print *, 'area2 pre extinction='//toStr(area2)//' with a2q='//toStr(a2q)//' and a2t='//toStr(a2t)
+        print *, 'area3 pre extinction='//toStr(area3)//' with a3q='//toStr(a3q)//' and a3t='//toStr(a3t)
+      endif
+      prp = v3 + hit_plane(v3r, sundir, f3, normal2) * sundir
+      s = norm2(prp - v2r)
+      a2q = a2q * f_dst(s, extinction_coeff)
+      a2t = num_dst(s, norm2(f3 - p3r) * cos_src_trgt, norm2(p3r - v3r), extinction_coeff)
+      prp = v3 + hit_plane(v3r, sundir, f1, normal3) * sundir
+      s = norm2(prp - v3r)
+      a3q = a3q * f_dst(s, extinction_coeff)
+      a3t = num_dst(s, norm2(f3 - p3t) * cos_src_trgt, norm2(p3t - v3r), extinction_coeff)
+
+    else if (norm2(v4r - f4) .gt. small) then
+      call proj_var_to_edges(f4, f3, f2, f1, v1, v2, v3, v4, v4r, p4r, p4b, p4t, p4l)
+      a2q = quadrangle_area_by_vertices(v4r, p4l, f3, p4b)
+      a2t = triangle_area_by_vertices(v4r, f4, p4l)
+      area2 = a2q + a2t
+      a3q = quadrangle_area_by_vertices(v4r, p4r, f1, p4t)
+      a3t = triangle_area_by_vertices(v4r, p4t, f4)
+      area3 = a3q + a3t
+      area1 = area_total_src - area2 - area3
+      if (ldebug) then
+        print *, 'area1 pre extinction='//toStr(area1)
+        print *, 'area2 pre extinction='//toStr(area2)//' with a2q='//toStr(a2q)//' and a2t='//toStr(a2t)
+        print *, 'area3 pre extinction='//toStr(area3)//' with a3q='//toStr(a3q)//' and a3t='//toStr(a3t)
+      endif
+      prp = v4 + hit_plane(v4r, sundir, f4, normal2) * sundir
+      s = norm2(prp - v4r)
+      a2q = a2q * f_dst(s, extinction_coeff)
+      a2t = num_dst(s, norm2(f4 - p4r) * cos_src_trgt, norm2(p4r - v4r), extinction_coeff)
+      prp = v4 + hit_plane(v4r, sundir, f1, normal3) * sundir
+      s = norm2(prp - v4r)
+      a3q = a3q * f_dst(s, extinction_coeff)
+      a3t = num_dst(s, norm2(f4 - p4t) * cos_src_trgt, norm2(p4t - v4r), extinction_coeff)
+    endif
+
+    area1 = area1 * &
+      exp( - extinction_coeff * norm2(f1 - (f1 + hit_plane(f1, sundir, f5, compute_normal_3d(f1,f2,f3)) * sundir)))
+    area2 = a2q + a2t
+    area3 = a2q + a2t
+    if (ldebug) then
+      print *, 'area1 post extinction='//toStr(area1)
+      print *, 'area2 post extinction='//toStr(area2)//' with a2q='//toStr(a2q)//' and a2t='//toStr(a2t)
+      print *, 'area3 post extinction='//toStr(area3)//' with a3q='//toStr(a3q)//' and a3t='//toStr(a3t)
+    endif
+
+    area1 = area1 - sun_up_down * area3
+    area3 = area3 + sun_up_down * area3
+    if (ldebug) then
+      print *, cstr('areas extinction included', 'red')
+      print *, area1, area2, area3
+    endif
+
+    areas = max([area1, area2, area3], zero)
+    coeffs(slice) = areas / area_total_src
+    !END
+
+    area1 = area1 - sun_up_down * area3
+    area3 = area3 + sun_up_down * area3
+    if (ldebug) then
+      print *, cstr('areas extinction included', 'red')
+      print *, area1, area2, area3
+    endif
+    areas = max([area1, area2, area3], zero)
+    coeffs(slice) = areas / area_total_src
+
+    ! end new
+
     a23q = quadrangle_area_by_vertices(v3r, p3l, f4, p3t)
     a24q = quadrangle_area_by_vertices(v4r, p4l, f3, p4b)
 
-    a21t = triangle_area_by_vertices(v1r, f1, p1r)
-    a22t = triangle_area_by_vertices(v2r, f2, p2r)
     a23t = triangle_area_by_vertices(v3r, f3, p3l)
     a24t = triangle_area_by_vertices(v4r, f4, p4l)
 
-    area2 = max(a21q+a21t, a22q+a22t, a23q+a23t, a24q+a24t)
 
-    if (ldebug) then
-      print *, cstr('area 2', 'green')
-      print *, 'v1', a21q+a21t
-      print *, 'v2', a22q+a22t
-      print *, 'v3', a23q+a23t
-      print *, 'v4', a24q+a24t
-    endif
-
-    a31q = quadrangle_area_by_vertices(v1r, p1l, f4, p1t)
-    a32q = quadrangle_area_by_vertices(v2r, p2l, f3, p2b)
     a33q = quadrangle_area_by_vertices(v3r, p3r, f2, p3b)
     a34q = quadrangle_area_by_vertices(v4r, p4r, f1, p4t)
 
-    a31t = triangle_area_by_vertices(v1r, p1t, f1)
-    a32t = triangle_area_by_vertices(v2r, p2b, f2)
     a33t = triangle_area_by_vertices(v3r, p3b, f3)
     a34t = triangle_area_by_vertices(v4r, p4t, f4)
 
     area3 = max(a31q+a31t, a32q+a32t, a33q+a33t, a34q+a34t)
-
-    if (ldebug) then
-      print *, cstr('area 3', 'green')
-      print *, 'v1, a31q='//toStr(a31q)//', a31t='//toStr(a31t)
-      print *, 'v2, a32q='//toStr(a32q)//', a32t='//toStr(a32t)
-      print *, 'v3, a33q='//toStr(a33q)//', a33t='//toStr(a33t)
-      print *, 'v4, a34q='//toStr(a34q)//', a34t='//toStr(a34t)
-    endif
-
     area1 = area_total_src - area2 - area3
-
-    if (ldebug) then
-      print *, cstr('areas no extinction', 'red')
-      print *, area1, area2, area3
-      print *, '_________________________________________________________________'
-    endif
 
     s1 =  norm2(f1 - (f1 + hit_plane(f1, sundir, f5, compute_normal_3d(f1, f2, f3)) * sundir))
 
@@ -310,8 +405,8 @@ contains
     if (ldebug) then
       print *, cstr('sun_up_down', 'green')
       print *, sun_up_down
-      print *, 'area1', area1, ' -> ', area1 + sun_up_down * area3
-      print *, 'area3', area3, ' -> ', area3 - sun_up_down * area3
+      print *, 'area1', area1, ' -> ', area1 - sun_up_down * area3
+      print *, 'area3', area3, ' -> ', area3 + sun_up_down * area3
       print *, 'sundir', sundir
     endif
 
@@ -330,6 +425,74 @@ contains
     coeffs(slice) = areas / area_total_src
 
   end subroutine
+
+  subroutine gomtrc_coeffs_comp( &
+      f1, f2, f3, f4, &
+      v1, v2, v3, v4, &
+      vr, pr, pl, pb, pt &
+      )
+    real(ireals), dimension(3), intent(in) :: f1, f2, f3, f4, v1, v2, v3, v4, vr, pr, pl, pb, pt
+    real(ireals), intent(out) :: areas(3)
+
+    if (ldebug) then
+      print *, cstr('fixed', 'yellow')
+      print *, 'f1', f1
+      print *, 'f2', f2
+      print *, 'f3', f3
+      print *, 'f4', f4
+      print *, cstr('variable', 'green')
+      print *, cstr('v1r', 'green'), v1r
+      print *, 'p1l', p1l
+      print *, 'p1r', p1r
+      print *, 'p1b', p1b
+      print *, 'p1t', p1t
+    endif
+
+    area1 = area1 * &
+      exp( - extinction_coeff * norm2(f1 - (f1 + hit_plane(f1, sundir, f5, compute_normal_3d(f1,f2,f3)) * sundir)))
+
+    normal = compute_normal_3d(f1,f2,f5)
+    prp = vr + hit_plane(vr, sundir, f1, normal) * sundir
+    s = norm2(prp - vr)
+    sin_theta = max(sin(abs(atan(sundir(other_slice(1)) / &
+      sqrt(sundir(other_slice(2))**2 + sundir(other_slice(3))**2)))), tiny(sin_theta))
+    cos_src_trgt = cos(acos(dot_product(f1 - f2, f1 - f4) / (norm2(f1 - f2) * norm2(f1 - f4))) - Pi / 2)
+
+    a2q = a2q * f_dst(s, extinction_coeff)
+
+    a21t = num_dst(s1, norm2(f1 - p1r) * cos_src_trgt, norm2(p1r - v1r), extinction_coeff)
+    a22t = num_dst(s2, norm2(f2 - p2r) * cos_src_trgt, norm2(p2r - v2r), extinction_coeff)
+    a23t = num_dst(s3, norm2(f3 - p3l) * cos_src_trgt, norm2(p3l - v3r), extinction_coeff)
+    a24t = num_dst(s4, norm2(f4 - p4l) * cos_src_trgt, norm2(p4l - v4r), extinction_coeff)
+
+
+    normal = compute_normal_3d(f1,f2,f5)
+    p1rp = v1 + hit_plane(v1r, sundir, f1, normal) * sundir
+    s1 = norm2(p1rp - v1r)
+    sin_theta = max(sin(abs(atan(sundir(other_slice(1)) / &
+      sqrt(sundir(other_slice(2))**2 + sundir(other_slice(3))**2)))), tiny(sin_theta))
+    cos_src_trgt = cos(acos(dot_product(f1 - f2, f1 - f4) / (norm2(f1 - f2) * norm2(f1 - f4))) - Pi / 2)
+    a21q = a21q * f_dst(s1, extinction_coeff)
+    a21t = num_dst(s1, norm2(f1 - p1r) * cos_src_trgt, norm2(p1r - v1r), extinction_coeff)
+    area2 = a21q + a21t
+    if (ldebug) print *, 'area2 pre extinction='//toStr(area)//' with a21q='//toStr(a21q)//' and a21t='//toStr(a21t)
+    normal = compute_normal_3d(f3, f2, f5)
+    p1rp = v1 + hit_plane(v1r, sundir, f1, normal) * sundir
+    s1 = norm2(p1rp - v1r)
+    a31q = a31q * f_dst(s1, extinction_coeff)
+    a31t = num_dst(s1, norm2(f1 - p1t) * cos_src_trgt, norm2(p1t - v1r), extinction_coeff)
+    area3 = a31q + a31t
+    if (ldebug) print *, 'area3 pre extinction='//toStr(area)//' with a31q='//toStr(a31q)//' and a31t='//toStr(a31t)
+
+    area1 = area1 - sun_up_down * area3
+    area3 = area3 + sun_up_down * area3
+    if (ldebug) then
+      print *, cstr('areas extinction included', 'red')
+      print *, area1, area2, area3
+    endif
+    areas = max([area1, area2, area3], zero)
+    coeffs(slice) = areas / area_total_src
+    end subroutine
 
   real(ireals) function num_dst(s0, l0, h0, extinction_coeff)
     real(ireals), intent(in) :: s0, l0, h0, extinction_coeff
@@ -423,10 +586,10 @@ contains
 
   subroutine proj_var_to_edges( &
       f1, f2, f3, f4, & ! side's corners
-      v1, v2, v3, v4, & !var side's corners
-      vr, &              ! point to be projected
+      v1, v2, v3, v4, & ! var side's corners
+      vr, &             ! point to be projected
       p1, p2, p3, p4 &  ! projections
-      ) ! c: corner
+      )
     real(ireals), intent(in), dimension(3) :: f1, f2, f3, f4, vr, v1, v2, v3, v4
     real(ireals), intent(out), dimension(3) :: p1, p2, p3, p4
     real(ireals) :: c, t
@@ -440,6 +603,25 @@ contains
     call rearange_point(vr, v1-v2, c, p3)
     call line_intersection_3d(vr, v4-v1, f2, f1-f2, c, t, ierr)
     call rearange_point(vr, v3-v2, c, p4)
+
+    if (ldebug) then
+      print *, cstr('fixed', 'yellow')
+      print *, 'f1', f1
+      print *, 'f2', f2
+      print *, 'f3', f3
+      print *, 'f4', f4
+      print *, cstr('projections', 'green')
+      print *, 'v1', v1
+      print *, 'v2', v2
+      print *, 'v3', v3
+      print *, 'v4', v4
+      print *, cstr('responsible', 'red')
+      print *, cstr('v2r', 'green'), v2r
+      print *, 'p1', p1
+      print *, 'p2', p2
+      print *, 'p3', p3
+      print *, 'p4', p4
+    endif
   end subroutine
 
   subroutine proj_vars_to_edges( &
@@ -464,12 +646,12 @@ contains
     real(ireals), intent(in), dimension(3) :: f1, f2, f3, f4, v1, v2, v3, v4
     real(ireals), intent(out), dimension(3) :: v1r, v2r, v3r, v4r
 
+    call create_proj_copies(v1, v2, v3, v4, v1r, v2r, v3r, v4r)
+
     if (ldebug) then
       print *, cstr('rearangement coeffs', 'green')
       print *, 'v1'
     endif
-
-    call create_proj_copies(v1, v2, v3, v4, v1r, v2r, v3r, v4r)
 
     call rearange_projection(f1-v1, f3, f4-f3, f2, f3-f2, v1r)
     if (ldebug) print *, 'v2'
@@ -505,15 +687,19 @@ contains
       print*, 'dir3', direction3
     endif
 
-    call line_intersection_3d(origin1, direction1, origin2, direction2, coeff21, coeff22, ierr1)
-    call line_intersection_3d(origin1, direction1, origin3, direction3, coeff31, coeff32, ierr2)
+    if (all(abs(direction1) .le. sqrt(epsilon(direction1)))) then
+      origin1 = origin1
+    else
+      call line_intersection_3d(origin1, direction1, origin2, direction2, coeff21, coeff22, ierr1)
+      call line_intersection_3d(origin1, direction1, origin3, direction3, coeff31, coeff32, ierr2)
+      if (ldebug) then
+        print *, coeff21, coeff31
+        print *, ierr1, ierr2
+        print *, '_________________________________________________________________'
+      endif
 
-    if (ldebug) then
-      print *, coeff21, coeff31
-      print *, ierr1, ierr2
-      print *, '_________________________________________________________________'
+      call rearange_point(origin1, direction1, min(max(coeff21, coeff31, zero), one), origin1)
     endif
 
-    call rearange_point(origin1, direction1, min(max(coeff21, coeff31, zero), one), origin1)
   end subroutine
 end module
