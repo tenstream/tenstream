@@ -2029,6 +2029,13 @@ module m_pprts
     lrayli_snapshot = .False.
     call PetscOptionsHasName(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
       "-rayli_snapshot", lrayli_snapshot, ierr) ; call CHKERR(ierr)
+    if((luse_rayli.or.lrayli_snapshot).and.solution%lsolar_rad.eqv..False.) then
+      luse_rayli = .False.
+      lrayli_snapshot = .False.
+      call CHKWARN(1_mpiint, 'Not running Rayli for thermal computations. &
+        & Currently not implemented. Continuing with next solver.')
+    endif
+
     call pprts_rayli_wrapper(luse_rayli, lrayli_snapshot, solver, edirTOA, solution, opt_buildings)
     call PetscLogEventEnd(solver%logs%solve_mcrts, ierr)
     if(luse_rayli) goto 99
