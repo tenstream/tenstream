@@ -95,9 +95,10 @@ contains
     real(${dtype}$),intent(in) :: p_loc(3), p_dir(3)
     real(${dtype}$),intent(in) :: po(3), pn(3)
     real(${dtype}$) :: discr
+    real(${dtype}$), parameter :: H = sqrt(huge(hit_plane))
     discr = dot_product(p_dir,pn)
     if( ( discr.le. epsilon(discr) ) .and. ( discr.gt.-epsilon(discr)  ) ) then
-      hit_plane = huge(hit_plane)
+      hit_plane = H
     else
       hit_plane = dot_product(po-p_loc, pn) / discr
     endif
