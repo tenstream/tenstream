@@ -168,6 +168,14 @@ contains
     real(ireals), parameter :: small = sqrt(epsilon(one))
     integer(mpiint) :: ierr
 
+    if (ldebug) then
+      print *, 'fixed'
+      print *, 'f1', f1
+      print *, 'f2', f2
+      print *, 'f3', f3
+      print *, 'f4', f4
+    endif
+
     area_total_src = quadrangle_area_by_vertices(f1, f2, f3, f4)
     normal2 = compute_normal_3d(f1, f2, f5)
     normal3 = compute_normal_3d(f3, f2, f5)
@@ -195,11 +203,6 @@ contains
       call line_intersection_3d(v1r, f4-f3, f2, f3-f2, c, t, ierr)
       call rearange_point(v1r, f4-f3, c, pb)
 
-      print *, 'fixed'
-      print *, 'f1', f1
-      print *, 'f2', f2
-      print *, 'f3', f3
-      print *, 'f4', f4
       print *, 'v1r', v1r
 
       print *, 'pr', pr
@@ -215,7 +218,7 @@ contains
       area1 = area_total_src - area2 - area3
       if (ldebug) then
         print *, 'area1 pre extinction='//toStr(area1)
-        print *, 'area2 pre extinction='//toStr(area2)//' with a2q='//toStr(a2q)//' and a2t='//toStr(a2t1)
+        print *, 'area2 pre extinction='//toStr(area2)//' with a2q='//toStr(a2q)//' and a2t='//toStr(a2t)
         print *, 'area3 pre extinction='//toStr(area3)//' with a3q='//toStr(a3q)//' and a3t='//toStr(a3t)
       endif
       vrp = v1r + hit_plane(v1r, sundir, f1, normal2) * sundir
@@ -266,7 +269,7 @@ contains
       area1 = area_total_src - area2 - area3
       if (ldebug) then
         print *, 'area1 pre extinction='//toStr(area1)
-        print *, 'area2 pre extinction='//toStr(area2)//' with a2q='//toStr(a2q)//' and a2t='//toStr(a2t1)
+        print *, 'area2 pre extinction='//toStr(area2)//' with a2q='//toStr(a2q)//' and a2t='//toStr(a2t)
         print *, 'area3 pre extinction='//toStr(area3)//' with a3q='//toStr(a3q)//' and a3t='//toStr(a3t)
       endif
       prp = v2 + hit_plane(v2r, sundir, f2, normal2) * sundir
@@ -315,13 +318,12 @@ contains
       area1 = area_total_src - area2 - area3
       if (ldebug) then
         print *, 'area1 pre extinction='//toStr(area1)
-        print *, 'area2 pre extinction='//toStr(area2)//' with a2q='//toStr(a2q)//&
-          &' and a2t1='//toStr(a2t1)//' and a2t2='//toStr(a2t2)
-!        print *, 'area2 test='//toStr(triangle_area_by_vertices(v3r, f3, f4))
+        print *, 'area2 pre extinction='//toStr(area2)//' with a2q='//toStr(a2q)//' and a2t='//toStr(a2t)
+        print *, 'area2 test='//toStr(triangle_area_by_vertices(v3r, f3, f4))
         print *, 'area3 pre extinction='//toStr(area3)//' with a3q='//toStr(a3q)//' and a3t='//toStr(a3t)
       endif
-      prp = v3 + hit_plane(v3r, sundir, f3, normal2) * sundir
-      s = norm2(prp - v3r)
+      vrp = v3r + hit_plane(v3r, sundir, f3, normal2) * sundir
+      s = norm2(vrp - v3r)
       a2q = a2q * f_dst(s, extinction_coeff)
       a2t = num_dst(s, norm2(f3 - pl) * cos_src_trgt_b, norm2(pl - v3r), extinction_coeff)
 
@@ -367,7 +369,7 @@ contains
       area1 = area_total_src - area2 - area3
       if (ldebug) then
         print *, 'area1 pre extinction='//toStr(area1)
-        print *, 'area2 pre extinction='//toStr(area2)//' with a2q='//toStr(a2q)//' and a2t='//toStr(a2t1)
+        print *, 'area2 pre extinction='//toStr(area2)//' with a2q='//toStr(a2q)//' and a2t='//toStr(a2t)
         print *, 'area3 pre extinction='//toStr(area3)//' with a3q='//toStr(a3q)//' and a3t='//toStr(a3t)
       endif
       prp = v4r + hit_plane(v4r, sundir, f4, normal2) * sundir
@@ -392,8 +394,7 @@ contains
     area3 = a3q + a3t
     if (ldebug) then
       print *, 'area1 post extinction='//toStr(area1)
-      print *, 'area2 post extinction='//toStr(area2)//' with a2q='//toStr(a2q)//&
-        &' and a2t1='//toStr(a2t1)//' and a2t2='//toStr(a2t2)
+      print *, 'area2 post extinction='//toStr(area2)//' with a2q='//toStr(a2q)//' and a2t='//toStr(a2t)
       print *, 'area3 post extinction='//toStr(area3)//' with a3q='//toStr(a3q)//' and a3t='//toStr(a3t)
     endif
 

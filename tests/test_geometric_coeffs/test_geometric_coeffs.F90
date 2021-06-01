@@ -26,7 +26,7 @@ module test_geometric_coeffs
 
   real(ireals),parameter :: atol=1e-3, rtol=1e-2
 
-  logical, parameter :: ldebug = .False.
+  logical, parameter :: ldebug = .True.
 contains
 
   @before
@@ -62,7 +62,7 @@ contains
     if(myid.eq.0) print *,'Finishing boxmc tests module'
   end subroutine teardown
 
-  @test(npes =[1])
+  !@test(npes =[1])
   subroutine test_geometric_coeffs_distorted_box_no_scatter(this)
     class (MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: src, i
