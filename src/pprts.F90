@@ -4175,6 +4175,7 @@ module m_pprts
                   enddo
 
                 else
+                  !call get_coeff(atm%op(atmk(atm,k),i,j), atm%dz(atmk(atm,k),i,j),.False., twostr_coeff, atm%l1d(atmk(atm,k)), [sun%angles(k,i,j)%symmetry_phi, sun%angles(k,i,j)%theta])
                   call CHKERR(1_mpiint, 'set solar source only implemented for use with eddington coeff')
                 endif
 
@@ -4674,16 +4675,11 @@ module m_pprts
 
     integer(iintegers) :: i,j,k
     integer(mpiint) :: ierr
-    real(ireals), allocatable :: vertices(:)
-    real(ireals), pointer :: xhhl(:,:,:,:) => null(), xhhl1d(:) => null()
 
     if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'Setting coefficients for diffuse Light'
 
     call MatZeroEntries(A, ierr) ;call CHKERR(ierr)
     call mat_set_diagonal(A)
-
-    call getVecPointer(solver%Cvert_one_atm1%da, solver%atm%vert_heights, xhhl1d, xhhl, readonly=.True.)
-    call setup_default_unit_cube_geometry(solver%atm%dx, solver%atm%dy, -one, vertices)
 
     do j=C%ys,C%ye
       do i=C%xs,C%xe
@@ -4698,8 +4694,6 @@ module m_pprts
         enddo
       enddo
     enddo
-
-    call restoreVecPointer(solver%Cvert_one_atm1%da, solver%atm%vert_heights, xhhl1d, xhhl, readonly=.True.)
 
     call set_albedo_coeff(solver, C, A )
 
