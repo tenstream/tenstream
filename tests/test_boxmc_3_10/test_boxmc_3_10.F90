@@ -1,12 +1,11 @@
 module test_boxmc_3_10
   use m_boxmc, only : t_boxmc, t_boxmc_3_10
   use m_data_parameters, only :     &
-    mpiint, iintegers, ireals, irealLUT, ireal_dp,     &
+    mpiint, iintegers, ireals, ireal_dp,     &
     one, zero, i1, default_str_len, &
     init_mpi_data_parameters
   use m_optprop_parameters, only : stddev_atol
   use m_boxmc_geometry, only : setup_default_unit_cube_geometry
-  use m_helper_functions, only : spherical_2_cartesian, cstr, toStr
 
   use pfunit_mod
   implicit none

@@ -2030,6 +2030,13 @@ module m_pprts
     lrayli_snapshot = .False.
     call PetscOptionsHasName(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
       "-rayli_snapshot", lrayli_snapshot, ierr) ; call CHKERR(ierr)
+    if((luse_rayli.or.lrayli_snapshot).and.solution%lsolar_rad.eqv..False.) then
+      luse_rayli = .False.
+      lrayli_snapshot = .False.
+      call CHKWARN(1_mpiint, 'Not running Rayli for thermal computations. &
+        & Currently not implemented. Continuing with next solver.')
+    endif
+
     call pprts_rayli_wrapper(luse_rayli, lrayli_snapshot, solver, edirTOA, solution, opt_buildings)
     call PetscLogEventEnd(solver%logs%solve_mcrts, ierr)
     if(luse_rayli) goto 99
@@ -3798,7 +3805,7 @@ module m_pprts
       integer(iintegers),intent(in) :: i,j,k
 
       MatStencil         :: row(4,C%dof), col(4,C%dof)
-      real(irealLUT)     :: v(C%dof**2), norm!, v_tmp(C%dof**2)
+      real(irealLUT)     :: v(C%dof**2), norm
       integer(iintegers) :: dst,src, xinc, yinc, isrc, idst
 
       xinc = sun%xinc
@@ -4132,7 +4139,6 @@ module m_pprts
       integer(iintegers)  :: idof, idofdst, idiff
       integer(iintegers)  :: k, i, j, src, dst
 
-      real(ireals), pointer :: xhhl(:,:,:,:) => null(), xhhl1d(:) => null()
       real(ireals),pointer,dimension(:,:,:,:) :: xedir=>null()
       real(ireals),pointer,dimension(:)       :: xedir1d=>null()
 
@@ -4143,7 +4149,6 @@ module m_pprts
 
       call getVecPointer(C_dir%da, local_edir, xedir1d, xedir)
 
-      call getVecPointer(solver%Cvert_one_atm1%da, solver%atm%vert_heights, xhhl1d, xhhl, readonly=.True.)
 
       if(solver%myid.eq.0.and.ldebug) print *,'Assembly of SRC-Vector .. setting solar source', &
         sum(xedir(i0,C_dir%zs:C_dir%ze,C_dir%xs:C_dir%xe,C_dir%ys:C_dir%ye)) / &
@@ -4320,7 +4325,6 @@ module m_pprts
         enddo
       enddo
 
-      call restoreVecPointer(solver%Cvert_one_atm1%da, solver%atm%vert_heights, xhhl1d, xhhl, readonly=.True.)
       call restoreVecPointer(C_dir%da, local_edir, xedir1d, xedir )
       end associate
     end subroutine
