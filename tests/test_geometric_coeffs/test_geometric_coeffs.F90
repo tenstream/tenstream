@@ -62,7 +62,7 @@ contains
     if(myid.eq.0) print *,'Finishing boxmc tests module'
   end subroutine teardown
 
-  !@test(npes =[1])
+  @test(npes =[1])
   subroutine test_geometric_coeffs_distorted_box_no_scatter(this)
     class (MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: src, i

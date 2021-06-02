@@ -296,7 +296,7 @@ contains
       call line_intersection_3d(pl, f3-f4, f4, f4-f1, c, t, ierr)
       call rearange_point(pl, f3-f4, max(c, zero), pl)
 
-      call line_intersection_3d(v3r, v2-f3, f2, f1-f2, c, t, ierr)
+      call line_intersection_3d(v3r, v2-v3, f2, f1-f2, c, t, ierr)
       call rearange_point(v3r, v2-v3, c, pr)
       call line_intersection_3d(pr, f1-f2, f3, f2-f3, c, t, ierr)
       call rearange_point(pr, f1-f2, max(c, zero), pr)
@@ -308,6 +308,11 @@ contains
 
       call line_intersection_3d(v3r, f2-f1, f2, f3-f2, c, t, ierr)
       call rearange_point(v3r, f2-f1, c, pb)
+
+      print *, 'pt', pt
+      print *, 'pb', pb
+      print *, 'pl', pl
+      print *, 'pr', pr
 
       a2q = quadrangle_area_by_vertices(v3r, pl, f4, pt)
       a2t = triangle_area_by_vertices(v3r, f3, pl)
@@ -341,13 +346,13 @@ contains
       print *, cstr('v4', 'red')
 
       call line_intersection_3d(v4r, f3-f2, f3, f4-f3, c, t, ierr)
-      call rearange_point(v3r, f3-f2, c, pl)
+      call rearange_point(v4r, f3-f2, c, pl)
       call line_intersection_3d(pl, f4-f3, f3, f2-f3, c, t, ierr)
       call rearange_point(pl, f4-f3, max(c, zero), pl)
       call line_intersection_3d(pl, f3-f4, f4, f4-f1, c, t, ierr)
       call rearange_point(pl, f3-f4, max(c, zero), pl)
 
-      call line_intersection_3d(v4r, v1-f4, f2, f1-f2, c, t, ierr)
+      call line_intersection_3d(v4r, v1-v4, f2, f1-f2, c, t, ierr)
       call rearange_point(v4r, v1-v4, c, pr)
       call line_intersection_3d(pr, f1-f2, f3, f2-f3, c, t, ierr)
       call rearange_point(pr, f1-f2, max(c, zero), pr)
@@ -355,10 +360,15 @@ contains
       call rearange_point(pr, f2-f1, max(c, zero), pr)
 
       call line_intersection_3d(v4r, f1-f2, f1, f4-f1, c, t, ierr)
-      call rearange_point(v3r, f1-f2, c, pt)
+      call rearange_point(v4r, f1-f2, c, pt)
 
       call line_intersection_3d(v4r, v3-v4, f2, f3-f2, c, t, ierr)
       call rearange_point(v4r, v3-v4, c, pb)
+
+      print *, 'pb', pb
+      print *, 'pt', pt
+      print *, 'pl', pl
+      print *, 'pr', pr
 
       a2q = quadrangle_area_by_vertices(v4r, pl, f3, pb)
       a2t = triangle_area_by_vertices(v4r, f4, pl)
@@ -372,13 +382,13 @@ contains
         print *, 'area2 pre extinction='//toStr(area2)//' with a2q='//toStr(a2q)//' and a2t='//toStr(a2t)
         print *, 'area3 pre extinction='//toStr(area3)//' with a3q='//toStr(a3q)//' and a3t='//toStr(a3t)
       endif
-      prp = v4r + hit_plane(v4r, sundir, f4, normal2) * sundir
-      s = norm2(prp - v4r)
+      vrp = v4r + hit_plane(v4r, sundir, f4, normal2) * sundir
+      s = norm2(vrp - v4r)
       a2q = a2q * f_dst(s, extinction_coeff)
-      a2t = num_dst(s, norm2(f4 - pr) * cos_src_trgt_t, norm2(pr - v4r), extinction_coeff)
+      a2t = num_dst(s, norm2(f4 - pl) * cos_src_trgt_t, norm2(pl - v4r), extinction_coeff)
 
       prp = pr + hit_plane(pr, sundir, f4, normal3) * sundir
-      vrp = v4r + hit_plane(v3r, sundir, f4, normal3) * sundir
+      vrp = v4r + hit_plane(v4r, sundir, f4, normal3) * sundir
       s_max = norm2(prp - v4r)
       s_min = norm2(vrp - v4r)
       h_max = norm2(f1 - pr)
