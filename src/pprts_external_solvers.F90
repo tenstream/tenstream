@@ -931,9 +931,8 @@ contains
           nphotons_r = real(Nphotons*10, ireals)
           call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
             "-pprts_rayli_photons", nphotons_r, lflg,ierr) ; call CHKERR(ierr)
-          Nphotons = int(nphotons_r, kind(Nphotons))
 
-          Nphotons = Nphotons/ri%num_subcomm_masters
+          Nphotons_r = Nphotons_r/ri%num_subcomm_masters
 
           if(submyid.eq.run_rank) then
             plex_solution%uid = solution%uid
@@ -941,14 +940,14 @@ contains
               call rayli_wrapper(lcall_solver, lcall_snap, &
                 ri%plex, ri%kabs, ri%ksca, ri%g, ri%albedo, &
                 & sundir, plex_solution, &
-                & nr_photons=Nphotons, petsc_log=solver%logs%rayli_tracing, &
+                & nr_photons=Nphotons_r, petsc_log=solver%logs%rayli_tracing, &
                 & opt_buildings=ri%buildings_info%plex_buildings, &
                 & opt_Nthreads=int(subnumnodes, iintegers))
             else
               call rayli_wrapper(lcall_solver, lcall_snap, &
                 ri%plex, ri%kabs, ri%ksca, ri%g, ri%albedo, &
                 & sundir, plex_solution, &
-                & nr_photons=Nphotons, petsc_log=solver%logs%rayli_tracing)
+                & nr_photons=Nphotons_r, petsc_log=solver%logs%rayli_tracing)
             endif
 
             call PetscObjectViewFromOptions(plex_solution%edir , PETSC_NULL_VEC, '-show_plex_rayli_edir', ierr); call CHKERR(ierr)
