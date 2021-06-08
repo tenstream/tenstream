@@ -1480,7 +1480,7 @@ module m_pprts
     real(ireals)        :: pprts_delta_scale_max_g
     integer(iintegers)  :: k, i, j
     logical :: lpprts_delta_scale, lflg
-    real(ireals) :: pprts_set_absorption, pprts_set_scatter, pprts_set_asymmetry
+    real(ireals) :: pprts_set_absorption, pprts_set_scatter, pprts_set_asymmetry, pprts_set_albedo
     integer(mpiint) :: ierr
 
     call PetscLogEventBegin(solver%logs%set_optprop, ierr); call CHKERR(ierr)
@@ -1550,6 +1550,12 @@ module m_pprts
                               ' ksca min '//toStr(minval(atm%ksca))//' max '//toStr(maxval(atm%ksca))//&
                               ' g    min '//toStr(minval(atm%g   ))//' max '//toStr(maxval(atm%g   )))
       endif
+    endif
+
+    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_set_albedo", &
+      pprts_set_albedo, lflg , ierr) ;call CHKERR(ierr)
+    if(lflg) then
+      atm%albedo = pprts_set_albedo
     endif
 
     call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_set_absorption", &
