@@ -167,6 +167,7 @@ contains
 
     integer(iintegers), parameter :: Nx=6, Ny=6, Nlay=3, icollapse=1
     integer(iintegers), parameter :: glob_box_i=3, glob_box_j=3, glob_box_k=2
+    integer(iintegers), parameter :: box_Ni=1, box_nj=1, box_Nk=1
     real(ireals), parameter :: dx=100, dy=100, dz=100, S0=1
     logical, parameter :: lverbose=.True.
     real(ireals), parameter :: atol=1e-5_ireals
@@ -191,15 +192,16 @@ contains
     dtau       = 0
     w0         = 0
 
-    call ex_pprts_buildings(comm, lverbose,       &
-      & lthermal, lsolar, Nx, Ny, Nlay, icollapse,&
-      & glob_box_i, glob_box_j, glob_box_k,       &
-      & box_albedo, box_planck,                   &
-      & dx, dy, dz,                               &
-      & S0, phi0, theta0,                         &
-      & Ag, dtau, w0,                             &
-      & gedir, gedn, geup, gabso,                 &
-      & buildings                                 )
+    call ex_pprts_buildings(comm, lverbose,         &
+      & lthermal, lsolar, Nx, Ny, Nlay, icollapse,  &
+      & glob_box_i, glob_box_j, glob_box_k,         &
+      & box_Ni, box_nj, box_Nk,                     &
+      & box_albedo, box_planck,                     &
+      & dx, dy, dz,                                 &
+      & S0, phi0, theta0,                           &
+      & Ag, dtau, w0,                               &
+      & gedir, gedn, geup, gabso,                   &
+      & buildings                                   )
 
     if(myid.eq.0) then
       @assertEqual(0, gedir(Nlay+1, glob_box_i, glob_box_j), atol, 'edir beneath building should be zero')
@@ -223,6 +225,7 @@ contains
 
     integer(iintegers), parameter :: Nx=6, Ny=6, Nlay=3, icollapse=1
     integer(iintegers), parameter :: glob_box_i=3, glob_box_j=3, glob_box_k=2
+    integer(iintegers), parameter :: box_Ni=1, box_nj=1, box_Nk=1
     real(ireals), parameter :: dx=100, dy=100, dz=100, S0=1
     logical, parameter :: lverbose=.True.
     real(ireals), parameter :: atol=1e-5_ireals
@@ -250,6 +253,7 @@ contains
     call ex_pprts_buildings(comm, lverbose,       &
       & lthermal, lsolar, Nx, Ny, Nlay, icollapse,&
       & glob_box_i, glob_box_j, glob_box_k,       &
+      & box_Ni, box_nj, box_Nk,                   &
       & box_albedo, box_planck,                   &
       & dx, dy, dz,                               &
       & S0, phi0, theta0,                         &
@@ -281,6 +285,7 @@ contains
 
     integer(iintegers), parameter :: Nx=6, Ny=6, Nlay=3, icollapse=1
     integer(iintegers), parameter :: glob_box_i=3, glob_box_j=3, glob_box_k=2
+    integer(iintegers), parameter :: box_Ni=1, box_nj=1, box_Nk=1
     real(ireals), parameter :: dx=100, dy=100, dz=100, S0=1
     logical, parameter :: lverbose=.True.
     real(ireals), parameter :: atol=1e-5_ireals
@@ -308,6 +313,7 @@ contains
     call ex_pprts_buildings(comm, lverbose,       &
       & lthermal, lsolar, Nx, Ny, Nlay, icollapse,&
       & glob_box_i, glob_box_j, glob_box_k,       &
+      & box_Ni, box_nj, box_Nk,                   &
       & box_albedo, box_planck,                   &
       & dx, dy, dz,                               &
       & S0, phi0, theta0,                         &
@@ -333,6 +339,7 @@ contains
 
     integer(iintegers), parameter :: Nx=6, Ny=6, Nlay=3, icollapse=1
     integer(iintegers), parameter :: glob_box_i=3, glob_box_j=3, glob_box_k=2
+    integer(iintegers), parameter :: box_Ni=1, box_nj=1, box_Nk=1
     real(ireals), parameter :: dx=100, dy=100, dz=100, S0=1
     logical, parameter :: lverbose=.True.
     real(ireals), parameter :: atol=1e-5_ireals
@@ -361,6 +368,7 @@ contains
     call ex_pprts_buildings(comm, lverbose,       &
       & lthermal, lsolar, Nx, Ny, Nlay, icollapse,&
       & glob_box_i, glob_box_j, glob_box_k,       &
+      & box_Ni, box_nj, box_Nk,                   &
       & box_albedo, box_planck,                   &
       & dx, dy, dz,                               &
       & S0, phi0, theta0,                         &
@@ -399,6 +407,7 @@ contains
 
     integer(iintegers), parameter :: Nx=6, Ny=6, Nlay=3, icollapse=1
     integer(iintegers), parameter :: glob_box_i=3, glob_box_j=3, glob_box_k=2
+    integer(iintegers), parameter :: box_Ni=1, box_nj=1, box_Nk=1
     real(ireals), parameter :: dx=100, dy=100, dz=100, S0=1
     logical, parameter :: lverbose=.True.
     real(ireals), parameter :: atol=1e-5_ireals
@@ -427,6 +436,7 @@ contains
     call ex_pprts_buildings(comm, lverbose,       &
       & lthermal, lsolar, Nx, Ny, Nlay, icollapse,&
       & glob_box_i, glob_box_j, glob_box_k,       &
+      & box_Ni, box_nj, box_Nk,                   &
       & box_albedo, box_planck,                   &
       & dx, dy, dz,                               &
       & S0, phi0, theta0,                         &
@@ -466,6 +476,7 @@ contains
 
     integer(iintegers), parameter :: Nx=6, Ny=6, Nlay=3, icollapse=1
     integer(iintegers), parameter :: glob_box_i=3, glob_box_j=3, glob_box_k=2
+    integer(iintegers), parameter :: box_Ni=1, box_nj=1, box_Nk=1
     real(ireals), parameter :: dx=100, dy=100, dz=100, S0=1
     logical, parameter :: lverbose=.True.
     real(ireals), parameter :: atol=1e-5_ireals
@@ -494,6 +505,7 @@ contains
     call ex_pprts_buildings(comm, lverbose,       &
       & lthermal, lsolar, Nx, Ny, Nlay, icollapse,&
       & glob_box_i, glob_box_j, glob_box_k,       &
+      & box_Ni, box_nj, box_Nk,                   &
       & box_albedo, box_planck,                   &
       & dx, dy, dz,                               &
       & S0, phi0, theta0,                         &
@@ -533,6 +545,7 @@ contains
 
     integer(iintegers), parameter :: Nx=6, Ny=6, Nlay=3, icollapse=1
     integer(iintegers), parameter :: glob_box_i=3, glob_box_j=3, glob_box_k=2
+    integer(iintegers), parameter :: box_Ni=1, box_nj=1, box_Nk=1
     real(ireals), parameter :: dx=100, dy=100, dz=100, S0=1
     logical, parameter :: lverbose=.True.
     real(ireals), parameter :: atol=1e-5_ireals
@@ -561,6 +574,7 @@ contains
     call ex_pprts_buildings(comm, lverbose,       &
       & lthermal, lsolar, Nx, Ny, Nlay, icollapse,&
       & glob_box_i, glob_box_j, glob_box_k,       &
+      & box_Ni, box_nj, box_Nk,                   &
       & box_albedo, box_planck,                   &
       & dx, dy, dz,                               &
       & S0, phi0, theta0,                         &

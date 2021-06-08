@@ -13,7 +13,8 @@ program main
 
   character(len=default_str_len) :: outfile
   integer(iintegers) :: Nx, Ny, Nlay, icollapse
-  integer(iintegers) :: glob_box_i, glob_box_j, glob_box_k
+  integer(iintegers) :: glob_box_i, glob_box_j, box_k
+  integer(iintegers) :: box_Ni, box_Nj, box_Nk
   real(ireals) :: box_albedo, box_planck
   real(ireals) :: dx, dy, dz
   real(ireals) :: S0, phi0, theta0
@@ -48,12 +49,18 @@ program main
   icollapse=1
   call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-icollapse", icollapse, lflg, ierr); call CHKERR(ierr)
 
-  glob_box_k = Nlay-(icollapse-1)-1 ! one above the surface-touching cell
+  box_k = Nlay-(icollapse-1)-1 ! one above the surface-touching cell
   glob_box_i = int(real(Nx+1)/2.)
   glob_box_j = int(real(Nx+1)/2.)
+  box_Ni = 1
+  box_Nj = 1
+  box_Nk = 1
   call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Bx", glob_box_i, lflg, ierr); call CHKERR(ierr)
   call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-By", glob_box_j, lflg, ierr); call CHKERR(ierr)
-  call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Bz", glob_box_k, lflg, ierr); call CHKERR(ierr)
+  call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Bz", box_k     , lflg, ierr); call CHKERR(ierr)
+  call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-BNx",box_Ni    , lflg, ierr); call CHKERR(ierr)
+  call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-BNy",box_Nj    , lflg, ierr); call CHKERR(ierr)
+  call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-BNz",box_Nk    , lflg, ierr); call CHKERR(ierr)
 
   box_albedo = .1_ireals
   call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-BAg", box_albedo, lflg, ierr); call CHKERR(ierr)
@@ -100,11 +107,11 @@ program main
     rayli_options=trim(rayli_options)//' -rayli_snapshot'
     rayli_options=trim(rayli_options)//' -rayli_snap_Nx 256'
     rayli_options=trim(rayli_options)//' -rayli_snap_Ny 256'
-    rayli_options=trim(rayli_options)//' -visit_image_zoom .75'
-    rayli_options=trim(rayli_options)//' -visit_parallel_scale 291.5'
-    rayli_options=trim(rayli_options)//' -visit_focus 300,300,0'
-    rayli_options=trim(rayli_options)//' -visit_view_normal -0.2811249083446944,-0.7353472951470268,0.6166304739697339'
-    rayli_options=trim(rayli_options)//' -visit_view_up 0.1878717450780742,0.5879401184069877,0.7867849925925738'
+    rayli_options=trim(rayli_options)//' -visit_image_zoom 2.75'
+    rayli_options=trim(rayli_options)//' -visit_parallel_scale 400'
+    rayli_options=trim(rayli_options)//' -visit_focus 250,250,0'
+    rayli_options=trim(rayli_options)//' -visit_view_normal 0.4,-0.4,0.8'
+    rayli_options=trim(rayli_options)//' -visit_view_up -0.5,0.5,0.6'
 
     if(lverbose) print *,'Adding rayli Petsc Options:', trim(rayli_options)
     call PetscOptionsInsertString(PETSC_NULL_OPTIONS, trim(rayli_options), ierr); call CHKERR(ierr)
@@ -113,7 +120,8 @@ program main
   if(lsolar) then
     call ex_pprts_buildings(mpi_comm_world, lverbose, &
       & .False., lsolar, Nx, Ny, Nlay, icollapse, &
-      & glob_box_i, glob_box_j, glob_box_k,       &
+      & glob_box_i, glob_box_j, box_k,            &
+      & box_Ni, box_Nj, box_Nk,                   &
       & box_albedo, box_planck,                   &
       & dx, dy, dz,                               &
       & S0, phi0, theta0,                         &
@@ -125,7 +133,8 @@ program main
   if(lthermal) then
     call ex_pprts_buildings(mpi_comm_world, lverbose, &
       & lthermal, .False., Nx, Ny, Nlay, icollapse, &
-      & glob_box_i, glob_box_j, glob_box_k,       &
+      & glob_box_i, glob_box_j, box_k,            &
+      & box_Ni, box_Nj, box_Nk,                   &
       & box_albedo, box_planck,                   &
       & dx, dy, dz,                               &
       & S0, phi0, theta0,                         &
