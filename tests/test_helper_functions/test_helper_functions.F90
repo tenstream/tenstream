@@ -723,7 +723,7 @@ subroutine test_spherical2cartesian(this)
 
   sundir = [real(ireals) :: 0, +tiny(sundir), -1]
   call cartesian_2_spherical(sundir, phi, theta, ierr)
-  @assertEqual(180._ireals, phi, eps)
+  @assertEqual(180._ireals, abs(phi), eps)
   @assertEqual(0._ireals, theta, eps)
 
   sundir = [real(ireals) :: -tiny(sundir), 0, -1]
