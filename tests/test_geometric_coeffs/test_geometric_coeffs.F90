@@ -26,7 +26,7 @@ module test_geometric_coeffs
 
   real(ireals),parameter :: atol=1e-3, rtol=1e-2
 
-  logical, parameter :: ldebug = .True.
+  logical, parameter :: ldebug = .False.
 contains
 
   @before
@@ -151,11 +151,18 @@ contains
 
     do i = 1, 20
       verts_dtd = verts
-      verts_dtd( 3) = verts( 3) + 2 * dz / i
-      verts_dtd( 6) = verts( 6) + dz / i
-      verts_dtd( 9) = verts( 9) + dz / (2 * i)
+
+      verts_dtd( 3) = verts( 3) + dz / i
+      verts_dtd( 6) = verts( 6) + dz / (2 * i)
+      verts_dtd( 9) = verts( 9) + dz / (4 * i)
       verts_dtd(12) = verts( 6) + verts_dtd(12) - verts_dtd( 9)
-      verts_dtd(15:24:3) = verts_dtd(3:12:3) + dz
+
+      verts_dtd(15) = verts(15) + 2 * dz / i
+      verts_dtd(18) = verts(18) + dz / i
+      verts_dtd(21) = verts(21) + dz / (2 * i)
+      verts_dtd(24) = verts(24) + verts_dtd(24) - verts_dtd(21)
+
+      !verts_dtd(15:24:3) = verts_dtd(3:12:3) + dz
 
       verts_dtd_symmetry = verts_dtd
       verts_dtd_symmetry( 3) = verts_dtd(12)
@@ -176,7 +183,7 @@ contains
 
 
       call dir2dir3_geometric_coeffs(verts_dtd, sundir, bg, v)
-      call dir2dir3_geometric_coeffs(verts_dtd_symmetry, sundir_symmetry, bg, v_symmetry)
+      !call dir2dir3_geometric_coeffs(verts_dtd_symmetry, sundir_symmetry, bg, v_symmetry)
 
       if (ldebug) then
         print *, cstr('dtd', 'blue')
@@ -187,8 +194,9 @@ contains
 
       v_mc = v_mc_225_40(i,:)
       do src = 1,3
-      !  call bmc_3_10%get_coeff(comm,bg,src,.True.,phi,theta,real(verts_dtd, ireals),S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-      !  v_mc(src:9:3) = real(T, ireals)
+        call bmc_3_10%get_coeff(comm,real(bg, ireal_dp),src,.True.,real(phi, ireal_dp),real(theta, ireal_dp), &
+          real(verts_dtd, ireal_dp),S,T,S_tol,T_tol, inp_atol=real(atol, ireal_dp), inp_rtol=real(rtol, ireal_dp))
+        v_mc(src:9:3) = real(T, ireals)
       enddo
 
       if (ldebug) then
@@ -198,15 +206,15 @@ contains
         print *, 'src x', v_mc(2:9:3)
         print *, 'src y', v_mc(3:9:3)
 
-        print *, cstr('dtd_symmetry', 'yellow')
-        !print *, v_symmetry
-        print *, 'src z', v_symmetry(1:9:3)
-        print *, 'src x', v_symmetry(2:9:3)
-        print *, 'src y', v_symmetry(3:9:3)
+        !print *, cstr('dtd_symmetry', 'yellow')
+        !!print *, v_symmetry
+        !print *, 'src z', v_symmetry(1:9:3)
+        !print *, 'src x', v_symmetry(2:9:3)
+        !print *, 'src y', v_symmetry(3:9:3)
       endif
 
       @assertEqual(v_mc, v, max(maxval(v_mc)*0.05_ireals, 1e-6_ireals), 'failed for i='//toStr(i)//'; phi='//toStr(phi)//'; theta='//toStr(theta))
-      @assertEqual(v_mc, v_symmetry, max(maxval(v_mc)*0.05_ireals, 1e-6_ireals), 'symmetry case failed for i='//toStr(i)//'; phi='//toStr(phi-180._ireals)//'; theta='//toStr(theta))
+      !@assertEqual(v_mc, v_symmetry, max(maxval(v_mc)*0.05_ireals, 1e-6_ireals), 'symmetry case failed for i='//toStr(i)//'; phi='//toStr(phi-180._ireals)//'; theta='//toStr(theta))
 
       if (ldebug) then
         print *, '___________________________________________________________________________________________'
