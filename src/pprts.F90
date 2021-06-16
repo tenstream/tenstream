@@ -70,6 +70,7 @@ module m_pprts
     & t_optprop_3_10_ann
 
   use m_eddington, only : eddington_coeff_ec
+  use m_geometric_coeffs, only : dir2dir3_geometric_coeffs
 
   use m_tenstream_options, only : read_commandline_options, ltwostr, luse_eddington, twostr_ratio, &
     options_max_solution_err, options_max_solution_time, ltwostr_only, luse_twostr_guess,        &
@@ -2387,6 +2388,7 @@ module m_pprts
     real(ireals), target, allocatable, intent(inout) :: coeffs(:,:,:,:)
     type(t_pprts_buildings), optional, intent(in) :: opt_buildings
     real(irealLUT), allocatable :: v(:)
+    real(ireals), allocatable :: v_gomtrc(:)
     integer(iintegers) :: src,k,i,j
     integer(mpiint) :: ierr
 
@@ -2394,6 +2396,8 @@ module m_pprts
     real(ireals), allocatable :: vertices(:)
     real(ireals) :: norm
     real(ireals), pointer :: c(:,:)
+    logical :: lgeometric_coeffs, lflg
+
 
     associate( &
         & atm     => solver%atm, &
@@ -2407,9 +2411,14 @@ module m_pprts
         & C_dir%xs:C_dir%xe, &
         & C_dir%ys:C_dir%ye))
       allocate(v(1:C_dir%dof**2))
+      allocate(v_gomtrc(1:C_dir%dof**2))
 
 
       call PetscLogEventBegin(solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
+
+      lgeometric_coeffs = .False.
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+        & "-pprts_geometric_coeffs", lgeometric_coeffs, lflg, ierr) ;call CHKERR(ierr)
 
       call setup_default_unit_cube_geometry(atm%dx, atm%dy, -one, vertices)
       call getVecPointer(solver%Cvert_one_atm1%da, solver%atm%vert_heights, xhhl1d, xhhl, readonly=.True.)
@@ -2430,16 +2439,31 @@ module m_pprts
 
               vertices(3:24:3) = vertices(3:24:3) - vertices(3)
 
-              call get_coeff(solver, &
-                & atm%kabs(atmk(solver%atm,k),i,j), &
-                & atm%ksca(atmk(solver%atm,k),i,j), &
-                & atm%g(atmk(solver%atm,k),i,j), &
-                & atm%dz(atmk(solver%atm,k),i,j), .True., &
-                & v, &
-                & atm%l1d(atmk(solver%atm,k)), &
-                & [real(sun%symmetry_phi, irealLUT), real(sun%theta, irealLUT)], &
-                & lswitch_east=sun%xinc.eq.0, lswitch_north=sun%yinc.eq.0)
-              coeffs(:,k,i,j) = real(v, ireals)
+              if (lgeometric_coeffs) then
+                !not in a plane -> use 3 and construct 4th point
+                vertices(12) = vertices(9) +  (vertices(3) - vertices(6))
+                !make bottom and top of box parallel !!! USE MEAN DZ MAYBE?
+                vertices([15,18,21,24]) = vertices([3,6,9,12]) + solver%atm%dz(atmk(solver%atm, k), i, j)
+                call dir2dir3_geometric_coeffs( &
+                  vertices, &
+                  sun%sundir, &
+                  [solver%atm%kabs(atmk(solver%atm, k), i, j), &
+                  solver%atm%ksca(atmk(solver%atm, k), i, j), &
+                  solver%atm%g(atmk(solver%atm, k), i, j)], &
+                  v_gomtrc)
+                coeffs(:,k,i,j) = v_gomtrc
+              else
+                call get_coeff(solver, &
+                  & atm%kabs(atmk(solver%atm,k),i,j), &
+                  & atm%ksca(atmk(solver%atm,k),i,j), &
+                  & atm%g(atmk(solver%atm,k),i,j), &
+                  & atm%dz(atmk(solver%atm,k),i,j), .True., &
+                  & v, &
+                  & atm%l1d(atmk(solver%atm,k)), &
+                  & [real(sun%symmetry_phi, irealLUT), real(sun%theta, irealLUT)], &
+                  & lswitch_east=sun%xinc.eq.0, lswitch_north=sun%yinc.eq.0)
+                coeffs(:,k,i,j) = real(v, ireals)
+              endif
 
               if (ldebug_optprop) then
                 c(1:C_dir%dof,1:C_dir%dof) => coeffs(:,k,i,j) ! dim(src,dst)
