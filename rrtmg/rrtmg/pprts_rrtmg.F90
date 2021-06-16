@@ -50,7 +50,10 @@ module m_pprts_rrtmg
   use m_pprts, only : init_pprts, set_angles, set_optical_properties, solve_pprts,&
       pprts_get_result, pprts_get_result_toZero
 
-  use m_buildings, only: t_pprts_buildings, PPRTS_BOT_FACE
+  use m_buildings, only: &
+    & dump_pprts_buildings, &
+    & t_pprts_buildings, &
+    & PPRTS_BOT_FACE
 
   use m_adaptive_spectral_integration, only: need_new_solution
 
@@ -479,6 +482,7 @@ contains
     !  endif
     !endif
     contains
+
       subroutine dump_variable(var, dm, dumpstring)
         real(ireals), intent(in) :: var(:,:,:)
         type(tDM), intent(in) :: dm
@@ -498,13 +502,36 @@ contains
           call DMRestoreGlobalVector(dm ,dumpvec ,ierr); call CHKERR(ierr)
         endif
       end subroutine
+
       subroutine dump_results()
+        logical :: lflg
+        character(len=default_str_len) :: fname
+        integer(mpiint) :: ierr
+
         if(lsolar) then
           call dump_variable(edir, solver%C_one1%da, "-pprts_rrtmg_dump_edir")
         endif
         call dump_variable(edn , solver%C_one1%da, "-pprts_rrtmg_dump_edn")
         call dump_variable(eup , solver%C_one1%da, "-pprts_rrtmg_dump_eup")
         call dump_variable(abso, solver%C_one%da,  "-pprts_rrtmg_dump_abso")
+
+        if(present(opt_buildings_solar)) then
+          call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+            & '-pprts_rrtmg_dump_buildings_solar', fname, lflg, ierr); call CHKERR(ierr)
+          if(lflg) then
+            if(present(opt_time)) fname = trim(fname)//toStr(opt_time)
+            call dump_pprts_buildings(solver, opt_buildings_solar, fname, ierr, verbose=.True.); call CHKERR(ierr)
+          endif
+        endif
+
+        if(present(opt_buildings_thermal)) then
+          call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+            & '-pprts_rrtmg_dump_buildings_thermal', fname, lflg, ierr); call CHKERR(ierr)
+          if(lflg) then
+            if(present(opt_time)) fname = trim(fname)//toStr(opt_time)
+            call dump_pprts_buildings(solver, opt_buildings_thermal, fname, ierr, verbose=.True.); call CHKERR(ierr)
+          endif
+        endif
       end subroutine
   end subroutine
 

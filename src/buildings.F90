@@ -2,26 +2,36 @@ module m_buildings
 #include "petsc/finclude/petsc.h"
   use petsc
 
-  use m_data_parameters, only: iintegers, ireals, mpiint
+  use m_data_parameters, only: &
+    & iintegers, &
+    & ireals, &
+    & mpiint, &
+    & default_str_len
 
   use m_helper_functions, only: &
     & CHKERR, &
+    & CHKWARN, &
     & toStr, &
     & ind_1d_to_nd, ind_nd_to_1d, ndarray_offsets, &
     & get_arg, &
     & deallocate_allocatable
 
+  use m_pprts_base, only: &
+    & t_solver
+
   implicit none
 
   private
   public :: &
-    & t_pprts_buildings,                  &
-    & t_plex_buildings,                   &
-    & init_buildings,                     &
+    & buildingid2str,                     &
+    & check_buildings_consistency,        &
     & clone_buildings,                    &
     & destroy_buildings,                  &
+    & dump_pprts_buildings,               &
     & faceidx_by_cell_plus_offset,        &
-    & check_buildings_consistency,        &
+    & init_buildings,                     &
+    & t_plex_buildings,                   &
+    & t_pprts_buildings,                  &
     & PPRTS_TOP_FACE,                     &
     & PPRTS_BOT_FACE,                     &
     & PPRTS_LEFT_FACE,                    &
@@ -287,4 +297,264 @@ contains
       enddo
     enddo
   end subroutine
+
+
+  !> @brief: dump the buildings information as xdmf
+  !> @details: basename of the file will be expanded by .xmf postfix
+  !> \n        if you are wondering, we use duplicates of vertices because it is easy
+  subroutine dump_pprts_buildings(solver, buildings, fbasename, ierr, verbose)
+    class(t_solver), intent(in) :: solver
+    type(t_pprts_buildings), intent(inout) :: buildings
+    character(len=*), intent(in) :: fbasename
+    integer(mpiint), intent(out) :: ierr
+    logical, optional, intent(in) :: verbose
+
+    type(tDM) :: coordDA
+    type(tVec) :: coordinates
+    real(ireals), pointer, dimension(:,:,:,:) :: xv  =>null()
+    real(ireals), pointer, dimension(:)       :: xv1d=>null()
+    integer(iintegers) :: zs,zm, xs,xm, ys,ym
+
+    integer(iintegers) :: m, idx(4), l, n
+    real(ireals) :: verts(3,4)
+
+    character(len=default_str_len) :: fname
+    integer :: funit
+    logical :: file_exists
+    integer(mpiint) :: irank, numnodes
+
+    ierr = 0
+
+    fname = trim(fbasename)//'.xmf'
+
+    if(solver%myid.eq.0 .and. get_arg(.False., verbose)) print *,'Writing xmf for buildings to ', trim(fname)
+
+    call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
+    inquire(file=fname, exist=file_exists)
+    if(file_exists) then
+      call CHKWARN(1_mpiint, "skipping output because file already exists: "//trim(fname))
+      return
+    endif
+    call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
+
+    if (solver%myid.eq.0) then
+      open(newunit=funit, file=fname, status='new', action='write')
+      call write_header()
+      close(funit)
+    endif
+    call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
+
+    call mpi_comm_size(solver%comm, numnodes, ierr); call CHKERR(ierr)
+
+    do irank = 0, numnodes-1
+      if(irank.eq.solver%myid .and. size(buildings%iface).gt.0) then
+        open(newunit=funit, file=fname, status='old', action='write', position='append')
+        call write_grid()
+        close(funit)
+      endif
+      call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
+    enddo
+
+    if (solver%myid.eq.0) then
+      open(newunit=funit, file=fname, status='old', action='write', position='append')
+      call write_footer()
+    endif
+    close(funit)
+
+    contains
+      subroutine write_header()
+        write (funit,FMT="(A)")'<?xml version="1.0" encoding="utf-8"?>'
+        write (funit,*)'<!DOCTYPE Xdmf SYSTEM "Xdmf.dtd">'
+        write (funit,*)'<Xdmf Version="3.0">'
+        write (funit,*)'<Domain>'
+
+        ! surface ground mesh
+        write (funit,*)'<Grid Name="GroundMesh" GridType="Uniform">'
+        write (funit,*)'<Topology TopologyType="3DCORECTMesh" NumberOfElements="1 ',&
+          & solver%C_one%glob_xm+1, solver%C_one%glob_ym+1,'"/>'
+        write (funit,*)'<Geometry GeometryType="ORIGIN_DXDYDZ">'
+        write (funit,*)'<DataStructure Name="Origin" Dimensions="3" Format="XML"> 0 0 0'
+        write (funit,*)'</DataStructure>'
+        write (funit,*)'<DataStructure Name="Origin" Dimensions="3" Format="XML">'
+        write (funit,*) solver%atm%dx, solver%atm%dy, 0
+        write (funit,*)'</DataStructure>'
+        write (funit,*)'</Geometry>'
+        write (funit,*)'</Grid>'
+
+        write (funit,*)'<Grid Name="BuildingsQuads" GridType="Collection">'
+      end subroutine
+      subroutine write_footer()
+        write (funit,*) '</Grid>'
+        write (funit,*) '</Domain>'
+        write (funit,FMT="(A)") '</Xdmf>'
+      end subroutine
+
+      subroutine write_grid ()
+        associate(               &
+            & B => buildings,    &
+            & C => solver%C_diff )
+
+          call DMGetCoordinateDM(C%da, coordDA, ierr); call CHKERR(ierr)
+          call DMDAGetGhostCorners(coordDA, zs, xs, ys, zm, xm, ym, ierr); call CHKERR(ierr)
+
+          call DMGetCoordinatesLocal(C%da, coordinates, ierr); call CHKERR(ierr)
+          call VecGetArrayF90(coordinates, xv1d, ierr); call CHKERR(ierr)
+          xv(0:2, zs:zs+zm-1 ,xs:xs+xm-1 ,ys:ys+ym-1) => xv1d
+
+          write (funit,*) '<Grid Name="Quads'//toStr(solver%myid)//'">'
+          write (funit,*) '<Topology TopologyType="Quadrilateral" NumberOfElements="'//toStr(size(B%iface))//'">'
+          write (funit,*) '<DataItem Format="XML" DataType="Int" '//&
+            & 'Dimensions="'//toStr(size(B%iface))//' 4">'
+
+          n = 0
+          do m = 1, size(B%iface)
+            write (funit,*) ( l, l = (m-1)*4, m*4-1 )
+          enddo
+
+          write (funit,*) '</DataItem>'
+          write (funit,*) '</Topology>'
+
+          write (funit,*) '<Geometry GeometryType="XYZ">'
+          write (funit,*) '<DataItem Format="XML" '//&
+            & 'Dimensions="', size(B%iface), 4, 3,'">'
+
+          do m = 1, size(B%iface)
+
+            call ind_1d_to_nd(B%da_offsets, B%iface(m), idx)
+            idx(2:4) = idx(2:4) -1 + [C%zs, C%xs, C%ys]
+
+            associate(k => idx(2), i => idx(3), j => idx(4))
+
+              select case(idx(1))
+              case(PPRTS_TOP_FACE)
+                verts(:,1) = xv(:,k,i,j)
+                verts(:,2) = xv(:,k,i+1,j)
+                verts(:,3) = xv(:,k,i+1,j+1)
+                verts(:,4) = xv(:,k,i,j+1)
+              case(PPRTS_BOT_FACE)
+                verts(:,1) = xv(:,k+1,i,j)
+                verts(:,2) = xv(:,k+1,i+1,j)
+                verts(:,3) = xv(:,k+1,i+1,j+1)
+                verts(:,4) = xv(:,k+1,i,j+1)
+              case(PPRTS_LEFT_FACE)
+                verts(:,1) = xv(:,k  ,i,j)
+                verts(:,2) = xv(:,k  ,i,j+1)
+                verts(:,3) = xv(:,k+1,i,j+1)
+                verts(:,4) = xv(:,k+1,i,j)
+              case(PPRTS_RIGHT_FACE)
+                verts(:,1) = xv(:,k  ,i+1,j)
+                verts(:,2) = xv(:,k  ,i+1,j+1)
+                verts(:,3) = xv(:,k+1,i+1,j+1)
+                verts(:,4) = xv(:,k+1,i+1,j)
+              case(PPRTS_REAR_FACE )
+                verts(:,1) = xv(:,k  ,i  ,j)
+                verts(:,2) = xv(:,k  ,i+1,j)
+                verts(:,3) = xv(:,k+1,i+1,j)
+                verts(:,4) = xv(:,k+1,i  ,j)
+              case(PPRTS_FRONT_FACE)
+                verts(:,1) = xv(:,k  ,i  ,j+1)
+                verts(:,2) = xv(:,k  ,i+1,j+1)
+                verts(:,3) = xv(:,k+1,i+1,j+1)
+                verts(:,4) = xv(:,k+1,i  ,j+1)
+              case default
+                call CHKERR(1_mpiint, 'unknown building face_idx '//toStr(idx(1)+1))
+              end select
+
+              do l = 1, size(verts,2)
+                write (funit,*) verts([2,3,1],l) - [real(ireals) :: solver%atm%dx/2, solver%atm%dy/2, 0]
+              enddo
+            end associate
+          enddo
+
+          write (funit,*) '</DataItem>'
+          write (funit,*) '</Geometry>'
+
+          ! write data attributes
+
+          ! planck
+          if(allocated(B%planck)) then
+            write (funit,*) '<Attribute Center="Cell" Name="planck">'
+            write (funit,*) '<DataItem Format="XML" '//&
+              & 'Dimensions="', size(B%iface), '">'
+            write (funit,*) B%planck
+            write (funit,*) '</DataItem>'
+            write (funit,*) '</Attribute>'
+          endif
+
+          ! temp
+          if(allocated(B%temp)) then
+            write (funit,*) '<Attribute Center="Cell" Name="temp">'
+            write (funit,*) '<DataItem Format="XML" '//&
+              & 'Dimensions="', size(B%iface), '">'
+            write (funit,*) B%temp
+            write (funit,*) '</DataItem>'
+            write (funit,*) '</Attribute>'
+          endif
+
+          ! albedo
+          if(allocated(b%albedo)) then
+            write (funit,*) '<Attribute Center="Cell" Name="albedo">'
+            write (funit,*) '<DataItem Format="XML" '//&
+              & 'Dimensions="', size(B%iface), '">'
+            write (funit,*) B%albedo
+            write (funit,*) '</DataItem>'
+            write (funit,*) '</Attribute>'
+          endif
+
+          ! incoming
+          if(allocated(B%incoming)) then
+            write (funit,*) '<Attribute Center="Cell" Name="incoming">'
+            write (funit,*) '<DataItem Format="XML" '//&
+              & 'Dimensions="', size(B%iface), '">'
+            write (funit,*) B%incoming
+            write (funit,*) '</DataItem>'
+            write (funit,*) '</Attribute>'
+          endif
+
+          ! outgoing
+          if(allocated(B%outgoing)) then
+            write (funit,*) '<Attribute Center="Cell" Name="outgoing">'
+            write (funit,*) '<DataItem Format="XML" '//&
+              & 'Dimensions="', size(B%iface), '">'
+            write (funit,*) B%outgoing
+            write (funit,*) '</DataItem>'
+            write (funit,*) '</Attribute>'
+          endif
+
+          ! edir
+          if(allocated(B%edir)) then
+            write (funit,*) '<Attribute Center="Cell" Name="edir">'
+            write (funit,*) '<DataItem Format="XML" '//&
+              & 'Dimensions="', size(B%iface), '">'
+            write (funit,*) B%edir
+            write (funit,*) '</DataItem>'
+            write (funit,*) '</Attribute>'
+          endif
+
+          write (funit,*) '</Grid>'
+
+        end associate
+      end subroutine
+  end subroutine
+
+  function buildingid2str(bid) result(str)
+    integer(iintegers), intent(in) :: bid
+    character(len=16) :: str
+    select case(bid)
+    case(PPRTS_TOP_FACE)
+      str = "PPRTS_TOP_FACE"
+    case(PPRTS_BOT_FACE)
+      str = "PPRTS_BOT_FACE"
+    case(PPRTS_LEFT_FACE)
+      str = "PPRTS_LEFT_FACE"
+    case(PPRTS_RIGHT_FACE)
+      str = "PPRTS_RIGHT_FACE"
+    case(PPRTS_REAR_FACE )
+      str = "PPRTS_REAR_FACE"
+    case(PPRTS_FRONT_FACE)
+      str = "PPRTS_FRONT_FACE"
+    case default
+      call CHKERR(1_mpiint, 'unknown building face_idx '//toStr(bid))
+    end select
+  end function
 end module

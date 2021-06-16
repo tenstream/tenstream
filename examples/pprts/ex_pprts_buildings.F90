@@ -11,7 +11,7 @@ program main
   use mpi, only : MPI_COMM_WORLD
   implicit none
 
-  character(len=default_str_len) :: outfile
+  character(len=default_str_len) :: outfile, buildings_outfile
   integer(iintegers) :: Nx, Ny, Nlay, icollapse
   integer(iintegers) :: glob_box_i, glob_box_j, box_k
   integer(iintegers) :: box_Ni, box_Nj, box_Nk
@@ -32,6 +32,9 @@ program main
 
   call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-out', outfile, lflg, ierr); call CHKERR(ierr)
   if(.not.lflg) call CHKERR(1_mpiint, 'need to supply a output filename... please call with -out <output.nc>')
+
+  buildings_outfile = trim(outfile) ! will get a postfix from the routine
+  call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-bout', buildings_outfile, lflg, ierr); call CHKERR(ierr)
 
   lsolar = .True.
   call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-solar', &
@@ -107,7 +110,7 @@ program main
     rayli_options=trim(rayli_options)//' -rayli_snapshot'
     rayli_options=trim(rayli_options)//' -rayli_snap_Nx 256'
     rayli_options=trim(rayli_options)//' -rayli_snap_Ny 256'
-    rayli_options=trim(rayli_options)//' -visit_image_zoom 2.75'
+    rayli_options=trim(rayli_options)//' -visit_image_zoom 5.75'
     rayli_options=trim(rayli_options)//' -visit_parallel_scale 400'
     rayli_options=trim(rayli_options)//' -visit_focus 250,250,0'
     rayli_options=trim(rayli_options)//' -visit_view_normal 0.4,-0.4,0.8'
@@ -128,7 +131,8 @@ program main
       & Ag, dtau, w0,                             &
       & gedir, gedn, geup, gabso,                 &
       & buildings,                                &
-      & outfile=outfile)
+      & outfile=outfile,                          &
+      & buildings_outfile=buildings_outfile)
   endif
   if(lthermal) then
     call ex_pprts_buildings(mpi_comm_world, lverbose, &
@@ -141,7 +145,8 @@ program main
       & Ag, dtau, w0,                             &
       & gedir, gedn, geup, gabso,                 &
       & buildings,                                &
-      & outfile=outfile)
+      & outfile=outfile,                          &
+      & buildings_outfile=buildings_outfile)
   endif
 
   call finalize_mpi(ierr, .True., .True.)
