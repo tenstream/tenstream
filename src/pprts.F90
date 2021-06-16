@@ -61,10 +61,14 @@ module m_pprts
     & vec_proj_on_plane
 
   use m_schwarzschild, only: schwarzschild, B_eff
+
+  use m_optprop_parameters, only: ldebug_optprop
+
   use m_optprop, only: t_optprop, &
     & t_optprop_1_2, t_optprop_3_6, t_optprop_3_10, &
     & t_optprop_8_10, t_optprop_3_16, t_optprop_8_16, t_optprop_8_18, &
     & t_optprop_3_10_ann
+
   use m_eddington, only : eddington_coeff_ec
   use m_geometric_coeffs, only : dir2dir3_geometric_coeffs
 
@@ -1481,7 +1485,7 @@ module m_pprts
     real(ireals)        :: pprts_delta_scale_max_g
     integer(iintegers)  :: k, i, j
     logical :: lpprts_delta_scale, lflg
-    real(ireals) :: pprts_set_absorption, pprts_set_scatter, pprts_set_asymmetry
+    real(ireals) :: pprts_set_absorption, pprts_set_scatter, pprts_set_asymmetry, pprts_set_albedo
     integer(mpiint) :: ierr
 
     call PetscLogEventBegin(solver%logs%set_optprop, ierr); call CHKERR(ierr)
@@ -1551,6 +1555,12 @@ module m_pprts
                               ' ksca min '//toStr(minval(atm%ksca))//' max '//toStr(maxval(atm%ksca))//&
                               ' g    min '//toStr(minval(atm%g   ))//' max '//toStr(maxval(atm%g   )))
       endif
+    endif
+
+    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_set_albedo", &
+      pprts_set_albedo, lflg , ierr) ;call CHKERR(ierr)
+    if(lflg) then
+      atm%albedo = pprts_set_albedo
     endif
 
     call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_set_absorption", &
@@ -2030,11 +2040,12 @@ module m_pprts
     lrayli_snapshot = .False.
     call PetscOptionsHasName(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
       "-rayli_snapshot", lrayli_snapshot, ierr) ; call CHKERR(ierr)
-    if((luse_rayli.or.lrayli_snapshot).and.solution%lsolar_rad.eqv..False.) then
+    if((luse_rayli.or.lrayli_snapshot).and..not.solution%lsolar_rad) then
+      call CHKWARN(1_mpiint, 'Not running Rayli for thermal computations. &
+        & Currently not implemented. Continuing with next solver.'//&
+        & toStr(luse_rayli)//' '//toStr(lrayli_snapshot))
       luse_rayli = .False.
       lrayli_snapshot = .False.
-      call CHKWARN(1_mpiint, 'Not running Rayli for thermal computations. &
-        & Currently not implemented. Continuing with next solver.')
     endif
 
     call pprts_rayli_wrapper(luse_rayli, lrayli_snapshot, solver, edirTOA, solution, opt_buildings)
@@ -2374,15 +2385,17 @@ module m_pprts
   !> @brief precompute transport coefficients
   subroutine alloc_coeff_dir2dir(solver, coeffs, opt_buildings)
     class(t_solver), intent(in) :: solver
-    real(ireals), allocatable, intent(inout) :: coeffs(:,:,:,:)
+    real(ireals), target, allocatable, intent(inout) :: coeffs(:,:,:,:)
     type(t_pprts_buildings), optional, intent(in) :: opt_buildings
     real(irealLUT), allocatable :: v(:)
     real(ireals), allocatable :: v_gomtrc(:)
-    integer(iintegers) :: k,i,j
+    integer(iintegers) :: src,k,i,j
     integer(mpiint) :: ierr
 
     real(ireals), pointer :: xhhl(:,:,:,:) => null(), xhhl1d(:) => null()
     real(ireals), allocatable :: vertices(:)
+    real(ireals) :: norm
+    real(ireals), pointer :: c(:,:)
     logical :: lgeometric_coeffs, lflg
 
 
@@ -2451,6 +2464,21 @@ module m_pprts
                   & lswitch_east=sun%xinc.eq.0, lswitch_north=sun%yinc.eq.0)
                 coeffs(:,k,i,j) = real(v, ireals)
               endif
+
+              if (ldebug_optprop) then
+                c(1:C_dir%dof,1:C_dir%dof) => coeffs(:,k,i,j) ! dim(src,dst)
+                do src = 1, C_dir%dof
+                  norm = sum( c(src,:) )
+                  if( norm.gt.one ) then ! could renormalize
+                    if( norm.gt.one+100._ireals*sqrt(epsilon(norm)) ) then ! fatally off
+                      print *,'direct sum(dst==', src, ') gt one', norm
+                      print *,'direct coeff', norm, '::', c(src,:)
+                      call CHKERR(1_mpiint, 'omg.. shouldnt be happening')
+                    endif ! fatally off
+                    c(src,:) = c(src,:) / norm
+                  endif ! could renormalize
+                enddo
+              endif
             endif
           enddo
         enddo
@@ -2490,15 +2518,20 @@ module m_pprts
 
   subroutine alloc_coeff_dir2diff(solver, coeffs)
   class(t_solver), intent(in) :: solver
-    real(ireals), allocatable, intent(inout) :: coeffs(:,:,:,:)
+    real(ireals), target, allocatable, intent(inout) :: coeffs(:,:,:,:)
     real(irealLUT), allocatable :: v(:)
-    integer(iintegers) :: k,i,j
+    integer(iintegers) :: src, k, i, j
     integer(mpiint) :: ierr
+
+    real(ireals) :: norm
+    real(ireals), pointer :: c(:,:)
+
     associate( &
         & atm     => solver%atm, &
         & sun     => solver%sun, &
         & C_dir   => solver%C_dir, &
         & C_diff  => solver%C_diff )
+
       if(.not.allocated(coeffs)) &
         & allocate(coeffs(&
         & 1:C_dir%dof*C_diff%dof, &
@@ -2507,6 +2540,7 @@ module m_pprts
         & C_dir%ys:C_dir%ye))
       allocate(v(1:C_dir%dof*C_diff%dof))
       call PetscLogEventBegin(solver%logs%get_coeff_dir2diff, ierr); call CHKERR(ierr)
+
       do j=C_dir%ys,C_dir%ye
         do i=C_dir%xs,C_dir%xe
           do k=C_dir%zs,C_dir%ze-1
@@ -2521,6 +2555,21 @@ module m_pprts
                 & [real(sun%symmetry_phi, irealLUT), real(sun%theta, irealLUT)], &
                 & lswitch_east=sun%xinc.eq.0, lswitch_north=sun%yinc.eq.0)
               coeffs(:,k,i,j) = real(v, ireals)
+
+              if (ldebug_optprop) then
+                c(1:C_dir%dof,1:C_diff%dof) => coeffs(:,k,i,j) ! dim(src,dst)
+                do src = 1, C_dir%dof
+                  norm = sum( c(src,:) )
+                  if( norm.gt.one ) then ! could renormalize
+                    if( norm.gt.one+100._ireals*sqrt(epsilon(norm)) ) then ! fatally off
+                      print *,'dir2diff sum(dst==', src, ') gt one', norm
+                      print *,'dir2diff coeff', norm, '::', c(src,:)
+                      call CHKERR(1_mpiint, 'omg.. shouldnt be happening')
+                    endif ! fatally off
+                    c(src,:) = c(src,:) / norm
+                  endif ! could renormalize
+                enddo
+              endif
             endif
           enddo
         enddo
@@ -2531,20 +2580,29 @@ module m_pprts
 
   subroutine alloc_coeff_diff2diff(solver, coeffs, opt_buildings)
   class(t_solver), intent(in) :: solver
-    real(ireals), allocatable, intent(inout) :: coeffs(:,:,:,:)
+    real(ireals), target, allocatable, intent(inout) :: coeffs(:,:,:,:)
     type(t_pprts_buildings), optional, intent(in) :: opt_buildings
     real(irealLUT), allocatable :: v(:)
-    integer(iintegers) :: k,i,j
+    integer(iintegers) :: src, k, i, j
     integer(mpiint) :: ierr
+
+    real(ireals) :: norm
+    real(ireals), pointer :: c(:,:)
+
     associate( &
-        & atm => solver%atm, &
-        & C   => solver%C_diff)
-      if(.not.allocated(coeffs)) allocate(coeffs(1:C%dof**2, C%zs:C%ze-1, C%xs:C%xe, C%ys:C%ye))
-      allocate(v(1:C%dof**2))
+        & atm    => solver%atm, &
+        & C_diff => solver%C_diff)
+      if(.not.allocated(coeffs)) &
+        & allocate(coeffs(         &
+          & 1:C_diff%dof**2,       &
+          & C_diff%zs:C_diff%ze-1, &
+          & C_diff%xs:C_diff%xe,   &
+          & C_diff%ys:C_diff%ye)   )
+      allocate(v(1:C_diff%dof**2))
       call PetscLogEventBegin(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
-      do j=C%ys,C%ye
-        do i=C%xs,C%xe
-          do k=C%zs,C%ze-1
+      do j=C_diff%ys,C_diff%ye
+        do i=C_diff%xs,C_diff%xe
+          do k=C_diff%zs,C_diff%ze-1
             if(.not.atm%l1d(atmk(atm,k)) ) then
               call get_coeff(solver, &
                 & atm%kabs(atmk(solver%atm,k),i,j), &
@@ -2554,6 +2612,21 @@ module m_pprts
                 & v, &
                 & atm%l1d(atmk(solver%atm,k)))
               coeffs(:,k,i,j) = real(v, ireals)
+
+              if (ldebug_optprop) then
+                c(1:C_diff%dof,1:C_diff%dof) => coeffs(:,k,i,j) ! dim(src,dst)
+                do src = 1, C_diff%dof
+                  norm = sum( c(src,:) )
+                  if( norm.gt.one ) then ! could renormalize
+                    if( norm.gt.one+100._ireals*sqrt(epsilon(norm)) ) then ! fatally off
+                      print *,'diffuse sum(dst==', src, ') gt one', norm
+                      print *,'diffuse coeff', norm, '::', c(src,:)
+                      call CHKERR(1_mpiint, 'omg.. shouldnt be happening')
+                    endif ! fatally off
+                    c(src,:) = c(src,:) / norm
+                  endif ! could renormalize
+                enddo
+              endif
             endif
           enddo
         enddo
