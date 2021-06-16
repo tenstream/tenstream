@@ -14,7 +14,6 @@ module m_intersection
   private
   public &
     & hit_plane, &
-    & line_intersection_3d, &
     & pnt_in_cube, &
     & pnt_in_rectangle, &
     & pnt_in_triangle, &
@@ -65,12 +64,6 @@ module m_intersection
     module procedure triangle_intersection_${dtype}$
     #:endfor
   end interface
-
-  interface line_intersection_3d
-    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure line_intersection_3d_${dtype}$
-    #:endfor
-  end interface
 contains
 
   !> @brief determine distance where a photon p intersects with a plane
@@ -81,10 +74,9 @@ contains
     real(${dtype}$),intent(in) :: p_loc(3), p_dir(3)
     real(${dtype}$),intent(in) :: po(3), pn(3)
     real(${dtype}$) :: discr
-    real(${dtype}$), parameter :: H = sqrt(huge(hit_plane))
     discr = dot_product(p_dir,pn)
     if( ( discr.le. epsilon(discr) ) .and. ( discr.gt.-epsilon(discr)  ) ) then
-      hit_plane = H
+      hit_plane = huge(hit_plane)
     else
       hit_plane = dot_product(po-p_loc, pn) / discr
     endif
@@ -389,55 +381,5 @@ contains
     hit(1:3) = b0*tA + b1*tB + b2*tC
     if(ldebug) print *,'Hit triangle', lhit, '::', hit
   end subroutine
-  #:endfor
-
-  !> @brief determine line function coefficients of possible intersection of two lines in 3d
-  !> @details inputs are the origins and directions of the two lines. The return cs_i are the corresponding coefficients of the
-  !line equations formed by origin_i and direction_i. If the lines are either parallel or coincident, -huge is returned for both
-  !coefficients. The minimum distance between the two lines can be determined by plugging the return coefficients into the line
-  !equations and taking the norm of the connecting vector. If the distance is zero, the lines cross or they are coincident, which
-  !can be distinguished by the value of the coefficients (huge for coincident lines).
-  ! http://paulbourke.net/geometry/pointlineplane/
-  #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    subroutine line_intersection_3d_${dtype}$(p1, direction1, p3, direction2, c1, c2, ierr)
-      real(${dtype}$), dimension(3), intent(in) :: p1, direction1, p3, direction2
-      real(${dtype}$), intent(out) :: c1, c2
-      integer(mpiint), intent(out) :: ierr
-      real(${dtype}$) :: denominator, p2(3), p4(3)
-      real(${dtype}$), parameter :: huge_val = huge(c1), limit = sqrt(epsilon(c1)) ! limit = 1e-6_${dtype}$
-      ! 1e+2 for single precision, 1e-6 for double precision
-
-      p2 = p1 + direction1
-      p4 = p3 + direction2
-
-      denominator = nd_mnop(p2,p1,p2,p1) * nd_mnop(p4,p3,p4,p3) - nd_mnop(p4,p3,p2,p1) ** 2
-
-      !print *, 'denom', denominator
-      if ( approx(denominator, 0._${dtype}$, limit) ) then
-        ierr = 1 ! lines are parallel or coincident
-        c1 = - huge_val
-        c2 = - huge_val
-      else
-        ierr = 0
-        denominator = d_mnop(p2,p1,p2,p1) * d_mnop(p4,p3,p4,p3) - d_mnop(p4,p3,p2,p1) ** 2
-        c1 = (d_mnop(p1,p3,p4,p3) * d_mnop(p4,p3,p2,p1) - d_mnop(p1,p3,p2,p1) * d_mnop(p4,p3,p4,p3)) / denominator
-        c2 = (d_mnop(p1,p3,p4,p3) + c1 * d_mnop(p4,p3,p2,p1)) / d_mnop(p4,p3,p4,p3)
-      endif
-      contains
-        pure function nd_mnop(m, n, o, p)
-          real(${dtype}$), dimension(3), intent(in) :: m, n, o, p
-          real(${dtype}$) :: nd_mnop, a(3), b(3)
-          a = m - n
-          a = a / norm2(a)
-          b = o - p
-          b = b / norm2(b)
-          nd_mnop = dot_product(a, b)
-        end function
-        pure function d_mnop(m, n, o, p)
-          real(${dtype}$), dimension(3), intent(in) :: m, n, o, p
-          real(${dtype}$) :: d_mnop
-          d_mnop = dot_product(m - n, o - p)
-        end function
-    end subroutine
   #:endfor
 end module
