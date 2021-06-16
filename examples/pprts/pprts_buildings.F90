@@ -3,7 +3,7 @@ module m_examples_pprts_buildings
     & init_mpi_data_parameters, &
     & finalize_mpi, &
     & iintegers, ireals, mpiint, &
-    & zero, one, pi, i1, i2, default_str_len
+    & zero, one, pi, i1, i2, i6, default_str_len
 
   use m_helper_functions, only : &
     & CHKERR, &
@@ -42,6 +42,7 @@ contains
       & lthermal, lsolar,                   &
       & Nx, Ny, Nlay, icollapse,            &
       & glob_box_i, glob_box_j, glob_box_k, &
+      & box_Ni, box_Nj, box_Nk,             &
       & box_albedo, box_planck,             &
       & dx, dy, dz,                         &
       & incSolar, phi0, theta0,             &
@@ -55,6 +56,7 @@ contains
     integer(iintegers), intent(in) :: Nx, Ny, Nlay ! global domain size
     integer(iintegers), intent(in) :: icollapse    ! collapse upper nr of layers into 1 layer
     integer(iintegers), intent(in) :: glob_box_i, glob_box_j, glob_box_k ! global index of a single cube building
+    integer(iintegers), intent(in) :: box_Ni, box_Nj, box_Nk ! number of layers of the building
     real(ireals), intent(in) :: box_albedo         ! albedo of building faces
     real(ireals), intent(in) :: box_planck         ! planck emission of building faces (only used if lthermal=.True.)
     real(ireals), intent(in) :: dx, dy, dz         ! grid spacing in [m]
@@ -76,7 +78,7 @@ contains
 
     character(len=default_str_len) :: groups(2)
 
-    integer(iintegers) :: k, i
+    integer(iintegers) :: k, i, j, faceid, building_idx
     integer(iintegers) :: box_k, box_i, box_j
     integer(mpiint) :: myid, numnodes, ierr
 
@@ -110,23 +112,29 @@ contains
       box_i = glob_box_i - C1%xs
       box_j = glob_box_j - C1%ys
 
-      if(lverbose) print *, myid, 'Have box:', &
-        & is_inrange(glob_box_k, C1%zs+1, C1%ze+1), &
-        & is_inrange(glob_box_i, C1%xs+1, C1%xe+1), &
-        & is_inrange(glob_box_j, C1%ys+1, C1%ye+1)
+      do i=-box_Ni+1, box_Ni-1
+        do j=-box_Nj+1, box_Nj-1
+          if(lverbose) print *, myid, 'Have box:', &
+            & i,j,':',&
+            & is_inrange(glob_box_i+i, C1%xs+1, C1%xe+1), &
+            & is_inrange(glob_box_j+j, C1%ys+1, C1%ye+1)
+        enddo
+      enddo
 
-      if( &
-        !& .False. .and. &
-        & is_inrange(glob_box_k, C1%zs+1, C1%ze+1).and. &
-        & is_inrange(glob_box_i, C1%xs+1, C1%xe+1).and. &
-        & is_inrange(glob_box_j, C1%ys+1, C1%ye+1)      ) then
+      lhave_box = .False.
+      Nbuildings = 0
+      do i=-box_Ni+1, box_Ni-1
+        do j=-box_Nj+1, box_Nj-1
+          if( &
+            & is_inrange(glob_box_i+i, C1%xs+1, C1%xe+1).and. &
+            & is_inrange(glob_box_j+j, C1%ys+1, C1%ye+1)      ) then
 
-        lhave_box = .True.
-        Nbuildings = 6
-      else
-        lhave_box = .False.
-        Nbuildings = 0
-      endif
+            lhave_box = .True.
+            Nbuildings = Nbuildings + 6 * box_Nk
+          endif
+        enddo
+      enddo
+      print *,myid,': Nbuildings',Nbuildings
 
       call init_buildings(buildings, &
         & [integer(iintegers) :: 6, C1%zm, C1%xm,  C1%ym], &
@@ -134,14 +142,28 @@ contains
         & ierr); call CHKERR(ierr)
 
       if(lthermal) allocate(buildings%planck(Nbuildings))
-      do i=1,Nbuildings
-        buildings%iface(i) = faceidx_by_cell_plus_offset( &
-          & buildings%da_offsets, &
-          & box_k, &
-          & box_i, &
-          & box_j, i)
-        buildings%albedo(i) = box_albedo
-        if(lthermal) buildings%planck(i) = box_planck
+      building_idx = 1
+      do i=-box_Ni+1, box_Ni-1
+        do j=-box_Nj+1, box_Nj-1
+          if( &
+            & is_inrange(glob_box_i+i, C1%xs+1, C1%xe+1).and. &
+            & is_inrange(glob_box_j+j, C1%ys+1, C1%ye+1)      ) then
+            do k = 0, box_Nk-1
+              do faceid = 1, 6
+                buildings%iface(building_idx) = faceidx_by_cell_plus_offset( &
+                  & buildings%da_offsets, &
+                  & box_k-k, &
+                  & box_i+i, &
+                  & box_j+j, faceid)
+                buildings%albedo(building_idx) = box_albedo
+                if(lthermal) buildings%planck(building_idx) = box_planck
+                !print *, building_idx, 'building kij',box_k-k,box_i+i,box_j+j, faceid, &
+                !  & 'iface', buildings%iface(building_idx), 'albedo', buildings%albedo(building_idx)
+                building_idx = building_idx+1
+              enddo
+            enddo
+          endif
+        enddo
       enddo
 
       call check_buildings_consistency(buildings, C1%zm, C1%xm, C1%ym, ierr); call CHKERR(ierr)

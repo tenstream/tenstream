@@ -36,7 +36,7 @@ module m_dyn_atm_to_rrtmg
   use m_helper_functions, only: CHKWARN, CHKERR, reverse, &
     imp_allreduce_min, imp_allreduce_max, &
     imp_bcast, read_ascii_file_2d, &
-    gradient, get_arg, itoa, ftoa, &
+    gradient, get_arg, toStr, &
     meanvec, meanval, assert_arr_is_monotonous
 
   use m_search, only: search_sorted_bisection
@@ -197,7 +197,7 @@ module m_dyn_atm_to_rrtmg
         else
           call sanitize_input(lTOA_to_srfc, d_plev(:,icol), d_tlev(:,icol), ierr)
         endif
-        call CHKERR(ierr, 'bad input from dynamics grid, column: '//itoa(icol))
+        call CHKERR(ierr, 'bad input from dynamics grid, column: '//toStr(icol))
       enddo
 
       call merge_dyn_rad_grid(comm, atm, &
@@ -235,7 +235,7 @@ module m_dyn_atm_to_rrtmg
 
           if(present(d_arr)) then
             if(present(ncol)) call CHKERR(int(size(d_arr,1)-ncol, mpiint), &
-              'bad nr cols got'//itoa(size(d_arr,1))//' expect '//itoa(ncol))
+              'bad nr cols got'//toStr(size(d_arr,1))//' expect '//toStr(ncol))
           endif
         end subroutine
         subroutine check_shape_2d(d_arr, k, ncol)
@@ -244,9 +244,9 @@ module m_dyn_atm_to_rrtmg
 
           if(present(d_arr)) then
             if(present(k))    call CHKERR(int(size(d_arr,1)-k   , mpiint), &
-              'bad vert size! got '//itoa(size(d_arr,1))//' but expected '//itoa(k))
+              'bad vert size! got '//toStr(size(d_arr,1))//' but expected '//toStr(k))
             if(present(ncol)) call CHKERR(int(size(d_arr,2)-ncol, mpiint), &
-              'bad nr cols got '//itoa(size(d_arr,2))//' but expected '//itoa(ncol))
+              'bad nr cols got '//toStr(size(d_arr,2))//' but expected '//toStr(ncol))
           endif
         end subroutine
     end subroutine
@@ -403,7 +403,7 @@ module m_dyn_atm_to_rrtmg
         if(allocated(atm%atm_ke)) then
           call CHKERR(int(atm%d_ke1-ubound(d_plev,1),mpiint), &
             'Seems you changed the vertical dimension of the input between calls.'// &
-            'atm_d_ke1 '//itoa(atm%d_ke1)//' d_plev '//itoa(ubound(d_plev,1))// &
+            'atm_d_ke1 '//toStr(atm%d_ke1)//' d_plev '//toStr(ubound(d_plev,1))// &
             ' You have to destroy the atmosphere first and recreate')
         endif
 
@@ -455,9 +455,11 @@ module m_dyn_atm_to_rrtmg
           call imp_allreduce_min(comm, minval_plev, global_minplev)
 
           if(global_maxheight.ge.bg_atm%zt(1)) &
-            call CHKERR(1_mpiint, 'background profile TOA height is smaller than dynamics grid height')
+            call CHKERR(1_mpiint, 'background profile TOA height ('//toStr(bg_atm%zt(1))//') '// &
+            & 'is smaller than dynamics grid height ('//toStr(global_maxheight)//')')
           if(global_minplev.le.bg_atm%plev(1)) &
-            call CHKERR(1_mpiint, 'background profile TOA pressure is larger than dynamics grid pressure')
+            call CHKERR(1_mpiint, 'background profile TOA pressure ('//toStr(bg_atm%plev(1))//') '//&
+            & 'is larger than dynamics grid pressure ('//toStr(global_minplev)//')')
 
           l = floor(search_sorted_bisection(bg_atm%zt, global_maxheight))
           m = floor(search_sorted_bisection(bg_atm%plev, global_minplev))
@@ -843,7 +845,7 @@ module m_dyn_atm_to_rrtmg
         print *,'tlay',tlay
         print *,'dz',dz
         print *,'hhl',hhl
-        call CHKERR(1_mpiint, 'error in dz, dz.le.zero minval:'//ftoa(minval(dz)))
+        call CHKERR(1_mpiint, 'error in dz, dz.le.zero minval:'//toStr(minval(dz)))
       endif
     end subroutine
 

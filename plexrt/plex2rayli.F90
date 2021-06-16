@@ -241,7 +241,7 @@ module m_plex2rayli
     type(tVec), intent(in), optional :: plck
     real(ireals), intent(in) :: sundir(:)
     type(t_state_container), intent(inout) :: solution
-    integer(iintegers), intent(in), optional :: nr_photons
+    real(ireals), intent(in), optional :: nr_photons
     PetscLogEvent, intent(in), optional :: petsc_log
     type(t_plex_buildings), intent(in), optional :: opt_buildings
     integer(iintegers), intent(in), optional :: opt_Nthreads
@@ -286,7 +286,7 @@ module m_plex2rayli
     Nthreads = int(opt_Nthreads_int, c_size_t)
 
     call VecGetSize(albedo, opt_photons_int, ierr); call CHKERR(ierr)
-    opt_photons = real(get_arg(opt_photons_int*10, nr_photons), ireals)
+    opt_photons = get_arg(real(opt_photons_int*10, ireals), nr_photons)
     call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
       "-rayli_photons", opt_photons, lflg,ierr) ; call CHKERR(ierr)
     Nphotons = int(opt_photons, c_size_t)
@@ -568,7 +568,7 @@ module m_plex2rayli
         & rsundir, &
         & solution, ierr)
       integer(mpiint),   intent(in) :: comm
-      integer(iintegers),intent(in) :: nr_photons
+      real(ireals),      intent(in) :: nr_photons
       integer(c_size_t), intent(in) :: Nthreads, Nwedges, Nfaces, Nverts
       integer(c_int),    intent(in) :: icyclic
       integer(c_size_t), intent(in) :: verts_of_face(:,:)
@@ -625,7 +625,7 @@ module m_plex2rayli
         '-rayli_snap_Ny', narg, lflg, ierr); call CHKERR(ierr)
       if(lflg) Ny = narg
 
-      opt_photons = real(nr_photons, ireals)
+      opt_photons = nr_photons
       call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
         "-rayli_snap_photons", opt_photons, lflg,ierr) ; call CHKERR(ierr)
       opt_photons_int = int(opt_photons, c_size_t)
