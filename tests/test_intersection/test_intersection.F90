@@ -21,7 +21,7 @@ module test_intersection
 
 contains
 
-  !@test(npes =[1])
+  @test(npes =[1])
   subroutine test_triangle_functions_dp(this)
     class (MpiTestMethod), intent(inout) :: this
 

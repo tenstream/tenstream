@@ -337,49 +337,8 @@ contains
       print *, 'src y', v_mc(3:9:3)
     endif
 
-    @assertEqual(v_mc, v, max(maxval(v_mc)*0.05_ireals, 1e-6_ireals), 'failed for case 1'//'; phi='//toStr(phi)//'; theta='//toStr(theta))
+    @assertEqual(v_mc, v, max(maxval(v_mc)*0.05_ireals, 1e-6_ireals), 'failed for case 3'//'; phi='//toStr(phi)//'; theta='//toStr(theta))
 
-  end subroutine
-
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-  subroutine check(S_target,T_target, S,T, msg)
-    real(ireals),intent(in),dimension(:) :: S_target,T_target, S,T
-
-    character(len=*),optional :: msg
-    character(default_str_len) :: local_msgS, local_msgT
-
-    if(myid.eq.0) then
-      print*,''
-
-      if( present(msg) ) then
-        write(local_msgS,*) trim(msg),':: Diffuse boxmc coefficient not as '
-        write(local_msgT,*) trim(msg),':: Direct  boxmc coefficient not as '
-        print *,msg
-      else
-        write(local_msgS,*) 'Diffuse boxmc coefficient not as '
-        write(local_msgT,*) 'Direct  boxmc coefficient not as '
-      endif
-
-      print*,'---------------------'
-      write(*, FMT='( " diffuse ::  :: ",10(es12.5) )' ) S
-      write(*, FMT='( " target  ::  :: ",10(es12.5) )' ) S_target
-      write(*, FMT='( " diff    ::  :: ",10(es12.5) )' ) S_target-S
-      print*,''
-      write(*, FMT='( " direct  ::  :: ", 8(es12.5) )' ) T
-      write(*, FMT='( " target  ::  :: ", 8(es12.5) )' ) T_target
-      write(*, FMT='( " diff    ::  :: ", 8(es12.5) )' ) T_target-T
-      print*,'---------------------'
-      print*,''
-
-      @assertEqual(S_target, S, real(atol*sigma, ireals), local_msgS )
-      @assertLessThanOrEqual   (zero, S)
-      @assertGreaterThanOrEqual(one , S)
-
-      @assertEqual(T_target, T, real(atol*sigma, ireals), local_msgT )
-      @assertLessThanOrEqual   (zero, T)
-      @assertGreaterThanOrEqual(one , T)
-    endif
   end subroutine
 
 end module
