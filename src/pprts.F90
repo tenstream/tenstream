@@ -2465,7 +2465,8 @@ module m_pprts
                   & v, &
                   & atm%l1d(atmk(solver%atm,k)), &
                   & [real(sun%symmetry_phi, irealLUT), real(sun%theta, irealLUT)], &
-                  & lswitch_east=sun%xinc.eq.0, lswitch_north=sun%yinc.eq.0)
+                  & lswitch_east=sun%xinc.eq.0, lswitch_north=sun%yinc.eq.0, &
+                  & opt_vertices=vertices)
                 coeffs(:,k,i,j) = real(v, ireals)
               endif
 
@@ -2527,8 +2528,11 @@ module m_pprts
     integer(iintegers) :: src, k, i, j
     integer(mpiint) :: ierr
 
+    real(ireals), pointer :: xhhl(:,:,:,:) => null(), xhhl1d(:) => null()
+    real(ireals), allocatable :: vertices(:)
     real(ireals) :: norm
     real(ireals), pointer :: c(:,:)
+    logical :: lgeometric_coeffs, lflg
 
     associate( &
         & atm     => solver%atm, &
@@ -2545,10 +2549,36 @@ module m_pprts
       allocate(v(1:C_dir%dof*C_diff%dof))
       call PetscLogEventBegin(solver%logs%get_coeff_dir2diff, ierr); call CHKERR(ierr)
 
+      lgeometric_coeffs = .False.
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+        & "-pprts_geometric_coeffs", lgeometric_coeffs, lflg, ierr) ;call CHKERR(ierr)
+
+      call setup_default_unit_cube_geometry(atm%dx, atm%dy, -one, vertices)
+      call getVecPointer(solver%Cvert_one_atm1%da, solver%atm%vert_heights, xhhl1d, xhhl, readonly=.True.)
+
       do j=C_dir%ys,C_dir%ye
         do i=C_dir%xs,C_dir%xe
           do k=C_dir%zs,C_dir%ze-1
             if(.not.atm%l1d(atmk(atm,k)) ) then
+
+              vertices( 3) = xhhl(i0,atmk(solver%atm,k+1),i,j)
+              vertices( 6) = xhhl(i0,atmk(solver%atm,k+1),i+1,j)
+              vertices( 9) = xhhl(i0,atmk(solver%atm,k+1),i,j+1)
+              vertices(12) = xhhl(i0,atmk(solver%atm,k+1),i+1,j+1)
+              vertices(15) = xhhl(i0,atmk(solver%atm,k),i,j)
+              vertices(18) = xhhl(i0,atmk(solver%atm,k),i+1,j)
+              vertices(21) = xhhl(i0,atmk(solver%atm,k),i,j+1)
+              vertices(24) = xhhl(i0,atmk(solver%atm,k),i+1,j+1)
+
+              vertices(3:24:3) = vertices(3:24:3) - vertices(3)
+
+              if (lgeometric_coeffs) then
+                !not in a plane -> use 3 and construct 4th point
+                vertices(12) = vertices(9) +  (vertices(3) - vertices(6))
+                !make bottom and top of box parallel !!! USE MEAN DZ MAYBE?
+                vertices([15,18,21,24]) = vertices([3,6,9,12]) + solver%atm%dz(atmk(solver%atm, k), i, j)
+              endif
+
               call get_coeff(solver, &
                 & atm%kabs(atmk(solver%atm,k),i,j), &
                 & atm%ksca(atmk(solver%atm,k),i,j), &
@@ -2557,7 +2587,8 @@ module m_pprts
                 & v, &
                 & atm%l1d(atmk(solver%atm,k)), &
                 & [real(sun%symmetry_phi, irealLUT), real(sun%theta, irealLUT)], &
-                & lswitch_east=sun%xinc.eq.0, lswitch_north=sun%yinc.eq.0)
+                & lswitch_east=sun%xinc.eq.0, lswitch_north=sun%yinc.eq.0, &
+                & opt_vertices=vertices)
               coeffs(:,k,i,j) = real(v, ireals)
 
               if (ldebug_optprop) then
@@ -2578,6 +2609,7 @@ module m_pprts
           enddo
         enddo
       enddo
+      call restoreVecPointer(solver%Cvert_one_atm1%da, solver%atm%vert_heights, xhhl1d, xhhl, readonly=.True.)
       call PetscLogEventEnd(solver%logs%get_coeff_dir2diff, ierr); call CHKERR(ierr)
     end associate
   end subroutine
