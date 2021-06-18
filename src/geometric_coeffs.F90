@@ -21,7 +21,7 @@ module m_geometric_coeffs
 
 use m_data_parameters, only : ireals, mpiint, iintegers, zero, one, Pi
 use m_helper_functions, only : pentagon_area_by_vertices, quadrangle_area_by_vertices, &
-  triangle_area_by_vertices, compute_normal_3d, cross_3d, cstr, CHKERR, toStr, stripSpaces
+  triangle_area_by_vertices, compute_normal_3d, cross_3d, cstr, CHKERR, toStr
 use m_intersection, only: hit_plane, line_intersection_3d
 
 implicit none
@@ -254,10 +254,10 @@ contains
       if (ldebug) then
         print *, cstr('area2 computation', 'yellow')
         print *, cstr('quadrangle areas, triangle areas', 'yellow')
-        print *, stripSpaces('v1, s1='//toStr(s1)//', a21q='//toStr(a21q)//', a21t='//toStr(a21t))
-        print *, stripSpaces('v2, s2='//toStr(s2)//', a22q='//toStr(a22q)//', a22t='//toStr(a21t))
-        print *, stripSpaces('v3, s3='//toStr(s3)//', a23q='//toStr(a23q)//', a23t='//toStr(a23t))
-        print *, stripSpaces('v4, s4='//toStr(s4)//', a24q='//toStr(a24q)//', a24t='//toStr(a24t))
+        print *, 'v1, s1='//toStr(s1)//', a21q='//toStr(a21q)//', a21t='//toStr(a21t)
+        print *, 'v2, s2='//toStr(s2)//', a22q='//toStr(a22q)//', a22t='//toStr(a21t)
+        print *, 'v3, s3='//toStr(s3)//', a23q='//toStr(a23q)//', a23t='//toStr(a23t)
+        print *, 'v4, s4='//toStr(s4)//', a24q='//toStr(a24q)//', a24t='//toStr(a24t)
         print *, '_________________________________________________________________'
       endif
 
@@ -288,18 +288,18 @@ contains
       if (ldebug) then
         print *, cstr('area3 computation', 'yellow')
         print *, cstr('quadrangle areas, triangle areas', 'yellow')
-        print *, 'v1, s1='//stripSpaces(toStr(s1))//&
-          &', a31q='//stripSpaces(toStr(a31q))//', f_dst='//stripSpaces(toStr(f_dst(s1, extinction_coeff)))//&
-          &', a31t='//stripSpaces(toStr(a31t))
-        print *, 'v2, s2='//stripSpaces(toStr(s2))//&
-          &', a32q='//stripSpaces(toStr(a32q))//', f_dst='//stripSpaces(toStr(f_dst(s2, extinction_coeff)))//&
-          &', a32t='//stripSpaces(toStr(a31t))
-        print *, 'v3, s3='//stripSpaces(toStr(s3))//&
-          &', a33q='//stripSpaces(toStr(a33q))//', f_dst='//stripSpaces(toStr(f_dst(s3, extinction_coeff)))//&
-          &', a33t='//stripSpaces(toStr(a33t))
-        print *, 'v4, s4='//stripSpaces(toStr(s4))//&
-          &', a34q='//stripSpaces(toStr(a34q))//', f_dst='//stripSpaces(toStr(f_dst(s4, extinction_coeff)))//&
-          &', a34t='//stripSpaces(toStr(a34t))
+        print *, 'v1, s1='//toStr(s1)//&
+          &', a31q='//toStr(a31q)//', f_dst='//toStr(f_dst(s1, extinction_coeff))//&
+          &', a31t='//toStr(a31t)
+        print *, 'v2, s2='//toStr(s2)//&
+          &', a32q='//toStr(a32q)//', f_dst='//toStr(f_dst(s2, extinction_coeff))//&
+          &', a32t='//toStr(a31t)
+        print *, 'v3, s3='//toStr(s3)//&
+          &', a33q='//toStr(a33q)//', f_dst='//toStr(f_dst(s3, extinction_coeff))//&
+          &', a33t='//toStr(a33t)
+        print *, 'v4, s4='//toStr(s4)//&
+          &', a34q='//toStr(a34q)//', f_dst='//toStr(f_dst(s4, extinction_coeff))//&
+          &', a34t='//toStr(a34t)
         print *, '_________________________________________________________________'
       endif
 
