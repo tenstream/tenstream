@@ -2,7 +2,7 @@ module test_intersection
 
   use m_data_parameters, only: &
     & ireals, ireal_dp, &
-    & iintegers
+    & iintegers, mpiint, zero, one
 
   use m_helper_functions, only : &
     & compute_normal_3d, &
@@ -12,7 +12,8 @@ module test_intersection
   use m_intersection, only : &
     & hit_plane, &
     & pnt_in_triangle, &
-    & triangle_intersection
+    & triangle_intersection, &
+    & line_intersection_3d
 
   use pfunit_mod
 
@@ -20,7 +21,7 @@ module test_intersection
 
 contains
 
-  @test(npes =[1])
+  !@test(npes =[1])
   subroutine test_triangle_functions_dp(this)
     class (MpiTestMethod), intent(inout) :: this
 
@@ -241,4 +242,45 @@ contains
     @assertFalse(lhit)
   end subroutine
 
+  @test(npes =[1])
+  subroutine test_line_intersection_3d(this)
+  class (MpiTestMethod), intent(inout) :: this
+    real(ireals), dimension(3) :: ori1, ori2, ori3, dir1, dir2, dir3
+    real(ireals) :: c1, c2, denominator, tmp
+    integer(mpiint) :: ierr1
+    real(ireals), parameter :: atol = sqrt(epsilon(atol)), huge_val = huge(c1)
+
+
+    ori1 = [real(ireals) ::  one, zero, zero]
+    ori2 = [real(ireals) :: zero,  one, zero]
+    ori3 = [real(ireals) :: zero, zero,  one]
+
+    dir1 = [real(ireals) ::  one, zero, zero]
+    dir2 = [real(ireals) :: zero,  one, zero]
+    dir3 = [real(ireals) :: zero, zero,  one]
+
+    call line_intersection_3d(ori1, dir1, ori2, dir2, c1, tmp, ierr1)
+    @assertEqual(c1, - one, atol)
+    @assertEqual(tmp, - one, atol)
+
+    call line_intersection_3d(ori1, dir1, ori3, dir3, c1, tmp, ierr1)
+    @assertEqual(c1, - one, atol)
+    @assertEqual(tmp, - one, atol)
+
+    call line_intersection_3d(ori2, dir2, ori3, dir3, c1, tmp, ierr1)
+    @assertEqual(c1, - one, atol)
+    @assertEqual(tmp, - one, atol)
+
+    call line_intersection_3d(ori1, dir1, ori2, dir1, c1, tmp, ierr1)
+    @assertEqual(c1, - huge_val, atol)
+    @assertEqual(tmp, - huge_val, atol)
+
+    call line_intersection_3d(ori1, dir1, ori3, dir1, c1, tmp, ierr1)
+    @assertEqual(c1, - huge_val, atol)
+    @assertEqual(tmp, - huge_val, atol)
+
+    call line_intersection_3d(ori2, dir2, ori3, dir2, c1, tmp, ierr1)
+    @assertEqual(c1, - huge_val, atol)
+    @assertEqual(tmp, - huge_val, atol)
+  end subroutine
 end module
