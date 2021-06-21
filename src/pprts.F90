@@ -2392,7 +2392,6 @@ module m_pprts
     real(ireals), target, allocatable, intent(inout) :: coeffs(:,:,:,:)
     type(t_pprts_buildings), optional, intent(in) :: opt_buildings
     real(irealLUT), allocatable :: v(:)
-    real(ireals), allocatable :: v_gomtrc(:)
     integer(iintegers) :: src,k,i,j
     integer(mpiint) :: ierr
 
@@ -2415,7 +2414,6 @@ module m_pprts
         & C_dir%xs:C_dir%xe, &
         & C_dir%ys:C_dir%ye))
       allocate(v(1:C_dir%dof**2))
-      allocate(v_gomtrc(1:C_dir%dof**2))
 
 
       call PetscLogEventBegin(solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
@@ -2448,14 +2446,17 @@ module m_pprts
                 vertices(12) = vertices(9) +  (vertices(3) - vertices(6))
                 !make bottom and top of box parallel !!! USE MEAN DZ MAYBE?
                 vertices([15,18,21,24]) = vertices([3,6,9,12]) + solver%atm%dz(atmk(solver%atm, k), i, j)
+
+                ! reg boxes options
+                !vertices(15:24:3) = solver%atm%dz(atmk(solver%atm, k), i, j)
+
                 call dir2dir3_geometric_coeffs( &
                   vertices, &
                   sun%sundir, &
                   [solver%atm%kabs(atmk(solver%atm, k), i, j), &
                   solver%atm%ksca(atmk(solver%atm, k), i, j), &
                   solver%atm%g(atmk(solver%atm, k), i, j)], &
-                  v_gomtrc)
-                coeffs(:,k,i,j) = v_gomtrc
+                  coeffs(:,k,i,j))
               else
                 call get_coeff(solver, &
                   & atm%kabs(atmk(solver%atm,k),i,j), &
