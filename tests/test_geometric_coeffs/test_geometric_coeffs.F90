@@ -62,16 +62,56 @@ contains
     if(myid.eq.0) print *,'Finishing boxmc tests module'
   end subroutine teardown
 
-  @test(npes =[1])
+  @test(npes=[1])
+  subroutine test_geometric_coeffs_lambert_beer(this)
+    class (MpitestMethod), intent(inout) :: this
+    real(ireals), allocatable :: verts(:)
+    real(ireals) :: v(9), v_trgt(9), sundir(3), c_ext
+    real(ireals), parameter :: dx=1, dy=dx, dz=dx
+
+    bg = [real(ireals) :: one, zero, 0.85]
+    c_ext = bg(1) + bg(2)
+    call setup_default_unit_cube_geometry(dx, dy, dz, verts)
+    phi = 180
+    theta = 0
+    sundir = spherical_2_cartesian(phi, theta) * [-one, -one, one]
+
+    if (ldebug) print *, 'sundir', sundir
+    call dir2dir3_geometric_coeffs(verts, sundir, c_ext, v)
+    v_trgt = [real(ireals) :: &
+      exp(-c_ext*dz), (one-exp(-c_ext*dz))/(c_ext*dz), (one-exp(-c_ext*dz))/(c_ext*dz), &
+      zero, zero, zero, &
+      zero, zero, zero &
+      ]
+
+    if (ldebug) then
+      print *, cstr('v_gomtrc', 'blue')
+      print *, 'src z', v(1:9:3)
+      print *, 'src x', v(2:9:3)
+      print *, 'src y', v(3:9:3)
+      print *, cstr('v_trgt', 'green')
+      print *, cstr('v_gomtrc', 'blue')
+      print *, 'src z', v_trgt(1:9:3)
+      print *, 'src x', v_trgt(2:9:3)
+      print *, 'src y', v_trgt(3:9:3)
+    endif
+
+
+    @assertEqual(v_trgt, v, max(maxval(v_trgt)*0.05_ireals, 1e-6_ireals), 'failed for phi='//toStr(phi)//'; theta='//toStr(theta))
+  end subroutine
+
+
+  @test(npes=[1])
   subroutine test_geometric_coeffs_distorted_box_no_scatter(this)
     class (MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: src, i
     real(ireals), allocatable :: verts(:)
     real(ireals) :: v(9), v_symmetry(9), v_mc(9), v_mc_225_40(20,9)
-    real(ireals) :: sundir(3), sundir_symmetry(3), verts_dtd(24), verts_dtd_symmetry(24)
+    real(ireals) :: sundir(3), sundir_symmetry(3), verts_dtd(24), verts_dtd_symmetry(24), c_ext
     real(ireals), parameter :: dx=1, dy=dx, dz=dx
 
     bg = [real(ireals) :: sqrt(epsilon(bg)), 0, 0.85]
+    c_ext = bg(1) + bg(2)
 
     call setup_default_unit_cube_geometry(dx, dy, dz, verts)
 
@@ -175,8 +215,8 @@ contains
       endif
 
 
-      call dir2dir3_geometric_coeffs(verts_dtd, sundir, bg, v)
-      call dir2dir3_geometric_coeffs(verts_dtd_symmetry, sundir_symmetry, bg, v_symmetry)
+      call dir2dir3_geometric_coeffs(verts_dtd, sundir, c_ext, v)
+      call dir2dir3_geometric_coeffs(verts_dtd_symmetry, sundir_symmetry, c_ext, v_symmetry)
 
       if (ldebug) then
         print *, cstr('dtd', 'blue')
@@ -207,11 +247,6 @@ contains
 
       @assertEqual(v_mc, v, max(maxval(v_mc)*0.05_ireals, 1e-6_ireals), 'failed for i='//toStr(i)//'; phi='//toStr(phi)//'; theta='//toStr(theta))
       @assertEqual(v_mc, v_symmetry, max(maxval(v_mc)*0.05_ireals, 1e-6_ireals), 'symmetry case failed for i='//toStr(i)//'; phi='//toStr(phi-180._ireals)//'; theta='//toStr(theta))
-
-      if (ldebug) then
-        print *, '___________________________________________________________________________________________'
-        print *, '___________________________________________________________________________________________'
-      endif
     enddo
 
   end subroutine
@@ -221,13 +256,14 @@ contains
     class(MpiTestMethod), intent(inout) :: this
     real(ireals), allocatable :: verts(:)
     real(ireals) :: v(9), v_mc(9)
-    real(ireals) :: sundir(3), verts_dtd(24)
+    real(ireals) :: sundir(3), verts_dtd(24), c_ext
     real(ireals), parameter :: dx=1, dy=dx, dz=dx
     integer(iintegers) :: src
 
     call setup_default_unit_cube_geometry(dx, dy, dz, verts)
 
     bg = [real(ireals) :: sqrt(epsilon(bg)), 0, 0.85]
+    c_ext = bg(1) + bg(2)
 
     verts_dtd = verts
     verts_dtd([3,6,15,18]) = verts_dtd([3,6,15,18]) + dz
@@ -256,7 +292,7 @@ contains
       print *, sundir
     endif
 
-    call dir2dir3_geometric_coeffs(verts_dtd, sundir, bg, v)
+    call dir2dir3_geometric_coeffs(verts_dtd, sundir, c_ext, v)
     v_mc = [real(ireals) :: 0, 0.5, 1, 0, 0, 0, 1, 0.5, 0]
 
     if (ldebug) then
@@ -286,7 +322,7 @@ contains
       print *, sundir
     endif
 
-    call dir2dir3_geometric_coeffs(verts_dtd, sundir, bg, v)
+    call dir2dir3_geometric_coeffs(verts_dtd, sundir, c_ext, v)
     v_mc = [real(ireals) :: 0, 0, 0, 0, 0.5, 0, 1, 0.5, 1]
 
     if (ldebug) then
@@ -322,7 +358,7 @@ contains
     !  v_mc(src:9:3) = real(T, ireals)
     enddo
 
-    call dir2dir3_geometric_coeffs(verts_dtd, sundir, bg, v)
+    call dir2dir3_geometric_coeffs(verts_dtd, sundir, c_ext, v)
 
     if (ldebug) then
       print *, cstr('v_gomtrc', 'blue')
