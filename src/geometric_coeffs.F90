@@ -31,18 +31,16 @@ public :: dir2dir3_geometric_coeffs
 logical, parameter :: ldebug= .False.
 contains
 
-  subroutine dir2dir3_geometric_coeffs(verts, sundir, bg, coeffs, num_intervals)
+  subroutine dir2dir3_geometric_coeffs(verts, sundir, extinction_coeff, coeffs, num_intervals)
     real(ireals), intent(inout) :: coeffs(:)
-    real(ireals), intent(in) :: verts(:), sundir(:), bg(:)
+    real(ireals), intent(in) :: verts(:), sundir(:), extinction_coeff
     integer(iintegers), intent(in), optional :: num_intervals
     real(ireals), dimension(3) :: d_p, b_p, a_p, h_p, f_p, e_p, g_p
-    real(ireals) :: sun_up_down, extinction_coeff
+    real(ireals) :: sun_up_down
     real(ireals), parameter :: small=sqrt(epsilon(extinction_coeff))
 
-    extinction_coeff = bg(1) + bg(2)
     if (extinction_coeff .lt. small) &
-      & call CHKERR(1_mpiint, 'Extinction coeff too small. bg1='// &
-        & toStr(bg(1))//'; bg2='//toStr(bg(2)))
+      & call CHKERR(1_mpiint, 'Extinction coeff too small.')
 
     associate ( &
       a => verts( 1: 3), &
@@ -80,7 +78,6 @@ contains
       print *, '_________________________________________________________________'
       print *, cstr('src z', 'blue')
     endif
-
     call create_proj_copies(h, g, e, f, h_p, g_p, e_p, f_p)
     call project_points(sundir, d, compute_normal_3d(d, b, a), h_p, g_p, e_p, f_p)
     call rearange_projections(d, c, a, b, h_p, g_p, e_p, f_p)
@@ -149,7 +146,7 @@ contains
       integer(iintegers), dimension(3), intent(in) :: slice, other_slice
       real(ireals), intent(inout) :: coeffs(9)
       real(ireals) :: area1, area2, area3, sin_theta, cos_src_trgt, aq, at, s
-      real(ireals), dimension(3) :: pl, pb, pt, pr, normal, areas
+      real(ireals), dimension(3) :: pl, pb, pt, pr, normal
       real(ireals), parameter :: small = sqrt(epsilon(one))
 
       if (ldebug) then
@@ -168,8 +165,8 @@ contains
       cos_src_trgt = cos(acos(dot_product(f1 - f2, f1 - f4) / (norm2(f1 - f2) * norm2(f1 - f4))) - Pi / 2)
 
       if (norm2(v1-f1) .gt. small) then
-        call proj_var_to_edges(f1, f2, f3, f4, v1, pl, pb, pt, pr)
         if (ldebug) print *, cstr('v1', 'red')
+        call proj_var_to_edges(f1, f2, f3, f4, v1, pl, pb, pt, pr)
         area1 = quadrangle_area_by_vertices(v1, pb, f3, pl) * exp( - extinction_coeff * s)
         s = norm2(hit_plane(v1, sundir, f1, normal) * sundir) ! prp - v1
 
@@ -182,8 +179,8 @@ contains
         aq = quadrangle_area_by_vertices(v1, pl, f4, pt) * f_dst(s, extinction_coeff)
         at = num_dst(s, norm2(f1 - pt) * cos_src_trgt, norm2(pt - v1), extinction_coeff, num_intervals)
       else if (norm2(v2-f2) .gt. small) then
-        call proj_var_to_edges(f2, f1, f4, f3, v2, pl, pt, pb, pr)
         if (ldebug) print *, cstr('v2', 'red')
+        call proj_var_to_edges(f2, f1, f4, f3, v2, pl, pt, pb, pr)
         area1 = quadrangle_area_by_vertices(v2, pl, f4, pt) * exp( - extinction_coeff * s)
 
         s = norm2(hit_plane(v2, sundir, f2, normal) * sundir) ! prp - v2
@@ -228,7 +225,7 @@ contains
         at = num_dst(s, norm2(f4 - pt) * cos_src_trgt, norm2(pt - v4), extinction_coeff, num_intervals)
       else
         ! initializing non initialized in case of no other fullfilled case
-        area1 = zero
+        area1 = quadrangle_area_by_vertices(f1, f2, f3, f4) * exp(- extinction_coeff * s)
         area2 = zero
         aq = zero
         at = zero
@@ -247,9 +244,7 @@ contains
       area1 = area1 - sun_up_down * area3
       area3 = area3 + sun_up_down * area3
 
-      areas = max([area1, area2, area3], zero)
-
-      coeffs(slice) = areas / sum(areas)
+      coeffs(slice) = [area1, area2, area3] / quadrangle_area_by_vertices(f1, f2, f3, f4)
 
     end subroutine
 
