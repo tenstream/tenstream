@@ -2453,9 +2453,7 @@ module m_pprts
                 call dir2dir3_geometric_coeffs( &
                   vertices, &
                   sun%sundir, &
-                  [solver%atm%kabs(atmk(solver%atm, k), i, j), &
-                  solver%atm%ksca(atmk(solver%atm, k), i, j), &
-                  solver%atm%g(atmk(solver%atm, k), i, j)], &
+                  solver%atm%kabs(atmk(solver%atm, k), i, j) + solver%atm%ksca(atmk(solver%atm, k), i, j), &
                   coeffs(:,k,i,j))
               else
                 call get_coeff(solver, &
