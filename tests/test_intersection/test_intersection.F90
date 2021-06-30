@@ -246,7 +246,7 @@ contains
   subroutine test_line_intersection_3d(this)
   class (MpiTestMethod), intent(inout) :: this
     real(ireals), dimension(3) :: ori1, ori2, ori3, dir1, dir2, dir3
-    real(ireals) :: c1, c2, denominator, tmp
+    real(ireals) :: c1, tmp
     integer(mpiint) :: ierr1
     real(ireals), parameter :: atol = sqrt(epsilon(atol)), huge_val = huge(c1)
 
