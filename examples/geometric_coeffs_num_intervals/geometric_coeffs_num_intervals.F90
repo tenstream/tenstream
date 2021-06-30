@@ -38,7 +38,7 @@ contains
     real(ireals) :: S(10), T(3)
     real(ireals) :: S_tol(10), T_tol(3)
     real(ireals),parameter :: atol=1e-4, rtol=1e-3
-    real(ireals) :: c_gomtrc_reg_benchmark(9), c_gomtrc_reg(9,imax+1)
+    real(ireals) :: c_gomtrc_reg_benchmark(9), c_gomtrc_reg(9,imax+1), c_ext
     integer(mpiint) :: ierr
 
     call init_mpi_data_parameters(comm)
@@ -50,10 +50,11 @@ contains
     theta = 40
     sundir = spherical_2_cartesian(phi, theta) * [-one, -one, one]
     bg = [real(ireals) :: 1._ireals, 0._ireals, 0.85]
+    c_ext = bg(1) + bg(2)
 
-    call dir2dir3_geometric_coeffs(verts, sundir, bg, c_gomtrc_reg_benchmark, num_intervals=1000)
+    call dir2dir3_geometric_coeffs(verts, sundir, c_ext, c_gomtrc_reg_benchmark, num_intervals=10001)
     do i = 1,imax
-      call dir2dir3_geometric_coeffs(verts, sundir, bg, c_gomtrc_reg(:,i), num_intervals=i)
+      call dir2dir3_geometric_coeffs(verts, sundir, c_ext, c_gomtrc_reg(:,i), num_intervals=i)
       if (i .eq. imax) print *, 'gomtrc', c_gomtrc_reg(:,i)
       c_gomtrc_reg(:,i) = (c_gomtrc_reg_benchmark - c_gomtrc_reg(:,i)) / &
         (c_gomtrc_reg_benchmark + epsilon(c_gomtrc_reg))
@@ -64,11 +65,12 @@ contains
       -2.3252373907683343E-003, 0.0000000000000000,       -8.2549137394604885E-003, &
       -9.2645650761771661E-004, 1.4179496081441498E-003,  0.0000000000000000 &
       ]
+
     do src = 1,3
       !call bmc_3_10%get_coeff(comm,bg,src,.True.,phi,theta,verts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       !c_gomtrc_reg(src:9:3,imax+1) = real(T, ireals)
-      print *, cstr('montecarlo simulation not started, it is commented and the hard coded values are used. If you changed the box
-      geometry or bg, please make sure you uncomment the montecarlo call.', 'red')
+      print *, cstr('Montecarlo simulation not started, it is commented and the hard coded values are used.'//&
+        &'If you changed the box geometry or bg, please make sure you uncomment the montecarlo call.', 'red')
     enddo
 
 
