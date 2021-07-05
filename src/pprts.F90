@@ -2444,7 +2444,7 @@ module m_pprts
               if (lgeometric_coeffs) then
                 !not in a plane -> use 3 and construct 4th point
                 vertices(12) = vertices(9) +  (vertices(3) - vertices(6))
-                !make bottom and top of box parallel !!! USE MEAN DZ MAYBE?
+                !make bottom and top of box parallel
                 vertices([15,18,21,24]) = vertices([3,6,9,12]) + solver%atm%dz(atmk(solver%atm, k), i, j)
 
                 ! reg boxes options
@@ -2456,6 +2456,12 @@ module m_pprts
                   solver%atm%kabs(atmk(solver%atm, k), i, j) + solver%atm%ksca(atmk(solver%atm, k), i, j), &
                   coeffs(:,k,i,j))
               else
+                ! unparallel
+                !vertices(12) = vertices(9) +  (vertices(3) - vertices(6))
+                !vertices(24) = vertices(21) +  (vertices(15) - vertices(18))
+                ! parallel
+                !vertices(12) = vertices(9) +  (vertices(3) - vertices(6))
+                !vertices([15,18,21,24]) = vertices([3,6,9,12]) + solver%atm%dz(atmk(solver%atm, k), i, j)
                 call get_coeff(solver, &
                   & atm%kabs(atmk(solver%atm,k),i,j), &
                   & atm%ksca(atmk(solver%atm,k),i,j), &
@@ -2582,9 +2588,8 @@ module m_pprts
               !vertices(12) = vertices(9) +  (vertices(3) - vertices(6))
               !vertices(24) = vertices(21) +  (vertices(15) - vertices(18))
               ! parallel
-              vertices(12) = vertices(9) +  (vertices(3) - vertices(6))
-              vertices([15,18,21,24]) = vertices([3,6,9,12]) + solver%atm%dz(atmk(solver%atm, k), i, j)
-
+              !vertices(12) = vertices(9) +  (vertices(3) - vertices(6))
+              !vertices([15,18,21,24]) = vertices([3,6,9,12]) + solver%atm%dz(atmk(solver%atm, k), i, j)
 
               call get_coeff(solver, &
                 & atm%kabs(atmk(solver%atm,k),i,j), &
