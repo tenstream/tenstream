@@ -67,7 +67,7 @@ contains
       ]
 
     do src = 1,3
-      if (.false.) call bmc_3_10%get_coeff(comm,bg,src,.True.,phi,theta,verts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      if (.false.) call bmc_3_10%get_coeff(comm,real(bg, ireal_dp),src,.True.,phi,theta,verts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       c_gomtrc_reg(src:9:3,imax+1) = real(T, ireals)
       print *, cstr('Montecarlo simulation not started, it is commented and the hard coded values are used.'//&
         &'If you changed the box geometry or bg, please make sure you uncomment the montecarlo call.', 'red')
