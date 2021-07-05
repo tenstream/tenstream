@@ -26,7 +26,6 @@ module m_examples_pprts_buildings
 
   use m_buildings, only: &
     & check_buildings_consistency, &
-    & dump_pprts_buildings, &
     & faceidx_by_cell_plus_offset, &
     & init_buildings, &
     & t_pprts_buildings, &
@@ -36,6 +35,9 @@ module m_examples_pprts_buildings
     & PPRTS_LEFT_FACE, &
     & PPRTS_REAR_FACE, &
     & PPRTS_RIGHT_FACE
+
+  use m_xdmf_export, only: &
+    & xdmf_pprts_buildings
 
   use m_netcdfio, only: ncwrite
 
@@ -54,7 +56,7 @@ contains
       & albedo, dtau, w0,                   &
       & gedir, gedn, geup, gabso,           &
       & buildings,                          &
-      & outfile, buildings_outfile)
+      & outfile)
 
     integer(mpiint), intent(in) :: comm
     logical, intent(in) :: lverbose, lthermal, lsolar
@@ -71,7 +73,6 @@ contains
     real(ireals), allocatable, dimension(:,:,:), intent(out) :: gedir, gedn, geup, gabso ! global arrays on rank 0
     type(t_pprts_buildings), allocatable, intent(inout) :: buildings
     character(len=*), intent(in), optional :: outfile ! output file to dump flux results
-    character(len=*), intent(in), optional :: buildings_outfile ! output file to dump building flux results
 
     real(ireals) :: dz1d(Nlay)
     real(ireals) :: sundir(3)
@@ -273,9 +274,6 @@ contains
     end associate
     call mpi_barrier(comm, ierr); call CHKERR(ierr)
 
-    if(present(buildings_outfile)) then
-      call dump_pprts_buildings(solver, buildings, buildings_outfile, ierr); call CHKERR(ierr)
-    endif
     if(lverbose .and. lhave_box) then
       print *,''
       if(allocated(buildings%edir)) then

@@ -522,7 +522,7 @@ module m_pprts_base
   subroutine set_dmda_cell_coordinates(solver, atm, da, ierr)
     class(t_solver), intent(in) :: solver
     type(t_atmosphere), intent(in) :: atm
-    type(tDM), intent(inout) :: da
+    type(tDM), intent(in) :: da
     integer(mpiint), intent(out) :: ierr
 
     type(tVec) :: coordinates

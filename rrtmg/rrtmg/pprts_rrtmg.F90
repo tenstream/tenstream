@@ -51,9 +51,12 @@ module m_pprts_rrtmg
       pprts_get_result, pprts_get_result_toZero
 
   use m_buildings, only: &
-    & dump_pprts_buildings, &
     & t_pprts_buildings, &
     & PPRTS_BOT_FACE
+
+  use m_xdmf_export, only: &
+    & xdmf_pprts_buildings, &
+    & xdmf_pprts_srfc_flux
 
   use m_adaptive_spectral_integration, only: need_new_solution
 
@@ -517,20 +520,27 @@ contains
 
         if(present(opt_buildings_solar)) then
           call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-            & '-pprts_rrtmg_dump_buildings_solar', fname, lflg, ierr); call CHKERR(ierr)
+            & '-pprts_rrtmg_xdmf_buildings_solar', fname, lflg, ierr); call CHKERR(ierr)
           if(lflg) then
             if(present(opt_time)) fname = trim(fname)//toStr(opt_time)
-            call dump_pprts_buildings(solver, opt_buildings_solar, fname, ierr, verbose=.True.); call CHKERR(ierr)
+            call xdmf_pprts_buildings(solver, opt_buildings_solar, fname, ierr, verbose=.True.); call CHKERR(ierr)
           endif
         endif
 
         if(present(opt_buildings_thermal)) then
           call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-            & '-pprts_rrtmg_dump_buildings_thermal', fname, lflg, ierr); call CHKERR(ierr)
+            & '-pprts_rrtmg_xdmf_buildings_thermal', fname, lflg, ierr); call CHKERR(ierr)
           if(lflg) then
             if(present(opt_time)) fname = trim(fname)//toStr(opt_time)
-            call dump_pprts_buildings(solver, opt_buildings_thermal, fname, ierr, verbose=.True.); call CHKERR(ierr)
+            call xdmf_pprts_buildings(solver, opt_buildings_thermal, fname, ierr, verbose=.True.); call CHKERR(ierr)
           endif
+        endif
+
+        call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+          & '-pprts_rrtmg_xdmf', fname, lflg, ierr); call CHKERR(ierr)
+        if(lflg) then
+          if(present(opt_time)) fname = trim(fname)//toStr(opt_time)
+          call xdmf_pprts_srfc_flux(solver, fname, edir, edn, eup, ierr, verbose=.True.); call CHKERR(ierr)
         endif
       end subroutine
   end subroutine

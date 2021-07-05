@@ -64,6 +64,7 @@ set( general_sources
   "search.F90"
   "tenstream_options.F90"
   "twostream.F90"
+  "xdmf_export.F90"
   )
 
 set( optprop_sources

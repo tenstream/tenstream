@@ -11,7 +11,7 @@ program main
   use mpi, only : MPI_COMM_WORLD
   implicit none
 
-  character(len=default_str_len) :: outfile, buildings_outfile
+  character(len=default_str_len) :: outfile
   integer(iintegers) :: Nx, Ny, Nlay, icollapse
   integer(iintegers) :: glob_box_i, glob_box_j, box_k
   integer(iintegers) :: box_Ni, box_Nj, box_Nk
@@ -32,9 +32,6 @@ program main
 
   call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-out', outfile, lflg, ierr); call CHKERR(ierr)
   if(.not.lflg) call CHKERR(1_mpiint, 'need to supply a output filename... please call with -out <output.nc>')
-
-  buildings_outfile = trim(outfile) ! will get a postfix from the routine
-  call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-bout', buildings_outfile, lflg, ierr); call CHKERR(ierr)
 
   lsolar = .True.
   call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-solar', &
@@ -131,8 +128,7 @@ program main
       & Ag, dtau, w0,                             &
       & gedir, gedn, geup, gabso,                 &
       & buildings,                                &
-      & outfile=outfile,                          &
-      & buildings_outfile=buildings_outfile)
+      & outfile=outfile)
   endif
   if(lthermal) then
     call ex_pprts_buildings(mpi_comm_world, lverbose, &
@@ -145,8 +141,7 @@ program main
       & Ag, dtau, w0,                             &
       & gedir, gedn, geup, gabso,                 &
       & buildings,                                &
-      & outfile=outfile,                          &
-      & buildings_outfile=buildings_outfile)
+      & outfile=outfile)
   endif
 
   call finalize_mpi(ierr, .True., .True.)
