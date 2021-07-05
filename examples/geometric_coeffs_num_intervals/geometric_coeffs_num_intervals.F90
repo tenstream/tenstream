@@ -69,7 +69,7 @@ contains
     do src = 1,3
       if (.False.) call bmc_3_10%get_coeff( &
         comm, real(bg, ireal_dp), src, .True., real(phi, ireal_dp), real(theta, ireal_dp), &
-        verts, S, T, S_tol, T_tol, inp_atol=atol, inp_rtol=rtol &
+        real(verts, ireal_dp), S, T, S_tol, T_tol, inp_atol=atol, inp_rtol=rtol &
         )
       c_gomtrc_reg(src:9:3,imax+1) = real(T, ireals)
       print *, cstr('Montecarlo simulation not started, it is commented and the hard coded values are used.'//&
