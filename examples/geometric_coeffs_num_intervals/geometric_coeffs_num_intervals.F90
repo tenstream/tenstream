@@ -37,7 +37,7 @@ contains
     integer(iintegers) :: i, src
     real(ireals) :: S(10), T(3)
     real(ireals) :: S_tol(10), T_tol(3)
-    real(ireals),parameter :: atol=1e-4, rtol=1e-3
+    real(ireal_dp),parameter :: atol=1e-4, rtol=1e-3
     real(ireals) :: c_gomtrc_reg_benchmark(9), c_gomtrc_reg(9,imax+1), c_ext
     integer(mpiint) :: ierr
 
