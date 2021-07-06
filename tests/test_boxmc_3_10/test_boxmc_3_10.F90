@@ -4,6 +4,7 @@ module test_boxmc_3_10
     mpiint, iintegers, ireals, ireal_dp,     &
     one, zero, i1, default_str_len, &
     init_mpi_data_parameters
+  use m_helper_functions, only: toStr, colored_str_by_range
   use m_optprop_parameters, only : stddev_atol
   use m_boxmc_geometry, only : setup_default_unit_cube_geometry
 
@@ -369,6 +370,78 @@ contains
     call check(S_target,T_target, S,T, msg=' test_boxmc_distorted_ns_cube_dir45_down_src2_case2')
   end subroutine
 
+  !@test(npes =[1])
+  subroutine test_boxmc_distorted_cube_diff2diff(this)
+    class (MpiTestMethod), intent(inout) :: this
+    integer(iintegers) :: src
+    real(ireal_dp), allocatable, target :: verts(:)
+    real(ireal_dp), parameter :: dx=1, dy=dx, dz=dx
+
+    bg  = [1e-1_ireal_dp/dz, 0._ireal_dp, 1._ireal_dp/2 ]
+    T_target = zero
+
+    !back side up
+    call setup_default_unit_cube_geometry(dx, dy, dz, verts)
+
+    verts([9,12,21,24]) = verts([9,12,21,24]) + dz
+    do src=1,8
+      print *,'verts',src,':', verts(src:size(verts):8)
+    enddo
+
+    src=1
+    S_target = [real(ireals)::.2, 0, 0, 0, .2, .2, 0, 0, .2, .2]
+    call bmc_3_10%get_coeff(comm,bg,src,.False.,phi,theta,verts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+    call check(S_target, T_target, S, T, msg='test_boxmc_distorted_diff2diff_src'//toStr(src))
+
+    src=2
+    S_target = [real(ireals)::0, .2, .2, .2, 0, 0, .2, .2, 0, 0]
+    call bmc_3_10%get_coeff(comm,bg,src,.False.,phi,theta,verts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+    call check(S_target, T_target, S, T, msg='test_boxmc_distorted_diff2diff_src'//toStr(src))
+
+    src=3
+    S_target = zero
+    call bmc_3_10%get_coeff(comm,bg,src,.False.,phi,theta,verts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+    call check(S_target, T_target, S, T, msg='test_boxmc_distorted_diff2diff_src'//toStr(src))
+
+    src=3
+    S_target = zero
+    call bmc_3_10%get_coeff(comm,bg,src,.False.,phi,theta,verts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+    call check(S_target, T_target, S, T, msg='test_boxmc_distorted_diff2diff_src'//toStr(src))
+
+    src=4
+    S_target = zero
+    call bmc_3_10%get_coeff(comm,bg,src,.False.,phi,theta,verts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+    call check(S_target, T_target, S, T, msg='test_boxmc_distorted_diff2diff_src'//toStr(src))
+    src=5
+    S_target = zero
+    call bmc_3_10%get_coeff(comm,bg,src,.False.,phi,theta,verts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+    call check(S_target, T_target, S, T, msg='test_boxmc_distorted_diff2diff_src'//toStr(src))
+    src=6
+    S_target = zero
+    call bmc_3_10%get_coeff(comm,bg,src,.False.,phi,theta,verts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+    call check(S_target, T_target, S, T, msg='test_boxmc_distorted_diff2diff_src'//toStr(src))
+    src=7
+    S_target = zero
+    call bmc_3_10%get_coeff(comm,bg,src,.False.,phi,theta,verts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+    call check(S_target, T_target, S, T, msg='test_boxmc_distorted_diff2diff_src'//toStr(src))
+    src=8
+    S_target = zero
+    call bmc_3_10%get_coeff(comm,bg,src,.False.,phi,theta,verts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+    call check(S_target, T_target, S, T, msg='test_boxmc_distorted_diff2diff_src'//toStr(src))
+    src=9
+    S_target = zero
+    call bmc_3_10%get_coeff(comm,bg,src,.False.,phi,theta,verts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+    call check(S_target, T_target, S, T, msg='test_boxmc_distorted_diff2diff_src'//toStr(src))
+    src=10
+    S_target = zero
+    call bmc_3_10%get_coeff(comm,bg,src,.False.,phi,theta,verts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+    call check(S_target, T_target, S, T, msg='test_boxmc_distorted_diff2diff_src'//toStr(src))
+
+    !! TODO: check symmetry to back side down
+    !call setup_default_unit_cube_geometry(dx, dy, dz, verts)
+    !verts([9,12,21,24]) = verts([9,12,21,24]) - dz
+
+  end subroutine
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   subroutine check(S_target,T_target, S,T, msg)
@@ -377,6 +450,8 @@ contains
     character(len=*),optional :: msg
     character(default_str_len) :: local_msgS, local_msgT
     real(ireals), parameter :: test_atol = real(atol, ireals) * real(sigma, ireals)
+    real(ireals), parameter :: color_limits(5) = [0., 1., 10., 50., 100.]
+    character(len=*), parameter :: colors(4) = [character(len=10)::'black', 'blue', 'green', 'red']
 
     if(myid.eq.0) then
       print*,''
@@ -391,13 +466,17 @@ contains
       endif
 
       print*,'---------------------'
-      write(*, FMT='( " diffuse ::  :: ",10(es12.5) )' ) S
-      write(*, FMT='( " target  ::  :: ",10(es12.5) )' ) S_target
-      write(*, FMT='( " diff    ::  :: ",10(es12.5) )' ) S_target-S
+      write(*, FMT='( " diffuse  :: ",10(es12.5) )' ) S
+      write(*, FMT='( " target   :: ",10(es12.5) )' ) S_target
+      write(*, FMT='( " abs diff :: ",10(es12.5) )' ) S_target-S
+      write(*, FMT='( " rel diff[%] ",A )' ) &
+        & colored_str_by_range(100*abs(S_target-S)/max(sqrt(tiny(S_target)),S_target), color_limits, colors)
       print*,''
-      write(*, FMT='( " direct  ::  :: ", 8(es12.5) )' ) T
-      write(*, FMT='( " target  ::  :: ", 8(es12.5) )' ) T_target
-      write(*, FMT='( " diff    ::  :: ", 8(es12.5) )' ) T_target-T
+      write(*, FMT='( " direct   :: ", 8(es12.5) )' ) T
+      write(*, FMT='( " target   :: ", 8(es12.5) )' ) T_target
+      write(*, FMT='( " abs diff :: ", 8(es12.5) )' ) T_target-T
+      write(*, FMT='( " rel diff[%] ",A )' ) &
+        & colored_str_by_range(100*abs(T_target-T)/max(sqrt(tiny(T_target)),T_target), color_limits, colors)
       print*,'---------------------'
       print*,''
 
