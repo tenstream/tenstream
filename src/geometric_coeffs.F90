@@ -328,7 +328,6 @@ contains
       v4 = v4 + hit_plane(v4, sundir, origin, normal) * sundir
     endif
 
-
     if (ldebug) then
       print *, cstr('projections', 'yellow')
       print *, 'v1', v1
@@ -369,18 +368,19 @@ contains
   subroutine rearange_projections(f1, f2, f3, f4, v1, v2, v3, v4)
     real(ireals), intent(in), dimension(3) :: f1, f2, f3, f4
     real(ireals), intent(inout), dimension(3) :: v1, v2, v3, v4
+    real(ireals), parameter :: eps=epsilon(f1)
 
     if (ldebug) then
       print *, cstr('rearangement coeffs', 'green')
       print *, 'v1'
     endif
-    call rearange_projection(f1-v1, f3, f4-f3, f2, f3-f2, v1)
+    if (norm2(f1-v1) .gt. eps) call rearange_projection(f1-v1, f3, f4-f3, f2, f3-f2, v1)
     if (ldebug) print *, 'v2'
-    call rearange_projection(f2-v2, f3, f4-f3, f4, f1-f4, v2)
+    if (norm2(f2-v2) .gt. eps) call rearange_projection(f2-v2, f3, f4-f3, f4, f1-f4, v2)
     if (ldebug) print *, 'v3'
-    call rearange_projection(f3-v3, f2, f1-f2, f4, f1-f4, v3)
+    if (norm2(f3-v3) .gt. eps) call rearange_projection(f3-v3, f2, f1-f2, f4, f1-f4, v3)
     if (ldebug) print *, 'v4'
-    call rearange_projection(f4-v4, f2, f1-f2, f2, f3-f2, v4)
+    if (norm2(f4-v4) .gt. eps) call rearange_projection(f4-v4, f2, f1-f2, f2, f3-f2, v4)
 
     if (ldebug) then
       print *, '_________________________________________________________________'
