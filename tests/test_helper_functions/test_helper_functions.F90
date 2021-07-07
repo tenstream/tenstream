@@ -11,6 +11,7 @@ module test_helper_functions
     & deg2rad, &
     & determine_normal_direction, &
     & distance_to_edge, &
+    & expm1, &
     & imp_allgather_int_inplace, &
     & imp_allreduce_mean, &
     & imp_allreduce_sum, &
@@ -763,4 +764,18 @@ subroutine test_spherical2cartesian(this)
     @assertEqual(sundir, sundir2, eps)
   enddo
 end subroutine
+
+
+@test(npes=[1])
+subroutine test_expm1(this)
+  class (MpiTestMethod), intent(inout) :: this
+  real(ireals), parameter :: eps=sqrt(epsilon(eps))
+  real(ireals) :: x, y
+
+  x = 1e-20_ireals
+  !y = (1.-exp(-x)) / x ! the trivial equation is not numerically stable around 0
+  y = - expm1(-x) / x
+  @assertEqual(1._ireals, y, eps)
+end subroutine
+
 end module
