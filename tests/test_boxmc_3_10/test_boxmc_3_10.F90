@@ -370,77 +370,86 @@ contains
     call check(S_target,T_target, S,T, msg=' test_boxmc_distorted_ns_cube_dir45_down_src2_case2')
   end subroutine
 
-  !@test(npes =[1])
+  @test(npes =[1])
   subroutine test_boxmc_distorted_cube_diff2diff(this)
     class (MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: src
-    real(ireal_dp), allocatable, target :: verts(:)
+    real(ireal_dp), allocatable :: verts(:), verts_symm(:)
     real(ireal_dp), parameter :: dx=1, dy=dx, dz=dx
+    real(ireals) :: Ss_trgt(size(S_target),size(S_target))
 
     bg  = [1e-1_ireal_dp/dz, 0._ireal_dp, 1._ireal_dp/2 ]
     T_target = zero
 
     !back side up
     call setup_default_unit_cube_geometry(dx, dy, dz, verts)
+    call setup_default_unit_cube_geometry(dx, dy, dz, verts_symm)
 
+    verts_symm([3,6,15,18]) = verts_symm([3,6,15,18]) - dz
     verts([9,12,21,24]) = verts([9,12,21,24]) + dz
     do src=1,8
       print *,'verts',src,':', verts(src:size(verts):8)
     enddo
 
-    src=1
-    S_target = [real(ireals)::.2, 0, 0, 0, .2, .2, 0, 0, .2, .2]
-    call bmc_3_10%get_coeff(comm,bg,src,.False.,phi,theta,verts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-    call check(S_target, T_target, S, T, msg='test_boxmc_distorted_diff2diff_src'//toStr(src))
+    Ss_trgt(1,:) = [real(ireals) :: &
+      2.19971E-01, 0.00000E+00, 2.04549E-02, 2.04649E-02, 1.43955E-01, &
+      1.44041E-01, 9.85783E-02, 0.00000E+00, 2.61983E-01, 3.47848E-02  &
+      ]
+    Ss_trgt(2,:) = [real(ireals) :: &
+      0.00000E+00, 2.19969E-01, 1.44047E-01, 1.43993E-01, 2.04579E-02, &
+      2.04490E-02, 3.47453E-02, 2.61988E-01, 0.00000E+00, 9.85785E-02  &
+      ]
+    Ss_trgt(3,:) = [real(ireals) :: &
+      5.78161E-02, 4.07155E-01, 1.63150E-01, 0.00000E+00, 0.00000E+00, &
+      0.00000E+00, 2.01940E-01, 1.10228E-01, 0.00000E+00, 0.00000E+00  &
+      ]
+    Ss_trgt(4,:) = [real(ireals) :: &
+      5.78408E-02, 4.07360E-01, 0.00000E+00, 1.63117E-01, 0.00000E+00, &
+      0.00000E+00, 2.01804E-01, 1.10175E-01, 0.00000E+00, 0.00000E+00  &
+      ]
+    Ss_trgt(5,:) = [real(ireals) :: &
+      4.07360E-01, 5.78282E-02, 0.00000E+00, 0.00000E+00, 1.63196E-01, &
+      0.00000E+00, 0.00000E+00, 0.00000E+00, 1.10103E-01, 2.01799E-01  &
+      ]
+    Ss_trgt(6,:) = [real(ireals) :: &
+      4.07411E-01, 5.78942E-02, 0.00000E+00, 0.00000E+00, 0.00000E+00, &
+      1.62993E-01, 0.00000E+00, 0.00000E+00, 1.10239E-01, 2.01763E-01  &
+      ]
+    Ss_trgt(7,:) = [real(ireals) :: &
+      2.78895E-01, 9.83542E-02, 2.01884E-01, 2.01884E-01, 0.00000E+00, &
+      0.00000E+00, 1.50649E-01, 0.00000E+00, 0.00000E+00, 0.00000E+00  &
+      ]
+    Ss_trgt(8,:) = [real(ireals) :: &
+      0.00000E+00, 7.41315E-01, 1.10193E-01, 1.10301E-01, 0.00000E+00, &
+      0.00000E+00, 0.00000E+00, 0.00000E+00, 0.00000E+00, 0.00000E+00  &
+      ]
+    Ss_trgt(9,:) = [real(ireals) :: &
+      7.41330E-01, 0.00000E+00, 0.00000E+00, 0.00000E+00, 1.10215E-01, &
+      1.10246E-01, 0.00000E+00, 0.00000E+00, 0.00000E+00, 0.00000E+00  &
+      ]
+    Ss_trgt(10,:) = [real(ireals) :: &
+      9.83269E-02, 2.78907E-01, 0.00000E+00, 0.00000E+00, 2.01946E-01, &
+      2.01699E-01, 0.00000E+00, 0.00000E+00, 0.00000E+00, 1.50771E-01  &
+      ]
 
-    src=2
-    S_target = [real(ireals)::0, .2, .2, .2, 0, 0, .2, .2, 0, 0]
-    call bmc_3_10%get_coeff(comm,bg,src,.False.,phi,theta,verts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-    call check(S_target, T_target, S, T, msg='test_boxmc_distorted_diff2diff_src'//toStr(src))
+    do src=1,size(S_target)
+      call run_tests(Ss_trgt(src,:), verts, verts_symm)
+    enddo
 
-    src=3
-    S_target = zero
-    call bmc_3_10%get_coeff(comm,bg,src,.False.,phi,theta,verts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-    call check(S_target, T_target, S, T, msg='test_boxmc_distorted_diff2diff_src'//toStr(src))
+    call setup_default_unit_cube_geometry(dx, dy, dz, verts_symm)
+    verts_symm([3,6,15,18]) = verts_symm([3,6,15,18]) - dz
+    verts([9,12,21,24]) = verts([9,12,21,24]) + dz
 
-    src=3
-    S_target = zero
-    call bmc_3_10%get_coeff(comm,bg,src,.False.,phi,theta,verts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-    call check(S_target, T_target, S, T, msg='test_boxmc_distorted_diff2diff_src'//toStr(src))
+    contains
+      subroutine run_tests(S_trgt, vs, vs_symm)
+        real(ireal_dp), intent(in) :: vs(:), vs_symm(:)
+        real(ireals), intent(in) :: S_trgt(:)
 
-    src=4
-    S_target = zero
-    call bmc_3_10%get_coeff(comm,bg,src,.False.,phi,theta,verts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-    call check(S_target, T_target, S, T, msg='test_boxmc_distorted_diff2diff_src'//toStr(src))
-    src=5
-    S_target = zero
-    call bmc_3_10%get_coeff(comm,bg,src,.False.,phi,theta,verts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-    call check(S_target, T_target, S, T, msg='test_boxmc_distorted_diff2diff_src'//toStr(src))
-    src=6
-    S_target = zero
-    call bmc_3_10%get_coeff(comm,bg,src,.False.,phi,theta,verts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-    call check(S_target, T_target, S, T, msg='test_boxmc_distorted_diff2diff_src'//toStr(src))
-    src=7
-    S_target = zero
-    call bmc_3_10%get_coeff(comm,bg,src,.False.,phi,theta,verts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-    call check(S_target, T_target, S, T, msg='test_boxmc_distorted_diff2diff_src'//toStr(src))
-    src=8
-    S_target = zero
-    call bmc_3_10%get_coeff(comm,bg,src,.False.,phi,theta,verts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-    call check(S_target, T_target, S, T, msg='test_boxmc_distorted_diff2diff_src'//toStr(src))
-    src=9
-    S_target = zero
-    call bmc_3_10%get_coeff(comm,bg,src,.False.,phi,theta,verts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-    call check(S_target, T_target, S, T, msg='test_boxmc_distorted_diff2diff_src'//toStr(src))
-    src=10
-    S_target = zero
-    call bmc_3_10%get_coeff(comm,bg,src,.False.,phi,theta,verts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-    call check(S_target, T_target, S, T, msg='test_boxmc_distorted_diff2diff_src'//toStr(src))
-
-    !! TODO: check symmetry to back side down
-    !call setup_default_unit_cube_geometry(dx, dy, dz, verts)
-    !verts([9,12,21,24]) = verts([9,12,21,24]) - dz
-
+        call bmc_3_10%get_coeff(comm,bg,src,.False.,phi,theta,vs,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+        call check(S_trgt, T_target, S, T, msg='test_boxmc_distorted_diff2diff_src'//toStr(src))
+        call bmc_3_10%get_coeff(comm,bg,src,.False.,phi,theta,vs_symm,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+        call check(S_trgt, T_target, S, T, msg='test_boxmc_distorted_diff2diff_src'//toStr(src)//'_backside_symm')
+      end subroutine
   end subroutine
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
