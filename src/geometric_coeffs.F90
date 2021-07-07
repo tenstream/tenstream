@@ -21,7 +21,7 @@ module m_geometric_coeffs
 
 use m_data_parameters, only : ireals, mpiint, iintegers, zero, one, Pi
 use m_helper_functions, only : pentagon_area_by_vertices, quadrangle_area_by_vertices, &
-  triangle_area_by_vertices, compute_normal_3d, cross_3d, cstr, CHKERR, toStr
+  triangle_area_by_vertices, compute_normal_3d, cross_3d, cstr, CHKERR, toStr, expm1
 use m_intersection, only: hit_plane, line_intersection_3d
 
 implicit none
@@ -37,10 +37,10 @@ contains
     integer(iintegers), intent(in), optional :: num_intervals
     real(ireals), dimension(3) :: d_p, b_p, a_p, h_p, f_p, e_p, g_p
     real(ireals) :: sun_up_down
-    real(ireals), parameter :: small=sqrt(epsilon(extinction_coeff))
+    real(ireals), parameter :: small=tiny(extinction_coeff)
 
     if (extinction_coeff .lt. small) &
-      & call CHKERR(1_mpiint, 'Extinction coeff too small.')
+      & call CHKERR(1_mpiint, 'Extinction coeff too small: '//toStr(extinction_coeff)//' < min = '//toStr(small))
 
     associate ( &
       a => verts( 1: 3), &
@@ -273,12 +273,12 @@ contains
         num_dst = num_dst + dl * h * f_dst(s, extinction_coeff)
       enddo
     end function
+    real(ireals) function f_dst(s, c_ext)
+      real(ireals), intent(in) :: s, c_ext
+      real(ireals) :: x
 
-    real(ireals) function f_dst(s, extinction_coeff)
-      real(ireals), intent(in) :: s, extinction_coeff
-      real(ireals), parameter :: small = sqrt(tiny(f_dst))
-
-      f_dst = (one - exp( - extinction_coeff * s)) / max(small, (extinction_coeff * s))
+      x = s * c_ext
+      f_dst = expm1(-x) / (-x)
     end function
   end subroutine
 
@@ -296,7 +296,7 @@ contains
     real(ireals), intent(in), dimension(3) :: sundir, normal, origin
     real(ireals), intent(inout), dimension(3) :: v1, v2, v3, v4
     real(ireals) :: sundir_proj(3)
-    real(ireals), parameter :: big = 1e5_ireals ! might be problematic
+    real(ireals), parameter :: big = 1e7_ireals ! might be problematic
 
     if (ldebug) then
       print *, cstr('unprojected', 'yellow')
@@ -370,16 +370,9 @@ contains
     real(ireals), intent(inout), dimension(3) :: v1, v2, v3, v4
     real(ireals), parameter :: eps=epsilon(f1)
 
-    if (ldebug) then
-      print *, cstr('rearangement coeffs', 'green')
-      print *, 'v1'
-    endif
     if (norm2(f1-v1) .gt. eps) call rearange_projection(f1-v1, f3, f4-f3, f2, f3-f2, v1)
-    if (ldebug) print *, 'v2'
     if (norm2(f2-v2) .gt. eps) call rearange_projection(f2-v2, f3, f4-f3, f4, f1-f4, v2)
-    if (ldebug) print *, 'v3'
     if (norm2(f3-v3) .gt. eps) call rearange_projection(f3-v3, f2, f1-f2, f4, f1-f4, v3)
-    if (ldebug) print *, 'v4'
     if (norm2(f4-v4) .gt. eps) call rearange_projection(f4-v4, f2, f1-f2, f2, f3-f2, v4)
 
     if (ldebug) then
@@ -399,24 +392,8 @@ contains
     real(ireals) :: coeff21, coeff22, coeff31, coeff32
     integer(mpiint) :: ierr1, ierr2
 
-    if (ldebug) then
-      print *, 'v_i', origin1
-      print *, 'dir1', direction1
-      print *, 'o2', origin2
-      print*, 'dir2', direction2
-      print *, 'o3', origin3
-      print*, 'dir3', direction3
-    endif
-
     call line_intersection_3d(origin1, direction1, origin2, direction2, coeff21, coeff22, ierr1)
     call line_intersection_3d(origin1, direction1, origin3, direction3, coeff31, coeff32, ierr2)
-
-    if (ldebug) then
-      print *, coeff21, coeff31
-      print *, ierr1, ierr2
-      print *, '_________________________________________________________________'
-    endif
-
     call rearange_point(origin1, direction1, min(max(coeff21, coeff31, zero), one), origin1)
   end subroutine
 end module

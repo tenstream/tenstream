@@ -110,7 +110,7 @@ contains
     real(ireals) :: sundir(3), sundir_symmetry(3), verts_dtd(24), verts_dtd_symmetry(24), c_ext
     real(ireals), parameter :: dx=1, dy=dx, dz=dx
 
-    bg = [real(ireals) :: sqrt(epsilon(bg)), 0, 0.85]
+    bg = [real(ireals) :: tiny(bg), 0, 0.85]
     c_ext = bg(1) + bg(2)
 
     call setup_default_unit_cube_geometry(dx, dy, dz, verts)
@@ -262,7 +262,7 @@ contains
 
     call setup_default_unit_cube_geometry(dx, dy, dz, verts)
 
-    bg = [real(ireals) :: sqrt(epsilon(bg)), 0, 0.85]
+    bg = [real(ireals) :: tiny(bg), 0, 0.85]
     c_ext = bg(1) + bg(2)
 
     verts_dtd = verts

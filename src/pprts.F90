@@ -2447,9 +2447,6 @@ module m_pprts
                 !make bottom and top of box parallel
                 vertices([15,18,21,24]) = vertices([3,6,9,12]) + solver%atm%dz(atmk(solver%atm, k), i, j)
 
-                ! reg boxes options
-                !vertices(15:24:3) = solver%atm%dz(atmk(solver%atm, k), i, j)
-
                 call dir2dir3_geometric_coeffs( &
                   vertices, &
                   sun%sundir, &
