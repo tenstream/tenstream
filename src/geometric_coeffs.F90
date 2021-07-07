@@ -244,7 +244,7 @@ contains
       area1 = area1 - sun_up_down * area3
       area3 = area3 + sun_up_down * area3
 
-      coeffs(slice) = [area1, area2, area3] / quadrangle_area_by_vertices(f1, f2, f3, f4)
+      coeffs(slice) = [max(area1, zero), max(area2, zero), max(area3, zero)] / quadrangle_area_by_vertices(f1, f2, f3, f4)
 
     end subroutine
 
@@ -278,7 +278,8 @@ contains
       real(ireals) :: x
 
       x = s * c_ext
-      f_dst = expm1(-x) / (-x)
+      f_dst = expm1(-x) / min(-x, -tiny(x))
+      ! max(.,tiny) needed to prevent nan when projection of v_i located on a2 boarder and thus s=0
     end function
   end subroutine
 
@@ -296,7 +297,7 @@ contains
     real(ireals), intent(in), dimension(3) :: sundir, normal, origin
     real(ireals), intent(inout), dimension(3) :: v1, v2, v3, v4
     real(ireals) :: sundir_proj(3)
-    real(ireals), parameter :: big = 1e7_ireals ! might be problematic
+    real(ireals), parameter :: big = 1e6_ireals !  THIS IS PROBLEMATIC IN SP
 
     if (ldebug) then
       print *, cstr('unprojected', 'yellow')
