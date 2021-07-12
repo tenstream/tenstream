@@ -2526,13 +2526,13 @@ module m_pprts
   subroutine alloc_coeff_dir2diff(solver, coeffs)
   class(t_solver), intent(in) :: solver
     real(ireals), target, allocatable, intent(inout) :: coeffs(:,:,:,:)
-    real(irealLUT), allocatable :: v(:)
+    real(irealLUT), allocatable :: v(:), T_LUT(:)
     integer(iintegers) :: src, k, i, j
     integer(mpiint) :: ierr
 
     real(ireals), pointer :: xhhl(:,:,:,:) => null(), xhhl1d(:) => null()
     real(ireals), allocatable :: vertices(:)
-    real(ireals) :: norm
+    real(ireals) :: norm, S_LUT_reg_norms(3), delta_dir2dir_coeffs(3)
     real(ireals), pointer :: c(:,:)
     logical :: lgeometric_coeffs, lflg
 
@@ -2549,6 +2549,7 @@ module m_pprts
         & C_dir%xs:C_dir%xe, &
         & C_dir%ys:C_dir%ye))
       allocate(v(1:C_dir%dof*C_diff%dof))
+      allocate(T_LUT(1:C_dir%dof**2))
       call PetscLogEventBegin(solver%logs%get_coeff_dir2diff, ierr); call CHKERR(ierr)
 
       lgeometric_coeffs = .False.
@@ -2574,12 +2575,11 @@ module m_pprts
 
               vertices(3:24:3) = vertices(3:24:3) - vertices(3)
 
-              if (lgeometric_coeffs) then
-                !not in a plane -> use 3 and construct 4th point
-                vertices(12) = vertices(9) +  (vertices(3) - vertices(6))
-                !make bottom and top of box parallel
-                vertices([15,18,21,24]) = vertices([3,6,9,12]) + solver%atm%dz(atmk(solver%atm, k), i, j)
-              endif
+              !not in a plane -> use 3 and construct 4th point
+              vertices(12) = vertices(9) +  (vertices(3) - vertices(6))
+              !make bottom and top of box parallel
+              vertices([15,18,21,24]) = vertices([3,6,9,12]) + solver%atm%dz(atmk(solver%atm, k), i, j)
+
 
               ! unparallel
               !vertices(12) = vertices(9) +  (vertices(3) - vertices(6))
@@ -2599,6 +2599,29 @@ module m_pprts
                 & lswitch_east=sun%xinc.eq.0, lswitch_north=sun%yinc.eq.0, &
                 & opt_vertices=vertices)
               coeffs(:,k,i,j) = real(v, ireals)
+
+              if (lgeometric_coeffs) then
+
+                call get_coeff(solver, &
+                  & atm%kabs(atmk(solver%atm,k),i,j), &
+                  & atm%ksca(atmk(solver%atm,k),i,j), &
+                  & atm%g(atmk(solver%atm,k),i,j), &
+                  & atm%dz(atmk(solver%atm,k),i,j), .True., &
+                  & T_LUT, &
+                  & atm%l1d(atmk(solver%atm,k)), &
+                  & [real(sun%symmetry_phi, irealLUT), real(sun%theta, irealLUT)], &
+                  & lswitch_east=sun%xinc.eq.0, lswitch_north=sun%yinc.eq.0, &
+                  & opt_vertices=vertices)
+
+                do src=1,3
+                  delta_T(src) = sum(solver%dir2dir(src:size(T_LUT):3,k,i,j)) - sum(T_LUT(src:size(T_LUT):3))
+                  S_LUT_reg_norms(src) = sum(coeffs(src:size(coeffs(:,k,i,j)):3,k,i,j))
+
+                  coeffs(src:size(coeffs(:,k,i,j)):3,k,i,j) = coeffs(src:size(coeffs(:,k,i,j)),k,i,j) * &
+                    (S_LUT_reg_norms(src) - delta_T(src)) / &
+                    max(S_LUT_reg_norms(src), sqrt(epsilon(S_LUT_reg_norms(src))))
+                enddo
+              endif
 
               if (ldebug_optprop) then
                 c(1:C_dir%dof,1:C_diff%dof) => coeffs(:,k,i,j) ! dim(src,dst)
