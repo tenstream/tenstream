@@ -35,17 +35,18 @@ contains
   subroutine ex_geometric_coeffs_dir2diff_hacks(comm)
     integer(mpiint), intent(in) :: comm
     real(ireals) :: verts_dtd(24), bg(3), phi, theta, sundir(3), &
-      c_scatter_gomtrc_reg(9), c_scatter_gomtrc_dst(9)
+      c_scatter_gomtrc_reg(9), c_scatter_gomtrc_dst(9), c_gomtrc_dst(9)
     real(ireals), parameter :: dx=1, dy=dx, dz=dx
     real(ireals), allocatable :: verts(:)
     integer(iintegers), parameter :: imax=5
     integer(iintegers) :: i, src, iscat, iabso
     real(ireals) :: S(10), T(3)
-    real(irealLUT) :: S_LUT(30)
+    real(irealLUT) :: S_LUT(30), T_LUT(9)
     real(ireals) :: S_tol(10), T_tol(3)
     real(ireal_dp), parameter :: atol=1e-3, rtol=1e-2
     real(ireals) :: S_bmc(30), S_bmc_reg_cscat_cabso(imax-1,30), S_LUT_reg_cscat_cabso(imax-1,30), &
-      T_gomtrc_reg_cscat(imax-1,9), S_bmc_dst_cscat_cabso(imax-1,30), T_gomtrc_dst_cscat(imax-1,9) ! alpha_x, alpha_y, alpha_xy
+      T_gomtrc_reg_cscat(imax-1,9), S_bmc_dst_cscat_cabso(imax-1,30), T_gomtrc_dst_cscat(imax-1,9), &
+      T_gomtrc_dst(imax-1,9), T_LUT_reg_cscat_cabso(imax-1,9) ! alpha_x, alpha_y, alpha_xy
     real(irealLUT) :: aspect_zx, tauz, w0, g
     integer(mpiint) :: ierr
     logical :: xinc, yinc
@@ -98,6 +99,18 @@ contains
           xinc, & !lswitch_east (180-360 False)
           yinc & !lswitch_north (90-270 False)
           )
+        call OPP%get_coeff(&
+          tauz, & !tauz
+          w0, & !w0
+          g, & ! g
+          aspect_zx, & !aspect_zx
+          .True., & !ldir
+          T_LUT, & !coeff
+          ierr, & !ierr
+          [real(phi, irealLUT), real(theta, irealLUT)], & !angles
+          xinc, & !lswitch_east (180-360 False)
+          yinc & !lswitch_north (90-270 False)
+          )
 
         do src = 1,3
           call bmc_3_10%get_coeff(&
@@ -109,6 +122,7 @@ contains
         do i = 1, imax - 1
           T_gomtrc_reg_cscat(i,:) = c_scatter_gomtrc_reg
           S_LUT_reg_cscat_cabso(i,:) = S_LUT
+          T_LUT_reg_cscat_cabso(i,:) = T_LUT
           S_bmc_reg_cscat_cabso(i,:) = S_bmc
         enddo
 
@@ -132,6 +146,9 @@ contains
           call dir2dir3_geometric_coeffs(&
             verts_dtd, sundir, bg(2), c_scatter_gomtrc_dst)
 
+          call dir2dir3_geometric_coeffs(&
+            verts_dtd, sundir, bg(1) + bg(2), c_gomtrc_dst)
+
           do src = 1,3
             call bmc_3_10%get_coeff(&
               comm,real(bg, ireal_dp),src,.True.,real(phi, ireal_dp),real(theta, ireal_dp),real(verts_dtd, ireal_dp), &
@@ -140,6 +157,7 @@ contains
           enddo
 
           T_gomtrc_dst_cscat(i-1,:) = c_scatter_gomtrc_dst
+          T_gomtrc_dst(i-1,:) = c_gomtrc_dst
           S_bmc_dst_cscat_cabso(i-1,:) = S_bmc
         enddo
 
@@ -148,6 +166,13 @@ contains
           'tenstream_geometric_coeffs/data_ex_geometric_coeffs_dir2diff_hacks/'//&
           'S_LUT_reg_phi_'//sStr(phi)//'_theta_'//sStr(theta)//'_cscatter_'//sStr(bg(2))//'_cabso_'//sStr(bg(1))//'.out', &
           S_LUT_reg_cscat_cabso, ierr, header='# src_z src_x src_y ; cabso='//sStr(bg(1))//' ; cscatter='//sStr(bg(2)))
+
+        call write_ascii_file_2d( &
+          '/project/meteo/work/Hermann.Boettcher/hermannboettchermasterthesis/'//&
+          'tenstream_geometric_coeffs/data_ex_geometric_coeffs_dir2diff_hacks/'//&
+          'T_LUT_reg_phi_'//sStr(phi)//'_theta_'//sStr(theta)//'_cscatter_'//sStr(bg(2))//'_cabso_'//sStr(bg(1))//'.out', &
+          T_LUT_reg_cscat_cabso, ierr, header='# src_z src_x src_y ; cabso='//sStr(bg(1))//' ; cscatter='//sStr(bg(2)))
+
         call write_ascii_file_2d( &
           '/project/meteo/work/Hermann.Boettcher/hermannboettchermasterthesis/'//&
           'tenstream_geometric_coeffs/data_ex_geometric_coeffs_dir2diff_hacks/'//&
@@ -168,6 +193,11 @@ contains
           'tenstream_geometric_coeffs/data_ex_geometric_coeffs_dir2diff_hacks/'//&
           'gomtrc_dst_phi_'//sStr(phi)//'_theta_'//sStr(theta)//'_cscatter_'//sStr(bg(2))//'_cabso_'//sStr(bg(1))//'.out', &
           T_gomtrc_dst_cscat, ierr, header='# src_z src_x src_y ; cabso='//sStr(bg(1))//' ; cscatter='//sStr(bg(2)))
+        call write_ascii_file_2d( &
+          '/project/meteo/work/Hermann.Boettcher/hermannboettchermasterthesis/'//&
+          'tenstream_geometric_coeffs/data_ex_geometric_coeffs_dir2diff_hacks/'//&
+          'T_gomtrc_dst_phi_'//sStr(phi)//'_theta_'//sStr(theta)//'_cscatter_'//sStr(bg(2))//'_cabso_'//sStr(bg(1))//'.out', &
+          T_gomtrc_dst, ierr, header='# src_z src_x src_y ; cabso='//sStr(bg(1))//' ; cscatter='//sStr(bg(2)))
       enddo
     enddo
 
