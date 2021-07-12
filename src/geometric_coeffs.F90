@@ -81,7 +81,7 @@ contains
     call create_proj_copies(h, g, e, f, h_p, g_p, e_p, f_p)
     call project_points(sundir, d, compute_normal_3d(d, b, a), h_p, g_p, e_p, f_p)
     call rearange_projections(d, c, a, b, h_p, g_p, e_p, f_p)
-    call correct_coeffs( &
+    call gomtrc_coeffs( &
       d   , c   , a   , b,    g, & ! fixed
       h_p , g_p , e_p , f_p,     & ! projected
       extinction_coeff, &
@@ -100,7 +100,7 @@ contains
     call create_proj_copies(h, d, b, f, h_p, d_p, b_p, f_p)
     call project_points(sundir, a, compute_normal_3d(c, a, e), h_p, d_p, b_p, f_p)
     call rearange_projections(g, c, a, e, h_p, d_p, b_p, f_p)
-    call correct_coeffs( &
+    call gomtrc_coeffs( &
       g   , c   , a   , e,    d, & ! fixed
       h_p , d_p , b_p , f_p,     & ! projected
       extinction_coeff, &
@@ -118,7 +118,7 @@ contains
     call create_proj_copies(f, b, a, e, f_p, b_p, a_p, e_p)
     call project_points(sundir, d, compute_normal_3d(c, d, h), f_p, b_p, a_p, e_p)
     call rearange_projections(h, d, c, g, f_p, b_p, a_p, e_p)
-    call correct_coeffs( &
+    call gomtrc_coeffs( &
       h   , d   , c   , g,    b, & ! fixed
       f_p , b_p , a_p , e_p,     & ! projected
       extinction_coeff, &
@@ -134,7 +134,7 @@ contains
 
   contains
 
-    subroutine correct_coeffs( &
+    subroutine gomtrc_coeffs( &
         f1, f2, f3, f4, f5, &
         v1, v2, v3, v4, &
         extinction_coeff, slice, other_slice, coeffs, sun_up_down,  num_intervals &
@@ -170,13 +170,13 @@ contains
         area1 = quadrangle_area_by_vertices(v1, pb, f3, pl) * exp( - extinction_coeff * s)
         s = norm2(hit_plane(v1, sundir, f1, normal) * sundir) ! prp - v1
 
-        aq = quadrangle_area_by_vertices(v1, pr, f2, pb) * f_dst(s, extinction_coeff)
+        aq = quadrangle_area_by_vertices(v1, pr, f2, pb) * ext(s * extinction_coeff)
         at = num_dst(s, norm2(f1 - pr) * cos_src_trgt, norm2(pr - v1), extinction_coeff, num_intervals)
         area2 = aq + at
 
         normal = compute_normal_3d(f3, f2, f5)
         s = norm2(hit_plane(v1, sundir, f1, normal) * sundir) ! prp - v1
-        aq = quadrangle_area_by_vertices(v1, pl, f4, pt) * f_dst(s, extinction_coeff)
+        aq = quadrangle_area_by_vertices(v1, pl, f4, pt) * ext(s * extinction_coeff)
         at = num_dst(s, norm2(f1 - pt) * cos_src_trgt, norm2(pt - v1), extinction_coeff, num_intervals)
       else if (norm2(v2-f2) .gt. small) then
         if (ldebug) print *, cstr('v2', 'red')
@@ -185,13 +185,13 @@ contains
 
         s = norm2(hit_plane(v2, sundir, f2, normal) * sundir) ! prp - v2
 
-        aq = quadrangle_area_by_vertices(v2, pr, f1, pt) * f_dst(s, extinction_coeff)
+        aq = quadrangle_area_by_vertices(v2, pr, f1, pt) * ext(s * extinction_coeff)
         at = num_dst(s, norm2(f2 - pr) * cos_src_trgt, norm2(pr - v2), extinction_coeff, num_intervals)
         area2 = aq + at
 
         normal = compute_normal_3d(f3, f2, f5)
         s = norm2(hit_plane(v2, sundir, f2, normal) * sundir) ! prp - v2
-        aq = quadrangle_area_by_vertices(v2, pl, f3, pb) * f_dst(s, extinction_coeff)
+        aq = quadrangle_area_by_vertices(v2, pl, f3, pb) * ext(s * extinction_coeff)
         at = num_dst(s, norm2(f2 - pb) * cos_src_trgt, norm2(pb - v2), extinction_coeff, num_intervals)
       else if (norm2(v3-f3) .gt. small) then
         call proj_var_to_edges(f4, f3, f2, f1, v3, pr, pb, pt, pl)
@@ -200,13 +200,13 @@ contains
 
         s = norm2(hit_plane(v3, sundir, f3, normal) * sundir) ! prp - v3
 
-        aq = quadrangle_area_by_vertices(v3, pl, f4, pt) * f_dst(s, extinction_coeff)
+        aq = quadrangle_area_by_vertices(v3, pl, f4, pt) * ext(s * extinction_coeff)
         at = num_dst(s, norm2(f3 - pl) * cos_src_trgt, norm2(pl - v3), extinction_coeff, num_intervals)
         area2 = aq + at
 
         normal = compute_normal_3d(f3, f2, f5)
         s = norm2(hit_plane(v3, sundir, f3, normal) * sundir) ! prp - v3
-        aq = quadrangle_area_by_vertices(v3, pr, f2, pb) * f_dst(s, extinction_coeff)
+        aq = quadrangle_area_by_vertices(v3, pr, f2, pb) * ext(s * extinction_coeff)
         at = num_dst(s, norm2(f3 - pb) * cos_src_trgt, norm2(pb - v3), extinction_coeff, num_intervals)
       else if (norm2(v4-f4) .gt. small) then
         call proj_var_to_edges(f4, f3, f2, f1, v4, pr, pb, pt, pl)
@@ -215,13 +215,13 @@ contains
 
         s = norm2(hit_plane(v4, sundir, f4, normal) * sundir) ! prp - v4
 
-        aq = quadrangle_area_by_vertices(v4, pl, f3, pb) * f_dst(s, extinction_coeff)
+        aq = quadrangle_area_by_vertices(v4, pl, f3, pb) * ext(s * extinction_coeff)
         at = num_dst(s, norm2(f4 - pl) * cos_src_trgt, norm2(pl - v4), extinction_coeff, num_intervals)
         area2 = aq + at
 
         normal = compute_normal_3d(f3, f2, f5)
         s = norm2(hit_plane(v4, sundir, f4, normal) * sundir) ! prp - v4
-        aq = quadrangle_area_by_vertices(v4, pr, f1, pt) * f_dst(s, extinction_coeff)
+        aq = quadrangle_area_by_vertices(v4, pr, f1, pt) * ext(s * extinction_coeff)
         at = num_dst(s, norm2(f4 - pt) * cos_src_trgt, norm2(pt - v4), extinction_coeff, num_intervals)
       else
         ! initializing non initialized in case of no other fullfilled case
@@ -234,6 +234,9 @@ contains
       area3 = aq + at
 
       if (ldebug) then
+        print *, 'a3q', aq
+        print *, 'a3t', at
+        print *, 'atot', quadrangle_area_by_vertices(f1, f2, f3, f4)
         print *, 'a1', area1
         print *, 'a2', area2
         print *, 'a3', area3
@@ -270,16 +273,16 @@ contains
         j = i - 0.5_ireals
         s = j * ds
         h = j * dh
-        num_dst = num_dst + dl * h * f_dst(s, extinction_coeff)
+        num_dst = num_dst + dl * h * ext(s * extinction_coeff)
       enddo
     end function
-    real(ireals) function f_dst(s, c_ext)
-      real(ireals), intent(in) :: s, c_ext
-      real(ireals) :: x
 
-      x = s * c_ext
-      f_dst = expm1(-x) / min(-x, -tiny(x))
-      ! max(.,tiny) needed to prevent nan when projection of v_i located on a2 boarder and thus s=0
+    real(ireals) function ext(beta_s)
+      real(ireals), intent(in) :: beta_s
+      real(ireals), parameter :: tyne = tiny(beta_s)
+
+     ! ext = expm1(-beta_s) / min(-beta_s, -tyne)  !!! NOT WORKING
+      ext = expm1(-beta_s) / (-beta_s)
     end function
   end subroutine
 
