@@ -355,6 +355,7 @@ contains
     v_mc = [real(ireals) :: 0.5, 0, 0, 0, 0.5, 0.5, 0.5, 0.5, 0.5]
     do src = 1,3
     !  call bmc_3_10%get_coeff(comm,bg,src,.True.,phi,theta,real(verts_dtd, ireal_dp),S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+
     !  v_mc(src:9:3) = real(T, ireals)
     enddo
 
@@ -374,7 +375,5 @@ contains
     endif
 
     @assertEqual(v_mc, v, max(maxval(v_mc)*0.05_ireals, 1e-6_ireals), 'failed for case 3'//'; phi='//toStr(phi)//'; theta='//toStr(theta))
-
   end subroutine
-
 end module

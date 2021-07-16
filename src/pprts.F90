@@ -2399,7 +2399,7 @@ module m_pprts
     real(ireals), allocatable :: vertices(:)
     real(ireals) :: norm
     real(ireals), pointer :: c(:,:)
-    logical :: lgeometric_coeffs, lflg
+    logical :: lgeometric_coeffs, lflg, ldstd_unparallel
 
 
     associate( &
@@ -2422,6 +2422,10 @@ module m_pprts
       call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
         & "-pprts_geometric_coeffs", lgeometric_coeffs, lflg, ierr) ;call CHKERR(ierr)
 
+      ldstd_unparallel = .False.
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+        & "-pprts_dstd_unparallel", ldstd_unparallel, lflg, ierr) ;call CHKERR(ierr)
+
       call setup_default_unit_cube_geometry(atm%dx, atm%dy, -one, vertices)
       call getVecPointer(solver%Cvert_one_atm1%da, solver%atm%vert_heights, xhhl1d, xhhl, readonly=.True.)
 
@@ -2433,32 +2437,27 @@ module m_pprts
               vertices( 3) = xhhl(i0,atmk(solver%atm,k+1),i,j)
               vertices( 6) = xhhl(i0,atmk(solver%atm,k+1),i+1,j)
               vertices( 9) = xhhl(i0,atmk(solver%atm,k+1),i,j+1)
-              vertices(12) = xhhl(i0,atmk(solver%atm,k+1),i+1,j+1)
-              vertices(15) = xhhl(i0,atmk(solver%atm,k),i,j)
-              vertices(18) = xhhl(i0,atmk(solver%atm,k),i+1,j)
-              vertices(21) = xhhl(i0,atmk(solver%atm,k),i,j+1)
-              vertices(24) = xhhl(i0,atmk(solver%atm,k),i+1,j+1)
+              vertices(12) = vertices(9) +  (vertices(3) - vertices(6))
 
+              vertices([15,18,21,24]) = vertices([3,6,9,12]) + solver%atm%dz(atmk(solver%atm, k), i, j)
+
+              if (ldstd_unparallel) then
+                vertices(15) = xhhl(i0,atmk(solver%atm,k),i,j)
+                vertices(18) = xhhl(i0,atmk(solver%atm,k),i+1,j)
+                vertices(21) = xhhl(i0,atmk(solver%atm,k),i,j+1)
+                vertices(12) = vertices(21) +  (vertices(15) - vertices(18))
+              endif
+
+              vertices(3:24:3) = vertices(3:24:3) - vertices(3)
               vertices(3:24:3) = vertices(3:24:3) - vertices(3)
 
               if (lgeometric_coeffs) then
-                !not in a plane -> use 3 and construct 4th point
-                vertices(12) = vertices(9) +  (vertices(3) - vertices(6))
-                !make bottom and top of box parallel
-                vertices([15,18,21,24]) = vertices([3,6,9,12]) + solver%atm%dz(atmk(solver%atm, k), i, j)
-
                 call dir2dir3_geometric_coeffs( &
                   vertices, &
                   sun%sundir, &
                   solver%atm%kabs(atmk(solver%atm, k), i, j) + solver%atm%ksca(atmk(solver%atm, k), i, j), &
                   coeffs(:,k,i,j))
               else
-                ! unparallel
-                !vertices(12) = vertices(9) +  (vertices(3) - vertices(6))
-                !vertices(24) = vertices(21) +  (vertices(15) - vertices(18))
-                ! parallel
-                !vertices(12) = vertices(9) +  (vertices(3) - vertices(6))
-                !vertices([15,18,21,24]) = vertices([3,6,9,12]) + solver%atm%dz(atmk(solver%atm, k), i, j)
                 call get_coeff(solver, &
                   & atm%kabs(atmk(solver%atm,k),i,j), &
                   & atm%ksca(atmk(solver%atm,k),i,j), &
@@ -2528,15 +2527,16 @@ module m_pprts
     real(ireals), target, allocatable, intent(inout) :: coeffs(:,:,:,:)
     real(irealLUT), allocatable :: v(:), T_LUT(:)
     real(ireals), allocatable :: T_GOMTRC(:), S_GOMTRC(:), S_LUT(:)
-    integer(iintegers) :: src, k, i, j, locOfMin, locOfNext
-    integer(iintegers), allocatable :: minlocs(:)
+    integer(iintegers) :: src, k, i, j, locOfMin, locOfMax, locOfNext
+    integer(iintegers), allocatable :: minlocs(:), maxlocs(:)
     integer(mpiint) :: ierr
 
     real(ireals), pointer :: xhhl(:,:,:,:) => null(), xhhl1d(:) => null()
     real(ireals), allocatable :: vertices(:)
-    real(ireals) :: norm, S_LUT_norms(3), T_LUT_norms(3), S_GOMTRC_norms(3), T_GOMTRC_norms(3)
+    real(ireals) :: norm, normref, S_LUT_norms(3), T_LUT_norms(3), S_GOMTRC_norms(3), T_GOMTRC_norms(3), &
+      delta_S_GOMTRC_norms
     real(ireals), pointer :: c(:,:)
-    logical :: lgeometric_coeffs, lflg
+    logical :: lgeometric_coeffs, lflg, lcheck_coeff_sums, ldstd_unparallel
 
     associate( &
         & atm     => solver%atm, &
@@ -2561,6 +2561,10 @@ module m_pprts
       call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
         & "-pprts_geometric_coeffs", lgeometric_coeffs, lflg, ierr) ;call CHKERR(ierr)
 
+      ldstd_unparallel = .False.
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+        & "-pprts_dstd_unparallel", ldstd_unparallel, lflg, ierr) ;call CHKERR(ierr)
+
       call setup_default_unit_cube_geometry(atm%dx, atm%dy, -one, vertices)
       call getVecPointer(solver%Cvert_one_atm1%da, solver%atm%vert_heights, xhhl1d, xhhl, readonly=.True.)
 
@@ -2572,25 +2576,18 @@ module m_pprts
               vertices( 3) = xhhl(i0,atmk(solver%atm,k+1),i,j)
               vertices( 6) = xhhl(i0,atmk(solver%atm,k+1),i+1,j)
               vertices( 9) = xhhl(i0,atmk(solver%atm,k+1),i,j+1)
-              vertices(12) = xhhl(i0,atmk(solver%atm,k+1),i+1,j+1)
-              vertices(15) = xhhl(i0,atmk(solver%atm,k),i,j)
-              vertices(18) = xhhl(i0,atmk(solver%atm,k),i+1,j)
-              vertices(21) = xhhl(i0,atmk(solver%atm,k),i,j+1)
-              vertices(24) = xhhl(i0,atmk(solver%atm,k),i+1,j+1)
-
-              vertices(3:24:3) = vertices(3:24:3) - vertices(3)
-
-              !not in a plane -> use 3 and construct 4th point
               vertices(12) = vertices(9) +  (vertices(3) - vertices(6))
-              !make bottom and top of box parallel
+
               vertices([15,18,21,24]) = vertices([3,6,9,12]) + solver%atm%dz(atmk(solver%atm, k), i, j)
 
-              ! unparallel
-              !vertices(12) = vertices(9) +  (vertices(3) - vertices(6))
-              !vertices(24) = vertices(21) +  (vertices(15) - vertices(18))
-              ! parallel
-              !vertices(12) = vertices(9) +  (vertices(3) - vertices(6))
-              !vertices([15,18,21,24]) = vertices([3,6,9,12]) + solver%atm%dz(atmk(solver%atm, k), i, j)
+              if (ldstd_unparallel) then
+                vertices(15) = xhhl(i0,atmk(solver%atm,k),i,j)
+                vertices(18) = xhhl(i0,atmk(solver%atm,k),i+1,j)
+                vertices(21) = xhhl(i0,atmk(solver%atm,k),i,j+1)
+                vertices(12) = vertices(21) +  (vertices(15) - vertices(18))
+              endif
+
+              vertices(3:24:3) = vertices(3:24:3) - vertices(3)
 
               call get_coeff(solver, &
                 & atm%kabs(atmk(solver%atm,k),i,j), &
@@ -2618,7 +2615,6 @@ module m_pprts
                   & opt_vertices=vertices)
 
                 T_GOMTRC = solver%dir2dir(:,k,i,j)
-
                 do src=1,3
                   S_LUT_norms(src)    = sum(S_LUT(src:C_dir%dof*C_diff%dof:3))
                   T_LUT_norms(src)    = sum(T_LUT(src:C_dir%dof**2:3))
@@ -2626,31 +2622,106 @@ module m_pprts
                 enddo
 
                 S_GOMTRC_norms = S_LUT_norms + T_LUT_norms - T_GOMTRC_norms
-          2624  if (any(S_GOMTRC_norms < zero) .or. any(S_GOMTRC_norms > one)) then
-                  minlocs = minloc(S_GOMTRC_norms)
-                  locOfMin = minlocs(1)
-                  locOfNext = mod(locOfMin, 3) + 1
-                  S_GOMTRC_norms(locOfNext) = S_GOMTRC(locOfNext) - S_GOMTRC_norms(locOfMin)
-                  S_GOMTRC_norms(locOfMin) = zero
-                  GoTo 2624
-                endif
 
+                if (.False.) then
+
+            2624  if (any(S_GOMTRC_norms < zero)) then
+                    minlocs = minloc(S_GOMTRC_norms)
+                    locOfMin = minlocs(1)
+                    locOfNext = mod(locOfMin, 3) + 1
+                    delta_S_GOMTRC_norms = S_GOMTRC_norms(locOfNext) + S_GOMTRC_norms(locOfMin)
+                    S_GOMTRC_norms(locOfNext) = max(delta_S_GOMTRC_norms, zero)
+                    S_GOMTRC_norms(locOfNext+1) = S_GOMTRC(locOfNext+1) + min(delta_S_GOMTRC_norms, zero)
+                    S_GOMTRC_norms(locOfMin) = zero
+                    GoTo 2624
+                  endif
+            2633  if (any(S_GOMTRC_norms > one)) then
+                    maxlocs = maxloc(S_GOMTRC_norms)
+                    locOfMax = maxlocs(1)
+                    locOfNext = mod(locOfMax, 3) + 1
+                    delta_S_GOMTRC_norms = S_GOMTRC_norms(locOfNext) + S_GOMTRC_norms(locOfMax) - one
+                    S_GOMTRC_norms(locOfNext) = min(delta_S_GOMTRC_norms, one)
+                    S_GOMTRC_norms(locOfNext+1) = S_GOMTRC(locOfNext+1) - min(one - delta_S_GOMTRC_norms, zero)
+                    S_GOMTRC_norms(locOfMax) = one
+                    GoTo 2633
+                  endif
+
+            2647  if (any(S_GOMTRC_norms + T_GOMTRC_norms > one)) then
+                    maxlocs = maxloc(S_GOMTRC_norms + T_GOMTRC_norms)
+                    locOfMax = maxlocs(1)
+                    locOfNext = mod(locOfMax, 3) + 1
+                    delta_S_GOMTRC_norms = S_GOMTRC_norms(locOfMax) + T_GOMTRC_norms(locOfMax)
+                    S_GOMTRC_norms(locOfNext) = min(one - T_GOMTRC_norms(locOfNext), &
+                      S_GOMTRC_norms(locOfNext) + delta_S_GOMTRC_norms - one)
+                    S_GOMTRC_norms(locOfNext+1) = S_GOMTRC_norms(locOfNext+3) + max(delta_S_GOMTRC_norms - one, zero)
+                    S_GOMTRC_norms(locOfMax) = one - T_GOMTRC_norms(locOfMax)
+                    GoTo 2647
+                  endif
+
+                  !print *, cstr('S_norms = '//toStr(S_GOMTRC_norms), 'green')
+
+              endif
+
+                ! rescaling S_LUT
                 do src=1,3
-                S_GOMTRC(src:C_dir%dof*C_diff%dof:3) = S_LUT(src:C_dir%dof*C_diff%dof:3) * &
-                  S_GOMTRC_norms(src) / S_LUT_norms(src)
+                  S_GOMTRC(src:C_dir%dof*C_diff%dof:3) = S_LUT(src:C_dir%dof*C_diff%dof:3) * &
+                    S_GOMTRC_norms(src) / S_LUT_norms(src)
                 enddo
+
+                coeffs(:,k,i,j) = S_GOMTRC
+
+                !print *, cstr('S = '//toStr(S_GOMTRC), 'green')
+
+                if (.False.) then
+             2645 if (any(S_GOMTRC(src:C_dir%dof*C_diff%dof:3) > one)) then
+                    maxlocs = maxloc(S_GOMTRC(src:C_dir%dof*C_diff%dof:3))
+                    locOfMax = maxlocs(1)
+                    locOfNext = mod(locOfMax, 3) + 1
+                    S_GOMTRC(locOfNext) = S_GOMTRC(locOfNext) + S_GOMTRC(locOfMax) - one
+                    S_GOMTRC(locOfMax) = one
+                    GoTO 2645
+                  endif
+             2653 if (any(S_GOMTRC(src:C_dir%dof*C_diff%dof:3) < zero)) then
+                    minlocs = minloc(S_GOMTRC(src:C_dir%dof*C_diff%dof:3))
+                    locOfMin = minlocs(1)
+                    locOfNext = mod(locOfMin, 3) + 1
+                    S_GOMTRC(locOfNext) = S_GOMTRC(locOfNext) + S_GOMTRC(locOfMin) - one
+                    S_GOMTRC(locOfMin) = one
+                    GoTO 2653
+                  endif
+
 
                 if (any(S_GOMTRC .gt. one) .or. any(S_GOMTRC .lt. zero)) then
                   call CHKERR(1_mpiint, 'The dreaded case happened: S_GOMTRC = '//toStr(S_GOMTRC)//&
                     'Do something about it!')
                 endif
+
                 coeffs(:,k,i,j) = S_GOMTRC
               endif
 
+            endif
               if (ldebug_optprop) then
                 c(1:C_dir%dof,1:C_diff%dof) => coeffs(:,k,i,j) ! dim(src,dst)
                 do src = 1, C_dir%dof
                   norm = sum( c(src,:) )
+                  call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+                    "-check_coeff_sums", lcheck_coeff_sums, lflg , ierr) ;call CHKERR(ierr)
+                  if (lcheck_coeff_sums) then
+                    !print *, 'norm dir2diff = '//toStr(norm)
+                    !print *, 'norm dir2dir = '//toStr(sum(solver%dir2dir(src:9:3,atmk(solver%atm,k),i,j)))
+                    normref = sum(solver%dir2dir(src:9:3,atmk(solver%atm,k),i,j)) + norm
+                    if (normref .gt. one + sqrt(sqrt(epsilon(norm)))) &
+                      call CHKERR(1, 'Failed since for src'//toStr(src)//&
+                        &', norm(dir2dir(src)) + norm(dir2diff(src)) = '//new_line('A')//&
+                        &'S = '//toStr(c(src,:))//new_line('A')//&
+                        &'T = '//toStr(solver%dir2dir(src:9:3, atmk(solver%atm,k),i,j))//new_line('A')//&
+                        &toStr(normref)//' > 1.'//&
+                        &'; box indize: k = '//toStr(k)//', i = '//toStr(i)//', j = '//toStr(j)//&
+                        &'; vertices: '//toStr(vertices)//&
+                        &'; c_abso = '//toStr(atm%kabs(atmk(solver%atm,k),i,j))//&
+                        &'; c_scat = '//toStr(atm%ksca(atmk(solver%atm,k),i,j))//&
+                        &'; g = '//toStr(atm%g(atmk(solver%atm,k),i,j)))
+                  endif
                   if( norm.gt.one ) then ! could renormalize
                     if( norm.gt.one+100._ireals*sqrt(epsilon(norm)) ) then ! fatally off
                       print *,'dir2diff sum(dst==', src, ') gt one', norm
