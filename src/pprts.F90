@@ -2635,19 +2635,26 @@ module m_pprts
                 do src=1,3
                   if (one / S_LUT_norms(src) .ne. one / S_LUT_norms(src)) then
                     S_GOMTRC(src:C_dir%dof*C_diff%dof:3) = &
-                      [one,one,one] / 3._ireals * (T_LUT_norms(src) - T_GOMTRC_norms(src))
+                      [one,one,one,one,one,one,one,one,one,one] / 10._ireals * &
+                      (T_LUT_norms(src) - T_GOMTRC_norms(src))
                     do test=1,3
-                    if (S_GOMTRC(test) .ne. S_GOMTRC(test)) call CHKERR(1_mpiint, 'case 1 S_GOMTRC='//&
-                        &toStr(S_GOMTRC(test)))
+                    if (S_GOMTRC(src*test) .ne. S_GOMTRC(src*test)) call CHKERR(1_mpiint, 'case 1 S_GOMTRC='//&
+                        &toStr(S_GOMTRC(src*test)))
                     enddo
                   else
-                    S_GOMTRC(src:C_dir%dof*C_diff%dof:3) = S_LUT(src:C_dir%dof*C_diff%dof:3) * &
-                      (one + (T_LUT_norms(src) - T_GOMTRC_norms(src)) / S_LUT_norms(src))
+                    S_GOMTRC(src:C_dir%dof*C_diff%dof:3) = S_LUT(src:C_dir%dof*C_diff%dof:3) / S_LUT_norms(src)
                     do test=1,3
-                    if (S_GOMTRC(test) .ne. S_GOMTRC(test)) call CHKERR(1_mpiint, 'case 2 S_GOMTRC='//&
-                        &toStr(S_GOMTRC(test)))
+                      if (S_GOMTRC(src*test) .ne. S_GOMTRC(src*test)) then
+                        S_GOMTRC(src:C_dir%dof*C_diff%dof:3) = [one,one,one,one,one,one,one,one,one,one] / 10._ireals
+                      endif
                     enddo
+                    S_GOMTRC(src:C_dir%dof*C_diff%dof:3) = S_GOMTRC(src:C_dir%dof*C_diff%dof:3) * &
+                      (one - (one - T_LUT_norms(src) - S_LUT_norms(src)) -  T_GOMTRC_norms(src))
                   endif
+                  do test=1,3
+                    if (S_GOMTRC(src*test) .ne. S_GOMTRC(src*test)) call CHKERR(1_mpiint, 'case 2 S_GOMTRC='//&
+                        &toStr(S_GOMTRC(src*test)))
+                  enddo
                 enddo
 
                 !do src=1,9
