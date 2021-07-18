@@ -279,9 +279,7 @@ contains
 
     real(ireals) function ext(beta_s)
       real(ireals), intent(in) :: beta_s
-      real(ireals), parameter :: tyne = tiny(beta_s)
 
-     ! ext = expm1(-beta_s) / min(-beta_s, -tyne)  !!! NOT WORKING
       ext = expm1(-beta_s) / (-beta_s)
     end function
   end subroutine
