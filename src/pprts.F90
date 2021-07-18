@@ -2527,8 +2527,7 @@ module m_pprts
     real(ireals), target, allocatable, intent(inout) :: coeffs(:,:,:,:)
     real(irealLUT), allocatable :: v(:), T_LUT(:)
     real(ireals), allocatable :: T_GOMTRC(:), S_GOMTRC(:), S_LUT(:)
-    integer(iintegers) :: src, k, i, j, locOfMin, locOfMax, locOfNext
-    integer(iintegers), allocatable :: minlocs(:), maxlocs(:)
+    integer(iintegers) :: src, k, i, j, test
     integer(mpiint) :: ierr
 
     real(ireals), pointer :: xhhl(:,:,:,:) => null(), xhhl1d(:) => null()
@@ -2615,91 +2614,51 @@ module m_pprts
                   & opt_vertices=vertices)
 
                 T_GOMTRC = solver%dir2dir(:,k,i,j)
+
                 do src=1,3
                   S_LUT_norms(src)    = sum(S_LUT(src:C_dir%dof*C_diff%dof:3))
                   T_LUT_norms(src)    = sum(T_LUT(src:C_dir%dof**2:3))
                   T_GOMTRC_norms(src) = sum(T_GOMTRC(src:C_dir%dof**2:3))
+
+                  if (S_LUT_norms(src) .ne. S_LUT_norms(src)) call CHKERR(1_mpiint, 'S_LUT'//&
+                    &toStr(S_LUT_norms(src)))
+                  if (T_LUT_norms(src) .ne. T_LUT_norms(src)) call CHKERR(1_mpiint, 'S_LUT'//&
+                    &toStr(T_LUT_norms(src)))
+                  if (T_GOMTRC_norms(src) .ne. T_GOMTRC_norms(src)) call CHKERR(1_mpiint, 'S_LUT'//&
+                    &toStr(T_GOMTRC_norms(src)))
                 enddo
+
 
                 S_GOMTRC_norms = S_LUT_norms + T_LUT_norms - T_GOMTRC_norms
 
-                if (.False.) then
-
-            2624  if (any(S_GOMTRC_norms < zero)) then
-                    minlocs = minloc(S_GOMTRC_norms)
-                    locOfMin = minlocs(1)
-                    locOfNext = mod(locOfMin, 3) + 1
-                    delta_S_GOMTRC_norms = S_GOMTRC_norms(locOfNext) + S_GOMTRC_norms(locOfMin)
-                    S_GOMTRC_norms(locOfNext) = max(delta_S_GOMTRC_norms, zero)
-                    S_GOMTRC_norms(locOfNext+1) = S_GOMTRC(locOfNext+1) + min(delta_S_GOMTRC_norms, zero)
-                    S_GOMTRC_norms(locOfMin) = zero
-                    GoTo 2624
-                  endif
-            2633  if (any(S_GOMTRC_norms > one)) then
-                    maxlocs = maxloc(S_GOMTRC_norms)
-                    locOfMax = maxlocs(1)
-                    locOfNext = mod(locOfMax, 3) + 1
-                    delta_S_GOMTRC_norms = S_GOMTRC_norms(locOfNext) + S_GOMTRC_norms(locOfMax) - one
-                    S_GOMTRC_norms(locOfNext) = min(delta_S_GOMTRC_norms, one)
-                    S_GOMTRC_norms(locOfNext+1) = S_GOMTRC(locOfNext+1) - min(one - delta_S_GOMTRC_norms, zero)
-                    S_GOMTRC_norms(locOfMax) = one
-                    GoTo 2633
-                  endif
-
-            2647  if (any(S_GOMTRC_norms + T_GOMTRC_norms > one)) then
-                    maxlocs = maxloc(S_GOMTRC_norms + T_GOMTRC_norms)
-                    locOfMax = maxlocs(1)
-                    locOfNext = mod(locOfMax, 3) + 1
-                    delta_S_GOMTRC_norms = S_GOMTRC_norms(locOfMax) + T_GOMTRC_norms(locOfMax)
-                    S_GOMTRC_norms(locOfNext) = min(one - T_GOMTRC_norms(locOfNext), &
-                      S_GOMTRC_norms(locOfNext) + delta_S_GOMTRC_norms - one)
-                    S_GOMTRC_norms(locOfNext+1) = S_GOMTRC_norms(locOfNext+3) + max(delta_S_GOMTRC_norms - one, zero)
-                    S_GOMTRC_norms(locOfMax) = one - T_GOMTRC_norms(locOfMax)
-                    GoTo 2647
-                  endif
-
-                  !print *, cstr('S_norms = '//toStr(S_GOMTRC_norms), 'green')
-
-              endif
-
                 ! rescaling S_LUT
                 do src=1,3
-                  S_GOMTRC(src:C_dir%dof*C_diff%dof:3) = S_LUT(src:C_dir%dof*C_diff%dof:3) * &
-                    S_GOMTRC_norms(src) / S_LUT_norms(src)
+                  if (one / S_LUT_norms(src) .ne. one / S_LUT_norms(src)) then
+                    S_GOMTRC(src:C_dir%dof*C_diff%dof:3) = &
+                      [one,one,one] / 3._ireals * (T_LUT_norms(src) - T_GOMTRC_norms(src))
+                    do test=1,3
+                    if (S_GOMTRC(test) .ne. S_GOMTRC(test)) call CHKERR(1_mpiint, 'case 1 S_GOMTRC='//&
+                        &toStr(S_GOMTRC(test)))
+                    enddo
+                  else
+                    S_GOMTRC(src:C_dir%dof*C_diff%dof:3) = S_LUT(src:C_dir%dof*C_diff%dof:3) * &
+                      (one + (T_LUT_norms(src) - T_GOMTRC_norms(src)) / S_LUT_norms(src))
+                    do test=1,3
+                    if (S_GOMTRC(test) .ne. S_GOMTRC(test)) call CHKERR(1_mpiint, 'case 2 S_GOMTRC='//&
+                        &toStr(S_GOMTRC(test)))
+                    enddo
+                  endif
                 enddo
 
-                coeffs(:,k,i,j) = S_GOMTRC
-
-                !print *, cstr('S = '//toStr(S_GOMTRC), 'green')
-
-                if (.False.) then
-             2645 if (any(S_GOMTRC(src:C_dir%dof*C_diff%dof:3) > one)) then
-                    maxlocs = maxloc(S_GOMTRC(src:C_dir%dof*C_diff%dof:3))
-                    locOfMax = maxlocs(1)
-                    locOfNext = mod(locOfMax, 3) + 1
-                    S_GOMTRC(locOfNext) = S_GOMTRC(locOfNext) + S_GOMTRC(locOfMax) - one
-                    S_GOMTRC(locOfMax) = one
-                    GoTO 2645
-                  endif
-             2653 if (any(S_GOMTRC(src:C_dir%dof*C_diff%dof:3) < zero)) then
-                    minlocs = minloc(S_GOMTRC(src:C_dir%dof*C_diff%dof:3))
-                    locOfMin = minlocs(1)
-                    locOfNext = mod(locOfMin, 3) + 1
-                    S_GOMTRC(locOfNext) = S_GOMTRC(locOfNext) + S_GOMTRC(locOfMin) - one
-                    S_GOMTRC(locOfMin) = one
-                    GoTO 2653
-                  endif
-
-
-                if (any(S_GOMTRC .gt. one) .or. any(S_GOMTRC .lt. zero)) then
-                  call CHKERR(1_mpiint, 'The dreaded case happened: S_GOMTRC = '//toStr(S_GOMTRC)//&
-                    'Do something about it!')
-                endif
+                !do src=1,9
+                !  if (S_GOMTRC(src) .ne. S_GOMTRC(src)) then
+                !    call CHKERR(1_mpiint, 'produced nan in S_GOMTRC  == '//toStr(S_GOMTRC(src)))
+                !  endif
+                !enddo
 
                 coeffs(:,k,i,j) = S_GOMTRC
-              endif
+              endif !lgeometric_coeffs
 
-            endif
               if (ldebug_optprop) then
                 c(1:C_dir%dof,1:C_diff%dof) => coeffs(:,k,i,j) ! dim(src,dst)
                 do src = 1, C_dir%dof
