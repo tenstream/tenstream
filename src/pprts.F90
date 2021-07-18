@@ -2445,7 +2445,7 @@ module m_pprts
                 vertices(15) = xhhl(i0,atmk(solver%atm,k),i,j)
                 vertices(18) = xhhl(i0,atmk(solver%atm,k),i+1,j)
                 vertices(21) = xhhl(i0,atmk(solver%atm,k),i,j+1)
-                vertices(12) = vertices(21) +  (vertices(15) - vertices(18))
+                vertices(24) = vertices(21) +  (vertices(15) - vertices(18))
               endif
 
               vertices(3:24:3) = vertices(3:24:3) - vertices(3)
@@ -2584,7 +2584,7 @@ module m_pprts
                 vertices(15) = xhhl(i0,atmk(solver%atm,k),i,j)
                 vertices(18) = xhhl(i0,atmk(solver%atm,k),i+1,j)
                 vertices(21) = xhhl(i0,atmk(solver%atm,k),i,j+1)
-                vertices(12) = vertices(21) +  (vertices(15) - vertices(18))
+                vertices(24) = vertices(21) +  (vertices(15) - vertices(18))
               endif
 
               vertices(3:24:3) = vertices(3:24:3) - vertices(3)
