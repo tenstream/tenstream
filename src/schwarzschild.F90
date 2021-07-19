@@ -54,11 +54,13 @@ public schwarzschild, B_eff
         contains
           real(ireals) function B_eff_mu(B_far, B_near, tau, mu)
             real(ireals), intent(in) :: B_far, B_near, tau, mu
-            real(ireals) :: tm1
-            if(tau/mu.lt.sqrt(tiny(tau))) then
+            real(ireals) :: tm1, dtau
+            real(ireals), parameter :: eps = sqrt(sqrt(tiny(dtau)))
+            dtau = tau / mu
+            if(dtau.lt.eps) then
               B_eff_mu = (B_far+B_near)*.5_ireals
             else
-              tm1 = expm1(-tau/mu)
+              tm1 = expm1(-dtau)
               B_eff_mu = (-B_near + B_far * (tm1+1))/(tm1) + ((B_far - B_near) * mu) / tau
             endif
           end function
