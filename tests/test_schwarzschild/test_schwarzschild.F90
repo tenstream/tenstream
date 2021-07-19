@@ -3,7 +3,7 @@ subroutine test_eddington(this)
 
     use m_schwarzschild, only: schwarzschild, B_eff
     use m_data_parameters, only: ireals, iintegers, pi
-    use m_helper_functions, only: is_between
+    use m_helper_functions, only: is_between, toStr
 
     use pfunit_mod
 
@@ -24,7 +24,7 @@ subroutine test_eddington(this)
       call B_eff(Blev(k), Blev(k+1), tau, B)
       !print *,k,Blev(k), Blev(k+1), B, is_between(B,Blev(k), Blev(k+1))
       @assertEqual(Blev(k+1), B, .1_ireals, 'for very high optical depth, the values should be approx the same')
-      @assertTrue(is_between(B, Blev(k+1), Blev(k)), 'resulting B_eff has to be between the far and near value')
+      @assertTrue(is_between(B, Blev(k+1), Blev(k)), 'resulting B_eff has to be between the far and near value'//toStr([Blev(k+1), B, Blev(k)])//' (tau='//toStr(tau)//')')
     enddo
 
     tau = 0._ireals
@@ -32,7 +32,7 @@ subroutine test_eddington(this)
       call B_eff(Blev(k), Blev(k+1), tau, B)
       !print *,k,Blev(k), Blev(k+1), B, is_between(B,Blev(k), Blev(k+1))
       @assertEqual((Blev(k)+Blev(k+1))/2, B, .1_ireals, 'for zero optical depth, should be approx the mean')
-      @assertTrue(is_between(B, Blev(k+1), Blev(k)), 'resulting B_eff has to be between the far and near value')
+      @assertTrue(is_between(B, Blev(k+1), Blev(k)), 'resulting B_eff has to be between the far and near value'//toStr([Blev(k+1), B, Blev(k)])//' (tau='//toStr(tau)//')')
     enddo
 
     do itau=-100,40
@@ -40,7 +40,7 @@ subroutine test_eddington(this)
       do k=1, Nlay
         call B_eff(Blev(k), Blev(k+1), tau, B)
         !print *,tau, k,Blev(k), Blev(k+1), B, is_between(B,Blev(k), Blev(k+1))
-        @assertTrue(is_between(B, Blev(k+1), Blev(k)), 'resulting B_eff has to be between the far and near value')
+        @assertTrue(is_between(B, Blev(k+1), Blev(k)), 'resulting B_eff has to be between the far and near value'//toStr([Blev(k+1), B, Blev(k)])//' (tau='//toStr(tau)//')')
       enddo
     enddo
 
@@ -50,7 +50,7 @@ subroutine test_eddington(this)
       do k=1, Nlay
         call B_eff(Blev(k+1), Blev(k), tau, B)
         !print *,tau, k,Blev(k), Blev(k+1), B, is_between(B,Blev(k), Blev(k+1))
-        @assertTrue(is_between(B, Blev(k+1), Blev(k)), 'resulting B_eff has to be between the far and near value')
+        @assertTrue(is_between(B, Blev(k+1), Blev(k)), 'resulting B_eff has to be between the far and near value'//toStr([Blev(k+1), B, Blev(k)])//' (tau='//toStr(tau)//')')
       enddo
     enddo
 end subroutine
