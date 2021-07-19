@@ -55,7 +55,7 @@ public schwarzschild, B_eff
           real(ireals) function B_eff_mu(B_far, B_near, tau, mu)
             real(ireals), intent(in) :: B_far, B_near, tau, mu
             real(ireals) :: tm1, dtau
-            real(ireals), parameter :: eps = sqrt(sqrt(tiny(dtau)))
+            real(ireals), parameter :: eps = epsilon(eps)*100
             dtau = tau / mu
             if(dtau.lt.eps) then
               B_eff_mu = (B_far+B_near)*.5_ireals
