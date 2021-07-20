@@ -2534,7 +2534,7 @@ module m_pprts
     real(ireals), allocatable :: vertices(:)
     real(ireals) :: norm, normref, S_LUT_norms(3), T_LUT_norms(3), T_GOMTRC_norms(3)
     real(ireals), pointer :: c(:,:)
-    logical :: lgeometric_coeffs, lflg, lcheck_coeff_sums, ldstd_unparallel
+    logical :: lconserve_lut_atm_abso, lflg, lcheck_coeff_sums, ldstd_unparallel
 
     associate( &
         & atm     => solver%atm, &
@@ -2555,9 +2555,13 @@ module m_pprts
       allocate(T_GOMTRC(1:C_dir%dof**2))
       call PetscLogEventBegin(solver%logs%get_coeff_dir2diff, ierr); call CHKERR(ierr)
 
-      lgeometric_coeffs = .False.
+      lcheck_coeff_sums = .False.
       call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-        & "-pprts_geometric_coeffs", lgeometric_coeffs, lflg, ierr) ;call CHKERR(ierr)
+        "-check_coeff_sums", lcheck_coeff_sums, lflg , ierr) ;call CHKERR(ierr)
+
+      lconserve_lut_atm_abso = .False.
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+        & "-pprts_conserve_lut_atm_abso", lconserve_lut_atm_abso, lflg, ierr) ;call CHKERR(ierr)
 
       ldstd_unparallel = .False.
       call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
@@ -2600,7 +2604,7 @@ module m_pprts
               S_LUT = real(v, ireals)
               coeffs(:,k,i,j) = S_LUT
 
-              if (lgeometric_coeffs) then
+              if (lconserve_lut_atm_abso) then
                 call get_coeff(solver, &
                   & atm%kabs(atmk(solver%atm,k),i,j), &
                   & atm%ksca(atmk(solver%atm,k),i,j), &
@@ -2620,45 +2624,36 @@ module m_pprts
                   T_GOMTRC_norms(src) = sum(T_GOMTRC(src:C_dir%dof**2:3))
                 enddo
 
-
-
-                ! rescaling S_LUT
                 do src=1,3
-                  !if (one / S_LUT_norms(src) .ne. one / S_LUT_norms(src)) then
-                  !  S_GOMTRC(src:C_dir%dof*C_diff%dof:3) = &
-                  !    [one,one,one,one,one,one,one,one,one,one] / 10._ireals * &
-                  !    (T_LUT_norms(src) - T_GOMTRC_norms(src))
-                  !  do test=1,3
-                  !  if (S_GOMTRC(src*test) .ne. S_GOMTRC(src*test)) call CHKERR(1_mpiint, 'case 1 S_GOMTRC='//&
-                  !      &toStr(S_GOMTRC(src*test)))
-                  !  enddo
-                  !else
-                    S_GOMTRC(src:C_dir%dof*C_diff%dof:3) = S_LUT(src:C_dir%dof*C_diff%dof:3) / S_LUT_norms(src)
-                    do test=1,3
-                      if (isnan(S_GOMTRC(src*test))) then ! .ne. S_GOMTRC(src*test)) then
-                        S_GOMTRC(src:C_dir%dof*C_diff%dof:3) = [one,one,one,one,one,one,one,one,one,one] / 10._ireals
-                      endif
-                    enddo
-                    S_GOMTRC(src:C_dir%dof*C_diff%dof:3) = S_GOMTRC(src:C_dir%dof*C_diff%dof:3) * &
-                      (one - (one - T_LUT_norms(src) - S_LUT_norms(src)) -  T_GOMTRC_norms(src))
-                  !endif
+                  S_GOMTRC(src:C_dir%dof*C_diff%dof:3) = S_LUT(src:C_dir%dof*C_diff%dof:3) / S_LUT_norms(src)
+                  do test=1,3
+                    if (isnan(S_GOMTRC(src*test))) then ! .ne. S_GOMTRC(src*test)) then
+                      S_GOMTRC(src:C_dir%dof*C_diff%dof:3) = [one,one,one,one,one,one,one,one,one,one] / 10._ireals
+                    endif
+                  enddo
+                  S_GOMTRC(src:C_dir%dof*C_diff%dof:3) = S_GOMTRC(src:C_dir%dof*C_diff%dof:3) * &
+                    (one - (one - T_LUT_norms(src) - S_LUT_norms(src)) -  T_GOMTRC_norms(src))
                 enddo
 
-                !do src=1,9
-                !  if (S_GOMTRC(src) .ne. S_GOMTRC(src)) then
-                !    call CHKERR(1_mpiint, 'produced nan in S_GOMTRC  == '//toStr(S_GOMTRC(src)))
-                !  endif
+                ! try something else
+                !do src=1,3
+                !  S_GOMTRC(src:C_dir%dof*C_diff%dof:3) = S_LUT(src:C_dir%dof*C_diff%dof:3) * &
+                !   min((T_GOMTRC_norms(src)) / (T_LUT_norms(src)), one / (S_LUT_norms(src))
+                !  ! one - T_LUT_norms(src) not possible, since ext .ne. 0
+                !  !do test=1,3
+                !  !  if (isnan(S_GOMTRC(src*test))) then ! .ne. S_GOMTRC(src*test)) then
+                !  !    S_GOMTRC(src:C_dir%dof*C_diff%dof:3) = [one,one,one,one,one,one,one,one,one,one] * S_LUT( / 10._ireals
+                !  !  endif
+                !  !enddo
                 !enddo
 
                 coeffs(:,k,i,j) = S_GOMTRC
-              endif !lgeometric_coeffs
+              endif ! lconserve_lut_atm_abso
 
               if (ldebug_optprop) then
                 c(1:C_dir%dof,1:C_diff%dof) => coeffs(:,k,i,j) ! dim(src,dst)
                 do src = 1, C_dir%dof
                   norm = sum( c(src,:) )
-                  call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-                    "-check_coeff_sums", lcheck_coeff_sums, lflg , ierr) ;call CHKERR(ierr)
                   if (lcheck_coeff_sums) then
                     !print *, 'norm dir2diff = '//toStr(norm)
                     !print *, 'norm dir2dir = '//toStr(sum(solver%dir2dir(src:9:3,atmk(solver%atm,k),i,j)))
