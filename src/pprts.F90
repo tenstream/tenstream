@@ -2399,7 +2399,7 @@ module m_pprts
     real(ireals), allocatable :: vertices(:)
     real(ireals) :: norm
     real(ireals), pointer :: c(:,:)
-    logical :: lgeometric_coeffs, lflg, ldstd_unparallel
+    logical :: lgeometric_coeffs, lflg, ltop_bottom_faces_planar, ltop_bottom_planes_parallel
 
 
     associate( &
@@ -2422,9 +2422,13 @@ module m_pprts
       call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
         & "-pprts_geometric_coeffs", lgeometric_coeffs, lflg, ierr) ;call CHKERR(ierr)
 
-      ldstd_unparallel = .False.
+      ltop_bottom_faces_planar = lgeometric_coeffs
       call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-        & "-pprts_dstd_unparallel", ldstd_unparallel, lflg, ierr) ;call CHKERR(ierr)
+        & "-pprts_top_bottom_faces_planar", ltop_bottom_faces_planar, lflg, ierr) ;call CHKERR(ierr)
+
+      ltop_bottom_planes_parallel = lgeometric_coeffs
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+        & "-pprts_top_bottom_planes_parallel", ltop_bottom_planes_parallel, lflg, ierr) ;call CHKERR(ierr)
 
       call setup_default_unit_cube_geometry(atm%dx, atm%dy, -one, vertices)
       call getVecPointer(solver%Cvert_one_atm1%da, solver%atm%vert_heights, xhhl1d, xhhl, readonly=.True.)
@@ -2433,25 +2437,26 @@ module m_pprts
         do i=C_dir%xs,C_dir%xe
           do k=C_dir%zs,C_dir%ze-1
             if(.not.atm%l1d(atmk(atm,k)) ) then
-
               vertices( 3) = xhhl(i0,atmk(solver%atm,k+1),i,j)
               vertices( 6) = xhhl(i0,atmk(solver%atm,k+1),i+1,j)
               vertices( 9) = xhhl(i0,atmk(solver%atm,k+1),i,j+1)
-              vertices(12) = vertices(9) +  (vertices(3) - vertices(6))
+              vertices(12) = xhhl(i0,atmk(solver%atm,k+1),i+1,j+1)
+              vertices(15) = xhhl(i0,atmk(solver%atm,k),i,j)
+              vertices(18) = xhhl(i0,atmk(solver%atm,k),i+1,j)
+              vertices(21) = xhhl(i0,atmk(solver%atm,k),i,j+1)
+              vertices(24) = xhhl(i0,atmk(solver%atm,k),i+1,j+1)
 
-              vertices([15,18,21,24]) = vertices([3,6,9,12]) + solver%atm%dz(atmk(solver%atm, k), i, j)
-
-              if (ldstd_unparallel) then
-                vertices(15) = xhhl(i0,atmk(solver%atm,k),i,j)
-                vertices(18) = xhhl(i0,atmk(solver%atm,k),i+1,j)
-                vertices(21) = xhhl(i0,atmk(solver%atm,k),i,j+1)
-                vertices(24) = vertices(21) +  (vertices(15) - vertices(18))
+              if (ltop_bottom_faces_planar) then
+                vertices(12) = vertices(9) + (vertices(3) - vertices(6))
+                vertices(24) = vertices(21) + (vertices(15) - vertices(18))
               endif
 
-              vertices(3:24:3) = vertices(3:24:3) - vertices(3)
-              vertices(3:24:3) = vertices(3:24:3) - vertices(3)
+              if (ltop_bottom_planes_parallel) then
+                vertices(15:24:3) = vertices(15:24:3) + atm%dz(atmk(solver%atm, k), i, j)
+              endif
 
               if (lgeometric_coeffs) then
+                vertices(3:24:3) = vertices(3:24:3) - minval(vertices(3:24:3))
                 call dir2dir3_geometric_coeffs( &
                   vertices, &
                   sun%sundir, &
@@ -2534,7 +2539,8 @@ module m_pprts
     real(ireals), allocatable :: vertices(:)
     real(ireals) :: norm, normref, S_LUT_norms(3), T_LUT_norms(3), T_GOMTRC_norms(3)
     real(ireals), pointer :: c(:,:)
-    logical :: lconserve_lut_atm_abso, lflg, lcheck_coeff_sums, ldstd_unparallel
+    logical :: lconserve_lut_atm_abso, lflg, lcheck_coeff_sums, ltop_bottom_faces_planar, &
+      ltop_bottom_planes_parallel, lgeometric_coeffs
 
     associate( &
         & atm     => solver%atm, &
@@ -2555,17 +2561,25 @@ module m_pprts
       allocate(T_GOMTRC(1:C_dir%dof**2))
       call PetscLogEventBegin(solver%logs%get_coeff_dir2diff, ierr); call CHKERR(ierr)
 
-      lcheck_coeff_sums = .False.
+      lcheck_coeff_sums = .True.
       call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-        "-check_coeff_sums", lcheck_coeff_sums, lflg , ierr) ;call CHKERR(ierr)
+        "-pprts_check_coeff_sums", lcheck_coeff_sums, lflg , ierr) ;call CHKERR(ierr)
 
-      lconserve_lut_atm_abso = .False.
+      lgeometric_coeffs = .False.
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+        & "-pprts_geometric_coeffs", lgeometric_coeffs, lflg, ierr) ;call CHKERR(ierr)
+
+      lconserve_lut_atm_abso = lgeometric_coeffs
       call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
         & "-pprts_conserve_lut_atm_abso", lconserve_lut_atm_abso, lflg, ierr) ;call CHKERR(ierr)
 
-      ldstd_unparallel = .False.
+      ltop_bottom_faces_planar = lgeometric_coeffs
       call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-        & "-pprts_dstd_unparallel", ldstd_unparallel, lflg, ierr) ;call CHKERR(ierr)
+        & "-pprts_top_bottom_faces_planar", ltop_bottom_faces_planar, lflg, ierr) ;call CHKERR(ierr)
+
+      ltop_bottom_planes_parallel = lgeometric_coeffs
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+        & "-pprts_top_bottom_planes_parallel", ltop_bottom_planes_parallel, lflg, ierr) ;call CHKERR(ierr)
 
       call setup_default_unit_cube_geometry(atm%dx, atm%dy, -one, vertices)
       call getVecPointer(solver%Cvert_one_atm1%da, solver%atm%vert_heights, xhhl1d, xhhl, readonly=.True.)
@@ -2574,22 +2588,23 @@ module m_pprts
         do i=C_dir%xs,C_dir%xe
           do k=C_dir%zs,C_dir%ze-1
             if(.not.atm%l1d(atmk(atm,k)) ) then
-
               vertices( 3) = xhhl(i0,atmk(solver%atm,k+1),i,j)
               vertices( 6) = xhhl(i0,atmk(solver%atm,k+1),i+1,j)
               vertices( 9) = xhhl(i0,atmk(solver%atm,k+1),i,j+1)
-              vertices(12) = vertices(9) +  (vertices(3) - vertices(6))
+              vertices(12) = xhhl(i0,atmk(solver%atm,k+1),i+1,j+1)
+              vertices(15) = xhhl(i0,atmk(solver%atm,k),i,j)
+              vertices(18) = xhhl(i0,atmk(solver%atm,k),i+1,j)
+              vertices(21) = xhhl(i0,atmk(solver%atm,k),i,j+1)
+              vertices(24) = xhhl(i0,atmk(solver%atm,k),i+1,j+1)
 
-              vertices([15,18,21,24]) = vertices([3,6,9,12]) + solver%atm%dz(atmk(solver%atm, k), i, j)
-
-              if (ldstd_unparallel) then
-                vertices(15) = xhhl(i0,atmk(solver%atm,k),i,j)
-                vertices(18) = xhhl(i0,atmk(solver%atm,k),i+1,j)
-                vertices(21) = xhhl(i0,atmk(solver%atm,k),i,j+1)
-                vertices(24) = vertices(21) +  (vertices(15) - vertices(18))
+              if (ltop_bottom_faces_planar) then
+                vertices(12) = vertices(9) + (vertices(3) - vertices(6))
+                vertices(24) = vertices(21) + (vertices(15) - vertices(18))
               endif
 
-              vertices(3:24:3) = vertices(3:24:3) - vertices(3)
+              if (ltop_bottom_planes_parallel) then
+                vertices(15:24:3) = vertices(15:24:3) + atm%dz(atmk(solver%atm, k), i, j)
+              endif
 
               call get_coeff(solver, &
                 & atm%kabs(atmk(solver%atm,k),i,j), &
@@ -2627,6 +2642,7 @@ module m_pprts
                 do src=1,3
                   S_GOMTRC(src:C_dir%dof*C_diff%dof:3) = S_LUT(src:C_dir%dof*C_diff%dof:3) / S_LUT_norms(src)
                   do test=1,3
+                  ! please delete this DO NOT USE ISNAN
                     if (isnan(S_GOMTRC(src*test))) then ! .ne. S_GOMTRC(src*test)) then
                       S_GOMTRC(src:C_dir%dof*C_diff%dof:3) = [one,one,one,one,one,one,one,one,one,one] / 10._ireals
                     endif
@@ -2655,11 +2671,9 @@ module m_pprts
                 do src = 1, C_dir%dof
                   norm = sum( c(src,:) )
                   if (lcheck_coeff_sums) then
-                    !print *, 'norm dir2diff = '//toStr(norm)
-                    !print *, 'norm dir2dir = '//toStr(sum(solver%dir2dir(src:9:3,atmk(solver%atm,k),i,j)))
                     normref = sum(solver%dir2dir(src:9:3,atmk(solver%atm,k),i,j)) + norm
                     if (normref .gt. one + sqrt(sqrt(epsilon(norm)))) &
-                      call CHKERR(1, 'Failed since for src'//toStr(src)//&
+                      call CHKERR(1, 'Failed since for src'//toStr(src)//new_line('A')//&
                         &', norm(dir2dir(src)) + norm(dir2diff(src)) = '//new_line('A')//&
                         &'S = '//toStr(c(src,:))//new_line('A')//&
                         &'T = '//toStr(solver%dir2dir(src:9:3, atmk(solver%atm,k),i,j))//new_line('A')//&
@@ -2693,12 +2707,16 @@ module m_pprts
   class(t_solver), intent(in) :: solver
     real(ireals), target, allocatable, intent(inout) :: coeffs(:,:,:,:)
     type(t_pprts_buildings), optional, intent(in) :: opt_buildings
+    real(ireals), allocatable :: vertices(:)
     real(irealLUT), allocatable :: v(:)
     integer(iintegers) :: src, k, i, j
     integer(mpiint) :: ierr
 
     real(ireals) :: norm
     real(ireals), pointer :: c(:,:)
+    real(ireals), pointer :: xhhl(:,:,:,:) => null(), xhhl1d(:) => null()
+
+    logical :: lgeometric_coeffs, ltop_bottom_faces_planar, ltop_bottom_planes_parallel, lflg
 
     associate( &
         & atm    => solver%atm, &
@@ -2711,17 +2729,51 @@ module m_pprts
           & C_diff%ys:C_diff%ye)   )
       allocate(v(1:C_diff%dof**2))
       call PetscLogEventBegin(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
+
+      lgeometric_coeffs = .False.
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+        & "-pprts_geometric_coeffs", lgeometric_coeffs, lflg, ierr) ;call CHKERR(ierr)
+
+      ltop_bottom_faces_planar = lgeometric_coeffs
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+        & "-pprts_top_bottom_faces_planar", ltop_bottom_faces_planar, lflg, ierr) ;call CHKERR(ierr)
+
+      ltop_bottom_planes_parallel = lgeometric_coeffs
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+        & "-pprts_top_bottom_planes_parallel", ltop_bottom_planes_parallel, lflg, ierr) ;call CHKERR(ierr)
+
+      call setup_default_unit_cube_geometry(atm%dx, atm%dy, -one, vertices)
+      call getVecPointer(solver%Cvert_one_atm1%da, solver%atm%vert_heights, xhhl1d, xhhl, readonly=.True.)
+
       do j=C_diff%ys,C_diff%ye
         do i=C_diff%xs,C_diff%xe
           do k=C_diff%zs,C_diff%ze-1
             if(.not.atm%l1d(atmk(atm,k)) ) then
+              vertices( 3) = xhhl(i0,atmk(solver%atm,k+1),i,j)
+              vertices( 6) = xhhl(i0,atmk(solver%atm,k+1),i+1,j)
+              vertices( 9) = xhhl(i0,atmk(solver%atm,k+1),i,j+1)
+              vertices(12) = xhhl(i0,atmk(solver%atm,k+1),i+1,j+1)
+              vertices(15) = xhhl(i0,atmk(solver%atm,k),i,j)
+              vertices(18) = xhhl(i0,atmk(solver%atm,k),i+1,j)
+              vertices(21) = xhhl(i0,atmk(solver%atm,k),i,j+1)
+              vertices(24) = xhhl(i0,atmk(solver%atm,k),i+1,j+1)
+
+              if (ltop_bottom_faces_planar) then
+                vertices(12) = vertices(9) + (vertices(3) - vertices(6))
+                vertices(24) = vertices(21) + (vertices(15) - vertices(18))
+              endif
+
+              if (ltop_bottom_planes_parallel) then
+                vertices(15:24:3) = vertices(15:24:3) + atm%dz(atmk(solver%atm, k), i, j)
+              endif
               call get_coeff(solver, &
                 & atm%kabs(atmk(solver%atm,k),i,j), &
                 & atm%ksca(atmk(solver%atm,k),i,j), &
                 & atm%g(atmk(solver%atm,k),i,j), &
                 & atm%dz(atmk(solver%atm,k),i,j), .False., &
                 & v, &
-                & atm%l1d(atmk(solver%atm,k)))
+                & atm%l1d(atmk(solver%atm,k)), &
+                & opt_vertices=vertices)
               coeffs(:,k,i,j) = real(v, ireals)
 
               if (ldebug_optprop) then
@@ -2742,6 +2794,7 @@ module m_pprts
           enddo
         enddo
       enddo
+      call restoreVecPointer(solver%Cvert_one_atm1%da, solver%atm%vert_heights, xhhl1d, xhhl, readonly=.True.)
       call PetscLogEventEnd(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
     end associate
 
