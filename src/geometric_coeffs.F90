@@ -247,7 +247,8 @@ contains
       area1 = area1 - sun_up_down * area3
       area3 = area3 + sun_up_down * area3
 
-      coeffs(slice) = [max(area1, zero), max(area2, zero), max(area3, zero)] / quadrangle_area_by_vertices(f1, f2, f3, f4)
+      coeffs(slice) = [max(area1, zero), max(area2, zero), max(area3, zero)]
+      coeffs(slice) = coeffs(slice) / max(quadrangle_area_by_vertices(f1, f2, f3, f4), sum(coeffs(slice)))
 
     end subroutine
 
