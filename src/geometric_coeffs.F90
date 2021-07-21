@@ -279,8 +279,10 @@ contains
 
     real(ireals) function ext(beta_s)
       real(ireals), intent(in) :: beta_s
+      real(ireals) :: x
 
-      ext = expm1(-beta_s) / (-beta_s)
+      x = max(beta_s, tiny(x))
+      ext = expm1(-x) / (-x)
     end function
   end subroutine
 
