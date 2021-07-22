@@ -2387,37 +2387,39 @@ module m_pprts
   end subroutine
 
   subroutine init_vertices( &
-      solver, &
-      C, &
-      xhhl, &
+      !solver, &
+      !C, &
+      h1, h2, h3, h4, h5, h6, h7, h8, &
+      dz, &
+      !xhhl, &
       ltop_bottom_faces_planar, &
       ltop_bottom_planes_parallel, &
-      k, i ,j, &
-      vertices &
-      )
-    class(t_solver), intent(in) :: solver
-    type(t_coord), intent(in) :: C
+      !k, i ,j, &
+      vertices)
+    !class(t_solver), intent(in) :: solver
+    !type(t_coord), intent(in) :: C
     logical, intent(in) :: ltop_bottom_faces_planar, ltop_bottom_planes_parallel
-    integer(iintegers), intent(in) :: k, i, j
-    real(ireals), intent(in) :: xhhl(i0:C%dof-1,C%zs:C%ze,C%xs:C%xe,C%ys:C%ye)
+    !integer(iintegers), intent(in) :: k, i, j
+    real(ireals), intent(in) :: h1, h2, h3, h4, h5, h6, h7, h8, dz
+    !xhhl(i0:C%dof-1,C%zs:C%ze,C%xs:C%xe,C%ys:C%ye),
     real(ireals), intent(inout) :: vertices(:)
 
-    vertices( 3) = xhhl(i0,atmk(solver%atm,k+1),i,j)
-    vertices( 6) = xhhl(i0,atmk(solver%atm,k+1),i+1,j)
-    vertices( 9) = xhhl(i0,atmk(solver%atm,k+1),i,j+1)
-    vertices(12) = xhhl(i0,atmk(solver%atm,k+1),i+1,j+1)
-    vertices(15) = xhhl(i0,atmk(solver%atm,k),i,j)
-    vertices(18) = xhhl(i0,atmk(solver%atm,k),i+1,j)
-    vertices(21) = xhhl(i0,atmk(solver%atm,k),i,j+1)
-    vertices(24) = xhhl(i0,atmk(solver%atm,k),i+1,j+1)
+    vertices( 3) = h1!xhhl(i0,atmk(solver%atm,k+1),i,j)
+    vertices( 6) = h2!xhhl(i0,atmk(solver%atm,k+1),i+1,j)
+    vertices( 9) = h3!xhhl(i0,atmk(solver%atm,k+1),i,j+1)
+    vertices(12) = h4!xhhl(i0,atmk(solver%atm,k+1),i+1,j+1)
+    vertices(15) = h5!xhhl(i0,atmk(solver%atm,k),i,j)
+    vertices(18) = h6!xhhl(i0,atmk(solver%atm,k),i+1,j)
+    vertices(21) = h7!xhhl(i0,atmk(solver%atm,k),i,j+1)
+    vertices(24) = h8!xhhl(i0,atmk(solver%atm,k),i+1,j+1)
 
     if (ltop_bottom_faces_planar) then
-      vertices(12) = vertices(9) + (vertices(3) - vertices(6))
+      vertices(12) = vertices( 9) + (vertices( 3) - vertices( 6))
       vertices(24) = vertices(21) + (vertices(15) - vertices(18))
     endif
 
     if (ltop_bottom_planes_parallel) then
-      vertices(15:24:3) = vertices(15:24:3) + solver%atm%dz(atmk(solver%atm, k), i, j)
+      vertices(15:24:3) = vertices(3:12:3) + dz
     endif
   end subroutine
 
@@ -2473,14 +2475,22 @@ module m_pprts
           do k=C_dir%zs,C_dir%ze-1
             if(.not.atm%l1d(atmk(atm,k)) ) then
               call init_vertices( &
-                solver, &
-                solver%Cvert_one_atm1, &
-                xhhl, &
+                !solver, &
+                !solver%Cvert_one_atm1, &
+                xhhl(i0,atmk(solver%atm,k+1),i,j), &
+                xhhl(i0,atmk(solver%atm,k+1),i+1,j), &
+                xhhl(i0,atmk(solver%atm,k+1),i,j+1), &
+                xhhl(i0,atmk(solver%atm,k+1),i+1,j+1), &
+                xhhl(i0,atmk(solver%atm,k),i,j), &
+                xhhl(i0,atmk(solver%atm,k),i+1,j), &
+                xhhl(i0,atmk(solver%atm,k),i,j+1), &
+                xhhl(i0,atmk(solver%atm,k),i+1,j+1), &
+                solver%atm%dz(atmk(solver%atm, k), i, j), &
+                !xhhl, &
                 ltop_bottom_faces_planar, &
                 ltop_bottom_planes_parallel, &
-                k, i ,j, &
-                vertices &
-                )
+                !k, i ,j, &
+                vertices)
 
               if (lgeometric_coeffs) then
                 vertices(3:24:3) = vertices(3:24:3) - minval(vertices(3:24:3))
@@ -2620,14 +2630,22 @@ module m_pprts
           do k=C_dir%zs,C_dir%ze-1
             if(.not.atm%l1d(atmk(atm,k)) ) then
               call init_vertices( &
-                solver, &
-                solver%Cvert_one_atm1, &
-                xhhl, &
+                !solver, &
+                !solver%Cvert_one_atm1, &
+                xhhl(i0,atmk(solver%atm,k+1),i,j), &
+                xhhl(i0,atmk(solver%atm,k+1),i+1,j), &
+                xhhl(i0,atmk(solver%atm,k+1),i,j+1), &
+                xhhl(i0,atmk(solver%atm,k+1),i+1,j+1), &
+                xhhl(i0,atmk(solver%atm,k),i,j), &
+                xhhl(i0,atmk(solver%atm,k),i+1,j), &
+                xhhl(i0,atmk(solver%atm,k),i,j+1), &
+                xhhl(i0,atmk(solver%atm,k),i+1,j+1), &
+                solver%atm%dz(atmk(solver%atm, k), i, j), &
+                !xhhl, &
                 ltop_bottom_faces_planar, &
                 ltop_bottom_planes_parallel, &
-                k, i ,j, &
-                vertices &
-                )
+                !k, i ,j, &
+                vertices)
 
               call get_coeff(solver, &
                 & atm%kabs(atmk(solver%atm,k),i,j), &
@@ -2773,14 +2791,22 @@ module m_pprts
           do k=C_diff%zs,C_diff%ze-1
             if(.not.atm%l1d(atmk(atm,k)) ) then
               call init_vertices( &
-                solver, &
-                solver%Cvert_one_atm1, &
-                xhhl, &
+                !solver, &
+                !solver%Cvert_one_atm1, &
+                xhhl(i0,atmk(solver%atm,k+1),i,j), &
+                xhhl(i0,atmk(solver%atm,k+1),i+1,j), &
+                xhhl(i0,atmk(solver%atm,k+1),i,j+1), &
+                xhhl(i0,atmk(solver%atm,k+1),i+1,j+1), &
+                xhhl(i0,atmk(solver%atm,k),i,j), &
+                xhhl(i0,atmk(solver%atm,k),i+1,j), &
+                xhhl(i0,atmk(solver%atm,k),i,j+1), &
+                xhhl(i0,atmk(solver%atm,k),i+1,j+1), &
+                solver%atm%dz(atmk(solver%atm, k), i, j), &
+                !xhhl, &
                 ltop_bottom_faces_planar, &
                 ltop_bottom_planes_parallel, &
-                k, i ,j, &
-                vertices &
-                )
+                !k, i ,j, &
+                vertices)
 
               call get_coeff(solver, &
                 & atm%kabs(atmk(solver%atm,k),i,j), &
