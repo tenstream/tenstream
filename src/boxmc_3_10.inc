@@ -214,43 +214,33 @@ subroutine init_diff_photon_3_10(bmc, p, src, vertices, ierr)
             mu = 2*mu2 - one
             p%src_side = -1
           case (1)
-            !p%loc = (/ L(dx) , L(dy) , zero  /)
             call rand_pnt_on_plane(pA,pB,pD,pC, p%loc, normal, U, V)
             p%src_side = 2
           case (2)
-            !p%loc = (/ L(dx) , L(dy) , dz    /)
             call rand_pnt_on_plane(pE,pG,pH,pF, p%loc, normal, U, V)
             p%src_side = 1
           case (3)
-            !p%loc = (/ dx    , L(dy) , L(dz) /)
             call rand_pnt_on_plane(pB,pF,pH,pD, p%loc, normal, U, V)
             p%src_side = 4
           case (4)
-            !p%loc = (/ zero  , L(dy) , L(dz) /)
             call rand_pnt_on_plane(pA,pC,pG,pE, p%loc, normal, U, V)
             p%src_side = 3
           case (5)
-            !p%loc = (/ dx    , L(dy) , L(dz) /)
             call rand_pnt_on_plane(pB,pF,pH,pD, p%loc, normal, U, V)
             p%src_side = 4
           case (6)
-            !p%loc = (/ zero  , L(dy) , L(dz) /)
             call rand_pnt_on_plane(pA,pC,pG,pE, p%loc, normal, U, V)
             p%src_side = 3
           case (7)
-            !p%loc = (/ L(dx) , dy    , L(dz) /)
             call rand_pnt_on_plane(pG,pC,pD,pH, p%loc, normal, U, V)
             p%src_side = 6
           case (8)
-            !p%loc = (/ L(dx) , zero  , L(dz) /)
             call rand_pnt_on_plane(pE,pF,pB,pA, p%loc, normal, U, V)
             p%src_side = 5
           case (9)
-            !p%loc = (/ L(dx) , dy    , L(dz) /)
             call rand_pnt_on_plane(pG,pC,pD,pH, p%loc, normal, U, V)
             p%src_side = 6
           case (10)
-            !p%loc = (/ L(dx) , zero  , L(dz) /)
             call rand_pnt_on_plane(pE,pF,pB,pA, p%loc, normal, U, V)
             p%src_side = 5
           case default
