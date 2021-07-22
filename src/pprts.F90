@@ -2388,16 +2388,18 @@ module m_pprts
 
   subroutine init_vertices( &
       solver, &
+      C, &
       xhhl, &
       ltop_bottom_faces_planar, &
       ltop_bottom_planes_parallel, &
-      i0, k, i ,j, &
+      k, i ,j, &
       vertices &
       )
     class(t_solver), intent(in) :: solver
+    type(t_coord), intent(in) :: C
     logical, intent(in) :: ltop_bottom_faces_planar, ltop_bottom_planes_parallel
-    integer(iintegers), intent(in) :: i0, k, i, j
-    real(ireals), intent(in) :: xhhl(:,:,:,:)
+    integer(iintegers), intent(in) :: k, i, j
+    real(ireals), intent(in) :: xhhl(i0:C%dof-1,C%zs:C%ze,C%xs:C%xe,C%ys:C%ye)
     real(ireals), intent(inout) :: vertices(:)
 
     vertices( 3) = xhhl(i0,atmk(solver%atm,k+1),i,j)
@@ -2472,10 +2474,11 @@ module m_pprts
             if(.not.atm%l1d(atmk(atm,k)) ) then
               call init_vertices( &
                 solver, &
+                solver%Cvert_one_atm1, &
                 xhhl, &
                 ltop_bottom_faces_planar, &
                 ltop_bottom_planes_parallel, &
-                i0, k, i ,j, &
+                k, i ,j, &
                 vertices &
                 )
 
@@ -2564,7 +2567,7 @@ module m_pprts
     real(ireals) :: norm, normref, S_LUT_norms(3), T_LUT_norms(3), T_GOMTRC_norms(3)
     real(ireals), pointer :: c(:,:)
     logical :: lconserve_lut_atm_abso, lflg, lcheck_coeff_sums, ltop_bottom_faces_planar, &
-      ltop_bottom_planes_parallel, lgeometric_coeffs
+      ltop_bottom_planes_parallel, lgeometric_coeffs, lbmc_online
 
     associate( &
         & atm     => solver%atm, &
@@ -2585,7 +2588,11 @@ module m_pprts
       allocate(T_GOMTRC(1:C_dir%dof**2))
       call PetscLogEventBegin(solver%logs%get_coeff_dir2diff, ierr); call CHKERR(ierr)
 
-      lcheck_coeff_sums = .True.
+      lbmc_online = .False.
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+        "-bmc_online", lbmc_online, lflg , ierr) ;call CHKERR(ierr)
+
+      lcheck_coeff_sums = .not. lbmc_online
       call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
         "-pprts_check_coeff_sums", lcheck_coeff_sums, lflg , ierr) ;call CHKERR(ierr)
 
@@ -2614,10 +2621,11 @@ module m_pprts
             if(.not.atm%l1d(atmk(atm,k)) ) then
               call init_vertices( &
                 solver, &
+                solver%Cvert_one_atm1, &
                 xhhl, &
                 ltop_bottom_faces_planar, &
                 ltop_bottom_planes_parallel, &
-                i0, k, i ,j, &
+                k, i ,j, &
                 vertices &
                 )
 
@@ -2634,7 +2642,7 @@ module m_pprts
               S_LUT = real(v, ireals)
               coeffs(:,k,i,j) = S_LUT
 
-              if (lconserve_lut_atm_abso) then
+              if (lgeometric_coeffs .and. lconserve_lut_atm_abso) then
                 call get_coeff(solver, &
                   & atm%kabs(atmk(solver%atm,k),i,j), &
                   & atm%ksca(atmk(solver%atm,k),i,j), &
@@ -2679,7 +2687,7 @@ module m_pprts
                 !enddo
 
                 coeffs(:,k,i,j) = S_GOMTRC
-              endif ! lconserve_lut_atm_abso
+              endif ! lgeometric_coeffs .and. lconserve_lut_atm_abso
 
               if (ldebug_optprop) then
                 c(1:C_dir%dof,1:C_diff%dof) => coeffs(:,k,i,j) ! dim(src,dst)
@@ -2690,12 +2698,12 @@ module m_pprts
                     if (normref .gt. one + sqrt(sqrt(epsilon(norm)))) &
                       call CHKERR(1, 'Failed since for src'//toStr(src)//new_line('A')//&
                         &', norm(dir2dir(src)) + norm(dir2diff(src)) = '//new_line('A')//&
+                        &toStr(normref)//' > 1.'//&
                         &'S = '//toStr(c(src,:))//new_line('A')//&
                         &'T = '//toStr(solver%dir2dir(src:9:3, atmk(solver%atm,k),i,j))//new_line('A')//&
-                        &toStr(normref)//' > 1.'//&
-                        &'; box indize: k = '//toStr(k)//', i = '//toStr(i)//', j = '//toStr(j)//&
-                        &'; vertices: '//toStr(vertices)//&
-                        &'; c_abso = '//toStr(atm%kabs(atmk(solver%atm,k),i,j))//&
+                        &'; box indize: k = '//toStr(k)//', i = '//toStr(i)//', j = '//toStr(j)//new_line('A')//&
+                        &'; vertices: '//toStr(vertices)//new_line('A')//&
+                        &'; c_abso = '//toStr(atm%kabs(atmk(solver%atm,k),i,j))//new_line('A')//&
                         &'; c_scat = '//toStr(atm%ksca(atmk(solver%atm,k),i,j))//&
                         &'; g = '//toStr(atm%g(atmk(solver%atm,k),i,j)))
                   endif
@@ -2766,10 +2774,11 @@ module m_pprts
             if(.not.atm%l1d(atmk(atm,k)) ) then
               call init_vertices( &
                 solver, &
+                solver%Cvert_one_atm1, &
                 xhhl, &
                 ltop_bottom_faces_planar, &
                 ltop_bottom_planes_parallel, &
-                i0, k, i ,j, &
+                k, i ,j, &
                 vertices &
                 )
 
