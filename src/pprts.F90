@@ -2397,15 +2397,15 @@ module m_pprts
 
     lgeometric_coeffs = .False.
     call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-      & "-pprts_geometric_coeffs", lgeometric_coeffs, lflg, ierr) ;call CHKERR(ierr)
+      & "-pprts_geometric_coeffs", lgeometric_coeffs, lflg, ierr); call CHKERR(ierr)
 
     ltop_bottom_faces_planar = lgeometric_coeffs
     call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-      & "-pprts_top_bottom_faces_planar", ltop_bottom_faces_planar, lflg, ierr) ;call CHKERR(ierr)
+      & "-pprts_top_bottom_faces_planar", ltop_bottom_faces_planar, lflg, ierr); call CHKERR(ierr)
 
     ltop_bottom_planes_parallel = lgeometric_coeffs
     call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-      & "-pprts_top_bottom_planes_parallel", ltop_bottom_planes_parallel, lflg, ierr) ;call CHKERR(ierr)
+      & "-pprts_top_bottom_planes_parallel", ltop_bottom_planes_parallel, lflg, ierr); call CHKERR(ierr)
   end subroutine
 
 
@@ -2599,20 +2599,25 @@ module m_pprts
 
       lbmc_online = .False.
       call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-        "-bmc_online", lbmc_online, lflg , ierr) ;call CHKERR(ierr)
+        "-bmc_online", lbmc_online, lflg , ierr); call CHKERR(ierr)
 
       lcheck_coeff_sums = .not. lbmc_online
       call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-        "-pprts_check_coeff_sums", lcheck_coeff_sums, lflg , ierr) ;call CHKERR(ierr)
+        "-pprts_check_coeff_sums", lcheck_coeff_sums, lflg , ierr); call CHKERR(ierr)
 
       call read_cmd_line_opts_get_coeffs( &
         & lgeometric_coeffs, &
         & ltop_bottom_faces_planar, &
         & ltop_bottom_planes_parallel &
         & )
+
       lconserve_lut_atm_abso = lgeometric_coeffs
       call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-        & "-pprts_conserve_lut_atm_abso", lconserve_lut_atm_abso, lflg, ierr) ;call CHKERR(ierr)
+        & "-pprts_conserve_lut_atm_abso", lconserve_lut_atm_abso, lflg, ierr); call CHKERR(ierr)
+
+      if (lbmc_online .and. lconserve_lut_atm_abso) then
+        lbmc_online = .False.
+      endif
       call setup_default_unit_cube_geometry(atm%dx, atm%dy, -one, vertices)
       call getVecPointer(solver%Cvert_one_atm1%da, solver%atm%vert_heights, xhhl1d, xhhl, readonly=.True.)
 
@@ -2628,16 +2633,28 @@ module m_pprts
                 & vertices &
                 & )
 
-              call get_coeff(solver, &
-                & atm%kabs(atmk(solver%atm,k),i,j), &
-                & atm%ksca(atmk(solver%atm,k),i,j), &
-                & atm%g(atmk(solver%atm,k),i,j), &
-                & atm%dz(atmk(solver%atm,k),i,j), .False., &
-                & v, &
-                & atm%l1d(atmk(solver%atm,k)), &
-                & [real(sun%symmetry_phi, irealLUT), real(sun%theta, irealLUT)], &
-                & lswitch_east=sun%xinc.eq.0, lswitch_north=sun%yinc.eq.0, &
-                & opt_vertices=vertices)
+              if (lbmc_online) then
+                call get_coeff(solver, &
+                  & atm%kabs(atmk(solver%atm,k),i,j), &
+                  & atm%ksca(atmk(solver%atm,k),i,j), &
+                  & atm%g(atmk(solver%atm,k),i,j), &
+                  & atm%dz(atmk(solver%atm,k),i,j), .False., &
+                  & v, &
+                  & atm%l1d(atmk(solver%atm,k)), &
+                  & [real(sun%symmetry_phi, irealLUT), real(sun%theta, irealLUT)], &
+                  & lswitch_east=sun%xinc.eq.0, lswitch_north=sun%yinc.eq.0, &
+                  & opt_vertices=vertices)
+              else
+                call get_coeff(solver, &
+                  & atm%kabs(atmk(solver%atm,k),i,j), &
+                  & atm%ksca(atmk(solver%atm,k),i,j), &
+                  & atm%g(atmk(solver%atm,k),i,j), &
+                  & atm%dz(atmk(solver%atm,k),i,j), .False., &
+                  & v, &
+                  & atm%l1d(atmk(solver%atm,k)), &
+                  & [real(sun%symmetry_phi, irealLUT), real(sun%theta, irealLUT)], &
+                  & lswitch_east=sun%xinc.eq.0, lswitch_north=sun%yinc.eq.0)
+              endif
               S_LUT = real(v, ireals)
               coeffs(:,k,i,j) = S_LUT
 
@@ -2738,7 +2755,7 @@ module m_pprts
     real(ireals), pointer :: c(:,:)
     real(ireals), pointer :: xhhl(:,:,:,:) => null(), xhhl1d(:) => null()
 
-    logical :: lgeometric_coeffs, ltop_bottom_faces_planar, ltop_bottom_planes_parallel
+    logical :: lgeometric_coeffs, ltop_bottom_faces_planar, ltop_bottom_planes_parallel, lbmc_online, lflg
 
     associate( &
         & atm    => solver%atm, &
@@ -2757,6 +2774,16 @@ module m_pprts
         & ltop_bottom_faces_planar, &
         & ltop_bottom_planes_parallel &
         & )
+
+      lbmc_online = .False.
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+        "-bmc_online", lbmc_online, lflg , ierr); call CHKERR(ierr)
+
+      if (lbmc_online) then
+        ltop_bottom_faces_planar = .False.
+        ltop_bottom_planes_parallel = .False.
+      endif
+
       call setup_default_unit_cube_geometry(atm%dx, atm%dy, -one, vertices)
       call getVecPointer(solver%Cvert_one_atm1%da, solver%atm%vert_heights, xhhl1d, xhhl, readonly=.True.)
 
