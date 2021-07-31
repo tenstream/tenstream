@@ -565,8 +565,8 @@ contains
       allocate(Clut(size(C)), Cbmc(size(C)))
       Clut = C
       call setup_default_unit_cube_geometry(one, one, real(aspect_zx, ireals), vertices)
-      call get_coeff_bmc(OPP, vertices, real(tauz, ireals), real(w0, ireals), real(g, ireals), dir, Cbmc, angles)
-      C = Cbmc
+      !call get_coeff_bmc(OPP, vertices, real(tauz, ireals), real(w0, ireals), real(g, ireals), dir, Cbmc, angles)
+      !C = Cbmc
 
       if(present(opt_vertices)) then
         allocate(Cbmc2(size(C)))
@@ -575,12 +575,12 @@ contains
         if (present(angles)) then
           print *,new_line(''),opt_vertices(3:24:3),':',angles,new_line('')//&
             cstr('LUT            '//toStr(Clut) , 'black')//new_line('')//&
-            cstr('bmc (regular  )'//toStr(Cbmc) , 'blue' )//new_line('')//&
+            !cstr('bmc (regular  )'//toStr(Cbmc) , 'blue' )//new_line('')//&
             cstr('bmc (distorted)'//toStr(Cbmc2), 'green')
         else
           print *,new_line(''),opt_vertices(3:24:3),new_line('')//&
             cstr('LUT            '//toStr(Clut) , 'black')//new_line('')//&
-            cstr('bmc (regular  )'//toStr(Cbmc) , 'blue' )//new_line('')//&
+            !cstr('bmc (regular  )'//toStr(Cbmc) , 'blue' )//new_line('')//&
             cstr('bmc (distorted)'//toStr(Cbmc2), 'green')
         endif
       endif
