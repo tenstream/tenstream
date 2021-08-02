@@ -26,7 +26,7 @@ module test_geometric_coeffs
 
   real(ireals),parameter :: atol=1e-3, rtol=1e-2
 
-  logical, parameter :: ldebug = .True.
+  logical, parameter :: ldebug = .False.
 contains
 
   @before
@@ -62,7 +62,7 @@ contains
     if(myid.eq.0) print *,'Finishing boxmc tests module'
   end subroutine teardown
 
-  !@test(npes=[1])
+  @test(npes=[1])
   subroutine test_geometric_coeffs_lambert_beer(this)
     class (MpitestMethod), intent(inout) :: this
     real(ireals), allocatable :: verts(:)
@@ -101,7 +101,7 @@ contains
   end subroutine
 
 
-  !@test(npes=[1])
+  @test(npes=[1])
   subroutine test_geometric_coeffs_distorted_box_no_scatter(this)
     class (MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: src, i
@@ -251,7 +251,7 @@ contains
 
   end subroutine
 
-  !@test(npes = [1])
+  @test(npes = [1])
   subroutine test_geometric_coeffs_regular_box_sundir_up_down(this)
     class(MpiTestMethod), intent(inout) :: this
     real(ireals), allocatable :: verts(:)
@@ -369,85 +369,4 @@ contains
 
     !@assertEqual(v_mc, v, max(maxval(v_mc)*0.05_ireals, 1e-6_ireals), 'failed for case 3'//'; phi='//toStr(phi)//'; theta='//toStr(theta))
   end subroutine
-
-
-  @test(npes=[1])
-  subroutine test_geometric_coeffs_distorted_boxes(this)
-    class (MpiTestMethod), intent(inout) :: this
-    integer(iintegers) :: src, i
-    real(ireals) :: v(9), v_mc(9)
-    real(ireals) :: sundir(3), verts_dtd(24), c_ext
-
-    bg = [real(ireals) :: 0.0000038_ireals, 0.0000007_ireals, 0.85]
-    c_ext = bg(1) + bg(2)
-
-    S_target = zero
-
-    phi = 180._ireals
-    theta = 40._ireals
-
-    sundir = spherical_2_cartesian(phi, theta) * [-one, -one, one]
-
-    if (ldebug) then
-      print *, 'sundir', sundir
-    endif
-
-    verts_dtd = [real(ireals) :: &
-        0.0000000,        0.0000000,        0.0000000, &
-      100.0000000,        0.0000000,        0.0000000, &
-        0.0000000,      100.0000000,        1.5308616, &
-      100.0000000,      100.0000000,        1.5308616, &
-        0.0000000,        0.0000000,      122.1728353, &
-      100.0000000,        0.0000000,      122.1728353, &
-        0.0000000,      100.0000000,      123.7036969, &
-      100.0000000,      100.0000000,      123.7036969  &
-      ]
-
-    if (ldebug) then
-      print *, cstr('verts distorted z', 'red')
-      print *, verts_dtd(3:24:3)
-    endif
-
-    call dir2dir3_geometric_coeffs( &
-      & verts_dtd, &
-      & sundir, &
-      & c_ext, &
-      & v)
-
-    if (ldebug) then
-      print *, cstr('dtd', 'blue')
-      print *, 'src z', v(1:9:3)
-      print *, 'src x', v(2:9:3)
-      print *, 'src y', v(3:9:3)
-    endif
-
-    do src = 1,3
-      call bmc_3_10%get_coeff( &
-        & comm, &
-        & bg,src, &
-        & .True., &
-        & phi, &
-        & theta, &
-        & verts_dtd, &
-        & S, &
-        & T, &
-        & S_tol, &
-        & T_tol, &
-        & inp_atol=atol, &
-        & inp_rtol=rtol)
-      v_mc(src:9:3) = real(T, ireals)
-    enddo
-
-    if (ldebug) then
-      print *, cstr('montecarlo distorted', 'green')
-      print *, v_mc
-      print *, 'src z', v_mc(1:9:3)
-      print *, 'src x', v_mc(2:9:3)
-      print *, 'src y', v_mc(3:9:3)
-    endif
-
-    @assertEqual(v_mc, v, max(maxval(v_mc)*0.05_ireals, 1e-6_ireals), 'failed for i='//toStr(i)//'; phi='//toStr(phi)//'; theta='//toStr(theta))
-
-  end subroutine
-
 end module
