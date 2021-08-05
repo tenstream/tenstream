@@ -2430,8 +2430,8 @@ module m_pprts
     vertices(24) = hs(1,2,2)
 
     if (ltop_bottom_faces_planar) then
-      vertices(12) = vertices( 9) + (vertices( 3) - vertices( 6))
-      vertices(24) = vertices(21) + (vertices(15) - vertices(18))
+      vertices(12) = vertices( 9) + (vertices( 6) - vertices( 3))
+      vertices(24) = vertices(21) + (vertices(18) - vertices(15))
     endif
 
     if (ltop_bottom_planes_parallel) then
