@@ -256,14 +256,14 @@ contains
     real(ireals) function num_dst(s0, l0, h0, c_ext, num_intervals)
       real(ireals), intent(in) :: s0, l0, h0, c_ext
       integer(iintegers), intent(in), optional :: num_intervals
-      integer(iintegers) :: n
+      integer(ireals) :: n
       integer(iintegers) :: i
       real(ireals) :: s, dh, ds, dl, h, j
 
       if (present(num_intervals)) then
-        n = num_intervals
+        n = real(num_intervals, ireals)
       else
-        n = 10
+        n = 10._ireals
       endif
 
       dl = l0 / n
@@ -272,7 +272,7 @@ contains
 
       num_dst = zero
       do i=1, n
-        j = i - 0.5_ireals
+        j = real(i, ireals) - 0.5_ireals
         s = j * ds
         h = j * dh
         num_dst = num_dst + dl * h * ext(s * c_ext)

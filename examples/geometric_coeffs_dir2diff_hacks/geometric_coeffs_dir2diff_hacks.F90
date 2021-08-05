@@ -128,9 +128,9 @@ contains
 
         do i = 2, imax
           verts_dtd = verts
-          verts_dtd( 3) = verts( 3) + 2 * dz / i
-          verts_dtd( 6) = verts( 6) + dz / i
-          verts_dtd( 9) = verts( 9) + dz / (2 * i)
+          verts_dtd( 3) = verts( 3) + 2 * dz / real(i, ireals)
+          verts_dtd( 6) = verts( 6) + dz / real(i, ireals)
+          verts_dtd( 9) = verts( 9) + dz / (2 * real(i, ireals))
           verts_dtd(12) = verts( 6) + verts_dtd(9) - verts_dtd(3)
           verts_dtd(15:24:3) = verts_dtd(3:12:3) + dz
 
