@@ -153,6 +153,12 @@ intel:debug:
     CTEST_ARGS: '-E boxmc|LUT'
 
 # GCC
+mim:gcc:single_int64:
+  extends: .build:mim:default
+  variables:
+    MODULES: "petsc/single_int64-gcc-9"
+    BUILD_TYPE: DEBUG
+
 mim:gcc:single:
   extends: .build:mim:default
   variables:

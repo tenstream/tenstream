@@ -932,7 +932,7 @@ contains
           call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
             "-pprts_rayli_photons", nphotons_r, lflg,ierr) ; call CHKERR(ierr)
 
-          Nphotons_r = Nphotons_r/ri%num_subcomm_masters
+          Nphotons_r = Nphotons_r / real(ri%num_subcomm_masters, ireals)
 
           if(submyid.eq.run_rank) then
             plex_solution%uid = solution%uid
