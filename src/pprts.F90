@@ -2706,7 +2706,11 @@ module m_pprts
                 enddo
 
                 do src=1,3
-                  S_GOMTRC(src:C_dir%dof*C_diff%dof:3) = S_LUT(src:C_dir%dof*C_diff%dof:3) / S_LUT_norms(src)
+                  if (S_LUT_norms(src) .le. epsilon(S_LUT_norms(src))) then
+                    S_GOMTRC(src:C_dir%dof*C_diff%dof:3) = zero
+                  else
+                    S_GOMTRC(src:C_dir%dof*C_diff%dof:3) = S_LUT(src:C_dir%dof*C_diff%dof:3) / S_LUT_norms(src)
+                  endif
                   do test=1,3
                   ! please delete this DO NOT USE ISNAN
                     if (isnan(S_GOMTRC(src*test))) then ! .ne. S_GOMTRC(src*test)) then
