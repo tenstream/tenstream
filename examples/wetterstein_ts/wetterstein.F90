@@ -201,10 +201,11 @@ contains
       call getVecPointer(Ca1%da, solver%atm%hhl, hhl1d, hhl)
       call dump_vec(Ca1%da, hhl(0,Ca1%zs:Ca1%ze,Ca1%xs:Ca1%xe,Ca1%ys:Ca1%ye), 'hhl')
       call dump_vec_2d(Cs%da , hhl(0,Ca1%ze,Ca1%xs:Ca1%xe,Ca1%ys:Ca1%ye), 'h_srfc')
-      call dump_vec_2d(Cs%da , edir(size(edir,1),C1%xs:C1%xe,C1%ys:C1%ye), 'edir_srfc')
-      call dump_vec_2d(Cs%da , edn( size( edn,1),C1%xs:C1%xe,C1%ys:C1%ye), 'edn_srfc')
-      call dump_vec_2d(Cs%da , eup( size( eup,1),C1%xs:C1%xe,C1%ys:C1%ye), 'eup_srfc')
       call restoreVecPointer(Ca1%da, solver%atm%hhl, hhl1d, hhl)
+
+      call dump_vec_2d(Cs%da , edir(size(edir,1),:,:), 'edir_srfc')
+      call dump_vec_2d(Cs%da , edn(size(edn,1),:,:), 'edn_srfc')
+      call dump_vec_2d(Cs%da , eup(size(eup,1),:,:), 'eup_srfc')
 
       if(myid.eq.0) then
         call set_global_attribute(nc_path(1), 'Nx', C%glob_xm, ierr); call CHKERR(ierr)
