@@ -667,7 +667,7 @@ contains
     real(c_float), intent(out) :: dir_theta_range(2)
     integer(c_int), intent(out) :: ierr
 
-    integer(c_int) :: k
+    integer(iintegers) :: k
     type(f2c_OPP_container), pointer :: OPP_container
     ierr = 0
 
@@ -676,8 +676,8 @@ contains
 
     call c_f_pointer(opp_ptr, OPP_container)
 
-    Ndir  = OPP_container%OPP_3_10%LUT%dir_streams
-    Ndiff = OPP_container%OPP_3_10%LUT%diff_streams
+    Ndir  = int(OPP_container%OPP_3_10%LUT%dir_streams, c_int)
+    Ndiff = int(OPP_container%OPP_3_10%LUT%diff_streams, c_int)
 
     k = find_op_dim_by_name(OPP_container%OPP_3_10%dev%diffconfig, 'tau')
     diff_tauz_range = OPP_container%OPP_3_10%dev%diffconfig%dims(k)%vrange

@@ -183,7 +183,7 @@ contains
             print *,trim(prefix)//" iter "//toStr(iter)//' residual (min/mean/max)', residual_mmm, &
               & 'rel res', rel_residual
           endif
-          solution%dir_ksp_residual_history(min(size(solution%dir_ksp_residual_history), iter)) = residual(iter)
+          solution%dir_ksp_residual_history(min(size(solution%dir_ksp_residual_history, kind=iintegers), iter)) = residual(iter)
 
           lconverged = mpi_logical_and(solver%comm, residual(iter).lt.atol.or.rel_residual.lt.rtol)
           if(lconverged) then
@@ -532,7 +532,7 @@ contains
             print *,trim(prefix), ' iter ', toStr(iter), ' residual (min/mean/max)', residual_mmm, &
               & 'rel res', rel_residual
           endif
-          solution%diff_ksp_residual_history(min(size(solution%diff_ksp_residual_history), iter)) = residual(iter)
+          solution%diff_ksp_residual_history(min(size(solution%diff_ksp_residual_history, kind=iintegers), iter)) = residual(iter)
 
           lconverged = mpi_logical_and(solver%comm, residual(iter).lt.atol.or.rel_residual.lt.rtol)
           if(lconverged) then
