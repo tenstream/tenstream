@@ -2501,7 +2501,8 @@ module m_pprts
                   & vertices, &
                   & sun%sundir, &
                   & atm%kabs(atmk(atm,k),i,j) + atm%ksca(atmk(atm,k),i,j), &
-                  & coeffs(:,k,i,j))
+                  & coeffs(:,k,i,j) &
+                  & )
               else
                 call get_coeff( &
                   & solver, &

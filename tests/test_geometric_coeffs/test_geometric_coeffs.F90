@@ -24,7 +24,7 @@ module test_geometric_coeffs
 
   real(ireals),parameter :: sigma = 3 ! normal test range for coefficients
 
-  real(ireals),parameter :: atol=1e-3, rtol=1e-2
+  real(ireal_dp),parameter :: atol=1e-3, rtol=1e-2
 
   logical, parameter :: ldebug = .False.
 contains
@@ -227,7 +227,16 @@ contains
 
       v_mc = v_mc_225_40(i,:)
       do src = 1,3
-        !call bmc_3_10%get_coeff(comm,bg,src,.True.,phi,theta,real(verts_dtd, ireals),S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+        !call bmc_3_10%get_coeff( &
+        !  & comm, &
+        !  & real(bg,ireal_dp), &
+        !  & src, &
+        !  & .True., &
+        !  & real(phi,ireal_dp), &
+        !  & real(theta, ireal_dp), &
+        !  & real(verts_dtd, ireal_dp), &
+        !  & S, T, S_tol, T_tol, &
+        !  & inp_atol=atol, inp_rtol=rtol)
         !v_mc(src:9:3) = real(T, ireals)
       enddo
 
