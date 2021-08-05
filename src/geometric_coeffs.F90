@@ -256,19 +256,19 @@ contains
     real(ireals) function num_dst(s0, l0, h0, c_ext, num_intervals)
       real(ireals), intent(in) :: s0, l0, h0, c_ext
       integer(iintegers), intent(in), optional :: num_intervals
-      integer(ireals) :: n
+      integer(iintegers) :: n
       integer(iintegers) :: i
       real(ireals) :: s, dh, ds, dl, h, j
 
       if (present(num_intervals)) then
-        n = real(num_intervals, ireals)
+        n = num_intervals
       else
-        n = 10._ireals
+        n = 10
       endif
 
-      dl = l0 / n
-      dh = h0 / n
-      ds = s0 / n
+      dl = l0 / real(n, ireals)
+      dh = h0 / real(n, ireals)
+      ds = s0 / real(n, ireals)
 
       num_dst = zero
       do i=1, n
@@ -283,7 +283,7 @@ contains
       real(ireals), intent(in) :: beta_s
       real(ireals) :: x
 
-      x = max(beta_s, tiny(x))!epsilon(x) * 100)
+      x = max(beta_s, tiny(x))
       ext = expm1(-x) / (-x)
     end function
   end subroutine
