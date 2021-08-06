@@ -24,13 +24,20 @@ module m_examples_pprts_buildings
 
   use m_tenstream_options, only: read_commandline_options
 
-  use m_buildings, only: t_pprts_buildings, &
-    & faceidx_by_cell_plus_offset, &
+  use m_buildings, only: &
     & check_buildings_consistency, &
-    & PPRTS_TOP_FACE, PPRTS_BOT_FACE, &
-    & PPRTS_LEFT_FACE, PPRTS_RIGHT_FACE, &
-    & PPRTS_REAR_FACE, PPRTS_FRONT_FACE, &
-    & init_buildings
+    & faceidx_by_cell_plus_offset, &
+    & init_buildings, &
+    & t_pprts_buildings, &
+    & PPRTS_TOP_FACE, &
+    & PPRTS_BOT_FACE, &
+    & PPRTS_FRONT_FACE, &
+    & PPRTS_LEFT_FACE, &
+    & PPRTS_REAR_FACE, &
+    & PPRTS_RIGHT_FACE
+
+  use m_xdmf_export, only: &
+    & xdmf_pprts_buildings
 
   use m_netcdfio, only: ncwrite
 
@@ -49,7 +56,7 @@ contains
       & albedo, dtau, w0,                   &
       & gedir, gedn, geup, gabso,           &
       & buildings,                          &
-      & outfile )
+      & outfile)
 
     integer(mpiint), intent(in) :: comm
     logical, intent(in) :: lverbose, lthermal, lsolar

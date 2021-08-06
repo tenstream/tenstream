@@ -2,26 +2,35 @@ module m_buildings
 #include "petsc/finclude/petsc.h"
   use petsc
 
-  use m_data_parameters, only: iintegers, ireals, mpiint
+  use m_data_parameters, only: &
+    & iintegers, &
+    & ireals, &
+    & mpiint, &
+    & default_str_len
 
   use m_helper_functions, only: &
     & CHKERR, &
+    & CHKWARN, &
     & toStr, &
     & ind_1d_to_nd, ind_nd_to_1d, ndarray_offsets, &
     & get_arg, &
     & deallocate_allocatable
 
+  use m_pprts_base, only: &
+    & t_solver
+
   implicit none
 
   private
   public :: &
-    & t_pprts_buildings,                  &
-    & t_plex_buildings,                   &
-    & init_buildings,                     &
+    & buildingid2str,                     &
+    & check_buildings_consistency,        &
     & clone_buildings,                    &
     & destroy_buildings,                  &
     & faceidx_by_cell_plus_offset,        &
-    & check_buildings_consistency,        &
+    & init_buildings,                     &
+    & t_plex_buildings,                   &
+    & t_pprts_buildings,                  &
     & PPRTS_TOP_FACE,                     &
     & PPRTS_BOT_FACE,                     &
     & PPRTS_LEFT_FACE,                    &
@@ -287,4 +296,26 @@ contains
       enddo
     enddo
   end subroutine
+
+
+  function buildingid2str(bid) result(str)
+    integer(iintegers), intent(in) :: bid
+    character(len=16) :: str
+    select case(bid)
+    case(PPRTS_TOP_FACE)
+      str = "PPRTS_TOP_FACE"
+    case(PPRTS_BOT_FACE)
+      str = "PPRTS_BOT_FACE"
+    case(PPRTS_LEFT_FACE)
+      str = "PPRTS_LEFT_FACE"
+    case(PPRTS_RIGHT_FACE)
+      str = "PPRTS_RIGHT_FACE"
+    case(PPRTS_REAR_FACE )
+      str = "PPRTS_REAR_FACE"
+    case(PPRTS_FRONT_FACE)
+      str = "PPRTS_FRONT_FACE"
+    case default
+      call CHKERR(1_mpiint, 'unknown building face_idx '//toStr(bid))
+    end select
+  end function
 end module

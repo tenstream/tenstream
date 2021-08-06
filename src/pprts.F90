@@ -128,6 +128,10 @@ module m_pprts
     & PPRTS_REAR_FACE , &
     & PPRTS_FRONT_FACE
 
+  use m_xdmf_export, only: &
+    & xdmf_pprts_buildings, &
+    & xdmf_pprts_srfc_flux
+
   use m_pprts_external_solvers, only: twostream, schwarz, pprts_rayli_wrapper, disort
 
   use m_boxmc_geometry, only : setup_default_unit_cube_geometry
@@ -5106,10 +5110,36 @@ module m_pprts
         call fill_buildings()
       endif
 
+      call dump_to_xdmf()
+
       if(solver%myid.eq.0 .and. ldebug) print *,'get_result done'
+
     end associate
 
   contains
+
+    subroutine dump_to_xdmf()
+      character(len=default_str_len) :: fname
+      logical :: lflg
+
+      if(present(opt_buildings)) then
+        call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+          & '-pprts_xdmf_buildings', fname, lflg, ierr); call CHKERR(ierr)
+        if(lflg) then
+          fname = trim(fname)//'.'//toStr(uid)
+          call xdmf_pprts_buildings(solver, opt_buildings, fname, ierr, verbose=.True.); call CHKERR(ierr)
+        endif
+      endif
+
+      associate(solution => solver%solutions(uid))
+        call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+          & '-pprts_xdmf', fname, lflg, ierr); call CHKERR(ierr)
+        if(lflg) then
+          fname = trim(fname)//toStr(uid)
+          call xdmf_pprts_srfc_flux(solver, fname, redir, redn, reup, ierr, verbose=.True.); call CHKERR(ierr)
+        endif
+      end associate
+    end subroutine
 
     subroutine fill_buildings
       integer(iintegers) :: m, idx(4), dof_offset, idof

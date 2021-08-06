@@ -107,7 +107,7 @@ program main
     rayli_options=trim(rayli_options)//' -rayli_snapshot'
     rayli_options=trim(rayli_options)//' -rayli_snap_Nx 256'
     rayli_options=trim(rayli_options)//' -rayli_snap_Ny 256'
-    rayli_options=trim(rayli_options)//' -visit_image_zoom 2.75'
+    rayli_options=trim(rayli_options)//' -visit_image_zoom 5.75'
     rayli_options=trim(rayli_options)//' -visit_parallel_scale 400'
     rayli_options=trim(rayli_options)//' -visit_focus 250,250,0'
     rayli_options=trim(rayli_options)//' -visit_view_normal 0.4,-0.4,0.8'
