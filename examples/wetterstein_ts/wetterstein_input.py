@@ -8,8 +8,8 @@ def load_srtm_wetterstein():
     """ Load elevation data from SRTM surrounding the Wetterstein massif """
     import netCDF4 as NC
     D = NC.Dataset('means_wetterstein.cdf')
-    #elev = D['elevation'][255:511, 255:511]
-    elev = D['elevation'][310:420, 310:500]
+    #elev = D['elevation'][310:420, 310:500]
+    elev = D['elevation'][310:320, 310:315]
     D.close()
     return elev.T
 
@@ -19,7 +19,7 @@ def create_var(varname, var, dim_prefix, lcld):
     import netCDF4 as NC
     from scipy.interpolate import interp1d
 
-    fname = 'input'
+    fname = 'input_{}x{}'.format(var.shape[0],var.shape[1])
     if (lcld == True):
         fname += '_cld'
     fname += '.nc'
@@ -66,16 +66,15 @@ def interp_var(old_pressure_grid, var, new_pressure_grid):
    return new_var
 
 
-def create_cld(wetterstein, hill, lay_coord, lcld):
+def create_cld(wetterstein, plev, lay_coord, lcld):
     from scipy.ndimage.filters import gaussian_filter as gf
     max_heights_indice = np.argmax(wetterstein, axis=1)
     lwc = np.zeros(lay_coord.shape)
     if (lcld == True):
-        for y_index in range(wetterstein.shape[1]):
-            x_index = np.argmax(wetterstein[:,y_index])
-            z_index = np.argwhere(hill[:,:,::-1][x_index,y_index,:] > wetterstein[x_index,y_index] + 1.)[0,0]
-            lwc[x_index,y_index,z_index] = 10.
-            lwc = gf(lwc, [3,3,2], mode='wrap')
+        mask = plev[:,:,-1] < 750
+        lwc[mask,np.max(np.where(plev<600)[2])] = 10.
+        lwc = gf(lwc, [2, 2, 1], mode=['wrap', 'wrap', 'mirror'])
+        print('max_lwc', np.max(lwc))
     return lwc
 
 
@@ -94,7 +93,7 @@ def create_srtm_input(lcld):
     dx = 0.1
     dy = 0.1
     max_angle = np.max(np.degrees(np.arctan(np.gradient(wetterstein, dx, dy))))
-    print(max_angle)
+    #print(max_angle)
     #sigma = 1.1
     #while max_angle > 35.:
     #    wetterstein = gf(wetterstein, sigma, mode='wrap')
@@ -127,7 +126,7 @@ def create_srtm_input(lcld):
     create_var('plev', interp_var(p, afglus[:, 1], lev_coord), 'lev', lcld)
     create_var('tlev', interp_var(p, afglus[:, 2], lev_coord), 'lev', lcld)
     lay_coord = (lev_coord[:, :, 1:] + lev_coord[:, :, :-1]) / 2
-    create_var('lwc', create_cld(wetterstein,hill,lay_coord, lcld), 'lay', lcld)
+    create_var('lwc', create_cld(wetterstein, p_hill, lay_coord, lcld), 'lay', lcld)
 
     if False:
 
@@ -141,5 +140,5 @@ def create_srtm_input(lcld):
 
 
 if __name__ == '__main__':
-    create_srtm_input(False)
+    #create_srtm_input(False)
     create_srtm_input(True)
