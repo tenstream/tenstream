@@ -302,7 +302,7 @@ contains
     real(ireals), intent(in), dimension(3) :: sundir, normal, origin
     real(ireals), intent(inout), dimension(3) :: v1, v2, v3, v4
     real(ireals) :: sundir_proj(3)
-    real(ireals), parameter :: big = 1e6_ireals !  THIS IS PROBLEMATIC IN SP
+    real(ireals), parameter :: big = 1e5_ireals !  THIS IS PROBLEMATIC IN SP
 
     if (ldebug) then
       print *, cstr('unprojected', 'yellow')
