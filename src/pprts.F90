@@ -2575,7 +2575,7 @@ module m_pprts
     real(ireals), target, allocatable, intent(inout) :: coeffs(:,:,:,:)
     real(irealLUT), allocatable :: v(:), T_LUT(:)
     real(ireals), allocatable :: T_GOMTRC(:), S_GOMTRC(:), S_LUT(:)
-    integer(iintegers) :: src, k, i, j, test
+    integer(iintegers) :: src, k, i, j
     integer(mpiint) :: ierr
 
     real(ireals), pointer :: xhhl(:,:,:,:) => null(), xhhl1d(:) => null()
@@ -2696,27 +2696,9 @@ module m_pprts
                   else
                     S_GOMTRC(src:C_dir%dof*C_diff%dof:3) = S_LUT(src:C_dir%dof*C_diff%dof:3) / S_LUT_norms(src)
                   endif
-                  do test=1,3
-                  ! please delete this DO NOT USE ISNAN
-                    if (isnan(S_GOMTRC(src*test))) then ! .ne. S_GOMTRC(src*test)) then
-                      S_GOMTRC(src:C_dir%dof*C_diff%dof:3) = [one,one,one,one,one,one,one,one,one,one] / 10._ireals
-                    endif
-                  enddo
                   S_GOMTRC(src:C_dir%dof*C_diff%dof:3) = S_GOMTRC(src:C_dir%dof*C_diff%dof:3) * &
                     (one - (one - T_LUT_norms(src) - S_LUT_norms(src)) -  T_GOMTRC_norms(src))
                 enddo
-
-                ! try something else
-                !do src=1,3
-                !  S_GOMTRC(src:C_dir%dof*C_diff%dof:3) = S_LUT(src:C_dir%dof*C_diff%dof:3) * &
-                !   min((T_GOMTRC_norms(src)) / (T_LUT_norms(src)), one / (S_LUT_norms(src))
-                !  ! one - T_LUT_norms(src) not possible, since ext .ne. 0
-                !  !do test=1,3
-                !  !  if (isnan(S_GOMTRC(src*test))) then ! .ne. S_GOMTRC(src*test)) then
-                !  !    S_GOMTRC(src:C_dir%dof*C_diff%dof:3) = [one,one,one,one,one,one,one,one,one,one] * S_LUT( / 10._ireals
-                !  !  endif
-                !  !enddo
-                !enddo
 
                 coeffs(:,k,i,j) = S_GOMTRC
               endif ! lgeometric_coeffs .and. lconserve_lut_atm_abso
