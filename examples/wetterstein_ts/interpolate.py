@@ -4,17 +4,10 @@ from scipy.interpolate import LinearNDInterpolator
 from scipy.interpolate import griddata
 from scipy.interpolate import Rbf
 import os
+import sys
 
-fnames = [
-#        'gomtrc_test_rf.nc',
-        'twostream_180_40_cld_rf.nc'
-#        'gomtrc_ac_sc_180_25_cld_rf.nc',
-#        'twostream_sc_180_25_cld_rf.nc',
-#        'rayli_ac_sc_180_25_cld_rf.nc',
-#        'gomtrc_ac_sc_180_40_cld_rf.nc',
-#        'twostream_sc_180_40_cld_rf.nc',
-#        'rayli_ac_sc_180_40_cld_rf.nc'
-        ]
+fnames = str(sys.argv)
+print('List of files to interpolate:', fnames)
 
 for fname in fnames:
 
