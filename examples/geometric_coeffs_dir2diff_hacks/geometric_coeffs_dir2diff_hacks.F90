@@ -9,7 +9,7 @@ module m_example_geometric_coeffs_dir2diff_hacks
   ! the Tenstream uses.
   use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint, zero, one, &
     irealLUT, ireal_dp
-  use m_helper_functions, only : write_ascii_file_2d, toStr, deg2rad, spherical_2_cartesian,
+  use m_helper_functions, only : write_ascii_file_2d, toStr, deg2rad, spherical_2_cartesian
   use m_geometric_coeffs, only: dir2dir3_geometric_coeffs
   use m_boxmc_geometry, only : setup_default_unit_cube_geometry
   use m_boxmc, only : t_boxmc_3_10

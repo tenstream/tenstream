@@ -2453,7 +2453,7 @@ module m_pprts
     real(ireals), allocatable :: vertices(:)
     real(ireals) :: norm
     real(ireals), pointer :: c(:,:)
-    logical :: lgeometric_coeffs, ltop_bottom_faces_planar, ltop_bottom_planes_parallel, lflg
+    logical :: lgeometric_coeffs, ltop_bottom_faces_planar, ltop_bottom_planes_parallel
 
 
     associate( &
@@ -2749,7 +2749,7 @@ module m_pprts
     real(ireals), pointer :: c(:,:)
     real(ireals), pointer :: xhhl(:,:,:,:) => null(), xhhl1d(:) => null()
 
-    logical :: lgeometric_coeffs, ltop_bottom_faces_planar, ltop_bottom_planes_parallel, lbmc_online, lflg
+    logical :: lgeometric_coeffs, ltop_bottom_faces_planar, ltop_bottom_planes_parallel
 
     associate( &
         & atm    => solver%atm, &
