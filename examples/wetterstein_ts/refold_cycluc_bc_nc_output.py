@@ -3,10 +3,13 @@
 import numpy as np
 import xarray as xr
 import os
-import sys
+import argparse
 
-fnames = str(sys.argv)
-print('List of files to refold:', fnames)
+parser = argparse.ArgumentParser(description='Interpolate *_rf.nc hhl_rf, abso_rf and lwc_rf from sigma coordinate mesh onto regular coordinates and save as *_rf_itpd.nc')
+parser.add_argument('-f', '--fnames-list', nargs='+', default=[])
+fnames = parser.parse_args().fnames_list
+
+print('List of files to interpolate:', fnames)
 
 for fname in fnames:
     print('Starting with {}'.format(fname))

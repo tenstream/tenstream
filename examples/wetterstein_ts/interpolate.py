@@ -6,9 +6,12 @@ from scipy.interpolate import LinearNDInterpolator
 from scipy.interpolate import griddata
 from scipy.interpolate import Rbf
 import os
-import sys
+import argparse
 
-fnames = str(sys.argv)
+parser = argparse.ArgumentParser(description='Interpolate *_rf.nc hhl_rf, abso_rf and lwc_rf from sigma coordinate mesh onto regular coordinates and save as *_rf_itpd.nc')
+parser.add_argument('-f', '--fnames-list', nargs='+', default=[])
+fnames = parser.parse_args().fnames_list
+
 print('List of files to interpolate:', fnames)
 
 for fname in fnames:
@@ -72,10 +75,3 @@ for fname in fnames:
     else:
         print('Could not find {}'.format(fname))
 
-
-#abso_iptd = rbf(X, Y, Z)
-#
-#
-#abso_trgt = interp(X, Y, Z)
-#f['abso_rf_reg'] = (('abso_rf_reg_dim3', 'abso_rf_reg_dim2', 'abso_rf_reg_dim1'), abso_trgt)
-#f.to_netcdf('gomtrc_ac_sc_180_25_clear_syk_rf_reg.nc')
