@@ -1,3 +1,5 @@
+! example to test modification of geometric_coeffs dir2diff coefficients verifying against BMC
+
 module m_example_geometric_coeffs_dir2diff_hacks
 
 #include "petsc/finclude/petsc.h"
