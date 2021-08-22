@@ -7,21 +7,12 @@ module m_example_geometric_coeffs_dir2diff_hacks
   ! Import datatype from the TenStream lib. Depending on how PETSC is
   ! compiled(single or double floats, or long ints), this will determine what
   ! the Tenstream uses.
-  use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint, zero, one, i1, &
-    default_str_len, irealLUT, ireal_dp
-
-  use m_helper_functions, only : reverse, linspace, CHKERR, meanval, itoa, &
-    spherical_2_cartesian, cstr, write_ascii_file_2d, toStr, rad2deg, deg2rad
-
-  use m_search, only: search_sorted_bisection
-
-  ! Import specific solver type: 3_10 for example uses 3 streams direct, 10 streams for diffuse radiation
-  use m_pprts_base, only : t_solver, allocate_pprts_solver_from_commandline
-  use m_netcdfIO, only : ncwrite, set_global_attribute
-  use m_petsc_helpers, only: getvecpointer, restorevecpointer, petscGlobalVecToZero, petscVecToF90, f90VecToPetsc
+  use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint, zero, one, &
+    irealLUT, ireal_dp
+  use m_helper_functions, only : write_ascii_file_2d, toStr, deg2rad, spherical_2_cartesian,
   use m_geometric_coeffs, only: dir2dir3_geometric_coeffs
   use m_boxmc_geometry, only : setup_default_unit_cube_geometry
-  use m_boxmc, only : t_boxmc, t_boxmc_3_10
+  use m_boxmc, only : t_boxmc_3_10
   use m_optprop, only : t_optprop_3_10
   use m_tenstream_options, only: read_commandline_options
 
@@ -133,15 +124,6 @@ contains
           verts_dtd( 9) = verts( 9) + dz / (2 * real(i, ireals))
           verts_dtd(12) = verts( 6) + verts_dtd(9) - verts_dtd(3)
           verts_dtd(15:24:3) = verts_dtd(3:12:3) + dz
-
-        !  alpha_x  = rad2deg(atan(abs(verts_dtd(3) - verts_dtd(6)) / dx))
-        !  alpha_y  = rad2deg(atan(abs(verts_dtd(3) - verts_dtd(9)) / dy))
-        !  alpha_xy = rad2deg(atan(abs(verts_dtd(3) - verts_dtd(12)) / sqrt(dx**2 + dy**2)))
-
-        !  print *, cstr('i='//toStr(i), 'red')
-        !  print *, 'alpha_x', alpha_x
-        !  print *, 'alpha_y', alpha_y
-        !  print *, 'alpha_xy', alpha_xy
 
           call dir2dir3_geometric_coeffs(&
             verts_dtd, sundir, bg(2), c_scatter_gomtrc_dst)
