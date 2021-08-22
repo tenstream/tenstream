@@ -1,3 +1,6 @@
+! Example computes geometric_coeffs coefficients using differen optional num_intervals (intervals for numerical iteration of
+! triangle areas with extinction. Output is written into asci files to evaluate in python
+
 module m_example_geometric_coeffs_num_intervals
 
 #include "petsc/finclude/petsc.h"
@@ -7,20 +10,14 @@ module m_example_geometric_coeffs_num_intervals
   ! Import datatype from the TenStream lib. Depending on how PETSC is
   ! compiled(single or double floats, or long ints), this will determine what
   ! the Tenstream uses.
-  use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint, zero, one, i1, default_str_len, ireal_dp
+  use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint, one, ireal_dp
 
-  use m_helper_functions, only : reverse, linspace, CHKERR, meanval, itoa, &
-    spherical_2_cartesian, cstr, write_ascii_file_2d, toStr
-
-  use m_search, only: search_sorted_bisection
+  use m_helper_functions, only : CHKERR, spherical_2_cartesian, cstr, write_ascii_file_2d, toStr
 
   ! Import specific solver type: 3_10 for example uses 3 streams direct, 10 streams for diffuse radiation
-  use m_pprts_base, only : t_solver, allocate_pprts_solver_from_commandline
-  use m_netcdfIO, only : ncwrite, set_global_attribute
-  use m_petsc_helpers, only: getvecpointer, restorevecpointer, petscGlobalVecToZero, petscVecToF90, f90VecToPetsc
   use m_geometric_coeffs, only: dir2dir3_geometric_coeffs
   use m_boxmc_geometry, only : setup_default_unit_cube_geometry
-  use m_boxmc, only : t_boxmc, t_boxmc_3_10
+  use m_boxmc, only : t_boxmc_3_10
 
   implicit none
   type(t_boxmc_3_10) :: bmc_3_10
