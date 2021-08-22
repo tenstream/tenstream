@@ -8,8 +8,8 @@ def load_srtm_wetterstein():
     """ Load elevation data from SRTM surrounding the Wetterstein massif """
     import netCDF4 as NC
     D = NC.Dataset('means_wetterstein.cdf')
-    #elev = D['elevation'][310:420, 310:500]
-    elev = D['elevation'][310:320, 310:315]
+    elev = D['elevation'][310:420, 310:500]
+    #elev = D['elevation'][310:320, 310:315]
     D.close()
     return elev.T
 
@@ -68,11 +68,10 @@ def interp_var(old_pressure_grid, var, new_pressure_grid):
 
 def create_cld(wetterstein, plev, lay_coord, lcld):
     from scipy.ndimage.filters import gaussian_filter as gf
-    max_heights_indice = np.argmax(wetterstein, axis=1)
     lwc = np.zeros(lay_coord.shape)
     if (lcld == True):
         mask = plev[:,:,-1] < 750
-        lwc[mask,np.max(np.where(plev<600)[2])] = 10.
+        lwc[mask,np.max(np.where(plev<600)[2])] = 7.
         lwc = gf(lwc, [2, 2, 1], mode=['wrap', 'wrap', 'mirror'])
         print('max_lwc', np.max(lwc))
     return lwc
@@ -140,5 +139,5 @@ def create_srtm_input(lcld):
 
 
 if __name__ == '__main__':
-    #create_srtm_input(False)
+    create_srtm_input(False)
     create_srtm_input(True)
