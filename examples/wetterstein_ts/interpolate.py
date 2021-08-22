@@ -1,3 +1,5 @@
+# The script interpolates *_rf.nc files hhl_rf, abso_rf and lwc_rf from the sigma coordinate mesh onto a regular mesh for easier plotting in visit
+
 import xarray as xr
 import numpy as np
 from scipy.interpolate import LinearNDInterpolator
