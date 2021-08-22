@@ -1,12 +1,14 @@
+# refolds the wetterstein.F90 output files from quadrupled domain back into single domain
+
 import numpy as np
 import xarray as xr
 import os
+import sys
 
-#for cld in ['cld']:
-#    for theta in [25, 40]:
-#        for s in ['rayli_ac_sc', 'twostream_sc', 'gomtrc_ac_sc']:
-#            fname = s + '_180_{}_{}.nc'.format(theta, cld)
-for fname in ['twostream_180_40_cld.nc']:
+fnames = str(sys.argv)
+print('List of files to refold:', fnames)
+
+for fname in fnames:
     print('Starting with {}'.format(fname))
     if os.path.exists(fname):
 
