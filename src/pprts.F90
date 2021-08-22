@@ -2453,7 +2453,7 @@ module m_pprts
     real(ireals), allocatable :: vertices(:)
     real(ireals) :: norm
     real(ireals), pointer :: c(:,:)
-    logical :: lgeometric_coeffs, ltop_bottom_faces_planar, ltop_bottom_planes_parallel, lbmc_online, lflg
+    logical :: lgeometric_coeffs, ltop_bottom_faces_planar, ltop_bottom_planes_parallel, lflg
 
 
     associate( &
@@ -2470,10 +2470,6 @@ module m_pprts
       allocate(v(1:C_dir%dof**2))
 
       call PetscLogEventBegin(solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
-
-      lbmc_online = .False.
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-        & "-bmc_online", lbmc_online, lflg, ierr); call CHKERR(ierr)
 
       call read_cmd_line_opts_get_coeffs( &
         & lgeometric_coeffs, &
@@ -2772,10 +2768,6 @@ module m_pprts
         & ltop_bottom_faces_planar, &
         & ltop_bottom_planes_parallel &
         & )
-
-      lbmc_online = .False.
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-        "-bmc_online", lbmc_online, lflg , ierr); call CHKERR(ierr)
 
       call setup_default_unit_cube_geometry(atm%dx, atm%dy, -one, vertices)
       call getVecPointer(solver%Cvert_one_atm1%da, atm%vert_heights, xhhl1d, xhhl, readonly=.True.)
