@@ -35,7 +35,7 @@ module m_helper_functions
     imp_ireals, imp_logical, &
     imp_REAL32, imp_REAL64, &
     default_str_len, &
-    imp_int4, imp_int8, imp_iinteger
+    imp_int4, imp_int8, imp_iinteger, imp_character
 
 #include "petsc/finclude/petsc.h"
   use petsc
@@ -119,6 +119,7 @@ module m_helper_functions
     & rotation_matrix_world_to_local_basis, &
     & sEXP, &
     & solve_quadratic, &
+    & split, &
     & cartesian_2_spherical, &
     & spherical_2_cartesian, &
     & strF2C, &
@@ -156,6 +157,17 @@ module m_helper_functions
       ('real'   , 'REAL64' ), &
       ('real'   , 'REAL128')]
       module procedure read_ascii_file_2d_${dtype}$
+    #:endfor
+  end interface
+
+  interface split
+    #:for basetype,dtype in [&
+      ('integer', 'INT32'  ), &
+      ('integer', 'INT64'  ), &
+      ('real'   , 'REAL32' ), &
+      ('real'   , 'REAL64' ), &
+      ('real'   , 'REAL128')]
+      module procedure split_${dtype}$
     #:endfor
   end interface
 
@@ -358,6 +370,7 @@ module m_helper_functions
 
   interface imp_bcast
 #:for method,dtype,mpitype in [ &
+  ('character','', 'imp_character'), &
   ('logical', ''      , 'imp_logical'), &
   ('integer', 'INT32' , 'imp_int4')   , &
   ('integer', 'INT64' , 'imp_int8')   , &
@@ -1460,12 +1473,19 @@ module m_helper_functions
     end subroutine
 
 #:for method,dtype,mpitype in [ &
+  ('character', '', 'imp_character'), &
   ('logical', '', 'imp_logical'), &
   ('integer', 'INT32', 'imp_int4'), &
   ('integer', 'INT64', 'imp_int8'), &
   ('real', 'REAL32', 'imp_REAL32'), &
   ('real', 'REAL64', 'imp_REAL64')]
-#:set dKIND = '' if method == 'logical' else '('+dtype+')'
+#:if method == 'logical'
+#:set dKIND = ''
+#:elif method == 'character'
+#:set dKIND = '(len=*)'
+#:else
+#:set dKIND = '('+dtype+')'
+#:endif
 #:for RANK in range(0, 8)
 #:for modifier in [None, 'allocatable', 'pointer']
 #:if (modifier is None and (RANK==0)) or (modifier is not None and (RANK>0))
@@ -1482,8 +1502,13 @@ module m_helper_functions
       if(commsize.le.1) return
 
 #:if RANK==0
-      call mpi_bcast(arr,1_mpiint,${mpitype}$,sendid,comm,ierr); call CHKERR(ierr)
+#:if method == 'character'
+      call mpi_bcast(arr,len(arr),${mpitype}$,sendid,comm,ierr); call CHKERR(ierr)
 #:else
+      call mpi_bcast(arr,1_mpiint,${mpitype}$,sendid,comm,ierr); call CHKERR(ierr)
+#:endif
+#:else
+
       call mpi_comm_rank( comm, myid, ierr); call chkerr(ierr)
       if(sendid.eq.myid) Ntot = shape(arr)
 
@@ -1507,7 +1532,13 @@ module m_helper_functions
           call CHKERR(1_mpiint, 'Called a imp_bcast with an already allocated array on a receiving rank.'// &
           ' However, it has the wrong shape: send_array is shape '//itoa(Ntot)//' inp_arr is shape '//itoa(shape(arr)))
       endif
+
+#:if method == 'character'
+      call mpi_bcast(arr,size(arr)*len(arr),${mpitype}$,sendid,comm,ierr); call CHKERR(ierr)
+#:else
       call mpi_bcast(arr,size(arr),${mpitype}$,sendid,comm,ierr); call CHKERR(ierr)
+#:endif
+
 #:endif
     end subroutine
 #:endif
@@ -1788,26 +1819,34 @@ module m_helper_functions
           '('//itoa(nlines)//' total ) '// &
           'with '//itoa(max_cols)//' columns'
 
-      contains
-        subroutine split(str, a, sep, ierr)
-          character(len=*), intent(in) :: str, sep
-          ${basetype}$(${dtype}$), intent(out), allocatable :: a(:)
-          integer(mpiint), intent(out) :: ierr
-          integer(iintegers) :: i,n
-          logical :: last_char_was_sep
-          last_char_was_sep = .True.
-          n = 0
-          do i=1,len(str)
+      end subroutine
+    #:endfor
+
+
+    #:for basetype,dtype in [&
+      ('integer', 'INT32'  ), &
+      ('integer', 'INT64'  ), &
+      ('real'   , 'REAL32' ), &
+      ('real'   , 'REAL64' ), &
+      ('real'   , 'REAL128')]
+      subroutine split_${dtype}$(str, a, sep, ierr)
+        character(len=*), intent(in) :: str, sep
+        ${basetype}$(${dtype}$), intent(out), allocatable :: a(:)
+        integer(mpiint), intent(out) :: ierr
+        integer(iintegers) :: i,n
+        logical :: last_char_was_sep
+        last_char_was_sep = .True.
+        n = 0
+        do i=1,len(str)
           if( str(i:i) == sep) then
             if(.not.last_char_was_sep) n = n + 1
             last_char_was_sep = .True.
           else
             last_char_was_sep = .False.
           endif
-          end do
-          allocate (a(n))
-          read(unit=str, fmt=*, iostat=ierr) a
-        end subroutine
+        end do
+        allocate (a(n))
+        read(unit=str, fmt=*, iostat=ierr) a
       end subroutine
     #:endfor
 

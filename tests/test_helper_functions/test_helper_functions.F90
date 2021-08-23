@@ -60,6 +60,49 @@ class (MpiTestMethod), intent(inout) :: this
   call PetscInitialized(lpetsc_is_initialized, ierr)
   if(lpetsc_is_initialized) call PetscFinalize(ierr)
 end subroutine teardown
+@test(npes =[1,2,3])
+subroutine test_mpi_char_bcast(this)
+    class (MpiTestMethod), intent(inout) :: this
+
+    integer(mpiint) :: numnodes, comm, myid
+
+    character(len=10) :: s, s_target
+    character(len=10), allocatable :: s1d(:)
+
+    integer(iintegers), parameter :: N=10
+    integer(iintegers), parameter :: repetitions=100
+    integer(iintegers) :: rep, i
+    integer(mpiint) :: ierr
+
+    comm     = this%getMpiCommunicator()
+    numnodes = this%getNumProcesses()
+    myid     = this%getProcessRank()
+
+    if(myid.eq.0) allocate(s1d(N))
+
+    do rep = 1, repetitions
+      ! single char
+      s_target = "Rep"//toStr(rep)
+      if (myid.eq.0) then
+        s = s_target
+      endif
+      call imp_bcast(comm, s, 0_mpiint)
+      @mpiAssertEqual(s_target, s)
+
+      ! array of strings
+      if(myid.eq.0) then
+        do i = 1, size(s1d)
+          s1d(i) = "Rep"//toStr(rep)//':'//toStr(i)
+        enddo
+      endif
+      call imp_bcast(comm, s1d, 0_mpiint)
+      do i = 1, size(s1d)
+        s_target = "Rep"//toStr(rep)//':'//toStr(i)
+        @mpiAssertEqual(s_target, s1d(i))
+      enddo
+
+    enddo
+end subroutine
 
 @test(npes =[1,2,3])
 subroutine test_mpi_functions(this)
