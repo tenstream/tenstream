@@ -54,7 +54,8 @@ contains
     real(ireals),parameter :: dx=100, dy=dx
 
     real(ireals),allocatable,dimension(:,:,:) :: glob_plev, glob_tlev  ! nlay+1, Nx, Ny
-    real(ireals),allocatable,dimension(:,:,:), target :: plev, tlev    ! nlay+1, nxp, nyp
+    real(ireals),allocatable,dimension(:,:,:) :: glob_lwc              ! nlay, Nx, Ny
+    real(ireals),allocatable,dimension(:,:,:), target :: plev, tlev   ! nlay+1, nxp, nyp
     real(ireals),allocatable,dimension(:,:,:), target :: lwc, reliq    ! nlay  , nxp, nyp
     real(ireals),pointer, dimension(:,:) :: pplev, ptlev, plwc, preliq ! reshape pointers to convert to column vecs
     real(ireals),allocatable, dimension(:,:,:) :: edir, edn, eup, abso ! nlyr(+1), global_nx, global_ny
@@ -81,11 +82,13 @@ contains
       nc_path(1) = trim(input_filename)
       nc_path(2) = 'plev'; call ncload(nc_path, glob_plev, ncerr); call CHKERR(ncerr)
       nc_path(2) = 'tlev'; call ncload(nc_path, glob_tlev, ncerr); call CHKERR(ncerr)
+      nc_path(2) = 'lwc'; call ncload(nc_path, glob_lwc, ncerr); call CHKERR(ncerr)
 
       if(myid.eq.0) print *,'plev shape',shape(glob_plev)
     endif
     call imp_bcast(comm, glob_plev, 0_mpiint)
     call imp_bcast(comm, glob_tlev, 0_mpiint)
+    call imp_bcast(comm, glob_lwc, 0_mpiint)
 
     Nlay = ubound(glob_plev,1)-1
     Nx   = ubound(glob_plev,2)
@@ -97,11 +100,10 @@ contains
 
     allocate(plev(nlay+1, nxp, nyp))
     allocate(tlev(nlay+1, nxp, nyp))
+    allocate(lwc(nlay, nxp, nyp))
     plev = glob_plev(:, 1+xs:xs+nxp, 1+ys:ys+nyp)
     tlev = glob_tlev(:, 1+xs:xs+nxp, 1+ys:ys+nyp)
-
-    allocate(lwc(nlay, nxp, nyp))
-    lwc = 0
+    lwc = glob_lwc(:, 1+xs:xs+nxp, 1+ys:ys+nyp)
 
     allocate(reliq(nlay, nxp, nyp))
     reliq = 10
@@ -192,14 +194,18 @@ contains
 
       if(allocated(edir)) &
         call dump_vec(C1%da, edir, 'edir')
-      call dump_vec(C1%da, edn , 'edn')
-      call dump_vec(C1%da, eup , 'eup')
-      call dump_vec(C%da , abso, 'abso')
+      call dump_vec(C1%da, edn   , 'edn')
+      call dump_vec(C1%da, eup   , 'eup')
+      call dump_vec(C%da , abso  , 'abso')
 
       call getVecPointer(Ca1%da, solver%atm%hhl, hhl1d, hhl)
       call dump_vec(Ca1%da, hhl(0,Ca1%zs:Ca1%ze,Ca1%xs:Ca1%xe,Ca1%ys:Ca1%ye), 'hhl')
-      call dump_vec_2d(Cs%da , hhl(0,Ca1%ze,Ca1%xs:Ca1%xe,Ca1%ys:Ca1%ye), 'hsurf')
+      call dump_vec_2d(Cs%da , hhl(0,Ca1%ze,Ca1%xs:Ca1%xe,Ca1%ys:Ca1%ye), 'h_srfc')
       call restoreVecPointer(Ca1%da, solver%atm%hhl, hhl1d, hhl)
+
+      call dump_vec_2d(Cs%da , edir(size(edir,1),:,:), 'edir_srfc')
+      call dump_vec_2d(Cs%da , edn(size(edn,1),:,:), 'edn_srfc')
+      call dump_vec_2d(Cs%da , eup(size(eup,1),:,:), 'eup_srfc')
 
       if(myid.eq.0) then
         call set_global_attribute(nc_path(1), 'Nx', C%glob_xm, ierr); call CHKERR(ierr)

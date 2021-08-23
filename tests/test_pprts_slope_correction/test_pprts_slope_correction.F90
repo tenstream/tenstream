@@ -158,7 +158,7 @@ contains
 
     do k=1, 4
       theta0 = 30._ireals
-      phi0 = 90._ireals * k
+      phi0 = 90._ireals * real(k, ireals)
 
       print *, '________________________________________________________'
       print *, 'k', k, 'theta0', theta0, 'phi0', phi0

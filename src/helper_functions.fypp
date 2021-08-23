@@ -28,6 +28,7 @@ $:'' if RANK == 0 else '('+','.join(['Ntot({})'.format(_) for _ in range(1,RANK+
 
 module m_helper_functions
   use iso_fortran_env, only: INT32, INT64, REAL32, REAL64, REAL128
+  use, intrinsic :: iso_c_binding
   use m_data_parameters,only : iintegers, mpiint, &
     ireals, irealLUT, ireal_dp, &
     i1, pi, pi32, pi64, pi128, zero, one, nan, &
@@ -71,6 +72,7 @@ module m_helper_functions
     & distance_to_edge, &
     & domain_decompose_2d, &
     & domain_decompose_2d_petsc, &
+    & expm1, &
     & ftoa, &
     & get_arg, &
     & get_mem_footprint, &
@@ -94,11 +96,14 @@ module m_helper_functions
     & ltoa, &
     & meanval, &
     & meanvec, &
+    & min_dist_point_plane, &
     & mpi_logical_all_same, &
     & mpi_logical_and, &
     & mpi_logical_or, &
     & ndarray_offsets, &
     & normalize_vec, &
+    & pentagon_area_by_vertices, &
+    & quadrangle_area_by_vertices, &
     & rad2deg, &
     & read_ascii_file_2d, &
     & rel_approx, &
@@ -124,7 +129,77 @@ module m_helper_functions
     & triangle_area_by_vertices, &
     & triangle_inner_circle_center, &
     & unique, &
-    & vec_proj_on_plane
+    & vec_proj_on_plane, &
+    & volume_hexahedron, &
+    & volume_oblique_pyramid, &
+    & volume_pentahedron, &
+    & volume_tetrahedron, &
+    & write_ascii_file_2d
+
+
+  interface write_ascii_file_2d
+    #:for basetype,dtype in [&
+      ('integer', 'INT32'  ), &
+      ('integer', 'INT64'  ), &
+      ('real'   , 'REAL32' ), &
+      ('real'   , 'REAL64' ), &
+      ('real'   , 'REAL128')]
+      module procedure write_ascii_file_2d_${dtype}$
+    #:endfor
+  end interface
+
+  interface read_ascii_file_2d
+    #:for basetype,dtype in [&
+      ('integer', 'INT32'  ), &
+      ('integer', 'INT64'  ), &
+      ('real'   , 'REAL32' ), &
+      ('real'   , 'REAL64' ), &
+      ('real'   , 'REAL128')]
+      module procedure read_ascii_file_2d_${dtype}$
+    #:endfor
+  end interface
+
+  interface pentagon_area_by_vertices
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+      module procedure pentagon_area_by_vertices_${dtype}$
+    #:endfor
+  end interface
+
+  interface quadrangle_area_by_vertices
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+      module procedure quadrangle_area_by_vertices_${dtype}$
+    #:endfor
+  end interface
+
+  interface min_dist_point_plane
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+      module procedure min_dist_point_plane_${dtype}$
+    #:endfor
+  end interface
+
+  interface volume_hexahedron
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+      module procedure volume_hexahedron_${dtype}$
+    #:endfor
+  end interface
+
+  interface volume_pentahedron
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+      module procedure volume_pentahedron_${dtype}$
+    #:endfor
+  end interface
+
+  interface volume_oblique_pyramid
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+      module procedure volume_oblique_pyramid_${dtype}$
+    #:endfor
+  end interface
+
+  interface volume_tetrahedron
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+      module procedure volume_tetrahedron_${dtype}$
+    #:endfor
+  end interface
 
   interface rotate_angle_x
 #:for dtype in ['REAL32', 'REAL64', 'REAL128']
@@ -172,9 +247,24 @@ module m_helper_functions
     module procedure approx_r32, approx_r64, approx_r128
   end interface
   interface distance
-#:for dtype in ['REAL32', 'REAL64']
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
     module procedure distance_${dtype}$
 #:endfor
+  end interface
+
+  interface expm1
+    real(c_double) function expm1(x) bind(C)
+      import :: c_double
+      real(c_double), value, intent(in) :: x
+    end function
+    real(c_float) function expm1f(x) bind(C)
+      import :: c_float
+      real(c_float), value, intent(in) :: x
+    end function
+    real(c_long_double) function expm1l(x) bind(C)
+      import :: c_long_double
+      real(c_long_double), value, intent(in) :: x
+    end function
   end interface
 
   interface toStr
@@ -396,17 +486,17 @@ module m_helper_functions
   end interface
 
   interface triangle_area_by_vertices
-#:for dtype in ['REAL32', 'REAL64']
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
     module procedure triangle_area_by_vertices_${dtype}$
 #:endfor
   end interface
   interface triangle_area_by_edgelengths
-#:for dtype in ['REAL32', 'REAL64']
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
     module procedure triangle_area_by_edgelengths_${dtype}$
 #:endfor
   end interface
   interface triangle_inner_circle_center
-#:for dtype in ['REAL32', 'REAL64']
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
     module procedure triangle_inner_circle_center_${dtype}$
 #:endfor
   end interface
@@ -1553,114 +1643,173 @@ module m_helper_functions
       end if
     end function
 
-    subroutine read_ascii_file_2d(filename, arr, ierr, skiplines, verbose)
-      character(len=*),intent(in) :: filename
-      integer(iintegers),intent(in),optional :: skiplines
+    #:for basetype,dtype in [&
+      ('integer', 'INT32'  ), &
+      ('integer', 'INT64'  ), &
+      ('real'   , 'REAL32' ), &
+      ('real'   , 'REAL64' ), &
+      ('real'   , 'REAL128')]
+      subroutine write_ascii_file_2d_${dtype}$(filename, arr, ierr, header, row_major, verbose)
+        character(len=*),intent(in) :: filename
 
-      real(ireals),allocatable,intent(out) :: arr(:,:) ! shape nlines, ncolumns
-      integer(mpiint), intent(out) :: ierr
-      logical, intent(in), optional :: verbose
+        ${basetype}$(${dtype}$), intent(in) :: arr(:,:)
 
-      real(ireals), allocatable :: line(:)
-      character(len=2**14) :: line_str
+        integer(mpiint), intent(out) :: ierr
 
-      integer :: funit, io
-      integer(iintegers) :: nlines, valid_lines, i, j, max_cols
-      logical :: lverbose, file_exists
+        logical, intent(in), optional :: verbose
+        character(len=*), intent(in), optional :: header
+        logical, intent(in), optional :: row_major
 
-      ierr=0
-      inquire(file=filename, exist=file_exists)
+        integer :: funit, i
+        logical :: lverbose, file_exists, lrow_major
 
-      lverbose = get_arg(.False., verbose)
+        ierr=0
+        inquire(file=filename, exist=file_exists)
 
-      if(.not.file_exists) then
-        if(lverbose) print *,'File ',trim(filename), 'does not exist!'
-        ierr=1
-        return
-      endif
+        lverbose = get_arg(.False., verbose)
+        lrow_major = get_arg(.False., row_major)
 
-      open(newunit=funit, file=filename)
-      if(present(skiplines)) then
-        do i=1,skiplines
-          read(funit,*)
-        enddo
-      endif
+        if(file_exists) then
+          if(lverbose) print *,'File ',trim(filename), 'does already exist!'
+          ierr=1
+          return
+        endif
 
-      print *,''
-      nlines = 0
-      valid_lines = 0
-      max_cols = 0
-      do
-        read(funit, '(A)', iostat=io) line_str
+        open(newunit=funit, file=filename)
 
-        if(io.eq.0) then
-          call split(line_str, line, ' ', ierr)
+        if (present(header)) then
+          write(funit, *) header
+        endif
 
-          if(ierr.eq.0)then
-            valid_lines = valid_lines + 1
-            if(max_cols.gt.1 .and. size(line).ne.max_cols) then
-              ierr = 3
-              if(lverbose) &
-                call CHKWARN(ierr, 'Found a varying number of columns in the ascii file.. cannot read that')
-              return
+        if (lrow_major) then
+          do i=1,size(arr, 1)
+            write(funit, *) arr(i,:)
+          enddo
+        else
+          do i=1,size(arr, 2)
+            write(funit, *) arr(:,i)
+          enddo
+        endif
+
+        close(funit)
+      end subroutine
+    #:endfor
+
+    #:for basetype,dtype in [&
+      ('integer', 'INT32'  ), &
+      ('integer', 'INT64'  ), &
+      ('real'   , 'REAL32' ), &
+      ('real'   , 'REAL64' ), &
+      ('real'   , 'REAL128')]
+      subroutine read_ascii_file_2d_${dtype}$(filename, arr, ierr, skiplines, verbose)
+        character(len=*),intent(in) :: filename
+        integer(iintegers),intent(in),optional :: skiplines
+
+        ${basetype}$(${dtype}$),allocatable,intent(out) :: arr(:,:) ! shape nlines, ncolumns
+        integer(mpiint), intent(out) :: ierr
+        logical, intent(in), optional :: verbose
+
+        ${basetype}$(${dtype}$), allocatable :: line(:)
+        character(len=2**14) :: line_str
+
+        integer :: funit, io
+        integer(iintegers) :: nlines, valid_lines, i, j, max_cols
+        logical :: lverbose, file_exists
+
+        ierr=0
+        inquire(file=filename, exist=file_exists)
+
+        lverbose = get_arg(.False., verbose)
+
+        if(.not.file_exists) then
+          if(lverbose) print *,'File ',trim(filename), 'does not exist!'
+          ierr=1
+          return
+        endif
+
+        open(newunit=funit, file=filename)
+        if(present(skiplines)) then
+          do i=1,skiplines
+            read(funit,*)
+          enddo
+        endif
+
+        print *,''
+        nlines = 0
+        valid_lines = 0
+        max_cols = 0
+        do
+          read(funit, '(A)', iostat=io) line_str
+
+          if(io.eq.0) then
+            call split(line_str, line, ' ', ierr)
+
+            if(ierr.eq.0)then
+              valid_lines = valid_lines + 1
+              if(max_cols.gt.1 .and. size(line).ne.max_cols) then
+                ierr = 3
+                if(lverbose) &
+                  call CHKWARN(ierr, 'Found a varying number of columns in the ascii file.. cannot read that')
+                return
+              endif
+              max_cols = size(line)
             endif
-            max_cols = size(line)
+            deallocate(line)
+
+          elseif (io.lt.0) then ! end of file
+            exit
           endif
-          deallocate(line)
 
-        elseif (io.lt.0) then ! end of file
-          exit
+          nlines = nlines + 1
+        end do
+
+        rewind(funit)
+        if(present(skiplines)) then
+          do i=1,skiplines
+            read(funit,*)
+          enddo
         endif
 
-        nlines = nlines + 1
-      end do
+        allocate(line(max_cols))
+        allocate(arr(valid_lines,max_cols))
 
-      rewind(funit)
-      if(present(skiplines)) then
-        do i=1,skiplines
-          read(funit,*)
-        enddo
-      endif
+        j = 1
+        do i=1,nlines
+          read(funit, *, iostat=io) line
+          if(io.eq.0) then
+            arr(j,:) = line
+            j = j + 1
+          endif
+        end do
 
-      allocate(line(max_cols))
-      allocate(arr(valid_lines,max_cols))
-
-      j = 1
-      do i=1,nlines
-        read(funit, *, iostat=io) line
-        if(io.eq.0) then
-          arr(j,:) = line
-          j = j + 1
-        endif
-      end do
-
-      close(funit)
-      if(lverbose) print *,'I read '// &
-        itoa(valid_lines)//' lines of ascii : '// &
-        '('//itoa(nlines)//' total ) '// &
-        'with '//itoa(max_cols)//' columns'
+        close(funit)
+        if(lverbose) print *,'I read '// &
+          itoa(valid_lines)//' lines of ascii : '// &
+          '('//itoa(nlines)//' total ) '// &
+          'with '//itoa(max_cols)//' columns'
 
       contains
         subroutine split(str, a, sep, ierr)
           character(len=*), intent(in) :: str, sep
-          real(ireals), intent(out), allocatable :: a(:)
+          ${basetype}$(${dtype}$), intent(out), allocatable :: a(:)
           integer(mpiint), intent(out) :: ierr
           integer(iintegers) :: i,n
           logical :: last_char_was_sep
           last_char_was_sep = .True.
           n = 0
           do i=1,len(str)
-            if( str(i:i) == sep) then
-              if(.not.last_char_was_sep) n = n + 1
-              last_char_was_sep = .True.
-            else
-              last_char_was_sep = .False.
-            endif
+          if( str(i:i) == sep) then
+            if(.not.last_char_was_sep) n = n + 1
+            last_char_was_sep = .True.
+          else
+            last_char_was_sep = .False.
+          endif
           end do
           allocate (a(n))
           read(unit=str, fmt=*, iostat=ierr) a
         end subroutine
       end subroutine
+    #:endfor
 
 
     subroutine reorder_mpi_comm(icomm, Nrank_x, Nrank_y, new_comm)
@@ -1834,8 +1983,8 @@ module m_helper_functions
 #:endfor
 
     !> @brief Determine Edge length/ distance between two points
-#:for dtype in ['REAL32', 'REAL64']
-    function distance_${dtype}$(p1,p2) result(distance)
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    pure function distance_${dtype}$(p1,p2) result(distance)
       real(${dtype}$), intent(in) :: p1(:), p2(:)
       real(kind(p1)) :: distance
       integer(iintegers) :: i
@@ -1848,19 +1997,20 @@ module m_helper_functions
 #:endfor
 
     !> @brief Use Herons Formula to determine the area of a triangle given the 3 edge lengths
-#:for dtype in ['REAL32', 'REAL64']
-    function triangle_area_by_edgelengths_${dtype}$(e1,e2,e3) result(triangle_area_by_edgelengths)
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    pure function triangle_area_by_edgelengths_${dtype}$(e1,e2,e3) result(triangle_area_by_edgelengths)
       real(${dtype}$), intent(in) :: e1,e2,e3
       real(${dtype}$) :: triangle_area_by_edgelengths
       real(${dtype}$) :: p
       p = (e1+e2+e3)/2
-      triangle_area_by_edgelengths = sqrt(p*(p-e1)*(p-e2)*(p-e3))
+      ! max(discrimant, zero) as to prevent from nan evaluation due to numerical errors
+      triangle_area_by_edgelengths = sqrt(max(p*(p-e1)*(p-e2)*(p-e3), 0._${dtype}$))
     end function
 #:endfor
 
     !> @brief Use Herons Formula to determine the area of a triangle given the 3 vertices
-#:for dtype in ['REAL32', 'REAL64']
-    function triangle_area_by_vertices_${dtype}$(v1,v2,v3) result(triangle_area_by_vertices)
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    pure function triangle_area_by_vertices_${dtype}$(v1,v2,v3) result(triangle_area_by_vertices)
       real(${dtype}$), intent(in) :: v1(:),v2(:),v3(:)
       real(${dtype}$) :: triangle_area_by_vertices
       real(${dtype}$) :: e1, e2, e3
@@ -1872,10 +2022,10 @@ module m_helper_functions
 #:endfor
 
     !> @brief compute the inner circle center of a triangle
-#:for dtype in ['REAL32', 'REAL64']
-    subroutine triangle_inner_circle_center_${dtype}$(p1, p2, p3, center)
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    pure subroutine triangle_inner_circle_center_${dtype}$(p1, p2, p3, center)
       real(${dtype}$), dimension(:), intent(in) :: p1, p2, p3
-      real(kind(p1)), dimension(:) :: center
+      real(kind(p1)), dimension(:), intent(out) :: center
       real(kind(p1)) :: e1, e2, e3
       e1 = distance(p2,p3)
       e2 = distance(p3,p1)
@@ -2302,28 +2452,28 @@ module m_helper_functions
       end select
     end function
 
-    function cstr(inp, color)
-      character(len=*), intent(in) :: inp, color
-      character(len=len(inp)+9) :: cstr
-      cstr = achar(27)
-      select case(color)
-      case('dark grey')
-        cstr = achar(27)//'[90m'
-      case('black')
-        cstr = achar(27)//'[30m'
-      case('peach')
-        cstr = achar(27)//'[91m'
-      case('red')
-        cstr = achar(27)//'[31m'
-      case('light green')
-        cstr = achar(27)//'[92m'
-      case('green')
-        cstr = achar(27)//'[32m'
-      case('light yellow')
-        cstr = achar(27)//'[93m'
-      case('yellow')
-        cstr = achar(27)//'[33m'
-      case('light blue')
+     function cstr(inp, color)
+       character(len=*), intent(in) :: inp, color
+       character(len=len(inp)+9) :: cstr
+       cstr = achar(27)
+       select case(color)
+       case('dark grey')
+         cstr = achar(27)//'[90m'
+       case('black')
+         cstr = achar(27)//'[30m'
+       case('peach')
+         cstr = achar(27)//'[91m'
+       case('red')
+         cstr = achar(27)//'[31m'
+       case('light green')
+         cstr = achar(27)//'[92m'
+       case('green')
+         cstr = achar(27)//'[32m'
+       case('light yellow')
+         cstr = achar(27)//'[93m'
+       case('yellow')
+         cstr = achar(27)//'[33m'
+       case('light blue')
         cstr = achar(27)//'[94m'
       case('blue')
         cstr = achar(27)//'[34m'
@@ -2693,4 +2843,92 @@ end subroutine
 #:endfor
 #:endfor
 
+!> @brief compute volume defined by four base and top points each
+!> @details base points and top points can be coincident
+! the edges will be constructed index wise: b_i -> t_i
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+  pure function volume_hexahedron_${dtype}$(b1, b2, b3, b4, t1, t2, t3, t4) result(volume_hexahedron)
+    real(${dtype}$), intent(in), dimension(3) :: b1, b2, b3, b4, t1, t2, t3, t4
+    real(${dtype}$) :: volume_hexahedron
+
+    volume_hexahedron = &
+      & volume_oblique_pyramid(t1, t2, t3, t4, b1) + &
+      & volume_oblique_pyramid(t3, b3, b4, t4, b1) + &
+      & volume_oblique_pyramid(t2, b2, b3, t3, b1)
+  end function
+#:endfor
+
+!> @brief compute volume defined by three base and top points each
+!> @details base points and top points can be coincident
+! the edges will be constructed index wise: b_i -> t_i
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+  pure function volume_pentahedron_${dtype}$(b1, b2, b3, t1, t2, t3) result(volume_pentahedron)
+    real(${dtype}$), intent(in), dimension(3) :: b1, b2, b3, t1, t2, t3
+    real(${dtype}$) :: volume_pentahedron
+
+    volume_pentahedron = &
+      & volume_oblique_pyramid(t1, t2, b2, b1, t3) + &
+      & volume_tetrahedron(b1, b2, b3, t3)
+  end function
+#:endfor
+
+!> @brief compute volume of pyramid with four base points
+!> @details also works when two base points are coincident
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+  pure function volume_oblique_pyramid_${dtype}$(b1, b2, b3, b4, t) result(volume_oblique_pyramid)
+    real(${dtype}$), intent(in), dimension(3) :: b1, b2, b3, b4, t
+    real(${dtype}$) :: volume_oblique_pyramid
+
+    volume_oblique_pyramid = volume_tetrahedron(b1, b2, b3, t) + volume_tetrahedron(b1, b3, b4, t)
+  end function
+#:endfor
+
+!> @brief compute volume of pyramid with four base points
+!> @details also works when two base points are coincident
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+  pure function volume_tetrahedron_${dtype}$(b1, b2, b3, t) result(volume_tetrahedron)
+    real(${dtype}$), intent(in), dimension(3) :: b1, b2, b3, t
+    real(${dtype}$) :: volume_tetrahedron
+
+    volume_tetrahedron = triangle_area_by_vertices(b1, b2, b3) * min_dist_point_plane(t, compute_normal_3d(b1, b2, b3), b1) / 3._${dtype}$
+  end function
+#:endfor
+
+!> @brief compute minimum distance of point from plane defined by normed normal and origin
+!> @details input point in question 'point' along with 'normal' and 'origin' of the plain
+! the normal needs to be normed
+! http://paulbourke.net/geometry/pointlineplane/
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+ pure function min_dist_point_plane_${dtype}$(point, normal, origin) result(min_dist_point_plane)
+   real (${dtype}$), intent(in), dimension(3) :: point, normal, origin
+   real (${dtype}$) :: min_dist_point_plane
+
+   min_dist_point_plane = abs(dot_product(point - origin, normal))
+  end function
+#:endfor
+
+!> @brief compute quadrangle area defined by four vertices using two triangles
+!> @details input four vertices ordered clockwise or anti-clockwise that form either a quadrangle or a triangle
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+ pure function quadrangle_area_by_vertices_${dtype}$(v1, v2, v3, v4) result(quadrangle_area_by_vertices)
+   real (${dtype}$), intent(in), dimension(3) :: v1, v2, v3, v4
+   real (${dtype}$) :: quadrangle_area_by_vertices
+
+   quadrangle_area_by_vertices = triangle_area_by_vertices(v1, v2, v3) + triangle_area_by_vertices(v1, v3, v4)
+ end function
+#:endfor
+
+!> @brief compute pentagon area defined by five vertices using three triangles
+!> @details input five vertices ordered clockwise
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+ pure function pentagon_area_by_vertices_${dtype}$(v1, v2, v3, v4, v5) result(pentagon_area_by_vertices)
+   real (${dtype}$), intent(in), dimension(3) :: v1, v2, v3, v4, v5
+   real (${dtype}$) :: pentagon_area_by_vertices
+
+   pentagon_area_by_vertices = &
+     triangle_area_by_vertices(v1, v2, v3) + &
+     triangle_area_by_vertices(v1, v3, v4) + &
+     triangle_area_by_vertices(v1, v4, v5)
+ end function
+#:endfor
 end module
