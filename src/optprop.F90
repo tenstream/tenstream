@@ -520,7 +520,7 @@ contains
     integer(mpiint), intent(out) :: ierr
     real(ireals), intent(in), optional :: opt_vertices(:)
 
-    logical, save :: compute_coeff_online=.False., lset=.False.
+    logical, save :: compute_coeff_online=.False., lset=.False., bmc_default_unit_cube_reference=.False.
     logical :: lflg
     real(ireals), allocatable :: vertices(:)
     real(irealLUT), allocatable :: Clut(:), Cbmc(:), Cbmc2(:)
@@ -558,6 +558,10 @@ contains
     if(.not.lset) then
       call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
         & "-bmc_online", compute_coeff_online, lflg, ierr); call CHKERR(ierr)
+      if(present(opt_vertices)) then
+        call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+          & "-bmc_default_unit_cube_reference", bmc_default_unit_cube_reference, lflg, ierr); call CHKERR(ierr)
+      endif
       lset = .True.
     endif
 
@@ -565,24 +569,37 @@ contains
       allocate(Clut(size(C)), Cbmc(size(C)))
       Clut = C
 
-      call setup_default_unit_cube_geometry(one, one, real(aspect_zx, ireals), vertices)
-      call get_coeff_bmc(OPP, vertices, real(tauz, ireals), real(w0, ireals), real(g, ireals), dir, Cbmc, angles)
-      C = Cbmc
-
+      if(.not.present(opt_vertices) .or. bmc_default_unit_cube_reference) then
+        call setup_default_unit_cube_geometry(one, one, real(aspect_zx, ireals), vertices)
+        call get_coeff_bmc(OPP, vertices, real(tauz, ireals), real(w0, ireals), real(g, ireals), dir, Cbmc, angles)
+        C = Cbmc
+      endif
       if(present(opt_vertices)) then
         allocate(Cbmc2(size(C)))
         call get_coeff_bmc(OPP, opt_vertices, real(tauz, ireals), real(w0, ireals), real(g, ireals), dir, Cbmc2, angles)
         C = Cbmc2
-        if (present(angles)) then
-          print *,new_line(''),opt_vertices(3:24:3),':',angles,new_line('')//&
-            cstr('LUT            '//toStr(Clut) , 'black')//new_line('')//&
-            cstr('bmc (regular  )'//toStr(Cbmc) , 'blue' )//new_line('')//&
-            cstr('bmc (distorted)'//toStr(Cbmc2), 'green')
+        if (bmc_default_unit_cube_reference) then
+          if (present(angles)) then
+            print *,new_line(''),opt_vertices(3:24:3),':',angles,new_line('')//&
+              cstr('LUT            '//toStr(Clut) , 'black')//new_line('')//&
+              cstr('bmc (regular  )'//toStr(Cbmc) , 'blue' )//new_line('')//&
+              cstr('bmc (distorted)'//toStr(Cbmc2), 'green')
+          else
+            print *,new_line(''),opt_vertices(3:24:3),new_line('')//&
+              cstr('LUT            '//toStr(Clut) , 'black')//new_line('')//&
+              cstr('bmc (regular  )'//toStr(Cbmc) , 'blue' )//new_line('')//&
+              cstr('bmc (distorted)'//toStr(Cbmc2), 'green')
+          endif
         else
-          print *,new_line(''),opt_vertices(3:24:3),new_line('')//&
-            cstr('LUT            '//toStr(Clut) , 'black')//new_line('')//&
-            cstr('bmc (regular  )'//toStr(Cbmc) , 'blue' )//new_line('')//&
-            cstr('bmc (distorted)'//toStr(Cbmc2), 'green')
+          if (present(angles)) then
+            print *,new_line(''),opt_vertices(3:24:3),':',angles,new_line('')//&
+              cstr('LUT            '//toStr(Clut) , 'black')//new_line('')//&
+              cstr('bmc (distorted)'//toStr(Cbmc2), 'green')
+          else
+            print *,new_line(''),opt_vertices(3:24:3),new_line('')//&
+              cstr('LUT            '//toStr(Clut) , 'black')//new_line('')//&
+              cstr('bmc (distorted)'//toStr(Cbmc2), 'green')
+          endif
         endif
       endif
     endif
