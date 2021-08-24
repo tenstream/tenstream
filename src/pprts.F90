@@ -2567,8 +2567,9 @@ module m_pprts
   end subroutine
 
   subroutine alloc_coeff_dir2diff(solver, coeffs)
-  class(t_solver), intent(in) :: solver
+    class(t_solver), intent(in), target :: solver
     real(ireals), target, allocatable, intent(inout) :: coeffs(:,:,:,:)
+
     real(irealLUT), allocatable :: v(:), T_LUT(:)
     real(ireals), allocatable :: T_GOMTRC(:), S_GOMTRC(:), S_LUT(:)
     integer(iintegers) :: src, k, i, j
@@ -2577,9 +2578,15 @@ module m_pprts
     real(ireals), pointer :: xhhl(:,:,:,:) => null(), xhhl1d(:) => null()
     real(ireals), allocatable :: vertices(:)
     real(ireals) :: norm, normref, S_LUT_norms(3), T_LUT_norms(3), T_GOMTRC_norms(3)
-    real(ireals), pointer :: c(:,:)
-    logical :: lconserve_lut_atm_abso, lflg, lcheck_coeff_sums, ltop_bottom_faces_planar, &
-      ltop_bottom_planes_parallel, lgeometric_coeffs, lbmc_online
+    real(ireals), pointer :: c(:,:), cdir2dir(:,:)
+    logical :: &
+      & lbmc_online,                 &
+      & lcheck_coeff_sums,           &
+      & lconserve_lut_atm_abso,      &
+      & lflg,                        &
+      & lgeometric_coeffs,           &
+      & ltop_bottom_faces_planar,    &
+      & ltop_bottom_planes_parallel
 
     associate( &
         & atm     => solver%atm, &
@@ -2588,16 +2595,15 @@ module m_pprts
         & C_diff  => solver%C_diff )
 
       if(.not.allocated(coeffs)) &
-        & allocate(coeffs(&
-        & 1:C_dir%dof*C_diff%dof, &
-        & C_dir%zs:C_dir%ze-1, &
-        & C_dir%xs:C_dir%xe, &
-        & C_dir%ys:C_dir%ye))
-      allocate(v(1:C_dir%dof*C_diff%dof))
-      allocate(S_GOMTRC(1:C_dir%dof*C_diff%dof))
-      allocate(T_LUT(1:C_dir%dof**2))
-      allocate(S_LUT(1:C_dir%dof*C_diff%dof))
-      allocate(T_GOMTRC(1:C_dir%dof**2))
+        & allocate(coeffs( 1:C_dir%dof*C_diff%dof, &
+                         & C_dir%zs:C_dir%ze-1,    &
+                         & C_dir%xs:C_dir%xe,      &
+                         & C_dir%ys:C_dir%ye))
+      allocate( v       (1:C_dir%dof*C_diff%dof))
+      allocate( S_GOMTRC(1:C_dir%dof*C_diff%dof))
+      allocate( T_LUT   (1:C_dir%dof**2        ))
+      allocate( S_LUT   (1:C_dir%dof*C_diff%dof))
+      allocate( T_GOMTRC(1:C_dir%dof**2        ))
       call PetscLogEventBegin(solver%logs%get_coeff_dir2diff, ierr); call CHKERR(ierr)
 
       lbmc_online = .False.
@@ -2680,13 +2686,13 @@ module m_pprts
 
                 T_GOMTRC = solver%dir2dir(:,k,i,j)
 
-                do src=1,3
+                do src = 1, C_dir%dof
                   S_LUT_norms(src)    = sum(S_LUT(src:C_dir%dof*C_diff%dof:3))
                   T_LUT_norms(src)    = sum(T_LUT(src:C_dir%dof**2:3))
                   T_GOMTRC_norms(src) = sum(T_GOMTRC(src:C_dir%dof**2:3))
                 enddo
 
-                do src=1,3
+                do src = 1, C_dir%dof
                   if (S_LUT_norms(src) .le. epsilon(S_LUT_norms(src))) then
                     S_GOMTRC(src:C_dir%dof*C_diff%dof:3) = zero
                   else
@@ -2701,16 +2707,17 @@ module m_pprts
 
               if (ldebug_optprop) then
                 c(1:C_dir%dof,1:C_diff%dof) => coeffs(:,k,i,j) ! dim(src,dst)
+                cdir2dir(1:C_dir%dof,1:C_dir%dof) => solver%dir2dir(:,k,i,j)
                 do src = 1, C_dir%dof
                   norm = sum( c(src,:) )
                   if (lcheck_coeff_sums) then
-                    normref = sum(solver%dir2dir(src:9:3,atmk(solver%atm,k),i,j)) + norm
+                    normref = sum(cdir2dir(src,:)) + norm
                     if (normref .gt. one + sqrt(sqrt(epsilon(norm)))) &
                       call CHKERR(1, 'Failed since for src'//toStr(src)//new_line('A')//&
                         &', norm(dir2dir(src)) + norm(dir2diff(src)) = '//new_line('A')//&
                         &toStr(normref)//' > 1.'//&
                         &'S = '//toStr(c(src,:))//new_line('A')//&
-                        &'T = '//toStr(solver%dir2dir(src:9:3, atmk(solver%atm,k),i,j))//new_line('A')//&
+                        &'T = '//toStr(cdir2dir(src,:))//new_line('A')//&
                         &'; box indize: k = '//toStr(k)//', i = '//toStr(i)//', j = '//toStr(j)//new_line('A')//&
                         &'; vertices: '//toStr(vertices)//new_line('A')//&
                         &'; c_abso = '//toStr(atm%kabs(atmk(solver%atm,k),i,j))//new_line('A')//&
