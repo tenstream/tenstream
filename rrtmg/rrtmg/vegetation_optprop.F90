@@ -147,7 +147,9 @@ contains
     end do
     Nmat = nlines / 3
     if(lverbose) print *, 'Found '//toStr(nlines)//' in usgs database, i.e. '//toStr(Nmat)//' materials.'
-    call CHKERR(int(modulo(Nmat,3_iintegers), mpiint), 'lines in usgs database has to be divideable by 3')
+    i = modulo(Nlines, 3_iintegers)
+    call CHKERR(int(i, mpiint), 'lines in usgs database has to be divideable by 3 !'//&
+      & ' However, we have '//toStr(Nmat)//' % 3 = '//toStr(i))
 
     ! go through it a second time and allocate space
     rewind(funit)
