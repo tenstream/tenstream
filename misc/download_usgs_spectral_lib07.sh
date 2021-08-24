@@ -26,9 +26,11 @@ unzip -u $USGS_ZIP
 
 cat > read_ascii_files.py << EOF
 #!/usr/bin/env python3
+from bs4 import BeautifulSoup as BS
 import copy
 import numpy as np
-from bs4 import BeautifulSoup as BS
+import random
+import re
 
 # indices in table
 descr_col = 0
@@ -38,10 +40,17 @@ spec_col  = 2
 with open('indexes/datatable_splib07a.html') as fh:
     html = BS(fh.read())
 
+# Use all materials
 trs = html.find_all("tr")
 
+# or use only entries after Veg Chapter
+veg_chapter = html.find(text=re.compile("Chapter 7: Vegetation")).find_parent("tr")
+trs = veg_chapter.find_all_next("tr")
+
+# cache entries for wvl tables
 wvl_tables = {}
 
+# aggregate everything in result
 res = {}
 
 for row, tr in enumerate(trs[:]):
@@ -76,11 +85,14 @@ for k, mat in res.items():
     mat_orig = copy.deepcopy(mat)
     while True:
         changed = False
-        for i in range(1, len(mat['albedo'])-1):
+        iterator = list(range(1, len(mat['albedo'])-1))
+        random.shuffle(iterator)
+
+        for i in iterator:
             l0, l, l1 = [ mat['lambda'][_] for _ in (i-1,i,i+1) ]
             a0, a, a1 = [ mat['albedo'][_] for _ in (i-1,i,i+1) ]
             orig_a = np.interp(l, mat_orig['lambda'], mat_orig['albedo'])
-            if abs(orig_a - spline(l0, l1, l, a0, a1)) < 1e-4:
+            if abs(orig_a - spline(l0, l1, l, a0, a1)) < 5e-3:
                 #print(f"Dropping {i} of {len(mat['albedo'])} because original albedo @ {l} = {orig_a}",
                 #      f" and we now get {spline(l0, l1, l, a0, a1)}",
                 #      f" difference: {orig_a - spline(l0, l1, l, a0, a1)}")
