@@ -2476,6 +2476,9 @@ module m_pprts
         & ltop_bottom_faces_planar, &
         & ltop_bottom_planes_parallel &
         & )
+
+      if(lgeometric_coeffs.and.C_dir%dof.ne.i3) &
+        & call CHKERR(int(C_dir%dof, mpiint), 'geometric coeffs currently only implemented for 3 direct streams')
       call setup_default_unit_cube_geometry(atm%dx, atm%dy, -one, vertices)
       call getVecPointer(solver%Cvert_one_atm1%da, atm%vert_heights, xhhl1d, xhhl, readonly=.True.)
 
@@ -2577,8 +2580,11 @@ module m_pprts
 
     real(ireals), pointer :: xhhl(:,:,:,:) => null(), xhhl1d(:) => null()
     real(ireals), allocatable :: vertices(:)
-    real(ireals) :: norm, normref, S_LUT_norms(3), T_LUT_norms(3), T_GOMTRC_norms(3)
+    real(ireals) :: norm_diff, norm_dir, normref
+    real(ireals) :: S_LUT_norm, T_LUT_norm, T_GOMTRC_norm
     real(ireals), pointer :: c(:,:), cdir2dir(:,:)
+    real(ireals), parameter :: eps=one+sqrt(sqrt(epsilon(eps)))
+
     logical :: &
       & lbmc_online,                 &
       & lcheck_coeff_sums,           &
@@ -2687,19 +2693,17 @@ module m_pprts
                 T_GOMTRC = solver%dir2dir(:,k,i,j)
 
                 do src = 1, C_dir%dof
-                  S_LUT_norms(src)    = sum(S_LUT(src:C_dir%dof*C_diff%dof:3))
-                  T_LUT_norms(src)    = sum(T_LUT(src:C_dir%dof**2:3))
-                  T_GOMTRC_norms(src) = sum(T_GOMTRC(src:C_dir%dof**2:3))
-                enddo
+                  S_LUT_norm    = sum(S_LUT(src:C_dir%dof*C_diff%dof:C_dir%dof))
+                  T_LUT_norm    = sum(T_LUT(src:C_dir%dof**2:C_dir%dof))
+                  T_GOMTRC_norm = sum(T_GOMTRC(src:C_dir%dof**2:C_dir%dof))
 
-                do src = 1, C_dir%dof
-                  if (S_LUT_norms(src) .le. epsilon(S_LUT_norms(src))) then
-                    S_GOMTRC(src:C_dir%dof*C_diff%dof:3) = zero
+                  if (S_LUT_norm .le. epsilon(S_LUT_norm)) then
+                    S_GOMTRC(src:C_dir%dof*C_diff%dof:C_dir%dof) = zero
                   else
-                    S_GOMTRC(src:C_dir%dof*C_diff%dof:3) = S_LUT(src:C_dir%dof*C_diff%dof:3) / S_LUT_norms(src)
+                    S_GOMTRC(src:C_dir%dof*C_diff%dof:C_dir%dof) = S_LUT(src:C_dir%dof*C_diff%dof:C_dir%dof) / S_LUT_norm
                   endif
-                  S_GOMTRC(src:C_dir%dof*C_diff%dof:3) = S_GOMTRC(src:C_dir%dof*C_diff%dof:3) * &
-                    (one - (one - T_LUT_norms(src) - S_LUT_norms(src)) -  T_GOMTRC_norms(src))
+                  S_GOMTRC(src:C_dir%dof*C_diff%dof:C_dir%dof) = S_GOMTRC(src:C_dir%dof*C_diff%dof:C_dir%dof) * &
+                    (one - (one - T_LUT_norm - S_LUT_norm) -  T_GOMTRC_norm)
                 enddo
 
                 coeffs(:,k,i,j) = S_GOMTRC
@@ -2709,28 +2713,30 @@ module m_pprts
                 c(1:C_dir%dof,1:C_diff%dof) => coeffs(:,k,i,j) ! dim(src,dst)
                 cdir2dir(1:C_dir%dof,1:C_dir%dof) => solver%dir2dir(:,k,i,j)
                 do src = 1, C_dir%dof
-                  norm = sum( c(src,:) )
+                  norm_diff = sum(c(src,:) )
+                  norm_dir  = sum(cdir2dir(src,:))
                   if (lcheck_coeff_sums) then
-                    normref = sum(cdir2dir(src,:)) + norm
-                    if (normref .gt. one + sqrt(sqrt(epsilon(norm)))) &
+                    normref = norm_dir + norm_diff
+                    if (normref .gt. eps) &
                       call CHKERR(1, 'Failed since for src'//toStr(src)//new_line('A')//&
-                        &', norm(dir2dir(src)) + norm(dir2diff(src)) = '//new_line('A')//&
-                        &toStr(normref)//' > 1.'//&
-                        &'S = '//toStr(c(src,:))//new_line('A')//&
-                        &'T = '//toStr(cdir2dir(src,:))//new_line('A')//&
-                        &'; box indize: k = '//toStr(k)//', i = '//toStr(i)//', j = '//toStr(j)//new_line('A')//&
-                        &'; vertices: '//toStr(vertices)//new_line('A')//&
-                        &'; c_abso = '//toStr(atm%kabs(atmk(solver%atm,k),i,j))//new_line('A')//&
-                        &'; c_scat = '//toStr(atm%ksca(atmk(solver%atm,k),i,j))//&
-                        &'; g = '//toStr(atm%g(atmk(solver%atm,k),i,j)))
+                        & ', norm(dir2dir(src)) + norm(dir2diff(src)) = '//new_line('A')//&
+                        & toStr(norm_dir)//' + '//toStr(norm_diff)//&
+                        & ' = '//toStr(normref)//' > '//toStr(eps)//new_line('')//&
+                        & 'S = '//toStr(c(src,:))//new_line('A')//&
+                        & 'T = '//toStr(cdir2dir(src,:))//new_line('A')//&
+                        & '; box indize: k = '//toStr(k)//', i = '//toStr(i)//', j = '//toStr(j)//new_line('A')//&
+                        & '; vertices: '//toStr(vertices)//new_line('A')//&
+                        & '; c_abso = '//toStr(atm%kabs(atmk(solver%atm,k),i,j))//new_line('A')//&
+                        & '; c_scat = '//toStr(atm%ksca(atmk(solver%atm,k),i,j))//&
+                        & '; g = '//toStr(atm%g(atmk(solver%atm,k),i,j)))
                   endif
-                  if( norm.gt.one ) then ! could renormalize
-                    if( norm.gt.one+100._ireals*sqrt(epsilon(norm)) ) then ! fatally off
-                      print *,'dir2diff sum(dst==', src, ') gt one', norm
-                      print *,'dir2diff coeff', norm, '::', c(src,:)
+                  if( norm_diff.gt.one ) then ! could renormalize
+                    if( norm_diff.gt.eps ) then ! fatally off
+                      print *,'dir2diff sum(dst==', src, ') gt one', norm_diff
+                      print *,'dir2diff coeff', norm_diff, '::', c(src,:)
                       call CHKERR(1_mpiint, 'omg.. shouldnt be happening')
                     endif ! fatally off
-                    c(src,:) = c(src,:) / norm
+                    c(src,:) = c(src,:) / norm_diff
                   endif ! could renormalize
                 enddo
               endif
