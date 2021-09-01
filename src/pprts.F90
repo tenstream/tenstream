@@ -1781,7 +1781,7 @@ module m_pprts
         a33(1:N-1) = nil
 
         if(present(planck)) then
-          call schwarzschild(3_iintegers, dtau, 0._ireals, Edn, Eup, planck, &
+          call schwarzschild(2_iintegers, dtau, 0._ireals, Edn, Eup, planck, &
             opt_srfc_emission=0._ireals)
           Bbot = Edn(N+1) / pi
           Btop = Eup(1) / pi

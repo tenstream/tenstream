@@ -38,7 +38,7 @@ public schwarzschild, B_eff
         real(ireals), intent(out) :: B
         integer(iintegers) :: imu
         real(ireals) :: mu
-        integer(iintegers), parameter :: Nmu=5
+        integer(iintegers), parameter :: Nmu=2
         real(ireals), save :: legendre_wi(Nmu)=-1._ireals
         real(ireals), save :: legendre_pt(Nmu)=-1._ireals
 
@@ -55,7 +55,7 @@ public schwarzschild, B_eff
           real(ireals) function B_eff_mu(B_far, B_near, tau, mu)
             real(ireals), intent(in) :: B_far, B_near, tau, mu
             real(ireals) :: tm1, dtau
-            real(ireals), parameter :: eps = epsilon(eps)*100
+            real(ireals), parameter :: eps = 1e-3_ireals
             dtau = tau / mu
             if(dtau.lt.eps) then
               B_eff_mu = (B_far+B_near)*.5_ireals
