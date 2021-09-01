@@ -34,7 +34,7 @@ module m_pprts_external_solvers
     & t_state_container, prepare_solution, destroy_solution, &
     & atmk, set_dmda_cell_coordinates, &
     & interpolate_cell_values_to_vertices
-  use m_schwarzschild, only: schwarzschild, B_eff
+  use m_schwarzschild, only: schwarzschild
   use m_twostream, only: delta_eddington_twostream, adding_delta_eddington_twostream
 
   use m_icon_plex_utils, only: create_2d_regular_plex, dmplex_2D_to_3D

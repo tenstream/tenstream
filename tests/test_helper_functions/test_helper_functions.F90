@@ -72,7 +72,6 @@ subroutine test_mpi_char_bcast(this)
     integer(iintegers), parameter :: N=10
     integer(iintegers), parameter :: repetitions=100
     integer(iintegers) :: rep, i
-    integer(mpiint) :: ierr
 
     comm     = this%getMpiCommunicator()
     numnodes = this%getNumProcesses()
