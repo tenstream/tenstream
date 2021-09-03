@@ -4906,6 +4906,7 @@ module m_pprts
         real(irealLUT), save :: c_angles(2)=-1
 
         real(ireals), parameter :: cache_limit=1e-3 ! rel change cache limit
+        real(irealLUT), parameter :: cache_limit2=cache_limit ! rel change cache limit
 
         logical, parameter :: lenable_cache=.True.
 
@@ -4924,7 +4925,7 @@ module m_pprts
         endif
 
         if(present(angles)) then
-          if(any(.not.rel_approx(c_angles, angles, cache_limit))) goto 99
+          if(any(.not.rel_approx(c_angles, angles, cache_limit2))) goto 99
         endif
 
         if(c_ldir.neqv.ldir) goto 99

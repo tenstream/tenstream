@@ -250,18 +250,29 @@ module m_helper_functions
     #:endfor
   end interface
   interface rad2deg
-    module procedure rad2deg_r32, rad2deg_r64, rad2deg_r128
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    module procedure rad2deg_${dtype}$
+    #:endfor
   end interface
   interface deg2rad
-    module procedure deg2rad_r32, deg2rad_r64, deg2rad_r128
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    module procedure deg2rad_${dtype}$
+    #:endfor
   end interface
   interface approx
-    module procedure approx_r32, approx_r64, approx_r128
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    module procedure approx_${dtype}$
+    #:endfor
+  end interface
+  interface rel_approx
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    module procedure rel_approx_${dtype}$
+    #:endfor
   end interface
   interface distance
-#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
     module procedure distance_${dtype}$
-#:endfor
+    #:endfor
   end interface
 
   interface expm1
@@ -1118,37 +1129,21 @@ module m_helper_functions
       call move_alloc(tmp, arr)
     end subroutine
 
-    elemental function deg2rad_r32(deg) result(r)
-      real(REAL32) :: r
-      real(REAL32),intent(in) :: deg
-      r = deg * pi32 / 180_REAL32
+    #:for dtype, pi in [('REAL32', 'pi32'), ('REAL64', 'pi64'), ('REAL128', 'pi128')]
+    elemental function deg2rad_${dtype}$(deg) result(r)
+      real(${dtype}$) :: r
+      real(${dtype}$), intent(in) :: deg
+      r = deg * ${pi}$ / 180_${dtype}$
     end function
-    elemental function deg2rad_r64(deg) result(r)
-      real(REAL64) :: r
-      real(REAL64),intent(in) :: deg
-      r = deg * pi64 / 180
-    end function
-    elemental function deg2rad_r128(deg) result(r)
-      real(REAL128) :: r
-      real(REAL128),intent(in) :: deg
-      r = deg * pi128 / 180
-    end function
+    #:endfor
 
-    elemental function rad2deg_r32(rad) result(r)
-      real(REAL32) :: r
-      real(REAL32),intent(in) :: rad
-      r = rad / pi32 * 180_REAL32
+    #:for dtype, pi in [('REAL32', 'pi32'), ('REAL64', 'pi64'), ('REAL128', 'pi128')]
+    elemental function rad2deg_${dtype}$(rad) result(r)
+      real(${dtype}$) :: r
+      real(${dtype}$),intent(in) :: rad
+      r = rad / ${pi}$ * 180_${dtype}$
     end function
-    elemental function rad2deg_r64(rad) result(r)
-      real(REAL64) :: r
-      real(REAL64),intent(in) :: rad
-      r = rad / pi64 * 180
-    end function
-    elemental function rad2deg_r128(rad) result(r)
-      real(REAL128) :: r
-      real(REAL128),intent(in) :: rad
-      r = rad / pi128 * 180
-    end function
+    #:endfor
 
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
     pure function rmse_${dtype}$(a,b) result(rmse)
@@ -1174,48 +1169,16 @@ module m_helper_functions
 #:endfor
 #:endfor
 
-    elemental logical function approx_r128(a,b,precis) result(approx)
-      real(REAL128),intent(in) :: a,b
-      real(REAL128),intent(in),optional :: precis
-      real(REAL128) :: factor
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    elemental logical function approx_${dtype}$(a,b,precis) result(approx)
+      real(${dtype}$),intent(in) :: a,b
+      real(${dtype}$),intent(in),optional :: precis
+      real(${dtype}$) :: factor
+      real(${dtype}$), parameter :: default_eps = 10._${dtype}$*epsilon(b)
       if(present(precis) ) then
         factor = precis
       else
-        factor = 10._REAL128*epsilon(b)
-      endif
-      if( a.lt.b-factor ) then
-        approx = .False.
-      elseif(a.gt.b+factor) then
-        approx = .False.
-      else
-        approx = .True.
-      endif
-    end function
-    elemental logical function approx_r64(a,b,precis) result(approx)
-      real(REAL64),intent(in) :: a,b
-      real(REAL64),intent(in),optional :: precis
-      real(REAL64) :: factor
-      if(present(precis) ) then
-        factor = precis
-      else
-        factor = 10._REAL64*epsilon(b)
-      endif
-      if( a.lt.b-factor ) then
-        approx = .False.
-      elseif(a.gt.b+factor) then
-        approx = .False.
-      else
-        approx = .True.
-      endif
-    end function
-    elemental logical function approx_r32(a,b,precis) result(approx)
-      real(REAL32),intent(in) :: a,b
-      real(REAL32),intent(in),optional :: precis
-      real(REAL32) :: factor
-      if(present(precis) ) then
-        factor = precis
-      else
-        factor = 10._REAL32*epsilon(b)
+        factor = default_eps
       endif
       if( a.le.b+factor .and. a.ge.b-factor ) then
         approx = .True.
@@ -1223,14 +1186,18 @@ module m_helper_functions
         approx = .False.
       endif
     end function
-    elemental logical function rel_approx(a,b,precision)
-      real(ireals),intent(in) :: a,b
-      real(ireals),intent(in),optional :: precision
-      real(ireals) :: factor,rel_error
+    #:endfor
+
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    elemental logical function rel_approx_${dtype}$(a,b,precision) result(rel_approx)
+      real(${dtype}$),intent(in) :: a,b
+      real(${dtype}$),intent(in),optional :: precision
+      real(${dtype}$) :: factor,rel_error
+      real(${dtype}$), parameter :: default_eps = 10._${dtype}$*epsilon(b)
       if(present(precision) ) then
         factor = precision
       else
-        factor = 10*epsilon(b)
+        factor = default_eps
       endif
       rel_error = abs(a-b)/ max(tiny(a), abs(a+b)/2)
 
@@ -1240,6 +1207,7 @@ module m_helper_functions
         rel_approx = .False.
       endif
     end function
+    #:endfor
 
     function mpi_logical_and(comm,lval)
       integer(mpiint),intent(in) :: comm
