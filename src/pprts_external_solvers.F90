@@ -1236,7 +1236,7 @@ contains
               & + S(atmk(atm, C_one_atm1%zs)  :C_one_atm1%ze-1) &
               & - S(atmk(atm, C_one_atm1%zs)+1:C_one_atm1%ze  )
           endif
-          do k=C_one_atm%zs, C_one_atm%ze
+          do k=C_one%zs, C_one%ze
             xv_abso(i0,k,i,j) = xv_abso(i0,k,i,j) / atm%dz(atmk(atm,k),i,j)
           enddo
         enddo
@@ -1479,7 +1479,7 @@ contains
             & - Eup(atmk(atm, C_one_atm1%zs)  :C_one_atm1%ze-1) &
             & + Eup(atmk(atm, C_one_atm1%zs)+1:C_one_atm1%ze  )
 
-          do k=C_one_atm%zs, C_one_atm%ze
+          do k=C_one%zs, C_one%ze
             xv_abso(i0,k,i,j) = xv_abso(i0,k,i,j) / atm%dz(atmk(atm,k),i,j)
           enddo
 
