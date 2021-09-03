@@ -416,22 +416,55 @@ module m_pprts
 
       solver%sun%luse_topography = present(dz3d) .and. ltopography  ! if the user supplies 3d height levels and has set the topography option
 
+      call determine_vertex_heights()
+
+      call determine_1d_layers()
+
+    end subroutine
+
+    subroutine determine_1d_layers()
+      real(ireals), pointer :: hhl(:,:,:,:)=>null(), hhl1d(:)=>null()
+      real(ireals) :: pprts_1d_height
+      real(ireals) :: N1dlayers, N1dlayers_max
+      logical :: lflg
+
       if(.not.allocated(solver%atm%l1d)) then
         allocate(solver%atm%l1d(solver%C_one_atm%zs:solver%C_one_atm%ze) )
       endif
 
-      call determine_vertex_heights()
+      if(ltwostr_only) then
+        solver%atm%l1d = .True.
+      else
+        !TODO if we have a horiz. staggered grid, this may lead to the point where one 3d box has a outgoing sideward flux but the adjacent
+        !1d box does not send anything back --> therefore huge absorption :( -- would need to introduce mirror boundary conditions for
+        !sideward fluxes in 1d boxes
+        associate(C => solver%C_one_atm, dz => solver%atm%dz)
+          solver%atm%l1d(C%ze) = any((dz(C%ze, C%xs:C%xe, C%ys:C%ye) / solver%atm%dx) .gt. twostr_ratio)
+          do k = C%ze-1, C%zs, -1
+            solver%atm%l1d(k) = any((solver%atm%dz(k,C%xs:C%xe, C%ys:C%ye) / solver%atm%dx) .gt. twostr_ratio)
+          enddo
+        end associate
+      endif
 
-      !TODO if we have a horiz. staggered grid, this may lead to the point where one 3d box has a outgoing sideward flux but the adjacent
-      !1d box does not send anything back --> therefore huge absorption :( -- would need to introduce mirror boundary conditions for
-      !sideward fluxes in 1d boxes
-      associate(C => solver%C_one_atm, dz => solver%atm%dz)
-        solver%atm%l1d(C%ze) = any((dz(C%ze, C%xs:C%xe, C%ys:C%ye) / solver%atm%dx) .gt. twostr_ratio)
-        do k = C%ze-1, C%zs, -1
-          solver%atm%l1d(k) = any((solver%atm%dz(k,C%xs:C%xe, C%ys:C%ye) / solver%atm%dx) .gt. twostr_ratio)
-        enddo
-      end associate
-      if(ltwostr_only) solver%atm%l1d = .True.
+      ! set layer to 1D if a top height of a box is higher than argument
+      call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,"-pprts_1d_height",&
+        pprts_1d_height, lflg, ierr)  ; call CHKERR(ierr)
+      if(lflg) then
+        associate( &
+            & C     => solver%C_one_atm, &
+            & C_hhl => solver%C_one_atm1_box, &
+            & vhhl  => solver%atm%hhl )
+
+          call getVecPointer(C_hhl%da, vhhl, hhl1d, hhl, readonly=.True.)
+          do k = C%ze, C%zs, -1
+            if(any(hhl(i0,k,:,:).gt.pprts_1d_height)) then
+              solver%atm%l1d(C%zs:k) = .True.
+              exit
+            endif
+          enddo
+          call restoreVecPointer(C_hhl%da, vhhl, hhl1d, hhl, readonly=.True.)
+        end associate
+      endif
 
       if(present(collapseindex)) then
         solver%atm%lcollapse=collapseindex.gt.i1
@@ -445,6 +478,13 @@ module m_pprts
           if(ldebug) print *,'Using icollapse:',collapseindex, solver%atm%lcollapse
         endif
       endif
+
+      N1dlayers = count(solver%atm%l1d)
+      call imp_allreduce_max(solver%comm, N1dlayers, N1dlayers_max)
+      call CHKERR(int(N1dlayers - N1dlayers_max, mpiint), &
+        & 'Nr of 1D layers does not match on all ranks'// &
+        & ' while the global max(N1D_layers) is'//toStr(N1dlayers_max)// &
+        & ' here (rank='//toStr(solver%myid)//') we have N1D_layers='//tostr(N1dlayers))
 
     end subroutine
 
