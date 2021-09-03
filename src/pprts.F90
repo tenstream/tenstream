@@ -54,6 +54,7 @@ module m_pprts
     & ndarray_offsets, &
     & normalize_vec, &
     & rad2deg, &
+    & rel_approx, &
     & rotation_matrix_world_to_local_basis, &
     & spherical_2_cartesian, &
     & toStr, &
@@ -2522,9 +2523,9 @@ module m_pprts
       call setup_default_unit_cube_geometry(atm%dx, atm%dy, -one, vertices)
       call getVecPointer(solver%Cvert_one_atm1%da, atm%vert_heights, xhhl1d, xhhl, readonly=.True.)
 
-      do j=C_dir%ys,C_dir%ye
-        do i=C_dir%xs,C_dir%xe
-          do k=C_dir%zs,C_dir%ze-1
+      do k=C_dir%zs,C_dir%ze-1
+        do j=C_dir%ys,C_dir%ye
+          do i=C_dir%xs,C_dir%xe
             if(.not.atm%l1d(atmk(atm,k)) ) then
               call init_vertices( &
                 & xhhl(i0, atmk(atm,k):atmk(atm,k+1), i:i+1, j:j+1), &
@@ -2676,9 +2677,9 @@ module m_pprts
       call setup_default_unit_cube_geometry(atm%dx, atm%dy, -one, vertices)
       call getVecPointer(solver%Cvert_one_atm1%da, solver%atm%vert_heights, xhhl1d, xhhl, readonly=.True.)
 
-      do j=C_dir%ys,C_dir%ye
-        do i=C_dir%xs,C_dir%xe
-          do k=C_dir%zs,C_dir%ze-1
+      do k=C_dir%zs,C_dir%ze-1
+        do j=C_dir%ys,C_dir%ye
+          do i=C_dir%xs,C_dir%xe
             if(.not.atm%l1d(atmk(atm,k)) ) then
               call init_vertices( &
                 & xhhl(i0, atmk(atm,k):atmk(atm,k+1), i:i+1, j:j+1), &
@@ -2825,9 +2826,9 @@ module m_pprts
       call setup_default_unit_cube_geometry(atm%dx, atm%dy, -one, vertices)
       call getVecPointer(solver%Cvert_one_atm1%da, atm%vert_heights, xhhl1d, xhhl, readonly=.True.)
 
-      do j=C_diff%ys,C_diff%ye
-        do i=C_diff%xs,C_diff%xe
-          do k=C_diff%zs,C_diff%ze-1
+      do k=C_diff%zs,C_diff%ze-1
+        do j=C_diff%ys,C_diff%ye
+          do i=C_diff%xs,C_diff%xe
             if(.not.atm%l1d(atmk(atm,k)) ) then
               call init_vertices( &
                 & xhhl(i0, atmk(atm,k):atmk(atm,k+1), i:i+1, j:j+1), &
@@ -4856,8 +4857,17 @@ module m_pprts
     logical,intent(in),optional       :: lswitch_east, lswitch_north
     real(ireals), intent(in), optional:: opt_vertices(:)
 
+    real(irealLUT), save :: coeff_cache(1000)
+    logical :: lcurrent
+
     real(irealLUT) :: aspect_zx, tauz, w0
     integer(mpiint) :: ierr
+
+    call check_cache(lcurrent)
+    if(lcurrent) then
+      coeff = coeff_cache(1:size(coeff))
+      return
+    endif
 
     aspect_zx = real(dz / solver%atm%dx, irealLUT)
     w0        = real(ksca / max(kabs+ksca, epsilon(kabs)), irealLUT)
@@ -4884,6 +4894,76 @@ module m_pprts
       call solver%OPP%get_coeff(tauz, w0, real(g, irealLUT), aspect_zx, ldir, coeff, ierr, &
         angles, lswitch_east, lswitch_north, opt_vertices); call CHKERR(ierr)
     endif
+
+    coeff_cache(1:size(coeff)) = coeff
+
+    contains
+      subroutine check_cache(lcurrent)
+        logical, intent(out) :: lcurrent
+
+        logical, save :: c_ldir=.False., c_lswitch_east=.False., c_lswitch_north=.False.
+        real(ireals), save :: c_kabs=-1, c_ksca=-1, c_g=-1, c_dz=-1, c_vertices(24)=-1
+        real(irealLUT), save :: c_angles(2)=-1
+
+        real(ireals), parameter :: cache_limit=1e-3 ! rel change cache limit
+
+        logical, parameter :: lenable_cache=.True.
+
+        if(.not.lenable_cache) then
+          lcurrent=.False.
+          return
+        endif
+
+        if(.not.rel_approx(c_kabs, kabs, cache_limit)) goto 99
+        if(.not.rel_approx(c_ksca, ksca, cache_limit)) goto 99
+        if(.not.rel_approx(c_g   , g   , cache_limit)) goto 99
+        if(.not.rel_approx(c_dz  , dz  , cache_limit)) goto 99
+
+        if(present(opt_vertices)) then
+          if(any(.not.rel_approx(c_vertices, opt_vertices, cache_limit))) goto 99
+        endif
+
+        if(present(angles)) then
+          if(any(.not.rel_approx(c_angles, angles, cache_limit))) goto 99
+        endif
+
+        if(c_ldir.neqv.ldir) goto 99
+        if(present(lswitch_east)) then
+          if(c_lswitch_east .neqv.lswitch_east ) goto 99
+        endif
+        if(present(lswitch_north)) then
+          if(c_lswitch_north.neqv.lswitch_north) goto 99
+        endif
+        lcurrent = .True.
+        !print *,'hit cache'//new_line(''),  &
+        !  & 'kabs', c_kabs, kabs,new_line(''), &
+        !  & 'ksca', c_ksca, ksca,new_line(''), &
+        !  & 'g',    c_g   , g   ,new_line(''), &
+        !  & 'dz',   c_dz  , dz  ,new_line(''), &
+        !  & 'ldir', c_ldir, ldir
+        !call CHKERR(1_mpiint, 'DEBUG')
+        return
+
+        99 continue ! update sample pts and go on to compute them
+        !print *,'missed cache'//new_line(''),  &
+        !  & 'kabs', c_kabs, kabs,new_line(''), &
+        !  & 'ksca', c_ksca, ksca,new_line(''), &
+        !  & 'g',    c_g   , g   ,new_line(''), &
+        !  & 'dz',   c_dz  , dz  ,new_line(''), &
+        !  & 'ldir', c_ldir, ldir
+
+        lcurrent = .False.
+        c_kabs = kabs
+        c_ksca = ksca
+        c_g    = g
+        c_dz   = dz
+        c_ldir = ldir
+        if(present(angles       )) c_angles        = angles
+        if(present(opt_vertices )) c_vertices      = opt_vertices
+        if(present(lswitch_east )) c_lswitch_east  = lswitch_east
+        if(present(lswitch_north)) c_lswitch_north = lswitch_north
+
+      end subroutine
   end subroutine
 
 
