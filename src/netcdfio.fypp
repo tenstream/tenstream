@@ -17,596 +17,593 @@
 ! Copyright (C) 2010-2015  Fabian Jakub, <fabian@jakub.com>
 !-------------------------------------------------------------------------
 #:def ranksuffix(RANK)
-$:'' if RANK == 0 else '(' + ':' + ',:' * (RANK - 1) + ')'
+  $:'' if RANK == 0 else '(' + ':' + ',:' * (RANK - 1) + ')'
 #:enddef ranksuffix
 #:def rankallocdims(RANK)
-$:'' if RANK == 0 else '('+','.join(['dimsize({})'.format(_) for _ in range(1,RANK+1)]) + ')'
+  $:'' if RANK == 0 else '('+','.join(['dimsize({})'.format(_) for _ in range(1,RANK+1)]) + ')'
 #:enddef rankallocdims
 
 module m_netcdfIO
 #if defined(__INTEL_COMPILER)
-      use ifport
+  use ifport
 #endif
 
   use iso_c_binding
-  use iso_fortran_env, only: REAL32, REAL64, INT32, INT64
+  use iso_fortran_env, only: real32, real64, int32, int64
 
   use netcdf
-  use m_data_parameters, only :   &
-      default_str_len, &
-      ireals,          &
-      iintegers, mpiint
-  use m_helper_functions, only : CHKWARN, CHKERR, itoa, ftoa, get_arg
+  use m_data_parameters, only: &
+    default_str_len, &
+    ireals, &
+    iintegers, mpiint
+  use m_helper_functions, only: CHKWARN, CHKERR, itoa, ftoa, get_arg
   implicit none
 
   private
   public :: ncwrite, ncload, acquire_file_lock, release_file_lock, &
-    get_attribute, set_attribute, &
-    get_global_attribute, set_global_attribute, &
-    get_number_global_attributes, list_global_attributes
+            get_attribute, set_attribute, &
+            get_global_attribute, set_global_attribute, &
+            get_number_global_attributes, list_global_attributes
 
 !  integer :: v=11
-  integer,parameter :: deflate_lvl=1
+  integer, parameter :: deflate_lvl = 1
 !  real(ireals),parameter :: maxwait=600 !in seconds
 !  real(ireals),parameter :: waitinterval=.01 ! amount of cpu time to wait before trying anew in seconds
 !  integer :: iwait
 !  character(default_str_len+10) :: lockfile
-  logical,parameter :: ldebug=.False.
+  logical, parameter :: ldebug = .false.
 !  logical,parameter :: ldebug=.True.
 
   interface ncwrite
-#:for method,dtype in [ &
-  ('integer', 'INT32' ) , &
-  ('integer', 'INT64' ) , &
-  ('real'   , 'REAL32') , &
-  ('real'   , 'REAL64')]
-#:for RANK in range(1, 8)
-    module procedure ncwrite_${method}$_${dtype}$_${RANK}$d
-#:endfor
-#:endfor
+    #:for method,dtype in [ &
+      ('integer', 'INT32' ) , &
+      ('integer', 'INT64' ) , &
+      ('real'   , 'REAL32') , &
+      ('real'   , 'REAL64')]
+      #:for RANK in range(1, 8)
+        module procedure ncwrite_${method}$_${dtype}$_${RANK}$d
+      #:endfor
+    #:endfor
   end interface
 
   interface ncload
-#:for method,dtype in [   &
-  ('integer', 'INT32' ) , &
-  ('integer', 'INT64' ) , &
-  ('real'   , 'REAL32') , &
-  ('real'   , 'REAL64')]
-#:for RANK in range(1, 8)
-#:for modifier in ['allocatable', 'pointer']
-    module procedure ncload_${method}$_${dtype}$_${RANK}$d_${modifier}$
-#:endfor
-#:endfor
-#:endfor
+    #:for method,dtype in [   &
+      ('integer', 'INT32' ) , &
+      ('integer', 'INT64' ) , &
+      ('real'   , 'REAL32') , &
+      ('real'   , 'REAL64')]
+      #:for RANK in range(1, 8)
+        #:for modifier in ['allocatable', 'pointer']
+          module procedure ncload_${method}$_${dtype}$_${RANK}$d_${modifier}$
+        #:endfor
+      #:endfor
+    #:endfor
   end interface
 
   interface get_attribute
-#:for method,dtype,nctype in [   &
-  ('character', ''      , 'NF90_CHAR') , &
-  ('integer'  , 'INT32' , 'NF90_INT') , &
-  ('integer'  , 'INT64' , 'NF90_INT64') , &
-  ('real'     , 'REAL32', 'NF90_FLOAT') , &
-  ('real'     , 'REAL64', 'NF90_DOUBLE')]
-    module procedure get_attribute_${method}$_${dtype}$
-#:endfor
+    #:for method,dtype,nctype in [   &
+      ('character', ''      , 'NF90_CHAR') , &
+      ('integer'  , 'INT32' , 'NF90_INT') , &
+      ('integer'  , 'INT64' , 'NF90_INT64') , &
+      ('real'     , 'REAL32', 'NF90_FLOAT') , &
+      ('real'     , 'REAL64', 'NF90_DOUBLE')]
+      module procedure get_attribute_${method}$_${dtype}$
+    #:endfor
   end interface
 
   interface set_attribute
-#:for method,dtype,nctype in [   &
-  ('character', ''      , 'NF90_CHAR') , &
-  ('integer'  , 'INT32' , 'NF90_INT') , &
-  ('integer'  , 'INT64' , 'NF90_INT64') , &
-  ('real'     , 'REAL32', 'NF90_FLOAT') , &
-  ('real'     , 'REAL64', 'NF90_DOUBLE')]
-    module procedure set_attribute_${method}$_${dtype}$
-#:endfor
+    #:for method,dtype,nctype in [   &
+      ('character', ''      , 'NF90_CHAR') , &
+      ('integer'  , 'INT32' , 'NF90_INT') , &
+      ('integer'  , 'INT64' , 'NF90_INT64') , &
+      ('real'     , 'REAL32', 'NF90_FLOAT') , &
+      ('real'     , 'REAL64', 'NF90_DOUBLE')]
+      module procedure set_attribute_${method}$_${dtype}$
+    #:endfor
   end interface
 
   interface get_global_attribute
-#:for method,dtype,nctype in [   &
-  ('character', ''      , 'NF90_CHAR') , &
-  ('integer'  , 'INT32' , 'NF90_INT') , &
-  ('integer'  , 'INT64' , 'NF90_INT64') , &
-  ('real'     , 'REAL32', 'NF90_FLOAT') , &
-  ('real'     , 'REAL64', 'NF90_DOUBLE')]
-    module procedure get_global_attribute_${method}$_${dtype}$
-#:endfor
+    #:for method,dtype,nctype in [   &
+      ('character', ''      , 'NF90_CHAR') , &
+      ('integer'  , 'INT32' , 'NF90_INT') , &
+      ('integer'  , 'INT64' , 'NF90_INT64') , &
+      ('real'     , 'REAL32', 'NF90_FLOAT') , &
+      ('real'     , 'REAL64', 'NF90_DOUBLE')]
+      module procedure get_global_attribute_${method}$_${dtype}$
+    #:endfor
   end interface
 
   interface set_global_attribute
-#:for method,dtype,nctype in [   &
-  ('character', ''      , 'NF90_CHAR') , &
-  ('integer'  , 'INT32' , 'NF90_INT') , &
-  ('integer'  , 'INT64' , 'NF90_INT64') , &
-  ('real'     , 'REAL32', 'NF90_FLOAT') , &
-  ('real'     , 'REAL64', 'NF90_DOUBLE')]
-    module procedure set_global_attribute_${method}$_${dtype}$
-#:endfor
+    #:for method,dtype,nctype in [   &
+      ('character', ''      , 'NF90_CHAR') , &
+      ('integer'  , 'INT32' , 'NF90_INT') , &
+      ('integer'  , 'INT64' , 'NF90_INT64') , &
+      ('real'     , 'REAL32', 'NF90_FLOAT') , &
+      ('real'     , 'REAL64', 'NF90_DOUBLE')]
+      module procedure set_global_attribute_${method}$_${dtype}$
+    #:endfor
   end interface
 
 #if __HAVE_NC_SET_LOG_LEVEL__
   interface
-    function nf90_set_log_level(level) bind (C, name = "nc_set_log_level")
+    function nf90_set_log_level(level) bind(C, name="nc_set_log_level")
       use iso_c_binding
       implicit none
       integer(c_int) :: nf90_set_log_level
-      integer(c_int), intent (in) :: level
+      integer(c_int), intent(in) :: level
     end function nf90_set_log_level
   end interface
 #endif
 
-  contains
+contains
 
 #if !(__HAVE_NC_SET_LOG_LEVEL__)
   integer(c_int) function nf90_set_log_level(level) result(r)
     use iso_c_binding
-    integer(c_int), intent (in) :: level
+    integer(c_int), intent(in) :: level
     r = level ! prevent unused warning
     r = 0
   end function
 #endif
 
-
 ! NCWRITE templates
-#:for method,dtype in [ &
-  ('integer', 'INT32') , &
-  ('integer', 'INT64') , &
-  ('real'   , 'REAL32'), &
-  ('real'   , 'REAL64')]
-#:set dKIND = '' if method == 'logical' else '('+dtype+')'
-#:for RANK in range(1, 8)
-    subroutine  ncwrite_${method}$_${dtype}$_${RANK}$d &
-                   (groups,arr,ierr,arr_shape,startp,countp,stride,map)
+  #:for method,dtype in [ &
+    ('integer', 'INT32') , &
+    ('integer', 'INT64') , &
+    ('real'   , 'REAL32'), &
+    ('real'   , 'REAL64')]
+    #:set dKIND = '' if method == 'logical' else '('+dtype+')'
+    #:for RANK in range(1, 8)
+      subroutine ncwrite_${method}$_${dtype}$_${RANK}$d &
+        (groups, arr, ierr, arr_shape, startp, countp, stride, map)
 
-      ${method}$ ${dKIND}$, intent(in) :: arr${ranksuffix(RANK)}$
-      integer, intent(in), optional :: arr_shape(:), startp(:), countp(:), stride(:), map(:)
+        ${method}$${dKIND}$, intent(in) :: arr${ranksuffix(RANK)}$
+        integer, intent(in), optional :: arr_shape(:), startp(:), countp(:), stride(:), map(:)
 
-      character(len=*) :: groups(:)
+        character(len=*) :: groups(:)
 
-      character(len=default_str_len) :: fname,varname
-      integer :: Ndims,ncid,i,varid
+        character(len=default_str_len) :: fname, varname
+        integer :: Ndims, ncid, i, varid
 
-      integer,allocatable :: dims(:),dim_ids(:)
-      character(len=default_str_len) :: dimname
+        integer, allocatable :: dims(:), dim_ids(:)
+        character(len=default_str_len) :: dimname
 
-      logical :: file_exists, var_exists, def_mode
+        logical :: file_exists, var_exists, def_mode
 
-      integer(mpiint),intent(out) :: ierr
-      integer(mpiint) :: ncerr, flock_unit
+        integer(mpiint), intent(out) :: ierr
+        integer(mpiint) :: ncerr, flock_unit
 
-      fname=trim(groups(1))
+        fname = trim(groups(1))
 
-      call acquire_file_lock(fname, flock_unit, ierr); call CHKERR(ierr, 'Could not obtain file lock')
+        call acquire_file_lock(fname, flock_unit, ierr); call CHKERR(ierr, 'Could not obtain file lock')
 
-      varname=trim(groups(2))
-      do i=3,size(groups)
-      varname=trim(varname)//'.'//trim(groups(i))
-      enddo
+        varname = trim(groups(2))
+        do i = 3, size(groups)
+          varname = trim(varname)//'.'//trim(groups(i))
+        end do
 
-      if(ldebug) print *,'***********************************************************************************************'
-      if(ldebug) print *,'writing to file: ',trim(fname)
-      if(ldebug) print *,'varname is: ',trim(varname)
-      if(ldebug) print *,'***********************************************************************************************'
+        if (ldebug) print *, '***********************************************************************************************'
+        if (ldebug) print *, 'writing to file: ', trim(fname)
+        if (ldebug) print *, 'varname is: ', trim(varname)
+        if (ldebug) print *, '***********************************************************************************************'
 
-      if(present(arr_shape)) then
-              Ndims = size(arr_shape)
-      else
-              Ndims = size(shape(arr))
-      endif
-      allocate(dims(Ndims))
-
-      if(present(arr_shape)) then
-              dims = arr_shape
-      else
-              dims = shape(arr)
-      endif
-
-      allocate(dim_ids(Ndims))
-
-      if(ldebug) print *,'Dimensions('//itoa(int(Ndims, iintegers))//') of array', dims
-      if(ldebug) then
-              ncerr = nf90_set_log_level(2); call nccheck(ncerr)
-      endif
-
-      inquire(file=fname, exist=file_exists)
-      if(ldebug) print *,'file '//trim(fname)//' exists :: ', file_exists
-
-      ierr = 0
-
-      if(.not.file_exists) then
-              ncerr = nf90_create(trim(fname), NF90_HDF5, ncid) ; call nccheck(ncerr); ierr = ierr + ncerr
-              if(ldebug) print *,'opened file to append: ',trim(fname),' ::',ncerr
-      else
-              ncerr = nf90_open(path=trim(fname), mode=NF90_WRITE, ncid=ncid) ; call nccheck(ncerr); ierr = ierr + ncerr
-              if(ldebug) print *,'opened file to write: ',trim(fname),' ::',ncerr
-      endif
-      if(ncerr.ne.NF90_NOERR) call CHKERR(int(ncerr, mpiint),'stopping because we couldnt write to file')
-      ierr = 0
-
-      ncerr = nf90_redef(ncid); call nccheck(ncerr); def_mode=.True.
-      if(ldebug) print *,'Set NetCDF File to def_mode',ncerr
-
-      do i=1,Ndims
-      write(dimname,FMT='("dim",I0)') i
-
-      !See if we can find the dimension
-      ncerr = nf90_inq_dimid(ncid, trim(varname)//'_'//trim(dimname), dim_ids(i)) ; call nccheck(ncerr)
-      if(ldebug) print *,'Check if dimension '//trim(varname)//'_'//trim(dimname)//' exists',ncerr
-      if(ncerr.ne.NF90_NOERR) then !Otherwise create it
-              ncerr = nf90_def_dim(ncid, trim(varname)//'_'//trim(dimname), dims(i), dim_ids(i) ); call nccheck(ncerr)
-              if(ldebug) print *,'Create dimension :: ',i,dims(i),dim_ids(i),trim(varname)//'_'//trim(dimname),' :: ',ncerr
-      endif
-      enddo
-
-      !Check if variable already exists
-      ncerr = nf90_inq_varid(ncid, varname, varid) ; call nccheck(ncerr)
-      var_exists = ncerr.eq.NF90_NOERR
-      if(ldebug) print *,'Check if variable exists',ncerr,'::',var_exists
-
-      if(.not.var_exists) then !Otherwise create it
-              if(ldebug) print *,'Create variable '//itoa(varid)
-              ncerr = nf90_def_var(ncid, varname, NF90_FLOAT, dim_ids, varid, deflate_level=deflate_lvl) ; call nccheck(ncerr)
-              ierr = ierr + ncerr
-              call CHKWARN(ncerr, 'Could not create new variable '//trim(varname)//' varid: '//itoa(varid))
-      endif
-
-
-      if(def_mode) then !if we created the file here, we need to leave define mode...
-              ncerr = nf90_enddef(ncid); call nccheck(ncerr )
-              if(ldebug) print *,'Putting netcdf file in datamode',ncerr
-              call CHKWARN(ncerr, 'Could not put netcdf file in datamode')
-      endif
-
-      if(ldebug) print *,'writing data'
-      ncerr = nf90_put_var(ncid, varid, values=arr, &
-              start=startp, count=countp, stride=stride, map=map)
-      if(ldebug) print *,'written data',ncerr
-
-      ncerr = nf90_close(ncid) ; call nccheck(ncerr); ierr = ierr + ncerr
-      if(ldebug) print *,'closed file',ncerr
-
-      call release_file_lock(flock_unit, ncerr); call CHKERR(ncerr, 'Could not release filelock')
-    end subroutine
-#:endfor
-#:endfor
-
-
-#:for method,dtype in [   &
-  ('integer', 'INT32' ) , &
-  ('integer', 'INT64' ) , &
-  ('real'   , 'REAL32') , &
-  ('real'   , 'REAL64')]
-#:set dKIND = '' if method == 'logical' else '('+dtype+')'
-#:for RANK in range(1, 8)
-#:for modifier in ['allocatable', 'pointer']
-    subroutine ncload_${method}$_${dtype}$_${RANK}$d_${modifier}$ (groups,arr,ierr,lverbose)
-        ${method}$ ${dKIND}$ #{if modifier}#,${modifier}$#{endif}#, intent(inout) :: arr${ranksuffix(RANK)}$
-
-#:if modifier == 'allocatable'
-        include 'netcdfio_read_1.inc'
-        if(ierr.eq.0) allocate( arr ${rankallocdims(RANK)}$ )
-        include 'netcdfio_read_2.inc'
-#:endif
-#:if modifier == 'pointer'
-        include 'netcdfio_read_1_ptr.inc'
-        if(ierr.eq.0) allocate( arr ${rankallocdims(RANK)}$ )
-        include 'netcdfio_read_2.inc'
-#:endif
-
-    end subroutine
-#:endfor
-#:endfor
-#:endfor
-
-    subroutine cpusleep(sec)
-        real(ireals) :: sec
-        real(ireals) :: t1,t2,dither
-        call random_number(dither)
-        dither = ( -1.0_ireals + 2*dither ) *.1 + sec !10% dithering on time
-        call cpu_time(t1)
-        do
-          call cpu_time(t2)
-          if(t2-t1.gt.dither) return
-        enddo
-    end subroutine
-
-    subroutine nccheck(status)
-        integer, intent ( in) :: status
-
-        if(status /= nf90_noerr) then
-          if(ldebug) print *,"NetCDF Error ::",trim(nf90_strerror(status)),'::',status
+        if (present(arr_shape)) then
+          Ndims = size(arr_shape)
+        else
+          Ndims = size(shape(arr))
         end if
-    end subroutine nccheck
+        allocate (dims(Ndims))
 
-    function get_pid_macro()
+        if (present(arr_shape)) then
+          dims = arr_shape
+        else
+          dims = shape(arr)
+        end if
+
+        allocate (dim_ids(Ndims))
+
+        if (ldebug) print *, 'Dimensions('//itoa(int(Ndims, iintegers))//') of array', dims
+        if (ldebug) then
+          ncerr = nf90_set_log_level(2); call nccheck(ncerr)
+        end if
+
+        inquire (file=fname, exist=file_exists)
+        if (ldebug) print *, 'file '//trim(fname)//' exists :: ', file_exists
+
+        ierr = 0
+
+        if (.not. file_exists) then
+          ncerr = nf90_create(trim(fname), NF90_HDF5, ncid); call nccheck(ncerr); ierr = ierr + ncerr
+          if (ldebug) print *, 'opened file to append: ', trim(fname), ' ::', ncerr
+        else
+          ncerr = nf90_open(path=trim(fname), mode=NF90_WRITE, ncid=ncid); call nccheck(ncerr); ierr = ierr + ncerr
+          if (ldebug) print *, 'opened file to write: ', trim(fname), ' ::', ncerr
+        end if
+        if (ncerr .ne. NF90_NOERR) call CHKERR(int(ncerr, mpiint), 'stopping because we couldnt write to file')
+        ierr = 0
+
+        ncerr = nf90_redef(ncid); call nccheck(ncerr); def_mode = .true.
+        if (ldebug) print *, 'Set NetCDF File to def_mode', ncerr
+
+        do i = 1, Ndims
+          write (dimname, FMT='("dim",I0)') i
+
+          !See if we can find the dimension
+          ncerr = nf90_inq_dimid(ncid, trim(varname)//'_'//trim(dimname), dim_ids(i)); call nccheck(ncerr)
+          if (ldebug) print *, 'Check if dimension '//trim(varname)//'_'//trim(dimname)//' exists', ncerr
+          if (ncerr .ne. NF90_NOERR) then !Otherwise create it
+            ncerr = nf90_def_dim(ncid, trim(varname)//'_'//trim(dimname), dims(i), dim_ids(i)); call nccheck(ncerr)
+            if (ldebug) print *, 'Create dimension :: ', i, dims(i), dim_ids(i), trim(varname)//'_'//trim(dimname), ' :: ', ncerr
+          end if
+        end do
+
+        !Check if variable already exists
+        ncerr = nf90_inq_varid(ncid, varname, varid); call nccheck(ncerr)
+        var_exists = ncerr .eq. NF90_NOERR
+        if (ldebug) print *, 'Check if variable exists', ncerr, '::', var_exists
+
+        if (.not. var_exists) then !Otherwise create it
+          if (ldebug) print *, 'Create variable '//itoa(varid)
+          ncerr = nf90_def_var(ncid, varname, NF90_FLOAT, dim_ids, varid, deflate_level=deflate_lvl); call nccheck(ncerr)
+          ierr = ierr + ncerr
+          call CHKWARN(ncerr, 'Could not create new variable '//trim(varname)//' varid: '//itoa(varid))
+        end if
+
+        if (def_mode) then !if we created the file here, we need to leave define mode...
+          ncerr = nf90_enddef(ncid); call nccheck(ncerr)
+          if (ldebug) print *, 'Putting netcdf file in datamode', ncerr
+          call CHKWARN(ncerr, 'Could not put netcdf file in datamode')
+        end if
+
+        if (ldebug) print *, 'writing data'
+        ncerr = nf90_put_var(ncid, varid, values=arr, &
+                             start=startp, count=countp, stride=stride, map=map)
+        if (ldebug) print *, 'written data', ncerr
+
+        ncerr = nf90_close(ncid); call nccheck(ncerr); ierr = ierr + ncerr
+        if (ldebug) print *, 'closed file', ncerr
+
+        call release_file_lock(flock_unit, ncerr); call CHKERR(ncerr, 'Could not release filelock')
+      end subroutine
+    #:endfor
+  #:endfor
+
+  #:for method,dtype in [   &
+    ('integer', 'INT32' ) , &
+    ('integer', 'INT64' ) , &
+    ('real'   , 'REAL32') , &
+    ('real'   , 'REAL64')]
+    #:set dKIND = '' if method == 'logical' else '('+dtype+')'
+    #:for RANK in range(1, 8)
+      #:for modifier in ['allocatable', 'pointer']
+        subroutine ncload_${method}$_${dtype}$_${RANK}$d_${modifier}$ (groups, arr, ierr, lverbose)
+          ${method}$${dKIND}$#{if modifier}#,${modifier}$#{endif}#, intent(inout) :: arr${ranksuffix(RANK)}$
+
+          #:if modifier == 'allocatable'
+            include 'netcdfio_read_1.inc'
+            if (ierr .eq. 0) allocate (arr ${rankallocdims(RANK)}$)
+            include 'netcdfio_read_2.inc'
+          #:endif
+          #:if modifier == 'pointer'
+            include 'netcdfio_read_1_ptr.inc'
+            if (ierr .eq. 0) allocate (arr ${rankallocdims(RANK)}$)
+            include 'netcdfio_read_2.inc'
+          #:endif
+
+        end subroutine
+      #:endfor
+    #:endfor
+  #:endfor
+
+  subroutine cpusleep(sec)
+    real(ireals) :: sec
+    real(ireals) :: t1, t2, dither
+    call random_number(dither)
+    dither = (-1.0_ireals + 2 * dither)*.1 + sec !10% dithering on time
+    call cpu_time(t1)
+    do
+      call cpu_time(t2)
+      if (t2 - t1 .gt. dither) return
+    end do
+  end subroutine
+
+  subroutine nccheck(status)
+    integer, intent(in) :: status
+
+    if (status /= nf90_noerr) then
+      if (ldebug) print *, "NetCDF Error ::", trim(nf90_strerror(status)), '::', status
+    end if
+  end subroutine nccheck
+
+  function get_pid_macro()
     integer(iintegers) :: get_pid_macro
 #ifdef _XLF
-        get_pid_macro=-1
-!        call MGPID(get_pid_macro) 
+    get_pid_macro = -1
+!        call MGPID(get_pid_macro)
 #else
-        get_pid_macro=getpid()
+    get_pid_macro = getpid()
 #endif
-    end function
+  end function
 
-    subroutine acquire_file_lock(fname, flock_unit, ierr, lock_fname, blocking, waittime, waitinterval)
-      character(len=*), intent(in) :: fname
-      integer(mpiint), intent(out) :: flock_unit, ierr
+  subroutine acquire_file_lock(fname, flock_unit, ierr, lock_fname, blocking, waittime, waitinterval)
+    character(len=*), intent(in) :: fname
+    integer(mpiint), intent(out) :: flock_unit, ierr
 
-      character(len=*), intent(in), optional :: lock_fname
-      logical, intent(in), optional :: blocking          ! if the call blocks until we get the lock or return immediately
-      integer(mpiint), intent(in), optional :: waittime  ! if blocking, wait fopr waittime seconds before exiting with error
-      real(ireals), intent(in), optional :: waitinterval ! amount of cpu time to wait before trying anew in seconds
+    character(len=*), intent(in), optional :: lock_fname
+    logical, intent(in), optional :: blocking          ! if the call blocks until we get the lock or return immediately
+    integer(mpiint), intent(in), optional :: waittime  ! if blocking, wait fopr waittime seconds before exiting with error
+    real(ireals), intent(in), optional :: waitinterval ! amount of cpu time to wait before trying anew in seconds
 
-      logical :: lblocking
-      character(len=default_str_len+5) :: lockfile
+    logical :: lblocking
+    character(len=default_str_len + 5) :: lockfile
 
-      integer(mpiint) :: iwait, maxwait
-      real(ireals) :: winterval
+    integer(mpiint) :: iwait, maxwait
+    real(ireals) :: winterval
 
-      lockfile = trim(get_arg(trim(fname)//'.lock', lock_fname))
-      lblocking = get_arg(.True., blocking)
-      maxwait = get_arg(5, waittime)
-      winterval = get_arg(.5_ireals, waitinterval)
+    lockfile = trim(get_arg(trim(fname)//'.lock', lock_fname))
+    lblocking = get_arg(.true., blocking)
+    maxwait = get_arg(5, waittime)
+    winterval = get_arg(.5_ireals, waitinterval)
 
-      do iwait=1,int(maxwait/winterval)
-        open(newunit=flock_unit,file=lockfile,status='new',err=99)
-        write(flock_unit,*) 'file is locked by process: ',get_pid_macro()
-        ierr = 0
-        return
-
-        99 continue
-        if(lblocking) then
-          call cpusleep(winterval)
-        endif
-      enddo
-      ierr = iwait
-      if(lblocking) then
-        call CHKERR(1_mpiint, 'Couldnt lock file '//fname//&
-          ' .. waited now for quite a while but we couldnt open the lock: '//lockfile)
-      endif
-    end subroutine
-
-    subroutine release_file_lock(flock_unit, ierr)
-      integer, intent(inout) :: flock_unit
-      integer, intent(out) :: ierr
-      integer :: i, ios
-      logical :: lexist, lnamed, lopened
-      real(ireals),parameter :: waitinterval=.1 ! amount of cpu time to wait before trying anew in seconds
-      inquire(unit=flock_unit, exist=lexist)
-      if(.not. lexist) then
-        ierr=2
-        return
-      else
-        call cpusleep(waitinterval)
-      endif
-      inquire(unit=flock_unit, iostat=ios)
-      call CHKERR(ios, 'IOSTAT not 0... is =>'//itoa(ios))
-
-      inquire(unit=flock_unit, named=lnamed)
-      if(.not.lnamed) call CHKERR(4_mpiint, 'Release lock file not named')
-
-      inquire(unit=flock_unit, opened=lopened)
-      if(.not.lopened) call CHKERR(4_mpiint, 'Release lock file not opened')
-
-      do i=1,10
-        close(unit=flock_unit,status='delete',err=99)
-        ierr = 0
-        return
-        99 continue
-        call cpusleep(waitinterval)
-      enddo
-      ierr = 1
-      call CHKERR(1_mpiint, 'Error releasing file lock for unit '//itoa(flock_unit))
-    end subroutine
-
-    subroutine list_global_attributes(fname, ierr)
-      character(len=*) :: fname
-      integer(mpiint), intent(out) :: ierr
-
-      character(len=2*default_str_len), allocatable :: attrs(:)
-      character(len=default_str_len), allocatable :: attNames(:)
-      integer(iintegers) :: N
-      integer(mpiint) :: ierr2
-      integer :: ncid, ncerr, k
-
+    do iwait = 1, int(maxwait / winterval)
+      open (newunit=flock_unit, file=lockfile, status='new', err=99)
+      write (flock_unit, *) 'file is locked by process: ', get_pid_macro()
       ierr = 0
-
-      call get_number_global_attributes(fname, N, ierr); call CHKERR(ierr)
-      allocate(attrs(N), attNames(N))
-
-      ncerr = nf90_open(trim(fname), nf90_nowrite, ncid)
-      call nccheck(ncerr); ierr = ierr + ncerr
-      call CHKWARN(ierr, "Could not open File "//fname)
-
-      do k=1,int(N)
-        ncerr = nf90_inq_attname(ncid, varid=nf90_global, attnum=k, name=attNames(k))
-        call nccheck(ncerr); ierr = ierr + ncerr
-        call CHKWARN(ierr, "Could not determine attribute name for attribute number "//itoa(k))
-
-        ncerr = nf90_get_att(ncid, varid=nf90_global, name=trim(attNames(k)), values=attrs(k)); call nccheck(ncerr)
-        print *,'Attribute '//itoa(k)//' : '//trim(attNames(k))//' => '//trim(attrs(k))
-      enddo
-      ncerr = nf90_close(ncid); call nccheck(ncerr); ierr = ierr + ncerr
       return
 
-      do k=1,int(N)
-        call get_global_attribute(fname, attNames(k), attrs(k), ierr2)
-        ierr = ierr + ierr2
-        print *,'Attribute '//itoa(k)//' : '//trim(attNames(k))//' => '//trim(attrs(k))
-      enddo
-    end subroutine
+99    continue
+      if (lblocking) then
+        call cpusleep(winterval)
+      end if
+    end do
+    ierr = iwait
+    if (lblocking) then
+      call CHKERR(1_mpiint, 'Couldnt lock file '//fname// &
+                  ' .. waited now for quite a while but we couldnt open the lock: '//lockfile)
+    end if
+  end subroutine
 
-    subroutine get_number_global_attributes(fname, nattributes, ierr)
-      character(len=*) :: fname
-      integer(iintegers), intent(out) :: nattributes
+  subroutine release_file_lock(flock_unit, ierr)
+    integer, intent(inout) :: flock_unit
+    integer, intent(out) :: ierr
+    integer :: i, ios
+    logical :: lexist, lnamed, lopened
+    real(ireals), parameter :: waitinterval = .1 ! amount of cpu time to wait before trying anew in seconds
+    inquire (unit=flock_unit, exist=lexist)
+    if (.not. lexist) then
+      ierr = 2
+      return
+    else
+      call cpusleep(waitinterval)
+    end if
+    inquire (unit=flock_unit, iostat=ios)
+    call CHKERR(ios, 'IOSTAT not 0... is =>'//itoa(ios))
+
+    inquire (unit=flock_unit, named=lnamed)
+    if (.not. lnamed) call CHKERR(4_mpiint, 'Release lock file not named')
+
+    inquire (unit=flock_unit, opened=lopened)
+    if (.not. lopened) call CHKERR(4_mpiint, 'Release lock file not opened')
+
+    do i = 1, 10
+      close (unit=flock_unit, status='delete', err=99)
+      ierr = 0
+      return
+99    continue
+      call cpusleep(waitinterval)
+    end do
+    ierr = 1
+    call CHKERR(1_mpiint, 'Error releasing file lock for unit '//itoa(flock_unit))
+  end subroutine
+
+  subroutine list_global_attributes(fname, ierr)
+    character(len=*) :: fname
+    integer(mpiint), intent(out) :: ierr
+
+    character(len=2*default_str_len), allocatable :: attrs(:)
+    character(len=default_str_len), allocatable :: attNames(:)
+    integer(iintegers) :: N
+    integer(mpiint) :: ierr2
+    integer :: ncid, ncerr, k
+
+    ierr = 0
+
+    call get_number_global_attributes(fname, N, ierr); call CHKERR(ierr)
+    allocate (attrs(N), attNames(N))
+
+    ncerr = nf90_open(trim(fname), nf90_nowrite, ncid)
+    call nccheck(ncerr); ierr = ierr + ncerr
+    call CHKWARN(ierr, "Could not open File "//fname)
+
+    do k = 1, int(N)
+      ncerr = nf90_inq_attname(ncid, varid=nf90_global, attnum=k, name=attNames(k))
+      call nccheck(ncerr); ierr = ierr + ncerr
+      call CHKWARN(ierr, "Could not determine attribute name for attribute number "//itoa(k))
+
+      ncerr = nf90_get_att(ncid, varid=nf90_global, name=trim(attNames(k)), values=attrs(k)); call nccheck(ncerr)
+      print *, 'Attribute '//itoa(k)//' : '//trim(attNames(k))//' => '//trim(attrs(k))
+    end do
+    ncerr = nf90_close(ncid); call nccheck(ncerr); ierr = ierr + ncerr
+    return
+
+    do k = 1, int(N)
+      call get_global_attribute(fname, attNames(k), attrs(k), ierr2)
+      ierr = ierr + ierr2
+      print *, 'Attribute '//itoa(k)//' : '//trim(attNames(k))//' => '//trim(attrs(k))
+    end do
+  end subroutine
+
+  subroutine get_number_global_attributes(fname, nattributes, ierr)
+    character(len=*) :: fname
+    integer(iintegers), intent(out) :: nattributes
+    integer(mpiint), intent(out) :: ierr
+    integer :: ncid, ncerr, nattrs
+
+    ierr = 0
+    nattributes = -1
+
+    ncerr = nf90_open(trim(fname), nf90_nowrite, ncid)
+    call nccheck(ncerr); ierr = ierr + ncerr
+    call CHKWARN(ierr, "Could not open File "//fname)
+    ncerr = nf90_inquire(ncid, nAttributes=nattrs)
+    call nccheck(ncerr); ierr = ierr + ncerr
+    nattributes = nattrs
+    ncerr = nf90_close(ncid); call nccheck(ncerr); ierr = ierr + ncerr
+    call CHKWARN(ierr, "Could not determine number of global attributes "//fname)
+  end subroutine
+
+  #:for method,dtype,nctype in [   &
+    ('character', ''      , 'NF90_CHAR') , &
+    ('integer'  , 'INT32' , 'NF90_INT') , &
+    ('integer'  , 'INT64' , 'NF90_INT64') , &
+    ('real'     , 'REAL32', 'NF90_FLOAT') , &
+    ('real'     , 'REAL64', 'NF90_DOUBLE')]
+    subroutine get_global_attribute_${method}$_${dtype}$ (fname, attr_name, attr, ierr)
+      character(len=*), intent(in) :: fname, attr_name
+      #:set dKIND = '(len=*)' if method == 'character' else '('+dtype+')'
+      ${method}$${dKIND}$, intent(inout) :: attr
+      integer(mpiint) :: ierr
+      call get_attribute(fname, "global", attr_name, attr, ierr)
+    end subroutine
+  #:endfor
+
+  #:for method,dtype,nctype in [   &
+    ('character', ''      , 'NF90_CHAR') , &
+    ('integer'  , 'INT32' , 'NF90_INT') , &
+    ('integer'  , 'INT64' , 'NF90_INT64') , &
+    ('real'     , 'REAL32', 'NF90_FLOAT') , &
+    ('real'     , 'REAL64', 'NF90_DOUBLE')]
+    #:set dKIND = '(len=*)' if method == 'character' else '('+dtype+')'
+    subroutine get_attribute_${method}$_${dtype}$ (fname, varname, attr_name, attr, ierr)
+      character(len=*), intent(in) :: fname, varname, attr_name
+      ${method}$${dKIND}$, intent(inout) :: attr
       integer(mpiint), intent(out) :: ierr
-      integer :: ncid, ncerr, nattrs
+
+      integer :: ncid, varid, ncerr, xtype
+      #:if method == 'character'
+        integer :: attrLength
+      #:endif
 
       ierr = 0
-      nattributes = -1
+      ncerr = nf90_open(trim(fname), nf90_nowrite, ncid); call nccheck(ncerr)
+      if (ncerr .ne. NF90_NOERR) ierr = ierr + 1
+      call CHKWARN(ierr, 'Could not open file '//trim(fname))
+      if (ierr .ne. 0) goto 99
 
-      ncerr = nf90_open(trim(fname), nf90_nowrite, ncid)
-      call nccheck(ncerr); ierr = ierr + ncerr
-      call CHKWARN(ierr, "Could not open File "//fname)
-      ncerr = nf90_inquire(ncid, nAttributes=nattrs)
-      call nccheck(ncerr); ierr = ierr + ncerr
-      nattributes = nattrs
-      ncerr = nf90_close(ncid); call nccheck(ncerr); ierr = ierr + ncerr
-      call CHKWARN(ierr, "Could not determine number of global attributes "//fname)
-    end subroutine
-
-#:for method,dtype,nctype in [   &
-  ('character', ''      , 'NF90_CHAR') , &
-  ('integer'  , 'INT32' , 'NF90_INT') , &
-  ('integer'  , 'INT64' , 'NF90_INT64') , &
-  ('real'     , 'REAL32', 'NF90_FLOAT') , &
-  ('real'     , 'REAL64', 'NF90_DOUBLE')]
-    subroutine get_global_attribute_${method}$_${dtype}$ (fname, attr_name, attr, ierr)
-        character(len=*), intent(in) :: fname, attr_name
-#:set dKIND = '(len=*)' if method == 'character' else '('+dtype+')'
-        ${method}$ ${dKIND}$, intent(inout) :: attr
-        integer(mpiint) :: ierr
-        call get_attribute(fname, "global", attr_name, attr, ierr)
-    end subroutine
-#:endfor
-
-#:for method,dtype,nctype in [   &
-  ('character', ''      , 'NF90_CHAR') , &
-  ('integer'  , 'INT32' , 'NF90_INT') , &
-  ('integer'  , 'INT64' , 'NF90_INT64') , &
-  ('real'     , 'REAL32', 'NF90_FLOAT') , &
-  ('real'     , 'REAL64', 'NF90_DOUBLE')]
-#:set dKIND = '(len=*)' if method == 'character' else '('+dtype+')'
-    subroutine get_attribute_${method}$_${dtype}$ (fname, varname, attr_name, attr, ierr)
-        character(len=*), intent(in) :: fname, varname, attr_name
-        ${method}$ ${dKIND}$, intent(inout) :: attr
-        integer(mpiint), intent(out) :: ierr
-
-        integer :: ncid, varid, ncerr, xtype
-#:if method == 'character'
-        integer :: attrLength
-#:endif
-
-        ierr = 0
-        ncerr = nf90_open(trim(fname), nf90_nowrite, ncid); call nccheck(ncerr)
-        if(ncerr.ne.NF90_NOERR) ierr = ierr + 1
-        call CHKWARN(ierr, 'Could not open file '//trim(fname))
-        if(ierr.ne.0) goto 99
-
-        if(trim(varname).eq.'global') then
-          varid = nf90_global
-        else
-          ncerr = nf90_inq_varid(ncid, trim(varname), varid) ; call nccheck(ncerr)
-          if(ncerr.ne.NF90_NOERR) ierr = ierr + 1
+      if (trim(varname) .eq. 'global') then
+        varid = nf90_global
+      else
+        ncerr = nf90_inq_varid(ncid, trim(varname), varid); call nccheck(ncerr)
+        if (ncerr .ne. NF90_NOERR) ierr = ierr + 1
         call CHKWARN(ierr, 'Could not determine varid for '//trim(varname))
-          if(ierr.ne.0) goto 99
-        endif
+        if (ierr .ne. 0) goto 99
+      end if
 
-        ncerr = nf90_inquire_attribute(ncid, varid=varid, name=trim(attr_name), xtype=xtype); call nccheck(ncerr)
-        if(ncerr.ne.NF90_NOERR) ierr = ierr + 1
-        call CHKWARN(ierr, 'Could not determine xtype for '//trim(attr_name))
-        if(ierr.ne.0) goto 99
+      ncerr = nf90_inquire_attribute(ncid, varid=varid, name=trim(attr_name), xtype=xtype); call nccheck(ncerr)
+      if (ncerr .ne. NF90_NOERR) ierr = ierr + 1
+      call CHKWARN(ierr, 'Could not determine xtype for '//trim(attr_name))
+      if (ierr .ne. 0) goto 99
 
-        if(xtype.ne.${nctype}$) then
-          call CHKWARN(1_mpiint, 'nc_datatype does not match NC_Type ${nctype}$ expected: '//itoa(${nctype}$)// &
-            & ' found: '//itoa(xtype))
-        endif
+      if (xtype .ne. ${nctype}$) then
+        call CHKWARN(1_mpiint, 'nc_datatype does not match NC_Type ${nctype}$ expected: '//itoa(${nctype}$)// &
+          & ' found: '//itoa(xtype))
+      end if
 
-#:if method == 'character'
+      #:if method == 'character'
         ncerr = nf90_inquire_attribute(ncid, varid=varid, name=trim(attr_name), len=attrLength); call nccheck(ncerr)
-        if(ncerr.ne.NF90_NOERR) ierr = ierr + 1
+        if (ncerr .ne. NF90_NOERR) ierr = ierr + 1
         call CHKWARN(ierr, 'Could not determine string length for '//trim(attr_name))
-        if(ierr.ne.0) goto 99
+        if (ierr .ne. 0) goto 99
 
-        if(attrLength.gt.len(attr)) then
+        if (attrLength .gt. len(attr)) then
           ierr = ierr + 1
           call CHKWARN(ierr, 'Attribute `'//trim(attr_name//'` exceeds buffer length '&
             & //itoa(attrLength)//' < '//itoa(len(attr))))
-        endif
-        if(ierr.ne.0) goto 99
-#:endif
+        end if
+        if (ierr .ne. 0) goto 99
+      #:endif
 
-        ncerr = nf90_get_att(ncid, varid=varid, name=trim(attr_name), values=attr); call nccheck(ncerr)
-        if(ncerr.ne.NF90_NOERR) ierr = ierr + 1
-        call CHKWARN(ierr, 'Could not load value of '//trim(attr_name))
-        if(ierr.ne.0) goto 99
+      ncerr = nf90_get_att(ncid, varid=varid, name=trim(attr_name), values=attr); call nccheck(ncerr)
+      if (ncerr .ne. NF90_NOERR) ierr = ierr + 1
+      call CHKWARN(ierr, 'Could not load value of '//trim(attr_name))
+      if (ierr .ne. 0) goto 99
 
-        99 continue
-        ncerr = nf90_close(ncid); call nccheck(ncerr); ierr = ierr + ncerr
-        if(ncerr.ne.NF90_NOERR) call CHKWARN(1_mpiint, 'Could not close file '//trim(fname))
+99    continue
+      ncerr = nf90_close(ncid); call nccheck(ncerr); ierr = ierr + ncerr
+      if (ncerr .ne. NF90_NOERR) call CHKWARN(1_mpiint, 'Could not close file '//trim(fname))
     end subroutine
-#:endfor
+  #:endfor
 
-#:for method,dtype,nctype in [   &
-  ('character', ''      , 'NF90_CHAR') , &
-  ('integer'  , 'INT32' , 'NF90_INT') , &
-  ('integer'  , 'INT64' , 'NF90_INT64') , &
-  ('real'     , 'REAL32', 'NF90_FLOAT') , &
-  ('real'     , 'REAL64', 'NF90_DOUBLE')]
-#:set dKIND = '(len=*)' if method == 'character' else '('+dtype+')'
+  #:for method,dtype,nctype in [   &
+    ('character', ''      , 'NF90_CHAR') , &
+    ('integer'  , 'INT32' , 'NF90_INT') , &
+    ('integer'  , 'INT64' , 'NF90_INT64') , &
+    ('real'     , 'REAL32', 'NF90_FLOAT') , &
+    ('real'     , 'REAL64', 'NF90_DOUBLE')]
+    #:set dKIND = '(len=*)' if method == 'character' else '('+dtype+')'
     subroutine set_attribute_${method}$_${dtype}$ (fname, varname, attr_name, attr, ierr)
-        character(len=*), intent(in) :: fname, varname, attr_name
-        ${method}$ ${dKIND}$, intent(in) :: attr
-        integer(mpiint), intent(out) :: ierr
+      character(len=*), intent(in) :: fname, varname, attr_name
+      ${method}$${dKIND}$, intent(in) :: attr
+      integer(mpiint), intent(out) :: ierr
 
-        integer :: ncid, varid, ncerr
-        logical :: file_exists
+      integer :: ncid, varid, ncerr
+      logical :: file_exists
 
-        ierr = 0
+      ierr = 0
 
-        inquire(file=fname, exist=file_exists)
-        if(ldebug) print *,'file '//trim(fname)//' exists :: ', file_exists
+      inquire (file=fname, exist=file_exists)
+      if (ldebug) print *, 'file '//trim(fname)//' exists :: ', file_exists
 
-        if(.not.file_exists) then
-          ncerr = nf90_create(trim(fname), NF90_HDF5, ncid) ; call nccheck(ncerr); ierr = ierr + ncerr
-          if(ldebug) print *,'opened file to append: ',trim(fname),' ::',ncerr
-        else
-          ncerr = nf90_open(path=trim(fname), mode=NF90_WRITE, ncid=ncid) ; call nccheck(ncerr); ierr = ierr + ncerr
-          if(ldebug) print *,'opened file to write: ',trim(fname),' ::',ncerr
-        endif
+      if (.not. file_exists) then
+        ncerr = nf90_create(trim(fname), NF90_HDF5, ncid); call nccheck(ncerr); ierr = ierr + ncerr
+        if (ldebug) print *, 'opened file to append: ', trim(fname), ' ::', ncerr
+      else
+        ncerr = nf90_open(path=trim(fname), mode=NF90_WRITE, ncid=ncid); call nccheck(ncerr); ierr = ierr + ncerr
+        if (ldebug) print *, 'opened file to write: ', trim(fname), ' ::', ncerr
+      end if
 
-        if(ncerr.ne.NF90_NOERR) ierr = ierr + 1
-        call CHKWARN(ierr, 'Could not open file '//trim(fname))
-        if(ierr.ne.0) goto 99
+      if (ncerr .ne. NF90_NOERR) ierr = ierr + 1
+      call CHKWARN(ierr, 'Could not open file '//trim(fname))
+      if (ierr .ne. 0) goto 99
 
-        if(trim(varname).eq.'global') then
-          varid = nf90_global
-        else
-          ncerr = nf90_inq_varid(ncid, trim(varname), varid) ; call nccheck(ncerr)
-          if(ncerr.ne.NF90_NOERR) ierr = ierr + 1
+      if (trim(varname) .eq. 'global') then
+        varid = nf90_global
+      else
+        ncerr = nf90_inq_varid(ncid, trim(varname), varid); call nccheck(ncerr)
+        if (ncerr .ne. NF90_NOERR) ierr = ierr + 1
         call CHKWARN(ierr, 'Could not determine varid for '//trim(varname))
-          if(ierr.ne.0) goto 99
-        endif
+        if (ierr .ne. 0) goto 99
+      end if
 
-        ncerr = nf90_put_att(ncid, varid=varid, name=trim(attr_name), values=attr); call nccheck(ncerr)
-        if(ncerr.ne.NF90_NOERR) ierr = ierr + 1
-        call CHKWARN(ierr, 'Could not set value for '//trim(attr_name))
-        if(ierr.ne.0) goto 99
+      ncerr = nf90_put_att(ncid, varid=varid, name=trim(attr_name), values=attr); call nccheck(ncerr)
+      if (ncerr .ne. NF90_NOERR) ierr = ierr + 1
+      call CHKWARN(ierr, 'Could not set value for '//trim(attr_name))
+      if (ierr .ne. 0) goto 99
 
-        ncerr = nf90_enddef(ncid); call nccheck(ncerr)
-        if(ncerr.ne.NF90_NOERR) ierr = ierr + 1
-        call CHKWARN(ierr, 'Could not quit define mode '//trim(fname))
-        if(ierr.ne.0) goto 99
+      ncerr = nf90_enddef(ncid); call nccheck(ncerr)
+      if (ncerr .ne. NF90_NOERR) ierr = ierr + 1
+      call CHKWARN(ierr, 'Could not quit define mode '//trim(fname))
+      if (ierr .ne. 0) goto 99
 
-        99 continue
-        ncerr = nf90_close(ncid); call nccheck(ncerr); ierr = ierr + ncerr
-        if(ncerr.ne.NF90_NOERR) call CHKWARN(1_mpiint, 'Could not close file '//trim(fname))
+99    continue
+      ncerr = nf90_close(ncid); call nccheck(ncerr); ierr = ierr + ncerr
+      if (ncerr .ne. NF90_NOERR) call CHKWARN(1_mpiint, 'Could not close file '//trim(fname))
     end subroutine
-#:endfor
+  #:endfor
 
-#:for method,dtype,nctype in [   &
-  ('character', ''      , 'NF90_CHAR') , &
-  ('integer'  , 'INT32' , 'NF90_INT') , &
-  ('integer'  , 'INT64' , 'NF90_INT64') , &
-  ('real'     , 'REAL32', 'NF90_FLOAT') , &
-  ('real'     , 'REAL64', 'NF90_DOUBLE')]
+  #:for method,dtype,nctype in [   &
+    ('character', ''      , 'NF90_CHAR') , &
+    ('integer'  , 'INT32' , 'NF90_INT') , &
+    ('integer'  , 'INT64' , 'NF90_INT64') , &
+    ('real'     , 'REAL32', 'NF90_FLOAT') , &
+    ('real'     , 'REAL64', 'NF90_DOUBLE')]
     subroutine set_global_attribute_${method}$_${dtype}$ (fname, attr_name, attr, ierr)
-        character(len=*), intent(in) :: fname, attr_name
-#:set dKIND = '(len=*)' if method == 'character' else '('+dtype+')'
-        ${method}$ ${dKIND}$, intent(in) :: attr
-        integer(mpiint), intent(out) :: ierr
-        call set_attribute(fname, "global", attr_name, attr, ierr)
+      character(len=*), intent(in) :: fname, attr_name
+      #:set dKIND = '(len=*)' if method == 'character' else '('+dtype+')'
+      ${method}$${dKIND}$, intent(in) :: attr
+      integer(mpiint), intent(out) :: ierr
+      call set_attribute(fname, "global", attr_name, attr, ierr)
     end subroutine
-#:endfor
+  #:endfor
 
 end module

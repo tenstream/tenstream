@@ -21,68 +21,68 @@ logical, intent(in), optional :: lverbose
 
 character(len=*) :: groups(:)
 
-character(len=default_str_len) :: fname,varname
-integer :: i,ncid,varid
+character(len=default_str_len) :: fname, varname
+integer :: i, ncid, varid
 integer, dimension(size(shape(arr))) :: dimIDs, dimsize
 
 logical :: file_exists, var_exists
 
 integer :: ncerr, flock_unit, ndims
-integer(INT64) :: bytesize
+integer(int64) :: bytesize
 real(kind(arr)) :: bytesize_dummy
-integer(mpiint),intent(out) :: ierr
-ierr=0
+integer(mpiint), intent(out) :: ierr
+ierr = 0
 
-if(allocated(arr)) then
-  print *,'Array which should have been read in is already allocated... I will not overwrite it...'
+if (allocated(arr)) then
+  print *, 'Array which should have been read in is already allocated... I will not overwrite it...'
   ierr = 100
   return
-endif
+end if
 
-fname=trim(groups(1))
+fname = trim(groups(1))
 
-inquire( file=trim(fname), exist=file_exists )
-if(.not.file_exists) then
-  print *,''
-  print *,'ERROR! NetCDF File ',trim(fname),' could not be found!'
-  print *,''
+inquire (file=trim(fname), exist=file_exists)
+if (.not. file_exists) then
+  print *, ''
+  print *, 'ERROR! NetCDF File ', trim(fname), ' could not be found!'
+  print *, ''
   ierr = 101
   return
-endif
+end if
 
 call acquire_file_lock(fname, flock_unit, ierr); call CHKERR(ierr, 'Could not obtain file lock')
 
-varname=trim(groups(2))
-do i=3,size(groups)
-  varname=trim(varname)//'.'//trim(groups(i))
-enddo
-if(ldebug.or.get_arg(.False., lverbose)) print *,'reading from file: ',trim(fname)
-if(ldebug.or.get_arg(.False., lverbose)) print *,'variable: ',trim(varname),' :: Ndims',size(shape(arr))
+varname = trim(groups(2))
+do i = 3, size(groups)
+  varname = trim(varname)//'.'//trim(groups(i))
+end do
+if (ldebug .or. get_arg(.false., lverbose)) print *, 'reading from file: ', trim(fname)
+if (ldebug .or. get_arg(.false., lverbose)) print *, 'variable: ', trim(varname), ' :: Ndims', size(shape(arr))
 
-ncerr = nf90_open(trim(fname), NF90_NOWRITE, ncid) ; call nccheck(ncerr) ; ierr = ierr+ncerr
-if(ncerr.ne.NF90_NOERR) goto 100
-ncerr = nf90_inq_varid(ncid, trim(varname), varid) ; call nccheck(ncerr) ; ierr = ierr+ncerr
-if(ncerr.ne.NF90_NOERR) goto 100
+ncerr = nf90_open(trim(fname), NF90_NOWRITE, ncid); call nccheck(ncerr); ierr = ierr + ncerr
+if (ncerr .ne. NF90_NOERR) goto 100
+ncerr = nf90_inq_varid(ncid, trim(varname), varid); call nccheck(ncerr); ierr = ierr + ncerr
+if (ncerr .ne. NF90_NOERR) goto 100
 
-var_exists = ncerr.eq.NF90_NOERR
-if(ldebug.or.get_arg(.False., lverbose)) print *,'Reading NetCDF :: varname: ',trim(varname), ' :: exists?',var_exists
+var_exists = ncerr .eq. NF90_NOERR
+if (ldebug .or. get_arg(.false., lverbose)) print *, 'Reading NetCDF :: varname: ', trim(varname), ' :: exists?', var_exists
 
 bytesize = c_sizeof(bytesize_dummy)
-if(var_exists) then ! How big are the data dimensions?
-  ncerr = nf90_inquire_variable(ncid, varid, ndims = ndims) ; call nccheck(ncerr) ; ierr = ierr+ncerr
-  if(ndims.ne.size(shape(arr))) then
-    if(ldebug) print *,'Input and NC variable have different number dimensions '//itoa(size(shape(arr)))//' vs '//itoa(ndims)
+if (var_exists) then ! How big are the data dimensions?
+  ncerr = nf90_inquire_variable(ncid, varid, ndims=ndims); call nccheck(ncerr); ierr = ierr + ncerr
+  if (ndims .ne. size(shape(arr))) then
+    if (ldebug) print *, 'Input and NC variable have different number dimensions '//itoa(size(shape(arr)))//' vs '//itoa(ndims)
     ierr = ierr + 100 * size(shape(arr)) + ndims
     goto 100
-  endif
+  end if
 
-  ncerr = nf90_inquire_variable(ncid, varid, dimids = dimIDs) ; call nccheck(ncerr) ; ierr = ierr+ncerr
-  do i=1,size(shape(arr))
-    ncerr = nf90_inquire_dimension(ncid, dimIDs(i), len = dimsize(i)) ; call nccheck(ncerr) ;  ierr = ierr+ncerr
+  ncerr = nf90_inquire_variable(ncid, varid, dimids=dimIDs); call nccheck(ncerr); ierr = ierr + ncerr
+  do i = 1, size(shape(arr))
+    ncerr = nf90_inquire_dimension(ncid, dimIDs(i), len=dimsize(i)); call nccheck(ncerr); ierr = ierr + ncerr
     bytesize = bytesize * dimsize(i)
-  enddo
-endif
+  end do
+end if
 
-if(ldebug.or.get_arg(.False., lverbose)) &
-  print *,'Dimension of variable: '//trim(varname), dimsize, '( '//ftoa(real(bytesize)/1024.**3)//' Gb )'
+if (ldebug .or. get_arg(.false., lverbose)) &
+  print *, 'Dimension of variable: '//trim(varname), dimsize, '( '//ftoa(real(bytesize) / 1024.**3)//' Gb )'
 

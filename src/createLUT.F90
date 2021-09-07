@@ -19,91 +19,91 @@
 
 program main
 
-      use mpi, only: MPI_COMM_WORLD
-      use m_data_parameters, only: mpiint, init_mpi_data_parameters, finalize_mpi
-      use m_helper_functions, only: CHKERR
-      use m_optprop_LUT, only : t_optprop_LUT, &
-        t_optprop_LUT_1_2,  &
-        t_optprop_LUT_3_6,  &
-        t_optprop_LUT_3_10, &
-        t_optprop_LUT_3_10_for_ANN, &
-        t_optprop_LUT_3_16, &
-        t_optprop_LUT_8_10, &
-        t_optprop_LUT_8_12, &
-        t_optprop_LUT_8_16, &
-        t_optprop_LUT_8_18, &
-        t_optprop_LUT_wedge_5_8, &
-        t_optprop_LUT_rectilinear_wedge_5_8, &
-        t_optprop_LUT_wedge_18_8
+  use mpi, only: MPI_COMM_WORLD
+  use m_data_parameters, only: mpiint, init_mpi_data_parameters, finalize_mpi
+  use m_helper_functions, only: CHKERR
+  use m_optprop_LUT, only: t_optprop_LUT, &
+                           t_optprop_LUT_1_2, &
+                           t_optprop_LUT_3_6, &
+                           t_optprop_LUT_3_10, &
+                           t_optprop_LUT_3_10_for_ANN, &
+                           t_optprop_LUT_3_16, &
+                           t_optprop_LUT_8_10, &
+                           t_optprop_LUT_8_12, &
+                           t_optprop_LUT_8_16, &
+                           t_optprop_LUT_8_18, &
+                           t_optprop_LUT_wedge_5_8, &
+                           t_optprop_LUT_rectilinear_wedge_5_8, &
+                           t_optprop_LUT_wedge_18_8
 
-      use m_tenstream_options, only : read_commandline_options
-      implicit none
+  use m_tenstream_options, only: read_commandline_options
+  implicit none
 
-      integer(mpiint) :: comm
+  integer(mpiint) :: comm
 
-      character(len=80) :: arg
-      class(t_optprop_LUT), allocatable :: OPP
+  character(len=80) :: arg
+  class(t_optprop_LUT), allocatable :: OPP
 
-      comm = MPI_COMM_WORLD
-      call init_mpi_data_parameters(comm)
-      call read_commandline_options(comm)
+  comm = MPI_COMM_WORLD
+  call init_mpi_data_parameters(comm)
+  call read_commandline_options(comm)
 
-      call get_command_argument(1, arg)
+  call get_command_argument(1, arg)
 
-      select case(arg)
-      case ('1_2')
-        allocate(t_optprop_LUT_1_2::OPP)
+  select case (arg)
+  case ('1_2')
+    allocate (t_optprop_LUT_1_2 :: OPP)
 
-      case ('3_6')
-        allocate(t_optprop_LUT_3_6::OPP)
+  case ('3_6')
+    allocate (t_optprop_LUT_3_6 :: OPP)
 
-      case ('3_10')
-        allocate(t_optprop_LUT_3_10::OPP)
+  case ('3_10')
+    allocate (t_optprop_LUT_3_10 :: OPP)
 
-      case ('3_10_for_ANN')
-        allocate(t_optprop_LUT_3_10_for_ANN::OPP)
+  case ('3_10_for_ANN')
+    allocate (t_optprop_LUT_3_10_for_ANN :: OPP)
 
-      case ('3_16')
-        allocate(t_optprop_LUT_3_16::OPP)
+  case ('3_16')
+    allocate (t_optprop_LUT_3_16 :: OPP)
 
-      case ('8_10')
-        allocate(t_optprop_LUT_8_10::OPP)
+  case ('8_10')
+    allocate (t_optprop_LUT_8_10 :: OPP)
 
-      case ('8_12')
-        allocate(t_optprop_LUT_8_12::OPP)
+  case ('8_12')
+    allocate (t_optprop_LUT_8_12 :: OPP)
 
-      case ('8_16')
-        allocate(t_optprop_LUT_8_16::OPP)
+  case ('8_16')
+    allocate (t_optprop_LUT_8_16 :: OPP)
 
-      case ('8_18')
-        allocate(t_optprop_LUT_8_18::OPP)
+  case ('8_18')
+    allocate (t_optprop_LUT_8_18 :: OPP)
 
-      case ('wedge_5_8')
-        allocate(t_optprop_LUT_wedge_5_8::OPP)
+  case ('wedge_5_8')
+    allocate (t_optprop_LUT_wedge_5_8 :: OPP)
 
-      case ('rectilinear_wedge_5_8')
-        allocate(t_optprop_LUT_rectilinear_wedge_5_8::OPP)
+  case ('rectilinear_wedge_5_8')
+    allocate (t_optprop_LUT_rectilinear_wedge_5_8 :: OPP)
 
-      case ('wedge_18_8')
-        allocate(t_optprop_LUT_wedge_18_8::OPP)
+  case ('wedge_18_8')
+    allocate (t_optprop_LUT_wedge_18_8 :: OPP)
 
-      case default
-        print *,'error, have to provide solver type as argument, e.g. call with'
-        print *,'createLUT 1_2'
-        print *,'createLUT 3_6'
-        print *,'createLUT 3_10'
-        print *,'createLUT 3_16'
-        print *,'createLUT 8_10'
-        print *,'createLUT 8_12'
-        print *,'createLUT 8_16'
-        print *,'createLUT 8_18'
-        print *,'createLUT wedge_5_8'
-        print *,'createLUT rectilinear_wedge_5_8'
-        print *,'createLUT wedge_18_8'
-        stop
-      end select
+  case default
+    print *, 'error, have to provide solver type as argument, e.g. call with'
+    print *, 'createLUT 1_2'
+    print *, 'createLUT 3_6'
+    print *, 'createLUT 3_10'
+    print *, 'createLUT 3_16'
+    print *, 'createLUT 8_10'
+    print *, 'createLUT 8_12'
+    print *, 'createLUT 8_16'
+    print *, 'createLUT 8_18'
+    print *, 'createLUT wedge_5_8'
+    print *, 'createLUT rectilinear_wedge_5_8'
+    print *, 'createLUT wedge_18_8'
+    stop
+  end select
 
-      call OPP%init(comm, skip_load_LUT=.False.)
+  call OPP%init(comm, skip_load_LUT=.false.)
 
-      call finalize_mpi(comm, .True., .True.)
+  call finalize_mpi(comm, .true., .true.)
 end program
