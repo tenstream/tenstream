@@ -64,15 +64,26 @@ contains
       ]
 
     do src = 1,3
-      if (.False.) call bmc_3_10%get_coeff( &
-        comm, real(bg, ireal_dp), src, .True., real(phi, ireal_dp), real(theta, ireal_dp), &
-        real(verts, ireal_dp), S, T, S_tol, T_tol, inp_atol=atol, inp_rtol=rtol &
-        )
-      c_gomtrc_reg(src:9:3,imax+1) = real(T, ireals)
-      print *, cstr('Montecarlo simulation not started, it is commented and the hard coded values are used.'//&
-        &'If you changed the box geometry or bg, please make sure you uncomment the montecarlo call.', 'red')
+      if (.False.) then
+        call bmc_3_10%get_coeff( &
+          comm,                    &
+          real(bg, ireal_dp),      &
+          src,                     &
+          .True.,                  &
+          real(phi, ireal_dp),     &
+          real(theta, ireal_dp),   &
+          real(verts, ireal_dp),   &
+          S, T,                    &
+          S_tol, T_tol,            &
+          inp_atol=atol,           &
+          inp_rtol=rtol            &
+          )
+        c_gomtrc_reg(src:9:3,imax+1) = real(T, ireals)
+      else
+        print *, cstr('Montecarlo simulation not started, it is commented and the hard coded values are used.'//&
+          &'If you changed the box geometry or bg, please make sure you uncomment the montecarlo call.', 'red')
+      endif
     enddo
-
 
     print *, 'bmc', c_gomtrc_reg(:,imax+1)
     c_gomtrc_reg(:,imax+1) = (c_gomtrc_reg_benchmark - c_gomtrc_reg(:,imax+1)) / &
