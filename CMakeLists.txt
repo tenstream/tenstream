@@ -201,7 +201,7 @@ endif()
 # NetCDF
 set (NETCDF_FOUND FALSE)
 set (NETCDF_F90 "YES")
-find_package( NetCDF REQUIRED)
+find_package( NetCDF )
 if(${NETCDF_FOUND})
   message(STATUS "Found NetCDF:     ${NETCDF_FOUND}" )
   message(STATUS "NetCDF  Includes: ${NETCDF_INCLUDES}" )
