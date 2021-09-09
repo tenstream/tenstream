@@ -47,6 +47,7 @@ set(CTEST_CMAKE_GENERATOR "Unix Makefiles")
 set(CMAKE_C_STANDARD 99)
 
 # For python interfaces need -fPIC:
+find_package(Python REQUIRED)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 # Add IPO support if compiler allows it -- default is off because it A) doesnt work or B) compiles super slow

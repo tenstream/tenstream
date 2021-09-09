@@ -35,7 +35,7 @@ foreach ( infile ${preprocessing_files} )
 
   ADD_CUSTOM_COMMAND(
     OUTPUT "${outfile}"
-    COMMAND ${FYPP_EXE} "${infile}" "${outfile}"
+    COMMAND ${Python_EXECUTABLE} ${FYPP_EXE} "${infile}" "${outfile}"
     MAIN_DEPENDENCY "${infile}"
     DEPENDS ${FYPP_EXE}
     VERBATIM
