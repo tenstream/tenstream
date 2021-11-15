@@ -78,7 +78,7 @@ debian-testing:
   image: debian:testing
   before_script:
     - DEBIAN_FRONTEND=noninteractive apt-get -qq update
-    - DEBIAN_FRONTEND=noninteractive apt-get -qq install -fy build-essential cmake gfortran git python openmpi-bin libopenmpi-dev libopenblas-dev curl pkg-config
+    - DEBIAN_FRONTEND=noninteractive apt-get -qq install -fy build-essential cmake gfortran git python3 openmpi-bin libopenmpi-dev libopenblas-dev curl pkg-config
     - *template_build_PETSC
   tags:
     - docker.meteo.physik.lmu.de
