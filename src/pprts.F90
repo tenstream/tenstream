@@ -180,11 +180,21 @@ module m_pprts
     character(len=*), optional, intent(in) :: solvername     !< @param[in] primarily for logging purposes, name will be prefix to logging stages
 
     integer(iintegers) :: k,i,j
-    logical :: lpetsc_is_initialized, lview, lflg
+    logical :: lpetsc_is_initialized, lview, luse_ann, lflg
 
     integer(mpiint) :: ierr
 
     if(.not.solver%linitialized) then
+      call init_mpi_data_parameters(icomm)
+      solver%comm = icomm
+      call mpi_comm_rank(solver%comm, solver%myid, ierr)     ; call CHKERR(ierr)
+      call mpi_comm_size(solver%comm, solver%numnodes, ierr) ; call CHKERR(ierr)
+
+      call read_commandline_options(solver%comm)
+
+      luse_ann = .False.
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+        & "-pprts_use_ANN", luse_ann, lflg , ierr) ;call CHKERR(ierr)
 
       solver%difftop%area_divider = 1
       solver%diffside%area_divider = 1
@@ -194,6 +204,7 @@ module m_pprts
 
       select type(solver)
         class is (t_solver_1_2)
+          allocate(t_optprop_1_2::solver%OPP)
           allocate(solver%difftop%is_inward(2))
           solver%difftop%is_inward = [.False.,.True.]
 
@@ -205,6 +216,7 @@ module m_pprts
           allocate(solver%dirside%is_inward(0))
 
         class is (t_solver_3_6)
+          allocate(t_optprop_3_6::solver%OPP)
 
           allocate(solver%difftop%is_inward(2))
           solver%difftop%is_inward = [.False.,.True.]
@@ -219,6 +231,11 @@ module m_pprts
           solver%dirside%is_inward = [.True.]
 
         class is (t_solver_3_10)
+          if(luse_ann) then
+            allocate(t_optprop_3_10_ann::solver%OPP)
+          else
+            allocate(t_optprop_3_10::solver%OPP)
+          endif
 
           allocate(solver%difftop%is_inward(2))
           solver%difftop%is_inward = [.False.,.True.]
@@ -233,6 +250,7 @@ module m_pprts
           solver%dirside%is_inward = [.True.]
 
         class is (t_solver_8_10)
+           allocate(t_optprop_8_10::solver%OPP)
 
           allocate(solver%difftop%is_inward(2))
           solver%difftop%is_inward = [.False.,.True.]
@@ -249,6 +267,7 @@ module m_pprts
           solver%dirside%area_divider = 2
 
         class is (t_solver_3_16)
+          allocate(t_optprop_3_16::solver%OPP)
 
           allocate(solver%difftop%is_inward(8), source= &
             [.False.,.True.,.False.,.True.,.False.,.True.,.False.,.True.])
@@ -263,6 +282,7 @@ module m_pprts
           solver%dirside%is_inward = .True.
 
         class is (t_solver_8_16)
+          allocate(t_optprop_8_16::solver%OPP)
 
           allocate(solver%difftop%is_inward(8), source= &
             [.False.,.True.,.False.,.True.,.False.,.True.,.False.,.True.])
@@ -276,6 +296,7 @@ module m_pprts
           solver%dirside%area_divider = 2
 
         class is (t_solver_8_18)
+          allocate(t_optprop_8_18::solver%OPP)
 
           allocate(solver%difftop%is_inward(10), source= &
             [.False.,.True.,.False.,.True.,.False.,.True.,.False.,.True.,.False.,.True.])
@@ -301,14 +322,6 @@ module m_pprts
       solver%diffside%streams = solver%diffside%dof/2
       solver%dirtop%streams   = solver%dirtop%dof
       solver%dirside%streams  = solver%dirside%dof
-
-      call init_mpi_data_parameters(icomm)
-
-      solver%comm = icomm
-      call mpi_comm_rank(solver%comm, solver%myid, ierr)     ; call CHKERR(ierr)
-      call mpi_comm_size(solver%comm, solver%numnodes, ierr) ; call CHKERR(ierr)
-
-      call read_commandline_options(solver%comm)
 
       allocate(solver%solutions(-1:1000))
       solver%lenable_solutions_err_estimates = &
@@ -365,6 +378,9 @@ module m_pprts
     !       directly use the set_angle routines?
     call set_angles(solver, sundir)
 
+    if(ltwostr_only .or. lmcrts) return ! dont need LUT, we just compute Twostream anyway
+
+    call solver%OPP%init(solver%comm)
   contains
     subroutine setup_atm()
       if(.not.allocated(solver%atm)) allocate(solver%atm)
@@ -888,12 +904,7 @@ module m_pprts
     subroutine set_angles(solver, sundir)
       class(t_solver), intent(inout)   :: solver
       real(ireals),intent(in)          :: sundir(:)      !< @param[in] cartesian sun direction
-      logical :: luse_ann, lflg
       integer(mpiint) :: ierr
-
-      luse_ann = .False.
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_use_ANN", &
-        luse_ann, lflg , ierr) ;call CHKERR(ierr)
 
       if(.not.solver%linitialized) then
         print *,solver%myid,'You tried to set angles in the PPRTS solver.  &
@@ -902,45 +913,6 @@ module m_pprts
       endif
 
       call setup_suninfo(solver, sundir, solver%sun)
-
-      if(ltwostr_only .or. lmcrts) return ! dont need anything here, we just compute Twostream anyway
-
-      ! init box montecarlo model
-      select type(solver)
-        class is (t_solver_1_2)
-           if(.not.allocated(solver%OPP) ) allocate(t_optprop_1_2::solver%OPP)
-
-        class is (t_solver_3_6)
-           if(.not.allocated(solver%OPP) ) allocate(t_optprop_3_6::solver%OPP)
-
-        class is (t_solver_3_10)
-           if(.not.allocated(solver%OPP) ) then
-             if(luse_ann) then
-               allocate(t_optprop_3_10_ann::solver%OPP)
-             else
-               allocate(t_optprop_3_10::solver%OPP)
-             endif
-           endif
-
-        class is (t_solver_8_10)
-           if(.not.allocated(solver%OPP) ) allocate(t_optprop_8_10::solver%OPP)
-
-        class is (t_solver_3_16)
-           if(.not.allocated(solver%OPP) ) allocate(t_optprop_3_16::solver%OPP)
-
-        class is (t_solver_8_16)
-           if(.not.allocated(solver%OPP) ) allocate(t_optprop_8_16::solver%OPP)
-
-        class is (t_solver_8_18)
-           if(.not.allocated(solver%OPP) ) allocate(t_optprop_8_18::solver%OPP)
-
-        class default
-           call CHKERR(1_mpiint, 'init pprts: unexpected type for solver')
-      end select
-
-      call solver%OPP%init(solver%comm)
-
-      ! reset Matrices to generate new preallocation
   end subroutine
 
   !> @brief set direction where sun stands
