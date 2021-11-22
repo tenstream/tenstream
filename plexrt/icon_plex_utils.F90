@@ -569,6 +569,9 @@ module m_icon_plex_utils
         do i = v2dStart, v2dEnd-1
           call PetscSectionGetOffset(coordSection2d, i, voff2d, ierr); call CHKERR(ierr)
 
+          direction = coords2d(voff2d+i1:voff2d+i3) - proj_origin
+          call normalize_vec(direction, ierr); call CHKERR(ierr)
+
           do k = 0, ke1-1
             ivertex = ivertex_icon_2_plex(i, k)
             call PetscSectionGetOffset(coordSection3d, ivertex, voff3d, ierr); call CHKERR(ierr)
@@ -579,10 +582,8 @@ module m_icon_plex_utils
               vert_height = hhl(i1+k)
             endif
 
-            direction = coords2d(voff2d+i1:voff2d+i3) - proj_origin
-            call normalize_vec(direction, ierr); call CHKERR(ierr)
-
             coords3d(voff3d+1:voff3d+3) = coords2d(voff2d+1:voff2d+3) + direction * vert_height
+
           enddo
         enddo
 
@@ -1460,10 +1461,15 @@ module m_icon_plex_utils
           call VecGetArrayF90(coordinates, coords, ierr); call CHKERR(ierr)
 
           vertices_centroid(:) = 0
-          if(present(coord_displacement)) then
+          if(present(coord_displacement).and.Nverts.gt.0) then
             vertices_centroid(:) = (sphere_radius+meanval(cell_elevation)) * &
               & [ meanval(cartesian_x_vertices), meanval(cartesian_y_vertices), meanval(cartesian_z_vertices) ]
             coord_displacement = real(vertices_centroid, ireals)
+          endif
+          if(present(coord_displacement)) then
+            do i=1,3
+              call imp_bcast(comm, coord_displacement(i), 0_mpiint)
+            enddo
           endif
 
           ! set vertices as coordinates
@@ -1479,7 +1485,7 @@ module m_icon_plex_utils
             vert_elevation = vert_elevation / size(faces_around_vertex)
 
             cart_coord = [cartesian_x_vertices(i), cartesian_y_vertices(i), cartesian_z_vertices(i)]
-            coords(voff+i1 : voff+i3) = real(cart_coord * (sphere_radius + vert_elevation) - vertices_centroid, ireals)
+            coords(voff+i1 : voff+i3) = real(cart_coord * (sphere_radius + vert_elevation) - coord_displacement, ireals)
           enddo
 
           call VecRestoreArrayF90(coordinates, coords, ierr); call CHKERR(ierr)
@@ -1559,7 +1565,7 @@ module m_icon_plex_utils
       if(myid.eq.0) then
         ke = size(arr, dim=1)
       endif ! rank 0
-      call imp_bcast(comm, ke, 0_mpiint); call CHKERR(ierr)
+      call imp_bcast(comm, ke, 0_mpiint)
 
       call DMClone(dm2d_serial, dm2d_serial_clone, ierr); call CHKERR(ierr)
       call dmplex_set_new_section(dm2d_serial_clone, 'face_section', i1, [i0], [ke], [i0], [i0])

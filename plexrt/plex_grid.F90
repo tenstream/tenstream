@@ -299,6 +299,13 @@ module m_plex_grid
         integer(iintegers) :: icell, k
         real(ireals) :: dz
         real(ireals), parameter :: eps=1e-4
+        logical :: ldocheck, lflg
+
+        ldocheck = .True.
+        call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+          & "-check_height_for_consistency", ldocheck, lflg,ierr) ; call CHKERR(ierr)
+        if(.not.ldocheck) return
+
 
         call DMGetSection(plex%geom_dm, geom_section, ierr); CHKERRQ(ierr)
         call VecGetArrayReadF90(plex%geomVec, xgeoms, ierr); call CHKERR(ierr)
@@ -311,7 +318,8 @@ module m_plex_grid
             call CHKERR(1_mpiint, "hhl1d does not match the computed wedge heights: "// &
               & " k ="//toStr(k)//" hhl1d ="//tostr(dz)//" wedge dz ="//toStr(xgeoms(i1+geom_offset))//new_line('')// &
               & " This could be a result of floating point precision deterioration. "//new_line('')// &
-              & " Consider using more precision to suit large coordinates.")
+              & " Consider using more precision to suit large coordinates."//new_line('')// &
+              & " Disable check with (-check_height_for_consistency no)")
           endif
         enddo
 
