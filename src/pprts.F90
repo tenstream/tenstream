@@ -3180,6 +3180,12 @@ module m_pprts
     if( .not. solution%lset ) call CHKERR(1_mpiint, 'cant restore solution that was not initialized')
     if( .not. allocated(solution%abso) ) call CHKERR(1_mpiint, 'cant restore solution that was not initialized')
 
+    if(present(time)) then
+      solution%time    = eoshift ( solution%time   , shift = -1) !shift all values by 1 to the right
+      solution%time(1) = time
+      if(ldebug .and. solver%myid.eq.0) print *,'Setting solution time '//toStr(time)//'('//toStr(solution%time)//')'
+    endif
+
     if( .not. solution%lchanged ) return
 
     if(present(time) .and. solver%lenable_solutions_err_estimates) then ! Create working vec to determine difference between old and new absorption vec
@@ -3208,16 +3214,12 @@ module m_pprts
       call DMRestoreGlobalVector(solver%C_one%da, abso_old, ierr)   ; call CHKERR(ierr)
 
       ! Save norm for later analysis
-      solution%maxnorm = eoshift ( solution%maxnorm, shift = -1) !shift all values by 1 to the right
-      solution%time    = eoshift ( solution%time   , shift = -1) !shift all values by 1 to the right
-
-      solution%maxnorm( 1 ) = inf_norm
-      solution%time( 1 )    = time
+      solution%maxnorm    = eoshift ( solution%maxnorm, shift = -1) !shift all values by 1 to the right
+      solution%maxnorm(1) = inf_norm
 
       if(ldebug .and. solver%myid.eq.0) &
         print *,'Updating error statistics for solution ',solution%uid,'at time ',time,'::',solution%time(1), &
                 ':: norm', inf_norm,'[W] :: hr_norm approx:',inf_norm*86.1,'[K/d]'
-
     endif !present(time) .and. solver%lenable_solutions_err_estimates
 
 
