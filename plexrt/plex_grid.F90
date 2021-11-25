@@ -684,7 +684,7 @@ module m_plex_grid
           call CHKERR(1_mpiint, 'geometry not supported -- is this a wedge?')
         endif
 
-        vertices6 = transclosure(size(transclosure)-11:size(transclosure):2)
+        vertices6 = transclosure([11,13,15,25,27,29])
 
         do ivert=1,size(vertices6)
           call PetscSectionGetOffset(coordSection, vertices6(ivert), voff0, ierr); call CHKERR(ierr)
@@ -697,7 +697,7 @@ module m_plex_grid
 
         ! Compute volume of wedges
         iface_up = transclosure(3)
-        iface_dn = transclosure(5)
+        iface_dn = transclosure(17)
 
         call PetscSectionGetFieldOffset(geomSection, iface_up, i2, voff2, ierr); call CHKERR(ierr)
         area_top = geoms(i1+voff2)
