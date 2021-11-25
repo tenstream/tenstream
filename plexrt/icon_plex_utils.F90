@@ -1432,7 +1432,9 @@ module m_icon_plex_utils
           integer(iintegers)   :: vStart, vEnd, i, j
           integer(iintegers), allocatable :: faces_around_vertex(:)
 
-          real(ireal_dp) :: cart_coord(3), vert_elevation, vertices_centroid(3)
+          logical :: lcoord_displacement, lflg
+          real(ireal_dp) :: cart_coord(3), vert_elevation
+          real(ireal_dp), allocatable :: vertices_centroid(:)
 
           call DMGetCoordinateSection(dm, coordSection, ierr); call CHKERR(ierr)
 
@@ -1460,17 +1462,25 @@ module m_icon_plex_utils
 
           call VecGetArrayF90(coordinates, coords, ierr); call CHKERR(ierr)
 
+          lcoord_displacement = .False.
+          call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+            & "-move_scene_2_origin", lcoord_displacement, lflg,ierr) ; call CHKERR(ierr)
+          if(lcoord_displacement.and..not.present(coord_displacement)) then
+            call CHKERR(1_mpiint, "You asked to move the scene to the origin "// &
+              & "but the call to gen_2d_plex_from_icongridfile "// &
+              & "did not contain the argument for the coord_displacement vector")
+          endif
+
+          allocate(vertices_centroid(3))
           vertices_centroid(:) = 0
-          if(present(coord_displacement).and.Nverts.gt.0) then
+          if(lcoord_displacement.and.Nverts.gt.0) then
             vertices_centroid(:) = (sphere_radius+meanval(cell_elevation)) * &
               & [ meanval(cartesian_x_vertices), meanval(cartesian_y_vertices), meanval(cartesian_z_vertices) ]
-            coord_displacement = real(vertices_centroid, ireals)
           endif
-          if(present(coord_displacement)) then
-            do i=1,3
-              call imp_bcast(comm, coord_displacement(i), 0_mpiint)
-            enddo
+          if(lcoord_displacement) then
+            call imp_bcast(comm, vertices_centroid, 0_mpiint)
           endif
+          if(present(coord_displacement)) coord_displacement = real(vertices_centroid, ireals)
 
           ! set vertices as coordinates
           do i = i1, Nverts
@@ -1485,7 +1495,7 @@ module m_icon_plex_utils
             vert_elevation = vert_elevation / size(faces_around_vertex)
 
             cart_coord = [cartesian_x_vertices(i), cartesian_y_vertices(i), cartesian_z_vertices(i)]
-            coords(voff+i1 : voff+i3) = real(cart_coord * (sphere_radius + vert_elevation) - coord_displacement, ireals)
+            coords(voff+i1 : voff+i3) = real(cart_coord * (sphere_radius + vert_elevation) - vertices_centroid, ireals)
           enddo
 
           call VecRestoreArrayF90(coordinates, coords, ierr); call CHKERR(ierr)
