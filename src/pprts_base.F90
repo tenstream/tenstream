@@ -44,9 +44,10 @@ module m_pprts_base
     & t_pprts_shell_ctx, &
     & t_solver, &
     & t_solver_1_2, &
+    & t_solver_3_6, &
     & t_solver_3_10, &
     & t_solver_3_16, &
-    & t_solver_3_6, &
+    & t_solver_3_30, &
     & t_solver_8_10, &
     & t_solver_8_16, &
     & t_solver_8_18, &
@@ -205,9 +206,11 @@ module m_pprts_base
   end type
   type, extends(t_solver) :: t_solver_3_10
   end type
-  type, extends(t_solver) :: t_solver_8_10
-  end type
   type, extends(t_solver) :: t_solver_3_16
+  end type
+  type, extends(t_solver) :: t_solver_3_30
+  end type
+  type, extends(t_solver) :: t_solver_8_10
   end type
   type, extends(t_solver) :: t_solver_8_16
   end type
@@ -376,6 +379,9 @@ module m_pprts_base
       case('3_16')
         allocate(t_solver_3_16::pprts_solver)
 
+      case('3_30')
+        allocate(t_solver_3_30::pprts_solver)
+
       case('8_16')
         allocate(t_solver_8_16::pprts_solver)
 
@@ -387,8 +393,9 @@ module m_pprts_base
         print *,'-solver 1_2'
         print *,'-solver 3_6'
         print *,'-solver 3_10'
-        print *,'-solver 8_10'
         print *,'-solver 3_16'
+        print *,'-solver 3_30'
+        print *,'-solver 8_10'
         print *,'-solver 8_16'
         print *,'-solver 8_18'
         ierr = 1
