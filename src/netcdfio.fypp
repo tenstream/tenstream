@@ -465,7 +465,7 @@ module m_netcdfIO
         character(len=*), intent(in) :: fname, attr_name
 #:set dKIND = '(len=*)' if method == 'character' else '('+dtype+')'
         ${method}$ ${dKIND}$, intent(inout) :: attr
-        integer(mpiint) :: ierr
+        integer(mpiint), intent(out) :: ierr
         call get_attribute(fname, "global", attr_name, attr, ierr)
     end subroutine
 #:endfor
