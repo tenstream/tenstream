@@ -112,6 +112,7 @@ module m_boxmc
     t_boxmc_8_12, &
     t_boxmc_3_16, t_boxmc_8_16,&
     t_boxmc_8_18, &
+    t_boxmc_3_30, &
     t_boxmc_wedge_5_5, t_boxmc_wedge_5_8, &
     t_boxmc_wedge_18_8, &
     scatter_photon, print_photon, roulette, R, &
@@ -223,6 +224,17 @@ module m_boxmc
     procedure :: update_dir_stream  => update_dir_stream_8_18
     procedure :: update_diff_stream => update_diff_stream_8_18
   end type t_boxmc_8_18
+
+  type,extends(t_boxmc) :: t_boxmc_3_30
+  contains
+    procedure :: half_spaces        => box_halfspaces_3_30
+    procedure :: intersect_distance => intersect_distance_3_30
+    procedure :: init_dir_photon    => init_dir_photon_3_30
+    procedure :: init_diff_photon   => init_diff_photon_3_30
+    procedure :: update_dir_stream  => update_dir_stream_3_30
+    procedure :: update_diff_stream => update_diff_stream_3_30
+  end type t_boxmc_3_30
+
 
   type,extends(t_boxmc) :: t_boxmc_wedge_5_5
   contains
@@ -1045,6 +1057,9 @@ contains
     type is (t_boxmc_8_18)
       bmc%dir_streams  =  8
       bmc%diff_streams = 18
+    type is (t_boxmc_3_30)
+      bmc%dir_streams  =  3
+      bmc%diff_streams = 30
     type is (t_boxmc_wedge_5_5)
       bmc%dir_streams  =  5
       bmc%diff_streams =  5
@@ -1081,6 +1096,7 @@ include 'boxmc_8_18.inc'
 include 'boxmc_8_16.inc'
 include 'boxmc_8_12.inc'
 include 'boxmc_8_10.inc'
+include 'boxmc_3_30.inc'
 include 'boxmc_3_16.inc'
 include 'boxmc_3_10.inc'
 include 'boxmc_1_2.inc'
