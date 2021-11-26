@@ -318,17 +318,17 @@ class(t_boxmc_3_30)           :: bmc
       call rand_pnt_on_plane(pE,pG,pH,pF, p%loc, normal, U, V)
       p%src_side = 1
     case (11,13,15,17,19)
-      call rand_pnt_on_plane(pB,pF,pH,pD, p%loc, normal, U, V)
-      p%src_side = 4
-    case (12,14,16,18,20)
       call rand_pnt_on_plane(pA,pC,pG,pE, p%loc, normal, U, V)
       p%src_side = 3
+    case (12,14,16,18,20)
+      call rand_pnt_on_plane(pB,pF,pH,pD, p%loc, normal, U, V)
+      p%src_side = 4
     case (21,23,25,27,29)
-      call rand_pnt_on_plane(pG,pC,pD,pH, p%loc, normal, U, V)
-      p%src_side = 6
-    case (22,24,26,28,30)
       call rand_pnt_on_plane(pE,pF,pB,pA, p%loc, normal, U, V)
       p%src_side = 5
+    case (22,24,26,28,30)
+      call rand_pnt_on_plane(pG,pC,pD,pH, p%loc, normal, U, V)
+      p%src_side = 6
     case default
       call CHKERR(1_mpiint, 'Dont know what to do with source spec: '//toStr(src))
     end select
@@ -337,13 +337,13 @@ class(t_boxmc_3_30)           :: bmc
     case(1,2,11,12,21,22)
       phi = deg2rad( R()*360 )
     case (3,4,13,14,23,24)
-      phi= deg2rad( interv_R(-45._ireal_dp,45._ireal_dp) )
+      phi= deg2rad( interv_R(-90._ireal_dp,0._ireal_dp) )
     case (5,6,15,16,25,26)
-      phi= deg2rad( interv_R(225._ireal_dp,315._ireal_dp) )
+      phi= deg2rad( interv_R(  0._ireal_dp, 90._ireal_dp) )
     case (7,8,17,18,27,28)
-      phi= deg2rad( interv_R(135._ireal_dp,225._ireal_dp) )
+      phi= deg2rad( interv_R(180._ireal_dp,270._ireal_dp) )
     case (9,10,19,20,29,30)
-      phi= deg2rad( interv_R( 45._ireal_dp,135._ireal_dp) )
+      phi= deg2rad( interv_R( 90._ireal_dp,180._ireal_dp) )
     case default
       phi = -999
       call CHKERR(1_mpiint, 'Dont know what to do with source spec: '//toStr(src))
@@ -351,15 +351,14 @@ class(t_boxmc_3_30)           :: bmc
 
     select case(src)
     case(1,2,11,12,21,22)
-      mu = sqrt(interv_R(alim_3_30, one))
+      mu = sqrt(interv_R(alim_3_30**2, one))
     case (3:10,13:20,23:30)
-      mu = sqrt(interv_R(zero,alim_3_30))
+      mu = sqrt(interv_R(zero,alim_3_30**2))
     case default
       mu = -1
       call CHKERR(1_mpiint, 'Dont know what to do with source spec: '//toStr(src))
     end select
 
-    !call CHKERR(1_mpiint, 'DEBUG')
     p%dir = (/sin(phi)*sin(acos(mu)) , cos(phi)*sin(acos(mu)) , mu  /)
     ! phi = 0 is y-axes
 
@@ -368,16 +367,16 @@ class(t_boxmc_3_30)           :: bmc
       continue
     case(2,4,6,8,10)
       p%dir(3) = -p%dir(3)
-    case(11,13,15,17,19)
-      p%dir = rotate_angle_z(p%dir, -90._ireal_dp)
-      p%dir = rotate_angle_y(p%dir, -90._ireal_dp)
-      p%dir(1) = -p%dir(1)
     case(12,14,16,18,20)
       p%dir = rotate_angle_z(p%dir, -90._ireal_dp)
       p%dir = rotate_angle_y(p%dir, -90._ireal_dp)
-    case(21,23,25,27,29)
-      p%dir = rotate_angle_x(p%dir, -90._ireal_dp)
+      p%dir(1) = -p%dir(1)
+    case(11,13,15,17,19)
+      p%dir = rotate_angle_z(p%dir, -90._ireal_dp)
+      p%dir = rotate_angle_y(p%dir, -90._ireal_dp)
     case(22,24,26,28,30)
+      p%dir = rotate_angle_x(p%dir, -90._ireal_dp)
+    case(21,23,25,27,29)
       p%dir = rotate_angle_x(p%dir, -90._ireal_dp)
       p%dir(2) = -p%dir(2)
     case default
@@ -419,6 +418,8 @@ class(t_boxmc_3_30)           :: bmc
   endif
 
   ierr = 0
+  !call print_photon(p)
+  !call CHKERR(1_mpiint, 'DEBUG')
 end subroutine
 
 subroutine update_diff_stream_3_30(bmc,vertices,p,S)
@@ -440,17 +441,17 @@ subroutine update_diff_stream_3_30(bmc,vertices,p,S)
     if(mu.ge.alim_3_30) then
       S(1) = S(1)+p%weight
     else
-      if(abs(p%dir(2)).gt.abs(p%dir(1))) then
-        if(p%dir(2).gt.zero) then
+      if(p%dir(1).gt.0) then
+        if(p%dir(2).gt.0) then
+          S(5) = S(5) + p%weight
+        else
+          S(9) = S(9) + p%weight
+        endif
+      else
+        if(p%dir(2).gt.0) then
           S(3) = S(3) + p%weight
         else
           S(7) = S(7) + p%weight
-        endif
-      else
-        if(p%dir(1).gt.zero) then
-          S(9) = S(9) + p%weight
-        else
-          S(5) = S(5) + p%weight
         endif
       endif
     endif
@@ -465,17 +466,17 @@ subroutine update_diff_stream_3_30(bmc,vertices,p,S)
     if(mu.ge.alim_3_30) then
       S(2) = S(2)+p%weight
     else
-      if(abs(p%dir(2)).gt.abs(p%dir(1))) then
-        if(p%dir(2).gt.zero) then
+      if(p%dir(1).gt.0) then
+        if(p%dir(2).gt.0) then
+          S(6) = S(6) + p%weight
+        else
+          S(10) = S(10) + p%weight
+        endif
+      else
+        if(p%dir(2).gt.0) then
           S(4) = S(4) + p%weight
         else
           S(8) = S(8) + p%weight
-        endif
-      else
-        if(p%dir(1).gt.zero) then
-          S(10) = S(10) + p%weight
-        else
-          S(6) = S(6) + p%weight
         endif
       endif
     endif
@@ -488,19 +489,19 @@ subroutine update_diff_stream_3_30(bmc,vertices,p,S)
       call CHKERR(1_mpiint, 'wrong p%side?')
     endif
     if(mu.ge.alim_3_30) then
-      S(11) = S(11)+p%weight
+      S(12) = S(12)+p%weight
     else
-      if(abs(p%dir(3)).gt.abs(p%dir(2))) then
-        if(p%dir(3).gt.zero) then
-          S(13) = S(13) + p%weight
+      if(p%dir(2).gt.0) then
+        if(p%dir(3).gt.0) then
+          S(16) = S(16) + p%weight
         else
-          S(17) = S(17) + p%weight
+          S(20) = S(20) + p%weight
         endif
       else
-        if(p%dir(2).gt.zero) then
-          S(19) = S(19) + p%weight
+        if(p%dir(3).gt.0) then
+          S(14) = S(14) + p%weight
         else
-          S(15) = S(15) + p%weight
+          S(18) = S(18) + p%weight
         endif
       endif
     endif
@@ -513,19 +514,19 @@ subroutine update_diff_stream_3_30(bmc,vertices,p,S)
       call CHKERR(1_mpiint, 'wrong p%side?')
     endif
     if(mu.ge.alim_3_30) then
-      S(12) = S(12)+p%weight
+      S(11) = S(11)+p%weight
     else
-      if(abs(p%dir(3)).gt.abs(p%dir(2))) then
-        if(p%dir(3).gt.zero) then
-          S(14) = S(14) + p%weight
+      if(p%dir(2).gt.0) then
+        if(p%dir(3).gt.0) then
+          S(15) = S(15) + p%weight
         else
-          S(18) = S(18) + p%weight
+          S(19) = S(19) + p%weight
         endif
       else
-        if(p%dir(2).gt.zero) then
-          S(20) = S(20) + p%weight
+        if(p%dir(3).gt.0) then
+          S(13) = S(13) + p%weight
         else
-          S(16) = S(16) + p%weight
+          S(17) = S(17) + p%weight
         endif
       endif
     endif
@@ -538,19 +539,19 @@ subroutine update_diff_stream_3_30(bmc,vertices,p,S)
       call CHKERR(1_mpiint, 'wrong p%side?')
     endif
     if(mu.ge.alim_3_30) then
-      S(21) = S(21)+p%weight
+      S(22) = S(22)+p%weight
     else
-      if(abs(p%dir(3)).gt.abs(p%dir(1))) then
-        if(p%dir(3).gt.zero) then
-          S(23) = S(23) + p%weight
+      if(p%dir(1).gt.0) then
+        if(p%dir(3).gt.0) then
+          S(26) = S(26) + p%weight
         else
-          S(27) = S(27) + p%weight
+          S(30) = S(30) + p%weight
         endif
       else
-        if(p%dir(1).gt.zero) then
-          S(29) = S(29) + p%weight
+        if(p%dir(3).gt.0) then
+          S(24) = S(24) + p%weight
         else
-          S(25) = S(25) + p%weight
+          S(28) = S(28) + p%weight
         endif
       endif
     endif
@@ -563,19 +564,19 @@ subroutine update_diff_stream_3_30(bmc,vertices,p,S)
       call CHKERR(1_mpiint, 'wrong p%side?')
     endif
     if(mu.ge.alim_3_30) then
-      S(22) = S(22)+p%weight
+      S(21) = S(21)+p%weight
     else
-      if(abs(p%dir(3)).gt.abs(p%dir(1))) then
-        if(p%dir(3).gt.zero) then
-          S(24) = S(24) + p%weight
+      if(p%dir(1).gt.0) then
+        if(p%dir(3).gt.0) then
+          S(25) = S(25) + p%weight
         else
-          S(28) = S(28) + p%weight
+          S(29) = S(29) + p%weight
         endif
       else
-        if(p%dir(1).gt.zero) then
-          S(30) = S(30) + p%weight
+        if(p%dir(3).gt.0) then
+          S(23) = S(23) + p%weight
         else
-          S(26) = S(26) + p%weight
+          S(27) = S(27) + p%weight
         endif
       endif
     endif

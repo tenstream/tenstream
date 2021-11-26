@@ -61,588 +61,115 @@ contains
   end subroutine teardown
 
   @test(npes =[1])
-  subroutine test_boxmc_select_cases_diffuse_src3(this)
+  subroutine test_boxmc_select_cases_diffuse_src_z(this)
   class (MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: src
-    real(ireals), pointer :: pS(:,:,:) ! dim (2 directions[up/down], 5 streams, 3 axis)
-    real(ireals), parameter :: c1=.4347 ! to the side center stream
-    real(ireals), parameter :: c2=.0814 ! left and right side along stream
-    real(ireals), parameter :: c3=.0281 ! left and right and adjacent side vertical streams
-    real(ireals), parameter :: c4=.2776 ! adjacent side upward stream
-    real(ireals), parameter :: c5=.0125 ! opposite side
-
-    pS(1:2, 1:5, 1:3) => S_target(1:30)
+    real(ireals), parameter :: c1=.0124 ! opposite side, same stream
+    real(ireals), parameter :: c2=.2170 ! left and adjacent sides center streams
+    real(ireals), parameter :: c3=.27625! left and adjacent sides upward stream
 
     bg  = [0._ireal_dp, 0._ireal_dp, 1._ireal_dp ]
 
     theta = 0; phi = 0;
     T_target = zero
 
-    ! should send diffuse radiation from bot face towards northern directions
+    ! should send diffuse radiation from bot face towards north west directions
     src = 3
     S_target = 0
-    pS(2,1,3) = c1
-
-    pS(2,5,2) = c2
-    pS(1,5,2) = c2
-
-    pS(1,2,2) = c3
-    pS(2,2,2) = c3
-    pS(2,3,3) = c3
-    pS(2,5,3) = c3
-
-    pS(2,2,3) = c4
-
-    pS(1,2,1) = c5
+    S_target(src) = c1
+    S_target([12,21]) = c2
+    S_target([16,23]) = c3
 
     call bmc%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
     write(msg,*) ' test_boxmc_select_cases_diffuse',src
     call check(S_target,T_target, S,T, msg=msg)
-  end subroutine
 
-  @test(npes =[1])
-  subroutine test_boxmc_select_cases_diffuse_src4(this)
-  class (MpiTestMethod), intent(inout) :: this
-    integer(iintegers) :: src
-    real(ireals), pointer :: pS(:,:,:) ! dim (2 directions[up/down], 5 streams, 3 axis)
-    real(ireals), parameter :: c1=.4347 ! to the side center stream
-    real(ireals), parameter :: c2=.0814 ! left and right side along stream
-    real(ireals), parameter :: c3=.0281 ! left and right and adjacent side vertical streams
-    real(ireals), parameter :: c4=.2776 ! adjacent side downward stream
-    real(ireals), parameter :: c5=.0125 ! opposite side
-
-    pS(1:2, 1:5, 1:3) => S_target(1:30)
-
-    bg  = [0._ireal_dp, 0._ireal_dp, 1._ireal_dp ]
-
-    theta = 0; phi = 0;
-    T_target = zero
-
-    ! should send diffuse radiation from top face towards northern directions
+    ! should send diffuse radiation from top face towards north west directions
     src = 4
     S_target = 0
-    pS(2,1,3) = c1
-    pS(2,5,2) = c2
-    pS(1,5,2) = c2
-
-    pS(1,4,2) = c3
-    pS(2,4,2) = c3
-    pS(2,3,3) = c3
-    pS(2,5,3) = c3
-
-    pS(2,4,3) = c4
-
-    pS(2,2,1) = c5
+    S_target(src) = c1
+    S_target([12,21]) = c2
+    S_target([20,27]) = c3
 
     call bmc%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
     write(msg,*) ' test_boxmc_select_cases_diffuse',src
     call check(S_target,T_target, S,T, msg=msg)
-  end subroutine
 
-  @test(npes =[1])
-  subroutine test_boxmc_select_cases_diffuse_src5(this)
-  class (MpiTestMethod), intent(inout) :: this
-    integer(iintegers) :: src
-    real(ireals), pointer :: pS(:,:,:) ! dim (2 directions[up/down], 5 streams, 3 axis)
-    real(ireals), parameter :: c1=.4347 ! to the adjacent center stream
-    real(ireals), parameter :: c2=.0814 ! left and right side along stream
-    real(ireals), parameter :: c3=.0281 ! left and right and adjacent side vertical streams
-    real(ireals), parameter :: c4=.2776 ! adjacent side upward stream
-    real(ireals), parameter :: c5=.0125 ! opposite side
-
-    pS(1:2, 1:5, 1:3) => S_target(1:30)
-
-    bg  = [0._ireal_dp, 0._ireal_dp, 1._ireal_dp ]
-
-    theta = 0; phi = 0;
-    T_target = zero
-
-    ! should send diffuse radiation from bot face towards western directions
+    ! should send diffuse radiation from bot face towards north east directions
     src = 5
     S_target = 0
-    pS(1,1,2) = c1
-
-    pS(2,3,3) = c2
-    pS(1,3,3) = c2
-
-    pS(1,2,3) = c3
-    pS(2,2,3) = c3
-    pS(1,3,2) = c3
-    pS(1,5,2) = c3
-
-    pS(1,2,2) = c4
-
-    pS(1,3,1) = c5
+    S_target(src) = c1
+    S_target([11,21]) = c2
+    S_target([15,25]) = c3
 
     call bmc%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
     write(msg,*) ' test_boxmc_select_cases_diffuse',src
     call check(S_target,T_target, S,T, msg=msg)
-  end subroutine
 
-  @test(npes =[1])
-  subroutine test_boxmc_select_cases_diffuse_src6(this)
-  class (MpiTestMethod), intent(inout) :: this
-    integer(iintegers) :: src
-    real(ireals), pointer :: pS(:,:,:) ! dim (2 directions[up/down], 5 streams, 3 axis)
-    real(ireals), parameter :: c1=.4347 ! to the adjacent center stream
-    real(ireals), parameter :: c2=.0814 ! left and right side along stream
-    real(ireals), parameter :: c3=.0281 ! left and right (vertical) and adjacent side (horizontal) streams
-    real(ireals), parameter :: c4=.2776 ! adjacent side upward stream
-    real(ireals), parameter :: c5=.0125 ! opposite side
-
-    pS(1:2, 1:5, 1:3) => S_target(1:30)
-
-    bg  = [0._ireal_dp, 0._ireal_dp, 1._ireal_dp ]
-
-    theta = 0; phi = 0;
-    T_target = zero
-
-    ! should send diffuse radiation from top face towards western directions
+    ! should send diffuse radiation from top face towards north east directions
     src = 6
     S_target = 0
-    pS(1,1,2) = c1
-
-    pS(1,3,3) = c2
-    pS(2,3,3) = c2
-
-    pS(1,4,3) = c3
-    pS(2,4,3) = c3
-
-    pS(1,3,2) = c3
-    pS(1,5,2) = c3
-
-    pS(1,4,2) = c4
-
-    pS(2,3,1) = c5
+    S_target(src) = c1
+    S_target([11,21]) = c2
+    S_target([19,29]) = c3
 
     call bmc%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
     write(msg,*) ' test_boxmc_select_cases_diffuse',src
     call check(S_target,T_target, S,T, msg=msg)
-  end subroutine
 
-  @test(npes =[1])
-  subroutine test_boxmc_select_cases_diffuse_src7(this)
-  class (MpiTestMethod), intent(inout) :: this
-    integer(iintegers) :: src
-    real(ireals), pointer :: pS(:,:,:) ! dim (2 directions[up/down], 5 streams, 3 axis)
-    real(ireals), parameter :: c1=.4347 ! to the adjacent center stream
-    real(ireals), parameter :: c2=.0814 ! left and right side along stream
-    real(ireals), parameter :: c3=.0281 ! left and right (vertical) and adjacent side (horizontal) streams
-    real(ireals), parameter :: c4=.2776 ! adjacent side upward stream
-    real(ireals), parameter :: c5=.0125 ! opposite side
-
-    pS(1:2, 1:5, 1:3) => S_target(1:30)
-
-    bg  = [0._ireal_dp, 0._ireal_dp, 1._ireal_dp ]
-
-    theta = 0; phi = 0;
-    T_target = zero
-
-    ! should send diffuse radiation from bot face towards southern directions
+    ! should send diffuse radiation from bot face towards south west directions
     src = 7
     S_target = 0
-    pS(1,1,3) = c1
-
-    pS(1,3,2) = c2
-    pS(2,3,2) = c2
-
-    pS(1,2,2) = c3
-    pS(2,2,2) = c3
-
-    pS(1,3,3) = c3
-    pS(1,5,3) = c3
-
-    pS(1,2,3) = c4
-
-    pS(1,4,1) = c5
+    S_target(src) = c1
+    S_target([12,22]) = c2
+    S_target([14,24]) = c3
 
     call bmc%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
     write(msg,*) ' test_boxmc_select_cases_diffuse',src
     call check(S_target,T_target, S,T, msg=msg)
-  end subroutine
 
-  @test(npes =[1])
-  subroutine test_boxmc_select_cases_diffuse_src8(this)
-  class (MpiTestMethod), intent(inout) :: this
-    integer(iintegers) :: src
-    real(ireals), pointer :: pS(:,:,:) ! dim (2 directions[up/down], 5 streams, 3 axis)
-    real(ireals), parameter :: c1=.4347 ! to the adjacent center stream
-    real(ireals), parameter :: c2=.0814 ! left and right side along stream
-    real(ireals), parameter :: c3=.0281 ! left and right (vertical) and adjacent side (horizontal) streams
-    real(ireals), parameter :: c4=.2776 ! adjacent side upward stream
-    real(ireals), parameter :: c5=.0125 ! opposite side
-
-    pS(1:2, 1:5, 1:3) => S_target(1:30)
-
-    bg  = [0._ireal_dp, 0._ireal_dp, 1._ireal_dp ]
-
-    theta = 0; phi = 0;
-    T_target = zero
-
-    ! should send diffuse radiation from top face towards southern directions
+    ! should send diffuse radiation from top face towards south west directions
     src = 8
     S_target = 0
-    pS(1,1,3) = c1
-
-    pS(1,3,2) = c2
-    pS(2,3,2) = c2
-
-    pS(1,4,2) = c3
-    pS(2,4,2) = c3
-
-    pS(1,3,3) = c3
-    pS(1,5,3) = c3
-
-    pS(1,4,3) = c4
-
-    pS(2,4,1) = c5
+    S_target(src) = c1
+    S_target([12,22]) = c2
+    S_target([18,28]) = c3
 
     call bmc%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
     write(msg,*) ' test_boxmc_select_cases_diffuse',src
     call check(S_target,T_target, S,T, msg=msg)
-  end subroutine
 
-  @test(npes =[1])
-  subroutine test_boxmc_select_cases_diffuse_src9(this)
-  class (MpiTestMethod), intent(inout) :: this
-    integer(iintegers) :: src
-    real(ireals), pointer :: pS(:,:,:) ! dim (2 directions[up/down], 5 streams, 3 axis)
-    real(ireals), parameter :: c1=.4347 ! to the adjacent center stream
-    real(ireals), parameter :: c2=.0814 ! left and right side along stream
-    real(ireals), parameter :: c3=.0281 ! left and right (vertical) and adjacent side (horizontal) streams
-    real(ireals), parameter :: c4=.2776 ! adjacent side upward stream
-    real(ireals), parameter :: c5=.0125 ! opposite side
-
-    pS(1:2, 1:5, 1:3) => S_target(1:30)
-
-    bg  = [0._ireal_dp, 0._ireal_dp, 1._ireal_dp ]
-
-    theta = 0; phi = 0;
-    T_target = zero
-
-    ! should send diffuse radiation from bot face towards eastern directions
+    ! should send diffuse radiation from bot face towards south east directions
     src = 9
     S_target = 0
-    pS(2,1,2) = c1
-
-    pS(1,5,3) = c2
-    pS(2,5,3) = c2
-
-    pS(1,2,3) = c3
-    pS(2,2,3) = c3
-
-    pS(2,3,2) = c3
-    pS(2,5,2) = c3
-
-    pS(2,2,2) = c4
-
-    pS(1,5,1) = c5
+    S_target(src) = c1
+    S_target([11,22]) = c2
+    S_target([13,26]) = c3
 
     call bmc%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
     write(msg,*) ' test_boxmc_select_cases_diffuse',src
     call check(S_target,T_target, S,T, msg=msg)
-  end subroutine
 
-  @test(npes =[1])
-  subroutine test_boxmc_select_cases_diffuse_src10(this)
-  class (MpiTestMethod), intent(inout) :: this
-    integer(iintegers) :: src
-    real(ireals), pointer :: pS(:,:,:) ! dim (2 directions[up/down], 5 streams, 3 axis)
-    real(ireals), parameter :: c1=.4347 ! to the adjacent center stream
-    real(ireals), parameter :: c2=.0814 ! left and right side along stream
-    real(ireals), parameter :: c3=.0281 ! left and right (vertical) and adjacent side (horizontal) streams
-    real(ireals), parameter :: c4=.2776 ! adjacent side upward stream
-    real(ireals), parameter :: c5=.0125 ! opposite side
-
-    pS(1:2, 1:5, 1:3) => S_target(1:30)
-
-    bg  = [0._ireal_dp, 0._ireal_dp, 1._ireal_dp ]
-
-    theta = 0; phi = 0;
-    T_target = zero
-
-    ! should send diffuse radiation from top face towards eastern directions
+    ! should send diffuse radiation from top face towards south east directions
     src = 10
     S_target = 0
-    pS(2,1,2) = c1
-
-    pS(1,5,3) = c2
-    pS(2,5,3) = c2
-
-    pS(1,4,3) = c3
-    pS(2,4,3) = c3
-
-    pS(2,3,2) = c3
-    pS(2,5,2) = c3
-
-    pS(2,4,2) = c4
-
-    pS(2,5,1) = c5
+    S_target(src) = c1
+    S_target([11,22]) = c2
+    S_target([17,30]) = c3
 
     call bmc%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
     write(msg,*) ' test_boxmc_select_cases_diffuse',src
     call check(S_target,T_target, S,T, msg=msg)
   end subroutine
-
-  @test(npes =[1])
-  subroutine test_boxmc_select_cases_diffuse_src13(this)
-  class (MpiTestMethod), intent(inout) :: this
-    integer(iintegers) :: src
-    real(ireals), pointer :: pS(:,:,:) ! dim (2 directions[up/down], 5 streams, 3 axis)
-    real(ireals), parameter :: c1=.4347 ! to the adjacent center stream
-    real(ireals), parameter :: c2=.0814 ! left and right side along stream
-    real(ireals), parameter :: c3=.0281 ! left and right (vertical) and adjacent side (horizontal) streams
-    real(ireals), parameter :: c4=.2776 ! adjacent side upward stream
-    real(ireals), parameter :: c5=.0125 ! opposite side
-
-    pS(1:2, 1:5, 1:3) => S_target(1:30)
-
-    bg  = [0._ireal_dp, 0._ireal_dp, 1._ireal_dp ]
-
-    theta = 0; phi = 0;
-    T_target = zero
-
-    ! should send diffuse radiation from right face towards top directions
-    src = 13
-    S_target = 0
-    pS(1,1,1) = c1
-
-    pS(1,2,3) = c2
-    pS(2,2,3) = c2
-
-    pS(1,3,3) = c3
-    pS(2,3,3) = c3
-
-    pS(1,2,1) = c3
-    pS(1,4,1) = c3
-
-    pS(1,3,1) = c4
-
-    pS(1,2,2) = c5
-
-    call bmc%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-    write(msg,*) ' test_boxmc_select_cases_diffuse',src
-    call check(S_target,T_target, S,T, msg=msg)
-  end subroutine
-
-  @test(npes =[1])
-  subroutine test_boxmc_select_cases_diffuse_src14(this)
-  class (MpiTestMethod), intent(inout) :: this
-    integer(iintegers) :: src
-    real(ireals), pointer :: pS(:,:,:) ! dim (2 directions[up/down], 5 streams, 3 axis)
-    real(ireals), parameter :: c1=.4347 ! to the adjacent center stream
-    real(ireals), parameter :: c2=.0814 ! left and right side along stream
-    real(ireals), parameter :: c3=.0281 ! left and right (vertical) and adjacent side (horizontal) streams
-    real(ireals), parameter :: c4=.2776 ! adjacent side upward stream
-    real(ireals), parameter :: c5=.0125 ! opposite side
-
-    pS(1:2, 1:5, 1:3) => S_target(1:30)
-
-    bg  = [0._ireal_dp, 0._ireal_dp, 1._ireal_dp ]
-
-    theta = 0; phi = 0;
-    T_target = zero
-
-    ! should send diffuse radiation from left face towards top directions
-    src = 14
-    S_target = 0
-    pS(1,1,1) = c1
-
-    pS(1,2,3) = c2
-    pS(2,2,3) = c2
-
-    pS(1,5,3) = c3
-    pS(2,5,3) = c3
-
-    pS(1,2,1) = c3
-    pS(1,4,1) = c3
-
-    pS(1,5,1) = c4
-
-    pS(2,2,2) = c5
-
-    call bmc%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-    write(msg,*) ' test_boxmc_select_cases_diffuse',src
-    call check(S_target,T_target, S,T, msg=msg)
-  end subroutine
-
-  @test(npes =[1])
-  subroutine test_boxmc_select_cases_diffuse_src19(this)
-  class (MpiTestMethod), intent(inout) :: this
-    integer(iintegers) :: src
-    real(ireals), pointer :: pS(:,:,:) ! dim (2 directions[up/down], 5 streams, 3 axis)
-    real(ireals), parameter :: c1=.4347 ! to the adjacent center stream
-    real(ireals), parameter :: c2=.0814 ! left and right side along stream
-    real(ireals), parameter :: c3=.0281 ! left and right (vertical) and adjacent side (horizontal) streams
-    real(ireals), parameter :: c4=.2776 ! adjacent side upward stream
-    real(ireals), parameter :: c5=.0125 ! opposite side
-
-    pS(1:2, 1:5, 1:3) => S_target(1:30)
-
-    bg  = [0._ireal_dp, 0._ireal_dp, 1._ireal_dp ]
-
-    theta = 0; phi = 0;
-    T_target = zero
-
-    ! should send diffuse radiation from right face towards forward directions
-    src = 19
-    S_target = 0
-    pS(2,1,3) = c1
-
-    pS(1,2,1) = c2
-    pS(2,2,1) = c2
-
-    pS(1,3,1) = c3
-    pS(2,3,1) = c3
-
-    pS(2,2,3) = c3
-    pS(2,4,3) = c3
-
-    pS(2,3,3) = c4
-
-    pS(1,5,2) = c5
-
-    call bmc%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-    write(msg,*) ' test_boxmc_select_cases_diffuse',src
-    call check(S_target,T_target, S,T, msg=msg)
-  end subroutine
-
-  @test(npes =[1])
-  subroutine test_boxmc_select_cases_diffuse_src20(this)
-  class (MpiTestMethod), intent(inout) :: this
-    integer(iintegers) :: src
-    real(ireals), pointer :: pS(:,:,:) ! dim (2 directions[up/down], 5 streams, 3 axis)
-    real(ireals), parameter :: c1=.4347 ! to the adjacent center stream
-    real(ireals), parameter :: c2=.0814 ! left and right side along stream
-    real(ireals), parameter :: c3=.0281 ! left and right (vertical) and adjacent side (horizontal) streams
-    real(ireals), parameter :: c4=.2776 ! adjacent side upward stream
-    real(ireals), parameter :: c5=.0125 ! opposite side
-
-    pS(1:2, 1:5, 1:3) => S_target(1:30)
-
-    bg  = [0._ireal_dp, 0._ireal_dp, 1._ireal_dp ]
-
-    theta = 0; phi = 0;
-    T_target = zero
-
-    ! should send diffuse radiation from left face towards forward directions
-    src = 20
-    S_target = 0
-    pS(2,1,3) = c1
-
-    pS(1,2,1) = c2
-    pS(2,2,1) = c2
-
-    pS(1,5,1) = c3
-    pS(2,5,1) = c3
-
-    pS(2,2,3) = c3
-    pS(2,4,3) = c3
-
-    pS(2,5,3) = c4
-
-    pS(2,5,2) = c5
-
-    call bmc%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-    write(msg,*) ' test_boxmc_select_cases_diffuse',src
-    call check(S_target,T_target, S,T, msg=msg)
-  end subroutine
-
-  @test(npes =[1])
-  subroutine test_boxmc_select_cases_diffuse_src27(this)
-  class (MpiTestMethod), intent(inout) :: this
-    integer(iintegers) :: src
-    real(ireals), pointer :: pS(:,:,:) ! dim (2 directions[up/down], 5 streams, 3 axis)
-    real(ireals), parameter :: c1=.4347 ! to the adjacent center stream
-    real(ireals), parameter :: c2=.0814 ! left and right side along stream
-    real(ireals), parameter :: c3=.0281 ! left and right (vertical) and adjacent side (horizontal) streams
-    real(ireals), parameter :: c4=.2776 ! adjacent side upward stream
-    real(ireals), parameter :: c5=.0125 ! opposite side
-
-    pS(1:2, 1:5, 1:3) => S_target(1:30)
-
-    bg  = [0._ireal_dp, 0._ireal_dp, 1._ireal_dp ]
-
-    theta = 0; phi = 0;
-    T_target = zero
-
-    ! should send diffuse radiation from forward face towards bot directions
-    src = 27
-    S_target = 0
-    pS(2,1,1) = c1
-
-    pS(1,4,2) = c2
-    pS(2,4,2) = c2
-
-    pS(1,3,2) = c3
-    pS(2,3,2) = c3
-
-    pS(2,3,1) = c3
-    pS(2,5,1) = c3
-
-    pS(2,4,1) = c4
-
-    pS(1,4,3) = c5
-
-    call bmc%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-    write(msg,*) ' test_boxmc_select_cases_diffuse',src
-    call check(S_target,T_target, S,T, msg=msg)
-  end subroutine
-
-  @test(npes =[1])
-  subroutine test_boxmc_select_cases_diffuse_src30(this)
-  class (MpiTestMethod), intent(inout) :: this
-    integer(iintegers) :: src
-    real(ireals), pointer :: pS(:,:,:) ! dim (2 directions[up/down], 5 streams, 3 axis)
-    real(ireals), parameter :: c1=.4347 ! to the adjacent center stream
-    real(ireals), parameter :: c2=.0814 ! left and right side along stream
-    real(ireals), parameter :: c3=.0281 ! left and right (vertical) and adjacent side (horizontal) streams
-    real(ireals), parameter :: c4=.2776 ! adjacent side upward stream
-    real(ireals), parameter :: c5=.0125 ! opposite side
-
-    pS(1:2, 1:5, 1:3) => S_target(1:30)
-
-    bg  = [0._ireal_dp, 0._ireal_dp, 1._ireal_dp ]
-
-    theta = 0; phi = 0;
-    T_target = zero
-
-    ! should send diffuse radiation from backward face towards right directions
-    src = 30
-    S_target = 0
-    pS(2,1,2) = c1
-
-    pS(1,5,1) = c2
-    pS(2,5,1) = c2
-
-    pS(1,2,1) = c3
-    pS(2,2,1) = c3
-
-    pS(2,2,2) = c3
-    pS(2,4,2) = c3
-
-    pS(2,5,2) = c4
-
-    pS(2,5,3) = c5
-
-    call bmc%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-    write(msg,*) ' test_boxmc_select_cases_diffuse',src
-    call check(S_target,T_target, S,T, msg=msg)
-  end subroutine
-
 
   @test(npes =[1])
   subroutine test_boxmc_select_cases_diffuse_mid(this)
   class (MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: src
-    real(ireals), pointer :: pS(:,:,:) ! dim (2 directions[up/down], 5 streams, 3 axis)
-    real(ireals), parameter :: c1=0.4407 ! straight
-    real(ireals), parameter :: c2=0.1398 ! side
+    real(ireals), parameter :: c1=0.5873 ! straight
+    real(ireals), parameter :: c2=0.0516 ! side
 
-
-    pS(1:2, 1:5, 1:3) => S_target(1:30)
-
-    bg  = [0._ireal_dp, 1._ireal_dp/dz, 1._ireal_dp ]
+    bg  = [0._ireal_dp, 0._ireal_dp, 1._ireal_dp ]
 
     theta = 0; phi = 0;
     T_target = zero
@@ -650,22 +177,18 @@ contains
     ! should send diffuse radiation into vertical angle stream and a bit to the sides
     src = 1
     S_target = 0
-    pS(1,1,1) = c1
-    pS(1,2,2) = c2
-    pS(2,2,2) = c2
-    pS(1,2,3) = c2
-    pS(2,2,3) = c2
+    S_target(1) = c1
+    S_target([13,14,15,16,23,24,25,26]) = c2
+
     call bmc%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
     write(msg,*) ' test_boxmc_select_cases_diffuse',src
     call check(S_target,T_target, S,T, msg=msg)
 
     src = 2
     S_target = 0
-    pS(2,1,1) = c1
-    pS(1,4,2) = c2
-    pS(2,4,2) = c2
-    pS(1,4,3) = c2
-    pS(2,4,3) = c2
+    S_target(2) = c1
+    S_target([17,18,19,20,27,28,29,30]) = c2
+
     call bmc%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
     write(msg,*) ' test_boxmc_select_cases_diffuse',src
     call check(S_target,T_target, S,T, msg=msg)
@@ -674,22 +197,16 @@ contains
     ! should send diffuse radiation into horizontal angle stream and a bit to the sides
     src = 11
     S_target = 0
-    pS(1,1,2) = c1
-    pS(1,3,1) = c2
-    pS(2,3,1) = c2
-    pS(1,3,3) = c2
-    pS(2,3,3) = c2
+    S_target(11) = c1
+    S_target([5,9,6,10,25,29,26,30]) = c2
     call bmc%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
     write(msg,*) ' test_boxmc_select_cases_diffuse',src
     call check(S_target,T_target, S,T, msg=msg)
 
     src = 12
     S_target = 0
-    pS(2,1,2) = c1
-    pS(1,5,1) = c2
-    pS(2,5,1) = c2
-    pS(1,5,3) = c2
-    pS(2,5,3) = c2
+    S_target(12) = c1
+    S_target([3,7,4,8,23,27,24,28]) = c2
     call bmc%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
     write(msg,*) ' test_boxmc_select_cases_diffuse',src
     call check(S_target,T_target, S,T, msg=msg)
@@ -697,22 +214,16 @@ contains
     ! should send diffuse radiation into horizontal angle stream and a bit to the sides
     src = 21
     S_target = 0
-    pS(1,1,3) = c1
-    pS(1,4,1) = c2
-    pS(2,4,1) = c2
-    pS(1,3,2) = c2
-    pS(2,3,2) = c2
+    S_target(21) = c1
+    S_target([3,5,4,6,15,19,16,20]) = c2
     call bmc%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
     write(msg,*) ' test_boxmc_select_cases_diffuse',src
     call check(S_target,T_target, S,T, msg=msg)
 
     src = 22
     S_target = 0
-    pS(2,1,3) = c1
-    pS(1,2,1) = c2
-    pS(2,2,1) = c2
-    pS(1,5,2) = c2
-    pS(2,5,2) = c2
+    S_target(22) = c1
+    S_target([7,9,8,10,13,17,14,18]) = c2
     call bmc%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
     write(msg,*) ' test_boxmc_select_cases_diffuse',src
     call check(S_target,T_target, S,T, msg=msg)
@@ -722,9 +233,6 @@ contains
   subroutine test_boxmc_select_cases_direct_srctopface(this)
   class (MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: src
-    real(ireals), pointer :: pS(:,:,:) ! dim (2 directions[up/down], 5 streams, 3 axis)
-
-    pS(1:2, 1:5, 1:3) => S_target(1:30)
 
     bg  = [1._ireal_dp/dz, 1e-1_ireal_dp, 1._ireal_dp ]
 
@@ -732,7 +240,7 @@ contains
     theta = 0
     phi = 0; src = 1
     T_target = [real(ireals) :: exp(-sum(bg(1:2))*dz), 0, 0]
-    S_target = 0; pS(2,1,1) = .367879
+    S_target = 0; S_target(2) = .367879
     call bmc%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
     write(msg,*) ' test_boxmc_select_cases_direct_srctopface',src,phi,theta
 
@@ -741,83 +249,86 @@ contains
     theta = 180
     phi = 0; src = 1
     T_target = [real(ireals) :: exp(-sum(bg(1:2))*dz), 0, 0]
-    S_target = 0; pS(1,1,1) = .367879
+    S_target = 0; S_target(1) = .367879
     call bmc%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
     write(msg,*) ' test_boxmc_select_cases_direct_srctopface',src,phi,theta
     call check(S_target,T_target, S,T, msg=msg)
 
-    ! a bit towards north
+    ! photons to the north east
     theta = 45
-    phi = 0; src = 1
-    T_target = [real(ireals) :: 0, 0, 6.42878E-02]
+    phi = 45; src = 1
+    T_target = [real(ireals) :: 0, 0.0434, 0.0434]
     S_target = 0
-    pS(2,4,3) = 4.70484E-01
+    S_target([6]) = 0.0208
+    S_target([19,29]) = 0.2318
     call bmc%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
     write(msg,*) ' test_boxmc_select_cases_direct_srctopface',src,phi,theta
     call check(S_target,T_target, S,T, msg=msg)
 
     theta = 180-45
-    phi = 0; src = 1
-    T_target = [real(ireals) :: 0, 0, 6.42878E-02]
     S_target = 0
-    pS(2,2,3) = 4.70484E-01
+    S_target([5]) = 0.0208
+    S_target([15,25]) = 0.2318
     call bmc%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
     write(msg,*) ' test_boxmc_select_cases_direct_srctopface',src,phi,theta
     call check(S_target,T_target, S,T, msg=msg)
 
-    ! a bit towards south
+    ! to the south east
     theta = 45
-    phi = 180; src = 1
-    T_target = [real(ireals) :: 0, 0, 6.42878E-02]
+    T_target = [real(ireals) :: 0, 0.0434, 0.0434]
+    phi = 90+45; src = 1
     S_target = 0
-    pS(1,4,3) = 4.70484E-01
+    S_target([10]) = 0.0208
+    S_target([17,30]) = 0.2318
     call bmc%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
     write(msg,*) ' test_boxmc_select_cases_direct_srctopface',src,phi,theta
     call check(S_target,T_target, S,T, msg=msg)
 
     theta = 180-45
-    phi = 180; src = 1
-    T_target = [real(ireals) :: 0, 0, 6.42878E-02]
+    phi = 90+45; src = 1
     S_target = 0
-    pS(1,2,3) = 4.70484E-01
+    S_target([9]) = 0.0208
+    S_target([13,26]) = 0.2318
     call bmc%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
     write(msg,*) ' test_boxmc_select_cases_direct_srctopface',src,phi,theta
     call check(S_target,T_target, S,T, msg=msg)
 
-    ! a bit towards east
+    ! to the south west
     theta = 45
-    phi = 90; src = 1
-    T_target = [real(ireals) :: 0, 6.42878E-02, 0]
+    phi = 180+45; src = 1
+    T_target = [real(ireals) :: 0, 0.0434, 0.0434]
     S_target = 0
-    pS(2,4,2) = 4.70484E-01
+    S_target([8]) = 0.0208
+    S_target([18,28]) = 0.2318
     call bmc%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
     write(msg,*) ' test_boxmc_select_cases_direct_srctopface',src,phi,theta
     call check(S_target,T_target, S,T, msg=msg)
 
     theta = 180-45
-    phi = 90; src = 1
-    T_target = [real(ireals) :: 0, 6.42878E-02, 0]
+    phi = 180+45; src = 1
     S_target = 0
-    pS(2,2,2) = 4.70484E-01
+    S_target([7]) = 0.0208
+    S_target([14,24]) = 0.2318
     call bmc%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
     write(msg,*) ' test_boxmc_select_cases_direct_srctopface',src,phi,theta
     call check(S_target,T_target, S,T, msg=msg)
 
-    ! a bit towards west
+    ! to the north west
     theta = 45
-    phi = 270; src = 1
-    T_target = [real(ireals) :: 0, 6.42878E-02, 0]
+    phi = -45; src = 1
+    T_target = [real(ireals) :: 0, 0.0434, 0.0434]
     S_target = 0
-    pS(1,4,2) = 4.70484E-01
+    S_target([4]) = 0.0208
+    S_target([20,27]) = 0.2318
     call bmc%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
     write(msg,*) ' test_boxmc_select_cases_direct_srctopface',src,phi,theta
     call check(S_target,T_target, S,T, msg=msg)
 
     theta = 180-45
-    phi = 270; src = 1
-    T_target = [real(ireals) :: 0, 6.42878E-02, 0]
+    phi = -45; src = 1
     S_target = 0
-    pS(1,2,2) = 4.70484E-01
+    S_target([3]) = 0.0208
+    S_target([16,23]) = 0.2318
     call bmc%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
     write(msg,*) ' test_boxmc_select_cases_direct_srctopface',src,phi,theta
     call check(S_target,T_target, S,T, msg=msg)
@@ -827,8 +338,7 @@ contains
     real(ireals),intent(in),target,dimension(:) :: S_target,T_target, S,T
     character(len=*),optional :: msg
 
-    integer(iintegers) :: i
-    real(ireals) :: pS(5,6), pS_target(5,6) ! dim (5 streams, 6 sides)
+    real(ireals) :: S_diff(size(S))
     character(default_str_len) :: local_msgS, local_msgT
     real(ireals), parameter :: test_atol = real(atol, ireals) * real(sigma, ireals)
 
@@ -850,28 +360,28 @@ contains
         write(local_msgT,*) 'Direct  boxmc coefficient not as '
       endif
 
-      do i=1,3
-        pS(:,2*(i-1)+1) = S(2*(i-1)*5+1 : 2*i*5 : 2)
-        pS(:,2*(i-1)+2) = S(2*(i-1)*5+2 : 2*i*5 : 2)
-        pS_target(:,2*(i-1)+1) = S_target(2*(i-1)*5+1 : 2*i*5 : 2)
-        pS_target(:,2*(i-1)+2) = S_target(2*(i-1)*5+2 : 2*i*5 : 2)
-      enddo
-
+      S_diff = S_target - S
       print*,'---------------------'
-      do i=1,6
-        write(*, FMT='( " diffuse :: ",I0," :: ", A)' ) &
-          & i, colored_str_by_range(pS(:,i), color_limits, colors)
-      enddo
+      write(*,FMT='(" diffuse :: ",I0," :: ",A)' ) 1, colored_str_by_range(S( 1:10:2), color_limits, colors)
+      write(*,FMT='(" diffuse :: ",I0," :: ",A)' ) 2, colored_str_by_range(S( 2:10:2), color_limits, colors)
+      write(*,FMT='(" diffuse :: ",I0," :: ",A)' ) 3, colored_str_by_range(S(12:20:2), color_limits, colors)
+      write(*,FMT='(" diffuse :: ",I0," :: ",A)' ) 4, colored_str_by_range(S(11:20:2), color_limits, colors)
+      write(*,FMT='(" diffuse :: ",I0," :: ",A)' ) 5, colored_str_by_range(S(22:30:2), color_limits, colors)
+      write(*,FMT='(" diffuse :: ",I0," :: ",A)' ) 6, colored_str_by_range(S(21:30:2), color_limits, colors)
       print *,cstr('---', 'blue')
-      do i=1,6
-        write(*, FMT='( " target  :: ",I0," :: ", A)' ) &
-          & i, colored_str_by_range(pS_target(:,i), color_limits, colors)
-      enddo
+      write(*,FMT='(" target  :: ",I0," :: ",A)' ) 1, colored_str_by_range(S_target( 1:10:2), color_limits, colors)
+      write(*,FMT='(" target  :: ",I0," :: ",A)' ) 2, colored_str_by_range(S_target( 2:10:2), color_limits, colors)
+      write(*,FMT='(" target  :: ",I0," :: ",A)' ) 3, colored_str_by_range(S_target(12:20:2), color_limits, colors)
+      write(*,FMT='(" target  :: ",I0," :: ",A)' ) 4, colored_str_by_range(S_target(11:20:2), color_limits, colors)
+      write(*,FMT='(" target  :: ",I0," :: ",A)' ) 5, colored_str_by_range(S_target(22:30:2), color_limits, colors)
+      write(*,FMT='(" target  :: ",I0," :: ",A)' ) 6, colored_str_by_range(S_target(21:30:2), color_limits, colors)
       print *,cstr('---', 'blue')
-      do i=1,6
-        write(*, FMT='( " diff side  ",I0," :: ", A )' ) &
-          & i, colored_str_by_range(pS_target(:,i) - pS(:,i), diff_color_limits, diff_colors)
-      enddo
+      write(*,FMT='(" diff    :: ",I0," :: ",A)' ) 1, colored_str_by_range(S_diff( 1:10:2), diff_color_limits, diff_colors)
+      write(*,FMT='(" diff    :: ",I0," :: ",A)' ) 2, colored_str_by_range(S_diff( 2:10:2), diff_color_limits, diff_colors)
+      write(*,FMT='(" diff    :: ",I0," :: ",A)' ) 3, colored_str_by_range(S_diff(12:20:2), diff_color_limits, diff_colors)
+      write(*,FMT='(" diff    :: ",I0," :: ",A)' ) 4, colored_str_by_range(S_diff(11:20:2), diff_color_limits, diff_colors)
+      write(*,FMT='(" diff    :: ",I0," :: ",A)' ) 5, colored_str_by_range(S_diff(22:30:2), diff_color_limits, diff_colors)
+      write(*,FMT='(" diff    :: ",I0," :: ",A)' ) 6, colored_str_by_range(S_diff(21:30:2), diff_color_limits, diff_colors)
       print*,''
       write(*, FMT='( " direct  ::  :: ", 8(es12.5) )' ) T
       write(*, FMT='( " target  ::  :: ", 8(es12.5) )' ) T_target
