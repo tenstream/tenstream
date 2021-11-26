@@ -1133,7 +1133,7 @@ module m_helper_functions
     elemental function deg2rad_${dtype}$(deg) result(r)
       real(${dtype}$) :: r
       real(${dtype}$), intent(in) :: deg
-      r = deg * ${pi}$ / 180_${dtype}$
+      r = deg * ${pi}$ / 180._${dtype}$
     end function
     #:endfor
 
@@ -1141,7 +1141,7 @@ module m_helper_functions
     elemental function rad2deg_${dtype}$(rad) result(r)
       real(${dtype}$) :: r
       real(${dtype}$),intent(in) :: rad
-      r = rad / ${pi}$ * 180_${dtype}$
+      r = rad / ${pi}$ * 180._${dtype}$
     end function
     #:endfor
 
