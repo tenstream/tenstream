@@ -70,6 +70,7 @@ module m_pprts
     & t_optprop_3_6, &
     & t_optprop_3_10, &
     & t_optprop_3_16, &
+    & t_optprop_3_24, &
     & t_optprop_3_30, &
     & t_optprop_8_10, &
     & t_optprop_8_16, &
@@ -109,6 +110,7 @@ module m_pprts
     & t_solver_3_6, &
     & t_solver_3_10, &
     & t_solver_3_16, &
+    & t_solver_3_24, &
     & t_solver_3_30, &
     & t_solver_8_10, &
     & t_solver_8_16, &
@@ -281,6 +283,21 @@ module m_pprts
 
           allocate(solver%diffside%is_inward(4))
           solver%diffside%is_inward = [.False.,.True.,.False.,.True.]
+
+          allocate(solver%dirtop%is_inward(1))
+          solver%dirtop%is_inward = .True.
+
+          allocate(solver%dirside%is_inward(1))
+          solver%dirside%is_inward = .True.
+
+        class is (t_solver_3_24)
+          allocate(t_optprop_3_24::solver%OPP)
+
+          allocate(solver%difftop%is_inward(8), source= &
+            [.False.,.True.,.False.,.True.,.False.,.True.,.False.,.True.])
+
+          allocate(solver%diffside%is_inward(8), source= &
+            [.True.,.False.,.True.,.False.,.True.,.False.,.True.,.False.])
 
           allocate(solver%dirtop%is_inward(1))
           solver%dirtop%is_inward = .True.

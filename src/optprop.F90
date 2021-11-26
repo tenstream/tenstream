@@ -30,9 +30,20 @@ use m_optprop_parameters, only : ldebug_optprop, wedge_sphere_radius, param_eps
 use m_helper_functions, only : rmse, CHKERR, CHKWARN, toStr, cstr, approx, deg2rad, rad2deg, swap, is_between, char_arr_to_str
 use m_data_parameters, only: ireals,ireal_dp,irealLUT,ireal_params,iintegers,one,zero,i0,i1,inil,mpiint
 use m_optprop_base, only: t_optprop_base, t_op_config, find_op_dim_by_name
-use m_optprop_LUT, only : t_optprop_LUT, t_optprop_LUT_1_2,t_optprop_LUT_3_6, t_optprop_LUT_3_10, &
-  t_optprop_LUT_8_10, t_optprop_LUT_3_16, t_optprop_LUT_3_30, t_optprop_LUT_8_16, t_optprop_LUT_8_18, &
-  t_optprop_LUT_wedge_5_8, t_optprop_LUT_rectilinear_wedge_5_8, t_optprop_LUT_wedge_18_8
+use m_optprop_LUT, only : &
+  & t_optprop_LUT, &
+  & t_optprop_LUT_1_2, &
+  & t_optprop_LUT_3_6, &
+  & t_optprop_LUT_3_10, &
+  & t_optprop_LUT_3_16, &
+  & t_optprop_LUT_3_24, &
+  & t_optprop_LUT_3_30, &
+  & t_optprop_LUT_8_10, &
+  & t_optprop_LUT_8_16, &
+  & t_optprop_LUT_8_18, &
+  & t_optprop_LUT_wedge_5_8, &
+  & t_optprop_LUT_rectilinear_wedge_5_8, &
+  & t_optprop_LUT_wedge_18_8
 
 use m_optprop_ANN, only : t_optprop_ANN, t_optprop_ANN_3_10
 use m_boxmc_geometry, only : setup_default_unit_cube_geometry, setup_default_wedge_geometry
@@ -56,6 +67,7 @@ public ::                          &
   t_optprop_3_10_ann,              &
   t_optprop_8_10,                  &
   t_optprop_3_16,                  &
+  t_optprop_3_24,                  &
   t_optprop_3_30,                  &
   t_optprop_8_16,                  &
   t_optprop_8_18,                  &
@@ -110,6 +122,11 @@ end type
 type,extends(t_optprop_cube) :: t_optprop_3_16
   contains
     procedure :: dir2diff_coeff_symmetry => dir3_to_diff16_coeff_symmetry
+end type
+
+type,extends(t_optprop_cube) :: t_optprop_3_24
+  contains
+    procedure :: dir2diff_coeff_symmetry => dir3_to_diff24_coeff_symmetry
 end type
 
 type,extends(t_optprop_cube) :: t_optprop_3_30
@@ -173,6 +190,9 @@ contains
 
       class is (t_optprop_3_16)
         if(.not.allocated(OPP%LUT) ) allocate(t_optprop_LUT_3_16::OPP%LUT)
+
+      class is (t_optprop_3_24)
+        if(.not.allocated(OPP%LUT) ) allocate(t_optprop_LUT_3_24::OPP%LUT)
 
       class is (t_optprop_3_30)
         if(.not.allocated(OPP%LUT) ) allocate(t_optprop_LUT_3_30::OPP%LUT)
@@ -1055,6 +1075,27 @@ contains
        coeff(1+(14-1)*dof:14*dof) = newcoeff([1, 2, 3] + dof*(13-1) )
        coeff(1+(15-1)*dof:15*dof) = newcoeff([1, 2, 3] + dof*(16-1) )
        coeff(1+(16-1)*dof:16*dof) = newcoeff([1, 2, 3] + dof*(15-1) )
+    endif
+    if(.False.) then ! remove compiler unused warnings
+      select type(OPP)
+      end select
+      if(lswitch_east .or. lswitch_north) coeff=coeff
+    endif
+  end subroutine
+
+  subroutine dir3_to_diff24_coeff_symmetry(OPP, coeff, lswitch_east, lswitch_north)
+    class(t_optprop_3_24)        :: OPP
+    logical, intent(in)          :: lswitch_east, lswitch_north
+    real(irealLUT),intent(inout) :: coeff(:)
+    !integer(iintegers), parameter:: dof = 3
+    real(irealLUT)               :: newcoeff(size(coeff))
+    if(lswitch_east) then
+      newcoeff = coeff
+      call CHKERR(1_mpiint, 'not yet implemented')
+    endif
+    if(lswitch_north) then
+      newcoeff = coeff
+      call CHKERR(1_mpiint, 'not yet implemented')
     endif
     if(.False.) then ! remove compiler unused warnings
       select type(OPP)
