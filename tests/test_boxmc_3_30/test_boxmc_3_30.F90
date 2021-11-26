@@ -239,7 +239,7 @@ contains
     ! should send diffuse radiation into vertical angle stream
     theta = 0
     phi = 0; src = 1
-    T_target = [real(ireals) :: exp(-sum(bg(1:2))*dz), 0, 0]
+    T_target = [real(ireals) :: exp(real(-sum(bg(1:2))*dz,ireals)), 0, 0]
     S_target = 0; S_target(2) = .367879
     call bmc%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
     write(msg,*) ' test_boxmc_select_cases_direct_srctopface',src,phi,theta
@@ -248,7 +248,7 @@ contains
 
     theta = 180
     phi = 0; src = 1
-    T_target = [real(ireals) :: exp(-sum(bg(1:2))*dz), 0, 0]
+    T_target = [real(ireals) :: exp(real(-sum(bg(1:2))*dz,ireals)), 0, 0]
     S_target = 0; S_target(1) = .367879
     call bmc%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
     write(msg,*) ' test_boxmc_select_cases_direct_srctopface',src,phi,theta
