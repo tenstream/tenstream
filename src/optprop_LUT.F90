@@ -53,11 +53,19 @@ module m_optprop_LUT
     wedge_sphere_radius
 
   use m_boxmc, only: t_boxmc, &
-    t_boxmc_1_2, &
-    t_boxmc_3_6, t_boxmc_3_10, t_boxmc_3_16, t_boxmc_3_30, &
-    t_boxmc_8_10, t_boxmc_8_12, t_boxmc_8_16, &
-    t_boxmc_8_18, &
-    t_boxmc_wedge_5_8, t_boxmc_wedge_18_8
+    & t_boxmc_1_2, &
+    & t_boxmc_3_6, &
+    & t_boxmc_3_10, &
+    & t_boxmc_3_16, &
+    & t_boxmc_3_24, &
+    & t_boxmc_3_30, &
+    & t_boxmc_8_10, &
+    & t_boxmc_8_12, &
+    & t_boxmc_8_16, &
+    & t_boxmc_8_18, &
+    & t_boxmc_wedge_5_8, &
+    & t_boxmc_wedge_18_8
+
   use m_tenstream_interpolation, only: interp_4d, interp_vec_simplex_nd
   use m_netcdfio
 
@@ -88,6 +96,7 @@ module m_optprop_LUT
     t_optprop_LUT_3_10, &
     t_optprop_LUT_3_10_for_ANN, &
     t_optprop_LUT_3_16, &
+    t_optprop_LUT_3_24, &
     t_optprop_LUT_3_30, &
     t_optprop_LUT_8_10, &
     t_optprop_LUT_8_12, &
@@ -141,6 +150,8 @@ module m_optprop_LUT
   type,extends(t_optprop_LUT) :: t_optprop_LUT_3_10_for_ANN
   end type
   type,extends(t_optprop_LUT) :: t_optprop_LUT_3_16
+  end type
+  type,extends(t_optprop_LUT) :: t_optprop_LUT_3_24
   end type
   type,extends(t_optprop_LUT) :: t_optprop_LUT_3_30
   end type
@@ -217,6 +228,12 @@ contains
             OPP%diff_streams = 16
             OPP%lutbasename=trim(lut_basename)
             allocate(t_boxmc_3_16::OPP%bmc)
+
+          class is (t_optprop_LUT_3_24)
+            OPP%dir_streams  = 3
+            OPP%diff_streams = 24
+            OPP%lutbasename=trim(lut_basename)
+            allocate(t_boxmc_3_24::OPP%bmc)
 
           class is (t_optprop_LUT_3_30)
             OPP%dir_streams  = 3
@@ -954,6 +971,9 @@ subroutine LUT_bmc_wrapper_determine_sample_pts(OPP, config, index_1d, dir, &
   class is (t_optprop_LUT_3_16)
     call prep_pprts()
 
+  class is (t_optprop_LUT_3_24)
+    call prep_pprts()
+
   class is (t_optprop_LUT_3_30)
     call prep_pprts()
 
@@ -1232,6 +1252,9 @@ end subroutine
 
     class is (t_optprop_LUT_3_16)
       call set_op_param_space(OPP, 'LUT_3_16', ierr); call CHKERR(ierr)
+
+    class is (t_optprop_LUT_3_24)
+      call set_op_param_space(OPP, 'LUT_3_24', ierr); call CHKERR(ierr)
 
     class is (t_optprop_LUT_3_30)
       call set_op_param_space(OPP, 'LUT_3_30', ierr); call CHKERR(ierr)
