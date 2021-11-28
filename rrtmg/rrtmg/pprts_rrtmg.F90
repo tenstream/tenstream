@@ -93,6 +93,9 @@ module m_pprts_rrtmg
   use m_tenstr_rrtmg_base, only: t_rrtmg_log_events, setup_log_events
   use m_buildings, only: t_pprts_buildings, clone_buildings, destroy_buildings
 
+  use m_tenstr_rrtmg_lw_init, only: rrtmg_lw_ini
+  use m_tenstr_rrtmg_sw_init, only: rrtmg_sw_ini
+
   implicit none
 
   private
@@ -149,6 +152,9 @@ contains
       call init_pprts(comm, zm, xm, ym, dx, dy, sundir, solver, dz3d=dz_t2b, &
         collapseindex=pprts_icollapse)
     endif
+
+    call rrtmg_lw_ini(1006._rb)
+    call rrtmg_sw_ini(1006._rb)
   end subroutine
 
   subroutine smooth_surface_fluxes(solver, edn, eup)
@@ -301,6 +307,10 @@ contains
       & opt_time, solar_albedo_2d, thermal_albedo_2d, &
       & opt_solar_constant,                           &
       & opt_buildings_solar, opt_buildings_thermal,   &
+      & opt_tau_solar,                                &
+      & opt_w0_solar,                                 &
+      & opt_g_solar,                                  &
+      & opt_tau_thermal,                              &
       & lonly_initialize)
 
     integer(mpiint), intent(in)     :: comm ! MPI Communicator
@@ -331,6 +341,13 @@ contains
     ! see definition for details on how to set it up
     type(t_pprts_buildings), intent(inout), optional :: opt_buildings_solar
     type(t_pprts_buildings), intent(inout), optional :: opt_buildings_thermal
+
+    ! optional optical properties with dims(nlyr(srfc to TOA), local_nx, local_ny, nr-g-points)
+    ! used e.g. for aerosol or vegetation, you can provide only tau or (tau and w0) defaults to w0=0 and g=0
+    ! note that first dimension can also be smaller than nlyr, we will fill it up from the ground,
+    ! i.e. if you provide only two layers, the two lowermost layers near the surface will be filled with addition optprops
+    real(ireals), intent(in), optional, dimension(:,:,:,:) :: opt_tau_solar, opt_w0_solar, opt_g_solar
+    real(ireals), intent(in), optional, dimension(:,:,:,:) :: opt_tau_thermal
 
     ! Fluxes and absorption in [W/m2] and [W/m3] respectively.
     ! Dimensions will probably be bigger than the dynamics grid, i.e. will have
@@ -422,16 +439,18 @@ contains
       "-skip_thermal" , lskip_thermal, lflg , ierr) ;call CHKERR(ierr)
     if(lthermal.and..not.lskip_thermal)then
       call PetscLogStagePush(log_events%stage_rrtmg_thermal, ierr); call CHKERR(ierr)
-      call compute_thermal(&
-        & solver, &
-        & atm, &
-        & ie, je, ke, ke1, &
-        & albedo_thermal, &
-        & edn, eup, abso, &
-        & opt_time=opt_time, &
-        & lrrtmg_only=lrrtmg_only, &
-        & thermal_albedo_2d=thermal_albedo_2d, &
-        & opt_buildings=opt_buildings_thermal)
+      call compute_thermal(                           &
+        & solver,                                     &
+        & atm,                                        &
+        & ie, je, ke, ke1,                            &
+        & albedo_thermal,                             &
+        & edn, eup, abso,                             &
+        & opt_time          = opt_time,               &
+        & lrrtmg_only       = lrrtmg_only,            &
+        & thermal_albedo_2d = thermal_albedo_2d,      &
+        & opt_buildings     = opt_buildings_thermal,  &
+        & opt_tau           = opt_tau_thermal         &
+        & )
       call PetscLogStagePop(ierr); call CHKERR(ierr) ! pop solver%logs%stage_rrtmg_thermal
     endif
 
@@ -444,17 +463,21 @@ contains
         "-skip_solar" , lskip_solar, lflg , ierr) ;call CHKERR(ierr)
       if(.not.lskip_solar) then
         call PetscLogStagePush(log_events%stage_rrtmg_solar, ierr); call CHKERR(ierr)
-        call compute_solar(&
-          & solver, &
-          & atm, &
-          & ie, je, ke, &
-          & sundir, albedo_solar, &
-          & edir, edn, eup, abso, &
-          & opt_time=opt_time, &
-          & solar_albedo_2d=solar_albedo_2d, &
-          & lrrtmg_only=lrrtmg_only, &
-          & opt_solar_constant=opt_solar_constant, &
-          & opt_buildings=opt_buildings_solar)
+        call compute_solar(                          &
+          & solver,                                  &
+          & atm,                                     &
+          & ie, je, ke,                              &
+          & sundir, albedo_solar,                    &
+          & edir, edn, eup, abso,                    &
+          & opt_time          = opt_time,            &
+          & solar_albedo_2d   = solar_albedo_2d,     &
+          & lrrtmg_only       = lrrtmg_only,         &
+          & opt_solar_constant= opt_solar_constant,  &
+          & opt_buildings     = opt_buildings_solar, &
+          & opt_tau           = opt_tau_solar,       &
+          & opt_w0            = opt_w0_solar,        &
+          & opt_g             = opt_g_solar          &
+          & )
         call PetscLogStagePop(ierr); call CHKERR(ierr) ! pop solver%logs%stage_rrtmg_solar
       endif
     endif
@@ -545,11 +568,19 @@ contains
       end subroutine
   end subroutine
 
-  subroutine compute_thermal(solver, atm, ie, je, ke, ke1, &
-      albedo, &
-      edn, eup, abso, opt_time, lrrtmg_only, &
-      thermal_albedo_2d, &
-      opt_buildings)
+  subroutine compute_thermal( &
+      & solver,               &
+      & atm,                  &
+      & ie, je, ke, ke1,      &
+      & albedo,               &
+      & edn,                  &
+      & eup,                  &
+      & abso,                 &
+      & opt_time,             &
+      & lrrtmg_only,          &
+      & thermal_albedo_2d,    &
+      & opt_buildings,        &
+      & opt_tau)
 
     use m_tenstr_rrlw_wvn, only : ngb, wavenum1, wavenum2
     use m_tenstr_parrrtm, only: ngptlw
@@ -565,6 +596,7 @@ contains
     real(ireals), optional, intent(in) :: opt_time, thermal_albedo_2d(:,:)
     logical, optional, intent(in) :: lrrtmg_only
     type(t_pprts_buildings), intent(inout), optional :: opt_buildings
+    real(ireals), intent(in), optional, dimension(:,:,:,:) :: opt_tau
 
     real(ireals),allocatable, target, dimension(:,:,:,:) :: tau, Bfrac  ! [nlyr, ie, je, ngptlw]
     real(ireals),allocatable, dimension(:,:,:) :: kabs, ksca, g, Blev   ! [nlyr(+1), local_nx, local_ny]
@@ -722,6 +754,8 @@ contains
       enddo
     endif
     Bfrac(1,:,:,:) = Bfrac(2,:,:,:)
+
+    call add_optional_optprop(tau=tau, opt_tau=opt_tau)
 
     allocate(kabs (ke , i1:ie, i1:je))
     allocate(Blev (ke1, i1:ie, i1:je))
@@ -898,10 +932,26 @@ contains
       end function
   end subroutine compute_thermal
 
-  subroutine compute_solar(solver, atm, ie, je, ke, &
-      sundir, albedo, &
-      edir, edn, eup, abso, opt_time, solar_albedo_2d, lrrtmg_only, &
-      opt_solar_constant, opt_buildings)
+  subroutine compute_solar( &
+      & solver,             &
+      & atm,                &
+      & ie,                 &
+      & je,                 &
+      & ke,                 &
+      & sundir,             &
+      & albedo,             &
+      & edir,               &
+      & edn,                &
+      & eup,                &
+      & abso,               &
+      & opt_time,           &
+      & solar_albedo_2d,    &
+      & lrrtmg_only,        &
+      & opt_solar_constant, &
+      & opt_buildings,      &
+      & opt_tau,            &
+      & opt_w0,             &
+      & opt_g)
 
       use m_tenstr_parrrsw, only: ngptsw
       use m_tenstr_rrtmg_sw_spcvrt, only: tenstr_solsrc
@@ -919,6 +969,7 @@ contains
     logical, optional, intent(in) :: lrrtmg_only
     real(ireals), intent(in), optional :: opt_solar_constant
     type(t_pprts_buildings), intent(inout), optional :: opt_buildings
+    real(ireals), intent(in), optional, dimension(:,:,:,:) :: opt_tau, opt_w0, opt_g
 
     real(ireals) :: edirTOA
 
@@ -1081,6 +1132,9 @@ contains
         enddo
       enddo
     endif
+
+    call add_optional_optprop(tau, w0, g, opt_tau, opt_w0, opt_g)
+
     w0 = min(one, max(zero, w0))
 
     spectral_bands = get_spectral_bands(solver%comm, i1, int(ngptsw, iintegers))
@@ -1223,5 +1277,91 @@ contains
     logical, intent(in) :: lfinalizepetsc
     ! Tidy up the solver
     call destroy_pprts(solver, lfinalizepetsc=lfinalizepetsc)
+  end subroutine
+
+  subroutine add_optional_optprop(tau, w0, g, opt_tau, opt_w0, opt_g)
+    real(ireals), intent(inout), optional, dimension(:,:,:,:) :: tau, w0, g
+    real(ireals), intent(in), optional, dimension(:,:,:,:) :: opt_tau, opt_w0, opt_g
+
+    real(ireals) :: tausca_old, tausca_new
+    integer(iintegers) :: k,i,j,l
+
+    call check_shape('tau', tau, opt_tau)
+    call check_shape('w0', w0, opt_w0)
+    call check_shape('g', g, opt_g)
+
+    if(present(opt_g) .and. .not.present(opt_w0)) call CHKERR(1_mpiint, 'if opt_g is provided, need also opt_w0')
+    if((present(opt_w0).or.present(opt_g)) .and. .not.present(opt_tau)) &
+      & call CHKERR(1_mpiint, 'if opt_g or opt_w0 is provided, need also opt_tau')
+
+    if(present(opt_g)) then
+      do l = 1, size(opt_tau,4)
+        do j = 1, size(opt_tau,3)
+          do i = 1, size(opt_tau,2)
+            do k = 1, size(opt_tau,1)
+              tausca_old = tau(k,i,j,l) * w0(k,i,j,l)
+              tausca_new = opt_tau(k,i,j,l) * opt_w0(k,i,j,l)
+              g(k,i,j,l) = (g(k,i,j,l) * tausca_old + opt_g (k,i,j,l) * tausca_new) / (tausca_old+tausca_new)
+              w0(k,i,j,l) = (tausca_old+tausca_new) / (tau(k,i,j,l) + opt_tau(k,i,j,l))
+              tau(k,i,j,l) = tau(k,i,j,l) + opt_tau(k,i,j,l)
+            enddo
+          enddo
+        enddo
+      enddo
+    elseif(present(opt_w0)) then
+      do l = 1, size(opt_tau,4)
+        do j = 1, size(opt_tau,3)
+          do i = 1, size(opt_tau,2)
+            do k = 1, size(opt_tau,1)
+              tausca_old = tau(k,i,j,l) * w0(k,i,j,l)
+              tausca_new = opt_tau(k,i,j,l) * opt_w0(k,i,j,l)
+              g(k,i,j,l) = g(k,i,j,l) * tausca_old / (tausca_old+tausca_new)
+              w0(k,i,j,l) = (tausca_old+tausca_new) / (tau(k,i,j,l) + opt_tau(k,i,j,l))
+              tau(k,i,j,l) = tau(k,i,j,l) + opt_tau(k,i,j,l)
+            enddo
+          enddo
+        enddo
+      enddo
+    elseif(present(opt_tau)) then
+      do l = 1, size(opt_tau,4)
+        do j = 1, size(opt_tau,3)
+          do i = 1, size(opt_tau,2)
+            do k = 1, size(opt_tau,1)
+              tau(k,i,j,l) = tau(k,i,j,l) + opt_tau(k,i,j,l)
+            enddo
+          enddo
+        enddo
+      enddo
+    endif
+
+    contains
+      subroutine check_shape(varname, var, opt_var)
+        character(len=*), intent(in) :: varname
+        real(ireals), intent(in), optional, dimension(:,:,:,:) :: var
+        real(ireals), intent(in), optional, dimension(:,:,:,:) :: opt_var
+        integer :: i
+
+        if(.not.present(opt_var)) return
+
+        if(present(var).neqv.present(opt_var)) &
+          & call CHKERR(-1_mpiint, trim(varname)//' / opt_'//trim(varname)//&
+            & ' :: cannot have one argument, need both or none '// &
+            & '('//toStr(present(var))//'/'//toStr(present(opt_var))//')')
+
+        if (size(opt_var,1) .gt. size(var,1)) then
+          call CHKERR(1_mpiint, trim(varname)//" :: first dimension (nlyr) of opt_var "// &
+            & " cannot be larger than the target array. "//new_line('')// &
+            & " shape(var)    "//toStr(shape(var))//new_line('')// &
+            & " shape(opt_var)"//toStr(shape(opt_var)))
+        endif
+        do i=2,4
+          if (size(opt_var,i) .gt. size(var,i)) then
+            call CHKERR(1_mpiint, trim(varname)//" :: dimension "//toStr(i)//" of opt_var "// &
+              & " has to be same as the target array. "//new_line('')// &
+              & " shape(var)    "//toStr(shape(var))//new_line('')// &
+              & " shape(opt_var)"//toStr(shape(opt_var)))
+          endif
+        enddo
+      end subroutine
   end subroutine
 end module

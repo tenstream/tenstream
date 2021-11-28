@@ -25,7 +25,7 @@ module m_schwarzschild
 #endif
 
 use m_data_parameters, only: ireals,iintegers,zero,one,pi,EXP_MINVAL
-use m_helper_functions, only: get_arg
+use m_helper_functions, only: get_arg, expm1
 implicit none
 
 private
@@ -38,7 +38,7 @@ public schwarzschild, B_eff
         real(ireals), intent(out) :: B
         integer(iintegers) :: imu
         real(ireals) :: mu
-        integer(iintegers), parameter :: Nmu=5
+        integer(iintegers), parameter :: Nmu=2
         real(ireals), save :: legendre_wi(Nmu)=-1._ireals
         real(ireals), save :: legendre_pt(Nmu)=-1._ireals
 
@@ -54,12 +54,14 @@ public schwarzschild, B_eff
         contains
           real(ireals) function B_eff_mu(B_far, B_near, tau, mu)
             real(ireals), intent(in) :: B_far, B_near, tau, mu
-            real(ireals) :: t
-            if(tau/mu.lt.sqrt(epsilon(tau))) then
+            real(ireals) :: tm1, dtau
+            real(ireals), parameter :: eps = 1e-3_ireals
+            dtau = tau / mu
+            if(dtau.lt.eps) then
               B_eff_mu = (B_far+B_near)*.5_ireals
             else
-              t = exp(-tau/mu)
-              B_eff_mu = (-B_near + B_far * t)/(-1._ireals + t) + ((B_far - B_near) *mu)/tau
+              tm1 = expm1(-dtau)
+              B_eff_mu = (-B_near + B_far * (tm1+1))/(tm1) + ((B_far - B_near) * mu) / tau
             endif
           end function
       end subroutine

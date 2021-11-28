@@ -34,7 +34,7 @@ module m_pprts_external_solvers
     & t_state_container, prepare_solution, destroy_solution, &
     & atmk, set_dmda_cell_coordinates, &
     & interpolate_cell_values_to_vertices
-  use m_schwarzschild, only: schwarzschild, B_eff
+  use m_schwarzschild, only: schwarzschild
   use m_twostream, only: delta_eddington_twostream, adding_delta_eddington_twostream
 
   use m_icon_plex_utils, only: create_2d_regular_plex, dmplex_2D_to_3D
@@ -932,7 +932,7 @@ contains
           call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
             "-pprts_rayli_photons", nphotons_r, lflg,ierr) ; call CHKERR(ierr)
 
-          Nphotons_r = Nphotons_r/ri%num_subcomm_masters
+          Nphotons_r = Nphotons_r / real(ri%num_subcomm_masters, ireals)
 
           if(submyid.eq.run_rank) then
             plex_solution%uid = solution%uid
@@ -1047,9 +1047,9 @@ contains
     type(t_state_container)       :: solution
     type(t_pprts_buildings), optional, intent(in) :: opt_buildings
 
-    real(ireals),pointer,dimension(:,:,:,:) :: xv_dir=>null(),xv_diff=>null()!, xv_abso=>null()
-    real(ireals),pointer,dimension(:) :: xv_dir1d=>null(),xv_diff1d=>null()!, xv_abso1d=>null()
-    integer(iintegers) :: i,j,src
+    real(ireals),pointer,dimension(:,:,:,:) :: xv_dir=>null(),xv_diff=>null(), xv_abso=>null()
+    real(ireals),pointer,dimension(:) :: xv_dir1d=>null(),xv_diff1d=>null(), xv_abso1d=>null()
+    integer(iintegers) :: i,j,k,src
 
     real(ireals),allocatable :: dtau(:),kext(:),w0(:),g(:),S(:),Edn(:),Eup(:)
     real(ireals) :: mu0, incSolar, fac, Ag, Bsrfc
@@ -1111,7 +1111,7 @@ contains
       incSolar = edirTOA * mu0
 
       call getVecPointer(C_diff%da, solution%ediff, xv_diff1d, xv_diff)
-      !call getVecPointer(C_one%da, solution%abso, xv_abso1d, xv_abso)
+      call getVecPointer(C_one%da, solution%abso, xv_abso1d, xv_abso)
 
       allocate( S  (C_one_atm1%zs:C_one_atm1%ze) )
       allocate( Eup(C_one_atm1%zs:C_one_atm1%ze) )
@@ -1225,30 +1225,33 @@ contains
             endif
           enddo
 
-          !xv_abso(i0,:,i,j) = &
-          !  & + Edn(atmk(atm, C_one_atm1%zs)  :C_one_atm1%ze-1) &
-          !  & - Edn(atmk(atm, C_one_atm1%zs)+1:C_one_atm1%ze  ) &
-          !  & - Eup(atmk(atm, C_one_atm1%zs)  :C_one_atm1%ze-1) &
-          !  & + Eup(atmk(atm, C_one_atm1%zs)+1:C_one_atm1%ze  )
+          xv_abso(i0,:,i,j) = &
+            & + Edn(atmk(atm, C_one_atm1%zs)  :C_one_atm1%ze-1) &
+            & - Edn(atmk(atm, C_one_atm1%zs)+1:C_one_atm1%ze  ) &
+            & - Eup(atmk(atm, C_one_atm1%zs)  :C_one_atm1%ze-1) &
+            & + Eup(atmk(atm, C_one_atm1%zs)+1:C_one_atm1%ze  )
 
-          !if(solution%lsolar_rad) then
-          !  xv_abso(i0,:,i,j) = xv_abso(i0,:,i,j) &
-          !    & + S(atmk(atm, C_one_atm1%zs)  :C_one_atm1%ze-1) &
-          !    & - S(atmk(atm, C_one_atm1%zs)+1:C_one_atm1%ze  )
-          !endif
+          if(solution%lsolar_rad) then
+            xv_abso(i0,:,i,j) = xv_abso(i0,:,i,j) &
+              & + S(atmk(atm, C_one_atm1%zs)  :C_one_atm1%ze-1) &
+              & - S(atmk(atm, C_one_atm1%zs)+1:C_one_atm1%ze  )
+          endif
+          do k=C_one%zs, C_one%ze
+            xv_abso(i0,k,i,j) = xv_abso(i0,k,i,j) / atm%dz(atmk(atm,k),i,j)
+          enddo
         enddo
       enddo
 
       if(solution%lsolar_rad) &
         call restoreVecPointer(C_dir%da, solution%edir, xv_dir1d, xv_dir  )
       call restoreVecPointer(C_diff%da, solution%ediff, xv_diff1d, xv_diff )
-      !call restoreVecPointer(C_one%da, solution%abso, xv_abso1d, xv_abso)
+      call restoreVecPointer(C_one%da, solution%abso, xv_abso1d, xv_abso)
 
       !Twostream solver returns fluxes as [W]
       solution%lWm2_dir  = .True.
       solution%lWm2_diff = .True.
       ! and mark solution that it is not up to date
-      solution%lchanged  = .True.
+      solution%lchanged  = .False.
 
       deallocate(S)
       deallocate(Edn)
@@ -1398,8 +1401,8 @@ contains
     type(t_state_container) :: solution
     type(t_pprts_buildings), optional, intent(in) :: opt_buildings
 
-    real(ireals),pointer,dimension(:,:,:,:) :: xv_diff=>null()
-    real(ireals),pointer,dimension(:)       :: xv_diff1d=>null()
+    real(ireals),pointer,dimension(:,:,:,:) :: xv_diff=>null(), xv_abso=>null()
+    real(ireals),pointer,dimension(:)       :: xv_diff1d=>null(), xv_abso1d=>null()
     integer(iintegers) :: i,j,k,idof
     integer(iintegers) :: Nmu, ak
     logical :: lflg
@@ -1410,10 +1413,12 @@ contains
     if(present(opt_buildings)) call CHKERR(1_mpiint, "buildings not implemented for pprts_schwarzschild")
 
     associate( &
-        C_diff => solver%C_diff, &
         atm    => solver%atm,    &
+        C_diff => solver%C_diff, &
         C_one  => solver%C_one,  &
-        C_one1 => solver%C_one1)
+        C_one1 => solver%C_one1, &
+        C_one_atm   => solver%C_one_atm, &
+        C_one_atm1  => solver%C_one_atm1)
 
       if(solution%lsolar_rad) call CHKERR(1_mpiint, 'Tried calling schwarschild solver for solar calculation -- stopping!')
       if(.not.allocated(atm%planck)) call CHKERR(1_mpiint, 'Tried calling schwarschild solver but no planck was given -- stopping!')
@@ -1422,12 +1427,13 @@ contains
 
       allocate(dtau(size(atm%dz,dim=1)))
 
+      call getVecPointer(C_one%da, solution%abso, xv_abso1d, xv_abso)
       call getVecPointer(C_diff%da, solution%ediff, xv_diff1d, xv_diff)
 
       allocate( Eup(0:size(atm%dz,dim=1)) )
       allocate( Edn(0:size(atm%dz,dim=1)) )
 
-      Nmu = 10
+      Nmu = 4
       call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
         "-schwarzschild_Nmu" , Nmu, lflg , ierr) ;call CHKERR(ierr)
 
@@ -1449,9 +1455,9 @@ contains
           ! icollapse needs special case for TOA flx's
           do idof = 0, solver%difftop%dof-1
             if (solver%difftop%is_inward(i1+idof)) then ! Edn
-              xv_diff(idof,C_diff%zs,i,j) = Edn(0)
+              xv_diff(idof,C_diff%zs,i,j) = Edn(0) / real(solver%difftop%streams, ireals)
             else ! Eup
-              xv_diff(idof,C_diff%zs,i,j) = Eup(0)
+              xv_diff(idof,C_diff%zs,i,j) = Eup(0) / real(solver%difftop%streams, ireals)
             endif
           enddo
 
@@ -1460,23 +1466,34 @@ contains
             ak = atmk(atm,k)
             do idof = 0, solver%difftop%dof-1
               if (solver%difftop%is_inward(i1+idof)) then ! Edn
-                xv_diff(idof,k,i,j) = Edn(ak)
+                xv_diff(idof,k,i,j) = Edn(ak) / real(solver%difftop%streams, ireals)
               else ! Eup
-                xv_diff(idof,k,i,j) = Eup(ak)
+                xv_diff(idof,k,i,j) = Eup(ak) / real(solver%difftop%streams, ireals)
               endif
             enddo
           enddo
+
+          xv_abso(i0,:,i,j) = &
+            & + Edn(atmk(atm, C_one_atm1%zs)  :C_one_atm1%ze-1) &
+            & - Edn(atmk(atm, C_one_atm1%zs)+1:C_one_atm1%ze  ) &
+            & - Eup(atmk(atm, C_one_atm1%zs)  :C_one_atm1%ze-1) &
+            & + Eup(atmk(atm, C_one_atm1%zs)+1:C_one_atm1%ze  )
+
+          do k=C_one%zs, C_one%ze
+            xv_abso(i0,k,i,j) = xv_abso(i0,k,i,j) / atm%dz(atmk(atm,k),i,j)
+          enddo
+
         enddo
       enddo
-      xv_diff = xv_diff / real(solver%difftop%streams, ireals)
 
       call restoreVecPointer(C_diff%da, solution%ediff, xv_diff1d, xv_diff )
+      call restoreVecPointer(C_one%da, solution%abso, xv_abso1d, xv_abso)
 
       !Schwarzschild solver returns fluxes as [W/m^2]
       solution%lWm2_dir  = .True.
       solution%lWm2_diff = .True.
-      ! and mark solution that it is not up to date
-      solution%lchanged  = .True.
+      ! and mark solution that it is up to date
+      solution%lchanged  = .False.
 
       deallocate(Edn)
       deallocate(Eup)

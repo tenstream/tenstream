@@ -38,7 +38,7 @@ ubuntu-latest:
   image: ubuntu:latest
   before_script:
     - DEBIAN_FRONTEND=noninteractive apt-get -qq update
-    - DEBIAN_FRONTEND=noninteractive apt-get -qq install -fy build-essential cmake gfortran git python openmpi-bin libopenmpi-dev libopenblas-dev curl pkg-config
+    - DEBIAN_FRONTEND=noninteractive apt-get -qq install -fy build-essential cmake gfortran git python3 openmpi-bin libopenmpi-dev libopenblas-dev curl pkg-config
     - *template_build_PETSC
   tags:
     - docker.meteo.physik.lmu.de
@@ -57,7 +57,7 @@ ubuntu-rolling:
   image: ubuntu:rolling
   before_script:
     - DEBIAN_FRONTEND=noninteractive apt-get -qq update
-    - DEBIAN_FRONTEND=noninteractive apt-get -qq install -fy build-essential cmake gfortran git python openmpi-bin libopenmpi-dev libopenblas-dev curl pkg-config
+    - DEBIAN_FRONTEND=noninteractive apt-get -qq install -fy build-essential cmake gfortran git python3 openmpi-bin libopenmpi-dev libopenblas-dev curl pkg-config
     - *template_build_PETSC
   tags:
     - docker.meteo.physik.lmu.de
@@ -78,7 +78,7 @@ debian-testing:
   image: debian:testing
   before_script:
     - DEBIAN_FRONTEND=noninteractive apt-get -qq update
-    - DEBIAN_FRONTEND=noninteractive apt-get -qq install -fy build-essential cmake gfortran git python openmpi-bin libopenmpi-dev libopenblas-dev curl pkg-config
+    - DEBIAN_FRONTEND=noninteractive apt-get -qq install -fy build-essential cmake gfortran git python3 openmpi-bin libopenmpi-dev libopenblas-dev curl pkg-config
     - *template_build_PETSC
   tags:
     - docker.meteo.physik.lmu.de
@@ -153,34 +153,40 @@ intel:debug:
     CTEST_ARGS: '-E boxmc|LUT'
 
 # GCC
+mim:gcc:single_int64:
+  extends: .build:mim:default
+  variables:
+    MODULES: "cmake petsc/single_int64-gcc-9"
+    BUILD_TYPE: DEBUG
+
 mim:gcc:single:
   extends: .build:mim:default
   variables:
-    MODULES: "petsc/single-gcc-9"
+    MODULES: "cmake petsc/single-gcc-9"
 
 mim:gcc:debug:
   extends: .build:mim:default
   variables:
-    MODULES: "petsc/debug-gcc-9"
+    MODULES: "cmake petsc/debug-gcc-9"
     BUILD_TYPE: DEBUG
 
 implicit:mim:gcc:debug:
   extends: .build:mim:default
   variables:
-    MODULES: "petsc/single-gcc-9"
+    MODULES: "cmake petsc/single-gcc-9"
     BUILD_TYPE: DEBUG
     PETSC_OPTIONS: "-solar_dir_explicit no -solar_diff_explicit no -thermal_diff_explicit no"
 
 explicit:mim:gcc:debug:
   extends: .build:mim:default
   variables:
-    MODULES: "petsc/single-gcc-9"
+    MODULES: "cmake petsc/single-gcc-9"
     BUILD_TYPE: DEBUG
     PETSC_OPTIONS: "-solar_dir_explicit -solar_diff_explicit -thermal_diff_explicit"
 
 matshell:mim:gcc:debug:
   extends: .build:mim:default
   variables:
-    MODULES: "petsc/debug-gcc-9"
+    MODULES: "cmake petsc/debug-gcc-9"
     BUILD_TYPE: DEBUG
     PETSC_OPTIONS: "-solar_diff_shell -thermal_diff_shell"

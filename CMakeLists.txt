@@ -47,6 +47,8 @@ set(CTEST_CMAKE_GENERATOR "Unix Makefiles")
 set(CMAKE_C_STANDARD 99)
 
 # For python interfaces need -fPIC:
+set(PythonCompat_FIND_VERSION 3)
+find_package(PythonCompat REQUIRED)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 # Add IPO support if compiler allows it -- default is off because it A) doesnt work or B) compiles super slow
@@ -198,8 +200,9 @@ if("${PETSC_LIBEXT}" STREQUAL ".a")
 endif()
 
 # NetCDF
+set (NETCDF_FOUND FALSE)
 set (NETCDF_F90 "YES")
-find_package( NetCDF REQUIRED)
+find_package( NetCDF )
 if(${NETCDF_FOUND})
   message(STATUS "Found NetCDF:     ${NETCDF_FOUND}" )
   message(STATUS "NetCDF  Includes: ${NETCDF_INCLUDES}" )
@@ -209,9 +212,31 @@ if(${NETCDF_FOUND})
   include_directories(${NETCDF_INCLUDES_F90})
   list (APPEND EXTLIB ${NETCDF_LIBRARIES})
   list (APPEND CMAKE_INSTALL_RPATH ${NETCDF_LIBRARY_DIRS})
-else(${NETCDF_FOUND})
-  message(WARNING "CMake could not find your NETCDF install, you may need to add the NETCDF libraries in config/<loc>.cmake by hand." )
 endif(${NETCDF_FOUND})
+
+# if netcdf not found through find_package, try pkg-config
+if(NOT ${NETCDF_FOUND})
+  message(STATUS "Looking for NETCDF via pkg-config modules: netcdf netcdf-fortran")
+  include(FindPkgConfig)
+  pkg_check_modules(NETCDF REQUIRED netcdf netcdf-fortran)
+  if(${NETCDF_FOUND})
+    message(STATUS "NetCDF  Includes: ${NETCDF_netcdf-fortran_INCLUDEDIR} ${NETCDF_netcdf_INCLUDEDIR}" )
+    message(STATUS "NetCDF  LDFLAGS : ${NETCDF_LDFLAGS} ${NETCDF_LDFLAGS_OTHER} ${NETCDF_STATIC_LDFLAGS} ${NETCDF_STATIC_LDFLAGS_OTHER}")
+    message(STATUS "NetCDF  LibDir  : ${NETCDF_LIBRARY_DIRS}")
+
+    include_directories(${NETCDF_netcdf-fortran_INCLUDEDIR}  ${NETCDF_netcdf_INCLUDEDIR})
+    list (APPEND EXTLIB
+      ${NETCDF_LDFLAGS}
+      ${NETCDF_LDFLAGS_OTHER}
+      ${NETCDF_STATIC_LDFLAGS}
+      ${NETCDF_STATIC_LDFLAGS_OTHER})
+    list (APPEND CMAKE_INSTALL_RPATH ${NETCDF_LIBRARY_DIRS})
+  endif(${NETCDF_FOUND})
+endif(NOT ${NETCDF_FOUND})
+
+if(NOT ${NETCDF_FOUND})
+  message(FATAL_ERROR "CMake could not find your NETCDF install, you may need to add the NETCDF libraries in config/<loc>.cmake by hand." )
+endif(NOT ${NETCDF_FOUND})
 
 # HDF5
 find_package( HDF5 REQUIRED ) # use this for non-cmake install of HDF5
@@ -443,3 +468,11 @@ if(DOXYGEN_FOUND)
 else(FOXYGEN_FOUND)
   message(STATUS "Could not find Doxygen to create source code documentation")
 endif(DOXYGEN_FOUND)
+
+
+# list_all_cmake_vars
+#get_cmake_property(_variableNames VARIABLES)
+#list (SORT _variableNames)
+#foreach (_variableName ${_variableNames})
+#	message(STATUS "${_variableName}=${${_variableName}}")
+#endforeach()

@@ -11,6 +11,7 @@ module test_helper_functions
     & deg2rad, &
     & determine_normal_direction, &
     & distance_to_edge, &
+    & expm1, &
     & imp_allgather_int_inplace, &
     & imp_allreduce_mean, &
     & imp_allreduce_sum, &
@@ -59,6 +60,48 @@ class (MpiTestMethod), intent(inout) :: this
   call PetscInitialized(lpetsc_is_initialized, ierr)
   if(lpetsc_is_initialized) call PetscFinalize(ierr)
 end subroutine teardown
+@test(npes =[1,2,3])
+subroutine test_mpi_char_bcast(this)
+    class (MpiTestMethod), intent(inout) :: this
+
+    integer(mpiint) :: numnodes, comm, myid
+
+    character(len=10) :: s, s_target
+    character(len=10), allocatable :: s1d(:)
+
+    integer(iintegers), parameter :: N=10
+    integer(iintegers), parameter :: repetitions=100
+    integer(iintegers) :: rep, i
+
+    comm     = this%getMpiCommunicator()
+    numnodes = this%getNumProcesses()
+    myid     = this%getProcessRank()
+
+    if(myid.eq.0) allocate(s1d(N))
+
+    do rep = 1, repetitions
+      ! single char
+      s_target = "Rep"//toStr(rep)
+      if (myid.eq.0) then
+        s = s_target
+      endif
+      call imp_bcast(comm, s, 0_mpiint)
+      @mpiAssertEqual(s_target, s)
+
+      ! array of strings
+      if(myid.eq.0) then
+        do i = 1, size(s1d)
+          s1d(i) = "Rep"//toStr(rep)//':'//toStr(i)
+        enddo
+      endif
+      call imp_bcast(comm, s1d, 0_mpiint)
+      do i = 1, size(s1d)
+        s_target = "Rep"//toStr(rep)//':'//toStr(i)
+        @mpiAssertEqual(s_target, s1d(i))
+      enddo
+
+    enddo
+end subroutine
 
 @test(npes =[1,2,3])
 subroutine test_mpi_functions(this)
@@ -763,4 +806,18 @@ subroutine test_spherical2cartesian(this)
     @assertEqual(sundir, sundir2, eps)
   enddo
 end subroutine
+
+
+@test(npes=[1])
+subroutine test_expm1(this)
+  class (MpiTestMethod), intent(inout) :: this
+  real(ireals), parameter :: eps=sqrt(epsilon(eps))
+  real(ireals) :: x, y
+
+  x = 1e-20_ireals
+  !y = (1.-exp(-x)) / x ! the trivial equation is not numerically stable around 0
+  y = - expm1(-x) / x
+  @assertEqual(1._ireals, y, eps)
+end subroutine
+
 end module

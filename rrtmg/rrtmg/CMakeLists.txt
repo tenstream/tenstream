@@ -7,6 +7,7 @@ set( files
   "tenstr_rrtmg_base.F90"
   "dyn_atm_to_rrtmg.F90"
   "optprop_rrtmg.F90"
+  "vegetation_optprop.F90"
   )
 
 add_library( tenstr_rrtmg_objs OBJECT ${files} )

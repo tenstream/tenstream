@@ -35,7 +35,7 @@ foreach ( infile ${preprocessing_files} )
 
   ADD_CUSTOM_COMMAND(
     OUTPUT "${outfile}"
-    COMMAND ${FYPP_EXE} "${infile}" "${outfile}"
+    COMMAND ${Python_EXECUTABLE} ${FYPP_EXE} "${infile}" "${outfile}"
     MAIN_DEPENDENCY "${infile}"
     DEPENDS ${FYPP_EXE}
     VERBATIM
@@ -76,6 +76,7 @@ set( optprop_sources
   "optprop_ANN.F90"
   "optprop_base.F90"
   "optprop.F90"
+  "geometric_coeffs.F90"
   )
 
 set( solver_sources
@@ -102,13 +103,13 @@ add_library( pprts_base_objs OBJECT ${general_sources} ${optprop_sources} )
 if(BUILD_FORNADO)
   add_dependencies(pprts_base_objs ${FORNADO_LIBS})
 endif()
-add_library( pprts_base             $<TARGET_OBJECTS:pprts_base_objs> )
+add_library( pprts_base $<TARGET_OBJECTS:pprts_base_objs> )
 target_link_libraries( pprts_base ${FORNADO_LIBS} ${EXTLIB})
 
 # pprts libs
 add_library( pprts_objs OBJECT ${solver_sources} )
 add_dependencies( pprts_objs pprts_base plexrt )
-add_library( pprts        $<TARGET_OBJECTS:pprts_objs> )
+add_library( pprts $<TARGET_OBJECTS:pprts_objs> )
 target_link_libraries( pprts    pprts_base plexrt   ${EXTLIB})
 
 # CreateLUT binaries

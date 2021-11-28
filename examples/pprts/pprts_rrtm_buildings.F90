@@ -117,6 +117,7 @@ contains
       & pplev, ptlev,      &
       & atm                )
 
+    ! only init grid structures
     call pprts_rrtmg(comm,     &
       & solver, atm,           &
       & nxp, nyp, dx, dy,      &
@@ -140,6 +141,7 @@ contains
     if(present(buildings_solar).and.present(buildings_thermal)) then
       call build_pyramid()
 
+      ! call solver
       call pprts_rrtmg(comm,     &
         & solver, atm,           &
         & nxp, nyp, dx, dy,      &

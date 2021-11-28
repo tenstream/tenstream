@@ -186,6 +186,8 @@ subroutine init_diff_photon_3_10(bmc, p, src, vertices, ierr)
 
         real(ireal_dp) :: phi,mu,mu1,mu2
         real(ireal_dp) :: dx, dy, dz
+        real(ireal_dp), dimension(3) :: normal, U, V, cube_center, dir_p_to_cube_center
+        real(ireal_dp) :: Mrot(3,3)
 
         call setup_cube_coords_from_vertices(vertices, dx, dy, dz)
 
@@ -193,44 +195,65 @@ subroutine init_diff_photon_3_10(bmc, p, src, vertices, ierr)
         mu2 = R() ! evenly distribution between 0 and 90 degree
 
         mu=mu1
-        select case(src)
-        case (-1) ! thermal emission
-                p%loc = (/ L(dx) , L(dy) , L(dz) /)
-                mu = 2*mu2 - one
-                p%src_side = -1
-        case (1)
-                p%loc = (/ L(dx) , L(dy) , zero  /)
-                p%src_side = 2
-        case (2)
-                p%loc = (/ L(dx) , L(dy) , dz    /)
-                p%src_side = 1
-        case (3)
-                p%loc = (/ dx    , L(dy) , L(dz) /)
-                p%src_side = 4
-        case (4)
-                p%loc = (/ zero  , L(dy) , L(dz) /)
-                p%src_side = 3
-        case (5)
-                p%loc = (/ dx    , L(dy) , L(dz) /)
-                p%src_side = 4
-        case (6)
-                p%loc = (/ zero  , L(dy) , L(dz) /)
-                p%src_side = 3
-        case (7)
-                p%loc = (/ L(dx) , dy    , L(dz) /)
-                p%src_side = 6
-        case (8)
-                p%loc = (/ L(dx) , zero  , L(dz) /)
-                p%src_side = 5
-        case (9)
-                p%loc = (/ L(dx) , dy    , L(dz) /)
-                p%src_side = 6
-        case (10)
-                p%loc = (/ L(dx) , zero  , L(dz) /)
-                p%src_side = 5
-        case default
-                call CHKERR(1_mpiint, 'Dont know what to do with source spec: '//toStr(src))
-        end select
+
+        call CHKERR(size(vertices)-24, 'wrong size of vertices, expected 24 but found '//toStr(size(vertices)))
+        associate( &
+            pA => vertices(1:3), &
+            pB => vertices(4:6), &
+            pC => vertices(7:9), &
+            pD => vertices(10:12), &
+            pE => vertices(13:15), &
+            pF => vertices(16:18), &
+            pG => vertices(19:21), &
+            pH => vertices(22:24) &
+            )
+          select case(src)
+          case (-1) ! thermal emission
+            call CHKERR(-1_mpiint, 'thermal emission on distorted cubes currently not implemented')
+            p%loc = (/ L(dx) , L(dy) , L(dz) /)
+            mu = 2*mu2 - one
+            p%src_side = -1
+          case (1)
+            call rand_pnt_on_plane(pA,pB,pD,pC, p%loc, normal, U, V)
+            p%src_side = 2
+          case (2)
+            call rand_pnt_on_plane(pE,pG,pH,pF, p%loc, normal, U, V)
+            p%src_side = 1
+          case (3)
+            call rand_pnt_on_plane(pB,pF,pH,pD, p%loc, normal, U, V)
+            p%src_side = 4
+          case (4)
+            call rand_pnt_on_plane(pA,pC,pG,pE, p%loc, normal, U, V)
+            p%src_side = 3
+          case (5)
+            call rand_pnt_on_plane(pB,pF,pH,pD, p%loc, normal, U, V)
+            p%src_side = 4
+          case (6)
+            call rand_pnt_on_plane(pA,pC,pG,pE, p%loc, normal, U, V)
+            p%src_side = 3
+          case (7)
+            call rand_pnt_on_plane(pG,pC,pD,pH, p%loc, normal, U, V)
+            p%src_side = 6
+          case (8)
+            call rand_pnt_on_plane(pE,pF,pB,pA, p%loc, normal, U, V)
+            p%src_side = 5
+          case (9)
+            call rand_pnt_on_plane(pG,pC,pD,pH, p%loc, normal, U, V)
+            p%src_side = 6
+          case (10)
+            call rand_pnt_on_plane(pE,pF,pB,pA, p%loc, normal, U, V)
+            p%src_side = 5
+          case default
+            call CHKERR(1_mpiint, 'Dont know what to do with source spec: '//toStr(src))
+          end select
+
+          ! always nudge the photon a little bit inside the volume
+          cube_center = (pA+pB+pC+pD+pE+pF+pG+pH)/8._ireal_dp
+          dir_p_to_cube_center = cube_center - p%loc
+
+          p%loc = p%loc + sqrt(epsilon(p%loc)) * dir_p_to_cube_center
+
+        end associate
 
         select case(src)
           case(-1,1,2)
@@ -246,8 +269,12 @@ subroutine init_diff_photon_3_10(bmc, p, src, vertices, ierr)
         ! phi = 0 is y-axes
 
         select case(src)
+          case(1)
+            Mrot = rotation_matrix_local_basis_to_world( U, V, normal )
+            p%dir = matmul(real(Mrot,ireal_dp), p%dir)
           case(2)
-            p%dir = rotate_angle_y(p%dir,180*one)
+            Mrot = rotation_matrix_local_basis_to_world( U, V, normal )
+            p%dir = matmul(real(Mrot,ireal_dp), p%dir)
           case(3)
             p%dir = rotate_angle_y(p%dir, 90*one)
             p%dir = rotate_angle_x(p%dir, 90*one)
@@ -286,6 +313,18 @@ subroutine init_diff_photon_3_10(bmc, p, src, vertices, ierr)
 
         select type(bmc)
         end select
+
+        if(dot_product(p%dir, normal).lt.zero) then
+          ierr = 1000_mpiint + int(angle_between_two_vec(p%dir, normal), kind=mpiint)
+          call CHKWARN(1_mpiint, 'initial direction of the photon is pointing outside of the cube')
+          print *,'UUPS, are we starting in a wrong direction?'// &
+            & ' :: init_diff_photon_bmx_3_10', rad2deg(angle_between_two_vec(p%dir, normal))
+          print *,'src', src
+          print *,'normal',normal,'direction',p%dir
+          call print_photon(p)
+          call CHKERR(ierr)
+          return
+        endif
 
         ierr = 0
 end subroutine
