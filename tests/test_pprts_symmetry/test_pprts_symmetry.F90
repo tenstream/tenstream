@@ -10,11 +10,19 @@ module test_pprts_symmetry
   use m_pprts, only : init_pprts, set_optical_properties, &
     solve_pprts, set_angles, pprts_get_result_toZero
   use m_tenstream_options, only: read_commandline_options
-  use m_helper_functions, only: CHKERR, toStr, cstr, spherical_2_cartesian
+  use m_helper_functions, only: &
+    & CHKERR, &
+    & colored_str_by_range, &
+    & cstr, &
+    & spherical_2_cartesian, &
+    & toStr
 
-  use m_optprop, only: t_optprop, t_optprop_cube, &
+  use m_optprop, only: &
+    & t_optprop, &
+    & t_optprop_cube, &
     & t_optprop_3_10, &
     & t_optprop_3_16, &
+    & t_optprop_3_24, &
     & t_optprop_8_10, &
     & t_optprop_8_16
 
@@ -81,6 +89,11 @@ contains
     call test_north_south_symmetry(OPP)
     deallocate(OPP)
 
+    allocate (t_optprop_3_24 :: OPP)
+    call test_east_west_symmetry(OPP)
+    call test_north_south_symmetry(OPP)
+    deallocate(OPP)
+
   contains
     subroutine test_east_west_symmetry(OPP)
       class(t_optprop_cube)  :: OPP
@@ -90,10 +103,13 @@ contains
       real(irealLUT) :: angles(2)
       logical, parameter :: ldir=.False.
 
-      real(irealLUT), allocatable :: dir2dir(:), dir2diff(:)
+      real(irealLUT), allocatable :: dir2dir(:), dir2diff(:), tmp(:)
       real(irealLUT), allocatable :: dir2dir_rot(:), dir2diff_rot(:)
-      integer(iintegers) :: i
+      integer(iintegers) :: i, j, d0, d1
+      integer(iintegers) :: N
 
+      real(irealLUT), parameter :: color_limits(5) = [0., 1e-5, 1e-3, .1, 1.]
+      character(len=*), parameter :: colors(4) = [character(len=10):: 'black', 'blue', 'green', 'red']
 
       call init_mpi_data_parameters(comm)
 
@@ -108,27 +124,91 @@ contains
       allocate(dir2dir_rot(size(dir2dir)))
       allocate(dir2diff_rot(size(dir2diff)))
 
-      angles = [90, 30]
+      N = OPP%LUT%diff_streams / 3
+      allocate(tmp(OPP%LUT%diff_streams))
+
+      !------------------------------
+      angles = [90.001, 30.]
       call OPP%get_coeff_bmc(vertices, tauz, w0, g, ldir, dir2diff, angles)
 
       print *,cstr(' BMC coeff for angles '//toStr(angles), 'blue')
       do i = 1, OPP%LUT%dir_streams
-        print *,'dir2diff src', i, dir2diff(i:size(dir2diff):OPP%LUT%dir_streams)
+        tmp = dir2diff(i:size(dir2diff):OPP%LUT%dir_streams)
+        do j = 0, size(tmp) / N
+          d0 = 1+j*N; d1 = min((j+1)*N, size(tmp))
+          print *,'dir2diff src '//toStr(i)//' : (',d0,'-',d1,') '// &
+            & colored_str_by_range(tmp(d0:d1), color_limits, colors)
+        enddo
       enddo
+      print*,''
 
-      angles = [270, 30]
+      angles = [-90.001, 30.]
       call OPP%get_coeff_bmc(vertices, tauz, w0, g, ldir, dir2diff_rot, angles)
 
       print *,cstr(' BMC coeff for angles '//toStr(angles), 'blue')
       do i = 1, OPP%LUT%dir_streams
-        print *,'dir2diff src', i, dir2diff_rot(i:size(dir2diff_rot):OPP%LUT%dir_streams)
+        tmp = dir2diff_rot(i:size(dir2diff_rot):OPP%LUT%dir_streams)
+        do j = 0, size(tmp) / N
+          d0 = 1+j*N; d1 = min((j+1)*N, size(tmp))
+          print *,'dir2diff src '//toStr(i)//' : (',d0,'-',d1,')'//&
+            & colored_str_by_range(tmp(d0:d1), color_limits, colors)
+        enddo
       enddo
 
       call OPP%dir2diff_coeff_symmetry(dir2diff, .True., .False.)
 
       print *,cstr(' first angles but rotated for', 'blue')
       do i = 1, OPP%LUT%dir_streams
-        print *,'dir2diff src', i, dir2diff(i:size(dir2diff):OPP%LUT%dir_streams)
+        tmp = dir2diff(i:size(dir2diff):OPP%LUT%dir_streams)
+        do j = 0, size(tmp) / N
+          d0 = 1+j*N; d1 = min((j+1)*N, size(tmp))
+          print *,'dir2diff src '//toStr(i)//' : (',d0,'-',d1,')'//&
+            & colored_str_by_range(tmp(d0:d1), color_limits, colors)
+        enddo
+      enddo
+
+      do i = 1, OPP%LUT%dir_streams
+        @mpiassertEqual(dir2diff_rot, dir2diff, eps, 'computed two opposite directions with BMC and then applied east_west symmetry on first one')
+      enddo
+
+      angles = [89.999, 30.]
+      call OPP%get_coeff_bmc(vertices, tauz, w0, g, ldir, dir2diff, angles)
+
+      print *,cstr(' BMC coeff for angles '//toStr(angles), 'blue')
+      do i = 1, OPP%LUT%dir_streams
+        tmp = dir2diff(i:size(dir2diff):OPP%LUT%dir_streams)
+        do j = 0, size(tmp) / N
+          d0 = 1+j*N; d1 = min((j+1)*N, size(tmp))
+          print *,'dir2diff src '//toStr(i)//' : (',d0,'-',d1,')'//&
+            & colored_str_by_range(tmp(d0:d1), color_limits, colors)
+        enddo
+      enddo
+      print*,''
+
+      !------------------------------
+      angles = [-89.999, 30.]
+      call OPP%get_coeff_bmc(vertices, tauz, w0, g, ldir, dir2diff_rot, angles)
+
+      print *,cstr(' BMC coeff for angles '//toStr(angles), 'blue')
+      do i = 1, OPP%LUT%dir_streams
+        tmp = dir2diff_rot(i:size(dir2diff_rot):OPP%LUT%dir_streams)
+        do j = 0, size(tmp) / N
+          d0 = 1+j*N; d1 = min((j+1)*N, size(tmp))
+          print *,'dir2diff src '//toStr(i)//' : (',d0,'-',d1,')'//&
+            & colored_str_by_range(tmp(d0:d1), color_limits, colors)
+        enddo
+      enddo
+
+      call OPP%dir2diff_coeff_symmetry(dir2diff, .True., .False.)
+
+      print *,cstr(' first angles but rotated for', 'blue')
+      do i = 1, OPP%LUT%dir_streams
+        tmp = dir2diff(i:size(dir2diff):OPP%LUT%dir_streams)
+        do j = 0, size(tmp) / N
+          d0 = 1+j*N; d1 = min((j+1)*N, size(tmp))
+          print *,'dir2diff src '//toStr(i)//' : (',d0,'-',d1,')'//&
+            & colored_str_by_range(tmp(d0:d1), color_limits, colors)
+        enddo
       enddo
 
       do i = 1, OPP%LUT%dir_streams
@@ -165,7 +245,7 @@ contains
       allocate(dir2dir_rot(size(dir2dir)))
       allocate(dir2diff_rot(size(dir2diff)))
 
-      angles = [0, 30]
+      angles = [0.001, 30.]
       call OPP%get_coeff_bmc(vertices, tauz, w0, g, ldir, dir2diff, angles)
 
       print *,cstr(' BMC coeff for angles '//toStr(angles), 'blue')
@@ -173,7 +253,35 @@ contains
         print *,'dir2diff src', i, dir2diff(i:size(dir2diff):OPP%LUT%dir_streams)
       enddo
 
-      angles = [180, 30]
+      angles = [179.999, 30.]
+      call OPP%get_coeff_bmc(vertices, tauz, w0, g, ldir, dir2diff_rot, angles)
+
+      print *,cstr(' BMC coeff for angles '//toStr(angles), 'blue')
+      do i = 1, OPP%LUT%dir_streams
+        print *,'dir2diff src', i, dir2diff_rot(i:size(dir2diff_rot):OPP%LUT%dir_streams)
+      enddo
+
+      call OPP%dir2diff_coeff_symmetry(dir2diff, .False., .True.)
+
+      print *,cstr(' first angles but rotated for', 'blue')
+      do i = 1, OPP%LUT%dir_streams
+        print *,'dir2diff src', i, dir2diff(i:size(dir2diff):OPP%LUT%dir_streams)
+      enddo
+
+      do i = 1, OPP%LUT%dir_streams
+        @mpiassertEqual(dir2diff_rot, dir2diff, eps, 'computed two opposite directions with BMC and then applied north_south symmetry on first one')
+      enddo
+
+      !--------------------
+      angles = [-0.001, 30.]
+      call OPP%get_coeff_bmc(vertices, tauz, w0, g, ldir, dir2diff, angles)
+
+      print *,cstr(' BMC coeff for angles '//toStr(angles), 'blue')
+      do i = 1, OPP%LUT%dir_streams
+        print *,'dir2diff src', i, dir2diff(i:size(dir2diff):OPP%LUT%dir_streams)
+      enddo
+
+      angles = [180.001, 30.]
       call OPP%get_coeff_bmc(vertices, tauz, w0, g, ldir, dir2diff_rot, angles)
 
       print *,cstr(' BMC coeff for angles '//toStr(angles), 'blue')
@@ -215,11 +323,15 @@ contains
     call this_test(OPP)
     deallocate(OPP)
 
-    allocate (t_optprop_8_10 :: OPP)
+    allocate (t_optprop_3_16 :: OPP)
     call this_test(OPP)
     deallocate(OPP)
 
-    allocate (t_optprop_3_16 :: OPP)
+    allocate (t_optprop_3_24 :: OPP)
+    call this_test(OPP)
+    deallocate(OPP)
+
+    allocate (t_optprop_8_10 :: OPP)
     call this_test(OPP)
     deallocate(OPP)
 

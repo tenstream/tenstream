@@ -961,7 +961,7 @@ contains
   subroutine dir2diff_coeff_symmetry_none(OPP, coeff, lswitch_east, lswitch_north)
     class(t_optprop_cube)        :: OPP
     logical, intent(in)          :: lswitch_east, lswitch_north
-    real(irealLUT),intent(inout) :: coeff(:)
+    real(irealLUT), target, intent(inout) :: coeff(:)
     return
     if(.False.) then ! remove compiler unused warnings
       select type(OPP)
@@ -974,7 +974,7 @@ contains
   subroutine dir3_to_diff6_coeff_symmetry(OPP, coeff, lswitch_east, lswitch_north)
     class(t_optprop_3_6)         :: OPP
     logical, intent(in)          :: lswitch_east, lswitch_north
-    real(irealLUT),intent(inout) :: coeff(:)
+    real(irealLUT),target, intent(inout) :: coeff(:)
     integer(iintegers), parameter:: dof = 3
     real(irealLUT)               :: newcoeff(size(coeff))
     if(lswitch_east) then
@@ -997,7 +997,7 @@ contains
   subroutine dir3_to_diff10_coeff_symmetry(OPP, coeff, lswitch_east, lswitch_north)
     class(t_optprop_3_10)        :: OPP
     logical, intent(in)          :: lswitch_east, lswitch_north
-    real(irealLUT),intent(inout) :: coeff(:)
+    real(irealLUT), target, intent(inout) :: coeff(:)
     integer(iintegers), parameter:: dof = 3
     real(irealLUT)               :: newcoeff(size(coeff))
     if(lswitch_east) then
@@ -1035,7 +1035,7 @@ contains
   subroutine dir3_to_diff16_coeff_symmetry(OPP, coeff, lswitch_east, lswitch_north)
     class(t_optprop_3_16)        :: OPP
     logical, intent(in)          :: lswitch_east, lswitch_north
-    real(irealLUT),intent(inout) :: coeff(:)
+    real(irealLUT), target, intent(inout) :: coeff(:)
     integer(iintegers), parameter:: dof = 3
     real(irealLUT)               :: newcoeff(size(coeff))
     if(lswitch_east) then
@@ -1086,16 +1086,23 @@ contains
   subroutine dir3_to_diff24_coeff_symmetry(OPP, coeff, lswitch_east, lswitch_north)
     class(t_optprop_3_24)        :: OPP
     logical, intent(in)          :: lswitch_east, lswitch_north
-    real(irealLUT),intent(inout) :: coeff(:)
+    real(irealLUT),target, intent(inout) :: coeff(:)
     !integer(iintegers), parameter:: dof = 3
-    real(irealLUT)               :: newcoeff(size(coeff))
+    real(irealLUT), target       :: bak(3,24)
+    real(irealLUT), pointer      :: pC(:,:) ! dim(src,dst)
     if(lswitch_east) then
-      newcoeff = coeff
-      call CHKERR(1_mpiint, 'not yet implemented')
+      pC(1:3,1:24) => coeff
+      bak(:,:) = pC(:,:)
+      pC(:, [1,3,5,7,2,4,6,8]) = bak(:, [3,1,7,5,4,2,8,6])
+      pC(:, 10:16:2) = bak(:,  9:15:2)
+      pC(:,  9:15:2) = bak(:, 10:16:2)
     endif
     if(lswitch_north) then
-      newcoeff = coeff
-      call CHKERR(1_mpiint, 'not yet implemented')
+      pC(1:3,1:24) => coeff
+      bak(:,:) = pC(:,:)
+      pC(:, [1,3,5,7,2,4,6,8]) = bak(:, [5,7,1,3,6,8,2,4])
+      pC(:, 18:24:2) = bak(:, 17:24:2)
+      pC(:, 17:24:2) = bak(:, 18:24:2)
     endif
     if(.False.) then ! remove compiler unused warnings
       select type(OPP)
@@ -1107,7 +1114,7 @@ contains
   subroutine dir3_to_diff30_coeff_symmetry(OPP, coeff, lswitch_east, lswitch_north)
     class(t_optprop_3_30)        :: OPP
     logical, intent(in)          :: lswitch_east, lswitch_north
-    real(irealLUT),intent(inout) :: coeff(:)
+    real(irealLUT), target, intent(inout) :: coeff(:)
     !integer(iintegers), parameter:: dof = 3
     real(irealLUT)               :: newcoeff(size(coeff))
     if(lswitch_east) then
@@ -1129,7 +1136,7 @@ contains
   subroutine dir8_to_diff10_coeff_symmetry(OPP, coeff, lswitch_east, lswitch_north)
     class(t_optprop_8_10)        :: OPP
     logical, intent(in)          :: lswitch_east, lswitch_north
-    real(irealLUT),intent(inout) :: coeff(:)
+    real(irealLUT), target, intent(inout) :: coeff(:)
     integer(iintegers), parameter:: dof = 8
     real(irealLUT)               :: newcoeff(size(coeff))
     if(lswitch_east) then
@@ -1167,7 +1174,7 @@ contains
   subroutine dir8_to_diff16_coeff_symmetry(OPP, coeff, lswitch_east, lswitch_north)
     class(t_optprop_8_16)        :: OPP
     logical, intent(in)          :: lswitch_east, lswitch_north
-    real(irealLUT),intent(inout) :: coeff(:)
+    real(irealLUT), target, intent(inout) :: coeff(:)
     real(irealLUT)               :: newcoeff(size(coeff)) ! dim(src,dst)
     integer(iintegers), parameter:: dof = 8
     if(lswitch_east) then
@@ -1221,7 +1228,7 @@ contains
   subroutine dir8_to_diff18_coeff_symmetry(OPP, coeff, lswitch_east, lswitch_north)
     class(t_optprop_8_18)        :: OPP
     logical, intent(in)          :: lswitch_east, lswitch_north
-    real(irealLUT),intent(inout) :: coeff(:)
+    real(irealLUT), target, intent(inout) :: coeff(:)
     if(lswitch_east) then
       call CHKERR(1_mpiint, 'dir8_to_diff18_coeff_symmetry_lswitch_east_not yet implemented')
       coeff = coeff
