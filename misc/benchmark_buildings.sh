@@ -53,9 +53,11 @@ function run_ex() {
 
 NP=1; NC=1
 run_ex $NP $NC "tenstr_3_10.nc" "-solver 3_10 ${1:-}"
+run_ex $NP $NC "tenstr_3_16.nc" "-solver 3_16 ${1:-}"
 run_ex $NP $NC "tenstr_3_24.nc" "-solver 3_24 ${1:-}"
 run_ex $NP $NC "tenstr_8_10.nc" "-solver 8_10 ${1:-}"
 run_ex $NP $NC "tenstr_8_16.nc" "-solver 8_16 ${1:-}"
+run_ex $NP $NC "tenstr_8_18.nc" "-solver 8_18 -skip_load_LUT no -LUT_mockup -bmc_online ${1:-}"
 run_ex $NP $NC "twostr.nc" "-twostr_only ${1:-}"
 
 NP=1; NC=64
@@ -78,7 +80,7 @@ import xml.etree.ElementTree as ET
 rmse = lambda a,b: np.sqrt(np.mean((a-b)**2))
 rrmse = lambda a,b: rmse(a,b) / np.mean(b)
 
-idents = ['rayli', 'tenstr_3_10', 'tenstr_3_24', 'tenstr_8_10', 'tenstr_8_16', 'twostr']
+idents = ['rayli', 'tenstr_3_10', 'tenstr_3_16', 'tenstr_3_24', 'tenstr_8_10', 'tenstr_8_16', 'tenstr_8_18', 'twostr']
 modes = ['bldgs', 'srfc']
 r={}
 for ident in idents:
@@ -98,3 +100,4 @@ for var in vars:
         print(f'{var:20s} {ident:20s}: {err*100:12.1f}')
 
 EOF
+python3 benchmark_buildings.py
