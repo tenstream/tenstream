@@ -49,7 +49,8 @@ program main
   icollapse=1
   call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-icollapse", icollapse, lflg, ierr); call CHKERR(ierr)
 
-  box_k = Nlay-(icollapse-1)-1 ! one above the surface-touching cell
+  box_k = Nlay-(icollapse-1) ! touching the surface
+  box_k = box_k-1 ! one above, i.e. hovering
   glob_box_i = int(real(Nx+1)/2.)
   glob_box_j = int(real(Nx+1)/2.)
   box_Ni = 1
