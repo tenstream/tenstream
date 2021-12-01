@@ -4237,7 +4237,7 @@ module m_pprts
   !> \n   to determine emissivity of box, we use the forward transport coefficients backwards
   !> \n   a la: transmissivity $T = \sum(coeffs)$ and therefore emissivity $E = 1 - T$
   subroutine setup_b(solver, solution, b, opt_buildings)
-    class(t_solver)        , intent(in)    :: solver
+    class(t_solver), target, intent(in)    :: solver
     type(t_state_container), intent(in)    :: solution
     type(tVec)             , intent(inout) :: b
     type(t_pprts_buildings), intent(in), optional :: opt_buildings
@@ -4305,6 +4305,7 @@ module m_pprts
 
       real(ireals) :: Ax,Ay,Az,emis,b0,b1,btop,bbot,bfac,tauz
       integer(iintegers) :: k,i,j,src,iside, ak
+      real(ireals), pointer :: diff2diff(:,:) ! dim(dst, src)
 
       associate(atm     => solver%atm, &
                 C_diff  => solver%C_diff)
@@ -4373,11 +4374,12 @@ module m_pprts
               call B_eff(b1, b0, tauz, btop)
               call B_eff(b0, b1, tauz, bbot)
 
+              diff2diff(0:C_diff%dof-1, 0:C_diff%dof-1) => solver%diff2diff(1:C_diff%dof**2,k,i,j)
+
               src = 0
               bfac = pi * Az / real(solver%difftop%streams, ireals)
               do iside=1,solver%difftop%dof
-                emis = one-sum(solver%diff2diff(src+1:C_diff%dof**2:C_diff%dof,k,i,j))
-
+                emis = one - sum(diff2diff(src,:))
                 if (solver%difftop%is_inward(iside) .eqv. .False.) then ! outgoing means Eup
                   xsrc(src, k  , i, j) = xsrc(src, k  , i, j) + btop * bfac * emis
                 else
@@ -4388,7 +4390,7 @@ module m_pprts
 
               bfac = pi * Ax / real(solver%diffside%streams, ireals)
               do iside=1,solver%diffside%dof
-                emis = one-sum(solver%diff2diff(src+1:C_diff%dof**2:C_diff%dof,k,i,j))
+                emis = one - sum(diff2diff(src,:))
                 if(iside.gt.solver%diffside%dof/2) then ! upward streams
                   emis = btop * emis
                 else
@@ -4404,7 +4406,7 @@ module m_pprts
 
               bfac = pi * Ay / real(solver%diffside%streams, ireals)
               do iside=1,solver%diffside%dof
-                emis = one-sum(solver%diff2diff(src+1:C_diff%dof**2:C_diff%dof,k,i,j))
+                emis = one - sum(diff2diff(src,:))
                 if(iside.gt.solver%diffside%dof/2) then ! upward streams
                   emis = btop * emis
                 else
