@@ -60,18 +60,24 @@ contains
     integer :: funit
     logical :: file_exists
     integer(mpiint) :: irank, numnodes
+    integer(mpiint) :: iter
 
     ierr = 0
 
     fname = trim(fbasename)//'.xmf'
 
+    iter = 0
+    99 continue
     if(solver%myid.eq.0 .and. get_arg(.False., verbose)) print *,'Writing xmf for buildings to ', trim(fname)
 
     call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
     inquire(file=fname, exist=file_exists)
     if(file_exists) then
-      call CHKWARN(1_mpiint, "skipping output because file already exists: "//trim(fname))
-      return
+      iter = iter + 1
+      fname = trim(fbasename)//'.'//toStr(iter)//'.xmf'
+      if(solver%myid.eq.0 .and. get_arg(.False., verbose)) &
+        & call CHKWARN(1_mpiint, "adding suffix to output because file already exists: "//trim(fname))
+      goto 99
     endif
     call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
 
@@ -285,18 +291,24 @@ contains
     integer :: funit
     logical :: file_exists
     integer(mpiint) :: irank, numnodes
+    integer(mpiint) :: iter
 
     ierr = 0
 
     fname = trim(fbasename)//'.xmf'
 
+    iter = 0
+    99 continue
     if(solver%myid.eq.0 .and. get_arg(.False., verbose)) print *,'Writing xmf for surface fluxes to ', trim(fname)
 
     call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
     inquire(file=fname, exist=file_exists)
     if(file_exists) then
-      call CHKWARN(1_mpiint, "skipping output because file already exists: "//trim(fname))
-      return
+      iter = iter + 1
+      fname = trim(fbasename)//'.'//toStr(iter)//'.xmf'
+      if(solver%myid.eq.0 .and. get_arg(.False., verbose)) &
+        & call CHKWARN(1_mpiint, "adding suffix to output because file already exists: "//trim(fname))
+      goto 99
     endif
     call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
 

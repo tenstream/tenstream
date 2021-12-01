@@ -541,20 +541,22 @@ contains
         call dump_variable(eup , solver%C_one1%da, "-pprts_rrtmg_dump_eup")
         call dump_variable(abso, solver%C_one%da,  "-pprts_rrtmg_dump_abso")
 
-        if(present(opt_buildings_solar)) then
+        if(lsolar.and.present(opt_buildings_solar)) then
           call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
             & '-pprts_rrtmg_xdmf_buildings_solar', fname, lflg, ierr); call CHKERR(ierr)
           if(lflg) then
-            if(present(opt_time)) fname = trim(fname)//toStr(opt_time)
+            if(present(opt_time)) fname = trim(fname)//'.t'//trim(toStr(opt_time))
+            if(.not.lsolar.or..not.lthermal) fname = trim(fname)//'.sol'//toStr(lsolar)//'.th'//toStr(lthermal)
             call xdmf_pprts_buildings(solver, opt_buildings_solar, fname, ierr, verbose=.True.); call CHKERR(ierr)
           endif
         endif
 
-        if(present(opt_buildings_thermal)) then
+        if(lthermal.and.present(opt_buildings_thermal)) then
           call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
             & '-pprts_rrtmg_xdmf_buildings_thermal', fname, lflg, ierr); call CHKERR(ierr)
           if(lflg) then
-            if(present(opt_time)) fname = trim(fname)//toStr(opt_time)
+            if(present(opt_time)) fname = trim(fname)//'.t'//trim(toStr(opt_time))
+            if(.not.lsolar.or..not.lthermal) fname = trim(fname)//'.sol'//toStr(lsolar)//'.th'//toStr(lthermal)
             call xdmf_pprts_buildings(solver, opt_buildings_thermal, fname, ierr, verbose=.True.); call CHKERR(ierr)
           endif
         endif
@@ -562,8 +564,13 @@ contains
         call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
           & '-pprts_rrtmg_xdmf', fname, lflg, ierr); call CHKERR(ierr)
         if(lflg) then
-          if(present(opt_time)) fname = trim(fname)//toStr(opt_time)
-          call xdmf_pprts_srfc_flux(solver, fname, edir, edn, eup, ierr, verbose=.True.); call CHKERR(ierr)
+          if(present(opt_time)) fname = trim(fname)//'.t'//trim(toStr(opt_time))
+          if(.not.lsolar.or..not.lthermal) fname = trim(fname)//'.sol'//toStr(lsolar)//'.th'//toStr(lthermal)
+          if(lsolar) then
+            call xdmf_pprts_srfc_flux(solver, fname, edir, edn, eup, ierr, verbose=.True.); call CHKERR(ierr)
+          else
+            call xdmf_pprts_srfc_flux(solver, fname, edir, edn, eup, ierr, verbose=.True.); call CHKERR(ierr)
+          endif
         endif
       end subroutine
   end subroutine
