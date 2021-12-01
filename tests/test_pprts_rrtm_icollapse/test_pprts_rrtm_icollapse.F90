@@ -286,7 +286,7 @@ contains
 
     do k=2,ubound(edn,1)
       k0 = ubound(edn0,1) - ubound(edn,1) + k
-      @assertEqual(edn0(k0,1,1), edn(k,1,1), 5e-0_ireals, 'thermal down radiation @level '//itoa(k0)//' collapsed '//itoa(k))
+      @assertEqual(edn0(k0,1,1), edn(k,1,1), 6e-0_ireals, 'thermal down radiation @level '//itoa(k0)//' collapsed '//itoa(k))
       @assertEqual(eup0(k0,1,1), eup(k,1,1), 5e-0_ireals, 'thermal up radiation @level '//itoa(k0)//' collapsed '//itoa(k))
     enddo
     do k=2,ubound(abso,1)
