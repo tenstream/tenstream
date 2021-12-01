@@ -454,10 +454,10 @@ contains
       call PetscLogStagePop(ierr); call CHKERR(ierr) ! pop solver%logs%stage_rrtmg_thermal
     endif
 
-    if(lsolar) then
-      if(.not.allocated(edir)) allocate(edir (solver%C_one1%zm, solver%C_one1%xm, solver%C_one1%ym))
-      edir = zero
+    if(lsolar.and..not.allocated(edir)) allocate(edir (solver%C_one1%zm, solver%C_one1%xm, solver%C_one1%ym))
+    if(allocated(edir)) edir = zero
 
+    if(lsolar) then
       lskip_solar = .False.
       call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
         "-skip_solar" , lskip_solar, lflg , ierr) ;call CHKERR(ierr)
