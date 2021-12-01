@@ -809,6 +809,9 @@ contains
       do i = 0,9
         norm(i) = sum(v(i,:))
       enddo
+      norm(0:1) = sum(norm(0:1)) / 2
+      norm([2,3,6,7]) = sum(norm([2,3,6,7])) / 4
+      norm([4,5,8,9]) = sum(norm([4,5,8,9])) / 4
 
       v(0,0) = (v(0,0) + v(1,1)) * .5_irealLUT
       v(1,1) = v(0,0)
