@@ -4303,7 +4303,7 @@ module m_pprts
   contains
     subroutine set_thermal_source()
 
-      real(ireals) :: Ax,Ay,Az,emis,b0,b1,btop,bbot,bfac
+      real(ireals) :: Ax,Ay,Az,emis,b0,b1,btop,bbot,bfac,tauz
       integer(iintegers) :: k,i,j,src,iside, ak
 
       associate(atm     => solver%atm, &
@@ -4325,6 +4325,7 @@ module m_pprts
             ak = atmk(atm,k)
             b0 = atm%planck(ak  ,i,j)
             b1 = atm%planck(ak+1,i,j)
+            tauz = atm%kabs(ak,i,j) * atm%dz(ak,i,j)
 
             if( atm%l1d(ak) ) then
 
@@ -4351,8 +4352,8 @@ module m_pprts
                   !emis = one-real(diff2diff1d(1)+diff2diff1d(2), ireals)
                 endif
 
-                call B_eff(b1, b0, atm%kabs(ak,i,j), btop)
-                call B_eff(b0, b1, atm%kabs(ak,i,j), bbot)
+                call B_eff(b1, b0, tauz, btop)
+                call B_eff(b0, b1, tauz, bbot)
                 btop = btop * bfac * emis
                 bbot = bbot * bfac * emis
               endif
@@ -4369,13 +4370,14 @@ module m_pprts
               Ax = atm%dy*atm%dz(ak,i,j) / real(solver%diffside%area_divider, ireals)
               Ay = atm%dx*atm%dz(ak,i,j) / real(solver%diffside%area_divider, ireals)
 
-              call B_eff(b1, b0, atm%kabs(ak,i,j), btop)
-              call B_eff(b0, b1, atm%kabs(ak,i,j), bbot)
+              call B_eff(b1, b0, tauz, btop)
+              call B_eff(b0, b1, tauz, bbot)
 
               src = 0
               bfac = pi * Az / real(solver%difftop%streams, ireals)
               do iside=1,solver%difftop%dof
                 emis = one-sum(solver%diff2diff(src+1:C_diff%dof**2:C_diff%dof,k,i,j))
+
                 if (solver%difftop%is_inward(iside) .eqv. .False.) then ! outgoing means Eup
                   xsrc(src, k  , i, j) = xsrc(src, k  , i, j) + btop * bfac * emis
                 else
