@@ -90,6 +90,19 @@ contains
 
     call mpi_comm_size(solver%comm, numnodes, ierr); call CHKERR(ierr)
 
+    associate( C => solver%C_diff )
+      call DMGetCoordinateDM(C%da, coordDA, ierr); call CHKERR(ierr)
+      call DMDAGetGhostCorners(coordDA, zs, xs, ys, zm, xm, ym, ierr); call CHKERR(ierr)
+
+      call DMGetCoordinatesLocal(C%da, coordinates, ierr); call CHKERR(ierr)
+      if(coordinates.eq.PETSC_NULL_VEC) then
+        call set_dmda_cell_coordinates(solver, solver%atm, C%da, ierr)
+        call DMGetCoordinatesLocal(C%da, coordinates, ierr); call CHKERR(ierr)
+      endif
+      call VecGetArrayF90(coordinates, xv1d, ierr); call CHKERR(ierr)
+      xv(0:2, zs:zs+zm-1 ,xs:xs+xm-1 ,ys:ys+ym-1) => xv1d
+    end associate
+
     do irank = 0, numnodes-1
       if(irank.eq.solver%myid .and. size(buildings%iface).gt.0) then
         open(newunit=funit, file=fname, status='old', action='write', position='append')
@@ -125,17 +138,6 @@ contains
       associate(               &
           & B => buildings,    &
           & C => solver%C_diff )
-
-        call DMGetCoordinateDM(C%da, coordDA, ierr); call CHKERR(ierr)
-        call DMDAGetGhostCorners(coordDA, zs, xs, ys, zm, xm, ym, ierr); call CHKERR(ierr)
-
-        call DMGetCoordinatesLocal(C%da, coordinates, ierr); call CHKERR(ierr)
-        if(coordinates.eq.PETSC_NULL_VEC) then
-          call set_dmda_cell_coordinates(solver, solver%atm, C%da, ierr)
-          call DMGetCoordinatesLocal(C%da, coordinates, ierr); call CHKERR(ierr)
-        endif
-        call VecGetArrayF90(coordinates, xv1d, ierr); call CHKERR(ierr)
-        xv(0:2, zs:zs+zm-1 ,xs:xs+xm-1 ,ys:ys+ym-1) => xv1d
 
         write (funit,*) '<Grid Name="Quads'//toStr(solver%myid)//'">'
         write (funit,*) '<Topology TopologyType="Quadrilateral" NumberOfElements="'//toStr(size(B%iface))//'">'
@@ -321,6 +323,15 @@ contains
 
     call mpi_comm_size(solver%comm, numnodes, ierr); call CHKERR(ierr)
 
+    associate( C => solver%C_diff )
+      call DMGetCoordinateDM(C%da, coordDA, ierr); call CHKERR(ierr)
+      call DMDAGetGhostCorners(coordDA, zs, xs, ys, zm, xm, ym, ierr); call CHKERR(ierr)
+
+      call DMGetCoordinatesLocal(C%da, coordinates, ierr); call CHKERR(ierr)
+      call VecGetArrayF90(coordinates, xv1d, ierr); call CHKERR(ierr)
+      xv(0:2, zs:zs+zm-1 ,xs:xs+xm-1 ,ys:ys+ym-1) => xv1d
+    end associate
+
     do irank = 0, numnodes-1
       if(irank.eq.solver%myid) then
         open(newunit=funit, file=fname, status='old', action='write', position='append')
@@ -366,55 +377,44 @@ contains
     end subroutine
 
     subroutine write_grid ()
-      associate(               &
-          & C => solver%C_diff )
+      write (funit,*) '<Grid Name="GroundSubMesh'//toStr(solver%myid)//'">'
+      write (funit,*) '<Topology TopologyType="3DCORECTMesh" &
+        & NumberOfElements=" 1 ',size(edn,dim=3)+1, size(edn,dim=2)+1,'"/>'
+      write (funit,*)'<Geometry GeometryType="ORIGIN_DXDYDZ">'
+      write (funit,*)'<DataStructure Name="Origin" Dimensions="3" Format="XML">'
+      write (funit,*) xv([1,2,0],zs+zm-1,xs,ys)! - [real(ireals) :: solver%atm%dx/2, solver%atm%dy/2, 0]
+      write (funit,*)'</DataStructure>'
+      write (funit,*)'<DataStructure Name="Spacing" Dimensions="3" Format="XML">'
+      write (funit,*) solver%atm%dx, solver%atm%dy, 0
+      write (funit,*)'</DataStructure>'
+      write (funit,*)'</Geometry>'
 
-        call DMGetCoordinateDM(C%da, coordDA, ierr); call CHKERR(ierr)
-        call DMDAGetGhostCorners(coordDA, zs, xs, ys, zm, xm, ym, ierr); call CHKERR(ierr)
+      ! write data attributes
+      ! edir
+      if(allocated(edir)) then
+        write (funit,*) '<Attribute Center="Cell" Name="edir">'
+        write (funit,*) '<DataItem Format="XML" Dimensions="', size(edir,dim=2), size(edir,dim=3), '">'
+        write (funit,*) edir(size(edir,dim=1),:,:)
+        write (funit,*) '</DataItem>','</Attribute>'
+      endif
 
-        call DMGetCoordinatesLocal(C%da, coordinates, ierr); call CHKERR(ierr)
-        call VecGetArrayF90(coordinates, xv1d, ierr); call CHKERR(ierr)
-        xv(0:2, zs:zs+zm-1 ,xs:xs+xm-1 ,ys:ys+ym-1) => xv1d
+      ! edn
+      if(allocated(edn)) then
+        write (funit,*) '<Attribute Center="Cell" Name="edn">'
+        write (funit,*) '<DataItem Format="XML" Dimensions="', size(edn,dim=2), size(edn,dim=3), '">'
+        write (funit,*) edn(size(edn,dim=1),:,:)
+        write (funit,*) '</DataItem>','</Attribute>'
+      endif
 
-        write (funit,*) '<Grid Name="GroundSubMesh'//toStr(solver%myid)//'">'
-        write (funit,*) '<Topology TopologyType="3DCORECTMesh" &
-          & NumberOfElements=" 1 ',size(edn,dim=3)+1, size(edn,dim=2)+1,'"/>'
-        write (funit,*)'<Geometry GeometryType="ORIGIN_DXDYDZ">'
-        write (funit,*)'<DataStructure Name="Origin" Dimensions="3" Format="XML">'
-        write (funit,*) xv([1,2,0],zs+zm-1,xs,ys)! - [real(ireals) :: solver%atm%dx/2, solver%atm%dy/2, 0]
-        write (funit,*)'</DataStructure>'
-        write (funit,*)'<DataStructure Name="Spacing" Dimensions="3" Format="XML">'
-        write (funit,*) solver%atm%dx, solver%atm%dy, 0
-        write (funit,*)'</DataStructure>'
-        write (funit,*)'</Geometry>'
+      ! eup
+      if(allocated(eup)) then
+        write (funit,*) '<Attribute Center="Cell" Name="eup">'
+        write (funit,*) '<DataItem Format="XML" Dimensions="', size(eup,dim=2), size(eup,dim=3), '">'
+        write (funit,*) eup(size(eup,dim=1),:,:)
+        write (funit,*) '</DataItem>','</Attribute>'
+      endif
 
-        ! write data attributes
-        ! edir
-        if(allocated(edir)) then
-          write (funit,*) '<Attribute Center="Cell" Name="edir">'
-          write (funit,*) '<DataItem Format="XML" Dimensions="', size(edir,dim=2), size(edir,dim=3), '">'
-          write (funit,*) edir(size(edir,dim=1),:,:)
-          write (funit,*) '</DataItem>','</Attribute>'
-        endif
-
-        ! edn
-        if(allocated(edn)) then
-          write (funit,*) '<Attribute Center="Cell" Name="edn">'
-          write (funit,*) '<DataItem Format="XML" Dimensions="', size(edn,dim=2), size(edn,dim=3), '">'
-          write (funit,*) edn(size(edn,dim=1),:,:)
-          write (funit,*) '</DataItem>','</Attribute>'
-        endif
-
-        ! eup
-        if(allocated(eup)) then
-          write (funit,*) '<Attribute Center="Cell" Name="eup">'
-          write (funit,*) '<DataItem Format="XML" Dimensions="', size(eup,dim=2), size(eup,dim=3), '">'
-          write (funit,*) eup(size(eup,dim=1),:,:)
-          write (funit,*) '</DataItem>','</Attribute>'
-        endif
-
-        write (funit,*) '</Grid>'
-      end associate
+      write (funit,*) '</Grid>'
     end subroutine
   end subroutine xdmf_pprts_srfc_flux
 end module
