@@ -50,6 +50,7 @@ module m_f2c_pprts
         & t_solver_1_2, &
         & t_solver_3_10, &
         & t_solver_3_16, &
+        & t_solver_3_24, &
         & t_solver_3_6, &
         & t_solver_8_10, &
         & t_solver_8_16, &
@@ -143,6 +144,8 @@ contains
           if(solver_id.ne.SOLVER_ID_PPRTS_3_6) ierr = 1
         class is (t_solver_3_10)
           if(solver_id.ne.SOLVER_ID_PPRTS_3_10) ierr = 1
+        class is (t_solver_3_24)
+          if(solver_id.ne.SOLVER_ID_PPRTS_3_24) ierr = 1
         class is (t_solver_8_10)
           if(solver_id.ne.SOLVER_ID_PPRTS_8_10) ierr = 1
         class is (t_solver_3_16)
@@ -227,6 +230,9 @@ contains
       call init_pprts(comm, oNz,oNx,oNy, odx,ody, osundir, pprts_solver, dz1d=odz)
     case(SOLVER_ID_PPRTS_3_10)
       allocate(t_solver_3_10::pprts_solver); ierr=0
+      call init_pprts(comm, oNz,oNx,oNy, odx,ody, osundir, pprts_solver, dz1d=odz)
+    case(SOLVER_ID_PPRTS_3_24)
+      allocate(t_solver_3_24::pprts_solver); ierr=0
       call init_pprts(comm, oNz,oNx,oNy, odx,ody, osundir, pprts_solver, dz1d=odz)
     case(SOLVER_ID_PPRTS_8_10)
       allocate(t_solver_8_10::pprts_solver); ierr=0
