@@ -142,18 +142,18 @@ contains
     k = 1 ! TOA idx
     @assertEqual(0._ireals, edn(k,:), tiny(edn), 'diffuse down radiation @ TOA should be zero')
 
-    trgt = 254.99942 ! eup @ TOA determined with 2str
-    trgt = 251.27765 ! eup @ TOA determined with plexrt
+    trgt = 251.9889  ! eup @ TOA determined with 2str
+    trgt = 251.3705  ! eup @ TOA determined with plexrt
     @assertEqual(trgt, eup(k,:), trgt*eps, 'diffuse upward radiation @ TOA')
 
     k = size(edn,dim=1) ! surface idx
 
-    trgt = 288.03708 ! edn @ srfc determined with 2str
-    trgt = 288.51068 ! edn @ srfc determined with plexrt
+    trgt = 292.0275  ! edn @ srfc determined with 2str
+    trgt = 290.8192  ! edn @ srfc determined with plexrt
     @assertEqual(trgt, edn(k,:), trgt*eps, 'diffuse down radiation @ surface')
 
-    trgt = 386.99545 ! eup @ srfc determined with 2str
-    trgt = 386.02422 ! eup @ srfc determined with plexrt
+    trgt = 387.195 ! eup @ srfc determined with 2str
+    trgt = 386.140 ! eup @ srfc determined with plexrt
     @assertEqual(trgt, eup(k,:), trgt*eps, 'diffuse up radiation @ surface')
   end subroutine
 
@@ -253,18 +253,18 @@ contains
     k = 1 ! TOA idx
     @assertEqual(0._ireals, edn(k,:), tiny(edn), 'diffuse down radiation @ TOA should be zero')
 
-    trgt = 254.99942 ! eup @ TOA determined with 2str -- regular mesh
-    trgt = 251.80125 ! eup @ TOA determined with plexrt -- regular mesh
+    trgt = 251.99    ! eup @ TOA determined with 2str -- regular mesh
+    trgt = 251.42    ! eup @ TOA determined with plexrt -- regular mesh
     @assertEqual(trgt, eup(k,:), trgt*eps, 'diffuse upward radiation @ TOA')
 
     k = size(edn,dim=1) ! surface idx
 
-    trgt = 288.03708 ! edn @ srfc determined with 2str -- regular mesh
-    trgt = 288.51068 ! edn @ srfc determined with plexrt -- regular mesh
+    trgt = 292.03    ! edn @ srfc determined with 2str -- regular mesh
+    trgt = 291.70    ! edn @ srfc determined with plexrt -- regular mesh
     @assertEqual(trgt, edn(k,:), trgt*eps, 'diffuse down radiation @ surface')
 
-    trgt = 386.99545 ! eup @ srfc determined with 2str -- regular mesh
-    trgt = 386.02422 ! eup @ srfc determined with plexrt -- regular mesh
+    trgt = 387.20    ! eup @ srfc determined with 2str -- regular mesh
+    trgt = 386.184   ! eup @ srfc determined with plexrt -- regular mesh
     @assertEqual(trgt, eup(k,:), trgt*eps, 'diffuse up radiation @ surface')
   end subroutine
 
@@ -412,41 +412,41 @@ contains
     k = 1 ! TOA idx
     @assertEqual(0._ireals, edn(k,:), 'diffuse down radiation @ TOA should be zero')
 
-    trgt = 256.2525 ! eup @ TOA determined with 2str
-    trgt = 252.1725 ! eup @ TOA determined with plexrt
+    trgt = 251.96   ! eup @ TOA determined with 2str
+    trgt = 251.46   ! eup @ TOA determined with plexrt
     @assertEqual(trgt, eup(k,:), trgt*eps, 'diffuse upward radiation @ TOA')
 
     k = size(edn,dim=1,kind=iintegers) ! surface idx
 
-    trgt = 386.6776 ! edn @ srfc determined with 2str
-    trgt = 383.1796 ! edn @ srfc determined with plexrt
+    trgt = 386.82   ! edn @ srfc determined with 2str
+    trgt = 384.13   ! edn @ srfc determined with plexrt
     @assertEqual(trgt, edn(k,:), trgt*eps, 'diffuse dn radiation @ surface')
 
-    trgt = 390.9326 ! eup @ srfc determined with 2str
-    trgt = 390.7576 ! eup @ srfc determined with plexrt
+    trgt = 390.95   ! eup @ srfc determined with 2str
+    trgt = 390.81   ! eup @ srfc determined with plexrt
     @assertEqual(trgt, eup(k,:), trgt*eps, 'diffuse up radiation @ surface')
 
     k = size(edn,dim=1,kind=iintegers) - Nz + 1_iintegers ! above cloud idx
-    trgt = 275.4420 ! edn determined with 2str
-    trgt = 276.0907 ! edn determined with plexrt
+    trgt = 280.63   ! edn determined with 2str
+    trgt = 280.63   ! edn determined with plexrt
     @assertEqual(trgt, edn(k,:), trgt*eps, 'edn radiation @ cld top')
 
-    trgt = 380.9236 ! eup determined with 2str
-    trgt = 380.4554 ! eup determined with plexrt
+    trgt = 380.92   ! eup determined with 2str
+    trgt = 379.19   ! eup determined with plexrt
     @assertEqual(trgt, eup(k,:), trgt*eps, 'eup radiation @ cld top')
 
-    trgt = -1.03882027 ! abso determined with 2str
-    trgt = -1.00289303 ! abso determined with plexrt
+    trgt = -0.98677    ! abso determined with 2str
+    trgt = -0.95925    ! abso determined with plexrt
     @assertEqual(trgt, meanval(abso(k,:)), abs(trgt)*eps, 'abso @ cld layer')
     @assertEqual(trgt, abso(k,:), abs(trgt)*sqrt(eps), 'abso @ cld layer should also be horizontally homogeneous')
 
     k = size(edn,dim=1,kind=iintegers) - Nz + 2_iintegers ! below cloud idx
-    trgt = 383.8705 ! edn determined with 2str
-    trgt = 380.4460 ! edn determined with plexrt
+    trgt = 383.90   ! edn determined with 2str
+    trgt = 381.74   ! edn determined with plexrt
     @assertEqual(trgt, edn(k,:), trgt*eps, 'edn radiation @ cld bot')
 
-    trgt = 388.2633 ! eup determined with 2str
-    trgt = 387.2341 ! eup determined with plexrt
+    trgt = 388.176  ! eup determined with 2str
+    trgt = 386.954  ! eup determined with plexrt
     @assertEqual(trgt, eup(k,:), trgt*eps, 'eup radiation @ cld bot')
   end subroutine
 end module
