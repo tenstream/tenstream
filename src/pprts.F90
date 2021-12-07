@@ -77,7 +77,7 @@ module m_pprts
     & t_optprop_8_18, &
     & t_optprop_3_10_ann
 
-  use m_eddington, only : eddington_coeff_ec
+  use m_eddington, only : eddington_coeff_ec, eddington_coeff_zdun
   use m_geometric_coeffs, only : dir2dir3_geometric_coeffs
 
   use m_tenstream_options, only : read_commandline_options, ltwostr, luse_eddington, twostr_ratio, &
@@ -1540,7 +1540,7 @@ module m_pprts
 
     real(ireals)        :: pprts_delta_scale_max_g
     integer(iintegers)  :: k, i, j
-    logical :: lpprts_delta_scale, lflg
+    logical :: lpprts_delta_scale, lzdun, lflg
     real(ireals) :: pprts_set_absorption, pprts_set_scatter, pprts_set_asymmetry, pprts_set_albedo
     integer(mpiint) :: ierr
 
@@ -1676,21 +1676,37 @@ module m_pprts
     endif
 
     if(luse_eddington) then
+      lzdun = .False.
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_eddington_zdun",&
+        lzdun, lflg, ierr) ;call CHKERR(ierr)
       !DIR$ IVDEP
       do j=C_one_atm%ys,C_one_atm%ye
         do i=C_one_atm%xs,C_one_atm%xe
           do k=C_one_atm%zs,C_one_atm%ze
             if( atm%l1d(k) ) then
-              call eddington_coeff_ec ( &
-                atm%dz(k,i,j) * max(tiny(one), atm%kabs(k,i,j) + atm%ksca(k,i,j)), & ! tau
-                atm%ksca(k,i,j) / max(tiny(one), atm%kabs(k,i,j) + atm%ksca(k,i,j)), & ! w0
-                atm%g(k,i,j), &
-                sun%costheta, &
-                atm%a11(k,i,j),          &
-                atm%a12(k,i,j),          &
-                atm%a13(k,i,j),          &
-                atm%a23(k,i,j),          &
-                atm%a33(k,i,j))
+              if(lzdun) then
+                call eddington_coeff_zdun ( &
+                  atm%dz(k,i,j) * max(tiny(one), atm%kabs(k,i,j) + atm%ksca(k,i,j)), & ! tau
+                  atm%ksca(k,i,j) / max(tiny(one), atm%kabs(k,i,j) + atm%ksca(k,i,j)), & ! w0
+                  atm%g(k,i,j), &
+                  sun%costheta, &
+                  atm%a11(k,i,j),          &
+                  atm%a12(k,i,j),          &
+                  atm%a13(k,i,j),          &
+                  atm%a23(k,i,j),          &
+                  atm%a33(k,i,j))
+              else
+                call eddington_coeff_ec ( &
+                  atm%dz(k,i,j) * max(tiny(one), atm%kabs(k,i,j) + atm%ksca(k,i,j)), & ! tau
+                  atm%ksca(k,i,j) / max(tiny(one), atm%kabs(k,i,j) + atm%ksca(k,i,j)), & ! w0
+                  atm%g(k,i,j), &
+                  sun%costheta, &
+                  atm%a11(k,i,j),          &
+                  atm%a12(k,i,j),          &
+                  atm%a13(k,i,j),          &
+                  atm%a23(k,i,j),          &
+                  atm%a33(k,i,j))
+              endif
             else
               !TODO :: we should really not have this memeory accessible at all....
               !     :: the fix would be trivial at the moment, as long as all 1d layers start at same 'k',
