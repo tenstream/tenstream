@@ -157,7 +157,6 @@ subroutine init_dir_photon_3_24(bmc, p, src, ldirect, initial_dir, vertices, ier
     select case(src)
     case (1)
       if(p%dir(3).le.0) then
-        !p%loc = [R()*dx, R()*dy, dz*(one-e)]
         call rand_pnt_on_plane(pE,pG,pH,pF, p%loc, normal, U, V)
         p%src_side = 1
       else
@@ -168,21 +167,17 @@ subroutine init_dir_photon_3_24(bmc, p, src, ldirect, initial_dir, vertices, ier
       if(p%dir(1).ge.0) then
         call rand_pnt_on_plane(pA,pC,pG,pE, p%loc, normal, U, V)
         p%src_side = 3
-        !p%loc = [e, R()*dy, R()*dz]
       else
         call rand_pnt_on_plane(pB,pF,pH,pD, p%loc, normal, U, V)
         p%src_side = 4
-        !p%loc = [dx-e, R()*dy, R()*dz]
       endif
     case (3)
       if(p%dir(2).ge.0) then
         call rand_pnt_on_plane(pE,pF,pB,pA, p%loc, normal, U, V)
         p%src_side = 5
-        !p%loc = [R()*dx, e, R()*dz]
       else
         call rand_pnt_on_plane(pG,pC,pD,pH, p%loc, normal, U, V)
         p%src_side = 6
-        !p%loc = [R()*dx, dy-e, R()*dz]
       endif
     case default
       print *,'Dont know what to do with source spec:',src
@@ -250,10 +245,7 @@ class(t_boxmc_3_24)           :: bmc
   integer(mpiint),intent(out)   :: ierr
 
   real(ireal_dp) :: phi,mu
-  real(ireal_dp) :: dx, dy, dz
   real(ireal_dp), dimension(3) :: normal, U, V, cube_center, dir_p_to_cube_center
-
-  call setup_cube_coords_from_vertices(vertices, dx, dy, dz)
 
   call CHKERR(size(vertices)-24, 'wrong size of vertices, expected 24 but found '//toStr(size(vertices)))
   associate( &
