@@ -454,7 +454,7 @@ contains
       call populate_op_dim('tau',       2_iintegers, OPP%dirconfig%dims(1), vrange=real([1e-30,1e3], irealLUT))
       call populate_op_dim('w0',        2_iintegers, OPP%dirconfig%dims(2), vrange=real([0,1], irealLUT))
       call populate_op_dim('aspect_zx', OPP%dirconfig%dims(3), preset=[real(irealLUT) :: 1e-2, 1., 2.])
-      call populate_op_dim('g',         2_iintegers, OPP%dirconfig%dims(4), vrange=real([0,1], irealLUT))
+      call populate_op_dim('g',         2_iintegers, OPP%dirconfig%dims(4), vrange=[0._irealLUT,1._irealLUT-epsilon(1._irealLUT)])
       call populate_op_dim('phi',       2_iintegers, OPP%dirconfig%dims(5), vrange=real([0,90], irealLUT))
       call populate_op_dim('theta',     OPP%dirconfig%dims(6), preset=[ real(irealLUT) :: 0, 45, 90])
       allocate(OPP%diffconfig%dims(4))
