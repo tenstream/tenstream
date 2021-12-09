@@ -29,6 +29,7 @@ module m_pprts_explicit
     & zero, one
 
   use m_helper_functions, only : &
+    & approx, &
     & CHKERR, &
     & imp_min_mean_max, &
     & mpi_logical_and, &
@@ -419,7 +420,7 @@ contains
     integer(iintegers) :: iter, isub, maxiter, sub_iter
 
     real(ireals), allocatable :: residual(:)
-    real(ireals) :: residual_mmm(3), rel_residual, atol, rtol
+    real(ireals) :: residual_mmm(3), rel_residual, atol, rtol, omega
 
     logical :: lskip_residual, lmonitor_residual, lconverged, lflg, lflg2
     logical :: laccept_incomplete_solve, lconverged_reason
@@ -475,6 +476,10 @@ contains
         endif
       endif
 
+      omega = 1
+      call PetscOptionsGetReal(PETSC_NULL_OPTIONS, prefix, "-pc_sor_omega", &
+        omega, lflg , ierr) ;call CHKERR(ierr)
+
 
       call DMGetLocalVector(C%da, v0, ierr); call CHKERR(ierr)
       call DMGlobalToLocalBegin(C%da, vediff, INSERT_VALUES, v0, ierr) ;call CHKERR(ierr)
@@ -487,20 +492,39 @@ contains
       do iter = 1, maxiter
 
         do isub=1, sub_iter
-          call explicit_ediff_forward_sweep(&
-            & solver, &
-            & solver%diff2diff, &
-            & dx = [C%xs, C%xe, i1], &
-            & dy = [C%ys, C%ye, i1], &
-            & dz = [C%zs, C%ze-1, i1], &
-            & b=lvb, x=v0 )
-          call explicit_ediff_forward_sweep(&
-            & solver, &
-            & solver%diff2diff, &
-            & dx = [C%xe, C%xs, -i1], &
-            & dy = [C%ye, C%ys, -i1], &
-            & dz = [C%ze-1, C%zs, -i1], &
-            & b=lvb, x=v0 )
+          if(approx(omega,1._ireals)) then
+            call explicit_ediff_forward_sweep(&
+              & solver, &
+              & solver%diff2diff, &
+              & dx = [C%xs, C%xe, i1], &
+              & dy = [C%ys, C%ye, i1], &
+              & dz = [C%zs, C%ze-1, i1], &
+              & b=lvb, x=v0 )
+            call explicit_ediff_forward_sweep(&
+              & solver, &
+              & solver%diff2diff, &
+              & dx = [C%xe, C%xs, -i1], &
+              & dy = [C%ye, C%ys, -i1], &
+              & dz = [C%ze-1, C%zs, -i1], &
+              & b=lvb, x=v0 )
+          else
+            call explicit_ediff_sor_sweep(&
+              & solver, &
+              & solver%diff2diff, &
+              & dx = [C%xs, C%xe, i1], &
+              & dy = [C%ys, C%ye, i1], &
+              & dz = [C%zs, C%ze-1, i1], &
+              & omega = omega, &
+              & b=lvb, x=v0 )
+            call explicit_ediff_sor_sweep(&
+              & solver, &
+              & solver%diff2diff, &
+              & dx = [C%xe, C%xs, -i1], &
+              & dy = [C%ye, C%ys, -i1], &
+              & dz = [C%ze-1, C%zs, -i1], &
+              & omega = omega, &
+              & b=lvb, x=v0 )
+          endif
         enddo
 
         call exchange_diffuse_boundary(solver, v0, ierr); call CHKERR(ierr)
