@@ -465,11 +465,13 @@ module m_boxmc_geometry
       real(ireal_dp),intent(inout) :: pweight
       real(ireal_dp),intent(out) :: max_dist
       integer(iintegers), intent(out) :: psubface
-      integer(mpiint) :: ierr
+      integer(mpiint), intent(out) :: ierr
 
       logical            :: lhit (6)
       real(ireal_dp)     :: hit  (6, 4)
       integer(iintegers) :: i, iface(6)
+
+      ierr = 0
 
       associate( &
           A => vertices( 1: 3), &
@@ -553,7 +555,7 @@ module m_boxmc_geometry
       real(ireal_dp),intent(inout) :: pweight
       real(ireal_dp),intent(out) :: max_dist
       integer(iintegers), intent(out) :: psubface
-      integer(mpiint) :: ierr
+      integer(mpiint), intent(out) :: ierr
 
       real(ireal_dp),parameter :: rng(2) = [0._ireal_dp, huge(rng)]
       logical :: l_in_triangle
