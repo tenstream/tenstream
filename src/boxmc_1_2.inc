@@ -152,7 +152,6 @@ subroutine init_diff_photon_1_2(bmc, p, src, vertices, ierr)
     real(ireal_dp) :: phi,mu
     real(ireal_dp), dimension(3) :: normal, U, V, cube_center, dir_p_to_cube_center
 
-
     call CHKERR(size(vertices)-24, 'wrong size of vertices, expected 24 but found '//toStr(size(vertices)))
     associate( &
         pA => vertices(1:3), &
@@ -249,54 +248,39 @@ subroutine intersect_distance_1_2(bmc,vertices,p,max_dist)
     type(t_photon),intent(inout) :: p
     real(ireal_dp),intent(out) :: max_dist
 
-    real(ireal_dp) :: slab_vertices(size(vertices)), pct(3), pcb(3)
-    real(ireal_dp), parameter :: extrude=1e6
-    integer(mpiint) :: ierr
+    real(ireal_dp) :: hit(2)
+    integer(iintegers) :: i
 
-    call CHKERR(size(vertices)-24, 'wrong size of vertices, expected 24 but found '//toStr(size(vertices)))
-
-    slab_vertices(:) = vertices(:)
     associate( &
-        pA => slab_vertices(1:3), &
-        pB => slab_vertices(4:6), &
-        pC => slab_vertices(7:9), &
-        pD => slab_vertices(10:12), &
-        pE => slab_vertices(13:15), &
-        pF => slab_vertices(16:18), &
-        pG => slab_vertices(19:21), &
-        pH => slab_vertices(22:24) &
+        pA => vertices(1:3), &
+        pB => vertices(4:6), &
+        pC => vertices(7:9), &
+        pD => vertices(10:12), &
+        pE => vertices(13:15), &
+        pF => vertices(16:18), &
+        pG => vertices(19:21), &
+        pH => vertices(22:24) &
         )
 
-      pcb = (pA+pB+pC+pD) / 4
-      pct = (pE+pF+pG+pH) / 4
-
-      pA = pA + (pA - pcb) * extrude
-      pB = pB + (pB - pcb) * extrude
-      pC = pC + (pC - pcb) * extrude
-      pD = pD + (pD - pcb) * extrude
-      pE = pE + (pE - pct) * extrude
-      pF = pF + (pF - pct) * extrude
-      pG = pG + (pG - pct) * extrude
-      pH = pH + (pH - pct) * extrude
-
-      p%loc(1:2) = pcb(1:2)+pct(1:2) ! always reset photon to center of box
-
-      call intersect_cube_general(slab_vertices, p%loc, p%dir, p%scattercnt, p%src_side, &
-        & p%side, p%weight, max_dist, p%subface, ierr)
-      if(p%side.gt.2) then
-        pA = pA + (pA - pcb) * extrude
-        pB = pB + (pB - pcb) * extrude
-        pC = pC + (pC - pcb) * extrude
-        pD = pD + (pD - pcb) * extrude
-        pE = pE + (pE - pct) * extrude
-        pF = pF + (pF - pct) * extrude
-        pG = pG + (pG - pct) * extrude
-        pH = pH + (pH - pct) * extrude
-
-        call intersect_cube_general(slab_vertices, p%loc, p%dir, p%scattercnt, p%src_side, &
-          & p%side, p%weight, max_dist, p%subface, ierr)
-      endif
+      hit(1) = hit_plane(p%loc, p%dir, pE, cross_3d(pF-pE, pG-pE))
+      hit(2) = hit_plane(p%loc, p%dir, pA, cross_3d(pC-pA, pB-pA))
     end associate
+
+    p%side = 0
+    max_dist = huge(max_dist)
+    do i = 1, 2
+      if(hit(i).lt.zero) cycle
+      if(p%scattercnt.eq.0 .and. i.eq.p%src_side) cycle
+      if(hit(i).lt.max_dist) then
+        max_dist = hit(i)
+        p%side    = i
+        p%subface = 1
+      endif
+    enddo
+    if(p%side.eq.0) then
+      call print_photon(p)
+      call CHKERR(1_mpiint, 'did not hit anything')
+    endif
     select type(bmc)
     end select
 end subroutine

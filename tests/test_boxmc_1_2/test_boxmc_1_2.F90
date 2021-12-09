@@ -111,7 +111,7 @@ contains
     call check(S_target,T_target, S,T, msg=msg)
   end subroutine
 
-  !@test(npes =[1])
+  @test(npes =[1])
   subroutine test_boxmc_select_cases_direct_srctopface(this)
   class (MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: src
