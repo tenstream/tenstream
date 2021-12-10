@@ -4934,6 +4934,7 @@ module m_pprts
       subroutine check_cache(lcurrent)
         logical, intent(out) :: lcurrent
 
+        logical, save :: lpresent_angles=.False.
         logical, save :: c_ldir=.False., c_lswitch_east=.False., c_lswitch_north=.False.
         real(ireals), save :: c_kabs=-1, c_ksca=-1, c_g=-1, c_dz=-1, c_vertices(24)=-1
         real(irealLUT), save :: c_angles(2)=-1
@@ -4952,6 +4953,7 @@ module m_pprts
         if(.not.rel_approx(c_ksca, ksca, cache_limit)) goto 99
         if(.not.rel_approx(c_g   , g   , cache_limit)) goto 99
         if(.not.rel_approx(c_dz  , dz  , cache_limit)) goto 99
+        if(lpresent_angles.neqv.present(angles)) goto 99
 
         if(present(opt_vertices)) then
           if(any(.not.rel_approx(c_vertices, opt_vertices, cache_limit))) goto 99
@@ -4992,6 +4994,7 @@ module m_pprts
         c_g    = g
         c_dz   = dz
         c_ldir = ldir
+        lpresent_angles = present(angles)
         if(present(angles       )) c_angles        = angles
         if(present(opt_vertices )) c_vertices      = opt_vertices
         if(present(lswitch_east )) c_lswitch_east  = lswitch_east
