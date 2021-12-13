@@ -65,7 +65,9 @@ module m_pprts
 
   use m_optprop_parameters, only: ldebug_optprop
 
-  use m_optprop, only: t_optprop, &
+  use m_optprop, only: &
+    & t_optprop, &
+    & t_optprop_cube, &
     & t_optprop_1_2, &
     & t_optprop_3_6, &
     & t_optprop_3_10, &
@@ -418,6 +420,11 @@ module m_pprts
     call set_angles(solver, sundir)
 
     if(ltwostr_only .or. lmcrts) return ! dont need LUT, we just compute Twostream anyway
+
+    if(.not.luse_eddington) then
+      allocate(t_optprop_1_2::solver%OPP1d)
+      call solver%OPP1d%init(solver%comm)
+    endif
 
     call solver%OPP%init(solver%comm)
   contains
@@ -1542,15 +1549,17 @@ module m_pprts
     integer(iintegers)  :: k, i, j
     logical :: lpprts_delta_scale, lzdun, lflg
     real(ireals) :: pprts_set_absorption, pprts_set_scatter, pprts_set_asymmetry, pprts_set_albedo
+    real(irealLUT) :: c1d_dir2dir(1), c1d_dir2diff(2), c1d_diff2diff(4)
     integer(mpiint) :: ierr
 
     call PetscLogEventBegin(solver%logs%set_optprop, ierr); call CHKERR(ierr)
 
-    associate( atm => solver%atm, &
-        C_one_atm => solver%C_one_atm, &
-        C_one_atm1 => solver%C_one_atm1, &
-        sun => solver%sun, &
-        C_one => solver%C_one)
+    associate( &
+        & atm        => solver%atm, &
+        & C_one_atm  => solver%C_one_atm, &
+        & C_one_atm1 => solver%C_one_atm1, &
+        & sun        => solver%sun, &
+        & C_one      => solver%C_one)
 
     if(.not.allocated(atm%kabs) )  &
       allocate( atm%kabs(C_one_atm%zs :C_one_atm%ze, C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye) )
@@ -1665,15 +1674,14 @@ module m_pprts
       call CHKERR(1_mpiint, 'set_optical_properties :: found illegal value in delta_scaled optical properties! abort!')
     endif
 
-    if(luse_eddington) then
-      if(.not.allocated(atm%a11)) allocate(atm%a11(C_one_atm%zs:C_one_atm%ze,C_one_atm%xs:C_one_atm%xe,C_one_atm%ys:C_one_atm%ye))   ! allocate space for twostream coefficients
-      if(.not.allocated(atm%a12)) allocate(atm%a12(C_one_atm%zs:C_one_atm%ze,C_one_atm%xs:C_one_atm%xe,C_one_atm%ys:C_one_atm%ye))
-      if(.not.allocated(atm%a21)) allocate(atm%a21(C_one_atm%zs:C_one_atm%ze,C_one_atm%xs:C_one_atm%xe,C_one_atm%ys:C_one_atm%ye))
-      if(.not.allocated(atm%a22)) allocate(atm%a22(C_one_atm%zs:C_one_atm%ze,C_one_atm%xs:C_one_atm%xe,C_one_atm%ys:C_one_atm%ye))
-      if(.not.allocated(atm%a13)) allocate(atm%a13(C_one_atm%zs:C_one_atm%ze,C_one_atm%xs:C_one_atm%xe,C_one_atm%ys:C_one_atm%ye))
-      if(.not.allocated(atm%a23)) allocate(atm%a23(C_one_atm%zs:C_one_atm%ze,C_one_atm%xs:C_one_atm%xe,C_one_atm%ys:C_one_atm%ye))
-      if(.not.allocated(atm%a33)) allocate(atm%a33(C_one_atm%zs:C_one_atm%ze,C_one_atm%xs:C_one_atm%xe,C_one_atm%ys:C_one_atm%ye))
-    endif
+    ! allocate space for twostream coefficients
+    if(.not.allocated(atm%a11)) allocate(atm%a11(C_one_atm%zs:C_one_atm%ze,C_one_atm%xs:C_one_atm%xe,C_one_atm%ys:C_one_atm%ye))
+    if(.not.allocated(atm%a12)) allocate(atm%a12(C_one_atm%zs:C_one_atm%ze,C_one_atm%xs:C_one_atm%xe,C_one_atm%ys:C_one_atm%ye))
+    if(.not.allocated(atm%a21)) allocate(atm%a21(C_one_atm%zs:C_one_atm%ze,C_one_atm%xs:C_one_atm%xe,C_one_atm%ys:C_one_atm%ye))
+    if(.not.allocated(atm%a22)) allocate(atm%a22(C_one_atm%zs:C_one_atm%ze,C_one_atm%xs:C_one_atm%xe,C_one_atm%ys:C_one_atm%ye))
+    if(.not.allocated(atm%a13)) allocate(atm%a13(C_one_atm%zs:C_one_atm%ze,C_one_atm%xs:C_one_atm%xe,C_one_atm%ys:C_one_atm%ye))
+    if(.not.allocated(atm%a23)) allocate(atm%a23(C_one_atm%zs:C_one_atm%ze,C_one_atm%xs:C_one_atm%xe,C_one_atm%ys:C_one_atm%ye))
+    if(.not.allocated(atm%a33)) allocate(atm%a33(C_one_atm%zs:C_one_atm%ze,C_one_atm%xs:C_one_atm%xe,C_one_atm%ys:C_one_atm%ye))
 
     if(luse_eddington) then
       lzdun = .False.
@@ -1722,15 +1730,68 @@ module m_pprts
           enddo !k
         enddo !i
       enddo !j
+    else
+      do j=C_one_atm%ys,C_one_atm%ye
+        do i=C_one_atm%xs,C_one_atm%xe
+          do k=C_one_atm%zs,C_one_atm%ze
+            if( atm%l1d(k) ) then
+              call get_coeff( &
+                & solver%OPP1d, &
+                & atm%kabs(atmk(atm,k),i,j), &
+                & atm%ksca(atmk(atm,k),i,j), &
+                & atm%g(atmk(atm,k),i,j), &
+                & atm%dz(atmk(atm,k),i,j), &
+                & atm%dz(atmk(atm,k),i,j), &
+                & .True., &
+                & c1d_dir2dir, &
+                & [0._irealLUT, real(sun%theta, irealLUT)], &
+                & lswitch_east=sun%xinc.eq.0, lswitch_north=sun%yinc.eq.0 &
+                & )
+              atm%a33(k,i,j) = real(c1d_dir2dir(1), ireals)
 
-      ! Set symmetric up and down transport coefficients. If only for one
-      ! layer, they would be indeed symmetric. If we collapse the atmosphere
-      ! however, we have different transmission if we come from top or from
-      ! bottom.
-      atm%a21 = atm%a12
-      atm%a22 = atm%a11
-      call handle_atm_collapse()
+              call get_coeff( &
+                & solver%OPP1d, &
+                & atm%kabs(atmk(atm,k),i,j), &
+                & atm%ksca(atmk(atm,k),i,j), &
+                & atm%g(atmk(atm,k),i,j), &
+                & atm%dz(atmk(atm,k),i,j), &
+                & atm%dz(atmk(atm,k),i,j), &
+                & .False., &
+                & c1d_dir2diff, &
+                & [0._irealLUT, real(sun%theta, irealLUT)], &
+                & lswitch_east=sun%xinc.eq.0, lswitch_north=sun%yinc.eq.0 &
+                & )
+                atm%a13(k,i,j) = real(c1d_dir2diff(1), ireals)
+                atm%a23(k,i,j) = real(c1d_dir2diff(2), ireals)
+
+              call get_coeff( &
+                & solver%OPP1d, &
+                & atm%kabs(atmk(atm,k),i,j), &
+                & atm%ksca(atmk(atm,k),i,j), &
+                & atm%g(atmk(atm,k),i,j), &
+                & atm%dz(atmk(atm,k),i,j), &
+                & atm%dz(atmk(atm,k),i,j), &
+                & .False., &
+                & c1d_diff2diff &
+                & )
+                atm%a11(k,i,j) = real(c1d_diff2diff(1), ireals)
+                atm%a12(k,i,j) = real(c1d_diff2diff(2), ireals)
+                atm%a21(k,i,j) = real(c1d_diff2diff(3), ireals)
+                atm%a22(k,i,j) = real(c1d_diff2diff(4), ireals)
+
+            endif !l1d
+          enddo !k
+        enddo !i
+      enddo !j
     endif
+
+    ! Set symmetric up and down transport coefficients. If only for one
+    ! layer, they would be indeed symmetric. If we collapse the atmosphere
+    ! however, we have different transmission if we come from top or from
+    ! bottom.
+    atm%a21 = atm%a12
+    atm%a22 = atm%a11
+    call handle_atm_collapse()
 
     end associate
     call PetscLogEventEnd(solver%logs%set_optprop, ierr); call CHKERR(ierr)
@@ -2572,13 +2633,14 @@ module m_pprts
                   & )
               else
                 call get_coeff( &
-                  & solver, &
+                  & solver%OPP, &
                   & atm%kabs(atmk(atm,k),i,j), &
                   & atm%ksca(atmk(atm,k),i,j), &
                   & atm%g(atmk(atm,k),i,j), &
-                  & atm%dz(atmk(atm,k),i,j), .True., &
+                  & atm%dz(atmk(atm,k),i,j), &
+                  & atm%dx, &
+                  & .True., &
                   & v, &
-                  & atm%l1d(atmk(atm,k)), &
                   & [real(sun%symmetry_phi, irealLUT), real(sun%theta, irealLUT)], &
                   & lswitch_east=sun%xinc.eq.0, lswitch_north=sun%yinc.eq.0, &
                   & opt_vertices=vertices &
@@ -2718,26 +2780,28 @@ module m_pprts
 
               if (lbmc_online) then
                 call get_coeff( &
-                  & solver, &
+                  & solver%OPP, &
                   & atm%kabs(atmk(atm,k),i,j), &
                   & atm%ksca(atmk(atm,k),i,j), &
                   & atm%g(atmk(atm,k),i,j), &
-                  & atm%dz(atmk(atm,k),i,j), .False., &
+                  & atm%dz(atmk(atm,k),i,j), &
+                  & atm%dx, &
+                  & .False., &
                   & v, &
-                  & atm%l1d(atmk(atm,k)), &
                   & [real(sun%symmetry_phi, irealLUT), real(sun%theta, irealLUT)], &
                   & lswitch_east=sun%xinc.eq.0, lswitch_north=sun%yinc.eq.0, &
                   & opt_vertices=vertices &
                   & )
               else
                 call get_coeff( &
-                  & solver, &
+                  & solver%OPP, &
                   & atm%kabs(atmk(atm,k),i,j), &
                   & atm%ksca(atmk(atm,k),i,j), &
                   & atm%g(atmk(atm,k),i,j), &
-                  & atm%dz(atmk(atm,k),i,j), .False., &
+                  & atm%dz(atmk(atm,k),i,j), &
+                  & atm%dx, &
+                  & .False., &
                   & v, &
-                  & atm%l1d(atmk(atm,k)), &
                   & [real(sun%symmetry_phi, irealLUT), real(sun%theta, irealLUT)], &
                   & lswitch_east=sun%xinc.eq.0, lswitch_north=sun%yinc.eq.0 &
                   & )
@@ -2747,13 +2811,14 @@ module m_pprts
 
               if (lgeometric_coeffs .and. lconserve_lut_atm_abso) then
                 call get_coeff( &
-                  & solver, &
+                  & solver%OPP, &
                   & atm%kabs(atmk(atm,k),i,j), &
                   & atm%ksca(atmk(atm,k),i,j), &
                   & atm%g(atmk(atm,k),i,j), &
-                  & atm%dz(atmk(atm,k),i,j), .True., &
+                  & atm%dz(atmk(atm,k),i,j), &
+                  & atm%dx, &
+                  & .True., &
                   & T_LUT, &
-                  & atm%l1d(atmk(atm,k)), &
                   & [real(sun%symmetry_phi, irealLUT), real(sun%theta, irealLUT)], &
                   & lswitch_east=sun%xinc.eq.0, lswitch_north=sun%yinc.eq.0 &
                   & )
@@ -2866,13 +2931,14 @@ module m_pprts
                 & )
 
               call get_coeff( &
-                & solver, &
+                & solver%OPP, &
                 & atm%kabs(atmk(atm,k),i,j), &
                 & atm%ksca(atmk(atm,k),i,j), &
                 & atm%g(atmk(atm,k),i,j), &
-                & atm%dz(atmk(atm,k),i,j), .False., &
+                & atm%dz(atmk(atm,k),i,j), &
+                & atm%dx, &
+                & .False., &
                 & v, &
-                & atm%l1d(atmk(atm,k)), &
                 & opt_vertices=vertices &
                 & )
               coeffs(:,k,i,j) = real(v, ireals)
@@ -4226,12 +4292,7 @@ module m_pprts
      real(ireals) :: v(1)
      integer(iintegers) :: src
 
-     if(luse_eddington) then
-       v = atm%a33(atmk(atm,k),i,j)
-     else
-       v = nan
-       call CHKERR(1_mpiint, 'currently only support use of eddington coeffs for 1D voxels')
-     endif
+     v = atm%a33(atmk(atm,k),i,j)
 
      col(MatStencil_j,i1) = i      ; col(MatStencil_k,i1) = j       ; col(MatStencil_i,i1) = k
      row(MatStencil_j,i1) = i      ; row(MatStencil_k,i1) = j       ; row(MatStencil_i,i1) = k+1
@@ -4353,21 +4414,7 @@ module m_pprts
                 bbot = atm%Bbot(i,j) * bfac
 
               else
-                if(luse_eddington ) then
-                  emis = min(one, max(zero, one-atm%a11(ak,i,j)-atm%a12(ak,i,j)))
-                else
-                  emis = nan
-                  call CHKERR(1_mpiint, 'currently only support use of eddington coeffs for 1D voxels')
-                  !call get_coeff(solver, &
-                  !  atm%kabs(ak,i,j), &
-                  !  atm%ksca(ak,i,j), &
-                  !  atm%g(ak,i,j), &
-                  !  atm%dz(ak,i,j), &
-                  !  .False., diff2diff1d, &
-                  !  atm%l1d(ak))
-
-                  !emis = one-real(diff2diff1d(1)+diff2diff1d(2), ireals)
-                endif
+                emis = min(one, max(zero, one-atm%a11(ak,i,j)-atm%a12(ak,i,j)))
 
                 call B_eff(b1, b0, tauz, btop)
                 call B_eff(b0, b1, tauz, bbot)
@@ -4501,28 +4548,21 @@ module m_pprts
             if( any (xedir(:,k,i,j) .gt. epsilon(one)) ) then
               if( atm%l1d(atmk(atm,k)) ) then
 
-                if(luse_eddington ) then
-                  ! Only transport the 4 tiles from dir0 to the Eup and Edn
-                  do src=1,solver%dirtop%dof
+                ! Only transport the 4 tiles from dir0 to the Eup and Edn
+                do src=1,solver%dirtop%dof
 
-                    do idiff=1,solver%difftop%dof
-                      if (solver%difftop%is_inward(idiff)) then
-                        ! fetch all diffuse downward fluxes at k+1
-                        xsrc(idiff-1,k+1,i,j) = xsrc(idiff-1,k+1,i,j) + &
-                          xedir(src-1,k,i,j) * atm%a23(atmk(atm,k),i,j) / real(solver%difftop%streams, ireals)
-                      else
-                        ! fetch all diffuse upward fluxes at k
-                        xsrc(idiff-1,k,i,j) = xsrc(idiff-1,k,i,j) + &
-                          xedir(src-1,k,i,j) * atm%a13(atmk(atm,k),i,j) / real(solver%difftop%streams, ireals)
-                      endif
-                    enddo
+                  do idiff=1,solver%difftop%dof
+                    if (solver%difftop%is_inward(idiff)) then
+                      ! fetch all diffuse downward fluxes at k+1
+                      xsrc(idiff-1,k+1,i,j) = xsrc(idiff-1,k+1,i,j) + &
+                        xedir(src-1,k,i,j) * atm%a23(atmk(atm,k),i,j) / real(solver%difftop%streams, ireals)
+                    else
+                      ! fetch all diffuse upward fluxes at k
+                      xsrc(idiff-1,k,i,j) = xsrc(idiff-1,k,i,j) + &
+                        xedir(src-1,k,i,j) * atm%a13(atmk(atm,k),i,j) / real(solver%difftop%streams, ireals)
+                    endif
                   enddo
-
-                else
-                  !call get_coeff(atm%op(atmk(atm,k),i,j), atm%dz(atmk(atm,k),i,j),.False., twostr_coeff, atm%l1d(atmk(atm,k)), [sun%angles(k,i,j)%symmetry_phi, sun%angles(k,i,j)%theta])
-                  call CHKERR(1_mpiint, 'set solar source only implemented for use with eddington coeff')
-                endif
-
+                enddo
 
               else ! Tenstream source terms
 
@@ -4878,14 +4918,13 @@ module m_pprts
 
   !> @brief retrieve transport coefficients from optprop module
   !> @detail this may get the coeffs from a LUT or ANN or whatever and return diff2diff or dir2diff or dir2dir coeffs
-  subroutine get_coeff(solver, kabs, ksca, g, dz, ldir, coeff, &
-      lone_dimensional, angles, lswitch_east, lswitch_north, opt_vertices)
-    class(t_solver), intent(in)       :: solver
-    real(ireals),intent(in)           :: kabs, ksca, g, dz
+  subroutine get_coeff(OPP, kabs, ksca, g, dz, dx, ldir, coeff, &
+      angles, lswitch_east, lswitch_north, opt_vertices)
+    class(t_optprop_cube), intent(in) :: OPP
+    real(ireals),intent(in)           :: kabs, ksca, g, dz, dx
     logical,intent(in)                :: ldir
     real(irealLUT),intent(out)        :: coeff(:)
 
-    logical,intent(in)                :: lone_dimensional
     real(irealLUT),intent(in),optional:: angles(2)
     logical,intent(in),optional       :: lswitch_east, lswitch_north
     real(ireals), intent(in), optional:: opt_vertices(:)
@@ -4902,31 +4941,26 @@ module m_pprts
       return
     endif
 
-    aspect_zx = real(dz / solver%atm%dx, irealLUT)
+    aspect_zx = real(dz / dx, irealLUT)
     w0        = real(ksca / max(kabs+ksca, epsilon(kabs)), irealLUT)
     tauz      = real((kabs+ksca) * dz, irealLUT)
 
     if(present(angles)) then
-      aspect_zx = max(solver%OPP%dev%dirconfig%dims(3)%vrange(1), aspect_zx)
-      tauz = max(solver%OPP%dev%dirconfig%dims(1)%vrange(1), &
-           & min(solver%OPP%dev%dirconfig%dims(1)%vrange(2), tauz ))
-      w0   = max(solver%OPP%dev%dirconfig%dims(2)%vrange(1), &
-           & min(solver%OPP%dev%dirconfig%dims(2)%vrange(2), w0))
+      aspect_zx = max(OPP%dev%dirconfig%dims(3)%vrange(1), aspect_zx)
+      tauz = max(OPP%dev%dirconfig%dims(1)%vrange(1), &
+           & min(OPP%dev%dirconfig%dims(1)%vrange(2), tauz ))
+      w0   = max(OPP%dev%dirconfig%dims(2)%vrange(1), &
+           & min(OPP%dev%dirconfig%dims(2)%vrange(2), w0))
     else
-      aspect_zx = max(solver%OPP%dev%diffconfig%dims(3)%vrange(1), aspect_zx)
-      tauz = max(solver%OPP%dev%diffconfig%dims(1)%vrange(1), &
-           & min(solver%OPP%dev%diffconfig%dims(1)%vrange(2), tauz ))
-      w0   = max(solver%OPP%dev%diffconfig%dims(2)%vrange(1), &
-           & min(solver%OPP%dev%diffconfig%dims(2)%vrange(2), w0))
+      aspect_zx = max(OPP%dev%diffconfig%dims(3)%vrange(1), aspect_zx)
+      tauz = max(OPP%dev%diffconfig%dims(1)%vrange(1), &
+           & min(OPP%dev%diffconfig%dims(1)%vrange(2), tauz ))
+      w0   = max(OPP%dev%diffconfig%dims(2)%vrange(1), &
+           & min(OPP%dev%diffconfig%dims(2)%vrange(2), w0))
     endif
 
-    if(lone_dimensional) then
-      call CHKERR(1_mpiint, 'currently, we dont support using LUT Twostream for l1d layers')
-      !call OPP_1_2%get_coeff (aspect, tauz, w0, g,ldir,coeff,angles)
-    else
-      call solver%OPP%get_coeff(tauz, w0, real(g, irealLUT), aspect_zx, ldir, coeff, ierr, &
-        angles, lswitch_east, lswitch_north, opt_vertices); call CHKERR(ierr)
-    endif
+    call OPP%get_coeff(tauz, w0, real(g, irealLUT), aspect_zx, ldir, coeff, ierr, &
+      angles, lswitch_east, lswitch_north, opt_vertices); call CHKERR(ierr)
 
     coeff_cache(1:size(coeff)) = coeff
 
@@ -5304,7 +5338,7 @@ module m_pprts
               if(col(MatStencil_i,src).eq.row(MatStencil_i,dst)) then ! for reflection, has to be the same k layers
 
                 if(src.ne.inv_dof(dst)) cycle ! in 1D has to be the inverse stream
-                v(i1 + dst*solver%difftop%dof + src) = atm%a12(atmk(atm,k),i,j)
+                v(i1 + dst*solver%difftop%dof + src) = atm%a12(atmk(atm,k),i,j) ! TODO: should be using a21/a22 for upward streams?
                 !print *,i,j,k,'setting r ',toStr(src)//' (k='//toStr(col(MatStencil_i,src))//') ->', &
                 !  toStr(dst)//' (k='//toStr(row(MatStencil_i,dst))//')'// &
                 !  ':', i1 + dst*solver%difftop%dof + src, v(i1 + dst*solver%difftop%dof + src), &
@@ -5312,7 +5346,8 @@ module m_pprts
               else
 
                 if(src.ne.dst) cycle ! in 1D has to be the same
-                v(i1 + dst*solver%difftop%dof + src) = atm%a11(atmk(atm,k),i,j)
+                v(i1 + dst*solver%difftop%dof + src) = atm%a11(atmk(atm,k),i,j) ! TODO: should be using a21/a22 for upward streams?
+
                 !print *,i,j,k,'setting t ',toStr(src)//' (k='//toStr(col(MatStencil_i,src))//') ->', &
                 !  toStr(dst)//' (k='//toStr(row(MatStencil_i,dst))//') :', i1 + dst*solver%difftop%dof + src, v(i1 + dst*solver%difftop%dof + src)
               endif ! which k-lev
