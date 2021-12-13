@@ -509,18 +509,22 @@ contains
     !endif
     contains
 
-      subroutine dump_variable(var, dm, dumpstring)
+      subroutine dump_variable(var, dm, dumpstring, varname)
         real(ireals), intent(in) :: var(:,:,:)
         type(tDM), intent(in) :: dm
-        character(len=*), intent(in) :: dumpstring
+        character(len=*), intent(in) :: dumpstring, varname
+        character(len=default_str_len) :: vname
         logical :: lflg
         type(tVec) :: dumpvec
 
         call PetscOptionsHasName(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
           trim(dumpstring), lflg , ierr) ;call CHKERR(ierr)
         if(lflg) then
+          vname = trim(varname)
+          if(present(opt_time)) vname = trim(vname)//'.t'//trim(adjustl(toStr(opt_time)))
+          if(.not.lsolar.or..not.lthermal) vname = trim(vname)//'.sol'//toStr(lsolar)//'.th'//toStr(lthermal)
           call DMGetGlobalVector(dm ,dumpvec ,ierr); call CHKERR(ierr)
-          call PetscObjectSetName(dumpvec, trim(dumpstring), ierr); call CHKERR(ierr)
+          call PetscObjectSetName(dumpvec, trim(vname), ierr); call CHKERR(ierr)
           call f90VecToPetsc(var, dm, dumpvec)
 
           call PetscObjectViewFromOptions(dumpvec, PETSC_NULL_VEC, &
@@ -535,17 +539,17 @@ contains
         integer(mpiint) :: ierr
 
         if(lsolar) then
-          call dump_variable(edir, solver%C_one1%da, "-pprts_rrtmg_dump_edir")
+          call dump_variable(edir, solver%C_one1%da, "-pprts_rrtmg_dump_edir", "edir")
         endif
-        call dump_variable(edn , solver%C_one1%da, "-pprts_rrtmg_dump_edn")
-        call dump_variable(eup , solver%C_one1%da, "-pprts_rrtmg_dump_eup")
-        call dump_variable(abso, solver%C_one%da,  "-pprts_rrtmg_dump_abso")
+        call dump_variable(edn , solver%C_one1%da, "-pprts_rrtmg_dump_edn", "edn")
+        call dump_variable(eup , solver%C_one1%da, "-pprts_rrtmg_dump_eup", "eup")
+        call dump_variable(abso, solver%C_one%da,  "-pprts_rrtmg_dump_abso", "abso")
 
         if(lsolar.and.present(opt_buildings_solar)) then
           call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
             & '-pprts_rrtmg_xdmf_buildings_solar', fname, lflg, ierr); call CHKERR(ierr)
           if(lflg) then
-            if(present(opt_time)) fname = trim(fname)//'.t'//trim(toStr(opt_time))
+            if(present(opt_time)) fname = trim(fname)//'.t'//trim(adjustl(toStr(opt_time)))
             if(.not.lsolar.or..not.lthermal) fname = trim(fname)//'.sol'//toStr(lsolar)//'.th'//toStr(lthermal)
             call xdmf_pprts_buildings(solver, opt_buildings_solar, fname, ierr, verbose=.True.); call CHKERR(ierr)
           endif
@@ -555,7 +559,7 @@ contains
           call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
             & '-pprts_rrtmg_xdmf_buildings_thermal', fname, lflg, ierr); call CHKERR(ierr)
           if(lflg) then
-            if(present(opt_time)) fname = trim(fname)//'.t'//trim(toStr(opt_time))
+            if(present(opt_time)) fname = trim(fname)//'.t'//trim(adjustl(toStr(opt_time)))
             if(.not.lsolar.or..not.lthermal) fname = trim(fname)//'.sol'//toStr(lsolar)//'.th'//toStr(lthermal)
             call xdmf_pprts_buildings(solver, opt_buildings_thermal, fname, ierr, verbose=.True.); call CHKERR(ierr)
           endif
@@ -564,7 +568,7 @@ contains
         call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
           & '-pprts_rrtmg_xdmf', fname, lflg, ierr); call CHKERR(ierr)
         if(lflg) then
-          if(present(opt_time)) fname = trim(fname)//'.t'//trim(toStr(opt_time))
+          if(present(opt_time)) fname = trim(fname)//'.t'//trim(adjustl(toStr(opt_time)))
           if(.not.lsolar.or..not.lthermal) fname = trim(fname)//'.sol'//toStr(lsolar)//'.th'//toStr(lthermal)
           if(lsolar) then
             call xdmf_pprts_srfc_flux(solver, fname, edir, edn, eup, ierr, verbose=.True.); call CHKERR(ierr)
