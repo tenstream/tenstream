@@ -118,6 +118,8 @@ module m_optprop_LUT
     real(irealLUT), allocatable :: stddev_tol(:) ! maxval of tolerance for a given entry
     character(default_str_len), allocatable :: table_name_c(:)
     character(default_str_len), allocatable :: table_name_tol(:)
+    character(default_str_len), allocatable :: base_table_name_c(:)
+    character(default_str_len), allocatable :: base_table_name_tol(:)
   end type
 
   type,abstract, extends(t_optprop_base) :: t_optprop_LUT
@@ -454,8 +456,13 @@ subroutine loadLUT_diff(OPP, comm, skip_load_LUT)
     ! Set filename of LUT
     descr = gen_lut_basename('_diffuse_'//toStr(OPP%diff_streams), OPP%diffconfig)
 
-    str(1) = trim(OPP%lutbasename)//trim(descr)//'.nc'
     str(2) = 'diffuse'
+
+    str(1) = trim(descr)//'.nc'
+    str(3) = 'Stol'; allocate(OPP%Sdiff%base_table_name_tol(size(str)), source=str)
+    str(3) = 'S'   ; allocate(OPP%Sdiff%base_table_name_c(size(str)), source=str)
+
+    str(1) = trim(OPP%lutbasename)//trim(descr)//'.nc'
 
     str(3) = 'Stol'; allocate(OPP%Sdiff%table_name_tol(size(str)), source=str)
     str(3) = 'S'   ; allocate(OPP%Sdiff%table_name_c(size(str)), source=str)
@@ -501,8 +508,17 @@ subroutine loadLUT_dir(OPP, comm, skip_load_LUT)
     ! Set filename of LUT
     descr = gen_lut_basename('_direct_'//toStr(OPP%dir_streams)//'_'//toStr(OPP%diff_streams), OPP%dirconfig)
 
-    str(1) = trim(OPP%lutbasename)//trim(descr)//'.nc'
     str(2) = 'direct'
+
+    str(1) = trim(descr)//'.nc'
+    str(3) = 'Stol'; allocate(OPP%Sdir%base_table_name_tol(size(str)), source=str)
+    str(3) = 'S'   ; allocate(OPP%Sdir%base_table_name_c(size(str)), source=str)
+
+    str(3) = 'Ttol'; allocate(OPP%Tdir%base_table_name_tol(size(str)), source=str)
+    str(3) = 'T'   ; allocate(OPP%Tdir%base_table_name_c(size(str)), source=str)
+
+
+    str(1) = trim(OPP%lutbasename)//trim(descr)//'.nc'
 
     str(3) = 'Stol'; allocate(OPP%Sdir%table_name_tol(size(str)), source=str)
     str(3) = 'S'   ; allocate(OPP%Sdir%table_name_c(size(str)), source=str)
@@ -1294,12 +1310,7 @@ end subroutine
           call arr_to_mmap(comm, trim(OPP%Sdiff%table_name_c(1))//'.Sdiff.mmap', mmap_ptr, ierr)
         endif
         OPP%Sdiff%c => mmap_ptr
-
-        call CHKERR(ierr, 'Could not generate mmap for LUT. '//new_line('')// &
-          '  If the binary dump (*.mmap) file does not yet exist, '//new_line('')// &
-          '  You probably need to run the createLUT program first '//new_line('')// &
-          '  or run with the additional option:'//new_line('')// &
-          '    -skip_load_LUT no')
+        call explain_missing_mmap_file(trim(OPP%Sdiff%base_table_name_c(1))//'.Sdiff.mmap', ierr)
 
         mmap_ptr => NULL()
         if(associated(OPP%Sdir%c)) then
@@ -1309,12 +1320,8 @@ end subroutine
           call arr_to_mmap(comm, trim(OPP%Sdir%table_name_c(1))//'.Sdir.mmap', mmap_ptr, ierr)
         endif
         OPP%Sdir%c => mmap_ptr
+        call explain_missing_mmap_file(trim(OPP%Sdir%base_table_name_c(1))//'.Sdir.mmap', ierr)
 
-        call CHKERR(ierr, 'Could not generate mmap for LUT. '//new_line('')// &
-          '  If the binary dump (*.mmap) file does not yet exist, '//new_line('')// &
-          '  You probably need to run the createLUT program first '//new_line('')// &
-          '  or run with the additional option:'//new_line('')// &
-          '    -skip_load_LUT no')
 
         mmap_ptr => NULL()
         if(associated(OPP%Tdir%c)) then
@@ -1324,12 +1331,7 @@ end subroutine
           call arr_to_mmap(comm, trim(OPP%Tdir%table_name_c(1))//'.Tdir.mmap', mmap_ptr, ierr)
         endif
         OPP%Tdir%c => mmap_ptr
-
-        call CHKERR(ierr, 'Could not generate mmap for LUT. '//new_line('')// &
-          '  If the binary dump (*.mmap) file does not yet exist, '//new_line('')// &
-          '  You probably need to run the createLUT program first '//new_line('')// &
-          '  or run with the additional option:'//new_line('')// &
-          '    -skip_load_LUT no')
+        call explain_missing_mmap_file(trim(OPP%Sdir%base_table_name_c(1))//'.Tdir.mmap', ierr)
 
       else
         if(myid.eq.0) then
@@ -1352,6 +1354,35 @@ end subroutine
           call imp_bcast(comm, OPP%Sdiff%c, 0_mpiint)
 
       endif
+
+    contains
+      subroutine explain_missing_mmap_file(fname, ierr)
+        character(len=*), intent(in) :: fname
+        integer(mpiint), intent(in) :: ierr
+
+        call CHKERR(ierr, 'Could not generate mmap for LUT. '//new_line('')// &
+          '  If the binary dump (*.mmap) file does not yet exist, '//new_line('')// &
+          '  it could be one of the following:, '//new_line('')// &
+          ''//new_line('')//&
+          '    - you have a LUT netcdf file but no memory map binary dumps'//new_line('')// &
+          '    - you dont have any LUT files '//new_line('')// &
+          ''//new_line('')//&
+          '  in any case, you have the following options:'//new_line('')// &
+          '    * run with the additional option:'//new_line('')// &
+          ''//new_line('')//&
+          '        -skip_load_LUT no'//new_line('')//&
+          ''//new_line('')//&
+          '      which will create the LUT netcdf file if not present and after it finished,'//new_line('')//&
+          '      it will create the memory map file'//new_line('')//&
+          '      Note that this may take a loooong time!'//new_line('')//&
+          ''//new_line('')//&
+          '    * or download a LUT/mmap file from the web. Have a look at the misc/download_LUT.sh script'//new_line('')//&
+          '      e.g. in your case, run'//new_line('')//&
+          ''//new_line('')//&
+          '        bash <tenstream_src>/misc/download_LUT.sh '//trim(fname)//new_line('')//&
+          ''//new_line('')//&
+          '')
+      end subroutine
   end subroutine
 
   subroutine print_configs(OPP)
