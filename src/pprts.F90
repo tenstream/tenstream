@@ -49,6 +49,7 @@ module m_pprts
     & inc, &
     & ind_1d_to_nd, &
     & ind_nd_to_1d, &
+    & is_inrange, &
     & meanval, &
     & mpi_logical_and, &
     & ndarray_offsets, &
@@ -1735,34 +1736,36 @@ module m_pprts
         do i=C_one_atm%xs,C_one_atm%xe
           do k=C_one_atm%zs,C_one_atm%ze
             if( atm%l1d(k) ) then
-              call get_coeff( &
-                & solver%OPP1d, &
-                & atm%kabs(atmk(atm,k),i,j), &
-                & atm%ksca(atmk(atm,k),i,j), &
-                & atm%g(atmk(atm,k),i,j), &
-                & atm%dz(atmk(atm,k),i,j), &
-                & atm%dz(atmk(atm,k),i,j), &
-                & .True., &
-                & c1d_dir2dir, &
-                & [0._irealLUT, real(sun%theta, irealLUT)], &
-                & lswitch_east=sun%xinc.eq.0, lswitch_north=sun%yinc.eq.0 &
-                & )
-              atm%a33(k,i,j) = real(c1d_dir2dir(1), ireals)
+              if (is_inrange(sun%theta, zero, 90._ireals)) then
+                call get_coeff( &
+                  & solver%OPP1d, &
+                  & atm%kabs(atmk(atm,k),i,j), &
+                  & atm%ksca(atmk(atm,k),i,j), &
+                  & atm%g(atmk(atm,k),i,j), &
+                  & atm%dz(atmk(atm,k),i,j), &
+                  & atm%dz(atmk(atm,k),i,j), &
+                  & .True., &
+                  & c1d_dir2dir, &
+                  & [0._irealLUT, real(sun%theta, irealLUT)], &
+                  & lswitch_east=sun%xinc.eq.0, lswitch_north=sun%yinc.eq.0 &
+                  & )
+                atm%a33(k,i,j) = real(c1d_dir2dir(1), ireals)
 
-              call get_coeff( &
-                & solver%OPP1d, &
-                & atm%kabs(atmk(atm,k),i,j), &
-                & atm%ksca(atmk(atm,k),i,j), &
-                & atm%g(atmk(atm,k),i,j), &
-                & atm%dz(atmk(atm,k),i,j), &
-                & atm%dz(atmk(atm,k),i,j), &
-                & .False., &
-                & c1d_dir2diff, &
-                & [0._irealLUT, real(sun%theta, irealLUT)], &
-                & lswitch_east=sun%xinc.eq.0, lswitch_north=sun%yinc.eq.0 &
-                & )
+                call get_coeff( &
+                  & solver%OPP1d, &
+                  & atm%kabs(atmk(atm,k),i,j), &
+                  & atm%ksca(atmk(atm,k),i,j), &
+                  & atm%g(atmk(atm,k),i,j), &
+                  & atm%dz(atmk(atm,k),i,j), &
+                  & atm%dz(atmk(atm,k),i,j), &
+                  & .False., &
+                  & c1d_dir2diff, &
+                  & [0._irealLUT, real(sun%theta, irealLUT)], &
+                  & lswitch_east=sun%xinc.eq.0, lswitch_north=sun%yinc.eq.0 &
+                  & )
                 atm%a13(k,i,j) = real(c1d_dir2diff(1), ireals)
                 atm%a23(k,i,j) = real(c1d_dir2diff(2), ireals)
+              endif
 
               call get_coeff( &
                 & solver%OPP1d, &
