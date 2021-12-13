@@ -1628,13 +1628,13 @@ module m_pprts
       atm%albedo = pprts_set_albedo
     endif
 
-    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_set_absorption", &
+    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_set_kabs", &
       pprts_set_absorption, lflg , ierr) ;call CHKERR(ierr)
     if(lflg) then
       atm%kabs = pprts_set_absorption
     endif
 
-    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_set_scatter", &
+    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_set_ksca", &
       pprts_set_scatter, lflg , ierr) ;call CHKERR(ierr)
     if(lflg) then
       atm%ksca = pprts_set_scatter
