@@ -261,6 +261,7 @@ subroutine intersect_distance_1_2(bmc,vertices,p,max_dist)
         pG => vertices(19:21), &
         pH => vertices(22:24) &
         )
+      p%loc(1:2) = pA(1:2) ! horizontally move the photon back to the vicinity of the initial vertices (reduces numeric errors)
 
       hit(1) = hit_plane(p%loc, p%dir, pE, cross_3d(pF-pE, pG-pE))
       hit(2) = hit_plane(p%loc, p%dir, pA, cross_3d(pC-pA, pB-pA))
