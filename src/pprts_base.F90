@@ -185,6 +185,7 @@ module m_pprts_base
     type(tKSP), allocatable            :: ksp_solar_diff
     type(tKSP), allocatable            :: ksp_thermal_diff
     class(t_optprop_cube), allocatable :: OPP
+    class(t_optprop_cube), allocatable :: OPP1d
 
     type(t_dof)                        :: difftop, diffside, dirtop, dirside
     real(ireals), allocatable, dimension(:,:,:,:) :: dir2dir, dir2diff, diff2diff
@@ -488,6 +489,10 @@ module m_pprts_base
       if(allocated(solver%OPP)) then
         call solver%OPP%destroy(ierr); call CHKERR(ierr)
         deallocate(solver%OPP)
+      endif
+      if(allocated(solver%OPP1d)) then
+        call solver%OPP1d%destroy(ierr); call CHKERR(ierr)
+        deallocate(solver%OPP1d)
       endif
 
       call deallocate_allocatable(solver%dir2dir)
