@@ -1732,10 +1732,10 @@ module m_pprts
         enddo !i
       enddo !j
     else
-      do j=C_one_atm%ys,C_one_atm%ye
-        do i=C_one_atm%xs,C_one_atm%xe
-          do k=C_one_atm%zs,C_one_atm%ze
-            if( atm%l1d(k) ) then
+      do k=C_one_atm%zs,C_one_atm%ze
+        if( atm%l1d(k) ) then
+          do j=C_one_atm%ys,C_one_atm%ye
+            do i=C_one_atm%xs,C_one_atm%xe
               if (is_inrange(sun%theta, zero, 90._ireals)) then
                 call get_coeff( &
                   & solver%OPP1d, &
@@ -1777,15 +1777,14 @@ module m_pprts
                 & .False., &
                 & c1d_diff2diff &
                 & )
-                atm%a11(k,i,j) = real(c1d_diff2diff(1), ireals)
-                atm%a12(k,i,j) = real(c1d_diff2diff(2), ireals)
-                atm%a21(k,i,j) = real(c1d_diff2diff(3), ireals)
-                atm%a22(k,i,j) = real(c1d_diff2diff(4), ireals)
-
-            endif !l1d
-          enddo !k
-        enddo !i
-      enddo !j
+              atm%a11(k,i,j) = real(c1d_diff2diff(1), ireals)
+              atm%a12(k,i,j) = real(c1d_diff2diff(2), ireals)
+              atm%a21(k,i,j) = real(c1d_diff2diff(3), ireals)
+              atm%a22(k,i,j) = real(c1d_diff2diff(4), ireals)
+            enddo !i
+          enddo !j
+        endif !l1d
+      enddo !k
     endif
 
     ! Set symmetric up and down transport coefficients. If only for one
