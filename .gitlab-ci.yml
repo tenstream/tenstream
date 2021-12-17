@@ -182,7 +182,7 @@ explicit:mim:gcc:debug:
   variables:
     MODULES: "cmake petsc/single-gcc-9"
     BUILD_TYPE: DEBUG
-    PETSC_OPTIONS: "-solar_dir_explicit -solar_diff_explicit -thermal_diff_explicit"
+    PETSC_OPTIONS: "-solar_dir_explicit -solar_diff_explicit -thermal_diff_explicit -thermal_diff_pc_sor_omega .5 -solar_diff_pc_sor_omega .5"
 
 matshell:mim:gcc:debug:
   extends: .build:mim:default
