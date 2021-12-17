@@ -101,7 +101,6 @@ program main
   if(lrayli_opts) then
     rayli_options=''
     rayli_options=trim(rayli_options)//' -pprts_use_rayli'
-    rayli_options=trim(rayli_options)//' -rayli_diff_flx_origin 0,0,-inf'
     rayli_options=trim(rayli_options)//' -rayli_cyclic_bc'
     rayli_options=trim(rayli_options)//' -show_rayli_dm3d hdf5:dm.h5'
 
