@@ -64,7 +64,6 @@ NP=1; NC=64
 ROPT="\
   -pprts_use_rayli \
   -rayli_cyclic_bc \
-  -rayli_diff_flx_origin 0,0,-inf \
   -pprts_rayli_photons 1e8 \
   -rayli_nthreads $(($NP * $NC)) \
   ${1:-}\
