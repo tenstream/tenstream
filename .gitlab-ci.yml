@@ -97,7 +97,7 @@ debian-testing:
 intel:
   extends: .build:default
   #image: intel/oneapi-hpckit
-  image: intel/oneapi-hpckit:2021.1-devel-ubuntu18.04
+  image: intel/oneapi-hpckit:2021.4-devel-ubuntu18.04
   before_script:
     - DEBIAN_FRONTEND=noninteractive apt-get -qq update && DEBIAN_FRONTEND=noninteractive apt-get -qq install -fy cmake git m4 curl libcurl3-dev
     - *template_build_PETSC
@@ -119,7 +119,7 @@ intel:
 intel:debug:
   extends: .build:default
   #image: intel/oneapi-hpckit
-  image: intel/oneapi-hpckit:2021.1-devel-ubuntu18.04
+  image: intel/oneapi-hpckit:2021.4-devel-ubuntu18.04
   before_script:
     - DEBIAN_FRONTEND=noninteractive apt-get -qq update && DEBIAN_FRONTEND=noninteractive apt-get -qq install -fy cmake git m4 curl libcurl3-dev
     - *template_build_PETSC
