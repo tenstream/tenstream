@@ -93,6 +93,8 @@ module m_pprts_rrtmg
   use m_tenstr_rrtmg_base, only: t_rrtmg_log_events, setup_log_events
   use m_buildings, only: t_pprts_buildings, clone_buildings, destroy_buildings
 
+  use m_pprts_external_solvers, only: destroy_rayli_info
+
   use m_tenstr_rrtmg_lw_init, only: rrtmg_lw_ini
   use m_tenstr_rrtmg_sw_init, only: rrtmg_sw_ini
 
@@ -1286,8 +1288,15 @@ contains
   subroutine destroy_pprts_rrtmg(solver, lfinalizepetsc)
     class(t_solver)     :: solver
     logical, intent(in) :: lfinalizepetsc
+    !TODO this should need to happen here. the reason we need this is in case that someone destroys petsc
+    !     and then initializes tenstream again, this is not valid anymore. Anyway, it should really reside in the pprts_solver object but
+    !     this currently would infer some serious refactoring to avoid cyclic dependencies because the part in pprt2plex2rayli brings in
+    !     the plexrt deps. For now, live with it but one day, we need to sort this out.
+    call destroy_rayli_info()
+
     ! Tidy up the solver
     call destroy_pprts(solver, lfinalizepetsc=lfinalizepetsc)
+
   end subroutine
 
   subroutine add_optional_optprop(tau, w0, g, opt_tau, opt_w0, opt_g)
