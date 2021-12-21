@@ -275,7 +275,7 @@ module m_plex2rayli
     real(ireals) :: opt_photons
 
     integer(c_size_t) :: outer_id
-    logical :: lcyclic, lflg
+    logical :: lcyclic, lphoton_scale_w_src, lflg
     integer(c_int) :: icyclic
 
     if(all([lcall_solver,lcall_snapshot].eqv..False.)) return
@@ -290,6 +290,14 @@ module m_plex2rayli
     call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
       "-rayli_photons", opt_photons, lflg,ierr) ; call CHKERR(ierr)
     Nphotons = int(opt_photons, c_size_t)
+
+    lphoton_scale_w_src = .False.
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+      '-rayli_photons_scale_with_src', lphoton_scale_w_src, lflg, ierr); call CHKERR(ierr)
+
+    if (lphoton_scale_w_src) then
+      Nphotons = 1_c_size_t + int(real(Nphotons, ireals) * norm2(sundir), c_size_t)
+    endif
 
     call PetscObjectGetComm(plex%dm, comm, ierr); call CHKERR(ierr)
     call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
