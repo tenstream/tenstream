@@ -22,16 +22,17 @@ module m_example_pprts_rrtm_lw_sw
   implicit none
 
 contains
-  subroutine ex_pprts_rrtm_lw_sw(nxp, nyp, nzp, dx, dy, phi0, theta0, albedo_th, albedo_sol)
-
-    implicit none
+  subroutine ex_pprts_rrtm_lw_sw(comm, nxp, nyp, nzp, dx, dy, phi0, theta0, albedo_th, albedo_sol, lthermal, lsolar, atm_filename)
+    integer(mpiint), intent(in) :: comm
     integer(iintegers), intent(in) :: nxp, nyp, nzp   ! local domain size for each rank
     real(ireals), intent(in) :: dx, dy                ! horizontal grid spacing in [m]
     real(ireals), intent(in) :: phi0, theta0          ! Sun's angles, azimuth phi(0=North, 90=East), zenith(0 high sun, 80=low sun)
     real(ireals), intent(in) :: albedo_th, albedo_sol ! broadband ground albedo for solar and thermal spectrum
+    logical, intent(in) :: lthermal, lsolar                       ! switches to enable/disable spectral integration
+    character(len=*), intent(in) :: atm_filename ! ='afglus_100m.dat'
 
     ! MPI variables and domain decomposition sizes
-    integer(mpiint) :: numnodes, comm, myid, N_ranks_x, N_ranks_y, ierr
+    integer(mpiint) :: numnodes, myid, N_ranks_x, N_ranks_y, ierr
 
 
     real(ireals), dimension(nzp+1,nxp,nyp), target :: plev ! pressure on layer interfaces [hPa]
@@ -56,7 +57,6 @@ contains
 
     ! Filename of background atmosphere file. ASCII file with columns:
     ! z(km)  p(hPa)  T(K)  air(cm-3)  o3(cm-3) o2(cm-3) h2o(cm-3)  co2(cm-3) no2(cm-3)
-    character(len=default_str_len) :: atm_filename ! ='afglus_100m.dat'
     logical :: lflg
 
     !------------ Local vars ------------------
@@ -69,12 +69,10 @@ contains
     real(ireals) :: sundir(3)
 
     logical,parameter :: ldebug=.True.
-    logical :: lthermal, lsolar
 
     class(t_solver), allocatable :: pprts_solver
     type(t_tenstr_atm) :: atm
 
-    comm = MPI_COMM_WORLD
     call MPI_COMM_SIZE(comm, numnodes, ierr)
     call MPI_COMM_RANK(comm, myid, ierr)
 
@@ -127,21 +125,9 @@ contains
     plwc (1:size(lwc ,1),1:size(lwc ,2)*size(lwc ,3)) => lwc
     preliq(1:size(reliq,1),1:size(reliq,2)*size(reliq,3)) => reliq
 
-    atm_filename='afglus_100m.dat'
-    call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-atm_filename', &
-      atm_filename, lflg, ierr); call CHKERR(ierr)
-
     call setup_tenstr_atm(comm, .False., atm_filename, &
       pplev, ptlev, atm, &
       d_lwc=plwc, d_reliq=preliq)
-
-    ! For comparison, compute lw and sw separately
-    lthermal=.True.
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-      "-thermal", lthermal, lflg,ierr) ; call CHKERR(ierr)
-    lsolar=.True.
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-      "-solar", lsolar, lflg,ierr) ; call CHKERR(ierr)
 
     sundir = spherical_2_cartesian(phi0, theta0)
 
