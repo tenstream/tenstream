@@ -2,10 +2,12 @@
 set -eu -o pipefail
 
 SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-PROJECT_ROOT="$SCRIPTDIR/../"
+PROJECT_ROOT=$(readlink -f $SCRIPTDIR/../)
 DST=$PROJECT_ROOT/misc/LUT
 
 MASK="${1:-LUT}"
+DST="${2:-${DST}}"
+
 echo "Looking for Tables with mask: $MASK and saving files to $DST"
 
 mkdir -p $DST
@@ -31,8 +33,21 @@ do
   then
     fname=$(echo $line | cut -d'"' -f 2)
     if [[ "$fname" == *"$MASK"* ]]; then
-      printf "${GREEN}** Downloading $fname${NC}\n"
-        $CURL_BIN -C - --progress-bar $BASEURL/$fname --output $DST/$fname
+      if [[ -e $DST/$fname ]]; then # file already exists
+        # curl has a bug with the -C option if file already fully exists
+        # as a work around: first check for file size and if it is already there, skip it
+        REMOTE_FILE_LENGTH=$($CURL_BIN -I $BASEURL/$fname 2> /dev/null | grep Content-Length | awk '{print int($2)}')
+        LOCAL_FILE_LENGTH=$(stat --printf="%s" $DST/$fname)
+        if [ $REMOTE_FILE_LENGTH -eq $LOCAL_FILE_LENGTH ]; then
+          printf "${GREEN}** Skipping Download of $fname because remote and local file sizes match: [${REMOTE_FILE_LENGTH} // ${LOCAL_FILE_LENGTH}]\n"
+        else
+          printf "${GREEN}** Resuming Download $fname${NC} [${REMOTE_FILE_LENGTH} // ${LOCAL_FILE_LENGTH}]\n"
+            $CURL_BIN -C - --progress-bar $BASEURL/$fname --output $DST/$fname
+        fi
+      else
+        printf "${GREEN}** Downloading $fname${NC}\n"
+          $CURL_BIN --progress-bar $BASEURL/$fname --output $DST/$fname
+      fi
     else
       printf "${RED}Not matching mask: $MASK -> Skipping $fname${NC}\n"
     fi
