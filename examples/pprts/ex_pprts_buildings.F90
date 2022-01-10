@@ -6,7 +6,7 @@ program main
     & init_mpi_data_parameters, finalize_mpi
   use m_helper_functions, only: CHKERR
   use m_tenstream_options, only: read_commandline_options
-  use m_buildings, only: t_pprts_buildings
+  use m_buildings, only: t_pprts_buildings, destroy_buildings
   use m_examples_pprts_buildings, only: ex_pprts_buildings
   use mpi, only : MPI_COMM_WORLD
   implicit none
@@ -142,6 +142,10 @@ program main
       & gedir, gedn, geup, gabso,                 &
       & buildings,                                &
       & outfile=outfile)
+  endif
+
+  if (allocated(buildings)) then
+    call destroy_buildings(buildings, ierr); call CHKERR(ierr)
   endif
 
   call finalize_mpi(ierr, .True., .True.)
