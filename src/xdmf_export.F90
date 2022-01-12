@@ -276,11 +276,12 @@ contains
 
   !> @brief: dump the surface flux information as xdmf
   !> @details: basename of the file will be expanded by .xmf postfix
-  subroutine xdmf_pprts_srfc_flux(solver, fbasename, edir, edn, eup, ierr, verbose)
+  subroutine xdmf_pprts_srfc_flux(solver, fbasename, edn, eup, ierr, edir, verbose)
     class(t_solver), intent(in) :: solver
     character(len=*), intent(in) :: fbasename
-    real(ireals), allocatable, dimension(:,:,:), intent(in) :: edir, edn, eup
+    real(ireals), allocatable, dimension(:,:,:), intent(in) :: edn, eup
     integer(mpiint), intent(out) :: ierr
+    real(ireals), allocatable, dimension(:,:,:), intent(in), optional :: edir
     logical, optional, intent(in) :: verbose
 
     type(tDM) :: coordDA
@@ -391,11 +392,13 @@ contains
 
       ! write data attributes
       ! edir
-      if(allocated(edir)) then
-        write (funit,*) '<Attribute Center="Cell" Name="edir">'
-        write (funit,*) '<DataItem Format="XML" Dimensions="', size(edir,dim=2), size(edir,dim=3), '">'
-        write (funit,*) edir(size(edir,dim=1),:,:)
-        write (funit,*) '</DataItem>','</Attribute>'
+      if(present(edir)) then
+        if(allocated(edir)) then
+          write (funit,*) '<Attribute Center="Cell" Name="edir">'
+          write (funit,*) '<DataItem Format="XML" Dimensions="', size(edir,dim=2), size(edir,dim=3), '">'
+          write (funit,*) edir(size(edir,dim=1),:,:)
+          write (funit,*) '</DataItem>','</Attribute>'
+        endif
       endif
 
       ! edn

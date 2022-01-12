@@ -5547,7 +5547,7 @@ module m_pprts
           & '-pprts_xdmf', fname, lflg, ierr); call CHKERR(ierr)
         if(lflg) then
           fname = trim(fname)//toStr(uid)
-          call xdmf_pprts_srfc_flux(solver, fname, redir, redn, reup, ierr, verbose=.True.); call CHKERR(ierr)
+          call xdmf_pprts_srfc_flux(solver, fname, redn, reup, ierr, edir=redir, verbose=.True.); call CHKERR(ierr)
         endif
       end associate
     end subroutine
