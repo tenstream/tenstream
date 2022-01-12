@@ -1,4 +1,6 @@
 -skip_load_LUT
 -pprts_use_rayli
 -rayli_cyclic_bc
--rayli_photons 1e4
+-rayli_nthreads 2
+-rayli_photons_scale_with_src
+-pprts_rayli_photons 1e4

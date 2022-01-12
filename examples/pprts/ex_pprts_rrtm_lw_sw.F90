@@ -14,6 +14,7 @@ program main
   real(ireals)       :: dx, dy, phi0, theta0, albedo_th, albedo_sol
   character(len=default_str_len) :: atm_filename
   logical :: lthermal, lsolar, lflg
+  real(ireals), allocatable, dimension(:,:,:) :: fdir, fdn, fup, fdiv
 
   comm = MPI_COMM_WORLD
   call mpi_init(ierr)
@@ -59,7 +60,11 @@ program main
 
   if (myid.eq.0) print *,'Running rrtm_lw_sw example with grid size:', Nx, Ny, Nz
 
-  call ex_pprts_rrtm_lw_sw(comm, Nx, Ny, Nz, dx, dy, phi0, theta0, albedo_th, albedo_sol, lthermal, lsolar, atm_filename)
+  call ex_pprts_rrtm_lw_sw(comm, &
+    & Nx, Ny, Nz, dx, dy, &
+    & phi0, theta0, albedo_th, albedo_sol, &
+    & lthermal, lsolar, atm_filename, &
+    & fdir, fdn, fup, fdiv)
 
   call mpi_finalize(ierr)
 end program
