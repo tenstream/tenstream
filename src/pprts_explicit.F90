@@ -79,6 +79,7 @@ contains
 
     real(ireals) :: ignore_max_it! Ignore max iter setting if time is less
 
+    logical :: lksp_view
     logical :: lsun_north, lsun_east, lpermute, lskip_residual, lmonitor_residual, lconverged, lflg, lflg2
     logical :: laccept_incomplete_solve, lconverged_reason
 
@@ -97,7 +98,7 @@ contains
       maxiter=1000
       call PetscOptionsGetInt(PETSC_NULL_OPTIONS, prefix, &
         "-ksp_max_it", maxiter, lflg, ierr) ;call CHKERR(ierr)
-      
+
       ignore_max_it=huge(ignore_max_it)
       call PetscOptionsGetReal(PETSC_NULL_OPTIONS, prefix, "-ksp_ignore_max_it", &
         ignore_max_it, lflg , ierr) ;call CHKERR(ierr)
@@ -131,11 +132,6 @@ contains
         atol, lflg , ierr) ;call CHKERR(ierr)
       call PetscOptionsGetReal(PETSC_NULL_OPTIONS, prefix, "-ksp_rtol", &
         rtol, lflg2, ierr) ;call CHKERR(ierr)
-      if(lmonitor_residual) then
-        if(lflg.or.lflg2) then
-          if(solver%myid.eq.0) print *,'pprts_explicit_edir setting rtol/atol', rtol, atol
-        endif
-      endif
 
       lsun_north = sun%yinc.eq.i0
       lsun_east  = sun%xinc.eq.i0
@@ -149,9 +145,22 @@ contains
       if(lpermute) then
         if(lsun_east) dx = [dx(2), dx(1), -dx(3)]
         if(lsun_north) dy = [dy(2), dy(1), -dy(3)]
-        if(solver%myid.eq.0.and.ldebug) &
-          & print *,'Using permutations for pprts_explicit_edir x-iterator:', dx, 'y-iterator:', dy
       endif
+
+      lksp_view = .False.
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, prefix, &
+        "-ksp_view", lksp_view, lflg , ierr) ;call CHKERR(ierr)
+      if(solver%myid.eq.0.and.lksp_view) then
+        print *,'* Using pprts explicit solver for prefix <'//trim(prefix)//'>'
+        print *,'  -'//trim(prefix)//'max_it '//toStr(maxiter)
+        print *,'  -'//trim(prefix)//'ksp_atol ', atol
+        print *,'  -'//trim(prefix)//'ksp_rtol ', rtol
+        print *,'  -'//trim(prefix)//'skip_residual '//toStr(lskip_residual)
+        print *,'  -'//trim(prefix)//'accept_incomplete_solve '//toStr(laccept_incomplete_solve)
+        print *,'  -'//trim(prefix)//'explicit_edir_permute '//toStr(lpermute)//&
+          & ' horizontal-xy-iterator: ['//toStr(dx(3))//', '//toStr(dy(3))//']'
+      endif
+
 
       call DMGetGlobalVector(C%da, b, ierr); call CHKERR(ierr)
       call VecSet(b, zero, ierr); call CHKERR(ierr)
@@ -433,6 +442,7 @@ contains
 
     real(ireals) :: ignore_max_it! Ignore max iter setting if time is less
 
+    logical :: lksp_view
     logical :: lskip_residual, lmonitor_residual, lconverged, lflg, lflg2
     logical :: laccept_incomplete_solve, lconverged_reason
 
@@ -457,7 +467,7 @@ contains
       if (solution%time(1).lt.ignore_max_it) then
          maxiter=1001
       endif
-      allocate(residual(maxiter)) 
+      allocate(residual(maxiter))
       sub_iter = 1
       call PetscOptionsGetInt(PETSC_NULL_OPTIONS, prefix, &
         "-sub_it", sub_iter, lflg, ierr) ;call CHKERR(ierr)
@@ -487,16 +497,24 @@ contains
         atol, lflg , ierr) ;call CHKERR(ierr)
       call PetscOptionsGetReal(PETSC_NULL_OPTIONS, prefix, "-ksp_rtol", &
         rtol, lflg2, ierr) ;call CHKERR(ierr)
-      if(lmonitor_residual) then
-        if(lflg.or.lflg2) then
-          if(solver%myid.eq.0) print *,'pprts_explicit_ediff setting rtol/atol', rtol, atol
-        endif
-      endif
 
       omega = 1
       call PetscOptionsGetReal(PETSC_NULL_OPTIONS, prefix, "-pc_sor_omega", &
         omega, lflg , ierr) ;call CHKERR(ierr)
 
+      lksp_view = .False.
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, prefix, &
+        "-ksp_view", lksp_view, lflg , ierr) ;call CHKERR(ierr)
+      if(solver%myid.eq.0.and.lksp_view) then
+        print *,'* Using pprts explicit solver for prefix <'//trim(prefix)//'>'
+        print *,'  -'//trim(prefix)//'max_it '//toStr(maxiter)
+        print *,'  -'//trim(prefix)//'sub_it '//toStr(sub_iter)
+        print *,'  -'//trim(prefix)//'ksp_atol ', atol
+        print *,'  -'//trim(prefix)//'ksp_rtol ', rtol
+        print *,'  -'//trim(prefix)//'pc_sor_omega '//toStr(omega)
+        print *,'  -'//trim(prefix)//'skip_residual '//toStr(lskip_residual)
+        print *,'  -'//trim(prefix)//'accept_incomplete_solve '//toStr(laccept_incomplete_solve)
+      endif
 
       call DMGetLocalVector(C%da, v0, ierr); call CHKERR(ierr)
       call DMGlobalToLocalBegin(C%da, vediff, INSERT_VALUES, v0, ierr) ;call CHKERR(ierr)
