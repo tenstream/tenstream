@@ -4,7 +4,7 @@ module m_plex2rayli
   use petsc
 
   use m_data_parameters, only: ireals, iintegers, mpiint, &
-    i0, i1, i2, i3, i8, zero, one, default_str_len
+    i0, i1, i2, i3, i8, zero, one, pi, default_str_len
 
   use m_helper_functions, only: CHKERR, deg2rad, get_arg, toStr, &
     & determine_normal_direction
@@ -20,7 +20,7 @@ module m_plex2rayli
 
   use m_buildings, only: t_plex_buildings
 
-  use m_f2c_rayli, only: rfft_wedgeF90, rpt_img_wedgeF90
+  use m_f2c_rayli, only: rfft_wedgeF90, rfft_wedge_thermalF90, rpt_img_wedgeF90
 
   implicit none
 
@@ -232,23 +232,22 @@ module m_plex2rayli
   !> @brief wrapper for the rayli MonteCarlo solver
   !> @details solve the radiative transfer equation with RayLi, currently only works for single task mpi runs
   subroutine rayli_wrapper(lcall_solver, lcall_snapshot, &
-      & plex, kabs, ksca, g, albedo, sundir, solution, &
-      & plck, nr_photons, petsc_log, opt_buildings, opt_Nthreads)
+      & plex, kabs, ksca, g, albedo, solution, &
+      & sundir, plck, nr_photons, petsc_log, opt_buildings, opt_Nthreads)
     use iso_c_binding
     logical, intent(in) :: lcall_solver, lcall_snapshot
     type(t_plexgrid), intent(in) :: plex
     type(tVec), intent(in) :: kabs, ksca, g, albedo
-    type(tVec), intent(in), optional :: plck
-    real(ireals), intent(in) :: sundir(:)
     type(t_state_container), intent(inout) :: solution
+    real(ireals), intent(in), optional :: sundir(:)
+    type(tVec), intent(in), optional :: plck
     real(ireals), intent(in), optional :: nr_photons
     PetscLogEvent, intent(in), optional :: petsc_log
     type(t_plex_buildings), intent(in), optional :: opt_buildings
     integer(iintegers), intent(in), optional :: opt_Nthreads
 
     real(ireals), pointer :: xksca(:), xkabs(:), xg(:)
-
-    logical :: lthermal, lsolar
+    real(ireals) :: Bmax
 
     integer(mpiint) :: comm, myid, numnodes, ierr
 
@@ -265,6 +264,7 @@ module m_plex2rayli
     real(c_double),    allocatable :: vert_coords(:,:)
     real(c_float),     allocatable :: rkabs(:), rksca(:), rg(:)
     real(c_float),     allocatable :: ralbedo_on_faces(:)
+    real(c_float),     allocatable :: rB_on_faces(:)
     real(c_float)                  :: rsundir(3)
     real(c_double),    allocatable :: flx_through_faces_edir(:)
     real(c_double),    allocatable :: flx_through_faces_ediff(:)
@@ -279,6 +279,9 @@ module m_plex2rayli
     integer(c_int) :: icyclic
 
     if(all([lcall_solver,lcall_snapshot].eqv..False.)) return
+
+    if(solution%lsolar_rad.and..not.present(sundir)) call CHKERR(1_mpiint, 'if solar: you need to provide sundir vec')
+    if(solution%lthermal_rad.and..not.present(plck)) call CHKERR(1_mpiint, 'if solar: you need to provide plck vec')
 
     opt_Nthreads_int = get_arg(i0, opt_Nthreads)
     call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
@@ -296,7 +299,12 @@ module m_plex2rayli
       '-rayli_photons_scale_with_src', lphoton_scale_w_src, lflg, ierr); call CHKERR(ierr)
 
     if (lphoton_scale_w_src) then
-      Nphotons = 1_c_size_t + int(real(Nphotons, ireals) * norm2(sundir), c_size_t)
+      if(solution%lthermal_rad) then
+        call VecMax(plck, PETSC_NULL_INTEGER, Bmax, ierr); call CHKERR(ierr)
+        Nphotons = 1_c_size_t + int(real(Nphotons, ireals) * Bmax * pi, c_size_t)
+      else
+        Nphotons = 1_c_size_t + int(real(Nphotons, ireals) * norm2(sundir), c_size_t)
+      endif
     endif
 
     call PetscObjectGetComm(plex%dm, comm, ierr); call CHKERR(ierr)
@@ -304,13 +312,6 @@ module m_plex2rayli
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
     if(numnodes.gt.1) call CHKERR(numnodes, "Rayli currently only in single rank computations available")
-
-    lsolar = solution%lsolar_rad
-    lthermal = .not.solution%lsolar_rad
-
-    if(present(plck).or.lthermal) &
-      call CHKERR(1_mpiint, "You provided planck stuff, I guess you want to use thermal radiation computations."// &
-                            "However, Rayli currently only supports solar radiation.")
 
     lcyclic=.False.
     call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
@@ -326,8 +327,10 @@ module m_plex2rayli
     endif
     call VecSet(solution%ediff, zero, ierr); call CHKERR(ierr)
 
-    if(solution%lsolar_rad .and. norm2(sundir).le.zero) then
-      return
+    if(solution%lsolar_rad) then
+      if(norm2(sundir).le.zero) then
+        return
+      endif
     endif
 
     call DMPlexGetDepthStratum(plex%dm, i3, cStart, cEnd, ierr); call CHKERR(ierr) ! cells
@@ -347,9 +350,14 @@ module m_plex2rayli
              rksca(Nwedges), &
              rg   (Nwedges), &
              ralbedo_on_faces(Nfaces), &
-             flx_through_faces_edir(Nfaces), &
              flx_through_faces_ediff(2*Nfaces), &
              abso_in_cells(Nwedges) )
+
+    if(solution%lthermal_rad) then
+      allocate(rB_on_faces(Nfaces))
+    else
+      allocate(flx_through_faces_edir(Nfaces))
+    endif
 
     do icell = cStart, cEnd-1
       call DMPlexGetCone(plex%dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
@@ -380,23 +388,32 @@ module m_plex2rayli
     call VecRestoreArrayF90(coordinates, coords, ierr); call CHKERR(ierr)
 
     call VecGetArrayReadF90(kabs, xkabs, ierr); call CHKERR(ierr)
-    call VecGetArrayReadF90(ksca, xksca, ierr); call CHKERR(ierr)
-    call VecGetArrayReadF90(g   , xg   , ierr); call CHKERR(ierr)
-
     rkabs(:) = real(xkabs, kind(rkabs))
+    call VecRestoreArrayReadF90(kabs, xkabs, ierr); call CHKERR(ierr)
+
+    call VecGetArrayReadF90(ksca, xksca, ierr); call CHKERR(ierr)
     rksca(:) = real(xksca, kind(rksca))
+    call VecRestoreArrayReadF90(ksca, xksca, ierr); call CHKERR(ierr)
+
+    call VecGetArrayReadF90(g   , xg   , ierr); call CHKERR(ierr)
     rg   (:) = real(xg,    kind(rg   ))
     !call delta_scale(rkabs, rksca, rg, max_g=0._c_double)
-
-    call VecRestoreArrayReadF90(kabs, xkabs, ierr); call CHKERR(ierr)
-    call VecRestoreArrayReadF90(ksca, xksca, ierr); call CHKERR(ierr)
     call VecRestoreArrayReadF90(g   , xg   , ierr); call CHKERR(ierr)
+
+    if(solution%lthermal_rad) then
+      call fill_planck(plex, plck, rB_on_faces, opt_buildings)
+    endif
 
     call fill_albedo(plex, albedo, ralbedo_on_faces, opt_buildings)
 
-    rsundir = real(-sundir, kind(rsundir))
+    if(present(sundir)) &
+      & rsundir = real(-sundir, kind(rsundir))
 
     if(lcall_snapshot) then
+      if(present(plck).or.solution%lthermal_rad) &
+        call CHKERR(1_mpiint, "You provided planck stuff, I guess you want to use thermal radiation computations."// &
+                              "However, Rayli snapshotter currently only supports solar radiation.")
+
       call take_snap(comm, &
         & Nthreads, nr_photons, &
         & Nwedges, Nfaces, Nverts, icyclic, &
@@ -411,12 +428,23 @@ module m_plex2rayli
       if(present(petsc_log)) then
         call PetscLogEventBegin(petsc_log, ierr); call CHKERR(ierr)
       endif
-      ierr = rfft_wedgeF90(Nthreads, &
-        & Nphotons, Nwedges, Nfaces, Nverts, icyclic, &
-        & verts_of_face, faces_of_wedges, vert_coords, &
-        & rkabs, rksca, rg, &
-        & ralbedo_on_faces, rsundir, &
-        & flx_through_faces_edir, flx_through_faces_ediff, abso_in_cells ); call CHKERR(ierr)
+
+      if(solution%lthermal_rad) then
+        ierr = rfft_wedge_thermalF90(Nthreads, &
+          & Nphotons, Nwedges, Nfaces, Nverts, icyclic, &
+          & verts_of_face, faces_of_wedges, vert_coords, &
+          & rkabs, rksca, rg, &
+          & ralbedo_on_faces, rB_on_faces, &
+          & flx_through_faces_ediff, abso_in_cells ); call CHKERR(ierr)
+      else
+        ierr = rfft_wedgeF90(Nthreads, &
+          & Nphotons, Nwedges, Nfaces, Nverts, icyclic, &
+          & verts_of_face, faces_of_wedges, vert_coords, &
+          & rkabs, rksca, rg, &
+          & ralbedo_on_faces, rsundir, &
+          & flx_through_faces_edir, flx_through_faces_ediff, abso_in_cells ); call CHKERR(ierr)
+      endif
+
       if(present(petsc_log)) then
         call PetscLogEventEnd(petsc_log, ierr); call CHKERR(ierr)
       endif
@@ -433,7 +461,6 @@ module m_plex2rayli
       ! and mark solution that it is up to date, otherwise abso would be overwritten
       solution%lchanged  = .False.
     endif
-
     end subroutine
 
     subroutine rayli_get_result(plex, &
@@ -442,9 +469,9 @@ module m_plex2rayli
         abso_in_cells, &
         solution)
       type(t_plexgrid), intent(in) :: plex
-      real(c_double), intent(in) :: flx_through_faces_edir(:)
-      real(c_double), intent(in) :: flx_through_faces_ediff(:)
-      real(c_double), intent(in) :: abso_in_cells(:)
+      real(c_double), allocatable, intent(in) :: flx_through_faces_edir(:)
+      real(c_double), allocatable, intent(in) :: flx_through_faces_ediff(:)
+      real(c_double), allocatable, intent(in) :: abso_in_cells(:)
       type(t_state_container), intent(inout) :: solution
 
       type(tIS) :: toa_ids
@@ -471,7 +498,7 @@ module m_plex2rayli
           call PetscSectionGetOffset(edir_section, iface, voff, ierr); call CHKERR(ierr)
           call PetscSectionGetDof(edir_section, iface, numDof, ierr); call CHKERR(ierr)
           do idof = 1, numDof
-            xedir(voff+idof) = real(abs(flx_through_faces_edir(iface-fStart+1)), ireals)
+            xedir(voff+idof) = real(flx_through_faces_edir(iface-fStart+1), ireals)
           enddo
         enddo
         call VecRestoreArrayF90(solution%edir, xedir, ierr); call CHKERR(ierr)
@@ -504,11 +531,11 @@ module m_plex2rayli
           !print *,'icell', icell, 'iface', iface, 'ifield', ifield, 'ndof', numDof, 'voff', voff, voff+1, 'ridx', ridx, ridx+1
           if(numDof.eq.2) then
             if(orientation.lt.i0) then
-              xediff(i1+voff) = real(abs( flx_through_faces_ediff(ridx  ) ), ireals)
-              xediff(i2+voff) = real(abs( flx_through_faces_ediff(ridx+1) ), ireals)
+              xediff(i1+voff) = real(flx_through_faces_ediff(ridx  ), ireals)
+              xediff(i2+voff) = real(flx_through_faces_ediff(ridx+1), ireals)
             else
-              xediff(i2+voff) = real(abs( flx_through_faces_ediff(ridx  ) ), ireals)
-              xediff(i1+voff) = real(abs( flx_through_faces_ediff(ridx+1) ), ireals)
+              xediff(i2+voff) = real(flx_through_faces_ediff(ridx  ), ireals)
+              xediff(i1+voff) = real(flx_through_faces_ediff(ridx+1), ireals)
             endif
             !print *,'icell', icell, 'iface', iface, 'orient', orientation, &
             !  & 'ifield', ifield, 'ndof', numDof, 'voff', voff, voff+1, 'ridx', ridx, ridx+1, &
@@ -562,6 +589,45 @@ module m_plex2rayli
         associate(b => opt_buildings)
           do i=1,size(b%iface)
             ralbedo_on_faces(b%iface(i)-fStart+1) = real(b%albedo(i), c_float)
+          enddo
+        end associate
+      endif
+    end subroutine
+
+    subroutine fill_planck(plex, plck, rB_on_faces, opt_buildings)
+      type(t_plexgrid), intent(in) :: plex
+      type(tVec), intent(in) :: plck
+      real(c_float), intent(out) :: rB_on_faces(:)
+      type(t_plex_buildings), intent(in), optional :: opt_buildings
+
+      type(tPetscSection) :: horizface1Section
+      type(tIS) :: toa_ids
+      integer(iintegers), pointer :: xtoa_faces(:)
+      real(ireals), pointer :: xplanck(:)
+      integer(iintegers) :: i, j, fStart, fEnd, voff, num_dof
+      integer(mpiint) :: ierr
+
+      call DMGetStratumIS(plex%geom_dm, 'DomainBoundary', TOAFACE, toa_ids, ierr); call CHKERR(ierr)
+      call ISGetIndicesF90(toa_ids, xtoa_faces, ierr); call CHKERR(ierr)
+      call DMPlexGetDepthStratum(plex%horizface1_dm, i2, fStart, fEnd, ierr); call CHKERR(ierr) ! faces
+      call DMGetSection(plex%horizface1_dm, horizface1Section, ierr); call CHKERR(ierr)
+
+      call VecGetArrayReadF90(plck, xplanck, ierr); call CHKERR(ierr)
+
+      do i = fStart, fEnd-1
+        call PetscSectionGetOffset(horizface1Section, i, voff, ierr); call CHKERR(ierr)
+        call PetscSectionGetDof(horizface1Section, i, num_dof, ierr); call CHKERR(ierr)
+        do j=1,num_dof
+          rB_on_faces(i-fStart+1) = real(xplanck(voff+j), kind(rB_on_faces))
+        enddo
+      enddo
+
+      call VecRestoreArrayReadF90(plck, xplanck, ierr); call CHKERR(ierr)
+
+      if(present(opt_buildings)) then
+        associate(b => opt_buildings)
+          do i=1,size(b%iface)
+            rB_on_faces(b%iface(i)-fStart+1) = real(b%planck(i), c_float)
           enddo
         end associate
       endif
