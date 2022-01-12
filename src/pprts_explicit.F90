@@ -77,6 +77,8 @@ contains
     real(ireals), allocatable :: residual(:)
     real(ireals) :: residual_mmm(3), rel_residual, atol, rtol
 
+    real(ireals) :: ignore_max_it! Ignore max iter setting if time is less
+
     logical :: lsun_north, lsun_east, lpermute, lskip_residual, lmonitor_residual, lconverged, lflg, lflg2
     logical :: laccept_incomplete_solve, lconverged_reason
 
@@ -95,6 +97,13 @@ contains
       maxiter=1000
       call PetscOptionsGetInt(PETSC_NULL_OPTIONS, prefix, &
         "-ksp_max_it", maxiter, lflg, ierr) ;call CHKERR(ierr)
+      
+      ignore_max_it=huge(ignore_max_it)
+      call PetscOptionsGetReal(PETSC_NULL_OPTIONS, prefix, "-ksp_ignore_max_it", &
+        ignore_max_it, lflg , ierr) ;call CHKERR(ierr)
+      if (solution%time(1).lt.ignore_max_it) then
+         maxiter=1001
+      endif
       allocate(residual(maxiter))
 
       lskip_residual = .False.
@@ -422,6 +431,8 @@ contains
     real(ireals), allocatable :: residual(:)
     real(ireals) :: residual_mmm(3), rel_residual, atol, rtol, omega
 
+    real(ireals) :: ignore_max_it! Ignore max iter setting if time is less
+
     logical :: lskip_residual, lmonitor_residual, lconverged, lflg, lflg2
     logical :: laccept_incomplete_solve, lconverged_reason
 
@@ -439,8 +450,14 @@ contains
       maxiter=1000
       call PetscOptionsGetInt(PETSC_NULL_OPTIONS, prefix, &
         "-ksp_max_it", maxiter, lflg, ierr) ;call CHKERR(ierr)
-      allocate(residual(maxiter))
 
+      ignore_max_it=huge(ignore_max_it)
+      call PetscOptionsGetReal(PETSC_NULL_OPTIONS, prefix, "-ksp_ignore_max_it", &
+        ignore_max_it, lflg , ierr) ;call CHKERR(ierr)
+      if (solution%time(1).lt.ignore_max_it) then
+         maxiter=1001
+      endif
+      allocate(residual(maxiter)) 
       sub_iter = 1
       call PetscOptionsGetInt(PETSC_NULL_OPTIONS, prefix, &
         "-sub_it", sub_iter, lflg, ierr) ;call CHKERR(ierr)
