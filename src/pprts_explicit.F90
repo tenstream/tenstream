@@ -99,7 +99,7 @@ contains
       call PetscOptionsGetInt(PETSC_NULL_OPTIONS, prefix, &
         "-ksp_max_it", maxiter, lflg, ierr) ;call CHKERR(ierr)
 
-      ignore_max_it=huge(ignore_max_it)
+      ignore_max_it=-huge(ignore_max_it)
       call PetscOptionsGetReal(PETSC_NULL_OPTIONS, prefix, "-ksp_ignore_max_it", &
         ignore_max_it, lflg , ierr) ;call CHKERR(ierr)
       if (solution%time(1).lt.ignore_max_it) then
@@ -461,7 +461,7 @@ contains
       call PetscOptionsGetInt(PETSC_NULL_OPTIONS, prefix, &
         "-ksp_max_it", maxiter, lflg, ierr) ;call CHKERR(ierr)
 
-      ignore_max_it=huge(ignore_max_it)
+      ignore_max_it=-huge(ignore_max_it)
       call PetscOptionsGetReal(PETSC_NULL_OPTIONS, prefix, "-ksp_ignore_max_it", &
         ignore_max_it, lflg , ierr) ;call CHKERR(ierr)
       if (solution%time(1).lt.ignore_max_it) then
