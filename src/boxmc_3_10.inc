@@ -219,28 +219,16 @@ subroutine init_diff_photon_3_10(bmc, p, src, vertices, ierr)
           case (2)
             call rand_pnt_on_plane(pE,pG,pH,pF, p%loc, normal, U, V)
             p%src_side = 1
-          case (3)
+          case (3,5)
             call rand_pnt_on_plane(pB,pF,pH,pD, p%loc, normal, U, V)
             p%src_side = 4
-          case (4)
+          case (4,6)
             call rand_pnt_on_plane(pA,pC,pG,pE, p%loc, normal, U, V)
             p%src_side = 3
-          case (5)
-            call rand_pnt_on_plane(pB,pF,pH,pD, p%loc, normal, U, V)
-            p%src_side = 4
-          case (6)
-            call rand_pnt_on_plane(pA,pC,pG,pE, p%loc, normal, U, V)
-            p%src_side = 3
-          case (7)
+          case (7,9)
             call rand_pnt_on_plane(pG,pC,pD,pH, p%loc, normal, U, V)
             p%src_side = 6
-          case (8)
-            call rand_pnt_on_plane(pE,pF,pB,pA, p%loc, normal, U, V)
-            p%src_side = 5
-          case (9)
-            call rand_pnt_on_plane(pG,pC,pD,pH, p%loc, normal, U, V)
-            p%src_side = 6
-          case (10)
+          case (8,10)
             call rand_pnt_on_plane(pE,pF,pB,pA, p%loc, normal, U, V)
             p%src_side = 5
           case default
@@ -258,11 +246,12 @@ subroutine init_diff_photon_3_10(bmc, p, src, vertices, ierr)
         select case(src)
           case(-1,1,2)
             phi = deg2rad( R()*360 )
-          case(3:10)
+          case(3,4,7,8)
+            phi = deg2rad( interv_R(90._ireal_dp,270._ireal_dp) )
+          case(5,6,9,10)
             phi = deg2rad( interv_R(-90._ireal_dp,90._ireal_dp) )
           case default
             call CHKERR(1_mpiint, 'Dont know what to do with source spec: '//toStr(src))
-            call exit
         end select
 
         p%dir = (/sin(phi)*sin(acos(mu)) , cos(phi)*sin(acos(mu)) , mu  /)
@@ -275,28 +264,18 @@ subroutine init_diff_photon_3_10(bmc, p, src, vertices, ierr)
           case(2)
             Mrot = rotation_matrix_local_basis_to_world( U, V, normal )
             p%dir = matmul(real(Mrot,ireal_dp), p%dir)
-          case(3)
-            p%dir = rotate_angle_y(p%dir, 90*one)
-            p%dir = rotate_angle_x(p%dir, 90*one)
-          case(4)
-            p%dir = rotate_angle_y(p%dir,-90*one)
-            p%dir = rotate_angle_x(p%dir, 90*one)
-          case(5)
-            p%dir = rotate_angle_y(p%dir, 90*one)
-            p%dir = rotate_angle_x(p%dir,-90*one)
-          case(6)
-            p%dir = rotate_angle_y(p%dir,-90*one)
-            p%dir = rotate_angle_x(p%dir,-90*one)
-          case(7)
-            p%dir = rotate_angle_z(p%dir,180*one)
-            p%dir = rotate_angle_x(p%dir,-90*one)
-          case(8)
-            p%dir = rotate_angle_x(p%dir, 90*one)
-          case(9)
-            p%dir = rotate_angle_x(p%dir,-90*one)
-          case(10)
-            p%dir = rotate_angle_z(p%dir,180*one)
-            p%dir = rotate_angle_x(p%dir, 90*one)
+          case(3,5)
+            p%dir = rotate_angle_z(p%dir, -90._ireal_dp)
+            p%dir = rotate_angle_y(p%dir, -90._ireal_dp)
+            p%dir(1) = -p%dir(1)
+          case(4,6)
+            p%dir = rotate_angle_z(p%dir, -90._ireal_dp)
+            p%dir = rotate_angle_y(p%dir, -90._ireal_dp)
+          case(7,9)
+            p%dir = rotate_angle_x(p%dir, -90._ireal_dp)
+          case(8,10)
+            p%dir = rotate_angle_x(p%dir, -90._ireal_dp)
+            p%dir(2) = -p%dir(2)
         end select
 
         p%weight=one
@@ -307,8 +286,8 @@ subroutine init_diff_photon_3_10(bmc, p, src, vertices, ierr)
         p%scattercnt  = 0
 
         if(.not. approx( norm2(p%dir) ,one ) ) then
-          print *,'p%dir',p%dir,'norm',norm2(p%dir)
-          stop 'init_diff_photon_3_10 :: direction was not normed?!'
+          call CHKERR(1_mpiint, 'init_diff_photon_3_10 :: direction was not normed?! '//&
+                              & toStr(p%dir)//' norm '//toStr(norm2(p%dir)))
         endif
 
         select type(bmc)
@@ -345,50 +324,46 @@ subroutine update_diff_stream_3_10(bmc,vertices,p,S)
   !      3 |_______________| 4
   !                2
 
-  if(p%side.eq.1) then
+  select case (p%side)
+  case(1)
     S(1) = S(1)+p%weight
-    return
-
-  else if(p%side.eq.2) then
+  case(2)
     S(2) = S(2)+p%weight
-    return
+  case(3)
+    if(p%dir(3).le.zero ) then
+      S(3) = S(3)+p%weight
+    else
+      S(5) = S(5)+p%weight
+    endif
 
-  else if(p%side.eq.3 .and. p%dir(3).le.zero ) then
-    S(3) = S(3)+p%weight
-    return
-  else if(p%side.eq.3 .and. p%dir(3).gt.zero ) then
-    S(5) = S(5)+p%weight
-    return
+  case(4)
+    if(p%dir(3).le.zero ) then
+      S(4) = S(4)+p%weight
+    else
+      S(6) = S(6)+p%weight
+    endif
 
-  else if(p%side.eq.4 .and. p%dir(3).le.zero ) then
-    S(4) = S(4)+p%weight
-    return
-  else if(p%side.eq.4 .and. p%dir(3).gt.zero ) then
-    S(6) = S(6)+p%weight
-    return
+  case(5)
+    if(p%dir(3).le.zero) then
+      S(7) = S(7)+p%weight
+    else
+      S(9) = S(9)+p%weight
+    endif
 
-  else if(p%side.eq.5 .and. p%dir(3).le.zero ) then
-    S(7) = S(7)+p%weight
-    return
-  else if(p%side.eq.5 .and. p%dir(3).gt.zero ) then
-    S(9) = S(9)+p%weight
-    return
-
-  else if(p%side.eq.6 .and. p%dir(3).le.zero ) then
-    S(8) = S(8)+p%weight
-    return
-  else if(p%side.eq.6 .and. p%dir(3).gt.zero ) then
-    S(10) =S(10)+p%weight
-    return
-  else
-    print *,'Couldnt find a stream on to which I can put the photon weight on?!'
+  case(6)
+    if(p%dir(3).le.zero ) then
+      S(8) = S(8)+p%weight
+    else
+      S(10) =S(10)+p%weight
+    endif
+  case default
     call print_photon(p)
-    call exit
+    call CHKERR(1_mpiint, 'Couldnt find a stream on to which I can put the photon weight on?!')
     print *,'remove unused compiler warning', vertices
-  endif
-  select type(bmc)
   end select
 
+  select type(bmc)
+  end select
 end subroutine
 
 subroutine intersect_distance_3_10(bmc,vertices,p,max_dist)
