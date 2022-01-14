@@ -93,6 +93,8 @@ module m_pprts_rrtmg
   use m_tenstr_rrtmg_base, only: t_rrtmg_log_events, setup_log_events
   use m_buildings, only: t_pprts_buildings, clone_buildings, destroy_buildings
 
+  use m_pprts_external_solvers, only: destroy_rayli_info
+
   use m_tenstr_rrtmg_lw_init, only: rrtmg_lw_ini
   use m_tenstr_rrtmg_sw_init, only: rrtmg_sw_ini
 
@@ -454,10 +456,10 @@ contains
       call PetscLogStagePop(ierr); call CHKERR(ierr) ! pop solver%logs%stage_rrtmg_thermal
     endif
 
-    if(lsolar) then
-      if(.not.allocated(edir)) allocate(edir (solver%C_one1%zm, solver%C_one1%xm, solver%C_one1%ym))
-      edir = zero
+    if(lsolar.and..not.allocated(edir)) allocate(edir (solver%C_one1%zm, solver%C_one1%xm, solver%C_one1%ym))
+    if(allocated(edir)) edir = zero
 
+    if(lsolar) then
       lskip_solar = .False.
       call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
         "-skip_solar" , lskip_solar, lflg , ierr) ;call CHKERR(ierr)
@@ -509,18 +511,22 @@ contains
     !endif
     contains
 
-      subroutine dump_variable(var, dm, dumpstring)
+      subroutine dump_variable(var, dm, dumpstring, varname)
         real(ireals), intent(in) :: var(:,:,:)
         type(tDM), intent(in) :: dm
-        character(len=*), intent(in) :: dumpstring
+        character(len=*), intent(in) :: dumpstring, varname
+        character(len=default_str_len) :: vname
         logical :: lflg
         type(tVec) :: dumpvec
 
         call PetscOptionsHasName(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
           trim(dumpstring), lflg , ierr) ;call CHKERR(ierr)
         if(lflg) then
+          vname = trim(varname)
+          if(present(opt_time)) vname = trim(vname)//'.t'//trim(adjustl(toStr(opt_time)))
+          if(.not.lsolar.or..not.lthermal) vname = trim(vname)//'.sol'//toStr(lsolar)//'.th'//toStr(lthermal)
           call DMGetGlobalVector(dm ,dumpvec ,ierr); call CHKERR(ierr)
-          call PetscObjectSetName(dumpvec, trim(dumpstring), ierr); call CHKERR(ierr)
+          call PetscObjectSetName(dumpvec, trim(vname), ierr); call CHKERR(ierr)
           call f90VecToPetsc(var, dm, dumpvec)
 
           call PetscObjectViewFromOptions(dumpvec, PETSC_NULL_VEC, &
@@ -535,26 +541,28 @@ contains
         integer(mpiint) :: ierr
 
         if(lsolar) then
-          call dump_variable(edir, solver%C_one1%da, "-pprts_rrtmg_dump_edir")
+          call dump_variable(edir, solver%C_one1%da, "-pprts_rrtmg_dump_edir", "edir")
         endif
-        call dump_variable(edn , solver%C_one1%da, "-pprts_rrtmg_dump_edn")
-        call dump_variable(eup , solver%C_one1%da, "-pprts_rrtmg_dump_eup")
-        call dump_variable(abso, solver%C_one%da,  "-pprts_rrtmg_dump_abso")
+        call dump_variable(edn , solver%C_one1%da, "-pprts_rrtmg_dump_edn", "edn")
+        call dump_variable(eup , solver%C_one1%da, "-pprts_rrtmg_dump_eup", "eup")
+        call dump_variable(abso, solver%C_one%da,  "-pprts_rrtmg_dump_abso", "abso")
 
-        if(present(opt_buildings_solar)) then
+        if(lsolar.and.present(opt_buildings_solar)) then
           call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
             & '-pprts_rrtmg_xdmf_buildings_solar', fname, lflg, ierr); call CHKERR(ierr)
           if(lflg) then
-            if(present(opt_time)) fname = trim(fname)//toStr(opt_time)
+            if(present(opt_time)) fname = trim(fname)//'.t'//trim(adjustl(toStr(opt_time)))
+            if(.not.lsolar.or..not.lthermal) fname = trim(fname)//'.sol'//toStr(lsolar)//'.th'//toStr(lthermal)
             call xdmf_pprts_buildings(solver, opt_buildings_solar, fname, ierr, verbose=.True.); call CHKERR(ierr)
           endif
         endif
 
-        if(present(opt_buildings_thermal)) then
+        if(lthermal.and.present(opt_buildings_thermal)) then
           call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
             & '-pprts_rrtmg_xdmf_buildings_thermal', fname, lflg, ierr); call CHKERR(ierr)
           if(lflg) then
-            if(present(opt_time)) fname = trim(fname)//toStr(opt_time)
+            if(present(opt_time)) fname = trim(fname)//'.t'//trim(adjustl(toStr(opt_time)))
+            if(.not.lsolar.or..not.lthermal) fname = trim(fname)//'.sol'//toStr(lsolar)//'.th'//toStr(lthermal)
             call xdmf_pprts_buildings(solver, opt_buildings_thermal, fname, ierr, verbose=.True.); call CHKERR(ierr)
           endif
         endif
@@ -562,8 +570,13 @@ contains
         call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
           & '-pprts_rrtmg_xdmf', fname, lflg, ierr); call CHKERR(ierr)
         if(lflg) then
-          if(present(opt_time)) fname = trim(fname)//toStr(opt_time)
-          call xdmf_pprts_srfc_flux(solver, fname, edir, edn, eup, ierr, verbose=.True.); call CHKERR(ierr)
+          if(present(opt_time)) fname = trim(fname)//'.t'//trim(adjustl(toStr(opt_time)))
+          if(.not.lsolar.or..not.lthermal) fname = trim(fname)//'.sol'//toStr(lsolar)//'.th'//toStr(lthermal)
+          if(lsolar) then
+            call xdmf_pprts_srfc_flux(solver, fname, edn, eup, ierr, edir=edir, verbose=.True.); call CHKERR(ierr)
+          else
+            call xdmf_pprts_srfc_flux(solver, fname, edn, eup, ierr, verbose=.True.); call CHKERR(ierr)
+          endif
         endif
       end subroutine
   end subroutine
@@ -1275,8 +1288,15 @@ contains
   subroutine destroy_pprts_rrtmg(solver, lfinalizepetsc)
     class(t_solver)     :: solver
     logical, intent(in) :: lfinalizepetsc
+    !TODO this should need to happen here. the reason we need this is in case that someone destroys petsc
+    !     and then initializes tenstream again, this is not valid anymore. Anyway, it should really reside in the pprts_solver object but
+    !     this currently would infer some serious refactoring to avoid cyclic dependencies because the part in pprt2plex2rayli brings in
+    !     the plexrt deps. For now, live with it but one day, we need to sort this out.
+    call destroy_rayli_info()
+
     ! Tidy up the solver
     call destroy_pprts(solver, lfinalizepetsc=lfinalizepetsc)
+
   end subroutine
 
   subroutine add_optional_optprop(tau, w0, g, opt_tau, opt_w0, opt_g)

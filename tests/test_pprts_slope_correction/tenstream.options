@@ -1,5 +1,5 @@
 -skip_load_LUT
 -twostr_only
 -pprts_slope_correction
--pprts_set_scatter 0
--pprts_set_absorption 0
+-pprts_set_ksca 0
+-pprts_set_kabs 0

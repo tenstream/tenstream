@@ -1,5 +1,5 @@
 module test_LUT_8_10
-  use m_boxmc, only : t_boxmc,t_boxmc_8_10,t_boxmc_1_2,t_boxmc_3_10
+  use m_boxmc, only : t_boxmc_8_10
   use m_data_parameters, only : mpiint, iintegers, &
     ireals, irealLUT, ireal_dp, &
     init_mpi_data_parameters, i1, default_str_len

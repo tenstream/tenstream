@@ -28,6 +28,8 @@ program main
         t_optprop_LUT_3_10, &
         t_optprop_LUT_3_10_for_ANN, &
         t_optprop_LUT_3_16, &
+        t_optprop_LUT_3_24, &
+        t_optprop_LUT_3_30, &
         t_optprop_LUT_8_10, &
         t_optprop_LUT_8_12, &
         t_optprop_LUT_8_16, &
@@ -66,6 +68,12 @@ program main
       case ('3_16')
         allocate(t_optprop_LUT_3_16::OPP)
 
+      case ('3_24')
+        allocate(t_optprop_LUT_3_24::OPP)
+
+      case ('3_30')
+        allocate(t_optprop_LUT_3_30::OPP)
+
       case ('8_10')
         allocate(t_optprop_LUT_8_10::OPP)
 
@@ -93,6 +101,8 @@ program main
         print *,'createLUT 3_6'
         print *,'createLUT 3_10'
         print *,'createLUT 3_16'
+        print *,'createLUT 3_24'
+        print *,'createLUT 3_30'
         print *,'createLUT 8_10'
         print *,'createLUT 8_12'
         print *,'createLUT 8_16'

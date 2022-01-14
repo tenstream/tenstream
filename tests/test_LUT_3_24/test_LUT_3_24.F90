@@ -1,9 +1,9 @@
-module test_LUT_3_10
-  use m_boxmc, only : t_boxmc_3_10
+module test_LUT_3_24
+  use m_boxmc, only : t_boxmc,t_boxmc_3_24
   use m_data_parameters, only : mpiint, iintegers, &
     ireals, irealLUT, ireal_dp, &
     init_mpi_data_parameters, i1, default_str_len
-  use m_optprop_LUT, only : t_optprop_LUT_3_10
+  use m_optprop_LUT, only : t_optprop_LUT_3_24
   use m_tenstream_options, only: read_commandline_options
   use m_helper_functions, only: rmse
   use m_boxmc_geometry, only : setup_default_unit_cube_geometry
@@ -15,7 +15,7 @@ module test_LUT_3_10
   use pfunit_mod
   implicit none
 
-  integer(iintegers), parameter :: Ndir=3, Ndiff=10
+  integer(iintegers), parameter :: Ndir=3, Ndiff=24
 
   real(irealLUT) :: bg(3), phi,theta,dx,dy,dz
   real(irealLUT) :: S(Ndiff),T(Ndir)
@@ -23,11 +23,11 @@ module test_LUT_3_10
   real(ireals)   :: S_tol(Ndiff),T_tol(Ndir)
   real(ireals), allocatable :: vertices(:)
 
-  real(ireals)   :: BMC_diff2diff(Ndiff*Ndiff), BMC_dir2diff(Ndir*Ndiff), BMC_dir2dir(Ndir*Ndir)
-  real(irealLUT) :: LUT_diff2diff(Ndiff*Ndiff), LUT_dir2diff(Ndir*Ndiff), LUT_dir2dir(Ndir*Ndir)
+  real(ireals)  , target :: BMC_diff2diff(Ndiff*Ndiff), BMC_dir2diff(Ndir*Ndiff), BMC_dir2dir(Ndir*Ndir)
+  real(irealLUT), target :: LUT_diff2diff(Ndiff*Ndiff), LUT_dir2diff(Ndir*Ndiff), LUT_dir2dir(Ndir*Ndir)
 
-  type(t_boxmc_3_10) :: bmc_3_10
-  type(t_optprop_LUT_3_10) :: OPP
+  type(t_boxmc_3_24) :: bmc_3_24
+  type(t_optprop_LUT_3_24) :: OPP
 
   integer(mpiint) :: myid,mpierr,numnodes,comm
 
@@ -153,7 +153,7 @@ contains
       call init_mpi_data_parameters(comm)
       call read_commandline_options(comm)
 
-      call bmc_3_10%init(comm)
+      call bmc_3_24%init(comm)
 
       phi   =  0
       theta =  0
@@ -171,10 +171,8 @@ contains
   @after
   subroutine teardown(this)
       class (parameterized_test), intent(inout) :: this
-      !call OPP%destroy()
       call PetscFinalize(ierr)
   end subroutine teardown
-
 
   @test( npes=[2,1], testParameters={getParameters()} )
   subroutine test_LUT_direct_coeff(this)
@@ -206,7 +204,7 @@ contains
         print*,taux, tauz
         do src=1,Ndir
 
-          call bmc_3_10%get_coeff(comm, &
+          call bmc_3_24%get_coeff(comm, &
             real([kabs,ksca,g], ireal_dp), &
             src, .True., &
             real(phi, ireal_dp), &
@@ -253,7 +251,7 @@ contains
         call OPP%get_diff2diff([tauz, w0, tauz/taux, g], LUT_diff2diff)
         do src=1,Ndiff
 
-          call bmc_3_10%get_coeff(comm, &
+          call bmc_3_24%get_coeff(comm, &
             real([kabs,ksca,g], ireal_dp), &
             src, .False., &
             real(phi, ireal_dp), &
@@ -272,8 +270,6 @@ contains
 
       end associate
   endsubroutine
-
-
 
   @test( npes=[1] )
   subroutine test_LUT_direct_lambert_beer(this)
@@ -334,18 +330,18 @@ contains
           endif
 
           print*,'---------------------'
-          write(*, FMT='( " diffuse :: ",10(f12.5) )' ) S
+          write(*, FMT='( " diffuse :: ",24(f12.5) )' ) S
           print*,''
-          write(*, FMT='( " target  :: ",10(f12.5) )' ) S_target
+          write(*, FMT='( " target  :: ",24(f12.5) )' ) S_target
           print*,''
-          write(*, FMT='( " diff    :: ",10(f12.5) )' ) S_target-S
+          write(*, FMT='( " diff    :: ",24(f12.5) )' ) S_target-S
           print*,'RMSE ::: ',rmse(S,real(S_target, irealLUT))*[one, 100._irealLUT],'%'
           print*,''
-          write(*, FMT='( " direct  :: ", 8(f12.5) )' ) T
+          write(*, FMT='( " direct  :: ", 9(f12.5) )' ) T
           print*,''
-          write(*, FMT='( " target  :: ", 8(f12.5) )' ) T_target
+          write(*, FMT='( " target  :: ", 9(f12.5) )' ) T_target
           print*,''
-          write(*, FMT='( " diff    :: ", 8(f12.5) )' ) T_target-T
+          write(*, FMT='( " diff    :: ", 9(f12.5) )' ) T_target-T
           print*,'RMSE ::: ',rmse(T,real(T_target, irealLUT))*[one, 100._irealLUT],'%'
           print*,'---------------------'
           print*,''

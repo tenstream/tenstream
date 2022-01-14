@@ -76,11 +76,12 @@ module m_pprts_external_solvers
     type(tVecScatter) :: ctx_hhl
     type(tVecScatter) :: ctx_albedo
     type(tVecScatter) :: ctx_optprop
-    type(tVecScatter) :: ctx_edir
+    type(tVecScatter), allocatable :: ctx_planck
+    type(tVecScatter), allocatable :: ctx_edir
     type(tVecScatter) :: ctx_ediff
     type(tVecScatter) :: ctx_abso
-    type(tVec) :: albedo, kabs, ksca, g
-    type(t_rayli_info_buildings) :: buildings_info
+    type(tVec) :: albedo, kabs, ksca, g, planck
+    type(t_rayli_info_buildings), allocatable :: buildings_info
   end type
 
   type(t_rayli_info), allocatable :: rayli_info
@@ -90,28 +91,39 @@ contains
   subroutine destroy_rayli_info()
     integer(mpiint) :: ierr
     if(.not.allocated(rayli_info)) return
+
     associate(ri => rayli_info)
       call destroy_solution(ri%plex_solution)
-      if(allocated(ri%plex)) then
-        call destroy_plexgrid(ri%plex)
-      endif
-      call mpi_comm_free(ri%subcomm, ierr); call CHKERR(ierr)
       call VecScatterDestroy(ri%ctx_hhl    , ierr); call CHKERR(ierr)
       call VecScatterDestroy(ri%ctx_albedo , ierr); call CHKERR(ierr)
       call VecScatterDestroy(ri%ctx_optprop, ierr); call CHKERR(ierr)
-      call VecScatterDestroy(ri%ctx_edir   , ierr); call CHKERR(ierr)
+      if(allocated(ri%ctx_planck)) then
+        call VecScatterDestroy(ri%ctx_planck , ierr); call CHKERR(ierr)
+        deallocate(ri%ctx_planck)
+      endif
+      if(allocated(ri%ctx_edir)) then
+        call VecScatterDestroy(ri%ctx_edir   , ierr); call CHKERR(ierr)
+        deallocate(ri%ctx_edir)
+      endif
       call VecScatterDestroy(ri%ctx_ediff  , ierr); call CHKERR(ierr)
       call VecScatterDestroy(ri%ctx_abso   , ierr); call CHKERR(ierr)
       call VecDestroy(ri%albedo, ierr); call CHKERR(ierr)
       call VecDestroy(ri%kabs  , ierr); call CHKERR(ierr)
       call VecDestroy(ri%ksca  , ierr); call CHKERR(ierr)
       call VecDestroy(ri%g     , ierr); call CHKERR(ierr)
-      if(allocated(ri%buildings_info%subcomm_buildings)) then
-        call destroy_buildings(ri%buildings_info%subcomm_buildings, ierr); call CHKERR(ierr)
+      call VecDestroy(ri%planck, ierr); call CHKERR(ierr)
+      if(allocated(ri%buildings_info)) then
+        if(allocated(ri%buildings_info%subcomm_buildings)) then
+          call destroy_buildings(ri%buildings_info%subcomm_buildings, ierr); call CHKERR(ierr)
+        endif
+        if(allocated(ri%buildings_info%plex_buildings)) then
+          call destroy_buildings(ri%buildings_info%plex_buildings, ierr); call CHKERR(ierr)
+        endif
       endif
-      if(allocated(ri%buildings_info%plex_buildings)) then
-        call destroy_buildings(ri%buildings_info%plex_buildings, ierr); call CHKERR(ierr)
+      if(allocated(ri%plex)) then
+        call destroy_plexgrid(ri%plex)
       endif
+      call mpi_comm_free(ri%subcomm, ierr); call CHKERR(ierr)
     end associate
 
     deallocate(rayli_info)
@@ -123,136 +135,152 @@ contains
     type(t_state_container),intent(in) :: solution
     type(t_rayli_info), allocatable, intent(inout) :: rayli_info
     type(t_pprts_buildings), intent(in), optional :: opt_buildings
+    integer(iintegers) :: i_am_master
     integer(mpiint) :: submyid, ierr
 
-    integer(iintegers) :: Nhhl, Noptprop
-    type(tVec) :: vertex_hhl, hhl
-    type(tVec) :: vec_albedo, vec_optprop
-    real(ireals), pointer :: xhhl(:,:,:,:) => null(), xhhl1d(:) => null()
-    type(tPetscSection) :: coord_section
-    type(tVec) :: coordinates
-    real(ireals), pointer :: coords(:)
-    integer(iintegers) :: i, k, vStart, vEnd, ivert, coord_offset
+    !if(allocated(rayli_info)) return
+    if(.not.allocated(rayli_info)) then
+      allocate(rayli_info)
 
-    AO :: dmda_ao
-    type(tIS) :: is_in, is_out
-
-    type(tDM) :: dm2d, dm2d_dist, dm3d
-    integer(iintegers), allocatable :: zindex(:)
-
-    if(allocated(rayli_info)) return
-    allocate(rayli_info)
-
-    ! Scatter height info to subcomm[0]
-    call gen_shared_subcomm(solver%comm, rayli_info%subcomm, ierr); call CHKERR(ierr)
-    call mpi_comm_rank(rayli_info%subcomm,submyid,ierr); call CHKERR(ierr)
-
-    if(submyid.eq.0) then
-      k=1
-    else
-      k=0
-    endif
-    call imp_allreduce_sum(solver%comm, k, rayli_info%num_subcomm_masters)
-
-    call DMGetGlobalVector(solver%Cvert_one_atm1%da, vertex_hhl, ierr); call CHKERR(ierr)
-
-    call interpolate_cell_values_to_vertices(&
-      & solver%C_one_atm1_box, solver%atm%hhl, &
-      & solver%Cvert_one_atm1, vertex_hhl)
-
-    call PetscObjectViewFromOptions(vertex_hhl, PETSC_NULL_VEC, '-show_rayli_hhl', ierr); call CHKERR(ierr)
-
-    if(submyid.eq.0) then
-      call VecGetSize(vertex_hhl, Nhhl, ierr); call CHKERR(ierr)
-    else
-      Nhhl = 0
-    endif
-
-    call VecCreateSeq(PETSC_COMM_SELF, Nhhl, hhl, ierr); call CHKERR(ierr)
-
-    call ISCreateStride(PETSC_COMM_SELF, Nhhl, 0_iintegers, 1_iintegers, is_in, ierr); call CHKERR(ierr)
-    call ISCreateStride(PETSC_COMM_SELF, Nhhl, 0_iintegers, 1_iintegers, is_out, ierr); call CHKERR(ierr)
-
-    call DMDAGetAO(solver%Cvert_one_atm1%da, dmda_ao, ierr); call CHKERR(ierr)
-    call AOApplicationToPetscIS(dmda_ao, is_in, ierr); call CHKERR(ierr)
-
-    call gen_shared_scatter_ctx(vertex_hhl, hhl, rayli_info%ctx_hhl, ierr, is_in, is_out); call CHKERR(ierr)
-    call VecScatterBegin(rayli_info%ctx_hhl, vertex_hhl, hhl, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
-    call VecScatterEnd  (rayli_info%ctx_hhl, vertex_hhl, hhl, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
-
-    call DMRestoreGlobalVector(solver%Cvert_one_atm1%da, vertex_hhl, ierr); call CHKERR(ierr)
-    call PetscObjectViewFromOptions(hhl, PETSC_NULL_VEC, '-show_rayli_hhl', ierr); call CHKERR(ierr)
-
-    ! Setup Plex
-    associate( &
-        & atm => solver%atm, &
-        & Ca1 => solver%C_one_atm1, &
-        & Ca  => solver%C_one_atm, &
-        & Cv  => solver%Cvert_one_atm1 )
+      ! Scatter height info to subcomm[0]
+      call gen_shared_subcomm(solver%comm, rayli_info%subcomm, ierr); call CHKERR(ierr)
+      call mpi_comm_rank(rayli_info%subcomm, submyid, ierr); call CHKERR(ierr)
 
       if(submyid.eq.0) then
-        call create_2d_regular_plex(PETSC_COMM_SELF, Ca%glob_xm+1, Ca%glob_ym+1, &
-          & dm2d, dm2d_dist, opt_dx=atm%dx, opt_dy=atm%dy, lverbose=.True.)
+        i_am_master = 1
+      else
+        i_am_master = 0
+      endif
+      call imp_allreduce_sum(solver%comm, i_am_master, rayli_info%num_subcomm_masters)
 
-        call VecGetArrayReadF90(hhl, xhhl1d, ierr); call CHKERR(ierr)
-        xhhl(i1:i1, i1:Cv%glob_zm, i1:Cv%glob_xm, i1:Cv%glob_ym) => xhhl1d
+      call setup_mesh()
 
-        call dmplex_2D_to_3D(dm2d, Ca1%glob_zm, xhhl(i1, :, i1, i1), [zero, zero, -huge(zero)/100], dm3d, zindex)
-
-        !set height lvls on vertices
-        call DMGetCoordinateSection(dm3d, coord_section, ierr); call CHKERR(ierr)
-        call DMGetCoordinatesLocal(dm3d, coordinates, ierr); call CHKERR(ierr)
-        call DMPlexGetDepthStratum(dm3d, i0, vStart, vEnd, ierr); call CHKERR(ierr) ! vertices
-        call VecGetArrayF90(coordinates, coords, ierr); call CHKERR(ierr)
-
-        do i = 1, size(xhhl1d)
-          ivert = vStart + i - i1
-          call PetscSectionGetOffset(coord_section, ivert, coord_offset, ierr); call CHKERR(ierr)
-          coords(i1+coord_offset+i2) = xhhl1d(i)
-        enddo
-        call VecRestoreArrayF90(coordinates, coords, ierr); call CHKERR(ierr)
-
-        call setup_plexgrid(dm2d, dm3d, Ca%glob_zm, zindex, rayli_info%plex)
-
-        call PetscObjectViewFromOptions(dm3d, PETSC_NULL_DM, '-show_rayli_dm3d', ierr); call CHKERR(ierr)
-        nullify(xhhl)
-        call VecRestoreArrayReadF90(hhl, xhhl1d, ierr); call CHKERR(ierr)
-
-        call setup_edir_dmplex (rayli_info%plex, rayli_info%plex%dm, solver%dirtop%dof, i1, i1, rayli_info%plex%edir_dm)
-        call setup_ediff_dmplex(rayli_info%plex, rayli_info%plex%dm, i1, i1, i2, rayli_info%plex%ediff_dm)
-        call setup_abso_dmplex (rayli_info%plex%dm, rayli_info%plex%abso_dm)
-
+      if(submyid.eq.0) then
         call prepare_solution(&
           & rayli_info%plex%edir_dm, &
           & rayli_info%plex%ediff_dm, &
           & rayli_info%plex%abso_dm, &
-          & lsolar=solution%lsolar_rad, &
-          & lthermal=solution%lthermal_rad, &
+          & lsolar=.True., &
+          & lthermal=.True., &
           & solution=rayli_info%plex_solution)
+      endif
 
-      else ! subcomm slave
+      ! Setup albedo scatter context
+      call setup_albedo_scatter_context()
 
-        allocate(rayli_info%plex_solution%edir)
-        call VecCreateSeq(PETSC_COMM_SELF, i0, rayli_info%plex_solution%edir, ierr); call CHKERR(ierr)
-        allocate(rayli_info%plex_solution%ediff)
-        call VecCreateSeq(PETSC_COMM_SELF, i0, rayli_info%plex_solution%ediff, ierr); call CHKERR(ierr)
-        allocate(rayli_info%plex_solution%abso)
-        call VecCreateSeq(PETSC_COMM_SELF, i0, rayli_info%plex_solution%abso, ierr); call CHKERR(ierr)
+      ! Setup result scatter contexts
+      call setup_ediff_scatter_context()
+      call setup_abso_scatter_context()
+    endif
 
-      endif ! is subcomm master
-    end associate
-    call VecDestroy(hhl, ierr); call CHKERR(ierr)
-
-    ! Setup albedo scatter context
-    call setup_albedo_scatter_context()
-
-    ! Setup result scatter contexts
-    call setup_edir_scatter_context()
-    call setup_ediff_scatter_context()
-    call setup_abso_scatter_context()
+    if(solution%lsolar_rad) call setup_edir_scatter_context()
+    if(solution%lthermal_rad) call setup_planck_scatter_context()
 
     call setup_buildings_scatter_context(opt_buildings)
+
+    rayli_info%plex_solution%lsolar_rad = solution%lsolar_rad
+    rayli_info%plex_solution%lthermal_rad = solution%lthermal_rad
+    rayli_info%plex_solution%uid = solution%uid
+
   contains
+
+    subroutine setup_mesh()
+      integer(iintegers) :: Nhhl
+      type(tVec) :: vertex_hhl, hhl
+      real(ireals), pointer :: xhhl(:,:,:,:) => null(), xhhl1d(:) => null()
+      type(tPetscSection) :: coord_section
+      type(tVec) :: coordinates
+      real(ireals), pointer :: coords(:)
+      integer(iintegers) :: i, vStart, vEnd, ivert, coord_offset
+
+      AO :: dmda_ao
+      type(tIS) :: is_in, is_out
+
+      type(tDM) :: dm2d, dm2d_dist, dm3d
+      integer(iintegers), allocatable :: zindex(:)
+
+      call DMGetGlobalVector(solver%Cvert_one_atm1%da, vertex_hhl, ierr); call CHKERR(ierr)
+
+      call interpolate_cell_values_to_vertices(&
+        & solver%C_one_atm1_box, solver%atm%hhl, &
+        & solver%Cvert_one_atm1, vertex_hhl)
+
+      call PetscObjectViewFromOptions(vertex_hhl, PETSC_NULL_VEC, '-show_rayli_hhl', ierr); call CHKERR(ierr)
+
+      if(submyid.eq.0) then
+        call VecGetSize(vertex_hhl, Nhhl, ierr); call CHKERR(ierr)
+      else
+        Nhhl = 0
+      endif
+
+      call VecCreateSeq(PETSC_COMM_SELF, Nhhl, hhl, ierr); call CHKERR(ierr)
+
+      call ISCreateStride(PETSC_COMM_SELF, Nhhl, 0_iintegers, 1_iintegers, is_in, ierr); call CHKERR(ierr)
+      call ISCreateStride(PETSC_COMM_SELF, Nhhl, 0_iintegers, 1_iintegers, is_out, ierr); call CHKERR(ierr)
+
+      call DMDAGetAO(solver%Cvert_one_atm1%da, dmda_ao, ierr); call CHKERR(ierr)
+      call AOApplicationToPetscIS(dmda_ao, is_in, ierr); call CHKERR(ierr)
+
+      call gen_shared_scatter_ctx(vertex_hhl, hhl, rayli_info%ctx_hhl, ierr, is_in, is_out); call CHKERR(ierr)
+      call VecScatterBegin(rayli_info%ctx_hhl, vertex_hhl, hhl, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
+      call VecScatterEnd  (rayli_info%ctx_hhl, vertex_hhl, hhl, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
+
+      call DMRestoreGlobalVector(solver%Cvert_one_atm1%da, vertex_hhl, ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(hhl, PETSC_NULL_VEC, '-show_rayli_hhl', ierr); call CHKERR(ierr)
+
+      ! Setup Plex
+      associate( &
+          & atm => solver%atm, &
+          & Ca1 => solver%C_one_atm1, &
+          & Ca  => solver%C_one_atm, &
+          & Cv  => solver%Cvert_one_atm1 )
+
+        if(submyid.eq.0) then
+          call create_2d_regular_plex(PETSC_COMM_SELF, Ca%glob_xm+1, Ca%glob_ym+1, &
+            & dm2d, dm2d_dist, opt_dx=atm%dx, opt_dy=atm%dy, lverbose=.True.)
+
+          call VecGetArrayReadF90(hhl, xhhl1d, ierr); call CHKERR(ierr)
+          xhhl(i1:i1, i1:Cv%glob_zm, i1:Cv%glob_xm, i1:Cv%glob_ym) => xhhl1d
+
+          call dmplex_2D_to_3D(dm2d, Ca1%glob_zm, xhhl(i1, :, i1, i1), [zero, zero, -huge(zero)/100], dm3d, zindex)
+
+          !set height lvls on vertices
+          call DMGetCoordinateSection(dm3d, coord_section, ierr); call CHKERR(ierr)
+          call DMGetCoordinatesLocal(dm3d, coordinates, ierr); call CHKERR(ierr)
+          call DMPlexGetDepthStratum(dm3d, i0, vStart, vEnd, ierr); call CHKERR(ierr) ! vertices
+          call VecGetArrayF90(coordinates, coords, ierr); call CHKERR(ierr)
+
+          do i = 1, size(xhhl1d)
+            ivert = vStart + i - i1
+            call PetscSectionGetOffset(coord_section, ivert, coord_offset, ierr); call CHKERR(ierr)
+            coords(i1+coord_offset+i2) = xhhl1d(i)
+          enddo
+          call VecRestoreArrayF90(coordinates, coords, ierr); call CHKERR(ierr)
+
+          call setup_plexgrid(dm2d, dm3d, Ca%glob_zm, zindex, rayli_info%plex)
+
+          call PetscObjectViewFromOptions(dm3d, PETSC_NULL_DM, '-show_rayli_dm3d', ierr); call CHKERR(ierr)
+          nullify(xhhl)
+          call VecRestoreArrayReadF90(hhl, xhhl1d, ierr); call CHKERR(ierr)
+
+          call setup_edir_dmplex (rayli_info%plex, rayli_info%plex%dm, i1, i0, i1, rayli_info%plex%horizface1_dm)
+          call setup_edir_dmplex (rayli_info%plex, rayli_info%plex%dm, solver%dirtop%dof, i1, i1, rayli_info%plex%edir_dm)
+          call setup_ediff_dmplex(rayli_info%plex, rayli_info%plex%dm, i1, i1, i2, rayli_info%plex%ediff_dm)
+          call setup_abso_dmplex (rayli_info%plex%dm, rayli_info%plex%abso_dm)
+
+        else ! subcomm slave
+
+          allocate(rayli_info%plex_solution%edir)
+          call VecCreateSeq(PETSC_COMM_SELF, i0, rayli_info%plex_solution%edir, ierr); call CHKERR(ierr)
+          allocate(rayli_info%plex_solution%ediff)
+          call VecCreateSeq(PETSC_COMM_SELF, i0, rayli_info%plex_solution%ediff, ierr); call CHKERR(ierr)
+          allocate(rayli_info%plex_solution%abso)
+          call VecCreateSeq(PETSC_COMM_SELF, i0, rayli_info%plex_solution%abso, ierr); call CHKERR(ierr)
+
+        endif ! is subcomm master
+      end associate
+      call VecDestroy(hhl, ierr); call CHKERR(ierr)
+    end subroutine
 
     subroutine setup_buildings_scatter_context(opt_buildings)
       type(t_pprts_buildings), intent(in), optional :: opt_buildings
@@ -264,6 +292,9 @@ contains
       integer(mpiint) :: numnodes, ierr
 
       if(.not.present(opt_buildings)) return
+
+      if(allocated(rayli_info%buildings_info)) return
+      allocate(rayli_info%buildings_info)
 
       call mpi_comm_size(solver%comm, numnodes, ierr); call CHKERR(ierr)
       associate( B => opt_buildings, BI => rayli_info%buildings_info )
@@ -294,10 +325,11 @@ contains
     end subroutine
 
     subroutine setup_albedo_scatter_context()
-      integer(iintegers) :: Nalbedo, i, k
+      integer(iintegers) :: Nalbedo, Noptprop, i, k
       AO :: dmda_ao
       type(tIS) :: is_in, is_out
       integer(iintegers), allocatable :: is_data(:)
+      type(tVec) :: vec_albedo, vec_optprop
 
       call DMGetGlobalVector(solver%Csrfc_one%da, vec_albedo, ierr); call CHKERR(ierr)
       if(submyid.eq.0) then
@@ -365,6 +397,9 @@ contains
       integer(iintegers), allocatable :: is_data_out(:)
 
       associate( ri => rayli_info, Cdir => solver%C_dir, C1 => solver%C_one, Ca => solver%C_one_atm )
+
+        if(allocated(ri%ctx_edir)) return
+        allocate(ri%ctx_edir)
 
         if(submyid.eq.0) then
           is_data_size = Cdir%glob_zm * Cdir%glob_xm * Cdir%glob_ym * i2 & ! all horizontal fluxes twice
@@ -643,6 +678,51 @@ contains
       end associate
     end subroutine
 
+    subroutine setup_planck_scatter_context()
+      integer(iintegers) :: Nplanck, i, k
+      AO :: dmda_ao
+      type(tIS) :: is_in, is_out
+      integer(iintegers), allocatable :: is_data(:)
+      type(tVec) :: vec_planck ! tmp vec to create scatter ctx
+
+      associate( &
+          & ri => rayli_info, &
+          & Ca1 => solver%C_one_atm1 &
+          )
+
+        if(allocated(ri%ctx_planck)) return
+        allocate(ri%ctx_planck)
+
+        call DMGetGlobalVector(Ca1%da, vec_planck, ierr); call CHKERR(ierr)
+        if(submyid.eq.0) then
+          call VecGetSize(vec_planck, Nplanck, ierr); call CHKERR(ierr)
+        else
+          Nplanck = 0
+        endif
+        call VecCreateSeq(PETSC_COMM_SELF, Nplanck*i2, ri%planck, ierr); call CHKERR(ierr)
+        allocate(is_data(i0:Nplanck*i2-i1))
+        if(submyid.eq.0) then
+          do i = i0, Ca1%glob_xm * Ca1%glob_ym-i1
+            do k = i0, Ca1%glob_zm-i1
+              is_data((i*i2  )*Ca1%glob_zm+k) = i*Ca1%glob_zm+k
+              is_data((i*i2+1)*Ca1%glob_zm+k) = i*Ca1%glob_zm+k
+            enddo
+          enddo
+        endif
+        call ISCreateGeneral(PETSC_COMM_SELF, Nplanck*i2, is_data, PETSC_USE_POINTER, is_in, ierr); call CHKERR(ierr)
+        call ISCreateStride(PETSC_COMM_SELF, Nplanck*i2, 0_iintegers, 1_iintegers, is_out, ierr); call CHKERR(ierr)
+
+        call DMDAGetAO(Ca1%da, dmda_ao, ierr); call CHKERR(ierr)
+        call AOApplicationToPetscIS(dmda_ao, is_in, ierr); call CHKERR(ierr)
+
+        call gen_shared_scatter_ctx(vec_planck, ri%planck, ri%ctx_planck, ierr, is_in, is_out); call CHKERR(ierr)
+        call ISDestroy(is_out, ierr); call CHKERR(ierr)
+        call ISDestroy(is_in, ierr); call CHKERR(ierr)
+        deallocate(is_data)
+        call DMRestoreGlobalVector(Ca1%da, vec_planck, ierr); call CHKERR(ierr)
+      end associate
+    end subroutine
+
     subroutine setup_abso_scatter_context()
       integer(iintegers) :: is_data_size
       integer(iintegers) :: pprts_offsets(4), plex_cells(2)
@@ -752,9 +832,6 @@ contains
 
     if(all([lcall_solver, lcall_snap].eqv..False.)) return
 
-    if(solution%lsolar_rad.eqv..False.) &
-      & call CHKERR(1_mpiint, "Cannot use Rayli for thermal computations")
-
     sundir = spherical_2_cartesian(solver%sun%phi, solver%sun%theta) &
       & * edirTOA
 
@@ -767,12 +844,13 @@ contains
 
     call prepare_input()
     call call_solver(rayli_info%plex_solution)
-    call transfer_result(solution)
+    call transfer_result(rayli_info%plex_solution, solution)
 
     contains
       subroutine prepare_input()
-        type(tVec) :: glob_albedo, glob_kabs, glob_ksca, glob_g
+        type(tVec) :: glob_albedo, glob_kabs, glob_ksca, glob_g, glob_B
         character(len=*), parameter :: log_event_name="pprts_rayli_prepare_input"
+
         PetscClassId :: cid
         PetscLogEvent :: log_event
 
@@ -810,8 +888,10 @@ contains
                 & ri%buildings_info%plex_buildings, ierr); call CHKERR(ierr)
             endif
           else
-            if(allocated(ri%buildings_info%plex_buildings)) deallocate(ri%buildings_info%plex_buildings)
-            if(allocated(ri%buildings_info%subcomm_buildings)) deallocate(ri%buildings_info%subcomm_buildings)
+            if(allocated(ri%buildings_info)) then
+              if(allocated(ri%buildings_info%plex_buildings)) deallocate(ri%buildings_info%plex_buildings)
+              if(allocated(ri%buildings_info%subcomm_buildings)) deallocate(ri%buildings_info%subcomm_buildings)
+            endif
           endif
 
           call DMGetGlobalVector(Ca%da, glob_kabs, ierr); call CHKERR(ierr)
@@ -832,10 +912,19 @@ contains
           call VecScatterEnd  (ri%ctx_optprop, glob_g, ri%g, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
           call DMRestoreGlobalVector(Ca%da, glob_g, ierr); call CHKERR(ierr)
 
-          call PetscObjectViewFromOptions(rayli_info%kabs  , PETSC_NULL_VEC, '-show_rayli_kabs', ierr); call CHKERR(ierr)
-          call PetscObjectViewFromOptions(rayli_info%ksca  , PETSC_NULL_VEC, '-show_rayli_ksca', ierr); call CHKERR(ierr)
-          call PetscObjectViewFromOptions(rayli_info%g     , PETSC_NULL_VEC, '-show_rayli_g', ierr); call CHKERR(ierr)
-          call PetscObjectViewFromOptions(rayli_info%albedo, PETSC_NULL_VEC, '-show_rayli_albedo', ierr); call CHKERR(ierr)
+          if(solution%lthermal_rad) then
+            call DMGetGlobalVector(Ca1%da, glob_B, ierr); call CHKERR(ierr)
+            call f90VecToPetsc(atm%planck, Ca1%da, glob_B)
+            call VecScatterBegin(ri%ctx_planck, glob_B, ri%planck, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
+            call VecScatterEnd  (ri%ctx_planck, glob_B, ri%planck, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
+            call DMRestoreGlobalVector(Ca1%da, glob_B, ierr); call CHKERR(ierr)
+            call PetscObjectViewFromOptions(ri%planck, PETSC_NULL_VEC, '-show_rayli_planck', ierr); call CHKERR(ierr)
+          endif
+
+          call PetscObjectViewFromOptions(ri%kabs  , PETSC_NULL_VEC, '-show_rayli_kabs', ierr); call CHKERR(ierr)
+          call PetscObjectViewFromOptions(ri%ksca  , PETSC_NULL_VEC, '-show_rayli_ksca', ierr); call CHKERR(ierr)
+          call PetscObjectViewFromOptions(ri%g     , PETSC_NULL_VEC, '-show_rayli_g', ierr); call CHKERR(ierr)
+          call PetscObjectViewFromOptions(ri%albedo, PETSC_NULL_VEC, '-show_rayli_albedo', ierr); call CHKERR(ierr)
         end associate
         call PetscLogEventEnd(log_event, ierr); call CHKERR(ierr)
       end subroutine
@@ -850,13 +939,14 @@ contains
         integer(mpiint), intent(out) :: ierr
         ierr = 0
 
-        if(allocated(subB)) return
-
         associate(atm => solver%atm, C1 => solver%C_one)
-          call clone_buildings(localB, subB, .False., ierr); call CHKERR(ierr)
-          call ndarray_offsets([6_iintegers, C1%glob_zm, C1%glob_xm, C1%glob_ym], subB%da_offsets)
-          allocate(subB%iface(B_info%Nglob))
-          allocate(subB%albedo(B_info%Nglob))
+          if(.not.allocated(subB)) then
+            call clone_buildings(localB, subB, .False., ierr); call CHKERR(ierr)
+            call ndarray_offsets([6_iintegers, C1%glob_zm, C1%glob_xm, C1%glob_ym], subB%da_offsets)
+            allocate(subB%iface(B_info%Nglob))
+            allocate(subB%albedo(B_info%Nglob))
+            allocate(subB%planck(B_info%Nglob))
+          endif
 
           nlocal = size(localB%iface)
 
@@ -872,6 +962,20 @@ contains
           call PetscObjectViewFromOptions(vsub, PETSC_NULL_VEC, '-show_rayli_buildings_albedo', ierr); call CHKERR(ierr)
           call VecDestroy(vlocal, ierr); call CHKERR(ierr)
           call VecDestroy(vsub, ierr); call CHKERR(ierr)
+
+          if(allocated(localB%planck)) then ! Setup Planck
+            call VecCreateMPIWithArray(solver%comm, i1, &
+              & nlocal, PETSC_DECIDE, localB%planck, &
+              & vlocal, ierr); call CHKERR(ierr)
+
+            call VecCreateSeqWithArray(PETSC_COMM_SELF, i1, B_info%Nglob, subB%planck, vsub, ierr); call CHKERR(ierr)
+            call VecScatterBegin(B_info%ctx_albedo, vlocal, vsub, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
+            call VecScatterEnd  (B_info%ctx_albedo, vlocal, vsub, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
+
+            call PetscObjectViewFromOptions(vsub, PETSC_NULL_VEC, '-show_rayli_buildings_planck', ierr); call CHKERR(ierr)
+            call VecDestroy(vlocal, ierr); call CHKERR(ierr)
+            call VecDestroy(vsub, ierr); call CHKERR(ierr)
+          endif
 
           ! Setup buildings faces
           ! i.e. find out what the face idx of buildings would be with global offsets
@@ -935,22 +1039,40 @@ contains
           Nphotons_r = Nphotons_r / real(ri%num_subcomm_masters, ireals)
 
           if(submyid.eq.run_rank) then
-            plex_solution%uid = solution%uid
-            if(present(opt_buildings)) then
-              call rayli_wrapper(lcall_solver, lcall_snap, &
-                ri%plex, ri%kabs, ri%ksca, ri%g, ri%albedo, &
-                & sundir, plex_solution, &
-                & nr_photons=Nphotons_r, petsc_log=solver%logs%rayli_tracing, &
-                & opt_buildings=ri%buildings_info%plex_buildings, &
-                & opt_Nthreads=int(subnumnodes, iintegers))
+            if(plex_solution%lthermal_rad) then
+              if(present(opt_buildings)) then
+                call rayli_wrapper(lcall_solver, lcall_snap, &
+                  & ri%plex, ri%kabs, ri%ksca, ri%g, ri%albedo, &
+                  & plex_solution, plck=ri%planck, &
+                  & nr_photons=Nphotons_r, petsc_log=solver%logs%rayli_tracing, &
+                  & opt_buildings=ri%buildings_info%plex_buildings, &
+                  & opt_Nthreads=int(subnumnodes, iintegers))
+              else
+                call rayli_wrapper(&
+                  & lcall_solver, lcall_snap, &
+                  & ri%plex, ri%kabs, ri%ksca, ri%g, ri%albedo, &
+                  & plex_solution, plck=ri%planck, &
+                  & nr_photons=Nphotons_r, petsc_log=solver%logs%rayli_tracing)
+              endif
+
             else
-              call rayli_wrapper(lcall_solver, lcall_snap, &
-                ri%plex, ri%kabs, ri%ksca, ri%g, ri%albedo, &
-                & sundir, plex_solution, &
-                & nr_photons=Nphotons_r, petsc_log=solver%logs%rayli_tracing)
+              if(present(opt_buildings)) then
+                call rayli_wrapper(lcall_solver, lcall_snap, &
+                  & ri%plex, ri%kabs, ri%ksca, ri%g, ri%albedo, &
+                  & plex_solution, sundir=sundir, &
+                  & nr_photons=Nphotons_r, petsc_log=solver%logs%rayli_tracing, &
+                  & opt_buildings=ri%buildings_info%plex_buildings, &
+                  & opt_Nthreads=int(subnumnodes, iintegers))
+              else
+                call rayli_wrapper(lcall_solver, lcall_snap, &
+                  & ri%plex, ri%kabs, ri%ksca, ri%g, ri%albedo, &
+                  & plex_solution, sundir=sundir, &
+                  & nr_photons=Nphotons_r, petsc_log=solver%logs%rayli_tracing)
+              endif
+
+              call PetscObjectViewFromOptions(plex_solution%edir , PETSC_NULL_VEC, '-show_plex_rayli_edir', ierr); call CHKERR(ierr)
             endif
 
-            call PetscObjectViewFromOptions(plex_solution%edir , PETSC_NULL_VEC, '-show_plex_rayli_edir', ierr); call CHKERR(ierr)
             call PetscObjectViewFromOptions(plex_solution%ediff, PETSC_NULL_VEC, '-show_plex_rayli_ediff', ierr); call CHKERR(ierr)
             call PetscObjectViewFromOptions(plex_solution%abso , PETSC_NULL_VEC, '-show_plex_rayli_abso', ierr); call CHKERR(ierr)
 
@@ -975,7 +1097,8 @@ contains
         call PetscLogEventEnd(log_event, ierr); call CHKERR(ierr)
       end subroutine
 
-      subroutine transfer_result(solution)
+      subroutine transfer_result(plex_solution, solution)
+        type(t_state_container),intent(in) :: plex_solution
         type(t_state_container),intent(inout) :: solution
 
         real(ireals), pointer :: x(:,:,:,:)=>null(), x1d(:)=>null()
@@ -998,21 +1121,21 @@ contains
         call VecSet(solution%abso, zero, ierr); call CHKERR(ierr)
 
         if(allocated(solution%edir)) then
-          call VecScatterBegin(rayli_info%ctx_edir, rayli_info%plex_solution%edir, solution%edir, &
+          call VecScatterBegin(rayli_info%ctx_edir, plex_solution%edir, solution%edir, &
             ADD_VALUES, SCATTER_REVERSE, ierr); call CHKERR(ierr)
         endif
-        call VecScatterBegin(rayli_info%ctx_ediff, rayli_info%plex_solution%ediff, solution%ediff, &
+        call VecScatterBegin(rayli_info%ctx_ediff, plex_solution%ediff, solution%ediff, &
           ADD_VALUES, SCATTER_REVERSE, ierr); call CHKERR(ierr)
-        call VecScatterBegin(rayli_info%ctx_abso, rayli_info%plex_solution%abso, solution%abso, &
+        call VecScatterBegin(rayli_info%ctx_abso, plex_solution%abso, solution%abso, &
           ADD_VALUES, SCATTER_REVERSE, ierr); call CHKERR(ierr)
 
         if(allocated(solution%edir)) then
-          call VecScatterEnd  (rayli_info%ctx_edir, rayli_info%plex_solution%edir, solution%edir, &
+          call VecScatterEnd  (rayli_info%ctx_edir, plex_solution%edir, solution%edir, &
             ADD_VALUES, SCATTER_REVERSE, ierr); call CHKERR(ierr)
         endif
-        call VecScatterEnd  (rayli_info%ctx_ediff, rayli_info%plex_solution%ediff, solution%ediff, &
+        call VecScatterEnd  (rayli_info%ctx_ediff, plex_solution%ediff, solution%ediff, &
           ADD_VALUES, SCATTER_REVERSE, ierr); call CHKERR(ierr)
-        call VecScatterEnd  (rayli_info%ctx_abso, rayli_info%plex_solution%abso, solution%abso, &
+        call VecScatterEnd  (rayli_info%ctx_abso, plex_solution%abso, solution%abso, &
           ADD_VALUES, SCATTER_REVERSE, ierr); call CHKERR(ierr)
 
         if(allocated(solution%edir)) then

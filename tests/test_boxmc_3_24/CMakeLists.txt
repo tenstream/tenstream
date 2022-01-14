@@ -1,7 +1,6 @@
 get_filename_component(CDIR ${CMAKE_CURRENT_LIST_DIR} NAME)
 set(TESTDIR "${PROJECT_BINARY_DIR}/generated/${CDIR}" )
 
-if(RAYLI_DIR)
 message( STATUS "Adding test :: ${CDIR}" )
 
 file(MAKE_DIRECTORY  ${TESTDIR} )
@@ -37,10 +36,6 @@ file(GLOB options_files "tenstream.options")
 foreach(_options_file ${options_files})
 configure_file(${_options_file} ${TESTDIR}/ COPYONLY)
 endforeach()
-file(GLOB options_files "atm.dat")
-foreach(_options_file ${options_files})
-configure_file(${_options_file} ${TESTDIR}/ COPYONLY)
-endforeach()
 
 set_source_files_properties(${_test_sources} PROPERTIES COMPILE_FLAGS "${EXTRA_TEST_COMPILE_FLAGS}")
 set_source_files_properties(${PFUNIT_DIR}/include/driver.F90 PROPERTIES
@@ -55,14 +50,9 @@ add_executable(
 target_link_libraries(
   pfunit_${CDIR}
   ${PFUNIT_DIR}/lib/libpfunit.a
-  pprts_examples
   ${TENSTR_LIBS}
   )
 add_test(
   NAME pfunit_${CDIR}
   COMMAND ${MPIEXEC} ${CTEST_MPIRUN_FLAGS} ${MPIEXEC_NUMPROC_FLAG} ${NUMPROC} ${PROJECT_BINARY_DIR}/bin/pfunit_${CDIR}
   WORKING_DIRECTORY ${TESTDIR})
-
-else(RAYLI_DIR)
-  message( STATUS "Skipping test :: ${CDIR}" )
-endif(RAYLI_DIR)

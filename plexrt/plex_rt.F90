@@ -687,9 +687,15 @@ module m_plex_rt
           "-rayli_snapshot", lrayli_snap, ierr) ;call CHKERR(ierr)
 
         call PetscLogEventBegin(solver%logs%solve_rayli, ierr)
-        call rayli_wrapper(luse_rayli, lrayli_snap, &
-          solver%plex, solver%kabs, solver%ksca, solver%g, &
-          solver%albedo, sundir, solution, plck=solver%plck)
+        if(lsolar) then
+          call rayli_wrapper(luse_rayli, lrayli_snap, &
+            solver%plex, solver%kabs, solver%ksca, solver%g, &
+            solver%albedo, solution, sundir=sundir)
+        else
+          call rayli_wrapper(luse_rayli, lrayli_snap, &
+            solver%plex, solver%kabs, solver%ksca, solver%g, &
+            solver%albedo, solution, plck=solver%plck)
+        endif
         call PetscLogEventEnd(solver%logs%solve_rayli, ierr)
         if(luse_rayli) goto 99
 
@@ -2095,7 +2101,7 @@ module m_plex_rt
           integer(iintegers), pointer :: faces_of_cell(:)
           integer(iintegers) :: face_plex2bmc(5)
           integer(iintegers) :: diff_plex2bmc(8)
-          integer(iintegers) :: wedge_offset2, plck_offset
+          integer(iintegers) :: wedge_offset2, plck_offset, geom_offset
 
           integer(iintegers), allocatable :: incoming_offsets(:), outgoing_offsets(:)
           integer(iintegers) :: i, j, icell, icol, iface, idof, numDof
@@ -2103,7 +2109,7 @@ module m_plex_rt
 
           integer(iintegers), pointer :: xinoutdof(:)
           real(ireals), pointer :: xplanck(:)
-          real(ireals) :: emissivity, b0, b1, btop, bbot, bside, Beff
+          real(ireals) :: emissivity, b0, b1, btop, bbot, bside, Beff, dz, tauz
 
           call ISGetIndicesF90(solver%IS_diff_in_out_dof, xinoutdof, ierr); call CHKERR(ierr)
           call VecGetArrayReadF90(plckVec, xplanck, ierr); call CHKERR(ierr)
@@ -2126,8 +2132,13 @@ module m_plex_rt
             b0 = xplanck(i1+plck_offset)* pi ! top planck value
             call PetscSectionGetFieldOffset(plckSection, faces_of_cell(2), i0, plck_offset, ierr); call CHKERR(ierr)
             b1 = xplanck(i1+plck_offset)* pi ! bot planck value
-            call B_eff(b1, b0, xkabs(i1+icell), btop)
-            call B_eff(b0, b1, xkabs(i1+icell), bbot)
+
+            call PetscSectionGetFieldOffset(geomSection, icell, i3, geom_offset, ierr); call CHKERR(ierr)
+            dz = geoms(i1+geom_offset)
+            tauz = xkabs(i1+icell)*dz
+
+            call B_eff(b1, b0, tauz, btop)
+            call B_eff(b0, b1, tauz, bbot)
             bside = (btop+bbot)/2
 
             i = 1

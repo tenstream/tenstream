@@ -44,9 +44,11 @@ module m_pprts_base
     & t_pprts_shell_ctx, &
     & t_solver, &
     & t_solver_1_2, &
+    & t_solver_3_6, &
     & t_solver_3_10, &
     & t_solver_3_16, &
-    & t_solver_3_6, &
+    & t_solver_3_24, &
+    & t_solver_3_30, &
     & t_solver_8_10, &
     & t_solver_8_16, &
     & t_solver_8_18, &
@@ -183,6 +185,7 @@ module m_pprts_base
     type(tKSP), allocatable            :: ksp_solar_diff
     type(tKSP), allocatable            :: ksp_thermal_diff
     class(t_optprop_cube), allocatable :: OPP
+    class(t_optprop_cube), allocatable :: OPP1d
 
     type(t_dof)                        :: difftop, diffside, dirtop, dirside
     real(ireals), allocatable, dimension(:,:,:,:) :: dir2dir, dir2diff, diff2diff
@@ -205,9 +208,13 @@ module m_pprts_base
   end type
   type, extends(t_solver) :: t_solver_3_10
   end type
-  type, extends(t_solver) :: t_solver_8_10
-  end type
   type, extends(t_solver) :: t_solver_3_16
+  end type
+  type, extends(t_solver) :: t_solver_3_24
+  end type
+  type, extends(t_solver) :: t_solver_3_30
+  end type
+  type, extends(t_solver) :: t_solver_8_10
   end type
   type, extends(t_solver) :: t_solver_8_16
   end type
@@ -376,6 +383,12 @@ module m_pprts_base
       case('3_16')
         allocate(t_solver_3_16::pprts_solver)
 
+      case('3_24')
+        allocate(t_solver_3_24::pprts_solver)
+
+      case('3_30')
+        allocate(t_solver_3_30::pprts_solver)
+
       case('8_16')
         allocate(t_solver_8_16::pprts_solver)
 
@@ -387,8 +400,10 @@ module m_pprts_base
         print *,'-solver 1_2'
         print *,'-solver 3_6'
         print *,'-solver 3_10'
-        print *,'-solver 8_10'
         print *,'-solver 3_16'
+        print *,'-solver 3_24'
+        print *,'-solver 3_30'
+        print *,'-solver 8_10'
         print *,'-solver 8_16'
         print *,'-solver 8_18'
         ierr = 1
@@ -474,6 +489,10 @@ module m_pprts_base
       if(allocated(solver%OPP)) then
         call solver%OPP%destroy(ierr); call CHKERR(ierr)
         deallocate(solver%OPP)
+      endif
+      if(allocated(solver%OPP1d)) then
+        call solver%OPP1d%destroy(ierr); call CHKERR(ierr)
+        deallocate(solver%OPP1d)
       endif
 
       call deallocate_allocatable(solver%dir2dir)
@@ -694,7 +713,7 @@ module m_pprts_base
     logical, intent(in) :: l1d(:)
     real(ireals), intent(out) :: rtol, atol
     type(tKSP), intent(in), allocatable, optional:: ksp
-    real(ireals) :: rel_atol=1e-4_ireals
+    real(ireals) :: rel_atol=1e-6_ireals
     real(ireals) :: unconstrained_fraction
     integer(mpiint) :: myid, ierr
     integer(iintegers) :: maxit

@@ -97,7 +97,7 @@ debian-testing:
 intel:
   extends: .build:default
   #image: intel/oneapi-hpckit
-  image: intel/oneapi-hpckit:2021.1-devel-ubuntu18.04
+  image: intel/oneapi-hpckit:2021.4-devel-ubuntu18.04
   before_script:
     - DEBIAN_FRONTEND=noninteractive apt-get -qq update && DEBIAN_FRONTEND=noninteractive apt-get -qq install -fy cmake git m4 curl libcurl3-dev
     - *template_build_PETSC
@@ -119,7 +119,7 @@ intel:
 intel:debug:
   extends: .build:default
   #image: intel/oneapi-hpckit
-  image: intel/oneapi-hpckit:2021.1-devel-ubuntu18.04
+  image: intel/oneapi-hpckit:2021.4-devel-ubuntu18.04
   before_script:
     - DEBIAN_FRONTEND=noninteractive apt-get -qq update && DEBIAN_FRONTEND=noninteractive apt-get -qq install -fy cmake git m4 curl libcurl3-dev
     - *template_build_PETSC
@@ -147,7 +147,7 @@ intel:debug:
     - slurm.meteo.physik.lmu.de
   variables:
     LUT_BASENAME: "$CI_PROJECT_DIR/LUT/LUT"
-    SRUN_OPTIONS: "--time 02:00:00 --mem 4G -n 9"
+    SRUN_OPTIONS: "--time 02:00:00 --mem 6G -n 9"
     MPIEXEC: "srun"
     MPIRUN_FLAGS: '--mpi=pmix'
     CTEST_ARGS: '-E boxmc|LUT'
@@ -182,7 +182,7 @@ explicit:mim:gcc:debug:
   variables:
     MODULES: "cmake petsc/single-gcc-9"
     BUILD_TYPE: DEBUG
-    PETSC_OPTIONS: "-solar_dir_explicit -solar_diff_explicit -thermal_diff_explicit"
+    PETSC_OPTIONS: "-solar_dir_explicit -solar_diff_explicit -thermal_diff_explicit -thermal_diff_pc_sor_omega .5 -solar_diff_pc_sor_omega .5"
 
 matshell:mim:gcc:debug:
   extends: .build:mim:default

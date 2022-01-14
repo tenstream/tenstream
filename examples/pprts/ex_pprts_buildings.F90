@@ -6,7 +6,7 @@ program main
     & init_mpi_data_parameters, finalize_mpi
   use m_helper_functions, only: CHKERR
   use m_tenstream_options, only: read_commandline_options
-  use m_buildings, only: t_pprts_buildings
+  use m_buildings, only: t_pprts_buildings, destroy_buildings
   use m_examples_pprts_buildings, only: ex_pprts_buildings
   use mpi, only : MPI_COMM_WORLD
   implicit none
@@ -49,7 +49,8 @@ program main
   icollapse=1
   call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-icollapse", icollapse, lflg, ierr); call CHKERR(ierr)
 
-  box_k = Nlay-(icollapse-1)-1 ! one above the surface-touching cell
+  box_k = Nlay-(icollapse-1) ! touching the surface
+  box_k = box_k-1 ! one above, i.e. hovering
   glob_box_i = int(real(Nx+1)/2.)
   glob_box_j = int(real(Nx+1)/2.)
   box_Ni = 1
@@ -100,7 +101,6 @@ program main
   if(lrayli_opts) then
     rayli_options=''
     rayli_options=trim(rayli_options)//' -pprts_use_rayli'
-    rayli_options=trim(rayli_options)//' -rayli_diff_flx_origin 0,0,-inf'
     rayli_options=trim(rayli_options)//' -rayli_cyclic_bc'
     rayli_options=trim(rayli_options)//' -show_rayli_dm3d hdf5:dm.h5'
 
@@ -142,6 +142,10 @@ program main
       & gedir, gedn, geup, gabso,                 &
       & buildings,                                &
       & outfile=outfile)
+  endif
+
+  if (allocated(buildings)) then
+    call destroy_buildings(buildings, ierr); call CHKERR(ierr)
   endif
 
   call finalize_mpi(ierr, .True., .True.)

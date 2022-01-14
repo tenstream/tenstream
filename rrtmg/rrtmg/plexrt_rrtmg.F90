@@ -103,7 +103,7 @@ contains
     !   edn(ubound(edn,1)-nlay_dynamics : ubound(edn,1) )
     ! or:
     !   abso(ubound(abso,1)-nlay_dynamics+1 : ubound(abso,1) )
-    real(ireals), allocatable, dimension(:,:), intent(out) :: edir,edn,eup,abso          ! [nlyr(+1), ncol]
+    real(ireals), allocatable, dimension(:,:), intent(inout) :: edir,edn,eup,abso          ! [nlyr(+1), ncol]
 
     ! ---------- end of API ----------------
 
@@ -188,9 +188,10 @@ contains
       call dump_vec(abso         , '-plexrt_dump_thermal_abso')
     endif
 
+    if(lsolar.and..not.allocated(edir)) allocate(edir(ke1, Ncol))
+    if(allocated(edir)) edir = zero ! if user gave edir, make sure its a current value
+
     if(lsolar) then
-      if(.not.allocated(edir)) allocate(edir(ke1, Ncol))
-      edir = zero
 
       lskip_solar = .False.
       call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &

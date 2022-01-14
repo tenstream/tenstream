@@ -60,18 +60,24 @@ contains
     integer :: funit
     logical :: file_exists
     integer(mpiint) :: irank, numnodes
+    integer(mpiint) :: iter
 
     ierr = 0
 
     fname = trim(fbasename)//'.xmf'
 
+    iter = 0
+    99 continue
     if(solver%myid.eq.0 .and. get_arg(.False., verbose)) print *,'Writing xmf for buildings to ', trim(fname)
 
     call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
     inquire(file=fname, exist=file_exists)
     if(file_exists) then
-      call CHKWARN(1_mpiint, "skipping output because file already exists: "//trim(fname))
-      return
+      iter = iter + 1
+      fname = trim(fbasename)//'.'//toStr(iter)//'.xmf'
+      if(solver%myid.eq.0 .and. get_arg(.False., verbose)) &
+        & call CHKWARN(1_mpiint, "adding suffix to output because file already exists: "//trim(fname))
+      goto 99
     endif
     call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
 
@@ -83,6 +89,19 @@ contains
     call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
 
     call mpi_comm_size(solver%comm, numnodes, ierr); call CHKERR(ierr)
+
+    associate( C => solver%C_diff )
+      call DMGetCoordinateDM(C%da, coordDA, ierr); call CHKERR(ierr)
+      call DMDAGetGhostCorners(coordDA, zs, xs, ys, zm, xm, ym, ierr); call CHKERR(ierr)
+
+      call DMGetCoordinatesLocal(C%da, coordinates, ierr); call CHKERR(ierr)
+      if(coordinates.eq.PETSC_NULL_VEC) then
+        call set_dmda_cell_coordinates(solver, solver%atm, C%da, ierr)
+        call DMGetCoordinatesLocal(C%da, coordinates, ierr); call CHKERR(ierr)
+      endif
+      call VecGetArrayF90(coordinates, xv1d, ierr); call CHKERR(ierr)
+      xv(0:2, zs:zs+zm-1 ,xs:xs+xm-1 ,ys:ys+ym-1) => xv1d
+    end associate
 
     do irank = 0, numnodes-1
       if(irank.eq.solver%myid .and. size(buildings%iface).gt.0) then
@@ -119,17 +138,6 @@ contains
       associate(               &
           & B => buildings,    &
           & C => solver%C_diff )
-
-        call DMGetCoordinateDM(C%da, coordDA, ierr); call CHKERR(ierr)
-        call DMDAGetGhostCorners(coordDA, zs, xs, ys, zm, xm, ym, ierr); call CHKERR(ierr)
-
-        call DMGetCoordinatesLocal(C%da, coordinates, ierr); call CHKERR(ierr)
-        if(coordinates.eq.PETSC_NULL_VEC) then
-          call set_dmda_cell_coordinates(solver, solver%atm, C%da, ierr)
-          call DMGetCoordinatesLocal(C%da, coordinates, ierr); call CHKERR(ierr)
-        endif
-        call VecGetArrayF90(coordinates, xv1d, ierr); call CHKERR(ierr)
-        xv(0:2, zs:zs+zm-1 ,xs:xs+xm-1 ,ys:ys+ym-1) => xv1d
 
         write (funit,*) '<Grid Name="Quads'//toStr(solver%myid)//'">'
         write (funit,*) '<Topology TopologyType="Quadrilateral" NumberOfElements="'//toStr(size(B%iface))//'">'
@@ -268,11 +276,12 @@ contains
 
   !> @brief: dump the surface flux information as xdmf
   !> @details: basename of the file will be expanded by .xmf postfix
-  subroutine xdmf_pprts_srfc_flux(solver, fbasename, edir, edn, eup, ierr, verbose)
+  subroutine xdmf_pprts_srfc_flux(solver, fbasename, edn, eup, ierr, edir, verbose)
     class(t_solver), intent(in) :: solver
     character(len=*), intent(in) :: fbasename
-    real(ireals), allocatable, dimension(:,:,:), intent(in) :: edir, edn, eup
+    real(ireals), allocatable, dimension(:,:,:), intent(in) :: edn, eup
     integer(mpiint), intent(out) :: ierr
+    real(ireals), allocatable, dimension(:,:,:), intent(in), optional :: edir
     logical, optional, intent(in) :: verbose
 
     type(tDM) :: coordDA
@@ -285,18 +294,24 @@ contains
     integer :: funit
     logical :: file_exists
     integer(mpiint) :: irank, numnodes
+    integer(mpiint) :: iter
 
     ierr = 0
 
     fname = trim(fbasename)//'.xmf'
 
+    iter = 0
+    99 continue
     if(solver%myid.eq.0 .and. get_arg(.False., verbose)) print *,'Writing xmf for surface fluxes to ', trim(fname)
 
     call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
     inquire(file=fname, exist=file_exists)
     if(file_exists) then
-      call CHKWARN(1_mpiint, "skipping output because file already exists: "//trim(fname))
-      return
+      iter = iter + 1
+      fname = trim(fbasename)//'.'//toStr(iter)//'.xmf'
+      if(solver%myid.eq.0 .and. get_arg(.False., verbose)) &
+        & call CHKWARN(1_mpiint, "adding suffix to output because file already exists: "//trim(fname))
+      goto 99
     endif
     call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
 
@@ -308,6 +323,15 @@ contains
     call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
 
     call mpi_comm_size(solver%comm, numnodes, ierr); call CHKERR(ierr)
+
+    associate( C => solver%C_diff )
+      call DMGetCoordinateDM(C%da, coordDA, ierr); call CHKERR(ierr)
+      call DMDAGetGhostCorners(coordDA, zs, xs, ys, zm, xm, ym, ierr); call CHKERR(ierr)
+
+      call DMGetCoordinatesLocal(C%da, coordinates, ierr); call CHKERR(ierr)
+      call VecGetArrayF90(coordinates, xv1d, ierr); call CHKERR(ierr)
+      xv(0:2, zs:zs+zm-1 ,xs:xs+xm-1 ,ys:ys+ym-1) => xv1d
+    end associate
 
     do irank = 0, numnodes-1
       if(irank.eq.solver%myid) then
@@ -354,55 +378,46 @@ contains
     end subroutine
 
     subroutine write_grid ()
-      associate(               &
-          & C => solver%C_diff )
+      write (funit,*) '<Grid Name="GroundSubMesh'//toStr(solver%myid)//'">'
+      write (funit,*) '<Topology TopologyType="3DCORECTMesh" &
+        & NumberOfElements=" 1 ',size(edn,dim=3)+1, size(edn,dim=2)+1,'"/>'
+      write (funit,*)'<Geometry GeometryType="ORIGIN_DXDYDZ">'
+      write (funit,*)'<DataStructure Name="Origin" Dimensions="3" Format="XML">'
+      write (funit,*) xv([1,2,0],zs+zm-1,xs,ys)! - [real(ireals) :: solver%atm%dx/2, solver%atm%dy/2, 0]
+      write (funit,*)'</DataStructure>'
+      write (funit,*)'<DataStructure Name="Spacing" Dimensions="3" Format="XML">'
+      write (funit,*) solver%atm%dx, solver%atm%dy, 0
+      write (funit,*)'</DataStructure>'
+      write (funit,*)'</Geometry>'
 
-        call DMGetCoordinateDM(C%da, coordDA, ierr); call CHKERR(ierr)
-        call DMDAGetGhostCorners(coordDA, zs, xs, ys, zm, xm, ym, ierr); call CHKERR(ierr)
-
-        call DMGetCoordinatesLocal(C%da, coordinates, ierr); call CHKERR(ierr)
-        call VecGetArrayF90(coordinates, xv1d, ierr); call CHKERR(ierr)
-        xv(0:2, zs:zs+zm-1 ,xs:xs+xm-1 ,ys:ys+ym-1) => xv1d
-
-        write (funit,*) '<Grid Name="GroundSubMesh'//toStr(solver%myid)//'">'
-        write (funit,*) '<Topology TopologyType="3DCORECTMesh" &
-          & NumberOfElements=" 1 ',size(edn,dim=3)+1, size(edn,dim=2)+1,'"/>'
-        write (funit,*)'<Geometry GeometryType="ORIGIN_DXDYDZ">'
-        write (funit,*)'<DataStructure Name="Origin" Dimensions="3" Format="XML">'
-        write (funit,*) xv([1,2,0],zs+zm-1,xs,ys)! - [real(ireals) :: solver%atm%dx/2, solver%atm%dy/2, 0]
-        write (funit,*)'</DataStructure>'
-        write (funit,*)'<DataStructure Name="Spacing" Dimensions="3" Format="XML">'
-        write (funit,*) solver%atm%dx, solver%atm%dy, 0
-        write (funit,*)'</DataStructure>'
-        write (funit,*)'</Geometry>'
-
-        ! write data attributes
-        ! edir
+      ! write data attributes
+      ! edir
+      if(present(edir)) then
         if(allocated(edir)) then
           write (funit,*) '<Attribute Center="Cell" Name="edir">'
           write (funit,*) '<DataItem Format="XML" Dimensions="', size(edir,dim=2), size(edir,dim=3), '">'
           write (funit,*) edir(size(edir,dim=1),:,:)
           write (funit,*) '</DataItem>','</Attribute>'
         endif
+      endif
 
-        ! edn
-        if(allocated(edn)) then
-          write (funit,*) '<Attribute Center="Cell" Name="edn">'
-          write (funit,*) '<DataItem Format="XML" Dimensions="', size(edn,dim=2), size(edn,dim=3), '">'
-          write (funit,*) edn(size(edn,dim=1),:,:)
-          write (funit,*) '</DataItem>','</Attribute>'
-        endif
+      ! edn
+      if(allocated(edn)) then
+        write (funit,*) '<Attribute Center="Cell" Name="edn">'
+        write (funit,*) '<DataItem Format="XML" Dimensions="', size(edn,dim=2), size(edn,dim=3), '">'
+        write (funit,*) edn(size(edn,dim=1),:,:)
+        write (funit,*) '</DataItem>','</Attribute>'
+      endif
 
-        ! eup
-        if(allocated(eup)) then
-          write (funit,*) '<Attribute Center="Cell" Name="eup">'
-          write (funit,*) '<DataItem Format="XML" Dimensions="', size(eup,dim=2), size(eup,dim=3), '">'
-          write (funit,*) eup(size(eup,dim=1),:,:)
-          write (funit,*) '</DataItem>','</Attribute>'
-        endif
+      ! eup
+      if(allocated(eup)) then
+        write (funit,*) '<Attribute Center="Cell" Name="eup">'
+        write (funit,*) '<DataItem Format="XML" Dimensions="', size(eup,dim=2), size(eup,dim=3), '">'
+        write (funit,*) eup(size(eup,dim=1),:,:)
+        write (funit,*) '</DataItem>','</Attribute>'
+      endif
 
-        write (funit,*) '</Grid>'
-      end associate
+      write (funit,*) '</Grid>'
     end subroutine
   end subroutine xdmf_pprts_srfc_flux
 end module
