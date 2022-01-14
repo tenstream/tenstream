@@ -61,6 +61,7 @@ if(ENABLE_PFUNIT)
       -DCMAKE_Fortran_FLAGS=${PFUNIT_Fortran_FLAGS}
       -DCMAKE_Fortran_FLAGS_RELEASE=${PFUNIT_Fortran_FLAGS}
       -DCMAKE_Fortran_FLAGS_DEBUG=${PFUNIT_Fortran_FLAGS}
+      -DPYTHON_EXECUTABLE=${Python_EXECUTABLE}
       -DMPI_USE_MPIEXEC=YES
       -DMPI=YES
       )
