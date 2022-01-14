@@ -687,9 +687,15 @@ module m_plex_rt
           "-rayli_snapshot", lrayli_snap, ierr) ;call CHKERR(ierr)
 
         call PetscLogEventBegin(solver%logs%solve_rayli, ierr)
-        call rayli_wrapper(luse_rayli, lrayli_snap, &
-          solver%plex, solver%kabs, solver%ksca, solver%g, &
-          solver%albedo, sundir, solution, plck=solver%plck)
+        if(lsolar) then
+          call rayli_wrapper(luse_rayli, lrayli_snap, &
+            solver%plex, solver%kabs, solver%ksca, solver%g, &
+            solver%albedo, solution, sundir=sundir)
+        else
+          call rayli_wrapper(luse_rayli, lrayli_snap, &
+            solver%plex, solver%kabs, solver%ksca, solver%g, &
+            solver%albedo, solution, plck=solver%plck)
+        endif
         call PetscLogEventEnd(solver%logs%solve_rayli, ierr)
         if(luse_rayli) goto 99
 

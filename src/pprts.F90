@@ -2175,13 +2175,6 @@ module m_pprts
     lrayli_snapshot = .False.
     call PetscOptionsHasName(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
       "-rayli_snapshot", lrayli_snapshot, ierr) ; call CHKERR(ierr)
-    if((luse_rayli.or.lrayli_snapshot).and..not.solution%lsolar_rad) then
-      call CHKWARN(1_mpiint, 'Not running Rayli for thermal computations. &
-        & Currently not implemented. Continuing with next solver.'//&
-        & toStr(luse_rayli)//' '//toStr(lrayli_snapshot))
-      luse_rayli = .False.
-      lrayli_snapshot = .False.
-    endif
 
     call pprts_rayli_wrapper(luse_rayli, lrayli_snapshot, solver, edirTOA, solution, opt_buildings)
     call PetscLogEventEnd(solver%logs%solve_mcrts, ierr)
@@ -5547,7 +5540,7 @@ module m_pprts
           & '-pprts_xdmf', fname, lflg, ierr); call CHKERR(ierr)
         if(lflg) then
           fname = trim(fname)//toStr(uid)
-          call xdmf_pprts_srfc_flux(solver, fname, redir, redn, reup, ierr, verbose=.True.); call CHKERR(ierr)
+          call xdmf_pprts_srfc_flux(solver, fname, redn, reup, ierr, edir=redir, verbose=.True.); call CHKERR(ierr)
         endif
       end associate
     end subroutine

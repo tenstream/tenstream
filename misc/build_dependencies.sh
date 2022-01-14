@@ -2,7 +2,7 @@
 set -euo pipefail
 
 SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-PROJECT_ROOT="$SCRIPTDIR/../"
+PROJECT_ROOT="$(readlink -f $SCRIPTDIR/../)"
 
 export PETSC_DIR=${1:-$PROJECT_ROOT/external/petsc}
 export PETSC_ARCH=${2:-default}

@@ -9,7 +9,7 @@ module m_example_pprts_rrtm_lw_sw
   ! the Tenstream uses.
   use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint, zero, one, default_str_len
 
-  use m_helper_functions, only : linspace, CHKERR, spherical_2_cartesian
+  use m_helper_functions, only : linspace, CHKERR, spherical_2_cartesian, meanval
 
   ! Import specific solver type: 3_10 for example uses 3 streams direct, 10 streams for diffuse radiation
   use m_pprts_base, only : t_solver, allocate_pprts_solver_from_commandline
@@ -22,17 +22,30 @@ module m_example_pprts_rrtm_lw_sw
   implicit none
 
 contains
-  subroutine ex_pprts_rrtm_lw_sw(nxp, nyp, nzp, dx, dy, phi0, theta0, albedo_th, albedo_sol)
-
-    implicit none
+  subroutine ex_pprts_rrtm_lw_sw(comm, nxp, nyp, nzp, dx, dy, &
+      & phi0, theta0, albedo_th, albedo_sol, &
+      & lthermal, lsolar, atm_filename, &
+      & edir, edn, eup, abso)
+    integer(mpiint), intent(in) :: comm
     integer(iintegers), intent(in) :: nxp, nyp, nzp   ! local domain size for each rank
     real(ireals), intent(in) :: dx, dy                ! horizontal grid spacing in [m]
     real(ireals), intent(in) :: phi0, theta0          ! Sun's angles, azimuth phi(0=North, 90=East), zenith(0 high sun, 80=low sun)
     real(ireals), intent(in) :: albedo_th, albedo_sol ! broadband ground albedo for solar and thermal spectrum
+    logical, intent(in) :: lthermal, lsolar                       ! switches to enable/disable spectral integration
+    character(len=*), intent(in) :: atm_filename ! ='afglus_100m.dat'
+
+
+    ! Fluxes and absorption in [W/m2] and [W/m3] respectively.
+    ! Dimensions will probably be bigger than the dynamics grid, i.e. will have
+    ! the size of the merged grid. If you only want to use heating rates on the
+    ! dynamics grid, use the lower layers, i.e.,
+    !   edn(ubound(edn,1)-nlay_dynamics : ubound(edn,1) )
+    ! or:
+    !   abso(ubound(abso,1)-nlay_dynamics+1 : ubound(abso,1) )
+    real(ireals), allocatable, dimension(:,:,:) :: edir, edn, eup, abso ! [nlev_merged(-1), nxp, nyp]
 
     ! MPI variables and domain decomposition sizes
-    integer(mpiint) :: numnodes, comm, myid, N_ranks_x, N_ranks_y, ierr
-
+    integer(mpiint) :: numnodes, myid, N_ranks_x, N_ranks_y, ierr
 
     real(ireals), dimension(nzp+1,nxp,nyp), target :: plev ! pressure on layer interfaces [hPa]
     real(ireals), dimension(nzp+1,nxp,nyp), target :: tlev ! Temperature on layer interfaces [K]
@@ -45,18 +58,8 @@ contains
     ! Liquid water cloud content [g/kg] and effective radius in micron
     real(ireals), dimension(nzp,nxp,nyp), target :: lwc, reliq
 
-    ! Fluxes and absorption in [W/m2] and [W/m3] respectively.
-    ! Dimensions will probably be bigger than the dynamics grid, i.e. will have
-    ! the size of the merged grid. If you only want to use heating rates on the
-    ! dynamics grid, use the lower layers, i.e.,
-    !   edn(ubound(edn,1)-nlay_dynamics : ubound(edn,1) )
-    ! or:
-    !   abso(ubound(abso,1)-nlay_dynamics+1 : ubound(abso,1) )
-    real(ireals),allocatable, dimension(:,:,:) :: edir, edn, eup, abso ! [nlev_merged(-1), nxp, nyp]
-
     ! Filename of background atmosphere file. ASCII file with columns:
     ! z(km)  p(hPa)  T(K)  air(cm-3)  o3(cm-3) o2(cm-3) h2o(cm-3)  co2(cm-3) no2(cm-3)
-    character(len=default_str_len) :: atm_filename ! ='afglus_100m.dat'
     logical :: lflg
 
     !------------ Local vars ------------------
@@ -69,12 +72,10 @@ contains
     real(ireals) :: sundir(3)
 
     logical,parameter :: ldebug=.True.
-    logical :: lthermal, lsolar
 
     class(t_solver), allocatable :: pprts_solver
     type(t_tenstr_atm) :: atm
 
-    comm = MPI_COMM_WORLD
     call MPI_COMM_SIZE(comm, numnodes, ierr)
     call MPI_COMM_RANK(comm, myid, ierr)
 
@@ -127,21 +128,9 @@ contains
     plwc (1:size(lwc ,1),1:size(lwc ,2)*size(lwc ,3)) => lwc
     preliq(1:size(reliq,1),1:size(reliq,2)*size(reliq,3)) => reliq
 
-    atm_filename='afglus_100m.dat'
-    call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-atm_filename', &
-      atm_filename, lflg, ierr); call CHKERR(ierr)
-
     call setup_tenstr_atm(comm, .False., atm_filename, &
       pplev, ptlev, atm, &
       d_lwc=plwc, d_reliq=preliq)
-
-    ! For comparison, compute lw and sw separately
-    lthermal=.True.
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-      "-thermal", lthermal, lflg,ierr) ; call CHKERR(ierr)
-    lsolar=.True.
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-      "-solar", lsolar, lflg,ierr) ; call CHKERR(ierr)
 
     sundir = spherical_2_cartesian(phi0, theta0)
 
@@ -165,32 +154,33 @@ contains
       if(ldebug) then
         do k=1,nlev
           if(allocated(edir)) then
-          print *,k,'edir', edir(k,1,1), 'edn', edn(k,1,1), 'eup', eup(k,1,1), abso(min(nlev-1,k),1,1)
-        else
-          print *,k, 'edn', edn(k,1,1), 'eup', eup(k,1,1), abso(min(nlev-1,k),1,1)
-        endif
+            print *,k,'edir', meanval(edir(k,:,:)), 'edn', meanval(edn(k,:,:)), 'eup', meanval(eup(k,:,:)), &
+              & 'abso', meanval(abso(min(nlev-1,k),:,:))
+          else
+            print *,k, 'edn', meanval(edn(k,:,:)), 'eup', meanval(eup(k,:,:)), meanval(abso(min(nlev-1,k),:,:))
+          endif
         enddo
       endif
 
       if(allocated(edir)) &
-        print *,'surface :: direct flux', edir(nlev,1,1)
-      print *,'surface :: downw flux ', edn (nlev,1,1)
-      print *,'surface :: upward fl  ', eup (nlev,1,1)
-      print *,'surface :: absorption ', abso(nlev-1,1,1)
+        print *,'surface :: direct flux', meanval(edir(nlev,:,:))
+      print *,'surface :: downw flux ', meanval(edn (nlev,:,:))
+      print *,'surface :: upward fl  ', meanval(eup (nlev,:,:))
+      print *,'surface :: absorption ', meanval(abso(nlev-1,:,:))
 
       if(allocated(edir)) &
-        print *,'TOA :: direct flux', edir(1,1,1)
-      print *,'TOA :: downw flux ', edn (1,1,1)
-      print *,'TOA :: upward fl  ', eup (1,1,1)
-      print *,'TOA :: absorption ', abso(1,1,1)
+        print *,'TOA :: direct flux', meanval(edir(1,:,:))
+      print *,'TOA :: downw flux ', meanval(edn (1,:,:))
+      print *,'TOA :: upward fl  ', meanval(eup (1,:,:))
+      print *,'TOA :: absorption ', meanval(abso(1,:,:))
 
       if(allocated(edir)) &
-        print *,'icloud :: direct flux  ', edir(nlev-icld  ,1,1)
+        print *,'icloud :: direct flux  ', meanval(edir(nlev-icld  ,:,:))
       if(allocated(edir)) &
-        print *,'icloud+1 :: direct flux', edir(nlev-icld+1,1,1)
-      print *,'icloud :: downw flux   ', edn (nlev-icld+1,1,1)
-      print *,'icloud :: upward fl    ', eup (nlev-icld  ,1,1)
-      print *,'icloud :: absorption   ', abso(nlev-icld  ,1,1)
+        print *,'icloud+1 :: direct flux', meanval(edir(nlev-icld+1,:,:))
+      print *,'icloud :: downw flux   ', meanval(edn (nlev-icld+1,:,:))
+      print *,'icloud :: upward fl    ', meanval(eup (nlev-icld  ,:,:))
+      print *,'icloud :: absorption   ', meanval(abso(nlev-icld  ,:,:))
     endif
 
     ! Tidy up

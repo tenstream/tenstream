@@ -1,13 +1,17 @@
 module test_pprts_rayli
+#include "petsc/finclude/petsc.h"
+  use petsc
 
   use m_data_parameters, only : &
     & init_mpi_data_parameters, &
     & finalize_mpi, &
-    & iintegers, ireals, mpiint
+    & iintegers, ireals, mpiint, &
+    & default_str_len
   use pfunit_mod
-  use m_helper_functions, only: deg2rad, imp_allreduce_mean
+  use m_helper_functions, only: deg2rad, imp_allreduce_mean, CHKERR
   use m_pprts_external_solvers, only: destroy_rayli_info
   use m_examples_pprts_ex1, only: pprts_ex1
+  use m_example_pprts_rrtm_lw_sw, only: ex_pprts_rrtm_lw_sw
 
   implicit none
 
@@ -161,4 +165,115 @@ contains
     enddo
   end subroutine
 
+  @test(npes = [1])
+  subroutine test_pprts_rayli_rrtmg_solar(this)
+    class (MpiTestMethod), intent(inout) :: this
+
+    integer(mpiint) :: myid, numnodes, comm, ierr
+
+    integer(iintegers), parameter :: Nx = 3, Ny = 3, Nlay = 4
+    real(ireals), parameter :: dx = 1e6, dy = 1e6
+    real(ireals), parameter :: phi0 = 180, theta0 = 0
+    real(ireals), parameter :: albedo_th = 0.1
+    real(ireals), parameter :: albedo_sol = 0.25
+    logical, parameter :: lthermal=.False., lsolar=.True.
+    character(len=default_str_len), parameter :: atm_filename='atm.dat'
+
+    integer(iintegers) :: N
+    real(ireals), parameter :: incSolar = 1368.222
+    real(ireals), parameter :: eps = 10
+    real(ireals) :: trgt, val
+    real(ireals),allocatable,dimension(:,:,:) :: fdir,fdn,fup,fdiv
+
+    comm     = this%getMpiCommunicator()
+    numnodes = this%getNumProcesses()
+    myid     = this%getProcessRank()
+
+    call PetscOptionsInsertString(PETSC_NULL_OPTIONS, "-rayli_photons 1e2", ierr); call CHKERR(ierr)
+
+    call ex_pprts_rrtm_lw_sw( &
+      & comm, Nx, Ny, Nlay, &
+      & dx, dy, &
+      & phi0, theta0, albedo_th, albedo_sol, &
+      & lthermal, lsolar, atm_filename, &
+      & fdir,fdn,fup,fdiv)
+
+
+    N = ubound(fdn,1)
+
+    trgt = incSolar * cos(deg2rad(theta0))
+    call imp_allreduce_mean(comm, fdir(1,:,:), val)
+    @mpiassertEqual(trgt, val, eps, 'TOA edir')
+
+    trgt = 0
+    call imp_allreduce_mean(comm, fdn(1,:,:), val)
+    @mpiassertEqual(trgt, val, eps, 'TOA edn')
+
+    trgt = 340.2
+    call imp_allreduce_mean(comm, fup(1,:,:), val)
+    @mpiassertEqual(trgt, val, eps, 'TOA eup')
+
+    trgt = 612.1
+    call imp_allreduce_mean(comm, fdir(N,:,:), val)
+    @mpiassertEqual(trgt, val, eps, 'SRFC edir')
+
+    trgt = 423.3
+    call imp_allreduce_mean(comm, fdn(N,:,:), val)
+    @mpiassertEqual(trgt, val, eps, 'SRFC edn')
+
+    trgt = (612.1 + 423.3) * albedo_sol
+    call imp_allreduce_mean(comm, fup(N,:,:), val)
+    @mpiassertEqual(trgt, val, eps, 'SRFC eup')
+  end subroutine
+
+  @test(npes = [1])
+  subroutine test_pprts_rayli_rrtmg_thermal(this)
+    class (MpiTestMethod), intent(inout) :: this
+
+    integer(mpiint) :: myid, numnodes, comm, ierr
+
+    integer(iintegers), parameter :: Nx = 3, Ny = 3, Nlay = 4
+    real(ireals), parameter :: dx = 1e6, dy = 1e6
+    real(ireals), parameter :: phi0 = 180, theta0 = 0
+    real(ireals), parameter :: albedo_th = 0.1
+    real(ireals), parameter :: albedo_sol = 0.25
+    logical, parameter :: lthermal=.True., lsolar=.False.
+    character(len=default_str_len), parameter :: atm_filename='atm.dat'
+
+    integer(iintegers) :: N
+    real(ireals), parameter :: eps = 10
+    real(ireals) :: trgt, val
+    real(ireals),allocatable,dimension(:,:,:) :: fdir,fdn,fup,fdiv
+
+    comm     = this%getMpiCommunicator()
+    numnodes = this%getNumProcesses()
+    myid     = this%getProcessRank()
+
+    call PetscOptionsInsertString(PETSC_NULL_OPTIONS, "-rayli_photons 1e2", ierr); call CHKERR(ierr)
+
+    call ex_pprts_rrtm_lw_sw( &
+      & comm, Nx, Ny, Nlay, &
+      & dx, dy, &
+      & phi0, theta0, albedo_th, albedo_sol, &
+      & lthermal, lsolar, atm_filename, &
+      & fdir,fdn,fup,fdiv)
+
+    N = ubound(fdn,1)
+
+    trgt = 0
+    call imp_allreduce_mean(comm, fdn(1,:,:), val)
+    @mpiassertEqual(trgt, val, eps, 'TOA edn')
+
+    trgt = 247.2
+    call imp_allreduce_mean(comm, fup(1,:,:), val)
+    @mpiassertEqual(trgt, val, eps, 'TOA eup')
+
+    trgt = 342.4
+    call imp_allreduce_mean(comm, fdn(N,:,:), val)
+    @mpiassertEqual(trgt, val, eps, 'SRFC edn')
+
+    trgt = 385.3
+    call imp_allreduce_mean(comm, fup(N,:,:), val)
+    @mpiassertEqual(trgt, val, eps, 'SRFC eup')
+  end subroutine
 end module

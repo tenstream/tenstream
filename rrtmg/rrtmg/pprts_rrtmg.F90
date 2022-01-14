@@ -573,9 +573,9 @@ contains
           if(present(opt_time)) fname = trim(fname)//'.t'//trim(adjustl(toStr(opt_time)))
           if(.not.lsolar.or..not.lthermal) fname = trim(fname)//'.sol'//toStr(lsolar)//'.th'//toStr(lthermal)
           if(lsolar) then
-            call xdmf_pprts_srfc_flux(solver, fname, edir, edn, eup, ierr, verbose=.True.); call CHKERR(ierr)
+            call xdmf_pprts_srfc_flux(solver, fname, edn, eup, ierr, edir=edir, verbose=.True.); call CHKERR(ierr)
           else
-            call xdmf_pprts_srfc_flux(solver, fname, edir, edn, eup, ierr, verbose=.True.); call CHKERR(ierr)
+            call xdmf_pprts_srfc_flux(solver, fname, edn, eup, ierr, verbose=.True.); call CHKERR(ierr)
           endif
         endif
       end subroutine
