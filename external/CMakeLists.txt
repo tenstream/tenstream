@@ -78,6 +78,7 @@ if(ENABLE_PFUNIT)
     #include_directories(${PROJECT_BINARY_DIR}/external/pfunit/mod)
     add_dependencies(pfunit git_update)
     set(PFUNIT_DIR ${PROJECT_BINARY_DIR}/external/pfunit CACHE INTERNAL "PFUNIT install directory")
+    set(PFUNIT_PARSER ${PFUNIT_DIR}/bin/pFUnitParser.py CACHE INTERNAL "PFUNIT path to parser")
   endif()
 endif(ENABLE_PFUNIT)
 
