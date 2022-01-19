@@ -45,7 +45,8 @@ if(ENABLE_PFUNIT)
   else()
     add_custom_target(
       git_update
-      COMMAND git submodule update --init --recursive --force --remote
+      COMMAND git submodule init
+      COMMAND git submodule update --init --recursive
       WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
       )
 
