@@ -180,18 +180,20 @@ MESSAGE(STATUS "Using MPIEXEC: ${MPIEXEC}")
 # Petsc
 if(NOT PETSC_INSTALL)
   if(NOT DEFINED ENV{PETSC_DIR})
-    message(FATAL_ERROR "Environment variable $PETSC_DIR is not set. Either export $PETSC_DIR and $PETSC_ARCH or supply -DPETSC_INSTALL=<path_to_petsc>")
+    message(VERBOSE "Environment variable $PETSC_DIR is not set.
+                     Either export $PETSC_DIR and $PETSC_ARCH or supply -DPETSC_INSTALL=<path_to_petsc>
+                     Ignore this warning in case that you are using pkg-config to find PETSc")
   else()
     message(STATUS "Using environment vars to find PETSc: PETSC_DIR=$ENV{PETSC_DIR} PETSC_ARCH=$ENV{PETSC_ARCH}")
+    set(PETSC_INSTALL "$ENV{PETSC_DIR}/$ENV{PETSC_ARCH}"
+      CACHE STRING "Path to PETSc Installation, usually $PETSC_DIR/$PETSC_ARCH")
+    MESSAGE(STATUS "Using PETSC ${PETSC_INSTALL} ")
+    if(NOT EXISTS "${PETSC_INSTALL}" )
+      message(FATAL "Directory ${PETSC_INSTALL} does not exist!")
+    endif()
+    set(CMAKE_PREFIX_PATH ${PETSC_INSTALL} ${CMAKE_PREFIX_PATH})
   endif(NOT DEFINED ENV{PETSC_DIR})
-  set(PETSC_INSTALL "$ENV{PETSC_DIR}/$ENV{PETSC_ARCH}"
-    CACHE STRING "Path to PETSc Installation, usually $PETSC_DIR/$PETSC_ARCH")
 endif()
-MESSAGE(STATUS "Using PETSC ${PETSC_INSTALL} ")
-if(NOT EXISTS "${PETSC_INSTALL}" )
-  message(FATAL "Directory ${PETSC_INSTALL} does not exist!")
-endif()
-set(CMAKE_PREFIX_PATH ${PETSC_INSTALL} ${CMAKE_PREFIX_PATH})
 include(FindPkgConfig)
 pkg_search_module(PETSC REQUIRED PETSc)
 message(STATUS "PETSc Includes: ${PETSC_INCLUDE_DIRS}")
