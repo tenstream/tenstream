@@ -1,4 +1,5 @@
 include_directories(${PFUNIT_DIR}/mod)
+include_directories(${PFUNIT_DIR}/include)
 
 macro(subdirlist result curdir)
   file(GLOB children RELATIVE ${curdir} ${curdir}/*)
