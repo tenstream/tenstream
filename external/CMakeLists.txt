@@ -96,9 +96,9 @@ set(FYPP_EXE ${PROJECT_SOURCE_DIR}/external/fypp CACHE STRING "Python Script Loc
 
 # Build RayLi Raytracer
 option(BUILD_RAYLI "Build RayLi - Raytracer" OFF)
-set(BUILD_RAYLI_GIT_URL "git@gitlab.com:d70-t/rayli.git"
+set(BUILD_RAYLI_GIT_URL "https://gitlab.com/d70-t/rayli.git"
   CACHE STRING
-  "Git url which is used when downloading RayLi (e.g. to https://gitlab.com/d70-t/rayli.git)"
+  "Git url which is used when downloading RayLi (e.g. to git@gitlab.com:d70-t/rayli.git)"
   )
 
 set(BUILD_RAYLI_GIT_TAG origin/master
