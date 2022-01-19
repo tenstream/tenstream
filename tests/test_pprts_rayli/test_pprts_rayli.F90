@@ -32,7 +32,7 @@ contains
       & lfinalize_petsc=.True.)
   end subroutine teardown
 
-  @test(npes = [1,4])
+  @test(npes = [4,1])
   subroutine test_pprts_rayli_clear_sky(this)
     class (MpiTestMethod), intent(inout) :: this
 
@@ -101,7 +101,7 @@ contains
 
   end subroutine
 
-  @test(npes = [1,4])
+  @test(npes = [4,1])
   subroutine test_pprts_rayli_single_cld_lay(this)
     class (MpiTestMethod), intent(inout) :: this
 
