@@ -374,7 +374,7 @@ contains
     !logical :: lfile_exists
 
     integer(mpiint) :: myid, ierr
-    logical :: lrrtmg_only, lskip_thermal, lskip_solar, ldisort_only, lflg
+    logical :: lrrtmg_only, lskip_thermal, lskip_solar, ldisort_only, lprint_atm, lflg
 
     integer(iintegers) :: pprts_icollapse
 
@@ -414,7 +414,10 @@ contains
     ke1 = ubound(atm%plev,1)
     ke = ubound(atm%tlay,1)
 
-    if(ldebug .and. myid.eq.0) then
+    lprint_atm = ldebug
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+      "-pprts_rrtmg_atm_view" , lprint_atm , lflg , ierr) ;call CHKERR(ierr)
+    if(lprint_atm .and. myid.eq.0) then
       call print_tenstr_atm(atm)
     endif
 
