@@ -251,6 +251,7 @@ subroutine init_diff_photon_3_10(bmc, p, src, vertices, ierr)
           case(5,6,9,10)
             phi = deg2rad( interv_R(-90._ireal_dp,90._ireal_dp) )
           case default
+            phi = -1
             call CHKERR(1_mpiint, 'Dont know what to do with source spec: '//toStr(src))
         end select
 

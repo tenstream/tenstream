@@ -7,6 +7,9 @@ stages:
     - misc/build_dependencies.sh "${PETSC_DIR}" "${PETSC_ARCH}" "${PETSC_PRECISION}" "${PETSC_DEBUGGING}" "${PETSC_64_INTEGERS}" "${PETSC_OPTS}"
     - cd $CI_PROJECT_DIR
 
+variables:
+  TEST_FILTER_WITHOUT_LUTS: 'boxmc|LUT|test_pprts_symmetry|test_rrtm_lw_Bsrfc|test_rrtm_lw_sw|test_plexrt_fish|test_plexrt_rrtmg_lw_sw|test_pprts_absorption_by_coeff_divergence|test_plexrt_rayli'
+
 # Build Stage
 .build:default:
   stage: build
@@ -43,7 +46,7 @@ ubuntu-latest:
   tags:
     - docker.meteo.physik.lmu.de
   variables:
-    CTEST_ARGS: '-E boxmc|LUT|test_pprts_symmetry|test_rrtm_lw_Bsrfc|test_rrtm_lw_sw|test_plexrt_fish|test_plexrt_rrtmg_lw_sw|test_pprts_absorption_by_coeff_divergence'
+    CTEST_ARGS: "-E ${TEST_FILTER_WITHOUT_LUTS}"
     MPIRUN_FLAGS: "--allow-run-as-root;--oversubscribe"
     PETSC_DIR: petsc
     PETSC_ARCH: default
@@ -57,12 +60,14 @@ ubuntu-rolling:
   image: ubuntu:rolling
   before_script:
     - DEBIAN_FRONTEND=noninteractive apt-get -qq update
-    - DEBIAN_FRONTEND=noninteractive apt-get -qq install -fy build-essential cmake gfortran git python3 openmpi-bin libopenmpi-dev libopenblas-dev curl pkg-config
+    - DEBIAN_FRONTEND=noninteractive apt-get -qq install -fy build-essential cmake gfortran git python3 openmpi-bin libopenmpi-dev libopenblas-dev curl pkg-config libeigen3-dev
     - *template_build_PETSC
+  after_script:
+    -  bash <(curl -s https://codecov.io/bash) || echo 'Codecov failed to upload'
   tags:
     - docker.meteo.physik.lmu.de
   variables:
-    CTEST_ARGS: '-E boxmc|LUT|test_pprts_symmetry|test_rrtm_lw_Bsrfc|test_rrtm_lw_sw|test_plexrt_fish|test_plexrt_rrtmg_lw_sw|test_pprts_absorption_by_coeff_divergence'
+    CTEST_ARGS: "-E ${TEST_FILTER_WITHOUT_LUTS}"
     MPIRUN_FLAGS: "--allow-run-as-root;--oversubscribe"
     PETSC_DIR: petsc
     PETSC_ARCH: default
@@ -70,8 +75,32 @@ ubuntu-rolling:
     PETSC_64_INTEGERS: 1
     PETSC_DEBUGGING: 1
     BUILD_TYPE: RELEASE
-    CMAKE_OPTS: '-DCMAKE_Fortran_FLAGS=--std=legacy'
+    CMAKE_OPTS: '-DBUILD_RAYLI=ON -DENABLE_GCOV=ON -DCMAKE_Fortran_FLAGS=--std=legacy'
+    CODECOV_TOKEN: "7d5206f3-f1e3-4704-8bc3-1ee443e4ee49"
 
+# disabled because gcc image cannot apt install openmpi
+#gcc_latest:gcov:
+#  extends: .build:default
+#  image: gcc:latest
+#  before_script:
+#    - DEBIAN_FRONTEND=noninteractive apt-get -qq update
+#    - DEBIAN_FRONTEND=noninteractive apt-get -qq install -fy build-essential cmake git python3 openmpi-bin libopenmpi-dev libopenblas-dev curl pkg-config
+#    - *template_build_PETSC
+#  after_script:
+#    -  bash <(curl -s https://codecov.io/bash) || echo 'Codecov failed to upload'
+#  tags:
+#    - docker.meteo.physik.lmu.de
+#  variables:
+#    CTEST_ARGS: "-E ${TEST_FILTER_WITHOUT_LUTS}"
+#    MPIRUN_FLAGS: "--allow-run-as-root;--oversubscribe"
+#    PETSC_DIR: petsc
+#    PETSC_ARCH: default
+#    PETSC_PRECISION: single
+#    PETSC_64_INTEGERS: 0
+#    PETSC_DEBUGGING: 0
+#    BUILD_TYPE: RELEASE
+#    CMAKE_OPTS: '-DCMAKE_Fortran_FLAGS=--std=legacy -DENABLE_GCOV=ON'
+#    CODECOV_TOKEN: "7d5206f3-f1e3-4704-8bc3-1ee443e4ee49"
 
 debian-testing:
   extends: .build:default
@@ -83,7 +112,7 @@ debian-testing:
   tags:
     - docker.meteo.physik.lmu.de
   variables:
-    CTEST_ARGS: '-E boxmc|LUT|test_pprts_symmetry|test_rrtm_lw_Bsrfc|test_rrtm_lw_sw|test_plexrt_fish|test_plexrt_rrtmg_lw_sw|test_pprts_absorption_by_coeff_divergence'
+    CTEST_ARGS: "-E ${TEST_FILTER_WITHOUT_LUTS}"
     MPIRUN_FLAGS: "--allow-run-as-root;--oversubscribe"
     PETSC_DIR: petsc
     PETSC_ARCH: default
@@ -104,7 +133,7 @@ intel:
   tags:
     - docker.meteo.physik.lmu.de
   variables:
-    CTEST_ARGS: '-E boxmc|LUT|test_pprts_symmetry|test_rrtm_lw_Bsrfc|test_rrtm_lw_sw|test_plexrt_fish|test_plexrt_rrtmg_lw_sw|test_pprts_absorption_by_coeff_divergence'
+    CTEST_ARGS: "-E ${TEST_FILTER_WITHOUT_LUTS}"
     PETSC_DIR: petsc
     PETSC_ARCH: default
     PETSC_PRECISION: single
@@ -126,7 +155,7 @@ intel:debug:
   tags:
     - docker.meteo.physik.lmu.de
   variables:
-    CTEST_ARGS: '-E boxmc|LUT|test_pprts_symmetry|test_rrtm_lw_Bsrfc|test_rrtm_lw_sw|test_plexrt_fish|test_plexrt_rrtmg_lw_sw|test_pprts_absorption_by_coeff_divergence'
+    CTEST_ARGS: "-E ${TEST_FILTER_WITHOUT_LUTS}"
     PETSC_DIR: petsc
     PETSC_ARCH: default
     PETSC_PRECISION: double

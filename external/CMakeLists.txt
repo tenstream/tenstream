@@ -46,7 +46,7 @@ if(ENABLE_PFUNIT)
     add_custom_target(
       git_update
       COMMAND git submodule init
-      COMMAND git submodule update
+      COMMAND git submodule update --init --recursive
       WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
       )
 
@@ -78,6 +78,9 @@ if(ENABLE_PFUNIT)
     #include_directories(${PROJECT_BINARY_DIR}/external/pfunit/mod)
     add_dependencies(pfunit git_update)
     set(PFUNIT_DIR ${PROJECT_BINARY_DIR}/external/pfunit CACHE INTERNAL "PFUNIT install directory")
+    set(PFUNIT_PARSER ${PFUNIT_DIR}/bin/pFUnitParser.py CACHE INTERNAL "PFUNIT path to parser")
+    #set(PFUNIT_DIR ${PROJECT_BINARY_DIR}/external/pfunit/PFUNIT-4.2 CACHE INTERNAL "PFUNIT install directory")
+    #set(PFUNIT_PARSER ${PFUNIT_DIR}/bin/funitproc CACHE INTERNAL "PFUNIT path to parser")
   endif()
 endif(ENABLE_PFUNIT)
 
@@ -95,9 +98,9 @@ set(FYPP_EXE ${PROJECT_SOURCE_DIR}/external/fypp CACHE STRING "Python Script Loc
 
 # Build RayLi Raytracer
 option(BUILD_RAYLI "Build RayLi - Raytracer" OFF)
-set(BUILD_RAYLI_GIT_URL "git@gitlab.com:d70-t/rayli.git"
+set(BUILD_RAYLI_GIT_URL "https://gitlab.com/d70-t/rayli.git"
   CACHE STRING
-  "Git url which is used when downloading RayLi (e.g. to https://gitlab.com/d70-t/rayli.git)"
+  "Git url which is used when downloading RayLi (e.g. to git@gitlab.com:d70-t/rayli.git)"
   )
 
 set(BUILD_RAYLI_GIT_TAG origin/master

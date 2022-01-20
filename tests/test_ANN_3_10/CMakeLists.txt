@@ -29,7 +29,7 @@ foreach(_file ${files})
   endif()
   add_custom_command(
     OUTPUT ${TESTDIR}/${_test_NAME}
-    COMMAND ${Python_EXECUTABLE} ${PFUNIT_DIR}/bin/pFUnitParser.py ${_file} ${TESTDIR}/${_test_NAME}
+    COMMAND ${Python_EXECUTABLE} ${PFUNIT_PARSER} ${_file} ${TESTDIR}/${_test_NAME}
     DEPENDS ${test_dependency}
     )
   set(_test_sources ${_test_sources} ${TESTDIR}/${_test_NAME})
