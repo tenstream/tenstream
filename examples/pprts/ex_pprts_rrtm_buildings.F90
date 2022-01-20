@@ -34,7 +34,7 @@ program main
   call read_commandline_options(comm)
 
   atm_filename='afglus_100m.dat'
-  call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-atm_filename', &
+  call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-atm', &
     & atm_filename, lflg, ierr); call CHKERR(ierr)
   inquire( file=trim(atm_filename), exist=lfile_exists )
   if(.not.lfile_exists) then
@@ -43,7 +43,7 @@ program main
     ierr = 0
   endif
   call CHKERR(ierr, 'background atmosphere file: `'//trim(atm_filename)//&
-    & '` does not exist! Please provide a path with option -atm_filename <atmfile>')
+    & '` does not exist! Please provide a path with option -atm <atmfile>')
 
   call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-out', outfile, lhave_outfile, ierr); call CHKERR(ierr)
 !  if(.not.lflg) call CHKERR(1_mpiint, 'need to supply a output filename... please call with -out <output.nc>')
