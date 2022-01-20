@@ -276,6 +276,7 @@ module m_dyn_atm_to_rrtmg
       call alloc_info(atm%reliq  ,'atm%reliq  ')
       call alloc_info(atm%iwc    ,'atm%iwc    ')
       call alloc_info(atm%reice  ,'atm%reice  ')
+      print *,'atm%tskin  ', allocated(atm%tskin)
       print *,'atm%atm_ke ', allocated(atm%atm_ke)
 
       do k=size(atm%plev,1),1,-1
@@ -287,6 +288,7 @@ module m_dyn_atm_to_rrtmg
           'H2O', atm%h2o_lay(k,j), 'CO2', atm%co2_lay(k,j),'O3', atm%o3_lay(k,j),'N2O', atm%n2o_lay(k,j),&
           'O2', atm%o2_lay(k,j)
       enddo
+      if(allocated(atm%tskin)) print *,'atm%tskin', atm%tskin(j)
     contains
       subroutine alloc_info(x, varname)
         real(ireals), allocatable, dimension(:,:), intent(in) :: x
