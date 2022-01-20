@@ -6,7 +6,7 @@ PROJECT_ROOT="$(readlink -f $SCRIPTDIR/../)"
 
 export PETSC_DIR=${1:-$PROJECT_ROOT/external/petsc}
 export PETSC_ARCH=${2:-default}
-PETSC_PRECISION=${3:-double}
+PETSC_PRECISION=${3:-single}
 PETSC_DEBUGGING=${4:-0}
 PETSC_64_INTEGERS=${5:-0}
 PETSC_OPTS=${@:6}
