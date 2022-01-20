@@ -1531,9 +1531,12 @@ contains
     logical :: lflg
 
     real(ireals),allocatable :: dtau(:),Edn(:),Eup(:)
+    real(ireals) :: Bsrfc, Ag
     integer(mpiint) :: ierr
 
-    if(present(opt_buildings)) call CHKERR(1_mpiint, "buildings not implemented for pprts_schwarzschild")
+    integer(iintegers), allocatable :: buildings_mink(:,:)
+    integer(iintegers), allocatable :: buildings_face(:,:)
+    integer(iintegers) :: m, bk, idx(4)
 
     associate( &
         atm    => solver%atm,    &
@@ -1543,18 +1546,41 @@ contains
         C_one_atm   => solver%C_one_atm, &
         C_one_atm1  => solver%C_one_atm1)
 
+      if(present(opt_buildings)) then
+        associate(B => opt_buildings)
+          ! on each pixel, find the top most face
+          allocate(buildings_mink(C_one_atm%xs:C_one_atm%xe,C_one_atm%ys:C_one_atm%ye))
+          allocate(buildings_face(C_one_atm%xs:C_one_atm%xe,C_one_atm%ys:C_one_atm%ye))
+          buildings_mink(:,:) = C_diff%ze
+          buildings_face(:,:) = -1
+          do m = 1, size(opt_buildings%iface)
+            call ind_1d_to_nd(B%da_offsets, B%iface(m), idx)
+            idx(2:4) = idx(2:4) -1 + [C_diff%zs, C_diff%xs, C_diff%ys]
+
+            associate(d => idx(1), k => idx(2), i => idx(3), j => idx(4))
+              if(d.eq.PPRTS_TOP_FACE) then
+                if(k.lt.buildings_mink(i,j)) then
+                  buildings_mink(i,j) = k
+                  buildings_face(i,j) = m
+                endif
+              endif
+            end associate
+          enddo
+        end associate
+      endif
+
       if(solution%lsolar_rad) call CHKERR(1_mpiint, 'Tried calling schwarschild solver for solar calculation -- stopping!')
       if(.not.allocated(atm%planck)) call CHKERR(1_mpiint, 'Tried calling schwarschild solver but no planck was given -- stopping!')
 
       call VecSet(solution%ediff, zero, ierr); call CHKERR(ierr)
 
-      allocate(dtau(size(atm%dz,dim=1)))
+      allocate( dtau(C_one_atm%zs:C_one_atm%ze) )
 
       call getVecPointer(C_one%da, solution%abso, xv_abso1d, xv_abso)
       call getVecPointer(C_diff%da, solution%ediff, xv_diff1d, xv_diff)
 
-      allocate( Eup(0:size(atm%dz,dim=1)) )
-      allocate( Edn(0:size(atm%dz,dim=1)) )
+      allocate( Eup(C_one_atm1%zs:C_one_atm1%ze) )
+      allocate( Edn(C_one_atm1%zs:C_one_atm1%ze) )
 
       Nmu = 4
       call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
@@ -1566,13 +1592,41 @@ contains
         do i = C_diff%xs, C_diff%xe
 
           dtau = atm%dz(:, i, j) * atm%kabs(:, i, j)
+          Ag = atm%albedo(i,j)
 
           if(allocated(atm%Bsrfc)) then
-            call schwarzschild(Nmu, dtau, atm%albedo(i,j), Edn, Eup, &
-              atm%planck(:, i, j), opt_srfc_emission=atm%Bsrfc(i,j))
+            Bsrfc = atm%Bsrfc(i,j)
           else
-            call schwarzschild(Nmu, dtau, atm%albedo(i,j), Edn, Eup, &
-              atm%planck(:, i, j))
+            Bsrfc = atm%planck(C_one_atm1%ze,i,j)
+          endif
+
+          if(present(opt_buildings)) then
+            m = buildings_face(i,j)
+            if(m.gt.i0) then
+              Ag = opt_buildings%albedo(m)
+              bk = atmk(atm, buildings_mink(i,j)-1)
+              if(allocated(atm%planck)) then
+                Bsrfc = opt_buildings%planck(m)
+              endif
+            else
+              bk = C_one_atm%ze
+            endif
+            call schwarzschild(          &
+              & Nmu,                     &
+              & dtau(C_one_atm%zs:bk),   &
+              & Ag,                      &
+              & Edn(C_one_atm%zs:bk+1),  &
+              & Eup(C_one_atm%zs:bk+1),  &
+              & atm%planck(C_one_atm%zs:bk+1, i, j), &
+              & opt_srfc_emission=Bsrfc)
+          else ! not buildings
+            call schwarzschild(          &
+              & Nmu,                     &
+              & dtau,                    &
+              & Ag,                      &
+              & Edn, Eup,                &
+              & atm%planck(:, i, j),     &
+              & opt_srfc_emission=Bsrfc)
           endif
 
           ! icollapse needs special case for TOA flx's
