@@ -3,9 +3,10 @@ stages:
 
 .template_build_PETSC: &template_build_PETSC
     - export PETSC_DIR=$CI_PROJECT_DIR/$PETSC_DIR
-    - echo "Installing Petsc in ${PETSC_DIR}/${PETSC_ARCH}"
+    - echo -e "\e[0Ksection_start:`date +%s`:petsc_section[collapsed=true]\r\e[0KInstalling build dependencies to ${PETSC_DIR}/${PETSC_ARCH}"
     - misc/build_dependencies.sh "${PETSC_DIR}" "${PETSC_ARCH}" "${PETSC_PRECISION}" "${PETSC_DEBUGGING}" "${PETSC_64_INTEGERS}" "${PETSC_OPTS}"
     - cd $CI_PROJECT_DIR
+    - echo -e "\e[0Ksection_end:`date +%s`:petsc_section\r\e[0K"
 
 variables:
   TEST_FILTER_WITHOUT_LUTS: 'boxmc|LUT|test_pprts_symmetry|test_rrtm_lw_Bsrfc|test_rrtm_lw_sw|test_plexrt_fish|test_plexrt_rrtmg_lw_sw|test_pprts_absorption_by_coeff_divergence|test_plexrt_rayli'

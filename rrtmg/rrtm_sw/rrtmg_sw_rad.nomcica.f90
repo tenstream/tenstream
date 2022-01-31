@@ -772,7 +772,7 @@
 
 ! ------- Modules -------
 
-      use m_tenstr_rrsw_con, only : pi
+      use m_data_parameters, only : pi
 
       integer(kind=im), intent(in) :: idn
 
