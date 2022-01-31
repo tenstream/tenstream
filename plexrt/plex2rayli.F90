@@ -307,7 +307,7 @@ module m_plex2rayli
       endif
     endif
 
-    min_photons = opt_photons_int * 10
+    min_photons = real(opt_photons_int, ireals) * 10._ireals
     call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
       "-rayli_min_photons", min_photons, lflg,ierr) ; call CHKERR(ierr)
     Nphotons = max(int(min_photons, c_size_t), Nphotons)
