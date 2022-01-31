@@ -549,7 +549,7 @@ module m_dyn_atm_to_rrtmg
               call merge_grid_var(lupdate_bg_entries, bg_atm%zt, atm%zt(:,icol), atm_ke, &
                 zero*bg_atm%tlay, zero*bg_atm%tlev, atm%reliq(:,icol), d_reliq(:,icol))
             else
-              atm%reliq = zero
+              atm%reliq(:,icol) = zero
             endif
 
             if(present(d_iwc)) then
@@ -562,7 +562,7 @@ module m_dyn_atm_to_rrtmg
               call merge_grid_var(lupdate_bg_entries, bg_atm%zt, atm%zt(:,icol), atm_ke, &
                 zero*bg_atm%tlay, zero*bg_atm%tlev, atm%reice(:,icol), d_reice(:,icol))
             else
-              atm%reice = zero
+              atm%reice(:,icol) = zero
             endif
 
             if(present(d_cfrac)) then
