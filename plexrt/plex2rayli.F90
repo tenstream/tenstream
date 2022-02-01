@@ -272,7 +272,7 @@ module m_plex2rayli
 
     integer(c_size_t) :: Nthreads, Nphotons, Nwedges, Nfaces, Nverts
     integer(iintegers) :: opt_photons_int, opt_Nthreads_int
-    real(ireals) :: opt_photons
+    real(ireals) :: opt_photons, min_photons
 
     integer(c_size_t) :: outer_id
     logical :: lcyclic, lphoton_scale_w_src, lflg
@@ -306,6 +306,11 @@ module m_plex2rayli
         Nphotons = 1_c_size_t + int(real(Nphotons, ireals) * norm2(sundir), c_size_t)
       endif
     endif
+
+    min_photons = real(opt_photons_int, ireals) * 10._ireals
+    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+      "-rayli_min_photons", min_photons, lflg,ierr) ; call CHKERR(ierr)
+    Nphotons = max(int(min_photons, c_size_t), Nphotons)
 
     call PetscObjectGetComm(plex%dm, comm, ierr); call CHKERR(ierr)
     call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
