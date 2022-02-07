@@ -12,6 +12,7 @@ module m_plex_rt_base
 
   private
   public :: t_plex_solver, &
+    t_plex_solver_2str, &
     t_plex_solver_5_8, &
     t_plex_solver_rectilinear_5_8, &
     t_plex_solver_18_8, &
@@ -56,6 +57,8 @@ module m_plex_rt_base
     type(t_solver_log_events) :: logs
   end type
 
+  type, extends(t_plex_solver) :: t_plex_solver_2str
+  end type
   type, extends(t_plex_solver) :: t_plex_solver_5_8
   end type
   type, extends(t_plex_solver) :: t_plex_solver_rectilinear_5_8
@@ -85,6 +88,9 @@ module m_plex_rt_base
       call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-solver', solver_str, lflg, ierr) ; call CHKERR(ierr)
 
       select case (solver_str)
+      case('2str')
+        allocate(t_plex_solver_2str::plexrt_solver)
+
       case('5_8')
         allocate(t_plex_solver_5_8::plexrt_solver)
 
@@ -96,6 +102,7 @@ module m_plex_rt_base
 
       case default
         print *,'error, have to provide solver type as argument, e.g. call with'
+        print *,'-solver 2str'
         print *,'-solver 5_8'
         print *,'-solver rectilinear_5_8'
         print *,'-solver 18_8'

@@ -3,7 +3,7 @@ module m_plex_rt
 #include "petsc/finclude/petsc.h"
   use petsc
 
-  use m_tenstream_options, only : read_commandline_options, ltwostr_only, lschwarzschild, lcalc_nca
+  use m_tenstream_options, only : read_commandline_options, lschwarzschild, lcalc_nca
 
   use m_helper_functions, only: &
     & angle_between_two_vec, &
@@ -53,6 +53,7 @@ module m_plex_rt
 
   use m_plex_rt_base, only: &
     t_plex_solver, &
+    t_plex_solver_2str, &
     t_plex_solver_5_8, &
     t_plex_solver_rectilinear_5_8, &
     t_plex_solver_18_8, &
@@ -90,6 +91,17 @@ module m_plex_rt
         call CHKERR(1_mpiint, 'Should not call init_plex_rt_solver with an unallocated solver object')
 
       select type(solver)
+      class is (t_plex_solver_2str)
+        solver%dirtop%dof = 1
+        solver%dirtop%area_divider = 1
+        solver%dirside%dof = 1
+        solver%dirside%area_divider = 1
+
+        solver%difftop%dof = 2
+        solver%difftop%area_divider = 1
+        solver%diffside%dof = 0
+        solver%diffside%area_divider = 1
+
       class is (t_plex_solver_5_8)
         allocate(t_optprop_wedge_5_8::solver%OPP)
         solver%dirtop%dof = 1
@@ -644,7 +656,8 @@ module m_plex_rt
         endif
 
         ! --------- Calculate 1D Radiative Transfer ------------
-        if(ltwostr_only) then
+        select type(solver)
+        class is (t_plex_solver_2str)
           if( (lsolar.eqv..False.) .and. lschwarzschild ) then
             call PetscLogEventBegin(solver%logs%solve_schwarzschild, ierr)
             call plexrt_schwarz(solver, solution)
@@ -660,7 +673,7 @@ module m_plex_rt
 
           if(ldebug) print *,'1D calculation done', suid, ':', solution%lsolar_rad, lschwarzschild
           goto 99
-        endif
+        end select
 
         ! DISORT interface
         luse_disort=.False.

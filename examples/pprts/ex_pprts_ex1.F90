@@ -1,7 +1,13 @@
 program main
 #include "petsc/finclude/petsc.h"
   use petsc
-  use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint, pi
+  use m_data_parameters, only : &
+    & init_mpi_data_parameters, &
+    & finalize_mpi, &
+    & iintegers, &
+    & ireals, &
+    & mpiint, &
+    & pi
   use m_helper_functions, only : CHKERR
   use m_examples_pprts_ex1, only: pprts_ex1
 
@@ -125,5 +131,5 @@ program main
     print *,'imshow(edir[0,:,:,0].T,interpolation="nearest");' ! has dimension nyp,nxp,nzp,8streams
     print *,'colorbar(); savefig("edir_x0.pdf")'
   endif
-  call mpi_finalize(ierr)
+  call finalize_mpi(mpi_comm_world, lfinalize_mpi=.True., lfinalize_petsc=.True.)
 end program

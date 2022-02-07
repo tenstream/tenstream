@@ -83,8 +83,8 @@ module m_pprts
   use m_eddington, only : eddington_coeff_ec, eddington_coeff_zdun
   use m_geometric_coeffs, only : dir2dir3_geometric_coeffs
 
-  use m_tenstream_options, only : read_commandline_options, ltwostr, luse_eddington, twostr_ratio, &
-    options_max_solution_err, options_max_solution_time, ltwostr_only, luse_twostr_guess,        &
+  use m_tenstream_options, only : read_commandline_options, luse_eddington, twostr_ratio, &
+    options_max_solution_err, options_max_solution_time, &
     lcalc_nca, lskip_thermal, lschwarzschild, ltopography, &
     lmcrts
 
@@ -109,6 +109,7 @@ module m_pprts
     & t_coord, &
     & t_dof, &
     & t_mat_permute_info, &
+    & t_solver_2str, &
     & t_solver_1_2, &
     & t_solver_3_6, &
     & t_solver_3_10, &
@@ -215,6 +216,17 @@ module m_pprts
       solver%dirside%area_divider = 1
 
       select type(solver)
+        class is (t_solver_2str)
+          allocate(solver%difftop%is_inward(2))
+          solver%difftop%is_inward = [.False.,.True.]
+
+          allocate(solver%diffside%is_inward(0))
+
+          allocate(solver%dirtop%is_inward(1))
+          solver%dirtop%is_inward = [.True.]
+
+          allocate(solver%dirside%is_inward(0))
+
         class is (t_solver_1_2)
           allocate(t_optprop_1_2::solver%OPP)
           allocate(solver%difftop%is_inward(2))
@@ -402,7 +414,12 @@ module m_pprts
       call print_domain_geometry_summary(solver, opt_lview=ldebug)
 
       ! init work vectors
-      call init_memory(solver%C_dir, solver%C_diff, solver%incSolar, solver%b)
+      select type (solver)
+      class is (t_solver_2str)
+        continue
+      class default
+        call init_memory(solver%C_dir, solver%C_diff, solver%incSolar, solver%b)
+      end select
 
       if(present(solvername)) solver%solvername = trim(solver%solvername)//trim(solvername)
       ! init petsc logging facilities
@@ -420,7 +437,12 @@ module m_pprts
     !       directly use the set_angle routines?
     call set_angles(solver, sundir)
 
-    if(ltwostr_only .or. lmcrts) return ! dont need LUT, we just compute Twostream anyway
+    ! dont need LUT, we just compute Twostream anyway
+    select type (solver)
+      class is (t_solver_2str)
+        return
+    end select
+    if(lmcrts) return
 
     if(.not.luse_eddington) then
       allocate(t_optprop_1_2::solver%OPP1d)
@@ -465,7 +487,8 @@ module m_pprts
 
       if (.not.allocated(solver%atm%hhl)) then
         allocate(solver%atm%hhl)
-        call compute_vertical_height_levels(dz=solver%atm%dz, C_hhl=solver%C_one_atm1_box, vhhl=solver%atm%hhl)
+        call compute_vertical_height_levels(dz=solver%atm%dz, C_hhl=solver%C_one_atm1_box, vhhl=solver%atm%hhl, &
+          & prefix=solver%prefix)
       endif
 
       if(.not.allocated(solver%atm%hgrad)) then
@@ -496,9 +519,10 @@ module m_pprts
         allocate(solver%atm%l1d(solver%C_one_atm%zs:solver%C_one_atm%ze) )
       endif
 
-      if(ltwostr_only) then
+      select type (solver)
+      class is (t_solver_2str)
         solver%atm%l1d = .True.
-      else
+      class default
         !TODO if we have a horiz. staggered grid, this may lead to the point where one 3d box has a outgoing sideward flux but the adjacent
         !1d box does not send anything back --> therefore huge absorption :( -- would need to introduce mirror boundary conditions for
         !sideward fluxes in 1d boxes
@@ -508,27 +532,27 @@ module m_pprts
             solver%atm%l1d(k) = any((solver%atm%dz(k,C%xs:C%xe, C%ys:C%ye) / solver%atm%dx) .gt. twostr_ratio)
           enddo
         end associate
-      endif
 
-      ! set layer to 1D if a top height of a box is higher than argument
-      call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,"-pprts_1d_height",&
-        pprts_1d_height, lflg, ierr)  ; call CHKERR(ierr)
-      if(lflg) then
-        associate( &
-            & C     => solver%C_one_atm, &
-            & C_hhl => solver%C_one_atm1_box, &
-            & vhhl  => solver%atm%hhl )
+        ! set layer to 1D if a top height of a box is higher than argument
+        call PetscOptionsGetReal(PETSC_NULL_OPTIONS, solver%prefix,"-pprts_1d_height",&
+          pprts_1d_height, lflg, ierr)  ; call CHKERR(ierr)
+        if(lflg) then
+          associate( &
+              & C     => solver%C_one_atm, &
+              & C_hhl => solver%C_one_atm1_box, &
+              & vhhl  => solver%atm%hhl )
 
-          call getVecPointer(C_hhl%da, vhhl, hhl1d, hhl, readonly=.True.)
-          do k = C%ze, C%zs, -1
-            if(any(hhl(i0,k,:,:).gt.pprts_1d_height)) then
-              solver%atm%l1d(C%zs:k) = .True.
-              exit
-            endif
-          enddo
-          call restoreVecPointer(C_hhl%da, vhhl, hhl1d, hhl, readonly=.True.)
-        end associate
-      endif
+            call getVecPointer(C_hhl%da, vhhl, hhl1d, hhl, readonly=.True.)
+            do k = C%ze, C%zs, -1
+              if(any(hhl(i0,k,:,:).gt.pprts_1d_height)) then
+                solver%atm%l1d(C%zs:k) = .True.
+                exit
+              endif
+            enddo
+            call restoreVecPointer(C_hhl%da, vhhl, hhl1d, hhl, readonly=.True.)
+          end associate
+        endif
+      end select
 
       if(present(collapseindex)) then
         solver%atm%lcollapse=collapseindex.gt.i1
@@ -935,8 +959,6 @@ module m_pprts
       type(t_coord), intent(in) :: C_dir, C_diff
       type(tVec), intent(inout), allocatable :: b,incSolar
       integer(mpiint) :: ierr
-
-      if(ltwostr_only) return
 
       if(.not.allocated(incSolar)) allocate(incSolar)
       if(.not.allocated(b)) allocate(b)
@@ -1667,9 +1689,10 @@ module m_pprts
 
     call print_optical_properties_summary(solver, opt_lview=ldebug)
 
-    if(ltwostr_only) then
+    select type(solver)
+    class is (t_solver_2str)
       return ! twostream should not depend on eddington coeffs... it will have to calculate it on its own.
-    endif
+    end select
 
     if( (any([atm%kabs,atm%ksca,atm%g].lt.zero)) .or. (any(isnan([atm%kabs,atm%ksca,atm%g]))) ) then
       call CHKERR(1_mpiint, 'set_optical_properties :: found illegal value in delta_scaled optical properties! abort!')
@@ -2191,12 +2214,8 @@ module m_pprts
       goto 99
     endif
 
-    ! --------- Calculate 1D Radiative Transfer ------------
-    if(  ltwostr &
-      .or. (solution%lthermal_rad .and. lcalc_nca) &
-      .or. (solution%lthermal_rad .and. lschwarzschild) ) then
-
-
+    select type(solver)
+    class is (t_solver_2str)
       if( solution%lthermal_rad .and. lschwarzschild ) then
         call PetscLogEventBegin(solver%logs%solve_schwarzschild, ierr)
         call schwarz(solver, solution, opt_buildings)
@@ -2209,11 +2228,8 @@ module m_pprts
 
       if(ldebug .and. solver%myid.eq.0) print *,'1D calculation done'
 
-
-      if( ltwostr_only ) goto 99
-      if( solution%lthermal_rad .and. lcalc_nca ) goto 99
-      if( solution%lthermal_rad .and. lschwarzschild ) goto 99
-    endif
+      goto 99
+    end select
 
     if( lmcrts ) then
       call PetscLogEventBegin(solver%logs%solve_mcrts, ierr)
@@ -3414,10 +3430,11 @@ module m_pprts
 
     ! if there are no 3D layers globally, we should skip the ghost value copying....
     !lhave_no_3d_layer = mpi_logical_and(solver%comm, all(atm%l1d.eqv..True.))
-    if(ltwostr_only) then
+    select type(solver)
+    class is (t_solver_2str)
       call compute_1D_absorption()
       goto 99
-    endif
+    end select
 
     by_coeff_divergence = .False.
     call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-absorption_by_coeff_divergence",&

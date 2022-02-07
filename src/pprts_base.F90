@@ -43,6 +43,7 @@ module m_pprts_base
     & t_mat_permute_info, &
     & t_pprts_shell_ctx, &
     & t_solver, &
+    & t_solver_2str, &
     & t_solver_1_2, &
     & t_solver_3_6, &
     & t_solver_3_10, &
@@ -202,6 +203,8 @@ module m_pprts_base
     type(t_state_container), allocatable :: solutions(:)
   end type
 
+  type, extends(t_solver) :: t_solver_2str
+  end type
   type, extends(t_solver) :: t_solver_1_2
   end type
   type, extends(t_solver) :: t_solver_3_6
@@ -368,6 +371,9 @@ module m_pprts_base
     call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-solver', solver_str, lflg, ierr) ; call CHKERR(ierr)
 
     select case (solver_str)
+      case('2str')
+        allocate(t_solver_2str::pprts_solver)
+
       case('1_2')
         allocate(t_solver_1_2::pprts_solver)
 
