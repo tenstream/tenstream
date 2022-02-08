@@ -1315,17 +1315,12 @@ contains
                 planck=atm%planck(:,i,j), &
                 planck_srfc=Bsrfc)
             else
-              !
-              ! call adding_delta_eddington_twostream(dtau,w0,g,mu0,incSolar,atm%albedo(i,j), S,Edn,Eup )
-              !
-              !TODO investigate if this one is really ok...
-              ! I recently had valgrind errors in VecNorm after calling this:
-              ! make -j ex_pprts_rrtm_lw_sw &&
-              ! mpirun -np 1 -wdir ../examples/rrtm_lw_sw/ valgrind $(pwd)/bin/ex_pprts_rrtm_lw_sw -twostr_only
-              call delta_eddington_twostream(&
-                & dtau, w0, g,&
-                & mu0, incSolar, Ag, &
-                & S, Edn, Eup)
+              call adding_delta_eddington_twostream(dtau,w0,g,mu0,incSolar,atm%albedo(i,j), S,Edn,Eup )
+
+              !call delta_eddington_twostream(&
+              !  & dtau, w0, g,&
+              !  & mu0, incSolar, Ag, &
+              !  & S, Edn, Eup)
             endif
           endif
 
