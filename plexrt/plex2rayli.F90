@@ -307,16 +307,18 @@ module m_plex2rayli
       endif
     endif
 
-    min_photons = real(opt_photons_int, ireals) * 10._ireals
-    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-      "-rayli_min_photons", min_photons, lflg,ierr) ; call CHKERR(ierr)
-    Nphotons = max(int(min_photons, c_size_t), Nphotons)
-
     call PetscObjectGetComm(plex%dm, comm, ierr); call CHKERR(ierr)
     call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
     if(numnodes.gt.1) call CHKERR(numnodes, "Rayli currently only in single rank computations available")
+
+    min_photons = real(opt_photons_int, ireals) * 100._ireals
+    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+      "-rayli_min_photons", min_photons, lflg,ierr) ; call CHKERR(ierr)
+    if(myid.eq.0.and.Nphotons.lt.int(min_photons, c_size_t)) &
+      & print *,'Increasing Nphotons from '//toStr(Nphotons)//' to min_photons '//toStr(int(min_photons,c_size_t))
+    Nphotons = max(int(min_photons, c_size_t), Nphotons)
 
     lcyclic=.False.
     call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
