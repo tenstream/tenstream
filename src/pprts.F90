@@ -715,58 +715,58 @@ module m_pprts
         call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
       endif
       call setup_dmda(solver%comm, solver%C_diff, Nz+1,Nx,Ny, boundaries, &
-        & solver%difftop%dof + 2* solver%diffside%dof, nxproc,nyproc)
+        & solver%difftop%dof + 2* solver%diffside%dof, nxproc,nyproc, prefix=solver%prefix)
 
       if(ldebug) then
         if(solver%myid.eq.0) print *,solver%myid, cstr('Configuring DMDA C_dir', 'green')
         call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
       endif
       call setup_dmda(solver%comm, solver%C_dir, Nz+1,Nx,Ny, boundaries, &
-        & solver%dirtop%dof + 2* solver%dirside%dof, nxproc,nyproc)
+        & solver%dirtop%dof + 2* solver%dirside%dof, nxproc,nyproc, prefix=solver%prefix)
 
       if(ldebug) then
         if(solver%myid.eq.0) print *,solver%myid, cstr('Configuring DMDA C_one', 'green')
         call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
       endif
       call setup_dmda(solver%comm, solver%C_one , Nz  , Nx,Ny, boundaries, &
-        & i1, nxproc,nyproc)
+        & i1, nxproc,nyproc, prefix=solver%prefix)
       call setup_dmda(solver%comm, solver%C_one1, Nz+1, Nx,Ny, boundaries, &
-        & i1, nxproc,nyproc)
+        & i1, nxproc,nyproc, prefix=solver%prefix)
 
       if(ldebug) then
         if(solver%myid.eq.0) print *,solver%myid, cstr('Configuring DMDA C_two', 'green')
         call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
       endif
       call setup_dmda(solver%comm, solver%C_two1, Nz+1, Nx,Ny, boundaries, &
-        & i2, nxproc,nyproc)
+        & i2, nxproc,nyproc, prefix=solver%prefix)
 
       if(ldebug) then
         if(solver%myid.eq.0) print *,solver%myid, cstr('Configuring DMDA atm', 'green')
         call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
       endif
       call setup_dmda(solver%comm, solver%C_one_atm , Nz_in  , Nx,Ny, boundaries, &
-        & i1, nxproc,nyproc)
+        & i1, nxproc,nyproc, prefix=solver%prefix)
 
       if(ldebug) then
         if(solver%myid.eq.0) print *,solver%myid, cstr('Configuring DMDA atm1', 'green')
         call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
       endif
       call setup_dmda(solver%comm, solver%C_one_atm1, Nz_in+1, Nx,Ny, boundaries, &
-        & i1, nxproc,nyproc)
+        & i1, nxproc,nyproc, prefix=solver%prefix)
 
       if(ldebug) then
         if(solver%myid.eq.0) print *,solver%myid, cstr('Configuring DMDA atm1_box', 'green')
         call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
       endif
       call setup_dmda(solver%comm, solver%C_one_atm1_box, Nz_in+1, Nx,Ny, boundaries, &
-        & i1, nxproc,nyproc, DMDA_STENCIL_BOX)
+        & i1, nxproc,nyproc, DMDA_STENCIL_BOX, prefix=solver%prefix)
 
       if(ldebug) then
         if(solver%myid.eq.0) print *,solver%myid, cstr('Configuring DMDA srfc_one', 'green')
         call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
       endif
       call setup_dmda(solver%comm, solver%Csrfc_one, i1, Nx,Ny, boundaries, &
-        & i1, nxproc,nyproc)
+        & i1, nxproc,nyproc, prefix=solver%prefix)
 
       if(present(nxproc)) then
         allocate(nxprocp1(size(nxproc)), nyprocp1(size(nyproc)))
@@ -780,22 +780,23 @@ module m_pprts
           call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
         endif
         call setup_dmda(solver%comm, solver%Cvert_one_atm1, Nz_in+1, Nx+1,Ny+1, boundaries, &
-          & i1, nxprocp1,nyprocp1, stencil_type=DMDA_STENCIL_BOX)
+          & i1, nxprocp1,nyprocp1, stencil_type=DMDA_STENCIL_BOX, prefix=solver%prefix)
       else
         call setup_dmda(solver%comm, solver%Cvert_one_atm1, Nz_in+1, Nx+1,Ny+1, boundaries, &
-          & i1, stencil_type=DMDA_STENCIL_BOX)
+          & i1, stencil_type=DMDA_STENCIL_BOX, prefix=solver%prefix)
       endif
 
       if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'DMDA grid ready'
     end subroutine
 
-    subroutine setup_dmda(icomm, C, Nz, Nx, Ny, boundary, dof, nxproc, nyproc, stencil_type)
+    subroutine setup_dmda(icomm, C, Nz, Nx, Ny, boundary, dof, nxproc, nyproc, stencil_type, prefix)
       integer(mpiint), intent(in) :: icomm
       type(t_coord), allocatable :: C
       integer(iintegers), intent(in) :: Nz,Nx,Ny,dof
       DMBoundaryType, intent(in) :: boundary(:)
       integer(iintegers), intent(in), optional :: nxproc(:), nyproc(:) ! size of local domains on each node
       DMDAStencilType, intent(in), optional :: stencil_type
+      character(len=*), intent(in), optional :: prefix
       DMDAStencilType :: opt_stencil_type
 
       integer(iintegers), parameter :: stencil_size=1
@@ -837,6 +838,9 @@ module m_pprts
           C%da                    , ierr) ;call CHKERR(ierr)
       endif
 
+      if(present(prefix)) then
+        call PetscObjectSetOptionsPrefix(C%da, prefix, ierr); call CHKERR(ierr)
+      endif
       ! need this first setfromoptions call because of a bug which happens with intel compilers
       call DMSetFromOptions(C%da, ierr)                                    ; call CHKERR(ierr)
 
@@ -952,7 +956,7 @@ module m_pprts
       call DMGlobalToLocalEnd(C_hhl%da, g_hhl, INSERT_VALUES, vhhl,ierr) ;call CHKERR(ierr)
       call DMRestoreGlobalVector(C_hhl%da, g_hhl, ierr) ;call CHKERR(ierr)
 
-      call PetscObjectViewFromOptions(vhhl, PETSC_NULL_VEC, "-pprts_show_hhl", ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(vhhl, C_hhl%da, "-pprts_show_hhl", ierr); call CHKERR(ierr)
     end subroutine
 
     !> @brief initialize basic memory structs like PETSc vectors and matrices
@@ -1123,6 +1127,7 @@ module m_pprts
 
     allocate(A)
     call DMCreateMatrix(C%da, A, ierr) ;call CHKERR(ierr)
+    call PetscObjectSetOptionsPrefix(A, trim(solver%prefix), ierr); call CHKERR(ierr)
 
     call mpi_comm_size(C%comm, numnodes, ierr) ; call CHKERR(ierr)
 
@@ -1991,8 +1996,7 @@ module m_pprts
 
           call DMGetGlobalVector(solver%Csrfc_one%da, valbedo, ierr) ; call CHKERR(ierr)
           call f90VecToPetsc(atm%albedo, solver%Csrfc_one%da, valbedo)
-          print *,'view albedo:', atm%albedo
-          call PetscObjectViewFromOptions(valbedo, PETSC_NULL_VEC, "-pprts_view_albedo", ierr); call CHKERR(ierr)
+          call PetscObjectViewFromOptions(valbedo, solver%Csrfc_one%da, "-pprts_view_albedo", ierr); call CHKERR(ierr)
           call DMRestoreGlobalVector(solver%Csrfc_one%da, valbedo, ierr) ; call CHKERR(ierr)
         endif
 
@@ -2163,12 +2167,12 @@ module m_pprts
 
     if(.not.solution%lset) then
       call prepare_solution(solver%C_dir%da, solver%C_diff%da, solver%C_one%da, &
-        lsolar=derived_lsolar, lthermal=lthermal, solution=solution, uid=uid)
+        lsolar=derived_lsolar, lthermal=lthermal, solution=solution, uid=uid, prefix=solver%prefix)
     else
       if(solution%lsolar_rad.neqv.derived_lsolar) then
         call destroy_solution(solution)
         call prepare_solution(solver%C_dir%da, solver%C_diff%da, solver%C_one%da, &
-          lsolar=derived_lsolar, lthermal=lthermal, solution=solution, uid=uid)
+          lsolar=derived_lsolar, lthermal=lthermal, solution=solution, uid=uid, prefix=solver%prefix)
       endif
     endif
 

@@ -226,11 +226,12 @@ module m_pprts_base
   end type
 
   contains
-    subroutine prepare_solution(edir_dm, ediff_dm, abso_dm, lsolar, lthermal, solution, uid)
+    subroutine prepare_solution(edir_dm, ediff_dm, abso_dm, lsolar, lthermal, solution, uid, prefix)
       type(tDM), intent(in) :: edir_dm, ediff_dm, abso_dm
       logical, intent(in) :: lsolar, lthermal
       type(t_state_container), intent(inout) :: solution
       integer(iintegers), optional, intent(in) :: uid
+      character(len=*), optional, intent(in) :: prefix
       integer(mpiint) :: ierr
 
       if(solution%lset) call CHKERR(1_mpiint, 'solution has already been prepared before')
@@ -247,6 +248,9 @@ module m_pprts_base
       if(solution%lsolar_rad) then
         allocate(solution%edir)
         call DMCreateGlobalVector(edir_dm, solution%edir, ierr)  ; call CHKERR(ierr)
+        if(present(prefix)) then
+          call PetscObjectSetOptionsPrefix(solution%edir, prefix, ierr); call CHKERR(ierr)
+        endif
         call PetscObjectSetName(solution%edir,'initialized_edir_vec uid='//toStr(solution%uid),ierr) ; call CHKERR(ierr)
         call VecSet(solution%edir, zero, ierr); call CHKERR(ierr)
         call PetscObjectViewFromOptions(solution%edir, PETSC_NULL_VEC, "-show_init_edir", ierr); call CHKERR(ierr)
@@ -254,12 +258,18 @@ module m_pprts_base
 
       allocate(solution%ediff)
       call DMCreateGlobalVector(ediff_dm, solution%ediff, ierr)  ; call CHKERR(ierr)
+      if(present(prefix)) then
+        call PetscObjectSetOptionsPrefix(solution%ediff, prefix, ierr); call CHKERR(ierr)
+      endif
       call PetscObjectSetName(solution%ediff,'initialized_ediff_vec uid='//toStr(solution%uid),ierr) ; call CHKERR(ierr)
       call VecSet(solution%ediff, zero, ierr); call CHKERR(ierr)
       call PetscObjectViewFromOptions(solution%ediff, PETSC_NULL_VEC, "-show_init_ediff", ierr); call CHKERR(ierr)
 
       allocate(solution%abso)
       call DMCreateGlobalVector(abso_dm, solution%abso, ierr)  ; call CHKERR(ierr)
+      if(present(prefix)) then
+        call PetscObjectSetOptionsPrefix(solution%abso, prefix, ierr); call CHKERR(ierr)
+      endif
       call PetscObjectSetName(solution%abso,'initialized_abso_vec uid='//toStr(solution%uid),ierr) ; call CHKERR(ierr)
       call VecSet(solution%abso, zero, ierr); call CHKERR(ierr)
       call PetscObjectViewFromOptions(solution%abso, PETSC_NULL_VEC, "-show_init_abso", ierr); call CHKERR(ierr)
@@ -358,7 +368,7 @@ module m_pprts_base
     character(len=*), intent(in), optional :: prefix
 
     logical :: lflg
-    character(len=default_str_len) :: solver_str, pref
+    character(len=default_str_len) :: solver_str, pref, pref_
 
     ierr = 0
 
@@ -371,7 +381,12 @@ module m_pprts_base
 
     solver_str = get_arg('none', trim(default_solver))
     pref = get_arg(PETSC_NULL_CHARACTER, prefix)
-    call PetscOptionsGetString(PETSC_NULL_OPTIONS, pref, '-solver', solver_str, lflg, ierr) ; call CHKERR(ierr)
+    if(len_trim(pref)>0) then
+      pref_ = trim(pref)//'_'
+    else
+      pref_ = trim(pref)
+    endif
+    call PetscOptionsGetString(PETSC_NULL_OPTIONS, pref_, '-solver', solver_str, lflg, ierr) ; call CHKERR(ierr)
 
     select case (solver_str)
       case('2str')
@@ -406,20 +421,20 @@ module m_pprts_base
 
       case default
         print *,'error, have to provide solver type as argument, e.g. call with'
-        print *,'-'//trim(pref)//'solver 2str'
-        print *,'-'//trim(pref)//'solver 1_2'
-        print *,'-'//trim(pref)//'solver 3_6'
-        print *,'-'//trim(pref)//'solver 3_10'
-        print *,'-'//trim(pref)//'solver 3_16'
-        print *,'-'//trim(pref)//'solver 3_24'
-        print *,'-'//trim(pref)//'solver 3_30'
-        print *,'-'//trim(pref)//'solver 8_10'
-        print *,'-'//trim(pref)//'solver 8_16'
-        print *,'-'//trim(pref)//'solver 8_18'
+        print *,'-'//trim(pref_)//'solver 2str'
+        print *,'-'//trim(pref_)//'solver 1_2'
+        print *,'-'//trim(pref_)//'solver 3_6'
+        print *,'-'//trim(pref_)//'solver 3_10'
+        print *,'-'//trim(pref_)//'solver 3_16'
+        print *,'-'//trim(pref_)//'solver 3_24'
+        print *,'-'//trim(pref_)//'solver 8_10'
+        print *,'-'//trim(pref_)//'solver 8_16'
         ierr = 1
         call CHKERR(ierr, 'have to provide valid solver type, '// &
-          & 'given <'//trim(solver_str)//'> (prefix='//trim(pref)//')')
+          & 'given <'//trim(solver_str)//'> (prefix='//trim(pref_)//')')
     end select
+
+    pprts_solver%prefix = pref
   end subroutine
 
   subroutine destroy_coord(C)
@@ -595,7 +610,7 @@ module m_pprts_base
     call restoreVecPointer(solver%C_one_atm1_box%da, atm%hhl, hhl1d, hhl, readonly=.True.)
     call VecRestoreArrayF90(coordinates,xv1d,ierr) ;call CHKERR(ierr)
 
-    call PetscObjectViewFromOptions(coordinates, PETSC_NULL_VEC, "-pprts_show_coordinates", ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(coordinates, da, "-pprts_show_coordinates", ierr); call CHKERR(ierr)
   end subroutine
 
 
@@ -650,7 +665,7 @@ module m_pprts_base
 
     call restoreVecPointer(C_grad%da, vgrad, grad_1d, grad)
 
-    call PetscObjectViewFromOptions(vgrad, PETSC_NULL_VEC, "-pprts_show_grad", ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(vgrad, C_hhl%da, "-pprts_show_grad", ierr); call CHKERR(ierr)
   end subroutine
 
   !> @brief horizontally interpolate/average cell values onto vertices
