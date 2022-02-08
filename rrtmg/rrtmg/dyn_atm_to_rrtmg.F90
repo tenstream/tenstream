@@ -156,6 +156,7 @@ module m_dyn_atm_to_rrtmg
       integer(iintegers) :: icol
       PetscClassId, parameter :: cid=0
       integer(mpiint) :: ierr
+      logical :: lignore_bad_input, lflg
 
       if(lTOA_to_srfc) then
         call CHKERR(1_mpiint, 'currently not possible to supply dynamics input starting at the TOP,'// &
@@ -170,10 +171,16 @@ module m_dyn_atm_to_rrtmg
 
       call PetscLogEventBegin(logs%setup_tenstr_atm, ierr); call CHKERR(ierr)
 
+      lignore_bad_input = .False.
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-pprts_rrtmg_ignore_bad_input', &
+        & lignore_bad_input, lflg, ierr) ; call CHKERR(ierr)
+
       if(.not.allocated(atm%bg_atm)) then
         call load_atmfile(comm, atm_filename, atm%bg_atm)
         call sanitize_input(.True., atm%bg_atm%plev, atm%bg_atm%tlev, ierr, atm%bg_atm%tlay)
-        call CHKERR(ierr, 'bad input in bg_atmosphere file')
+        if(.not.lignore_bad_input) &
+          & call CHKERR(ierr, 'bad input in bg_atmosphere file.'//new_line('')// &
+          & 'If you know what you are doing, you can skip the check with -pprts_rrtmg_ignore_bad_input')
       endif
 
       call check_shape_2d(d_tlev          ,size(d_plev, 1, kind=iintegers)   , size(d_plev, 2, kind=iintegers))
@@ -197,7 +204,9 @@ module m_dyn_atm_to_rrtmg
         else
           call sanitize_input(lTOA_to_srfc, d_plev(:,icol), d_tlev(:,icol), ierr)
         endif
-        call CHKERR(ierr, 'bad input from dynamics grid, column: '//toStr(icol))
+        if(.not.lignore_bad_input) &
+          & call CHKERR(ierr, 'bad input from dynamics grid, column: '//toStr(icol)//new_line('')// &
+          & 'If you know what you are doing, you can skip the check with -pprts_rrtmg_ignore_bad_input')
       enddo
 
       call merge_dyn_rad_grid(comm, atm, &
@@ -748,10 +757,7 @@ module m_dyn_atm_to_rrtmg
 
       if(myid.eq.0) then
         call read_ascii_file_2d(atm_filename, prof, ierr)
-        if(ierr.ne.0) then
-          print *,'************* Error occured reading the atmosphere file:', atm_filename, '::', ierr
-          call CHKERR(ierr)
-        endif
+        call CHKERR(ierr, 'Failed loading background atmosphere file '//trim(atm_filename))
 
         nlev = ubound(prof,1)
 
