@@ -170,6 +170,7 @@ module m_pprts_base
   end type
 
   type, abstract :: t_solver
+    character(len=default_str_len)     :: prefix='' ! name to prefix options
     character(len=default_str_len)     :: solvername='' ! name to prefix e.g. log stages. If you create more than one solver, make sure that it has a unique name
     integer(mpiint)                    :: comm, myid, numnodes     ! mpi communicator, my rank and number of ranks in comm
     type(t_coord), allocatable         :: C_dir, C_diff, C_one, C_one1
@@ -350,13 +351,14 @@ module m_pprts_base
       call PetscLogEventRegister(trim(s)//'debug_output', cid, logs%debug_output, ierr); call CHKERR(ierr)
     end subroutine
 
-  subroutine allocate_pprts_solver_from_commandline(pprts_solver, default_solver, ierr)
+  subroutine allocate_pprts_solver_from_commandline(pprts_solver, default_solver, ierr, prefix)
     class(t_solver), intent(inout), allocatable :: pprts_solver
     character(len=*), intent(in), optional :: default_solver
     integer(mpiint), intent(out) :: ierr
+    character(len=*), intent(in), optional :: prefix
 
     logical :: lflg
-    character(len=default_str_len) :: solver_str
+    character(len=default_str_len) :: solver_str, pref
 
     ierr = 0
 
@@ -368,7 +370,8 @@ module m_pprts_base
     endif
 
     solver_str = get_arg('none', trim(default_solver))
-    call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-solver', solver_str, lflg, ierr) ; call CHKERR(ierr)
+    pref = get_arg(PETSC_NULL_CHARACTER, prefix)
+    call PetscOptionsGetString(PETSC_NULL_OPTIONS, pref, '-solver', solver_str, lflg, ierr) ; call CHKERR(ierr)
 
     select case (solver_str)
       case('2str')
@@ -403,17 +406,19 @@ module m_pprts_base
 
       case default
         print *,'error, have to provide solver type as argument, e.g. call with'
-        print *,'-solver 1_2'
-        print *,'-solver 3_6'
-        print *,'-solver 3_10'
-        print *,'-solver 3_16'
-        print *,'-solver 3_24'
-        print *,'-solver 3_30'
-        print *,'-solver 8_10'
-        print *,'-solver 8_16'
-        print *,'-solver 8_18'
+        print *,'-'//trim(pref)//'solver 2str'
+        print *,'-'//trim(pref)//'solver 1_2'
+        print *,'-'//trim(pref)//'solver 3_6'
+        print *,'-'//trim(pref)//'solver 3_10'
+        print *,'-'//trim(pref)//'solver 3_16'
+        print *,'-'//trim(pref)//'solver 3_24'
+        print *,'-'//trim(pref)//'solver 3_30'
+        print *,'-'//trim(pref)//'solver 8_10'
+        print *,'-'//trim(pref)//'solver 8_16'
+        print *,'-'//trim(pref)//'solver 8_18'
         ierr = 1
-        call CHKERR(ierr, 'have to provide solver type')
+        call CHKERR(ierr, 'have to provide valid solver type, '// &
+          & 'given <'//trim(solver_str)//'> (prefix='//trim(pref)//')')
     end select
   end subroutine
 

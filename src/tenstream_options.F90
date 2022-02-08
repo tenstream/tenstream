@@ -149,6 +149,11 @@ contains
 
     call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-tenstr_view", &
       ltenstr_view, lflg, ierr); call CHKERR(ierr)
+
+    call PetscOptionsHasName(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+      "-twostr_only", lflg, ierr) ; call CHKERR(ierr)
+    if(lflg) call CHKERR(1_mpiint, 'Option -twostr_only is deprecated in favor of a distinct solver option, e.g. -solver 2str')
+
     if(myid.eq.0.and.ltenstr_view) then
       print *,'********************************************************************'
       print *,'***   nr. of Nodes:',numnodes

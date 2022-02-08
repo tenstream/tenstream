@@ -206,7 +206,7 @@ module m_pprts
       call read_commandline_options(solver%comm)
 
       luse_ann = .False.
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, solver%prefix, &
         & "-pprts_use_ANN", luse_ann, lflg , ierr) ;call CHKERR(ierr)
 
       solver%difftop%area_divider = 1
@@ -384,8 +384,8 @@ module m_pprts
       if(.not.approx(dx,dy)) &
         call CHKERR(1_mpiint, 'dx and dy currently have to be the same '//toStr(dx)//' vs '//toStr(dy))
 
-      lview = .False.
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+      lview = ldebug
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, solver%prefix, &
         & "-pprts_solver_view", lview, lflg, ierr) ;call CHKERR(ierr)
 
       if(lview.and.solver%myid.eq.0) then
@@ -615,7 +615,7 @@ module m_pprts
     real(ireals), pointer :: hhl(:,:,:,:)=>null(), hhl1d(:)=>null()
 
     lview = get_arg(.False., opt_lview)
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_view_geometry",&
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, solver%prefix, "-pprts_view_geometry",&
       lview, lflg, ierr) ;call CHKERR(ierr)
     if(.not.lview) return
 
@@ -901,10 +901,11 @@ module m_pprts
 
     !> @brief Determine height levels by summing up the atm%dz with the assumption that TOA is at a constant value
     !>        or a max_height is given in the option database
-    subroutine compute_vertical_height_levels(dz, C_hhl, vhhl)
+    subroutine compute_vertical_height_levels(dz, C_hhl, vhhl, prefix)
       type(t_coord), intent(in) :: C_hhl
       real(ireals), intent(in) :: dz(:,:,:)
       type(tVec), intent(inout) :: vhhl
+      character(len=*), intent(in) :: prefix
 
       type(tVec) :: g_hhl
       real(ireals), pointer :: hhl(:,:,:,:)=>null(), hhl1d(:)=>null()
@@ -936,7 +937,7 @@ module m_pprts
         enddo
       enddo
 
-      call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_global_max_height", &
+      call PetscOptionsGetReal(PETSC_NULL_OPTIONS, prefix, "-pprts_global_max_height", &
         global_max_height, lflg , ierr) ;call CHKERR(ierr)
       if(.not.lflg) then
         call PetscObjectGetComm(C_hhl%da, comm, ierr); call CHKERR(ierr)
@@ -1000,9 +1001,9 @@ module m_pprts
 
     call cartesian_2_spherical(sundir, sun%phi, sun%theta, ierr)
 
-    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,"-pprts_force_zenith",&
+    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, solver%prefix,"-pprts_force_zenith",&
       sun%theta, lflg, ierr)  ; call CHKERR(ierr)
-    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,"-pprts_force_azimuth",&
+    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, solver%prefix,"-pprts_force_azimuth",&
       sun%phi, lflg, ierr)  ; call CHKERR(ierr)
 
     sun%sundir = spherical_2_cartesian(sun%phi, sun%theta)
@@ -1054,7 +1055,7 @@ module m_pprts
     real(ireals), dimension(3) :: msundir
 
     lview = get_arg(.False., opt_lview)
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_view_suninfo",&
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, solver%prefix, "-pprts_view_suninfo",&
       lview, lflg, ierr) ;call CHKERR(ierr)
     if(.not.lview) return
 
@@ -1645,36 +1646,36 @@ module m_pprts
       endif
     endif
 
-    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_set_albedo", &
+    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, solver%prefix, "-pprts_set_albedo", &
       pprts_set_albedo, lflg , ierr) ;call CHKERR(ierr)
     if(lflg) then
       atm%albedo = pprts_set_albedo
     endif
 
-    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_set_kabs", &
+    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, solver%prefix, "-pprts_set_kabs", &
       pprts_set_absorption, lflg , ierr) ;call CHKERR(ierr)
     if(lflg) then
       atm%kabs = pprts_set_absorption
     endif
 
-    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_set_ksca", &
+    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, solver%prefix, "-pprts_set_ksca", &
       pprts_set_scatter, lflg , ierr) ;call CHKERR(ierr)
     if(lflg) then
       atm%ksca = pprts_set_scatter
     endif
 
-    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_set_asymmetry", &
+    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, solver%prefix, "-pprts_set_asymmetry", &
       pprts_set_asymmetry, lflg , ierr) ;call CHKERR(ierr)
     if(lflg) then
       atm%g = pprts_set_asymmetry
     endif
 
     lpprts_delta_scale = get_arg(.True., ldelta_scaling)
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_delta_scale", &
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, solver%prefix, "-pprts_delta_scale", &
       lpprts_delta_scale, lflg , ierr) ;call CHKERR(ierr)
 
     pprts_delta_scale_max_g=.85_ireals-epsilon(pprts_delta_scale_max_g)
-    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_delta_scale_max_g", &
+    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, solver%prefix, "-pprts_delta_scale_max_g", &
       pprts_delta_scale_max_g, lflg , ierr) ;call CHKERR(ierr)
 
     if(lpprts_delta_scale) then
@@ -1709,7 +1710,7 @@ module m_pprts
 
     if(luse_eddington) then
       lzdun = .False.
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_eddington_zdun",&
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, solver%prefix, "-pprts_eddington_zdun",&
         lzdun, lflg, ierr) ;call CHKERR(ierr)
       !DIR$ IVDEP
       do j=C_one_atm%ys,C_one_atm%ye
@@ -1954,7 +1955,7 @@ module m_pprts
       integer(iintegers) :: k
 
       lview = get_arg(.False., opt_lview)
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_view_optprop",&
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, solver%prefix, "-pprts_view_optprop",&
         lview, lflg, ierr) ;call CHKERR(ierr)
       if(.not.lview) return
 
@@ -2193,10 +2194,10 @@ module m_pprts
     ! --------- Calculate Radiative Transfer with RayLi ------------
     call PetscLogEventBegin(solver%logs%solve_mcrts, ierr)
     luse_rayli = .False.
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, solver%prefix, &
       "-pprts_use_rayli", luse_rayli, lflg, ierr) ; call CHKERR(ierr)
     lrayli_snapshot = .False.
-    call PetscOptionsHasName(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+    call PetscOptionsHasName(PETSC_NULL_OPTIONS, solver%prefix, &
       "-rayli_snapshot", lrayli_snapshot, ierr) ; call CHKERR(ierr)
 
     call pprts_rayli_wrapper(luse_rayli, lrayli_snapshot, solver, edirTOA, solution, opt_buildings)
@@ -2205,7 +2206,7 @@ module m_pprts
 
     ! --------- Calculate Radiative Transfer with Disort ------------
     luse_disort = .False.
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, solver%prefix, &
       "-pprts_use_disort", luse_disort, lflg, ierr) ; call CHKERR(ierr)
     if(luse_disort) then
       call PetscLogEventBegin(solver%logs%solve_disort, ierr)
@@ -2274,6 +2275,8 @@ module m_pprts
     ! ---------------------------- Edir  -------------------
     if( solution%lsolar_rad ) then
       prefix = "solar_dir_"
+      if(len_trim(solver%prefix).gt.0) prefix = trim(solver%prefix)//'_'//prefix
+
       lexplicit_dir=.True.
       call PetscOptionsGetBool(PETSC_NULL_OPTIONS, prefix, &
         "-explicit", lexplicit_dir, lflg , ierr) ;call CHKERR(ierr)
@@ -2298,7 +2301,7 @@ module m_pprts
     ! ---------------------------- Ediff -------------------
     call VecNorm(solver%b, NORM_1, b_norm, ierr); call CHKERR(ierr)
     lskip_diffuse_solve = b_norm.lt.atol
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, solver%prefix, &
       "-skip_diffuse_solve", lskip_diffuse_solve, lflg , ierr) ;call CHKERR(ierr)
 
     if(lskip_diffuse_solve) then
@@ -2314,6 +2317,8 @@ module m_pprts
       else
         prefix = "thermal_diff_"
       endif
+      if(len_trim(solver%prefix).gt.0) prefix = trim(solver%prefix)//'_'//prefix
+
       lexplicit_diff=.False.
       call PetscOptionsGetBool(PETSC_NULL_OPTIONS, prefix, &
         "-explicit", lexplicit_diff, lflg , ierr) ;call CHKERR(ierr)
@@ -2371,7 +2376,8 @@ module m_pprts
           & rev_z=.False., &
           & zlast=.True., &
           & switch_xy=abs(solver%sun%sundir(2)).gt.abs(solver%sun%sundir(1)), &
-          & perm_info=solver%perm_dir)
+          & perm_info=solver%perm_dir, &
+          & prefix=solver%prefix)
         call PetscLogEventEnd(solver%logs%permute_mat_gen_dir, ierr)
 
         call PetscLogEventBegin(solver%logs%permute_mat_dir, ierr)
@@ -2469,7 +2475,8 @@ module m_pprts
           & rev_z=.False., &
           & zlast=.True., &
           & switch_xy=.False., &
-          & perm_info=solver%perm_diff )
+          & perm_info=solver%perm_diff, &
+          & prefix=solver%prefix )
         call PetscLogEventEnd(solver%logs%permute_mat_gen_diff, ierr)
 
         call PetscLogEventBegin(solver%logs%permute_mat_diff, ierr)
@@ -2527,24 +2534,26 @@ module m_pprts
   end subroutine
 
   subroutine read_cmd_line_opts_get_coeffs( &
+      & prefix, &
       & lgeometric_coeffs, &
       & ltop_bottom_faces_planar, &
       & ltop_bottom_planes_parallel &
       & )
+    character(len=*), intent(in) :: prefix
     logical, intent(out) :: lgeometric_coeffs, ltop_bottom_faces_planar, ltop_bottom_planes_parallel
     logical :: lflg
     integer(mpiint) :: ierr
 
     lgeometric_coeffs = .False.
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, prefix, &
       & "-pprts_geometric_coeffs", lgeometric_coeffs, lflg, ierr); call CHKERR(ierr)
 
     ltop_bottom_faces_planar = lgeometric_coeffs
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, prefix, &
       & "-pprts_top_bottom_faces_planar", ltop_bottom_faces_planar, lflg, ierr); call CHKERR(ierr)
 
     ltop_bottom_planes_parallel = lgeometric_coeffs
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, prefix, &
       & "-pprts_top_bottom_planes_parallel", ltop_bottom_planes_parallel, lflg, ierr); call CHKERR(ierr)
   end subroutine
 
@@ -2612,6 +2621,7 @@ module m_pprts
       call PetscLogEventBegin(solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
 
       call read_cmd_line_opts_get_coeffs( &
+        & solver%prefix, &
         & lgeometric_coeffs, &
         & ltop_bottom_faces_planar, &
         & ltop_bottom_planes_parallel &
@@ -2754,21 +2764,22 @@ module m_pprts
       call PetscLogEventBegin(solver%logs%get_coeff_dir2diff, ierr); call CHKERR(ierr)
 
       lbmc_online = .False.
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, solver%prefix, &
         "-bmc_online", lbmc_online, lflg , ierr); call CHKERR(ierr)
 
       lcheck_coeff_sums = .not. lbmc_online
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, solver%prefix, &
         "-pprts_check_coeff_sums", lcheck_coeff_sums, lflg , ierr); call CHKERR(ierr)
 
       call read_cmd_line_opts_get_coeffs( &
+        & solver%prefix, &
         & lgeometric_coeffs, &
         & ltop_bottom_faces_planar, &
         & ltop_bottom_planes_parallel &
         & )
 
       lconserve_lut_atm_abso = lgeometric_coeffs
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, solver%prefix, &
         & "-pprts_conserve_lut_atm_abso", lconserve_lut_atm_abso, lflg, ierr); call CHKERR(ierr)
 
       if (lgeometric_coeffs .and. lbmc_online .and. lconserve_lut_atm_abso) then
@@ -2921,6 +2932,7 @@ module m_pprts
       call PetscLogEventBegin(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
 
       call read_cmd_line_opts_get_coeffs( &
+        & solver%prefix, &
         & lgeometric_coeffs, &
         & ltop_bottom_faces_planar, &
         & ltop_bottom_planes_parallel &
@@ -3437,7 +3449,7 @@ module m_pprts
     end select
 
     by_coeff_divergence = .False.
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-absorption_by_coeff_divergence",&
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, solver%prefix, "-absorption_by_coeff_divergence",&
       by_coeff_divergence, lflg, ierr) ;call CHKERR(ierr)
 
     if(by_coeff_divergence) then
@@ -3815,11 +3827,12 @@ module m_pprts
   end subroutine
 
   !> @brief generate matrix col/row permutations
-  subroutine gen_mat_permutation(A, C, rev_x, rev_y, rev_z, zlast, switch_xy, perm_info)
+  subroutine gen_mat_permutation(A, C, rev_x, rev_y, rev_z, zlast, switch_xy, perm_info, prefix)
     type(tMat), intent(in) :: A
     type(t_coord), intent(in) :: C
     logical, intent(in) :: rev_x, rev_y, rev_z, zlast, switch_xy
     type(t_mat_permute_info), allocatable, intent(inout) :: perm_info
+    character(len=*), intent(in) :: prefix
 
     logical :: lflg
     integer(iintegers), dimension(3) :: dd, dx, dy, dz ! start, end, increment for each dimension
@@ -3836,26 +3849,26 @@ module m_pprts
     dy = [i0, C%ym -i1, i1]
 
     opt_rev_y = rev_y
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, prefix , &
       "-mat_permute_rev_y" , opt_rev_y, lflg , ierr) ;call CHKERR(ierr)
     if(opt_rev_y) dy = [dy(2), dy(1), -dy(3)]
 
     opt_rev_x = rev_x
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, prefix , &
       "-mat_permute_rev_x" , opt_rev_x, lflg , ierr) ;call CHKERR(ierr)
     if(opt_rev_x) dx = [dx(2), dx(1), -dx(3)]
 
     opt_rev_z = rev_z
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, prefix , &
       "-mat_permute_rev_z" , opt_rev_z, lflg , ierr) ;call CHKERR(ierr)
     if(opt_rev_z) dz = [dz(2), dz(1), -dz(3)]
 
     opt_switch_xy=switch_xy
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, prefix , &
       "-mat_permute_ij" , opt_switch_xy, lflg , ierr) ;call CHKERR(ierr)
 
     opt_zlast=zlast
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, prefix , &
       "-mat_permute_z" , opt_zlast, lflg , ierr) ;call CHKERR(ierr)
 
     if (.not.allocated(perm_info)) then
@@ -3967,7 +3980,7 @@ module m_pprts
     endif
 
     lskip_ksp_solve=.False.
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, solver%prefix , &
       "-skip_ksp_solve" , lskip_ksp_solve, lflg , ierr) ;call CHKERR(ierr)
     if(lskip_ksp_solve) then
       call VecCopy(b, x, ierr); call CHKERR(ierr)
@@ -3984,7 +3997,7 @@ module m_pprts
     !   return
     ! endif
     laccept_incomplete_solve = .False.
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, solver%prefix, &
       "-accept_incomplete_solve", laccept_incomplete_solve, lflg, ierr); call CHKERR(ierr)
     if(laccept_incomplete_solve) return
 
@@ -4099,7 +4112,7 @@ module m_pprts
         if(pctype.eq.PCASM) then
 
           asm_iter = 1
-          call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+          call PetscOptionsGetInt(PETSC_NULL_OPTIONS, solver%prefix, &
             "-ts_ksp_iter", asm_iter, lflg, ierr) ;call CHKERR(ierr)
 
           call PCASMGetSubKSP(prec, asm_N, first_local, PETSC_NULL_KSP, ierr); call CHKERR(ierr)
@@ -5544,7 +5557,7 @@ module m_pprts
       logical :: lflg
 
       if(present(opt_buildings)) then
-        call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+        call PetscOptionsGetString(PETSC_NULL_OPTIONS, solver%prefix, &
           & '-pprts_xdmf_buildings', fname, lflg, ierr); call CHKERR(ierr)
         if(lflg) then
           fname = trim(fname)//'.'//toStr(uid)
@@ -5553,7 +5566,7 @@ module m_pprts
       endif
 
       associate(solution => solver%solutions(uid))
-        call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+        call PetscOptionsGetString(PETSC_NULL_OPTIONS, solver%prefix, &
           & '-pprts_xdmf', fname, lflg, ierr); call CHKERR(ierr)
         if(lflg) then
           fname = trim(fname)//toStr(uid)

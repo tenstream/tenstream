@@ -1033,7 +1033,7 @@ contains
         associate(ri   => rayli_info)
           call VecGetSize(ri%albedo, Nphotons, ierr); call CHKERR(ierr)
           nphotons_r = real(Nphotons*10, ireals)
-          call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+          call PetscOptionsGetReal(PETSC_NULL_OPTIONS, solver%prefix, &
             "-pprts_rayli_photons", nphotons_r, lflg,ierr) ; call CHKERR(ierr)
 
           Nphotons_r = Nphotons_r / real(ri%num_subcomm_masters, ireals)
@@ -1420,7 +1420,7 @@ contains
         C_one_atm1  => solver%C_one_atm1)
 
       nstreams = 16
-      call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+      call PetscOptionsGetInt(PETSC_NULL_OPTIONS, solver%prefix, &
         "-disort_streams", nstreams, lflg, ierr); call CHKERR(ierr)
 
       if(solution%lsolar_rad) then
@@ -1583,7 +1583,7 @@ contains
       allocate( Edn(C_one_atm1%zs:C_one_atm1%ze) )
 
       Nmu = 4
-      call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+      call PetscOptionsGetInt(PETSC_NULL_OPTIONS, solver%prefix , &
         "-schwarzschild_Nmu" , Nmu, lflg , ierr) ;call CHKERR(ierr)
 
       if(solver%myid.eq.0 .and. ldebug) print *,' CALCULATING schwarzschild ::'
