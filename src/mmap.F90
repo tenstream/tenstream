@@ -184,7 +184,9 @@ contains
     if(ierr.ne.0) return
 
     if(dtype_size.ne.c_sizeof(arr(1,1))) &
-      call CHKERR(1_mpiint, 'size type of binary data '//itoa(dtype_size)//'does not match inp_arr_dtype'//itoa(c_sizeof(arr(1,1))))
+      call CHKERR(1_mpiint, 'Could not correctly setup a memory map because'//new_line('')// &
+      & 'size type of binary data '//itoa(dtype_size)//' does not match inp_arr_dtype '//itoa(c_sizeof(arr(1,1)))//new_line('')// &
+      & '')
 
     if(size(arrshape).ne.2) &
       call CHKERR(size(arrshape), 'mmap in '//trim(fname)//' has '//itoa(size(arrshape))//' dimensions... expected 2')
