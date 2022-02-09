@@ -27,7 +27,18 @@ module m_optprop
 #endif
 
 use m_optprop_parameters, only : ldebug_optprop, wedge_sphere_radius, param_eps
-use m_helper_functions, only : rmse, CHKERR, CHKWARN, toStr, cstr, approx, deg2rad, rad2deg, swap, is_between, char_arr_to_str
+use m_helper_functions, only : &
+  & approx, &
+  & char_arr_to_str, &
+  & CHKERR, CHKWARN, &
+  & cstr, &
+  & deg2rad, &
+  & get_petsc_opt, &
+  & is_between, &
+  & rad2deg, &
+  & rmse, &
+  & swap, &
+  & toStr
 use m_data_parameters, only: ireals,ireal_dp,irealLUT,ireal_params,iintegers,one,zero,i0,i1,inil,mpiint
 use m_optprop_base, only: t_optprop_base, t_op_config, find_op_dim_by_name
 use m_optprop_LUT, only : &
@@ -585,11 +596,10 @@ contains
     endif
 
     if(.not.lset) then
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-        & "-bmc_online", compute_coeff_online, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, "-bmc_online", compute_coeff_online, lflg, ierr); call CHKERR(ierr)
       if(present(opt_vertices)) then
-        call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-          & "-bmc_default_unit_cube_reference", bmc_default_unit_cube_reference, lflg, ierr); call CHKERR(ierr)
+        call get_petsc_opt(PETSC_NULL_CHARACTER, "-bmc_default_unit_cube_reference", bmc_default_unit_cube_reference, lflg, ierr)
+        call CHKERR(ierr)
       endif
       lset = .True.
     endif

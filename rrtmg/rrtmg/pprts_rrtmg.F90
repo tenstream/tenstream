@@ -61,11 +61,12 @@ module m_pprts_rrtmg
   use m_adaptive_spectral_integration, only: need_new_solution
 
   use m_helper_functions, only : &
-    & CHKERR, &
     & approx, &
+    & CHKERR, &
     & cross_3d, &
     & deg2rad, &
     & get_arg, &
+    & get_petsc_opt, &
     & gradient, &
     & imp_allreduce_max, &
     & imp_allreduce_mean, &
@@ -170,8 +171,7 @@ contains
     call PetscLogEventBegin(log_events%smooth_surface_fluxes, ierr); call CHKERR(ierr)
     call mpi_comm_rank(solver%comm, myid, ierr); call CHKERR(ierr)
 
-    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, solver%prefix , &
-      "-pprts_smooth_srfc_flx", radius , lflg , ierr) ;call CHKERR(ierr)
+    call get_petsc_opt(solver%prefix, "-pprts_smooth_srfc_flx", radius , lflg , ierr) ;call CHKERR(ierr)
 
     if (lflg) then
 
@@ -252,12 +252,10 @@ contains
     call mpi_comm_rank(solver%comm, myid, ierr); call CHKERR(ierr)
 
     lslope_correction = .False.
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, solver%prefix , &
-      "-pprts_slope_correction", lslope_correction, lflg, ierr) ;call CHKERR(ierr)
+    call get_petsc_opt(solver%prefix, "-pprts_slope_correction", lslope_correction, lflg, ierr); call CHKERR(ierr)
 
     latm_correction = .False.
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, solver%prefix , &
-      "-pprts_atm_correction", latm_correction, lflg, ierr) ;call CHKERR(ierr)
+    call get_petsc_opt(solver%prefix, "-pprts_atm_correction", latm_correction, lflg, ierr); call CHKERR(ierr)
 
     associate(&
         atm     => solver%atm,  &
@@ -390,16 +388,13 @@ contains
     if(.not.solver%linitialized) call read_commandline_options(comm) ! so that tenstream.options file are read in
 
     lrrtmg_only=.False. ! by default use normal tenstream solver
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, solver%prefix , &
-      "-rrtmg_only" , lrrtmg_only , lflg , ierr) ;call CHKERR(ierr)
+    call get_petsc_opt(solver%prefix, "-rrtmg_only", lrrtmg_only, lflg, ierr); call CHKERR(ierr)
 
     ldisort_only = .False.
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, solver%prefix , &
-      "-disort_only" , ldisort_only , lflg , ierr) ;call CHKERR(ierr)
+    call get_petsc_opt(solver%prefix, "-disort_only", ldisort_only, lflg, ierr); call CHKERR(ierr)
 
     pprts_icollapse = get_arg(i1, icollapse)
-    call PetscOptionsGetInt(PETSC_NULL_OPTIONS, solver%prefix , &
-                             "-pprts_collapse" , pprts_icollapse, lflg , ierr) ;call CHKERR(ierr)
+    call get_petsc_opt(solver%prefix, "-pprts_collapse", pprts_icollapse, lflg, ierr); call CHKERR(ierr)
     if(pprts_icollapse.eq.-1) then
       if(ldebug.and.myid.eq.0) print *,'Collapsing background atmosphere', atm%atm_ke
       pprts_icollapse = atm%atm_ke ! collapse the complete background atmosphere
@@ -415,8 +410,7 @@ contains
     ke = ubound(atm%tlay,1)
 
     lprint_atm = ldebug
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, solver%prefix , &
-      "-pprts_rrtmg_atm_view" , lprint_atm , lflg , ierr) ;call CHKERR(ierr)
+    call get_petsc_opt(solver%prefix, "-pprts_rrtmg_atm_view", lprint_atm, lflg, ierr); call CHKERR(ierr)
     if(lprint_atm .and. myid.eq.0) then
       call print_tenstr_atm(atm)
     endif
@@ -440,8 +434,7 @@ contains
     if(get_arg(.False., lonly_initialize)) return
 
     lskip_thermal = .False.
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, solver%prefix , &
-      "-skip_thermal" , lskip_thermal, lflg , ierr) ;call CHKERR(ierr)
+    call get_petsc_opt(solver%prefix, "-skip_thermal", lskip_thermal, lflg, ierr); call CHKERR(ierr)
     if(lthermal.and..not.lskip_thermal)then
       call PetscLogStagePush(log_events%stage_rrtmg_thermal, ierr); call CHKERR(ierr)
       call compute_thermal(                           &
@@ -464,8 +457,7 @@ contains
 
     if(lsolar) then
       lskip_solar = .False.
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, solver%prefix , &
-        "-skip_solar" , lskip_solar, lflg , ierr) ;call CHKERR(ierr)
+      call get_petsc_opt(solver%prefix, "-skip_solar", lskip_solar, lflg, ierr); call CHKERR(ierr)
       if(.not.lskip_solar) then
         call PetscLogStagePush(log_events%stage_rrtmg_solar, ierr); call CHKERR(ierr)
         call compute_solar(                          &
@@ -551,8 +543,7 @@ contains
         call dump_variable(abso, solver%C_one%da,  "-pprts_rrtmg_dump_abso", "abso")
 
         if(lsolar.and.present(opt_buildings_solar)) then
-          call PetscOptionsGetString(PETSC_NULL_OPTIONS, solver%prefix, &
-            & '-pprts_rrtmg_xdmf_buildings_solar', fname, lflg, ierr); call CHKERR(ierr)
+          call get_petsc_opt(solver%prefix, '-pprts_rrtmg_xdmf_buildings_solar', fname, lflg, ierr); call CHKERR(ierr)
           if(lflg) then
             if(present(opt_time)) fname = trim(fname)//'.t'//trim(adjustl(toStr(opt_time)))
             if(.not.lsolar.or..not.lthermal) fname = trim(fname)//'.sol'//toStr(lsolar)//'.th'//toStr(lthermal)
@@ -561,8 +552,7 @@ contains
         endif
 
         if(lthermal.and.present(opt_buildings_thermal)) then
-          call PetscOptionsGetString(PETSC_NULL_OPTIONS, solver%prefix, &
-            & '-pprts_rrtmg_xdmf_buildings_thermal', fname, lflg, ierr); call CHKERR(ierr)
+          call get_petsc_opt(solver%prefix, '-pprts_rrtmg_xdmf_buildings_thermal', fname, lflg, ierr); call CHKERR(ierr)
           if(lflg) then
             if(present(opt_time)) fname = trim(fname)//'.t'//trim(adjustl(toStr(opt_time)))
             if(.not.lsolar.or..not.lthermal) fname = trim(fname)//'.sol'//toStr(lsolar)//'.th'//toStr(lthermal)
@@ -570,8 +560,7 @@ contains
           endif
         endif
 
-        call PetscOptionsGetString(PETSC_NULL_OPTIONS, solver%prefix, &
-          & '-pprts_rrtmg_xdmf', fname, lflg, ierr); call CHKERR(ierr)
+        call get_petsc_opt(solver%prefix, '-pprts_rrtmg_xdmf', fname, lflg, ierr); call CHKERR(ierr)
         if(lflg) then
           if(present(opt_time)) fname = trim(fname)//'.t'//trim(adjustl(toStr(opt_time)))
           if(.not.lsolar.or..not.lthermal) fname = trim(fname)//'.sol'//toStr(lsolar)//'.th'//toStr(lthermal)
@@ -889,13 +878,11 @@ contains
         real, dimension(size(edn,1))   :: RFLDIR, RFLDN, FLUP, DFDT, UAVG
 
         ldisort_only = .False.
-        call PetscOptionsGetBool(PETSC_NULL_OPTIONS, solver%prefix , &
-          "-disort_only" , ldisort_only , lflg , ierr) ;call CHKERR(ierr)
+        call get_petsc_opt(solver%prefix, "-disort_only", ldisort_only, lflg, ierr); call CHKERR(ierr)
 
         if(ldisort_only) then
           nstreams = 16
-          call PetscOptionsGetInt(PETSC_NULL_OPTIONS, solver%prefix , &
-            "-disort_streams" , nstreams , lflg , ierr) ;call CHKERR(ierr)
+          call get_petsc_opt(solver%prefix, "-disort_streams", nstreams, lflg, ierr); call CHKERR(ierr)
 
           mu0 = 0
           S0  = 0
@@ -1230,13 +1217,11 @@ contains
         real, dimension(size(edn,1))   :: RFLDIR, RFLDN, FLUP, DFDT, UAVG
 
         ldisort_only = .False.
-        call PetscOptionsGetBool(PETSC_NULL_OPTIONS, solver%prefix , &
-          "-disort_only" , ldisort_only , lflg , ierr) ;call CHKERR(ierr)
+        call get_petsc_opt(solver%prefix, "-disort_only", ldisort_only, lflg, ierr); call CHKERR(ierr)
 
         if(ldisort_only) then
           nstreams = 16
-          call PetscOptionsGetInt(PETSC_NULL_OPTIONS, solver%prefix , &
-            "-disort_streams" , nstreams , lflg , ierr) ;call CHKERR(ierr)
+          call get_petsc_opt(solver%prefix, "-disort_streams", nstreams, lflg, ierr); call CHKERR(ierr)
 
           col_temper = 0
           col_tskin = 0

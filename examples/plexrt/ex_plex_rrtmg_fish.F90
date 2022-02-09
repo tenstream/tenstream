@@ -13,6 +13,7 @@ program main
     & CHKERR, &
     & angle_between_two_vec, &
     & deg2rad, rad2deg, &
+    & get_petsc_opt, &
     & spherical_2_cartesian, &
     & rotation_matrix_around_axis_vec
 
@@ -50,7 +51,7 @@ program main
   call PetscOptionsInsertString(PETSC_NULL_OPTIONS, default_options, ierr); call CHKERR(ierr)
 
   rayli_options='-use_regular_mesh -plexrt_use_rayli -rayli_cyclic_bc'
-  call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-rayli_opts', &
+  call get_petsc_opt(PETSC_NULL_CHARACTER, '-rayli_opts', &
     ladd_rayli_opts, lflg, ierr) ; call CHKERR(ierr)
   if(ladd_rayli_opts) then
     call PetscOptionsInsertString(PETSC_NULL_OPTIONS, rayli_options, ierr); call CHKERR(ierr)
@@ -61,54 +62,47 @@ program main
   call read_commandline_options(comm)
 
   Nx = 2
-  call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Nx", Nx, lflg,ierr) ; call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-Nx", Nx, lflg,ierr) ; call CHKERR(ierr)
   Ny = 3
-  call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Ny", Ny, lflg,ierr) ; call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-Ny", Ny, lflg,ierr) ; call CHKERR(ierr)
   Nz = 2
-  call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Nz", Nz, lflg,ierr) ; call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-Nz", Nz, lflg,ierr) ; call CHKERR(ierr)
   dx = 1e2_ireals
-  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-dx", dx, lflg,ierr) ; call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-dx", dx, lflg,ierr) ; call CHKERR(ierr)
   dz = 1e2_ireals
-  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-dz", dz, lflg,ierr) ; call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-dz", dz, lflg,ierr) ; call CHKERR(ierr)
   Ag_th = .1_ireals
-  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Ag_th", Ag_th, lflg,ierr) ; call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-Ag_th", Ag_th, lflg,ierr) ; call CHKERR(ierr)
   Ag_sol = .1_ireals
-  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Ag_sol", Ag_sol, lflg,ierr) ; call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-Ag_sol", Ag_sol, lflg,ierr) ; call CHKERR(ierr)
 
   phi = 0
-  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-phi", &
-    phi, lflg, ierr) ; call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-phi", phi, lflg, ierr) ; call CHKERR(ierr)
   theta = 0
-  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-theta", &
-    theta, lflg, ierr) ; call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-theta", theta, lflg, ierr) ; call CHKERR(ierr)
 
   sundir = spherical_2_cartesian(phi, theta)
 
   lwc = 0
-  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-lwc", lwc, lflg,ierr) ; call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-lwc", lwc, lflg,ierr) ; call CHKERR(ierr)
 
   lverbose = .True.
-  call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-verbose', &
-    lverbose, lflg, ierr) ; call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, '-verbose', lverbose, lflg, ierr) ; call CHKERR(ierr)
 
   lregular_mesh = .False.
-  call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+  call get_petsc_opt(PETSC_NULL_CHARACTER, &
     '-use_regular_mesh', lregular_mesh, lflg, ierr) ; call CHKERR(ierr)
 
   lthermal = .True.
-  call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-thermal', &
-    lthermal, lflg, ierr) ; call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, '-thermal', lthermal, lflg, ierr) ; call CHKERR(ierr)
 
   lsolar = .True.
-  call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-solar', &
-    lsolar, lflg, ierr) ; call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, '-solar', lsolar, lflg, ierr) ; call CHKERR(ierr)
 
-  call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-atm', &
-    & atm_filename, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, '-atm', atm_filename, lflg, ierr); call CHKERR(ierr)
   if(.not.lflg) call CHKERR(1_mpiint, 'need to supply a atm filename... please call with -atm <fname_of_atm_file.dat>')
 
-
-  call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-out', outfile, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, '-out', outfile, lflg, ierr); call CHKERR(ierr)
   if(.not.lflg) stop 'need to supply a output filename... please call with -out <fname_of_output_file.h5>'
 
   call ex_plex_rrtmg_fish(&

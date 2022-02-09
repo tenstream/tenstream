@@ -13,6 +13,7 @@ module m_pprts_base
     & cstr, &
     & deallocate_allocatable, &
     & get_arg, &
+    & get_petsc_opt, &
     & imp_allreduce_min, &
     & toStr
 
@@ -226,12 +227,11 @@ module m_pprts_base
   end type
 
   contains
-    subroutine prepare_solution(edir_dm, ediff_dm, abso_dm, lsolar, lthermal, solution, uid, prefix)
+    subroutine prepare_solution(edir_dm, ediff_dm, abso_dm, lsolar, lthermal, solution, uid)
       type(tDM), intent(in) :: edir_dm, ediff_dm, abso_dm
       logical, intent(in) :: lsolar, lthermal
       type(t_state_container), intent(inout) :: solution
       integer(iintegers), optional, intent(in) :: uid
-      character(len=*), optional, intent(in) :: prefix
       integer(mpiint) :: ierr
 
       if(solution%lset) call CHKERR(1_mpiint, 'solution has already been prepared before')
@@ -248,31 +248,22 @@ module m_pprts_base
       if(solution%lsolar_rad) then
         allocate(solution%edir)
         call DMCreateGlobalVector(edir_dm, solution%edir, ierr)  ; call CHKERR(ierr)
-        if(present(prefix)) then
-          call PetscObjectSetOptionsPrefix(solution%edir, prefix, ierr); call CHKERR(ierr)
-        endif
         call PetscObjectSetName(solution%edir,'initialized_edir_vec uid='//toStr(solution%uid),ierr) ; call CHKERR(ierr)
         call VecSet(solution%edir, zero, ierr); call CHKERR(ierr)
-        call PetscObjectViewFromOptions(solution%edir, PETSC_NULL_VEC, "-show_init_edir", ierr); call CHKERR(ierr)
+        call PetscObjectViewFromOptions(solution%edir, edir_dm, "-show_init_edir", ierr); call CHKERR(ierr)
       endif
 
       allocate(solution%ediff)
       call DMCreateGlobalVector(ediff_dm, solution%ediff, ierr)  ; call CHKERR(ierr)
-      if(present(prefix)) then
-        call PetscObjectSetOptionsPrefix(solution%ediff, prefix, ierr); call CHKERR(ierr)
-      endif
       call PetscObjectSetName(solution%ediff,'initialized_ediff_vec uid='//toStr(solution%uid),ierr) ; call CHKERR(ierr)
       call VecSet(solution%ediff, zero, ierr); call CHKERR(ierr)
-      call PetscObjectViewFromOptions(solution%ediff, PETSC_NULL_VEC, "-show_init_ediff", ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(solution%ediff, ediff_dm, "-show_init_ediff", ierr); call CHKERR(ierr)
 
       allocate(solution%abso)
       call DMCreateGlobalVector(abso_dm, solution%abso, ierr)  ; call CHKERR(ierr)
-      if(present(prefix)) then
-        call PetscObjectSetOptionsPrefix(solution%abso, prefix, ierr); call CHKERR(ierr)
-      endif
       call PetscObjectSetName(solution%abso,'initialized_abso_vec uid='//toStr(solution%uid),ierr) ; call CHKERR(ierr)
       call VecSet(solution%abso, zero, ierr); call CHKERR(ierr)
-      call PetscObjectViewFromOptions(solution%abso, PETSC_NULL_VEC, "-show_init_abso", ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(solution%abso, abso_dm, "-show_init_abso", ierr); call CHKERR(ierr)
 
       solution%lset = .True.
     end subroutine
@@ -368,7 +359,7 @@ module m_pprts_base
     character(len=*), intent(in), optional :: prefix
 
     logical :: lflg
-    character(len=default_str_len) :: solver_str, pref, pref_
+    character(len=default_str_len) :: solver_str, pref
 
     ierr = 0
 
@@ -381,12 +372,7 @@ module m_pprts_base
 
     solver_str = get_arg('none', trim(default_solver))
     pref = get_arg(PETSC_NULL_CHARACTER, prefix)
-    if(len_trim(pref)>0) then
-      pref_ = trim(pref)//'_'
-    else
-      pref_ = trim(pref)
-    endif
-    call PetscOptionsGetString(PETSC_NULL_OPTIONS, pref_, '-solver', solver_str, lflg, ierr) ; call CHKERR(ierr)
+    call get_petsc_opt(pref, '-solver', solver_str, lflg, ierr); call CHKERR(ierr)
 
     select case (solver_str)
       case('2str')
@@ -421,17 +407,17 @@ module m_pprts_base
 
       case default
         print *,'error, have to provide solver type as argument, e.g. call with'
-        print *,'-'//trim(pref_)//'solver 2str'
-        print *,'-'//trim(pref_)//'solver 1_2'
-        print *,'-'//trim(pref_)//'solver 3_6'
-        print *,'-'//trim(pref_)//'solver 3_10'
-        print *,'-'//trim(pref_)//'solver 3_16'
-        print *,'-'//trim(pref_)//'solver 3_24'
-        print *,'-'//trim(pref_)//'solver 8_10'
-        print *,'-'//trim(pref_)//'solver 8_16'
+        print *,'-'//trim(pref)//'solver 2str'
+        print *,'-'//trim(pref)//'solver 1_2'
+        print *,'-'//trim(pref)//'solver 3_6'
+        print *,'-'//trim(pref)//'solver 3_10'
+        print *,'-'//trim(pref)//'solver 3_16'
+        print *,'-'//trim(pref)//'solver 3_24'
+        print *,'-'//trim(pref)//'solver 8_10'
+        print *,'-'//trim(pref)//'solver 8_16'
         ierr = 1
         call CHKERR(ierr, 'have to provide valid solver type, '// &
-          & 'given <'//trim(solver_str)//'> (prefix='//trim(pref_)//')')
+          & 'given <'//trim(solver_str)//'> (prefix='//trim(pref)//')')
     end select
 
     pprts_solver%prefix = pref

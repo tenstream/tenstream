@@ -2,7 +2,7 @@ module m_gen_plex_from_icon
 
 #include "petsc/finclude/petsc.h"
   use petsc
-  use m_helper_functions, only: CHKERR
+  use m_helper_functions, only: CHKERR, get_petsc_opt
 
   use m_icon_plex_utils, only: gen_2d_plex_from_icongridfile, icon_hdcp2_default_hhl, &
     dump_ownership, dmplex_2D_to_3D
@@ -41,14 +41,14 @@ module m_gen_plex_from_icon
       call init_mpi_data_parameters(comm)
       call mpi_comm_rank(comm, myid, ierr)
 
-      call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-grid', gridfile, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, '-grid', gridfile, lflg, ierr); call CHKERR(ierr)
       if(.not.lflg) then
         print *,'Please specify a grid file with option:'
         print *,'-grid <path_to_icon_grid_file.nc>'
         call CHKERR(1_mpiint, 'Required Option missing')
       endif
 
-      call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-data', datafile, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, '-data', datafile, lflg, ierr); call CHKERR(ierr)
       if(.not.lflg) then
         print *,'Please specify a data file with option:'
         print *,'-data <path_to_icon_data_file.nc>'

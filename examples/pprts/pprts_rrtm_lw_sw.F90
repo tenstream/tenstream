@@ -9,7 +9,7 @@ module m_example_pprts_rrtm_lw_sw
   ! the Tenstream uses.
   use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint, zero, one, default_str_len
 
-  use m_helper_functions, only : linspace, CHKERR, spherical_2_cartesian, meanval
+  use m_helper_functions, only : linspace, CHKERR, spherical_2_cartesian, meanval, get_petsc_opt
 
   ! Import specific solver type: 3_10 for example uses 3 streams direct, 10 streams for diffuse radiation
   use m_pprts_base, only : t_solver, allocate_pprts_solver_from_commandline
@@ -137,7 +137,7 @@ contains
     call allocate_pprts_solver_from_commandline(pprts_solver, '3_10', ierr); call CHKERR(ierr)
 
     iter=1
-    call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-iter", iter, lflg, ierr)
+    call get_petsc_opt(PETSC_NULL_CHARACTER, "-iter", iter, lflg, ierr)
 
     do k=1,iter
       call pprts_rrtmg(comm, pprts_solver, atm, nxp, nyp, &

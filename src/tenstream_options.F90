@@ -23,7 +23,7 @@ module m_tenstream_options
     & ireals, irealLUT, iintegers, mpiint, &
     & zero, one, i0, default_str_len
   use m_optprop_parameters, only: lut_basename, stddev_atol, stddev_rtol
-  use m_helper_functions, only: CHKERR, CHKWARN
+  use m_helper_functions, only: CHKERR, CHKWARN, get_petsc_opt
 
 #include "petsc/finclude/petsc.h"
   use petsc
@@ -86,7 +86,7 @@ contains
       call PetscOptionsInsertFile(comm, PETSC_NULL_OPTIONS, 'tenstream.options', PETSC_FALSE, ierr); call CHKERR(ierr)
     endif
 
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,"-show_options",lshow_options,lflg,ierr) ;call CHKERR(ierr)
+    call get_petsc_opt(PETSC_NULL_CHARACTER,"-show_options",lshow_options,lflg,ierr) ;call CHKERR(ierr)
     if(lflg.eqv.PETSC_FALSE) then
       if(lshow_options) then
         if(myid.eq.0) call show_options()
@@ -96,31 +96,31 @@ contains
     endif
 
     options_max_solution_err = 5e3_ireals/real(3600*24, ireals)
-    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,"-max_solution_err",&
+    call get_petsc_opt(PETSC_NULL_CHARACTER,"-max_solution_err",&
       options_max_solution_err, lflg,ierr)  ; call CHKERR(ierr)
 
     options_max_solution_time = 0
-    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,"-max_solution_time",&
+    call get_petsc_opt(PETSC_NULL_CHARACTER,"-max_solution_time",&
       options_max_solution_time, lflg,ierr)  ; call CHKERR(ierr)
 
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-eddington",luse_eddington,lflg,ierr); call CHKERR(ierr)
+    call get_petsc_opt(PETSC_NULL_CHARACTER, "-eddington",luse_eddington,lflg,ierr); call CHKERR(ierr)
 
     twostr_ratio = 2._ireals
-    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,"-twostr_ratio",twostr_ratio, lflg,ierr); call CHKERR(ierr)
+    call get_petsc_opt(PETSC_NULL_CHARACTER,"-twostr_ratio",twostr_ratio, lflg,ierr); call CHKERR(ierr)
 
-    call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,"-pert_xshift",pert_xshift, lflg,ierr); call CHKERR(ierr)
+    call get_petsc_opt(PETSC_NULL_CHARACTER,"-pert_xshift",pert_xshift, lflg,ierr); call CHKERR(ierr)
     if(lflg.eqv.PETSC_FALSE) pert_xshift=0
-    call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,"-pert_yshift",pert_yshift, lflg,ierr); call CHKERR(ierr)
+    call get_petsc_opt(PETSC_NULL_CHARACTER,"-pert_yshift",pert_yshift, lflg,ierr); call CHKERR(ierr)
     if(lflg.eqv.PETSC_FALSE) pert_yshift=0
 
     call get_environment_variable("LUT_BASENAME", env_lut_basename, status=ierr)
     if(ierr.eq.0) lut_basename = trim(env_lut_basename)
 
-    call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,'-lut_basename', &
+    call get_petsc_opt(PETSC_NULL_CHARACTER,'-lut_basename', &
       lut_basename, lflg, ierr); call CHKERR(ierr)
 
     lLUT_mockup=.False.
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-LUT_mockup", &
+    call get_petsc_opt(PETSC_NULL_CHARACTER, "-LUT_mockup", &
       lLUT_mockup , lflg , ierr) ;call CHKERR(ierr)
     if(lLUT_mockup) then
       call CHKWARN(1_mpiint, 'Using LUT_mockup, setting the LUT constraints to zero. Your results will be wrong!')
@@ -128,26 +128,26 @@ contains
       stddev_rtol = .5_irealLUT
     endif
 
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-calc_nca", &
+    call get_petsc_opt(PETSC_NULL_CHARACTER, "-calc_nca", &
       lcalc_nca , lflg , ierr) ;call CHKERR(ierr)
 
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-topography", &
+    call get_petsc_opt(PETSC_NULL_CHARACTER, "-topography", &
       ltopography, lflg, ierr); call CHKERR(ierr)
 
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-skip_thermal", &
+    call get_petsc_opt(PETSC_NULL_CHARACTER, "-skip_thermal", &
       lskip_thermal, lflg, ierr); call CHKERR(ierr)
 
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-schwarzschild", &
+    call get_petsc_opt(PETSC_NULL_CHARACTER, "-schwarzschild", &
       lschwarzschild, lflg, ierr); call CHKERR(ierr)
 
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-mcrts", &
+    call get_petsc_opt(PETSC_NULL_CHARACTER, "-mcrts", &
       lmcrts, lflg, ierr); call CHKERR(ierr)
 
     mcrts_photons_per_pixel = 1000
-    call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-mcrts_photons_per_px", &
+    call get_petsc_opt(PETSC_NULL_CHARACTER, "-mcrts_photons_per_px", &
       mcrts_photons_per_pixel, lflg,ierr); call CHKERR(ierr)
 
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-tenstr_view", &
+    call get_petsc_opt(PETSC_NULL_CHARACTER, "-tenstr_view", &
       ltenstr_view, lflg, ierr); call CHKERR(ierr)
 
     call PetscOptionsHasName(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &

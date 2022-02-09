@@ -5,7 +5,7 @@ module m_gen_regular_plex
   use m_data_parameters, only : ireals, iintegers, mpiint, init_mpi_data_parameters, &
     zero, one, i0, i1, i2, i3, i4, i5
 
-  use m_helper_functions, only: itoa, CHKERR
+  use m_helper_functions, only: CHKERR, get_petsc_opt
 
   use m_icon_plex_utils, only: create_2d_regular_plex, &
     dmplex_2D_to_3D, dump_ownership
@@ -34,9 +34,9 @@ module m_gen_regular_plex
 
       call init_mpi_data_parameters(PETSC_COMM_WORLD)
 
-      call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Nx", Nx, lflg,ierr) ; call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, "-Nx", Nx, lflg,ierr) ; call CHKERR(ierr)
       if(lflg.eqv.PETSC_FALSE) Nx = 2
-      call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Ny", Ny, lflg,ierr) ; call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, "-Ny", Ny, lflg,ierr) ; call CHKERR(ierr)
       if(lflg.eqv.PETSC_FALSE) Ny = 3
 
       call mpi_comm_rank(PETSC_COMM_WORLD, myid, ierr); call CHKERR(ierr)

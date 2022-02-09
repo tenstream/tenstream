@@ -172,15 +172,15 @@
 !     Dec 2008: M. J. Iacono, AER, Inc.
 
 ! --------- Modules ---------
-      use petsc
       use m_tenstr_parrrsw, only : nbndsw, ngptsw, naerec, nstr, nmol, mxmol, &
                           jpband, jpb1, jpb2
       use m_tenstr_rrsw_aer, only : rsrtaua, rsrpiza, rsrasya
       use m_tenstr_rrsw_con, only : heatfac, oneminus, pi
       use m_tenstr_rrsw_wvn, only : wavenum1, wavenum2
 
+      use petsc
       use m_data_parameters, only : ireals, mpiint
-      use m_helper_functions, only: CHKERR
+      use m_helper_functions, only: CHKERR, get_petsc_opt
 
 ! ------- Declarations
 
@@ -455,8 +455,7 @@
       logical :: lflg, lrrtmg_delta_scaling
 
       lrrtmg_delta_scaling = .True.
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-        & "-rrtmg_delta_scaling", lrrtmg_delta_scaling, lflg, ierr) ;call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, "-rrtmg_delta_scaling", lrrtmg_delta_scaling, lflg, ierr); call CHKERR(ierr)
 
 ! Initializations
 

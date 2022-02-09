@@ -2,7 +2,7 @@ module m_plex_rt_base
 #include "petsc/finclude/petsc.h"
   use petsc
 
-  use m_helper_functions, only: CHKERR, CHKWARN, get_arg
+  use m_helper_functions, only: CHKERR, CHKWARN, get_arg, get_petsc_opt
   use m_data_parameters, only : ireals, iintegers, mpiint, default_str_len
   use m_pprts_base, only : t_state_container, t_solver_log_events
   use m_plex_grid, only: t_plexgrid
@@ -85,7 +85,7 @@ module m_plex_rt_base
       endif
 
       solver_str = get_arg('none', trim(default_solver))
-      call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-solver', solver_str, lflg, ierr) ; call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, '-solver', solver_str, lflg, ierr) ; call CHKERR(ierr)
 
       select case (solver_str)
       case('2str')

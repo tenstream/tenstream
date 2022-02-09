@@ -23,16 +23,24 @@ module m_optprop_LUT
 #include "petsc/finclude/petsc.h"
   use petsc
 
-  use m_helper_functions, only : approx,  &
-    rel_approx, imp_bcast,                &
-    get_arg, toStr,                       &
-    cstr, char_arr_to_str,                &
-    mpi_logical_and, mpi_logical_or,      &
-    CHKERR,                               &
-    triangle_area_by_vertices,            &
-    rad2deg, deg2rad,                     &
-    ind_1d_to_nd, ind_nd_to_1d, ndarray_offsets, &
-    linspace
+  use m_helper_functions, only : &
+    & approx,                    &
+    & char_arr_to_str,           &
+    & CHKERR,                    &
+    & cstr,                      &
+    & get_arg,                   &
+    & get_petsc_opt,             &
+    & imp_bcast,                 &
+    & ind_1d_to_nd,              &
+    & ind_nd_to_1d,              &
+    & linspace,                  &
+    & mpi_logical_and,           &
+    & mpi_logical_or,            &
+    & ndarray_offsets,           &
+    & rad2deg, deg2rad,          &
+    & rel_approx,                &
+    & toStr,                     &
+    & triangle_area_by_vertices
 
   use m_search, only: find_real_location
 
@@ -295,19 +303,15 @@ contains
       call OPP%set_parameter_space()
 
       load_diffuse_LUT_first = .False.
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-        '-load_diffuse_LUT_first', load_diffuse_LUT_first, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, '-load_diffuse_LUT_first', load_diffuse_LUT_first, lflg, ierr); call CHKERR(ierr)
 
       lskip_load_LUT = get_arg(.True., skip_load_LUT)
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-        '-skip_load_LUT', lskip_load_LUT, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, '-skip_load_LUT', lskip_load_LUT, lflg, ierr); call CHKERR(ierr)
 
       lskip_load_LUT_dir  = lskip_load_LUT
       lskip_load_LUT_diff = lskip_load_LUT
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-        '-skip_load_LUT_dir', lskip_load_LUT_dir, lflg, ierr); call CHKERR(ierr)
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-        '-skip_load_LUT_diff', lskip_load_LUT_diff, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, '-skip_load_LUT_dir', lskip_load_LUT_dir, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, '-skip_load_LUT_diff', lskip_load_LUT_diff, lflg, ierr); call CHKERR(ierr)
 
       if((.not.lskip_load_LUT_dir.or..not.lskip_load_LUT_diff) .and. myid.eq.0) &
         & print *,'loading and checking LUT`s from netCDF', &
@@ -328,8 +332,7 @@ contains
       if(OPP%optprop_LUT_debug .and. myid.eq.0) print *,'Initializing LUT`s... finished'
 
       lshow_LUT = ldebug
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-        '-LUT_view', lshow_LUT, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, '-LUT_view', lshow_LUT, lflg, ierr); call CHKERR(ierr)
       if(lshow_LUT.and.myid.eq.0) call print_configs(OPP)
   end subroutine
 

@@ -6,8 +6,13 @@ module m_plex2rayli
   use m_data_parameters, only: ireals, iintegers, mpiint, &
     i0, i1, i2, i3, i8, zero, one, pi, default_str_len
 
-  use m_helper_functions, only: CHKERR, deg2rad, get_arg, toStr, &
-    & determine_normal_direction
+  use m_helper_functions, only: &
+    & CHKERR, &
+    & deg2rad, &
+    & determine_normal_direction, &
+    & get_arg, &
+    & get_petsc_opt, &
+    & toStr
 
   use m_netcdfio, only: ncwrite
 
@@ -284,19 +289,16 @@ module m_plex2rayli
     if(solution%lthermal_rad.and..not.present(plck)) call CHKERR(1_mpiint, 'if solar: you need to provide plck vec')
 
     opt_Nthreads_int = get_arg(i0, opt_Nthreads)
-    call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-      "-rayli_nthreads", opt_Nthreads_int, lflg,ierr) ; call CHKERR(ierr)
+    call get_petsc_opt(PETSC_NULL_CHARACTER, "-rayli_nthreads", opt_Nthreads_int, lflg,ierr) ; call CHKERR(ierr)
     Nthreads = int(opt_Nthreads_int, c_size_t)
 
     call VecGetSize(albedo, opt_photons_int, ierr); call CHKERR(ierr)
     opt_photons = get_arg(real(opt_photons_int*10, ireals), nr_photons)
-    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-      "-rayli_photons", opt_photons, lflg,ierr) ; call CHKERR(ierr)
+    call get_petsc_opt(PETSC_NULL_CHARACTER, "-rayli_photons", opt_photons, lflg,ierr) ; call CHKERR(ierr)
     Nphotons = int(opt_photons, c_size_t)
 
     lphoton_scale_w_src = .False.
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-      '-rayli_photons_scale_with_src', lphoton_scale_w_src, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt(PETSC_NULL_CHARACTER, '-rayli_photons_scale_with_src', lphoton_scale_w_src, lflg, ierr); call CHKERR(ierr)
 
     if (lphoton_scale_w_src) then
       if(solution%lthermal_rad) then
@@ -314,15 +316,13 @@ module m_plex2rayli
     if(numnodes.gt.1) call CHKERR(numnodes, "Rayli currently only in single rank computations available")
 
     min_photons = real(opt_photons_int, ireals) * 100._ireals
-    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-      "-rayli_min_photons", min_photons, lflg,ierr) ; call CHKERR(ierr)
+    call get_petsc_opt(PETSC_NULL_CHARACTER, "-rayli_min_photons", min_photons, lflg,ierr) ; call CHKERR(ierr)
     if(myid.eq.0.and.Nphotons.lt.int(min_photons, c_size_t)) &
       & print *,'Increasing Nphotons from '//toStr(Nphotons)//' to min_photons '//toStr(int(min_photons,c_size_t))
     Nphotons = max(int(min_photons, c_size_t), Nphotons)
 
     lcyclic=.False.
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-      '-rayli_cyclic_bc', lcyclic, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt(PETSC_NULL_CHARACTER, '-rayli_cyclic_bc', lcyclic, lflg, ierr); call CHKERR(ierr)
     if(lcyclic) then
       icyclic = 1
     else
@@ -679,13 +679,11 @@ module m_plex2rayli
       call mpi_comm_rank(mpi_comm_world, worldid, ierr); call CHKERR(ierr)
       call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
-      call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-        "-rayli_snapshot", snap_path, lflg,ierr) ; call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, "-rayli_snapshot", snap_path, lflg,ierr) ; call CHKERR(ierr)
       if(len_trim(snap_path).eq.0) snap_path = 'rayli_snaphots.nc'
       if(myid.eq.0) print *,'Capturing scene to file: '//trim(snap_path), len_trim(snap_path)
 
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-        '-rayli_snap_cyclic_bc', lcyclic, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, '-rayli_snap_cyclic_bc', lcyclic, lflg, ierr); call CHKERR(ierr)
       if(lflg) then
         if(lcyclic) then
           isnap_cyclic = 1
@@ -697,52 +695,43 @@ module m_plex2rayli
       endif
 
       Nx = 400
-      call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,&
-        '-rayli_snap_Nx', narg, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, '-rayli_snap_Nx', narg, lflg, ierr); call CHKERR(ierr)
       if(lflg) Nx = narg
 
       Ny = 300
-      call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,&
-        '-rayli_snap_Ny', narg, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, '-rayli_snap_Ny', narg, lflg, ierr); call CHKERR(ierr)
       if(lflg) Ny = narg
 
       opt_photons = nr_photons
-      call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-        "-rayli_snap_photons", opt_photons, lflg,ierr) ; call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, "-rayli_snap_photons", opt_photons, lflg,ierr) ; call CHKERR(ierr)
       opt_photons_int = int(opt_photons, c_size_t)
 
       allocate(img(Nx, Ny))
 
       visit_view_angle = 30._ireals
-      call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,&
-        '-visit_view_angle', visit_view_angle, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, '-visit_view_angle', visit_view_angle, lflg, ierr); call CHKERR(ierr)
 
       visit_image_zoom = 1._ireals
-      call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,&
-        '-visit_image_zoom', visit_image_zoom, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, '-visit_image_zoom', visit_image_zoom, lflg, ierr); call CHKERR(ierr)
 
       visit_parallel_scale = 1e5_ireals
-      call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,&
-        '-visit_parallel_scale', visit_parallel_scale, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, '-visit_parallel_scale', visit_parallel_scale, lflg, ierr); call CHKERR(ierr)
 
       visit_focus = 0._ireals
       narg=3
-      call PetscOptionsGetRealArray(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,&
-        '-visit_focus', visit_focus, narg, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, '-visit_focus', visit_focus, narg, lflg, ierr); call CHKERR(ierr)
       if(lflg) &
         call CHKERR(int(narg-3, mpiint), 'wrong number of input, need to be given comma separated without spaces')
 
       visit_view_normal = -rsundir
       narg=3
-      call PetscOptionsGetRealArray(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,&
-        '-visit_view_normal', visit_view_normal, narg, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, '-visit_view_normal', visit_view_normal, narg, lflg, ierr); call CHKERR(ierr)
       if(lflg) &
         call CHKERR(int(narg-3, mpiint), 'wrong number of input, need to be given comma separated without spaces')
 
       visit_view_up = [0,0,1]
       narg=3
-      call PetscOptionsGetRealArray(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,&
-        '-visit_view_up', visit_view_up, narg, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, '-visit_view_up', visit_view_up, narg, lflg, ierr); call CHKERR(ierr)
       if(lflg) &
         call CHKERR(int(narg-3, mpiint), 'wrong number of input, need to be given comma separated without spaces')
 

@@ -6,7 +6,16 @@ module m_icon_plex_utils
   use m_data_parameters, only : ireals, ireal_dp, iintegers, mpiint, &
     i0, i1, i2, i3, i4, i5, zero, one, default_str_len, pi
 
-  use m_helper_functions, only: chkerr, chkwarn, itoa, get_arg, imp_bcast, deg2rad, reverse, meanval, normalize_vec
+  use m_helper_functions, only: &
+    & CHKERR, CHKWARN, &
+    & deg2rad, &
+    & get_arg, &
+    & get_petsc_opt, &
+    & imp_bcast, &
+    & meanval, &
+    & normalize_vec, &
+    & reverse, &
+    & toStr
 
   use m_plex_grid, only: t_plexgrid, print_dmplex, dmplex_set_new_section, TOAFACE, &
     get_horizontal_faces_around_vertex
@@ -529,7 +538,7 @@ module m_icon_plex_utils
           lhave_3d_surface_heights = .True.
         else
           call CHKERR(1_mpiint, 'heights array has the wrong shape: is' &
-            //itoa(size(hhl))//' should be '//itoa(ke1)//' or '//itoa(ke1*Nverts2d))
+            //toStr(size(hhl))//' should be '//toStr(ke1)//' or '//toStr(ke1*Nverts2d))
         endif
         !print *,'size(hhl)', size(hhl), ':', ke1*Nverts2d, ':', lhave_3d_surface_heights
 
@@ -696,8 +705,8 @@ module m_icon_plex_utils
 
       call DMGetPointSF(owner_dm, sf, ierr); call CHKERR(ierr)
       call PetscSFGetGraph(sf, nroots, nleaves, pmyidx, premote, ierr); call CHKERR(ierr)
-      if(nleaves.ge.0) call CHKERR(int(nleaves-size(pmyidx), mpiint), 'wrong size of array nleaves: '//itoa(nleaves))
-      if(nleaves.ge.0) call CHKERR(int(nleaves-size(premote), mpiint), 'wrong size of array nleaves: '//itoa(nleaves))
+      if(nleaves.ge.0) call CHKERR(int(nleaves-size(pmyidx), mpiint), 'wrong size of array nleaves: '//toStr(nleaves))
+      if(nleaves.ge.0) call CHKERR(int(nleaves-size(premote), mpiint), 'wrong size of array nleaves: '//toStr(nleaves))
       allocate(myidx(nleaves), source=pmyidx)
       allocate(remote(nleaves), source=premote)
       pmyidx => NULL()
@@ -713,7 +722,7 @@ module m_icon_plex_utils
         call dmplex_set_new_section(owner_dm, 'dmplex_ownership info', i1, &
           [i0], [i1], [i0], [i0])
       case default
-        call CHKERR(1_mpiint, 'cannot handle dm with depth: '// itoa(depth))
+        call CHKERR(1_mpiint, 'cannot handle dm with depth: '// toStr(depth))
       end select
       call DMGetSection(owner_dm, sec, ierr); call CHKERR(ierr)
 
@@ -806,7 +815,7 @@ module m_icon_plex_utils
       endif
 
       call DMPlexCreate(comm, dm, ierr); call CHKERR(ierr)
-      call PetscObjectSetName(dm, 'Fish_testplex_Nx'//itoa(Nx)//'_Ny'//itoa(Ny), ierr); call CHKERR(ierr)
+      call PetscObjectSetName(dm, 'Fish_testplex_Nx'//toStr(Nx)//'_Ny'//toStr(Ny), ierr); call CHKERR(ierr)
       call DMSetDimension(dm, i2, ierr); call CHKERR(ierr)
 
       chartsize = Nfaces + Nedges + Nvertices
@@ -1056,7 +1065,7 @@ module m_icon_plex_utils
       endif
 
       call DMPlexCreate(comm, dm, ierr); call CHKERR(ierr)
-      call PetscObjectSetName(dm, 'sh_testplex_Nx'//itoa(Nx)//'_Ny'//itoa(Ny), ierr); call CHKERR(ierr)
+      call PetscObjectSetName(dm, 'sh_testplex_Nx'//toStr(Nx)//'_Ny'//toStr(Ny), ierr); call CHKERR(ierr)
       call DMSetDimension(dm, i2, ierr); call CHKERR(ierr)
 
       chartsize = Nfaces + Nedges + Nvertices
@@ -1463,8 +1472,7 @@ module m_icon_plex_utils
           call VecGetArrayF90(coordinates, coords, ierr); call CHKERR(ierr)
 
           lcoord_displacement = .False.
-          call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-            & "-move_scene_2_origin", lcoord_displacement, lflg,ierr) ; call CHKERR(ierr)
+          call get_petsc_opt(PETSC_NULL_CHARACTER, "-move_scene_2_origin", lcoord_displacement, lflg,ierr) ; call CHKERR(ierr)
           if(lcoord_displacement.and..not.present(coord_displacement)) then
             call CHKERR(1_mpiint, "You asked to move the scene to the origin "// &
               & "but the call to gen_2d_plex_from_icongridfile "// &
@@ -1538,7 +1546,7 @@ module m_icon_plex_utils
         call PetscSectionGetStorageSize(lsection, section_size, ierr); call CHKERR(ierr)
         call CHKERR(int(localsize-section_size,mpiint), &
           'Default section of the DM does not fit with the local input array size'// &
-          ' Section ( '//itoa(section_size)//' ) vs arr ( '//itoa(localsize)//' )')
+          ' Section ( '//toStr(section_size)//' ) vs arr ( '//toStr(localsize)//' )')
 
         call DMGetVecType(dm, vectype, ierr); call CHKERR(ierr)
         if(vectype.ne.VECSTANDARD) &
@@ -1588,7 +1596,7 @@ module m_icon_plex_utils
         call VecGetArrayF90(rank0Vec, xloc,ierr); call CHKERR(ierr)
 
         call CHKERR(int(size(xloc)-size(arr), mpiint), 'Global array sizes do not match, expected input size ('// &
-          itoa(shape(arr))//') to be the size of the plexrt mesh vec: ('//itoa(shape(xloc))//')')
+          toStr(shape(arr))//') to be the size of the plexrt mesh vec: ('//toStr(shape(xloc))//')')
 
         do i = 0, size(arr, dim=2)-1
           call PetscSectionGetOffset(rank0Section, i, voff, ierr); call CHKERR(ierr)
@@ -1716,8 +1724,8 @@ module m_icon_plex_utils
 
           itime = get_arg(i1, timeidx)
           if(itime.lt.i1 .or. itime.gt.ubound(arr3d,3)) &
-            call CHKERR(1_mpiint, 'invalid time index ( '//itoa(itime)//' ) shape of arr:' &
-            //itoa(size(arr3d,1))//itoa(size(arr3d,2))//itoa(size(arr3d,3)))
+            call CHKERR(1_mpiint, 'invalid time index ( '//toStr(itime)//' ) shape of arr:' &
+            //toStr(size(arr3d,1))//toStr(size(arr3d,2))//toStr(size(arr3d,3)))
 
           allocate(arr(size(arr3d,1), size(arr3d,2)), source=arr3d(:,:,itime))
           deallocate(arr3d)
@@ -1752,7 +1760,7 @@ module m_icon_plex_utils
       ke = vecsize/Ncol
 
       call CHKERR(int(ke - (plex%Nlay), mpiint), &
-        'vertical vec sizes do not match '//itoa(ke)//' vs '//itoa(plex%Nlay)//' => '//itoa(ke - (plex%Nlay)))
+        'vertical vec sizes do not match '//toStr(ke)//' vs '//toStr(plex%Nlay)//' => '//toStr(ke - (plex%Nlay)))
 
       call DMGetSection(plex%cell1_dm, sec, ierr); call CHKERR(ierr)
 
@@ -1792,7 +1800,7 @@ module m_icon_plex_utils
       N = vecsize/Ncol
 
       call CHKERR(int(N - (plex%Nlay+1), mpiint), &
-        'vertical vec sizes do not match '//itoa(N)//' vs '//itoa(plex%Nlay+1)//' => '//itoa(N - (plex%Nlay+1)))
+        'vertical vec sizes do not match '//toStr(N)//' vs '//toStr(plex%Nlay+1)//' => '//toStr(N - (plex%Nlay+1)))
 
       call DMGetSection(plex%horizface1_dm, sec, ierr); call CHKERR(ierr)
 
@@ -1830,7 +1838,7 @@ module m_icon_plex_utils
       ke = vecsize/Ncol
 
       call CHKERR(int(ke - plex%Nlay, mpiint), &
-        'vertical vec sizes do not match '//itoa(ke)//' vs '//itoa(plex%Nlay))
+        'vertical vec sizes do not match '//toStr(ke)//' vs '//toStr(plex%Nlay))
 
       if(.not.allocated(arr)) then
         allocate(arr(ke, Ncol))
@@ -1875,7 +1883,7 @@ module m_icon_plex_utils
 
       call VecGetSize(vec, vecsize, ierr); call CHKERR(ierr)
       call CHKERR(int(vecsize - ke*Ncol, mpiint), 'Size of PetscSection and vecsize do not match! '// &
-        'Ncol/ke ( '//itoa(Ncol)//' / '//itoa(ke)//' ) vs vecsize ( '//itoa(vecsize)//' )'   )
+        'Ncol/ke ( '//toStr(Ncol)//' / '//toStr(ke)//' ) vs vecsize ( '//toStr(vecsize)//' )'   )
 
       if(.not.allocated(arr)) then
         allocate(arr(ke, Ncol))

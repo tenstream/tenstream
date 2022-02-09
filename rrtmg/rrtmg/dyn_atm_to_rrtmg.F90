@@ -33,11 +33,20 @@ module m_dyn_atm_to_rrtmg
   use m_data_parameters, only : iintegers, mpiint, ireals, default_str_len, &
     zero, one, pi, i1, i2, i9, init_mpi_data_parameters
 
-  use m_helper_functions, only: CHKWARN, CHKERR, reverse, &
-    imp_allreduce_min, imp_allreduce_max, &
-    imp_bcast, read_ascii_file_2d, &
-    gradient, get_arg, toStr, &
-    meanvec, meanval, assert_arr_is_monotonous
+  use m_helper_functions, only: &
+    & assert_arr_is_monotonous, &
+    & CHKWARN, CHKERR, &
+    & get_arg, &
+    & get_petsc_opt, &
+    & gradient, &
+    & imp_allreduce_max, &
+    & imp_allreduce_min, &
+    & imp_bcast, &
+    & meanval, &
+    & meanvec, &
+    & read_ascii_file_2d, &
+    & reverse, &
+    & toStr
 
   use m_search, only: search_sorted_bisection
 
@@ -172,8 +181,7 @@ module m_dyn_atm_to_rrtmg
       call PetscLogEventBegin(logs%setup_tenstr_atm, ierr); call CHKERR(ierr)
 
       lignore_bad_input = .False.
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-pprts_rrtmg_ignore_bad_input', &
-        & lignore_bad_input, lflg, ierr) ; call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, '-pprts_rrtmg_ignore_bad_input', lignore_bad_input, lflg, ierr); call CHKERR(ierr)
 
       if(.not.allocated(atm%bg_atm)) then
         call load_atmfile(comm, atm_filename, atm%bg_atm)
