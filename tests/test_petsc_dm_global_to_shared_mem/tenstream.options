@@ -1,4 +1,3 @@
--skip_load_LUT
 -solver 2str
 
 -show_gvec
