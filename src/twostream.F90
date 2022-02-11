@@ -349,6 +349,7 @@ contains
     enddo
 
     Edir(1) = S0
+    Edn(1) = 0
 
     R(1) = a12(1)
     T(1) = a11(1)

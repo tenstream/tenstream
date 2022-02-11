@@ -1,4 +1,4 @@
--twostr_only
+-solver 2str
 -schwarzschild
 -calc_nca
 -plexrt_skip_loadLUT

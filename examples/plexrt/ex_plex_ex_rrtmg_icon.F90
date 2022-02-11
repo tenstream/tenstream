@@ -1,5 +1,6 @@
 program main
   use m_examples_plex_ex_rrtmg_icon
+  use m_helper_functions, only: get_petsc_opt
   implicit none
 
   character(len=default_str_len) :: gridfile, icondatafile, outfile
@@ -14,22 +15,22 @@ program main
   call read_commandline_options(PETSC_COMM_WORLD)
   call mpi_comm_rank(PETSC_COMM_WORLD, myid, ierr); call CHKERR(ierr)
 
-  call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-grid', gridfile, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, '-grid', gridfile, lflg, ierr); call CHKERR(ierr)
   if(.not.lflg) stop 'need to supply a grid filename... please call with -grid <fname_of_icon_gridfile.nc>'
 
-  call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-data', icondatafile, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, '-data', icondatafile, lflg, ierr); call CHKERR(ierr)
   if(.not.lflg) stop 'need to supply a icondata filename... please call with -data <fname_of_icondatafile.nc>'
 
-  call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-out', outfile, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, '-out', outfile, lflg, ierr); call CHKERR(ierr)
   if(.not.lflg) stop 'need to supply a output filename... please call with -out <fname_of_output_file.h5>'
 
   Ag = .1
-  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Ag", Ag, lflg,ierr) ; call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-Ag", Ag, lflg,ierr) ; call CHKERR(ierr)
 
   lsolar = .True.
   lthermal = .True.
-  call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-solar", lsolar, lflg,ierr) ; call CHKERR(ierr)
-  call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-thermal", lthermal, lflg,ierr) ; call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-solar", lsolar, lflg,ierr) ; call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-thermal", lthermal, lflg,ierr) ; call CHKERR(ierr)
 
   default_options=''
   default_options=trim(default_options)//' -show_plex hdf5:'//trim(outfile)

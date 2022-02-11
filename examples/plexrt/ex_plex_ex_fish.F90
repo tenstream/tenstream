@@ -1,5 +1,6 @@
 program main
   use m_examples_plex_ex_fish
+  use m_helper_functions, only: get_petsc_opt
   implicit none
 
   character(len=default_str_len) :: outfile
@@ -18,42 +19,38 @@ program main
   call read_commandline_options(comm)
 
   Nx = 2
-  call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Nx", Nx, lflg,ierr) ; call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-Nx", Nx, lflg,ierr) ; call CHKERR(ierr)
   Ny = 3
-  call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Ny", Ny, lflg,ierr) ; call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-Ny", Ny, lflg,ierr) ; call CHKERR(ierr)
   Nz = 2
-  call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Nz", Nz, lflg,ierr) ; call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-Nz", Nz, lflg,ierr) ; call CHKERR(ierr)
   dz = one/real(Nz, ireals)
-  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-dz", dz, lflg,ierr) ; call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-dz", dz, lflg,ierr) ; call CHKERR(ierr)
   Ag = .1_ireals
-  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Ag", Ag, lflg,ierr) ; call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-Ag", Ag, lflg,ierr) ; call CHKERR(ierr)
   dtau = one
-  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-tau", dtau, lflg,ierr) ; call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-tau", dtau, lflg,ierr) ; call CHKERR(ierr)
   w0 = zero
-  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-w0", w0, lflg,ierr) ; call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-w0", w0, lflg,ierr) ; call CHKERR(ierr)
   g = zero
-  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-g", g, lflg,ierr) ; call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-g", g, lflg,ierr) ; call CHKERR(ierr)
   B0 = 100
-  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-B0", B0, lflg,ierr) ; call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-B0", B0, lflg,ierr) ; call CHKERR(ierr)
 
-  call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-out', outfile, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, '-out', outfile, lflg, ierr); call CHKERR(ierr)
   if(.not.lflg) stop 'need to supply a output filename... please call with -out <fname_of_output_file.h5>'
 
   lverbose = .True.
-  call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-verbose', &
-    lverbose, lflg, ierr) ; call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, '-verbose', lverbose, lflg, ierr); call CHKERR(ierr)
 
   lregular_mesh = .False.
-  call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-    '-use_regular_mesh', lregular_mesh, lflg, ierr) ; call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, '-use_regular_mesh', lregular_mesh, lflg, ierr); call CHKERR(ierr)
 
   lthermal = .True.
-  call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-thermal', &
-    lthermal, lflg, ierr) ; call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, '-thermal', lthermal, lflg, ierr); call CHKERR(ierr)
 
   lsolar = .True.
-  call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-solar', &
-    lsolar, lflg, ierr) ; call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, '-solar', lsolar, lflg, ierr); call CHKERR(ierr)
 
   call init_sundir()
 
@@ -117,8 +114,7 @@ program main
       sundir = sundir/norm2(sundir)
 
       rot_angle = zero
-      call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-sundir_rot_phi", &
-        rot_angle, lflg, ierr) ; call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, "-sundir_rot_phi", rot_angle, lflg, ierr) ; call CHKERR(ierr)
       if(lflg) then
         Mrot = rotation_matrix_around_axis_vec(deg2rad(rot_angle), first_normal)
         rot_sundir = matmul(Mrot, sundir)
@@ -130,8 +126,7 @@ program main
       endif
 
       rot_angle = zero
-      call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-sundir_rot_theta", &
-        rot_angle, lflg, ierr) ; call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, "-sundir_rot_theta", rot_angle, lflg, ierr) ; call CHKERR(ierr)
       if(lflg) then
         U = cross_3d(first_normal, sundir)
         Mrot = rotation_matrix_around_axis_vec(deg2rad(rot_angle), U)

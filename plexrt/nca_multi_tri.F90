@@ -10,7 +10,7 @@
 module m_plexrt_nca
 #include "petsc/finclude/petsc.h"
   use petsc
-  use m_helper_functions, only: CHKERR, CHKWARN, imp_bcast
+  use m_helper_functions, only: CHKERR, CHKWARN, imp_bcast, get_petsc_opt
   use m_data_parameters, only : ireals, iintegers, mpiint, default_str_len, pi
   use m_netcdfio, only: ncload
   implicit none
@@ -59,7 +59,7 @@ contains
     lut_dir = '.'
     call PetscInitialized(lflg, ierr)
     if(lflg) then
-      call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-nca_lut_dir', lut_dir, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, '-nca_lut_dir', lut_dir, lflg, ierr); call CHKERR(ierr)
     endif
 
     ! TODO: Caro you had +2 as dimension for var_1 and var_2 but this does not fit with the static allocations you had

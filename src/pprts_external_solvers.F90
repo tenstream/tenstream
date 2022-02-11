@@ -23,24 +23,51 @@ module m_pprts_external_solvers
 
   use m_data_parameters, only : ireals, iintegers, mpiint, imp_iinteger, &
     & i0, i1, i2, i3, i4, zero, one
-  use m_helper_functions, only : CHKERR, CHKWARN, toStr, &
-    & ndarray_offsets, ind_nd_to_1d, ind_1d_to_nd, &
-    & meanval, spherical_2_cartesian, imp_allreduce_sum
-  use m_petsc_helpers, only : getVecPointer, restoreVecPointer, &
-    & f90VecToPetsc, &
-    & gen_shared_subcomm, gen_shared_scatter_ctx
 
-  use m_pprts_base, only : t_solver, &
-    & t_state_container, prepare_solution, destroy_solution, &
-    & atmk, set_dmda_cell_coordinates, &
-    & interpolate_cell_values_to_vertices
+  use m_helper_functions, only : &
+    & CHKERR, CHKWARN, &
+    & get_petsc_opt, &
+    & imp_allreduce_sum, &
+    & ind_1d_to_nd, &
+    & ind_nd_to_1d, &
+    & meanval, &
+    & ndarray_offsets, &
+    & spherical_2_cartesian, &
+    & toStr
+
+  use m_petsc_helpers, only : &
+    & f90VecToPetsc, &
+    & gen_shared_scatter_ctx, &
+    & gen_shared_subcomm, &
+    & getVecPointer, &
+    & restoreVecPointer
+
+  use m_pprts_base, only : &
+    & atmk, &
+    & destroy_solution, &
+    & interpolate_cell_values_to_vertices, &
+    & prepare_solution, &
+    & set_dmda_cell_coordinates, &
+    & t_solver, &
+    & t_state_container
+
   use m_schwarzschild, only: schwarzschild
+
   use m_twostream, only: delta_eddington_twostream, adding_delta_eddington_twostream
 
   use m_icon_plex_utils, only: create_2d_regular_plex, dmplex_2D_to_3D
-  use m_plex_grid, only: t_plexgrid, destroy_plexgrid, print_dmplex, &
-    & setup_plexgrid, setup_edir_dmplex, setup_ediff_dmplex, setup_abso_dmplex
+
+  use m_plex_grid, only: &
+    & destroy_plexgrid, &
+    & print_dmplex, &
+    & setup_abso_dmplex, &
+    & setup_ediff_dmplex, &
+    & setup_edir_dmplex, &
+    & setup_plexgrid, &
+    & t_plexgrid
+
   use m_plex2rayli, only: rayli_wrapper
+
   use m_pprts2plex, only: pprts_buildings_to_plex, find_face_idx_by_orientation, pprts_cell_to_plex_cell_idx
 
   use m_tenstr_disort, only: default_flx_computation
@@ -1033,7 +1060,7 @@ contains
         associate(ri   => rayli_info)
           call VecGetSize(ri%albedo, Nphotons, ierr); call CHKERR(ierr)
           nphotons_r = real(Nphotons*10, ireals)
-          call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+          call get_petsc_opt(solver%prefix, &
             "-pprts_rayli_photons", nphotons_r, lflg,ierr) ; call CHKERR(ierr)
 
           Nphotons_r = Nphotons_r / real(ri%num_subcomm_masters, ireals)
@@ -1315,17 +1342,12 @@ contains
                 planck=atm%planck(:,i,j), &
                 planck_srfc=Bsrfc)
             else
-              !
-              ! call adding_delta_eddington_twostream(dtau,w0,g,mu0,incSolar,atm%albedo(i,j), S,Edn,Eup )
-              !
-              !TODO investigate if this one is really ok...
-              ! I recently had valgrind errors in VecNorm after calling this:
-              ! make -j ex_pprts_rrtm_lw_sw &&
-              ! mpirun -np 1 -wdir ../examples/rrtm_lw_sw/ valgrind $(pwd)/bin/ex_pprts_rrtm_lw_sw -twostr_only
-              call delta_eddington_twostream(&
-                & dtau, w0, g,&
-                & mu0, incSolar, Ag, &
-                & S, Edn, Eup)
+              call adding_delta_eddington_twostream(dtau,w0,g,mu0,incSolar,atm%albedo(i,j), S,Edn,Eup )
+
+              !call delta_eddington_twostream(&
+              !  & dtau, w0, g,&
+              !  & mu0, incSolar, Ag, &
+              !  & S, Edn, Eup)
             endif
           endif
 
@@ -1420,7 +1442,7 @@ contains
         C_one_atm1  => solver%C_one_atm1)
 
       nstreams = 16
-      call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+      call get_petsc_opt(solver%prefix, &
         "-disort_streams", nstreams, lflg, ierr); call CHKERR(ierr)
 
       if(solution%lsolar_rad) then
@@ -1583,7 +1605,7 @@ contains
       allocate( Edn(C_one_atm1%zs:C_one_atm1%ze) )
 
       Nmu = 4
-      call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+      call get_petsc_opt(solver%prefix , &
         "-schwarzschild_Nmu" , Nmu, lflg , ierr) ;call CHKERR(ierr)
 
       if(solver%myid.eq.0 .and. ldebug) print *,' CALCULATING schwarzschild ::'

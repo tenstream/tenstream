@@ -4,6 +4,7 @@ program main
   use mpi
   use m_data_parameters, only : iintegers, mpiint, ireals
   use m_example_pprts_rrtm_iterations, only: example_rrtm_lw_sw
+  use m_helper_functions, only: get_petsc_opt
 
   implicit none
 
@@ -18,14 +19,14 @@ program main
   call PetscInitialize(PETSC_NULL_CHARACTER ,ierr)
 
   Nx=3; Ny=3; Nz=5
-  call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Nx", Nx, lflg, ierr)
-  call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Ny", Ny, lflg, ierr)
-  call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Nz", Nz, lflg, ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-Nx", Nx, lflg, ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-Ny", Ny, lflg, ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-Nz", Nz, lflg, ierr)
 
   dx = 500
-  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-dx", dx, lflg, ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-dx", dx, lflg, ierr)
   dy = dx
-  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-dy", dy, lflg, ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-dy", dy, lflg, ierr)
 
   call example_rrtm_lw_sw(Nx, Ny, Nz, dx, dy)
 

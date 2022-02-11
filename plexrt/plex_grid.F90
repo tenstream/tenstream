@@ -14,6 +14,7 @@ module m_plex_grid
     & determine_normal_direction, &
     & distance, &
     & get_arg, &
+    & get_petsc_opt, &
     & imp_allreduce_max, &
     & imp_bcast, &
     & is_between, &
@@ -302,8 +303,7 @@ module m_plex_grid
         logical :: ldocheck, lflg
 
         ldocheck = .True.
-        call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-          & "-check_height_for_consistency", ldocheck, lflg,ierr) ; call CHKERR(ierr)
+        call get_petsc_opt(PETSC_NULL_CHARACTER, "-check_height_for_consistency", ldocheck, lflg,ierr) ; call CHKERR(ierr)
         if(.not.ldocheck) return
 
 
@@ -961,12 +961,10 @@ module m_plex_grid
         & call CHKERR(1_mpiint, 'find_1D_constraints: plex%geomVec has to allocated')
 
       max_height = get_arg(inf, constraint_height)
-      call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-        "-plexrt_1d_height", max_height, lflg, ierr) ; call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, "-plexrt_1d_height", max_height, lflg, ierr) ; call CHKERR(ierr)
 
       max_radius = get_arg(inf, constraint_radius)
-      call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-        "-plexrt_1d_radius", max_radius, lflg, ierr) ; call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, "-plexrt_1d_radius", max_radius, lflg, ierr) ; call CHKERR(ierr)
 
       if(.not.allocated(plex%l1d)) &
         & allocate(plex%l1d(plex%cStart:plex%cEnd-1))
