@@ -1644,21 +1644,25 @@ module m_pprts
       endif
     endif
 
+    pprts_set_albedo = -1
     call get_petsc_opt(solver%prefix, "-pprts_set_albedo", pprts_set_albedo, lflg , ierr) ;call CHKERR(ierr)
     if(lflg) then
       atm%albedo = pprts_set_albedo
     endif
 
+    pprts_set_absorption = -1
     call get_petsc_opt(solver%prefix, "-pprts_set_kabs", pprts_set_absorption, lflg , ierr) ;call CHKERR(ierr)
     if(lflg) then
       atm%kabs = pprts_set_absorption
     endif
 
+    pprts_set_scatter = -1
     call get_petsc_opt(solver%prefix, "-pprts_set_ksca", pprts_set_scatter, lflg , ierr) ;call CHKERR(ierr)
     if(lflg) then
       atm%ksca = pprts_set_scatter
     endif
 
+    pprts_set_asymmetry = -1
     call get_petsc_opt(solver%prefix, "-pprts_set_asymmetry", pprts_set_asymmetry, lflg , ierr) ;call CHKERR(ierr)
     if(lflg) then
       atm%g = pprts_set_asymmetry

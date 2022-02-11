@@ -171,6 +171,7 @@ contains
     call PetscLogEventBegin(log_events%smooth_surface_fluxes, ierr); call CHKERR(ierr)
     call mpi_comm_rank(solver%comm, myid, ierr); call CHKERR(ierr)
 
+    radius = 0;
     call get_petsc_opt(solver%prefix, "-pprts_smooth_srfc_flx", radius , lflg , ierr) ;call CHKERR(ierr)
 
     if (lflg) then
@@ -542,6 +543,7 @@ contains
         call dump_variable(eup , solver%C_one1%da, "-pprts_rrtmg_dump_eup", "eup")
         call dump_variable(abso, solver%C_one%da,  "-pprts_rrtmg_dump_abso", "abso")
 
+        fname = ''
         if(lsolar.and.present(opt_buildings_solar)) then
           call get_petsc_opt(solver%prefix, '-pprts_rrtmg_xdmf_buildings_solar', fname, lflg, ierr); call CHKERR(ierr)
           if(lflg) then
