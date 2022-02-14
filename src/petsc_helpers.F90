@@ -5,7 +5,12 @@ module m_petsc_helpers
   use m_data_parameters, only : ireals, iintegers, mpiint, &
     zero, i0, i1, i2, i3, default_str_len, init_mpi_data_parameters
 
-  use m_helper_functions, only : get_arg, CHKERR, char_to_upper, imp_min_mean_max
+  use m_helper_functions, only : &
+    & char_to_upper, &
+    & CHKERR, &
+    & get_arg, &
+    & get_petsc_opt, &
+    & imp_min_mean_max
 
   implicit none
 
@@ -854,13 +859,8 @@ contains
     integer(mpiint) :: comm, myid, ierr
 
     call KSPGetOptionsPrefix(ksp, prefix, ierr); call CHKERR(ierr)
-    if(prefix.eq.'solar_diff_') then
-      lhegedus = .True.
-    else
-      lhegedus = .False.
-    endif
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, prefix, &
-      "-use_hegedus" , lhegedus , lflg , ierr) ;call CHKERR(ierr)
+    lhegedus = .False.
+    call get_petsc_opt(prefix, "-use_hegedus" , lhegedus , lflg , ierr) ;call CHKERR(ierr)
 
     if(lhegedus) then
       call KSPGetDM(ksp, dm, ierr); call CHKERR(ierr)
@@ -908,8 +908,7 @@ contains
     logical :: lflg
     ierr = 0
     csplit_type = 'MPI_COMM_TYPE_SHARED'
-    call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-      & '-mpi_split_type', csplit_type, lflg, ierr) ; call CHKERR(ierr)
+    call get_petsc_opt(PETSC_NULL_CHARACTER, '-mpi_split_type', csplit_type, lflg, ierr) ; call CHKERR(ierr)
     call char_to_upper(csplit_type)
     select case(trim(csplit_type))
     case('MPI_COMM_TYPE_SHARED')

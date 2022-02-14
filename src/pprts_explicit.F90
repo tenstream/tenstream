@@ -31,6 +31,7 @@ module m_pprts_explicit
   use m_helper_functions, only : &
     & approx, &
     & CHKERR, &
+    & get_petsc_opt, &
     & imp_min_mean_max, &
     & mpi_logical_and, &
     & toStr
@@ -96,42 +97,34 @@ contains
 
 
       maxiter=1000
-      call PetscOptionsGetInt(PETSC_NULL_OPTIONS, prefix, &
-        "-ksp_max_it", maxiter, lflg, ierr) ;call CHKERR(ierr)
+      call get_petsc_opt(prefix, "-ksp_max_it", maxiter, lflg, ierr); call CHKERR(ierr)
 
       ignore_max_it=-huge(ignore_max_it)
-      call PetscOptionsGetReal(PETSC_NULL_OPTIONS, prefix, "-ksp_ignore_max_it", &
-        ignore_max_it, lflg , ierr) ;call CHKERR(ierr)
+      call get_petsc_opt(prefix, "-ksp_ignore_max_it", ignore_max_it, lflg, ierr); call CHKERR(ierr)
       if (solution%time(1).lt.ignore_max_it) then
          maxiter=1001
       endif
       allocate(residual(maxiter))
 
       lskip_residual = .False.
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, prefix, &
-        "-ksp_skip_residual", lskip_residual, lflg , ierr) ;call CHKERR(ierr)
+      call get_petsc_opt(prefix, "-ksp_skip_residual", lskip_residual, lflg, ierr); call CHKERR(ierr)
 
       lmonitor_residual = .False.
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, prefix, &
-        & "-ksp_monitor", lmonitor_residual, lflg , ierr) ;call CHKERR(ierr)
+      call get_petsc_opt(prefix, "-ksp_monitor", lmonitor_residual, lflg, ierr); call CHKERR(ierr)
       if(.not.lmonitor_residual) then
-        call PetscOptionsGetBool(PETSC_NULL_OPTIONS, prefix, &
-          & "-ksp_monitor_true_residual", lmonitor_residual, lflg , ierr) ;call CHKERR(ierr)
+        call get_petsc_opt(prefix, "-ksp_monitor_true_residual", lmonitor_residual, lflg, ierr); call CHKERR(ierr)
       endif
 
       lconverged_reason = lmonitor_residual
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, prefix, &
-        & "-ksp_converged_reason", lconverged_reason, lflg , ierr) ;call CHKERR(ierr)
+      call get_petsc_opt(prefix, "-ksp_converged_reason", lconverged_reason, lflg, ierr); call CHKERR(ierr)
 
       laccept_incomplete_solve = .False.
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-        "-accept_incomplete_solve", laccept_incomplete_solve, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, "-accept_incomplete_solve", laccept_incomplete_solve, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt(prefix, "-accept_incomplete_solve", laccept_incomplete_solve, lflg, ierr); call CHKERR(ierr)
 
       call determine_ksp_tolerances(C, atm%l1d, rtol, atol)
-      call PetscOptionsGetReal(PETSC_NULL_OPTIONS, prefix, "-ksp_atol", &
-        atol, lflg , ierr) ;call CHKERR(ierr)
-      call PetscOptionsGetReal(PETSC_NULL_OPTIONS, prefix, "-ksp_rtol", &
-        rtol, lflg2, ierr) ;call CHKERR(ierr)
+      call get_petsc_opt(prefix, "-ksp_atol", atol, lflg , ierr) ;call CHKERR(ierr)
+      call get_petsc_opt(prefix, "-ksp_rtol", rtol, lflg2, ierr) ;call CHKERR(ierr)
 
       lsun_north = sun%yinc.eq.i0
       lsun_east  = sun%xinc.eq.i0
@@ -140,16 +133,15 @@ contains
       dy = [C%ys, C%ye, i1]
 
       lpermute = .True.
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
-        "-explicit_edir_permute", lpermute, lflg , ierr) ;call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, "-explicit_edir_permute", lpermute, lflg , ierr) ;call CHKERR(ierr)
+      call get_petsc_opt(prefix, "-explicit_edir_permute", lpermute, lflg , ierr) ;call CHKERR(ierr)
       if(lpermute) then
         if(lsun_east) dx = [dx(2), dx(1), -dx(3)]
         if(lsun_north) dy = [dy(2), dy(1), -dy(3)]
       endif
 
       lksp_view = .False.
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, prefix, &
-        "-ksp_view", lksp_view, lflg , ierr) ;call CHKERR(ierr)
+      call get_petsc_opt(prefix, "-ksp_view", lksp_view, lflg , ierr) ;call CHKERR(ierr)
       if(solver%myid.eq.0.and.lksp_view) then
         print *,'* Using pprts explicit solver for prefix <'//trim(prefix)//'>'
         print *,'  -'//trim(prefix)//'max_it '//toStr(maxiter)
@@ -458,53 +450,42 @@ contains
 
 
       maxiter=1000
-      call PetscOptionsGetInt(PETSC_NULL_OPTIONS, prefix, &
-        "-ksp_max_it", maxiter, lflg, ierr) ;call CHKERR(ierr)
+      call get_petsc_opt(prefix, "-ksp_max_it", maxiter, lflg, ierr) ;call CHKERR(ierr)
 
       ignore_max_it=-huge(ignore_max_it)
-      call PetscOptionsGetReal(PETSC_NULL_OPTIONS, prefix, "-ksp_ignore_max_it", &
-        ignore_max_it, lflg , ierr) ;call CHKERR(ierr)
+      call get_petsc_opt(prefix, "-ksp_ignore_max_it", ignore_max_it, lflg , ierr) ;call CHKERR(ierr)
       if (solution%time(1).lt.ignore_max_it) then
          maxiter=1001
       endif
       allocate(residual(maxiter))
       sub_iter = 1
-      call PetscOptionsGetInt(PETSC_NULL_OPTIONS, prefix, &
-        "-sub_it", sub_iter, lflg, ierr) ;call CHKERR(ierr)
+      call get_petsc_opt(prefix, "-sub_it", sub_iter, lflg, ierr) ;call CHKERR(ierr)
 
       lskip_residual = .False.
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, prefix, &
-        "-ksp_skip_residual", lskip_residual, lflg , ierr) ;call CHKERR(ierr)
+      call get_petsc_opt(prefix, "-ksp_skip_residual", lskip_residual, lflg , ierr) ;call CHKERR(ierr)
 
       lmonitor_residual = .False.
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, prefix, &
-        "-ksp_monitor", lmonitor_residual, lflg , ierr) ;call CHKERR(ierr)
+      call get_petsc_opt(prefix, "-ksp_monitor", lmonitor_residual, lflg , ierr) ;call CHKERR(ierr)
       if(.not.lmonitor_residual) then
-        call PetscOptionsGetBool(PETSC_NULL_OPTIONS, prefix, &
-          & "-ksp_monitor_true_residual", lmonitor_residual, lflg , ierr) ;call CHKERR(ierr)
+        call get_petsc_opt(prefix, "-ksp_monitor_true_residual", lmonitor_residual, lflg , ierr) ;call CHKERR(ierr)
       endif
 
       lconverged_reason = lmonitor_residual
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, prefix, &
-        & "-ksp_converged_reason", lconverged_reason, lflg , ierr) ;call CHKERR(ierr)
+      call get_petsc_opt(prefix, "-ksp_converged_reason", lconverged_reason, lflg , ierr) ;call CHKERR(ierr)
 
       laccept_incomplete_solve = .False.
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-        "-accept_incomplete_solve", laccept_incomplete_solve, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, "-accept_incomplete_solve", laccept_incomplete_solve, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt(prefix, "-accept_incomplete_solve", laccept_incomplete_solve, lflg, ierr); call CHKERR(ierr)
 
       call determine_ksp_tolerances(C, atm%l1d, rtol, atol)
-      call PetscOptionsGetReal(PETSC_NULL_OPTIONS, prefix, "-ksp_atol", &
-        atol, lflg , ierr) ;call CHKERR(ierr)
-      call PetscOptionsGetReal(PETSC_NULL_OPTIONS, prefix, "-ksp_rtol", &
-        rtol, lflg2, ierr) ;call CHKERR(ierr)
+      call get_petsc_opt(prefix, "-ksp_atol", atol, lflg , ierr) ;call CHKERR(ierr)
+      call get_petsc_opt(prefix, "-ksp_rtol", rtol, lflg2, ierr) ;call CHKERR(ierr)
 
       omega = 1
-      call PetscOptionsGetReal(PETSC_NULL_OPTIONS, prefix, "-pc_sor_omega", &
-        omega, lflg , ierr) ;call CHKERR(ierr)
+      call get_petsc_opt(prefix, "-pc_sor_omega", omega, lflg , ierr) ;call CHKERR(ierr)
 
       lksp_view = .False.
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, prefix, &
-        "-ksp_view", lksp_view, lflg , ierr) ;call CHKERR(ierr)
+      call get_petsc_opt(prefix, "-ksp_view", lksp_view, lflg , ierr) ;call CHKERR(ierr)
       if(solver%myid.eq.0.and.lksp_view) then
         print *,'* Using pprts explicit solver for prefix <'//trim(prefix)//'>'
         print *,'  -'//trim(prefix)//'max_it '//toStr(maxiter)

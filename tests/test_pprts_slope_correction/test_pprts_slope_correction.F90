@@ -4,14 +4,25 @@ module test_pprts_slope_correction
 
 #include "petsc/finclude/petsc.h"
   use petsc
+  use pfunit_mod
 
   use m_tenstream_options, only: read_commandline_options
-  use m_helper_functions, only: itoa, linspace, CHKERR, deg2rad, spherical_2_cartesian, cross_3d
-  use pfunit_mod
+
+  use m_helper_functions, only: &
+    & CHKERR, &
+    & cross_3d, &
+    & deg2rad, &
+    & get_petsc_opt, &
+    & linspace, &
+    & spherical_2_cartesian
+
   use m_pprts_base, only : t_solver, allocate_pprts_solver_from_commandline
 
-  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, &
-    destroy_tenstr_atm, print_tenstr_atm
+  use m_dyn_atm_to_rrtmg, only: &
+    & destroy_tenstr_atm, &
+    & print_tenstr_atm, &
+    & setup_tenstr_atm, &
+    & t_tenstr_atm
 
   use m_pprts_rrtmg, only : pprts_rrtmg, destroy_pprts_rrtmg
 
@@ -87,9 +98,9 @@ contains
 
 
     hill_dP = 100 ! [hPa]
-    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-hill_dP", hill_dP, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt(PETSC_NULL_CHARACTER, "-hill_dP", hill_dP, lflg, ierr); call CHKERR(ierr)
     hill_shape = 3
-    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-hill_shape", hill_shape, lflg, ierr); call CHKERR(ierr) ! the bigger the flatter
+    call get_petsc_opt(PETSC_NULL_CHARACTER, "-hill_shape", hill_shape, lflg, ierr); call CHKERR(ierr) ! the bigger the flatter
 
     do j=1,nyp
       jglob = j + nyp*myid

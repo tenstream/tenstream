@@ -5,7 +5,7 @@ program main
   use m_tenstream_options, only: read_commandline_options
   use m_data_parameters, only : iintegers, mpiint, ireals, default_str_len
   use m_example_pprts_rrtm_lw_sw, only: ex_pprts_rrtm_lw_sw
-  use m_helper_functions, only: CHKERR
+  use m_helper_functions, only: CHKERR, get_petsc_opt
 
   implicit none
 
@@ -25,37 +25,34 @@ program main
   call read_commandline_options(comm)
 
   Nx=3; Ny=3; Nz=5
-  call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Nx", Nx, lflg, ierr); call CHKERR(ierr)
-  call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Ny", Ny, lflg, ierr); call CHKERR(ierr)
-  call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Nz", Nz, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-Nx", Nx, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-Ny", Ny, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-Nz", Nz, lflg, ierr); call CHKERR(ierr)
 
   dx = 500
-  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-dx", dx, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-dx", dx, lflg, ierr); call CHKERR(ierr)
   dy = dx
-  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-dy", dy, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-dy", dy, lflg, ierr); call CHKERR(ierr)
 
   phi0 = 180._ireals
-  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-phi", phi0, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-phi", phi0, lflg, ierr); call CHKERR(ierr)
   theta0 = 0._ireals
-  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-theta", theta0, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-theta", theta0, lflg, ierr); call CHKERR(ierr)
   albedo_th = 0._ireals
-  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Ag", albedo_th, lflg, ierr); call CHKERR(ierr)
-  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Ag_thermal", albedo_th, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-Ag", albedo_th, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-Ag_thermal", albedo_th, lflg, ierr); call CHKERR(ierr)
   albedo_sol = .1_ireals
-  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Ag", albedo_sol, lflg, ierr); call CHKERR(ierr)
-  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Ag_solar", albedo_sol, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-Ag", albedo_sol, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-Ag_solar", albedo_sol, lflg, ierr); call CHKERR(ierr)
 
   atm_filename='atm.dat'
-  call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-atm', &
-    atm_filename, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, '-atm', atm_filename, lflg, ierr); call CHKERR(ierr)
 
   lthermal=.True.
-  call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-    "-thermal", lthermal, lflg,ierr) ; call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-thermal", lthermal, lflg,ierr) ; call CHKERR(ierr)
 
   lsolar=.True.
-  call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-    "-solar", lsolar, lflg,ierr) ; call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-solar", lsolar, lflg,ierr) ; call CHKERR(ierr)
 
 
   if (myid.eq.0) print *,'Running rrtm_lw_sw example with grid size:', Nx, Ny, Nz

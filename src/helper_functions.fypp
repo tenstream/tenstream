@@ -76,6 +76,7 @@ module m_helper_functions
     & ftoa, &
     & get_arg, &
     & get_mem_footprint, &
+    & get_petsc_opt, &
     & gradient, &
     & imp_allgather_int_inplace, &
     & imp_allreduce_max, &
@@ -291,6 +292,7 @@ module m_helper_functions
   end interface
 
   interface toStr
+    module procedure toStr_character
     module procedure ltoa
     #:for basetype,dtype in [&
       ('integer', 'INT32'  ), &
@@ -399,6 +401,23 @@ module m_helper_functions
 
   interface get_arg
     module procedure get_arg_logical, get_arg_i32, get_arg_i64, get_arg_real32, get_arg_real64, get_arg_char
+  end interface
+
+  interface get_petsc_opt
+    #:for basetype,dtype,petscfunc in [   &
+      ('integer'  , 'iintegers', 'PetscOptionsGetInt' ), &
+      ('real'     , 'ireals'   , 'PetscOptionsGetReal'), &
+      ('character', 'len=*'    , 'PetscOptionsGetString'), &
+      ('logical'  , None       , 'PetscOptionsGetBool'), &
+      ]
+    module procedure get_petsc_opt_${basetype}$
+    #:endfor
+    #:for basetype,dtype,petscfunc in [   &
+      ('integer'  , 'iintegers', 'PetscOptionsGetInt' ), &
+      ('real'     , 'ireals'   , 'PetscOptionsGetReal'), &
+      ]
+    module procedure get_petsc_opt_${basetype}$_array
+    #:endfor
   end interface
   interface sEXP
     module procedure sEXP_r32, sEXP_r64
@@ -700,6 +719,12 @@ module m_helper_functions
       endif
     end subroutine
     #:endfor
+
+    function toStr_character(inp) result (res)
+      character(len=*), intent(in) :: inp
+      character(len=len_trim(inp)) :: res
+      res = inp
+    end function
 
     elemental function ltoa(l) result(res)
       character(len=1) :: res
@@ -2938,4 +2963,113 @@ end subroutine
      triangle_area_by_vertices(v1, v4, v5)
  end function
 #:endfor
+
+
+!> @brief simple wrapper to the get functions for petsc's default options database
+#:for basetype,dtype,petscfunc in [   &
+  ('integer'  , 'iintegers', 'PetscOptionsGetInt'   ), &
+  ('real'     , 'ireals'   , 'PetscOptionsGetReal'  ), &
+  ('character', 'len=*'    , 'PetscOptionsGetString'), &
+  ('logical'  , None       , 'PetscOptionsGetBool'  ), &
+  ]
+#:set dKIND = '' if dtype == None else '('+dtype+')'
+
+subroutine get_petsc_opt_${basetype}$(prefix, option_name, optval, lset, ierr)
+  character(len=*), intent(in) :: prefix, option_name
+  ${basetype}$${dKIND}$, intent(inout) :: optval
+  logical, intent(out) :: lset
+  integer(mpiint), intent(out) :: ierr
+
+  character(len=default_str_len) :: full_opt_name, color
+  integer(mpiint) :: myid
+  logical :: lshow, lflg
+
+  lshow = .False.
+  call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-ts_options_view", lshow, lflg, ierr); call CHKERR(ierr)
+
+  call ${petscfunc}$(&
+    & PETSC_NULL_OPTIONS, &
+    & trim(prefix), &
+    & trim(option_name), &
+    & optval, &
+    & lset, &
+    & ierr)
+  call CHKERR(ierr)
+
+  if(lshow) then
+    if (lset) then
+      color = 'green'
+    else
+      color = 'dark grey'
+    endif
+    if (option_name(1:1)=='-'.and.len_trim(option_name)>1) then
+      full_opt_name = '-'//trim(prefix)//trim(option_name(2:))
+    else
+      full_opt_name = '-'//trim(prefix)//trim(option_name)
+    endif
+    call mpi_comm_rank(petsc_comm_world, myid, ierr); call CHKERR(ierr)
+    if(myid.eq.0) print *,'Tenstream option'//' '//cstr(trim(full_opt_name),color)//' '// &
+      & cstr('(opt <'//trim(option_name)//'> prefix <'//trim(prefix)//'> set? '//toStr(lset)//' )', 'dark grey')// &
+      & ' => '//cstr(trim(toStr(optval)), color)
+  endif
+end subroutine
+#:endfor
+
+#:for basetype,dtype,petscfunc in [   &
+  ('integer'  , 'iintegers', 'PetscOptionsGetInt'   ), &
+  ('real'     , 'ireals'   , 'PetscOptionsGetReal'  ), &
+  ]
+#:set dKIND = '' if dtype == None else '('+dtype+')'
+
+subroutine get_petsc_opt_${basetype}$_array(prefix, option_name, optval, nmax, lset, ierr)
+  character(len=*), intent(in) :: prefix, option_name
+  ${basetype}$${dKIND}$, intent(inout) :: optval(:)
+  integer(iintegers), intent(inout) :: nmax
+  logical, intent(out) :: lset
+  integer(mpiint), intent(out) :: ierr
+
+  character(len=default_str_len) :: full_opt_name, color
+  integer(iintegers) :: argcnt
+  integer(mpiint) :: myid
+  logical :: lshow, lflg
+
+  lshow = .False.
+  call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-ts_options_view", lshow, lflg, ierr); call CHKERR(ierr)
+
+  argcnt = nmax
+
+  call ${petscfunc}$Array(&
+    & PETSC_NULL_OPTIONS, &
+    & trim(prefix), &
+    & trim(option_name), &
+    & optval, &
+    & argcnt, &
+    & lset, &
+    & ierr)
+  call CHKERR(ierr)
+
+  if(lshow) then
+    if (lset) then
+      color = 'green'
+    else
+      color = 'dark grey'
+    endif
+    if (option_name(1:1)=='-'.and.len_trim(option_name)>1) then
+      full_opt_name = '-'//trim(prefix)//trim(option_name(2:))
+    else
+      full_opt_name = '-'//trim(prefix)//trim(option_name)
+    endif
+    call mpi_comm_rank(petsc_comm_world, myid, ierr); call CHKERR(ierr)
+    if(myid.eq.0) print *,'Tenstream option'//' '//cstr(trim(full_opt_name),color)//' '// &
+      & cstr('( '// &
+        & 'opt <'//trim(option_name)//'> '// &
+        & 'prefix <'//trim(prefix)//'> '// &
+        & 'set? '//toStr(lset)//' '// &
+        & 'nmax '//toStr(nmax)//' '// &
+      & ')', 'dark grey')// &
+      & ' => '//cstr(trim(toStr(optval))//' (cnt='//toStr(argcnt)//')', color)
+  endif
+end subroutine
+#:endfor
+
 end module

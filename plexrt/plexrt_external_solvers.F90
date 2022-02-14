@@ -4,9 +4,14 @@ module m_plexrt_external_solvers
 
   use m_data_parameters, only: ireals, iintegers, mpiint, &
     i0, i1, i2, i3, i4, i5, zero
-  use m_helper_functions, only: CHKERR, CHKWARN, &
-    angle_between_two_vec, delta_scale, &
-    cstr, itoa, ftoa, approx
+  use m_helper_functions, only: &
+    & angle_between_two_vec, &
+    & approx, &
+    & CHKERR, CHKWARN, &
+    & cstr, &
+    & delta_scale, &
+    & get_petsc_opt, &
+    & toStr
 
   use m_pprts_base, only : t_state_container
   use m_plex_rt_base, only: t_plex_solver
@@ -52,8 +57,7 @@ contains
     if(.not.allocated(solver%plck)) call CHKERR(1_mpiint, 'Tried calling schwarschild solver but no planck was given -- stopping!')
 
     Nmu = 10
-    call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
-      "-schwarzschild_Nmu" , Nmu, lflg , ierr) ;call CHKERR(ierr)
+    call get_petsc_opt(PETSC_NULL_CHARACTER, "-schwarzschild_Nmu" , Nmu, lflg , ierr) ;call CHKERR(ierr)
 
     associate( plex => solver%plex )
 
@@ -292,11 +296,11 @@ contains
 
         if(lsolar .and. (.not.approx( (Edir(ke1)+Edn(ke1)) * xalbedo(i), Eup(ke1), sqrt(epsilon(Eup)) ))) &
           call CHKERR(1_mpiint, 'Reflected Radiation at the surface does not match the given '//new_line('')// &
-          'albedo: '//ftoa(xalbedo(i))//new_line('')// &
-          'Edir: '//ftoa(Edir(ke1))//new_line('')// &
-          'Edn: '//ftoa(Edn(ke1))//new_line('')// &
-          'Eup: '//ftoa(Eup(ke1))//new_line('')// &
-          'should be: '//ftoa((Edir(ke1)+Edn(ke1))*xalbedo(i))//new_line('') )
+          'albedo: '//toStr(xalbedo(i))//new_line('')// &
+          'Edir: '//toStr(Edir(ke1))//new_line('')// &
+          'Edn: '//toStr(Edn(ke1))//new_line('')// &
+          'Eup: '//toStr(Eup(ke1))//new_line('')// &
+          'should be: '//toStr((Edir(ke1)+Edn(ke1))*xalbedo(i))//new_line('') )
 
         ! compute absorption as flux divergence
         do k = 1, ke1-1
@@ -372,12 +376,10 @@ contains
     logical :: ldelta_scale, lflg
 
     nstreams = 16
-    call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
-      "-disort_streams" , nstreams , lflg , ierr) ;call CHKERR(ierr)
+    call get_petsc_opt(PETSC_NULL_CHARACTER, "-disort_streams" , nstreams , lflg , ierr) ;call CHKERR(ierr)
 
     ldelta_scale = .False.
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
-      "-disort_delta_scale" , ldelta_scale , lflg , ierr) ;call CHKERR(ierr)
+    call get_petsc_opt(PETSC_NULL_CHARACTER, "-disort_delta_scale" , ldelta_scale , lflg , ierr) ;call CHKERR(ierr)
 
     if(solution%lsolar_rad) then
       call VecSet(solution%edir, zero, ierr); call CHKERR(ierr)
@@ -687,7 +689,7 @@ contains
             base_info, side_info, hr)
 
           call PetscSectionGetOffset(abso_section, icell, voff, ierr); call CHKERR(ierr)
-          !print *, cstr(itoa(myid)//' icell '//itoa(icell)//' before: '//ftoa(xabso(i1+voff))//' after '//ftoa(hr), 'red')
+          !print *, cstr(itoa(myid)//' icell '//itoa(icell)//' before: '//toStr(xabso(i1+voff))//' after '//toStr(hr), 'red')
           xabso(i1+voff) = hr
         enddo
       end subroutine

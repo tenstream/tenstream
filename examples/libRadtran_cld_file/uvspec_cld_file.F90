@@ -18,8 +18,14 @@ module m_example_uvspec_cld_file
     hydrostat_dp, load_atmfile, t_bg_atm, print_tenstr_atm
 
   use m_tenstream_options, only: read_commandline_options
-  use m_helper_functions, only: CHKERR, itoa, imp_bcast, reverse, spherical_2_cartesian, resize_arr, &
-    domain_decompose_2d_petsc
+  use m_helper_functions, only: &
+    & CHKERR, &
+    & domain_decompose_2d_petsc, &
+    & get_petsc_opt, &
+    & imp_bcast, &
+    & resize_arr, &
+    & reverse, &
+    & spherical_2_cartesian
   use m_netcdfio, only: ncload, ncwrite, get_global_attribute
 
   use m_petsc_helpers, only: getvecpointer, restorevecpointer
@@ -90,10 +96,10 @@ contains
 
       is = lbound(lwc, dim=2); ie = ubound(lwc, dim=2)
       js = lbound(lwc, dim=3); je = ubound(lwc, dim=3)
-      call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-xs', is, lflg, ierr); call CHKERR(ierr)
-      call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-xe', ie, lflg, ierr); call CHKERR(ierr)
-      call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-ys', js, lflg, ierr); call CHKERR(ierr)
-      call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-ye', je, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, '-xs', is, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, '-xe', ie, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, '-ys', js, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, '-ye', je, lflg, ierr); call CHKERR(ierr)
       allocate(tmp(size(lwc,dim=1), size(lwc,dim=2), size(lwc,dim=3)))
       tmp = lwc
       deallocate(lwc)
@@ -588,6 +594,7 @@ program main
   use petsc
   use mpi
   use m_data_parameters, only : mpiint
+  use m_helper_functions, only: get_petsc_opt
   use m_example_uvspec_cld_file
 
   implicit none
@@ -606,45 +613,45 @@ program main
   call read_commandline_options(mpi_comm_world)
   call mpi_comm_rank(mpi_comm_world, myid, ierr)
 
-  call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-cld', cldfile, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, '-cld', cldfile, lflg, ierr); call CHKERR(ierr)
   if(.not.lflg) call CHKERR(1_mpiint, 'need to supply a cloud filename... please call with -cld <libRadtran_cloud_file.nc>')
 
-  call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-out', outfile, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, '-out', outfile, lflg, ierr); call CHKERR(ierr)
   if(.not.lflg) call CHKERR(1_mpiint, 'need to supply a output filename... please call with -out <output.nc>')
 
-  call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-atm_filename', atm_filename, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, '-atm_filename', atm_filename, lflg, ierr); call CHKERR(ierr)
   if(.not.lflg) call CHKERR(1_mpiint, 'need to supply an atmosphere filename... please call with -atm_filename <atm.dat>')
 
   Ag = .1
-  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Ag", Ag, lflg,ierr) ; call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-Ag", Ag, lflg,ierr) ; call CHKERR(ierr)
 
   lsolar = .True.
   lthermal = .True.
-  call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-solar", lsolar, lflg,ierr) ; call CHKERR(ierr)
-  call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-thermal", lthermal, lflg,ierr) ; call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-solar", lsolar, lflg,ierr) ; call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-thermal", lthermal, lflg,ierr) ; call CHKERR(ierr)
 
   scene_shift_x=0
   scene_shift_y=0
   scene_shift_it=1
-  call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+  call get_petsc_opt(PETSC_NULL_CHARACTER, &
     & '-scene_shift_x', scene_shift_x, lflg, ierr); call CHKERR(ierr)
-  call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+  call get_petsc_opt(PETSC_NULL_CHARACTER, &
     & '-scene_shift_y', scene_shift_y, lflg, ierr); call CHKERR(ierr)
-  call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+  call get_petsc_opt(PETSC_NULL_CHARACTER, &
     & '-scene_shift_it',scene_shift_it,lflg, ierr); call CHKERR(ierr)
 
   phi0 = 270
-  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-phi", phi0, lflg,ierr) ; call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-phi", phi0, lflg,ierr) ; call CHKERR(ierr)
   theta0 = 60
-  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-theta", theta0, lflg,ierr) ; call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-theta", theta0, lflg,ierr) ; call CHKERR(ierr)
 
   Tsrfc = 288
-  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Tsrfc", Tsrfc, lflg,ierr) ; call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-Tsrfc", Tsrfc, lflg,ierr) ; call CHKERR(ierr)
   dTdz = -6.5_ireals * 1e-3_ireals
-  call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-dTdz", dTdz, lflg,ierr) ; call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-dTdz", dTdz, lflg,ierr) ; call CHKERR(ierr)
 
   luse_plexrt = .False.
-  call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-use_plexrt", luse_plexrt, lflg,ierr) ; call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-use_plexrt", luse_plexrt, lflg,ierr) ; call CHKERR(ierr)
 
   if(luse_plexrt) then
     call CHKERR(int(scene_shift_x, mpiint), 'not supported option')

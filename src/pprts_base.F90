@@ -13,6 +13,7 @@ module m_pprts_base
     & cstr, &
     & deallocate_allocatable, &
     & get_arg, &
+    & get_petsc_opt, &
     & imp_allreduce_min, &
     & toStr
 
@@ -43,6 +44,7 @@ module m_pprts_base
     & t_mat_permute_info, &
     & t_pprts_shell_ctx, &
     & t_solver, &
+    & t_solver_2str, &
     & t_solver_1_2, &
     & t_solver_3_6, &
     & t_solver_3_10, &
@@ -169,6 +171,7 @@ module m_pprts_base
   end type
 
   type, abstract :: t_solver
+    character(len=default_str_len)     :: prefix='' ! name to prefix options
     character(len=default_str_len)     :: solvername='' ! name to prefix e.g. log stages. If you create more than one solver, make sure that it has a unique name
     integer(mpiint)                    :: comm, myid, numnodes     ! mpi communicator, my rank and number of ranks in comm
     type(t_coord), allocatable         :: C_dir, C_diff, C_one, C_one1
@@ -202,6 +205,8 @@ module m_pprts_base
     type(t_state_container), allocatable :: solutions(:)
   end type
 
+  type, extends(t_solver) :: t_solver_2str
+  end type
   type, extends(t_solver) :: t_solver_1_2
   end type
   type, extends(t_solver) :: t_solver_3_6
@@ -245,20 +250,20 @@ module m_pprts_base
         call DMCreateGlobalVector(edir_dm, solution%edir, ierr)  ; call CHKERR(ierr)
         call PetscObjectSetName(solution%edir,'initialized_edir_vec uid='//toStr(solution%uid),ierr) ; call CHKERR(ierr)
         call VecSet(solution%edir, zero, ierr); call CHKERR(ierr)
-        call PetscObjectViewFromOptions(solution%edir, PETSC_NULL_VEC, "-show_init_edir", ierr); call CHKERR(ierr)
+        call PetscObjectViewFromOptions(solution%edir, edir_dm, "-show_init_edir", ierr); call CHKERR(ierr)
       endif
 
       allocate(solution%ediff)
       call DMCreateGlobalVector(ediff_dm, solution%ediff, ierr)  ; call CHKERR(ierr)
       call PetscObjectSetName(solution%ediff,'initialized_ediff_vec uid='//toStr(solution%uid),ierr) ; call CHKERR(ierr)
       call VecSet(solution%ediff, zero, ierr); call CHKERR(ierr)
-      call PetscObjectViewFromOptions(solution%ediff, PETSC_NULL_VEC, "-show_init_ediff", ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(solution%ediff, ediff_dm, "-show_init_ediff", ierr); call CHKERR(ierr)
 
       allocate(solution%abso)
       call DMCreateGlobalVector(abso_dm, solution%abso, ierr)  ; call CHKERR(ierr)
       call PetscObjectSetName(solution%abso,'initialized_abso_vec uid='//toStr(solution%uid),ierr) ; call CHKERR(ierr)
       call VecSet(solution%abso, zero, ierr); call CHKERR(ierr)
-      call PetscObjectViewFromOptions(solution%abso, PETSC_NULL_VEC, "-show_init_abso", ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(solution%abso, abso_dm, "-show_init_abso", ierr); call CHKERR(ierr)
 
       solution%lset = .True.
     end subroutine
@@ -347,13 +352,14 @@ module m_pprts_base
       call PetscLogEventRegister(trim(s)//'debug_output', cid, logs%debug_output, ierr); call CHKERR(ierr)
     end subroutine
 
-  subroutine allocate_pprts_solver_from_commandline(pprts_solver, default_solver, ierr)
+  subroutine allocate_pprts_solver_from_commandline(pprts_solver, default_solver, ierr, prefix)
     class(t_solver), intent(inout), allocatable :: pprts_solver
     character(len=*), intent(in), optional :: default_solver
     integer(mpiint), intent(out) :: ierr
+    character(len=*), intent(in), optional :: prefix
 
     logical :: lflg
-    character(len=default_str_len) :: solver_str
+    character(len=default_str_len) :: solver_str, pref
 
     ierr = 0
 
@@ -365,9 +371,13 @@ module m_pprts_base
     endif
 
     solver_str = get_arg('none', trim(default_solver))
-    call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-solver', solver_str, lflg, ierr) ; call CHKERR(ierr)
+    pref = get_arg(PETSC_NULL_CHARACTER, prefix)
+    call get_petsc_opt(pref, '-solver', solver_str, lflg, ierr); call CHKERR(ierr)
 
     select case (solver_str)
+      case('2str')
+        allocate(t_solver_2str::pprts_solver)
+
       case('1_2')
         allocate(t_solver_1_2::pprts_solver)
 
@@ -397,18 +407,20 @@ module m_pprts_base
 
       case default
         print *,'error, have to provide solver type as argument, e.g. call with'
-        print *,'-solver 1_2'
-        print *,'-solver 3_6'
-        print *,'-solver 3_10'
-        print *,'-solver 3_16'
-        print *,'-solver 3_24'
-        print *,'-solver 3_30'
-        print *,'-solver 8_10'
-        print *,'-solver 8_16'
-        print *,'-solver 8_18'
+        print *,'-'//trim(pref)//'solver 2str'
+        print *,'-'//trim(pref)//'solver 1_2'
+        print *,'-'//trim(pref)//'solver 3_6'
+        print *,'-'//trim(pref)//'solver 3_10'
+        print *,'-'//trim(pref)//'solver 3_16'
+        print *,'-'//trim(pref)//'solver 3_24'
+        print *,'-'//trim(pref)//'solver 8_10'
+        print *,'-'//trim(pref)//'solver 8_16'
         ierr = 1
-        call CHKERR(ierr, 'have to provide solver type')
+        call CHKERR(ierr, 'have to provide valid solver type, '// &
+          & 'given <'//trim(solver_str)//'> (prefix='//trim(pref)//')')
     end select
+
+    pprts_solver%prefix = pref
   end subroutine
 
   subroutine destroy_coord(C)
@@ -584,7 +596,7 @@ module m_pprts_base
     call restoreVecPointer(solver%C_one_atm1_box%da, atm%hhl, hhl1d, hhl, readonly=.True.)
     call VecRestoreArrayF90(coordinates,xv1d,ierr) ;call CHKERR(ierr)
 
-    call PetscObjectViewFromOptions(coordinates, PETSC_NULL_VEC, "-pprts_show_coordinates", ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(coordinates, da, "-pprts_show_coordinates", ierr); call CHKERR(ierr)
   end subroutine
 
 
@@ -639,7 +651,7 @@ module m_pprts_base
 
     call restoreVecPointer(C_grad%da, vgrad, grad_1d, grad)
 
-    call PetscObjectViewFromOptions(vgrad, PETSC_NULL_VEC, "-pprts_show_grad", ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(vgrad, C_hhl%da, "-pprts_show_grad", ierr); call CHKERR(ierr)
   end subroutine
 
   !> @brief horizontally interpolate/average cell values onto vertices

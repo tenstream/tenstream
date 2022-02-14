@@ -44,8 +44,16 @@ module m_plexrt_rrtmg
       mpiint, pi, default_str_len
   use m_adaptive_spectral_integration, only: need_new_solution
   use m_helper_functions, only : &
-      CHKERR, CHKWARN, deg2rad, reverse, itoa, ftoa, angle_between_two_vec, &
-      rad2deg, get_arg, delta_scale_optprop, is_inrange
+      & CHKERR, CHKWARN, &
+      & deg2rad, &
+      & reverse, &
+      & toStr, &
+      & get_petsc_opt, &
+      & angle_between_two_vec, &
+      & rad2deg, &
+      & get_arg, &
+      & delta_scale_optprop, &
+      & is_inrange
   use m_search, only: find_real_location
   use m_tenstream_interpolation, only : interp_1d
 
@@ -123,8 +131,7 @@ contains
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
     lrrtmg_only=.False. ! by default use normal tenstream solver
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
-                             "-rrtmg_only" , lrrtmg_only , lflg , ierr) ;call CHKERR(ierr)
+    call get_petsc_opt(PETSC_NULL_CHARACTER, "-rrtmg_only" , lrrtmg_only , lflg , ierr); call CHKERR(ierr)
 
     ke1 = solver%plex%Nlay+1
     call CHKERR(int(ke1 - size(atm%plev,dim=1),mpiint), 'Vertical Size of atm and plex solver dont match')
@@ -142,13 +149,13 @@ contains
     if(ldebug) then
       if(present(solar_albedo_2d)) then
         if(any(.not.is_inrange(solar_albedo_2d, zero, one))) &
-          call CHKERR(1_mpiint, 'Bad solar albedo value min: '//ftoa(minval(solar_albedo_2d))// &
-          ' max: '//ftoa(maxval(solar_albedo_2d)))
+          call CHKERR(1_mpiint, 'Bad solar albedo value min: '//toStr(minval(solar_albedo_2d))// &
+          ' max: '//toStr(maxval(solar_albedo_2d)))
       endif
       if(present(thermal_albedo_2d)) then
         if(any(.not.is_inrange(thermal_albedo_2d, zero, one))) &
-          call CHKERR(1_mpiint, 'Bad thermal albedo value min: '//ftoa(minval(thermal_albedo_2d))// &
-          ' max: '//ftoa(maxval(thermal_albedo_2d)))
+          call CHKERR(1_mpiint, 'Bad thermal albedo value min: '//toStr(minval(thermal_albedo_2d))// &
+          ' max: '//toStr(maxval(thermal_albedo_2d)))
       endif
     endif
 
@@ -166,8 +173,7 @@ contains
     call allocate_optprop_vec(solver%plex%srfc_boundary_dm, solver%albedo)
 
     lskip_thermal = .False.
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
-      "-skip_thermal" , lskip_thermal, lflg , ierr) ;call CHKERR(ierr)
+    call get_petsc_opt(PETSC_NULL_CHARACTER, "-skip_thermal" , lskip_thermal, lflg , ierr); call CHKERR(ierr)
     if(lthermal.and..not.lskip_thermal) then
       call allocate_optprop_vec(solver%plex%horizface1_dm, solver%plck)
 
@@ -194,8 +200,7 @@ contains
     if(lsolar) then
 
       lskip_solar = .False.
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
-        "-skip_solar" , lskip_solar, lflg , ierr) ;call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, "-skip_solar" , lskip_solar, lflg , ierr); call CHKERR(ierr)
       if(.not.lskip_solar) then
         call PetscLogStagePush(log_events%stage_rrtmg_solar, ierr); call CHKERR(ierr)
         call compute_solar(comm, solver, atm, &
@@ -267,7 +272,7 @@ contains
           else
             call Nz_Ncol_vec_to_celldm1(solver%plex, inp, vec)
           endif
-          call PetscObjectSetName(vec, 'dump_vec'//trim(vecshow_string), ierr);call CHKERR(ierr)
+          call PetscObjectSetName(vec, 'dump_vec'//trim(vecshow_string), ierr); call CHKERR(ierr)
           call PetscObjectViewFromOptions(vec, PETSC_NULL_VEC, trim(vecshow_string), ierr); call CHKERR(ierr)
           call DMRestoreGlobalVector(solver%plex%cell1_dm, vec, ierr); call CHKERR(ierr)
         endif
@@ -453,7 +458,7 @@ contains
         print *,'shape tau', shape(tau)
         print *,'shape(tau(1:atm%d_ke)', shape(tau(1:atm%d_ke,:,:))
         call CHKERR(1_mpiint, 'Bad shape of atm%opt_tau; is: '// &
-          itoa(shape(atm%opt_tau))//' should be '//itoa(shape(tau(1:atm%d_ke,:,:))))
+          toStr(shape(atm%opt_tau))//' should be '//toStr(shape(tau(1:atm%d_ke,:,:))))
       endif
         tau(1:atm%d_ke,:,:) = tau(1:atm%d_ke,:,:) + atm%opt_tau
     endif
@@ -519,13 +524,11 @@ contains
         real, dimension(size(edn,1))   :: RFLDIR, RFLDN, FLUP, DFDT, UAVG
 
         ldisort_only = .False.
-        call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
-          "-disort_only" , ldisort_only , lflg , ierr) ;call CHKERR(ierr)
+        call get_petsc_opt(PETSC_NULL_CHARACTER, "-disort_only" , ldisort_only , lflg , ierr); call CHKERR(ierr)
 
         if(ldisort_only) then
           nstreams = 16
-          call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
-            "-disort_streams" , nstreams , lflg , ierr) ;call CHKERR(ierr)
+          call get_petsc_opt(PETSC_NULL_CHARACTER, "-disort_streams" , nstreams , lflg , ierr); call CHKERR(ierr)
 
           mu0 = 0
           S0  = 0
@@ -589,8 +592,7 @@ contains
       logical :: lflg
 
       handle_twomax_rt_solvers = .False.
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
-        "-plexrt_twomax_lw", handle_twomax_rt_solvers, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, "-plexrt_twomax_lw", handle_twomax_rt_solvers, lflg, ierr); call CHKERR(ierr)
 
       if(.not.handle_twomax_rt_solvers) return
 
@@ -929,21 +931,17 @@ contains
       real, dimension(size(edn,1))   :: RFLDIR, RFLDN, FLUP, DFDT, UAVG
 
       ldisort_only = .False.
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
-        "-disort_only", ldisort_only, lflg,ierr) ;call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, "-disort_only", ldisort_only, lflg,ierr); call CHKERR(ierr)
 
       ldelta_scale = .False.
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
-        "-disort_delta_scale", ldelta_scale, lflg ,ierr) ;call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, "-disort_delta_scale", ldelta_scale, lflg ,ierr); call CHKERR(ierr)
 
       if(ldisort_only) then
         nstreams = 16
-        call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
-          "-disort_streams", nstreams ,lflg, ierr) ;call CHKERR(ierr)
+        call get_petsc_opt(PETSC_NULL_CHARACTER, "-disort_streams", nstreams ,lflg, ierr); call CHKERR(ierr)
 
         ldisort_verbose=.False.
-        call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
-          "-disort_verbose", ldisort_verbose, lflg ,ierr) ;call CHKERR(ierr)
+        call get_petsc_opt(PETSC_NULL_CHARACTER, "-disort_verbose", ldisort_verbose, lflg ,ierr); call CHKERR(ierr)
 
 
         col_tskin = 0
@@ -1028,8 +1026,7 @@ contains
       logical :: lflg
 
       handle_twomax_rt_solvers = .False.
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
-        "-plexrt_twomax_sw", handle_twomax_rt_solvers, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, "-plexrt_twomax_sw", handle_twomax_rt_solvers, lflg, ierr); call CHKERR(ierr)
 
       if(.not.handle_twomax_rt_solvers) return
 

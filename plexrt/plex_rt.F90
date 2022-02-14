@@ -3,7 +3,7 @@ module m_plex_rt
 #include "petsc/finclude/petsc.h"
   use petsc
 
-  use m_tenstream_options, only : read_commandline_options, ltwostr_only, lschwarzschild, lcalc_nca
+  use m_tenstream_options, only : read_commandline_options, lschwarzschild, lcalc_nca
 
   use m_helper_functions, only: &
     & angle_between_two_vec, &
@@ -18,6 +18,7 @@ module m_plex_rt
     & delta_scale_optprop, &
     & determine_normal_direction, &
     & get_arg, &
+    & get_petsc_opt, &
     & imp_min_mean_max, &
     & imp_reduce_mean, &
     & meanval, &
@@ -53,6 +54,7 @@ module m_plex_rt
 
   use m_plex_rt_base, only: &
     t_plex_solver, &
+    t_plex_solver_2str, &
     t_plex_solver_5_8, &
     t_plex_solver_rectilinear_5_8, &
     t_plex_solver_18_8, &
@@ -90,6 +92,17 @@ module m_plex_rt
         call CHKERR(1_mpiint, 'Should not call init_plex_rt_solver with an unallocated solver object')
 
       select type(solver)
+      class is (t_plex_solver_2str)
+        solver%dirtop%dof = 1
+        solver%dirtop%area_divider = 1
+        solver%dirside%dof = 1
+        solver%dirside%area_divider = 1
+
+        solver%difftop%dof = 2
+        solver%difftop%area_divider = 1
+        solver%diffside%dof = 0
+        solver%diffside%area_divider = 1
+
       class is (t_plex_solver_5_8)
         allocate(t_optprop_wedge_5_8::solver%OPP)
         solver%dirtop%dof = 1
@@ -140,8 +153,7 @@ module m_plex_rt
       call setup_log_events(solver%logs, 'plexrt')
 
       lplexrt_skip_loadLUT=.False.
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-plexrt_skip_loadLUT",&
-        lplexrt_skip_loadLUT, lflg, ierr) ;call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, "-plexrt_skip_loadLUT", lplexrt_skip_loadLUT, lflg, ierr); call CHKERR(ierr)
       if(.not.lplexrt_skip_loadLUT) call solver%OPP%init(plex%comm)
 
       call setup_abso_dmplex (solver%plex%dm, solver%plex%abso_dm)
@@ -179,8 +191,7 @@ module m_plex_rt
             call CHKERR(1_mpiint, 'run_plex_rt_solver::geom_dm has to be allocated first')
 
           lview=.False.
-          call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-plexrt_view_geometry",&
-            lview, lflg, ierr) ;call CHKERR(ierr)
+          call get_petsc_opt(PETSC_NULL_CHARACTER, "-plexrt_view_geometry", lview, lflg, ierr); call CHKERR(ierr)
           if(.not.lview) return
 
           associate( plex => solver%plex, geom_dm => solver%plex%geom_dm )
@@ -587,8 +598,8 @@ module m_plex_rt
       endif
 
       lvacuum_domain_boundary=.False.
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-        "-plexrt_vacuum_domain_boundary", lvacuum_domain_boundary, lflg, ierr) ;call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, "-plexrt_vacuum_domain_boundary", lvacuum_domain_boundary, lflg, ierr)
+      call CHKERR(ierr)
       if(lvacuum_domain_boundary) then
         call vacuum_domain_boundary(solver%plex%cell1_dm, &
           solver%kabs, solver%ksca, solver%g, &
@@ -644,7 +655,8 @@ module m_plex_rt
         endif
 
         ! --------- Calculate 1D Radiative Transfer ------------
-        if(ltwostr_only) then
+        select type(solver)
+        class is (t_plex_solver_2str)
           if( (lsolar.eqv..False.) .and. lschwarzschild ) then
             call PetscLogEventBegin(solver%logs%solve_schwarzschild, ierr)
             call plexrt_schwarz(solver, solution)
@@ -660,12 +672,11 @@ module m_plex_rt
 
           if(ldebug) print *,'1D calculation done', suid, ':', solution%lsolar_rad, lschwarzschild
           goto 99
-        endif
+        end select
 
         ! DISORT interface
         luse_disort=.False.
-        call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-plexrt_use_disort",&
-          luse_disort, lflg, ierr) ;call CHKERR(ierr)
+        call get_petsc_opt(PETSC_NULL_CHARACTER, "-plexrt_use_disort", luse_disort, lflg, ierr); call CHKERR(ierr)
         if(luse_disort) then
           call PetscLogEventBegin(solver%logs%solve_twostream, ierr)
           call plexrt_disort(solver, solver%plex, solver%kabs, solver%ksca, solver%g, &
@@ -679,8 +690,7 @@ module m_plex_rt
 
         ! RayLi Raytracer interface
         luse_rayli = .False.
-        call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-          "-plexrt_use_rayli", luse_rayli, lflg, ierr) ;call CHKERR(ierr)
+        call get_petsc_opt(PETSC_NULL_CHARACTER, "-plexrt_use_rayli", luse_rayli, lflg, ierr); call CHKERR(ierr)
 
         lrayli_snap = .False.
         call PetscOptionsHasName(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
@@ -762,15 +772,15 @@ module m_plex_rt
           type(tVec), intent(inout) :: kabs, ksca, g
           real(ireals) :: v
 
-          call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,"-plexrt_scale_kabs", v, lflg, ierr); call CHKERR(ierr)
+          call get_petsc_opt(PETSC_NULL_CHARACTER, "-plexrt_scale_kabs", v, lflg, ierr); call CHKERR(ierr)
           if(lflg) then
             call VecScale(kabs, v, ierr); call CHKERR(ierr)
           endif
-          call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,"-plexrt_scale_ksca", v, lflg, ierr); call CHKERR(ierr)
+          call get_petsc_opt(PETSC_NULL_CHARACTER, "-plexrt_scale_ksca", v, lflg, ierr); call CHKERR(ierr)
           if(lflg) then
             call VecScale(ksca, v, ierr); call CHKERR(ierr)
           endif
-          call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,"-plexrt_scale_g", v, lflg, ierr); call CHKERR(ierr)
+          call get_petsc_opt(PETSC_NULL_CHARACTER, "-plexrt_scale_g", v, lflg, ierr); call CHKERR(ierr)
           if(lflg) then
             call VecScale(g, v, ierr); call CHKERR(ierr)
           endif
@@ -1349,8 +1359,7 @@ module m_plex_rt
       logical :: lview, lflg
 
       lview=.False.
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-plexrt_view_optprop",&
-        lview, lflg, ierr) ;call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, "-plexrt_view_optprop", lview, lflg, ierr) ;call CHKERR(ierr)
       if(.not.lview) return
 
       call get_col_vec(albedo, i1    , xalbedo, xxalbedo)
@@ -1456,8 +1465,7 @@ module m_plex_rt
       logical :: lview, lflg
 
       lview=.False.
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-plexrt_view_wedge_orientation",&
-        lview, lflg, ierr) ;call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, "-plexrt_view_wedge_orientation", lview, lflg, ierr); call CHKERR(ierr)
       if(.not.lview) return
 
       call PetscObjectGetComm(wedge_orientation_dm, comm, ierr); call CHKERR(ierr)
@@ -2321,8 +2329,7 @@ module m_plex_rt
           logical :: lflg
 
           asm_iter = 2
-          call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-            "-ts_ksp_iter", asm_iter, lflg, ierr) ;call CHKERR(ierr)
+          call get_petsc_opt(PETSC_NULL_CHARACTER, "-ts_ksp_iter", asm_iter, lflg, ierr); call CHKERR(ierr)
 
           call PCASMGetSubKSP(prec, asm_N, first_local, PETSC_NULL_KSP, ierr); call CHKERR(ierr)
           allocate(asm_ksps(asm_N))
@@ -2454,8 +2461,7 @@ module m_plex_rt
           type(tMat) :: Amat, Pmat
 
           ldestroy_solver = .False.
-          call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-destroy_solver",&
-            ldestroy_solver, lflg, ierr) ;call CHKERR(ierr)
+          call get_petsc_opt(PETSC_NULL_CHARACTER, "-destroy_solver", ldestroy_solver, lflg, ierr); call CHKERR(ierr)
           if(ldestroy_solver) then
             if(myid.eq.0.and.ldebug) print *,'Zeroing KSP Operators...'
             call KSPGetOperators(ksp, Amat, Pmat, ierr); call CHKERR(ierr)
@@ -2486,8 +2492,8 @@ module m_plex_rt
           endif
 
           lhandle_diverged = .False.
-          call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-plexrt_handle_diverged_solver",&
-            lhandle_diverged, lflg, ierr) ;call CHKERR(ierr)
+          call get_petsc_opt(PETSC_NULL_CHARACTER, "-plexrt_handle_diverged_solver", lhandle_diverged, lflg, ierr)
+          call CHKERR(ierr)
           if(.not.lhandle_diverged) return
 
           if(reason.le.0) then
@@ -2640,8 +2646,7 @@ module m_plex_rt
 
     if(allocated(A)) then
       ldestroy_mat = .False.
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-destroy_mat",&
-        ldestroy_mat, lflg, ierr) ;call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, "-destroy_mat", ldestroy_mat, lflg, ierr); call CHKERR(ierr)
       if(ldestroy_mat) then
         if(myid.eq.0.and.ldebug) print *,'Destroying Old Direct Matrix'
         call MatDestroy(A, ierr); call CHKERR(ierr)
@@ -3123,8 +3128,7 @@ module m_plex_rt
 
     if(allocated(A)) then
       ldestroy_mat = .False.
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-destroy_mat",&
-        ldestroy_mat, lflg, ierr) ;call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, "-destroy_mat", ldestroy_mat, lflg, ierr); call CHKERR(ierr)
       if(ldestroy_mat) then
         if(myid.eq.0.and.ldebug) print *,'Destroying Old Diffuse Matrix'
         call MatDestroy(A, ierr); call CHKERR(ierr)
@@ -3141,8 +3145,7 @@ module m_plex_rt
     endif
 
     lreset_mat = .False.
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-reset_mat",&
-      lreset_mat, lflg, ierr) ;call CHKERR(ierr)
+    call get_petsc_opt(PETSC_NULL_CHARACTER, "-reset_mat", lreset_mat, lflg, ierr); call CHKERR(ierr)
     if(lreset_mat) then
       if(myid.eq.0.and.ldebug) print *,'Resetting Diffuse Matrix'
       call MatResetPreallocation(A, ierr); call CHKERR(ierr)
@@ -3212,8 +3215,7 @@ module m_plex_rt
 
 
         sideward_bc_coeff = -one
-        call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,"-sideward_bc_coeff", &
-          sideward_bc_coeff, lflg, ierr); call CHKERR(ierr)
+        call get_petsc_opt(PETSC_NULL_CHARACTER, "-sideward_bc_coeff", sideward_bc_coeff, lflg, ierr); call CHKERR(ierr)
 
         call DMGetStratumIS(plex%geom_dm, 'DomainBoundary', SIDEFACE, bc_ids, ierr); call CHKERR(ierr)
         if (bc_ids.eq.PETSC_NULL_IS.or.approx(sideward_bc_coeff, zero)) then ! dont have surface points
@@ -3445,8 +3447,7 @@ module m_plex_rt
         max_g(3:4) = 0._irealLUT
       endif
 
-      call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
-        "-plexrt_delta_scale_max_g", max_g_delta, lflg , ierr) ;call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, "-plexrt_delta_scale_max_g", max_g_delta, lflg, ierr); call CHKERR(ierr)
       if(lflg) then
         max_g([2,4]) = max(max_g([1,3]), min(max_g([2,4]), real(max_g_delta, kind(max_g))))
         if(ldebug) print *,'found deltascaling max_g -> setting limits to:', cstr(toStr(max_g), 'green')
@@ -3603,8 +3604,8 @@ module m_plex_rt
     if(solution%lchanged) then
 
       by_coeff_divergence = get_arg(.False., absorption_by_coeff_divergence)
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-absorption_by_coeff_divergence",&
-        by_coeff_divergence, lflg, ierr) ;call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, "-absorption_by_coeff_divergence", by_coeff_divergence, lflg, ierr)
+      call CHKERR(ierr)
 
 
       if(solution%lsolar_rad .and. .not.allocated(solution%edir)) &

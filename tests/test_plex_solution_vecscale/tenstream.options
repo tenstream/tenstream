@@ -1,4 +1,3 @@
--twostr_only
 -plexrt_skip_loadLUT
 -show_dm_geom_vec
 -show_dm_geom_vec ::ascii_info_detail

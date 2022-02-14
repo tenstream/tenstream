@@ -5,8 +5,17 @@ module m_examples_plex_ex_rrtmg_icon
 
   use m_tenstream_options, only : read_commandline_options
 
-  use m_helper_functions, only: CHKERR, imp_bcast, determine_normal_direction, &
-    spherical_2_cartesian, angle_between_two_vec, rad2deg, deg2rad, meanvec, reverse
+  use m_helper_functions, only: &
+    & angle_between_two_vec, &
+    & CHKERR, &
+    & deg2rad, &
+    & determine_normal_direction, &
+    & get_petsc_opt, &
+    & imp_bcast, &
+    & meanvec, &
+    & rad2deg, &
+    & reverse, &
+    & spherical_2_cartesian
 
   use m_data_parameters, only : &
     & i0, i1, i2, i3, i4, i5,  &
@@ -196,23 +205,17 @@ contains
     subroutine init_data_strings()
       logical :: lflg
       lwc_data_string = 'clw'
-      call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-lwc_data_string', &
-        lwc_data_string, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, '-lwc_data_string', lwc_data_string, lflg, ierr); call CHKERR(ierr)
       iwc_data_string = 'cli'
-      call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-iwc_data_string', &
-        iwc_data_string, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, '-iwc_data_string', iwc_data_string, lflg, ierr); call CHKERR(ierr)
       qnc_data_string = 'qnc'
-      call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-qnc_data_string', &
-        qnc_data_string, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, '-qnc_data_string', qnc_data_string, lflg, ierr); call CHKERR(ierr)
       qni_data_string = 'qni'
-      call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-qni_data_string', &
-        qni_data_string, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, '-qni_data_string', qni_data_string, lflg, ierr); call CHKERR(ierr)
       qv_data_string = 'qv'
-      call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-qv_data_string', &
-        qv_data_string, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, '-qv_data_string',  qv_data_string , lflg, ierr); call CHKERR(ierr)
       atm_filename='atm.dat'
-      call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-atm_filename', &
-        atm_filename, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, '-atm', atm_filename, lflg, ierr); call CHKERR(ierr)
     end subroutine
     subroutine init_sundir()
       use m_helper_functions, only: cross_3d, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world, &
@@ -245,8 +248,7 @@ contains
 
 
       rot_angle = zero
-      call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-sundir_rot_phi", &
-        rot_angle, lflg, ierr) ; call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, "-sundir_rot_phi", rot_angle, lflg, ierr) ; call CHKERR(ierr)
       if(lflg) then
         U = [first_normal(2), -first_normal(1), zero]
         U = U / norm2(U)
@@ -265,8 +267,7 @@ contains
       endif
 
       rot_angle = zero
-      call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-sundir_rot_theta", &
-        rot_angle, lflg, ierr) ; call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, "-sundir_rot_theta", rot_angle, lflg, ierr) ; call CHKERR(ierr)
       if(lflg) then
         if(dot_product(first_normal, sundir).gt.one-epsilon(U)) then
           first_normal(1) = first_normal(1) + epsilon(first_normal)

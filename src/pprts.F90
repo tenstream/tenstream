@@ -41,6 +41,7 @@ module m_pprts
     & deg2rad, &
     & delta_scale, &
     & get_arg, &
+    & get_petsc_opt, &
     & imp_allreduce_max, &
     & imp_allreduce_mean, &
     & imp_allreduce_min, &
@@ -83,8 +84,8 @@ module m_pprts
   use m_eddington, only : eddington_coeff_ec, eddington_coeff_zdun
   use m_geometric_coeffs, only : dir2dir3_geometric_coeffs
 
-  use m_tenstream_options, only : read_commandline_options, ltwostr, luse_eddington, twostr_ratio, &
-    options_max_solution_err, options_max_solution_time, ltwostr_only, luse_twostr_guess,        &
+  use m_tenstream_options, only : read_commandline_options, luse_eddington, twostr_ratio, &
+    options_max_solution_err, options_max_solution_time, &
     lcalc_nca, lskip_thermal, lschwarzschild, ltopography, &
     lmcrts
 
@@ -109,6 +110,7 @@ module m_pprts
     & t_coord, &
     & t_dof, &
     & t_mat_permute_info, &
+    & t_solver_2str, &
     & t_solver_1_2, &
     & t_solver_3_6, &
     & t_solver_3_10, &
@@ -205,8 +207,7 @@ module m_pprts
       call read_commandline_options(solver%comm)
 
       luse_ann = .False.
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-        & "-pprts_use_ANN", luse_ann, lflg , ierr) ;call CHKERR(ierr)
+      call get_petsc_opt(solver%prefix, "-pprts_use_ANN", luse_ann, lflg , ierr) ;call CHKERR(ierr)
 
       solver%difftop%area_divider = 1
       solver%diffside%area_divider = 1
@@ -215,6 +216,17 @@ module m_pprts
       solver%dirside%area_divider = 1
 
       select type(solver)
+        class is (t_solver_2str)
+          allocate(solver%difftop%is_inward(2))
+          solver%difftop%is_inward = [.False.,.True.]
+
+          allocate(solver%diffside%is_inward(0))
+
+          allocate(solver%dirtop%is_inward(1))
+          solver%dirtop%is_inward = [.True.]
+
+          allocate(solver%dirside%is_inward(0))
+
         class is (t_solver_1_2)
           allocate(t_optprop_1_2::solver%OPP)
           allocate(solver%difftop%is_inward(2))
@@ -372,9 +384,8 @@ module m_pprts
       if(.not.approx(dx,dy)) &
         call CHKERR(1_mpiint, 'dx and dy currently have to be the same '//toStr(dx)//' vs '//toStr(dy))
 
-      lview = .False.
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-        & "-pprts_solver_view", lview, lflg, ierr) ;call CHKERR(ierr)
+      lview = ldebug
+      call get_petsc_opt(solver%prefix, "-pprts_solver_view", lview, lflg, ierr) ;call CHKERR(ierr)
 
       if(lview.and.solver%myid.eq.0) then
         print *,'Solver dirtop:', solver%dirtop%is_inward, ':', solver%dirtop%dof, ':', solver%dirtop%area_divider
@@ -402,7 +413,12 @@ module m_pprts
       call print_domain_geometry_summary(solver, opt_lview=ldebug)
 
       ! init work vectors
-      call init_memory(solver%C_dir, solver%C_diff, solver%incSolar, solver%b)
+      select type (solver)
+      class is (t_solver_2str)
+        continue
+      class default
+        call init_memory(solver%C_dir, solver%C_diff, solver%incSolar, solver%b)
+      end select
 
       if(present(solvername)) solver%solvername = trim(solver%solvername)//trim(solvername)
       ! init petsc logging facilities
@@ -420,7 +436,12 @@ module m_pprts
     !       directly use the set_angle routines?
     call set_angles(solver, sundir)
 
-    if(ltwostr_only .or. lmcrts) return ! dont need LUT, we just compute Twostream anyway
+    ! dont need LUT, we just compute Twostream anyway
+    select type (solver)
+      class is (t_solver_2str)
+        return
+    end select
+    if(lmcrts) return
 
     if(.not.luse_eddington) then
       allocate(t_optprop_1_2::solver%OPP1d)
@@ -465,7 +486,8 @@ module m_pprts
 
       if (.not.allocated(solver%atm%hhl)) then
         allocate(solver%atm%hhl)
-        call compute_vertical_height_levels(dz=solver%atm%dz, C_hhl=solver%C_one_atm1_box, vhhl=solver%atm%hhl)
+        call compute_vertical_height_levels(dz=solver%atm%dz, C_hhl=solver%C_one_atm1_box, vhhl=solver%atm%hhl, &
+          & prefix=solver%prefix)
       endif
 
       if(.not.allocated(solver%atm%hgrad)) then
@@ -496,9 +518,10 @@ module m_pprts
         allocate(solver%atm%l1d(solver%C_one_atm%zs:solver%C_one_atm%ze) )
       endif
 
-      if(ltwostr_only) then
+      select type (solver)
+      class is (t_solver_2str)
         solver%atm%l1d = .True.
-      else
+      class default
         !TODO if we have a horiz. staggered grid, this may lead to the point where one 3d box has a outgoing sideward flux but the adjacent
         !1d box does not send anything back --> therefore huge absorption :( -- would need to introduce mirror boundary conditions for
         !sideward fluxes in 1d boxes
@@ -508,27 +531,26 @@ module m_pprts
             solver%atm%l1d(k) = any((solver%atm%dz(k,C%xs:C%xe, C%ys:C%ye) / solver%atm%dx) .gt. twostr_ratio)
           enddo
         end associate
-      endif
 
-      ! set layer to 1D if a top height of a box is higher than argument
-      call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,"-pprts_1d_height",&
-        pprts_1d_height, lflg, ierr)  ; call CHKERR(ierr)
-      if(lflg) then
-        associate( &
-            & C     => solver%C_one_atm, &
-            & C_hhl => solver%C_one_atm1_box, &
-            & vhhl  => solver%atm%hhl )
+        ! set layer to 1D if a top height of a box is higher than argument
+        call get_petsc_opt(solver%prefix,"-pprts_1d_height", pprts_1d_height, lflg, ierr); call CHKERR(ierr)
+        if(lflg) then
+          associate( &
+              & C     => solver%C_one_atm, &
+              & C_hhl => solver%C_one_atm1_box, &
+              & vhhl  => solver%atm%hhl )
 
-          call getVecPointer(C_hhl%da, vhhl, hhl1d, hhl, readonly=.True.)
-          do k = C%ze, C%zs, -1
-            if(any(hhl(i0,k,:,:).gt.pprts_1d_height)) then
-              solver%atm%l1d(C%zs:k) = .True.
-              exit
-            endif
-          enddo
-          call restoreVecPointer(C_hhl%da, vhhl, hhl1d, hhl, readonly=.True.)
-        end associate
-      endif
+            call getVecPointer(C_hhl%da, vhhl, hhl1d, hhl, readonly=.True.)
+            do k = C%ze, C%zs, -1
+              if(any(hhl(i0,k,:,:).gt.pprts_1d_height)) then
+                solver%atm%l1d(C%zs:k) = .True.
+                exit
+              endif
+            enddo
+            call restoreVecPointer(C_hhl%da, vhhl, hhl1d, hhl, readonly=.True.)
+          end associate
+        endif
+      end select
 
       if(present(collapseindex)) then
         solver%atm%lcollapse=collapseindex.gt.i1
@@ -591,8 +613,7 @@ module m_pprts
     real(ireals), pointer :: hhl(:,:,:,:)=>null(), hhl1d(:)=>null()
 
     lview = get_arg(.False., opt_lview)
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_view_geometry",&
-      lview, lflg, ierr) ;call CHKERR(ierr)
+    call get_petsc_opt(solver%prefix, "-pprts_view_geometry", lview, lflg, ierr); call CHKERR(ierr)
     if(.not.lview) return
 
     call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
@@ -691,58 +712,58 @@ module m_pprts
         call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
       endif
       call setup_dmda(solver%comm, solver%C_diff, Nz+1,Nx,Ny, boundaries, &
-        & solver%difftop%dof + 2* solver%diffside%dof, nxproc,nyproc)
+        & solver%difftop%dof + 2* solver%diffside%dof, nxproc,nyproc, prefix=solver%prefix)
 
       if(ldebug) then
         if(solver%myid.eq.0) print *,solver%myid, cstr('Configuring DMDA C_dir', 'green')
         call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
       endif
       call setup_dmda(solver%comm, solver%C_dir, Nz+1,Nx,Ny, boundaries, &
-        & solver%dirtop%dof + 2* solver%dirside%dof, nxproc,nyproc)
+        & solver%dirtop%dof + 2* solver%dirside%dof, nxproc,nyproc, prefix=solver%prefix)
 
       if(ldebug) then
         if(solver%myid.eq.0) print *,solver%myid, cstr('Configuring DMDA C_one', 'green')
         call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
       endif
       call setup_dmda(solver%comm, solver%C_one , Nz  , Nx,Ny, boundaries, &
-        & i1, nxproc,nyproc)
+        & i1, nxproc,nyproc, prefix=solver%prefix)
       call setup_dmda(solver%comm, solver%C_one1, Nz+1, Nx,Ny, boundaries, &
-        & i1, nxproc,nyproc)
+        & i1, nxproc,nyproc, prefix=solver%prefix)
 
       if(ldebug) then
         if(solver%myid.eq.0) print *,solver%myid, cstr('Configuring DMDA C_two', 'green')
         call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
       endif
       call setup_dmda(solver%comm, solver%C_two1, Nz+1, Nx,Ny, boundaries, &
-        & i2, nxproc,nyproc)
+        & i2, nxproc,nyproc, prefix=solver%prefix)
 
       if(ldebug) then
         if(solver%myid.eq.0) print *,solver%myid, cstr('Configuring DMDA atm', 'green')
         call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
       endif
       call setup_dmda(solver%comm, solver%C_one_atm , Nz_in  , Nx,Ny, boundaries, &
-        & i1, nxproc,nyproc)
+        & i1, nxproc,nyproc, prefix=solver%prefix)
 
       if(ldebug) then
         if(solver%myid.eq.0) print *,solver%myid, cstr('Configuring DMDA atm1', 'green')
         call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
       endif
       call setup_dmda(solver%comm, solver%C_one_atm1, Nz_in+1, Nx,Ny, boundaries, &
-        & i1, nxproc,nyproc)
+        & i1, nxproc,nyproc, prefix=solver%prefix)
 
       if(ldebug) then
         if(solver%myid.eq.0) print *,solver%myid, cstr('Configuring DMDA atm1_box', 'green')
         call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
       endif
       call setup_dmda(solver%comm, solver%C_one_atm1_box, Nz_in+1, Nx,Ny, boundaries, &
-        & i1, nxproc,nyproc, DMDA_STENCIL_BOX)
+        & i1, nxproc,nyproc, DMDA_STENCIL_BOX, prefix=solver%prefix)
 
       if(ldebug) then
         if(solver%myid.eq.0) print *,solver%myid, cstr('Configuring DMDA srfc_one', 'green')
         call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
       endif
       call setup_dmda(solver%comm, solver%Csrfc_one, i1, Nx,Ny, boundaries, &
-        & i1, nxproc,nyproc)
+        & i1, nxproc,nyproc, prefix=solver%prefix)
 
       if(present(nxproc)) then
         allocate(nxprocp1(size(nxproc)), nyprocp1(size(nyproc)))
@@ -756,22 +777,23 @@ module m_pprts
           call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
         endif
         call setup_dmda(solver%comm, solver%Cvert_one_atm1, Nz_in+1, Nx+1,Ny+1, boundaries, &
-          & i1, nxprocp1,nyprocp1, stencil_type=DMDA_STENCIL_BOX)
+          & i1, nxprocp1,nyprocp1, stencil_type=DMDA_STENCIL_BOX, prefix=solver%prefix)
       else
         call setup_dmda(solver%comm, solver%Cvert_one_atm1, Nz_in+1, Nx+1,Ny+1, boundaries, &
-          & i1, stencil_type=DMDA_STENCIL_BOX)
+          & i1, stencil_type=DMDA_STENCIL_BOX, prefix=solver%prefix)
       endif
 
       if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'DMDA grid ready'
     end subroutine
 
-    subroutine setup_dmda(icomm, C, Nz, Nx, Ny, boundary, dof, nxproc, nyproc, stencil_type)
+    subroutine setup_dmda(icomm, C, Nz, Nx, Ny, boundary, dof, nxproc, nyproc, stencil_type, prefix)
       integer(mpiint), intent(in) :: icomm
       type(t_coord), allocatable :: C
       integer(iintegers), intent(in) :: Nz,Nx,Ny,dof
       DMBoundaryType, intent(in) :: boundary(:)
       integer(iintegers), intent(in), optional :: nxproc(:), nyproc(:) ! size of local domains on each node
       DMDAStencilType, intent(in), optional :: stencil_type
+      character(len=*), intent(in), optional :: prefix
       DMDAStencilType :: opt_stencil_type
 
       integer(iintegers), parameter :: stencil_size=1
@@ -813,6 +835,9 @@ module m_pprts
           C%da                    , ierr) ;call CHKERR(ierr)
       endif
 
+      if(present(prefix)) then
+        call PetscObjectSetOptionsPrefix(C%da, prefix, ierr); call CHKERR(ierr)
+      endif
       ! need this first setfromoptions call because of a bug which happens with intel compilers
       call DMSetFromOptions(C%da, ierr)                                    ; call CHKERR(ierr)
 
@@ -877,10 +902,11 @@ module m_pprts
 
     !> @brief Determine height levels by summing up the atm%dz with the assumption that TOA is at a constant value
     !>        or a max_height is given in the option database
-    subroutine compute_vertical_height_levels(dz, C_hhl, vhhl)
+    subroutine compute_vertical_height_levels(dz, C_hhl, vhhl, prefix)
       type(t_coord), intent(in) :: C_hhl
       real(ireals), intent(in) :: dz(:,:,:)
       type(tVec), intent(inout) :: vhhl
+      character(len=*), intent(in) :: prefix
 
       type(tVec) :: g_hhl
       real(ireals), pointer :: hhl(:,:,:,:)=>null(), hhl1d(:)=>null()
@@ -912,8 +938,7 @@ module m_pprts
         enddo
       enddo
 
-      call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_global_max_height", &
-        global_max_height, lflg , ierr) ;call CHKERR(ierr)
+      call get_petsc_opt(prefix, "-pprts_global_max_height", global_max_height, lflg, ierr); call CHKERR(ierr)
       if(.not.lflg) then
         call PetscObjectGetComm(C_hhl%da, comm, ierr); call CHKERR(ierr)
         call imp_allreduce_min(comm, max_height, global_max_height)
@@ -927,7 +952,7 @@ module m_pprts
       call DMGlobalToLocalEnd(C_hhl%da, g_hhl, INSERT_VALUES, vhhl,ierr) ;call CHKERR(ierr)
       call DMRestoreGlobalVector(C_hhl%da, g_hhl, ierr) ;call CHKERR(ierr)
 
-      call PetscObjectViewFromOptions(vhhl, PETSC_NULL_VEC, "-pprts_show_hhl", ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(vhhl, C_hhl%da, "-pprts_show_hhl", ierr); call CHKERR(ierr)
     end subroutine
 
     !> @brief initialize basic memory structs like PETSc vectors and matrices
@@ -935,8 +960,6 @@ module m_pprts
       type(t_coord), intent(in) :: C_dir, C_diff
       type(tVec), intent(inout), allocatable :: b,incSolar
       integer(mpiint) :: ierr
-
-      if(ltwostr_only) return
 
       if(.not.allocated(incSolar)) allocate(incSolar)
       if(.not.allocated(b)) allocate(b)
@@ -978,10 +1001,8 @@ module m_pprts
 
     call cartesian_2_spherical(sundir, sun%phi, sun%theta, ierr)
 
-    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,"-pprts_force_zenith",&
-      sun%theta, lflg, ierr)  ; call CHKERR(ierr)
-    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,"-pprts_force_azimuth",&
-      sun%phi, lflg, ierr)  ; call CHKERR(ierr)
+    call get_petsc_opt(solver%prefix, "-pprts_force_zenith", sun%theta, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt(solver%prefix, "-pprts_force_azimuth", sun%phi, lflg, ierr); call CHKERR(ierr)
 
     sun%sundir = spherical_2_cartesian(sun%phi, sun%theta)
 
@@ -1032,8 +1053,7 @@ module m_pprts
     real(ireals), dimension(3) :: msundir
 
     lview = get_arg(.False., opt_lview)
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_view_suninfo",&
-      lview, lflg, ierr) ;call CHKERR(ierr)
+    call get_petsc_opt(solver%prefix, "-pprts_view_suninfo", lview, lflg, ierr); call CHKERR(ierr)
     if(.not.lview) return
 
     call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
@@ -1100,6 +1120,7 @@ module m_pprts
 
     allocate(A)
     call DMCreateMatrix(C%da, A, ierr) ;call CHKERR(ierr)
+    call PetscObjectSetOptionsPrefix(A, trim(solver%prefix), ierr); call CHKERR(ierr)
 
     call mpi_comm_size(C%comm, numnodes, ierr) ; call CHKERR(ierr)
 
@@ -1623,37 +1644,35 @@ module m_pprts
       endif
     endif
 
-    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_set_albedo", &
-      pprts_set_albedo, lflg , ierr) ;call CHKERR(ierr)
+    pprts_set_albedo = -1
+    call get_petsc_opt(solver%prefix, "-pprts_set_albedo", pprts_set_albedo, lflg , ierr) ;call CHKERR(ierr)
     if(lflg) then
       atm%albedo = pprts_set_albedo
     endif
 
-    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_set_kabs", &
-      pprts_set_absorption, lflg , ierr) ;call CHKERR(ierr)
+    pprts_set_absorption = -1
+    call get_petsc_opt(solver%prefix, "-pprts_set_kabs", pprts_set_absorption, lflg , ierr) ;call CHKERR(ierr)
     if(lflg) then
       atm%kabs = pprts_set_absorption
     endif
 
-    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_set_ksca", &
-      pprts_set_scatter, lflg , ierr) ;call CHKERR(ierr)
+    pprts_set_scatter = -1
+    call get_petsc_opt(solver%prefix, "-pprts_set_ksca", pprts_set_scatter, lflg , ierr) ;call CHKERR(ierr)
     if(lflg) then
       atm%ksca = pprts_set_scatter
     endif
 
-    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_set_asymmetry", &
-      pprts_set_asymmetry, lflg , ierr) ;call CHKERR(ierr)
+    pprts_set_asymmetry = -1
+    call get_petsc_opt(solver%prefix, "-pprts_set_asymmetry", pprts_set_asymmetry, lflg , ierr) ;call CHKERR(ierr)
     if(lflg) then
       atm%g = pprts_set_asymmetry
     endif
 
     lpprts_delta_scale = get_arg(.True., ldelta_scaling)
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_delta_scale", &
-      lpprts_delta_scale, lflg , ierr) ;call CHKERR(ierr)
+    call get_petsc_opt(solver%prefix, "-pprts_delta_scale", lpprts_delta_scale, lflg , ierr) ;call CHKERR(ierr)
 
     pprts_delta_scale_max_g=.85_ireals-epsilon(pprts_delta_scale_max_g)
-    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_delta_scale_max_g", &
-      pprts_delta_scale_max_g, lflg , ierr) ;call CHKERR(ierr)
+    call get_petsc_opt(solver%prefix, "-pprts_delta_scale_max_g", pprts_delta_scale_max_g, lflg , ierr) ;call CHKERR(ierr)
 
     if(lpprts_delta_scale) then
       call delta_scale(atm%kabs, atm%ksca, atm%g, max_g=pprts_delta_scale_max_g)
@@ -1667,9 +1686,10 @@ module m_pprts
 
     call print_optical_properties_summary(solver, opt_lview=ldebug)
 
-    if(ltwostr_only) then
+    select type(solver)
+    class is (t_solver_2str)
       return ! twostream should not depend on eddington coeffs... it will have to calculate it on its own.
-    endif
+    end select
 
     if( (any([atm%kabs,atm%ksca,atm%g].lt.zero)) .or. (any(isnan([atm%kabs,atm%ksca,atm%g]))) ) then
       call CHKERR(1_mpiint, 'set_optical_properties :: found illegal value in delta_scaled optical properties! abort!')
@@ -1686,8 +1706,7 @@ module m_pprts
 
     if(luse_eddington) then
       lzdun = .False.
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_eddington_zdun",&
-        lzdun, lflg, ierr) ;call CHKERR(ierr)
+      call get_petsc_opt(solver%prefix, "-pprts_eddington_zdun", lzdun, lflg, ierr); call CHKERR(ierr)
       !DIR$ IVDEP
       do j=C_one_atm%ys,C_one_atm%ye
         do i=C_one_atm%xs,C_one_atm%xe
@@ -1931,8 +1950,7 @@ module m_pprts
       integer(iintegers) :: k
 
       lview = get_arg(.False., opt_lview)
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_view_optprop",&
-        lview, lflg, ierr) ;call CHKERR(ierr)
+      call get_petsc_opt(solver%prefix, "-pprts_view_optprop", lview, lflg, ierr); call CHKERR(ierr)
       if(.not.lview) return
 
 
@@ -1967,8 +1985,7 @@ module m_pprts
 
           call DMGetGlobalVector(solver%Csrfc_one%da, valbedo, ierr) ; call CHKERR(ierr)
           call f90VecToPetsc(atm%albedo, solver%Csrfc_one%da, valbedo)
-          print *,'view albedo:', atm%albedo
-          call PetscObjectViewFromOptions(valbedo, PETSC_NULL_VEC, "-pprts_view_albedo", ierr); call CHKERR(ierr)
+          call PetscObjectViewFromOptions(valbedo, solver%Csrfc_one%da, "-pprts_view_albedo", ierr); call CHKERR(ierr)
           call DMRestoreGlobalVector(solver%Csrfc_one%da, valbedo, ierr) ; call CHKERR(ierr)
         endif
 
@@ -2170,10 +2187,9 @@ module m_pprts
     ! --------- Calculate Radiative Transfer with RayLi ------------
     call PetscLogEventBegin(solver%logs%solve_mcrts, ierr)
     luse_rayli = .False.
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-      "-pprts_use_rayli", luse_rayli, lflg, ierr) ; call CHKERR(ierr)
+    call get_petsc_opt(solver%prefix, "-pprts_use_rayli", luse_rayli, lflg, ierr) ; call CHKERR(ierr)
     lrayli_snapshot = .False.
-    call PetscOptionsHasName(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+    call PetscOptionsHasName(PETSC_NULL_OPTIONS, solver%prefix, &
       "-rayli_snapshot", lrayli_snapshot, ierr) ; call CHKERR(ierr)
 
     call pprts_rayli_wrapper(luse_rayli, lrayli_snapshot, solver, edirTOA, solution, opt_buildings)
@@ -2182,8 +2198,7 @@ module m_pprts
 
     ! --------- Calculate Radiative Transfer with Disort ------------
     luse_disort = .False.
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-      "-pprts_use_disort", luse_disort, lflg, ierr) ; call CHKERR(ierr)
+    call get_petsc_opt(solver%prefix, "-pprts_use_disort", luse_disort, lflg, ierr) ; call CHKERR(ierr)
     if(luse_disort) then
       call PetscLogEventBegin(solver%logs%solve_disort, ierr)
       call disort(solver, edirTOA, solution, opt_buildings)
@@ -2191,12 +2206,8 @@ module m_pprts
       goto 99
     endif
 
-    ! --------- Calculate 1D Radiative Transfer ------------
-    if(  ltwostr &
-      .or. (solution%lthermal_rad .and. lcalc_nca) &
-      .or. (solution%lthermal_rad .and. lschwarzschild) ) then
-
-
+    select type(solver)
+    class is (t_solver_2str)
       if( solution%lthermal_rad .and. lschwarzschild ) then
         call PetscLogEventBegin(solver%logs%solve_schwarzschild, ierr)
         call schwarz(solver, solution, opt_buildings)
@@ -2209,11 +2220,8 @@ module m_pprts
 
       if(ldebug .and. solver%myid.eq.0) print *,'1D calculation done'
 
-
-      if( ltwostr_only ) goto 99
-      if( solution%lthermal_rad .and. lcalc_nca ) goto 99
-      if( solution%lthermal_rad .and. lschwarzschild ) goto 99
-    endif
+      goto 99
+    end select
 
     if( lmcrts ) then
       call PetscLogEventBegin(solver%logs%solve_mcrts, ierr)
@@ -2258,9 +2266,10 @@ module m_pprts
     ! ---------------------------- Edir  -------------------
     if( solution%lsolar_rad ) then
       prefix = "solar_dir_"
+      if(len_trim(solver%prefix).gt.0) prefix = trim(solver%prefix)//prefix
+
       lexplicit_dir=.True.
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, prefix, &
-        "-explicit", lexplicit_dir, lflg , ierr) ;call CHKERR(ierr)
+      call get_petsc_opt(prefix, "-explicit", lexplicit_dir, lflg , ierr) ;call CHKERR(ierr)
       if(lexplicit_dir) then
         call explicit_edir(solver, prefix, edirTOA, solution, ierr); call CHKERR(ierr)
       else
@@ -2282,8 +2291,7 @@ module m_pprts
     ! ---------------------------- Ediff -------------------
     call VecNorm(solver%b, NORM_1, b_norm, ierr); call CHKERR(ierr)
     lskip_diffuse_solve = b_norm.lt.atol
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-      "-skip_diffuse_solve", lskip_diffuse_solve, lflg , ierr) ;call CHKERR(ierr)
+    call get_petsc_opt(solver%prefix, "-skip_diffuse_solve", lskip_diffuse_solve, lflg , ierr) ;call CHKERR(ierr)
 
     if(lskip_diffuse_solve) then
       if(ldebug) &
@@ -2298,9 +2306,10 @@ module m_pprts
       else
         prefix = "thermal_diff_"
       endif
+      if(len_trim(solver%prefix).gt.0) prefix = trim(solver%prefix)//prefix
+
       lexplicit_diff=.False.
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, prefix, &
-        "-explicit", lexplicit_diff, lflg , ierr) ;call CHKERR(ierr)
+      call get_petsc_opt(prefix, "-explicit", lexplicit_diff, lflg , ierr) ;call CHKERR(ierr)
       if(lexplicit_diff) then
         call explicit_ediff(solver, prefix, solver%b, solution, ierr); call CHKERR(ierr)
       else
@@ -2329,8 +2338,7 @@ module m_pprts
       call setup_incSolar(solver, edirTOA, solver%incSolar)
 
       lshell = .False.
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, prefix, &
-        "-shell", lshell, lflg,ierr) ; call CHKERR(ierr)
+      call get_petsc_opt(prefix, "-shell", lshell, lflg,ierr) ; call CHKERR(ierr)
 
       if(lshell) then
         call setup_matshell(solver, solver%C_dir, solver%Mdir, op_mat_mult_edir, op_mat_sor_edir, op_mat_getdiagonal)
@@ -2343,8 +2351,7 @@ module m_pprts
       endif
 
       lmat_permute=.False.
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, prefix, &
-        "-mat_permute", lmat_permute, lflg ,ierr); call CHKERR(ierr)
+      call get_petsc_opt(prefix, "-mat_permute", lmat_permute, lflg ,ierr); call CHKERR(ierr)
       if(lmat_permute) then ! prepare mat permutation
         call PetscLogEventBegin(solver%logs%permute_mat_gen_dir, ierr)
         call gen_mat_permutation( &
@@ -2355,7 +2362,8 @@ module m_pprts
           & rev_z=.False., &
           & zlast=.True., &
           & switch_xy=abs(solver%sun%sundir(2)).gt.abs(solver%sun%sundir(1)), &
-          & perm_info=solver%perm_dir)
+          & perm_info=solver%perm_dir, &
+          & prefix=solver%prefix)
         call PetscLogEventEnd(solver%logs%permute_mat_gen_dir, ierr)
 
         call PetscLogEventBegin(solver%logs%permute_mat_dir, ierr)
@@ -2369,8 +2377,7 @@ module m_pprts
         else
 
           lmat_permute_reuse=.False.
-          call PetscOptionsGetBool(PETSC_NULL_OPTIONS, prefix, &
-            "-mat_permute_reuse", lmat_permute_reuse, lflg ,ierr); call CHKERR(ierr)
+          call get_petsc_opt(prefix, "-mat_permute_reuse", lmat_permute_reuse, lflg ,ierr); call CHKERR(ierr)
           ! TODO: we should be able to reuse the mat, but results change, I could not figure out why.
           ! Instead we destroy the mat and build and initial one every time.
           ! This hits performance but is still better than not reordering...
@@ -2426,8 +2433,7 @@ module m_pprts
       logical :: lmat_permute, lmat_permute_reuse, lshell
 
       lshell = .False.
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, prefix, &
-        "-shell", lshell, lflg,ierr) ; call CHKERR(ierr)
+      call get_petsc_opt(prefix, "-shell", lshell, lflg,ierr) ; call CHKERR(ierr)
 
       if(lshell) then
         call setup_matshell(solver, solver%C_diff, A, op_mat_mult_ediff, op_mat_sor_ediff, op_mat_getdiagonal)
@@ -2441,8 +2447,7 @@ module m_pprts
       endif
 
       lmat_permute=.False.
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, prefix, &
-        "-mat_permute", lmat_permute, lflg ,ierr); call CHKERR(ierr)
+      call get_petsc_opt(prefix, "-mat_permute", lmat_permute, lflg ,ierr); call CHKERR(ierr)
       if(lmat_permute) then ! prepare mat permutation
         call PetscLogEventBegin(solver%logs%permute_mat_gen_diff, ierr)
         call gen_mat_permutation( &
@@ -2453,7 +2458,8 @@ module m_pprts
           & rev_z=.False., &
           & zlast=.True., &
           & switch_xy=.False., &
-          & perm_info=solver%perm_diff )
+          & perm_info=solver%perm_diff, &
+          & prefix=solver%prefix )
         call PetscLogEventEnd(solver%logs%permute_mat_gen_diff, ierr)
 
         call PetscLogEventBegin(solver%logs%permute_mat_diff, ierr)
@@ -2468,8 +2474,7 @@ module m_pprts
         else
 
           lmat_permute_reuse=.False.
-          call PetscOptionsGetBool(PETSC_NULL_OPTIONS, prefix, &
-            "-mat_permute_reuse", lmat_permute_reuse, lflg ,ierr); call CHKERR(ierr)
+          call get_petsc_opt(prefix, "-mat_permute_reuse", lmat_permute_reuse, lflg ,ierr); call CHKERR(ierr)
 
           if(lmat_permute_reuse) then
             if(solver%myid.eq.0) &
@@ -2511,25 +2516,24 @@ module m_pprts
   end subroutine
 
   subroutine read_cmd_line_opts_get_coeffs( &
+      & prefix, &
       & lgeometric_coeffs, &
       & ltop_bottom_faces_planar, &
       & ltop_bottom_planes_parallel &
       & )
+    character(len=*), intent(in) :: prefix
     logical, intent(out) :: lgeometric_coeffs, ltop_bottom_faces_planar, ltop_bottom_planes_parallel
     logical :: lflg
     integer(mpiint) :: ierr
 
     lgeometric_coeffs = .False.
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-      & "-pprts_geometric_coeffs", lgeometric_coeffs, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt(prefix, "-pprts_geometric_coeffs", lgeometric_coeffs, lflg, ierr); call CHKERR(ierr)
 
     ltop_bottom_faces_planar = lgeometric_coeffs
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-      & "-pprts_top_bottom_faces_planar", ltop_bottom_faces_planar, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt(prefix, "-pprts_top_bottom_faces_planar", ltop_bottom_faces_planar, lflg, ierr); call CHKERR(ierr)
 
     ltop_bottom_planes_parallel = lgeometric_coeffs
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-      & "-pprts_top_bottom_planes_parallel", ltop_bottom_planes_parallel, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt(prefix, "-pprts_top_bottom_planes_parallel", ltop_bottom_planes_parallel, lflg, ierr); call CHKERR(ierr)
   end subroutine
 
 
@@ -2596,6 +2600,7 @@ module m_pprts
       call PetscLogEventBegin(solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
 
       call read_cmd_line_opts_get_coeffs( &
+        & solver%prefix, &
         & lgeometric_coeffs, &
         & ltop_bottom_faces_planar, &
         & ltop_bottom_planes_parallel &
@@ -2738,22 +2743,20 @@ module m_pprts
       call PetscLogEventBegin(solver%logs%get_coeff_dir2diff, ierr); call CHKERR(ierr)
 
       lbmc_online = .False.
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-        "-bmc_online", lbmc_online, lflg , ierr); call CHKERR(ierr)
+      call get_petsc_opt(solver%prefix, "-bmc_online", lbmc_online, lflg , ierr); call CHKERR(ierr)
 
       lcheck_coeff_sums = .not. lbmc_online
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-        "-pprts_check_coeff_sums", lcheck_coeff_sums, lflg , ierr); call CHKERR(ierr)
+      call get_petsc_opt(solver%prefix, "-pprts_check_coeff_sums", lcheck_coeff_sums, lflg , ierr); call CHKERR(ierr)
 
       call read_cmd_line_opts_get_coeffs( &
+        & solver%prefix, &
         & lgeometric_coeffs, &
         & ltop_bottom_faces_planar, &
         & ltop_bottom_planes_parallel &
         & )
 
       lconserve_lut_atm_abso = lgeometric_coeffs
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-        & "-pprts_conserve_lut_atm_abso", lconserve_lut_atm_abso, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt(solver%prefix, "-pprts_conserve_lut_atm_abso", lconserve_lut_atm_abso, lflg, ierr); call CHKERR(ierr)
 
       if (lgeometric_coeffs .and. lbmc_online .and. lconserve_lut_atm_abso) then
         lbmc_online = .False.
@@ -2905,6 +2908,7 @@ module m_pprts
       call PetscLogEventBegin(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
 
       call read_cmd_line_opts_get_coeffs( &
+        & solver%prefix, &
         & lgeometric_coeffs, &
         & ltop_bottom_faces_planar, &
         & ltop_bottom_planes_parallel &
@@ -3414,14 +3418,14 @@ module m_pprts
 
     ! if there are no 3D layers globally, we should skip the ghost value copying....
     !lhave_no_3d_layer = mpi_logical_and(solver%comm, all(atm%l1d.eqv..True.))
-    if(ltwostr_only) then
+    select type(solver)
+    class is (t_solver_2str)
       call compute_1D_absorption()
       goto 99
-    endif
+    end select
 
     by_coeff_divergence = .False.
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-absorption_by_coeff_divergence",&
-      by_coeff_divergence, lflg, ierr) ;call CHKERR(ierr)
+    call get_petsc_opt(solver%prefix, "-absorption_by_coeff_divergence", by_coeff_divergence, lflg, ierr) ;call CHKERR(ierr)
 
     if(by_coeff_divergence) then
       call compute_absorption_by_coeff_divergence()
@@ -3798,11 +3802,12 @@ module m_pprts
   end subroutine
 
   !> @brief generate matrix col/row permutations
-  subroutine gen_mat_permutation(A, C, rev_x, rev_y, rev_z, zlast, switch_xy, perm_info)
+  subroutine gen_mat_permutation(A, C, rev_x, rev_y, rev_z, zlast, switch_xy, perm_info, prefix)
     type(tMat), intent(in) :: A
     type(t_coord), intent(in) :: C
     logical, intent(in) :: rev_x, rev_y, rev_z, zlast, switch_xy
     type(t_mat_permute_info), allocatable, intent(inout) :: perm_info
+    character(len=*), intent(in) :: prefix
 
     logical :: lflg
     integer(iintegers), dimension(3) :: dd, dx, dy, dz ! start, end, increment for each dimension
@@ -3819,27 +3824,22 @@ module m_pprts
     dy = [i0, C%ym -i1, i1]
 
     opt_rev_y = rev_y
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
-      "-mat_permute_rev_y" , opt_rev_y, lflg , ierr) ;call CHKERR(ierr)
+    call get_petsc_opt(prefix, "-mat_permute_rev_y", opt_rev_y, lflg, ierr); call CHKERR(ierr)
     if(opt_rev_y) dy = [dy(2), dy(1), -dy(3)]
 
     opt_rev_x = rev_x
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
-      "-mat_permute_rev_x" , opt_rev_x, lflg , ierr) ;call CHKERR(ierr)
+    call get_petsc_opt(prefix, "-mat_permute_rev_x", opt_rev_x, lflg, ierr); call CHKERR(ierr)
     if(opt_rev_x) dx = [dx(2), dx(1), -dx(3)]
 
     opt_rev_z = rev_z
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
-      "-mat_permute_rev_z" , opt_rev_z, lflg , ierr) ;call CHKERR(ierr)
+    call get_petsc_opt(prefix, "-mat_permute_rev_z", opt_rev_z, lflg, ierr); call CHKERR(ierr)
     if(opt_rev_z) dz = [dz(2), dz(1), -dz(3)]
 
     opt_switch_xy=switch_xy
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
-      "-mat_permute_ij" , opt_switch_xy, lflg , ierr) ;call CHKERR(ierr)
+    call get_petsc_opt(prefix, "-mat_permute_ij", opt_switch_xy, lflg, ierr); call CHKERR(ierr)
 
     opt_zlast=zlast
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
-      "-mat_permute_z" , opt_zlast, lflg , ierr) ;call CHKERR(ierr)
+    call get_petsc_opt(prefix, "-mat_permute_z", opt_zlast, lflg, ierr); call CHKERR(ierr)
 
     if (.not.allocated(perm_info)) then
       allocate(perm_info)
@@ -3950,8 +3950,7 @@ module m_pprts
     endif
 
     lskip_ksp_solve=.False.
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
-      "-skip_ksp_solve" , lskip_ksp_solve, lflg , ierr) ;call CHKERR(ierr)
+    call get_petsc_opt(solver%prefix, "-skip_ksp_solve", lskip_ksp_solve, lflg, ierr); call CHKERR(ierr)
     if(lskip_ksp_solve) then
       call VecCopy(b, x, ierr); call CHKERR(ierr)
       return
@@ -3967,8 +3966,7 @@ module m_pprts
     !   return
     ! endif
     laccept_incomplete_solve = .False.
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-      "-accept_incomplete_solve", laccept_incomplete_solve, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt(solver%prefix, "-accept_incomplete_solve", laccept_incomplete_solve, lflg, ierr); call CHKERR(ierr)
     if(laccept_incomplete_solve) return
 
     if(reason.le.0) then
@@ -4082,8 +4080,7 @@ module m_pprts
         if(pctype.eq.PCASM) then
 
           asm_iter = 1
-          call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-            "-ts_ksp_iter", asm_iter, lflg, ierr) ;call CHKERR(ierr)
+          call get_petsc_opt(solver%prefix, "-ts_ksp_iter", asm_iter, lflg, ierr) ;call CHKERR(ierr)
 
           call PCASMGetSubKSP(prec, asm_N, first_local, PETSC_NULL_KSP, ierr); call CHKERR(ierr)
           allocate(asm_ksps(asm_N))
@@ -5526,9 +5523,9 @@ module m_pprts
       character(len=default_str_len) :: fname
       logical :: lflg
 
+      fname=''
       if(present(opt_buildings)) then
-        call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-          & '-pprts_xdmf_buildings', fname, lflg, ierr); call CHKERR(ierr)
+        call get_petsc_opt(solver%prefix, '-pprts_xdmf_buildings', fname, lflg, ierr); call CHKERR(ierr)
         if(lflg) then
           fname = trim(fname)//'.'//toStr(uid)
           call xdmf_pprts_buildings(solver, opt_buildings, fname, ierr, verbose=.True.); call CHKERR(ierr)
@@ -5536,8 +5533,7 @@ module m_pprts
       endif
 
       associate(solution => solver%solutions(uid))
-        call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-          & '-pprts_xdmf', fname, lflg, ierr); call CHKERR(ierr)
+        call get_petsc_opt(solver%prefix, '-pprts_xdmf', fname, lflg, ierr); call CHKERR(ierr)
         if(lflg) then
           fname = trim(fname)//toStr(uid)
           call xdmf_pprts_srfc_flux(solver, fname, redn, reup, ierr, edir=redir, verbose=.True.); call CHKERR(ierr)
