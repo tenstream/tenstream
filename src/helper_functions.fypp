@@ -2981,11 +2981,22 @@ subroutine get_petsc_opt_${basetype}$(prefix, option_name, optval, lset, ierr)
   integer(mpiint), intent(out) :: ierr
 
   character(len=default_str_len) :: full_opt_name, color
+  character(len=default_str_len), save :: last_options_call
   integer(mpiint) :: myid
   logical :: lshow, lflg
 
-  lshow = .False.
-  call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-ts_options_view", lshow, lflg, ierr); call CHKERR(ierr)
+  if (option_name(1:1)=='-'.and.len_trim(option_name)>1) then
+    full_opt_name = '-'//trim(prefix)//trim(option_name(2:))
+  else
+    full_opt_name = '-'//trim(prefix)//trim(option_name)
+  endif
+
+  if(last_options_call.eq.full_opt_name) then
+    lshow = .False.
+  else
+    lshow = .False.
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-ts_options_view", lshow, lflg, ierr); call CHKERR(ierr)
+  endif
 
   call ${petscfunc}$(&
     & PETSC_NULL_OPTIONS, &
@@ -2996,16 +3007,13 @@ subroutine get_petsc_opt_${basetype}$(prefix, option_name, optval, lset, ierr)
     & ierr)
   call CHKERR(ierr)
 
+  last_options_call = full_opt_name
+
   if(lshow) then
     if (lset) then
       color = 'green'
     else
       color = 'dark grey'
-    endif
-    if (option_name(1:1)=='-'.and.len_trim(option_name)>1) then
-      full_opt_name = '-'//trim(prefix)//trim(option_name(2:))
-    else
-      full_opt_name = '-'//trim(prefix)//trim(option_name)
     endif
     call mpi_comm_rank(petsc_comm_world, myid, ierr); call CHKERR(ierr)
     if(myid.eq.0) print *,'Tenstream option'//' '//cstr(trim(full_opt_name),color)//' '// &
