@@ -99,15 +99,16 @@ contains
       maxiter=1000
       call get_petsc_opt(prefix, "-ksp_max_it", maxiter, lflg, ierr); call CHKERR(ierr)
 
+      lskip_residual = .False.
+      call get_petsc_opt(prefix, "-ksp_skip_residual", lskip_residual, lflg, ierr); call CHKERR(ierr)
+
       ignore_max_it=-huge(ignore_max_it)
       call get_petsc_opt(prefix, "-ksp_ignore_max_it", ignore_max_it, lflg, ierr); call CHKERR(ierr)
       if (solution%time(1).lt.ignore_max_it) then
          maxiter=1001
+         lskip_residual=.False.
       endif
       allocate(residual(maxiter))
-
-      lskip_residual = .False.
-      call get_petsc_opt(prefix, "-ksp_skip_residual", lskip_residual, lflg, ierr); call CHKERR(ierr)
 
       lmonitor_residual = .False.
       call get_petsc_opt(prefix, "-ksp_monitor", lmonitor_residual, lflg, ierr); call CHKERR(ierr)
@@ -452,17 +453,18 @@ contains
       maxiter=1000
       call get_petsc_opt(prefix, "-ksp_max_it", maxiter, lflg, ierr) ;call CHKERR(ierr)
 
+      lskip_residual = .False.
+      call get_petsc_opt(prefix, "-ksp_skip_residual", lskip_residual, lflg , ierr) ;call CHKERR(ierr)
+
       ignore_max_it=-huge(ignore_max_it)
       call get_petsc_opt(prefix, "-ksp_ignore_max_it", ignore_max_it, lflg , ierr) ;call CHKERR(ierr)
       if (solution%time(1).lt.ignore_max_it) then
          maxiter=1001
+         lskip_residual=.False.
       endif
       allocate(residual(maxiter))
       sub_iter = 1
       call get_petsc_opt(prefix, "-sub_it", sub_iter, lflg, ierr) ;call CHKERR(ierr)
-
-      lskip_residual = .False.
-      call get_petsc_opt(prefix, "-ksp_skip_residual", lskip_residual, lflg , ierr) ;call CHKERR(ierr)
 
       lmonitor_residual = .False.
       call get_petsc_opt(prefix, "-ksp_monitor", lmonitor_residual, lflg , ierr) ;call CHKERR(ierr)
@@ -1075,4 +1077,3 @@ contains
     end function
   end subroutine
 end module
-

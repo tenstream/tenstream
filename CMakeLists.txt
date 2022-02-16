@@ -51,6 +51,10 @@ set(PythonCompat_FIND_VERSION 3)
 find_package(PythonCompat REQUIRED)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 10)
+  set(CMAKE_Fortran_FLAGS  "${CMAKE_Fortran_FLAGS} --std=legacy")
+endif()
+
 # Add IPO support if compiler allows it -- default is off because it A) doesnt work or B) compiles super slow
 option(ENABLE_IPO "enable link time optimizations, also called INTERPROCEDURAL_OPTIMIZATIONs" OFF)
 if(ENABLE_IPO)

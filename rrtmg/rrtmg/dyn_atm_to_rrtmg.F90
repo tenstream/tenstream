@@ -132,7 +132,7 @@ module m_dyn_atm_to_rrtmg
 
     subroutine setup_tenstr_atm(comm, lTOA_to_srfc, atm_filename, d_plev, d_tlev, atm, &
         d_tlay, d_h2ovmr, d_o3vmr, d_co2vmr, d_ch4vmr, d_n2ovmr,  d_o2vmr, &
-        d_lwc, d_reliq, d_iwc, d_reice, d_cloud_fraction, d_surface_height, d_skin_temperature)
+        d_lwc, d_reliq, d_iwc, d_reice, d_cloud_fraction, d_surface_height, d_skin_temperature, prefix)
       integer(mpiint), intent(in) :: comm
       logical, intent(in) :: lTOA_to_srfc    ! True if provided variables go from TOA to srfc or False if starting at surface
 
@@ -162,6 +162,8 @@ module m_dyn_atm_to_rrtmg
       real(ireals),intent(in),optional :: d_surface_height(:)   ! surface height above sea     [m]
       real(ireals),intent(in),optional :: d_skin_temperature(:) ! skin tempertaure             [K]
 
+      character(len=*), intent(in), optional :: prefix
+
       integer(iintegers) :: icol
       PetscClassId, parameter :: cid=0
       integer(mpiint) :: ierr
@@ -182,13 +184,22 @@ module m_dyn_atm_to_rrtmg
 
       lignore_bad_input = .False.
       call get_petsc_opt(PETSC_NULL_CHARACTER, '-pprts_rrtmg_ignore_bad_input', lignore_bad_input, lflg, ierr); call CHKERR(ierr)
+      if(present(prefix)) then
+        call get_petsc_opt(prefix, '-pprts_rrtmg_ignore_bad_input', lignore_bad_input, lflg, ierr); call CHKERR(ierr)
+      endif
 
       if(.not.allocated(atm%bg_atm)) then
         call load_atmfile(comm, atm_filename, atm%bg_atm)
         call sanitize_input(.True., atm%bg_atm%plev, atm%bg_atm%tlev, ierr, atm%bg_atm%tlay)
-        if(.not.lignore_bad_input) &
-          & call CHKERR(ierr, 'bad input in bg_atmosphere file.'//new_line('')// &
-          & 'If you know what you are doing, you can skip the check with -pprts_rrtmg_ignore_bad_input')
+        if(lignore_bad_input) then
+          call CHKWARN(ierr, 'bad input in bg_atmosphere file.'//new_line('')// &
+            & 'If you know what you are doing, you can skip the check with '// &
+            & '-'//trim(get_arg(PETSC_NULL_CHARACTER, prefix))//'pprts_rrtmg_ignore_bad_input')
+        else
+          call CHKERR(ierr, 'bad input in bg_atmosphere file.'//new_line('')// &
+            & 'If you know what you are doing, you can skip the check with '// &
+            & '-'//trim(get_arg(PETSC_NULL_CHARACTER, prefix))//'pprts_rrtmg_ignore_bad_input')
+        endif
       endif
 
       call check_shape_2d(d_tlev          ,size(d_plev, 1, kind=iintegers)   , size(d_plev, 2, kind=iintegers))
@@ -212,9 +223,15 @@ module m_dyn_atm_to_rrtmg
         else
           call sanitize_input(lTOA_to_srfc, d_plev(:,icol), d_tlev(:,icol), ierr)
         endif
-        if(.not.lignore_bad_input) &
-          & call CHKERR(ierr, 'bad input from dynamics grid, column: '//toStr(icol)//new_line('')// &
-          & 'If you know what you are doing, you can skip the check with -pprts_rrtmg_ignore_bad_input')
+        if(lignore_bad_input) then
+          call CHKWARN(ierr, 'bad input from dynamics grid, column: '//toStr(icol)//new_line('')// &
+            & 'If you know what you are doing, you can skip the check with '// &
+            & '-'//trim(get_arg(PETSC_NULL_CHARACTER, prefix))//'pprts_rrtmg_ignore_bad_input')
+        else
+          call CHKERR(ierr, 'bad input from dynamics grid, column: '//toStr(icol)//new_line('')// &
+            & 'If you know what you are doing, you can skip the check with '// &
+            & '-'//trim(get_arg(PETSC_NULL_CHARACTER, prefix))//'pprts_rrtmg_ignore_bad_input')
+        endif
       enddo
 
       call merge_dyn_rad_grid(comm, atm, &
