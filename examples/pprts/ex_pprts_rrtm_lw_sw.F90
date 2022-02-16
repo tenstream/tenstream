@@ -5,7 +5,7 @@ program main
   use m_tenstream_options, only: read_commandline_options
   use m_data_parameters, only : iintegers, mpiint, ireals, default_str_len
   use m_example_pprts_rrtm_lw_sw, only: ex_pprts_rrtm_lw_sw
-  use m_helper_functions, only: CHKERR, get_petsc_opt
+  use m_helper_functions, only: CHKERR, get_petsc_opt, deallocate_allocatable
 
   implicit none
 
@@ -62,6 +62,11 @@ program main
     & phi0, theta0, albedo_th, albedo_sol, &
     & lthermal, lsolar, atm_filename, &
     & fdir, fdn, fup, fdiv)
+
+  call deallocate_allocatable(fdir)
+  call deallocate_allocatable(fdn)
+  call deallocate_allocatable(fup)
+  call deallocate_allocatable(fdiv)
 
   call mpi_finalize(ierr)
 end program
