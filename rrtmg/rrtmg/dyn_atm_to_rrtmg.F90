@@ -183,8 +183,10 @@ module m_dyn_atm_to_rrtmg
       call PetscLogEventBegin(logs%setup_tenstr_atm, ierr); call CHKERR(ierr)
 
       lignore_bad_input = .False.
-      call get_petsc_opt(trim(get_arg(PETSC_NULL_CHARACTER, prefix)), '-pprts_rrtmg_ignore_bad_input', &
-        & lignore_bad_input, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, '-pprts_rrtmg_ignore_bad_input', lignore_bad_input, lflg, ierr); call CHKERR(ierr)
+      if(present(prefix)) then
+        call get_petsc_opt(prefix, '-pprts_rrtmg_ignore_bad_input', lignore_bad_input, lflg, ierr); call CHKERR(ierr)
+      endif
 
       if(.not.allocated(atm%bg_atm)) then
         call load_atmfile(comm, atm_filename, atm%bg_atm)
