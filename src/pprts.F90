@@ -3638,7 +3638,7 @@ module m_pprts
             enddo
           enddo
           call restoreVecPointer(C_diff%da, local_b, xsrc1d, xsrc, readonly=.True.)
-
+          call DMRestoreLocalVector(C_diff%da, local_b, ierr); call CHKERR(ierr)
         endif
 
 

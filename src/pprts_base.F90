@@ -174,8 +174,13 @@ module m_pprts_base
     character(len=default_str_len)     :: prefix='' ! name to prefix options
     character(len=default_str_len)     :: solvername='' ! name to prefix e.g. log stages. If you create more than one solver, make sure that it has a unique name
     integer(mpiint)                    :: comm, myid, numnodes     ! mpi communicator, my rank and number of ranks in comm
-    type(t_coord), allocatable         :: C_dir, C_diff, C_one, C_one1
-    type(t_coord), allocatable         :: C_one_atm, C_one_atm1, C_one_atm1_box
+    type(t_coord), allocatable         :: C_dir
+    type(t_coord), allocatable         :: C_diff
+    type(t_coord), allocatable         :: C_one
+    type(t_coord), allocatable         :: C_one1
+    type(t_coord), allocatable         :: C_one_atm
+    type(t_coord), allocatable         :: C_one_atm1
+    type(t_coord), allocatable         :: C_one_atm1_box
     type(t_coord), allocatable         :: C_two1
     type(t_coord), allocatable         :: Cvert_one_atm1
     type(t_coord), allocatable         :: Csrfc_one
@@ -515,10 +520,10 @@ module m_pprts_base
       call destroy_coord(solver%C_diff        )
       call destroy_coord(solver%C_one         )
       call destroy_coord(solver%C_one1        )
-      call destroy_coord(solver%C_two1        )
       call destroy_coord(solver%C_one_atm     )
       call destroy_coord(solver%C_one_atm1    )
       call destroy_coord(solver%C_one_atm1_box)
+      call destroy_coord(solver%C_two1        )
       call destroy_coord(solver%Cvert_one_atm1)
       call destroy_coord(solver%Csrfc_one     )
 
