@@ -83,6 +83,9 @@ module m_plex2rayli
       if(ldebug) print *,'chartsize old:', pEnd, '=>', chartsize
 
       call DMPlexCreate(comm, dmrayli, ierr); call CHKERR(ierr)
+#ifdef PETSC_DMPlexDistributeSetDefault
+      call DMPlexDistributeSetDefault(dmrayli, PETSC_FALSE, ierr); call CHKERR(ierr)
+#endif
       call DMSetDimension(dmrayli, dm_dim, ierr); call CHKERR(ierr)
       call DMPlexSetChart(dmrayli, i0, chartsize, ierr); call CHKERR(ierr)
 

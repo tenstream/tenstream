@@ -124,6 +124,9 @@ module m_icon_plex_utils
       endif
 
       call DMPlexCreate(comm, dm3d, ierr); call CHKERR(ierr)
+#ifdef PETSC_DMPlexDistributeSetDefault
+      call DMPlexDistributeSetDefault(dm3d, PETSC_FALSE, ierr); call CHKERR(ierr)
+#endif
       call DMSetDimension(dm3d, i3, ierr); call CHKERR(ierr)
       call DMPlexSetChart(dm3d, i0, chartsize, ierr); call CHKERR(ierr)
 
@@ -815,6 +818,9 @@ module m_icon_plex_utils
       endif
 
       call DMPlexCreate(comm, dm, ierr); call CHKERR(ierr)
+#ifdef PETSC_DMPlexDistributeSetDefault
+      call DMPlexDistributeSetDefault(dm, PETSC_FALSE, ierr); call CHKERR(ierr)
+#endif
       call PetscObjectSetName(dm, 'Fish_testplex_Nx'//toStr(Nx)//'_Ny'//toStr(Ny), ierr); call CHKERR(ierr)
       call DMSetDimension(dm, i2, ierr); call CHKERR(ierr)
 
@@ -1065,6 +1071,9 @@ module m_icon_plex_utils
       endif
 
       call DMPlexCreate(comm, dm, ierr); call CHKERR(ierr)
+#ifdef PETSC_DMPlexDistributeSetDefault
+      call DMPlexDistributeSetDefault(dm, PETSC_FALSE, ierr); call CHKERR(ierr)
+#endif
       call PetscObjectSetName(dm, 'sh_testplex_Nx'//toStr(Nx)//'_Ny'//toStr(Ny), ierr); call CHKERR(ierr)
       call DMSetDimension(dm, i2, ierr); call CHKERR(ierr)
 
@@ -1369,6 +1378,9 @@ module m_icon_plex_utils
       endif
 
       call DMPlexCreate(comm, dm, ierr);call CHKERR(ierr)
+#ifdef PETSC_DMPlexDistributeSetDefault
+      call DMPlexDistributeSetDefault(dm, PETSC_FALSE, ierr); call CHKERR(ierr)
+#endif
       call PetscObjectSetName(dm, 'DMPLEX_read_from_'//trim(gridfile), ierr);call CHKERR(ierr)
       call DMSetDimension(dm, i2, ierr);call CHKERR(ierr)
 
