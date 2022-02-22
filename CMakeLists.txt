@@ -1,5 +1,4 @@
 # Add our custom cmake find scripts
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/petsc_cmake_modules/")
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/")
 
 message(STATUS "CMake Version ${CMAKE_VERSION}")
