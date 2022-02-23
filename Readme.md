@@ -9,16 +9,18 @@
   <http://dx.doi.org/10.5194/gmd-9-1413-2016>
 
 #### The solver is coupled to the software packages:
-  * [LibRadtran](http://www.libradtran.org)  -- all purpose radiative transfer Library(partially free)
-  * [UCLA-LES](http://www.github.com/uclales/uclales)    -- Large Eddy Simulation code for cloud resolving simulations
   * [COSMO](http://www.cosmo-model.org)       -- Numerical Weather Prediction model
-  * [DALES](https://github.com/dalesteam/dales) -- Dutch Atmospheric Large-Eddy Simulation model 
+  * [DALES](https://github.com/dalesteam/dales) -- Dutch Atmospheric Large-Eddy Simulation model
+  * [LibRadtran](http://www.libradtran.org)  -- all purpose radiative transfer Library(partially free)
+  * [PALM](https://gitlab.palm-model.org/) -- PALM LES Model
+  * [UCLA-LES](http://www.github.com/uclales/uclales)    -- Large Eddy Simulation code for cloud resolving simulations
+  * [WRF](https://github.com/wrf-model/WRF) -- WRF-ARW Modeling System
 
 #### Note concerning the usage
-The code is distributed under the GPL, and you are therefore free to use, change and redistribute it.  
+The code is distributed under the GPL, and you are therefore free to use, change and redistribute it.
 I do however highly encourage you to participate in the development of the codebase.
 If you are using the code in your work, please consider sharing bugfixes and experiences.
-Given the experimental status of the solver, I kindly ask that you get in touch before publishing any results concerning the TenStream solver to ensure correctness of the results.  
+Given the experimental status of the solver, I kindly ask that you get in touch before publishing any results concerning the TenStream solver to ensure correctness of the results.
 It would also be appreciated to discuss co-authorship for research publications conducted with the TenStream solver.
 #### Contact
 Don't hesitate to ask, fabian@jakub.com (<a href="http://jakub.com/" target="_blank">www.jakub.com</a>
@@ -32,6 +34,7 @@ Don't hesitate to ask, fabian@jakub.com (<a href="http://jakub.com/" target="_bl
   * cmake
   * PETSc
   * MPI
+  * NetCDF
 
 Instructions on how to install these is beyond the scope of this text.
 
@@ -41,8 +44,8 @@ Instructions on how to install these is beyond the scope of this text.
 * Linux Cluster MaxPlanckInstitute Hamburg
 * IBM Power6  Machine "blizzard" at DKRZ, Hamburg
 * Mistral supercomputer, Intel Haswell, at DKRZ, Hamburg
- 
-You may find a hint for a suitable config file in the config/ directory:
+
+You may find a hint for a suitable setup in the gitlab CI pipeline of the project
 
 #### Currently the solver is tested for Compilers:
 
