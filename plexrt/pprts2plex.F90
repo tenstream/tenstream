@@ -17,7 +17,7 @@ module m_pprts2plex
     & PPRTS_REAR_FACE,                    &
     & PPRTS_FRONT_FACE
 
-  use m_pprts_base, only : t_solver, t_coord, atmk
+  use m_pprts_base, only: t_solver, t_coord, atmk
 
   use m_plex_grid, only: t_plexgrid, &
     & get_inward_face_normal
@@ -41,18 +41,18 @@ contains
 
     ierr = 0
 
-    if(.not.allocated(pprts_buildings%albedo)) ierr = 1
+    if (.not. allocated(pprts_buildings%albedo)) ierr = 1
     call CHKERR(ierr, 'bad input data in pprts_buildings, albedo not allocated')
-    if(.not.associated(pprts_buildings%iface)) ierr = 2
+    if (.not. associated(pprts_buildings%iface)) ierr = 2
     call CHKERR(ierr, 'bad input data in pprts_buildings, iface not associated')
 
     ! count number of needed new faces
-    associate(P => pprts_buildings)
+    associate (P => pprts_buildings)
       nr_plex_faces = 0
-      do m = lbound(P%iface,1), ubound(P%iface,1)
+      do m = lbound(P%iface, 1), ubound(P%iface, 1)
 
         call ind_1d_to_nd(P%da_offsets, P%iface(m), pprts_idx)
-        select case(pprts_idx(1))
+        select case (pprts_idx(1))
 
         case (PPRTS_TOP_FACE, PPRTS_BOT_FACE)
           nr_plex_faces = nr_plex_faces + 2
@@ -65,21 +65,21 @@ contains
           call CHKERR(ierr, 'dont know the faceidx')
         end select
 
-      enddo
+      end do
     end associate
 
-    if(.not.allocated(plex_buildings)) then
-      allocate(plex_buildings)
-      allocate(plex_buildings%albedo(nr_plex_faces))
-      allocate(plex_buildings%iface (nr_plex_faces))
-      if(allocated(pprts_buildings%planck)) &
-        & allocate(plex_buildings%planck(nr_plex_faces))
+    if (.not. allocated(plex_buildings)) then
+      allocate (plex_buildings)
+      allocate (plex_buildings%albedo(nr_plex_faces))
+      allocate (plex_buildings%iface(nr_plex_faces))
+      if (allocated(pprts_buildings%planck)) &
+        & allocate (plex_buildings%planck(nr_plex_faces))
     else
-      call CHKERR(int(size(plex_buildings%iface )-nr_plex_faces,mpiint), "wrong size plex_buildings%iface ")
-      call CHKERR(int(size(plex_buildings%albedo)-nr_plex_faces,mpiint), "wrong size plex_buildings%albedo")
-       if(allocated(pprts_buildings%planck)) &
-         & call CHKERR(int(size(plex_buildings%planck)-nr_plex_faces,mpiint), "wrong size plex_buildings%planck")
-    endif
+      call CHKERR(int(size(plex_buildings%iface) - nr_plex_faces, mpiint), "wrong size plex_buildings%iface ")
+      call CHKERR(int(size(plex_buildings%albedo) - nr_plex_faces, mpiint), "wrong size plex_buildings%albedo")
+      if (allocated(pprts_buildings%planck)) &
+        & call CHKERR(int(size(plex_buildings%planck) - nr_plex_faces, mpiint), "wrong size plex_buildings%planck")
+    end if
 
     call DMPlexGetDepthStratum(plex%dm, 3_iintegers, cStart, cEnd, ierr); call CHKERR(ierr) ! cells
     call DMPlexGetDepthStratum(plex%dm, 2_iintegers, fStart, fEnd, ierr); call CHKERR(ierr) ! faces
@@ -87,29 +87,29 @@ contains
     call DMGetSection(plex%geom_dm, geomSection, ierr); CHKERRQ(ierr)
     call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
-    associate(Ca => solver%C_one_atm, P => pprts_buildings, T=>plex_buildings)
+    associate (Ca => solver%C_one_atm, P => pprts_buildings, T => plex_buildings)
       l = 0
-      do m = lbound(P%iface,1), ubound(P%iface,1)
+      do m = lbound(P%iface, 1), ubound(P%iface, 1)
         call ind_1d_to_nd(P%da_offsets, P%iface(m), pprts_idx)
 
-        associate( d => pprts_idx(1), k => pprts_idx(2), i => pprts_idx(3), j => pprts_idx(4))
+        associate (d => pprts_idx(1), k => pprts_idx(2), i => pprts_idx(3), j => pprts_idx(4))
           ak = atmk(solver%atm, k)
 
-          call pprts_cell_to_plex_cell_idx(Ca, [ak,i,j]-1, plex, plex_cells, ierr); call CHKERR(ierr)
+          call pprts_cell_to_plex_cell_idx(Ca, [ak, i, j] - 1, plex, plex_cells, ierr); call CHKERR(ierr)
 
-          do icell=1,2
+          do icell = 1, 2
             iface = find_face_idx_by_orientation(plex, plex_cells(icell), d)
-            if(iface.ge.0) then
-              l = l+1
+            if (iface .ge. 0) then
+              l = l + 1
               T%iface(l) = iface
               T%albedo(l) = P%albedo(m)
-              if(allocated(pprts_buildings%planck)) &
+              if (allocated(pprts_buildings%planck)) &
                 & T%planck(l) = P%planck(m)
-            endif
-          enddo
+            end if
+          end do
         end associate
-      enddo
-      call CHKERR(int(nr_plex_faces-l, mpiint), 'did we forget a face?')
+      end do
+      call CHKERR(int(nr_plex_faces - l, mpiint), 'did we forget a face?')
     end associate
     call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
   end subroutine
@@ -134,7 +134,7 @@ contains
     call DMPlexGetCone(plex%dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
 
     main: block
-      select case(fidx)
+      select case (fidx)
       case (PPRTS_TOP_FACE)
         iface = faces_of_cell(1)
         exit main
@@ -144,26 +144,26 @@ contains
         exit main
       end select
 
-      do i=3,size(faces_of_cell)
+      do i = 3, size(faces_of_cell)
         iface = faces_of_cell(i)
         call get_inward_face_normal(iface, icell, geomSection, geoms, face_normal)
         !print *,'iface', iface, 'normal', face_normal
 
-        select case(fidx)
+        select case (fidx)
         case (PPRTS_LEFT_FACE)
-          if(approx(face_normal(1),  one, .001_ireals)) exit main
+          if (approx(face_normal(1), one, .001_ireals)) exit main
         case (PPRTS_RIGHT_FACE)
-          if(approx(face_normal(1), -one, .001_ireals)) exit main
+          if (approx(face_normal(1), -one, .001_ireals)) exit main
         case (PPRTS_REAR_FACE)
-          if(approx(face_normal(2),  one, .001_ireals)) exit main
+          if (approx(face_normal(2), one, .001_ireals)) exit main
         case (PPRTS_FRONT_FACE)
-          if(approx(face_normal(2), -one, .001_ireals)) exit main
+          if (approx(face_normal(2), -one, .001_ireals)) exit main
 
         case default
           ierr = -1
           call CHKERR(ierr, 'dont know the faceidx '//toStr(fidx))
         end select
-      enddo
+      end do
       iface = -1
     end block main
 
@@ -188,22 +188,22 @@ contains
     call CHKERR(int(pprts_C%glob_zm - plex%Nlay, mpiint), &
       & 'vertical axis of pprts_dmda (Nz='//toStr(pprts_C%glob_zm)//')'// &
       & ' and plex (Nz='//toStr(plex%Nlay)//') dont match')
-    call ndarray_offsets([plex%Nlay, 2*pprts_C%glob_xm, pprts_C%glob_ym], plex_cell_offsets)
+    call ndarray_offsets([plex%Nlay, 2 * pprts_C%glob_xm, pprts_C%glob_ym], plex_cell_offsets)
 
-    associate( k=>pprts_cell(1), i=>pprts_cell(2), j=>pprts_cell(3) )
-      plex_cell(1) = ind_nd_to_1d(plex_cell_offsets, [k, 2*i, j], cstyle=.True.)
-      plex_cell(2) = ind_nd_to_1d(plex_cell_offsets, [k, 2*i+1, j], cstyle=.True.)
+    associate (k => pprts_cell(1), i => pprts_cell(2), j => pprts_cell(3))
+      plex_cell(1) = ind_nd_to_1d(plex_cell_offsets, [k, 2 * i, j], cstyle=.true.)
+      plex_cell(2) = ind_nd_to_1d(plex_cell_offsets, [k, 2 * i + 1, j], cstyle=.true.)
     end associate
 
     call DMPlexGetDepthStratum(plex%dm, 3_iintegers, cStart, cEnd, ierr); call CHKERR(ierr)
-    do i=1,2
-      if(.not.is_inrange(plex_cell(i), cStart, cEnd-1)) then
-        ierr = ierr+int(i, mpiint)
+    do i = 1, 2
+      if (.not. is_inrange(plex_cell(i), cStart, cEnd - 1)) then
+        ierr = ierr + int(i, mpiint)
         call CHKWARN(ierr, 'when looking for pprts_cell '//toStr(pprts_cell)// &
           & ' found icell ('//toStr(plex_cell(i))//')'// &
-          & ' but is not in range cStart/cEnd-1 ('//toStr(cStart)//' - '//toStr(cEnd-1)//')')
-      endif
-    enddo
+          & ' but is not in range cStart/cEnd-1 ('//toStr(cStart)//' - '//toStr(cEnd - 1)//')')
+      end if
+    end do
     call CHKERR(ierr, 'bad cell idxs found')
   end subroutine
 end module

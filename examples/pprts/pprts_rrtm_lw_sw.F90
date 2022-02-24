@@ -7,15 +7,15 @@ module m_example_pprts_rrtm_lw_sw
   ! Import datatype from the TenStream lib. Depending on how PETSC is
   ! compiled(single or double floats, or long ints), this will determine what
   ! the Tenstream uses.
-  use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint, zero, one, default_str_len
+  use m_data_parameters, only: init_mpi_data_parameters, iintegers, ireals, mpiint, zero, one, default_str_len
 
-  use m_helper_functions, only : linspace, CHKERR, spherical_2_cartesian, meanval, get_petsc_opt
+  use m_helper_functions, only: linspace, CHKERR, spherical_2_cartesian, meanval, get_petsc_opt
 
   ! Import specific solver type: 3_10 for example uses 3 streams direct, 10 streams for diffuse radiation
-  use m_pprts_base, only : t_solver, allocate_pprts_solver_from_commandline
+  use m_pprts_base, only: t_solver, allocate_pprts_solver_from_commandline
 
   ! main entry point for solver, and desctructor
-  use m_pprts_rrtmg, only : pprts_rrtmg, destroy_pprts_rrtmg
+  use m_pprts_rrtmg, only: pprts_rrtmg, destroy_pprts_rrtmg
 
   use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, destroy_tenstr_atm
 
@@ -34,7 +34,6 @@ contains
     logical, intent(in) :: lthermal, lsolar                       ! switches to enable/disable spectral integration
     character(len=*), intent(in) :: atm_filename ! ='afglus_100m.dat'
 
-
     ! Fluxes and absorption in [W/m2] and [W/m3] respectively.
     ! Dimensions will probably be bigger than the dynamics grid, i.e. will have
     ! the size of the merged grid. If you only want to use heating rates on the
@@ -42,13 +41,13 @@ contains
     !   edn(ubound(edn,1)-nlay_dynamics : ubound(edn,1) )
     ! or:
     !   abso(ubound(abso,1)-nlay_dynamics+1 : ubound(abso,1) )
-    real(ireals), allocatable, dimension(:,:,:) :: edir, edn, eup, abso ! [nlev_merged(-1), nxp, nyp]
+    real(ireals), allocatable, dimension(:, :, :) :: edir, edn, eup, abso ! [nlev_merged(-1), nxp, nyp]
 
     ! MPI variables and domain decomposition sizes
     integer(mpiint) :: numnodes, myid, N_ranks_x, N_ranks_y, ierr
 
-    real(ireals), dimension(nzp+1,nxp,nyp), target :: plev ! pressure on layer interfaces [hPa]
-    real(ireals), dimension(nzp+1,nxp,nyp), target :: tlev ! Temperature on layer interfaces [K]
+    real(ireals), dimension(nzp + 1, nxp, nyp), target :: plev ! pressure on layer interfaces [hPa]
+    real(ireals), dimension(nzp + 1, nxp, nyp), target :: tlev ! Temperature on layer interfaces [K]
 
     ! Layer values for the atmospheric constituents -- those are actually all
     ! optional and if not provided, will be taken from the background profile file (atm_filename)
@@ -56,7 +55,7 @@ contains
     ! real(ireals), dimension(nzp,nxp,nyp) :: h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr
 
     ! Liquid water cloud content [g/kg] and effective radius in micron
-    real(ireals), dimension(nzp,nxp,nyp), target :: lwc, reliq
+    real(ireals), dimension(nzp, nxp, nyp), target :: lwc, reliq
 
     ! Filename of background atmosphere file. ASCII file with columns:
     ! z(km)  p(hPa)  T(K)  air(cm-3)  o3(cm-3) o2(cm-3) h2o(cm-3)  co2(cm-3) no2(cm-3)
@@ -64,14 +63,14 @@ contains
 
     !------------ Local vars ------------------
     integer(iintegers) :: k, nlev, icld, iter
-    integer(iintegers),allocatable :: nxproc(:), nyproc(:)
+    integer(iintegers), allocatable :: nxproc(:), nyproc(:)
 
     ! reshape pointer to convert i,j vecs to column vecs
-    real(ireals), pointer, dimension(:,:) :: pplev, ptlev, plwc, preliq
+    real(ireals), pointer, dimension(:, :) :: pplev, ptlev, plwc, preliq
 
     real(ireals) :: sundir(3)
 
-    logical,parameter :: ldebug=.True.
+    logical, parameter :: ldebug = .true.
 
     class(t_solver), allocatable :: pprts_solver
     type(t_tenstr_atm) :: atm
@@ -81,24 +80,24 @@ contains
 
     N_ranks_y = int(sqrt(1.*numnodes))
     N_ranks_x = numnodes / N_ranks_y
-    if(N_ranks_y*N_ranks_x .ne. numnodes) then
+    if (N_ranks_y * N_ranks_x .ne. numnodes) then
       N_ranks_x = numnodes
       N_ranks_y = 1
-    endif
-    if(ldebug .and. myid.eq.0) print *, 'Domain Decomposition will be', N_ranks_x, 'and', N_ranks_y, '::', numnodes
+    end if
+    if (ldebug .and. myid .eq. 0) print *, 'Domain Decomposition will be', N_ranks_x, 'and', N_ranks_y, '::', numnodes
 
-    allocate(nxproc(N_ranks_x), source=nxp) ! dimension will determine how many ranks are used along the axis
-    allocate(nyproc(N_ranks_y), source=nyp) ! values have to define the local domain sizes on each rank (here constant on all processes)
+    allocate (nxproc(N_ranks_x), source=nxp) ! dimension will determine how many ranks are used along the axis
+    allocate (nyproc(N_ranks_y), source=nyp) ! values have to define the local domain sizes on each rank (here constant on all processes)
 
     ! Have to call init_mpi_data_parameters() to define datatypes
     call init_mpi_data_parameters(comm)
 
     ! Start with a dynamics grid ranging from 1000 hPa up to 500 hPa and a
     ! Temperature difference of 50K
-    do k=1,nzp+1
-      plev(k,:,:) = linspace(k, [1e3_ireals, 500._ireals], nzp+1)
-      tlev(k,:,:) = linspace(k, [288._ireals, 250._ireals], nzp+1)
-    enddo
+    do k = 1, nzp + 1
+      plev(k, :, :) = linspace(k, [1e3_ireals, 500._ireals], nzp + 1)
+      tlev(k, :, :) = linspace(k, [288._ireals, 250._ireals], nzp + 1)
+    end do
 
     ! Not much going on in the dynamics grid, we actually don't supply trace
     ! gases to the TenStream solver... this will then be interpolated from the
@@ -114,77 +113,77 @@ contains
     lwc = 0
     reliq = 0
 
-    icld = int(real(nzp+1)/2)
-    lwc  (icld, :,:) = 1e-2
-    reliq(icld, :,:) = 10
+    icld = int(real(nzp + 1) / 2)
+    lwc(icld, :, :) = 1e-2
+    reliq(icld, :, :) = 10
 
     !tlev (icld  , :,:) = 288
-    tlev (icld+1, :,:) = tlev (icld  , :,:)
+    tlev(icld + 1, :, :) = tlev(icld, :, :)
 
-    if(myid.eq.0 .and. ldebug) print *,'Setup Atmosphere...'
+    if (myid .eq. 0 .and. ldebug) print *, 'Setup Atmosphere...'
 
-    pplev(1:size(plev,1),1:size(plev,2)*size(plev,3)) => plev
-    ptlev(1:size(tlev,1),1:size(tlev,2)*size(tlev,3)) => tlev
-    plwc (1:size(lwc ,1),1:size(lwc ,2)*size(lwc ,3)) => lwc
-    preliq(1:size(reliq,1),1:size(reliq,2)*size(reliq,3)) => reliq
+    pplev(1:size(plev, 1), 1:size(plev, 2) * size(plev, 3)) => plev
+    ptlev(1:size(tlev, 1), 1:size(tlev, 2) * size(tlev, 3)) => tlev
+    plwc(1:size(lwc, 1), 1:size(lwc, 2) * size(lwc, 3)) => lwc
+    preliq(1:size(reliq, 1), 1:size(reliq, 2) * size(reliq, 3)) => reliq
 
-    call setup_tenstr_atm(comm, .False., atm_filename, &
-      pplev, ptlev, atm, &
-      d_lwc=plwc, d_reliq=preliq)
+    call setup_tenstr_atm(comm, .false., atm_filename, &
+                          pplev, ptlev, atm, &
+                          d_lwc=plwc, d_reliq=preliq)
 
     sundir = spherical_2_cartesian(phi0, theta0)
 
     call allocate_pprts_solver_from_commandline(pprts_solver, '3_10', ierr); call CHKERR(ierr)
 
-    iter=1
+    iter = 1
     call get_petsc_opt(PETSC_NULL_CHARACTER, "-iter", iter, lflg, ierr)
 
-    do k=1,iter
+    do k = 1, iter
       call pprts_rrtmg(comm, pprts_solver, atm, nxp, nyp, &
-        dx, dy, sundir,         &
-        albedo_th, albedo_sol,  &
-        lthermal, lsolar,       &
-        edir, edn, eup, abso,   &
-        nxproc=nxproc, nyproc=nyproc, &
-        opt_time=zero)
-    enddo
+                       dx, dy, sundir, &
+                       albedo_th, albedo_sol, &
+                       lthermal, lsolar, &
+                       edir, edn, eup, abso, &
+                       nxproc=nxproc, nyproc=nyproc, &
+                       opt_time=zero)
+    end do
 
-    nlev = ubound(edn,1)
-    if(myid.eq.0) then
-      if(ldebug) then
-        do k=1,nlev
-          if(allocated(edir)) then
-            print *,k,'edir', meanval(edir(k,:,:)), 'edn', meanval(edn(k,:,:)), 'eup', meanval(eup(k,:,:)), &
-              & 'abso', meanval(abso(min(nlev-1,k),:,:))
+    nlev = ubound(edn, 1)
+    if (myid .eq. 0) then
+      if (ldebug) then
+        do k = 1, nlev
+          if (allocated(edir)) then
+            print *, k, 'edir', meanval(edir(k, :, :)), 'edn', meanval(edn(k, :, :)), 'eup', meanval(eup(k, :, :)), &
+              & 'abso', meanval(abso(min(nlev - 1, k), :, :))
           else
-            print *,k, 'edn', meanval(edn(k,:,:)), 'eup', meanval(eup(k,:,:)), meanval(abso(min(nlev-1,k),:,:))
-          endif
-        enddo
-      endif
+            print *, k, 'edn', meanval(edn(k, :, :)), 'eup', meanval(eup(k, :, :)), meanval(abso(min(nlev - 1, k), :, :))
+          end if
+        end do
+      end if
 
-      if(allocated(edir)) &
-        print *,'surface :: direct flux', meanval(edir(nlev,:,:))
-      print *,'surface :: downw flux ', meanval(edn (nlev,:,:))
-      print *,'surface :: upward fl  ', meanval(eup (nlev,:,:))
-      print *,'surface :: absorption ', meanval(abso(nlev-1,:,:))
+      if (allocated(edir)) &
+        print *, 'surface :: direct flux', meanval(edir(nlev, :, :))
+      print *, 'surface :: downw flux ', meanval(edn(nlev, :, :))
+      print *, 'surface :: upward fl  ', meanval(eup(nlev, :, :))
+      print *, 'surface :: absorption ', meanval(abso(nlev - 1, :, :))
 
-      if(allocated(edir)) &
-        print *,'TOA :: direct flux', meanval(edir(1,:,:))
-      print *,'TOA :: downw flux ', meanval(edn (1,:,:))
-      print *,'TOA :: upward fl  ', meanval(eup (1,:,:))
-      print *,'TOA :: absorption ', meanval(abso(1,:,:))
+      if (allocated(edir)) &
+        print *, 'TOA :: direct flux', meanval(edir(1, :, :))
+      print *, 'TOA :: downw flux ', meanval(edn(1, :, :))
+      print *, 'TOA :: upward fl  ', meanval(eup(1, :, :))
+      print *, 'TOA :: absorption ', meanval(abso(1, :, :))
 
-      if(allocated(edir)) &
-        print *,'icloud :: direct flux  ', meanval(edir(nlev-icld  ,:,:))
-      if(allocated(edir)) &
-        print *,'icloud+1 :: direct flux', meanval(edir(nlev-icld+1,:,:))
-      print *,'icloud :: downw flux   ', meanval(edn (nlev-icld+1,:,:))
-      print *,'icloud :: upward fl    ', meanval(eup (nlev-icld  ,:,:))
-      print *,'icloud :: absorption   ', meanval(abso(nlev-icld  ,:,:))
-    endif
+      if (allocated(edir)) &
+        print *, 'icloud :: direct flux  ', meanval(edir(nlev - icld, :, :))
+      if (allocated(edir)) &
+        print *, 'icloud+1 :: direct flux', meanval(edir(nlev - icld + 1, :, :))
+      print *, 'icloud :: downw flux   ', meanval(edn(nlev - icld + 1, :, :))
+      print *, 'icloud :: upward fl    ', meanval(eup(nlev - icld, :, :))
+      print *, 'icloud :: absorption   ', meanval(abso(nlev - icld, :, :))
+    end if
 
     ! Tidy up
-    call destroy_pprts_rrtmg(pprts_solver, lfinalizepetsc=.True.)
+    call destroy_pprts_rrtmg(pprts_solver, lfinalizepetsc=.true.)
     call destroy_tenstr_atm(atm)
   end subroutine
 
