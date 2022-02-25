@@ -25,7 +25,7 @@ touch $ERRLOG
 PYTHON=$(which "python3")
 BIN=$PROJECT_ROOT/external/fprettify/fprettify.py
 if [[ ! -e $BIN ]]; then
-  git clone git@github.com:pseewald/fprettify.git $(dirname $BIN)
+  git clone https://github.com/pseewald/fprettify.git $(dirname $BIN)
 fi
 DIFF=false
 DRYRUN=false
