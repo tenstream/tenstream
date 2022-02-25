@@ -1,5 +1,19 @@
 stages:
+  - pre
   - build
+
+check_fprettify:pre:
+  stage: pre
+  image: alpine
+  tags:
+    - docker.meteo.physik.lmu.de
+  before_script:
+    - apk update && apk add bash git python3
+  script:
+    - echo "Checking that code base adheres to our code formatting standards"
+    - echo "In case it doesnt, please run maint/fprettify.sh before you commit"
+    - maint/fprettify.sh -d
+
 
 .template_build_PETSC: &template_build_PETSC
     - export PETSC_DIR=$CI_PROJECT_DIR/$PETSC_DIR

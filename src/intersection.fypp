@@ -1,5 +1,5 @@
 module m_intersection
-  use iso_fortran_env, only: INT32, INT64, REAL32, REAL64, REAL128
+  use iso_fortran_env, only: int32, int64, real32, real64, real128
   use m_data_parameters, only: mpiint
   use m_helper_functions, only: &
     & approx, &
@@ -24,51 +24,51 @@ module m_intersection
 
   interface hit_plane
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure hit_plane_${dtype}$
+      module procedure hit_plane_${dtype}$
     #:endfor
   end interface
 
   interface pnt_in_cube
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure pnt_in_cube_${dtype}$
+      module procedure pnt_in_cube_${dtype}$
     #:endfor
   end interface
 
   interface pnt_in_triangle
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure pnt_in_triangle_${dtype}$
+      module procedure pnt_in_triangle_${dtype}$
     #:endfor
   end interface
 
   interface pnt_in_rectangle
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure pnt_in_rectangle_${dtype}$
+      module procedure pnt_in_rectangle_${dtype}$
     #:endfor
   end interface
 
   interface pnt_in_triangle_convex_hull
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure pnt_in_triangle_convex_hull_${dtype}$
+      module procedure pnt_in_triangle_convex_hull_${dtype}$
     #:endfor
   end interface
 
   interface square_intersection
     #:for itype in ['INT32', 'INT64']
-    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure square_intersection_${dtype}$_${itype}$
-    #:endfor
+      #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+        module procedure square_intersection_${dtype}$_${itype}$
+      #:endfor
     #:endfor
   end interface
 
   interface triangle_intersection
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure triangle_intersection_${dtype}$
+      module procedure triangle_intersection_${dtype}$
     #:endfor
   end interface
 
   interface line_intersection_3d
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure line_intersection_3d_${dtype}$
+      module procedure line_intersection_3d_${dtype}$
     #:endfor
   end interface
 contains
@@ -76,319 +76,317 @@ contains
   !> @brief determine distance where a photon p intersects with a plane
   !> @details inputs are the location and direction of a photon aswell as the origin and surface normal of the plane
   #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-  pure function hit_plane_${dtype}$(p_loc, p_dir, po, pn) result(hit_plane)
-    real(${dtype}$) :: hit_plane
-    real(${dtype}$),intent(in) :: p_loc(3), p_dir(3)
-    real(${dtype}$),intent(in) :: po(3), pn(3)
-    real(${dtype}$) :: discr
-    real(${dtype}$), parameter :: H = sqrt(huge(hit_plane))
-    discr = dot_product(p_dir,pn)
-    if( ( discr.le. epsilon(discr) ) .and. ( discr.gt.-epsilon(discr)  ) ) then
-      hit_plane = H
-    else
-      hit_plane = dot_product(po-p_loc, pn) / discr
-    endif
-  end function
+    pure function hit_plane_${dtype}$ (p_loc, p_dir, po, pn) result(hit_plane)
+      real(${dtype}$) :: hit_plane
+      real(${dtype}$), intent(in) :: p_loc(3), p_dir(3)
+      real(${dtype}$), intent(in) :: po(3), pn(3)
+      real(${dtype}$) :: discr
+      real(${dtype}$), parameter :: H = sqrt(huge(hit_plane))
+      discr = dot_product(p_dir, pn)
+      if ((discr .le. epsilon(discr)) .and. (discr .gt. -epsilon(discr))) then
+        hit_plane = H
+      else
+        hit_plane = dot_product(po - p_loc, pn) / discr
+      end if
+    end function
   #:endfor
 
   !> @brief determine if point is inside a cube, given the corner vertices
   #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-  function pnt_in_cube_${dtype}$(verts, p) result(pnt_in_cube)
-    real(${dtype}$), intent(in) :: verts(:) ! dim(3*8)
-    real(${dtype}$), intent(in) :: p(:)
-    logical :: pnt_in_cube
-    real(${dtype}$), parameter :: eps=epsilon(eps)
+    function pnt_in_cube_${dtype}$ (verts, p) result(pnt_in_cube)
+      real(${dtype}$), intent(in) :: verts(:) ! dim(3*8)
+      real(${dtype}$), intent(in) :: p(:)
+      logical :: pnt_in_cube
+      real(${dtype}$), parameter :: eps = epsilon(eps)
 
-    pnt_in_cube = .True.
-    if(size(verts).eq.2*4*3) then ! 3D coords
-      associate(&
-          A => verts( 1: 3),&
-          B => verts( 4: 6),&
-          C => verts( 7: 9),&
-          D => verts(10:12),&
-          E => verts(13:15),&
-          F => verts(16:18),&
-          G => verts(19:21),&
+      pnt_in_cube = .true.
+      if (size(verts) .eq. 2 * 4 * 3) then ! 3D coords
+        associate ( &
+          A => verts(1:3), &
+          B => verts(4:6), &
+          C => verts(7:9), &
+          D => verts(10:12), &
+          E => verts(13:15), &
+          F => verts(16:18), &
+          G => verts(19:21), &
           H => verts(22:24))
-        if( p(1)+eps.lt.minval([A(1), C(1), E(1), G(1)])) then
-          pnt_in_cube=.False.
-          return
-        endif
-        if( p(1)-eps.gt.maxval([B(1), D(1), F(1), H(1)])) then
-          pnt_in_cube=.False.
-          return
-        endif
-        if( p(2)+eps.lt.minval([A(2), B(2), E(2), F(2)])) then
-          pnt_in_cube=.False.
-          return
-        endif
-        if( p(2)-eps.gt.maxval([C(2), D(2), G(2), H(2)])) then
-          pnt_in_cube=.False.
-          return
-        endif
-        if( p(3)+eps.lt.minval([A(3), B(3), C(3), D(3)])) then
-          pnt_in_cube=.False.
-          return
-        endif
-        if( p(3)-eps.gt.maxval([E(3), F(3), G(3), H(3)])) then
-          pnt_in_cube=.False.
-          return
-        endif
-      end associate
-    else
-      call CHKERR(1_mpiint, 'pnt_in_cube not implemented for cube with vertex arr size'//&
-        & toStr(size(verts)))
-    endif
-  end function
+          if (p(1) + eps .lt. minval([A(1), C(1), E(1), G(1)])) then
+            pnt_in_cube = .false.
+            return
+          end if
+          if (p(1) - eps .gt. maxval([B(1), D(1), F(1), H(1)])) then
+            pnt_in_cube = .false.
+            return
+          end if
+          if (p(2) + eps .lt. minval([A(2), B(2), E(2), F(2)])) then
+            pnt_in_cube = .false.
+            return
+          end if
+          if (p(2) - eps .gt. maxval([C(2), D(2), G(2), H(2)])) then
+            pnt_in_cube = .false.
+            return
+          end if
+          if (p(3) + eps .lt. minval([A(3), B(3), C(3), D(3)])) then
+            pnt_in_cube = .false.
+            return
+          end if
+          if (p(3) - eps .gt. maxval([E(3), F(3), G(3), H(3)])) then
+            pnt_in_cube = .false.
+            return
+          end if
+        end associate
+      else
+        call CHKERR(1_mpiint, 'pnt_in_cube not implemented for cube with vertex arr size'//&
+          & toStr(size(verts)))
+      end if
+    end function
   #:endfor
 
   !> @brief determine if point is inside a rectangle p1,p2,p3
   #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-  function pnt_in_rectangle_${dtype}$(p1,p2,p3, p) result(pnt_in_rectangle)
-    real(${dtype}$), intent(in), dimension(2) :: p1,p2,p3, p
-    logical :: pnt_in_rectangle
-    real(${dtype}$),parameter :: eps = epsilon(eps), eps2 = sqrt(eps)
+    function pnt_in_rectangle_${dtype}$ (p1, p2, p3, p) result(pnt_in_rectangle)
+      real(${dtype}$), intent(in), dimension(2) :: p1, p2, p3, p
+      logical :: pnt_in_rectangle
+      real(${dtype}$), parameter :: eps = epsilon(eps), eps2 = sqrt(eps)
 
-    ! check for rectangular bounding box
-    if ( p(1).lt.minval([p1(1),p2(1),p3(1)])-eps2 .or. p(1).gt.maxval([p1(1),p2(1),p3(1)])+eps2 ) then ! outside of xrange
-      pnt_in_rectangle=.False.
-      return
-    endif
-    if ( p(2).lt.minval([p1(2),p2(2),p3(2)])-eps2 .or. p(2).gt.maxval([p1(2),p2(2),p3(2)])+eps2 ) then ! outside of yrange
-      pnt_in_rectangle=.False.
-      return
-    endif
-    pnt_in_rectangle=.True.
-  end function
+      ! check for rectangular bounding box
+      if (p(1) .lt. minval([p1(1), p2(1), p3(1)]) - eps2 .or. p(1) .gt. maxval([p1(1), p2(1), p3(1)]) + eps2) then ! outside of xrange
+        pnt_in_rectangle = .false.
+        return
+      end if
+      if (p(2) .lt. minval([p1(2), p2(2), p3(2)]) - eps2 .or. p(2) .gt. maxval([p1(2), p2(2), p3(2)]) + eps2) then ! outside of yrange
+        pnt_in_rectangle = .false.
+        return
+      end if
+      pnt_in_rectangle = .true.
+    end function
   #:endfor
 
   !> @brief determine if point is inside a triangle p1,p2,p3
   #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-  function pnt_in_triangle_${dtype}$(p1,p2,p3, p) result(pnt_in_triangle)
-    real(${dtype}$), intent(in), dimension(2) :: p1,p2,p3, p
-    logical :: pnt_in_triangle
-    real(${dtype}$),parameter :: eps = epsilon(eps)
-    real(${dtype}$) :: a, b, c, edge_dist
+    function pnt_in_triangle_${dtype}$ (p1, p2, p3, p) result(pnt_in_triangle)
+      real(${dtype}$), intent(in), dimension(2) :: p1, p2, p3, p
+      logical :: pnt_in_triangle
+      real(${dtype}$), parameter :: eps = epsilon(eps)
+      real(${dtype}$) :: a, b, c, edge_dist
 
-    logical, parameter :: ldebug=.False.
+      logical, parameter :: ldebug = .false.
 
-    pnt_in_triangle = pnt_in_rectangle(p1,p2,p3, p)
-    if(ldebug) print *,'pnt_in_triangle::pnt in rectangle:', p1, p2, p3, 'p', p, '::', pnt_in_triangle
-    if (.not.pnt_in_triangle) then ! if pnt is not in rectangle, it is not in triangle!
-      ! Then check for sides
-      a = ((p2(2)- p3(2))*(p(1) - p3(1)) + (p3(1) - p2(1))*(p(2) - p3(2))) / &
-        ((p2(2) - p3(2))*(p1(1) - p3(1)) + (p3(1) - p2(1))*(p1(2) - p3(2)))
-      b = ((p3(2) - p1(2))*(p(1) - p3(1)) + (p1(1) - p3(1))*(p(2) - p3(2))) / &
-        ((p2(2) - p3(2))*(p1(1) - p3(1)) + (p3(1) - p2(1))*(p1(2) - p3(2)))
-      c = 1._${dtype}$ - (a + b)
+      pnt_in_triangle = pnt_in_rectangle(p1, p2, p3, p)
+      if (ldebug) print *, 'pnt_in_triangle::pnt in rectangle:', p1, p2, p3, 'p', p, '::', pnt_in_triangle
+      if (.not. pnt_in_triangle) then ! if pnt is not in rectangle, it is not in triangle!
+        ! Then check for sides
+        a = ((p2(2) - p3(2)) * (p(1) - p3(1)) + (p3(1) - p2(1)) * (p(2) - p3(2))) / &
+            ((p2(2) - p3(2)) * (p1(1) - p3(1)) + (p3(1) - p2(1)) * (p1(2) - p3(2)))
+        b = ((p3(2) - p1(2)) * (p(1) - p3(1)) + (p1(1) - p3(1)) * (p(2) - p3(2))) / &
+            ((p2(2) - p3(2)) * (p1(1) - p3(1)) + (p3(1) - p2(1)) * (p1(2) - p3(2)))
+        c = 1._${dtype}$-(a + b)
 
-      pnt_in_triangle = all([a,b,c].ge.0._${dtype}$)
-      if(ldebug) print *,'pnt_in_triangle::1st check:', a, b, c, '::', pnt_in_triangle
-    endif
+        pnt_in_triangle = all([a, b, c] .ge. 0._${dtype}$)
+        if (ldebug) print *, 'pnt_in_triangle::1st check:', a, b, c, '::', pnt_in_triangle
+      end if
 
-    if(.not.pnt_in_triangle) then
-      pnt_in_triangle = pnt_in_triangle_convex_hull(p1,p2,p3, p)
-      if(ldebug) print *,'pnt_in_triangle::convex hull:', pnt_in_triangle
-    endif
+      if (.not. pnt_in_triangle) then
+        pnt_in_triangle = pnt_in_triangle_convex_hull(p1, p2, p3, p)
+        if (ldebug) print *, 'pnt_in_triangle::convex hull:', pnt_in_triangle
+      end if
 
-    if(.not.pnt_in_triangle) then ! Compute distances to each edge and allow the check to be positive if the distance is small
-      edge_dist = minval(distances_to_triangle_edges(p1,p2,p3,p))
-      if(edge_dist.le.eps) then
-        if((p(1).lt.min(p1(1),p2(1))) .or. (p(1).gt.max(p1(1),p2(1)) )) then
-          ! is on line but ouside of segment
-          continue
-        else
-          pnt_in_triangle=.True.
-        endif
-        if(ldebug) print *,'pnt_in_triangle edgedist:',edge_dist,'=>', pnt_in_triangle
-      endif
-    endif
+      if (.not. pnt_in_triangle) then ! Compute distances to each edge and allow the check to be positive if the distance is small
+        edge_dist = minval(distances_to_triangle_edges(p1, p2, p3, p))
+        if (edge_dist .le. eps) then
+          if ((p(1) .lt. min(p1(1), p2(1))) .or. (p(1) .gt. max(p1(1), p2(1)))) then
+            ! is on line but ouside of segment
+            continue
+          else
+            pnt_in_triangle = .true.
+          end if
+          if (ldebug) print *, 'pnt_in_triangle edgedist:', edge_dist, '=>', pnt_in_triangle
+        end if
+      end if
 
-    if(ldebug.and..not.pnt_in_triangle) print *,'pnt_in_triangle final:', pnt_in_triangle,'::',a,b,c,':',p, &
-      'edgedist',distances_to_triangle_edges(p1,p2,p3,p),distances_to_triangle_edges(p1,p2,p3,p).le.eps
-  end function
+      if (ldebug .and. .not. pnt_in_triangle) print *, 'pnt_in_triangle final:', pnt_in_triangle, '::', a, b, c, ':', p, &
+        'edgedist', distances_to_triangle_edges(p1, p2, p3, p), distances_to_triangle_edges(p1, p2, p3, p) .le. eps
+    end function
   #:endfor
 
   #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-  function pnt_in_triangle_convex_hull_${dtype}$(p1,p2,p3, p) result(pnt_in_triangle_convex_hull)
-    real(${dtype}$), intent(in), dimension(2) :: p1,p2,p3, p
-    logical :: pnt_in_triangle_convex_hull
-    real(${dtype}$), dimension(2) :: v0, v1, v2
-    real(${dtype}$) :: a,b
+    function pnt_in_triangle_convex_hull_${dtype}$ (p1, p2, p3, p) result(pnt_in_triangle_convex_hull)
+      real(${dtype}$), intent(in), dimension(2) :: p1, p2, p3, p
+      logical :: pnt_in_triangle_convex_hull
+      real(${dtype}$), dimension(2) :: v0, v1, v2
+      real(${dtype}$) :: a, b
 
-    v0 = p1
-    v1 = p2-p1
-    v2 = p3-p1
+      v0 = p1
+      v1 = p2 - p1
+      v2 = p3 - p1
 
-    a =  (cross_2d(p, v2) - cross_2d(v0, v2)) / cross_2d(v1, v2)
-    b = -(cross_2d(p, v1) - cross_2d(v0, v1)) / cross_2d(v1, v2)
+      a = (cross_2d(p, v2) - cross_2d(v0, v2)) / cross_2d(v1, v2)
+      b = -(cross_2d(p, v1) - cross_2d(v0, v1)) / cross_2d(v1, v2)
 
-    pnt_in_triangle_convex_hull = all([a,b].ge.0._${dtype}$) .and. (a+b).le.1._${dtype}$
-  end function
+      pnt_in_triangle_convex_hull = all([a, b] .ge. 0._${dtype}$) .and. (a + b) .le. 1._${dtype}$
+    end function
   #:endfor
 
   #:for itype in ['INT32', 'INT64']
-  #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-  subroutine square_intersection_${dtype}$_${itype}$(origin, direction, tA, tB, tC, tD, lhit, hit, iface)
-    real(${dtype}$), intent(in) :: origin(:), direction(:), tA(:), tB(:), tC(:), tD(:)
-    logical, intent(out) :: lhit
-    real(${dtype}$), intent(out) :: hit(:) ! size(4), 3 for intersection, 1 for distance
-    integer(${itype}$), intent(out) :: iface
-    logical :: lhit1, lhit2
-    real(${dtype}$) :: hit1(4), hit2(4)
-    real(${dtype}$),parameter :: rng(2) = [real(${dtype}$) :: 0, huge(rng)]
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+      subroutine square_intersection_${dtype}$_${itype}$ (origin, direction, tA, tB, tC, tD, lhit, hit, iface)
+        real(${dtype}$), intent(in) :: origin(:), direction(:), tA(:), tB(:), tC(:), tD(:)
+        logical, intent(out) :: lhit
+        real(${dtype}$), intent(out) :: hit(:) ! size(4), 3 for intersection, 1 for distance
+        integer(${itype}$), intent(out) :: iface
+        logical :: lhit1, lhit2
+        real(${dtype}$) :: hit1(4), hit2(4)
+        real(${dtype}$), parameter :: rng(2) = [real(${dtype}$) :: 0, huge(rng)]
 
-    lhit = .False.
-    hit = huge(hit)
-    iface = -1
+        lhit = .false.
+        hit = huge(hit)
+        iface = -1
 
-    ! 2 Triangles incorporating, cut along (AC)
-    call triangle_intersection(origin, direction, tA, tB, tC, rng, lhit1, hit1)
-    call triangle_intersection(origin, direction, tA, tC, tD, rng, lhit2, hit2)
-    if(lhit1) then
-      lhit = lhit1
-      hit = hit1
-      iface = 1
-    endif
-    if(lhit2 .and. (hit2(4).le.hit(4))) then
-      lhit = lhit2
-      hit = hit2
-      iface = 2
-    endif
-  end subroutine
-  #:endfor
+        ! 2 Triangles incorporating, cut along (AC)
+        call triangle_intersection(origin, direction, tA, tB, tC, rng, lhit1, hit1)
+        call triangle_intersection(origin, direction, tA, tC, tD, rng, lhit2, hit2)
+        if (lhit1) then
+          lhit = lhit1
+          hit = hit1
+          iface = 1
+        end if
+        if (lhit2 .and. (hit2(4) .le. hit(4))) then
+          lhit = lhit2
+          hit = hit2
+          iface = 2
+        end if
+      end subroutine
+    #:endfor
   #:endfor
 
   !> @brief Watertight ray -> triangle intersection code from http://jcgt.org/published/0002/01/05/
   #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-  subroutine triangle_intersection_${dtype}$(origin, direction, tA, tB, tC, rng, lhit, hit)
-    real(${dtype}$), intent(in) :: origin(:), direction(:), tA(:), tB(:), tC(:), rng(:)
-    logical, intent(out) :: lhit
-    real(${dtype}$), intent(out) :: hit(:)
+    subroutine triangle_intersection_${dtype}$ (origin, direction, tA, tB, tC, rng, lhit, hit)
+      real(${dtype}$), intent(in) :: origin(:), direction(:), tA(:), tB(:), tC(:), rng(:)
+      logical, intent(out) :: lhit
+      real(${dtype}$), intent(out) :: hit(:)
 
-    logical, parameter :: ldebug=.False., BACKFACE_CULLING=.False., HIT_EDGE=.True.
+      logical, parameter :: ldebug = .false., BACKFACE_CULLING = .false., HIT_EDGE = .true.
 
-    real(${dtype}$) :: org(0:2), dir(0:2), A(0:2), B(0:2), C(0:2)
-    integer :: kx, ky, kz
-    real(${dtype}$) :: Sx, Sy, Sz
-    real(${dtype}$) :: Ax, Ay, Bx, By, Cx, Cy
-    real(${dtype}$) :: Az, Bz, Cz, T
-    real(${dtype}$) :: U, V, W
-    real(${dtype}$) :: b0, b1, b2
-    real(${dtype}$) :: det, rcpDet
+      real(${dtype}$) :: org(0:2), dir(0:2), A(0:2), B(0:2), C(0:2)
+      integer :: kx, ky, kz
+      real(${dtype}$) :: Sx, Sy, Sz
+      real(${dtype}$) :: Ax, Ay, Bx, By, Cx, Cy
+      real(${dtype}$) :: Az, Bz, Cz, T
+      real(${dtype}$) :: U, V, W
+      real(${dtype}$) :: b0, b1, b2
+      real(${dtype}$) :: det, rcpDet
 
-    real(${dtype}$) :: CxBy, CyBx, AxCy, AyCx, BxAy, ByAx
-    real(${dtype}$), parameter :: zero = 0
+      real(${dtype}$) :: CxBy, CyBx, AxCy, AyCx, BxAy, ByAx
+      real(${dtype}$), parameter :: zero = 0
 
-    lhit = .True.
-    hit = huge(hit)
+      lhit = .true.
+      hit = huge(hit)
 
-    org = origin
-    dir = direction
+      org = origin
+      dir = direction
 
-    if(ldebug) print *,'initial direction:', dir
-    if(ldebug) print *,'initial origin   :', origin
-    if(ldebug) print *,'Triangle coord   :', tA
-    if(ldebug) print *,'Triangle coord   :', tB
-    if(ldebug) print *,'Triangle coord   :', tC
-    ! calculate dimension where the ray direction is maximal (C indexing)
-    kz = maxloc(abs(dir), dim=1)-1
-    kx = kz+1; if (kx == 3) kx = 0
-    ky = kx+1; if (ky == 3) ky = 0
-    if(ldebug) print *,'max direction:', kx, ky, kz
+      if (ldebug) print *, 'initial direction:', dir
+      if (ldebug) print *, 'initial origin   :', origin
+      if (ldebug) print *, 'Triangle coord   :', tA
+      if (ldebug) print *, 'Triangle coord   :', tB
+      if (ldebug) print *, 'Triangle coord   :', tC
+      ! calculate dimension where the ray direction is maximal (C indexing)
+      kz = maxloc(abs(dir), dim=1) - 1
+      kx = kz + 1; if (kx == 3) kx = 0
+      ky = kx + 1; if (ky == 3) ky = 0
+      if (ldebug) print *, 'max direction:', kx, ky, kz
 
-    ! swap kx and ky dimension to preserve winding direction of triangles
-    if (dir(kz) < zero) call swap(kx, ky)
-    if(ldebug) print *,'max direction after swap:', kx, ky, kz
-    if(ldebug) print *,'principal direction:', dir(kx), dir(ky), dir(kz)
+      ! swap kx and ky dimension to preserve winding direction of triangles
+      if (dir(kz) < zero) call swap(kx, ky)
+      if (ldebug) print *, 'max direction after swap:', kx, ky, kz
+      if (ldebug) print *, 'principal direction:', dir(kx), dir(ky), dir(kz)
 
-    ! calculate shear constants
-    Sx = dir(kx) / dir(kz)
-    Sy = dir(ky) / dir(kz)
-    Sz = 1._${dtype}$ / dir(kz)
-    if(ldebug) print *,'Shear constants:', Sx, Sy, Sz
+      ! calculate shear constants
+      Sx = dir(kx) / dir(kz)
+      Sy = dir(ky) / dir(kz)
+      Sz = 1._${dtype}$/dir(kz)
+      if (ldebug) print *, 'Shear constants:', Sx, Sy, Sz
 
-    ! calculate vertices relative to ray origin
-    A = tA-origin
-    B = tB-origin
-    C = tC-origin
-    if(ldebug) print *,'relative Triangle coords A:', A
-    if(ldebug) print *,'relative Triangle coords B:', B
-    if(ldebug) print *,'relative Triangle coords C:', C
+      ! calculate vertices relative to ray origin
+      A = tA - origin
+      B = tB - origin
+      C = tC - origin
+      if (ldebug) print *, 'relative Triangle coords A:', A
+      if (ldebug) print *, 'relative Triangle coords B:', B
+      if (ldebug) print *, 'relative Triangle coords C:', C
 
+      ! perform shear and scale of vertices
+      Ax = A(kx) - Sx * A(kz)
+      Ay = A(ky) - Sy * A(kz)
+      Bx = B(kx) - Sx * B(kz)
+      By = B(ky) - Sy * B(kz)
+      Cx = C(kx) - Sx * C(kz)
+      Cy = C(ky) - Sy * C(kz)
+      if (ldebug) print *, 'local Triangle coords A:', Ax, Ay
+      if (ldebug) print *, 'local Triangle coords B:', Bx, By
+      if (ldebug) print *, 'local Triangle coords C:', Cx, Cy
 
-    ! perform shear and scale of vertices
-    Ax = A(kx) - Sx*A(kz)
-    Ay = A(ky) - Sy*A(kz)
-    Bx = B(kx) - Sx*B(kz)
-    By = B(ky) - Sy*B(kz)
-    Cx = C(kx) - Sx*C(kz)
-    Cy = C(ky) - Sy*C(kz)
-    if(ldebug) print *,'local Triangle coords A:', Ax, Ay
-    if(ldebug) print *,'local Triangle coords B:', Bx, By
-    if(ldebug) print *,'local Triangle coords C:', Cx, Cy
+      ! calculate scaled barycentric coordinates
+      U = Cx * By - Cy * Bx; 
+      V = Ax * Cy - Ay * Cx; 
+      W = Bx * Ay - By * Ax; 
+      if (ldebug) print *, 'Barycentric coords:', U, V, W
 
-    ! calculate scaled barycentric coordinates
-    U = Cx*By - Cy*Bx;
-    V = Ax*Cy - Ay*Cx;
-    W = Bx*Ay - By*Ax;
+      ! fall back to test against edges using double precision
+      if (${dtype}$ .lt. real64) then
+        if (any(approx([U, V, W], zero))) then
+          CxBy = real(real(Cx, kind=real64) * real(By, kind=real64), ${dtype}$)
+          CyBx = real(real(Cy, kind=real64) * real(Bx, kind=real64), ${dtype}$)
+          U = real(real(CxBy - CyBx, kind=real64), ${dtype}$)
+          AxCy = real(real(Ax, kind=real64) * real(Cy, kind=real64), ${dtype}$)
+          AyCx = real(real(Ay, kind=real64) * real(Cx, kind=real64), ${dtype}$)
+          V = real(real(AxCy - AyCx, kind=real64), ${dtype}$)
+          BxAy = real(real(Bx, kind=real64) * real(Ay, kind=real64), ${dtype}$)
+          ByAx = real(real(By, kind=real64) * real(Ax, kind=real64), ${dtype}$)
+          W = real(real(BxAy - ByAx, kind=real64), ${dtype}$)
+        end if
+      end if
 
-    if(ldebug) print *,'Barycentric coords:', U, V, W
+      !Perform edge tests. Moving this test before and at the end of the previous conditional gives higher performance.
+      if (BACKFACE_CULLING) then
+        if (U < zero .or. V < zero .or. W < zero) lhit = .false.
+      else
+        if ((U < zero .or. V < zero .or. W < zero) .and. &
+            (U > zero .or. V > zero .or. W > zero)) lhit = .false.
+      end if
 
-    ! fall back to test against edges using double precision
-    if(${dtype}$.lt.REAL64) then
-      if (any(approx([U,V,W],zero))) then
-        CxBy = real(real(Cx, kind=REAL64) * real(By, kind=REAL64), ${dtype}$)
-        CyBx = real(real(Cy, kind=REAL64) * real(Bx, kind=REAL64), ${dtype}$)
-        U    = real(real(CxBy - CyBx, kind=REAL64)               , ${dtype}$)
-        AxCy = real(real(Ax, kind=REAL64) * real(Cy, kind=REAL64), ${dtype}$)
-        AyCx = real(real(Ay, kind=REAL64) * real(Cx, kind=REAL64), ${dtype}$)
-        V    = real(real(AxCy - AyCx, kind=REAL64)               , ${dtype}$)
-        BxAy = real(real(Bx, kind=REAL64) * real(Ay, kind=REAL64), ${dtype}$)
-        ByAx = real(real(By, kind=REAL64) * real(Ax, kind=REAL64), ${dtype}$)
-        W    = real(real(BxAy - ByAx, kind=REAL64)               , ${dtype}$)
-      endif
-    endif
+      ! calculate determinant
+      det = U + V + W
+      if (approx(det, zero, zero)) then
+        lhit = .false.
+        hit(:) = huge(hit)
+        return
+      end if
+      if (.not. HIT_EDGE .and. approx(det, zero)) then
+        if (ldebug) print *, 'determinant zero: on edge?', det
+        lhit = .false.
+      end if
 
-    !Perform edge tests. Moving this test before and at the end of the previous conditional gives higher performance.
-    if(BACKFACE_CULLING) then
-      if (U < zero .or. V < zero .or. W < zero) lhit=.False.
-    else
-      if ((U < zero .or. V < zero .or. W < zero) .and. &
-        (U > zero .or. V > zero .or. W > zero)) lhit=.False.
-    endif
+      !Calculate scaled z−coordinates of vertices and use them to calculate the hit distance.
+      Az = Sz * A(kz)
+      Bz = Sz * B(kz)
+      Cz = Sz * C(kz)
+      T = U * Az + V * Bz + W * Cz
+      rcpDet = 1._${dtype}$/det
+      hit(4) = T * rcpDet
 
-    ! calculate determinant
-    det = U + V + W
-    if(approx(det, zero, zero)) then
-      lhit = .False.
-      hit(:) = huge(hit)
-      return
-    endif
-    if (.not.HIT_EDGE .and. approx(det, zero)) then
-      if(ldebug) print *,'determinant zero: on edge?', det
-      lhit=.False.
-    endif
+      if (hit(4) .lt. rng(1)) lhit = .false.
+      if (hit(4) .gt. rng(2)) lhit = .false.
 
-    !Calculate scaled z−coordinates of vertices and use them to calculate the hit distance.
-    Az = Sz * A(kz)
-    Bz = Sz * B(kz)
-    Cz = Sz * C(kz)
-    T = U * Az + V * Bz + W * Cz
-    rcpDet = 1._${dtype}$ / det
-    hit(4) = T * rcpDet
+      ! normalize U, V, W, and T
+      b0 = U * rcpDet
+      b1 = V * rcpDet
+      b2 = W * rcpDet
 
-    if(hit(4).lt.rng(1)) lhit = .False.
-    if(hit(4).gt.rng(2)) lhit = .False.
-
-    ! normalize U, V, W, and T
-    b0 = U * rcpDet
-    b1 = V * rcpDet
-    b2 = W * rcpDet
-
-    hit(1:3) = b0*tA + b1*tB + b2*tC
-    if(ldebug) print *,'Hit triangle', lhit, '::', hit
-  end subroutine
+      hit(1:3) = b0 * tA + b1 * tB + b2 * tC
+      if (ldebug) print *, 'Hit triangle', lhit, '::', hit
+    end subroutine
   #:endfor
 
   !> @brief determine line function coefficients of possible intersection of two lines in 3d
@@ -399,7 +397,7 @@ contains
   !can be distinguished by the value of the coefficients (huge for coincident lines).
   ! http://paulbourke.net/geometry/pointlineplane/
   #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    subroutine line_intersection_3d_${dtype}$(p1, direction1, p3, direction2, c1, c2, ierr)
+    subroutine line_intersection_3d_${dtype}$ (p1, direction1, p3, direction2, c1, c2, ierr)
       real(${dtype}$), dimension(3), intent(in) :: p1, direction1, p3, direction2
       real(${dtype}$), intent(out) :: c1, c2
       integer(mpiint), intent(out) :: ierr
@@ -410,34 +408,34 @@ contains
       p2 = p1 + direction1
       p4 = p3 + direction2
 
-      denominator = nd_mnop(p2,p1,p2,p1) * nd_mnop(p4,p3,p4,p3) - nd_mnop(p4,p3,p2,p1) ** 2
+      denominator = nd_mnop(p2, p1, p2, p1) * nd_mnop(p4, p3, p4, p3) - nd_mnop(p4, p3, p2, p1)**2
 
       !print *, 'denom', denominator
-      if ( approx(denominator, 0._${dtype}$, limit) ) then
+      if (approx(denominator, 0._${dtype}$, limit)) then
         ierr = 1 ! lines are parallel or coincident
-        c1 = - huge_val
-        c2 = - huge_val
+        c1 = -huge_val
+        c2 = -huge_val
       else
         ierr = 0
-        denominator = d_mnop(p2,p1,p2,p1) * d_mnop(p4,p3,p4,p3) - d_mnop(p4,p3,p2,p1) ** 2
-        c1 = (d_mnop(p1,p3,p4,p3) * d_mnop(p4,p3,p2,p1) - d_mnop(p1,p3,p2,p1) * d_mnop(p4,p3,p4,p3)) / denominator
-        c2 = (d_mnop(p1,p3,p4,p3) + c1 * d_mnop(p4,p3,p2,p1)) / d_mnop(p4,p3,p4,p3)
-      endif
-      contains
-        pure function nd_mnop(m, n, o, p)
-          real(${dtype}$), dimension(3), intent(in) :: m, n, o, p
-          real(${dtype}$) :: nd_mnop, a(3), b(3)
-          a = m - n
-          a = a / norm2(a)
-          b = o - p
-          b = b / norm2(b)
-          nd_mnop = dot_product(a, b)
-        end function
-        pure function d_mnop(m, n, o, p)
-          real(${dtype}$), dimension(3), intent(in) :: m, n, o, p
-          real(${dtype}$) :: d_mnop
-          d_mnop = dot_product(m - n, o - p)
-        end function
+        denominator = d_mnop(p2, p1, p2, p1) * d_mnop(p4, p3, p4, p3) - d_mnop(p4, p3, p2, p1)**2
+        c1 = (d_mnop(p1, p3, p4, p3) * d_mnop(p4, p3, p2, p1) - d_mnop(p1, p3, p2, p1) * d_mnop(p4, p3, p4, p3)) / denominator
+        c2 = (d_mnop(p1, p3, p4, p3) + c1 * d_mnop(p4, p3, p2, p1)) / d_mnop(p4, p3, p4, p3)
+      end if
+    contains
+      pure function nd_mnop(m, n, o, p)
+        real(${dtype}$), dimension(3), intent(in) :: m, n, o, p
+        real(${dtype}$) :: nd_mnop, a(3), b(3)
+        a = m - n
+        a = a / norm2(a)
+        b = o - p
+        b = b / norm2(b)
+        nd_mnop = dot_product(a, b)
+      end function
+      pure function d_mnop(m, n, o, p)
+        real(${dtype}$), dimension(3), intent(in) :: m, n, o, p
+        real(${dtype}$) :: d_mnop
+        d_mnop = dot_product(m - n, o - p)
+      end function
     end subroutine
   #:endfor
 end module

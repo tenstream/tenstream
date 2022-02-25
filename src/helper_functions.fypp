@@ -19,23 +19,23 @@
 
 ! FyPP Rank suffix generator to template over scalar an N-d functions
 #:def ranksuffix(RANK)
-$:'' if RANK == 0 else '(' + ':' + ',:' * (RANK - 1) + ')'
+  $:'' if RANK == 0 else '(' + ':' + ',:' * (RANK - 1) + ')'
 #:enddef ranksuffix
 
 #:def rankallocdims(RANK)
-$:'' if RANK == 0 else '('+','.join(['Ntot({})'.format(_) for _ in range(1,RANK+1)]) + ')'
+  $:'' if RANK == 0 else '('+','.join(['Ntot({})'.format(_) for _ in range(1,RANK+1)]) + ')'
 #:enddef rankallocdims
 
 module m_helper_functions
-  use iso_fortran_env, only: INT32, INT64, REAL32, REAL64, REAL128
+  use iso_fortran_env, only: int32, int64, real32, real64, real128
   use, intrinsic :: iso_c_binding
-  use m_data_parameters,only : iintegers, mpiint, &
-    ireals, irealLUT, ireal_dp, &
-    i1, pi, pi32, pi64, pi128, zero, one, nan, &
-    imp_ireals, imp_logical, &
-    imp_REAL32, imp_REAL64, &
-    default_str_len, &
-    imp_int4, imp_int8, imp_iinteger, imp_character
+  use m_data_parameters, only: iintegers, mpiint, &
+                               ireals, irealLUT, ireal_dp, &
+                               i1, pi, pi32, pi64, pi128, zero, one, nan, &
+                               imp_ireals, imp_logical, &
+                               imp_REAL32, imp_REAL64, &
+                               default_str_len, &
+                               imp_int4, imp_int8, imp_iinteger, imp_character
 
 #include "petsc/finclude/petsc.h"
   use petsc
@@ -138,7 +138,6 @@ module m_helper_functions
     & volume_tetrahedron, &
     & write_ascii_file_2d
 
-
   interface write_ascii_file_2d
     #:for basetype,dtype in [&
       ('integer', 'INT32'  ), &
@@ -215,64 +214,64 @@ module m_helper_functions
   end interface
 
   interface rotate_angle_x
-#:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure rotate_angle_x_${dtype}$
-#:endfor
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+      module procedure rotate_angle_x_${dtype}$
+    #:endfor
   end interface
   interface rotate_angle_y
-#:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure rotate_angle_y_${dtype}$
-#:endfor
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+      module procedure rotate_angle_y_${dtype}$
+    #:endfor
   end interface
   interface rotate_angle_z
-#:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure rotate_angle_z_${dtype}$
-#:endfor
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+      module procedure rotate_angle_z_${dtype}$
+    #:endfor
   end interface
 
   interface rmse
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure rmse_${dtype}$
+      module procedure rmse_${dtype}$
     #:endfor
   end interface
   interface vec_proj_on_plane
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure vec_proj_on_plane_${dtype}$
+      module procedure vec_proj_on_plane_${dtype}$
     #:endfor
   end interface
   interface cartesian_2_spherical
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure cartesian_2_spherical_${dtype}$
+      module procedure cartesian_2_spherical_${dtype}$
     #:endfor
   end interface
   interface spherical_2_cartesian
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure spherical_2_cartesian_${dtype}$
+      module procedure spherical_2_cartesian_${dtype}$
     #:endfor
   end interface
   interface rad2deg
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure rad2deg_${dtype}$
+      module procedure rad2deg_${dtype}$
     #:endfor
   end interface
   interface deg2rad
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure deg2rad_${dtype}$
+      module procedure deg2rad_${dtype}$
     #:endfor
   end interface
   interface approx
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure approx_${dtype}$
+      module procedure approx_${dtype}$
     #:endfor
   end interface
   interface rel_approx
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure rel_approx_${dtype}$
+      module procedure rel_approx_${dtype}$
     #:endfor
   end interface
   interface distance
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure distance_${dtype}$
+      module procedure distance_${dtype}$
     #:endfor
   end interface
 
@@ -317,12 +316,12 @@ module m_helper_functions
   end interface
 
   interface ftoa
-   #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-     module procedure toStr${dtype}$
-     #:for RANK in range(1, 8)
-       module procedure toStr${dtype}$_${RANK}$d
-     #:endfor
-   #:endfor
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+      module procedure toStr${dtype}$
+      #:for RANK in range(1, 8)
+        module procedure toStr${dtype}$_${RANK}$d
+      #:endfor
+    #:endfor
   end interface
 
   interface meanval
@@ -332,17 +331,17 @@ module m_helper_functions
       ('real'   , 'REAL32' ,'REAL32'), &
       ('real'   , 'REAL64' ,'REAL64'), &
       ('real'   , 'REAL128','REAL128')]
-    #:for RANK in range(1, 8)
-    module procedure meanval_intype_${intype}$_${dtype}$_${RANK}$d_out${otype}$
-    #:endfor
+      #:for RANK in range(1, 8)
+        module procedure meanval_intype_${intype}$_${dtype}$_${RANK}$d_out${otype}$
+      #:endfor
     #:endfor
   end interface
 
   interface imp_allreduce_mean
     module procedure imp_allreduce_mean_0d
-#:for RANK in range(1, 4)
-    module procedure imp_allreduce_mean_${RANK}$d
-#:endfor
+    #:for RANK in range(1, 4)
+      module procedure imp_allreduce_mean_${RANK}$d
+    #:endfor
   end interface
   interface imp_allreduce_sum
     module procedure imp_allreduce_sum_ireals, imp_allreduce_sum_i32, imp_allreduce_sum_i64
@@ -358,45 +357,45 @@ module m_helper_functions
   end interface
 
   interface imp_reduce_mean
-#:for method,dtype,mpitype,otype in [ &
-  ('integer', 'INT32' , 'imp_int4'  , 'ireals'), &
-  ('integer', 'INT64' , 'imp_int8'  , 'ireals'), &
-  ('real'   , 'REAL32', 'imp_REAL32', 'REAL32'), &
-  ('real'   , 'REAL64', 'imp_REAL64', 'REAL64')]
-#:for RANK in range(1, 8)
-    module procedure imp_reduce_mean_${method}$_${dtype}$_${RANK}$d_${otype}$
-#:endfor
-#:endfor
+    #:for method,dtype,mpitype,otype in [ &
+      ('integer', 'INT32' , 'imp_int4'  , 'ireals'), &
+      ('integer', 'INT64' , 'imp_int8'  , 'ireals'), &
+      ('real'   , 'REAL32', 'imp_REAL32', 'REAL32'), &
+      ('real'   , 'REAL64', 'imp_REAL64', 'REAL64')]
+      #:for RANK in range(1, 8)
+        module procedure imp_reduce_mean_${method}$_${dtype}$_${RANK}$d_${otype}$
+      #:endfor
+    #:endfor
   end interface
 
   interface imp_min_mean_max
-#:for method,dtype,mpitype,otype in [ &
-  ('integer', 'INT32' , 'imp_int4'  , 'ireals'), &
-  ('integer', 'INT64' , 'imp_int8'  , 'ireals'), &
-  ('real'   , 'REAL32', 'imp_REAL32', 'REAL32'), &
-  ('real'   , 'REAL64', 'imp_REAL64', 'REAL64')]
-#:for RANK in range(0, 8)
-    module procedure imp_min_mean_max_${method}$_${dtype}$_${RANK}$d_${otype}$
-#:endfor
-#:endfor
+    #:for method,dtype,mpitype,otype in [ &
+      ('integer', 'INT32' , 'imp_int4'  , 'ireals'), &
+      ('integer', 'INT64' , 'imp_int8'  , 'ireals'), &
+      ('real'   , 'REAL32', 'imp_REAL32', 'REAL32'), &
+      ('real'   , 'REAL64', 'imp_REAL64', 'REAL64')]
+      #:for RANK in range(0, 8)
+        module procedure imp_min_mean_max_${method}$_${dtype}$_${RANK}$d_${otype}$
+      #:endfor
+    #:endfor
   end interface
 
   interface imp_bcast
-#:for method,dtype,mpitype in [ &
-  ('character','', 'imp_character'), &
-  ('logical', ''      , 'imp_logical'), &
-  ('integer', 'INT32' , 'imp_int4')   , &
-  ('integer', 'INT64' , 'imp_int8')   , &
-  ('real'   , 'REAL32', 'imp_REAL32') , &
-  ('real'   , 'REAL64', 'imp_REAL64')]
-#:for RANK in range(0, 8)
-#:for modifier in [None, 'allocatable', 'pointer']
-#:if (modifier is None and (RANK==0)) or (modifier is not None and (RANK>0))
-    module procedure imp_bcast_${method}$_${dtype}$_${RANK}$d_${modifier}$
-#:endif
-#:endfor
-#:endfor
-#:endfor
+    #:for method,dtype,mpitype in [ &
+      ('character','', 'imp_character'), &
+      ('logical', ''      , 'imp_logical'), &
+      ('integer', 'INT32' , 'imp_int4')   , &
+      ('integer', 'INT64' , 'imp_int8')   , &
+      ('real'   , 'REAL32', 'imp_REAL32') , &
+      ('real'   , 'REAL64', 'imp_REAL64')]
+      #:for RANK in range(0, 8)
+        #:for modifier in [None, 'allocatable', 'pointer']
+          #:if (modifier is None and (RANK==0)) or (modifier is not None and (RANK>0))
+            module procedure imp_bcast_${method}$_${dtype}$_${RANK}$d_${modifier}$
+          #:endif
+        #:endfor
+      #:endfor
+    #:endfor
   end interface
 
   interface get_arg
@@ -410,13 +409,13 @@ module m_helper_functions
       ('character', 'len=*'    , 'PetscOptionsGetString'), &
       ('logical'  , None       , 'PetscOptionsGetBool'), &
       ]
-    module procedure get_petsc_opt_${basetype}$
+      module procedure get_petsc_opt_${basetype}$
     #:endfor
     #:for basetype,dtype,petscfunc in [   &
       ('integer'  , 'iintegers', 'PetscOptionsGetInt' ), &
       ('real'     , 'ireals'   , 'PetscOptionsGetReal'), &
       ]
-    module procedure get_petsc_opt_${basetype}$_array
+      module procedure get_petsc_opt_${basetype}$_array
     #:endfor
   end interface
   interface sEXP
@@ -429,7 +428,7 @@ module m_helper_functions
       ('real'   , 'REAL32' ), &
       ('real'   , 'REAL64' ), &
       ('real'   , 'REAL128')]
-    module procedure swap_${dtype}$
+      module procedure swap_${dtype}$
     #:endfor
   end interface
   interface transposed_arr
@@ -448,111 +447,111 @@ module m_helper_functions
   end interface
   interface reverse
     module procedure reverse_1d_real32, reverse_2d_real32, reverse_1d_real64, reverse_2d_real64, &
-        reverse_3d_real32, reverse_3d_real64, reverse_4d_real32, reverse_4d_real64
+      reverse_3d_real32, reverse_3d_real64, reverse_4d_real32, reverse_4d_real64
   end interface
   interface is_between
-#:for dtype in ['INT32', 'INT64', 'REAL32', 'REAL64', 'REAL128']
-    module procedure is_between_${dtype}$
-#:endfor
+    #:for dtype in ['INT32', 'INT64', 'REAL32', 'REAL64', 'REAL128']
+      module procedure is_between_${dtype}$
+    #:endfor
   end interface
   interface is_inrange
-#:for dtype in ['INT32', 'INT64', 'REAL32', 'REAL64', 'REAL128']
-    module procedure is_inrange_${dtype}$
-#:endfor
+    #:for dtype in ['INT32', 'INT64', 'REAL32', 'REAL64', 'REAL128']
+      module procedure is_inrange_${dtype}$
+    #:endfor
   end interface
   interface assertEqual
     #:for dtype in ['INT32', 'INT64']
-    module procedure assertEqual_${dtype}$, assertEqual_${dtype}$_with_msg
+      module procedure assertEqual_${dtype}$, assertEqual_${dtype}$_with_msg
     #:endfor
   end interface
 
   interface cross_2d
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure cross_2d_${dtype}$
+      module procedure cross_2d_${dtype}$
     #:endfor
   end interface
   interface cross_3d
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure cross_3d_${dtype}$
+      module procedure cross_3d_${dtype}$
     #:endfor
   end interface
   interface angle_between_two_vec
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure angle_between_two_vec_${dtype}$
+      module procedure angle_between_two_vec_${dtype}$
     #:endfor
   end interface
   interface angle_between_two_normed_vec
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure angle_between_two_normed_vec_${dtype}$
+      module procedure angle_between_two_normed_vec_${dtype}$
     #:endfor
   end interface
   interface compute_normal_3d
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure compute_normal_3d_${dtype}$
+      module procedure compute_normal_3d_${dtype}$
     #:endfor
   end interface
   interface normalize_vec
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure normalize_vec_${dtype}$
-    module procedure normalize_vec_inplace_${dtype}$
+      module procedure normalize_vec_${dtype}$
+      module procedure normalize_vec_inplace_${dtype}$
     #:endfor
   end interface
 
   interface rotation_matrix_around_axis_vec
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure rotation_matrix_around_axis_vec_${dtype}$
+      module procedure rotation_matrix_around_axis_vec_${dtype}$
     #:endfor
   end interface
 
   interface rotation_matrix_local_basis_to_world
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure rotation_matrix_local_basis_to_world_${dtype}$
+      module procedure rotation_matrix_local_basis_to_world_${dtype}$
     #:endfor
   end interface
 
   interface determine_normal_direction
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure determine_normal_direction_${dtype}$
+      module procedure determine_normal_direction_${dtype}$
     #:endfor
   end interface
 
   interface distances_to_triangle_edges
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure distances_to_triangle_edges_${dtype}$
+      module procedure distances_to_triangle_edges_${dtype}$
     #:endfor
   end interface
 
   interface distance_to_edge
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure distance_to_edge_${dtype}$
+      module procedure distance_to_edge_${dtype}$
     #:endfor
   end interface
 
   interface triangle_area_by_vertices
-#:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure triangle_area_by_vertices_${dtype}$
-#:endfor
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+      module procedure triangle_area_by_vertices_${dtype}$
+    #:endfor
   end interface
   interface triangle_area_by_edgelengths
-#:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure triangle_area_by_edgelengths_${dtype}$
-#:endfor
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+      module procedure triangle_area_by_edgelengths_${dtype}$
+    #:endfor
   end interface
   interface triangle_inner_circle_center
-#:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure triangle_inner_circle_center_${dtype}$
-#:endfor
+    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+      module procedure triangle_inner_circle_center_${dtype}$
+    #:endfor
   end interface
 
   interface delta_scale
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure delta_scale_${dtype}$
+      module procedure delta_scale_${dtype}$
     #:endfor
   end interface
 
   interface delta_scale_optprop
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure delta_scale_optprop_${dtype}$
+      module procedure delta_scale_optprop_${dtype}$
     #:endfor
   end interface
 
@@ -566,7 +565,7 @@ module m_helper_functions
 
   interface assert_arr_is_monotonous
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    module procedure assert_arr_is_monotonous_${dtype}$
+      module procedure assert_arr_is_monotonous_${dtype}$
     #:endfor
   end interface
 
@@ -582,208 +581,206 @@ module m_helper_functions
       ('integer'   , 'INT64'  , None                                            ), &
       ('real'      , 'REAL32' , None                                            ), &
       ('real'      , 'REAL64' , None                                            )]
-    #:set dKIND = '' if dtype == None else '('+dtype+')'
-    #:for RANK in range(0, 8)
-    #:if not ((destructor is not None) and (RANK>0))
-    module procedure deallocate_allocatable_${basetype}$_${dtype}$_${RANK}$d
-    #:endif
-    #:endfor
+      #:set dKIND = '' if dtype == None else '('+dtype+')'
+      #:for RANK in range(0, 8)
+        #:if not ((destructor is not None) and (RANK>0))
+          module procedure deallocate_allocatable_${basetype}$_${dtype}$_${RANK}$d
+        #:endif
+      #:endfor
     #:endfor
   end interface
 
   interface colored_str_by_range
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    #:for RANK in range(0, 8)
-    module procedure colored_str_by_range${dtype}$_${RANK}$d
-    #:endfor
+      #:for RANK in range(0, 8)
+        module procedure colored_str_by_range${dtype}$_${RANK}$d
+      #:endfor
     #:endfor
   end interface
 
-  integer(iintegers), parameter :: npar_cumprod=8
+  integer(iintegers), parameter :: npar_cumprod = 8
 
-  contains
+contains
 
-    function strF2C(str)
-      use iso_c_binding, only: C_NULL_CHAR
-      character(len=*), intent(in) :: str
-      character(len=len_trim(str)+1) :: strF2C
-      strF2C = trim(str)//C_NULL_CHAR
-    end function
+  function strF2C(str)
+    use iso_c_binding, only: c_null_char
+    character(len=*), intent(in) :: str
+    character(len=len_trim(str) + 1) :: strF2C
+    strF2C = trim(str)//c_null_char
+  end function
 
-    pure elemental function sEXP_r32(x) result(r)
-      real(REAL32),intent(in) :: x
-      real(REAL32) :: r
-      real(kind(x)), parameter :: exp_maxval=-log(epsilon(exp_maxval))
-      r = exp(sign( min(exp_maxval, abs(x)), x))
-    end function
-    pure elemental function sEXP_r64(x) result(r)
-      real(REAL64),intent(in) :: x
-      real(REAL64) :: r
-      real(kind(x)), parameter :: exp_maxval=-log(epsilon(exp_maxval))
-      r = exp(sign( min(exp_maxval, abs(x)), x))
-    end function
+  pure elemental function sEXP_r32(x) result(r)
+    real(real32), intent(in) :: x
+    real(real32) :: r
+    real(kind(x)), parameter :: exp_maxval = -log(epsilon(exp_maxval))
+    r = exp(sign(min(exp_maxval, abs(x)), x))
+  end function
+  pure elemental function sEXP_r64(x) result(r)
+    real(real64), intent(in) :: x
+    real(real64) :: r
+    real(kind(x)), parameter :: exp_maxval = -log(epsilon(exp_maxval))
+    r = exp(sign(min(exp_maxval, abs(x)), x))
+  end function
 
-#:for basetype, dtype, ctype in [&
-  ('integer', 'INT32'  ), &
-  ('integer', 'INT64'  ), &
-  ('real'   , 'REAL32' ), &
-  ('real'   , 'REAL64' ), &
-  ('real'   , 'REAL128')]
-  pure elemental subroutine swap_${dtype}$(x,y)
-    ${basetype}$ (${dtype}$),intent(inout) :: x,y
-    ${basetype}$ (${dtype}$) :: tmp
-    tmp = x; x = y; y = tmp
-  end subroutine
-#:endfor
-
-    function transposed_arr_3d_ireals(arr) result(trans)
-      real(ireals), intent(in) :: arr(:,:,:)
-      real(ireals) :: trans(size(arr,dim=3),size(arr,dim=2),size(arr,dim=1))
-      trans = reshape(arr, shape(trans), order=[3,2,1])
-    end function
-
-    pure elemental subroutine inc(x,i)
-      real(ireals),intent(inout) :: x
-      real(ireals),intent(in) :: i
-      x=x+i
+  #:for basetype, dtype, ctype in [&
+    ('integer', 'INT32'  ), &
+    ('integer', 'INT64'  ), &
+    ('real'   , 'REAL32' ), &
+    ('real'   , 'REAL64' ), &
+    ('real'   , 'REAL128')]
+    pure elemental subroutine swap_${dtype}$ (x, y)
+      ${basetype}$ (${dtype}$), intent(inout) :: x, y
+      ${basetype}$ (${dtype}$) :: tmp
+      tmp = x; x = y; y = tmp
     end subroutine
+  #:endfor
 
-#:for basetype, dtype, ctype in [&
-  ('integer', 'INT32'  , 'REAL64'), &
-  ('integer', 'INT64'  , 'REAL64'), &
-  ('real'   , 'REAL32' , 'REAL64'), &
-  ('real'   , 'REAL64' , 'REAL64'), &
-  ('real'   , 'REAL128', 'REAL128')]
-    pure elemental logical function is_between_${dtype}$(x,a,b) result(is_between)
-      ${basetype}$ (${dtype}$), intent(in) :: x,a,b
+  function transposed_arr_3d_ireals(arr) result(trans)
+    real(ireals), intent(in) :: arr(:, :, :)
+    real(ireals) :: trans(size(arr, dim=3), size(arr, dim=2), size(arr, dim=1))
+    trans = reshape(arr, shape(trans), order=[3, 2, 1])
+  end function
+
+  pure elemental subroutine inc(x, i)
+    real(ireals), intent(inout) :: x
+    real(ireals), intent(in) :: i
+    x = x + i
+  end subroutine
+
+  #:for basetype, dtype, ctype in [&
+    ('integer', 'INT32'  , 'REAL64'), &
+    ('integer', 'INT64'  , 'REAL64'), &
+    ('real'   , 'REAL32' , 'REAL64'), &
+    ('real'   , 'REAL64' , 'REAL64'), &
+    ('real'   , 'REAL128', 'REAL128')]
+    pure elemental logical function is_between_${dtype}$ (x, a, b) result(is_between)
+      ${basetype}$ (${dtype}$), intent(in) :: x, a, b
       real(${ctype}$) :: r
-      r = real(x-a, kind(r)) * real(x-b, kind(r))
+      r = real(x - a, kind(r)) * real(x - b, kind(r))
       is_between = r .lt. 0._${ctype}$
     end function
-    pure elemental logical function is_inrange_${dtype}$(x,a,b) result(is_between)
-      ${basetype}$ (${dtype}$), intent(in) :: x,a,b
+    pure elemental logical function is_inrange_${dtype}$ (x, a, b) result(is_between)
+      ${basetype}$ (${dtype}$), intent(in) :: x, a, b
       real(${ctype}$) :: r
-      r = real(x-a, kind(r)) * real(x-b, kind(r))
+      r = real(x - a, kind(r)) * real(x - b, kind(r))
       is_between = r .le. 0._${ctype}$
     end function
-#:endfor
+  #:endfor
 
-    subroutine CHKERR(ierr, descr)
-      integer(mpiint),intent(in) :: ierr
-      character(len=*), intent(in), optional :: descr
-      integer(mpiint) :: myid, mpierr
+  subroutine CHKERR(ierr, descr)
+    integer(mpiint), intent(in) :: ierr
+    character(len=*), intent(in), optional :: descr
+    integer(mpiint) :: myid, mpierr
 
-      if(ierr.ne.0) then
-        call mpi_comm_rank(MPI_COMM_WORLD, myid, mpierr)
-        if(present(descr)) then
-          print *,itoa(myid)//cstr(' ERROR: '//itoa(ierr)//': '//trim(descr), 'red')
-        else
-          print *,itoa(myid)//cstr(' ERROR: '//itoa(ierr), 'red')
-        endif
+    if (ierr .ne. 0) then
+      call mpi_comm_rank(MPI_COMM_WORLD, myid, mpierr)
+      if (present(descr)) then
+        print *, itoa(myid)//cstr(' ERROR: '//itoa(ierr)//': '//trim(descr), 'red')
+      else
+        print *, itoa(myid)//cstr(' ERROR: '//itoa(ierr), 'red')
+      end if
 #ifdef _GNU
-        call BACKTRACE
+      call BACKTRACE
 #elif defined _INTEL
-        CALL tracebackqq
+      call tracebackqq
 #endif
-        call mpi_abort(mpi_comm_world, ierr, mpierr)
-      endif
-    end subroutine
+      call mpi_abort(mpi_comm_world, ierr, mpierr)
+    end if
+  end subroutine
 
-    subroutine CHKWARN(ierr, descr)
-      integer(mpiint),intent(in) :: ierr
-      character(len=*), intent(in), optional :: descr
-      integer(mpiint) :: myid, mpierr
+  subroutine CHKWARN(ierr, descr)
+    integer(mpiint), intent(in) :: ierr
+    character(len=*), intent(in), optional :: descr
+    integer(mpiint) :: myid, mpierr
 
-      if(ierr.ne.0) then
-        call mpi_comm_rank(MPI_COMM_WORLD, myid, mpierr)
-        if(present(descr)) then
-          print *,itoa(myid)//cstr(' Warning: '//itoa(ierr)//': '//trim(descr), 'purple')
-        else
-          print *,itoa(myid)//cstr(' Warning: '//itoa(ierr), 'purple')
-        endif
-      endif
-    end subroutine
+    if (ierr .ne. 0) then
+      call mpi_comm_rank(MPI_COMM_WORLD, myid, mpierr)
+      if (present(descr)) then
+        print *, itoa(myid)//cstr(' Warning: '//itoa(ierr)//': '//trim(descr), 'purple')
+      else
+        print *, itoa(myid)//cstr(' Warning: '//itoa(ierr), 'purple')
+      end if
+    end if
+  end subroutine
 
-    #:for dtype in ['INT32', 'INT64']
-    subroutine assertEqual_${dtype}$(t, i)
-      integer(${dtype}$),intent(in) :: t, i
-      if(t.ne.i) then
-          call CHKERR(int(t-i, mpiint), itoa(i)//'.ne.'//itoa(t))
-      endif
+  #:for dtype in ['INT32', 'INT64']
+    subroutine assertEqual_${dtype}$ (t, i)
+      integer(${dtype}$), intent(in) :: t, i
+      if (t .ne. i) then
+        call CHKERR(int(t - i, mpiint), itoa(i)//'.ne.'//itoa(t))
+      end if
     end subroutine
     subroutine assertEqual_${dtype}$_with_msg(t, i, msg)
-      integer(${dtype}$),intent(in) :: t, i
+      integer(${dtype}$), intent(in) :: t, i
       character(len=*), intent(in) :: msg
-      if(t.ne.i) then
-          call CHKERR(int(t-i, mpiint), itoa(i)//'.ne.'//itoa(t)//' :: '//msg)
-      endif
+      if (t .ne. i) then
+        call CHKERR(int(t - i, mpiint), itoa(i)//'.ne.'//itoa(t)//' :: '//msg)
+      end if
     end subroutine
-    #:endfor
+  #:endfor
 
-    function toStr_character(inp) result (res)
-      character(len=*), intent(in) :: inp
-      character(len=len_trim(inp)) :: res
-      res = inp
-    end function
+  function toStr_character(inp) result(res)
+    character(len=*), intent(in) :: inp
+    character(len=len_trim(inp)) :: res
+    res = inp
+  end function
 
-    elemental function ltoa(l) result(res)
-      character(len=1) :: res
-      logical,intent(in) :: l
-      if(l) then
-        res = 'T'
-      else
-        res = 'F'
-      endif
-    end function
+  elemental function ltoa(l) result(res)
+    character(len=1) :: res
+    logical, intent(in) :: l
+    if (l) then
+      res = 'T'
+    else
+      res = 'F'
+    end if
+  end function
 
-    #:for basetype, dtype, fmt in [&
-      ('integer', 'INT32'  , "'(I0)'"), &
-      ('integer', 'INT64'  , "'(I0)'"), &
-      ('real'   , 'REAL32' , "'(F16.7)'"), &
-      ('real'   , 'REAL64' , "'(F16.7)'"), &
-      ('real'   , 'REAL128', "'(F16.7)'")]
-    function toStr${dtype}$(inp) result (res)
-      ${basetype}$(${dtype}$), intent(in) :: inp
+  #:for basetype, dtype, fmt in [&
+    ('integer', 'INT32'  , "'(I0)'"), &
+    ('integer', 'INT64'  , "'(I0)'"), &
+    ('real'   , 'REAL32' , "'(F16.7)'"), &
+    ('real'   , 'REAL64' , "'(F16.7)'"), &
+    ('real'   , 'REAL128', "'(F16.7)'")]
+    function toStr${dtype}$ (inp) result(res)
+      ${basetype}$ (${dtype}$), intent(in) :: inp
       character(len=:), allocatable :: res
-      character(range(inp)+2) :: tmp
-      write(tmp,fmt=${fmt}$) inp
+      character(range(inp) + 2) :: tmp
+      write (tmp, fmt=${fmt}$) inp
       res = trim(tmp)
     end function
 
     #:for RANK in range(1, 8)
-    function toStr${dtype}$_${RANK}$d(inp, deliminator) result (res)
-      ${basetype}$(${dtype}$), intent(in) :: inp${ranksuffix(RANK)}$
-      character(len=:), allocatable :: res
-      character(len=*), intent(in), optional :: deliminator
-      character(range(inp)+2) :: tmp(size(inp))
-      ${basetype}$(${dtype}$), allocatable :: inp1d(:)
-      integer(iintegers) :: i
-      inp1d = pack(inp, .True.)
-      do i=1,size(inp1d)
-        tmp(i) = toStr(inp1d(i))
-      enddo
-      res = trim(char_arr_to_str(tmp, deliminator))
-    end function
+      function toStr${dtype}$_${RANK}$d(inp, deliminator) result(res)
+        ${basetype}$ (${dtype}$), intent(in) :: inp${ranksuffix(RANK)}$
+        character(len=:), allocatable :: res
+        character(len=*), intent(in), optional :: deliminator
+        character(range(inp) + 2) :: tmp(size(inp))
+        ${basetype}$ (${dtype}$), allocatable :: inp1d(:)
+        integer(iintegers) :: i
+        inp1d = pack(inp, .true.)
+        do i = 1, size(inp1d)
+          tmp(i) = toStr(inp1d(i))
+        end do
+        res = trim(char_arr_to_str(tmp, deliminator))
+      end function
     #:endfor
-    #:endfor
+  #:endfor
 
+  pure function gradient(v)
+    real(ireals), intent(in) :: v(:)
+    real(ireals) :: gradient(size(v) - 1)
+    gradient = v(2:size(v)) - v(1:size(v) - 1)
+  end function
 
+  pure function meanvec(v)
+    real(ireals), intent(in) :: v(:)
+    real(ireals) :: meanvec(size(v) - 1)
+    meanvec = (v(2:size(v)) + v(1:size(v) - 1))*.5_ireals
+  end function
 
-    pure function gradient(v)
-      real(ireals),intent(in) :: v(:)
-      real(ireals) :: gradient(size(v)-1)
-      gradient = v(2:size(v))-v(1:size(v)-1)
-    end function
-
-    pure function meanvec(v)
-      real(ireals),intent(in) :: v(:)
-      real(ireals) :: meanvec(size(v)-1)
-      meanvec = (v(2:size(v))+v(1:size(v)-1))*.5_ireals
-    end function
-
-    !> @brief Cross product, right hand rule, a(thumb), b(pointing finger)
-    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    pure function cross_3d_${dtype}$(a, b) result(cross_3d)
+  !> @brief Cross product, right hand rule, a(thumb), b(pointing finger)
+  #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    pure function cross_3d_${dtype}$ (a, b) result(cross_3d)
       real(${dtype}$), dimension(3), intent(in) :: a, b
       real(${dtype}$), dimension(3) :: cross_3d
 
@@ -791,1090 +788,1089 @@ module m_helper_functions
       cross_3d(2) = a(3) * b(1) - a(1) * b(3)
       cross_3d(3) = a(1) * b(2) - a(2) * b(1)
     end function
-    pure function cross_2d_${dtype}$(a, b) result(cross_2d)
+    pure function cross_2d_${dtype}$ (a, b) result(cross_2d)
       real(${dtype}$), dimension(2), intent(in) :: a, b
       real(${dtype}$) :: cross_2d
 
       cross_2d = a(1) * b(2) - a(2) * b(1)
     end function
-    #:endfor
+  #:endfor
 
-    subroutine resize_arr_3d_r32(N, arr, dim, fillval, lrepeat)
-      integer(iintegers), intent(in) :: N
-      real(REAL32), allocatable, intent(inout) :: arr(:,:,:)
-      integer(mpiint), intent(in), optional :: dim
-      real(kind(arr)), intent(in), optional :: fillval
-      logical, intent(in), optional :: lrepeat
+  subroutine resize_arr_3d_r32(N, arr, dim, fillval, lrepeat)
+    integer(iintegers), intent(in) :: N
+    real(real32), allocatable, intent(inout) :: arr(:, :, :)
+    integer(mpiint), intent(in), optional :: dim
+    real(kind(arr)), intent(in), optional :: fillval
+    logical, intent(in), optional :: lrepeat
 
-      real(kind(arr)), allocatable :: tmp(:,:,:)
-      integer(kind(N)) :: sdim, i ,j
-      integer(mpiint) :: idim
-      logical :: repeat_dim
+    real(kind(arr)), allocatable :: tmp(:, :, :)
+    integer(kind(N)) :: sdim, i, j
+    integer(mpiint) :: idim
+    logical :: repeat_dim
 
-      idim = get_arg(1_mpiint, dim)
-      if(idim.gt.size(shape(arr))) &
-        call CHKERR(idim, 'requested resize dimension is larger than max dimension of inp array')
-      sdim = size(arr, dim=idim)
-      if(sdim.eq.N) return
+    idim = get_arg(1_mpiint, dim)
+    if (idim .gt. size(shape(arr))) &
+      call CHKERR(idim, 'requested resize dimension is larger than max dimension of inp array')
+    sdim = size(arr, dim=idim)
+    if (sdim .eq. N) return
 
-      select case(idim)
-      case(1)
-        allocate(tmp(N,size(arr,dim=2),size(arr,dim=3))) !**
-      case(2)
-        allocate(tmp(size(arr,dim=1),N,size(arr,dim=3))) !**
-      case(3)
-        allocate(tmp(size(arr,dim=1),size(arr,dim=2),N)) !**
+    select case (idim)
+    case (1)
+      allocate (tmp(N, size(arr, dim=2), size(arr, dim=3))) !**
+    case (2)
+      allocate (tmp(size(arr, dim=1), N, size(arr, dim=3))) !**
+    case (3)
+      allocate (tmp(size(arr, dim=1), size(arr, dim=2), N)) !**
+    end select
+
+    if (N .lt. sdim) then ! shrinking
+      if (present(fillval)) call CHKERR(1_mpiint, 'resize_arr is about to shrink the input arr '// &
+                                        'but you provided a fillVal - this does not make sense')
+      select case (idim)
+      case (1)
+        tmp(1:N, :, :) = arr(1:N, :, :) !**
+      case (2)
+        tmp(:, 1:N, :) = arr(:, 1:N, :) !**
+      case (3)
+        tmp(:, :, 1:N) = arr(:, :, 1:N) !**
       end select
-
-      if(N.lt.sdim) then ! shrinking
-        if(present(fillval)) call CHKERR(1_mpiint, 'resize_arr is about to shrink the input arr ' // &
-          'but you provided a fillVal - this does not make sense')
-        select case(idim)
-        case(1)
-          tmp(1:N,:,:) = arr(1:N,:,:) !**
-        case(2)
-          tmp(:,1:N,:) = arr(:,1:N,:) !**
-        case(3)
-          tmp(:,:,1:N) = arr(:,:,1:N) !**
-        end select
-      else
-        repeat_dim = get_arg(.False., lrepeat)
-        if(repeat_dim) then
-          if(modulo(N,sdim).ne.0) &
-            call CHKERR(1_mpiint, 'resize_arr cannot repeat the dimension('//itoa(idim)// &
-            'because '//itoa(N)//' is does not a multiple of inp array size '//itoa(sdim))
-          do i=1,N
-            j = modulo(i-1,sdim)
-            select case(idim)
-            case(1)
-              tmp(i,:,:) = arr(1+j,:,:) !**
-            case(2)
-              tmp(:,i,:) = arr(:,1+j,:) !**
-            case(3)
-              tmp(:,:,i) = arr(:,:,1+j) !**
-            end select
-          enddo
-        else
-          if(.not.present(fillVal)) call CHKERR(1_mpiint, 'fillVal is not present but needs to be given here')
-          select case(idim)
-          case(1)
-            tmp(1:sdim,:,:) = arr(1:sdim,:,:) !**
-            tmp(sdim+1:N,:,:) = fillVal !**
-          case(2)
-            tmp(:,1:sdim,:) = arr(:,1:sdim,:) !**
-            tmp(:,sdim+1:N,:) = fillVal !**
-          case(3)
-            tmp(:,:,1:sdim) = arr(:,:,1:sdim) !**
-            tmp(:,:,sdim+1:N) = fillVal !**
+    else
+      repeat_dim = get_arg(.false., lrepeat)
+      if (repeat_dim) then
+        if (modulo(N, sdim) .ne. 0) &
+          call CHKERR(1_mpiint, 'resize_arr cannot repeat the dimension('//itoa(idim)// &
+                      'because '//itoa(N)//' is does not a multiple of inp array size '//itoa(sdim))
+        do i = 1, N
+          j = modulo(i - 1, sdim)
+          select case (idim)
+          case (1)
+            tmp(i, :, :) = arr(1 + j, :, :) !**
+          case (2)
+            tmp(:, i, :) = arr(:, 1 + j, :) !**
+          case (3)
+            tmp(:, :, i) = arr(:, :, 1 + j) !**
           end select
-        endif
-      endif
-      call move_alloc(tmp, arr)
-    end subroutine
-    subroutine resize_arr_3d_r64(N, arr, dim, fillval, lrepeat)
-      integer(iintegers), intent(in) :: N
-      real(REAL64), allocatable, intent(inout) :: arr(:,:,:)
-      integer(mpiint), intent(in), optional :: dim
-      real(kind(arr)), intent(in), optional :: fillval
-      logical, intent(in), optional :: lrepeat
+        end do
+      else
+        if (.not. present(fillVal)) call CHKERR(1_mpiint, 'fillVal is not present but needs to be given here')
+        select case (idim)
+        case (1)
+          tmp(1:sdim, :, :) = arr(1:sdim, :, :) !**
+          tmp(sdim + 1:N, :, :) = fillVal !**
+        case (2)
+          tmp(:, 1:sdim, :) = arr(:, 1:sdim, :) !**
+          tmp(:, sdim + 1:N, :) = fillVal !**
+        case (3)
+          tmp(:, :, 1:sdim) = arr(:, :, 1:sdim) !**
+          tmp(:, :, sdim + 1:N) = fillVal !**
+        end select
+      end if
+    end if
+    call move_alloc(tmp, arr)
+  end subroutine
+  subroutine resize_arr_3d_r64(N, arr, dim, fillval, lrepeat)
+    integer(iintegers), intent(in) :: N
+    real(real64), allocatable, intent(inout) :: arr(:, :, :)
+    integer(mpiint), intent(in), optional :: dim
+    real(kind(arr)), intent(in), optional :: fillval
+    logical, intent(in), optional :: lrepeat
 
-      real(kind(arr)), allocatable :: tmp(:,:,:)
-      integer(kind(N)) :: sdim, i ,j
-      integer(mpiint) :: idim
-      logical :: repeat_dim
+    real(kind(arr)), allocatable :: tmp(:, :, :)
+    integer(kind(N)) :: sdim, i, j
+    integer(mpiint) :: idim
+    logical :: repeat_dim
 
-      idim = get_arg(1_mpiint, dim)
-      if(idim.gt.size(shape(arr))) &
-        call CHKERR(idim, 'requested resize dimension is larger than max dimension of inp array')
-      sdim = size(arr, dim=idim)
-      if(sdim.eq.N) return
+    idim = get_arg(1_mpiint, dim)
+    if (idim .gt. size(shape(arr))) &
+      call CHKERR(idim, 'requested resize dimension is larger than max dimension of inp array')
+    sdim = size(arr, dim=idim)
+    if (sdim .eq. N) return
 
-      select case(idim)
-      case(1)
-        allocate(tmp(N,size(arr,dim=2),size(arr,dim=3))) !**
-      case(2)
-        allocate(tmp(size(arr,dim=1),N,size(arr,dim=3))) !**
-      case(3)
-        allocate(tmp(size(arr,dim=1),size(arr,dim=2),N)) !**
+    select case (idim)
+    case (1)
+      allocate (tmp(N, size(arr, dim=2), size(arr, dim=3))) !**
+    case (2)
+      allocate (tmp(size(arr, dim=1), N, size(arr, dim=3))) !**
+    case (3)
+      allocate (tmp(size(arr, dim=1), size(arr, dim=2), N)) !**
+    end select
+
+    if (N .lt. sdim) then ! shrinking
+      if (present(fillval)) call CHKERR(1_mpiint, 'resize_arr is about to shrink the input arr '// &
+                                        'but you provided a fillVal - this does not make sense')
+      select case (idim)
+      case (1)
+        tmp(1:N, :, :) = arr(1:N, :, :) !**
+      case (2)
+        tmp(:, 1:N, :) = arr(:, 1:N, :) !**
+      case (3)
+        tmp(:, :, 1:N) = arr(:, :, 1:N) !**
       end select
-
-      if(N.lt.sdim) then ! shrinking
-        if(present(fillval)) call CHKERR(1_mpiint, 'resize_arr is about to shrink the input arr ' // &
-          'but you provided a fillVal - this does not make sense')
-        select case(idim)
-        case(1)
-          tmp(1:N,:,:) = arr(1:N,:,:) !**
-        case(2)
-          tmp(:,1:N,:) = arr(:,1:N,:) !**
-        case(3)
-          tmp(:,:,1:N) = arr(:,:,1:N) !**
-        end select
-      else
-        repeat_dim = get_arg(.False., lrepeat)
-        if(repeat_dim) then
-          if(modulo(N,sdim).ne.0) &
-            call CHKERR(1_mpiint, 'resize_arr cannot repeat the dimension('//itoa(idim)// &
-            'because '//itoa(N)//' is does not a multiple of inp array size '//itoa(sdim))
-          do i=1,N
-            j = modulo(i-1,sdim)
-            select case(idim)
-            case(1)
-              tmp(i,:,:) = arr(1+j,:,:) !**
-            case(2)
-              tmp(:,i,:) = arr(:,1+j,:) !**
-            case(3)
-              tmp(:,:,i) = arr(:,:,1+j) !**
-            end select
-          enddo
-        else
-          if(.not.present(fillVal)) call CHKERR(1_mpiint, 'fillVal is not present but needs to be given here')
-          select case(idim)
-          case(1)
-            tmp(1:sdim,:,:) = arr(1:sdim,:,:) !**
-            tmp(sdim+1:N,:,:) = fillVal !**
-          case(2)
-            tmp(:,1:sdim,:) = arr(:,1:sdim,:) !**
-            tmp(:,sdim+1:N,:) = fillVal !**
-          case(3)
-            tmp(:,:,1:sdim) = arr(:,:,1:sdim) !**
-            tmp(:,:,sdim+1:N) = fillVal !**
+    else
+      repeat_dim = get_arg(.false., lrepeat)
+      if (repeat_dim) then
+        if (modulo(N, sdim) .ne. 0) &
+          call CHKERR(1_mpiint, 'resize_arr cannot repeat the dimension('//itoa(idim)// &
+                      'because '//itoa(N)//' is does not a multiple of inp array size '//itoa(sdim))
+        do i = 1, N
+          j = modulo(i - 1, sdim)
+          select case (idim)
+          case (1)
+            tmp(i, :, :) = arr(1 + j, :, :) !**
+          case (2)
+            tmp(:, i, :) = arr(:, 1 + j, :) !**
+          case (3)
+            tmp(:, :, i) = arr(:, :, 1 + j) !**
           end select
-        endif
-      endif
-      call move_alloc(tmp, arr)
-    end subroutine
-    subroutine resize_arr_2d_r32(N, arr, dim, fillval, lrepeat)
-      integer(iintegers), intent(in) :: N
-      real(REAL32), allocatable, intent(inout) :: arr(:,:)
-      integer(mpiint), intent(in), optional :: dim
-      real(kind(arr)), intent(in), optional :: fillval
-      logical, intent(in), optional :: lrepeat
+        end do
+      else
+        if (.not. present(fillVal)) call CHKERR(1_mpiint, 'fillVal is not present but needs to be given here')
+        select case (idim)
+        case (1)
+          tmp(1:sdim, :, :) = arr(1:sdim, :, :) !**
+          tmp(sdim + 1:N, :, :) = fillVal !**
+        case (2)
+          tmp(:, 1:sdim, :) = arr(:, 1:sdim, :) !**
+          tmp(:, sdim + 1:N, :) = fillVal !**
+        case (3)
+          tmp(:, :, 1:sdim) = arr(:, :, 1:sdim) !**
+          tmp(:, :, sdim + 1:N) = fillVal !**
+        end select
+      end if
+    end if
+    call move_alloc(tmp, arr)
+  end subroutine
+  subroutine resize_arr_2d_r32(N, arr, dim, fillval, lrepeat)
+    integer(iintegers), intent(in) :: N
+    real(real32), allocatable, intent(inout) :: arr(:, :)
+    integer(mpiint), intent(in), optional :: dim
+    real(kind(arr)), intent(in), optional :: fillval
+    logical, intent(in), optional :: lrepeat
 
-      real(kind(arr)), allocatable :: tmp(:,:)
-      integer(kind(N)) :: sdim, i ,j
-      integer(mpiint) :: idim
-      logical :: repeat_dim
+    real(kind(arr)), allocatable :: tmp(:, :)
+    integer(kind(N)) :: sdim, i, j
+    integer(mpiint) :: idim
+    logical :: repeat_dim
 
-      idim = get_arg(1_mpiint, dim)
-      if(idim.gt.size(shape(arr))) &
-        call CHKERR(idim, 'requested resize dimension is larger than max dimension of inp array')
-      sdim = size(arr, dim=idim)
-      if(sdim.eq.N) return
+    idim = get_arg(1_mpiint, dim)
+    if (idim .gt. size(shape(arr))) &
+      call CHKERR(idim, 'requested resize dimension is larger than max dimension of inp array')
+    sdim = size(arr, dim=idim)
+    if (sdim .eq. N) return
 
-      select case(idim)
-      case(1)
-        allocate(tmp(N,size(arr,dim=2))) !**
-      case(2)
-        allocate(tmp(size(arr,dim=1),N)) !**
+    select case (idim)
+    case (1)
+      allocate (tmp(N, size(arr, dim=2))) !**
+    case (2)
+      allocate (tmp(size(arr, dim=1), N)) !**
+    end select
+
+    if (N .lt. sdim) then ! shrinking
+      if (present(fillval)) call CHKERR(1_mpiint, 'resize_arr is about to shrink the input arr '// &
+                                        'but you provided a fillVal - this does not make sense')
+      select case (idim)
+      case (1)
+        tmp(1:N, :) = arr(1:N, :) !**
+      case (2)
+        tmp(:, 1:N) = arr(:, 1:N) !**
       end select
-
-      if(N.lt.sdim) then ! shrinking
-        if(present(fillval)) call CHKERR(1_mpiint, 'resize_arr is about to shrink the input arr ' // &
-          'but you provided a fillVal - this does not make sense')
-        select case(idim)
-        case(1)
-          tmp(1:N,:) = arr(1:N,:) !**
-        case(2)
-          tmp(:,1:N) = arr(:,1:N) !**
-        end select
-      else
-        repeat_dim = get_arg(.False., lrepeat)
-        if(repeat_dim) then
-          if(modulo(N,sdim).ne.0) &
-            call CHKERR(1_mpiint, 'resize_arr cannot repeat the dimension('//itoa(idim)// &
-            'because '//itoa(N)//' is does not a multiple of inp array size '//itoa(sdim))
-          do i=1,N
-            j = modulo(i-1,sdim)
-            select case(idim)
-            case(1)
-              tmp(i,:) = arr(1+j,:) !**
-            case(2)
-              tmp(:,i) = arr(:,1+j) !**
-            end select
-          enddo
-        else
-          if(.not.present(fillVal)) call CHKERR(1_mpiint, 'fillVal is not present but needs to be given here')
-          select case(idim)
-          case(1)
-            tmp(1:sdim,:) = arr(1:sdim,:) !**
-            tmp(sdim+1:N,:) = fillVal !**
-          case(2)
-            tmp(:,1:sdim) = arr(:,1:sdim) !**
-            tmp(:,sdim+1:N) = fillVal !**
+    else
+      repeat_dim = get_arg(.false., lrepeat)
+      if (repeat_dim) then
+        if (modulo(N, sdim) .ne. 0) &
+          call CHKERR(1_mpiint, 'resize_arr cannot repeat the dimension('//itoa(idim)// &
+                      'because '//itoa(N)//' is does not a multiple of inp array size '//itoa(sdim))
+        do i = 1, N
+          j = modulo(i - 1, sdim)
+          select case (idim)
+          case (1)
+            tmp(i, :) = arr(1 + j, :) !**
+          case (2)
+            tmp(:, i) = arr(:, 1 + j) !**
           end select
-        endif
-      endif
-      call move_alloc(tmp, arr)
-    end subroutine
-    subroutine resize_arr_2d_r64(N, arr, dim, fillval, lrepeat)
-      integer(iintegers), intent(in) :: N
-      real(REAL64), allocatable, intent(inout) :: arr(:,:)
-      integer(mpiint), intent(in), optional :: dim
-      real(kind(arr)), intent(in), optional :: fillval
-      logical, intent(in), optional :: lrepeat
+        end do
+      else
+        if (.not. present(fillVal)) call CHKERR(1_mpiint, 'fillVal is not present but needs to be given here')
+        select case (idim)
+        case (1)
+          tmp(1:sdim, :) = arr(1:sdim, :) !**
+          tmp(sdim + 1:N, :) = fillVal !**
+        case (2)
+          tmp(:, 1:sdim) = arr(:, 1:sdim) !**
+          tmp(:, sdim + 1:N) = fillVal !**
+        end select
+      end if
+    end if
+    call move_alloc(tmp, arr)
+  end subroutine
+  subroutine resize_arr_2d_r64(N, arr, dim, fillval, lrepeat)
+    integer(iintegers), intent(in) :: N
+    real(real64), allocatable, intent(inout) :: arr(:, :)
+    integer(mpiint), intent(in), optional :: dim
+    real(kind(arr)), intent(in), optional :: fillval
+    logical, intent(in), optional :: lrepeat
 
-      real(kind(arr)), allocatable :: tmp(:,:)
-      integer(kind(N)) :: sdim, i, j
-      integer(mpiint) :: idim
-      logical :: repeat_dim
+    real(kind(arr)), allocatable :: tmp(:, :)
+    integer(kind(N)) :: sdim, i, j
+    integer(mpiint) :: idim
+    logical :: repeat_dim
 
-      idim = get_arg(1_mpiint, dim)
-      if(idim.gt.size(shape(arr))) &
-        call CHKERR(idim, 'requested resize dimension is larger than max dimension of inp array')
-      sdim = size(arr, dim=idim)
-      if(sdim.eq.N) return
+    idim = get_arg(1_mpiint, dim)
+    if (idim .gt. size(shape(arr))) &
+      call CHKERR(idim, 'requested resize dimension is larger than max dimension of inp array')
+    sdim = size(arr, dim=idim)
+    if (sdim .eq. N) return
 
-      select case(idim)
-      case(1)
-        allocate(tmp(N,size(arr,dim=2))) !**
-      case(2)
-        allocate(tmp(size(arr,dim=1),N)) !**
+    select case (idim)
+    case (1)
+      allocate (tmp(N, size(arr, dim=2))) !**
+    case (2)
+      allocate (tmp(size(arr, dim=1), N)) !**
+    end select
+
+    if (N .lt. sdim) then ! shrinking
+      if (present(fillval)) call CHKERR(1_mpiint, 'resize_arr is about to shrink the input arr '// &
+                                        'but you provided a fillVal - this does not make sense')
+      select case (idim)
+      case (1)
+        tmp(1:N, :) = arr(1:N, :) !**
+      case (2)
+        tmp(:, 1:N) = arr(:, 1:N) !**
       end select
-
-      if(N.lt.sdim) then ! shrinking
-        if(present(fillval)) call CHKERR(1_mpiint, 'resize_arr is about to shrink the input arr ' // &
-          'but you provided a fillVal - this does not make sense')
-        select case(idim)
-        case(1)
-          tmp(1:N,:) = arr(1:N,:) !**
-        case(2)
-          tmp(:,1:N) = arr(:,1:N) !**
-        end select
-      else
-        repeat_dim = get_arg(.False., lrepeat)
-        if(repeat_dim) then
-          if(modulo(N,sdim).ne.0) &
-            call CHKERR(1_mpiint, 'resize_arr cannot repeat the dimension('//itoa(idim)// &
-            'because '//itoa(N)//' is does not a multiple of inp array size '//itoa(sdim))
-          do i=1,N
-            j = modulo(i-1,sdim)
-            select case(idim)
-            case(1)
-              tmp(i,:) = arr(1+j,:) !**
-            case(2)
-              tmp(:,i) = arr(:,1+j) !**
-            end select
-          enddo
-        else
-          if(.not.present(fillVal)) call CHKERR(1_mpiint, 'fillVal is not present but needs to be given here')
-          select case(idim)
-          case(1)
-            tmp(1:sdim,:) = arr(1:sdim,:) !**
-            tmp(sdim+1:N,:) = fillVal !**
-          case(2)
-            tmp(:,1:sdim) = arr(:,1:sdim) !**
-            tmp(:,sdim+1:N) = fillVal !**
+    else
+      repeat_dim = get_arg(.false., lrepeat)
+      if (repeat_dim) then
+        if (modulo(N, sdim) .ne. 0) &
+          call CHKERR(1_mpiint, 'resize_arr cannot repeat the dimension('//itoa(idim)// &
+                      'because '//itoa(N)//' is does not a multiple of inp array size '//itoa(sdim))
+        do i = 1, N
+          j = modulo(i - 1, sdim)
+          select case (idim)
+          case (1)
+            tmp(i, :) = arr(1 + j, :) !**
+          case (2)
+            tmp(:, i) = arr(:, 1 + j) !**
           end select
-        endif
-      endif
-      call move_alloc(tmp, arr)
-    end subroutine
-    subroutine resize_arr_1d_int32(N, arr, dim, fillval, lrepeat)
-      integer(iintegers), intent(in) :: N
-      integer(INT32), allocatable, intent(inout) :: arr(:)
-      integer(mpiint), intent(in), optional :: dim
-      integer(kind(arr)), intent(in), optional :: fillval
-      logical, intent(in), optional :: lrepeat
-
-      integer(kind(arr)), allocatable :: tmp(:)
-      integer(kind(N)) :: sdim, i, j
-      integer(mpiint) :: idim
-      logical :: repeat_dim
-
-      idim = get_arg(1_mpiint, dim)
-      if(idim.gt.size(shape(arr))) &
-        call CHKERR(idim, 'requested resize dimension is larger than max dimension of inp array')
-      sdim = size(arr, dim=idim)
-      if(sdim.eq.N) return
-
-      allocate(tmp(N)) !**
-
-      if(N.lt.sdim) then ! shrinking
-        if(present(fillval)) call CHKERR(1_mpiint, 'resize_arr is about to shrink the input arr ' // &
-          'but you provided a fillVal - this does not make sense')
-        tmp(1:N) = arr(1:N) !**
+        end do
       else
-        repeat_dim = get_arg(.False., lrepeat)
-        if(repeat_dim) then
-          if(modulo(N,sdim).ne.0) &
-            call CHKERR(1_mpiint, 'resize_arr cannot repeat the dimension('//itoa(idim)// &
-            'because '//itoa(N)//' is does not a multiple of inp array size '//itoa(sdim))
-          do i=1,N
-            j = modulo(i-1,sdim)
-            tmp(i) = arr(1+j) !**
-          enddo
-        else
-          if(.not.present(fillVal)) call CHKERR(1_mpiint, 'fillVal is not present but needs to be given here')
-          tmp(1:sdim) = arr(1:sdim) !**
-          tmp(sdim+1:N) = fillVal !**
-        endif
-      endif
-      call move_alloc(tmp, arr)
-    end subroutine
-    subroutine resize_arr_1d_int64(N, arr, dim, fillval, lrepeat)
-      integer(iintegers), intent(in) :: N
-      integer(INT64), allocatable, intent(inout) :: arr(:)
-      integer(mpiint), intent(in), optional :: dim
-      integer(kind(arr)), intent(in), optional :: fillval
-      logical, intent(in), optional :: lrepeat
+        if (.not. present(fillVal)) call CHKERR(1_mpiint, 'fillVal is not present but needs to be given here')
+        select case (idim)
+        case (1)
+          tmp(1:sdim, :) = arr(1:sdim, :) !**
+          tmp(sdim + 1:N, :) = fillVal !**
+        case (2)
+          tmp(:, 1:sdim) = arr(:, 1:sdim) !**
+          tmp(:, sdim + 1:N) = fillVal !**
+        end select
+      end if
+    end if
+    call move_alloc(tmp, arr)
+  end subroutine
+  subroutine resize_arr_1d_int32(N, arr, dim, fillval, lrepeat)
+    integer(iintegers), intent(in) :: N
+    integer(int32), allocatable, intent(inout) :: arr(:)
+    integer(mpiint), intent(in), optional :: dim
+    integer(kind(arr)), intent(in), optional :: fillval
+    logical, intent(in), optional :: lrepeat
 
-      integer(kind(arr)), allocatable :: tmp(:)
-      integer(kind(N)) :: sdim, i, j
-      integer(mpiint) :: idim
-      logical :: repeat_dim
+    integer(kind(arr)), allocatable :: tmp(:)
+    integer(kind(N)) :: sdim, i, j
+    integer(mpiint) :: idim
+    logical :: repeat_dim
 
-      idim = get_arg(1_mpiint, dim)
-      if(idim.gt.size(shape(arr))) &
-        call CHKERR(idim, 'requested resize dimension is larger than max dimension of inp array')
-      sdim = size(arr, dim=idim)
-      if(sdim.eq.N) return
+    idim = get_arg(1_mpiint, dim)
+    if (idim .gt. size(shape(arr))) &
+      call CHKERR(idim, 'requested resize dimension is larger than max dimension of inp array')
+    sdim = size(arr, dim=idim)
+    if (sdim .eq. N) return
 
-      allocate(tmp(N)) !**
+    allocate (tmp(N)) !**
 
-      if(N.lt.sdim) then ! shrinking
-        if(present(fillval)) call CHKERR(1_mpiint, 'resize_arr is about to shrink the input arr ' // &
-          'but you provided a fillVal - this does not make sense')
-        tmp(1:N) = arr(1:N) !**
+    if (N .lt. sdim) then ! shrinking
+      if (present(fillval)) call CHKERR(1_mpiint, 'resize_arr is about to shrink the input arr '// &
+                                        'but you provided a fillVal - this does not make sense')
+      tmp(1:N) = arr(1:N) !**
+    else
+      repeat_dim = get_arg(.false., lrepeat)
+      if (repeat_dim) then
+        if (modulo(N, sdim) .ne. 0) &
+          call CHKERR(1_mpiint, 'resize_arr cannot repeat the dimension('//itoa(idim)// &
+                      'because '//itoa(N)//' is does not a multiple of inp array size '//itoa(sdim))
+        do i = 1, N
+          j = modulo(i - 1, sdim)
+          tmp(i) = arr(1 + j) !**
+        end do
       else
-        repeat_dim = get_arg(.False., lrepeat)
-        if(repeat_dim) then
-          if(modulo(N,sdim).ne.0) &
-            call CHKERR(1_mpiint, 'resize_arr cannot repeat the dimension('//itoa(idim)// &
-            'because '//itoa(N)//' is does not a multiple of inp array size '//itoa(sdim))
-          do i=1,N
-            j = modulo(i-1,sdim)
-            tmp(i) = arr(1+j) !**
-          enddo
-        else
-          if(.not.present(fillVal)) call CHKERR(1_mpiint, 'fillVal is not present but needs to be given here')
-          tmp(1:sdim) = arr(1:sdim) !**
-          tmp(sdim+1:N) = fillVal !**
-        endif
-      endif
-      call move_alloc(tmp, arr)
-    end subroutine
+        if (.not. present(fillVal)) call CHKERR(1_mpiint, 'fillVal is not present but needs to be given here')
+        tmp(1:sdim) = arr(1:sdim) !**
+        tmp(sdim + 1:N) = fillVal !**
+      end if
+    end if
+    call move_alloc(tmp, arr)
+  end subroutine
+  subroutine resize_arr_1d_int64(N, arr, dim, fillval, lrepeat)
+    integer(iintegers), intent(in) :: N
+    integer(int64), allocatable, intent(inout) :: arr(:)
+    integer(mpiint), intent(in), optional :: dim
+    integer(kind(arr)), intent(in), optional :: fillval
+    logical, intent(in), optional :: lrepeat
 
-    #:for dtype, pi in [('REAL32', 'pi32'), ('REAL64', 'pi64'), ('REAL128', 'pi128')]
-    elemental function deg2rad_${dtype}$(deg) result(r)
+    integer(kind(arr)), allocatable :: tmp(:)
+    integer(kind(N)) :: sdim, i, j
+    integer(mpiint) :: idim
+    logical :: repeat_dim
+
+    idim = get_arg(1_mpiint, dim)
+    if (idim .gt. size(shape(arr))) &
+      call CHKERR(idim, 'requested resize dimension is larger than max dimension of inp array')
+    sdim = size(arr, dim=idim)
+    if (sdim .eq. N) return
+
+    allocate (tmp(N)) !**
+
+    if (N .lt. sdim) then ! shrinking
+      if (present(fillval)) call CHKERR(1_mpiint, 'resize_arr is about to shrink the input arr '// &
+                                        'but you provided a fillVal - this does not make sense')
+      tmp(1:N) = arr(1:N) !**
+    else
+      repeat_dim = get_arg(.false., lrepeat)
+      if (repeat_dim) then
+        if (modulo(N, sdim) .ne. 0) &
+          call CHKERR(1_mpiint, 'resize_arr cannot repeat the dimension('//itoa(idim)// &
+                      'because '//itoa(N)//' is does not a multiple of inp array size '//itoa(sdim))
+        do i = 1, N
+          j = modulo(i - 1, sdim)
+          tmp(i) = arr(1 + j) !**
+        end do
+      else
+        if (.not. present(fillVal)) call CHKERR(1_mpiint, 'fillVal is not present but needs to be given here')
+        tmp(1:sdim) = arr(1:sdim) !**
+        tmp(sdim + 1:N) = fillVal !**
+      end if
+    end if
+    call move_alloc(tmp, arr)
+  end subroutine
+
+  #:for dtype, pi in [('REAL32', 'pi32'), ('REAL64', 'pi64'), ('REAL128', 'pi128')]
+    elemental function deg2rad_${dtype}$ (deg) result(r)
       real(${dtype}$) :: r
       real(${dtype}$), intent(in) :: deg
-      r = deg * ${pi}$ / 180._${dtype}$
+      r = deg*${pi}$/180._${dtype}$
     end function
-    #:endfor
+  #:endfor
 
-    #:for dtype, pi in [('REAL32', 'pi32'), ('REAL64', 'pi64'), ('REAL128', 'pi128')]
-    elemental function rad2deg_${dtype}$(rad) result(r)
+  #:for dtype, pi in [('REAL32', 'pi32'), ('REAL64', 'pi64'), ('REAL128', 'pi128')]
+    elemental function rad2deg_${dtype}$ (rad) result(r)
       real(${dtype}$) :: r
-      real(${dtype}$),intent(in) :: rad
-      r = rad / ${pi}$ * 180._${dtype}$
+      real(${dtype}$), intent(in) :: rad
+      r = rad/${pi}$*180._${dtype}$
     end function
-    #:endfor
+  #:endfor
 
-    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    pure function rmse_${dtype}$(a,b) result(rmse)
+  #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    pure function rmse_${dtype}$ (a, b) result(rmse)
       real(${dtype}$) :: rmse(2)
-      real(${dtype}$),intent(in) :: a(:),b(:)
-      rmse(1) = sqrt( meanval( (a-b)**2 ) )
-      rmse(2) = rmse(1)/max( meanval(b), epsilon(rmse) )
+      real(${dtype}$), intent(in) :: a(:), b(:)
+      rmse(1) = sqrt(meanval((a - b)**2))
+      rmse(2) = rmse(1) / max(meanval(b), epsilon(rmse))
     end function
+  #:endfor
+
+  #:for intype,dtype,otype in [ &
+    ('integer', 'INT32' , 'ireals'), &
+    ('integer', 'INT64' , 'ireals'), &
+    ('real'   , 'REAL32', 'REAL32'), &
+    ('real'   , 'REAL64', 'REAL64'), &
+    ('real'   , 'REAL128','REAL128')]
+    #:for RANK in range(1, 8)
+      pure function meanval_intype_${intype}$_${dtype}$_${RANK}$d_out${otype}$ (arr) result(mean)
+        ${intype}$ (${dtype}$), intent(in) :: arr${ranksuffix(RANK)}$
+        real(${otype}$) :: mean
+        mean = real(sum(arr), kind=kind(mean)) / real(max(1, size(arr)), kind=kind(mean))
+      end function
     #:endfor
+  #:endfor
 
-#:for intype,dtype,otype in [ &
-  ('integer', 'INT32' , 'ireals'), &
-  ('integer', 'INT64' , 'ireals'), &
-  ('real'   , 'REAL32', 'REAL32'), &
-  ('real'   , 'REAL64', 'REAL64'), &
-  ('real'   , 'REAL128','REAL128')]
-#:for RANK in range(1, 8)
-    pure function meanval_intype_${intype}$_${dtype}$_${RANK}$d_out${otype}$(arr) result(mean)
-      ${intype}$(${dtype}$), intent(in) :: arr${ranksuffix(RANK)}$
-      real(${otype}$) :: mean
-      mean = real(sum(arr), kind=kind(mean)) / real(max(1,size(arr)), kind=kind(mean))
-    end function
-#:endfor
-#:endfor
-
-    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    elemental logical function approx_${dtype}$(a,b,precis) result(approx)
-      real(${dtype}$),intent(in) :: a,b
-      real(${dtype}$),intent(in),optional :: precis
+  #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    elemental logical function approx_${dtype}$ (a, b, precis) result(approx)
+      real(${dtype}$), intent(in) :: a, b
+      real(${dtype}$), intent(in), optional :: precis
       real(${dtype}$) :: factor
       real(${dtype}$), parameter :: default_eps = 10._${dtype}$*epsilon(b)
-      if(present(precis) ) then
+      if (present(precis)) then
         factor = precis
       else
         factor = default_eps
-      endif
-      if( a.le.b+factor .and. a.ge.b-factor ) then
-        approx = .True.
+      end if
+      if (a .le. b + factor .and. a .ge. b - factor) then
+        approx = .true.
       else
-        approx = .False.
-      endif
+        approx = .false.
+      end if
     end function
-    #:endfor
+  #:endfor
 
-    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    elemental logical function rel_approx_${dtype}$(a,b,precision) result(rel_approx)
-      real(${dtype}$),intent(in) :: a,b
-      real(${dtype}$),intent(in),optional :: precision
-      real(${dtype}$) :: factor,rel_error
+  #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    elemental logical function rel_approx_${dtype}$ (a, b, precision) result(rel_approx)
+      real(${dtype}$), intent(in) :: a, b
+      real(${dtype}$), intent(in), optional :: precision
+      real(${dtype}$) :: factor, rel_error
       real(${dtype}$), parameter :: default_eps = 10._${dtype}$*epsilon(b)
-      if(present(precision) ) then
+      if (present(precision)) then
         factor = precision
       else
         factor = default_eps
-      endif
-      rel_error = abs(a-b)/ max(tiny(a), abs(a+b)/2)
+      end if
+      rel_error = abs(a - b) / max(tiny(a), abs(a + b) / 2)
 
-      if( rel_error .lt. precision ) then
-        rel_approx = .True.
+      if (rel_error .lt. precision) then
+        rel_approx = .true.
       else
-        rel_approx = .False.
-      endif
+        rel_approx = .false.
+      end if
     end function
-    #:endfor
+  #:endfor
 
-    function mpi_logical_and(comm,lval)
-      integer(mpiint),intent(in) :: comm
-      logical :: mpi_logical_and
-      logical,intent(in) :: lval
-      integer(mpiint) :: mpierr
-      call mpi_allreduce(lval, mpi_logical_and, 1_mpiint, imp_logical, MPI_LAND, comm, mpierr); call CHKERR(mpierr)
-    end function
-    function mpi_logical_or(comm,lval)
-      integer(mpiint),intent(in) :: comm
-      logical :: mpi_logical_or
-      logical,intent(in) :: lval
-      integer(mpiint) :: mpierr
-      call mpi_allreduce(lval, mpi_logical_or, 1_mpiint, imp_logical, MPI_LOR, comm, mpierr); call CHKERR(mpierr)
-    end function
+  function mpi_logical_and(comm, lval)
+    integer(mpiint), intent(in) :: comm
+    logical :: mpi_logical_and
+    logical, intent(in) :: lval
+    integer(mpiint) :: mpierr
+    call mpi_allreduce(lval, mpi_logical_and, 1_mpiint, imp_logical, MPI_LAND, comm, mpierr); call CHKERR(mpierr)
+  end function
+  function mpi_logical_or(comm, lval)
+    integer(mpiint), intent(in) :: comm
+    logical :: mpi_logical_or
+    logical, intent(in) :: lval
+    integer(mpiint) :: mpierr
+    call mpi_allreduce(lval, mpi_logical_or, 1_mpiint, imp_logical, MPI_LOR, comm, mpierr); call CHKERR(mpierr)
+  end function
 
-    function mpi_logical_all_same(comm,lval) result(lsame)
-      integer(mpiint),intent(in) :: comm
-      logical :: lsame !, land, lor
-      logical,intent(in) :: lval
-      integer(mpiint) :: i, isum, commsize, ierr
-      ! Logical AND and OR version:
-      !     land = mpi_logical_and(comm, lval)
-      !     lor  = mpi_logical_or (comm, lval)
-      !     lsame = land.eqv.lor
-      ! however, it is better cast to it to int and do a sum reduction, otherwise we need 2 logical reductions
-      call mpi_comm_size(comm, commsize, ierr); call CHKERR(ierr)
-      if(commsize.gt.1_mpiint) then
-        if(lval) then
-          i = 1
-        else
-          i = 0
-        endif
-        call imp_allreduce_sum(comm, i, isum)
-        if(lval) then
-          lsame = isum.eq.commsize
-        else
-          lsame = isum.eq.0
-        endif
+  function mpi_logical_all_same(comm, lval) result(lsame)
+    integer(mpiint), intent(in) :: comm
+    logical :: lsame !, land, lor
+    logical, intent(in) :: lval
+    integer(mpiint) :: i, isum, commsize, ierr
+    ! Logical AND and OR version:
+    !     land = mpi_logical_and(comm, lval)
+    !     lor  = mpi_logical_or (comm, lval)
+    !     lsame = land.eqv.lor
+    ! however, it is better cast to it to int and do a sum reduction, otherwise we need 2 logical reductions
+    call mpi_comm_size(comm, commsize, ierr); call CHKERR(ierr)
+    if (commsize .gt. 1_mpiint) then
+      if (lval) then
+        i = 1
       else
-        lsame = .True.
-      endif
-    end function
+        i = 0
+      end if
+      call imp_allreduce_sum(comm, i, isum)
+      if (lval) then
+        lsame = isum .eq. commsize
+      else
+        lsame = isum .eq. 0
+      end if
+    else
+      lsame = .true.
+    end if
+  end function
 
-    subroutine imp_allreduce_min_iintegers(comm,v,r)
-      integer(mpiint),intent(in) :: comm
-      integer(iintegers),intent(in) :: v
-      integer(iintegers),intent(out) :: r
-      integer(mpiint) :: mpierr
-      call mpi_allreduce(v,r,1_mpiint,imp_iinteger, MPI_MIN, comm, mpierr); call CHKERR(mpierr)
-    end subroutine
-    subroutine imp_allreduce_min_ireals(comm,v,r)
-      integer(mpiint),intent(in) :: comm
-      real(ireals),intent(in) :: v
-      real(ireals),intent(out) :: r
-      integer(mpiint) :: mpierr
-      call mpi_allreduce(v,r,1_mpiint,imp_ireals, MPI_MIN, comm, mpierr); call CHKERR(mpierr)
-    end subroutine
-    subroutine imp_allreduce_max_iintegers(comm,v,r)
-      integer(mpiint),intent(in) :: comm
-      integer(iintegers),intent(in) :: v
-      integer(iintegers),intent(out) :: r
-      integer(mpiint) :: mpierr
-      call mpi_allreduce(v,r,1_mpiint,imp_iinteger, MPI_MAX, comm, mpierr); call CHKERR(mpierr)
-    end subroutine
-    subroutine imp_allreduce_max_ireals(comm,v,r)
-      integer(mpiint),intent(in) :: comm
-      real(ireals),intent(in) :: v
-      real(ireals),intent(out) :: r
-      integer(mpiint) :: mpierr
-      call mpi_allreduce(v,r,1_mpiint,imp_ireals, MPI_MAX, comm, mpierr); call CHKERR(mpierr)
-    end subroutine
-    subroutine imp_allreduce_sum_ireals(comm,v,r)
-      integer(mpiint),intent(in) :: comm
-      real(ireals),intent(in) :: v
-      real(ireals),intent(out) :: r
-      integer(mpiint) :: mpierr
-      call mpi_allreduce(v, r, 1_mpiint, imp_ireals, MPI_SUM, comm, mpierr); call CHKERR(mpierr)
-    end subroutine
-    subroutine imp_allreduce_sum_i32(comm,v,r)
-      integer(mpiint),intent(in) :: comm
-      integer(INT32),intent(in) :: v
-      integer(INT32),intent(out) :: r
-      integer(mpiint) :: mpierr
-      call mpi_allreduce(v, r, 1_mpiint, imp_int4, MPI_SUM, comm, mpierr); call CHKERR(mpierr)
-    end subroutine
-    subroutine imp_allreduce_sum_i64(comm,v,r)
-      integer(mpiint),intent(in) :: comm
-      integer(INT64),intent(in) :: v
-      integer(INT64),intent(out) :: r
-      integer(mpiint) :: mpierr
-      call mpi_allreduce(v, r, 1_mpiint, imp_int8, MPI_SUM, comm, mpierr); call CHKERR(mpierr)
-    end subroutine
+  subroutine imp_allreduce_min_iintegers(comm, v, r)
+    integer(mpiint), intent(in) :: comm
+    integer(iintegers), intent(in) :: v
+    integer(iintegers), intent(out) :: r
+    integer(mpiint) :: mpierr
+    call mpi_allreduce(v, r, 1_mpiint, imp_iinteger, MPI_MIN, comm, mpierr); call CHKERR(mpierr)
+  end subroutine
+  subroutine imp_allreduce_min_ireals(comm, v, r)
+    integer(mpiint), intent(in) :: comm
+    real(ireals), intent(in) :: v
+    real(ireals), intent(out) :: r
+    integer(mpiint) :: mpierr
+    call mpi_allreduce(v, r, 1_mpiint, imp_ireals, MPI_MIN, comm, mpierr); call CHKERR(mpierr)
+  end subroutine
+  subroutine imp_allreduce_max_iintegers(comm, v, r)
+    integer(mpiint), intent(in) :: comm
+    integer(iintegers), intent(in) :: v
+    integer(iintegers), intent(out) :: r
+    integer(mpiint) :: mpierr
+    call mpi_allreduce(v, r, 1_mpiint, imp_iinteger, MPI_MAX, comm, mpierr); call CHKERR(mpierr)
+  end subroutine
+  subroutine imp_allreduce_max_ireals(comm, v, r)
+    integer(mpiint), intent(in) :: comm
+    real(ireals), intent(in) :: v
+    real(ireals), intent(out) :: r
+    integer(mpiint) :: mpierr
+    call mpi_allreduce(v, r, 1_mpiint, imp_ireals, MPI_MAX, comm, mpierr); call CHKERR(mpierr)
+  end subroutine
+  subroutine imp_allreduce_sum_ireals(comm, v, r)
+    integer(mpiint), intent(in) :: comm
+    real(ireals), intent(in) :: v
+    real(ireals), intent(out) :: r
+    integer(mpiint) :: mpierr
+    call mpi_allreduce(v, r, 1_mpiint, imp_ireals, MPI_SUM, comm, mpierr); call CHKERR(mpierr)
+  end subroutine
+  subroutine imp_allreduce_sum_i32(comm, v, r)
+    integer(mpiint), intent(in) :: comm
+    integer(int32), intent(in) :: v
+    integer(int32), intent(out) :: r
+    integer(mpiint) :: mpierr
+    call mpi_allreduce(v, r, 1_mpiint, imp_int4, MPI_SUM, comm, mpierr); call CHKERR(mpierr)
+  end subroutine
+  subroutine imp_allreduce_sum_i64(comm, v, r)
+    integer(mpiint), intent(in) :: comm
+    integer(int64), intent(in) :: v
+    integer(int64), intent(out) :: r
+    integer(mpiint) :: mpierr
+    call mpi_allreduce(v, r, 1_mpiint, imp_int8, MPI_SUM, comm, mpierr); call CHKERR(mpierr)
+  end subroutine
 
+  subroutine imp_allreduce_mean_0d(comm, v, r)
+    integer(mpiint), intent(in) :: comm
+    real(ireals), intent(in) :: v
+    real(ireals), intent(out) :: r
+    integer(mpiint) :: numnodes, ierr
+    call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
+    call imp_allreduce_sum(comm, v, r)
+    r = r / real(numnodes, kind(r))
+  end subroutine
 
-    subroutine imp_allreduce_mean_0d(comm,v,r)
-      integer(mpiint),intent(in) :: comm
-      real(ireals),intent(in) :: v
-      real(ireals),intent(out) :: r
-      integer(mpiint) :: numnodes, ierr
-      call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
-      call imp_allreduce_sum(comm, v, r)
-      r = r / real(numnodes, kind(r))
-    end subroutine
-
-#:for RANK in range(1, 4)
-    subroutine imp_allreduce_mean_${RANK}$d(comm,v,r)
-      integer(mpiint),intent(in) :: comm
-      real(ireals),intent(in) :: v${ranksuffix(RANK)}$
-      real(ireals),intent(out) :: r
-      integer(INT64)  :: global_size
+  #:for RANK in range(1, 4)
+    subroutine imp_allreduce_mean_${RANK}$d(comm, v, r)
+      integer(mpiint), intent(in) :: comm
+      real(ireals), intent(in) :: v${ranksuffix(RANK)}$
+      real(ireals), intent(out) :: r
+      integer(int64) :: global_size
       real(ireals) :: my_avg
 
-      call imp_allreduce_sum(comm, size(v, kind=INT64), global_size)
+      call imp_allreduce_sum(comm, size(v, kind=int64), global_size)
       my_avg = meanval(v) * size(v)
       call imp_allreduce_sum(comm, my_avg, r)
       r = r / real(global_size, kind(r))
     end subroutine
-#:endfor
+  #:endfor
 
-    subroutine imp_reduce_sum_r32(comm,v)
-      real(REAL32),intent(inout) :: v
-      integer(mpiint),intent(in) :: comm
-      integer(mpiint) :: commsize, myid
-      integer(mpiint) :: mpierr
-      call MPI_Comm_size( comm, commsize, mpierr); call CHKERR(mpierr)
-      if(commsize.le.1) return
-      call MPI_Comm_rank( comm, myid, mpierr); call CHKERR(mpierr)
+  subroutine imp_reduce_sum_r32(comm, v)
+    real(real32), intent(inout) :: v
+    integer(mpiint), intent(in) :: comm
+    integer(mpiint) :: commsize, myid
+    integer(mpiint) :: mpierr
+    call MPI_Comm_size(comm, commsize, mpierr); call CHKERR(mpierr)
+    if (commsize .le. 1) return
+    call MPI_Comm_rank(comm, myid, mpierr); call CHKERR(mpierr)
 
-      if(myid.eq.0) then
-        call mpi_reduce(MPI_IN_PLACE, v, 1_mpiint, imp_REAL32, MPI_SUM, 0_mpiint, comm, mpierr); call CHKERR(mpierr)
-      else
-        call mpi_reduce(v, MPI_IN_PLACE, 1_mpiint, imp_REAL32, MPI_SUM, 0_mpiint, comm, mpierr); call CHKERR(mpierr)
-      endif
-    end subroutine
-    subroutine imp_reduce_sum_r64(comm,v)
-      real(REAL64),intent(inout) :: v
-      integer(mpiint),intent(in) :: comm
-      integer(mpiint) :: commsize, myid
-      integer(mpiint) :: mpierr
-      call MPI_Comm_size( comm, commsize, mpierr); call CHKERR(mpierr)
-      if(commsize.le.1) return
-      call MPI_Comm_rank( comm, myid, mpierr); call CHKERR(mpierr)
+    if (myid .eq. 0) then
+      call mpi_reduce(MPI_IN_PLACE, v, 1_mpiint, imp_REAL32, MPI_SUM, 0_mpiint, comm, mpierr); call CHKERR(mpierr)
+    else
+      call mpi_reduce(v, MPI_IN_PLACE, 1_mpiint, imp_REAL32, MPI_SUM, 0_mpiint, comm, mpierr); call CHKERR(mpierr)
+    end if
+  end subroutine
+  subroutine imp_reduce_sum_r64(comm, v)
+    real(real64), intent(inout) :: v
+    integer(mpiint), intent(in) :: comm
+    integer(mpiint) :: commsize, myid
+    integer(mpiint) :: mpierr
+    call MPI_Comm_size(comm, commsize, mpierr); call CHKERR(mpierr)
+    if (commsize .le. 1) return
+    call MPI_Comm_rank(comm, myid, mpierr); call CHKERR(mpierr)
 
-      if(myid.eq.0) then
-        call mpi_reduce(MPI_IN_PLACE, v, 1_mpiint, imp_REAL64, MPI_SUM, 0_mpiint, comm, mpierr); call CHKERR(mpierr)
-      else
-        call mpi_reduce(v, MPI_IN_PLACE, 1_mpiint, imp_REAL64, MPI_SUM, 0_mpiint, comm, mpierr); call CHKERR(mpierr)
-      endif
-    end subroutine
-    subroutine imp_reduce_sum_r128(comm,v)
-      ! sad hack for the moment because i have lots of problems with openmpi and quad prec reductions
-      real(REAL128),intent(inout) :: v
-      integer(mpiint),intent(in) :: comm
-      real(REAL64) :: r
-      integer(mpiint) :: ierr, commsize
-      call MPI_Comm_size( comm, commsize, ierr); call CHKERR(ierr)
-      if(commsize.le.1) return
+    if (myid .eq. 0) then
+      call mpi_reduce(MPI_IN_PLACE, v, 1_mpiint, imp_REAL64, MPI_SUM, 0_mpiint, comm, mpierr); call CHKERR(mpierr)
+    else
+      call mpi_reduce(v, MPI_IN_PLACE, 1_mpiint, imp_REAL64, MPI_SUM, 0_mpiint, comm, mpierr); call CHKERR(mpierr)
+    end if
+  end subroutine
+  subroutine imp_reduce_sum_r128(comm, v)
+    ! sad hack for the moment because i have lots of problems with openmpi and quad prec reductions
+    real(real128), intent(inout) :: v
+    integer(mpiint), intent(in) :: comm
+    real(real64) :: r
+    integer(mpiint) :: ierr, commsize
+    call MPI_Comm_size(comm, commsize, ierr); call CHKERR(ierr)
+    if (commsize .le. 1) return
 
-      r = real(v, kind(r))
-      call imp_reduce_sum(comm, r)
-      v = real(r, kind(v))
-    end subroutine
+    r = real(v, kind(r))
+    call imp_reduce_sum(comm, r)
+    v = real(r, kind(v))
+  end subroutine
 
-#:for method,dtype,mpitype,otype in [ &
-  ('integer', 'INT32' , 'imp_int4'  , 'ireals'), &
-  ('integer', 'INT64' , 'imp_int8'  , 'ireals'), &
-  ('real'   , 'REAL32', 'imp_REAL32', 'REAL32'), &
-  ('real'   , 'REAL64', 'imp_REAL64', 'REAL64')]
-#:for RANK in range(1, 8)
-    subroutine imp_reduce_mean_${method}$_${dtype}$_${RANK}$d_${otype}$(comm,v,r,root)
-      integer(mpiint),intent(in) :: comm
-      ${method}$(${dtype}$),intent(in) :: v${ranksuffix(RANK)}$
-      real(${otype}$),intent(out) :: r
-      integer(mpiint), intent(in), optional :: root
+  #:for method,dtype,mpitype,otype in [ &
+    ('integer', 'INT32' , 'imp_int4'  , 'ireals'), &
+    ('integer', 'INT64' , 'imp_int8'  , 'ireals'), &
+    ('real'   , 'REAL32', 'imp_REAL32', 'REAL32'), &
+    ('real'   , 'REAL64', 'imp_REAL64', 'REAL64')]
+    #:for RANK in range(1, 8)
+      subroutine imp_reduce_mean_${method}$_${dtype}$_${RANK}$d_${otype}$ (comm, v, r, root)
+        integer(mpiint), intent(in) :: comm
+        ${method}$ (${dtype}$), intent(in) :: v${ranksuffix(RANK)}$
+        real(${otype}$), intent(out) :: r
+        integer(mpiint), intent(in), optional :: root
 
-      real(${otype}$) :: my_avg
-      integer(INT64)  :: global_size
-      integer(mpiint) ::trgt, ierr, myid
+        real(${otype}$) :: my_avg
+        integer(int64) :: global_size
+        integer(mpiint) :: trgt, ierr, myid
 
-      if(present(root)) then
-        trgt = root
-      else
-        trgt = 0_mpiint
-      endif
-
-      my_avg = meanval(v) * size(v)
-      call mpi_reduce(my_avg, r, 1_mpiint, ${mpitype}$, MPI_SUM, trgt, comm, ierr); call CHKERR(ierr)
-
-      call mpi_reduce(size(v, kind=INT64), global_size, 1_mpiint, imp_int8, MPI_SUM, trgt, comm, ierr); call CHKERR(ierr)
-      call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
-      if(myid.eq.trgt) r = r / real(global_size, kind(r))
-    end subroutine
-#:endfor
-#:endfor
-
-#:for method,cast,dtype,mpitype,otype in [ &
-  ('integer', 'int' , 'INT32' , 'imp_int4'  , 'ireals'), &
-  ('integer', 'int' , 'INT64' , 'imp_int8'  , 'ireals'), &
-  ('real'   , 'real', 'REAL32', 'imp_REAL32', 'REAL32'), &
-  ('real'   , 'real', 'REAL64', 'imp_REAL64', 'REAL64')]
-#:for RANK in range(0, 8)
-    subroutine imp_min_mean_max_${method}$_${dtype}$_${RANK}$d_${otype}$(comm, arr, mmm)
-      integer(mpiint), intent(in) :: comm
-      ${method}$(${dtype}$), intent(in) :: arr${ranksuffix(RANK)}$
-      real(${otype}$), intent(out) :: mmm(:)
-#:if RANK==0
-      mmm = real(arr, kind=${otype}$)
-      if(.False.) then
-        if(comm.lt.0) continue ! unused var
-      endif
-#:else
-      ${method}$(${otype}$) :: vmin, vmax
-      integer(mpiint) :: ierr
-
-      vmin = ${cast}$(minval(arr), kind(vmin))
-      vmax = ${cast}$(maxval(arr), kind(vmax))
-      call mpi_reduce(vmin, mmm(1), 1_mpiint, ${mpitype}$, MPI_MIN, 0_mpiint, comm, ierr); call CHKERR(ierr)
-      call imp_reduce_mean(comm, arr, mmm(2))
-      call mpi_reduce(vmax, mmm(3), 1_mpiint, ${mpitype}$, MPI_MAX, 0_mpiint, comm, ierr); call CHKERR(ierr)
-#:endif
-    end subroutine
-#:endfor
-#:endfor
-
-    subroutine imp_allgather_int_inplace(comm,v)
-      integer(mpiint),intent(in) :: comm
-      integer(iintegers),intent(inout) :: v(:)
-      integer(mpiint) :: mpierr
-      call mpi_allgather(MPI_IN_PLACE, 0_mpiint, MPI_DATATYPE_NULL, v, 1_mpiint, imp_iinteger, comm, mpierr); call CHKERR(mpierr)
-    end subroutine
-
-#:for method,dtype,mpitype in [ &
-  ('character', '', 'imp_character'), &
-  ('logical', '', 'imp_logical'), &
-  ('integer', 'INT32', 'imp_int4'), &
-  ('integer', 'INT64', 'imp_int8'), &
-  ('real', 'REAL32', 'imp_REAL32'), &
-  ('real', 'REAL64', 'imp_REAL64')]
-#:if method == 'logical'
-#:set dKIND = ''
-#:elif method == 'character'
-#:set dKIND = '(len=*)'
-#:else
-#:set dKIND = '('+dtype+')'
-#:endif
-#:for RANK in range(0, 8)
-#:for modifier in [None, 'allocatable', 'pointer']
-#:if (modifier is None and (RANK==0)) or (modifier is not None and (RANK>0))
-    subroutine  imp_bcast_${method}$_${dtype}$_${RANK}$d_${modifier}$(comm,arr,sendid)
-      integer(mpiint),intent(in) :: comm
-      ${method}$ ${dKIND}$ #{if modifier}#,${modifier}$#{endif}#, intent(inout) :: arr${ranksuffix(RANK)}$
-      integer(mpiint),intent(in) :: sendid
-      integer(mpiint) :: commsize, ierr
-#:if RANK > 0
-      integer(mpiint) :: myid
-      integer(iintegers) :: Ntot(${RANK}$)
-#:endif
-      call MPI_Comm_size( comm, commsize, ierr); call CHKERR(ierr)
-      if(commsize.le.1) return
-
-#:if RANK==0
-#:if method == 'character'
-      call mpi_bcast(arr,len(arr),${mpitype}$,sendid,comm,ierr); call CHKERR(ierr)
-#:else
-      call mpi_bcast(arr,1_mpiint,${mpitype}$,sendid,comm,ierr); call CHKERR(ierr)
-#:endif
-#:else
-
-      call mpi_comm_rank( comm, myid, ierr); call chkerr(ierr)
-      if(sendid.eq.myid) Ntot = shape(arr)
-
-      call mpi_bcast(Ntot,${RANK}$_mpiint,imp_iinteger,sendid,comm,ierr); call CHKERR(ierr)
-
-      if(myid.ne.sendid) then
-#:if modifier == 'allocatable'
-        if(allocated(arr)) then
-          if(.not.all(shape(arr).eq.Ntot)) &
-            call CHKERR(1_mpiint, 'Called a imp_bcast with an already allocated array on a receiving rank.'// &
-            ' However, it has the wrong shape: send_array is shape '//itoa(Ntot)//' inp_arr is shape '//itoa(shape(arr)))
+        if (present(root)) then
+          trgt = root
         else
-          allocate( arr ${rankallocdims(RANK)}$ )
-        endif
-#:endif
-#:if modifier == 'pointer'
-        if(.not.associated(arr)) allocate( arr ${rankallocdims(RANK)}$ )
-#:endif
+          trgt = 0_mpiint
+        end if
 
-        if(.not.all(shape(arr).eq.Ntot)) &
-          call CHKERR(1_mpiint, 'Called a imp_bcast with an already allocated array on a receiving rank.'// &
-          ' However, it has the wrong shape: send_array is shape '//itoa(Ntot)//' inp_arr is shape '//itoa(shape(arr)))
-      endif
+        my_avg = meanval(v) * size(v)
+        call mpi_reduce(my_avg, r, 1_mpiint, ${mpitype}$, MPI_SUM, trgt, comm, ierr); call CHKERR(ierr)
 
-#:if method == 'character'
-      call mpi_bcast(arr,size(arr)*len(arr),${mpitype}$,sendid,comm,ierr); call CHKERR(ierr)
-#:else
-      call mpi_bcast(arr,size(arr),${mpitype}$,sendid,comm,ierr); call CHKERR(ierr)
-#:endif
+        call mpi_reduce(size(v, kind=int64), global_size, 1_mpiint, imp_int8, MPI_SUM, trgt, comm, ierr); call CHKERR(ierr)
+        call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+        if (myid .eq. trgt) r = r / real(global_size, kind(r))
+      end subroutine
+    #:endfor
+  #:endfor
 
-#:endif
-    end subroutine
-#:endif
-#:endfor
-#:endfor
-#:endfor
+  #:for method,cast,dtype,mpitype,otype in [ &
+    ('integer', 'int' , 'INT32' , 'imp_int4'  , 'ireals'), &
+    ('integer', 'int' , 'INT64' , 'imp_int8'  , 'ireals'), &
+    ('real'   , 'real', 'REAL32', 'imp_REAL32', 'REAL32'), &
+    ('real'   , 'real', 'REAL64', 'imp_REAL64', 'REAL64')]
+    #:for RANK in range(0, 8)
+      subroutine imp_min_mean_max_${method}$_${dtype}$_${RANK}$d_${otype}$ (comm, arr, mmm)
+        integer(mpiint), intent(in) :: comm
+        ${method}$ (${dtype}$), intent(in) :: arr${ranksuffix(RANK)}$
+        real(${otype}$), intent(out) :: mmm(:)
+        #:if RANK==0
+          mmm = real(arr, kind=${otype}$)
+          if (.false.) then
+            if (comm .lt. 0) continue ! unused var
+          end if
+        #:else
+          ${method}$ (${otype}$) :: vmin, vmax
+          integer(mpiint) :: ierr
 
-    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    elemental subroutine delta_scale_${dtype}$(kabs, ksca, g, opt_f, max_g)
-      real(${dtype}$),intent(inout) :: kabs, ksca, g
-      real(${dtype}$),intent(in), optional :: opt_f, max_g
+          vmin = ${cast}$ (minval(arr), kind(vmin))
+          vmax = ${cast}$ (maxval(arr), kind(vmax))
+          call mpi_reduce(vmin, mmm(1), 1_mpiint, ${mpitype}$, MPI_MIN, 0_mpiint, comm, ierr); call CHKERR(ierr)
+          call imp_reduce_mean(comm, arr, mmm(2))
+          call mpi_reduce(vmax, mmm(3), 1_mpiint, ${mpitype}$, MPI_MAX, 0_mpiint, comm, ierr); call CHKERR(ierr)
+        #:endif
+      end subroutine
+    #:endfor
+  #:endfor
+
+  subroutine imp_allgather_int_inplace(comm, v)
+    integer(mpiint), intent(in) :: comm
+    integer(iintegers), intent(inout) :: v(:)
+    integer(mpiint) :: mpierr
+    call mpi_allgather(MPI_IN_PLACE, 0_mpiint, MPI_DATATYPE_NULL, v, 1_mpiint, imp_iinteger, comm, mpierr); call CHKERR(mpierr)
+  end subroutine
+
+  #:for method,dtype,mpitype in [ &
+    ('character', '', 'imp_character'), &
+    ('logical', '', 'imp_logical'), &
+    ('integer', 'INT32', 'imp_int4'), &
+    ('integer', 'INT64', 'imp_int8'), &
+    ('real', 'REAL32', 'imp_REAL32'), &
+    ('real', 'REAL64', 'imp_REAL64')]
+    #:if method == 'logical'
+      #:set dKIND = ''
+    #:elif method == 'character'
+      #:set dKIND = '(len=*)'
+    #:else
+      #:set dKIND = '('+dtype+')'
+    #:endif
+    #:for RANK in range(0, 8)
+      #:for modifier in [None, 'allocatable', 'pointer']
+        #:if (modifier is None and (RANK==0)) or (modifier is not None and (RANK>0))
+          subroutine imp_bcast_${method}$_${dtype}$_${RANK}$d_${modifier}$ (comm, arr, sendid)
+            integer(mpiint), intent(in) :: comm
+            ${method}$${dKIND}$#{if modifier}#,${modifier}$#{endif}#, intent(inout) :: arr${ranksuffix(RANK)}$
+            integer(mpiint), intent(in) :: sendid
+            integer(mpiint) :: commsize, ierr
+            #:if RANK > 0
+              integer(mpiint) :: myid
+              integer(iintegers) :: Ntot(${RANK}$)
+            #:endif
+            call MPI_Comm_size(comm, commsize, ierr); call CHKERR(ierr)
+            if (commsize .le. 1) return
+
+            #:if RANK==0
+              #:if method == 'character'
+                call mpi_bcast(arr, len(arr), ${mpitype}$, sendid, comm, ierr); call CHKERR(ierr)
+              #:else
+                call mpi_bcast(arr, 1_mpiint, ${mpitype}$, sendid, comm, ierr); call CHKERR(ierr)
+              #:endif
+            #:else
+
+              call mpi_comm_rank(comm, myid, ierr); call chkerr(ierr)
+              if (sendid .eq. myid) Ntot = shape(arr)
+
+              call mpi_bcast(Ntot, ${RANK}$_mpiint, imp_iinteger, sendid, comm, ierr); call CHKERR(ierr)
+
+              if (myid .ne. sendid) then
+                #:if modifier == 'allocatable'
+                  if (allocated(arr)) then
+                    if (.not. all(shape(arr) .eq. Ntot)) &
+                      call CHKERR(1_mpiint, 'Called a imp_bcast with an already allocated array on a receiving rank.'// &
+                                          & ' However, it has the wrong shape: send_array is shape '//toStr(Ntot)// &
+                                          & ' inp_arr is shape '//toStr(shape(arr)))
+                  else
+                    allocate (arr ${rankallocdims(RANK)}$)
+                  end if
+                #:endif
+                #:if modifier == 'pointer'
+                  if (.not. associated(arr)) allocate (arr ${rankallocdims(RANK)}$)
+                #:endif
+
+                if (.not. all(shape(arr) .eq. Ntot)) &
+                  call CHKERR(1_mpiint, 'Called a imp_bcast with an already allocated array on a receiving rank.'// &
+                                      & ' However, it has the wrong shape: send_array is shape '//toStr(Ntot)// &
+                                      & ' inp_arr is shape '//toStr(shape(arr)))
+              end if
+
+              #:if method == 'character'
+                call mpi_bcast(arr, size(arr) * len(arr), ${mpitype}$, sendid, comm, ierr); call CHKERR(ierr)
+              #:else
+                call mpi_bcast(arr, size(arr), ${mpitype}$, sendid, comm, ierr); call CHKERR(ierr)
+              #:endif
+
+            #:endif
+          end subroutine
+        #:endif
+      #:endfor
+    #:endfor
+  #:endfor
+
+  #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    elemental subroutine delta_scale_${dtype}$ (kabs, ksca, g, opt_f, max_g)
+      real(${dtype}$), intent(inout) :: kabs, ksca, g
+      real(${dtype}$), intent(in), optional :: opt_f, max_g
       real(${dtype}$) :: dtau, w0, f
 
-      if(present(opt_f)) then
+      if (present(opt_f)) then
         f = opt_f
       else
         f = g**2
-      endif
+      end if
 
-      if(present(max_g)) then
-        if(g.lt.max_g) return
+      if (present(max_g)) then
+        if (g .lt. max_g) return
         f = (max_g - g) / (max_g - 1._${dtype}$)
-      endif
+      end if
 
-      dtau = kabs+ksca
-      if(dtau.lt.epsilon(dtau)) return
+      dtau = kabs + ksca
+      if (dtau .lt. epsilon(dtau)) return
 
-      w0   = ksca/dtau
-      g    = g
+      w0 = ksca / dtau
+      g = g
 
-      call delta_scale_optprop( dtau, w0, g, f)
+      call delta_scale_optprop(dtau, w0, g, f)
 
       kabs = dtau * (1._${dtype}$-w0)
       ksca = dtau * w0
     end subroutine
-    #:endfor
+  #:endfor
 
-    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    elemental subroutine delta_scale_optprop_${dtype}$(dtau, w0, g, f)
-      real(${dtype}$), intent(inout) :: dtau,w0,g
+  #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    elemental subroutine delta_scale_optprop_${dtype}$ (dtau, w0, g, f)
+      real(${dtype}$), intent(inout) :: dtau, w0, g
       real(${dtype}$), intent(in) :: f
 
-      if(g.ge.1._${dtype}$-epsilon(g)*10) then
-        dtau = dtau * (1._${dtype}$ - w0)
-        w0   = zero
-        g    = zero
+      if (g .ge. 1._${dtype}$-epsilon(g) * 10) then
+        dtau = dtau * (1._${dtype}$-w0)
+        w0 = zero
+        g = zero
         return
-      endif
-      dtau = dtau * ( 1._${dtype}$ - w0 * f )
-      g    = ( g - f ) / ( 1._${dtype}$ - f )
-      w0   = w0 * ( 1._${dtype}$ - f ) / ( 1._${dtype}$ - f * w0 )
+      end if
+      dtau = dtau * (1._${dtype}$-w0 * f)
+      g = (g - f) / (1._${dtype}$-f)
+      w0 = w0 * (1._${dtype}$-f) / (1._${dtype}$-f * w0)
     end subroutine
-    #:endfor
+  #:endfor
 
-    function cumsum_ireals(arr) result(cumsum)
-      real(ireals),intent(in) :: arr(:)
-      real(ireals) :: cumsum(size(arr))
-      integer :: i
-      cumsum(1) = arr(1)
-      do i=2,size(arr)
-        cumsum(i) = cumsum(i-1) + arr(i)
-      enddo
-    end function
-    function cumsum_iintegers(arr) result(cumsum)
-      integer(iintegers),intent(in) :: arr(:)
-      integer(iintegers) :: cumsum(size(arr))
-      integer :: i
-      cumsum(1) = arr(1)
-      do i=2,size(arr)
-        cumsum(i) = cumsum(i-1) + arr(i)
-      enddo
-    end function
+  function cumsum_ireals(arr) result(cumsum)
+    real(ireals), intent(in) :: arr(:)
+    real(ireals) :: cumsum(size(arr))
+    integer :: i
+    cumsum(1) = arr(1)
+    do i = 2, size(arr)
+      cumsum(i) = cumsum(i - 1) + arr(i)
+    end do
+  end function
+  function cumsum_iintegers(arr) result(cumsum)
+    integer(iintegers), intent(in) :: arr(:)
+    integer(iintegers) :: cumsum(size(arr))
+    integer :: i
+    cumsum(1) = arr(1)
+    do i = 2, size(arr)
+      cumsum(i) = cumsum(i - 1) + arr(i)
+    end do
+  end function
 
-    ! From Numerical Recipes: cumulative product on an array, with optional multiplicative seed.
-    pure recursive function cumprod_ireals(arr,seed) result(ans)
-      real(ireals), dimension(:), intent(in) :: arr
-      real(ireals), optional, intent(in) :: seed
-      real(ireals), dimension(size(arr)) :: ans
-      integer(iintegers) :: n,j
-      real(ireals) :: sd
-      n=size(arr)
-      if (n == 0) return
-      sd = 1
-      if (present(seed)) sd=seed
-      ans(1)=arr(1)*sd
-      if (n < npar_cumprod) then
-        do j=2,n
-          ans(j)=ans(j-1)*arr(j)
+  ! From Numerical Recipes: cumulative product on an array, with optional multiplicative seed.
+  pure recursive function cumprod_ireals(arr, seed) result(ans)
+    real(ireals), dimension(:), intent(in) :: arr
+    real(ireals), optional, intent(in) :: seed
+    real(ireals), dimension(size(arr)) :: ans
+    integer(iintegers) :: n, j
+    real(ireals) :: sd
+    n = size(arr)
+    if (n == 0) return
+    sd = 1
+    if (present(seed)) sd = seed
+    ans(1) = arr(1) * sd
+    if (n < npar_cumprod) then
+      do j = 2, n
+        ans(j) = ans(j - 1) * arr(j)
+      end do
+    else
+      ans(2:n:2) = cumprod(arr(2:n:2) * arr(1:n - 1:2), sd)
+      ans(3:n:2) = ans(2:n - 1:2) * arr(3:n:2)
+    end if
+  end function
+  pure recursive function cumprod_i32(arr, seed) result(ans)
+    integer(int32), dimension(:), intent(in) :: arr
+    integer(int32), optional, intent(in) :: seed
+    integer(int32), dimension(size(arr)) :: ans
+    integer(int32) :: n, j
+    integer(int32) :: sd
+    n = size(arr)
+    if (n == 0) return
+    sd = 1
+    if (present(seed)) sd = seed
+    ans(1) = arr(1) * sd
+    if (n < npar_cumprod) then
+      do j = 2, n
+        ans(j) = ans(j - 1) * arr(j)
+      end do
+    else
+      ans(2:n:2) = cumprod(arr(2:n:2) * arr(1:n - 1:2), sd)
+      ans(3:n:2) = ans(2:n - 1:2) * arr(3:n:2)
+    end if
+  end function
+  pure recursive function cumprod_i64(arr, seed) result(ans)
+    integer(int64), dimension(:), intent(in) :: arr
+    integer(int64), optional, intent(in) :: seed
+    integer(int64), dimension(size(arr)) :: ans
+    integer(int64) :: n, j
+    integer(int64) :: sd
+    n = size(arr)
+    if (n == 0) return
+    sd = 1
+    if (present(seed)) sd = seed
+    ans(1) = arr(1) * sd
+    if (n < npar_cumprod) then
+      do j = 2, n
+        ans(j) = ans(j - 1) * arr(j)
+      end do
+    else
+      ans(2:n:2) = cumprod(arr(2:n:2) * arr(1:n - 1:2), sd)
+      ans(3:n:2) = ans(2:n - 1:2) * arr(3:n:2)
+    end if
+  end function
+
+  #:for basetype,dtype in [&
+    ('integer', 'INT32'  ), &
+    ('integer', 'INT64'  ), &
+    ('real'   , 'REAL32' ), &
+    ('real'   , 'REAL64' ), &
+    ('real'   , 'REAL128')]
+    subroutine write_ascii_file_2d_${dtype}$ (filename, arr, ierr, header, row_major, verbose)
+      character(len=*), intent(in) :: filename
+
+      ${basetype}$ (${dtype}$), intent(in) :: arr(:, :)
+
+      integer(mpiint), intent(out) :: ierr
+
+      logical, intent(in), optional :: verbose
+      character(len=*), intent(in), optional :: header
+      logical, intent(in), optional :: row_major
+
+      integer :: funit, i
+      logical :: lverbose, file_exists, lrow_major
+
+      ierr = 0
+      inquire (file=filename, exist=file_exists)
+
+      lverbose = get_arg(.false., verbose)
+      lrow_major = get_arg(.false., row_major)
+
+      if (file_exists) then
+        if (lverbose) print *, 'File ', trim(filename), 'does already exist!'
+        ierr = 1
+        return
+      end if
+
+      open (newunit=funit, file=filename)
+
+      if (present(header)) then
+        write (funit, *) header
+      end if
+
+      if (lrow_major) then
+        do i = 1, size(arr, 1)
+          write (funit, *) arr(i, :)
         end do
       else
-        ans(2:n:2)=cumprod(arr(2:n:2)*arr(1:n-1:2),sd)
-        ans(3:n:2)=ans(2:n-1:2)*arr(3:n:2)
-      end if
-    end function
-    pure recursive function cumprod_i32(arr,seed) result(ans)
-      integer(INT32), dimension(:), intent(in) :: arr
-      integer(INT32), optional, intent(in) :: seed
-      integer(INT32), dimension(size(arr)) :: ans
-      integer(INT32) :: n,j
-      integer(INT32) :: sd
-      n=size(arr)
-      if (n == 0) return
-      sd = 1
-      if (present(seed)) sd=seed
-      ans(1)=arr(1)*sd
-      if (n < npar_cumprod) then
-        do j=2,n
-          ans(j)=ans(j-1)*arr(j)
+        do i = 1, size(arr, 2)
+          write (funit, *) arr(:, i)
         end do
-      else
-        ans(2:n:2)=cumprod(arr(2:n:2)*arr(1:n-1:2),sd)
-        ans(3:n:2)=ans(2:n-1:2)*arr(3:n:2)
       end if
-    end function
-    pure recursive function cumprod_i64(arr,seed) result(ans)
-      integer(INT64), dimension(:), intent(in) :: arr
-      integer(INT64), optional, intent(in) :: seed
-      integer(INT64), dimension(size(arr)) :: ans
-      integer(INT64) :: n,j
-      integer(INT64) :: sd
-      n=size(arr)
-      if (n == 0) return
-      sd = 1
-      if (present(seed)) sd=seed
-      ans(1)=arr(1)*sd
-      if (n < npar_cumprod) then
-        do j=2,n
-          ans(j)=ans(j-1)*arr(j)
+
+      close (funit)
+    end subroutine
+  #:endfor
+
+  #:for basetype,dtype in [&
+    ('integer', 'INT32'  ), &
+    ('integer', 'INT64'  ), &
+    ('real'   , 'REAL32' ), &
+    ('real'   , 'REAL64' ), &
+    ('real'   , 'REAL128')]
+    subroutine read_ascii_file_2d_${dtype}$ (filename, arr, ierr, skiplines, verbose)
+      character(len=*), intent(in) :: filename
+      integer(iintegers), intent(in), optional :: skiplines
+
+      ${basetype}$ (${dtype}$), allocatable, intent(out) :: arr(:, :) ! shape nlines, ncolumns
+      integer(mpiint), intent(out) :: ierr
+      logical, intent(in), optional :: verbose
+
+      ${basetype}$ (${dtype}$), allocatable :: line(:)
+      character(len=2**14) :: line_str
+
+      integer :: funit, io
+      integer(iintegers) :: nlines, valid_lines, i, j, max_cols
+      logical :: lverbose, file_exists
+
+      ierr = 0
+      inquire (file=filename, exist=file_exists)
+
+      lverbose = get_arg(.false., verbose)
+
+      if (.not. file_exists) then
+        if (lverbose) print *, 'File ', trim(filename), 'does not exist!'
+        ierr = 1
+        return
+      end if
+
+      open (newunit=funit, file=filename)
+      if (present(skiplines)) then
+        do i = 1, skiplines
+          read (funit, *)
         end do
-      else
-        ans(2:n:2)=cumprod(arr(2:n:2)*arr(1:n-1:2),sd)
-        ans(3:n:2)=ans(2:n-1:2)*arr(3:n:2)
       end if
-    end function
 
-    #:for basetype,dtype in [&
-      ('integer', 'INT32'  ), &
-      ('integer', 'INT64'  ), &
-      ('real'   , 'REAL32' ), &
-      ('real'   , 'REAL64' ), &
-      ('real'   , 'REAL128')]
-      subroutine write_ascii_file_2d_${dtype}$(filename, arr, ierr, header, row_major, verbose)
-        character(len=*),intent(in) :: filename
+      print *, ''
+      nlines = 0
+      valid_lines = 0
+      max_cols = 0
+      do
+        read (funit, '(A)', iostat=io) line_str
 
-        ${basetype}$(${dtype}$), intent(in) :: arr(:,:)
+        if (io .eq. 0) then
+          call split(line_str, line, ' ', ierr)
 
-        integer(mpiint), intent(out) :: ierr
+          if (ierr .eq. 0) then
+            valid_lines = valid_lines + 1
+            if (max_cols .gt. 1 .and. size(line) .ne. max_cols) then
+              ierr = 3
+              if (lverbose) &
+                call CHKWARN(ierr, 'Found a varying number of columns in the ascii file.. cannot read that')
+              return
+            end if
+            max_cols = size(line)
+          end if
+          deallocate (line)
 
-        logical, intent(in), optional :: verbose
-        character(len=*), intent(in), optional :: header
-        logical, intent(in), optional :: row_major
+        elseif (io .lt. 0) then ! end of file
+          exit
+        end if
 
-        integer :: funit, i
-        logical :: lverbose, file_exists, lrow_major
+        nlines = nlines + 1
+      end do
 
-        ierr=0
-        inquire(file=filename, exist=file_exists)
+      rewind (funit)
+      if (present(skiplines)) then
+        do i = 1, skiplines
+          read (funit, *)
+        end do
+      end if
 
-        lverbose = get_arg(.False., verbose)
-        lrow_major = get_arg(.False., row_major)
+      allocate (line(max_cols))
+      allocate (arr(valid_lines, max_cols))
 
-        if(file_exists) then
-          if(lverbose) print *,'File ',trim(filename), 'does already exist!'
-          ierr=1
-          return
-        endif
+      j = 1
+      do i = 1, nlines
+        read (funit, *, iostat=io) line
+        if (io .eq. 0) then
+          arr(j, :) = line
+          j = j + 1
+        end if
+      end do
 
-        open(newunit=funit, file=filename)
+      close (funit)
+      if (lverbose) print *, 'I read '// &
+        itoa(valid_lines)//' lines of ascii : '// &
+        '('//itoa(nlines)//' total ) '// &
+        'with '//itoa(max_cols)//' columns'
 
-        if (present(header)) then
-          write(funit, *) header
-        endif
+    end subroutine
+  #:endfor
 
-        if (lrow_major) then
-          do i=1,size(arr, 1)
-            write(funit, *) arr(i,:)
-          enddo
+  #:for basetype,dtype in [&
+    ('integer', 'INT32'  ), &
+    ('integer', 'INT64'  ), &
+    ('real'   , 'REAL32' ), &
+    ('real'   , 'REAL64' ), &
+    ('real'   , 'REAL128')]
+    subroutine split_${dtype}$ (str, a, sep, ierr)
+      character(len=*), intent(in) :: str, sep
+      ${basetype}$ (${dtype}$), intent(out), allocatable :: a(:)
+      integer(mpiint), intent(out) :: ierr
+      integer(iintegers) :: i, n
+      logical :: last_char_was_sep
+      last_char_was_sep = .true.
+      n = 0
+      do i = 1, len(str)
+        if (str(i:i) == sep) then
+          if (.not. last_char_was_sep) n = n + 1
+          last_char_was_sep = .true.
         else
-          do i=1,size(arr, 2)
-            write(funit, *) arr(:,i)
-          enddo
-        endif
-
-        close(funit)
-      end subroutine
-    #:endfor
-
-    #:for basetype,dtype in [&
-      ('integer', 'INT32'  ), &
-      ('integer', 'INT64'  ), &
-      ('real'   , 'REAL32' ), &
-      ('real'   , 'REAL64' ), &
-      ('real'   , 'REAL128')]
-      subroutine read_ascii_file_2d_${dtype}$(filename, arr, ierr, skiplines, verbose)
-        character(len=*),intent(in) :: filename
-        integer(iintegers),intent(in),optional :: skiplines
-
-        ${basetype}$(${dtype}$),allocatable,intent(out) :: arr(:,:) ! shape nlines, ncolumns
-        integer(mpiint), intent(out) :: ierr
-        logical, intent(in), optional :: verbose
-
-        ${basetype}$(${dtype}$), allocatable :: line(:)
-        character(len=2**14) :: line_str
-
-        integer :: funit, io
-        integer(iintegers) :: nlines, valid_lines, i, j, max_cols
-        logical :: lverbose, file_exists
-
-        ierr=0
-        inquire(file=filename, exist=file_exists)
-
-        lverbose = get_arg(.False., verbose)
-
-        if(.not.file_exists) then
-          if(lverbose) print *,'File ',trim(filename), 'does not exist!'
-          ierr=1
-          return
-        endif
-
-        open(newunit=funit, file=filename)
-        if(present(skiplines)) then
-          do i=1,skiplines
-            read(funit,*)
-          enddo
-        endif
-
-        print *,''
-        nlines = 0
-        valid_lines = 0
-        max_cols = 0
-        do
-          read(funit, '(A)', iostat=io) line_str
-
-          if(io.eq.0) then
-            call split(line_str, line, ' ', ierr)
-
-            if(ierr.eq.0)then
-              valid_lines = valid_lines + 1
-              if(max_cols.gt.1 .and. size(line).ne.max_cols) then
-                ierr = 3
-                if(lverbose) &
-                  call CHKWARN(ierr, 'Found a varying number of columns in the ascii file.. cannot read that')
-                return
-              endif
-              max_cols = size(line)
-            endif
-            deallocate(line)
-
-          elseif (io.lt.0) then ! end of file
-            exit
-          endif
-
-          nlines = nlines + 1
-        end do
-
-        rewind(funit)
-        if(present(skiplines)) then
-          do i=1,skiplines
-            read(funit,*)
-          enddo
-        endif
-
-        allocate(line(max_cols))
-        allocate(arr(valid_lines,max_cols))
-
-        j = 1
-        do i=1,nlines
-          read(funit, *, iostat=io) line
-          if(io.eq.0) then
-            arr(j,:) = line
-            j = j + 1
-          endif
-        end do
-
-        close(funit)
-        if(lverbose) print *,'I read '// &
-          itoa(valid_lines)//' lines of ascii : '// &
-          '('//itoa(nlines)//' total ) '// &
-          'with '//itoa(max_cols)//' columns'
-
-      end subroutine
-    #:endfor
-
-
-    #:for basetype,dtype in [&
-      ('integer', 'INT32'  ), &
-      ('integer', 'INT64'  ), &
-      ('real'   , 'REAL32' ), &
-      ('real'   , 'REAL64' ), &
-      ('real'   , 'REAL128')]
-      subroutine split_${dtype}$(str, a, sep, ierr)
-        character(len=*), intent(in) :: str, sep
-        ${basetype}$(${dtype}$), intent(out), allocatable :: a(:)
-        integer(mpiint), intent(out) :: ierr
-        integer(iintegers) :: i,n
-        logical :: last_char_was_sep
-        last_char_was_sep = .True.
-        n = 0
-        do i=1,len(str)
-          if( str(i:i) == sep) then
-            if(.not.last_char_was_sep) n = n + 1
-            last_char_was_sep = .True.
-          else
-            last_char_was_sep = .False.
-          endif
-        end do
-        allocate (a(n))
-        read(unit=str, fmt=*, iostat=ierr) a
-      end subroutine
-    #:endfor
-
-
-    subroutine reorder_mpi_comm(icomm, Nrank_x, Nrank_y, new_comm)
-      integer(mpiint), intent(in) :: icomm
-      integer(mpiint), intent(out) :: new_comm
-      integer(mpiint) :: Nrank_x, Nrank_y
-
-      ! This is the code snippet from Petsc FAQ to change from PETSC (C) domain splitting to MPI(Fortran) domain splitting
-      ! the numbers of processors per direction are (int) x_procs, y_procs, z_procs respectively
-      ! (no parallelization in direction 'dir' means dir_procs = 1)
-
-      integer(mpiint) :: x,y
-      integer(mpiint) :: orig_id, petsc_id ! id according to fortran decomposition
-
-      integer(mpiint) :: mpierr
-      call MPI_COMM_RANK( icomm, orig_id, mpierr ); call CHKERR(mpierr)
-
-      ! calculate coordinates of cpus in MPI ordering:
-      x = int(orig_id) / Nrank_y
-      y = modulo(orig_id ,Nrank_y)
-
-      ! set new rank according to PETSc ordering:
-      petsc_id = y*Nrank_x + x
-
-      ! create communicator with new ranks according to PETSc ordering:
-      call MPI_Comm_split(icomm, 1_mpiint, petsc_id, new_comm, mpierr)
-
-      !print *,'Reordering communicator'
-      !print *,'setup_petsc_comm: MPI_COMM_WORLD',orig_id,'calc_id',petsc_id
+          last_char_was_sep = .false.
+        end if
+      end do
+      allocate (a(n))
+      read (unit=str, fmt=*, iostat=ierr) a
     end subroutine
+  #:endfor
 
-    #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    pure function compute_normal_3d_${dtype}$(p1,p2,p3) result(compute_normal_3d)
+  subroutine reorder_mpi_comm(icomm, Nrank_x, Nrank_y, new_comm)
+    integer(mpiint), intent(in) :: icomm
+    integer(mpiint), intent(out) :: new_comm
+    integer(mpiint) :: Nrank_x, Nrank_y
+
+    ! This is the code snippet from Petsc FAQ to change from PETSC (C) domain splitting to MPI(Fortran) domain splitting
+    ! the numbers of processors per direction are (int) x_procs, y_procs, z_procs respectively
+    ! (no parallelization in direction 'dir' means dir_procs = 1)
+
+    integer(mpiint) :: x, y
+    integer(mpiint) :: orig_id, petsc_id ! id according to fortran decomposition
+
+    integer(mpiint) :: mpierr
+    call MPI_COMM_RANK(icomm, orig_id, mpierr); call CHKERR(mpierr)
+
+    ! calculate coordinates of cpus in MPI ordering:
+    x = int(orig_id) / Nrank_y
+    y = modulo(orig_id, Nrank_y)
+
+    ! set new rank according to PETSc ordering:
+    petsc_id = y * Nrank_x + x
+
+    ! create communicator with new ranks according to PETSc ordering:
+    call MPI_Comm_split(icomm, 1_mpiint, petsc_id, new_comm, mpierr)
+
+    !print *,'Reordering communicator'
+    !print *,'setup_petsc_comm: MPI_COMM_WORLD',orig_id,'calc_id',petsc_id
+  end subroutine
+
+  #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    pure function compute_normal_3d_${dtype}$ (p1, p2, p3) result(compute_normal_3d)
       ! for a triangle p1, p2, p3, if the vector U = p2 - p1 and the vector V = p3 - p1
       ! then the normal (right hand rotation)
       ! N = U X V and can be calculated by:
@@ -1882,32 +1878,32 @@ module m_helper_functions
       real(${dtype}$) :: compute_normal_3d(size(p1))
       real(${dtype}$) :: U(3), V(3)
 
-      U = p2-p1
-      V = p3-p1
+      U = p2 - p1
+      V = p3 - p1
 
-      compute_normal_3d = cross_3d(U,V)
+      compute_normal_3d = cross_3d(U, V)
 
       compute_normal_3d = compute_normal_3d / norm2(compute_normal_3d)
     end function
-    #:endfor
+  #:endfor
 
-#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+  #:for dtype in ['REAL32', 'REAL64', 'REAL128']
     !> @brief return 1 if normal is pointing towards cell_center, -1 if its pointing away from it
-    pure function determine_normal_direction_${dtype}$(normal, center_face, center_cell) result(d)
+    pure function determine_normal_direction_${dtype}$ (normal, center_face, center_cell) result(d)
       real(${dtype}$), intent(in) :: normal(3), center_face(3), center_cell(3)
       integer(iintegers) :: d
       real(${dtype}$) :: dot
       dot = dot_product(normal, center_cell - center_face)
       d = int(sign(1._${dtype}$, dot), kind=kind(d))
     end function
-#:endfor
+  #:endfor
 
-    !> @brief reverse of spherical_2_cartesian
-    !> @details theta == 0 :: z = -1, i.e. downward
-    !> @details azimuth == 0 :: vector going toward minus y, i.e. sun shines from the north
-    !> @details azimuth == 90 :: vector going toward minus x, i.e. sun shines from the east
-#:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    subroutine cartesian_2_spherical_${dtype}$(sundir, phi, theta, ierr)
+  !> @brief reverse of spherical_2_cartesian
+  !> @details theta == 0 :: z = -1, i.e. downward
+  !> @details azimuth == 0 :: vector going toward minus y, i.e. sun shines from the north
+  !> @details azimuth == 90 :: vector going toward minus x, i.e. sun shines from the east
+  #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    subroutine cartesian_2_spherical_${dtype}$ (sundir, phi, theta, ierr)
       real(${dtype}$), intent(in) :: sundir(3)
       real(${dtype}$), intent(out) :: phi, theta
       integer(mpiint), intent(out) :: ierr
@@ -1932,14 +1928,14 @@ module m_helper_functions
 
       phi = rad2deg(az)
     end subroutine
-#:endfor
+  #:endfor
 
-    !> @brief For local azimuth and zenith angles, return the local cartesian vectors phi azimuth, theta zenith angles, angles are input in degrees.
-    !> @details theta == 0 :: z = -1, i.e. downward
-    !> @details azimuth == 0 :: vector going toward minus y, i.e. sun shines from the north
-    !> @details azimuth == 90 :: vector going toward minus x, i.e. sun shines from the east
-#:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    pure function spherical_2_cartesian_${dtype}$(phi, theta, r) result(spherical_2_cartesian)
+  !> @brief For local azimuth and zenith angles, return the local cartesian vectors phi azimuth, theta zenith angles, angles are input in degrees.
+  !> @details theta == 0 :: z = -1, i.e. downward
+  !> @details azimuth == 0 :: vector going toward minus y, i.e. sun shines from the north
+  !> @details azimuth == 90 :: vector going toward minus x, i.e. sun shines from the east
+  #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    pure function spherical_2_cartesian_${dtype}$ (phi, theta, r) result(spherical_2_cartesian)
       real(${dtype}$), intent(in) :: phi, theta
       real(${dtype}$), intent(in), optional :: r
       real(${dtype}$) :: spherical_2_cartesian(3)
@@ -1948,44 +1944,44 @@ module m_helper_functions
       spherical_2_cartesian(2) = -sin(deg2rad(theta)) * cos(deg2rad(phi))
       spherical_2_cartesian(3) = -cos(deg2rad(theta))
 
-      if(present(r)) spherical_2_cartesian = spherical_2_cartesian*r
+      if (present(r)) spherical_2_cartesian = spherical_2_cartesian * r
     end function
-#:endfor
+  #:endfor
 
-#:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    pure subroutine normalize_vec_${dtype}$(vec, normed_vec, ierr)
+  #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    pure subroutine normalize_vec_${dtype}$ (vec, normed_vec, ierr)
       real(${dtype}$), intent(in) :: vec(:)
       real(kind(vec)), intent(out) :: normed_vec(:)
       integer(mpiint), intent(out) :: ierr
       real(kind(vec)) :: norm
       ierr = 0
-      normed_vec = vec /  max(tiny(vec), maxval(abs(vec)))
+      normed_vec = vec / max(tiny(vec), maxval(abs(vec)))
       norm = norm2(normed_vec)
-      if(norm.le.tiny(norm)) then
+      if (norm .le. tiny(norm)) then
         ierr = 1
         norm = 1
-      endif
-      normed_vec = normed_vec/norm
+      end if
+      normed_vec = normed_vec / norm
     end subroutine
-    pure subroutine normalize_vec_inplace_${dtype}$(vec, ierr)
+    pure subroutine normalize_vec_inplace_${dtype}$ (vec, ierr)
       real(${dtype}$), intent(inout) :: vec(:)
       integer(mpiint), intent(out) :: ierr
       real(kind(vec)) :: norm
       ierr = 0
-      vec = vec /  max(tiny(vec), maxval(abs(vec)))
+      vec = vec / max(tiny(vec), maxval(abs(vec)))
       norm = norm2(vec)
-      if(norm.le.tiny(norm)) then
+      if (norm .le. tiny(norm)) then
         ierr = 1
         norm = 1
-      endif
-      vec = vec/norm
+      end if
+      vec = vec / norm
     end subroutine
-#:endfor
+  #:endfor
 
-    !> @brief returns the angle between two not necessarily normed vectors. Result is in radians
-#:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    function angle_between_two_vec_${dtype}$(p1, p2) result(angle_between_two_vec)
-      real(${dtype}$),intent(in) :: p1(:), p2(:)
+  !> @brief returns the angle between two not necessarily normed vectors. Result is in radians
+  #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    function angle_between_two_vec_${dtype}$ (p1, p2) result(angle_between_two_vec)
+      real(${dtype}$), intent(in) :: p1(:), p2(:)
       real(kind(p1)) :: angle_between_two_vec
       real(kind(p1)) :: np1(size(p1)), np2(size(p2))
       integer(mpiint) :: ierr
@@ -1993,823 +1989,819 @@ module m_helper_functions
       call normalize_vec(p2, np2, ierr); call CHKERR(ierr, 'bad vec norm')
       angle_between_two_vec = angle_between_two_normed_vec(np1, np2)
     end function
-#:endfor
+  #:endfor
 
-#:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    function angle_between_two_normed_vec_${dtype}$(p1, p2) result(angle_between_two_vec)
-      real(${dtype}$),intent(in) :: p1(:), p2(:)
+  #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    function angle_between_two_normed_vec_${dtype}$ (p1, p2) result(angle_between_two_vec)
+      real(${dtype}$), intent(in) :: p1(:), p2(:)
       real(kind(p1)) :: angle_between_two_vec, dp
       real(kind(p1)), parameter :: eps = 1 + sqrt(epsilon(eps))
-      if(all(approx(p1,p2))) then ! if p1 and p2 are the same, just return
+      if (all(approx(p1, p2))) then ! if p1 and p2 are the same, just return
         angle_between_two_vec = 0
         return
-      endif
+      end if
       dp = dot_product(p1, p2)
-      if(dp.gt.eps.or.dp.lt.-eps) then
+      if (dp .gt. eps .or. dp .lt. -eps) then
         call CHKWARN(1_mpiint, 'FPE exception angle_between_two_normed_vec :: dp wrong '//&
           & ftoa(dp)//' ('//ftoa(norm2(p1))//', '//ftoa(norm2(p2))//')')
-      endif
-      dp = max( min(dp, real(1, kind(dp))), real(-1, kind(dp)))
+      end if
+      dp = max(min(dp, real(1, kind(dp))), real(-1, kind(dp)))
       angle_between_two_vec = acos(dp)
     end function
-#:endfor
+  #:endfor
 
-    !> @brief Determine Edge length/ distance between two points
-#:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    pure function distance_${dtype}$(p1,p2) result(distance)
+  !> @brief Determine Edge length/ distance between two points
+  #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    pure function distance_${dtype}$ (p1, p2) result(distance)
       real(${dtype}$), intent(in) :: p1(:), p2(:)
       real(kind(p1)) :: distance
       integer(iintegers) :: i
       distance = 0
-      do i=1,size(p1)
+      do i = 1, size(p1)
         distance = distance + (p2(i) - p1(i))**2
-      enddo
+      end do
       distance = sqrt(distance)
     end function
-#:endfor
+  #:endfor
 
-    !> @brief Use Herons Formula to determine the area of a triangle given the 3 edge lengths
-#:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    pure function triangle_area_by_edgelengths_${dtype}$(e1,e2,e3) result(triangle_area_by_edgelengths)
-      real(${dtype}$), intent(in) :: e1,e2,e3
+  !> @brief Use Herons Formula to determine the area of a triangle given the 3 edge lengths
+  #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    pure function triangle_area_by_edgelengths_${dtype}$ (e1, e2, e3) result(triangle_area_by_edgelengths)
+      real(${dtype}$), intent(in) :: e1, e2, e3
       real(${dtype}$) :: triangle_area_by_edgelengths
       real(${dtype}$) :: p
-      p = (e1+e2+e3)/2
+      p = (e1 + e2 + e3) / 2
       ! max(discrimant, zero) as to prevent from nan evaluation due to numerical errors
-      triangle_area_by_edgelengths = sqrt(max(p*(p-e1)*(p-e2)*(p-e3), 0._${dtype}$))
+      triangle_area_by_edgelengths = sqrt(max(p * (p - e1) * (p - e2) * (p - e3), 0._${dtype}$))
     end function
-#:endfor
+  #:endfor
 
-    !> @brief Use Herons Formula to determine the area of a triangle given the 3 vertices
-#:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    pure function triangle_area_by_vertices_${dtype}$(v1,v2,v3) result(triangle_area_by_vertices)
-      real(${dtype}$), intent(in) :: v1(:),v2(:),v3(:)
+  !> @brief Use Herons Formula to determine the area of a triangle given the 3 vertices
+  #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    pure function triangle_area_by_vertices_${dtype}$ (v1, v2, v3) result(triangle_area_by_vertices)
+      real(${dtype}$), intent(in) :: v1(:), v2(:), v3(:)
       real(${dtype}$) :: triangle_area_by_vertices
       real(${dtype}$) :: e1, e2, e3
-      e1 = distance(v1,v2)
-      e2 = distance(v2,v3)
-      e3 = distance(v3,v1)
-      triangle_area_by_vertices = triangle_area_by_edgelengths(e1,e2,e3)
+      e1 = distance(v1, v2)
+      e2 = distance(v2, v3)
+      e3 = distance(v3, v1)
+      triangle_area_by_vertices = triangle_area_by_edgelengths(e1, e2, e3)
     end function
-#:endfor
+  #:endfor
 
-    !> @brief compute the inner circle center of a triangle
-#:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    pure subroutine triangle_inner_circle_center_${dtype}$(p1, p2, p3, center)
+  !> @brief compute the inner circle center of a triangle
+  #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    pure subroutine triangle_inner_circle_center_${dtype}$ (p1, p2, p3, center)
       real(${dtype}$), dimension(:), intent(in) :: p1, p2, p3
       real(kind(p1)), dimension(:), intent(out) :: center
       real(kind(p1)) :: e1, e2, e3
-      e1 = distance(p2,p3)
-      e2 = distance(p3,p1)
-      e3 = distance(p1,p2)
+      e1 = distance(p2, p3)
+      e2 = distance(p3, p1)
+      e3 = distance(p1, p2)
 
-      center = (e1*p1 + e2*p2 + e3*p3) / (e1+e2+e3)
+      center = (e1 * p1 + e2 * p2 + e3 * p3) / (e1 + e2 + e3)
     end subroutine
-#:endfor
+  #:endfor
 
-#:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    pure function distances_to_triangle_edges_${dtype}$(p1,p2,p3,p) result(distances_to_triangle_edges)
-      real(${dtype}$), intent(in), dimension(2) :: p1,p2,p3, p
+  #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    pure function distances_to_triangle_edges_${dtype}$ (p1, p2, p3, p) result(distances_to_triangle_edges)
+      real(${dtype}$), intent(in), dimension(2) :: p1, p2, p3, p
       real(${dtype}$) :: distances_to_triangle_edges(3)
-      distances_to_triangle_edges(1) = distance_to_edge(p1,p2,p)
-      distances_to_triangle_edges(2) = distance_to_edge(p2,p3,p)
-      distances_to_triangle_edges(3) = distance_to_edge(p1,p3,p)
+      distances_to_triangle_edges(1) = distance_to_edge(p1, p2, p)
+      distances_to_triangle_edges(2) = distance_to_edge(p2, p3, p)
+      distances_to_triangle_edges(3) = distance_to_edge(p1, p3, p)
     end function
-#:endfor
+  #:endfor
 
-#:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    pure function distance_to_edge_${dtype}$(p1,p2,p) result(distance_to_edge)
-      real(${dtype}$), intent(in), dimension(2) :: p1,p2, p
+  #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    pure function distance_to_edge_${dtype}$ (p1, p2, p) result(distance_to_edge)
+      real(${dtype}$), intent(in), dimension(2) :: p1, p2, p
       real(${dtype}$) :: distance_to_edge
 
-      distance_to_edge = abs( (p2(2)-p1(2))*p(1) - (p2(1)-p1(1))*p(2) + p2(1)*p1(2) - p2(2)*p1(1) ) / norm2(p2-p1)
+      distance_to_edge = abs((p2(2) - p1(2)) * p(1) - (p2(1) - p1(1)) * p(2) + p2(1) * p1(2) - p2(2) * p1(1)) / norm2(p2 - p1)
     end function
-#:endfor
+  #:endfor
 
-#:for dtype in ['REAL32', 'REAL64', 'REAL128']
-      !> @brief: rotate vector around given axis by angle [deg] with left hand rule
-      pure function rotate_angle_x_${dtype}$(v,angle) result(rotated)
-        real(${dtype}$) :: rotated(3)
-        real(${dtype}$),intent(in) :: v(3), angle
-        real(${dtype}$) :: M(3,3),s,c
-        s=sin(deg2rad(angle))
-        c=cos(deg2rad(angle))
+  #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    !> @brief: rotate vector around given axis by angle [deg] with left hand rule
+    pure function rotate_angle_x_${dtype}$ (v, angle) result(rotated)
+      real(${dtype}$) :: rotated(3)
+      real(${dtype}$), intent(in) :: v(3), angle
+      real(${dtype}$) :: M(3, 3), s, c
+      s = sin(deg2rad(angle))
+      c = cos(deg2rad(angle))
 
-        M(1,:)=[1._${dtype}$ ,0._${dtype}$ ,0._${dtype}$]
-        M(2,:)=[0._${dtype}$, c   , s  ]
-        M(3,:)=[0._${dtype}$,-s   , c  ]
+      M(1, :) = [1._${dtype}$, 0._${dtype}$, 0._${dtype}$]
+      M(2, :) = [0._${dtype}$, c, s]
+      M(3, :) = [0._${dtype}$, -s, c]
 
-        rotated = matmul(M,v)
-      end function
-      pure function rotate_angle_y_${dtype}$(v,angle) result(rotated)
-        real(${dtype}$) :: rotated(3)
-        real(${dtype}$),intent(in) :: v(3), angle
-        real(${dtype}$) :: M(3,3),s,c
-        s=sin(deg2rad(angle))
-        c=cos(deg2rad(angle))
+      rotated = matmul(M, v)
+    end function
+    pure function rotate_angle_y_${dtype}$ (v, angle) result(rotated)
+      real(${dtype}$) :: rotated(3)
+      real(${dtype}$), intent(in) :: v(3), angle
+      real(${dtype}$) :: M(3, 3), s, c
+      s = sin(deg2rad(angle))
+      c = cos(deg2rad(angle))
 
-        M(1,:)=[c        , 0._${dtype}$, -s       ]
-        M(2,:)=[0._${dtype}$, 1._${dtype}$, 0._${dtype}$]
-        M(3,:)=[s        , 0._${dtype}$, c        ]
+      M(1, :) = [c, 0._${dtype}$, -s]
+      M(2, :) = [0._${dtype}$, 1._${dtype}$, 0._${dtype}$]
+      M(3, :) = [s, 0._${dtype}$, c]
 
-        rotated = matmul(M,v)
-      end function
-      pure function rotate_angle_z_${dtype}$(v,angle) result(rotated)
-        real(${dtype}$) :: rotated(3)
-        real(${dtype}$),intent(in) :: v(3), angle
-        real(${dtype}$) :: M(3,3),s,c
-        s=sin(deg2rad(angle))
-        c=cos(deg2rad(angle))
+      rotated = matmul(M, v)
+    end function
+    pure function rotate_angle_z_${dtype}$ (v, angle) result(rotated)
+      real(${dtype}$) :: rotated(3)
+      real(${dtype}$), intent(in) :: v(3), angle
+      real(${dtype}$) :: M(3, 3), s, c
+      s = sin(deg2rad(angle))
+      c = cos(deg2rad(angle))
 
-        M(1,:)=[ c  , s   ,0._${dtype}$]
-        M(2,:)=[-s  , c   ,0._${dtype}$]
-        M(3,:)=[0._${dtype}$, 0._${dtype}$, 1._${dtype}$]
+      M(1, :) = [c, s, 0._${dtype}$]
+      M(2, :) = [-s, c, 0._${dtype}$]
+      M(3, :) = [0._${dtype}$, 0._${dtype}$, 1._${dtype}$]
 
-        rotated = matmul(M,v)
-      end function
-#:endfor
+      rotated = matmul(M, v)
+    end function
+  #:endfor
 
-    ! https://en.wikipedia.org/wiki/Rotation_matrix#General_rotations
-#:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    pure function rotation_matrix_around_axis_vec_${dtype}$(angle, rot_axis) result(M)
+  ! https://en.wikipedia.org/wiki/Rotation_matrix#General_rotations
+  #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    pure function rotation_matrix_around_axis_vec_${dtype}$ (angle, rot_axis) result(M)
       ! left hand rule
-      real(${dtype}$) :: M(3,3)
-      real(${dtype}$),intent(in) :: angle, rot_axis(3)
-      real(${dtype}$) :: s,c,u(3),omc
-      if(norm2(rot_axis).lt.epsilon(rot_axis)) then ! cannot rotate into a zero vec
-        M(:,1) = [1,0,0]
-        M(:,2) = [0,1,0]
-        M(:,3) = [0,0,1]
+      real(${dtype}$) :: M(3, 3)
+      real(${dtype}$), intent(in) :: angle, rot_axis(3)
+      real(${dtype}$) :: s, c, u(3), omc
+      if (norm2(rot_axis) .lt. epsilon(rot_axis)) then ! cannot rotate into a zero vec
+        M(:, 1) = [1, 0, 0]
+        M(:, 2) = [0, 1, 0]
+        M(:, 3) = [0, 0, 1]
         return
-      endif
+      end if
       u = rot_axis / norm2(rot_axis)
-      s=sin(angle)
-      c=cos(angle)
-      omc = 1._${dtype}$ - c
+      s = sin(angle)
+      c = cos(angle)
+      omc = 1._${dtype}$-c
 
-      M(1,:)=[u(1)*u(1)*omc + c     , u(1)*u(2)*omc - u(3)*s, u(1)*u(3)*omc + u(2)*s]
-      M(2,:)=[u(2)*u(1)*omc + u(3)*s, u(2)*u(2)*omc + c     , u(2)*U(3)*omc - u(1)*s]
-      M(3,:)=[u(3)*u(1)*omc - u(2)*s, u(3)*u(2)*omc + u(1)*s, u(3)*u(3)*omc + c     ]
+      M(1, :) = [u(1) * u(1) * omc + c, u(1) * u(2) * omc - u(3) * s, u(1) * u(3) * omc + u(2) * s]
+      M(2, :) = [u(2) * u(1) * omc + u(3) * s, u(2) * u(2) * omc + c, u(2) * U(3) * omc - u(1) * s]
+      M(3, :) = [u(3) * u(1) * omc - u(2) * s, u(3) * u(2) * omc + u(1) * s, u(3) * u(3) * omc + c]
     end function
-#:endfor
+  #:endfor
 
-    ! the resulting matrix will transform a vector from world coords into the given new coord system
-    pure function rotation_matrix_world_to_local_basis(ex, ey, ez) result(M)
-      real(ireals), dimension(3), intent(in) :: ex, ey, ez
-      real(ireals), dimension(3), parameter :: kx=[1,0,0], ky=[0,1,0], kz=[0,0,1]
-      real(ireals), dimension(3,3) :: M
-      M(1,1) = dot_product(ex, kx)
-      M(1,2) = dot_product(ex, ky)
-      M(1,3) = dot_product(ex, kz)
-      M(2,1) = dot_product(ey, kx)
-      M(2,2) = dot_product(ey, ky)
-      M(2,3) = dot_product(ey, kz)
-      M(3,1) = dot_product(ez, kx)
-      M(3,2) = dot_product(ez, ky)
-      M(3,3) = dot_product(ez, kz)
-    end function
+  ! the resulting matrix will transform a vector from world coords into the given new coord system
+  pure function rotation_matrix_world_to_local_basis(ex, ey, ez) result(M)
+    real(ireals), dimension(3), intent(in) :: ex, ey, ez
+    real(ireals), dimension(3), parameter :: kx = [1, 0, 0], ky = [0, 1, 0], kz = [0, 0, 1]
+    real(ireals), dimension(3, 3) :: M
+    M(1, 1) = dot_product(ex, kx)
+    M(1, 2) = dot_product(ex, ky)
+    M(1, 3) = dot_product(ex, kz)
+    M(2, 1) = dot_product(ey, kx)
+    M(2, 2) = dot_product(ey, ky)
+    M(2, 3) = dot_product(ey, kz)
+    M(3, 1) = dot_product(ez, kx)
+    M(3, 2) = dot_product(ez, ky)
+    M(3, 3) = dot_product(ez, kz)
+  end function
 
-    ! the resulting matrix will transform a vector from the given coord system into the world coordinate system
-#:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    pure function rotation_matrix_local_basis_to_world_${dtype}$(ex, ey, ez) result(M)
+  ! the resulting matrix will transform a vector from the given coord system into the world coordinate system
+  #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    pure function rotation_matrix_local_basis_to_world_${dtype}$ (ex, ey, ez) result(M)
       real(${dtype}$), dimension(3), intent(in) :: ex, ey, ez
-      real(${dtype}$), dimension(3), parameter :: kx=[1,0,0], ky=[0,1,0], kz=[0,0,1]
-      real(${dtype}$), dimension(3,3) :: M
-      M(1,1) = dot_product(kx, ex)
-      M(2,1) = dot_product(ky, ex)
-      M(3,1) = dot_product(kz, ex)
-      M(1,2) = dot_product(kx, ey)
-      M(2,2) = dot_product(ky, ey)
-      M(3,2) = dot_product(kz, ey)
-      M(1,3) = dot_product(kx, ez)
-      M(2,3) = dot_product(ky, ez)
-      M(3,3) = dot_product(kz, ez)
+      real(${dtype}$), dimension(3), parameter :: kx = [1, 0, 0], ky = [0, 1, 0], kz = [0, 0, 1]
+      real(${dtype}$), dimension(3, 3) :: M
+      M(1, 1) = dot_product(kx, ex)
+      M(2, 1) = dot_product(ky, ex)
+      M(3, 1) = dot_product(kz, ex)
+      M(1, 2) = dot_product(kx, ey)
+      M(2, 2) = dot_product(ky, ey)
+      M(3, 2) = dot_product(kz, ey)
+      M(1, 3) = dot_product(kx, ez)
+      M(2, 3) = dot_product(ky, ez)
+      M(3, 3) = dot_product(kz, ez)
     end function
-#:endfor
+  #:endfor
 
-    ! https://www.maplesoft.com/support/help/maple/view.aspx?path=MathApps%2FProjectionOfVectorOntoPlane
-#:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    pure function vec_proj_on_plane_${dtype}$(v, plane_normal) result(vec_proj_on_plane)
+  ! https://www.maplesoft.com/support/help/maple/view.aspx?path=MathApps%2FProjectionOfVectorOntoPlane
+  #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    pure function vec_proj_on_plane_${dtype}$ (v, plane_normal) result(vec_proj_on_plane)
       real(${dtype}$), dimension(3), intent(in) :: v, plane_normal
       real(${dtype}$) :: vec_proj_on_plane(3)
-      vec_proj_on_plane = v - dot_product(v, plane_normal) * plane_normal  / norm2(plane_normal)**2
+      vec_proj_on_plane = v - dot_product(v, plane_normal) * plane_normal / norm2(plane_normal)**2
     end function
-#:endfor
+  #:endfor
 
-    pure function get_arg_logical(default_value, opt_arg) result(arg)
-      logical :: arg
-      logical, intent(in) :: default_value
-      logical, intent(in), optional :: opt_arg
-      if(present(opt_arg)) then
-        arg = opt_arg
-      else
-        arg = default_value
-      endif
-    end function
-    pure function get_arg_i32(default_value, opt_arg) result(arg)
-      integer(INT32) :: arg
-      integer(INT32), intent(in) :: default_value
-      integer(INT32), intent(in), optional :: opt_arg
-      if(present(opt_arg)) then
-        arg = opt_arg
-      else
-        arg = default_value
-      endif
-    end function
-    pure function get_arg_i64(default_value, opt_arg) result(arg)
-      integer(INT64) :: arg
-      integer(INT64), intent(in) :: default_value
-      integer(INT64), intent(in), optional :: opt_arg
-      if(present(opt_arg)) then
-        arg = opt_arg
-      else
-        arg = default_value
-      endif
-    end function
-    pure function get_arg_real32(default_value, opt_arg) result(arg)
-      real(REAL32) :: arg
-      real(REAL32), intent(in) :: default_value
-      real(REAL32), intent(in), optional :: opt_arg
-      if(present(opt_arg)) then
-        arg = opt_arg
-      else
-        arg = default_value
-      endif
-    end function
-    pure function get_arg_real64(default_value, opt_arg) result(arg)
-      real(REAL64) :: arg
-      real(REAL64), intent(in) :: default_value
-      real(REAL64), intent(in), optional :: opt_arg
-      if(present(opt_arg)) then
-        arg = opt_arg
-      else
-        arg = default_value
-      endif
-    end function
-    pure function get_arg_char(default_value, opt_arg) result(arg)
-      character(len=default_str_len) :: arg
-      character(len=*), intent(in) :: default_value
-      character(len=*), intent(in), optional :: opt_arg
-      if(present(opt_arg)) then
-        arg = trim(opt_arg)
-      else
-        arg = trim(default_value)
-      endif
-    end function
+  pure function get_arg_logical(default_value, opt_arg) result(arg)
+    logical :: arg
+    logical, intent(in) :: default_value
+    logical, intent(in), optional :: opt_arg
+    if (present(opt_arg)) then
+      arg = opt_arg
+    else
+      arg = default_value
+    end if
+  end function
+  pure function get_arg_i32(default_value, opt_arg) result(arg)
+    integer(int32) :: arg
+    integer(int32), intent(in) :: default_value
+    integer(int32), intent(in), optional :: opt_arg
+    if (present(opt_arg)) then
+      arg = opt_arg
+    else
+      arg = default_value
+    end if
+  end function
+  pure function get_arg_i64(default_value, opt_arg) result(arg)
+    integer(int64) :: arg
+    integer(int64), intent(in) :: default_value
+    integer(int64), intent(in), optional :: opt_arg
+    if (present(opt_arg)) then
+      arg = opt_arg
+    else
+      arg = default_value
+    end if
+  end function
+  pure function get_arg_real32(default_value, opt_arg) result(arg)
+    real(real32) :: arg
+    real(real32), intent(in) :: default_value
+    real(real32), intent(in), optional :: opt_arg
+    if (present(opt_arg)) then
+      arg = opt_arg
+    else
+      arg = default_value
+    end if
+  end function
+  pure function get_arg_real64(default_value, opt_arg) result(arg)
+    real(real64) :: arg
+    real(real64), intent(in) :: default_value
+    real(real64), intent(in), optional :: opt_arg
+    if (present(opt_arg)) then
+      arg = opt_arg
+    else
+      arg = default_value
+    end if
+  end function
+  pure function get_arg_char(default_value, opt_arg) result(arg)
+    character(len=default_str_len) :: arg
+    character(len=*), intent(in) :: default_value
+    character(len=*), intent(in), optional :: opt_arg
+    if (present(opt_arg)) then
+      arg = trim(opt_arg)
+    else
+      arg = trim(default_value)
+    end if
+  end function
 
+  ! https://gist.github.com/t-nissie/479f0f16966925fa29ea
+  recursive subroutine quicksort(a, first, last)
+    integer(iintegers), intent(inout) :: a(:)
+    integer(iintegers), intent(in) :: first, last
+    integer(iintegers) :: i, j, x, t
 
-    ! https://gist.github.com/t-nissie/479f0f16966925fa29ea
-    recursive subroutine quicksort(a, first, last)
-      integer(iintegers), intent(inout) :: a(:)
-      integer(iintegers), intent(in) :: first, last
-      integer(iintegers) :: i, j, x, t
-
-      x = a( (first+last) / 2 )
-      i = first
-      j = last
-      do
-        do while (a(i) < x)
-          i=i+1
-        end do
-        do while (x < a(j))
-          j=j-1
-        end do
-        if (i >= j) exit
-        t = a(i);  a(i) = a(j);  a(j) = t
-        i=i+1
-        j=j-1
+    x = a((first + last) / 2)
+    i = first
+    j = last
+    do
+      do while (a(i) < x)
+        i = i + 1
       end do
-      if (first < i-1) call quicksort(a, first, i-1)
-      if (j+1 < last)  call quicksort(a, j+1, last)
-    end subroutine quicksort
+      do while (x < a(j))
+        j = j - 1
+      end do
+      if (i >= j) exit
+      t = a(i); a(i) = a(j); a(j) = t
+      i = i + 1
+      j = j - 1
+    end do
+    if (first < i - 1) call quicksort(a, first, i - 1)
+    if (j + 1 < last) call quicksort(a, j + 1, last)
+  end subroutine quicksort
 
-    ! https://stackoverflow.com/questions/44198212/a-fortran-equivalent-to-unique
-    function unique(inp)
+  ! https://stackoverflow.com/questions/44198212/a-fortran-equivalent-to-unique
+  function unique(inp)
       !! usage sortedlist = unique(list)
       !! or reshape it first to 1D: sortedlist = unique(reshape(list, [size(list)]))
-      integer(iintegers), intent(in) :: inp(:)
-      integer(iintegers) :: list(size(inp))
-      integer(iintegers), allocatable :: unique(:)
-      integer(iintegers) :: n
-      logical :: mask(size(inp))
+    integer(iintegers), intent(in) :: inp(:)
+    integer(iintegers) :: list(size(inp))
+    integer(iintegers), allocatable :: unique(:)
+    integer(iintegers) :: n
+    logical :: mask(size(inp))
 
-      list = inp
-      n=size(list)
-      call quicksort(list, i1, n)
+    list = inp
+    n = size(list)
+    call quicksort(list, i1, n)
 
-      ! cull duplicate indices
-      mask = .False.
-      mask(1:n-1) = list(1:n-1) == list(2:n)
-      allocate(unique(count(.not.mask)))
-      unique = pack(list, .not.mask)
-    end function unique
+    ! cull duplicate indices
+    mask = .false.
+    mask(1:n - 1) = list(1:n - 1) == list(2:n)
+    allocate (unique(count(.not. mask)))
+    unique = pack(list,.not. mask)
+  end function unique
 
-    ! @brief: map from the flattened numbering to the coefficients in Ndims
-    ! This is something like numpy.unravel
-    ! offset could usually look like [1, size(arr, dim=1), size(arr, dim=1)*size(arr, dim=2), ...]
-    pure subroutine ind_1d_to_nd(offsets, ind, nd_indices, cstyle)
-      integer(iintegers), intent(in) :: offsets(:)
-      integer(iintegers), intent(in) :: ind
-      integer(iintegers), intent(out) :: nd_indices(size(offsets))
-      logical, intent(in), optional :: cstyle
-      integer(iintegers) :: k
+  ! @brief: map from the flattened numbering to the coefficients in Ndims
+  ! This is something like numpy.unravel
+  ! offset could usually look like [1, size(arr, dim=1), size(arr, dim=1)*size(arr, dim=2), ...]
+  pure subroutine ind_1d_to_nd(offsets, ind, nd_indices, cstyle)
+    integer(iintegers), intent(in) :: offsets(:)
+    integer(iintegers), intent(in) :: ind
+    integer(iintegers), intent(out) :: nd_indices(size(offsets))
+    logical, intent(in), optional :: cstyle
+    integer(iintegers) :: k
 
-      if(get_arg(.False., cstyle)) then
-        k = ubound(nd_indices,1) ! last dimension
-        nd_indices(k) = ind / offsets(k)
+    if (get_arg(.false., cstyle)) then
+      k = ubound(nd_indices, 1) ! last dimension
+      nd_indices(k) = ind / offsets(k)
 
-        do k=ubound(offsets,1)-1, lbound(offsets,1), -1
-          nd_indices(k) = modulo(ind, offsets(k+1)) / offsets(k)
-        enddo
-      else
-        k = ubound(nd_indices,1) ! last dimension
-        nd_indices(k) = (ind-1) / offsets(k) +1
+      do k = ubound(offsets, 1) - 1, lbound(offsets, 1), -1
+        nd_indices(k) = modulo(ind, offsets(k + 1)) / offsets(k)
+      end do
+    else
+      k = ubound(nd_indices, 1) ! last dimension
+      nd_indices(k) = (ind - 1) / offsets(k) + 1
 
-        do k=ubound(offsets,1)-1, lbound(offsets,1), -1
-          nd_indices(k) = modulo(ind-1, offsets(k+1)) / offsets(k) +1
-        enddo
-      endif
-    end subroutine
+      do k = ubound(offsets, 1) - 1, lbound(offsets, 1), -1
+        nd_indices(k) = modulo(ind - 1, offsets(k + 1)) / offsets(k) + 1
+      end do
+    end if
+  end subroutine
 
-    ! @brief: map indices in N-dimensions to a flattened array
-    ! This is something like numpy.ravel
-    ! offset could usually look like [1, size(arr, dim=1), size(arr, dim=1)*size(arr, dim=2), ...]
-    pure function ind_nd_to_1d(offsets, nd_indices, cstyle) result (i1d)
-      integer(iintegers), intent(in) :: offsets(:)
-      integer(iintegers), intent(in) :: nd_indices(:)
-      logical, intent(in), optional :: cstyle
-      integer(iintegers) :: i1d
-      if(get_arg(.False., cstyle)) then
-        i1d = dot_product(nd_indices(:), offsets)
-      else
-        i1d = dot_product(nd_indices(:)-1, offsets) +1
-      endif
-    end function
+  ! @brief: map indices in N-dimensions to a flattened array
+  ! This is something like numpy.ravel
+  ! offset could usually look like [1, size(arr, dim=1), size(arr, dim=1)*size(arr, dim=2), ...]
+  pure function ind_nd_to_1d(offsets, nd_indices, cstyle) result(i1d)
+    integer(iintegers), intent(in) :: offsets(:)
+    integer(iintegers), intent(in) :: nd_indices(:)
+    logical, intent(in), optional :: cstyle
+    integer(iintegers) :: i1d
+    if (get_arg(.false., cstyle)) then
+      i1d = dot_product(nd_indices(:), offsets)
+    else
+      i1d = dot_product(nd_indices(:) - 1, offsets) + 1
+    end if
+  end function
 
-    pure subroutine ndarray_offsets(arrshape, offsets)
-      integer(iintegers),intent(in) :: arrshape(:)
-      integer(iintegers),intent(out) :: offsets(size(arrshape))
-      offsets(1) = 1
-      offsets(2:size(arrshape)) = arrshape(1:size(arrshape)-1)
-      offsets = cumprod(offsets)
-    end subroutine
+  pure subroutine ndarray_offsets(arrshape, offsets)
+    integer(iintegers), intent(in) :: arrshape(:)
+    integer(iintegers), intent(out) :: offsets(size(arrshape))
+    offsets(1) = 1
+    offsets(2:size(arrshape)) = arrshape(1:size(arrshape) - 1)
+    offsets = cumprod(offsets)
+  end subroutine
 
-    function get_mem_footprint(comm)
+  function get_mem_footprint(comm)
 #include "petsc/finclude/petscsys.h"
-      use petsc
-      integer(mpiint),intent(in) :: comm
-      real(ireals) :: get_mem_footprint
-      PetscLogDouble :: memory_footprint
-      integer(mpiint) :: ierr
-      get_mem_footprint = zero
+    use petsc
+    integer(mpiint), intent(in) :: comm
+    real(ireals) :: get_mem_footprint
+    PetscLogDouble :: memory_footprint
+    integer(mpiint) :: ierr
+    get_mem_footprint = zero
 
-      call mpi_barrier(comm, ierr)
-      call PetscMemoryGetCurrentUsage(memory_footprint, ierr); call CHKERR(ierr)
+    call mpi_barrier(comm, ierr)
+    call PetscMemoryGetCurrentUsage(memory_footprint, ierr); call CHKERR(ierr)
 
-      get_mem_footprint = real(memory_footprint / 1024. / 1024. / 1024., ireals)
+    get_mem_footprint = real(memory_footprint / 1024./1024./1024., ireals)
 
-      !  if(ldebug) print *,myid,'Memory Footprint',memory_footprint, 'B', get_mem_footprint, 'G'
-    end function
+    !  if(ldebug) print *,myid,'Memory Footprint',memory_footprint, 'B', get_mem_footprint, 'G'
+  end function
 
-    function reverse_1d_real32(inp) result(rev)
-      real(real32),intent(in) :: inp(:)
-      real(real32) :: rev(size(inp,1))
-      rev = inp(ubound(inp,1):lbound(inp,1):-1)
-    end function
-    function reverse_1d_real64(inp) result(rev)
-      real(real64),intent(in) :: inp(:)
-      real(real64) :: rev(size(inp,1))
-      rev = inp(ubound(inp,1):lbound(inp,1):-1)
-    end function
-    function reverse_2d_real32(inp, dim) result(rev)
-      real(real32),intent(in) :: inp(:,:)
-      integer(iintegers), optional, intent(in) :: dim
-      real(real32) :: rev(size(inp,1),size(inp,2))
-      integer(iintegers) :: rdim
-      rdim = get_arg(i1, dim)
-      select case(rdim)
-      case(1)
-        rev = inp(ubound(inp,1):lbound(inp,1):-1, :)
-      case(2)
-        rev = inp(:, ubound(inp,2):lbound(inp,2):-1)
-      case default
-        call CHKERR(1_mpiint, 'dimension of reverse array does not fit input array')
-      end select
-    end function
-    function reverse_2d_real64(inp, dim) result(rev)
-      real(real64),intent(in) :: inp(:,:)
-      integer(iintegers), optional, intent(in) :: dim
-      real(real64) :: rev(size(inp,1),size(inp,2))
-      integer(iintegers) :: rdim
-      rdim = get_arg(i1, dim)
-      select case(rdim)
-      case(1)
-        rev = inp(ubound(inp,1):lbound(inp,1):-1, :)
-      case(2)
-        rev = inp(:, ubound(inp,2):lbound(inp,2):-1)
-      case default
-        call CHKERR(1_mpiint, 'dimension of reverse array does not fit input array')
-      end select
-    end function
-    function reverse_3d_real32(inp, dim) result(rev)
-      real(real32),intent(in) :: inp(:,:,:)
-      integer(iintegers), optional, intent(in) :: dim
-      real(real32) :: rev(size(inp,1), size(inp,2), size(inp,3))
-      integer(iintegers) :: rdim
-      rdim = get_arg(i1, dim)
-      select case(rdim)
-      case(1)
-        rev = inp(ubound(inp,rdim):lbound(inp,rdim):-1, :, :)
-      case(2)
-        rev = inp(:, ubound(inp,rdim):lbound(inp,rdim):-1, :)
-      case(3)
-        rev = inp(:, :, ubound(inp,rdim):lbound(inp,rdim):-1)
-      case default
-        call CHKERR(1_mpiint, 'dimension of reverse array does not fit input array')
-      end select
-    end function
-    function reverse_3d_real64(inp, dim) result(rev)
-      real(real64),intent(in) :: inp(:,:,:)
-      integer(iintegers), optional, intent(in) :: dim
-      real(real64) :: rev(size(inp,1), size(inp,2), size(inp,3))
-      integer(iintegers) :: rdim
-      rdim = get_arg(i1, dim)
-      select case(rdim)
-      case(1)
-        rev = inp(ubound(inp,rdim):lbound(inp,rdim):-1, :, :)
-      case(2)
-        rev = inp(:, ubound(inp,rdim):lbound(inp,rdim):-1, :)
-      case(3)
-        rev = inp(:, :, ubound(inp,rdim):lbound(inp,rdim):-1)
-      case default
-        call CHKERR(1_mpiint, 'dimension of reverse array does not fit input array')
-      end select
-    end function
-    function reverse_4d_real32(inp, dim) result(rev)
-      real(real32),intent(in) :: inp(:,:,:,:)
-      integer(iintegers), optional, intent(in) :: dim
-      real(real32) :: rev(size(inp,1), size(inp,2), size(inp,3), size(inp,4))
-      integer(iintegers) :: rdim
-      rdim = get_arg(i1, dim)
-      select case(rdim)
-      case(1)
-        rev = inp(ubound(inp,rdim):lbound(inp,rdim):-1, :, :, :)
-      case(2)
-        rev = inp(:, ubound(inp,rdim):lbound(inp,rdim):-1, :, :)
-      case(3)
-        rev = inp(:, :, ubound(inp,rdim):lbound(inp,rdim):-1, :)
-      case(4)
-        rev = inp(:, :, :, ubound(inp,rdim):lbound(inp,rdim):-1)
-      case default
-        call CHKERR(1_mpiint, 'dimension of reverse array does not fit input array')
-      end select
-    end function
-    function reverse_4d_real64(inp, dim) result(rev)
-      real(real64),intent(in) :: inp(:,:,:,:)
-      integer(iintegers), optional, intent(in) :: dim
-      real(real64) :: rev(size(inp,1), size(inp,2), size(inp,3), size(inp,4))
-      integer(iintegers) :: rdim
-      rdim = get_arg(i1, dim)
-      select case(rdim)
-      case(1)
-        rev = inp(ubound(inp,rdim):lbound(inp,rdim):-1, :, :, :)
-      case(2)
-        rev = inp(:, ubound(inp,rdim):lbound(inp,rdim):-1, :, :)
-      case(3)
-        rev = inp(:, :, ubound(inp,rdim):lbound(inp,rdim):-1, :)
-      case(4)
-        rev = inp(:, :, :, ubound(inp,rdim):lbound(inp,rdim):-1)
-      case default
-        call CHKERR(1_mpiint, 'dimension of reverse array does not fit input array')
-      end select
-    end function
+  function reverse_1d_real32(inp) result(rev)
+    real(real32), intent(in) :: inp(:)
+    real(real32) :: rev(size(inp, 1))
+    rev = inp(ubound(inp, 1):lbound(inp, 1):-1)
+  end function
+  function reverse_1d_real64(inp) result(rev)
+    real(real64), intent(in) :: inp(:)
+    real(real64) :: rev(size(inp, 1))
+    rev = inp(ubound(inp, 1):lbound(inp, 1):-1)
+  end function
+  function reverse_2d_real32(inp, dim) result(rev)
+    real(real32), intent(in) :: inp(:, :)
+    integer(iintegers), optional, intent(in) :: dim
+    real(real32) :: rev(size(inp, 1), size(inp, 2))
+    integer(iintegers) :: rdim
+    rdim = get_arg(i1, dim)
+    select case (rdim)
+    case (1)
+      rev = inp(ubound(inp, 1):lbound(inp, 1):-1, :)
+    case (2)
+      rev = inp(:, ubound(inp, 2):lbound(inp, 2):-1)
+    case default
+      call CHKERR(1_mpiint, 'dimension of reverse array does not fit input array')
+    end select
+  end function
+  function reverse_2d_real64(inp, dim) result(rev)
+    real(real64), intent(in) :: inp(:, :)
+    integer(iintegers), optional, intent(in) :: dim
+    real(real64) :: rev(size(inp, 1), size(inp, 2))
+    integer(iintegers) :: rdim
+    rdim = get_arg(i1, dim)
+    select case (rdim)
+    case (1)
+      rev = inp(ubound(inp, 1):lbound(inp, 1):-1, :)
+    case (2)
+      rev = inp(:, ubound(inp, 2):lbound(inp, 2):-1)
+    case default
+      call CHKERR(1_mpiint, 'dimension of reverse array does not fit input array')
+    end select
+  end function
+  function reverse_3d_real32(inp, dim) result(rev)
+    real(real32), intent(in) :: inp(:, :, :)
+    integer(iintegers), optional, intent(in) :: dim
+    real(real32) :: rev(size(inp, 1), size(inp, 2), size(inp, 3))
+    integer(iintegers) :: rdim
+    rdim = get_arg(i1, dim)
+    select case (rdim)
+    case (1)
+      rev = inp(ubound(inp, rdim):lbound(inp, rdim):-1, :, :)
+    case (2)
+      rev = inp(:, ubound(inp, rdim):lbound(inp, rdim):-1, :)
+    case (3)
+      rev = inp(:, :, ubound(inp, rdim):lbound(inp, rdim):-1)
+    case default
+      call CHKERR(1_mpiint, 'dimension of reverse array does not fit input array')
+    end select
+  end function
+  function reverse_3d_real64(inp, dim) result(rev)
+    real(real64), intent(in) :: inp(:, :, :)
+    integer(iintegers), optional, intent(in) :: dim
+    real(real64) :: rev(size(inp, 1), size(inp, 2), size(inp, 3))
+    integer(iintegers) :: rdim
+    rdim = get_arg(i1, dim)
+    select case (rdim)
+    case (1)
+      rev = inp(ubound(inp, rdim):lbound(inp, rdim):-1, :, :)
+    case (2)
+      rev = inp(:, ubound(inp, rdim):lbound(inp, rdim):-1, :)
+    case (3)
+      rev = inp(:, :, ubound(inp, rdim):lbound(inp, rdim):-1)
+    case default
+      call CHKERR(1_mpiint, 'dimension of reverse array does not fit input array')
+    end select
+  end function
+  function reverse_4d_real32(inp, dim) result(rev)
+    real(real32), intent(in) :: inp(:, :, :, :)
+    integer(iintegers), optional, intent(in) :: dim
+    real(real32) :: rev(size(inp, 1), size(inp, 2), size(inp, 3), size(inp, 4))
+    integer(iintegers) :: rdim
+    rdim = get_arg(i1, dim)
+    select case (rdim)
+    case (1)
+      rev = inp(ubound(inp, rdim):lbound(inp, rdim):-1, :, :, :)
+    case (2)
+      rev = inp(:, ubound(inp, rdim):lbound(inp, rdim):-1, :, :)
+    case (3)
+      rev = inp(:, :, ubound(inp, rdim):lbound(inp, rdim):-1, :)
+    case (4)
+      rev = inp(:, :, :, ubound(inp, rdim):lbound(inp, rdim):-1)
+    case default
+      call CHKERR(1_mpiint, 'dimension of reverse array does not fit input array')
+    end select
+  end function
+  function reverse_4d_real64(inp, dim) result(rev)
+    real(real64), intent(in) :: inp(:, :, :, :)
+    integer(iintegers), optional, intent(in) :: dim
+    real(real64) :: rev(size(inp, 1), size(inp, 2), size(inp, 3), size(inp, 4))
+    integer(iintegers) :: rdim
+    rdim = get_arg(i1, dim)
+    select case (rdim)
+    case (1)
+      rev = inp(ubound(inp, rdim):lbound(inp, rdim):-1, :, :, :)
+    case (2)
+      rev = inp(:, ubound(inp, rdim):lbound(inp, rdim):-1, :, :)
+    case (3)
+      rev = inp(:, :, ubound(inp, rdim):lbound(inp, rdim):-1, :)
+    case (4)
+      rev = inp(:, :, :, ubound(inp, rdim):lbound(inp, rdim):-1)
+    case default
+      call CHKERR(1_mpiint, 'dimension of reverse array does not fit input array')
+    end select
+  end function
 
-     function cstr(inp, color)
-       character(len=*), intent(in) :: inp, color
-       character(len=len(inp)+9) :: cstr
-       cstr = achar(27)
-       select case(color)
-       case('dark grey')
-         cstr = achar(27)//'[90m'
-       case('black')
-         cstr = achar(27)//'[30m'
-       case('peach')
-         cstr = achar(27)//'[91m'
-       case('red')
-         cstr = achar(27)//'[31m'
-       case('light green')
-         cstr = achar(27)//'[92m'
-       case('green')
-         cstr = achar(27)//'[32m'
-       case('light yellow')
-         cstr = achar(27)//'[93m'
-       case('yellow')
-         cstr = achar(27)//'[33m'
-       case('light blue')
-        cstr = achar(27)//'[94m'
-      case('blue')
-        cstr = achar(27)//'[34m'
-      case('pink')
-        cstr = achar(27)//'[95m'
-      case('purple')
-        cstr = achar(27)//'[35m'
-      case('light aqua')
-        cstr = achar(27)//'[96m'
-      case('aqua')
-        cstr = achar(27)//'[36m'
-      case('pearl white')
-        cstr = achar(27)//'[97m'
+  function cstr(inp, color)
+    character(len=*), intent(in) :: inp, color
+    character(len=len(inp) + 9) :: cstr
+    cstr = achar(27)
+    select case (color)
+    case ('dark grey')
+      cstr = achar(27)//'[90m'
+    case ('black')
+      cstr = achar(27)//'[30m'
+    case ('peach')
+      cstr = achar(27)//'[91m'
+    case ('red')
+      cstr = achar(27)//'[31m'
+    case ('light green')
+      cstr = achar(27)//'[92m'
+    case ('green')
+      cstr = achar(27)//'[32m'
+    case ('light yellow')
+      cstr = achar(27)//'[93m'
+    case ('yellow')
+      cstr = achar(27)//'[33m'
+    case ('light blue')
+      cstr = achar(27)//'[94m'
+    case ('blue')
+      cstr = achar(27)//'[34m'
+    case ('pink')
+      cstr = achar(27)//'[95m'
+    case ('purple')
+      cstr = achar(27)//'[35m'
+    case ('light aqua')
+      cstr = achar(27)//'[96m'
+    case ('aqua')
+      cstr = achar(27)//'[36m'
+    case ('pearl white')
+      cstr = achar(27)//'[97m'
 
-      case default
-        call CHKERR(1_mpiint, 'dont know the color code for '//color)
-      end select
+    case default
+      call CHKERR(1_mpiint, 'dont know the color code for '//color)
+    end select
 
-      cstr = trim(cstr)//trim(inp)//achar(27)//'[0m'
-    end function
+    cstr = trim(cstr)//trim(inp)//achar(27)//'[0m'
+  end function
 
-    function char_arr_to_str(inp, deliminator) result(out_str)
-      character(len=*), intent(in) :: inp(:)
-      character(len=*), intent(in), optional :: deliminator
-      character(:), allocatable :: out_str
-      character(len=2),parameter :: default_delim=', '
-      integer :: i
+  function char_arr_to_str(inp, deliminator) result(out_str)
+    character(len=*), intent(in) :: inp(:)
+    character(len=*), intent(in), optional :: deliminator
+    character(:), allocatable :: out_str
+    character(len=2), parameter :: default_delim = ', '
+    integer :: i
 
-      if(size(inp).eq.0) then
-        out_str=''
-        return
-      endif
+    if (size(inp) .eq. 0) then
+      out_str = ''
+      return
+    end if
 
-      if(present(deliminator)) then
+    if (present(deliminator)) then
       out_str = trim(inp(1))
       do i = 2, size(inp)
         out_str = trim(out_str)//deliminator//trim(inp(i))
-      enddo
+      end do
     else
       out_str = trim(inp(1))
       do i = 2, size(inp)
         out_str = trim(out_str)//default_delim//trim(inp(i))
-      enddo
-    endif
-    end function
-
+      end do
+    end if
+  end function
 
 ! solve_quadratic equation ax2 + 2bx + c = 0
-pure subroutine solve_quadratic_r32(a, b, c, x, ierr)
-  real(kind=REAL32),intent(in) :: a,b,c
-  real(kind=REAL32),dimension(2), intent(out) :: x
-  integer(mpiint), intent(out) :: ierr
+  pure subroutine solve_quadratic_r32(a, b, c, x, ierr)
+    real(kind=real32), intent(in) :: a, b, c
+    real(kind=real32), dimension(2), intent(out) :: x
+    integer(mpiint), intent(out) :: ierr
 
-  real(kind=REAL32) :: q ,dis
-  ierr = 0
+    real(kind=real32) :: q, dis
+    ierr = 0
 
-  dis = b**2 - 4*a*c
-  if (dis.lt.0) then
-    ierr = 1
-    return
-  endif
+    dis = b**2 - 4 * a * c
+    if (dis .lt. 0) then
+      ierr = 1
+      return
+    end if
 
-  if(abs(b).lt.epsilon(b)) then
-    q = sqrt(abs(c)/abs(a))
-    x(:) = [q, -q]
-  else
-    if (b.ge.0) then
+    if (abs(b) .lt. epsilon(b)) then
+      q = sqrt(abs(c) / abs(a))
+      x(:) = [q, -q]
+    else
+      if (b .ge. 0) then
+        q = -b - sqrt(dis)
+      else
+        q = -b + sqrt(dis)
+      end if
+      x(:) = [2 * c / q, q / (2 * a)]
+    end if
+
+    if (x(1) .gt. x(2)) x = [x(2), x(1)]
+  end subroutine
+  pure subroutine solve_quadratic_r64(a, b, c, x, ierr)
+    real(kind=real64), intent(in) :: a, b, c
+    real(kind=real64), dimension(2), intent(out) :: x
+    integer(mpiint), intent(out) :: ierr
+
+    real(kind=real64) :: q, dis
+    ierr = 0
+
+    dis = b**2 - 4 * a * c
+    if (dis .lt. 0) then
+      ierr = 1
+      return
+    end if
+
+    if (abs(b) .lt. epsilon(b)) then
+      q = sqrt(abs(c) / abs(a))
+      x(:) = [q, -q]
+    else if (b .gt. 0) then
       q = -b - sqrt(dis)
+      x(:) = [q / (2 * a), 2 * c / q]
     else
       q = -b + sqrt(dis)
-    endif
-    x(:) = [2*c/q, q/(2*a)]
-  endif
+      x(:) = [2 * c / q, q / (2 * a)]
+    end if
 
-  if(x(1).gt.x(2)) x = [x(2), x(1)]
-end subroutine
-pure subroutine solve_quadratic_r64(a, b, c, x, ierr)
-  real(kind=REAL64),intent(in) :: a,b,c
-  real(kind=REAL64),dimension(2), intent(out) :: x
-  integer(mpiint), intent(out) :: ierr
+    if (x(1) .gt. x(2)) x = [x(2), x(1)]
+  end subroutine
+  pure subroutine solve_quadratic_r128(a, b, c, x, ierr)
+    real(kind=real128), intent(in) :: a, b, c
+    real(kind=real128), dimension(2), intent(out) :: x
+    integer(mpiint), intent(out) :: ierr
 
-  real(kind=REAL64) :: q ,dis
-  ierr = 0
+    real(kind=real128) :: q, dis
+    ierr = 0
 
-  dis = b**2 - 4*a*c
-  if (dis.lt.0) then
-    ierr = 1
-    return
-  endif
+    dis = b**2 - 4 * a * c
+    if (dis .lt. 0) then
+      ierr = 1
+      return
+    end if
 
-  if(abs(b).lt.epsilon(b)) then
-    q = sqrt(abs(c)/abs(a))
-    x(:) = [q, -q]
-  else if (b.gt.0) then
-    q = -b - sqrt(dis)
-    x(:) = [q/(2*a), 2*c/q]
-  else
-    q = -b + sqrt(dis)
-    x(:) = [2*c/q, q/(2*a)]
-  endif
+    if (abs(b) .lt. epsilon(b)) then
+      q = sqrt(abs(c) / abs(a))
+      x(:) = [q, -q]
+    else if (b .gt. 0) then
+      q = -b - sqrt(dis)
+      x(:) = [q / (2 * a), 2 * c / q]
+    else
+      q = -b + sqrt(dis)
+      x(:) = [2 * c / q, q / (2 * a)]
+    end if
 
-  if(x(1).gt.x(2)) x = [x(2), x(1)]
-end subroutine
-pure subroutine solve_quadratic_r128(a, b, c, x, ierr)
-  real(kind=REAL128),intent(in) :: a,b,c
-  real(kind=REAL128),dimension(2), intent(out) :: x
-  integer(mpiint), intent(out) :: ierr
-
-  real(kind=REAL128) :: q ,dis
-  ierr = 0
-
-  dis = b**2 - 4*a*c
-  if (dis.lt.0) then
-    ierr = 1
-    return
-  endif
-
-  if(abs(b).lt.epsilon(b)) then
-    q = sqrt(abs(c)/abs(a))
-    x(:) = [q, -q]
-  else if (b.gt.0) then
-    q = -b - sqrt(dis)
-    x(:) = [q/(2*a), 2*c/q]
-  else
-    q = -b + sqrt(dis)
-    x(:) = [2*c/q, q/(2*a)]
-  endif
-
-  if(x(1).gt.x(2)) x = [x(2), x(1)]
-end subroutine
+    if (x(1) .gt. x(2)) x = [x(2), x(1)]
+  end subroutine
 
 ! helper to sample a linspace
-pure function linspace_r64(idx, rng, N) result(sample_pnt)
-  integer(iintegers),intent(in) :: idx, N
-  real(kind=REAL64),dimension(2), intent(in) :: rng
-  real(kind=kind(rng)) :: sample_pnt
-  if(N.gt.i1) then
-    sample_pnt = rng(1) + (real(idx, kind(rng))-1) * ( rng(2)-rng(1) ) &
-      / real(N-1, kind=kind(sample_pnt))
-  else
-    sample_pnt = rng(1)
-  endif
-end function
-pure function linspace_r32(idx, rng, N) result(sample_pnt)
-  integer(iintegers),intent(in) :: idx, N
-  real(kind=REAL32),dimension(2), intent(in) :: rng
-  real(kind=kind(rng)) :: sample_pnt
-  if(N.gt.i1) then
-    sample_pnt = rng(1) + (real(idx, kind(rng))-1) * ( rng(2)-rng(1) ) &
-      / real(N-1, kind=kind(sample_pnt))
-  else
-    sample_pnt = rng(1)
-  endif
-end function
-
+  pure function linspace_r64(idx, rng, N) result(sample_pnt)
+    integer(iintegers), intent(in) :: idx, N
+    real(kind=real64), dimension(2), intent(in) :: rng
+    real(kind=kind(rng)) :: sample_pnt
+    if (N .gt. i1) then
+      sample_pnt = rng(1) + (real(idx, kind(rng)) - 1) * (rng(2) - rng(1)) &
+                   / real(N - 1, kind=kind(sample_pnt))
+    else
+      sample_pnt = rng(1)
+    end if
+  end function
+  pure function linspace_r32(idx, rng, N) result(sample_pnt)
+    integer(iintegers), intent(in) :: idx, N
+    real(kind=real32), dimension(2), intent(in) :: rng
+    real(kind=kind(rng)) :: sample_pnt
+    if (N .gt. i1) then
+      sample_pnt = rng(1) + (real(idx, kind(rng)) - 1) * (rng(2) - rng(1)) &
+                   / real(N - 1, kind=kind(sample_pnt))
+    else
+      sample_pnt = rng(1)
+    end if
+  end function
 
 ! determine if array is (strictly) monotoneous increasing/decreasing
-#:for dtype in ['REAL32', 'REAL64', 'REAL128']
-function assert_arr_is_monotonous_${dtype}$(arr, lincreasing, lstrict, lverbose) result(lis_linear)
-  real(${dtype}$), intent(in) :: arr(:)
-  logical, intent(in) :: lincreasing, lstrict
-  logical, intent(in), optional :: lverbose
-  logical :: lis_linear, is_verbose
-  integer(iintegers) :: k
-  is_verbose = get_arg(.False., lverbose)
-  if(lincreasing) then
-    if(lstrict) then
-      do k=2,size(arr)
-        if(arr(k).le.arr(k-1)) then
-          lis_linear = .False.
-          if(is_verbose) print *,'non monotonicity @ k='//toStr(k)
-          return
-        endif
-      enddo
-    else
-      do k=2,size(arr)
-        if(arr(k).lt.arr(k-1)) then
-          lis_linear = .False.
-          if(is_verbose) print *,'non monotonicity @ k='//toStr(k)
-          return
-        endif
-      enddo
-    endif
-  else
-    if(lstrict) then
-      do k=2,size(arr)
-        if(arr(k).ge.arr(k-1)) then
-          lis_linear = .False.
-          if(is_verbose) print *,'non monotonicity @ k='//toStr(k)
-          return
-        endif
-      enddo
-    else
-      do k=2,size(arr)
-        if(arr(k).gt.arr(k-1)) then
-          lis_linear = .False.
-          if(is_verbose) print *,'non monotonicity @ k='//toStr(k)
-          return
-        endif
-      enddo
-    endif
-  endif
-  lis_linear = .True.
-end function
-#:endfor
+  #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    function assert_arr_is_monotonous_${dtype}$ (arr, lincreasing, lstrict, lverbose) result(lis_linear)
+      real(${dtype}$), intent(in) :: arr(:)
+      logical, intent(in) :: lincreasing, lstrict
+      logical, intent(in), optional :: lverbose
+      logical :: lis_linear, is_verbose
+      integer(iintegers) :: k
+      is_verbose = get_arg(.false., lverbose)
+      if (lincreasing) then
+        if (lstrict) then
+          do k = 2, size(arr)
+            if (arr(k) .le. arr(k - 1)) then
+              lis_linear = .false.
+              if (is_verbose) print *, 'non monotonicity @ k='//toStr(k)
+              return
+            end if
+          end do
+        else
+          do k = 2, size(arr)
+            if (arr(k) .lt. arr(k - 1)) then
+              lis_linear = .false.
+              if (is_verbose) print *, 'non monotonicity @ k='//toStr(k)
+              return
+            end if
+          end do
+        end if
+      else
+        if (lstrict) then
+          do k = 2, size(arr)
+            if (arr(k) .ge. arr(k - 1)) then
+              lis_linear = .false.
+              if (is_verbose) print *, 'non monotonicity @ k='//toStr(k)
+              return
+            end if
+          end do
+        else
+          do k = 2, size(arr)
+            if (arr(k) .gt. arr(k - 1)) then
+              lis_linear = .false.
+              if (is_verbose) print *, 'non monotonicity @ k='//toStr(k)
+              return
+            end if
+          end do
+        end if
+      end if
+      lis_linear = .true.
+    end function
+  #:endfor
 
 ! Determine Domain Decomposition in 2D
-subroutine domain_decompose_2d(comm, N_ranks_x, N_ranks_y, ierr)
-  integer(mpiint), intent(in) :: comm
-  integer(mpiint), intent(out) :: N_ranks_x, N_ranks_y
-  integer(mpiint), intent(out) :: ierr
+  subroutine domain_decompose_2d(comm, N_ranks_x, N_ranks_y, ierr)
+    integer(mpiint), intent(in) :: comm
+    integer(mpiint), intent(out) :: N_ranks_x, N_ranks_y
+    integer(mpiint), intent(out) :: ierr
 
-  integer(mpiint) :: numnodes, j
+    integer(mpiint) :: numnodes, j
 
-  call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
+    call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
 
-  N_ranks_y = ceiling(sqrt(1.*numnodes))
-  do j = 1, N_ranks_y
-    if(modulo(numnodes, j).eq.0) then
-      N_ranks_y = j
-      N_ranks_x = numnodes / N_ranks_y
-      ierr = 0
-    endif
-  enddo
+    N_ranks_y = ceiling(sqrt(1.*numnodes))
+    do j = 1, N_ranks_y
+      if (modulo(numnodes, j) .eq. 0) then
+        N_ranks_y = j
+        N_ranks_x = numnodes / N_ranks_y
+        ierr = 0
+      end if
+    end do
 
-  if(N_ranks_y*N_ranks_x .ne. numnodes) then
-    ierr = 1
-  endif
-end subroutine
+    if (N_ranks_y * N_ranks_x .ne. numnodes) then
+      ierr = 1
+    end if
+  end subroutine
 
 ! Determine Domain Decomposition in 2D with the help of Petsc DMDA
-subroutine domain_decompose_2d_petsc(comm, &
-    & Nx_global, Ny_global, &
-    & Nx_local, Ny_local, &
-    & xStart, yStart, &
-    & nxproc, nyproc, ierr)
-  integer(mpiint), intent(in) :: comm
-  integer(iintegers), intent(in) :: Nx_global, Ny_global
-  integer(iintegers), intent(out) :: Nx_local, Ny_local
-  integer(iintegers), intent(out) :: xStart, yStart
-  integer(iintegers), allocatable, intent(inout) :: nxproc(:), nyproc(:)
-  integer(mpiint), intent(out) :: ierr
+  subroutine domain_decompose_2d_petsc(comm, &
+      & Nx_global, Ny_global, &
+      & Nx_local, Ny_local, &
+      & xStart, yStart, &
+      & nxproc, nyproc, ierr)
+    integer(mpiint), intent(in) :: comm
+    integer(iintegers), intent(in) :: Nx_global, Ny_global
+    integer(iintegers), intent(out) :: Nx_local, Ny_local
+    integer(iintegers), intent(out) :: xStart, yStart
+    integer(iintegers), allocatable, intent(inout) :: nxproc(:), nyproc(:)
+    integer(mpiint), intent(out) :: ierr
 
-  type(tDM) :: dm
-  integer(iintegers) :: Nranksx, Nranksy
-  integer(iintegers) :: z, p
+    type(tDM) :: dm
+    integer(iintegers) :: Nranksx, Nranksy
+    integer(iintegers) :: z, p
 
-  call DMDACreate2d(comm, &
-    & DM_BOUNDARY_PERIODIC, DM_BOUNDARY_PERIODIC,&
-    & DMDA_STENCIL_STAR, &
-    & Nx_global, Ny_global, &
-    & PETSC_DECIDE, PETSC_DECIDE, &
-    & i1, i1, PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, dm, ierr); call CHKERR(ierr)
-  call DMSetup(dm, ierr); call CHKERR(ierr)
+    call DMDACreate2d(comm, &
+      & DM_BOUNDARY_PERIODIC, DM_BOUNDARY_PERIODIC,&
+      & DMDA_STENCIL_STAR, &
+      & Nx_global, Ny_global, &
+      & PETSC_DECIDE, PETSC_DECIDE, &
+      & i1, i1, PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, dm, ierr); call CHKERR(ierr)
+    call DMSetup(dm, ierr); call CHKERR(ierr)
 
-  call DMDAGetInfo(dm, PETSC_NULL_INTEGER, &
-    & PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, &
-    & Nranksx, Nranksy, PETSC_NULL_INTEGER, &
-    & PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, &
-    & PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, &
-    & PETSC_NULL_INTEGER, ierr); call CHKERR(ierr)
+    call DMDAGetInfo(dm, PETSC_NULL_INTEGER, &
+      & PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, &
+      & Nranksx, Nranksy, PETSC_NULL_INTEGER, &
+      & PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, &
+      & PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, &
+      & PETSC_NULL_INTEGER, ierr); call CHKERR(ierr)
 
-  call DMDAGetCorners(dm, xStart, yStart, z, Nx_local, Ny_local, p, ierr); call CHKERR(ierr)
+    call DMDAGetCorners(dm, xStart, yStart, z, Nx_local, Ny_local, p, ierr); call CHKERR(ierr)
 
-  allocate(nxproc(Nranksx))
-  allocate(nyproc(Nranksy))
-  call DMDAGetOwnershipRanges(dm, nxproc, nyproc, PETSC_NULL_INTEGER, ierr); call CHKERR(ierr)
-  call DMDestroy(dm, ierr); call CHKERR(ierr)
-end subroutine
+    allocate (nxproc(Nranksx))
+    allocate (nyproc(Nranksy))
+    call DMDAGetOwnershipRanges(dm, nxproc, nyproc, PETSC_NULL_INTEGER, ierr); call CHKERR(ierr)
+    call DMDestroy(dm, ierr); call CHKERR(ierr)
+  end subroutine
 
-
-#:for basetype,dtype,destructor,optdef in [ &
-  ('type'      , 'tVec'   , 'call VecDestroy(obj, ierr)   ; call CHKERR(ierr);', 'integer(mpiint) :: ierr'), &
-  ('type'      , 'tDM'    , 'call DMDestroy (obj, ierr)   ; call CHKERR(ierr);', 'integer(mpiint) :: ierr'), &
-  ('type'      , 'tKSP'   , 'call KSPDestroy(obj, ierr)   ; call CHKERR(ierr);', 'integer(mpiint) :: ierr'), &
-  ('type'      , 'tMat'   , 'call MatDestroy(obj, ierr)   ; call CHKERR(ierr);', 'integer(mpiint) :: ierr'), &
-  ('type'      , 'tIS'    , 'call ISDestroy (obj, ierr)   ; call CHKERR(ierr);', 'integer(mpiint) :: ierr'), &
-  ('logical'   , None     , None                                            , None), &
-  ('integer'   , 'INT32'  , None                                            , None), &
-  ('integer'   , 'INT64'  , None                                            , None), &
-  ('real'      , 'REAL32' , None                                            , None), &
-  ('real'      , 'REAL64' , None                                            , None)]
-#:set dKIND = '' if dtype == None else '('+dtype+')'
-#:for RANK in range(0, 8)
-#:if not (destructor is not None and (RANK>0))
-    subroutine  deallocate_allocatable_${basetype}$_${dtype}$_${RANK}$d(obj)
-      ${basetype}$ ${dKIND}$, allocatable, intent(inout) :: obj${ranksuffix(RANK)}$
-      ${optdef}$
-      if(allocated(obj)) then
-        ${destructor}$
-        deallocate(obj)
-      endif
-    end subroutine
-#:endif
-#:endfor
-#:endfor
+  #:for basetype,dtype,destructor,optdef in [ &
+    ('type'      , 'tVec'   , 'call VecDestroy(obj, ierr)   ; call CHKERR(ierr);', 'integer(mpiint) :: ierr'), &
+    ('type'      , 'tDM'    , 'call DMDestroy (obj, ierr)   ; call CHKERR(ierr);', 'integer(mpiint) :: ierr'), &
+    ('type'      , 'tKSP'   , 'call KSPDestroy(obj, ierr)   ; call CHKERR(ierr);', 'integer(mpiint) :: ierr'), &
+    ('type'      , 'tMat'   , 'call MatDestroy(obj, ierr)   ; call CHKERR(ierr);', 'integer(mpiint) :: ierr'), &
+    ('type'      , 'tIS'    , 'call ISDestroy (obj, ierr)   ; call CHKERR(ierr);', 'integer(mpiint) :: ierr'), &
+    ('logical'   , None     , None                                            , None), &
+    ('integer'   , 'INT32'  , None                                            , None), &
+    ('integer'   , 'INT64'  , None                                            , None), &
+    ('real'      , 'REAL32' , None                                            , None), &
+    ('real'      , 'REAL64' , None                                            , None)]
+    #:set dKIND = '' if dtype == None else '('+dtype+')'
+    #:for RANK in range(0, 8)
+      #:if not (destructor is not None and (RANK>0))
+        subroutine deallocate_allocatable_${basetype}$_${dtype}$_${RANK}$d(obj)
+          ${basetype}$${dKIND}$, allocatable, intent(inout) :: obj${ranksuffix(RANK)}$
+          ${optdef}$
+          if (allocated(obj)) then
+            ${destructor}$
+            deallocate (obj)
+          end if
+        end subroutine
+      #:endif
+    #:endfor
+  #:endfor
 
   subroutine char_to_lower(str)
     character(len=*), intent(inout) :: str
     integer :: i
     do i = 1, len(str)
-      select case(str(i:i))
-      case("A":"Z")
-        str(i:i) = achar(iachar(str(i:i))+32)
+      select case (str(i:i))
+      case ("A":"Z")
+        str(i:i) = achar(iachar(str(i:i)) + 32)
       end select
     end do
   end subroutine
@@ -2818,266 +2810,266 @@ end subroutine
     character(len=*), intent(inout) :: str
     integer(iintegers) :: i
     do i = 1, len(str)
-      select case(str(i:i))
-      case("a":"z")
-        str(i:i) = achar(iachar(str(i:i))-32)
+      select case (str(i:i))
+      case ("a":"z")
+        str(i:i) = achar(iachar(str(i:i)) - 32)
       end select
     end do
   end subroutine
 
-#:for dtype in ['REAL32', 'REAL64', 'REAL128']
-#:for RANK in range(0, 8)
-  function colored_str_by_range${dtype}$_${RANK}$d(inp, limits, colors) result (res)
-    real(${dtype}$), intent(in) :: inp${ranksuffix(RANK)}$
-    real(${dtype}$), intent(in) :: limits(:)
-    character(len=*), intent(in) :: colors(:)
-    character(:), allocatable :: res
+  #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    #:for RANK in range(0, 8)
+      function colored_str_by_range${dtype}$_${RANK}$d(inp, limits, colors) result(res)
+        real(${dtype}$), intent(in) :: inp${ranksuffix(RANK)}$
+        real(${dtype}$), intent(in) :: limits(:)
+        character(len=*), intent(in) :: colors(:)
+        character(:), allocatable :: res
 
-    integer(iintegers) :: icolor
-    #:if RANK>0
-    integer(iintegers) :: i
-    ${basetype}$(${dtype}$), allocatable :: inp1d(:)
-    #:endif
+        integer(iintegers) :: icolor
+        #:if RANK>0
+          integer(iintegers) :: i
+          ${basetype}$ (${dtype}$), allocatable :: inp1d(:)
+        #:endif
 
-    call CHKERR(size(colors,kind=mpiint)-size(limits, kind=mpiint)+1_mpiint, &
-      & " size of inputs are not as expected:"// &
-      & " colors should be one less than limits"// &
-      & " but have "//itoa(size(colors))//" "//itoa(size(limits)))
+        call CHKERR(size(colors, kind=mpiint) - size(limits, kind=mpiint) + 1_mpiint, &
+          & " size of inputs are not as expected:"// &
+          & " colors should be one less than limits"// &
+          & " but have "//itoa(size(colors))//" "//itoa(size(limits)))
 
-    #:if RANK==0
+        #:if RANK==0
 
-    ! default is no color
-    res = toStr(inp)
+          ! default is no color
+          res = toStr(inp)
 
-    do icolor = 1, size(colors)
-      if(is_inrange(inp, limits(icolor), limits(icolor+1))) then
-        res = cstr( toStr(inp), colors(icolor) )
-      endif
-    enddo
+          do icolor = 1, size(colors)
+            if (is_inrange(inp, limits(icolor), limits(icolor + 1))) then
+              res = cstr(toStr(inp), colors(icolor))
+            end if
+          end do
 
-    #:else
+        #:else
 
-    inp1d = pack(inp, .True.)
-    res = ''
+          inp1d = pack(inp, .true.)
+          res = ''
 
-    entryloop: do i=1,size(inp1d)
-      do icolor = 1, size(colors)
-        if(is_inrange(inp1d(i), limits(icolor), limits(icolor+1))) then
-          res = res // cstr( toStr(inp1d(i)), colors(icolor) )
-          cycle entryloop
-        endif
-      enddo
-      res = res // toStr(inp1d(i))
-    enddo entryloop
-    #:endif
+          entryloop: do i = 1, size(inp1d)
+            do icolor = 1, size(colors)
+              if (is_inrange(inp1d(i), limits(icolor), limits(icolor + 1))) then
+                res = res//cstr(toStr(inp1d(i)), colors(icolor))
+                cycle entryloop
+              end if
+            end do
+            res = res//toStr(inp1d(i))
+          end do entryloop
+        #:endif
 
-  end function
-#:endfor
-#:endfor
+      end function
+    #:endfor
+  #:endfor
 
 !> @brief compute volume defined by four base and top points each
 !> @details base points and top points can be coincident
 ! the edges will be constructed index wise: b_i -> t_i
-#:for dtype in ['REAL32', 'REAL64', 'REAL128']
-  pure function volume_hexahedron_${dtype}$(b1, b2, b3, b4, t1, t2, t3, t4) result(volume_hexahedron)
-    real(${dtype}$), intent(in), dimension(3) :: b1, b2, b3, b4, t1, t2, t3, t4
-    real(${dtype}$) :: volume_hexahedron
+  #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    pure function volume_hexahedron_${dtype}$ (b1, b2, b3, b4, t1, t2, t3, t4) result(volume_hexahedron)
+      real(${dtype}$), intent(in), dimension(3) :: b1, b2, b3, b4, t1, t2, t3, t4
+      real(${dtype}$) :: volume_hexahedron
 
-    volume_hexahedron = &
-      & volume_oblique_pyramid(t1, t2, t3, t4, b1) + &
-      & volume_oblique_pyramid(t3, b3, b4, t4, b1) + &
-      & volume_oblique_pyramid(t2, b2, b3, t3, b1)
-  end function
-#:endfor
+      volume_hexahedron = &
+        & volume_oblique_pyramid(t1, t2, t3, t4, b1) + &
+        & volume_oblique_pyramid(t3, b3, b4, t4, b1) + &
+        & volume_oblique_pyramid(t2, b2, b3, t3, b1)
+    end function
+  #:endfor
 
 !> @brief compute volume defined by three base and top points each
 !> @details base points and top points can be coincident
 ! the edges will be constructed index wise: b_i -> t_i
-#:for dtype in ['REAL32', 'REAL64', 'REAL128']
-  pure function volume_pentahedron_${dtype}$(b1, b2, b3, t1, t2, t3) result(volume_pentahedron)
-    real(${dtype}$), intent(in), dimension(3) :: b1, b2, b3, t1, t2, t3
-    real(${dtype}$) :: volume_pentahedron
+  #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    pure function volume_pentahedron_${dtype}$ (b1, b2, b3, t1, t2, t3) result(volume_pentahedron)
+      real(${dtype}$), intent(in), dimension(3) :: b1, b2, b3, t1, t2, t3
+      real(${dtype}$) :: volume_pentahedron
 
-    volume_pentahedron = &
-      & volume_oblique_pyramid(t1, t2, b2, b1, t3) + &
-      & volume_tetrahedron(b1, b2, b3, t3)
-  end function
-#:endfor
-
-!> @brief compute volume of pyramid with four base points
-!> @details also works when two base points are coincident
-#:for dtype in ['REAL32', 'REAL64', 'REAL128']
-  pure function volume_oblique_pyramid_${dtype}$(b1, b2, b3, b4, t) result(volume_oblique_pyramid)
-    real(${dtype}$), intent(in), dimension(3) :: b1, b2, b3, b4, t
-    real(${dtype}$) :: volume_oblique_pyramid
-
-    volume_oblique_pyramid = volume_tetrahedron(b1, b2, b3, t) + volume_tetrahedron(b1, b3, b4, t)
-  end function
-#:endfor
+      volume_pentahedron = &
+        & volume_oblique_pyramid(t1, t2, b2, b1, t3) + &
+        & volume_tetrahedron(b1, b2, b3, t3)
+    end function
+  #:endfor
 
 !> @brief compute volume of pyramid with four base points
 !> @details also works when two base points are coincident
-#:for dtype in ['REAL32', 'REAL64', 'REAL128']
-  pure function volume_tetrahedron_${dtype}$(b1, b2, b3, t) result(volume_tetrahedron)
-    real(${dtype}$), intent(in), dimension(3) :: b1, b2, b3, t
-    real(${dtype}$) :: volume_tetrahedron
+  #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    pure function volume_oblique_pyramid_${dtype}$ (b1, b2, b3, b4, t) result(volume_oblique_pyramid)
+      real(${dtype}$), intent(in), dimension(3) :: b1, b2, b3, b4, t
+      real(${dtype}$) :: volume_oblique_pyramid
 
-    volume_tetrahedron = triangle_area_by_vertices(b1, b2, b3) * min_dist_point_plane(t, compute_normal_3d(b1, b2, b3), b1) / 3._${dtype}$
-  end function
-#:endfor
+      volume_oblique_pyramid = volume_tetrahedron(b1, b2, b3, t) + volume_tetrahedron(b1, b3, b4, t)
+    end function
+  #:endfor
+
+!> @brief compute volume of pyramid with four base points
+!> @details also works when two base points are coincident
+  #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    pure function volume_tetrahedron_${dtype}$ (b1, b2, b3, t) result(volume_tetrahedron)
+      real(${dtype}$), intent(in), dimension(3) :: b1, b2, b3, t
+      real(${dtype}$) :: volume_tetrahedron
+
+      volume_tetrahedron = triangle_area_by_vertices(b1, b2, b3) * &
+        & min_dist_point_plane(t, compute_normal_3d(b1, b2, b3), b1) / 3._${dtype}$
+    end function
+  #:endfor
 
 !> @brief compute minimum distance of point from plane defined by normed normal and origin
 !> @details input point in question 'point' along with 'normal' and 'origin' of the plain
 ! the normal needs to be normed
 ! http://paulbourke.net/geometry/pointlineplane/
-#:for dtype in ['REAL32', 'REAL64', 'REAL128']
- pure function min_dist_point_plane_${dtype}$(point, normal, origin) result(min_dist_point_plane)
-   real (${dtype}$), intent(in), dimension(3) :: point, normal, origin
-   real (${dtype}$) :: min_dist_point_plane
+  #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    pure function min_dist_point_plane_${dtype}$ (point, normal, origin) result(min_dist_point_plane)
+      real(${dtype}$), intent(in), dimension(3) :: point, normal, origin
+      real(${dtype}$) :: min_dist_point_plane
 
-   min_dist_point_plane = abs(dot_product(point - origin, normal))
-  end function
-#:endfor
+      min_dist_point_plane = abs(dot_product(point - origin, normal))
+    end function
+  #:endfor
 
 !> @brief compute quadrangle area defined by four vertices using two triangles
 !> @details input four vertices ordered clockwise or anti-clockwise that form either a quadrangle or a triangle
-#:for dtype in ['REAL32', 'REAL64', 'REAL128']
- pure function quadrangle_area_by_vertices_${dtype}$(v1, v2, v3, v4) result(quadrangle_area_by_vertices)
-   real (${dtype}$), intent(in), dimension(3) :: v1, v2, v3, v4
-   real (${dtype}$) :: quadrangle_area_by_vertices
+  #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    pure function quadrangle_area_by_vertices_${dtype}$ (v1, v2, v3, v4) result(quadrangle_area_by_vertices)
+      real(${dtype}$), intent(in), dimension(3) :: v1, v2, v3, v4
+      real(${dtype}$) :: quadrangle_area_by_vertices
 
-   quadrangle_area_by_vertices = triangle_area_by_vertices(v1, v2, v3) + triangle_area_by_vertices(v1, v3, v4)
- end function
-#:endfor
+      quadrangle_area_by_vertices = triangle_area_by_vertices(v1, v2, v3) + triangle_area_by_vertices(v1, v3, v4)
+    end function
+  #:endfor
 
 !> @brief compute pentagon area defined by five vertices using three triangles
 !> @details input five vertices ordered clockwise
-#:for dtype in ['REAL32', 'REAL64', 'REAL128']
- pure function pentagon_area_by_vertices_${dtype}$(v1, v2, v3, v4, v5) result(pentagon_area_by_vertices)
-   real (${dtype}$), intent(in), dimension(3) :: v1, v2, v3, v4, v5
-   real (${dtype}$) :: pentagon_area_by_vertices
+  #:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    pure function pentagon_area_by_vertices_${dtype}$ (v1, v2, v3, v4, v5) result(pentagon_area_by_vertices)
+      real(${dtype}$), intent(in), dimension(3) :: v1, v2, v3, v4, v5
+      real(${dtype}$) :: pentagon_area_by_vertices
 
-   pentagon_area_by_vertices = &
-     triangle_area_by_vertices(v1, v2, v3) + &
-     triangle_area_by_vertices(v1, v3, v4) + &
-     triangle_area_by_vertices(v1, v4, v5)
- end function
-#:endfor
-
+      pentagon_area_by_vertices = &
+        triangle_area_by_vertices(v1, v2, v3) + &
+        triangle_area_by_vertices(v1, v3, v4) + &
+        triangle_area_by_vertices(v1, v4, v5)
+    end function
+  #:endfor
 
 !> @brief simple wrapper to the get functions for petsc's default options database
-#:for basetype,dtype,petscfunc in [   &
-  ('integer'  , 'iintegers', 'PetscOptionsGetInt'   ), &
-  ('real'     , 'ireals'   , 'PetscOptionsGetReal'  ), &
-  ('character', 'len=*'    , 'PetscOptionsGetString'), &
-  ('logical'  , None       , 'PetscOptionsGetBool'  ), &
-  ]
-#:set dKIND = '' if dtype == None else '('+dtype+')'
+  #:for basetype,dtype,petscfunc in [   &
+    ('integer'  , 'iintegers', 'PetscOptionsGetInt'   ), &
+    ('real'     , 'ireals'   , 'PetscOptionsGetReal'  ), &
+    ('character', 'len=*'    , 'PetscOptionsGetString'), &
+    ('logical'  , None       , 'PetscOptionsGetBool'  ), &
+    ]
+    #:set dKIND = '' if dtype == None else '('+dtype+')'
 
-subroutine get_petsc_opt_${basetype}$(prefix, option_name, optval, lset, ierr)
-  character(len=*), intent(in) :: prefix, option_name
-  ${basetype}$${dKIND}$, intent(inout) :: optval
-  logical, intent(out) :: lset
-  integer(mpiint), intent(out) :: ierr
+    subroutine get_petsc_opt_${basetype}$ (prefix, option_name, optval, lset, ierr)
+      character(len=*), intent(in) :: prefix, option_name
+      ${basetype}$${dKIND}$, intent(inout) :: optval
+      logical, intent(out) :: lset
+      integer(mpiint), intent(out) :: ierr
 
-  character(len=default_str_len) :: full_opt_name, color
-  character(len=default_str_len), save :: last_options_call
-  integer(mpiint) :: myid
-  logical :: lshow, lflg
+      character(len=default_str_len) :: full_opt_name, color
+      character(len=default_str_len), save :: last_options_call
+      integer(mpiint) :: myid
+      logical :: lshow, lflg
 
-  if (option_name(1:1)=='-'.and.len_trim(option_name)>1) then
-    full_opt_name = '-'//trim(prefix)//trim(option_name(2:))
-  else
-    full_opt_name = '-'//trim(prefix)//trim(option_name)
-  endif
+      if (option_name(1:1) == '-' .and. len_trim(option_name) > 1) then
+        full_opt_name = '-'//trim(prefix)//trim(option_name(2:))
+      else
+        full_opt_name = '-'//trim(prefix)//trim(option_name)
+      end if
 
-  if(last_options_call.eq.full_opt_name) then
-    lshow = .False.
-  else
-    lshow = .False.
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-ts_options_view", lshow, lflg, ierr); call CHKERR(ierr)
-  endif
+      if (last_options_call .eq. full_opt_name) then
+        lshow = .false.
+      else
+        lshow = .false.
+        call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-ts_options_view", lshow, lflg, ierr); call CHKERR(ierr)
+      end if
 
-  call ${petscfunc}$(&
-    & PETSC_NULL_OPTIONS, &
-    & trim(prefix), &
-    & trim(option_name), &
-    & optval, &
-    & lset, &
-    & ierr)
-  call CHKERR(ierr)
+      call ${petscfunc}$ (&
+        & PETSC_NULL_OPTIONS, &
+        & trim(prefix), &
+        & trim(option_name), &
+        & optval, &
+        & lset, &
+        & ierr)
+      call CHKERR(ierr)
 
-  last_options_call = full_opt_name
+      last_options_call = full_opt_name
 
-  if(lshow) then
-    if (lset) then
-      color = 'green'
-    else
-      color = 'dark grey'
-    endif
-    call mpi_comm_rank(petsc_comm_world, myid, ierr); call CHKERR(ierr)
-    if(myid.eq.0) print *,'Tenstream option'//' '//cstr(trim(full_opt_name),color)//' '// &
-      & cstr('(opt <'//trim(option_name)//'> prefix <'//trim(prefix)//'> set? '//toStr(lset)//' )', 'dark grey')// &
-      & ' => '//cstr(trim(toStr(optval)), color)
-  endif
-end subroutine
-#:endfor
+      if (lshow) then
+        if (lset) then
+          color = 'green'
+        else
+          color = 'dark grey'
+        end if
+        call mpi_comm_rank(petsc_comm_world, myid, ierr); call CHKERR(ierr)
+        if (myid .eq. 0) print *, 'Tenstream option'//' '//cstr(trim(full_opt_name), color)//' '// &
+          & cstr('(opt <'//trim(option_name)//'> prefix <'//trim(prefix)//'> set? '//toStr(lset)//' )', 'dark grey')// &
+          & ' => '//cstr(trim(toStr(optval)), color)
+      end if
+    end subroutine
+  #:endfor
 
-#:for basetype,dtype,petscfunc in [   &
-  ('integer'  , 'iintegers', 'PetscOptionsGetInt'   ), &
-  ('real'     , 'ireals'   , 'PetscOptionsGetReal'  ), &
-  ]
-#:set dKIND = '' if dtype == None else '('+dtype+')'
+  #:for basetype,dtype,petscfunc in [   &
+    ('integer'  , 'iintegers', 'PetscOptionsGetInt'   ), &
+    ('real'     , 'ireals'   , 'PetscOptionsGetReal'  ), &
+    ]
+    #:set dKIND = '' if dtype == None else '('+dtype+')'
 
-subroutine get_petsc_opt_${basetype}$_array(prefix, option_name, optval, nmax, lset, ierr)
-  character(len=*), intent(in) :: prefix, option_name
-  ${basetype}$${dKIND}$, intent(inout) :: optval(:)
-  integer(iintegers), intent(inout) :: nmax
-  logical, intent(out) :: lset
-  integer(mpiint), intent(out) :: ierr
+    subroutine get_petsc_opt_${basetype}$_array(prefix, option_name, optval, nmax, lset, ierr)
+      character(len=*), intent(in) :: prefix, option_name
+      ${basetype}$${dKIND}$, intent(inout) :: optval(:)
+      integer(iintegers), intent(inout) :: nmax
+      logical, intent(out) :: lset
+      integer(mpiint), intent(out) :: ierr
 
-  character(len=default_str_len) :: full_opt_name, color
-  integer(iintegers) :: argcnt
-  integer(mpiint) :: myid
-  logical :: lshow, lflg
+      character(len=default_str_len) :: full_opt_name, color
+      integer(iintegers) :: argcnt
+      integer(mpiint) :: myid
+      logical :: lshow, lflg
 
-  lshow = .False.
-  call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-ts_options_view", lshow, lflg, ierr); call CHKERR(ierr)
+      lshow = .false.
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-ts_options_view", lshow, lflg, ierr); call CHKERR(ierr)
 
-  argcnt = nmax
+      argcnt = nmax
 
-  call ${petscfunc}$Array(&
-    & PETSC_NULL_OPTIONS, &
-    & trim(prefix), &
-    & trim(option_name), &
-    & optval, &
-    & argcnt, &
-    & lset, &
-    & ierr)
-  call CHKERR(ierr)
+      call ${petscfunc}$Array(&
+        & PETSC_NULL_OPTIONS, &
+        & trim(prefix), &
+        & trim(option_name), &
+        & optval, &
+        & argcnt, &
+        & lset, &
+        & ierr)
+      call CHKERR(ierr)
 
-  if(lshow) then
-    if (lset) then
-      color = 'green'
-    else
-      color = 'dark grey'
-    endif
-    if (option_name(1:1)=='-'.and.len_trim(option_name)>1) then
-      full_opt_name = '-'//trim(prefix)//trim(option_name(2:))
-    else
-      full_opt_name = '-'//trim(prefix)//trim(option_name)
-    endif
-    call mpi_comm_rank(petsc_comm_world, myid, ierr); call CHKERR(ierr)
-    if(myid.eq.0) print *,'Tenstream option'//' '//cstr(trim(full_opt_name),color)//' '// &
-      & cstr('( '// &
-        & 'opt <'//trim(option_name)//'> '// &
-        & 'prefix <'//trim(prefix)//'> '// &
-        & 'set? '//toStr(lset)//' '// &
-        & 'nmax '//toStr(nmax)//' '// &
-      & ')', 'dark grey')// &
-      & ' => '//cstr(trim(toStr(optval))//' (cnt='//toStr(argcnt)//')', color)
-  endif
-end subroutine
-#:endfor
+      if (lshow) then
+        if (lset) then
+          color = 'green'
+        else
+          color = 'dark grey'
+        end if
+        if (option_name(1:1) == '-' .and. len_trim(option_name) > 1) then
+          full_opt_name = '-'//trim(prefix)//trim(option_name(2:))
+        else
+          full_opt_name = '-'//trim(prefix)//trim(option_name)
+        end if
+        call mpi_comm_rank(petsc_comm_world, myid, ierr); call CHKERR(ierr)
+        if (myid .eq. 0) print *, 'Tenstream option'//' '//cstr(trim(full_opt_name), color)//' '// &
+          & cstr('( '// &
+            & 'opt <'//trim(option_name)//'> '// &
+            & 'prefix <'//trim(prefix)//'> '// &
+            & 'set? '//toStr(lset)//' '// &
+            & 'nmax '//toStr(nmax)//' '// &
+          & ')', 'dark grey')// &
+          & ' => '//cstr(trim(toStr(optval))//' (cnt='//toStr(argcnt)//')', color)
+      end if
+    end subroutine
+  #:endfor
 
 end module

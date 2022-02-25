@@ -18,49 +18,49 @@
 !-------------------------------------------------------------------------
 
 module m_tenstream_interpolation
-  use iso_fortran_env, only: REAL32, REAL64
+  use iso_fortran_env, only: real32, real64
   use m_data_parameters, only: iintegers, irealLUT, mpiint, i1
   use m_helper_functions, only: approx, CHKERR, toStr, &
-    triangle_area_by_vertices, ind_nd_to_1d, ind_1d_to_nd
+                                triangle_area_by_vertices, ind_nd_to_1d, ind_1d_to_nd
   use m_intersection, only: pnt_in_triangle
 
   implicit none
 
   private
   public :: interp_4d, interp_4d_recursive, interp_2d, &
-    interp_1d, interp_vec_simplex_nd
+            interp_1d, interp_vec_simplex_nd
 
   ! a has the bounds on axes
   ! t has the distance weights
 
-  integer(iintegers) :: permu2d(2,2**2)
-  DATA permu2d(:, 1) / 0,  0 /
-  DATA permu2d(:, 2) / 1,  0 /
-  DATA permu2d(:, 3) / 0,  1 /
-  DATA permu2d(:, 4) / 1,  1 /
+  integer(iintegers) :: permu2d(2, 2**2)
+  data permu2d(:, 1)/0, 0/
+  data permu2d(:, 2)/1, 0/
+  data permu2d(:, 3)/0, 1/
+  data permu2d(:, 4)/1, 1/
 
-  integer(iintegers) :: permu4d(4,2**4)
-  DATA permu4d(:, 1) / 0,  0,  0,  0 /
-  DATA permu4d(:, 2) / 1,  0,  0,  0 /
-  DATA permu4d(:, 3) / 0,  1,  0,  0 /
-  DATA permu4d(:, 4) / 1,  1,  0,  0 /
-  DATA permu4d(:, 5) / 0,  0,  1,  0 /
-  DATA permu4d(:, 6) / 1,  0,  1,  0 /
-  DATA permu4d(:, 7) / 0,  1,  1,  0 /
-  DATA permu4d(:, 8) / 1,  1,  1,  0 /
-  DATA permu4d(:, 9) / 0,  0,  0,  1 /
-  DATA permu4d(:,10) / 1,  0,  0,  1 /
-  DATA permu4d(:,11) / 0,  1,  0,  1 /
-  DATA permu4d(:,12) / 1,  1,  0,  1 /
-  DATA permu4d(:,13) / 0,  0,  1,  1 /
-  DATA permu4d(:,14) / 1,  0,  1,  1 /
-  DATA permu4d(:,15) / 0,  1,  1,  1 /
-  DATA permu4d(:,16) / 1,  1,  1,  1 /
+  integer(iintegers) :: permu4d(4, 2**4)
+  data permu4d(:, 1)/0, 0, 0, 0/
+  data permu4d(:, 2)/1, 0, 0, 0/
+  data permu4d(:, 3)/0, 1, 0, 0/
+  data permu4d(:, 4)/1, 1, 0, 0/
+  data permu4d(:, 5)/0, 0, 1, 0/
+  data permu4d(:, 6)/1, 0, 1, 0/
+  data permu4d(:, 7)/0, 1, 1, 0/
+  data permu4d(:, 8)/1, 1, 1, 0/
+  data permu4d(:, 9)/0, 0, 0, 1/
+  data permu4d(:, 10)/1, 0, 0, 1/
+  data permu4d(:, 11)/0, 1, 0, 1/
+  data permu4d(:, 12)/1, 1, 0, 1/
+  data permu4d(:, 13)/0, 0, 1, 1/
+  data permu4d(:, 14)/1, 0, 1, 1/
+  data permu4d(:, 15)/0, 1, 1, 1/
+  data permu4d(:, 16)/1, 1, 1, 1/
 
-  logical, parameter :: ldebug=.False.
+  logical, parameter :: ldebug = .false.
 
-  real(irealLUT), parameter :: interpolation_lattice_snapping=max(1e-3_irealLUT, epsilon(interpolation_lattice_snapping))
-  real(irealLUT), parameter :: zero=0, one=1
+  real(irealLUT), parameter :: interpolation_lattice_snapping = max(1e-3_ireallut, epsilon(interpolation_lattice_snapping))
+  real(irealLUT), parameter :: zero = 0, one = 1
 
   interface interp_1d
     module procedure interp_1d_r32, interp_1d_r64
@@ -68,212 +68,212 @@ module m_tenstream_interpolation
 
 contains
 
-  recursive subroutine interpn(n,a,t,i,res)
-    real(irealLUT),intent(in) :: a(:,:),t(:)
-    integer(iintegers),intent(in) :: n,i
-    real(irealLUT),intent(out) :: res(:)
+  recursive subroutine interpn(n, a, t, i, res)
+    real(irealLUT), intent(in) :: a(:, :), t(:)
+    integer(iintegers), intent(in) :: n, i
+    real(irealLUT), intent(out) :: res(:)
 
-    real(irealLUT) :: a0(size(res)),a1(size(res))
+    real(irealLUT) :: a0(size(res)), a1(size(res))
 
-    if(n.eq.1) then
-      res = spline( t(1), a(:,i), a(:,i+1) )
+    if (n .eq. 1) then
+      res = spline(t(1), a(:, i), a(:, i + 1))
     else
-      call interpn(n-1,a,t,i,a0)
-      call interpn(n-1,a,t,i+2**(n-1),a1)
-      res = spline( t(n), a0, a1 )
-    endif
+      call interpn(n - 1, a, t, i, a0)
+      call interpn(n - 1, a, t, i + 2**(n - 1), a1)
+      res = spline(t(n), a0, a1)
+    end if
   end subroutine
 
-  pure elemental function spline(t,a0,a1)
-    real(irealLUT),intent(in) :: t,a0,a1 ! t is weighting distance from a0
+  pure elemental function spline(t, a0, a1)
+    real(irealLUT), intent(in) :: t, a0, a1 ! t is weighting distance from a0
     real(irealLUT) :: spline
     real(irealLUT) :: s
-    logical,parameter :: lspline = .False.
+    logical, parameter :: lspline = .false.
     ! logical,parameter :: lspline = .True.
 
-    if(lspline) then
-      if( a0 .gt. a1 ) then
+    if (lspline) then
+      if (a0 .gt. a1) then
         s = t**2
-      else if (a0.le.a1) then
+      else if (a0 .le. a1) then
         s = sqrt(t)
-      endif
+      end if
       ! s = t**2*(3_irealLUT - 2_irealLUT*t)
     else
       s = t
-    endif
+    end if
 
     ! spline = s*a1 + (one-s)*a0
-    spline = a0 + s * ( a1-a0 )
+    spline = a0 + s * (a1 - a0)
   end function
 
-  function interp_1d_r32(t,a0) result(res)
-    real(REAL32),intent(in) :: t, a0(:) ! t is weighting distance from [1, size(a0)]
-    real(REAL32) :: res
+  function interp_1d_r32(t, a0) result(res)
+    real(real32), intent(in) :: t, a0(:) ! t is weighting distance from [1, size(a0)]
+    real(real32) :: res
     integer(iintegers) :: i
-    real(REAL32) :: offset
+    real(real32) :: offset
 
-    if(t.lt.1._REAL32 .or. t.gt.size(a0)) call CHKERR(1_mpiint, 'Cannot use interp_1d with weights outside of [0,1]')
+    if (t .lt. 1._real32 .or. t .gt. size(a0)) call CHKERR(1_mpiint, 'Cannot use interp_1d with weights outside of [0,1]')
     i = floor(t)
-    offset = modulo(t,1._REAL32)
-    if(approx(offset,0._REAL32)) then
+    offset = modulo(t, 1._real32)
+    if (approx(offset, 0._real32)) then
       res = a0(i)
     else
-      res = (1._REAL32-offset) * a0(i) + offset * a0(min(i+1, size(a0,kind=iintegers)))
-    endif
+      res = (1._real32 - offset) * a0(i) + offset * a0(min(i + 1, size(a0, kind=iintegers)))
+    end if
   end function
-  function interp_1d_r64(t,a0) result(res)
-    real(REAL64),intent(in) :: t, a0(:) ! t is weighting distance from [1, size(a0)]
-    real(REAL64) :: res
+  function interp_1d_r64(t, a0) result(res)
+    real(real64), intent(in) :: t, a0(:) ! t is weighting distance from [1, size(a0)]
+    real(real64) :: res
     integer(iintegers) :: i
-    real(REAL64) :: offset
+    real(real64) :: offset
 
-    if(t.lt.1._REAL64 .or. t.gt.size(a0)) call CHKERR(1_mpiint, 'Cannot use interp_1d with weights outside of [0,1]')
+    if (t .lt. 1._real64 .or. t .gt. size(a0)) call CHKERR(1_mpiint, 'Cannot use interp_1d with weights outside of [0,1]')
     i = floor(t)
-    offset = modulo(t,1._REAL64)
-    if(approx(offset,0._REAL64)) then
+    offset = modulo(t, 1._real64)
+    if (approx(offset, 0._real64)) then
       res = a0(i)
     else
-      res = (1._REAL64-offset) * a0(i) + offset * a0(min(i+1, size(a0,kind=iintegers)))
-    endif
+      res = (1._real64 - offset) * a0(i) + offset * a0(min(i + 1, size(a0, kind=iintegers)))
+    end if
   end function
 
   pure subroutine interp_2d(pti, db, C)
-    integer(iintegers),parameter :: Ndim=2
-    real(irealLUT),intent(in) :: pti(Ndim), db(:,:,:)
-    real(irealLUT),intent(out) :: C(:)
+    integer(iintegers), parameter :: Ndim = 2
+    real(irealLUT), intent(in) :: pti(Ndim), db(:, :, :)
+    real(irealLUT), intent(out) :: C(:)
 
-    integer(iintegers) :: indices(Ndim,2**Ndim),fpti(Ndim)
-    integer(iintegers) :: i,d
+    integer(iintegers) :: indices(Ndim, 2**Ndim), fpti(Ndim)
+    integer(iintegers) :: i, d
     real(irealLUT) :: weights(Ndim)
-    real(irealLUT) :: db2(size(C),2**(Ndim ))
-    real(irealLUT) :: db1(size(C),2**(Ndim-1))
+    real(irealLUT) :: db2(size(C), 2**(Ndim))
+    real(irealLUT) :: db1(size(C), 2**(Ndim - 1))
 
     ! First determine the array indices, where to look.
     fpti = floor(pti)
     weights = modulo(pti, one)
 
-    do i=1,2**Ndim
-      indices(:,i) = permu2d(:,i) + fpti
-    enddo
+    do i = 1, 2**Ndim
+      indices(:, i) = permu2d(:, i) + fpti
+    end do
     ! Make sure we dont recall a value outside of array dimensions
-    do d=1,Ndim
-      indices(d,:) = max( i1, min( ubound(db,d+i1,iintegers), indices(d,:) ) )
-    enddo
+    do d = 1, Ndim
+      indices(d, :) = max(i1, min(ubound(db, d + i1, iintegers), indices(d, :)))
+    end do
 
     ! Then get the corner values of hypercube
-    do i=1,2**Ndim
-      db2(:,i) = db(:, indices(1,i), indices(2,i))
-    enddo
+    do i = 1, 2**Ndim
+      db2(:, i) = db(:, indices(1, i), indices(2, i))
+    end do
 
     ! Permutations for 1st axis
-    do i=1,2**(Ndim-1)
-      db1(:,i)  =  db2(:,2*i-1) + ( db2(:,2*i) - db2(:,2*i-1) ) * (weights(1))
-    enddo
+    do i = 1, 2**(Ndim - 1)
+      db1(:, i) = db2(:, 2 * i - 1) + (db2(:, 2 * i) - db2(:, 2 * i - 1)) * (weights(1))
+    end do
 
-    C(:)        =  db1(:,2  -1) + ( db1(:,2  ) - db1(:,2  -1) ) * (weights(2))
+    C(:) = db1(:, 2 - 1) + (db1(:, 2) - db1(:, 2 - 1)) * (weights(2))
   end subroutine
   pure subroutine interp_4d(pti, db, C)
-    integer(iintegers),parameter :: Ndim=4
-    real(irealLUT),intent(in) :: pti(Ndim), db(:,:,:,:,:)
-    real(irealLUT),intent(out) :: C(:)
+    integer(iintegers), parameter :: Ndim = 4
+    real(irealLUT), intent(in) :: pti(Ndim), db(:, :, :, :, :)
+    real(irealLUT), intent(out) :: C(:)
 
-    integer(iintegers) :: indices(Ndim,2**Ndim),fpti(Ndim)
-    integer(iintegers) :: i,d
+    integer(iintegers) :: indices(Ndim, 2**Ndim), fpti(Ndim)
+    integer(iintegers) :: i, d
     real(irealLUT) :: weights(Ndim)
-    real(irealLUT) :: db4(size(C),2**(Ndim ))
-    real(irealLUT) :: db3(size(C),2**(Ndim-1))
-    real(irealLUT) :: db2(size(C),2**(Ndim-2))
-    real(irealLUT) :: db1(size(C),2**(Ndim-3))
+    real(irealLUT) :: db4(size(C), 2**(Ndim))
+    real(irealLUT) :: db3(size(C), 2**(Ndim - 1))
+    real(irealLUT) :: db2(size(C), 2**(Ndim - 2))
+    real(irealLUT) :: db1(size(C), 2**(Ndim - 3))
 
     ! First determine the array indices, where to look.
     fpti = floor(pti)
     weights = modulo(pti, one)
 
-    do i=1,2**Ndim
-      indices(:,i) = permu4d(:,i) + fpti
-    enddo
+    do i = 1, 2**Ndim
+      indices(:, i) = permu4d(:, i) + fpti
+    end do
     ! Make sure we dont recall a value outside of array dimensions
-    do d=1,Ndim
-      indices(d,:) = max( i1, min( ubound(db, d+i1, iintegers), indices(d,:) ) )
-    enddo
+    do d = 1, Ndim
+      indices(d, :) = max(i1, min(ubound(db, d + i1, iintegers), indices(d, :)))
+    end do
 
     ! Then get the corner values of hypercube
-    do i=1,2**Ndim
-      db4(:,i) = db(:, indices(1,i),indices(2,i),indices(3,i),indices(4,i) )
-    enddo
+    do i = 1, 2**Ndim
+      db4(:, i) = db(:, indices(1, i), indices(2, i), indices(3, i), indices(4, i))
+    end do
 
     ! Permutations for 1st axis
-    do i=1,2**(Ndim-1)
-      db3(:,i)  =  db4(:,2*i-1) + ( db4(:,2*i) - db4(:,2*i-1) ) * (weights(1))
-    enddo
-    do i=1,2**(Ndim-2)
-      db2(:,i)  =  db3(:,2*i-1) + ( db3(:,2*i) - db3(:,2*i-1) ) * (weights(2))
-    enddo
-    do i=1,2**(Ndim-3)
-      db1(:,i)  =  db2(:,2*i-1) + ( db2(:,2*i) - db2(:,2*i-1) ) * (weights(3))
-    enddo
+    do i = 1, 2**(Ndim - 1)
+      db3(:, i) = db4(:, 2 * i - 1) + (db4(:, 2 * i) - db4(:, 2 * i - 1)) * (weights(1))
+    end do
+    do i = 1, 2**(Ndim - 2)
+      db2(:, i) = db3(:, 2 * i - 1) + (db3(:, 2 * i) - db3(:, 2 * i - 1)) * (weights(2))
+    end do
+    do i = 1, 2**(Ndim - 3)
+      db1(:, i) = db2(:, 2 * i - 1) + (db2(:, 2 * i) - db2(:, 2 * i - 1)) * (weights(3))
+    end do
 
-    C(:)        =  db1(:,2  -1) + ( db1(:,2  ) - db1(:,2  -1) ) * (weights(4))
+    C(:) = db1(:, 2 - 1) + (db1(:, 2) - db1(:, 2 - 1)) * (weights(4))
   end subroutine
   subroutine interp_4d_recursive(pti, db, C)
-    integer(iintegers),parameter :: Ndim=4
-    real(irealLUT),intent(in) :: pti(Ndim), db(:,:,:,:,:)
-    real(irealLUT),intent(out) :: C(:)
+    integer(iintegers), parameter :: Ndim = 4
+    real(irealLUT), intent(in) :: pti(Ndim), db(:, :, :, :, :)
+    real(irealLUT), intent(out) :: C(:)
 
-    integer(iintegers) :: indices(Ndim,2**Ndim),fpti(Ndim)
+    integer(iintegers) :: indices(Ndim, 2**Ndim), fpti(Ndim)
     real(irealLUT) :: weights(Ndim)
-    real(irealLUT) :: bound_vals(size(C),2**Ndim)
-    integer(iintegers) :: i,d
+    real(irealLUT) :: bound_vals(size(C), 2**Ndim)
+    integer(iintegers) :: i, d
 
     ! First determine the array indices, where to look.
     fpti = floor(pti)
     weights = modulo(pti, one)
 
-    do i=1,2**Ndim
-      indices(:,i) = permu4d(:,i) + fpti
-    enddo
+    do i = 1, 2**Ndim
+      indices(:, i) = permu4d(:, i) + fpti
+    end do
     ! Make sure we dont recall a value outside of array dimensions
-    do d=1,Ndim
-      indices(d,:) = max( i1, min( ubound(db,d+i1, iintegers), indices(d,:) ) )
-    enddo
+    do d = 1, Ndim
+      indices(d, :) = max(i1, min(ubound(db, d + i1, iintegers), indices(d, :)))
+    end do
 
     ! Then get the corner values of hypercube
-    do i=1,2**Ndim
-      bound_vals(:,i) = db(:, indices(1,i),indices(2,i),indices(3,i),indices(4,i) )
-    enddo
+    do i = 1, 2**Ndim
+      bound_vals(:, i) = db(:, indices(1, i), indices(2, i), indices(3, i), indices(4, i))
+    end do
 
     ! And plug bound_vals and weights into recursive interpolation...
-    call interpn(Ndim,bound_vals,weights,i1, C)
+    call interpn(Ndim, bound_vals, weights, i1, C)
   end subroutine
 
   ! http://www.hpl.hp.com/techreports/2002/HPL-2002-320.pdf
   subroutine interp_vec_simplex_nd(pti, db, db_offsets, Cres)
-    real(irealLUT),intent(in) :: pti(:) ! weigths/indices in the respective unraveled db, dim(Ndimensions)
-    real(irealLUT),intent(in) :: db(:,:) ! first dimension is the vector dimension, ie if just one scalar should be interpolated, call it with shape [1, ravel(db)]
-    integer(iintegers),intent(in) :: db_offsets(:) ! offsets of the db dim(Ndimensions)
-    real(irealLUT),intent(out) :: Cres(:) ! output, has the dimension(size(db,dim=1))
+    real(irealLUT), intent(in) :: pti(:) ! weigths/indices in the respective unraveled db, dim(Ndimensions)
+    real(irealLUT), intent(in) :: db(:, :) ! first dimension is the vector dimension, ie if just one scalar should be interpolated, call it with shape [1, ravel(db)]
+    integer(iintegers), intent(in) :: db_offsets(:) ! offsets of the db dim(Ndimensions)
+    real(irealLUT), intent(out) :: Cres(:) ! output, has the dimension(size(db,dim=1))
 
     integer(iintegers), allocatable :: nd_indices(:)
 
-    if(ldebug) then
-      allocate(nd_indices(size(pti)))
+    if (ldebug) then
+      allocate (nd_indices(size(pti)))
       call ind_1d_to_nd(db_offsets, size(db, dim=2, kind=iintegers), nd_indices)
-      if(any(pti.lt.one).or.any(pti.gt.real(nd_indices, irealLUT))) then
-        print *,'db dimensions', nd_indices
-        print *,'pti', pti
+      if (any(pti .lt. one) .or. any(pti .gt. real(nd_indices, irealLUT))) then
+        print *, 'db dimensions', nd_indices
+        print *, 'pti', pti
         call CHKERR(1_mpiint, 'called with pti that does not fit database dimensions')
-      endif
-    endif
+      end if
+    end if
 
     call interp_vec_bilinear_recursive(pti, db, db_offsets, Cres)
   end subroutine
 
   pure subroutine interp_vec_simplex_1d(pti, interp_dim, db, db_offsets, Cres)
-    real(irealLUT),intent(in) :: pti(:) ! weigths/indices in the respective unraveled db dim(Ndimensions)
-    integer(iintegers),intent(in) :: interp_dim ! dimension in which the 1D interpolation should happen
-    real(irealLUT),intent(in) :: db(:,:) ! first dimension is the vector dimension, ie if just one scalar should be interpolated, call it with shape [1, ravel(db)]
-    integer(iintegers),intent(in) :: db_offsets(:) ! offsets of the db dim(Ndimensions)
-    real(irealLUT),intent(out) :: Cres(:) ! output, has the dimension(size(db,dim=1))
+    real(irealLUT), intent(in) :: pti(:) ! weigths/indices in the respective unraveled db dim(Ndimensions)
+    integer(iintegers), intent(in) :: interp_dim ! dimension in which the 1D interpolation should happen
+    real(irealLUT), intent(in) :: db(:, :) ! first dimension is the vector dimension, ie if just one scalar should be interpolated, call it with shape [1, ravel(db)]
+    integer(iintegers), intent(in) :: db_offsets(:) ! offsets of the db dim(Ndimensions)
+    real(irealLUT), intent(out) :: Cres(:) ! output, has the dimension(size(db,dim=1))
 
     real(irealLUT) :: A, B, wgt
     integer(iintegers) :: nd_indices(size(db_offsets)), indA, indB
@@ -290,180 +290,179 @@ contains
     nd_indices(interp_dim) = nint(B)
     indB = ind_nd_to_1d(db_offsets, nd_indices)
 
-    Cres = spline(wgt, db(:,indA), db(:,indB)) ! (one-wgt) * db(:,indA) + wgt * db(:,indB)
+    Cres = spline(wgt, db(:, indA), db(:, indB)) ! (one-wgt) * db(:,indA) + wgt * db(:,indB)
   end subroutine
 
   subroutine interp_vec_simplex_2d(pti, interp_dims, db, db_offsets, Cres)
-    use m_helper_functions, only : distance, triangle_area_by_vertices
-    real(irealLUT),intent(in) :: pti(:) ! weigths/indices in the respective unraveled db, dim(Ndimensions)
-    integer(iintegers),intent(in) :: interp_dims(:) ! dimensions in which the interpolation should happen
-    real(irealLUT),intent(in) :: db(:,:) ! first dimension is the vector dimension, ie if just one scalar should be interpolated, call it with shape [1, ravel(db)]
-    integer(iintegers),intent(in) :: db_offsets(:) ! offsets of the db dim(Ndimensions)
-    real(irealLUT),intent(out) :: Cres(:) ! output, has the dimension(size(db,dim=1))
-    real(irealLUT), dimension(2,5) :: points ! i.e. A, B, C, D, P
+    use m_helper_functions, only: distance, triangle_area_by_vertices
+    real(irealLUT), intent(in) :: pti(:) ! weigths/indices in the respective unraveled db, dim(Ndimensions)
+    integer(iintegers), intent(in) :: interp_dims(:) ! dimensions in which the interpolation should happen
+    real(irealLUT), intent(in) :: db(:, :) ! first dimension is the vector dimension, ie if just one scalar should be interpolated, call it with shape [1, ravel(db)]
+    integer(iintegers), intent(in) :: db_offsets(:) ! offsets of the db dim(Ndimensions)
+    real(irealLUT), intent(out) :: Cres(:) ! output, has the dimension(size(db,dim=1))
+    real(irealLUT), dimension(2, 5) :: points ! i.e. A, B, C, D, P
 
     integer(iintegers) :: i, ipnt
     integer(iintegers) :: nd_indices(size(pti))
-    real(irealLUT) :: wgt_1d, interp_values(size(db,dim=1),3), interp_areas(4)
+    real(irealLUT) :: wgt_1d, interp_values(size(db, dim=1), 3), interp_areas(4)
 
-    associate( A => points(:,1), &
-        B => points(:,2), &
-        C => points(:,3), &
-        D => points(:,4), &
-        P => points(:,5) )
+    associate (A => points(:, 1), &
+               B => points(:, 2), &
+               C => points(:, 3), &
+               D => points(:, 4), &
+               P => points(:, 5))
 
       P = [pti(interp_dims(1)), pti(interp_dims(2))]
 
-      A = [floor  (P(1)), floor  (P(2))]
-      B = [ceiling(P(1)), floor  (P(2))]
-      C = [floor  (P(1)), ceiling(P(2))]
+      A = [floor(P(1)), floor(P(2))]
+      B = [ceiling(P(1)), floor(P(2))]
+      C = [floor(P(1)), ceiling(P(2))]
       D = [ceiling(P(1)), ceiling(P(2))]
 
       nd_indices = nint(pti, iintegers)
 
-      if(pnt_in_triangle(B,C,D,P)) then
+      if (pnt_in_triangle(B, C, D, P)) then
         A = D
-      endif
+      end if
 
       do ipnt = 1, 3
-        nd_indices(interp_dims) = nint(points(:,ipnt))
-        interp_values(:,ipnt) = db(:, ind_nd_to_1d(db_offsets, nd_indices))
-        interp_areas(ipnt) = triangle_area_by_vertices(  &
-                points(:, modulo(ipnt,3_iintegers)+1  ), &
-                points(:, modulo(ipnt+1,3_iintegers)+1), P)
-      enddo
+        nd_indices(interp_dims) = nint(points(:, ipnt))
+        interp_values(:, ipnt) = db(:, ind_nd_to_1d(db_offsets, nd_indices))
+        interp_areas(ipnt) = triangle_area_by_vertices( &
+                             points(:, modulo(ipnt, 3_iintegers) + 1), &
+                             points(:, modulo(ipnt + 1, 3_iintegers) + 1), P)
+      end do
       do ipnt = 1, 3
         ! if the point lies on the newly made up line, quick exit with 1D interpolation
-        if(approx(interp_areas(ipnt), 0._irealLUT, 10*sqrt(epsilon(0._irealLUT)))) then
-          associate( p1 => modulo(ipnt,3_iintegers)+1, p2 => modulo(ipnt+1,3_iintegers)+1 )
+        if (approx(interp_areas(ipnt), 0._ireallut, 10 * sqrt(epsilon(0._ireallut)))) then
+          associate (p1 => modulo(ipnt, 3_iintegers) + 1, p2 => modulo(ipnt + 1, 3_iintegers) + 1)
             wgt_1d = interp_areas(p2) / (interp_areas(p1) + interp_areas(p2))
-            Cres = spline(wgt_1d, interp_values(:,p1), interp_values(:,p2))
+            Cres = spline(wgt_1d, interp_values(:, p1), interp_values(:, p2))
           end associate
           return
-        endif
-      enddo
+        end if
+      end do
 
-      interp_areas(4) = triangle_area_by_vertices(A,B,C)
+      interp_areas(4) = triangle_area_by_vertices(A, B, C)
 
-      if(sum(interp_areas(1:3))-10*sqrt(epsilon(one)).ge.interp_areas(4)) then
-        print *,'interp values', int(interp_values), 'areas', interp_areas, &
-          '->', sum(interp_areas(1:3))-sqrt(epsilon(one)*10)
+      if (sum(interp_areas(1:3)) - 10 * sqrt(epsilon(one)) .ge. interp_areas(4)) then
+        print *, 'interp values', int(interp_values), 'areas', interp_areas, &
+          '->', sum(interp_areas(1:3)) - sqrt(epsilon(one) * 10)
         call CHKERR(1_mpiint, 'whoops, inner triangle areas are bigger than total. This means we`ve done something wrong')
-      endif
+      end if
 
       do i = 1, size(db, dim=1)
-        Cres(i) = dot_product(interp_values(i,:), interp_areas(1:3)) / interp_areas(4)
-      enddo
+        Cres(i) = dot_product(interp_values(i, :), interp_areas(1:3)) / interp_areas(4)
+      end do
     end associate
   end subroutine
 
   recursive pure subroutine interp_vec_bilinear_recursive(pti, db, db_offsets, Cres)
-    real(irealLUT),intent(in) :: pti(:) ! weigths/indices in the respective unraveled db, dim(Ndimensions)
-    real(irealLUT),intent(in) :: db(:,:) ! first dimension is the vector dimension, ie if just one scalar should be interpolated, call it with shape [1, ravel(db)]
-    integer(iintegers),intent(in) :: db_offsets(:) ! offsets of the db dim(Ndimensions)
-    real(irealLUT),intent(out) :: Cres(:) ! output, has the dimension(size(db,dim=1))
+    real(irealLUT), intent(in) :: pti(:) ! weigths/indices in the respective unraveled db, dim(Ndimensions)
+    real(irealLUT), intent(in) :: db(:, :) ! first dimension is the vector dimension, ie if just one scalar should be interpolated, call it with shape [1, ravel(db)]
+    integer(iintegers), intent(in) :: db_offsets(:) ! offsets of the db dim(Ndimensions)
+    real(irealLUT), intent(out) :: Cres(:) ! output, has the dimension(size(db,dim=1))
     Cres = 0
     call interp_vec_bilinear_recursive_(size(pti, kind=iintegers), pti, &
-      db, db_offsets, 1_iintegers, 1._irealLUT, Cres)
+                                        db, db_offsets, 1_iintegers, 1._ireallut, Cres)
   end subroutine
 
   recursive pure subroutine interp_vec_bilinear_recursive_(Ndim, pti, db, db_offsets, ofs, weight, Cres)
-    integer(iintegers),intent(in) :: Ndim ! Number of dimensions that still need interpolation
-    real(irealLUT),intent(in) :: pti(:) ! weigths/indices in the respective unraveled db, dim(Ndimensions)
-    real(irealLUT),intent(in) :: db(:,:) ! first dimension is the vector dimension, ie if just one scalar should be interpolated, call it with shape [1, ravel(db)]
-    integer(iintegers),intent(in) :: db_offsets(:) ! offsets of the db dim(Ndimensions)
-    integer(iintegers),intent(in) :: ofs ! current database offset, in the end, will give raveled index
+    integer(iintegers), intent(in) :: Ndim ! Number of dimensions that still need interpolation
+    real(irealLUT), intent(in) :: pti(:) ! weigths/indices in the respective unraveled db, dim(Ndimensions)
+    real(irealLUT), intent(in) :: db(:, :) ! first dimension is the vector dimension, ie if just one scalar should be interpolated, call it with shape [1, ravel(db)]
+    integer(iintegers), intent(in) :: db_offsets(:) ! offsets of the db dim(Ndimensions)
+    integer(iintegers), intent(in) :: ofs ! current database offset, in the end, will give raveled index
     real(irealLUT), intent(in) :: weight
-    real(irealLUT),intent(out) :: Cres(:) ! output, has the dimension(size(db,dim=1))
+    real(irealLUT), intent(out) :: Cres(:) ! output, has the dimension(size(db,dim=1))
     integer(iintegers) :: ind
 
     real(irealLUT) :: wgt_1d
 
-    if(Ndim.eq.0) then
-      do ind=1,size(db, dim=1)
-        Cres(ind) = Cres(ind) + weight * db(ind,ofs)
-      enddo
+    if (Ndim .eq. 0) then
+      do ind = 1, size(db, dim=1)
+        Cres(ind) = Cres(ind) + weight * db(ind, ofs)
+      end do
       return
-    endif
+    end if
 
-    if(dim_needs_interpolation(pti(Ndim))) then
+    if (dim_needs_interpolation(pti(Ndim))) then
       ind = int(pti(Ndim))
       wgt_1d = pti(Ndim) - real(ind, irealLUT) ! === modulo(pti(Ndim), one)
-      call interp_vec_bilinear_recursive_(Ndim-1, pti, &
-        db, db_offsets, ofs + db_offsets(Ndim) * (ind-1), weight * (one-wgt_1d), Cres)
-      call interp_vec_bilinear_recursive_(Ndim-1, pti, &
-        db, db_offsets, ofs + db_offsets(Ndim) * ind, weight * wgt_1d, Cres)
+      call interp_vec_bilinear_recursive_(Ndim - 1, pti, &
+                                          db, db_offsets, ofs + db_offsets(Ndim) * (ind - 1), weight * (one - wgt_1d), Cres)
+      call interp_vec_bilinear_recursive_(Ndim - 1, pti, &
+                                          db, db_offsets, ofs + db_offsets(Ndim) * ind, weight * wgt_1d, Cres)
     else ! snap to nearest val
-      call interp_vec_bilinear_recursive_(Ndim-1, pti, &
-        db, db_offsets, ofs + db_offsets(Ndim) * (nint(pti(Ndim))-1), weight, Cres)
-    endif
+      call interp_vec_bilinear_recursive_(Ndim - 1, pti, &
+                                          db, db_offsets, ofs + db_offsets(Ndim) * (nint(pti(Ndim)) - 1), weight, Cres)
+    end if
   end subroutine
 
   recursive subroutine interp_vec_simplex_recursive(Ndim, pti, interp_dims, db, db_offsets, Cres)
-    use m_helper_functions, only : distance, triangle_area_by_vertices
-    integer(iintegers),intent(in) :: Ndim
-    real(irealLUT),intent(in) :: pti(:) ! weigths/indices in the respective unraveled db, dim(Ndimensions)
-    integer(iintegers),intent(in) :: interp_dims(:) ! dimensions in which the interpolation should happen
-    real(irealLUT),intent(in) :: db(:,:) ! first dimension is the vector dimension, ie if just one scalar should be interpolated, call it with shape [1, ravel(db)]
-    integer(iintegers),intent(in) :: db_offsets(:) ! offsets of the db dim(Ndimensions)
-    real(irealLUT),intent(out) :: Cres(:) ! output, has the dimension(size(db,dim=1))
+    use m_helper_functions, only: distance, triangle_area_by_vertices
+    integer(iintegers), intent(in) :: Ndim
+    real(irealLUT), intent(in) :: pti(:) ! weigths/indices in the respective unraveled db, dim(Ndimensions)
+    integer(iintegers), intent(in) :: interp_dims(:) ! dimensions in which the interpolation should happen
+    real(irealLUT), intent(in) :: db(:, :) ! first dimension is the vector dimension, ie if just one scalar should be interpolated, call it with shape [1, ravel(db)]
+    integer(iintegers), intent(in) :: db_offsets(:) ! offsets of the db dim(Ndimensions)
+    real(irealLUT), intent(out) :: Cres(:) ! output, has the dimension(size(db,dim=1))
 
     integer(iintegers) :: Ninterpdim
-    real(irealLUT) :: pti_intermediate(size(pti)), db_intermediate(size(db,dim=1), 2), wgt_1d
+    real(irealLUT) :: pti_intermediate(size(pti)), db_intermediate(size(db, dim=1), 2), wgt_1d
 
-    Ninterpdim=size(interp_dims)
+    Ninterpdim = size(interp_dims)
     ! Interpolate first two dimensions with simplex and then one 1d interpolation
 
     ! Simplex:
     pti_intermediate = pti
     pti_intermediate(interp_dims(Ninterpdim)) = floor(pti(interp_dims(Ninterpdim)))
     select case (Ndim)
-    case(2)
+    case (2)
       call interp_vec_simplex_1d(pti_intermediate, interp_dims(1), &
-              db, db_offsets, db_intermediate(:,1))
-    case(3)
-      call interp_vec_simplex_2d(pti_intermediate, interp_dims(1:Ninterpdim-1), &
-              db, db_offsets, db_intermediate(:,1))
-    case(4,5,6,7)
-      call interp_vec_simplex_recursive(Ndim-1, pti_intermediate, interp_dims(1:Ninterpdim-1), &
-              db, db_offsets, db_intermediate(:,1))
+                                 db, db_offsets, db_intermediate(:, 1))
+    case (3)
+      call interp_vec_simplex_2d(pti_intermediate, interp_dims(1:Ninterpdim - 1), &
+                                 db, db_offsets, db_intermediate(:, 1))
+    case (4, 5, 6, 7)
+      call interp_vec_simplex_recursive(Ndim - 1, pti_intermediate, interp_dims(1:Ninterpdim - 1), &
+                                        db, db_offsets, db_intermediate(:, 1))
     case default
       call CHKERR(1_mpiint, 'interp_vec_simplex_recursive not implemented for '// &
-              toStr(size(interp_dims, kind=iintegers))//' dimensions')
+                  toStr(size(interp_dims, kind=iintegers))//' dimensions')
     end select
 
     pti_intermediate(interp_dims(Ninterpdim)) = ceiling(pti(interp_dims(Ninterpdim)))
     select case (Ndim)
-    case(2)
+    case (2)
       call interp_vec_simplex_1d(pti_intermediate, interp_dims(1), &
-              db, db_offsets, db_intermediate(:,2))
-    case(3)
-      call interp_vec_simplex_2d(pti_intermediate, interp_dims(1:Ninterpdim-1), &
-              db, db_offsets, db_intermediate(:,2))
-    case(4,5,6,7)
-      call interp_vec_simplex_recursive(Ndim-1, pti_intermediate, interp_dims(1:Ninterpdim-1), &
-              db, db_offsets, db_intermediate(:,2))
+                                 db, db_offsets, db_intermediate(:, 2))
+    case (3)
+      call interp_vec_simplex_2d(pti_intermediate, interp_dims(1:Ninterpdim - 1), &
+                                 db, db_offsets, db_intermediate(:, 2))
+    case (4, 5, 6, 7)
+      call interp_vec_simplex_recursive(Ndim - 1, pti_intermediate, interp_dims(1:Ninterpdim - 1), &
+                                        db, db_offsets, db_intermediate(:, 2))
     case default
       call CHKERR(1_mpiint, 'interp_vec_simplex_recursive not implemented for '// &
-              toStr(size(interp_dims, kind=iintegers))//' dimensions')
+                  toStr(size(interp_dims, kind=iintegers))//' dimensions')
     end select
 
     wgt_1d = modulo(pti(interp_dims(Ninterpdim)), one)
-    Cres = spline(wgt_1d, db_intermediate(:,1), db_intermediate(:,2))
+    Cres = spline(wgt_1d, db_intermediate(:, 1), db_intermediate(:, 2))
   end subroutine
 
   elemental function dim_needs_interpolation(pti)
-    real(irealLUT),intent(in) :: pti
+    real(irealLUT), intent(in) :: pti
     logical :: dim_needs_interpolation
-    if( pti - int(pti) .lt. interpolation_lattice_snapping ) then
-      dim_needs_interpolation = .False.
-    elseif(pti - int(pti) .gt. 1._irealLUT - interpolation_lattice_snapping) then
-      dim_needs_interpolation = .False.
+    if (pti - int(pti) .lt. interpolation_lattice_snapping) then
+      dim_needs_interpolation = .false.
+    elseif (pti - int(pti) .gt. 1._ireallut - interpolation_lattice_snapping) then
+      dim_needs_interpolation = .false.
     else
-      dim_needs_interpolation = .True.
-    endif
+      dim_needs_interpolation = .true.
+    end if
   end function
-
 
 end module
 

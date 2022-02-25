@@ -23,21 +23,21 @@
 !----------------------------------------------------------------------------
 
 module m_ts_nca
-  use m_data_parameters, only : ireals, iintegers, zero
+  use m_data_parameters, only: ireals, iintegers, zero
   implicit none
 
   private
   public :: ts_nca
 
 contains
-  subroutine ts_nca (dx, dy, dz, B, kabs_3d, Edn, Eup, hr)
+  subroutine ts_nca(dx, dy, dz, B, kabs_3d, Edn, Eup, hr)
 
     real(ireals), intent(in) :: dx, dy
-    real(ireals), intent(in), dimension(:,:,:) :: dz, kabs_3d   ! dimensions including ghost values (Nlevel,Nx,Ny)
-    real(ireals), intent(in), dimension(:,:,:) :: B,Edn,Eup     ! dimensions including ghost values (Nlevel,Nx,Ny)
-    real(ireals), intent(out),dimension(:,:,:) :: hr            ! dimensions including ghost values (Nlevel,Nx,Ny)
+    real(ireals), intent(in), dimension(:, :, :) :: dz, kabs_3d   ! dimensions including ghost values (Nlevel,Nx,Ny)
+    real(ireals), intent(in), dimension(:, :, :) :: B, Edn, Eup     ! dimensions including ghost values (Nlevel,Nx,Ny)
+    real(ireals), intent(out), dimension(:, :, :) :: hr            ! dimensions including ghost values (Nlevel,Nx,Ny)
 
-    hr = dz + kabs_3d + B + Edn + Eup * (dx+dy) ! remove compiler warnings
+    hr = dz + kabs_3d + B + Edn + Eup * (dx + dy) ! remove compiler warnings
 
     hr = -9999999
     stop 'NCA not freely available.... please consult Carolin Klinger for an implementation.'

@@ -80,12 +80,12 @@ module m_buildings
   end type
 
   integer(iintegers), parameter :: &
-    & PPRTS_TOP_FACE  =1, & ! z+0
-    & PPRTS_BOT_FACE  =2, & ! z+1
-    & PPRTS_LEFT_FACE =3, & ! x+0
-    & PPRTS_RIGHT_FACE=4, & ! x+1
-    & PPRTS_REAR_FACE =5, & ! y+0
-    & PPRTS_FRONT_FACE=6    ! y+1
+    & PPRTS_TOP_FACE = 1, & ! z+0
+    & PPRTS_BOT_FACE = 2, & ! z+1
+    & PPRTS_LEFT_FACE = 3, & ! x+0
+    & PPRTS_RIGHT_FACE = 4, & ! x+1
+    & PPRTS_REAR_FACE = 5, & ! y+0
+    & PPRTS_FRONT_FACE = 6    ! y+1
 
   interface destroy_buildings
     module procedure destroy_pprts_buildings
@@ -100,19 +100,19 @@ contains
     integer(iintegers), intent(in) :: Nfaces
     integer(mpiint), intent(out) :: ierr
     ierr = 0
-    if(allocated(buildings)) then
-      ierr = int(size(buildings%iface)-Nfaces, mpiint)
+    if (allocated(buildings)) then
+      ierr = int(size(buildings%iface) - Nfaces, mpiint)
       call CHKERR(ierr, 'buildings struct already allocated with different size ('//toStr(size(buildings%iface)))
-      ierr = int(size(buildings%da_offsets)-size(da_sizes), mpiint)
+      ierr = int(size(buildings%da_offsets) - size(da_sizes), mpiint)
       call CHKERR(ierr, 'buildings struct already allocated with different size of da_offsets '//&
         & ' '//toStr(size(buildings%da_offsets))//' vs '//toStr(size(da_sizes)))
     else
-      allocate(buildings)
-      allocate(buildings%iface_data)
-      allocate(buildings%iface_data%data(Nfaces))
-      allocate(buildings%da_offsets(size(da_sizes)))
-      allocate(buildings%albedo(Nfaces))
-    endif
+      allocate (buildings)
+      allocate (buildings%iface_data)
+      allocate (buildings%iface_data%data(Nfaces))
+      allocate (buildings%da_offsets(size(da_sizes)))
+      allocate (buildings%albedo(Nfaces))
+    end if
     buildings%iface_data%data = -1_iintegers
     buildings%albedo = -1._ireals
 
@@ -134,52 +134,51 @@ contains
     integer(mpiint), intent(out) :: ierr
     ierr = 0
 
-    if(allocated(buildings_clone)) then
-      ierr = int(size(buildings%iface)-size(buildings_clone%iface), mpiint)
+    if (allocated(buildings_clone)) then
+      ierr = int(size(buildings%iface) - size(buildings_clone%iface), mpiint)
       call CHKERR(ierr, 'clone already allocated but with a non-matching size faces'//&
-        & '(orig:'//toStr(size(buildings%iface))//'.vs.clone:'//toStr(size(buildings_clone%iface)) )
-      ierr = int(size(buildings%da_offsets)-size(buildings_clone%da_offsets), mpiint)
+        & '(orig:'//toStr(size(buildings%iface))//'.vs.clone:'//toStr(size(buildings_clone%iface)))
+      ierr = int(size(buildings%da_offsets) - size(buildings_clone%da_offsets), mpiint)
       call CHKERR(ierr, 'clone already allocated but with a non-matching size offsets'//&
         & ' '//toStr(size(buildings%da_offsets))//' vs '//toStr(size(buildings_clone%da_offsets)))
     else
-      allocate(buildings_clone)
-      if(allocated(buildings%da_offsets)) then
-        allocate(buildings_clone%da_offsets(size(buildings%da_offsets)), source=buildings%da_offsets)
-      endif
-    endif
+      allocate (buildings_clone)
+      if (allocated(buildings%da_offsets)) then
+        allocate (buildings_clone%da_offsets(size(buildings%da_offsets)), source=buildings%da_offsets)
+      end if
+    end if
 
-    associate( B => buildings, C => buildings_clone )
-      C%iface      => B%iface
+    associate (B => buildings, C => buildings_clone)
+      C%iface => B%iface
       C%iface_data => B%iface_data
-      C%iface_data%ref_count = C%iface_data%ref_count+1
+      C%iface_data%ref_count = C%iface_data%ref_count + 1
 
-      if(l_copy_data) then
+      if (l_copy_data) then
         !call copy_var(B%edir    , C%edir)
         !call copy_var(B%incoming, C%incoming)
         !call copy_var(B%outgoing, C%outgoing)
-        call copy_var(B%albedo  , C%albedo)
-        call copy_var(B%temp    , C%temp)
-        call copy_var(B%planck  , C%planck)
-      endif
+        call copy_var(B%albedo, C%albedo)
+        call copy_var(B%temp, C%temp)
+        call copy_var(B%planck, C%planck)
+      end if
     end associate
-    contains
-      subroutine copy_var(var_in, var_clone) ! allocate with same size of if already allocated, check that size matches
-        real(ireals), intent(in), allocatable :: var_in(:)
-        real(ireals), intent(inout), allocatable :: var_clone(:)
-        if(allocated(var_in)) then
-          if(.not.allocated(var_clone)) then
-            allocate(var_clone(size(var_in)))
-          else
-            call CHKERR(int(size(var_in)-size(var_clone), mpiint), &
-              & 'wrong size in clone ('//toStr(size(var_in))//'/'//toStr(size(var_clone))//')')
-          endif
-          var_clone = var_in
+  contains
+    subroutine copy_var(var_in, var_clone) ! allocate with same size of if already allocated, check that size matches
+      real(ireals), intent(in), allocatable :: var_in(:)
+      real(ireals), intent(inout), allocatable :: var_clone(:)
+      if (allocated(var_in)) then
+        if (.not. allocated(var_clone)) then
+          allocate (var_clone(size(var_in)))
         else
-          if(allocated(var_clone)) deallocate(var_clone)
-        endif
-      end subroutine
+          call CHKERR(int(size(var_in) - size(var_clone), mpiint), &
+            & 'wrong size in clone ('//toStr(size(var_in))//'/'//toStr(size(var_clone))//')')
+        end if
+        var_clone = var_in
+      else
+        if (allocated(var_clone)) deallocate (var_clone)
+      end if
+    end subroutine
   end subroutine
-
 
   !> @brief destroy a buildings struct
   !> @details deallocates memory in this buildings struct
@@ -189,18 +188,18 @@ contains
     integer(mpiint), intent(out) :: ierr
     ierr = 0
 
-    if(.not.allocated(buildings)) ierr = 1
+    if (.not. allocated(buildings)) ierr = 1
     call CHKERR(ierr, 'buildings not yet allocated')
 
-    associate( B => buildings )
+    associate (B => buildings)
 
-      nullify(B%iface)
-      B%iface_data%ref_count = B%iface_data%ref_count -1
+      nullify (B%iface)
+      B%iface_data%ref_count = B%iface_data%ref_count - 1
 
-      if(B%iface_data%ref_count.eq.0) then
-        deallocate(B%iface_data%data)
-        nullify(B%iface_data%data)
-      endif
+      if (B%iface_data%ref_count .eq. 0) then
+        deallocate (B%iface_data%data)
+        nullify (B%iface_data%data)
+      end if
 
       call deallocate_allocatable(B%da_offsets)
       call deallocate_allocatable(B%edir)
@@ -211,31 +210,31 @@ contains
       call deallocate_allocatable(B%temp)
       call deallocate_allocatable(B%planck)
     end associate
-    deallocate(buildings)
+    deallocate (buildings)
   end subroutine
   subroutine destroy_plex_buildings(buildings, ierr)
     type(t_plex_buildings), allocatable, intent(inout) :: buildings
     integer(mpiint), intent(out) :: ierr
     ierr = 0
 
-    if(.not.allocated(buildings)) ierr = 1
+    if (.not. allocated(buildings)) ierr = 1
     call CHKERR(ierr, 'buildings not yet allocated')
 
-    associate( B => buildings )
+    associate (B => buildings)
 
-      nullify(B%iface)
-      B%iface_data%ref_count = B%iface_data%ref_count -1
+      nullify (B%iface)
+      B%iface_data%ref_count = B%iface_data%ref_count - 1
 
-      if(B%iface_data%ref_count.eq.0) then
-        deallocate(B%iface_data%data)
-        nullify(B%iface_data%data)
-      endif
+      if (B%iface_data%ref_count .eq. 0) then
+        deallocate (B%iface_data%data)
+        nullify (B%iface_data%data)
+      end if
 
       call deallocate_allocatable(B%albedo)
       call deallocate_allocatable(B%temp)
       call deallocate_allocatable(B%planck)
     end associate
-    deallocate(buildings)
+    deallocate (buildings)
   end subroutine
 
   !> @brief: find face index in a pprts dmda
@@ -254,65 +253,64 @@ contains
     integer(iintegers) :: Nx, Ny, Nz ! domain size, i.e. cell count
     integer(mpiint), intent(out) :: ierr
 
-    logical, allocatable :: sides(:,:,:,:)
-    integer(iintegers) :: m, idx(4), i,j,k
+    logical, allocatable :: sides(:, :, :, :)
+    integer(iintegers) :: m, idx(4), i, j, k
 
     ierr = 0
 
-    call CHKERR(int(buildings%da_offsets(2)-6_iintegers, mpiint), &
+    call CHKERR(int(buildings%da_offsets(2) - 6_iintegers, mpiint), &
       & 'da_offsets(2) should be 6 as in 6 sides but found '//toStr(buildings%da_offsets(2)))
-    call CHKERR(int(buildings%da_offsets(3)-6*Nz, mpiint), &
+    call CHKERR(int(buildings%da_offsets(3) - 6 * Nz, mpiint), &
       & 'da_offsets(3) should be 6*Nz but found '//toStr(buildings%da_offsets(3))// &
-      & ' instead of '//toStr(Nz*6))
+      & ' instead of '//toStr(Nz * 6))
 
-    call CHKERR(int(buildings%da_offsets(4)-6*Nz*Nx, mpiint), &
+    call CHKERR(int(buildings%da_offsets(4) - 6 * Nz * Nx, mpiint), &
       & 'da_offsets(3) should be 6*Nz*Nx but found '//toStr(buildings%da_offsets(4))// &
-      & ' instead of '//toStr(6*Nz*Nx))
+      & ' instead of '//toStr(6 * Nz * Nx))
 
-    allocate(sides(6, Nz, Nx, Ny))
-    sides = .False.
+    allocate (sides(6, Nz, Nx, Ny))
+    sides = .false.
 
     do m = 1, size(buildings%iface)
       call ind_1d_to_nd(buildings%da_offsets, buildings%iface(m), idx)
-      associate(d => idx(1), k => idx(2), i => idx(3), j => idx(4))
-        sides(d,k,i,j) = .True.
+      associate (d => idx(1), k => idx(2), i => idx(3), j => idx(4))
+        sides(d, k, i, j) = .true.
       end associate
-    enddo
+    end do
 
     do j = 1, Ny
       do i = 1, Nx
         do k = 1, Nz
-          if(any(sides(:,k,i,j))) then
-            if(.not.all(sides(:,k,i,j))) then
+          if (any(sides(:, k, i, j))) then
+            if (.not. all(sides(:, k, i, j))) then
               ierr = ierr + 1
-              print *,'in cell k,i,j:', k,i,j, &
-                & ' we found an semi open box'// new_line('')// &
+              print *, 'in cell k,i,j:', k, i, j, &
+                & ' we found an semi open box'//new_line('')// &
                 & ' - this may work for direct radiation or rayli results'// &
                 & ' but diffuse radiation in the TenStream is probably wrong!', &
-                & ' sides:', sides(:,k,i,j)
-            endif
-          endif
-        enddo
-      enddo
-    enddo
+                & ' sides:', sides(:, k, i, j)
+            end if
+          end if
+        end do
+      end do
+    end do
   end subroutine
-
 
   function buildingid2str(bid) result(str)
     integer(iintegers), intent(in) :: bid
     character(len=16) :: str
-    select case(bid)
-    case(PPRTS_TOP_FACE)
+    select case (bid)
+    case (PPRTS_TOP_FACE)
       str = "PPRTS_TOP_FACE"
-    case(PPRTS_BOT_FACE)
+    case (PPRTS_BOT_FACE)
       str = "PPRTS_BOT_FACE"
-    case(PPRTS_LEFT_FACE)
+    case (PPRTS_LEFT_FACE)
       str = "PPRTS_LEFT_FACE"
-    case(PPRTS_RIGHT_FACE)
+    case (PPRTS_RIGHT_FACE)
       str = "PPRTS_RIGHT_FACE"
-    case(PPRTS_REAR_FACE )
+    case (PPRTS_REAR_FACE)
       str = "PPRTS_REAR_FACE"
-    case(PPRTS_FRONT_FACE)
+    case (PPRTS_FRONT_FACE)
       str = "PPRTS_FRONT_FACE"
     case default
       call CHKERR(1_mpiint, 'unknown building face_idx '//toStr(bid))

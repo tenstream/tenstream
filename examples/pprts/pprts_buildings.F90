@@ -1,18 +1,18 @@
 module m_examples_pprts_buildings
-  use m_data_parameters, only : &
+  use m_data_parameters, only: &
     & init_mpi_data_parameters, &
     & finalize_mpi, &
     & iintegers, ireals, mpiint, &
     & zero, one, pi, i1, i2, i6, default_str_len
 
-  use m_helper_functions, only : &
+  use m_helper_functions, only: &
     & CHKERR, &
     & toStr, cstr, &
     & spherical_2_cartesian, rotate_angle_z, &
     & meanval, &
     & is_inrange
 
-  use m_pprts, only : init_pprts, &
+  use m_pprts, only: init_pprts, &
     & set_optical_properties, solve_pprts, &
     & pprts_get_result, set_angles, &
     & gather_all_toZero
@@ -70,14 +70,14 @@ contains
     real(ireals), intent(in) :: incSolar           ! solar constant at TOA [W/m2]
     real(ireals), intent(in) :: phi0, theta0       ! sun azimuth(phi) and zenith(theta) angle
     real(ireals), intent(in) :: albedo, dtau, w0   ! surface albedo, vertically integrated optical depth and constant single scattering albedo
-    real(ireals), allocatable, dimension(:,:,:), intent(out) :: gedir, gedn, geup, gabso ! global arrays on rank 0
+    real(ireals), allocatable, dimension(:, :, :), intent(out) :: gedir, gedn, geup, gabso ! global arrays on rank 0
     type(t_pprts_buildings), allocatable, intent(inout) :: buildings
     character(len=*), intent(in), optional :: outfile ! output file to dump flux results
 
     real(ireals) :: dz1d(Nlay)
     real(ireals) :: sundir(3)
-    real(ireals),allocatable,dimension(:,:,:) :: kabs,ksca,g,plck
-    real(ireals),allocatable,dimension(:,:,:) :: fdir,fdn,fup,fdiv
+    real(ireals), allocatable, dimension(:, :, :) :: kabs, ksca, g, plck
+    real(ireals), allocatable, dimension(:, :, :) :: fdir, fdn, fup, fdiv
 
     class(t_solver), allocatable :: solver
     integer(iintegers) :: Nbuildings
@@ -98,88 +98,88 @@ contains
     call allocate_pprts_solver_from_commandline(solver, '3_10', ierr); call CHKERR(ierr)
 
     sundir = spherical_2_cartesian(phi0, theta0)
-    call init_pprts(comm, Nlay, Nx, Ny, dx,dy, sundir, solver, dz1d, collapseindex=icollapse)
+    call init_pprts(comm, Nlay, Nx, Ny, dx, dy, sundir, solver, dz1d, collapseindex=icollapse)
 
-    associate(Ca => solver%C_one_atm, C1 => solver%C_one)
-      allocate(kabs(Ca%zm  , Ca%xm, Ca%ym ))
-      allocate(ksca(Ca%zm  , Ca%xm, Ca%ym ))
-      allocate(g   (Ca%zm  , Ca%xm, Ca%ym ))
+    associate (Ca => solver%C_one_atm, C1 => solver%C_one)
+      allocate (kabs(Ca%zm, Ca%xm, Ca%ym))
+      allocate (ksca(Ca%zm, Ca%xm, Ca%ym))
+      allocate (g(Ca%zm, Ca%xm, Ca%ym))
 
-      if(lthermal) then
-        allocate(plck(Ca%zm+1, Ca%xm, Ca%ym ))
-        plck(:,:,:) = 0
-        plck(Ca%zm+1,:,:) = 0
-      endif
+      if (lthermal) then
+        allocate (plck(Ca%zm + 1, Ca%xm, Ca%ym))
+        plck(:, :, :) = 0
+        plck(Ca%zm + 1, :, :) = 0
+      end if
 
-      kabs = dtau*(one-w0)/dz/real(Nlay, ireals)
-      ksca = dtau*w0/dz/real(Nlay, ireals)
-      g    = zero
+      kabs = dtau * (one - w0) / dz / real(Nlay, ireals)
+      ksca = dtau * w0 / dz / real(Nlay, ireals)
+      g = zero
 
       box_k = glob_box_k - C1%zs
       box_i = glob_box_i - C1%xs
       box_j = glob_box_j - C1%ys
 
-      do i=-box_Ni+1, box_Ni-1
-        do j=-box_Nj+1, box_Nj-1
-          if(lverbose) print *, myid, 'Have box:', &
-            & i,j,':',&
-            & is_inrange(glob_box_i+i, C1%xs+1, C1%xe+1), &
-            & is_inrange(glob_box_j+j, C1%ys+1, C1%ye+1)
-        enddo
-      enddo
+      do i = -box_Ni + 1, box_Ni - 1
+        do j = -box_Nj + 1, box_Nj - 1
+          if (lverbose) print *, myid, 'Have box:', &
+            & i, j, ':',&
+            & is_inrange(glob_box_i + i, C1%xs + 1, C1%xe + 1), &
+            & is_inrange(glob_box_j + j, C1%ys + 1, C1%ye + 1)
+        end do
+      end do
 
-      lhave_box = .False.
+      lhave_box = .false.
       Nbuildings = 0
-      do i=-box_Ni+1, box_Ni-1
-        do j=-box_Nj+1, box_Nj-1
-          if( &
-            & is_inrange(glob_box_i+i, C1%xs+1, C1%xe+1).and. &
-            & is_inrange(glob_box_j+j, C1%ys+1, C1%ye+1)      ) then
+      do i = -box_Ni + 1, box_Ni - 1
+        do j = -box_Nj + 1, box_Nj - 1
+          if ( &
+            & is_inrange(glob_box_i + i, C1%xs + 1, C1%xe + 1) .and. &
+            & is_inrange(glob_box_j + j, C1%ys + 1, C1%ye + 1)) then
 
-            lhave_box = .True.
+            lhave_box = .true.
             Nbuildings = Nbuildings + 6 * box_Nk
-          endif
-        enddo
-      enddo
-      print *,myid,': Nbuildings',Nbuildings
+          end if
+        end do
+      end do
+      print *, myid, ': Nbuildings', Nbuildings
 
       call init_buildings(buildings, &
-        & [integer(iintegers) :: 6, C1%zm, C1%xm,  C1%ym], &
+        & [integer(iintegers) :: 6, C1%zm, C1%xm, C1%ym], &
         & Nbuildings, &
         & ierr); call CHKERR(ierr)
 
-      if(lthermal) allocate(buildings%planck(Nbuildings))
+      if (lthermal) allocate (buildings%planck(Nbuildings))
       building_idx = 1
-      do i=-box_Ni+1, box_Ni-1
-        do j=-box_Nj+1, box_Nj-1
-          if( &
-            & is_inrange(glob_box_i+i, C1%xs+1, C1%xe+1).and. &
-            & is_inrange(glob_box_j+j, C1%ys+1, C1%ye+1)      ) then
-            do k = 0, box_Nk-1
+      do i = -box_Ni + 1, box_Ni - 1
+        do j = -box_Nj + 1, box_Nj - 1
+          if ( &
+            & is_inrange(glob_box_i + i, C1%xs + 1, C1%xe + 1) .and. &
+            & is_inrange(glob_box_j + j, C1%ys + 1, C1%ye + 1)) then
+            do k = 0, box_Nk - 1
               do faceid = 1, 6
                 buildings%iface(building_idx) = faceidx_by_cell_plus_offset( &
                   & buildings%da_offsets, &
-                  & box_k-k, &
-                  & box_i+i, &
-                  & box_j+j, faceid)
+                  & box_k - k, &
+                  & box_i + i, &
+                  & box_j + j, faceid)
                 buildings%albedo(building_idx) = box_albedo
-                if(lthermal) buildings%planck(building_idx) = box_planck
+                if (lthermal) buildings%planck(building_idx) = box_planck
                 !print *, building_idx, 'building kij',box_k-k,box_i+i,box_j+j, faceid, &
                 !  & 'iface', buildings%iface(building_idx), 'albedo', buildings%albedo(building_idx)
-                building_idx = building_idx+1
-              enddo
-            enddo
-          endif
-        enddo
-      enddo
+                building_idx = building_idx + 1
+              end do
+            end do
+          end if
+        end do
+      end do
 
       call check_buildings_consistency(buildings, C1%zm, C1%xm, C1%ym, ierr); call CHKERR(ierr)
 
-      if(lthermal) then
+      if (lthermal) then
         call set_optical_properties(solver, albedo, kabs, ksca, g, plck)
       else
         call set_optical_properties(solver, albedo, kabs, ksca, g)
-      endif
+      end if
       call set_angles(solver, sundir)
 
       call solve_pprts(solver, &
@@ -190,106 +190,106 @@ contains
 
       call pprts_get_result(solver, fdn, fup, fdiv, fdir, opt_buildings=buildings)
 
-      if(lsolar) then
+      if (lsolar) then
         call gather_all_toZero(solver%C_one_atm1, fdir, gedir)
-      endif
+      end if
       call gather_all_toZero(solver%C_one_atm1, fdn, gedn)
       call gather_all_toZero(solver%C_one_atm1, fup, geup)
       call gather_all_toZero(solver%C_one_atm, fdiv, gabso)
 
-      if(myid.eq.0_mpiint.and.present(outfile)) then
+      if (myid .eq. 0_mpiint .and. present(outfile)) then
         groups(1) = trim(outfile)
-        if(lsolar) then
+        if (lsolar) then
           groups(2) = 'edir'; call ncwrite(groups, gedir, ierr); call CHKERR(ierr)
-        endif
-        groups(2) = 'edn' ; call ncwrite(groups, gedn , ierr); call CHKERR(ierr)
-        groups(2) = 'eup' ; call ncwrite(groups, geup , ierr); call CHKERR(ierr)
+        end if
+        groups(2) = 'edn'; call ncwrite(groups, gedn, ierr); call CHKERR(ierr)
+        groups(2) = 'eup'; call ncwrite(groups, geup, ierr); call CHKERR(ierr)
         groups(2) = 'abso'; call ncwrite(groups, gabso, ierr); call CHKERR(ierr)
-      endif
+      end if
 
-      if(lverbose .and. myid.eq.0) then
-        print *,'y-slice: i='//toStr(box_i)
+      if (lverbose .and. myid .eq. 0) then
+        print *, 'y-slice: i='//toStr(box_i)
         i = box_i
-        if(lsolar) then
-          do k = 1+solver%C_dir%zs, 1+solver%C_dir%ze
-            print *, k, cstr('edir'//toStr( gedir(k, i, :) ), 'red')
-          enddo
-        endif ! lsolar
-        do k = 1+solver%C_diff%zs, 1+solver%C_diff%ze
-          print *, k, cstr(' edn'//toStr( gedn(k, i, :) ), 'green')
-        enddo
-        do k = 1+solver%C_diff%zs, 1+solver%C_diff%ze
-          print *, k, cstr(' eup'//toStr( geup(k, i, :) ), 'blue')
-        enddo
-        do k = 1+solver%C_one%zs, 1+solver%C_one%ze
-          print *, k, cstr('abso'//toStr( gabso(k, i, :) ), 'purple')
-        enddo
+        if (lsolar) then
+          do k = 1 + solver%C_dir%zs, 1 + solver%C_dir%ze
+            print *, k, cstr('edir'//toStr(gedir(k, i, :)), 'red')
+          end do
+        end if ! lsolar
+        do k = 1 + solver%C_diff%zs, 1 + solver%C_diff%ze
+          print *, k, cstr(' edn'//toStr(gedn(k, i, :)), 'green')
+        end do
+        do k = 1 + solver%C_diff%zs, 1 + solver%C_diff%ze
+          print *, k, cstr(' eup'//toStr(geup(k, i, :)), 'blue')
+        end do
+        do k = 1 + solver%C_one%zs, 1 + solver%C_one%ze
+          print *, k, cstr('abso'//toStr(gabso(k, i, :)), 'purple')
+        end do
 
-        print *,''
-        print *,'x-slice: j='//toStr(box_j)
+        print *, ''
+        print *, 'x-slice: j='//toStr(box_j)
         i = box_j
-        if(lsolar) then
-          do k = 1+solver%C_dir%zs, 1+solver%C_dir%ze
-            print *, k, cstr('edir'//toStr( gedir(k, :, i) ), 'red')
-          enddo
-        endif
-        do k = 1+solver%C_diff%zs, 1+solver%C_diff%ze
-          print *, k, cstr(' edn'//toStr( gedn(k, :, i) ), 'green')
-        enddo
-        do k = 1+solver%C_diff%zs, 1+solver%C_diff%ze
-          print *, k, cstr(' eup'//toStr( geup(k, :, i) ), 'blue')
-        enddo
-        do k = 1+solver%C_one%zs, 1+solver%C_one%ze
-          print *, k, cstr('abso'//toStr( gabso(k, :, i) ), 'purple')
-        enddo
+        if (lsolar) then
+          do k = 1 + solver%C_dir%zs, 1 + solver%C_dir%ze
+            print *, k, cstr('edir'//toStr(gedir(k, :, i)), 'red')
+          end do
+        end if
+        do k = 1 + solver%C_diff%zs, 1 + solver%C_diff%ze
+          print *, k, cstr(' edn'//toStr(gedn(k, :, i)), 'green')
+        end do
+        do k = 1 + solver%C_diff%zs, 1 + solver%C_diff%ze
+          print *, k, cstr(' eup'//toStr(geup(k, :, i)), 'blue')
+        end do
+        do k = 1 + solver%C_one%zs, 1 + solver%C_one%ze
+          print *, k, cstr('abso'//toStr(gabso(k, :, i)), 'purple')
+        end do
 
-        print *,''
-        if(lsolar) then
-          do k = lbound(fdiv,1), ubound(fdiv, 1)
+        print *, ''
+        if (lsolar) then
+          do k = lbound(fdiv, 1), ubound(fdiv, 1)
             print *, k, 'mean ', &
-              & 'edir', meanval(gedir(k,:,:)), &
-              & 'edn' , meanval(gedn(k,:,:)), &
-              & 'eup' , meanval(geup(k,:,:)), &
-              & 'abso', meanval(gabso(k,:,:))
-          enddo
+              & 'edir', meanval(gedir(k, :, :)), &
+              & 'edn', meanval(gedn(k, :, :)), &
+              & 'eup', meanval(geup(k, :, :)), &
+              & 'abso', meanval(gabso(k, :, :))
+          end do
           k = ubound(fdir, 1)
           print *, k, 'mean ', &
-            & 'edir', meanval(gedir(k,:,:)), &
-            & 'edn' , meanval(gedn(k,:,:)), &
-            & 'eup' , meanval(geup(k,:,:))
+            & 'edir', meanval(gedir(k, :, :)), &
+            & 'edn', meanval(gedn(k, :, :)), &
+            & 'eup', meanval(geup(k, :, :))
         else
-          do k = lbound(fdiv,1), ubound(fdiv, 1)
+          do k = lbound(fdiv, 1), ubound(fdiv, 1)
             print *, k, &
               & 'mean ', &
-              & 'edn', meanval(gedn(k,:,:)), &
-              & 'eup', meanval(geup(k,:,:)), &
-              & 'abso', meanval(gabso(k,:,:))
-          enddo
+              & 'edn', meanval(gedn(k, :, :)), &
+              & 'eup', meanval(geup(k, :, :)), &
+              & 'abso', meanval(gabso(k, :, :))
+          end do
           k = ubound(fdir, 1)
           print *, k, 'mean ', &
-            & 'edn', meanval(gedn(k,:,:)), &
-            & 'eup', meanval(geup(k,:,:))
-        endif
-      endif
+            & 'edn', meanval(gedn(k, :, :)), &
+            & 'eup', meanval(geup(k, :, :))
+        end if
+      end if
     end associate
     call mpi_barrier(comm, ierr); call CHKERR(ierr)
 
-    if(lverbose .and. lhave_box) then
-      print *,''
-      if(allocated(buildings%edir)) then
-        do i=1, size(buildings%iface)
+    if (lverbose .and. lhave_box) then
+      print *, ''
+      if (allocated(buildings%edir)) then
+        do i = 1, size(buildings%iface)
           print *, 'building_face', i, 'edir', buildings%edir(i), &
             & 'in/out', buildings%incoming(i), buildings%outgoing(i)
-        enddo
+        end do
       else
-        do i=1, size(buildings%iface)
+        do i = 1, size(buildings%iface)
           print *, 'building_face', i, &
             & 'in/out', buildings%incoming(i), buildings%outgoing(i)
-        enddo
-      endif
-    endif
+        end do
+      end if
+    end if
 
-    call destroy_pprts(solver, .False.)
+    call destroy_pprts(solver, .false.)
   end subroutine
 
 end module
