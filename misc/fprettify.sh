@@ -16,7 +16,11 @@ echo "  -p, --parallel <ncpu>            set the number of parallel threads or w
 
 SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 PROJECT_ROOT=$(readlink -f "$SCRIPTDIR/../")
+ERRLOG=".fprettify.errlog"
+
 cd $PROJECT_ROOT
+rm -f $ERRLOG
+touch $ERRLOG
 
 PYTHON=$(which "python3")
 BIN=$PROJECT_ROOT/external/fprettify/fprettify.py
@@ -136,7 +140,7 @@ for f in $FILES
 do
   (
   if $VERBOSE ; then echo "prettify => $f"; fi
-  $PYTHON $BIN $OPT $f
+  $PYTHON $BIN $OPT $f &> >(tee -a $ERRLOG)
   ) &
   count=$(( $count + 1 ))
   if [ $count -eq $NCPU ]; then
@@ -146,3 +150,4 @@ do
 done
 wait
 if $VERBOSE; then echo done; fi
+exit $(wc -l < $ERRLOG)
