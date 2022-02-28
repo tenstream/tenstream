@@ -39,7 +39,11 @@ if(SYST)
 endif(SYST)
 
 ########################### Tenstream Project: ###################################
-project (tenstream C Fortran CXX)
+project (tenstream
+  LANGUAGES C Fortran CXX
+  HOMEPAGE_URL https://gitlab.com/jakubfabian/tenstream.git
+  DESCRIPTION  "Library to solve Radiative Transer for participating media"
+  VERSION 1.0 )
 enable_testing()
 
 set(CTEST_CMAKE_GENERATOR "Unix Makefiles")
@@ -206,7 +210,7 @@ message(STATUS "PETSc STATIC Libraries : ${PETSC_STATIC_LIBRARIES}")
 message(STATUS "PETSc STATIC LDFLAGS   : ${PETSC_STATIC_LDFLAGS}")
 include_directories(${PETSC_INCLUDEDIR})
 include_directories(${PETSC_INCLUDE_DIRS})
-list (APPEND EXTLIB ${PETSC_LIBNAME} ${PETSC_LDFLAGS} ${PETSC_LIBRARIES})
+list (APPEND EXTLIB ${PETSC_LIBNAME} ${PETSC_LDFLAGS})
 list (APPEND CMAKE_INSTALL_RPATH ${PETSC_LIBRARY_DIRS})
 find_library(PETSC_LIBNAME NAMES petsc petsc_real)
 get_filename_component(PETSC_LIBEXT ${PETSC_LIBNAME} EXT)
@@ -496,3 +500,11 @@ endif(DOXYGEN_FOUND)
 #foreach (_variableName ${_variableNames})
 #	message(STATUS "${_variableName}=${${_variableName}}")
 #endforeach()
+
+# create pkg-config files
+string(REPLACE ";" " " EXTLIB_SPLIT "${EXTLIB}")
+#set(pc_req_public "PETSc netcdf-fortran lapack") # would be nice but we dont want to fail if a lib is not in the PKG_CONFIG_PATH
+#set(pc_req_private "")
+CONFIGURE_FILE("pkgconfig/tenstream.pc.in" "pkgconfig/tenstream.pc" @ONLY)
+CONFIGURE_FILE("pkgconfig/tenstream.pc.in" "pkgconfig/TenStream.pc" @ONLY)
+install(DIRECTORY ${CMAKE_BINARY_DIR}/pkgconfig DESTINATION .)
