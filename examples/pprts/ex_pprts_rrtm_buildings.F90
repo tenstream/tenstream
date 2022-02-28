@@ -1,9 +1,9 @@
 program main
 #include "petsc/finclude/petsc.h"
   use petsc
-  use mpi, only : MPI_COMM_WORLD
+  use mpi, only: MPI_COMM_WORLD
 
-  use m_data_parameters, only : &
+  use m_data_parameters, only: &
     & iintegers, mpiint, ireals, default_str_len, &
     & init_mpi_data_parameters, finalize_mpi
   use m_buildings, only: t_pprts_buildings
@@ -20,7 +20,7 @@ program main
   real(ireals) :: dx, dy
   real(ireals) :: phi0, theta0
   real(ireals) :: Ag_solar, Ag_thermal
-  real(ireals),allocatable,dimension(:,:,:) :: gedir, gedn, geup, gabso ! global arrays on rank 0
+  real(ireals), allocatable, dimension(:, :, :) :: gedir, gedn, geup, gabso ! global arrays on rank 0
   type(t_pprts_buildings), allocatable :: buildings_solar, buildings_thermal
 
   character(len=10*default_str_len) :: rayli_options
@@ -33,36 +33,36 @@ program main
   call init_mpi_data_parameters(comm)
   call read_commandline_options(comm)
 
-  atm_filename='afglus_100m.dat'
+  atm_filename = 'afglus_100m.dat'
   call get_petsc_opt(PETSC_NULL_CHARACTER, '-atm', atm_filename, lflg, ierr); call CHKERR(ierr)
-  inquire( file=trim(atm_filename), exist=lfile_exists )
-  if(.not.lfile_exists) then
+  inquire (file=trim(atm_filename), exist=lfile_exists)
+  if (.not. lfile_exists) then
     ierr = 1
   else
     ierr = 0
-  endif
+  end if
   call CHKERR(ierr, 'background atmosphere file: `'//trim(atm_filename)//&
     & '` does not exist! Please provide a path with option -atm <atmfile>')
 
   call get_petsc_opt(PETSC_NULL_CHARACTER, '-out', outfile, lhave_outfile, ierr); call CHKERR(ierr)
 !  if(.not.lflg) call CHKERR(1_mpiint, 'need to supply a output filename... please call with -out <output.nc>')
 
-  lsolar = .True.
-  call get_petsc_opt(PETSC_NULL_CHARACTER, '-solar', lsolar, lflg, ierr) ; call CHKERR(ierr)
+  lsolar = .true.
+  call get_petsc_opt(PETSC_NULL_CHARACTER, '-solar', lsolar, lflg, ierr); call CHKERR(ierr)
 
-  lthermal = .True.
-  call get_petsc_opt(PETSC_NULL_CHARACTER, '-thermal', lthermal, lflg, ierr) ; call CHKERR(ierr)
+  lthermal = .true.
+  call get_petsc_opt(PETSC_NULL_CHARACTER, '-thermal', lthermal, lflg, ierr); call CHKERR(ierr)
 
-  Nx=5; Ny=5; Nlay=6
+  Nx = 5; Ny = 5; Nlay = 6
   call get_petsc_opt(PETSC_NULL_CHARACTER, "-Nx", Nx, lflg, ierr); call CHKERR(ierr)
   call get_petsc_opt(PETSC_NULL_CHARACTER, "-Ny", Ny, lflg, ierr); call CHKERR(ierr)
   call get_petsc_opt(PETSC_NULL_CHARACTER, "-Nz", Nlay, lflg, ierr); call CHKERR(ierr)
   icollapse = -1
   call get_petsc_opt(PETSC_NULL_CHARACTER, "-icollapse", icollapse, lflg, ierr); call CHKERR(ierr)
 
-  lbuildings = .True.
+  lbuildings = .true.
   call get_petsc_opt(PETSC_NULL_CHARACTER, '-buildings', &
-    lbuildings, lflg, ierr) ; call CHKERR(ierr)
+                     lbuildings, lflg, ierr); call CHKERR(ierr)
 
   buildings_albedo = .1_ireals
   call get_petsc_opt(PETSC_NULL_CHARACTER, "-BAg", buildings_albedo, lflg, ierr); call CHKERR(ierr)
@@ -80,38 +80,38 @@ program main
   theta0 = 0._ireals
   call get_petsc_opt(PETSC_NULL_CHARACTER, "-theta", theta0, lflg, ierr); call CHKERR(ierr)
 
-  Ag_solar=0.15_ireals
+  Ag_solar = 0.15_ireals
   call get_petsc_opt(PETSC_NULL_CHARACTER, "-Ag_solar", Ag_solar, lflg, ierr); call CHKERR(ierr)
 
-  Ag_thermal=0.05_ireals
+  Ag_thermal = 0.05_ireals
   call get_petsc_opt(PETSC_NULL_CHARACTER, "-Ag_thermal", Ag_thermal, lflg, ierr); call CHKERR(ierr)
 
-  lverbose = .True.
+  lverbose = .true.
   call get_petsc_opt(PETSC_NULL_CHARACTER, '-verbose', lverbose, lflg, ierr); call CHKERR(ierr)
 
-  lrayli_opts = .False.
+  lrayli_opts = .false.
   call get_petsc_opt(PETSC_NULL_CHARACTER, '-rayli_opts', lrayli_opts, lflg, ierr); call CHKERR(ierr)
 
-  if(lrayli_opts) then
-    rayli_options=''
-    rayli_options=trim(rayli_options)//' -pprts_use_rayli'
-    rayli_options=trim(rayli_options)//' -rayli_cyclic_bc'
-    rayli_options=trim(rayli_options)//' -show_rayli_dm3d hdf5:dm.h5'
+  if (lrayli_opts) then
+    rayli_options = ''
+    rayli_options = trim(rayli_options)//' -pprts_use_rayli'
+    rayli_options = trim(rayli_options)//' -rayli_cyclic_bc'
+    rayli_options = trim(rayli_options)//' -show_rayli_dm3d hdf5:dm.h5'
 
-    rayli_options=trim(rayli_options)//' -rayli_snapshot'
-    rayli_options=trim(rayli_options)//' -rayli_snap_Nx 1024'
-    rayli_options=trim(rayli_options)//' -rayli_snap_Ny 1024'
-    rayli_options=trim(rayli_options)//' -visit_image_zoom .75'
-    rayli_options=trim(rayli_options)//' -visit_parallel_scale 291.5'
-    rayli_options=trim(rayli_options)//' -visit_focus 300,300,0'
-    rayli_options=trim(rayli_options)//' -visit_view_normal -0.2811249083446944,-0.7353472951470268,0.6166304739697339'
-    rayli_options=trim(rayli_options)//' -visit_view_up 0.1878717450780742,0.5879401184069877,0.7867849925925738'
+    rayli_options = trim(rayli_options)//' -rayli_snapshot'
+    rayli_options = trim(rayli_options)//' -rayli_snap_Nx 1024'
+    rayli_options = trim(rayli_options)//' -rayli_snap_Ny 1024'
+    rayli_options = trim(rayli_options)//' -visit_image_zoom .75'
+    rayli_options = trim(rayli_options)//' -visit_parallel_scale 291.5'
+    rayli_options = trim(rayli_options)//' -visit_focus 300,300,0'
+    rayli_options = trim(rayli_options)//' -visit_view_normal -0.2811249083446944,-0.7353472951470268,0.6166304739697339'
+    rayli_options = trim(rayli_options)//' -visit_view_up 0.1878717450780742,0.5879401184069877,0.7867849925925738'
 
-    if(lverbose) print *,'Adding rayli Petsc Options:', trim(rayli_options)
+    if (lverbose) print *, 'Adding rayli Petsc Options:', trim(rayli_options)
     call PetscOptionsInsertString(PETSC_NULL_OPTIONS, trim(rayli_options), ierr); call CHKERR(ierr)
-  endif
+  end if
 
-  if(lbuildings) then
+  if (lbuildings) then
     call ex_pprts_rrtm_buildings(             &
       & comm, lverbose,                     &
       & lthermal, lsolar,                   &
@@ -123,7 +123,7 @@ program main
       & Ag_solar, Ag_thermal,               &
       & gedir, gedn, geup, gabso,           &
       & buildings_solar, buildings_thermal, &
-      & icollapse=icollapse )
+      & icollapse=icollapse)
   else
     call ex_pprts_rrtm_buildings(             &
       & comm, lverbose,                     &
@@ -135,41 +135,41 @@ program main
       & phi0, theta0,                       &
       & Ag_solar, Ag_thermal,               &
       & gedir, gedn, geup, gabso,           &
-      & icollapse=icollapse )
-  endif
+      & icollapse=icollapse)
+  end if
 
-    if(lhave_outfile) then
-      groups(1) = trim(outfile)
+  if (lhave_outfile) then
+    groups(1) = trim(outfile)
 
-      call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
-      if(myid.eq.0_mpiint) then
-        if(lsolar) then
-          groups(2) = 'edir'; call ncwrite(groups, gedir, ierr); call CHKERR(ierr)
-        endif
-        groups(2) = 'edn' ; call ncwrite(groups, gedn , ierr); call CHKERR(ierr)
-        groups(2) = 'eup' ; call ncwrite(groups, geup , ierr); call CHKERR(ierr)
-        groups(2) = 'abso'; call ncwrite(groups, gabso, ierr); call CHKERR(ierr)
-      endif
+    call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+    if (myid .eq. 0_mpiint) then
+      if (lsolar) then
+        groups(2) = 'edir'; call ncwrite(groups, gedir, ierr); call CHKERR(ierr)
+      end if
+      groups(2) = 'edn'; call ncwrite(groups, gedn, ierr); call CHKERR(ierr)
+      groups(2) = 'eup'; call ncwrite(groups, geup, ierr); call CHKERR(ierr)
+      groups(2) = 'abso'; call ncwrite(groups, gabso, ierr); call CHKERR(ierr)
+    end if
 
-      if(lbuildings) then
-        call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
-        do cid = 0, numnodes-1
-          if(cid.eq.myid) then
-            if(lsolar) then
-              associate(Bs => buildings_solar)
-                if(allocated(Bs%edir)) then
-                  groups(2) = 'rank'//toStr(myid)//'_buildings_edir'; call ncwrite(groups, Bs%edir, ierr); call CHKERR(ierr)
-                endif
-                groups(2) = 'rank'//toStr(myid)//'_buildings_incoming'; call ncwrite(groups, Bs%incoming, ierr); call CHKERR(ierr)
-                groups(2) = 'rank'//toStr(myid)//'_buildings_outgoing'; call ncwrite(groups, Bs%outgoing, ierr); call CHKERR(ierr)
-              end associate
-            endif
-          endif
-          call mpi_barrier(comm, ierr); call CHKERR(ierr)
-        enddo
+    if (lbuildings) then
+      call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
+      do cid = 0, numnodes - 1
+        if (cid .eq. myid) then
+          if (lsolar) then
+            associate (Bs => buildings_solar)
+              if (allocated(Bs%edir)) then
+                groups(2) = 'rank'//toStr(myid)//'_buildings_edir'; call ncwrite(groups, Bs%edir, ierr); call CHKERR(ierr)
+              end if
+              groups(2) = 'rank'//toStr(myid)//'_buildings_incoming'; call ncwrite(groups, Bs%incoming, ierr); call CHKERR(ierr)
+              groups(2) = 'rank'//toStr(myid)//'_buildings_outgoing'; call ncwrite(groups, Bs%outgoing, ierr); call CHKERR(ierr)
+            end associate
+          end if
+        end if
         call mpi_barrier(comm, ierr); call CHKERR(ierr)
-      endif
-    endif
+      end do
+      call mpi_barrier(comm, ierr); call CHKERR(ierr)
+    end if
+  end if
 
-  call finalize_mpi(ierr, .True., .True.)
+  call finalize_mpi(ierr, .true., .true.)
 end program

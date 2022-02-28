@@ -119,5 +119,5 @@ foreach ( stream ${streams} )
   GET_FILENAME_COMPONENT(fnameext "${stream}" EXT )
 
   add_executable("${basename}" "${basename}${fnameext}" )
-  target_link_libraries( "${basename}" pprts_base)
+  target_link_libraries( "${basename}" pprts_base ${EXTLIB})
 endforeach ()

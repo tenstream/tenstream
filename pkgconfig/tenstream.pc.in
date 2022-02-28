@@ -1,0 +1,21 @@
+prefix=@CMAKE_INSTALL_PREFIX@
+exec_prefix=${prefix}
+includedir=${prefix}/include
+libdir=${prefix}/lib
+ccompiler=@CMAKE_C_COMPILER@
+cflags_extra=
+cflags_dep=
+ldflag_rpath=
+cxxcompiler=@CMAKE_CXX_COMPILER@
+cxxflags_extra=
+fcompiler=@CMAKE_Fortran_COMPILER@
+fflags_extra=
+
+Name: @PROJECT_NAME@
+Description: @CMAKE_PROJECT_DESCRIPTION@
+Version: @PROJECT_VERSION@
+Requires: @pc_req_public@
+Requires.private: @pc_req_private@
+Cflags:   -I${includedir}
+Libs: -L${libdir} -ltenstream
+Libs.private: -L${libdir} -ltenstream @EXTLIB_SPLIT@

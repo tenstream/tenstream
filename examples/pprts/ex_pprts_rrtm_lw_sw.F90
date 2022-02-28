@@ -3,7 +3,7 @@ program main
   use petsc
   use mpi
   use m_tenstream_options, only: read_commandline_options
-  use m_data_parameters, only : iintegers, mpiint, ireals, default_str_len
+  use m_data_parameters, only: iintegers, mpiint, ireals, default_str_len
   use m_example_pprts_rrtm_lw_sw, only: ex_pprts_rrtm_lw_sw
   use m_helper_functions, only: CHKERR, get_petsc_opt, deallocate_allocatable
 
@@ -11,20 +11,20 @@ program main
 
   integer(mpiint) :: ierr, comm, myid
   integer(iintegers) :: Nx, Ny, Nz
-  real(ireals)       :: dx, dy, phi0, theta0, albedo_th, albedo_sol
+  real(ireals) :: dx, dy, phi0, theta0, albedo_th, albedo_sol
   character(len=default_str_len) :: atm_filename
   logical :: lthermal, lsolar, lflg
-  real(ireals), allocatable, dimension(:,:,:) :: fdir, fdn, fup, fdiv
+  real(ireals), allocatable, dimension(:, :, :) :: fdir, fdn, fup, fdiv
 
   comm = MPI_COMM_WORLD
   call mpi_init(ierr)
   call mpi_comm_rank(comm, myid, ierr)
 
-  call PetscInitialize(PETSC_NULL_CHARACTER ,ierr)
+  call PetscInitialize(PETSC_NULL_CHARACTER, ierr)
 
   call read_commandline_options(comm)
 
-  Nx=3; Ny=3; Nz=5
+  Nx = 3; Ny = 3; Nz = 5
   call get_petsc_opt(PETSC_NULL_CHARACTER, "-Nx", Nx, lflg, ierr); call CHKERR(ierr)
   call get_petsc_opt(PETSC_NULL_CHARACTER, "-Ny", Ny, lflg, ierr); call CHKERR(ierr)
   call get_petsc_opt(PETSC_NULL_CHARACTER, "-Nz", Nz, lflg, ierr); call CHKERR(ierr)
@@ -45,17 +45,16 @@ program main
   call get_petsc_opt(PETSC_NULL_CHARACTER, "-Ag", albedo_sol, lflg, ierr); call CHKERR(ierr)
   call get_petsc_opt(PETSC_NULL_CHARACTER, "-Ag_solar", albedo_sol, lflg, ierr); call CHKERR(ierr)
 
-  atm_filename='atm.dat'
+  atm_filename = 'atm.dat'
   call get_petsc_opt(PETSC_NULL_CHARACTER, '-atm', atm_filename, lflg, ierr); call CHKERR(ierr)
 
-  lthermal=.True.
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-thermal", lthermal, lflg,ierr) ; call CHKERR(ierr)
+  lthermal = .true.
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-thermal", lthermal, lflg, ierr); call CHKERR(ierr)
 
-  lsolar=.True.
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-solar", lsolar, lflg,ierr) ; call CHKERR(ierr)
+  lsolar = .true.
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-solar", lsolar, lflg, ierr); call CHKERR(ierr)
 
-
-  if (myid.eq.0) print *,'Running rrtm_lw_sw example with grid size:', Nx, Ny, Nz
+  if (myid .eq. 0) print *, 'Running rrtm_lw_sw example with grid size:', Nx, Ny, Nz
 
   call ex_pprts_rrtm_lw_sw(comm, &
     & Nx, Ny, Nz, dx, dy, &
