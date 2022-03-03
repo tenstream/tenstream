@@ -91,6 +91,8 @@ contains
     if (.not. allocated(solver)) &
       call CHKERR(1_mpiint, 'Should not call init_plex_rt_solver with an unallocated solver object')
 
+    lplexrt_skip_loadLUT = .false.
+
     select type (solver)
     class is (t_plex_solver_2str)
       solver%dirtop%dof = 1
@@ -102,6 +104,8 @@ contains
       solver%difftop%area_divider = 1
       solver%diffside%dof = 0
       solver%diffside%area_divider = 1
+
+      lplexrt_skip_loadLUT = .true.
 
     class is (t_plex_solver_5_8)
       allocate (t_optprop_wedge_5_8 :: solver%OPP)
@@ -152,7 +156,6 @@ contains
 
     call setup_log_events(solver%logs, 'plexrt')
 
-    lplexrt_skip_loadLUT = .false.
     call get_petsc_opt(PETSC_NULL_CHARACTER, "-plexrt_skip_loadLUT", lplexrt_skip_loadLUT, lflg, ierr); call CHKERR(ierr)
     if (.not. lplexrt_skip_loadLUT) call solver%OPP%init(plex%comm)
 
@@ -766,6 +769,10 @@ contains
         call CHKERR(1_mpiint, 'solver%plex%ediff_dm not allocated, should have happened in init_solver?')
       if (.not. allocated(solver%plex%abso_dm)) &
         call CHKERR(1_mpiint, 'solver%plex%abso_dm not allocated, should have happened in init_solver?')
+
+      if (lsolar .eqv. lthermal) &
+        call CHKERR(1_mpiint, 'lsolar and lthermal are the same ('//toStr(lsolar)//', '//toStr(lthermal)//') '// &
+        & ' but only one should be on. Computing both in one go may cause problems and is currently not recommended')
     end subroutine
     subroutine scale_optprop(kabs, ksca, g)
       type(tVec), intent(inout) :: kabs, ksca, g
