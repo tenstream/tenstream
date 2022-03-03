@@ -48,6 +48,7 @@ module m_f2c_pprts
     & destroy_pprts, &
     & t_coord, &
     & t_solver, &
+    & t_solver_2str, &
     & t_solver_1_2, &
     & t_solver_3_10, &
     & t_solver_3_16, &
@@ -139,6 +140,8 @@ contains
       ierr = 0
       if (allocated(pprts_solver)) then
         select type (pprts_solver)
+        class is (t_solver_2str)
+          if (solver_id .ne. SOLVER_ID_PPRTS_2STR) ierr = 1
         class is (t_solver_1_2)
           if (solver_id .ne. SOLVER_ID_PPRTS_1_2) ierr = 1
         class is (t_solver_3_6)
@@ -223,6 +226,9 @@ contains
 
     ierr = 1
     select case (solver_id)
+    case (SOLVER_ID_PPRTS_2STR)
+      allocate (t_solver_2str :: pprts_solver); ierr = 0
+      call init_pprts(comm, oNz, oNx, oNy, odx, ody, osundir, pprts_solver, dz1d=odz)
     case (SOLVER_ID_PPRTS_1_2)
       allocate (t_solver_1_2 :: pprts_solver); ierr = 0
       call init_pprts(comm, oNz, oNx, oNy, odx, ody, osundir, pprts_solver, dz1d=odz)
