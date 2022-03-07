@@ -326,6 +326,7 @@ if(ENABLE_ALL)
   set(ENABLE_PLEXRT ON CACHE BOOL "Enable PLEXRT" FORCE)
   set(ENABLE_PFUNIT ON CACHE BOOL "Enable PFUNIT" FORCE)
   set(ENABLE_RRTM   ON CACHE BOOL "Enable RRTM" FORCE)
+  set(ENABLE_REPWVL ON CACHE BOOL "Enable REPWVL" FORCE)
   set(ENABLE_C_WRAPPER ON CACHE BOOL "Enable C_WRAPPER" FORCE)
   set(ENABLE_EXAMPLES ON CACHE BOOL "Enable EXAMPLES" FORCE)
 endif(ENABLE_ALL)
@@ -363,6 +364,9 @@ if(ENABLE_PLEXRT)
 endif()
 if(ENABLE_RRTM)
   list(APPEND TENSTR_LIBS pprts_rrtm_sw pprts_rrtm_lw pprts_rrtmg)
+endif()
+if(ENABLE_REPWVL)
+  list(APPEND TENSTR_LIBS repwvl_pprts)
 endif()
 if(BUILD_RAYLI)
   list(APPEND TENSTR_LIBS ${RAYLI_LIBS})
@@ -410,6 +414,11 @@ if(ENABLE_RRTM)
 	add_subdirectory(rrtmg)
 endif(ENABLE_RRTM)
 
+option(ENABLE_REPWVL "Enable use of REPWVL" OFF)
+if(ENABLE_REPWVL)
+	add_subdirectory(repwvl)
+endif(ENABLE_REPWVL)
+
 option(ENABLE_EXAMPLES "Enable compilation of EXAMPLES" OFF)
 if(ENABLE_EXAMPLES)
 	add_subdirectory(examples)
@@ -439,6 +448,7 @@ if(CTAGS_PATH)
       ${CMAKE_CURRENT_SOURCE_DIR}/python
       ${CMAKE_CURRENT_SOURCE_DIR}/rayli_wrapper
       ${CMAKE_CURRENT_SOURCE_DIR}/rrtmg
+      ${CMAKE_CURRENT_SOURCE_DIR}/repwvl
       ${CMAKE_CURRENT_SOURCE_DIR}/src
       ${CMAKE_CURRENT_SOURCE_DIR}/tests
       ${CMAKE_CURRENT_SOURCE_DIR}/twomax
