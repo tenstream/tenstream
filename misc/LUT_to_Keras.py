@@ -198,7 +198,7 @@ def setup_keras_model(inp, trgt, ident,
         activation=output_act,
         kernel_initializer=kernel_init ))
 
-    opt = getattr(tf.keras.optimizers, optimizer)(lr=learning_rate)
+    opt = getattr(tf.keras.optimizers, optimizer)(learning_rate=learning_rate)
 
     model.compile(loss=custom_loss, optimizer=opt, metrics=[loss_mae, loss_mse, loss_rmse, loss_bias] )
 
