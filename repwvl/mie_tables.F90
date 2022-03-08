@@ -1,0 +1,155 @@
+!-------------------------------------------------------------------------
+! This file is part of the TenStream solver.
+!
+! This program is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by
+! the Free Software Foundation, either version 3 of the License, or
+! (at your option) any later version.
+!
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+!
+! You should have received a copy of the GNU General Public License
+! along with this program.  If not, see <http://www.gnu.org/licenses/>.
+!
+! Copyright (C) 2010-2015  Fabian Jakub, <fabian@jakub.com>
+!-------------------------------------------------------------------------
+
+module m_mie_tables
+#include "petsc/finclude/petsc.h"
+  use petsc
+  use mpi
+
+  use m_data_parameters, only: &
+    & default_str_len, &
+    & iintegers, &
+    & ireals, &
+    & mpiint
+
+  use m_helper_functions, only: &
+    & CHKERR, &
+    & get_arg, &
+    & get_petsc_opt, &
+    & imp_bcast, &
+    & toStr
+
+  use m_netcdfIO, only: ncload
+
+  implicit none
+
+  private
+  public :: init_mie_tables, water_table, ice_table
+
+  logical, parameter :: ldebug=.True.
+
+  type t_mie_table
+    real(ireals), allocatable :: wvl(:)
+    real(ireals), allocatable :: reff(:)
+    real(ireals), allocatable :: qext(:,:)
+    real(ireals), allocatable :: w0(:,:)
+    real(ireals), allocatable :: g(:,:)
+  end type
+
+  type(t_mie_table), allocatable :: water_table
+  type(t_mie_table), allocatable :: ice_table
+contains
+  subroutine load_data(fname, mie_table, ierr, lverbose)
+    character(len=*), intent(in) :: fname
+    integer(mpiint), intent(out) :: ierr
+    type(t_mie_table), allocatable, intent(inout) :: mie_table
+    logical, intent(in), optional :: lverbose
+
+    character(len=default_str_len) :: groups(2)
+
+    ierr = 0
+
+    if(allocated(mie_table)) return
+    allocate(mie_table)
+
+    groups(1) = trim(fname)
+    groups(2) = 'wvl'; call ncload(groups, mie_table%wvl, ierr, lverbose); call CHKERR(ierr)
+    groups(2) = 'reff'; call ncload(groups, mie_table%reff, ierr, lverbose); call CHKERR(ierr)
+    groups(2) = 'ext'; call ncload(groups, mie_table%qext, ierr, lverbose); call CHKERR(ierr)
+    groups(2) = 'ssa'; call ncload(groups, mie_table%w0, ierr, lverbose); call CHKERR(ierr)
+    groups(2) = 'g'; call ncload(groups, mie_table%g, ierr, lverbose); call CHKERR(ierr)
+
+    if(get_arg(.False., lverbose)) then
+      print *,'Loaded Mie table:'//new_line('')// &
+        & ' wvl '//toStr(mie_table%wvl)//new_line('')// &
+        & ' reff'//toStr(mie_table%reff)//new_line('')// &
+        & ' qext '//toStr(mie_table%qext)//new_line('')// &
+        & ' w0   '//toStr(mie_table%w0  )//new_line('')// &
+        & ' g    '//toStr(mie_table%g   )
+    endif
+  end subroutine
+
+  subroutine distribute_table(comm, mie_table, ierr)
+    integer(mpiint), intent(in) :: comm
+    type(t_mie_table), allocatable, intent(inout) :: mie_table
+    integer(mpiint), intent(out) :: ierr
+
+    if(.not.allocated(mie_table)) allocate(mie_table)
+    call imp_bcast(comm, mie_table%wvl, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, mie_table%reff, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, mie_table%qext, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, mie_table%w0, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, mie_table%g, ierr); call CHKERR(ierr)
+  end subroutine
+
+  subroutine init_mie_tables(comm, ierr, lverbose, path_water_table, path_ice_table)
+    integer(mpiint), intent(in) :: comm
+    integer(mpiint), intent(out) :: ierr
+    logical, intent(in), optional :: lverbose
+    character(len=*), intent(in), optional :: path_water_table, path_ice_table
+
+    integer(mpiint) :: myid
+
+    character(len=default_str_len), parameter :: default_water_path = "mie.wc.table.nc"
+    character(len=default_str_len), parameter :: default_ice_path   = "mie.ic.table.nc"
+
+    character(len=default_str_len) :: water_path
+    character(len=default_str_len) :: ice_path
+
+    logical :: lset, lexists
+
+    call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+
+    water_path = trim(get_arg(default_water_path, path_water_table))
+    ice_path = trim(get_arg(default_ice_path, path_ice_table))
+
+    call get_petsc_opt('', '-mie_wc', water_path, lset, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', '-mie_ic', ice_path, lset, ierr); call CHKERR(ierr)
+
+    inquire (file=trim(water_path), exist=lexists)
+    if(.not.lexists) then
+      call CHKERR(1_mpiint, "File at mie_table path "//toStr(water_path)// &
+        & " does not exist"//new_line('')// &
+        & " please make sure the file is at this location"// &
+        & " or specify a correct path with option"//new_line('')// &
+        & "   -mie_wc <path>" )
+    endif
+
+    inquire (file=trim(ice_path), exist=lexists)
+    if(.not.lexists) then
+      call CHKERR(1_mpiint, "File at mie_table path "//toStr(ice_path)// &
+        & " does not exist"//new_line('')// &
+        & " please make sure the file is at this location"// &
+        & " or specify a correct path with option"//new_line('')// &
+        & "   -mie_ic <path>" )
+    endif
+
+
+    if(myid.eq.0) then
+      if(.not.allocated(water_table)) then
+        call load_data(water_path, water_table, ierr, lverbose); call CHKERR(ierr)
+      endif
+      if(.not.allocated(ice_table)) then
+        call load_data(ice_path, ice_table, ierr, lverbose); call CHKERR(ierr)
+      endif
+    endif
+    call distribute_table(comm, water_table, ierr); call CHKERR(ierr)
+    call distribute_table(comm, ice_table, ierr); call CHKERR(ierr)
+  end subroutine
+end module
