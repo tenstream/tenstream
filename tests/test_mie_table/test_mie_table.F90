@@ -1,8 +1,8 @@
 module test_mie_table
 
-  use m_tenstream_options, only : read_commandline_options
+  use m_tenstream_options, only: read_commandline_options
 
-  use m_data_parameters, only : &
+  use m_data_parameters, only: &
     & finalize_mpi,             &
     & init_mpi_data_parameters, &
     & mpiint
@@ -15,35 +15,32 @@ module test_mie_table
 
 contains
 
-
   @before
   subroutine setup(this)
-  class (MpiTestMethod), intent(inout) :: this
+    class(MpiTestMethod), intent(inout) :: this
     integer(mpiint) :: comm
-    comm     = this%getMpiCommunicator()
+    comm = this%getMpiCommunicator()
     call init_mpi_data_parameters(comm)
     call read_commandline_options(comm)
   end subroutine setup
 
-
   @after
   subroutine teardown(this)
-  class (MpiTestMethod), intent(inout) :: this
+    class(MpiTestMethod), intent(inout) :: this
     integer(mpiint) :: comm
-    comm     = this%getMpiCommunicator()
-    call finalize_mpi(comm, lfinalize_mpi=.False., lfinalize_petsc=.True.)
+    comm = this%getMpiCommunicator()
+    call finalize_mpi(comm, lfinalize_mpi=.false., lfinalize_petsc=.true.)
   end subroutine teardown
-
 
   @test(npes = [1, 2])
   subroutine test_load(this)
-    class (MpiTestMethod), intent(inout) :: this
+    class(MpiTestMethod), intent(inout) :: this
     integer(mpiint) :: ierr
     integer(mpiint) :: comm
 
     comm = this%getMpiCommunicator()
 
-    call init_mie_tables(comm, ierr, lverbose=.True.)
+    call init_mie_tables(comm, ierr, lverbose=.true.)
     @assertEqual(0, ierr)
     @assertTrue(allocated(water_table), 'water_table is expected to be allocated')
     @assertTrue(allocated(water_table%wvl ), 'water_table%wvl  is expected to be allocated')
@@ -53,6 +50,5 @@ contains
     @assertTrue(allocated(water_table%g   ), 'water_table%g    is expected to be allocated')
     !@assertTrue(allocated(ice_table), 'ice_table is expected to be allocated')
   end subroutine
-
 
 end module
