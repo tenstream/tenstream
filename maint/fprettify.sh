@@ -46,6 +46,7 @@ FILES="\
   rrtmg/rrtmg/*.F90 \
   plexrt/*.F90 \
   c_wrapper/*.F90 \
+  tests/**/*.F90 \
   examples/**/*.F90 \
   "
 
