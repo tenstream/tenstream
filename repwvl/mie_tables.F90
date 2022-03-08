@@ -25,6 +25,7 @@ module m_mie_tables
   use m_data_parameters, only: &
     & default_str_len, &
     & iintegers, &
+    & irealLUT, &
     & ireals, &
     & mpiint
 
@@ -37,19 +38,23 @@ module m_mie_tables
 
   use m_netcdfIO, only: ncload
 
+  use m_tenstream_interpolation, only: interp_2d
+  use m_search, only: find_real_location
+
+
   implicit none
 
   private
-  public :: init_mie_tables, water_table, ice_table
+  public :: init_mie_tables, water_table, ice_table, t_mie_table, optprop
 
   logical, parameter :: ldebug=.True.
 
   type t_mie_table
-    real(ireals), allocatable :: wvl(:)
-    real(ireals), allocatable :: reff(:)
-    real(ireals), allocatable :: qext(:,:)
-    real(ireals), allocatable :: w0(:,:)
-    real(ireals), allocatable :: g(:,:)
+    real(irealLUT), allocatable :: wvl(:)    ! in [mu]
+    real(irealLUT), allocatable :: reff(:)   ! in [mu]
+    real(irealLUT), allocatable :: qext(:,:) ! dim [reff, wvl], extinction coeff in km^-1 / (g/m^3)
+    real(irealLUT), allocatable :: w0(:,:)   ! dim [reff, wvl], single scatter albedo
+    real(irealLUT), allocatable :: g(:,:)    ! dim [reff, wvl], asymmetry parameter
   end type
 
   type(t_mie_table), allocatable :: water_table
@@ -77,11 +82,11 @@ contains
 
     if(get_arg(.False., lverbose)) then
       print *,'Loaded Mie table:'//new_line('')// &
-        & ' wvl '//toStr(mie_table%wvl)//new_line('')// &
-        & ' reff'//toStr(mie_table%reff)//new_line('')// &
-        & ' qext '//toStr(mie_table%qext)//new_line('')// &
-        & ' w0   '//toStr(mie_table%w0  )//new_line('')// &
-        & ' g    '//toStr(mie_table%g   )
+        & ' wvl  ('//toStr(shape(mie_table%wvl ))//')'//toStr(mie_table%wvl )//new_line('')// &
+        & ' reff ('//toStr(shape(mie_table%reff))//')'//toStr(mie_table%reff)//new_line('')// &
+        & ' qext ('//toStr(shape(mie_table%qext))//')'//toStr(mie_table%qext)//new_line('')// &
+        & ' w0   ('//toStr(shape(mie_table%w0  ))//')'//toStr(mie_table%w0  )//new_line('')// &
+        & ' g    ('//toStr(shape(mie_table%g   ))//')'//toStr(mie_table%g   )
     endif
   end subroutine
 
@@ -151,5 +156,22 @@ contains
     endif
     call distribute_table(comm, water_table, ierr); call CHKERR(ierr)
     call distribute_table(comm, ice_table, ierr); call CHKERR(ierr)
+  end subroutine
+
+  subroutine optprop(table, wvl, reff, qext, w0, g, ierr)
+    type(t_mie_table), intent(in) :: table
+    real(ireals), intent(in) :: wvl, reff
+    real(ireals), intent(out) :: qext, w0, g
+    integer(mpiint), intent(out) :: ierr
+
+    real(irealLUT) :: pt(2)
+
+    ierr = 0
+
+    pt(1) = find_real_location(table%reff, reff)
+    pt(2) = find_real_location(table%wvl, wvl)
+    call interp_2d(pt, table%qext, qext)
+    call interp_2d(pt, table%w0, w0)
+    call interp_2d(pt, table%g, g)
   end subroutine
 end module
