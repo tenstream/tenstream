@@ -29,8 +29,10 @@ output_user netcdf
 
     if phase == 'water':
         alpha = 7
-    elif phaes == 'ice':
+        temperature = 280
+    elif phase == 'ice':
         alpha = 1
+        temperature = 260
     else:
         raise ValueError(f"Dont know which alpha value should be used for phase = {phase}")
 
@@ -39,7 +41,7 @@ output_user netcdf
             'reff':  reff,
             'alpha': alpha,
             'wvl_grid_file': 'wvl_grid_file.tmp',
-            'temperature': 280,
+            'temperature': temperature,
             'basename': f'mie.{phase}.reff{reff}'
             }
     np.savetxt(mie_input['wvl_grid_file'], list(zip(range(1,len(wvls)+1), wvls)))
@@ -69,13 +71,13 @@ output_user netcdf
                 )
     return R
 
-def fct(reff, wvls, mie_bin, verbose):
+def fct(reff, wvls, phase, mie_bin, verbose):
     with tempfile.TemporaryDirectory() as tmpdir:
-        return run_mie_calc(tmpdir, wvls, reff=reff, mie_bin=mie_bin, verbose=verbose)
+        return run_mie_calc(tmpdir, wvls, phase=phase, reff=reff, mie_bin=mie_bin, verbose=verbose)
 
-def run_exp(wvls, reffs, mie_bin, verbose=False):
+def run_exp(wvls, reffs, phase, mie_bin, verbose=False):
     pool = multiprocessing.Pool()
-    ret = list( pool.starmap(fct, zip(reffs, repeat(wvls), repeat(mie_bin), repeat(verbose))) )
+    ret = list( pool.starmap(fct, zip(reffs, repeat(wvls), repeat(phase), repeat(mie_bin), repeat(verbose))) )
     return xr.merge(ret)
 
 def _main():
@@ -83,6 +85,7 @@ def _main():
 
     parser = argparse.ArgumentParser(description="Run the libRadtran mie tool to create input data for representative wavelengths")
     parser.add_argument('output', type=str, help='output path')
+    parser.add_argument('--phase', '-p', default='water', choices=['water', 'ice'], help='aggregate phase (default: %(default)s)')
     parser.add_argument('--wvls', '-w', type=float, nargs='+', help='wavelengths to compute [nm]')
     parser.add_argument('--reffs', '-r', type=float, nargs='+', help='reffs to compute [mu]')
     parser.add_argument('--mietool', '-m', type=str, default=None, help='path to the libRadtran mietool')
@@ -100,7 +103,7 @@ def _main():
     if args.verbose:
         print(args)
 
-    ret = run_exp(args.wvls, args.reffs, mie_bin=args.mietool, verbose=args.verbose)
+    ret = run_exp(args.wvls, args.reffs, args.phase, mie_bin=args.mietool, verbose=args.verbose)
 
     if args.verbose:
         print(ret)
