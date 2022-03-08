@@ -2,12 +2,19 @@ module test_mie_table
 
   use m_tenstream_options, only: read_commandline_options
 
-  use m_data_parameters, only: &
+  use m_data_parameters, only:  &
     & finalize_mpi,             &
     & init_mpi_data_parameters, &
+    & iintegers,                &
+    & ireals,                   &
     & mpiint
 
-  use m_mie_tables, only: init_mie_tables, water_table, ice_table
+  use m_mie_tables, only: &
+    & init_mie_tables, &
+    & water_table, &
+    & ice_table, &
+    & optprop, &
+    & t_mie_table
 
   use pfunit_mod
 
@@ -48,7 +55,87 @@ contains
     @assertTrue(allocated(water_table%qext), 'water_table%qext is expected to be allocated')
     @assertTrue(allocated(water_table%w0  ), 'water_table%w0   is expected to be allocated')
     @assertTrue(allocated(water_table%g   ), 'water_table%g    is expected to be allocated')
-    !@assertTrue(allocated(ice_table), 'ice_table is expected to be allocated')
+    @assertTrue(allocated(ice_table), 'ice_table is expected to be allocated')
+    @assertTrue(allocated(ice_table%wvl ), 'ice_table%wvl  is expected to be allocated')
+    @assertTrue(allocated(ice_table%reff), 'ice_table%reff is expected to be allocated')
+    @assertTrue(allocated(ice_table%qext), 'ice_table%qext is expected to be allocated')
+    @assertTrue(allocated(ice_table%w0  ), 'ice_table%w0   is expected to be allocated')
+    @assertTrue(allocated(ice_table%g   ), 'ice_table%g    is expected to be allocated')
   end subroutine
 
+  @test(npes = [1, 2])
+  subroutine test_lookup_on_supports(this)
+    class(MpiTestMethod), intent(inout) :: this
+    integer(mpiint) :: ierr
+    integer(mpiint) :: comm
+
+    comm = this%getMpiCommunicator()
+
+    call init_mie_tables(comm, ierr)
+    @assertEqual(0, ierr)
+
+    call test_table(water_table)
+    call test_table(ice_table)
+  contains
+    subroutine test_table(table)
+      type(t_mie_table), intent(in) :: table
+      real(ireals) :: qext, w0, g
+      integer(iintegers) :: iw, ir
+
+      do iw = lbound(table%wvl,1), ubound(table%wvl,1)
+        do ir = lbound(table%reff,1), ubound(table%reff,1)
+          call optprop(table, table%wvl(iw), table%reff(ir), qext, w0, g, ierr)
+          @assertEqual(0, ierr)
+          @assertEqual(table%qext(ir,iw), qext)
+          @assertEqual(table%w0(ir,iw), w0)
+          @assertEqual(table%g(ir,iw), g)
+        enddo
+      enddo
+    end subroutine
+  end subroutine
+
+  @test(npes = [1, 2])
+  subroutine test_lookup_between_supports(this)
+    class(MpiTestMethod), intent(inout) :: this
+    integer(mpiint) :: ierr
+    integer(mpiint) :: comm
+
+    comm = this%getMpiCommunicator()
+
+    call init_mie_tables(comm, ierr)
+    @assertEqual(0, ierr)
+
+    call test_table(water_table)
+    call test_table(ice_table)
+  contains
+    subroutine test_table(table)
+      type(t_mie_table), intent(in) :: table
+      real(ireals) :: wvl, reff, qext, w0, g
+      integer(iintegers) :: iw, ir
+
+      do iw = lbound(table%wvl,1), ubound(table%wvl,1)-1
+        do ir = lbound(table%reff,1), ubound(table%reff,1)
+          wvl = (table%wvl(iw) + table%wvl(iw+1))/2
+          reff= table%reff(ir)
+          call optprop(table, wvl, reff, qext, w0, g, ierr)
+          @assertEqual(0, ierr)
+          @assertEqual((table%qext(ir,iw)+table%qext(ir,iw+1))/2, qext)
+          @assertEqual((table%w0(ir,iw)+table%w0(ir,iw+1))/2, w0)
+          @assertEqual((table%g(ir,iw)+table%g(ir,iw+1))/2, g)
+        enddo
+      enddo
+
+      do iw = lbound(table%wvl,1), ubound(table%wvl,1)
+        do ir = lbound(table%reff,1), ubound(table%reff,1)-1
+          wvl = table%wvl(iw)
+          reff= (table%reff(ir)+table%reff(ir+1))/2
+          call optprop(table, wvl, reff, qext, w0, g, ierr)
+          @assertEqual(0, ierr)
+          @assertEqual((table%qext(ir,iw)+table%qext(ir+1,iw))/2, qext)
+          @assertEqual((table%w0(ir,iw)+table%w0(ir+1,iw))/2, w0)
+          @assertEqual((table%g(ir,iw)+table%g(ir+1,iw))/2, g)
+        enddo
+      enddo
+    end subroutine
+  end subroutine
 end module
