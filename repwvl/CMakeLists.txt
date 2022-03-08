@@ -2,6 +2,7 @@ include_directories ("${CMAKE_CURRENT_SOURCE_DIR}")
 install(DIRECTORY ./ DESTINATION include/ FILES_MATCHING PATTERN "*.h")
 
 set( files
+  "mie_tables.F90"
   "repwvl_base.F90"
   "repwvl_pprts.F90"
   )
