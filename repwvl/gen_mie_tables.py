@@ -7,6 +7,8 @@ import tempfile
 from jinja2 import Template
 import numpy as np
 import xarray as xr
+import multiprocessing
+from itertools import repeat
 
 def run_mie_calc(wdir, wvls, phase='water', reff=10., mie_bin=None, verbose=False):
     if verbose:
@@ -67,11 +69,13 @@ output_user netcdf
                 )
     return R
 
+def fct(reff, wvls, mie_bin, verbose):
+    with tempfile.TemporaryDirectory() as tmpdir:
+        return run_mie_calc(tmpdir, wvls, reff=reff, mie_bin=mie_bin, verbose=verbose)
+
 def run_exp(wvls, reffs, mie_bin, verbose=False):
-    ret = []
-    for reff in reffs:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            ret.append( run_mie_calc(tmpdir, wvls, reff=reff, mie_bin=mie_bin, verbose=verbose) )
+    pool = multiprocessing.Pool()
+    ret = list( pool.starmap(fct, zip(reffs, repeat(wvls), repeat(mie_bin), repeat(verbose))) )
     return xr.merge(ret)
 
 def _main():
