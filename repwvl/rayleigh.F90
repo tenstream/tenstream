@@ -23,6 +23,7 @@ module m_rayleigh
     & ireals, &
     & ireal_dp, &
     & mpiint, &
+    & nan, &
     & pi
 
   implicit none
@@ -64,7 +65,7 @@ contains
            & * 1e-08_ireals ! Eq. (18)
     n = (1._ireals + 0.54_ireals * (mixing_ratio_co2 * 1e-6_ireals - 0.0003_ireals)) * n_300 + 1._ireals ! Eq. (19)
     n2 = n**2
-    ref_ratio = (n2 - 1)**2 / (n2 + 2)**2; 
+    ref_ratio = (n2 - 1)**2 / (n2 + 2)**2
     F_N_2 = 1.034_ireals + 3.17e-4_ireals / l2 ! Eq. (5)
     F_O_2 = 1.096_ireals + 1.385e-3_ireals / l2 + 1.448e-4_ireals / l2 / l2 ! Eq. (6)
     F_air = (78.084_ireals * F_N_2 + 20.946_ireals * F_O_2 + 0.934_ireals * 1.0_ireals + co2 * 1.15_ireals) / &
@@ -82,7 +83,11 @@ contains
     integer(mpiint), intent(out) :: ierr
     real(ireals) :: l2
     ierr = 0
-    if (lambda .lt. .125_ireals) ierr = 1
+    if (lambda .lt. .125_ireals) then
+      ksca = nan
+      ierr = 1
+      return
+    end if
     l2 = lambda**2
     ksca = 1.e-28_ireals * (1.0455996_ireals - 341.29061_ireals / l2 - 0.90230850_ireals * l2) / &
          & (1._ireals + 0.0027059889_ireals / l2 - 85.968563_ireals * l2)
