@@ -41,20 +41,19 @@ module m_mie_tables
   use m_tenstream_interpolation, only: interp_2d
   use m_search, only: find_real_location
 
-
   implicit none
 
   private
   public :: init_mie_tables, water_table, ice_table, t_mie_table, optprop
 
-  logical, parameter :: ldebug=.True.
+  logical, parameter :: ldebug = .true.
 
   type t_mie_table
     real(irealLUT), allocatable :: wvl(:)    ! in [mu]
     real(irealLUT), allocatable :: reff(:)   ! in [mu]
-    real(irealLUT), allocatable :: qext(:,:) ! dim [reff, wvl], extinction coeff in km^-1 / (g/m^3)
-    real(irealLUT), allocatable :: w0(:,:)   ! dim [reff, wvl], single scatter albedo
-    real(irealLUT), allocatable :: g(:,:)    ! dim [reff, wvl], asymmetry parameter
+    real(irealLUT), allocatable :: qext(:, :) ! dim [reff, wvl], extinction coeff in km^-1 / (g/m^3)
+    real(irealLUT), allocatable :: w0(:, :)   ! dim [reff, wvl], single scatter albedo
+    real(irealLUT), allocatable :: g(:, :)    ! dim [reff, wvl], asymmetry parameter
   end type
 
   type(t_mie_table), allocatable :: water_table
@@ -70,8 +69,8 @@ contains
 
     ierr = 0
 
-    if(allocated(mie_table)) return
-    allocate(mie_table)
+    if (allocated(mie_table)) return
+    allocate (mie_table)
 
     groups(1) = trim(fname)
     groups(2) = 'wvl'; call ncload(groups, mie_table%wvl, ierr, lverbose); call CHKERR(ierr)
@@ -80,14 +79,14 @@ contains
     groups(2) = 'ssa'; call ncload(groups, mie_table%w0, ierr, lverbose); call CHKERR(ierr)
     groups(2) = 'g'; call ncload(groups, mie_table%g, ierr, lverbose); call CHKERR(ierr)
 
-    if(get_arg(.False., lverbose)) then
-      print *,'Loaded Mie table:'//new_line('')// &
-        & ' wvl  ('//toStr(shape(mie_table%wvl ))//')'//toStr(mie_table%wvl )//new_line('')// &
+    if (get_arg(.false., lverbose)) then
+      print *, 'Loaded Mie table:'//new_line('')// &
+        & ' wvl  ('//toStr(shape(mie_table%wvl))//')'//toStr(mie_table%wvl)//new_line('')// &
         & ' reff ('//toStr(shape(mie_table%reff))//')'//toStr(mie_table%reff)//new_line('')// &
         & ' qext ('//toStr(shape(mie_table%qext))//')'//toStr(mie_table%qext)//new_line('')// &
-        & ' w0   ('//toStr(shape(mie_table%w0  ))//')'//toStr(mie_table%w0  )//new_line('')// &
-        & ' g    ('//toStr(shape(mie_table%g   ))//')'//toStr(mie_table%g   )
-    endif
+        & ' w0   ('//toStr(shape(mie_table%w0))//')'//toStr(mie_table%w0)//new_line('')// &
+        & ' g    ('//toStr(shape(mie_table%g))//')'//toStr(mie_table%g)
+    end if
   end subroutine
 
   subroutine distribute_table(comm, mie_table, ierr)
@@ -95,7 +94,7 @@ contains
     type(t_mie_table), allocatable, intent(inout) :: mie_table
     integer(mpiint), intent(out) :: ierr
 
-    if(.not.allocated(mie_table)) allocate(mie_table)
+    if (.not. allocated(mie_table)) allocate (mie_table)
     call imp_bcast(comm, mie_table%wvl, ierr); call CHKERR(ierr)
     call imp_bcast(comm, mie_table%reff, ierr); call CHKERR(ierr)
     call imp_bcast(comm, mie_table%qext, ierr); call CHKERR(ierr)
@@ -112,7 +111,7 @@ contains
     integer(mpiint) :: myid
 
     character(len=default_str_len), parameter :: default_water_path = "mie.wc.table.nc"
-    character(len=default_str_len), parameter :: default_ice_path   = "mie.ic.table.nc"
+    character(len=default_str_len), parameter :: default_ice_path = "mie.ic.table.nc"
 
     character(len=default_str_len) :: water_path
     character(len=default_str_len) :: ice_path
@@ -128,32 +127,31 @@ contains
     call get_petsc_opt('', '-mie_ic', ice_path, lset, ierr); call CHKERR(ierr)
 
     inquire (file=trim(water_path), exist=lexists)
-    if(.not.lexists) then
+    if (.not. lexists) then
       call CHKERR(1_mpiint, "File at mie_table path "//toStr(water_path)// &
         & " does not exist"//new_line('')// &
         & " please make sure the file is at this location"// &
         & " or specify a correct path with option"//new_line('')// &
-        & "   -mie_wc <path>" )
-    endif
+        & "   -mie_wc <path>")
+    end if
 
     inquire (file=trim(ice_path), exist=lexists)
-    if(.not.lexists) then
+    if (.not. lexists) then
       call CHKERR(1_mpiint, "File at mie_table path "//toStr(ice_path)// &
         & " does not exist"//new_line('')// &
         & " please make sure the file is at this location"// &
         & " or specify a correct path with option"//new_line('')// &
-        & "   -mie_ic <path>" )
-    endif
+        & "   -mie_ic <path>")
+    end if
 
-
-    if(myid.eq.0) then
-      if(.not.allocated(water_table)) then
+    if (myid .eq. 0) then
+      if (.not. allocated(water_table)) then
         call load_data(water_path, water_table, ierr, lverbose); call CHKERR(ierr)
-      endif
-      if(.not.allocated(ice_table)) then
+      end if
+      if (.not. allocated(ice_table)) then
         call load_data(ice_path, ice_table, ierr, lverbose); call CHKERR(ierr)
-      endif
-    endif
+      end if
+    end if
     call distribute_table(comm, water_table, ierr); call CHKERR(ierr)
     call distribute_table(comm, ice_table, ierr); call CHKERR(ierr)
   end subroutine
