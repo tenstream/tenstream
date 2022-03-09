@@ -82,15 +82,15 @@ contains
       real(ireals) :: qext, w0, g
       integer(iintegers) :: iw, ir
 
-      do iw = lbound(table%wvl,1), ubound(table%wvl,1)
-        do ir = lbound(table%reff,1), ubound(table%reff,1)
+      do iw = lbound(table%wvl, 1), ubound(table%wvl, 1)
+        do ir = lbound(table%reff, 1), ubound(table%reff, 1)
           call optprop(table, table%wvl(iw), table%reff(ir), qext, w0, g, ierr)
           @assertEqual(0, ierr)
           @assertEqual(table%qext(ir,iw), qext)
           @assertEqual(table%w0(ir,iw), w0)
           @assertEqual(table%g(ir,iw), g)
-        enddo
-      enddo
+        end do
+      end do
     end subroutine
   end subroutine
 
@@ -113,29 +113,29 @@ contains
       real(ireals) :: wvl, reff, qext, w0, g
       integer(iintegers) :: iw, ir
 
-      do iw = lbound(table%wvl,1), ubound(table%wvl,1)-1
-        do ir = lbound(table%reff,1), ubound(table%reff,1)
-          wvl = (table%wvl(iw) + table%wvl(iw+1))/2
-          reff= table%reff(ir)
+      do iw = lbound(table%wvl, 1), ubound(table%wvl, 1) - 1
+        do ir = lbound(table%reff, 1), ubound(table%reff, 1)
+          wvl = (table%wvl(iw) + table%wvl(iw + 1)) / 2
+          reff = table%reff(ir)
           call optprop(table, wvl, reff, qext, w0, g, ierr)
           @assertEqual(0, ierr)
           @assertEqual((table%qext(ir,iw)+table%qext(ir,iw+1))/2, qext)
           @assertEqual((table%w0(ir,iw)+table%w0(ir,iw+1))/2, w0)
           @assertEqual((table%g(ir,iw)+table%g(ir,iw+1))/2, g)
-        enddo
-      enddo
+        end do
+      end do
 
-      do iw = lbound(table%wvl,1), ubound(table%wvl,1)
-        do ir = lbound(table%reff,1), ubound(table%reff,1)-1
+      do iw = lbound(table%wvl, 1), ubound(table%wvl, 1)
+        do ir = lbound(table%reff, 1), ubound(table%reff, 1) - 1
           wvl = table%wvl(iw)
-          reff= (table%reff(ir)+table%reff(ir+1))/2
+          reff = (table%reff(ir) + table%reff(ir + 1)) / 2
           call optprop(table, wvl, reff, qext, w0, g, ierr)
           @assertEqual(0, ierr)
           @assertEqual((table%qext(ir,iw)+table%qext(ir+1,iw))/2, qext)
           @assertEqual((table%w0(ir,iw)+table%w0(ir+1,iw))/2, w0)
           @assertEqual((table%g(ir,iw)+table%g(ir+1,iw))/2, g)
-        enddo
-      enddo
+        end do
+      end do
     end subroutine
   end subroutine
 end module

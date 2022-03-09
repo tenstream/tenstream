@@ -41,70 +41,70 @@ module m_repwvl_base
   type t_repwvl_data
     ! dims xsec(xsec_nbooks, xsec_npages, xsec_nrows, xsec_ncols)
     !           temp         species      wvl         pres
-    real(ireals), allocatable :: xsec(:,:,:,:)
+    real(ireals), allocatable :: xsec(:, :, :, :)
     real(ireals), allocatable :: wvls(:)
     real(ireals), allocatable :: wgts(:)
     real(ireals), allocatable :: p_grid(:)
     real(ireals), allocatable :: t_ref(:)
     real(ireals), allocatable :: t_pert(:)
-    real(ireals), allocatable :: vmrs_ref(:,:)
+    real(ireals), allocatable :: vmrs_ref(:, :)
   end type
 
-  contains
+contains
 
-    subroutine load_data(fname, repwvl_data, ierr, lverbose)
-      character(len=*), intent(in) :: fname
-      type(t_repwvl_data), intent(inout) :: repwvl_data
-      integer(mpiint), intent(out) :: ierr
-      logical, intent(in), optional :: lverbose
+  subroutine load_data(fname, repwvl_data, ierr, lverbose)
+    character(len=*), intent(in) :: fname
+    type(t_repwvl_data), intent(inout) :: repwvl_data
+    integer(mpiint), intent(out) :: ierr
+    logical, intent(in), optional :: lverbose
 
-      character(len=default_str_len) :: groups(2)
+    character(len=default_str_len) :: groups(2)
 
-      groups(1) = trim(fname)
-      groups(2) = 'xsec'; call ncload(groups, repwvl_data%xsec, ierr, lverbose); call CHKERR(ierr)
-      groups(2) = 'ChosenWvls'; call ncload(groups, repwvl_data%wvls, ierr, lverbose); call CHKERR(ierr)
-      groups(2) = 'ChosenWeights'; call ncload(groups, repwvl_data%wgts, ierr, lverbose); call CHKERR(ierr)
-      groups(2) = 'p_grid'; call ncload(groups, repwvl_data%p_grid, ierr, lverbose); call CHKERR(ierr)
-      groups(2) = 't_ref'; call ncload(groups, repwvl_data%t_ref, ierr, lverbose); call CHKERR(ierr)
-      groups(2) = 't_pert'; call ncload(groups, repwvl_data%t_pert, ierr, lverbose); call CHKERR(ierr)
-      groups(2) = 'vmrs_ref'; call ncload(groups, repwvl_data%vmrs_ref, ierr, lverbose); call CHKERR(ierr)
-    end subroutine
+    groups(1) = trim(fname)
+    groups(2) = 'xsec'; call ncload(groups, repwvl_data%xsec, ierr, lverbose); call CHKERR(ierr)
+    groups(2) = 'ChosenWvls'; call ncload(groups, repwvl_data%wvls, ierr, lverbose); call CHKERR(ierr)
+    groups(2) = 'ChosenWeights'; call ncload(groups, repwvl_data%wgts, ierr, lverbose); call CHKERR(ierr)
+    groups(2) = 'p_grid'; call ncload(groups, repwvl_data%p_grid, ierr, lverbose); call CHKERR(ierr)
+    groups(2) = 't_ref'; call ncload(groups, repwvl_data%t_ref, ierr, lverbose); call CHKERR(ierr)
+    groups(2) = 't_pert'; call ncload(groups, repwvl_data%t_pert, ierr, lverbose); call CHKERR(ierr)
+    groups(2) = 'vmrs_ref'; call ncload(groups, repwvl_data%vmrs_ref, ierr, lverbose); call CHKERR(ierr)
+  end subroutine
 
-    subroutine repwvl_init(repwvl_data_thermal, ierr, fname_repwvl_thermal, fname_repwvl_solar)
-      type(t_repwvl_data), intent(inout) :: repwvl_data_thermal
-      integer(mpiint), intent(out) :: ierr
-      character(len=*), intent(in), optional :: fname_repwvl_thermal, fname_repwvl_solar
-      character(len=default_str_len) :: fname_thermal, fname_solar
+  subroutine repwvl_init(repwvl_data_thermal, ierr, fname_repwvl_thermal, fname_repwvl_solar)
+    type(t_repwvl_data), intent(inout) :: repwvl_data_thermal
+    integer(mpiint), intent(out) :: ierr
+    character(len=*), intent(in), optional :: fname_repwvl_thermal, fname_repwvl_solar
+    character(len=default_str_len) :: fname_thermal, fname_solar
 
-      ierr = 0
+    ierr = 0
 
-      fname_thermal = get_arg('repwvl_thermal.lut', fname_repwvl_thermal)
-      fname_solar = get_arg('repwvl_solar.lut', fname_repwvl_solar)
+    fname_thermal = get_arg('repwvl_thermal.lut', fname_repwvl_thermal)
+    fname_solar = get_arg('repwvl_solar.lut', fname_repwvl_solar)
 
-      print *,'Reading representative wavelength data from '//trim(fname_thermal)
-      print *,'Reading representative wavelength data from '//trim(fname_solar)
+    print *, 'Reading representative wavelength data from '//trim(fname_thermal)
+    print *, 'Reading representative wavelength data from '//trim(fname_solar)
 
-      call load_data(fname_thermal, repwvl_data_thermal, ierr, lverbose=.True.); call CHKERR(ierr)
-    end subroutine
+    call load_data(fname_thermal, repwvl_data_thermal, ierr, lverbose=.true.); call CHKERR(ierr)
+  end subroutine
 
-    subroutine calc_dtau(&
-        & repwvl_data_thermal, &
-        & iwvl, &
-        & temp, &
-        & pres, &
-        & VMRS, &
-        & dtau  )
-      type(t_repwvl_data), intent(in) :: repwvl_data_thermal
-      integer(iintegers) :: iwvl
-      real(ireals), intent(in) :: temp
-      real(ireals), intent(in) :: pres
-      real(ireals), intent(in) :: VMRS(:)
-      real(ireals), intent(out) :: dtau
+  subroutine calc_dtau(&
+      & repwvl_data_thermal, &
+      & iwvl, &
+      & temp, &
+      & pres, &
+      & VMRS, &
+      & dtau)
+    type(t_repwvl_data), intent(in) :: repwvl_data_thermal
+    integer(iintegers) :: iwvl
+    real(ireals), intent(in) :: temp
+    real(ireals), intent(in) :: pres
+    real(ireals), intent(in) :: VMRS(:)
+    real(ireals), intent(out) :: dtau
 
-      print *, iwvl, temp, pres, VMRS
-      dtau = -1 + repwvl_data_thermal%wvls(1)
+    print *, iwvl, temp, pres, VMRS
+    dtau = -1 + repwvl_data_thermal%wvls(1)
 
-    end subroutine
+  end subroutine
 end module
 
 !module m_pprts_rrtmg

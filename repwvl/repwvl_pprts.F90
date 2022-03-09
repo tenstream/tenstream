@@ -23,7 +23,7 @@ module m_repwvl_pprts
 #include "petsc/finclude/petsc.h"
   use petsc
 
-  use m_helper_functions, only : &
+  use m_helper_functions, only: &
     & approx, &
     & CHKERR, &
     & cross_3d, &
@@ -43,7 +43,7 @@ module m_repwvl_pprts
     & spherical_2_cartesian, &
     & toStr
 
-  use m_data_parameters, only : &
+  use m_data_parameters, only: &
     & init_mpi_data_parameters, &
     & iintegers, ireals, mpiint, &
     & zero, one, default_str_len, &
@@ -51,8 +51,8 @@ module m_repwvl_pprts
 
   use m_tenstream_options, only: read_commandline_options
 
-  use m_pprts_base, only : t_solver, destroy_pprts
-  use m_pprts, only : &
+  use m_pprts_base, only: t_solver, destroy_pprts
+  use m_pprts, only: &
     & init_pprts, &
     & pprts_get_result, &
     & pprts_get_result_toZero, &
@@ -72,14 +72,14 @@ module m_repwvl_pprts
   private
   public :: repwvl_pprts, repwvl_pprts_destroy
 
-  logical, parameter :: ldebug=.True.
+  logical, parameter :: ldebug = .true.
 
 contains
   subroutine repwvl_pprts(comm, solver, atm, ie, je,   &
       & dx, dy, sundir,                               &
       & albedo_thermal, albedo_solar,                 &
       & lthermal, lsolar,                             &
-      & edir,edn,eup,abso,                            &
+      & edir, edn, eup, abso,                         &
       & nxproc, nyproc, icollapse,                    &
       & opt_time, solar_albedo_2d, thermal_albedo_2d, &
       & opt_solar_constant,                           &
@@ -90,14 +90,14 @@ contains
       & opt_tau_thermal,                              &
       & lonly_initialize)
 
-    integer(mpiint), intent(in)     :: comm ! MPI Communicator
+    integer(mpiint), intent(in) :: comm ! MPI Communicator
 
-    class(t_solver), intent(inout)  :: solver                       ! solver type (e.g. t_solver_8_10)
-    type(t_tenstr_atm), intent(in)  :: atm                          ! contains info on atmospheric constituents
-    integer(iintegers), intent(in)  :: ie, je                       ! local domain size in x and y direction
-    real(ireals), intent(in)        :: dx, dy                       ! horizontal grid spacing in [m]
-    real(ireals), intent(in)        :: sundir(:)                    ! cartesian sun direction, pointing away from the sun, dim(3)
-    real(ireals), intent(in)        :: albedo_solar, albedo_thermal ! broadband ground albedo for solar and thermal spectrum
+    class(t_solver), intent(inout) :: solver                       ! solver type (e.g. t_solver_8_10)
+    type(t_tenstr_atm), intent(in) :: atm                          ! contains info on atmospheric constituents
+    integer(iintegers), intent(in) :: ie, je                       ! local domain size in x and y direction
+    real(ireals), intent(in) :: dx, dy                       ! horizontal grid spacing in [m]
+    real(ireals), intent(in) :: sundir(:)                    ! cartesian sun direction, pointing away from the sun, dim(3)
+    real(ireals), intent(in) :: albedo_solar, albedo_thermal ! broadband ground albedo for solar and thermal spectrum
 
     ! Compute solar or thermal radiative transfer. Or compute both at once.
     logical, intent(in) :: lsolar, lthermal
@@ -105,14 +105,14 @@ contains
     ! nxproc dimension of nxproc is number of ranks along x-axis, and entries in nxproc are the size of local Nx
     ! nyproc dimension of nyproc is number of ranks along y-axis, and entries in nyproc are the number of local Ny
     ! if not present, we let petsc decide how to decompose the fields(probably does not fit the decomposition of a host model)
-    integer(iintegers),intent(in),optional :: nxproc(:), nyproc(:)
+    integer(iintegers), intent(in), optional :: nxproc(:), nyproc(:)
 
-    integer(iintegers),intent(in),optional :: icollapse ! experimental, dont use it if you dont know what you are doing.
+    integer(iintegers), intent(in), optional :: icollapse ! experimental, dont use it if you dont know what you are doing.
 
     ! opt_time is the model time in seconds. If provided we will track the error growth of the solutions
     ! and compute new solutions only after threshold estimate is exceeded.
     ! If solar_albedo_2d is present, we use a 2D surface albedo
-    real(ireals), optional, intent(in) :: opt_time, solar_albedo_2d(:,:), thermal_albedo_2d(:,:), opt_solar_constant
+    real(ireals), optional, intent(in) :: opt_time, solar_albedo_2d(:, :), thermal_albedo_2d(:, :), opt_solar_constant
 
     ! buildings information, setup broadband thermal and solar albedo on faces inside the domain, not just on the surface
     ! see definition for details on how to set it up
@@ -123,8 +123,8 @@ contains
     ! used e.g. for aerosol or vegetation, you can provide only tau or (tau and w0) defaults to w0=0 and g=0
     ! note that first dimension can also be smaller than nlyr, we will fill it up from the ground,
     ! i.e. if you provide only two layers, the two lowermost layers near the surface will be filled with addition optprops
-    real(ireals), intent(in), optional, dimension(:,:,:,:) :: opt_tau_solar, opt_w0_solar, opt_g_solar
-    real(ireals), intent(in), optional, dimension(:,:,:,:) :: opt_tau_thermal
+    real(ireals), intent(in), optional, dimension(:, :, :, :) :: opt_tau_solar, opt_w0_solar, opt_g_solar
+    real(ireals), intent(in), optional, dimension(:, :, :, :) :: opt_tau_thermal
 
     ! Fluxes and absorption in [W/m2] and [W/m3] respectively.
     ! Dimensions will probably be bigger than the dynamics grid, i.e. will have
@@ -133,8 +133,8 @@ contains
     !   edn(ubound(edn,1)-nlay_dynamics : ubound(edn,1) )
     ! or:
     !   abso(ubound(abso,1)-nlay_dynamics+1 : ubound(abso,1) )
-    real(ireals),allocatable, dimension(:,:,:), intent(inout) :: edir, edn, eup  ! [nlyr+1, local_nx, local_ny ]
-    real(ireals),allocatable, dimension(:,:,:), intent(inout) :: abso            ! [nlyr  , local_nx, local_ny ]
+    real(ireals), allocatable, dimension(:, :, :), intent(inout) :: edir, edn, eup  ! [nlyr+1, local_nx, local_ny ]
+    real(ireals), allocatable, dimension(:, :, :), intent(inout) :: abso            ! [nlyr  , local_nx, local_ny ]
 
     ! if only_initialize we dont compute any radiation, merely setup the grid structures
     logical, intent(in), optional :: lonly_initialize
@@ -157,60 +157,60 @@ contains
 
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
-    if(ldebug) then ! make sure that all ranks give the same option for lsolar and lthermal
-      if(.not. mpi_logical_all_same(comm, lsolar)) &
+    if (ldebug) then ! make sure that all ranks give the same option for lsolar and lthermal
+      if (.not. mpi_logical_all_same(comm, lsolar)) &
         call CHKERR(1_mpiint, 'all ranks have to give the same value for lsolar')
-      if(.not. mpi_logical_all_same(comm, lthermal)) &
+      if (.not. mpi_logical_all_same(comm, lthermal)) &
         call CHKERR(1_mpiint, 'all ranks have to give the same value for lthermal')
-    endif
+    end if
 
-    if(.not.solver%linitialized) call read_commandline_options(comm) ! so that tenstream.options file are read in
+    if (.not. solver%linitialized) call read_commandline_options(comm) ! so that tenstream.options file are read in
 
     pprts_icollapse = get_arg(i1, icollapse)
-    call get_petsc_opt(PETSC_NULL_CHARACTER , &
-                             "-pprts_collapse" , pprts_icollapse, lflg , ierr) ;call CHKERR(ierr)
-    if(pprts_icollapse.eq.-1) then
-      if(ldebug.and.myid.eq.0) print *,'Collapsing background atmosphere', atm%atm_ke
+    call get_petsc_opt(PETSC_NULL_CHARACTER, &
+                       "-pprts_collapse", pprts_icollapse, lflg, ierr); call CHKERR(ierr)
+    if (pprts_icollapse .eq. -1) then
+      if (ldebug .and. myid .eq. 0) print *, 'Collapsing background atmosphere', atm%atm_ke
       pprts_icollapse = atm%atm_ke ! collapse the complete background atmosphere
-    endif
-    if(pprts_icollapse.ne.i1) then
-      if(ldebug.and.myid.eq.0) print *,'Collapsing atmosphere', pprts_icollapse
-    endif
+    end if
+    if (pprts_icollapse .ne. i1) then
+      if (ldebug .and. myid .eq. 0) print *, 'Collapsing atmosphere', pprts_icollapse
+    end if
 
-    ke1 = ubound(atm%plev,1)
-    ke = ubound(atm%tlay,1)
+    ke1 = ubound(atm%plev, 1)
+    ke = ubound(atm%tlay, 1)
 
-    if(.not.solver%linitialized) then
-      allocate(repwvl_data_thermal)
+    if (.not. solver%linitialized) then
+      allocate (repwvl_data_thermal)
       call repwvl_init(repwvl_data_thermal, ierr); call CHKERR(ierr)
       call init_pprts_repwvl(comm, solver, &
-        dx, dy, atm%dz, &
-        sundir, &
-        ie, je, ke, &
-        nxproc, nyproc, pprts_icollapse)
-    endif
+                             dx, dy, atm%dz, &
+                             sundir, &
+                             ie, je, ke, &
+                             nxproc, nyproc, pprts_icollapse)
+    end if
 
     ! Allocate space for results -- for integrated values...
-    if(.not.allocated(edn )) allocate(edn (solver%C_one1%zm, solver%C_one1%xm, solver%C_one1%ym))
-    if(.not.allocated(eup )) allocate(eup (solver%C_one1%zm, solver%C_one1%xm, solver%C_one1%ym))
-    if(.not.allocated(abso)) allocate(abso(solver%C_one%zm , solver%C_one%xm , solver%C_one%ym ))
+    if (.not. allocated(edn)) allocate (edn(solver%C_one1%zm, solver%C_one1%xm, solver%C_one1%ym))
+    if (.not. allocated(eup)) allocate (eup(solver%C_one1%zm, solver%C_one1%xm, solver%C_one1%ym))
+    if (.not. allocated(abso)) allocate (abso(solver%C_one%zm, solver%C_one%xm, solver%C_one%ym))
     edn = 0
     eup = 0
-    abso= 0
+    abso = 0
 
     lprint_atm = ldebug
-    call get_petsc_opt(PETSC_NULL_CHARACTER , &
-      "-repwvl_pprts_atm_view" , lprint_atm , lflg , ierr) ;call CHKERR(ierr)
-    if(lprint_atm .and. myid.eq.0) then
+    call get_petsc_opt(PETSC_NULL_CHARACTER, &
+                       "-repwvl_pprts_atm_view", lprint_atm, lflg, ierr); call CHKERR(ierr)
+    if (lprint_atm .and. myid .eq. 0) then
       call print_tenstr_atm(atm)
-    endif
+    end if
 
-    if(get_arg(.False., lonly_initialize)) return
+    if (get_arg(.false., lonly_initialize)) return
 
-    lskip_thermal = .False.
-    call get_petsc_opt(PETSC_NULL_CHARACTER , &
-      "-skip_thermal" , lskip_thermal, lflg , ierr) ;call CHKERR(ierr)
-    if(lthermal.and..not.lskip_thermal)then
+    lskip_thermal = .false.
+    call get_petsc_opt(PETSC_NULL_CHARACTER, &
+                       "-skip_thermal", lskip_thermal, lflg, ierr); call CHKERR(ierr)
+    if (lthermal .and. .not. lskip_thermal) then
       call compute_thermal(                           &
         & repwvl_data_thermal,                        &
         & solver,                                     &
@@ -218,24 +218,24 @@ contains
         & ie, je, ke, ke1,                            &
         & albedo_thermal,                             &
         & edn, eup, abso,                             &
-        & opt_time          = opt_time,               &
-        & thermal_albedo_2d = thermal_albedo_2d,      &
-        & opt_buildings     = opt_buildings_thermal,  &
-        & opt_tau           = opt_tau_thermal         &
+        & opt_time=opt_time,               &
+        & thermal_albedo_2d=thermal_albedo_2d,      &
+        & opt_buildings=opt_buildings_thermal,  &
+        & opt_tau=opt_tau_thermal         &
         & )
-    endif
+    end if
 
     call CHKERR(ierr, 'DEBUG')
-    if(get_arg(.False., lskip_thermal).or.get_arg(.False., lskip_solar)) then !DEBUG
+    if (get_arg(.false., lskip_thermal) .or. get_arg(.false., lskip_solar)) then !DEBUG
       call CHKERR(1_mpiint, 'DEBUG this block just to get rid of unused warnings')
       ke = 0
       ke1 = 1
-      print *,albedo_solar+ albedo_thermal+dx+dy+sundir(1)+edir+icollapse+ie+je+ke1,nxproc+nyproc
-      print *,opt_g_solar,opt_solar_constant,opt_tau_solar,opt_tau_thermal
-      print *,opt_time,opt_w0_solar,pprts_icollapse,solar_albedo_2d,thermal_albedo_2d
-      print *,opt_buildings_solar%iface
-      print *,opt_buildings_thermal%iface
-    endif
+      print *, albedo_solar + albedo_thermal + dx + dy + sundir(1) + edir + icollapse + ie + je + ke1, nxproc + nyproc
+      print *, opt_g_solar, opt_solar_constant, opt_tau_solar, opt_tau_thermal
+      print *, opt_time, opt_w0_solar, pprts_icollapse, solar_albedo_2d, thermal_albedo_2d
+      print *, opt_buildings_solar%iface
+      print *, opt_buildings_thermal%iface
+    end if
 
     !if(lsolar.and..not.allocated(edir)) allocate(edir (solver%C_one1%zm, solver%C_one1%xm, solver%C_one1%ym))
     !if(allocated(edir)) edir = zero
@@ -362,52 +362,52 @@ contains
     !  end subroutine
   end subroutine
   subroutine init_pprts_repwvl(comm, solver, dx, dy, dz, &
-                  sundir, &
-                  xm, ym, zm, &
-                  nxproc, nyproc, &
-                  pprts_icollapse)
+                               sundir, &
+                               xm, ym, zm, &
+                               nxproc, nyproc, &
+                               pprts_icollapse)
 
     integer(mpiint), intent(in) :: comm
 
-    real(ireals), intent(in)      :: dx, dy, sundir(3)
-    real(ireals), intent(in)      :: dz(:,:) ! bot to top, e.g. from atm%dz
-    integer(iintegers),intent(in) :: xm, ym, zm
-    class(t_solver),intent(inout) :: solver
+    real(ireals), intent(in) :: dx, dy, sundir(3)
+    real(ireals), intent(in) :: dz(:, :) ! bot to top, e.g. from atm%dz
+    integer(iintegers), intent(in) :: xm, ym, zm
+    class(t_solver), intent(inout) :: solver
 
     ! arrays containing xm and ym for all nodes :: dim[x-ranks, y-ranks]
-    integer(iintegers),intent(in), optional :: nxproc(:), nyproc(:), pprts_icollapse
+    integer(iintegers), intent(in), optional :: nxproc(:), nyproc(:), pprts_icollapse
 
     integer(iintegers) :: i, j, icol
 
     ! vertical thickness in [m]
-    real(ireals),allocatable :: dz_t2b(:,:,:) ! dz (t2b := top 2 bottom)
+    real(ireals), allocatable :: dz_t2b(:, :, :) ! dz (t2b := top 2 bottom)
 
-    if(present(nxproc) .neqv. present(nyproc)) then
-      print *,'Wrong call to init_tenstream_rrtm_lw --    &
+    if (present(nxproc) .neqv. present(nyproc)) then
+      print *, 'Wrong call to init_tenstream_rrtm_lw --    &
             & in order to work, we need both arrays for &
             & the domain decomposition, call with nxproc AND nyproc'
       call CHKERR(1_mpiint, 'init_tenstream_rrtm_lw -- missing arguments nxproc or nyproc')
-    endif
+    end if
 
-    allocate(dz_t2b(zm, xm, ym))
-    do j=1_iintegers,ym
-      do i=1_iintegers,xm
-        icol =  i+(j-1_iintegers)*xm
-        dz_t2b(:,i,j) = reverse(dz(:,icol))
-      enddo
-    enddo
+    allocate (dz_t2b(zm, xm, ym))
+    do j = 1_iintegers, ym
+      do i = 1_iintegers, xm
+        icol = i + (j - 1_iintegers) * xm
+        dz_t2b(:, i, j) = reverse(dz(:, icol))
+      end do
+    end do
 
-    if(present(nxproc) .and. present(nyproc)) then
+    if (present(nxproc) .and. present(nyproc)) then
       call init_pprts(comm, zm, xm, ym, dx, dy, sundir, solver, nxproc=nxproc, nyproc=nyproc, dz3d=dz_t2b, &
-        collapseindex=pprts_icollapse)
+                      collapseindex=pprts_icollapse)
     else ! we let petsc decide where to put stuff
       call init_pprts(comm, zm, xm, ym, dx, dy, sundir, solver, dz3d=dz_t2b, &
-        collapseindex=pprts_icollapse)
-    endif
+                      collapseindex=pprts_icollapse)
+    end if
   end subroutine
 
   subroutine repwvl_pprts_destroy(solver, lfinalizepetsc)
-    class(t_solver)     :: solver
+    class(t_solver) :: solver
     logical, intent(in) :: lfinalizepetsc
 
     call destroy_pprts(solver, lfinalizepetsc=lfinalizepetsc)
@@ -428,28 +428,28 @@ contains
       & opt_tau)
 
     type(t_repwvl_data), intent(in) :: repwvl_data_thermal
-    class(t_solver),    intent(inout) :: solver
+    class(t_solver), intent(inout) :: solver
     type(t_tenstr_atm), intent(in), target :: atm
-    integer(iintegers), intent(in)    :: ie, je, ke,ke1
+    integer(iintegers), intent(in) :: ie, je, ke, ke1
 
-    real(ireals),intent(in) :: albedo
+    real(ireals), intent(in) :: albedo
 
-    real(ireals),intent(inout),dimension(:,:,:) :: edn, eup, abso
+    real(ireals), intent(inout), dimension(:, :, :) :: edn, eup, abso
 
-    real(ireals), optional, intent(in) :: opt_time, thermal_albedo_2d(:,:)
+    real(ireals), optional, intent(in) :: opt_time, thermal_albedo_2d(:, :)
     type(t_pprts_buildings), intent(inout), optional :: opt_buildings
-    real(ireals), intent(in), optional, dimension(:,:,:,:) :: opt_tau
+    real(ireals), intent(in), optional, dimension(:, :, :, :) :: opt_tau
 
     print *, 'repwvl_data_thermal%wvls', repwvl_data_thermal%wvls
-    if(.False.) then
-      edn = albedo+opt_time+thermal_albedo_2d(1,1)
+    if (.false.) then
+      edn = albedo + opt_time + thermal_albedo_2d(1, 1)
       eup = albedo
-      abso= albedo
-      print *, ie, je, ke,ke1
+      abso = albedo
+      print *, ie, je, ke, ke1
       print *, present(opt_buildings), present(opt_tau)
       print *, solver%linitialized
       print *, atm%d_ke1
-    endif
+    end if
 
     call CHKERR(1_mpiint, 'DEBUG')
   end subroutine
