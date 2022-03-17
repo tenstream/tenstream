@@ -18,7 +18,7 @@ done
 echo "Combined wavelengths are $ALL_WVL"
 
 REFF_WC=$(seq -s " " 2 .1 40)
-REFF_IC=$(seq -s " " 20 .1 140)
+REFF_IC=$(seq -s " " 5 1 140)
 
 WC=mie.wc.table.nc
 if [ ! -e $WC ]; then
