@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
-import glob
-import subprocess
-import shutil
-import os
-import tempfile
-from jinja2 import Template
-import numpy as np
-import xarray as xr
-import multiprocessing
 from itertools import repeat
+from jinja2 import Template
+import glob
+import multiprocessing
+import numpy as np
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import xarray as xr
 
 def run_mie_calc(wdir, wvls, phase='water', reff=10., mie_bin=None, verbose=False):
     if verbose:
@@ -47,14 +48,21 @@ output_user netcdf
     np.savetxt(mie_input['wvl_grid_file'], list(zip(range(1,len(wvls)+1), wvls)))
     inp = mie_template.render(mie_input)
     if verbose:
+        print(f"Wavelenghts {wvls}")
         print(inp)
+
     with open("mie.inp", "w") as fh:
         fh.write(inp)
 
     cmd = [mie_bin, "-f", "mie.inp"]
+
     if verbose:
-        print(f"Running: {cmd}")
+        print(f"Running: {cmd} {mie_input}")
+
     subout = subprocess.run(cmd, capture_output=True)
+
+    if verbose:
+        print(f"Finished: {cmd} {mie_input}")
 
     outfile = glob.glob(mie_input['basename']+'*.cdf')[0]
     with xr.open_dataset(outfile) as D:
@@ -69,16 +77,49 @@ output_user netcdf
                     wvl=(["wvl",], D.wavelen.data, D.wavelen.attrs),
                     ),
                 )
+    if verbose:
+        print(f"Written output for {mie_input} to {outfile}")
     return R
 
-def fct(reff, wvls, phase, mie_bin, verbose):
-    with tempfile.TemporaryDirectory() as tmpdir:
-        return run_mie_calc(tmpdir, wvls, phase=phase, reff=reff, mie_bin=mie_bin, verbose=verbose)
+def pool_fct(reff, wvls, phase, mie_bin, verbose, use_temp_dirs=False):
+    fct_one_dir = lambda directory: run_mie_calc(directory, wvls, phase=phase, reff=reff, mie_bin=mie_bin, verbose=verbose)
+    if use_temp_dirs:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            return fct_one_dir(tmpdir)
+    else:
+        dirname = os.path.abspath(f"{sys.path[0]}/mie_calcs/{phase}/{reff}/{np.sum(wvls)}/")
+        if not os.path.exists(dirname):
+            os.makedirs(dirname, exist_ok=True)
+
+        if not os.path.exists(f"{dirname}/result.nc"):
+            R = fct_one_dir(dirname)
+            R.to_netcdf(f"{dirname}/result.nc")
+
+        with xr.open_dataset(f"{dirname}/result.nc") as R:
+            return R.load()
+
+def parse_omp_envvar(env_value):
+    return int(env_value.strip().split(",")[0])
+
+def estimate_cpus():
+    limit = float("inf")
+    if "OMP_THREAD_LIMIT" in os.environ:
+        limit = parse_omp_envvar(os.environ["OMP_THREAD_LIMIT"])
+
+    if "OMP_NUM_THREADS" in os.environ:
+        cpus = parse_omp_envvar(os.environ["OMP_NUM_THREADS"])
+    else:
+        try:
+            cpus = len(os.sched_getaffinity(os.getpid()))
+        except (AttributeError, OSError) as e:
+            cpus = os.cpu_count()
+
+    return min(cpus, limit)
 
 def run_exp(wvls, reffs, phase, mie_bin, verbose=False):
-    pool = multiprocessing.Pool()
-    ret = list( pool.starmap(fct, zip(reffs, repeat(wvls), repeat(phase), repeat(mie_bin), repeat(verbose))) )
-    return xr.merge(ret)
+    pool = multiprocessing.Pool(processes=estimate_cpus())
+    ret = list( pool.starmap(pool_fct, zip(reffs, repeat(wvls), repeat(phase), repeat(mie_bin), repeat(verbose))) )
+    return xr.merge(ret).sortby("reff").sortby("wvl")
 
 def _main():
     import argparse
