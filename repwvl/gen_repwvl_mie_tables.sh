@@ -22,7 +22,7 @@ REFF_IC=$(seq -s " " 20 .1 140)
 
 WC=mie.wc.table.nc
 if [ ! -e $WC ]; then
-echo python gen_mie_tables.py $WC -p water \
+${MPIEXEC:-} python gen_mie_tables.py $WC -p water \
   --wvls $ALL_WVL \
   --reffs $REFF_WC \
   -v -m $WORK/lib/libRadtran/bin/mie
@@ -32,7 +32,7 @@ fi
 
 IC=mie.ic.table.nc
 if [ ! -e $IC ]; then
-python gen_mie_tables.py $IC -p ice \
+${MPIEXEC:-} python gen_mie_tables.py $IC -p ice \
   --wvls $ALL_WVL \
   --reffs $REFF_IC \
   -v -m $WORK/lib/libRadtran/bin/mie
