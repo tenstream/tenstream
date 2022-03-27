@@ -226,12 +226,12 @@ contains
         if (ldebug) print *, 'Set NetCDF File to def_mode', ncerr
 
         do i = 1, Ndims
-          if(present(dimnames)) then
+          if (present(dimnames)) then
             dimname = trim(dimnames(i))
           else
             write (dimname, FMT='("dim",I0)') i
             dimname = trim(varname)//'_'//trim(dimname)
-          endif
+          end if
 
           !See if we can find the dimension
           ncerr = nf90_inq_dimid(ncid, trim(dimname), dim_ids(i)); call nccheck(ncerr)
