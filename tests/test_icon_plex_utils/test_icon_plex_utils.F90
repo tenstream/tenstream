@@ -165,7 +165,8 @@ contains
     call VecGetArrayF90(gVec, xarr, ierr); call CHKERR(ierr)
     xxarr(1:Nz, fStart:fEnd - 1) => xarr
     print *, myid, 'xxarr', xxarr(:, :)
-    @assertEqual(real(myid, ireals), xxarr, sqrt(epsilon(xxarr)))
+    ! check that all are the same
+    @assertEqual(xxarr(1, fStart), xxarr, sqrt(epsilon(xxarr)))
     nullify (xxarr)
     call VecRestoreArrayF90(gVec, xarr, ierr); call CHKERR(ierr)
 
@@ -261,8 +262,8 @@ contains
       call VecGetArrayF90(r0Vec, xarr, ierr); call CHKERR(ierr)
       xxarr(1:Nz, 1:Nx_global * Ny_global * 2) => xarr
       !print *,myid,'xxarr',xxarr(:,:)
-      do i = 1, size(arr, dim=2)
-        do k = 1, size(arr, dim=1)
+      do i = 1, size(xxarr, dim=2)
+        do k = 1, size(xxarr, dim=1)
           ! this assumes that petsc distribute splits the x axis uniformly...
           ! 2 faces for each proc
           trg = real((i - 1) * Nz + k - 1 + (i - 1) / fEnd * 100, ireals)

@@ -324,11 +324,8 @@ contains
     if (myid .eq. 0) then
       @assertEqual(box_planck * pi, geup(glob_box_k, glob_box_i, glob_box_j), atol, 'eup at top of building should be emission')
       @assertEqual(box_planck * pi, gedn(glob_box_k + 1, glob_box_i, glob_box_j), atol, 'edn at top of building should be emission')
-
     end if
-    if (size(buildings%edir) .gt. 0) then
-      @assertEqual(box_planck * pi, buildings%outgoing, atol, 'emission on buildings should be planck')
-    end if
+    @assertEqual(box_planck * pi, buildings%outgoing, atol, 'emission on buildings should be planck')
   end subroutine
 
   @test(npes=[4, 1])
