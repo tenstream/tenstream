@@ -780,7 +780,7 @@ contains
     if (myid .eq. 0) then
       call read_ascii_file_2d(atm_filename, prof, ierr)
       call CHKERR(ierr, 'Failed loading background atmosphere file '//trim(atm_filename))
-      call CHKERR(int(size(prof,dim=2)-11, mpiint), 'Found '//toStr(size(prof,dim=2))//' columns '// &
+      call CHKERR(int(size(prof, dim=2) - 11, mpiint), 'Found '//toStr(size(prof, dim=2))//' columns '// &
         & 'in atmosphere file <'//trim(atm_filename)//'> but expected 11'//new_line('')// &
         & 'Please check an example file from the repo, e.g. tenstream/misc/atm.dat')
 
