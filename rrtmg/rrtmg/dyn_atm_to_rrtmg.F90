@@ -800,7 +800,7 @@ contains
       atm%o3_lev = prof(:, 5) / prof(:, 4)
       atm%co2_lev = prof(:, 8) / prof(:, 4)
       atm%ch4_lev = atm%co2_lev / 1e2
-      atm%n2o_lev = prof(:, 9) / prof(:, 4)
+      atm%n2o_lev = prof(:, 10) / prof(:, 4)
       atm%o2_lev = prof(:, 6) / prof(:, 4)
 
       if (ldebug .and. myid .eq. 0) then
