@@ -155,12 +155,12 @@ contains
     #:set dKIND = '' if method == 'logical' else '('+dtype+')'
     #:for RANK in range(1, 8)
       subroutine ncwrite_${method}$_${dtype}$_${RANK}$d &
-        (groups, arr, ierr, arr_shape, startp, countp, stride, map)
+        (groups, arr, ierr, arr_shape, startp, countp, stride, map, dimnames)
 
+        character(len=*), intent(in) :: groups(:)
         ${method}$${dKIND}$, intent(in) :: arr${ranksuffix(RANK)}$
         integer, intent(in), optional :: arr_shape(:), startp(:), countp(:), stride(:), map(:)
-
-        character(len=*) :: groups(:)
+        character(len=*), intent(in), optional :: dimnames(:)
 
         character(len=default_str_len) :: fname, varname
         integer :: Ndims, ncid, i, varid
@@ -226,14 +226,19 @@ contains
         if (ldebug) print *, 'Set NetCDF File to def_mode', ncerr
 
         do i = 1, Ndims
-          write (dimname, FMT='("dim",I0)') i
+          if(present(dimnames)) then
+            dimname = trim(dimnames(i))
+          else
+            write (dimname, FMT='("dim",I0)') i
+            dimname = trim(varname)//'_'//trim(dimname)
+          endif
 
           !See if we can find the dimension
-          ncerr = nf90_inq_dimid(ncid, trim(varname)//'_'//trim(dimname), dim_ids(i)); call nccheck(ncerr)
-          if (ldebug) print *, 'Check if dimension '//trim(varname)//'_'//trim(dimname)//' exists', ncerr
+          ncerr = nf90_inq_dimid(ncid, trim(dimname), dim_ids(i)); call nccheck(ncerr)
+          if (ldebug) print *, 'Check if dimension '//trim(dimname)//' exists', ncerr
           if (ncerr .ne. NF90_NOERR) then !Otherwise create it
-            ncerr = nf90_def_dim(ncid, trim(varname)//'_'//trim(dimname), dims(i), dim_ids(i)); call nccheck(ncerr)
-            if (ldebug) print *, 'Create dimension :: ', i, dims(i), dim_ids(i), trim(varname)//'_'//trim(dimname), ' :: ', ncerr
+            ncerr = nf90_def_dim(ncid, trim(dimname), dims(i), dim_ids(i)); call nccheck(ncerr)
+            if (ldebug) print *, 'Create dimension :: ', i, dims(i), dim_ids(i), trim(dimname), ' :: ', ncerr
           end if
         end do
 
