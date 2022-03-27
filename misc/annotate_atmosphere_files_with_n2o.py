@@ -14,15 +14,42 @@ def main(garand_file, atm_file, out_file):
         raise FileNotFoundError(f"atm_file does not exist: {atm_file}")
 
     atm = np.loadtxt(atm_file)
-    if atm.shape[1] != 9:
-        raise Exception(f"atm_file does not have 9 columns: shape {atm.shape}")
 
+    header = []
+    with open(atm_file) as fh:
+        for line in fh:
+            if "#" in line:
+                header.append(line)
+
+    have_n2o = np.any(["n2o" in _ for _ in header])
+    have_ch4 = np.any(["ch4" in _ for _ in header])
+
+    if (not have_n2o) and (not have_ch4):
+        if atm.shape[1] != 9:
+            raise Exception(f"atm_file does not have 9 columns: shape {atm.shape}")
+
+    if (have_n2o) and (not have_ch4):
+        if atm.shape[1] != 10:
+            raise Exception(f"atm_file does not have 10 columns: shape {atm.shape}")
+
+    if (have_n2o) and (have_ch4) and atm.shape[1] == 11:
+        print('seems we have all the data we want... returning')
+
+    # Garand profiles (9 columns)
+    # p, T, z, H2O, O3, CO2, N2O, CO, CH4
     G = garand = xr.open_dataset(garand_file)
     p = G.Atmosphere.isel(numCols=0).mean("numAtm").data
-    n2o = G.Atmosphere.isel(numCols=6).mean("numAtm").data
-    fn2o = interp1d(p * 1e-2, n2o, bounds_error=False, fill_value="extrapolate")
 
-    new_atm = np.c_[ atm,  fn2o(atm[:, 1]) * atm[:, 3]]
+    if not have_n2o:
+        n2o = G.Atmosphere.isel(numCols=6).mean("numAtm").data
+        fn2o = interp1d(p * 1e-2, n2o, bounds_error=False, fill_value="extrapolate")
+        atm = np.c_[ atm,  fn2o(atm[:, 1]) * atm[:, 3]]
+
+    if not have_ch4:
+        ch4 = G.Atmosphere.isel(numCols=8).mean("numAtm").data
+        fch4 = interp1d(p * 1e-2, ch4, bounds_error=False, fill_value="extrapolate")
+        atm = np.c_[ atm,  fch4(atm[:, 1]) * atm[:, 3]]
+
 
     header = []
     with open(atm_file) as fh:
@@ -33,8 +60,10 @@ def main(garand_file, atm_file, out_file):
     new_header = []
     for h in header:
         h = h.replace("\n", "")
-        if "no2" in h:
+        if (not have_n2o) and ("no2" in h):
             h += "     n2o(cm-3)\n"
+        if (not have_ch4) and ("no2" in h):
+            h += "     ch4(cm-3)\n"
         new_header.append(h)
 
     if out_file is None:
@@ -44,8 +73,8 @@ def main(garand_file, atm_file, out_file):
 
     for h in new_header:
         fh.writelines(h + '\n')
-    for k in range(new_atm.shape[0]):
-        fh.writelines(" ".join(map( lambda f: f"{f:14.8g}", new_atm[k])) + '\n')
+    for k in range(atm.shape[0]):
+        fh.writelines(" ".join(map( lambda f: f"{f:14.8g}", atm[k])) + '\n')
 
     if fh is not sys.stdout:
         fh.close()
