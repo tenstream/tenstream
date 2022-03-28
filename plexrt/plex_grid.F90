@@ -1257,7 +1257,7 @@ contains
 
     call DMPlexGetDepthStratum(plex%dm, i2, fStart, fEnd, ierr); call CHKERR(ierr) ! cells
 
-    call DMGetSection(plex%geom_dm, geomSection, ierr); CHKERRQ(ierr)
+    call DMGetSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
     call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
     do iface = fStart, fEnd - 1
