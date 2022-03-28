@@ -176,7 +176,7 @@ contains
     if (myid .eq. 0) then
       call VecGetArrayF90(r0Vec, xarr, ierr); call CHKERR(ierr)
       xxarr(1:Nz, 1:Nx_global * Ny_global * 2) => xarr
-      !print *,myid,'xxarr',xxarr(:,:)
+      print *, myid, 'xxarr', xxarr(:, :)
       @assertEqual(arr, xxarr, sqrt(epsilon(xxarr)))
       nullify (xxarr)
       call VecRestoreArrayF90(r0Vec, xarr, ierr); call CHKERR(ierr)
@@ -184,7 +184,7 @@ contains
     end if
   end subroutine
 
-  @test(npes=[1, 2, 3])
+  @test(npes=[1])
   subroutine test_dmplex_gVec_from_f90_array(this)
     class(MpiTestMethod), intent(inout) :: this
     integer(mpiint) :: comm
@@ -224,7 +224,7 @@ contains
 
     call VecGetArrayF90(gVec, xarr, ierr); call CHKERR(ierr)
     xxarr(1:Nz, 1:size(arr, dim=2)) => xarr
-    !print *,myid,'xxarr',xxarr(:,:)
+    print *, myid, 'xxarr', xxarr(:, :)
     @assertEqual(arr, xxarr, epsilon(xxarr))
     nullify (xxarr)
     call VecRestoreArrayF90(gVec, xarr, ierr); call CHKERR(ierr)
@@ -244,7 +244,7 @@ contains
 
     call VecGetArrayF90(gVec, xarr, ierr); call CHKERR(ierr)
     xxarr(1:Nz, fStart:fEnd - 1) => xarr
-    !print *,myid,'xxarr',xxarr(:,:)
+    print *, myid, 'xxarr', xxarr(:, :)
     @assertEqual(arr, xxarr, epsilon(xxarr))
     nullify (xxarr)
     call VecRestoreArrayF90(gVec, xarr, ierr); call CHKERR(ierr)
@@ -261,7 +261,7 @@ contains
     if (myid .eq. 0) then
       call VecGetArrayF90(r0Vec, xarr, ierr); call CHKERR(ierr)
       xxarr(1:Nz, 1:Nx_global * Ny_global * 2) => xarr
-      !print *,myid,'xxarr',xxarr(:,:)
+      print *, myid, 'xxarr', xxarr(:, :)
       do i = 1, size(xxarr, dim=2)
         do k = 1, size(xxarr, dim=1)
           ! this assumes that petsc distribute splits the x axis uniformly...
