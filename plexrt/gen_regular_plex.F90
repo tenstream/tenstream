@@ -29,7 +29,7 @@ contains
     integer(iintegers) :: Nx, Ny
     PetscBool :: lflg
 
-    call PetscInitialize(PETSC_NULL_CHARACTER, ierr); CHKERRQ(ierr)
+    call PetscInitialize(PETSC_NULL_CHARACTER, ierr); call CHKERR(ierr)
     call PetscOptionsInsertString(PETSC_NULL_OPTIONS, default_options, ierr); call CHKERR(ierr)
 
     call init_mpi_data_parameters(PETSC_COMM_WORLD)

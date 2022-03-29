@@ -436,7 +436,7 @@ contains
     @assertEqual(trgt, eup(k, :), trgt * eps, 'eup radiation @ cld top')
 
     trgt = -0.98677    ! abso determined with 2str
-    trgt = -0.95925    ! abso determined with plexrt
+    trgt = -0.95258    ! abso determined with plexrt
     @assertEqual(trgt, meanval(abso(k, :)), abs(trgt) * eps, 'abso @ cld layer')
     @assertEqual(trgt, abso(k, :), abs(trgt) * sqrt(eps), 'abso @ cld layer should also be horizontally homogeneous')
 

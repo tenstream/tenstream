@@ -136,7 +136,7 @@ contains
     logical, intent(in) :: lTOA_to_srfc    ! True if provided variables go from TOA to srfc or False if starting at surface
 
     ! Filename of background atmosphere file. ASCII file with columns:
-    ! z(km)  p(hPa)  T(K)  air(cm-3)  o3(cm-3) o2(cm-3) h2o(cm-3)  co2(cm-3) no2(cm-3)
+    ! z(km)  p(hPa)  T(K)  air(cm-3)  o3(cm-3) o2(cm-3) h2o(cm-3)  co2(cm-3) no2(cm-3) n2o(cm-3) ch4(cm-3)
     character(len=*), intent(in) :: atm_filename
 
     ! dim(nlay_dynamics+1, ncol)
@@ -770,7 +770,7 @@ contains
 
     integer(mpiint) :: myid, ierr
     integer(iintegers) :: k, nlev
-    real(ireals), allocatable :: prof(:, :) ! # z(km)  p(mb)  T(K) air(cm-3) o3(cm-3) o2(cm-3)  h2o(cm-3) co2(cm-3) no2(cm-3)
+    real(ireals), allocatable :: prof(:, :) ! # z(km) p(mb) T(K) air(cm-3) o3(cm-3) o2(cm-3) h2o(cm-3) co2(cm-3) no2(cm-3) n2o(cm-3) ch4(cm-3)
 
     if (allocated(atm)) return
 
@@ -780,6 +780,9 @@ contains
     if (myid .eq. 0) then
       call read_ascii_file_2d(atm_filename, prof, ierr)
       call CHKERR(ierr, 'Failed loading background atmosphere file '//trim(atm_filename))
+      call CHKERR(int(size(prof, dim=2) - 11, mpiint), 'Found '//toStr(size(prof, dim=2))//' columns '// &
+        & 'in atmosphere file <'//trim(atm_filename)//'> but expected 11'//new_line('')// &
+        & 'Please check an example file from the repo, e.g. tenstream/misc/atm.dat')
 
       nlev = ubound(prof, 1)
 
@@ -799,8 +802,8 @@ contains
       atm%h2o_lev = prof(:, 7) / prof(:, 4)
       atm%o3_lev = prof(:, 5) / prof(:, 4)
       atm%co2_lev = prof(:, 8) / prof(:, 4)
-      atm%ch4_lev = atm%co2_lev / 1e2
-      atm%n2o_lev = prof(:, 9) / prof(:, 4)
+      atm%n2o_lev = prof(:, 10) / prof(:, 4)
+      atm%ch4_lev = prof(:, 11) / prof(:, 4)
       atm%o2_lev = prof(:, 6) / prof(:, 4)
 
       if (ldebug .and. myid .eq. 0) then

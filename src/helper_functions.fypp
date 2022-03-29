@@ -1764,6 +1764,8 @@ contains
         read (funit, '(A)', iostat=io) line_str
 
         if (io .eq. 0) then
+          if (len_trim(line_str) .eq. 0) cycle ! ignore empty lines
+
           call split(line_str, line, ' ', ierr)
 
           if (ierr .eq. 0) then

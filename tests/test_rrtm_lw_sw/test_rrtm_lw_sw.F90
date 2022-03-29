@@ -197,7 +197,7 @@ contains
     @mpiassertEqual(-1.333e-02, abso(nlev - 1, 1, 1), atolerance * 1e-2, 'thermal at surface :: absorption not correct')
 
     @mpiassertEqual(0.0, edn(1, 1, 1), atolerance, 'thermal at TOA :: downw flux not correct')
-    @mpiassertEqual(253.7460, eup(1, 1, 1), atolerance, 'thermal at TOA :: upward fl  not correct')
+    @mpiassertEqual(252.5133, eup(1, 1, 1), atolerance, 'thermal at TOA :: upward fl  not correct')
     @mpiassertEqual(-1.461e-07, abso(1, 1, 1), atolerance * 1e-2, 'thermal at TOA :: absorption not correct')
 
     @mpiassertEqual(323.34, edn(nlev - icld + 1, 1, 1), atolerance, 'thermal at icloud :: downw flux not correct')
@@ -234,8 +234,8 @@ contains
 
     @mpiassertEqual(511.60, edir(nlev - icld, 1, 1), atolerance, 'solar+thermal at icloud :: direct flux not correct')
     @mpiassertEqual(323.27, edir(nlev - icld + 1, 1, 1), atolerance, 'solar+thermal at icloud+1 :: direct flux not correct')
-    @mpiassertEqual(167.71 + 323.34, edn(nlev - icld + 1, 1, 1), atolerance, 'solar+thermal at icloud :: downw flux not correct')
-    @mpiassertEqual(194.19 + 387.01, eup(nlev - icld, 1, 1), atolerance, 'solar+thermal at icloud :: upward fl  not correct')
-    @mpiassertEqual(0.0224 - 0.196, abso(nlev - icld, 1, 1), atolerance * 1e-2, 'solar+thermal at icloud :: absorption not correct')
+    @mpiassertEqual(168.64 + 323.50, edn(nlev - icld + 1, 1, 1), atolerance, 'solar+thermal at icloud :: downw flux not correct')
+    @mpiassertEqual(194.18 + 386.98, eup(nlev - icld, 1, 1), atolerance, 'solar+thermal at icloud :: upward fl  not correct')
+    @mpiassertEqual(0.0243 - 0.196, abso(nlev - icld, 1, 1), atolerance * 1e-2, 'solar+thermal at icloud :: absorption not correct')
   end subroutine
 end module

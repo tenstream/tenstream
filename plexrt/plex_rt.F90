@@ -208,7 +208,7 @@ contains
             & top_area(plex%Nlay, 0), &
             & bot_area(plex%Nlay, 0))
         else
-          call DMGetSection(geom_dm, geom_section, ierr); CHKERRQ(ierr)
+          call DMGetSection(geom_dm, geom_section, ierr); call CHKERR(ierr)
           call VecGetArrayReadF90(plex%geomVec, xgeoms, ierr); call CHKERR(ierr)
           call ISGetIndicesF90(boundary_ids, xitoa, ierr); call CHKERR(ierr)
 
@@ -1591,7 +1591,7 @@ contains
 
     if (.not. allocated(plex%geom_dm)) call CHKERR(myid + 1, 'get_normal_of_first_TOA_face::needs allocated geom_dm first')
 
-    call DMGetSection(plex%geom_dm, geomSection, ierr); CHKERRQ(ierr)
+    call DMGetSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
     call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
     call DMGetSection(edirdm, edirsection, ierr); call CHKERR(ierr)
@@ -1847,10 +1847,10 @@ contains
       call PetscObjectSetName(srcVec, 'DiffSrcVec', ierr); call CHKERR(ierr)
     end if
     call DMGetSection(ediffdm, ediffSection, ierr); call CHKERR(ierr)
-    call DMGetSection(plckdm, plckSection, ierr); CHKERRQ(ierr)
+    call DMGetSection(plckdm, plckSection, ierr); call CHKERR(ierr)
     call DMGetSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
     call DMGetSection(plex%wedge_orientation_dm, wedgeSection, ierr); call CHKERR(ierr)
-    call DMGetSection(plex%srfc_boundary_dm, srfcSection, ierr); CHKERRQ(ierr)
+    call DMGetSection(plex%srfc_boundary_dm, srfcSection, ierr); call CHKERR(ierr)
 
     call VecGetArrayReadF90(kabs, xkabs, ierr); call CHKERR(ierr)
     call VecGetArrayReadF90(ksca, xksca, ierr); call CHKERR(ierr)
@@ -2544,7 +2544,7 @@ contains
     !if(ldebug) print *,'plex_rt::scale_facevec...'
     call mpi_comm_rank(plex%comm, myid, ierr); call CHKERR(ierr)
 
-    call DMGetSection(plex%geom_dm, geomSection, ierr); CHKERRQ(ierr)
+    call DMGetSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
     call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
     call DMGetSection(face_dm, faceSection, ierr); call CHKERR(ierr)
@@ -3175,7 +3175,7 @@ contains
       call DMGetStratumIS(plex%geom_dm, 'DomainBoundary', BOTFACE, bc_ids, ierr); call CHKERR(ierr)
       if (bc_ids .eq. PETSC_NULL_IS) then ! dont have surface points
       else
-        call DMGetSection(plex%srfc_boundary_dm, srfcSection, ierr); CHKERRQ(ierr)
+        call DMGetSection(plex%srfc_boundary_dm, srfcSection, ierr); call CHKERR(ierr)
         call VecGetArrayReadF90(albedo, xalbedo, ierr); call CHKERR(ierr)
         call ISGetIndicesF90(bc_ids, xi, ierr); call CHKERR(ierr)
         do i = 1, size(xi)

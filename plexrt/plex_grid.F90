@@ -304,7 +304,7 @@ contains
       call get_petsc_opt(PETSC_NULL_CHARACTER, "-check_height_for_consistency", ldocheck, lflg, ierr); call CHKERR(ierr)
       if (.not. ldocheck) return
 
-      call DMGetSection(plex%geom_dm, geom_section, ierr); CHKERRQ(ierr)
+      call DMGetSection(plex%geom_dm, geom_section, ierr); call CHKERR(ierr)
       call VecGetArrayReadF90(plex%geomVec, xgeoms, ierr); call CHKERR(ierr)
 
       do icell = plex%cStart, plex%cEnd - 1
@@ -1257,7 +1257,7 @@ contains
 
     call DMPlexGetDepthStratum(plex%dm, i2, fStart, fEnd, ierr); call CHKERR(ierr) ! cells
 
-    call DMGetSection(plex%geom_dm, geomSection, ierr); CHKERRQ(ierr)
+    call DMGetSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
     call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
     do iface = fStart, fEnd - 1
