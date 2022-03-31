@@ -44,7 +44,7 @@ module m_mie_tables
   implicit none
 
   private
-  public :: init_mie_tables, water_table, ice_table, t_mie_table, optprop
+  public :: mie_tables_init, mie_water_table, mie_ice_table, t_mie_table, mie_optprop
 
   logical, parameter :: ldebug = .true.
 
@@ -56,8 +56,8 @@ module m_mie_tables
     real(irealLUT), allocatable :: g(:, :)    ! dim [reff, wvl], asymmetry parameter
   end type
 
-  type(t_mie_table), allocatable :: water_table
-  type(t_mie_table), allocatable :: ice_table
+  type(t_mie_table), allocatable :: mie_water_table
+  type(t_mie_table), allocatable :: mie_ice_table
 contains
   subroutine load_data(fname, mie_table, ierr, lverbose)
     character(len=*), intent(in) :: fname
@@ -102,7 +102,7 @@ contains
     call imp_bcast(comm, mie_table%g, ierr); call CHKERR(ierr)
   end subroutine
 
-  subroutine init_mie_tables(comm, ierr, lverbose, path_water_table, path_ice_table)
+  subroutine mie_tables_init(comm, ierr, lverbose, path_water_table, path_ice_table)
     integer(mpiint), intent(in) :: comm
     integer(mpiint), intent(out) :: ierr
     logical, intent(in), optional :: lverbose
@@ -145,18 +145,18 @@ contains
     end if
 
     if (myid .eq. 0) then
-      if (.not. allocated(water_table)) then
-        call load_data(water_path, water_table, ierr, lverbose); call CHKERR(ierr)
+      if (.not. allocated(mie_water_table)) then
+        call load_data(water_path, mie_water_table, ierr, lverbose); call CHKERR(ierr)
       end if
-      if (.not. allocated(ice_table)) then
-        call load_data(ice_path, ice_table, ierr, lverbose); call CHKERR(ierr)
+      if (.not. allocated(mie_ice_table)) then
+        call load_data(ice_path, mie_ice_table, ierr, lverbose); call CHKERR(ierr)
       end if
     end if
-    call distribute_table(comm, water_table, ierr); call CHKERR(ierr)
-    call distribute_table(comm, ice_table, ierr); call CHKERR(ierr)
+    call distribute_table(comm, mie_water_table, ierr); call CHKERR(ierr)
+    call distribute_table(comm, mie_ice_table, ierr); call CHKERR(ierr)
   end subroutine
 
-  subroutine optprop(table, wvl, reff, qext, w0, g, ierr)
+  subroutine mie_optprop(table, wvl, reff, qext, w0, g, ierr)
     type(t_mie_table), intent(in) :: table
     real(ireals), intent(in) :: wvl, reff
     real(ireals), intent(out) :: qext, w0, g
