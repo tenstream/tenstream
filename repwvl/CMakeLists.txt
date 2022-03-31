@@ -23,4 +23,9 @@ TARGET_LINK_LIBRARIES( repwvl_pprts
   pprts
   pprts_base
   tenstr_disort
+  pprts_rrtmg
   ${EXTLIB} ${USERLIB} ${LIBS})
+
+
+add_executable(compute_training_data "compute_training_data.F90" )
+target_link_libraries( compute_training_data repwvl_pprts ${EXTLIB})

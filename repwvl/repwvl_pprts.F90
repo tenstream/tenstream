@@ -65,7 +65,7 @@ module m_repwvl_pprts
     & t_pprts_buildings, &
     & PPRTS_BOT_FACE
 
-  use m_repwvl_base, only: repwvl_init, t_repwvl_data
+  use m_repwvl_base, only: repwvl_init, t_repwvl_data, repwvl_dtau
 
   implicit none
 
@@ -141,7 +141,7 @@ contains
 
     ! ---------- end of API ----------------
 
-    type(t_repwvl_data), allocatable, save :: repwvl_data_thermal
+    type(t_repwvl_data), allocatable, save :: repwvl_data_solar, repwvl_data_thermal
 
     ! Counters
     integer(iintegers) :: ke, ke1
@@ -181,8 +181,7 @@ contains
     ke = ubound(atm%tlay, 1)
 
     if (.not. solver%linitialized) then
-      allocate (repwvl_data_thermal)
-      call repwvl_init(repwvl_data_thermal, ierr); call CHKERR(ierr)
+      call repwvl_init(repwvl_data_solar, repwvl_data_thermal, ierr); call CHKERR(ierr)
       call init_pprts_repwvl(comm, solver, &
                              dx, dy, atm%dz, &
                              sundir, &
@@ -211,17 +210,18 @@ contains
     call get_petsc_opt(PETSC_NULL_CHARACTER, &
                        "-skip_thermal", lskip_thermal, lflg, ierr); call CHKERR(ierr)
     if (lthermal .and. .not. lskip_thermal) then
-      call compute_thermal(                           &
-        & repwvl_data_thermal,                        &
-        & solver,                                     &
-        & atm,                                        &
-        & ie, je, ke, ke1,                            &
-        & albedo_thermal,                             &
-        & edn, eup, abso,                             &
-        & opt_time=opt_time,               &
-        & thermal_albedo_2d=thermal_albedo_2d,      &
-        & opt_buildings=opt_buildings_thermal,  &
-        & opt_tau=opt_tau_thermal         &
+      call compute_thermal(                    &
+        & repwvl_data_thermal,                 &
+        & solver,                              &
+        & atm,                                 &
+        & ie, je, ke, ke1,                     &
+        & albedo_thermal,                      &
+        & edn, eup, abso,                      &
+        & ierr,                                &
+        & opt_time=opt_time,                   &
+        & thermal_albedo_2d=thermal_albedo_2d, &
+        & opt_buildings=opt_buildings_thermal, &
+        & opt_tau=opt_tau_thermal              &
         & )
     end if
 
@@ -422,6 +422,7 @@ contains
       & edn,                  &
       & eup,                  &
       & abso,                 &
+      & ierr,                 &
       & opt_time,             &
       & thermal_albedo_2d,    &
       & opt_buildings,        &
@@ -431,16 +432,38 @@ contains
     class(t_solver), intent(inout) :: solver
     type(t_tenstr_atm), intent(in), target :: atm
     integer(iintegers), intent(in) :: ie, je, ke, ke1
-
     real(ireals), intent(in) :: albedo
-
     real(ireals), intent(inout), dimension(:, :, :) :: edn, eup, abso
+    integer(mpiint), intent(out) :: ierr
 
     real(ireals), optional, intent(in) :: opt_time, thermal_albedo_2d(:, :)
     type(t_pprts_buildings), intent(inout), optional :: opt_buildings
     real(ireals), intent(in), optional, dimension(:, :, :, :) :: opt_tau
 
+    integer(iintegers) :: iwvl, i, j, k, icol
+    real(ireals) :: VMRS(repwvl_data_thermal%Ntracer)
+    real(ireals) :: dtau
+    ierr = 0
+
     print *, 'repwvl_data_thermal%wvls', repwvl_data_thermal%wvls
+    iwvl = 1
+
+    do j = i1, i1!je
+      do i = i1, i1!ie
+        icol = i + (j - 1) * ie
+        do k = 1, ke
+          call repwvl_dtau(repwvl_data_thermal, &
+            & iwvl, &
+            & (atm%plev(k, icol) + atm%plev(k + 1, icol))*.5_ireals, &
+            & atm%plev(k, icol) - atm%plev(k + 1, icol), &
+            & atm%tlay(k, icol), &
+            & VMRS, &
+            & dtau, &
+            & ierr); call CHKERR(ierr)
+        end do
+      end do
+    end do
+
     if (.false.) then
       edn = albedo + opt_time + thermal_albedo_2d(1, 1)
       eup = albedo
