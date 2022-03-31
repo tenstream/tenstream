@@ -194,10 +194,8 @@ contains
 
           if(rayleigh_xsec.lt.0) call CHKERR(1_mpiint, 'rayleigh xsec negative!')
 
-          !rho = P / (R_DRY_AIR * atm%tlay(k, icol))
-          !dz = dP / (rho * EARTHACCEL)
-          N = P / (K_BOLTZMANN * atm%tlay(k, icol))
-          ksca(solver%C_one%zm + 1 - k, i, j) = rayleigh_xsec * 1e-4 * N
+          N = dP * AVOGADRO / EARTHACCEL / MOLMASSAIR
+          ksca(solver%C_one%zm + 1 - k, i, j) = N * rayleigh_xsec * 1e-4 ! [1e-4 form cm2 to m2]
 
           if(ksca(solver%C_one%zm + 1 - k, i, j).lt.0) call CHKERR(1_mpiint, 'rayleigh xsec negative!')
         end do
