@@ -10,10 +10,10 @@ module test_mie_table
     & mpiint
 
   use m_mie_tables, only: &
-    & init_mie_tables, &
-    & water_table, &
-    & ice_table, &
-    & optprop, &
+    & mie_tables_init, &
+    & mie_water_table, &
+    & mie_ice_table, &
+    & mie_optprop, &
     & t_mie_table
 
   use pfunit_mod
@@ -47,20 +47,20 @@ contains
 
     comm = this%getMpiCommunicator()
 
-    call init_mie_tables(comm, ierr, lverbose=.true.)
+    call mie_tables_init(comm, ierr, lverbose=.true.)
     @assertEqual(0, ierr)
-    @assertTrue(allocated(water_table), 'water_table is expected to be allocated')
-    @assertTrue(allocated(water_table%wvl ), 'water_table%wvl  is expected to be allocated')
-    @assertTrue(allocated(water_table%reff), 'water_table%reff is expected to be allocated')
-    @assertTrue(allocated(water_table%qext), 'water_table%qext is expected to be allocated')
-    @assertTrue(allocated(water_table%w0  ), 'water_table%w0   is expected to be allocated')
-    @assertTrue(allocated(water_table%g   ), 'water_table%g    is expected to be allocated')
-    @assertTrue(allocated(ice_table), 'ice_table is expected to be allocated')
-    @assertTrue(allocated(ice_table%wvl ), 'ice_table%wvl  is expected to be allocated')
-    @assertTrue(allocated(ice_table%reff), 'ice_table%reff is expected to be allocated')
-    @assertTrue(allocated(ice_table%qext), 'ice_table%qext is expected to be allocated')
-    @assertTrue(allocated(ice_table%w0  ), 'ice_table%w0   is expected to be allocated')
-    @assertTrue(allocated(ice_table%g   ), 'ice_table%g    is expected to be allocated')
+    @assertTrue(allocated(mie_water_table), 'water_table is expected to be allocated')
+    @assertTrue(allocated(mie_water_table%wvl ), 'water_table%wvl  is expected to be allocated')
+    @assertTrue(allocated(mie_water_table%reff), 'water_table%reff is expected to be allocated')
+    @assertTrue(allocated(mie_water_table%qext), 'water_table%qext is expected to be allocated')
+    @assertTrue(allocated(mie_water_table%w0  ), 'water_table%w0   is expected to be allocated')
+    @assertTrue(allocated(mie_water_table%g   ), 'water_table%g    is expected to be allocated')
+    @assertTrue(allocated(mie_ice_table), 'ice_table is expected to be allocated')
+    @assertTrue(allocated(mie_ice_table%wvl ), 'ice_table%wvl  is expected to be allocated')
+    @assertTrue(allocated(mie_ice_table%reff), 'ice_table%reff is expected to be allocated')
+    @assertTrue(allocated(mie_ice_table%qext), 'ice_table%qext is expected to be allocated')
+    @assertTrue(allocated(mie_ice_table%w0  ), 'ice_table%w0   is expected to be allocated')
+    @assertTrue(allocated(mie_ice_table%g   ), 'ice_table%g    is expected to be allocated')
   end subroutine
 
   @test(npes = [1, 2])
@@ -71,11 +71,11 @@ contains
 
     comm = this%getMpiCommunicator()
 
-    call init_mie_tables(comm, ierr)
+    call mie_tables_init(comm, ierr)
     @assertEqual(0, ierr)
 
-    call test_table(water_table)
-    call test_table(ice_table)
+    call test_table(mie_water_table)
+    call test_table(mie_ice_table)
   contains
     subroutine test_table(table)
       type(t_mie_table), intent(in) :: table
@@ -84,7 +84,7 @@ contains
 
       do iw = lbound(table%wvl, 1), ubound(table%wvl, 1)
         do ir = lbound(table%reff, 1), ubound(table%reff, 1)
-          call optprop(table, table%wvl(iw), table%reff(ir), qext, w0, g, ierr)
+          call mie_optprop(table, table%wvl(iw), table%reff(ir), qext, w0, g, ierr)
           @assertEqual(0, ierr)
           @assertEqual(table%qext(ir,iw), qext)
           @assertEqual(table%w0(ir,iw), w0)
@@ -102,11 +102,11 @@ contains
 
     comm = this%getMpiCommunicator()
 
-    call init_mie_tables(comm, ierr)
+    call mie_tables_init(comm, ierr)
     @assertEqual(0, ierr)
 
-    call test_table(water_table)
-    call test_table(ice_table)
+    call test_table(mie_water_table)
+    call test_table(mie_ice_table)
   contains
     subroutine test_table(table)
       type(t_mie_table), intent(in) :: table
@@ -117,7 +117,7 @@ contains
         do ir = lbound(table%reff, 1), ubound(table%reff, 1)
           wvl = (table%wvl(iw) + table%wvl(iw + 1)) / 2
           reff = table%reff(ir)
-          call optprop(table, wvl, reff, qext, w0, g, ierr)
+          call mie_optprop(table, wvl, reff, qext, w0, g, ierr)
           @assertEqual(0, ierr)
           @assertEqual((table%qext(ir,iw)+table%qext(ir,iw+1))/2, qext)
           @assertEqual((table%w0(ir,iw)+table%w0(ir,iw+1))/2, w0)
@@ -129,7 +129,7 @@ contains
         do ir = lbound(table%reff, 1), ubound(table%reff, 1) - 1
           wvl = table%wvl(iw)
           reff = (table%reff(ir) + table%reff(ir + 1)) / 2
-          call optprop(table, wvl, reff, qext, w0, g, ierr)
+          call mie_optprop(table, wvl, reff, qext, w0, g, ierr)
           @assertEqual(0, ierr)
           @assertEqual((table%qext(ir,iw)+table%qext(ir+1,iw))/2, qext)
           @assertEqual((table%w0(ir,iw)+table%w0(ir+1,iw))/2, w0)
