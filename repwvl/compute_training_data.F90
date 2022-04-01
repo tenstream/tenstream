@@ -307,9 +307,12 @@ contains
     real(ireals), allocatable, dimension(:, :, :) :: spec_edn, spec_eup   ! [nlyr(+1), nx, ny ]
 
     integer(iintegers) :: iwvl
+    integer(mpiint) :: myid
 
     logical :: lsolar
     lsolar = present(edir)
+
+    call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
     call set_angles(solver, sundir=spherical_2_cartesian(0._ireals, 60._ireals))
 
@@ -320,6 +323,11 @@ contains
     allocate (abso(solver%C_one%zm, solver%C_one%xm, solver%C_one%ym, repwvl_data%Nwvl), source=0._ireals)
 
     do iwvl = 1, size(repwvl_data%wvls)
+
+      if (myid .eq. 0) print *, 'Computing wavelengths '//toStr(iwvl)//' / '//toStr(size(repwvl_data%wvls))//&
+        & ' -- '//toStr(100._ireals * real(iwvl, ireals) / real(size(repwvl_data%wvls(iwvl)), ireals))//' %'// &
+        & ' ('//toStr(repwvl_data%wvls(iwvl))//' nm)'
+
       if (lsolar) then
         call monochrome_solve(&
           & comm, &
@@ -333,7 +341,6 @@ contains
           & spec_abso, &
           & ierr, &
           & spec_edir); call CHKERR(ierr)
-
       else
         call monochrome_solve(&
           & comm, &
