@@ -4,12 +4,17 @@ set -euo pipefail
 SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 PROJECT_ROOT="$(readlink -f $SCRIPTDIR/../)"
 
-export PETSC_DIR=${1:-$PROJECT_ROOT/external/petsc}
-export PETSC_ARCH=${2:-default}
+export PETSC_DIR=${PETSC_DIR:-${1:-$PROJECT_ROOT/external/petsc}}
+export PETSC_ARCH=${PETSC_ARCH:-${2:-default}}
 PETSC_PRECISION=${3:-single}
 PETSC_DEBUGGING=${4:-0}
 PETSC_64_INTEGERS=${5:-0}
 PETSC_OPTS=${@:6}
+
+if [[ "x$PETSC_ARCH" == x"debug"* ]]; then
+  PETSC_DEBUGGING=1
+  PETSC_PRECISION=double
+fi
 
 if [[ -z ${PETSC_OPTS} ]]; then
   PETSC_OPTS="--download-hdf5 --download-szlib --download-zlib"
@@ -89,7 +94,7 @@ function download_file() {
     echo "Either download it yourself or make sure we have curl available"
     exit 1
   fi
-  curl --progress-bar $URL --output $DST
+  curl -L --progress-bar $URL --output $DST
   }
 
 function install_netcdf() {
@@ -104,9 +109,9 @@ function install_netcdf() {
     return
   fi
 
-  URL="ftp://ftp.unidata.ucar.edu/pub/netcdf/$FILE"
-  download_file "$URL" "$SRCDIR/$FILE"
-  tar -xzf $FILE
+  URL="https://github.com/Unidata/$FILE"
+  download_file "$URL" "$SRCDIR/$(basename $FILE)"
+  tar -xzf $(basename $FILE)
   cd $(basename $FILE .tar.gz)
   export LD_LIBRARY_PATH=${PREFIX}/lib:${LD_LIBRARY_PATH:-}
   export PATH=${PREFIX}/bin:${PATH:-}
@@ -114,9 +119,8 @@ function install_netcdf() {
   echo "Installed NetCDF lib $FILE into $PREFIX -- CC $CC FC $FC CXX $CXX"
 }
 
-install_netcdf "netcdf-c-4.7.4.tar.gz"       "$PETSC_DIR/$PETSC_ARCH/"
-install_netcdf "netcdf-fortran-4.5.3.tar.gz" "$PETSC_DIR/$PETSC_ARCH/"
-install_netcdf "netcdf-cxx4-4.3.1.tar.gz"    "$PETSC_DIR/$PETSC_ARCH/"
+install_netcdf "netcdf-c/archive/refs/tags/v4.8.1.tar.gz"       "$PETSC_DIR/$PETSC_ARCH/"
+install_netcdf "netcdf-fortran/archive/refs/tags/v4.5.4.tar.gz" "$PETSC_DIR/$PETSC_ARCH/"
 
 printf "\n** Make sure to export PETSC_DIR and PETSC_ARCH before cmake'ing TenStream, i.e. set \n\
   \n\
