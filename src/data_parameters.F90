@@ -116,7 +116,6 @@ module m_data_parameters
   real(ireal_params), parameter :: pi_ireal_params = 3.141592653589793_ireal_params
   real(real128), parameter :: pi128 = 4 * atan(1._real128)
 
-
 contains
   subroutine init_mpi_data_parameters(comm)
     integer(mpiint), intent(in) :: comm
