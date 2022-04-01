@@ -104,15 +104,21 @@ function install_netcdf() {
   mkdir -p $SRCDIR
   cd $SRCDIR
 
-  if [ -e "$(basename $FILE .tar.gz)" ]; then
-    echo "Skipping netcdf install for $FILE because src directory already present"
-    return
-  fi
+  DOWNLOAD_FILE="download_netcdf.$(basename $FILE)"
 
   URL="https://github.com/Unidata/$FILE"
-  download_file "$URL" "$SRCDIR/$(basename $FILE)"
-  tar -xzf $(basename $FILE)
-  cd $(basename $FILE .tar.gz)
+  download_file "$URL" "$SRCDIR/${DOWNLOAD_FILE}"
+
+  set +e
+  ARCHIVE_DIR="$(tar -tf ${DOWNLOAD_FILE}| head -n 1)"
+  set -e
+  if [ ! -e $ARCHIVE_DIR ]; then
+    echo "Unpacking $DOWNLOAD_FILE to $ARCHIVE_DIR"
+    tar -xzf $DOWNLOAD_FILE
+  else
+    echo "Skipping untar because dir $ARCHIVE_DIR already exists"
+  fi
+  cd $ARCHIVE_DIR
   export LD_LIBRARY_PATH=${PREFIX}/lib:${LD_LIBRARY_PATH:-}
   export PATH=${PREFIX}/bin:${PATH:-}
   CC=$CC FC=$FC F90=$FC CXX=$CXX CPPFLAGS=-I$PREFIX/include LDFLAGS=-L$PREFIX/lib ./configure --prefix=$PREFIX --disable-dap && make -j install
@@ -121,6 +127,7 @@ function install_netcdf() {
 
 install_netcdf "netcdf-c/archive/refs/tags/v4.8.1.tar.gz"       "$PETSC_DIR/$PETSC_ARCH/"
 install_netcdf "netcdf-fortran/archive/refs/tags/v4.5.4.tar.gz" "$PETSC_DIR/$PETSC_ARCH/"
+install_netcdf "netcdf-cxx4/archive/refs/tags/v4.3.1.tar.gz"    "$PETSC_DIR/$PETSC_ARCH/"
 
 printf "\n** Make sure to export PETSC_DIR and PETSC_ARCH before cmake'ing TenStream, i.e. set \n\
   \n\
