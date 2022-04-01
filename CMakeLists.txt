@@ -441,6 +441,7 @@ if(CTAGS_PATH)
     set_source_files_properties( tags PROPERTIES GENERATED true)
     add_custom_target(tags ALL
       COMMAND ctags -R
+      --langmap=Fortran:.fypp.f.for.ftn.f77.f90.f95.F.FOR.FTN.F77.F90.F95
       ${CMAKE_CURRENT_BINARY_DIR}/external
       ${CMAKE_CURRENT_SOURCE_DIR}/c_wrapper
       ${CMAKE_CURRENT_SOURCE_DIR}/disort
