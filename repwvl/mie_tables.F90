@@ -163,13 +163,17 @@ contains
     integer(mpiint), intent(out) :: ierr
 
     real(irealLUT) :: pt(2)
+    real(irealLUT) :: rqext, rw0, rg
 
     ierr = 0
 
-    pt(1) = find_real_location(table%reff, reff)
-    pt(2) = find_real_location(table%wvl, wvl)
-    call interp_2d(pt, table%qext, qext)
-    call interp_2d(pt, table%w0, w0)
-    call interp_2d(pt, table%g, g)
+    pt(1) = find_real_location(table%reff, real(reff, irealLUT))
+    pt(2) = find_real_location(table%wvl, real(wvl, irealLUT))
+    call interp_2d(pt, table%qext, rqext)
+    call interp_2d(pt, table%w0, rw0)
+    call interp_2d(pt, table%g, rg)
+    qext = real(rqext, irealLUT)
+    w0 = real(rw0, irealLUT)
+    g = real(rg, irealLUT)
   end subroutine
 end module

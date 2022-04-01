@@ -56,10 +56,10 @@ contains
     call rayleigh(.1_ireals, ksca, ierr)
     @assertTrue(ierr.ne.0, 'Should throw an error for small wavelengths')
 
-    call rayleigh(.5, ksca, ierr)
+    call rayleigh(.5_ireals, ksca, ierr)
     @assertEqual(6.66140033E-27_ireals, ksca)
 
-    call rayleigh(.5, co2, ksca2, ierr)
+    call rayleigh(.5_ireals, co2, ksca2, ierr)
     @assertEqual(6.66123701E-27_ireals, ksca2)
   end subroutine
 

@@ -84,7 +84,7 @@ contains
 
       do iw = lbound(table%wvl, 1), ubound(table%wvl, 1)
         do ir = lbound(table%reff, 1), ubound(table%reff, 1)
-          call mie_optprop(table, table%wvl(iw), table%reff(ir), qext, w0, g, ierr)
+          call mie_optprop(table, real(table%wvl(iw), ireals), real(table%reff(ir), ireals), qext, w0, g, ierr)
           @assertEqual(0, ierr)
           @assertEqual(table%qext(ir,iw), qext)
           @assertEqual(table%w0(ir,iw), w0)

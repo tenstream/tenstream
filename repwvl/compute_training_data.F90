@@ -37,12 +37,15 @@ module m_compute_training_data
     & reverse, &
     & spherical_2_cartesian, &
     & toStr
+
+  use m_search, only: find_real_location
   use m_netcdfIO, only: ncload, ncwrite
   use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, destroy_tenstr_atm, print_tenstr_atm
   use m_pprts_base, only: t_solver, allocate_pprts_solver_from_commandline
   use m_pprts, only: init_pprts, set_optical_properties, solve_pprts, pprts_get_result, set_angles
 
   use m_repwvl_base, only: t_repwvl_data, repwvl_init, repwvl_dtau
+  use m_mie_tables, only: mie_tables_init, mie_water_table, mie_ice_table, mie_optprop
   use m_rayleigh, only: rayleigh
 
   implicit none
@@ -108,7 +111,9 @@ contains
     logical, intent(in), optional :: lverbose
 
     real(ireals), pointer :: ptr(:,:,:)
-    integer(iintegers) :: ipert, Nx, Ny, ke, ke1
+    real(ireals), allocatable :: rnd(:,:)
+    integer(iintegers) :: Nx, Ny, kmin, kmax, ke, ke1
+    integer(iintegers) :: icld, ipert
     ierr = 0
 
     ke1= size(atm%plev, dim=1)
@@ -116,13 +121,50 @@ contains
     Nx = size(atm%plev, dim=2) / Npert_atmo
     Ny = Npert_atmo
 
+    ! H2O perturbations
     ipert = 2; ptr(1:ke, 1:Nx, 1:Ny) => atm%h2o_lay; ptr(:,:,ipert) = ptr(:,:,ipert) * .5
-
     ipert = 3; ptr(1:ke, 1:Nx, 1:Ny) => atm%h2o_lay; ptr(:,:,ipert) = ptr(:,:,ipert) * 2
-
     ipert = 4; ptr(1:ke, 1:Nx, 1:Ny) => atm%h2o_lay; ptr(:,:,ipert) = ptr(:,:,ipert) * .1
-
     ipert = 5; ptr(1:ke, 1:Nx, 1:Ny) => atm%h2o_lay; ptr(:,:,ipert) = ptr(:,:,ipert) * 10
+
+    ! O3 perturbations
+    ipert = 6; ptr(1:ke, 1:Nx, 1:Ny) => atm%o3_lay; ptr(:,:,ipert) = ptr(:,:,ipert) * .5
+    ipert = 7; ptr(1:ke, 1:Nx, 1:Ny) => atm%o3_lay; ptr(:,:,ipert) = ptr(:,:,ipert) * 2
+
+    do icld = 0, 3 ! ipert from 8 to 8 + 4*3 -1 = 19
+      ! water cloud perturbations
+      ipert = ipert + 1
+      kmin = int(find_real_location(atm%plev(:,1), 850._ireals + real(icld, ireals) * 50._ireals), iintegers)
+      kmax = int(find_real_location(atm%plev(:,1), 800._ireals + real(icld, ireals) * 50._ireals), iintegers)
+      ptr(1:ke, 1:Nx, 1:Ny) => atm%lwc  ; ptr(kmin:kmax,:,ipert) = .1
+      ptr(1:ke, 1:Nx, 1:Ny) => atm%reliq; ptr(kmin:kmax,:,ipert) = 10
+
+      ! ice cloud perturbations
+      ipert = ipert + 1
+      kmin = int(find_real_location(atm%plev(:,1), 300._ireals + real(icld, ireals) * 50._ireals), iintegers)
+      kmax = int(find_real_location(atm%plev(:,1), 200._ireals + real(icld, ireals) * 50._ireals), iintegers)
+      ptr(1:ke, 1:Nx, 1:Ny) => atm%iwc  ; ptr(kmin:kmax,:,ipert) = .01
+      ptr(1:ke, 1:Nx, 1:Ny) => atm%reice; ptr(kmin:kmax,:,ipert) = 20
+
+      ! water + ice cloud perturbations
+      ipert = ipert + 1
+      kmin = int(find_real_location(atm%plev(:,1), 850._ireals + real(icld, ireals) * 50._ireals), iintegers)
+      kmax = int(find_real_location(atm%plev(:,1), 800._ireals + real(icld, ireals) * 50._ireals), iintegers)
+      ptr(1:ke, 1:Nx, 1:Ny) => atm%lwc  ; ptr(kmin:kmax,:,ipert) = .1
+      ptr(1:ke, 1:Nx, 1:Ny) => atm%reliq; ptr(kmin:kmax,:,ipert) = 10
+      kmin = int(find_real_location(atm%plev(:,1), 300._ireals + real(icld, ireals) * 50._ireals), iintegers)
+      kmax = int(find_real_location(atm%plev(:,1), 200._ireals + real(icld, ireals) * 50._ireals), iintegers)
+      ptr(1:ke, 1:Nx, 1:Ny) => atm%iwc  ; ptr(kmin:kmax,:,ipert) = .01
+      ptr(1:ke, 1:Nx, 1:Ny) => atm%reice; ptr(kmin:kmax,:,ipert) = 20
+    enddo
+
+    ! Random H2O perturbations
+    allocate(rnd(1:ke, 1:Nx))
+    call random_number(rnd)
+    ipert = 20; ptr(1:ke, 1:Nx, 1:Ny) => atm%h2o_lay; ptr(:,:,ipert) = ptr(:,:,ipert) * (rnd * 2)
+
+    print *,'Nr. of atmosphere perturbation entries:', ipert, '/', Npert_atmo
+    call CHKERR(int(ipert - Npert_atmo, mpiint), 'havent used all perturbation slots')
   end subroutine
 
   subroutine monochrome_solve(comm, solver, atm, lsolar, repwvl_data, iwvl, edn, eup, abso, ierr, edir)
@@ -143,7 +185,8 @@ contains
     real(ireals), parameter :: N2 = 0.7808_ireals
     real(ireals), allocatable, dimension(:, :, :) :: kabs, ksca, kg ! [nlyr, local_nx, local_ny]
 
-    real(ireals) :: P, dP, dtau, rayleigh_xsec, N !, rho, dz
+    real(ireals) :: tabs, tsca, g
+    real(ireals) :: P, dP, dtau, rayleigh_xsec, N, lwc_vmr, qext_cld, w0_cld, g_cld
     real(ireals) :: VMRS(repwvl_data%Ntracer)
     integer(iintegers) :: k, i, j, icol
 
@@ -183,26 +226,59 @@ contains
             & dtau, &
             & ierr); call CHKERR(ierr)
 
-          kabs(solver%C_one%zm + 1 - k, i, j) = dtau / atm%dz(k, icol)
-          if(kabs(solver%C_one%zm + 1 - k, i, j).lt.0) call CHKERR(1_mpiint, 'kabs negative!')
+          tabs = dtau / atm%dz(k, icol)
+          if(tabs.lt.0) call CHKERR(1_mpiint, 'kabs from repwvl negative!'//toStr(tabs))
 
           call rayleigh(&
             & repwvl_data%wvls(iwvl) * 1e-3_ireals, &
             & atm%co2_lay(k, icol), &
             & rayleigh_xsec, &
             & ierr); call CHKERR(ierr)
-
-          if(rayleigh_xsec.lt.0) call CHKERR(1_mpiint, 'rayleigh xsec negative!')
+          if(rayleigh_xsec.lt.0) call CHKERR(1_mpiint, 'rayleigh xsec negative!'//toStr(rayleigh_xsec))
 
           N = dP * AVOGADRO / EARTHACCEL / MOLMASSAIR
-          ksca(solver%C_one%zm + 1 - k, i, j) = N * rayleigh_xsec * 1e-4 ! [1e-4 form cm2 to m2]
+          tsca = N * rayleigh_xsec * 1e-4 / atm%dz(k, icol) ! [1e-4 from cm2 to m2]
+          if(tsca.lt.0) call CHKERR(1_mpiint, 'rayleigh scattering coeff negative!'//toStr(tsca))
 
-          if(ksca(solver%C_one%zm + 1 - k, i, j).lt.0) call CHKERR(1_mpiint, 'rayleigh xsec negative!')
+          ! rayleigh has symmetric asymmetry parameter
+          g = 0
+
+          if (atm%lwc(k, icol) > 0) then
+            call mie_optprop(&
+              & mie_water_table, &
+              & repwvl_data%wvls(iwvl) * 1e-3_ireals, &
+              & atm%reliq(k, icol), &
+              & qext_cld, w0_cld, g_cld, ierr); call CHKERR(ierr)
+
+            lwc_vmr = atm%lwc(k, icol) * dP / ( EARTHACCEL * atm%dz(k, icol)) ! have lwc in [ g / kg ], lwc_vmr in [ g / m3 ]
+            qext_cld = qext_cld * 1e-3 * lwc_vmr ! from [km^-1 / (g / m^3)] to [1/m]
+
+            g = (g * tsca + g_cld * qext_cld ) / ( tsca + qext_cld )
+            tabs = tabs + qext_cld * max(0._ireals, (1._ireals - w0_cld))
+            tsca = tsca + qext_cld * w0_cld
+          endif
+
+          if (atm%iwc(k, icol) > 0) then
+            call mie_optprop(&
+              & mie_ice_table, &
+              & repwvl_data%wvls(iwvl) * 1e-3_ireals, &
+              & atm%reice(k, icol), &
+              & qext_cld, w0_cld, g_cld, ierr); call CHKERR(ierr)
+
+            lwc_vmr = atm%iwc(k, icol) * dP / ( EARTHACCEL * atm%dz(k, icol)) ! have iwc in [ g / kg ], lwc_vmr in [ g / m3 ]
+            qext_cld = qext_cld * 1e-3 * lwc_vmr ! from [km^-1 / (g / m^3)] to [1/m]
+
+            g = (g * tsca + g_cld * qext_cld ) / ( tsca + qext_cld )
+            tabs = tabs + qext_cld * max(0._ireals, (1._ireals - w0_cld))
+            tsca = tsca + qext_cld * w0_cld
+          endif
+
+          kabs(solver%C_one%zm + 1 - k, i, j) = tabs
+          ksca(solver%C_one%zm + 1 - k, i, j) = tsca
+          kg  (solver%C_one%zm + 1 - k, i, j) = g
         end do
       end do
     end do
-
-    kg = 0
 
     if (lsolar) then
       call set_optical_properties( &
@@ -350,6 +426,7 @@ contains
     groups(2) =  trim(prefix)//'wvl'; call ncwrite(groups, rdata%wvls, ierr, dimnames=dimnames); call CHKERR(ierr)
   end subroutine
 
+
   subroutine compute_training_data(comm, bg_atm_filename, atm_filename, out_filename, lsolar, edn, eup, abso, ierr, lverbose, edir)
     integer(mpiint), intent(in) :: comm
     character(len=*), intent(in) :: bg_atm_filename, atm_filename, out_filename
@@ -363,7 +440,8 @@ contains
     class(t_solver), allocatable :: solver
     type(t_repwvl_data), allocatable :: repwvl_data_solar, repwvl_data_thermal
 
-    integer(iintegers), parameter :: Npert_atmo = 5 ! we use the y axis to perturb the loaded atmospheres
+    integer(iintegers), parameter :: Npert_atmo = 20 ! we use the y axis to perturb the loaded atmospheres
+    integer(iintegers) :: ipert
 
     ierr = 0
 
@@ -373,13 +451,17 @@ contains
     call allocate_pprts_solver_from_commandline(solver, '2str', ierr); call CHKERR(ierr)
 
     call repwvl_init(repwvl_data_solar, repwvl_data_thermal, ierr, lverbose=.false.); call CHKERR(ierr)
+    call mie_tables_init(comm, ierr, lverbose=.False.)
 
     call init_solver(comm, atm, Npert_atmo, solver, ierr)
 
     if (lsolar) then
       call solve_scene(comm, solver, atm, repwvl_data_solar, edn, eup, abso, ierr, edir); call CHKERR(ierr)
-      print *, 'edir all base atm @ srfc', sum(edir(solver%C_dir%ze, :, 1, :), dim=2)
       call write_output_data(out_filename, 'solar_', repwvl_data_solar, edn, eup, abso, ierr, edir); call CHKERR(ierr)
+      do ipert = 1, Npert_atmo
+        print *, 'edir @ srfc ( perturbation='//toStr(ipert)//')', sum(edir(solver%C_dir%ze, :, ipert, :), dim=2)
+        print *, 'edn  @ srfc ( perturbation='//toStr(ipert)//')', sum(edn(solver%C_diff%ze, :, ipert, :), dim=2)
+      enddo
     else
       call solve_scene(comm, solver, atm, repwvl_data_thermal, edn, eup, abso, ierr); call CHKERR(ierr)
       call write_output_data(out_filename, 'thermal_', repwvl_data_thermal, edn, eup, abso, ierr); call CHKERR(ierr)
