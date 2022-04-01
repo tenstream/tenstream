@@ -286,7 +286,7 @@ endif(${LAPACK_FOUND})
 ## Add User Libs
 if(DEFINED USER_LIBS)
     list (APPEND EXTLIB "${USER_LIBS}" )
-    message(INFO " EXTLIB after user LIBS: ${USER_LIBS}")
+    message(STATUS "EXTLIB after user LIBS: ${USER_LIBS}")
 endif()
 
 set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
