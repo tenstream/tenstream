@@ -77,5 +77,5 @@ if (var_exists) then ! How big are the data dimensions?
 end if
 
 if (ldebug .or. get_arg(.false., lverbose)) &
-  print *, 'Dimension of variable: '//trim(varname), dimsize, '( '//ftoa(real(bytesize) / 1024.**3)//' Gb )'
+  print *, 'Dimension of variable: '//trim(varname), dimsize, '( '//toStr(real(bytesize) / 1024.**3)//' Gb )'
 
