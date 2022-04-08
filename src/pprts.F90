@@ -2313,6 +2313,7 @@ contains
 
     ! ---------------------------- Edir  -------------------
     if (solution%lsolar_rad) then
+      call PetscLogEventBegin(solver%logs%compute_Edir, ierr)
       prefix = "solar_dir_"
       if (len_trim(solver%prefix) .gt. 0) prefix = trim(solver%prefix)//prefix
 
@@ -2323,6 +2324,7 @@ contains
       else
         call edir(prefix)
       end if
+      call PetscLogEventEnd(solver%logs%compute_Edir, ierr)
     end if
 
     ! ---------------------------- Source Term -------------
@@ -2379,7 +2381,6 @@ contains
       character(len=*), intent(in) :: prefix
       logical :: lmat_permute, lmat_permute_reuse, lshell
 
-      call PetscLogEventBegin(solver%logs%compute_Edir, ierr)
 
       call VecSet(solver%incSolar, zero, ierr); call CHKERR(ierr)
       call setup_incSolar(solver, edirTOA, solver%incSolar)
@@ -2469,7 +2470,6 @@ contains
       solution%lWm2_dir = .false.
       call PetscObjectSetName(solution%edir, 'debug_edir', ierr); call CHKERR(ierr)
       call PetscObjectViewFromOptions(solution%edir, PETSC_NULL_VEC, "-show_debug_edir", ierr); call CHKERR(ierr)
-      call PetscLogEventEnd(solver%logs%compute_Edir, ierr)
     end subroutine
 
     subroutine ediff(A, Aperm, ksp, prefix)
