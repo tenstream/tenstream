@@ -40,7 +40,7 @@ module m_compute_training_data
 
   use m_search, only: find_real_location
   use m_netcdfIO, only: ncload, ncwrite
-  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, destroy_tenstr_atm, print_tenstr_atm
+  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, destroy_tenstr_atm, print_tenstr_atm, planck
   use m_pprts_base, only: t_solver, allocate_pprts_solver_from_commandline
   use m_pprts, only: init_pprts, set_optical_properties, solve_pprts, pprts_get_result, set_angles
 
@@ -113,57 +113,78 @@ contains
     real(ireals), allocatable :: rnd(:, :)
     integer(iintegers) :: Nx, Ny, kmin, kmax, ke, ke1
     integer(iintegers) :: icld, ipert
+
+    integer(iintegers) :: h2o, co2, o3, ch4
+    real(ireals), parameter :: H2O_pert(*) = [real(ireals) :: .1, 1., 2., 10]
+    real(ireals), parameter :: CO2_pert(*) = [real(ireals) :: 1., 4.]
+    real(ireals), parameter :: O3_pert(*) = [real(ireals) :: 1., 4.]
+    real(ireals), parameter :: CH4_pert(*) = [real(ireals) :: 1., 4.]
+
     ierr = 0
 
     ke1 = size(atm%plev, dim=1)
     ke = ke1 - 1
     Nx = size(atm%plev, dim=2) / Npert_atmo
     Ny = Npert_atmo
+    ipert = 1
 
-    ! H2O perturbations
-    ipert = 2; ptr(1:ke, 1:Nx, 1:Ny) => atm%h2o_lay; ptr(:, :, ipert) = ptr(:, :, ipert)*.5
-    ipert = 3; ptr(1:ke, 1:Nx, 1:Ny) => atm%h2o_lay; ptr(:, :, ipert) = ptr(:, :, ipert) * 2
-    ipert = 4; ptr(1:ke, 1:Nx, 1:Ny) => atm%h2o_lay; ptr(:, :, ipert) = ptr(:, :, ipert)*.1
-    ipert = 5; ptr(1:ke, 1:Nx, 1:Ny) => atm%h2o_lay; ptr(:, :, ipert) = ptr(:, :, ipert) * 10
+    do h2o = 1, size(H2O_pert)
+      do co2 = 1, size(CO2_pert)
+        do o3 = 1, size(O3_pert)
+          do ch4 = 1, size(CH4_pert)
+            ipert = ipert + 1
+            call do_gas_pert(ipert, h2o, co2, o3, ch4)
 
-    ! O3 perturbations
-    ipert = 6; ptr(1:ke, 1:Nx, 1:Ny) => atm%o3_lay; ptr(:, :, ipert) = ptr(:, :, ipert)*.5
-    ipert = 7; ptr(1:ke, 1:Nx, 1:Ny) => atm%o3_lay; ptr(:, :, ipert) = ptr(:, :, ipert) * 2
+            do icld = 0, 1 ! ipert from 8 to 8 + 4*3 -1 = 19
+              ! water cloud perturbations
+              ipert = ipert + 1
+              call do_gas_pert(ipert, h2o, co2, o3, ch4)
+              kmin = int(find_real_location(atm%plev(:, 1), 850._ireals + real(icld, ireals) * 50._ireals), iintegers)
+              kmax = int(find_real_location(atm%plev(:, 1), 800._ireals + real(icld, ireals) * 50._ireals), iintegers)
+              ptr(1:ke, 1:Nx, 1:Ny) => atm%lwc; ptr(kmin:kmax, :, ipert) = .1
+              ptr(1:ke, 1:Nx, 1:Ny) => atm%reliq; ptr(kmin:kmax, :, ipert) = 10
 
-    do icld = 0, 3 ! ipert from 8 to 8 + 4*3 -1 = 19
-      ! water cloud perturbations
-      ipert = ipert + 1
-      kmin = int(find_real_location(atm%plev(:, 1), 850._ireals + real(icld, ireals) * 50._ireals), iintegers)
-      kmax = int(find_real_location(atm%plev(:, 1), 800._ireals + real(icld, ireals) * 50._ireals), iintegers)
-      ptr(1:ke, 1:Nx, 1:Ny) => atm%lwc; ptr(kmin:kmax, :, ipert) = .1
-      ptr(1:ke, 1:Nx, 1:Ny) => atm%reliq; ptr(kmin:kmax, :, ipert) = 10
+              ! ice cloud perturbations
+              ipert = ipert + 1
+              call do_gas_pert(ipert, h2o, co2, o3, ch4)
+              kmin = int(find_real_location(atm%plev(:, 1), 300._ireals + real(icld, ireals) * 50._ireals), iintegers)
+              kmax = int(find_real_location(atm%plev(:, 1), 200._ireals + real(icld, ireals) * 50._ireals), iintegers)
+              ptr(1:ke, 1:Nx, 1:Ny) => atm%iwc; ptr(kmin:kmax, :, ipert) = .01
+              ptr(1:ke, 1:Nx, 1:Ny) => atm%reice; ptr(kmin:kmax, :, ipert) = 20
 
-      ! ice cloud perturbations
-      ipert = ipert + 1
-      kmin = int(find_real_location(atm%plev(:, 1), 300._ireals + real(icld, ireals) * 50._ireals), iintegers)
-      kmax = int(find_real_location(atm%plev(:, 1), 200._ireals + real(icld, ireals) * 50._ireals), iintegers)
-      ptr(1:ke, 1:Nx, 1:Ny) => atm%iwc; ptr(kmin:kmax, :, ipert) = .01
-      ptr(1:ke, 1:Nx, 1:Ny) => atm%reice; ptr(kmin:kmax, :, ipert) = 20
-
-      ! water + ice cloud perturbations
-      ipert = ipert + 1
-      kmin = int(find_real_location(atm%plev(:, 1), 850._ireals + real(icld, ireals) * 50._ireals), iintegers)
-      kmax = int(find_real_location(atm%plev(:, 1), 800._ireals + real(icld, ireals) * 50._ireals), iintegers)
-      ptr(1:ke, 1:Nx, 1:Ny) => atm%lwc; ptr(kmin:kmax, :, ipert) = .1
-      ptr(1:ke, 1:Nx, 1:Ny) => atm%reliq; ptr(kmin:kmax, :, ipert) = 10
-      kmin = int(find_real_location(atm%plev(:, 1), 300._ireals + real(icld, ireals) * 50._ireals), iintegers)
-      kmax = int(find_real_location(atm%plev(:, 1), 200._ireals + real(icld, ireals) * 50._ireals), iintegers)
-      ptr(1:ke, 1:Nx, 1:Ny) => atm%iwc; ptr(kmin:kmax, :, ipert) = .01
-      ptr(1:ke, 1:Nx, 1:Ny) => atm%reice; ptr(kmin:kmax, :, ipert) = 20
+              ! water + ice cloud perturbations
+              ipert = ipert + 1
+              call do_gas_pert(ipert, h2o, co2, o3, ch4)
+              kmin = int(find_real_location(atm%plev(:, 1), 850._ireals + real(icld, ireals) * 50._ireals), iintegers)
+              kmax = int(find_real_location(atm%plev(:, 1), 800._ireals + real(icld, ireals) * 50._ireals), iintegers)
+              ptr(1:ke, 1:Nx, 1:Ny) => atm%lwc; ptr(kmin:kmax, :, ipert) = .1
+              ptr(1:ke, 1:Nx, 1:Ny) => atm%reliq; ptr(kmin:kmax, :, ipert) = 10
+              kmin = int(find_real_location(atm%plev(:, 1), 300._ireals + real(icld, ireals) * 50._ireals), iintegers)
+              kmax = int(find_real_location(atm%plev(:, 1), 200._ireals + real(icld, ireals) * 50._ireals), iintegers)
+              ptr(1:ke, 1:Nx, 1:Ny) => atm%iwc; ptr(kmin:kmax, :, ipert) = .01
+              ptr(1:ke, 1:Nx, 1:Ny) => atm%reice; ptr(kmin:kmax, :, ipert) = 20
+            end do
+          end do
+        end do
+      end do
     end do
 
     ! Random H2O perturbations
     allocate (rnd(1:ke, 1:Nx))
     call random_number(rnd)
-    ipert = 20; ptr(1:ke, 1:Nx, 1:Ny) => atm%h2o_lay; ptr(:, :, ipert) = ptr(:, :, ipert) * (rnd * 2)
+    ipert = ipert + 1; ptr(1:ke, 1:Nx, 1:Ny) => atm%h2o_lay; ptr(:, :, ipert) = ptr(:, :, ipert) * (rnd * 2)
 
     print *, 'Nr. of atmosphere perturbation entries:', ipert, '/', Npert_atmo
     call CHKERR(int(ipert - Npert_atmo, mpiint), 'havent used all perturbation slots')
+
+  contains
+    subroutine do_gas_pert(ipert, h2o, co2, o3, ch4)
+      integer(iintegers), intent(in) :: ipert, h2o, co2, o3, ch4
+      ptr(1:ke, 1:Nx, 1:Ny) => atm%h2o_lay; ptr(:, :, ipert) = ptr(:, :, ipert) * H2O_pert(h2o)
+      ptr(1:ke, 1:Nx, 1:Ny) => atm%co2_lay; ptr(:, :, ipert) = ptr(:, :, ipert) * CO2_pert(co2)
+      ptr(1:ke, 1:Nx, 1:Ny) => atm%o3_lay; ptr(:, :, ipert) = ptr(:, :, ipert) * O3_pert(o3)
+      ptr(1:ke, 1:Nx, 1:Ny) => atm%ch4_lay; ptr(:, :, ipert) = ptr(:, :, ipert) * CH4_pert(ch4)
+    end subroutine
   end subroutine
 
   subroutine monochrome_solve(comm, solver, atm, lsolar, repwvl_data, iwvl, edn, eup, abso, ierr, edir)
@@ -178,12 +199,13 @@ contains
     real(ireals), allocatable, dimension(:, :, :), intent(inout), optional :: edir
 
     real(ireals), parameter :: edirTOA = 1._ireals
-    real(ireals), parameter :: albedo = .15_ireals
     real(ireals), parameter :: CO = 1e-9_ireals
     real(ireals), parameter :: HNO3 = 1e-9_ireals
     real(ireals), parameter :: N2 = 0.7808_ireals
     real(ireals), allocatable, dimension(:, :, :) :: kabs, ksca, kg ! [nlyr, local_nx, local_ny]
+    real(ireals), allocatable :: Blev(:, :, :), Bsrfc(:, :)
 
+    real(ireals) :: albedo
     real(ireals) :: tabs, tsca, g
     real(ireals) :: P, dP, dtau, rayleigh_xsec, N, lwc_vmr, qext_cld, w0_cld, g_cld
     real(ireals) :: VMRS(repwvl_data%Ntracer)
@@ -194,6 +216,10 @@ contains
     allocate (kabs(solver%C_one%zm, solver%C_one%xm, solver%C_one%ym), source=-999._ireals)
     allocate (ksca(solver%C_one%zm, solver%C_one%xm, solver%C_one%ym), source=-999._ireals)
     allocate (kg(solver%C_one%zm, solver%C_one%xm, solver%C_one%ym), source=-999._ireals)
+    if (.not. lsolar) then
+      allocate (Blev(solver%C_one1%zm, solver%C_one1%xm, solver%C_one1%ym), source=-999._ireals)
+      allocate (Bsrfc(solver%C_one1%xm, solver%C_one1%ym), source=-999._ireals)
+    end if
 
     do j = 1, solver%C_one%ym
       do i = 1, solver%C_one%xm
@@ -275,11 +301,13 @@ contains
           kabs(solver%C_one%zm + 1 - k, i, j) = tabs
           ksca(solver%C_one%zm + 1 - k, i, j) = tsca
           kg(solver%C_one%zm + 1 - k, i, j) = g
+
         end do
       end do
     end do
 
     if (lsolar) then
+      albedo = .15
       call set_optical_properties( &
         & solver,                  &
         & albedo,                  &
@@ -288,7 +316,25 @@ contains
         & kg)
       call solve_pprts(solver, lthermal=lsolar .eqv. .false., lsolar=lsolar, edirTOA=edirTOA)
     else
-      call CHKERR(1_mpiint, 'thermal should set planck here')
+      albedo = .03
+
+      do j = 1, solver%C_one%ym
+        do i = 1, solver%C_one%xm
+          icol = i + (j - 1_iintegers) * solver%C_one%xm
+          do k = 1, solver%C_one1%zm
+            Blev(solver%C_one1%zm + 1 - k, i, j) = planck(repwvl_data%wvls(iwvl) * 1e-9_ireals, atm%tlev(k, icol)) * 1e-9_ireals
+          end do
+        end do
+      end do
+
+      call set_optical_properties( &
+        & solver,                  &
+        & albedo,                  &
+        & kabs,                    &
+        & ksca,                    &
+        & kg,                      &
+        & planck=Blev)
+      call solve_pprts(solver, lthermal=lsolar .eqv. .false., lsolar=lsolar, edirTOA=edirTOA)
     end if
 
     call pprts_get_result(solver, edn, eup, abso, edir)
@@ -325,7 +371,7 @@ contains
     do iwvl = 1, size(repwvl_data%wvls)
 
       if (myid .eq. 0) print *, 'Computing wavelengths '//toStr(iwvl)//' / '//toStr(size(repwvl_data%wvls))//&
-        & ' -- '//toStr(100._ireals * real(iwvl, ireals) / real(size(repwvl_data%wvls(iwvl)), ireals))//' %'// &
+        & ' -- '//toStr(100._ireals * real(iwvl, ireals) / real(size(repwvl_data%wvls), ireals))//' %'// &
         & ' ('//toStr(repwvl_data%wvls(iwvl))//' nm)'
 
       if (lsolar) then
@@ -356,15 +402,11 @@ contains
       end if
 
       if (lsolar) then
-        edir(:, :, :, iwvl) = edir(:, :, :, iwvl) + spec_edir * repwvl_data%E0(iwvl) * repwvl_data%wgts(iwvl)
-        edn(:, :, :, iwvl) = edn(:, :, :, iwvl) + spec_edn * repwvl_data%E0(iwvl) * repwvl_data%wgts(iwvl)
-        eup(:, :, :, iwvl) = eup(:, :, :, iwvl) + spec_eup * repwvl_data%E0(iwvl) * repwvl_data%wgts(iwvl)
-        abso(:, :, :, iwvl) = abso(:, :, :, iwvl) + spec_abso * repwvl_data%E0(iwvl) * repwvl_data%wgts(iwvl)
-      else
-        edn(:, :, :, iwvl) = edn(:, :, :, iwvl) + spec_edn * repwvl_data%wgts(iwvl)
-        eup(:, :, :, iwvl) = eup(:, :, :, iwvl) + spec_eup * repwvl_data%wgts(iwvl)
-        abso(:, :, :, iwvl) = abso(:, :, :, iwvl) + spec_abso * repwvl_data%wgts(iwvl)
+        edir(:, :, :, iwvl) = edir(:, :, :, iwvl) + spec_edir * repwvl_data%wgts(iwvl)
       end if
+      edn(:, :, :, iwvl) = edn(:, :, :, iwvl) + spec_edn * repwvl_data%wgts(iwvl)
+      eup(:, :, :, iwvl) = eup(:, :, :, iwvl) + spec_eup * repwvl_data%wgts(iwvl)
+      abso(:, :, :, iwvl) = abso(:, :, :, iwvl) + spec_abso * repwvl_data%wgts(iwvl)
 
     end do
   end subroutine
@@ -404,12 +446,13 @@ contains
 
   end subroutine
 
-  subroutine write_output_data(out_filename, prefix, rdata, edn, eup, abso, ierr, edir)
+  subroutine write_output_data(out_filename, prefix, rdata, edn, eup, abso, ierr, edir, lverbose)
     character(len=*), intent(in) :: out_filename, prefix
     type(t_repwvl_data), intent(in) :: rdata
     real(ireals), dimension(:, :, :, :), intent(in) :: edn, eup, abso ! [nlyr(+1), nx, ny, Nwvl]
     integer(mpiint), intent(out) :: ierr
     real(ireals), dimension(:, :, :, :), intent(in), optional :: edir
+    logical, intent(in), optional :: lverbose
 
     character(len=default_str_len) :: groups(2), dimnames(4)
 
@@ -419,17 +462,22 @@ contains
     dimnames(4) = trim(prefix)//'wvl'
 
     groups(1) = trim(out_filename)
-    groups(2) = trim(prefix)//'edn'; call ncwrite(groups, edn, ierr, dimnames=dimnames); call CHKERR(ierr)
-    groups(2) = trim(prefix)//'eup'; call ncwrite(groups, eup, ierr, dimnames=dimnames); call CHKERR(ierr)
+    groups(2) = trim(prefix)//'edn'
+    call ncwrite(groups, edn, ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
+    groups(2) = trim(prefix)//'eup'
+    call ncwrite(groups, eup, ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
     if (present(edir)) then
-      groups(2) = trim(prefix)//'edir'; call ncwrite(groups, edir, ierr, dimnames=dimnames); call CHKERR(ierr)
+      groups(2) = trim(prefix)//'edir'
+      call ncwrite(groups, edir, ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
     end if
 
     dimnames(1) = trim(prefix)//'nlay'
-    groups(2) = trim(prefix)//'abso'; call ncwrite(groups, abso, ierr, dimnames=dimnames); call CHKERR(ierr)
+    groups(2) = trim(prefix)//'abso'
+    call ncwrite(groups, abso, ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
 
     dimnames(1) = trim(prefix)//'wvl'
-    groups(2) = trim(prefix)//'wvl'; call ncwrite(groups, rdata%wvls, ierr, dimnames=dimnames); call CHKERR(ierr)
+    groups(2) = trim(prefix)//'wvl'
+    call ncwrite(groups, rdata%wvls, ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
   end subroutine
 
   subroutine compute_training_data(comm, bg_atm_filename, atm_filename, out_filename, lsolar, edn, eup, abso, ierr, lverbose, edir)
@@ -445,7 +493,7 @@ contains
     class(t_solver), allocatable :: solver
     type(t_repwvl_data), allocatable :: repwvl_data_solar, repwvl_data_thermal
 
-    integer(iintegers), parameter :: Npert_atmo = 20 ! we use the y axis to perturb the loaded atmospheres
+    integer(iintegers), parameter :: Npert_atmo = 226 ! we use the y axis to perturb the loaded atmospheres
     integer(iintegers) :: ipert
 
     ierr = 0
@@ -456,20 +504,28 @@ contains
     call allocate_pprts_solver_from_commandline(solver, '2str', ierr); call CHKERR(ierr)
 
     call repwvl_init(repwvl_data_solar, repwvl_data_thermal, ierr, lverbose=.false.); call CHKERR(ierr)
+    if (lverbose) print *, 'repwvl_data_thermal Nwvl', size(repwvl_data_thermal%wvls)
+    if (lverbose) print *, 'repwvl_data_solar Nwvl', size(repwvl_data_solar%wvls)
     call mie_tables_init(comm, ierr, lverbose=.false.)
 
     call init_solver(comm, atm, Npert_atmo, solver, ierr)
 
     if (lsolar) then
       call solve_scene(comm, solver, atm, repwvl_data_solar, edn, eup, abso, ierr, edir); call CHKERR(ierr)
-      call write_output_data(out_filename, 'solar_', repwvl_data_solar, edn, eup, abso, ierr, edir); call CHKERR(ierr)
+      call write_output_data(out_filename, 'solar_', repwvl_data_solar, &
+        & edn, eup, abso, ierr, edir, lverbose); call CHKERR(ierr)
       do ipert = 1, Npert_atmo
         print *, 'edir @ srfc ( perturbation='//toStr(ipert)//')', sum(edir(solver%C_dir%ze, :, ipert, :), dim=2)
         print *, 'edn  @ srfc ( perturbation='//toStr(ipert)//')', sum(edn(solver%C_diff%ze, :, ipert, :), dim=2)
       end do
     else
       call solve_scene(comm, solver, atm, repwvl_data_thermal, edn, eup, abso, ierr); call CHKERR(ierr)
-      call write_output_data(out_filename, 'thermal_', repwvl_data_thermal, edn, eup, abso, ierr); call CHKERR(ierr)
+      call write_output_data(out_filename, 'thermal_', repwvl_data_thermal, &
+        & edn, eup, abso, ierr, lverbose=lverbose); call CHKERR(ierr)
+      do ipert = 1, Npert_atmo
+        print *, 'edn @ srfc ( perturbation='//toStr(ipert)//')', sum(edn(solver%C_diff%ze, :, ipert, :), dim=2)
+        print *, 'eup @ srfc ( perturbation='//toStr(ipert)//')', sum(eup(solver%C_diff%ze, :, ipert, :), dim=2)
+      end do
     end if
   end subroutine
 end module
@@ -511,7 +567,7 @@ program main
   lverbose = .true.
   call get_petsc_opt('', '-verbose', lverbose, lflg, ierr); call CHKERR(ierr)
 
-  lsolar = .true.
+  lsolar = .false.
   call get_petsc_opt('', '-solar', lsolar, lflg, ierr); call CHKERR(ierr)
 
   lthermal = .false.
@@ -528,6 +584,8 @@ program main
       & ierr,                  &
       & lverbose=lverbose,     &
       & edir=edir); call CHKERR(ierr)
+  else
+    print *, 'Not computing solar part: enable with -solar'
   end if
 
   if (lthermal) then
@@ -540,6 +598,8 @@ program main
       & edn, eup, abso,        &
       & ierr,                  &
       & lverbose); call CHKERR(ierr)
+  else
+    print *, 'Not computing thermal part: enable with -thermal'
   end if
 
   call finalize_mpi(comm, .true., .true.)

@@ -2381,7 +2381,6 @@ contains
       character(len=*), intent(in) :: prefix
       logical :: lmat_permute, lmat_permute_reuse, lshell
 
-
       call VecSet(solver%incSolar, zero, ierr); call CHKERR(ierr)
       call setup_incSolar(solver, edirTOA, solver%incSolar)
 

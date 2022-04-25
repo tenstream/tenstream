@@ -258,7 +258,7 @@ contains
             & NF90_FLOAT, &
             & dim_ids, &
             & varid, &
-            & deflate_level=get_arg(default_deflate_lvl, deflate_lvl) ); call nccheck(ncerr)
+            & deflate_level=get_arg(default_deflate_lvl, deflate_lvl)); call nccheck(ncerr)
           ierr = ierr + ncerr
           call CHKWARN(ncerr, 'Could not create new variable '//trim(varname)//' varid: '//toStr(varid))
         end if
