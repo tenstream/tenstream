@@ -61,7 +61,6 @@ module m_repwvl_base
     real(ireals), allocatable :: t_ref(:)       ! dim (Nt_ref)
     real(ireals), allocatable :: t_pert(:)      ! dim (Nt_pert)
     real(ireals), allocatable :: vmrs_ref(:, :) ! dim (Np_ref, Ntracers)
-    real(ireals), allocatable :: E0(:)
     real(ireals), allocatable :: crs_o3(:, :)  ! additional tracer cross sections dim (3, Nwvl)
     real(ireals), allocatable :: crs_n2o(:, :) ! additional tracer cross sections dim (3, Nwvl)
 
@@ -96,7 +95,6 @@ contains
     groups(2) = 't_pert'; call ncload(groups, repwvl_data%t_pert, ierr, lverbose); call CHKERR(ierr)
     groups(2) = 'vmrs_ref'; call ncload(groups, repwvl_data%vmrs_ref, ierr, lverbose); call CHKERR(ierr)
 
-    groups(2) = 'E0'; call ncload(groups, repwvl_data%E0, ierr_ignore, lverbose)
     groups(2) = 'crs_o3'; call ncload(groups, repwvl_data%crs_o3, ierr_ignore, lverbose)
     groups(2) = 'crs_n2o'; call ncload(groups, repwvl_data%crs_n2o, ierr_ignore, lverbose)
 
@@ -108,9 +106,6 @@ contains
       print *, 't_ref', repwvl_data%t_ref, 'shape', shape(repwvl_data%t_ref)
       print *, 't_pert', repwvl_data%t_pert, 'shape', shape(repwvl_data%t_pert)
       print *, 'vmrs_ref', repwvl_data%vmrs_ref, 'shape', shape(repwvl_data%vmrs_ref)
-      if (allocated(repwvl_data%E0)) then
-        print *, 'E0', repwvl_data%E0, 'shape', shape(repwvl_data%E0)
-      end if
       if (allocated(repwvl_data%crs_o3)) then
         print *, 'crs_o3', repwvl_data%crs_o3, 'shape', shape(repwvl_data%crs_o3)
       end if

@@ -974,4 +974,14 @@ contains
     c = dp / grav
   end function
 
+  elemental function planck(wvl, temperature)
+    real(ireals), intent(in) :: wvl, temperature ! wavelength in [m] and temperature in [K]
+    real(ireals) :: planck                       ! planck radiation in [W/(m2 m sterad)]
+    real(ireals), parameter :: H_PLANCK = 6.626068e-34_ireals
+    real(ireals), parameter :: C_LIGHT = 299792458._ireals
+    real(ireals), parameter :: K_BOLTZMANN = 1.3806503e-23_ireals
+
+    planck = 2._ireals * H_PLANCK * C_LIGHT**2 / &
+           & (wvl**5 * (exp(H_PLANCK * C_LIGHT / (wvl * K_BOLTZMANN * temperature)) - 1.0))
+  end function
 end module
