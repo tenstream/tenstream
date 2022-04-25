@@ -222,5 +222,6 @@ contains
 
     end do
 
+    call destroy_pprts_rrtmg(pprts_solver, lfinalizepetsc=.True.)
   end subroutine
 end module
