@@ -1550,7 +1550,7 @@ contains
     if (numnodes .gt. 1) then
       call VecCreateMPIWithArray(comm, bs, localsize, PETSC_DECIDE, arr, pVec, ierr); call CHKERR(ierr)
     else
-      parr(1:size(arr)) => arr(:,:)
+      parr(1:size(arr)) => arr(:, :)
       call VecCreateSeqWithArray(comm, bs, localsize, parr, pVec, ierr); call CHKERR(ierr)
     end if
 
