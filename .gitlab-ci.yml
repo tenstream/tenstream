@@ -187,6 +187,7 @@ intel:debug:
   extends: .build:default
   before_script:
     - mkdir -p $CI_PROJECT_DIR/LUT; cp -rsn /project/meteo/homepages/Fabian.Jakub/TenstreamLUT/* $CI_PROJECT_DIR/LUT/
+    - *template_build_PETSC
   tags:
     - slurm.meteo.physik.lmu.de
   variables:
