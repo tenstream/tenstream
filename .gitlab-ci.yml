@@ -197,7 +197,7 @@ intel:debug:
     PETSC_64_INTEGERS: 0
     PETSC_DEBUGGING: 1
     LUT_BASENAME: "$CI_PROJECT_DIR/LUT/LUT"
-    SRUN_OPTIONS: "--time 02:00:00 --mem 6G -n 9"
+    SRUN_OPTIONS: "-p cluster,met-ws --time 02:00:00 --mem 6G -n 9"
     MPIEXEC: "srun"
     MPIRUN_FLAGS: '--mpi=pmix'
     CTEST_ARGS: '-E boxmc|LUT'
