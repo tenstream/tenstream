@@ -207,6 +207,7 @@ intel:debug:
     CXX: mpicxx
   artifacts:
     paths:
+      - petsc/
       - external/
     expire_in: 1 day
 
