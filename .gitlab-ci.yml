@@ -197,6 +197,7 @@ intel:debug:
   tags:
     - slurm.meteo.physik.lmu.de
   variables:
+    SRUN_OPTIONS: "-p cluster,met-ws,met-vis --time 02:00:00 --mem 6G -n 1 -c 2"
     PETSC_DIR: petsc
     PETSC_ARCH: default
     PETSC_PRECISION: single
@@ -221,7 +222,7 @@ build:mim:prereq:gcc:double:
   tags:
     - slurm.meteo.physik.lmu.de
   variables:
-    MODULES: "gcc/11.2.0"
+    MODULES: "gcc/11.2.0 openmpi/4.1.1-gcc-11.2.0"
     PETSC_PRECISION: double
     PETSC_64_INTEGERS: 1
 
@@ -263,7 +264,7 @@ mim:gcc:debug:
   extends: .build:mim:default
   needs: ["build:mim:prereq:gcc:double"]
   variables:
-    MODULES: "gcc/11.2.0"
+    MODULES: "gcc/11.2.0 openmpi/4.1.1-gcc-11.2.0"
     BUILD_TYPE: DEBUG
 
 mim:icc:debug:
