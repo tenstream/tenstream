@@ -1,5 +1,6 @@
 stages:
   - pre
+  - build_prereq
   - build
 
 check_fprettify:pre:
@@ -183,10 +184,9 @@ intel:debug:
 
 
 # MIM runs
-.build:mim:default:
-  extends: .build:default
-  before_script:
-    - mkdir -p $CI_PROJECT_DIR/LUT; cp -rsn /project/meteo/homepages/Fabian.Jakub/TenstreamLUT/* $CI_PROJECT_DIR/LUT/
+.build:mim:prereq:
+  stage: build_prereq
+  script:
     - *template_build_PETSC
   tags:
     - slurm.meteo.physik.lmu.de
@@ -196,6 +196,53 @@ intel:debug:
     PETSC_PRECISION: single
     PETSC_64_INTEGERS: 0
     PETSC_DEBUGGING: 1
+    CC: mpicc
+    FC: mpif90
+    CXX: mpicxx
+  artifacts:
+    paths:
+      - external/
+    expire_in: 1 day
+
+build:mim:prereq:gcc:single:
+  extends: .build:mim:prereq
+  script:
+    - *template_build_PETSC
+  tags:
+    - slurm.meteo.physik.lmu.de
+
+build:mim:prereq:gcc:double:
+  extends: .build:mim:prereq
+  script:
+    - *template_build_PETSC
+  tags:
+    - slurm.meteo.physik.lmu.de
+  variables:
+    PETSC_PRECISION: double
+    PETSC_64_INTEGERS: 1
+
+build:mim:prereq:icc:single:
+  extends: .build:mim:prereq
+  script:
+    - *template_build_PETSC
+  tags:
+    - slurm.meteo.physik.lmu.de
+  variables:
+    CC: mpiicc
+    FC: mpiifort
+    CXX: mpiicpc
+
+
+
+.build:mim:default:
+  extends: .build:default
+  before_script:
+    - mkdir -p $CI_PROJECT_DIR/LUT; cp -rsn /project/meteo/homepages/Fabian.Jakub/TenstreamLUT/* $CI_PROJECT_DIR/LUT/
+  tags:
+    - slurm.meteo.physik.lmu.de
+  variables:
+    PETSC_DIR: petsc
+    PETSC_ARCH: default
     LUT_BASENAME: "$CI_PROJECT_DIR/LUT/LUT"
     SRUN_OPTIONS: "-p cluster,met-ws,met-vis --time 02:00:00 --mem 6G -n 9"
     MPIEXEC: "srun"
@@ -205,23 +252,22 @@ intel:debug:
 # GCC
 mim:gcc:default:
   extends: .build:mim:default
+  needs: ["build:mim:prereq:gcc:single"]
   variables:
     BUILD_TYPE: RELEASE
 
 mim:gcc:debug:
   extends: .build:mim:default
+  needs: ["build:mim:prereq:gcc:double"]
   variables:
     MODULES: "gcc/11.2.0"
-    PETSC_PRECISION: double
-    PETSC_64_INTEGERS: 1
     BUILD_TYPE: DEBUG
 
 mim:icc:debug:
   extends: .build:mim:default
+  needs: ["build:mim:prereq:icc:single"]
   variables:
     MODULES: "intel-oneapi-compilers/2021.4.0 intel-oneapi-mpi/2021.4.0-oneapi-2021.4.0"
-    PETSC_PRECISION: double
-    PETSC_64_INTEGERS: 1
     BUILD_TYPE: DEBUG
     CC: mpiicc
     FC: mpiifort
@@ -230,18 +276,21 @@ mim:icc:debug:
 
 implicit:mim:gcc:debug:
   extends: .build:mim:default
+  needs: ["build:mim:prereq:gcc:single"]
   variables:
     BUILD_TYPE: DEBUG
     PETSC_OPTIONS: "-solar_dir_explicit no -solar_diff_explicit no -thermal_diff_explicit no"
 
 explicit:mim:gcc:debug:
   extends: .build:mim:default
+  needs: ["build:mim:prereq:gcc:single"]
   variables:
     BUILD_TYPE: DEBUG
     PETSC_OPTIONS: "-solar_dir_explicit -solar_diff_explicit -thermal_diff_explicit -thermal_diff_pc_sor_omega .5 -solar_diff_pc_sor_omega .5"
 
 matshell:mim:gcc:debug:
   extends: .build:mim:default
+  needs: ["build:mim:prereq:gcc:single"]
   variables:
     BUILD_TYPE: DEBUG
     PETSC_OPTIONS: "-solar_diff_shell -thermal_diff_shell"
