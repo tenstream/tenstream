@@ -213,15 +213,11 @@ intel:debug:
 
 build:mim:prereq:gcc:single:
   extends: .build:mim:prereq
-  script:
-    - *template_build_PETSC
   tags:
     - slurm.meteo.physik.lmu.de
 
 build:mim:prereq:gcc:double:
   extends: .build:mim:prereq
-  script:
-    - *template_build_PETSC
   tags:
     - slurm.meteo.physik.lmu.de
   variables:
@@ -230,8 +226,6 @@ build:mim:prereq:gcc:double:
 
 build:mim:prereq:icc:single:
   extends: .build:mim:prereq
-  script:
-    - *template_build_PETSC
   tags:
     - slurm.meteo.physik.lmu.de
   variables:
