@@ -221,6 +221,7 @@ build:mim:prereq:gcc:double:
   tags:
     - slurm.meteo.physik.lmu.de
   variables:
+    MODULES: "gcc/11.2.0"
     PETSC_PRECISION: double
     PETSC_64_INTEGERS: 1
 
@@ -229,6 +230,7 @@ build:mim:prereq:icc:single:
   tags:
     - slurm.meteo.physik.lmu.de
   variables:
+    MODULES: "intel-oneapi-compilers/2021.4.0 intel-oneapi-mpi/2021.4.0-oneapi-2021.4.0"
     CC: mpiicc
     FC: mpiifort
     CXX: mpiicpc
