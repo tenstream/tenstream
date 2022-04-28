@@ -17,7 +17,7 @@ check_fprettify:pre:
 
 
 .template_build_PETSC: &template_build_PETSC
-    - export PETSC_DIR=$CI_PROJECT_DIR/$PETSC_DIR
+    - export PETSC_DIR=$CI_PROJECT_DIR/external/$PETSC_DIR
     - echo -e "\e[0Ksection_start:`date +%s`:petsc_section[collapsed=true]\r\e[0KInstalling build dependencies to ${PETSC_DIR}/${PETSC_ARCH}"
     - misc/build_dependencies.sh "${PETSC_DIR}" "${PETSC_ARCH}" "${PETSC_PRECISION}" "${PETSC_DEBUGGING}" "${PETSC_64_INTEGERS}" "${PETSC_OPTS}"
     - cd $CI_PROJECT_DIR
@@ -30,6 +30,7 @@ variables:
 .build:default:
   stage: build
   script:
+    - export PETSC_DIR=$CI_PROJECT_DIR/external/$PETSC_DIR
     - if [ ! -z "$MODULES" ]; then module load spack || echo 'no spack'; module load $MODULES || exit 1; module list; fi
     - mkdir -p build && cd build
     - cmake -DCMAKE_BUILD_TYPE="$BUILD_TYPE" -DCTEST_MPIRUN_FLAGS="$MPIRUN_FLAGS" -DMPIEXEC="$MPIEXEC" ${CMAKE_OPTS} .. || exit 1
@@ -225,6 +226,7 @@ build:mim:prereq:gcc:double:
     MODULES: "gcc/11.2.0 openmpi/4.1.1-gcc-11.2.0"
     PETSC_PRECISION: double
     PETSC_64_INTEGERS: 1
+    PETSC_OPTS: "--with-cc=${MPICC} --with-cxx=${MPICXX} --with-fc=${MPIF90}"
 
 build:mim:prereq:icc:single:
   extends: .build:mim:prereq
