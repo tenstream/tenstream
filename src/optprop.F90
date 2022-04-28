@@ -34,7 +34,7 @@ module m_optprop
     & cstr, &
     & deg2rad, &
     & get_petsc_opt, &
-    & is_between, &
+    & is_inrange, &
     & rad2deg, &
     & rmse, &
     & swap, &
@@ -773,17 +773,19 @@ contains
       real(irealLUT), intent(in) :: val
       integer(iintegers), intent(inout) :: dimindex
       real(irealLUT), intent(in), optional :: default_val
-      integer(iintegers) :: i, tmpidx
+      integer(iintegers) :: i
       if (dimindex .lt. -1) then
-        tmpidx = dimindex
         do i = 1, size(dimnames)
-          if (tmpidx .le. -1) dimindex = find_op_dim_by_name(config, trim(dimnames(i)))
+          if (dimindex .le. -1) then
+            dimindex = find_op_dim_by_name(config, trim(dimnames(i)))
+          else
+            exit
+          endif
           !print *,'Looking for dim: '//trim(dimnames(i)),' -> ', dimindex
         end do
-        dimindex = tmpidx
       end if
       if (dimindex .gt. -1) then
-        if (.not. is_between(val, &
+        if (.not. is_inrange(val, &
                              config%dims(dimindex)%vrange(1) - tiny(val), &
                              config%dims(dimindex)%vrange(2) + tiny(val))) then
           call CHKERR(1_mpiint, 'value ('//toStr(val)//') is not in the range of the LUT for dimension '// &
