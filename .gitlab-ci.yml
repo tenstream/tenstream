@@ -226,7 +226,7 @@ build:mim:prereq:gcc:double:
     MODULES: "gcc/11.2.0 openmpi/4.1.1-gcc-11.2.0"
     PETSC_PRECISION: double
     PETSC_64_INTEGERS: 1
-    PETSC_OPTS: "--with-cc=${MPICC} --with-cxx=${MPICXX} --with-fc=${MPIF90}"
+    PETSC_OPTS: "--with-cc=mpicc --with-cxx=mpicxx --with-fc=mpif90"
 
 build:mim:prereq:icc:single:
   extends: .build:mim:prereq
