@@ -592,7 +592,7 @@ contains
         save_aspect_zx = aspect_zx
       end if
       call OPP%dev%get_diff2diff([tauz, w0, save_aspect_zx, g], C)
-      call OPP%diff2diff_coeff_symmetry(C)
+      !call OPP%diff2diff_coeff_symmetry(C)
     end if
 
     if (.not. lset) then
