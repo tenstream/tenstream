@@ -222,11 +222,14 @@ build:mim:prereq:gcc:double:
   extends: .build:mim:prereq
   tags:
     - slurm.meteo.physik.lmu.de
+  script:
+    - if [ ! -z "$MODULES" ]; then module load spack || echo 'no spack'; module load $MODULES || exit 1; module list; fi
+    - export FC=mpif90; export CC=mpicc; export CXX=mpicxx
+    - *template_build_PETSC
   variables:
     MODULES: "gcc/11.2.0 openmpi/4.1.1-gcc-11.2.0"
     PETSC_PRECISION: double
     PETSC_64_INTEGERS: 1
-    PETSC_OPTS: "--with-cc=mpicc --with-cxx=mpicxx --with-fc=mpif90"
 
 build:mim:prereq:icc:single:
   extends: .build:mim:prereq
