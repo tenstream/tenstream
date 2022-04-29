@@ -780,7 +780,7 @@ contains
             dimindex = find_op_dim_by_name(config, trim(dimnames(i)))
           else
             exit
-          endif
+          end if
           !print *,'Looking for dim: '//trim(dimnames(i)),' -> ', dimindex
         end do
       end if
