@@ -17,10 +17,9 @@ check_fprettify:pre:
 
 
 .template_build_PETSC: &template_build_PETSC
-    - export PETSC_DIR=$CI_PROJECT_DIR/external/$PETSC_DIR
+    - export PETSC_DIR=$(readlink -f $PETSC_DIR)
     - echo -e "\e[0Ksection_start:`date +%s`:petsc_section[collapsed=true]\r\e[0KInstalling build dependencies to ${PETSC_DIR}/${PETSC_ARCH}"
     - misc/build_dependencies.sh "${PETSC_DIR}" "${PETSC_ARCH}" "${PETSC_PRECISION}" "${PETSC_DEBUGGING}" "${PETSC_64_INTEGERS}" "${PETSC_OPTS}"
-    - cd $CI_PROJECT_DIR
     - echo -e "\e[0Ksection_end:`date +%s`:petsc_section\r\e[0K"
 
 variables:
@@ -30,7 +29,7 @@ variables:
 .build:default:
   stage: build
   script:
-    - export PETSC_DIR=$CI_PROJECT_DIR/external/$PETSC_DIR
+    - export PETSC_DIR=$(readlink -f $PETSC_DIR)
     - if [ ! -z "$MODULES" ]; then module load spack || echo 'no spack'; module load $MODULES || exit 1; module list; fi
     - mkdir -p build && cd build
     - cmake -DCMAKE_BUILD_TYPE="$BUILD_TYPE" -DCTEST_MPIRUN_FLAGS="$MPIRUN_FLAGS" -DMPIEXEC="$MPIEXEC" ${CMAKE_OPTS} .. || exit 1
@@ -40,6 +39,8 @@ variables:
     - $CMD &> >(tee $CI_PROJECT_DIR/test.log) || exit 3
   retry: 2
   variables:
+    PETSC_DIR: petsc
+    PETSC_ARCH: default
     CTEST_ARGS: "-E 'boxmc|LUT'"
     BUILD_TYPE: RELEASE
     MPIEXEC: "mpirun"
@@ -66,8 +67,6 @@ ubuntu-latest:
   variables:
     CTEST_ARGS: "-E ${TEST_FILTER_WITHOUT_LUTS}"
     MPIRUN_FLAGS: "--allow-run-as-root;--oversubscribe"
-    PETSC_DIR: petsc
-    PETSC_ARCH: default
     PETSC_PRECISION: double
     PETSC_64_INTEGERS: 0
     PETSC_DEBUGGING: 1
@@ -88,8 +87,6 @@ ubuntu-rolling:
   variables:
     CTEST_ARGS: "-E ${TEST_FILTER_WITHOUT_LUTS}"
     MPIRUN_FLAGS: "--allow-run-as-root;--oversubscribe"
-    PETSC_DIR: petsc
-    PETSC_ARCH: default
     PETSC_PRECISION: single
     PETSC_64_INTEGERS: 1
     PETSC_DEBUGGING: 1
@@ -112,8 +109,6 @@ ubuntu-rolling:
 #  variables:
 #    CTEST_ARGS: "-E ${TEST_FILTER_WITHOUT_LUTS}"
 #    MPIRUN_FLAGS: "--allow-run-as-root;--oversubscribe"
-#    PETSC_DIR: petsc
-#    PETSC_ARCH: default
 #    PETSC_PRECISION: single
 #    PETSC_64_INTEGERS: 0
 #    PETSC_DEBUGGING: 0
@@ -134,8 +129,6 @@ debian-testing:
   variables:
     CTEST_ARGS: "-E ${TEST_FILTER_WITHOUT_LUTS}"
     MPIRUN_FLAGS: "--allow-run-as-root;--oversubscribe"
-    PETSC_DIR: petsc
-    PETSC_ARCH: default
     PETSC_PRECISION: double
     PETSC_64_INTEGERS: 1
     PETSC_DEBUGGING: 1
@@ -155,8 +148,6 @@ intel:
     - docker.meteo.physik.lmu.de
   variables:
     CTEST_ARGS: "-E ${TEST_FILTER_WITHOUT_LUTS}"
-    PETSC_DIR: petsc
-    PETSC_ARCH: default
     PETSC_PRECISION: single
     PETSC_64_INTEGERS: 0
     PETSC_DEBUGGING: 1
@@ -178,8 +169,6 @@ intel:debug:
     - docker.meteo.physik.lmu.de
   variables:
     CTEST_ARGS: "-E ${TEST_FILTER_WITHOUT_LUTS}"
-    PETSC_DIR: petsc
-    PETSC_ARCH: default
     PETSC_PRECISION: double
     PETSC_64_INTEGERS: 1
     PETSC_DEBUGGING: 1
@@ -230,6 +219,7 @@ build:mim:prereq:gcc:double:
     PETSC_PRECISION: double
     PETSC_64_INTEGERS: 1
 
+
 build:mim:prereq:icc:single:
   extends: .build:mim:prereq
   tags:
@@ -249,8 +239,6 @@ build:mim:prereq:icc:single:
   tags:
     - slurm.meteo.physik.lmu.de
   variables:
-    PETSC_DIR: petsc
-    PETSC_ARCH: default
     LUT_BASENAME: "$CI_PROJECT_DIR/LUT/LUT"
     SRUN_OPTIONS: "-p cluster,met-ws,met-vis --time 02:00:00 --mem 6G -n 9"
     MPIEXEC: "srun"
