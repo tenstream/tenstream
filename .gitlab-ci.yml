@@ -188,6 +188,7 @@ intel:debug:
 # MIM runs
 .build:mim:prereq:
   stage: build_prereq
+  needs: ["check_fprettify:pre"]
   script:
     - if [ ! -z "$MODULES" ]; then module load spack || echo 'no spack'; module load $MODULES || exit 1; module list; fi
     - *template_build_PETSC
