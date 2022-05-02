@@ -40,7 +40,7 @@ variables:
     - $CMD &> >(tee $CI_PROJECT_DIR/test.log) || exit 3
   retry: 2
   variables:
-    PETSC_DIR: petsc
+    PETSC_DIR: external/petsc
     PETSC_ARCH: default
     CTEST_ARGS: "-E 'boxmc|LUT'"
     BUILD_TYPE: RELEASE
@@ -196,7 +196,7 @@ intel:debug:
     - slurm.meteo.physik.lmu.de
   variables:
     SRUN_OPTIONS: "-p cluster,met-ws,met-vis --time 02:00:00 --mem 6G -n 1 -c 2"
-    PETSC_DIR: petsc
+    PETSC_DIR: external/petsc
     PETSC_ARCH: default
     PETSC_PRECISION: single
     PETSC_64_INTEGERS: 0
