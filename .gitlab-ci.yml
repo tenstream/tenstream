@@ -1,5 +1,6 @@
 stages:
   - pre
+  - build_docker
   - build_prereq
   - build
 
@@ -55,6 +56,7 @@ variables:
       - test.log
 
 ubuntu-latest:
+  stage: build_docker
   extends: .build:default
   needs: ["check_fprettify:pre"]
   image: ubuntu:latest
@@ -73,6 +75,7 @@ ubuntu-latest:
     BUILD_TYPE: RELEASE
 
 ubuntu-rolling:
+  stage: build_docker
   extends: .build:default
   needs: ["check_fprettify:pre"]
   image: ubuntu:rolling
@@ -96,6 +99,7 @@ ubuntu-rolling:
 
 # disabled because gcc image cannot apt install openmpi
 #gcc_latest:gcov:
+#  stage: build_docker
 #  extends: .build:default
 #  image: gcc:latest
 #  before_script:
@@ -117,6 +121,7 @@ ubuntu-rolling:
 #    CODECOV_TOKEN: "7d5206f3-f1e3-4704-8bc3-1ee443e4ee49"
 
 debian-testing:
+  stage: build_docker
   extends: .build:default
   needs: ["check_fprettify:pre"]
   image: debian:testing
@@ -137,6 +142,7 @@ debian-testing:
 
 
 intel:
+  stage: build_docker
   extends: .build:default
   needs: ["check_fprettify:pre"]
   #image: intel/oneapi-hpckit
@@ -158,6 +164,7 @@ intel:
 
 
 intel:debug:
+  stage: build_docker
   extends: .build:default
   needs: ["check_fprettify:pre"]
   #image: intel/oneapi-hpckit
