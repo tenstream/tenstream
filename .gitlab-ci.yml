@@ -52,10 +52,10 @@ variables:
     CXX: mpicxx
   artifacts:
     paths:
-      - petsc/configure.log
-      - petsc/include
-      - petsc/default/include
-      - petsc/default/lib
+      - ${PETSC_DIR}/configure.log
+      - ${PETSC_DIR}/include
+      - ${PETSC_DIR}/default/include
+      - ${PETSC_DIR}/default/lib
       - test.log
 
 ubuntu-latest:
@@ -209,10 +209,10 @@ intel:debug:
     CXX: mpicxx
   artifacts:
     paths:
-      - petsc/configure.log
-      - petsc/include
-      - petsc/default/include
-      - petsc/default/lib
+      - ${PETSC_DIR}/configure.log
+      - ${PETSC_DIR}/include
+      - ${PETSC_DIR}/default/include
+      - ${PETSC_DIR}/default/lib
     expire_in: 1 day
 
 build:mim:prereq:gcc:single:
@@ -230,6 +230,7 @@ build:mim:prereq:gcc:double:
     - *template_build_PETSC
   variables:
     MODULES: "gcc/11.2.0 openmpi/4.1.1-gcc-11.2.0"
+    PETSC_DIR: petsc_double_gcc
     PETSC_PRECISION: double
     PETSC_64_INTEGERS: 1
 
@@ -240,6 +241,7 @@ build:mim:prereq:icc:single:
     - slurm.meteo.physik.lmu.de
   variables:
     MODULES: "intel-oneapi-compilers/2021.4.0 intel-oneapi-mpi/2021.4.0-oneapi-2021.4.0"
+    PETSC_DIR: petsc_double_icc
     CC: mpiicc
     FC: mpiifort
     CXX: mpiicpc
@@ -271,6 +273,7 @@ mim:gcc:debug:
   needs: ["build:mim:prereq:gcc:double"]
   variables:
     MODULES: "gcc/11.2.0 openmpi/4.1.1-gcc-11.2.0"
+    PETSC_DIR: petsc_double_gcc
     BUILD_TYPE: DEBUG
 
 mim:icc:debug:
@@ -278,6 +281,7 @@ mim:icc:debug:
   needs: ["build:mim:prereq:icc:single"]
   variables:
     MODULES: "intel-oneapi-compilers/2021.4.0 intel-oneapi-mpi/2021.4.0-oneapi-2021.4.0"
+    PETSC_DIR: petsc_double_icc
     BUILD_TYPE: DEBUG
     CC: mpiicc
     FC: mpiifort
