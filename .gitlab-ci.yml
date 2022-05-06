@@ -219,6 +219,8 @@ build:mim:prereq:gcc:single:
   extends: .build:mim:prereq
   tags:
     - slurm.meteo.physik.lmu.de
+  variables:
+    PETSC_DIR: petsc_single_gcc
 
 build:mim:prereq:gcc:double:
   extends: .build:mim:prereq
@@ -266,6 +268,7 @@ mim:gcc:default:
   extends: .build:mim:default
   needs: ["build:mim:prereq:gcc:single"]
   variables:
+    PETSC_DIR: petsc_single_gcc
     BUILD_TYPE: RELEASE
 
 mim:gcc:debug:
@@ -292,6 +295,7 @@ implicit:mim:gcc:debug:
   extends: .build:mim:default
   needs: ["build:mim:prereq:gcc:single"]
   variables:
+    PETSC_DIR: petsc_single_gcc
     BUILD_TYPE: DEBUG
     PETSC_OPTIONS: "-solar_dir_explicit no -solar_diff_explicit no -thermal_diff_explicit no"
 
@@ -299,6 +303,7 @@ explicit:mim:gcc:debug:
   extends: .build:mim:default
   needs: ["build:mim:prereq:gcc:single"]
   variables:
+    PETSC_DIR: petsc_single_gcc
     BUILD_TYPE: DEBUG
     PETSC_OPTIONS: "-solar_dir_explicit -solar_diff_explicit -thermal_diff_explicit -thermal_diff_pc_sor_omega .5 -solar_diff_pc_sor_omega .5"
 
@@ -306,5 +311,6 @@ matshell:mim:gcc:debug:
   extends: .build:mim:default
   needs: ["build:mim:prereq:gcc:single"]
   variables:
+    PETSC_DIR: petsc_single_gcc
     BUILD_TYPE: DEBUG
     PETSC_OPTIONS: "-solar_diff_shell -thermal_diff_shell"
