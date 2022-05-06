@@ -144,8 +144,7 @@ contains
                         albedo_th, albedo_sol, &
                         lthermal, lsolar, &
                         edir, edn, eup, abso, &
-                        nxproc=nxproc, nyproc=nyproc, &
-                        opt_time=zero)
+                        nxproc=nxproc, nyproc=nyproc)
     end do
 
     nlev = ubound(edn, 1)
