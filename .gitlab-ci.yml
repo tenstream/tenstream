@@ -301,9 +301,9 @@ implicit:mim:gcc:debug:
 
 explicit:mim:gcc:debug:
   extends: .build:mim:default
-  needs: ["build:mim:prereq:gcc:single"]
+  needs: ["build:mim:prereq:gcc:double"]
   variables:
-    PETSC_DIR: petsc_single_gcc
+    PETSC_DIR: petsc_double_gcc
     BUILD_TYPE: DEBUG
     PETSC_OPTIONS: "-solar_dir_explicit -solar_diff_explicit -thermal_diff_explicit -thermal_diff_pc_sor_omega .5 -solar_diff_pc_sor_omega .5"
 
