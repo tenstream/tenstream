@@ -47,7 +47,10 @@ module m_repwvl_pprts
     & init_mpi_data_parameters, &
     & iintegers, ireals, mpiint, &
     & zero, one, default_str_len, &
-    & i0, i1
+    & i0, i1, &
+    & AVOGADRO, &
+    & EARTHACCEL, &
+    & MOLMASSAIR
 
   use m_tenstream_options, only: read_commandline_options
 
@@ -60,12 +63,20 @@ module m_repwvl_pprts
     & set_optical_properties, &
     & solve_pprts
 
-  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, plkint, print_tenstr_atm, vert_integral_coeff
+  use m_dyn_atm_to_rrtmg, only: &
+    & planck, &
+    & plkint, &
+    & print_tenstr_atm, &
+    & t_tenstr_atm, &
+    & vert_integral_coeff
+
   use m_buildings, only: &
     & t_pprts_buildings, &
     & PPRTS_BOT_FACE
 
   use m_repwvl_base, only: repwvl_init, t_repwvl_data, repwvl_dtau
+  use m_mie_tables, only: mie_tables_init, mie_water_table, mie_ice_table, mie_optprop
+  use m_rayleigh, only: rayleigh
 
   implicit none
 
@@ -73,6 +84,12 @@ module m_repwvl_pprts
   public :: repwvl_pprts, repwvl_pprts_destroy
 
   logical, parameter :: ldebug = .true.
+
+  type(t_repwvl_data), allocatable :: repwvl_data_solar, repwvl_data_thermal
+
+  real(ireals), parameter :: CO = 1e-9_ireals
+  real(ireals), parameter :: HNO3 = 1e-9_ireals
+  real(ireals), parameter :: N2 = 0.7808_ireals
 
 contains
   subroutine repwvl_pprts(comm, solver, atm, ie, je,   &
@@ -141,8 +158,6 @@ contains
 
     ! ---------- end of API ----------------
 
-    type(t_repwvl_data), allocatable, save :: repwvl_data_solar, repwvl_data_thermal
-
     ! Counters
     integer(iintegers) :: ke, ke1
 
@@ -182,6 +197,7 @@ contains
 
     if (.not. solver%linitialized) then
       call repwvl_init(repwvl_data_solar, repwvl_data_thermal, ierr); call CHKERR(ierr)
+      call mie_tables_init(comm, ierr, lverbose=.false.); call CHKERR(ierr)
       call init_pprts_repwvl(comm, solver, &
                              dx, dy, atm%dz, &
                              sundir, &
@@ -214,7 +230,7 @@ contains
         & repwvl_data_thermal,                 &
         & solver,                              &
         & atm,                                 &
-        & ie, je, ke, ke1,                     &
+        & ie, je, ke,                          &
         & albedo_thermal,                      &
         & edn, eup, abso,                      &
         & ierr,                                &
@@ -225,8 +241,7 @@ contains
         & )
     end if
 
-    call CHKERR(ierr, 'DEBUG')
-    if (get_arg(.false., lskip_thermal) .or. get_arg(.false., lskip_solar)) then !DEBUG
+    if (get_arg(.false., lskip_thermal) .and. get_arg(.false., lskip_solar)) then !DEBUG
       call CHKERR(1_mpiint, 'DEBUG this block just to get rid of unused warnings')
       ke = 0
       ke1 = 1
@@ -417,7 +432,7 @@ contains
       & repwvl_data_thermal,  &
       & solver,               &
       & atm,                  &
-      & ie, je, ke, ke1,      &
+      & ie, je, ke,           &
       & albedo,               &
       & edn,                  &
       & eup,                  &
@@ -431,7 +446,7 @@ contains
     type(t_repwvl_data), intent(in) :: repwvl_data_thermal
     class(t_solver), intent(inout) :: solver
     type(t_tenstr_atm), intent(in), target :: atm
-    integer(iintegers), intent(in) :: ie, je, ke, ke1
+    integer(iintegers), intent(in) :: ie, je, ke
     real(ireals), intent(in) :: albedo
     real(ireals), intent(inout), dimension(:, :, :) :: edn, eup, abso
     integer(mpiint), intent(out) :: ierr
@@ -442,39 +457,153 @@ contains
 
     integer(iintegers) :: iwvl, i, j, k, icol
     real(ireals) :: VMRS(repwvl_data_thermal%Ntracer)
-    real(ireals) :: dtau
+
+    real(ireals), allocatable, dimension(:, :, :) :: kabs, ksca, kg ! [nlyr, local_nx, local_ny]
+    real(ireals), allocatable :: Blev(:, :, :), Bsrfc(:, :)
+
+    real(ireals) :: tabs, tsca, g
+    real(ireals) :: P, dP, dtau, rayleigh_xsec, N, lwc_vmr, qext_cld, w0_cld, g_cld
+
+    real(ireals), dimension(:, :, :), allocatable :: spec_edn, spec_eup, spec_abso
+
     ierr = 0
 
-    print *, 'repwvl_data_thermal%wvls', repwvl_data_thermal%wvls
-    iwvl = 1
+    if(present(opt_buildings    )) call CHKERR(1_mpiint, 'opt_buildings     not yet implemented for repwvl_thermal')
+    if(present(opt_tau          )) call CHKERR(1_mpiint, 'opt_tau           not yet implemented for repwvl_thermal')
+    if(present(opt_time         )) call CHKERR(1_mpiint, 'opt_time          not yet implemented for repwvl_thermal')
+    if(present(thermal_albedo_2d)) call CHKERR(1_mpiint, 'thermal_albedo_2d not yet implemented for repwvl_thermal')
 
-    do j = i1, i1!je
-      do i = i1, i1!ie
-        icol = i + (j - 1) * ie
-        do k = 1, ke
-          call repwvl_dtau(repwvl_data_thermal, &
-            & iwvl, &
-            & (atm%plev(k, icol) + atm%plev(k + 1, icol))*.5_ireals, &
-            & atm%plev(k, icol) - atm%plev(k + 1, icol), &
-            & atm%tlay(k, icol), &
-            & VMRS, &
-            & dtau, &
-            & ierr); call CHKERR(ierr)
+    allocate (kabs(solver%C_one%zm, solver%C_one%xm, solver%C_one%ym))
+    allocate (ksca(solver%C_one%zm, solver%C_one%xm, solver%C_one%ym))
+    allocate (kg(solver%C_one%zm, solver%C_one%xm, solver%C_one%ym))
+    allocate (Blev(solver%C_one1%zm, solver%C_one1%xm, solver%C_one1%ym))
+    allocate (Bsrfc(solver%C_one1%xm, solver%C_one1%ym))
+
+    do iwvl = 1, size(repwvl_data_thermal%wvls)
+      if(ldebug) then
+        print *, 'Computing wavelengths '//toStr(iwvl)//' / '//toStr(size(repwvl_data_thermal%wvls))//&
+          & ' -- '//toStr(100._ireals * real(iwvl, ireals) / real(size(repwvl_data_thermal%wvls), ireals))//' %'// &
+          & ' ('//toStr(repwvl_data_thermal%wvls(iwvl))//' nm)'
+      endif
+
+      do j = i1, je
+        do i = i1, ie
+          icol = i + (j - 1) * ie
+          do k = 1, ke
+
+            P = (atm%plev(k, icol) + atm%plev(k + 1, icol))*.5_ireals * 1e2_ireals
+            dP = (atm%plev(k, icol) - atm%plev(k + 1, icol)) * 1e2_ireals
+
+            VMRS(:) = [ &
+              & atm%h2o_lay(k, icol), &
+              & atm%h2o_lay(k, icol), &
+              & atm%co2_lay(k, icol), &
+              & atm%o3_lay(k, icol), &
+              & atm%n2o_lay(k, icol), &
+              & CO, &
+              & atm%ch4_lay(k, icol), &
+              & atm%o2_lay(k, icol), &
+              & HNO3, &
+              & N2]
+
+
+            call repwvl_dtau(&
+              & repwvl_data_thermal, &
+              & iwvl, &
+              & P, &
+              & dP, &
+              & atm%tlay(k, icol), &
+              & VMRS, &
+              & dtau, &
+              & ierr); call CHKERR(ierr)
+
+            tabs = dtau / atm%dz(k, icol)
+            if(ldebug) then
+              if (tabs .lt. 0) call CHKERR(1_mpiint, 'kabs from repwvl negative!'//toStr(tabs))
+            endif
+
+            call rayleigh(&
+              & repwvl_data_thermal%wvls(iwvl) * 1e-3_ireals, &
+              & atm%co2_lay(k, icol), &
+              & rayleigh_xsec, &
+              & ierr); call CHKERR(ierr)
+            if(ldebug) then
+              if (rayleigh_xsec .lt. 0) call CHKERR(1_mpiint, 'rayleigh xsec negative!'//toStr(rayleigh_xsec))
+            endif
+
+            N = dP * AVOGADRO / EARTHACCEL / MOLMASSAIR
+            tsca = N * rayleigh_xsec * 1e-4 / atm%dz(k, icol) ! [1e-4 from cm2 to m2]
+            if(ldebug) then
+              if (tsca .lt. 0) call CHKERR(1_mpiint, 'rayleigh scattering coeff negative!'//toStr(tsca))
+            endif
+
+            ! rayleigh has symmetric asymmetry parameter
+            g = 0
+
+            if (atm%lwc(k, icol) > 0) then
+              call mie_optprop(&
+                & mie_water_table, &
+                & repwvl_data_thermal%wvls(iwvl) * 1e-3_ireals, &
+                & atm%reliq(k, icol), &
+                & qext_cld, w0_cld, g_cld, ierr); call CHKERR(ierr)
+
+              lwc_vmr = atm%lwc(k, icol) * dP / (EARTHACCEL * atm%dz(k, icol)) ! have lwc in [ g / kg ], lwc_vmr in [ g / m3 ]
+              qext_cld = qext_cld * 1e-3 * lwc_vmr ! from [km^-1 / (g / m^3)] to [1/m]
+
+              g = (g * tsca + g_cld * qext_cld) / (tsca + qext_cld)
+              tabs = tabs + qext_cld * max(0._ireals, (1._ireals - w0_cld))
+              tsca = tsca + qext_cld * w0_cld
+            end if
+
+            if (atm%iwc(k, icol) > 0) then
+              call mie_optprop(&
+                & mie_ice_table, &
+                & repwvl_data_thermal%wvls(iwvl) * 1e-3_ireals, &
+                & atm%reice(k, icol), &
+                & qext_cld, w0_cld, g_cld, ierr); call CHKERR(ierr)
+
+              lwc_vmr = atm%iwc(k, icol) * dP / (EARTHACCEL * atm%dz(k, icol)) ! have iwc in [ g / kg ], lwc_vmr in [ g / m3 ]
+              qext_cld = qext_cld * 1e-3 * lwc_vmr ! from [km^-1 / (g / m^3)] to [1/m]
+
+              g = (g * tsca + g_cld * qext_cld) / (tsca + qext_cld)
+              tabs = tabs + qext_cld * max(0._ireals, (1._ireals - w0_cld))
+              tsca = tsca + qext_cld * w0_cld
+            end if
+
+            kabs(solver%C_one%zm + 1 - k, i, j) = tabs
+            ksca(solver%C_one%zm + 1 - k, i, j) = tsca
+            kg(solver%C_one%zm + 1 - k, i, j) = g
+
+          end do
         end do
       end do
-    end do
 
-    if (.false.) then
-      edn = albedo + opt_time + thermal_albedo_2d(1, 1)
-      eup = albedo
-      abso = albedo
-      print *, ie, je, ke, ke1
-      print *, present(opt_buildings), present(opt_tau)
-      print *, solver%linitialized
-      print *, atm%d_ke1
-    end if
+      do j = 1, solver%C_one%ym
+        do i = 1, solver%C_one%xm
+          icol = i + (j - 1_iintegers) * solver%C_one%xm
+          do k = 1, solver%C_one1%zm
+            Blev(solver%C_one1%zm + 1 - k, i, j) = repwvl_data_thermal%wgts(iwvl) &
+              & * planck(repwvl_data_thermal%wvls(iwvl) * 1e-9_ireals, atm%tlev(k, icol)) * 1e-9_ireals
+          end do
+        end do
+      end do
 
-    call CHKERR(1_mpiint, 'DEBUG')
+      call set_optical_properties( &
+        & solver,                  &
+        & albedo,                  &
+        & kabs,                    &
+        & ksca,                    &
+        & kg,                      &
+        & planck=Blev)
+      call solve_pprts(solver, lthermal=.True., lsolar=.False., edirTOA=-1._ireals)
+
+      call pprts_get_result(solver, spec_edn, spec_eup, spec_abso)
+
+      edn = edn + spec_edn
+      eup = eup + spec_eup
+      abso= abso+ spec_abso
+    enddo !iwvl
+
   end subroutine
 end module
 
