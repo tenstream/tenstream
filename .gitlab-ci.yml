@@ -224,14 +224,6 @@ intel:debug:
 mim:gcc:default:
   extends: .mim:default
 
-mim:gcc:debug:
-  extends: .mim:default
-  variables:
-    MODULES: "gcc/11.2.0 openmpi/4.1.1-gcc-11.2.0"
-    BUILD_TYPE: DEBUG
-    PETSC_PRECISION: double
-    PETSC_64_INTEGERS: 1
-
 mim:icc:debug:
   extends: .mim:default
   variables:
@@ -250,6 +242,19 @@ matshell:mim:gcc:debug:
   extends: mim:gcc:default
   variables:
     PETSC_OPTIONS: "-solar_diff_shell -thermal_diff_shell"
+
+mim:gcc:debug:
+  extends: .mim:default
+  before_script:
+    - mkdir -p $CI_PROJECT_DIR/LUT; cp -rsn /project/meteo/homepages/Fabian.Jakub/TenstreamLUT/* $CI_PROJECT_DIR/LUT/
+    - if [ ! -z "$MODULES" ]; then module load spack || echo 'no spack'; module load $MODULES || exit 1; module list; fi
+    - export FC=mpif90; export CC=mpicc; export CXX=mpicxx
+    - *template_build_PETSC
+  variables:
+    MODULES: "gcc/11.2.0 openmpi/4.1.1-gcc-11.2.0"
+    BUILD_TYPE: DEBUG
+    PETSC_PRECISION: double
+    PETSC_64_INTEGERS: 1
 
 explicit:mim:gcc:debug:
   extends: mim:gcc:debug
