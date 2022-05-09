@@ -304,3 +304,6 @@ explicit:mim:gcc:debug:
   extends: mim:gcc:debug
   variables:
     PETSC_OPTIONS: "-solar_dir_explicit -solar_diff_explicit -thermal_diff_explicit -thermal_diff_pc_sor_omega .5 -solar_diff_pc_sor_omega .5"
+    MODULES: "gcc/11.2.0 openmpi/4.1.1-gcc-11.2.0"
+    PETSC_DIR: petsc_double_gcc
+    BUILD_TYPE: DEBUG
