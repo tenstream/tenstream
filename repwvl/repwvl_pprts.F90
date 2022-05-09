@@ -75,7 +75,7 @@ module m_repwvl_pprts
     & PPRTS_BOT_FACE
 
   use m_repwvl_base, only: repwvl_init, t_repwvl_data, repwvl_dtau
-  use m_mie_tables, only: mie_tables_init, mie_water_table, mie_ice_table, mie_optprop
+  use m_mie_tables, only: mie_tables_init, mie_water_table, mie_optprop
   use m_rayleigh, only: rayleigh
 
   implicit none
@@ -468,9 +468,9 @@ contains
 
     ierr = 0
 
-    if (present(opt_buildings)) call CHKERR(1_mpiint, 'opt_buildings not yet implemented for repwvl_thermal')
-    if (present(opt_tau)) call CHKERR(1_mpiint, 'opt_tau not yet implemented for repwvl_thermal')
-    if (present(opt_time)) call CHKERR(1_mpiint, 'opt_time not yet implemented for repwvl_thermal')
+    if (present(opt_buildings)) call CHKERR(1_mpiint, 'opt_buildings     not yet implemented for repwvl_thermal')
+    if (present(opt_tau)) call CHKERR(1_mpiint, 'opt_tau           not yet implemented for repwvl_thermal')
+    if (present(opt_time)) call CHKERR(1_mpiint, 'opt_time          not yet implemented for repwvl_thermal')
     if (present(thermal_albedo_2d)) call CHKERR(1_mpiint, 'thermal_albedo_2d not yet implemented for repwvl_thermal')
 
     allocate (kabs(solver%C_one%zm, solver%C_one%xm, solver%C_one%ym))
@@ -555,11 +555,15 @@ contains
             end if
 
             if (atm%iwc(k, icol) > 0) then
-              call mie_optprop(&
-                & mie_ice_table, &
-                & repwvl_data_thermal%wvls(iwvl) * 1e-3_ireals, &
-                & atm%reice(k, icol), &
-                & qext_cld, w0_cld, g_cld, ierr); call CHKERR(ierr)
+              !call mie_optprop(&
+              !  & mie_ice_table, &
+              !  & repwvl_data_thermal%wvls(iwvl) * 1e-3_ireals, &
+              !  & atm%reice(k, icol), &
+              !  & qext_cld, w0_cld, g_cld, ierr); call CHKERR(ierr)
+              call CHKERR(1_mpiint, 'ice not  yet implemented')
+              qext_cld = -999
+              w0_cld = -999
+              g_cld = -999
 
               lwc_vmr = atm%iwc(k, icol) * dP / (EARTHACCEL * atm%dz(k, icol)) ! have iwc in [ g / kg ], lwc_vmr in [ g / m3 ]
               qext_cld = qext_cld * 1e-3 * lwc_vmr ! from [km^-1 / (g / m^3)] to [1/m]

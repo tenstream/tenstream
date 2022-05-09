@@ -12,7 +12,6 @@ module test_mie_table
   use m_mie_tables, only: &
     & mie_tables_init, &
     & mie_water_table, &
-    & mie_ice_table, &
     & mie_optprop, &
     & t_mie_table
 
@@ -55,12 +54,6 @@ contains
     @assertTrue(allocated(mie_water_table%qext), 'water_table%qext is expected to be allocated')
     @assertTrue(allocated(mie_water_table%w0  ), 'water_table%w0   is expected to be allocated')
     @assertTrue(allocated(mie_water_table%g   ), 'water_table%g    is expected to be allocated')
-    @assertTrue(allocated(mie_ice_table), 'ice_table is expected to be allocated')
-    @assertTrue(allocated(mie_ice_table%wvl ), 'ice_table%wvl  is expected to be allocated')
-    @assertTrue(allocated(mie_ice_table%reff), 'ice_table%reff is expected to be allocated')
-    @assertTrue(allocated(mie_ice_table%qext), 'ice_table%qext is expected to be allocated')
-    @assertTrue(allocated(mie_ice_table%w0  ), 'ice_table%w0   is expected to be allocated')
-    @assertTrue(allocated(mie_ice_table%g   ), 'ice_table%g    is expected to be allocated')
   end subroutine
 
   @test(npes = [1, 2])
@@ -75,7 +68,6 @@ contains
     @assertEqual(0, ierr)
 
     call test_table(mie_water_table)
-    call test_table(mie_ice_table)
   contains
     subroutine test_table(table)
       type(t_mie_table), intent(in) :: table
@@ -106,7 +98,6 @@ contains
     @assertEqual(0, ierr)
 
     call test_table(mie_water_table)
-    call test_table(mie_ice_table)
   contains
     subroutine test_table(table)
       type(t_mie_table), intent(in) :: table
