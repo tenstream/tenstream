@@ -1739,7 +1739,7 @@ contains
         call CHKERR(1_mpiint, 'set_optical_properties :: found illegal value in delta_scaled optical properties!'//new_line('')// &
         & 'min(atm%kabs) '//toStr(minval(atm%kabs))//' isnan? '//toStr(any(isnan(atm%kabs)))//new_line('')// &
         & 'min(atm%ksca) '//toStr(minval(atm%ksca))//' isnan? '//toStr(any(isnan(atm%ksca)))//new_line('')// &
-        & 'min(atm%g   ) '//toStr(minval(atm%g   ))//' isnan? '//toStr(any(isnan(atm%g   )))//new_line('')// &
+        & 'min(atm%g   ) '//toStr(minval(atm%g))//' isnan? '//toStr(any(isnan(atm%g)))//new_line('')// &
         & '')
       end if
 

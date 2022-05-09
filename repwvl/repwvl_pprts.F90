@@ -468,10 +468,10 @@ contains
 
     ierr = 0
 
-    if(present(opt_buildings    )) call CHKERR(1_mpiint, 'opt_buildings     not yet implemented for repwvl_thermal')
-    if(present(opt_tau          )) call CHKERR(1_mpiint, 'opt_tau           not yet implemented for repwvl_thermal')
-    if(present(opt_time         )) call CHKERR(1_mpiint, 'opt_time          not yet implemented for repwvl_thermal')
-    if(present(thermal_albedo_2d)) call CHKERR(1_mpiint, 'thermal_albedo_2d not yet implemented for repwvl_thermal')
+    if (present(opt_buildings)) call CHKERR(1_mpiint, 'opt_buildings not yet implemented for repwvl_thermal')
+    if (present(opt_tau)) call CHKERR(1_mpiint, 'opt_tau not yet implemented for repwvl_thermal')
+    if (present(opt_time)) call CHKERR(1_mpiint, 'opt_time not yet implemented for repwvl_thermal')
+    if (present(thermal_albedo_2d)) call CHKERR(1_mpiint, 'thermal_albedo_2d not yet implemented for repwvl_thermal')
 
     allocate (kabs(solver%C_one%zm, solver%C_one%xm, solver%C_one%ym))
     allocate (ksca(solver%C_one%zm, solver%C_one%xm, solver%C_one%ym))
@@ -480,11 +480,11 @@ contains
     allocate (Bsrfc(solver%C_one1%xm, solver%C_one1%ym))
 
     do iwvl = 1, size(repwvl_data_thermal%wvls)
-      if(ldebug) then
+      if (ldebug) then
         print *, 'Computing wavelengths '//toStr(iwvl)//' / '//toStr(size(repwvl_data_thermal%wvls))//&
           & ' -- '//toStr(100._ireals * real(iwvl, ireals) / real(size(repwvl_data_thermal%wvls), ireals))//' %'// &
           & ' ('//toStr(repwvl_data_thermal%wvls(iwvl))//' nm,  wgt='//toStr(repwvl_data_thermal%wgts(iwvl))//')'
-      endif
+      end if
 
       do j = i1, je
         do i = i1, ie
@@ -506,7 +506,6 @@ contains
               & HNO3, &
               & N2]
 
-
             call repwvl_dtau(&
               & repwvl_data_thermal, &
               & iwvl, &
@@ -518,24 +517,24 @@ contains
               & ierr); call CHKERR(ierr)
 
             tabs = dtau / atm%dz(k, icol)
-            if(ldebug) then
+            if (ldebug) then
               if (tabs .lt. 0) call CHKERR(1_mpiint, 'kabs from repwvl negative!'//toStr(tabs))
-            endif
+            end if
 
             call rayleigh(&
               & repwvl_data_thermal%wvls(iwvl) * 1e-3_ireals, &
               & atm%co2_lay(k, icol), &
               & rayleigh_xsec, &
               & ierr); call CHKERR(ierr)
-            if(ldebug) then
+            if (ldebug) then
               if (rayleigh_xsec .lt. 0) call CHKERR(1_mpiint, 'rayleigh xsec negative!'//toStr(rayleigh_xsec))
-            endif
+            end if
 
             N = dP * AVOGADRO / EARTHACCEL / MOLMASSAIR
             tsca = N * rayleigh_xsec * 1e-4 / atm%dz(k, icol) ! [1e-4 from cm2 to m2]
-            if(ldebug) then
+            if (ldebug) then
               if (tsca .lt. 0) call CHKERR(1_mpiint, 'rayleigh scattering coeff negative!'//toStr(tsca))
-            endif
+            end if
 
             ! rayleigh has symmetric asymmetry parameter
             g = 0
@@ -583,7 +582,8 @@ contains
           icol = i + (j - 1_iintegers) * solver%C_one%xm
           do k = 1, solver%C_one1%zm
             Blev(solver%C_one1%zm + 1 - k, i, j) = repwvl_data_thermal%wgts(iwvl) &
-              & * planck(repwvl_data_thermal%wvls(iwvl) * 1e-9_ireals, atm%tlev(k, icol)) * 1e-9_ireals
+                                                  & * planck(repwvl_data_thermal%wvls(iwvl) * 1e-9_ireals, atm%tlev(k, icol)) &
+                                                  & * 1e-9_ireals
           end do
         end do
       end do
@@ -595,14 +595,14 @@ contains
         & ksca,                    &
         & kg,                      &
         & planck=Blev)
-      call solve_pprts(solver, lthermal=.True., lsolar=.False., edirTOA=-1._ireals)
+      call solve_pprts(solver, lthermal=.true., lsolar=.false., edirTOA=-1._ireals)
 
       call pprts_get_result(solver, spec_edn, spec_eup, spec_abso)
 
       edn = edn + spec_edn
       eup = eup + spec_eup
-      abso= abso+ spec_abso
-    enddo !iwvl
+      abso = abso + spec_abso
+    end do !iwvl
 
   end subroutine
 end module
