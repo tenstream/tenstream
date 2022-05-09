@@ -483,7 +483,7 @@ contains
       if(ldebug) then
         print *, 'Computing wavelengths '//toStr(iwvl)//' / '//toStr(size(repwvl_data_thermal%wvls))//&
           & ' -- '//toStr(100._ireals * real(iwvl, ireals) / real(size(repwvl_data_thermal%wvls), ireals))//' %'// &
-          & ' ('//toStr(repwvl_data_thermal%wvls(iwvl))//' nm)'
+          & ' ('//toStr(repwvl_data_thermal%wvls(iwvl))//' nm,  wgt='//toStr(repwvl_data_thermal%wgts(iwvl))//')'
       endif
 
       do j = i1, je
