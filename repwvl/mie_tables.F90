@@ -44,7 +44,7 @@ module m_mie_tables
   implicit none
 
   private
-  public :: mie_tables_init, mie_water_table, mie_ice_table, t_mie_table, mie_optprop
+  public :: mie_tables_init, mie_water_table, t_mie_table, mie_optprop
 
   logical, parameter :: ldebug = .true.
 
@@ -57,7 +57,6 @@ module m_mie_tables
   end type
 
   type(t_mie_table), allocatable :: mie_water_table
-  type(t_mie_table), allocatable :: mie_ice_table
 contains
   subroutine load_data(fname, mie_table, ierr, lverbose)
     character(len=*), intent(in) :: fname
@@ -103,29 +102,25 @@ contains
     call imp_bcast(comm, mie_table%g, ierr); call CHKERR(ierr)
   end subroutine
 
-  subroutine mie_tables_init(comm, ierr, lverbose, path_water_table, path_ice_table)
+  subroutine mie_tables_init(comm, ierr, lverbose, path_water_table)
     integer(mpiint), intent(in) :: comm
     integer(mpiint), intent(out) :: ierr
     logical, intent(in), optional :: lverbose
-    character(len=*), intent(in), optional :: path_water_table, path_ice_table
+    character(len=*), intent(in), optional :: path_water_table
 
     integer(mpiint) :: myid
 
     character(len=default_str_len), parameter :: default_water_path = "mie.wc.table.nc"
-    character(len=default_str_len), parameter :: default_ice_path = "mie.ic.table.nc"
 
     character(len=default_str_len) :: water_path
-    character(len=default_str_len) :: ice_path
 
     logical :: lset, lexists
 
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
     water_path = trim(get_arg(default_water_path, path_water_table))
-    ice_path = trim(get_arg(default_ice_path, path_ice_table))
 
     call get_petsc_opt('', '-mie_wc', water_path, lset, ierr); call CHKERR(ierr)
-    call get_petsc_opt('', '-mie_ic', ice_path, lset, ierr); call CHKERR(ierr)
 
     inquire (file=trim(water_path), exist=lexists)
     if (.not. lexists) then
@@ -136,25 +131,12 @@ contains
         & "   -mie_wc <path>")
     end if
 
-    inquire (file=trim(ice_path), exist=lexists)
-    if (.not. lexists) then
-      call CHKERR(1_mpiint, "File at mie_table path "//toStr(ice_path)// &
-        & " does not exist"//new_line('')// &
-        & " please make sure the file is at this location"// &
-        & " or specify a correct path with option"//new_line('')// &
-        & "   -mie_ic <path>")
-    end if
-
     if (myid .eq. 0) then
       if (.not. allocated(mie_water_table)) then
         call load_data(water_path, mie_water_table, ierr, lverbose); call CHKERR(ierr)
       end if
-      if (.not. allocated(mie_ice_table)) then
-        call load_data(ice_path, mie_ice_table, ierr, lverbose); call CHKERR(ierr)
-      end if
     end if
     call distribute_table(comm, mie_water_table, ierr); call CHKERR(ierr)
-    call distribute_table(comm, mie_ice_table, ierr); call CHKERR(ierr)
   end subroutine
 
   subroutine mie_optprop(table, wvl, reff, qext, w0, g, ierr)

@@ -31,6 +31,7 @@ module m_compute_training_data
 
   use m_helper_functions, only: &
     & CHKERR, &
+    & CHKWARN, &
     & get_arg, &
     & imp_min_mean_max, &
     & resize_arr, &
@@ -45,7 +46,7 @@ module m_compute_training_data
   use m_pprts, only: init_pprts, set_optical_properties, solve_pprts, pprts_get_result, set_angles
 
   use m_repwvl_base, only: t_repwvl_data, repwvl_init, repwvl_dtau
-  use m_mie_tables, only: mie_tables_init, mie_water_table, mie_ice_table, mie_optprop
+  use m_mie_tables, only: mie_tables_init, mie_water_table, mie_optprop
   use m_rayleigh, only: rayleigh
 
   implicit none
@@ -284,11 +285,15 @@ contains
           end if
 
           if (atm%iwc(k, icol) > 0) then
-            call mie_optprop(&
-              & mie_ice_table, &
-              & repwvl_data%wvls(iwvl) * 1e-3_ireals, &
-              & atm%reice(k, icol), &
-              & qext_cld, w0_cld, g_cld, ierr); call CHKERR(ierr)
+            call CHKWARN(1_mpiint, 'ice not yet implemented')
+            qext_cld = 0
+            w0_cld = 0
+            g_cld = 0
+            !call mie_optprop(&
+            !  & mie_ice_table, &
+            !  & repwvl_data%wvls(iwvl) * 1e-3_ireals, &
+            !  & atm%reice(k, icol), &
+            !  & qext_cld, w0_cld, g_cld, ierr); call CHKERR(ierr)
 
             lwc_vmr = atm%iwc(k, icol) * dP / (EARTHACCEL * atm%dz(k, icol)) ! have iwc in [ g / kg ], lwc_vmr in [ g / m3 ]
             qext_cld = qext_cld * 1e-3 * lwc_vmr ! from [km^-1 / (g / m^3)] to [1/m]
