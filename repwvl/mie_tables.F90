@@ -94,6 +94,7 @@ contains
     type(t_mie_table), allocatable, intent(inout) :: mie_table
     integer(mpiint), intent(out) :: ierr
 
+    ierr = 0
     if (.not. allocated(mie_table)) allocate (mie_table)
     call imp_bcast(comm, mie_table%wvl, ierr); call CHKERR(ierr)
     call imp_bcast(comm, mie_table%reff, ierr); call CHKERR(ierr)
