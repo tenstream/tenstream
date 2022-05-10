@@ -438,10 +438,21 @@ endif(ENABLE_PFUNIT)
 find_program(CTAGS_PATH ctags)
 if(CTAGS_PATH)
     message(STATUS "Found ctags: ${CTAGS_PATH}")
+
+    execute_process(COMMAND ctags --help
+        COMMAND grep "langmap"
+        OUTPUT_VARIABLE CTAGS_LANGMAP)
+    if(CTAGS_LANGMAP STREQUAL "")
+      set(CTAGS_LANGMAP "")
+    else()
+      set(CTAGS_LANGMAP "--langmap=Fortran:.fypp.f.for.ftn.f77.f90.f95.F.FOR.FTN.F77.F90.F95")
+    endif()
+    message(STATUS "ctags supports langmap?: ${CTAGS_LANGMAP}")
+
     set_source_files_properties( tags PROPERTIES GENERATED true)
     add_custom_target(tags ALL
       COMMAND ctags -R
-      --langmap=Fortran:.fypp.f.for.ftn.f77.f90.f95.F.FOR.FTN.F77.F90.F95
+      ${CTAGS_LANGMAP}
       ${CMAKE_CURRENT_BINARY_DIR}/external
       ${CMAKE_CURRENT_SOURCE_DIR}/c_wrapper
       ${CMAKE_CURRENT_SOURCE_DIR}/disort
