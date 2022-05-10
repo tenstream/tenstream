@@ -25,7 +25,8 @@ contains
   subroutine ex_pprts_rrtm_lw_sw(comm, nxp, nyp, nzp, dx, dy, &
       & phi0, theta0, albedo_th, albedo_sol, &
       & lthermal, lsolar, atm_filename, &
-      & edir, edn, eup, abso)
+      & edir, edn, eup, abso, &
+      & vlwc, viwc)
     integer(mpiint), intent(in) :: comm
     integer(iintegers), intent(in) :: nxp, nyp, nzp   ! local domain size for each rank
     real(ireals), intent(in) :: dx, dy                ! horizontal grid spacing in [m]
@@ -33,6 +34,7 @@ contains
     real(ireals), intent(in) :: albedo_th, albedo_sol ! broadband ground albedo for solar and thermal spectrum
     logical, intent(in) :: lthermal, lsolar                       ! switches to enable/disable spectral integration
     character(len=*), intent(in) :: atm_filename ! ='afglus_100m.dat'
+    real(ireals), intent(in), optional :: vlwc, viwc            ! liquid/ice water content to be set in a layer
 
     ! Fluxes and absorption in [W/m2] and [W/m3] respectively.
     ! Dimensions will probably be bigger than the dynamics grid, i.e. will have
@@ -113,19 +115,22 @@ contains
     lwc = 0
     reliq = 0
 
-    icld = int(real(nzp + 1) / 2)
-    lwc(icld, :, :) = 1e-2
-    reliq(icld, :, :) = 10
+    if (present(vlwc)) then
+      icld = int(real(nzp + 1) / 2)
+      lwc(icld, :, :) = vlwc
+      reliq(icld, :, :) = 10
+      tlev(icld + 1, :, :) = tlev(icld, :, :)
+    end if
 
     iwc = 0
     reice = 0
 
-    icld = nzp
-    iwc(icld, :, :) = 1e-2
-    reice(icld, :, :) = 60
-
-    !tlev (icld  , :,:) = 288
-    tlev(icld + 1, :, :) = tlev(icld, :, :)
+    if (present(viwc)) then
+      icld = nzp
+      iwc(icld, :, :) = viwc
+      reice(icld, :, :) = 60
+      tlev(icld + 1, :, :) = tlev(icld, :, :)
+    end if
 
     if (myid .eq. 0 .and. ldebug) print *, 'Setup Atmosphere...'
 
@@ -182,14 +187,6 @@ contains
       print *, 'TOA :: downw flux ', meanval(edn(1, :, :))
       print *, 'TOA :: upward fl  ', meanval(eup(1, :, :))
       print *, 'TOA :: absorption ', meanval(abso(1, :, :))
-
-      if (allocated(edir)) &
-        print *, 'icloud :: direct flux  ', meanval(edir(nlev - icld, :, :))
-      if (allocated(edir)) &
-        print *, 'icloud+1 :: direct flux', meanval(edir(nlev - icld + 1, :, :))
-      print *, 'icloud :: downw flux   ', meanval(edn(nlev - icld + 1, :, :))
-      print *, 'icloud :: upward fl    ', meanval(eup(nlev - icld, :, :))
-      print *, 'icloud :: absorption   ', meanval(abso(nlev - icld, :, :))
     end if
 
     ! Tidy up
