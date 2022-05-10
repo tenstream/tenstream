@@ -122,7 +122,7 @@ contains
     logical, intent(in), optional :: lverbose
 
     character(len=default_str_len) :: basepath, fname_thermal, fname_solar
-    logical :: lset
+    logical :: lset, lexists
 
     ierr = 0
 
@@ -136,6 +136,28 @@ contains
 
     call get_petsc_opt('', '-repwvl_thermal_lut', fname_thermal, lset, ierr); call CHKERR(ierr)
     call get_petsc_opt('', '-repwvl_solar_lut', fname_solar, lset, ierr); call CHKERR(ierr)
+
+    inquire (file=trim(fname_thermal), exist=lexists)
+    if (.not. lexists) then
+      call CHKERR(1_mpiint, "File at repwvl thermal path "//toStr(fname_thermal)// &
+        & " does not exist"//new_line('')// &
+        & " please make sure the file is at this location"// &
+        & " you may set a directory with option "//new_line('')// &
+        & "   -repwvl_data  <path with file repwvl_thermal.lut>"//new_line('')// &
+        & " or specify a correct path with option"//new_line('')// &
+        & "   -repwvl_thermal_lut <path>")
+    end if
+
+    inquire (file=trim(fname_solar), exist=lexists)
+    if (.not. lexists) then
+      call CHKERR(1_mpiint, "File at repwvl solar path "//toStr(fname_solar)// &
+        & " does not exist"//new_line('')// &
+        & " please make sure the file is at this location"// &
+        & " you may set a directory with option "//new_line('')// &
+        & "   -repwvl_data  <path with file repwvl_solar.lut>"//new_line('')// &
+        & " or specify a correct path with option"//new_line('')// &
+        & "   -repwvl_solar_lut <path>")
+    end if
 
     if (get_arg(.false., lverbose)) print *, 'Reading representative wavelength data from '//trim(fname_thermal)
     call load_data(fname_thermal, repwvl_data_thermal, ierr, lverbose=lverbose); call CHKERR(ierr)

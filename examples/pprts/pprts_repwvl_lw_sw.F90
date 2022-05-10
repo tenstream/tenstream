@@ -25,7 +25,8 @@ contains
   subroutine ex_pprts_repwvl_lw_sw(comm, nxp, nyp, nzp, dx, dy, &
       & phi0, theta0, albedo_th, albedo_sol, &
       & lthermal, lsolar, atm_filename, &
-      & edir, edn, eup, abso)
+      & edir, edn, eup, abso, &
+      & vlwc, viwc)
     integer(mpiint), intent(in) :: comm
     integer(iintegers), intent(in) :: nxp, nyp, nzp   ! local domain size for each rank
     real(ireals), intent(in) :: dx, dy                ! horizontal grid spacing in [m]
@@ -33,6 +34,7 @@ contains
     real(ireals), intent(in) :: albedo_th, albedo_sol ! broadband ground albedo for solar and thermal spectrum
     logical, intent(in) :: lthermal, lsolar                       ! switches to enable/disable spectral integration
     character(len=*), intent(in) :: atm_filename ! ='afglus_100m.dat'
+    real(ireals), intent(in), optional :: vlwc, viwc            ! liquid/ice water content to be set in a layer
 
     ! Fluxes and absorption in [W/m2] and [W/m3] respectively.
     ! Dimensions will probably be bigger than the dynamics grid, i.e. will have
@@ -55,7 +57,7 @@ contains
     ! real(ireals), dimension(nzp,nxp,nyp) :: h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr
 
     ! Liquid water cloud content [g/kg] and effective radius in micron
-    real(ireals), dimension(nzp, nxp, nyp), target :: lwc, reliq
+    real(ireals), dimension(nzp, nxp, nyp), target :: lwc, reliq, iwc, reice
 
     ! Filename of background atmosphere file. ASCII file with columns:
     ! z(km)  p(hPa)  T(K)  air(cm-3)  o3(cm-3) o2(cm-3) h2o(cm-3)  co2(cm-3) no2(cm-3)
@@ -66,7 +68,7 @@ contains
     integer(iintegers), allocatable :: nxproc(:), nyproc(:)
 
     ! reshape pointer to convert i,j vecs to column vecs
-    real(ireals), pointer, dimension(:, :) :: pplev, ptlev, plwc, preliq
+    real(ireals), pointer, dimension(:, :) :: pplev, ptlev, plwc, preliq, piwc, preice
 
     real(ireals) :: sundir(3)
 
@@ -113,12 +115,22 @@ contains
     lwc = 0
     reliq = 0
 
-    icld = int(real(nzp + 1) / 2)
-    lwc(icld, :, :) = 1e-2
-    reliq(icld, :, :) = 10
+    if (present(vlwc)) then
+      icld = int(real(nzp + 1) / 2)
+      lwc(icld, :, :) = vlwc
+      reliq(icld, :, :) = 10
+      tlev(icld + 1, :, :) = tlev(icld, :, :)
+    end if
 
-    !tlev (icld  , :,:) = 288
-    tlev(icld + 1, :, :) = tlev(icld, :, :)
+    iwc = 0
+    reice = 0
+
+    if (present(viwc)) then
+      icld = nzp
+      iwc(icld, :, :) = viwc
+      reice(icld, :, :) = 60
+      tlev(icld + 1, :, :) = tlev(icld, :, :)
+    end if
 
     if (myid .eq. 0 .and. ldebug) print *, 'Setup Atmosphere...'
 
@@ -126,10 +138,13 @@ contains
     ptlev(1:size(tlev, 1), 1:size(tlev, 2) * size(tlev, 3)) => tlev
     plwc(1:size(lwc, 1), 1:size(lwc, 2) * size(lwc, 3)) => lwc
     preliq(1:size(reliq, 1), 1:size(reliq, 2) * size(reliq, 3)) => reliq
+    piwc(1:size(iwc, 1), 1:size(iwc, 2) * size(iwc, 3)) => iwc
+    preice(1:size(reice, 1), 1:size(reice, 2) * size(reice, 3)) => reice
 
     call setup_tenstr_atm(comm, .false., atm_filename, &
                           pplev, ptlev, atm, &
-                          d_lwc=plwc, d_reliq=preliq)
+                          d_lwc=plwc, d_reliq=preliq, &
+                          d_iwc=piwc, d_reice=preice)
 
     sundir = spherical_2_cartesian(phi0, theta0)
 
@@ -171,14 +186,6 @@ contains
       print *, 'TOA :: downw flux ', meanval(edn(1, :, :))
       print *, 'TOA :: upward fl  ', meanval(eup(1, :, :))
       print *, 'TOA :: absorption ', meanval(abso(1, :, :))
-
-      if (allocated(edir)) &
-        print *, 'icloud :: direct flux  ', meanval(edir(nlev - icld, :, :))
-      if (allocated(edir)) &
-        print *, 'icloud+1 :: direct flux', meanval(edir(nlev - icld + 1, :, :))
-      print *, 'icloud :: downw flux   ', meanval(edn(nlev - icld + 1, :, :))
-      print *, 'icloud :: upward fl    ', meanval(eup(nlev - icld, :, :))
-      print *, 'icloud :: absorption   ', meanval(abso(nlev - icld, :, :))
     end if
 
     ! Tidy up

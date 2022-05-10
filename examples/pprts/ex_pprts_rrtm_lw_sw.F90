@@ -11,7 +11,7 @@ program main
 
   integer(mpiint) :: ierr, comm, myid
   integer(iintegers) :: Nx, Ny, Nz
-  real(ireals) :: dx, dy, phi0, theta0, albedo_th, albedo_sol
+  real(ireals) :: dx, dy, phi0, theta0, albedo_th, albedo_sol, vlwc, viwc
   character(len=default_str_len) :: atm_filename
   logical :: lthermal, lsolar, lflg
   real(ireals), allocatable, dimension(:, :, :) :: fdir, fdn, fup, fdiv
@@ -54,13 +54,20 @@ program main
   lsolar = .true.
   call get_petsc_opt(PETSC_NULL_CHARACTER, "-solar", lsolar, lflg, ierr); call CHKERR(ierr)
 
+  vlwc = 0
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-lwc", vlwc, lflg, ierr); call CHKERR(ierr)
+
+  viwc = 0
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-iwc", viwc, lflg, ierr); call CHKERR(ierr)
+
   if (myid .eq. 0) print *, 'Running rrtm_lw_sw example with grid size:', Nx, Ny, Nz
 
   call ex_pprts_rrtm_lw_sw(comm, &
     & Nx, Ny, Nz, dx, dy, &
     & phi0, theta0, albedo_th, albedo_sol, &
     & lthermal, lsolar, atm_filename, &
-    & fdir, fdn, fup, fdiv)
+    & fdir, fdn, fup, fdiv, &
+    & vlwc, viwc)
 
   call deallocate_allocatable(fdir)
   call deallocate_allocatable(fdn)
