@@ -55,7 +55,7 @@ contains
     ! real(ireals), dimension(nzp,nxp,nyp) :: h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr
 
     ! Liquid water cloud content [g/kg] and effective radius in micron
-    real(ireals), dimension(nzp, nxp, nyp), target :: lwc, reliq
+    real(ireals), dimension(nzp, nxp, nyp), target :: lwc, reliq, iwc, reice
 
     ! Filename of background atmosphere file. ASCII file with columns:
     ! z(km)  p(hPa)  T(K)  air(cm-3)  o3(cm-3) o2(cm-3) h2o(cm-3)  co2(cm-3) no2(cm-3)
@@ -66,7 +66,7 @@ contains
     integer(iintegers), allocatable :: nxproc(:), nyproc(:)
 
     ! reshape pointer to convert i,j vecs to column vecs
-    real(ireals), pointer, dimension(:, :) :: pplev, ptlev, plwc, preliq
+    real(ireals), pointer, dimension(:, :) :: pplev, ptlev, plwc, preliq, piwc, preice
 
     real(ireals) :: sundir(3)
 
@@ -117,6 +117,13 @@ contains
     lwc(icld, :, :) = 1e-2
     reliq(icld, :, :) = 10
 
+    iwc = 0
+    reice = 0
+
+    icld = nzp
+    iwc(icld, :, :) = 1e-2
+    reice(icld, :, :) = 60
+
     !tlev (icld  , :,:) = 288
     tlev(icld + 1, :, :) = tlev(icld, :, :)
 
@@ -126,10 +133,13 @@ contains
     ptlev(1:size(tlev, 1), 1:size(tlev, 2) * size(tlev, 3)) => tlev
     plwc(1:size(lwc, 1), 1:size(lwc, 2) * size(lwc, 3)) => lwc
     preliq(1:size(reliq, 1), 1:size(reliq, 2) * size(reliq, 3)) => reliq
+    piwc(1:size(iwc, 1), 1:size(iwc, 2) * size(iwc, 3)) => iwc
+    preice(1:size(reice, 1), 1:size(reice, 2) * size(reice, 3)) => reice
 
     call setup_tenstr_atm(comm, .false., atm_filename, &
                           pplev, ptlev, atm, &
-                          d_lwc=plwc, d_reliq=preliq)
+                          d_lwc=plwc, d_reliq=preliq, &
+                          d_iwc=piwc, d_reice=preice)
 
     sundir = spherical_2_cartesian(phi0, theta0)
 
