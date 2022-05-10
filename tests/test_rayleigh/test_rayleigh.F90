@@ -36,6 +36,7 @@ contains
     real(ireals) :: wvl, ksca, ksca2
     integer(iintegers) :: i
     integer(mpiint) :: ierr
+    real(ireals), parameter :: eps=sqrt(epsilon(eps))
 
     do i = 100, 5000, 100
       wvl = real(i) * 1e-3_ireals
@@ -57,10 +58,10 @@ contains
     @assertTrue(ierr.ne.0, 'Should throw an error for small wavelengths')
 
     call rayleigh(.5_ireals, ksca, ierr)
-    @assertEqual(6.66140033E-27_ireals, ksca)
+    @assertEqual(6.66140033E-27_ireals, ksca, ksca*eps)
 
     call rayleigh(.5_ireals, co2, ksca2, ierr)
-    @assertEqual(6.66123701E-27_ireals, ksca2)
+    @assertEqual(6.66123701E-27_ireals, ksca2, ksca*eps)
   end subroutine
 
 end module
