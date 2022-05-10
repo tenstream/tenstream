@@ -3,6 +3,7 @@ install(DIRECTORY ./ DESTINATION include/ FILES_MATCHING PATTERN "*.h")
 
 set( files
   "mie_tables.F90"
+  "fu_ice.F90"
   "rayleigh.F90"
   "repwvl_base.F90"
   "repwvl_pprts.F90"
