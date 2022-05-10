@@ -36,7 +36,7 @@ contains
     real(ireals) :: wvl, ksca, ksca2
     integer(iintegers) :: i
     integer(mpiint) :: ierr
-    real(ireals), parameter :: eps=sqrt(epsilon(eps))
+    real(ireals), parameter :: eps = sqrt(epsilon(eps))
 
     do i = 100, 5000, 100
       wvl = real(i) * 1e-3_ireals
