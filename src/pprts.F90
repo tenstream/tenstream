@@ -5448,7 +5448,7 @@ contains
     integer(iintegers) :: uid
 
     uid = get_arg(0_iintegers, opt_solution_uid)
-    if (.not. is_inrange(uid, lbound(solutions, 1), ubound(solutions, 1))) then
+    if (.not. is_inrange(uid, lbound(solutions, 1, kind=iintegers), ubound(solutions, 1, kind=iintegers))) then
       call CHKWARN(int(uid, mpiint), "uid ("//toStr(uid)//") is not in range of "// &
         & "preallocated solutions container [ "//&
         & toStr(lbound(solutions, 1))//", "//&
