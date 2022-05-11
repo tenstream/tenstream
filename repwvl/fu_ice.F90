@@ -174,31 +174,31 @@ contains
 
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
-    psol = trim(get_arg(default_path_solar, path_solar))
-    pth = trim(get_arg(default_path_thermal, path_thermal))
-
-    call get_petsc_opt('', '-fu_ice_solar', psol, lset, ierr); call CHKERR(ierr)
-    call get_petsc_opt('', '-fu_ice_thermal', pth, lset, ierr); call CHKERR(ierr)
-
-    inquire (file=trim(psol), exist=lexists)
-    if (.not. lexists) then
-      call CHKERR(1_mpiint, "File at fu ice solar path "//toStr(psol)// &
-        & " does not exist"//new_line('')// &
-        & " please make sure the file is at this location"// &
-        & " or specify a correct path with option"//new_line('')// &
-        & "   -fu_ice_solar <path>")
-    end if
-
-    inquire (file=trim(pth), exist=lexists)
-    if (.not. lexists) then
-      call CHKERR(1_mpiint, "File at fu ice thermal path "//toStr(pth)// &
-        & " does not exist"//new_line('')// &
-        & " please make sure the file is at this location"// &
-        & " or specify a correct path with option"//new_line('')// &
-        & "   -fu_ice_thermal <path>")
-    end if
-
     if (myid .eq. 0) then
+      psol = trim(get_arg(default_path_solar, path_solar))
+      pth = trim(get_arg(default_path_thermal, path_thermal))
+
+      call get_petsc_opt('', '-fu_ice_solar', psol, lset, ierr); call CHKERR(ierr)
+      call get_petsc_opt('', '-fu_ice_thermal', pth, lset, ierr); call CHKERR(ierr)
+
+      inquire (file=trim(psol), exist=lexists)
+      if (.not. lexists) then
+        call CHKERR(1_mpiint, "File at fu ice solar path "//toStr(psol)// &
+          & " does not exist"//new_line('')// &
+          & " please make sure the file is at this location"// &
+          & " or specify a correct path with option"//new_line('')// &
+          & "   -fu_ice_solar <path>")
+      end if
+
+      inquire (file=trim(pth), exist=lexists)
+      if (.not. lexists) then
+        call CHKERR(1_mpiint, "File at fu ice thermal path "//toStr(pth)// &
+          & " does not exist"//new_line('')// &
+          & " please make sure the file is at this location"// &
+          & " or specify a correct path with option"//new_line('')// &
+          & "   -fu_ice_thermal <path>")
+      end if
+
       if (.not. allocated(fu_ice_data_solar)) then
         call load_data96(psol, fu_ice_data_solar, ierr, lverbose); call CHKERR(ierr)
       end if
@@ -206,6 +206,7 @@ contains
         call load_data98(pth, fu_ice_data_thermal, ierr, lverbose); call CHKERR(ierr)
       end if
     end if
+
     call distribute_table96(comm, fu_ice_data_solar, ierr); call CHKERR(ierr)
     call distribute_table98(comm, fu_ice_data_thermal, ierr); call CHKERR(ierr)
   end subroutine

@@ -118,20 +118,20 @@ contains
 
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
-    water_path = trim(get_arg(default_water_path, path_water_table))
-
-    call get_petsc_opt('', '-mie_wc', water_path, lset, ierr); call CHKERR(ierr)
-
-    inquire (file=trim(water_path), exist=lexists)
-    if (.not. lexists) then
-      call CHKERR(1_mpiint, "File at mie_table path "//toStr(water_path)// &
-        & " does not exist"//new_line('')// &
-        & " please make sure the file is at this location"// &
-        & " or specify a correct path with option"//new_line('')// &
-        & "   -mie_wc <path>")
-    end if
-
     if (myid .eq. 0) then
+      water_path = trim(get_arg(default_water_path, path_water_table))
+
+      call get_petsc_opt('', '-mie_wc', water_path, lset, ierr); call CHKERR(ierr)
+
+      inquire (file=trim(water_path), exist=lexists)
+      if (.not. lexists) then
+        call CHKERR(1_mpiint, "File at mie_table path "//toStr(water_path)// &
+          & " does not exist"//new_line('')// &
+          & " please make sure the file is at this location"// &
+          & " or specify a correct path with option"//new_line('')// &
+          & "   -mie_wc <path>")
+      end if
+
       if (.not. allocated(mie_water_table)) then
         call load_data(water_path, mie_water_table, ierr, lverbose); call CHKERR(ierr)
       end if
