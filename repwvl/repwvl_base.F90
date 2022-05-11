@@ -140,8 +140,8 @@ contains
       fname_thermal = trim(basepath)//trim(fname_thermal)
       fname_solar = trim(basepath)//trim(fname_solar)
 
-      call get_petsc_opt('', '-repwvl_thermal_lut', fname_thermal, lset, ierr); call CHKERR(ierr)
-      call get_petsc_opt('', '-repwvl_solar_lut', fname_solar, lset, ierr); call CHKERR(ierr)
+      call get_petsc_opt('', '-repwvl_data_thermal', fname_thermal, lset, ierr); call CHKERR(ierr)
+      call get_petsc_opt('', '-repwvl_data_solar', fname_solar, lset, ierr); call CHKERR(ierr)
 
       inquire (file=trim(fname_thermal), exist=lexists)
       if (.not. lexists) then
@@ -151,7 +151,7 @@ contains
           & " you may set a directory with option "//new_line('')// &
           & "   -repwvl_data  <path with file repwvl_thermal.lut>"//new_line('')// &
           & " or specify a correct path with option"//new_line('')// &
-          & "   -repwvl_thermal_lut <path>")
+          & "   -repwvl_data_thermal <path>")
       end if
 
       inquire (file=trim(fname_solar), exist=lexists)
@@ -162,7 +162,7 @@ contains
           & " you may set a directory with option "//new_line('')// &
           & "   -repwvl_data  <path with file repwvl_solar.lut>"//new_line('')// &
           & " or specify a correct path with option"//new_line('')// &
-          & "   -repwvl_solar_lut <path>")
+          & "   -repwvl_data_solar <path>")
       end if
 
       if (get_arg(.false., lverbose)) print *, 'Reading representative wavelength data from '//trim(fname_thermal)

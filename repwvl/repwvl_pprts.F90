@@ -84,7 +84,11 @@ module m_repwvl_pprts
   private
   public :: repwvl_pprts, repwvl_pprts_destroy, repwvl_optprop
 
+#ifdef __RELEASE_BUILD__
+  logical, parameter :: ldebug = .false.
+#else
   logical, parameter :: ldebug = .true.
+#endif
 
   type(t_repwvl_data), allocatable :: repwvl_data_solar, repwvl_data_thermal
 
@@ -198,9 +202,18 @@ contains
     ke = ubound(atm%tlay, 1)
 
     if (.not. solver%linitialized) then
-      call repwvl_init(comm, repwvl_data_solar, repwvl_data_thermal, ierr, lverbose=.false.); call CHKERR(ierr)
+      call repwvl_init(        &
+        & comm,                &
+        & repwvl_data_solar,   &
+        & repwvl_data_thermal, &
+        & ierr,                &
+        & lverbose=.false.); call CHKERR(ierr)
+
       call mie_tables_init(comm, ierr, lverbose=.false.); call CHKERR(ierr)
-      call fu_ice_init(comm, ierr, lverbose=.false.); call CHKERR(ierr)
+
+      call fu_ice_init(comm, ierr, lverbose=.true.); call CHKERR(ierr)
+      call check_fu_table_consistency()
+
       call init_pprts_repwvl(comm, solver, &
                              dx, dy, atm%dz, &
                              sundir, &
@@ -557,20 +570,8 @@ contains
           end if
 
           if (atm%iwc(k, icol) > 0) then
-            if (lsolar) then
-              call fu_ice_optprop(&
-                & fu_ice_data_solar, &
-                & iwvl, &
-                & atm%reice(k, icol), &
-                & qext_cld, w0_cld, g_cld, ierr); call CHKERR(ierr)
-            else
-              call fu_ice_optprop(&
-                & fu_ice_data_thermal, &
-                & iwvl, &
-                & atm%reice(k, icol), &
-                & qext_cld, w0_cld, g_cld, ierr); call CHKERR(ierr)
-            end if
 
+            call get_fu_ice_optprop()
             iwp = atm%iwc(k, icol) * dP / (EARTHACCEL * atm%dz(k, icol)) ! have iwc in [ g / kg ], iwp in [ g / m3 ]
             qext_cld = qext_cld * iwp ! from [m^-1 / (g / m^3)] to [1/m]
 
@@ -586,6 +587,41 @@ contains
         end do
       end do
     end do
+
+  contains
+
+    subroutine get_fu_ice_optprop()
+      if (lsolar) then
+        if (fu_ice_data_solar%is_repwvl) then
+          call fu_ice_optprop(&
+            & fu_ice_data_solar, &
+            & iwvl, &
+            & atm%reice(k, icol), &
+            & qext_cld, w0_cld, g_cld, ierr); call CHKERR(ierr)
+        else
+          call fu_ice_optprop(&
+            & fu_ice_data_solar, &
+            & repwvl_data%wvls(iwvl) * 1e-3_ireals, &
+            & atm%reice(k, icol), &
+            & qext_cld, w0_cld, g_cld, ierr); call CHKERR(ierr)
+        end if
+      else
+        if (fu_ice_data_thermal%is_repwvl) then
+          call fu_ice_optprop(&
+            & fu_ice_data_thermal, &
+            & iwvl, &
+            & atm%reice(k, icol), &
+            & qext_cld, w0_cld, g_cld, ierr); call CHKERR(ierr)
+        else
+          call fu_ice_optprop(&
+            & fu_ice_data_thermal, &
+            & repwvl_data%wvls(iwvl) * 1e-3_ireals, &
+            & atm%reice(k, icol), &
+            & qext_cld, w0_cld, g_cld, ierr); call CHKERR(ierr)
+        end if
+      end if
+    end subroutine
+
   end subroutine
 
   subroutine init_pprts_repwvl(comm, solver, dx, dy, dz, &
@@ -630,6 +666,23 @@ contains
     else ! we let petsc decide where to put stuff
       call init_pprts(comm, zm, xm, ym, dx, dy, sundir, solver, dz3d=dz_t2b, &
                       collapseindex=pprts_icollapse)
+    end if
+  end subroutine
+
+  subroutine check_fu_table_consistency()
+    if (fu_ice_data_solar%is_repwvl) then
+      if (size(fu_ice_data_solar%wvl) .ne. size(repwvl_data_solar%wvls)) then
+        call CHKERR(1_mpiint, 'loaded a repwvl fu table that does not fit the solar repwvl file'// &
+          & ' Nwvl_fu '//toStr(size(fu_ice_data_solar%wvl))//&
+          & ' Nwvl_repwvl = '//toStr(size(repwvl_data_solar%wvls)))
+      end if
+    end if
+    if (fu_ice_data_thermal%is_repwvl) then
+      if (size(fu_ice_data_thermal%wvl) .ne. size(repwvl_data_thermal%wvls)) then
+        call CHKERR(1_mpiint, 'loaded a repwvl fu table that does not fit the thermal repwvl file'// &
+          & ' Nwvl_fu = '//toStr(size(fu_ice_data_thermal%wvl))//&
+          & ' Nwvl_repwvl = '//toStr(size(repwvl_data_thermal%wvls)))
+      end if
     end if
   end subroutine
 
