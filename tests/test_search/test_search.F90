@@ -140,6 +140,9 @@ contains
         sum_res = 0
 
         itest = 1
+        do i = 1, Niter / s
+          sum_res(itest) = sum_res(itest) + find_real_location(arr, r(i))
+        end do
         call cpu_time(tstart)
         do i = 1, Niter / s
           sum_res(itest) = sum_res(itest) + find_real_location(arr, r(i))
@@ -148,6 +151,9 @@ contains
         time(itest) = real(tend - tstart, ireals)
 
         itest = 2
+        do i = 1, Niter / s
+          sum_res(itest) = sum_res(itest) + find_real_location_linear(arr, r(i))
+        end do
         call cpu_time(tstart)
         do i = 1, Niter / s
           sum_res(itest) = sum_res(itest) + find_real_location_linear(arr, r(i))
@@ -156,6 +162,9 @@ contains
         time(itest) = real(tend - tstart, ireals)
 
         itest = 3
+        do i = 1, Niter / s
+          sum_res(itest) = sum_res(itest) + search_sorted_bisection(arr, r(i))
+        end do
         call cpu_time(tstart)
         do i = 1, Niter / s
           sum_res(itest) = sum_res(itest) + search_sorted_bisection(arr, r(i))
@@ -164,6 +173,9 @@ contains
         time(itest) = real(tend - tstart, ireals)
 
         itest = 4
+        do i = 1, Niter / s
+          sum_res(itest) = sum_res(itest) + find_real_location_petsc(arr, r(i))
+        end do
         call cpu_time(tstart)
         do i = 1, Niter / s
           sum_res(itest) = sum_res(itest) + find_real_location_petsc(arr, r(i))
