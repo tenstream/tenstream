@@ -82,7 +82,7 @@ module m_repwvl_pprts
   implicit none
 
   private
-  public :: repwvl_pprts, repwvl_pprts_destroy
+  public :: repwvl_pprts, repwvl_pprts_destroy, repwvl_optprop
 
   logical, parameter :: ldebug = .true.
 
