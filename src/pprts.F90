@@ -377,7 +377,7 @@ contains
       solver%dirtop%streams = solver%dirtop%dof
       solver%dirside%streams = solver%dirside%dof
 
-      allocate (solver%solutions(-1:1000))
+      allocate (solver%solutions(-1000:1000))
       solver%lenable_solutions_err_estimates = &
         options_max_solution_err .gt. zero .and. options_max_solution_time .gt. zero
 
@@ -2181,7 +2181,7 @@ contains
     if (.not. allocated(solver%atm%ksca)) &
       call CHKERR(1_mpiint, 'atmosphere%ksca is not allocated! - maybe you need to call set_optical_properties() first')
 
-    uid = get_arg(0_iintegers, opt_solution_uid)
+    uid = get_solution_uid(solver%solutions, opt_solution_uid)
 
     associate (solution => solver%solutions(uid))
 
@@ -5442,6 +5442,24 @@ contains
 
   end subroutine
 
+  function get_solution_uid(solutions, opt_solution_uid) result(uid)
+    type(t_state_container), allocatable :: solutions(:)
+    integer(iintegers), optional, intent(in) :: opt_solution_uid
+    integer(iintegers) :: uid
+
+    uid = get_arg(0_iintegers, opt_solution_uid)
+    if (.not. is_inrange(uid, lbound(solutions, 1), ubound(solutions, 1))) then
+      call CHKWARN(int(uid, mpiint), "uid ("//toStr(uid)//") is not in range of "// &
+        & "preallocated solutions container [ "//&
+        & toStr(lbound(solutions, 1))//", "//&
+        & toStr(ubound(solutions, 1))//" ]."//new_line('')// &
+        & "I will set it to 0 but this has some implications"//new_line('')// &
+        & "If you are not sure what you are doing, "// &
+        & "you can increase the size of the solutions container to fit all spectral bands")
+      uid = 0
+    end if
+  end function
+
   subroutine pprts_get_result(solver, redn, reup, rabso, redir, opt_solution_uid, opt_buildings)
     class(t_solver) :: solver
     real(ireals), dimension(:, :, :), intent(inout), allocatable :: redn, reup, rabso
@@ -5453,7 +5471,7 @@ contains
     real(ireals), pointer :: x1d(:) => null(), x4d(:, :, :, :) => null()
     integer(mpiint) :: ierr
 
-    uid = get_arg(0_iintegers, opt_solution_uid)
+    uid = get_solution_uid(solver%solutions, opt_solution_uid)
 
     associate (solution => solver%solutions(uid))
       if (solution%lsolar_rad) then
