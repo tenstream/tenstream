@@ -198,9 +198,9 @@ contains
     ke = ubound(atm%tlay, 1)
 
     if (.not. solver%linitialized) then
-      call repwvl_init(repwvl_data_solar, repwvl_data_thermal, ierr); call CHKERR(ierr)
+      call repwvl_init(comm, repwvl_data_solar, repwvl_data_thermal, ierr, lverbose=.false.); call CHKERR(ierr)
       call mie_tables_init(comm, ierr, lverbose=.false.); call CHKERR(ierr)
-      call fu_ice_init(comm, ierr, lverbose=.true.); call CHKERR(ierr)
+      call fu_ice_init(comm, ierr, lverbose=.false.); call CHKERR(ierr)
       call init_pprts_repwvl(comm, solver, &
                              dx, dy, atm%dz, &
                              sundir, &
@@ -230,6 +230,7 @@ contains
                        "-skip_thermal", lskip_thermal, lflg, ierr); call CHKERR(ierr)
     if (lthermal .and. .not. lskip_thermal) then
       call compute_thermal(                    &
+        & comm,                                &
         & repwvl_data_thermal,                 &
         & solver,                              &
         & atm,                                 &
@@ -263,6 +264,7 @@ contains
                          "-skip_solar", lskip_solar, lflg, ierr); call CHKERR(ierr)
       if (.not. lskip_solar) then
         call compute_solar(                          &
+          & comm,                                    &
           & repwvl_data_solar,                       &
           & solver,                                  &
           & atm,                                     &
@@ -282,6 +284,7 @@ contains
   end subroutine
 
   subroutine compute_thermal( &
+      & comm,                 &
       & repwvl_data_thermal,  &
       & solver,               &
       & atm,                  &
@@ -295,6 +298,7 @@ contains
       & opt_buildings,        &
       & opt_tau)
 
+    integer(mpiint), intent(in) :: comm
     type(t_repwvl_data), intent(in) :: repwvl_data_thermal
     class(t_solver), intent(inout) :: solver
     type(t_tenstr_atm), intent(in), target :: atm
@@ -307,6 +311,7 @@ contains
     real(ireals), intent(in), optional, dimension(:, :, :, :) :: opt_tau
 
     integer(iintegers) :: iwvl, i, j, k, icol
+    integer(mpiint) :: myid
 
     real(ireals), allocatable, dimension(:, :, :) :: kabs, ksca, kg ! [nlyr, local_nx, local_ny]
     real(ireals), allocatable :: Blev(:, :, :)
@@ -314,6 +319,7 @@ contains
     real(ireals), dimension(:, :, :), allocatable :: spec_edn, spec_eup, spec_abso
 
     ierr = 0
+    call mpi_comm_rank(comm, myid, ierr)
 
     if (present(opt_buildings)) call CHKERR(1_mpiint, 'opt_buildings not yet implemented for repwvl_thermal')
     if (present(opt_tau)) call CHKERR(1_mpiint, 'opt_tau not yet implemented for repwvl_thermal')
@@ -326,7 +332,7 @@ contains
     allocate (Blev(solver%C_one1%zm, solver%C_one1%xm, solver%C_one1%ym))
 
     do iwvl = 1, size(repwvl_data_thermal%wvls)
-      if (ldebug) then
+      if (myid .eq. 0 .and. ldebug) then
         print *, 'Computing wavelengths '//toStr(iwvl)//' / '//toStr(size(repwvl_data_thermal%wvls))//&
           & ' -- '//toStr(100._ireals * real(iwvl, ireals) / real(size(repwvl_data_thermal%wvls), ireals))//' %'// &
           & ' ('//toStr(repwvl_data_thermal%wvls(iwvl))//' nm,  wgt='//toStr(repwvl_data_thermal%wgts(iwvl))//')'
@@ -353,9 +359,15 @@ contains
         & kg,                      &
         & planck=Blev)
 
-      call solve_pprts(solver, lthermal=.true., lsolar=.false., edirTOA=-1._ireals)
+      call solve_pprts(          &
+        & solver,                &
+        & lthermal=.true.,       &
+        & lsolar=.false.,        &
+        & edirTOA=-1._ireals,    &
+        & opt_solution_uid=-iwvl, &
+        & opt_solution_time=opt_time)
 
-      call pprts_get_result(solver, spec_edn, spec_eup, spec_abso)
+      call pprts_get_result(solver, spec_edn, spec_eup, spec_abso, opt_solution_uid=-iwvl)
 
       edn = edn + spec_edn
       eup = eup + spec_eup
@@ -364,6 +376,7 @@ contains
   end subroutine
 
   subroutine compute_solar( &
+      & comm,               &
       & repwvl_data_solar,  &
       & solver,             &
       & atm,                &
@@ -382,6 +395,7 @@ contains
       & opt_w0,             &
       & opt_g)
 
+    integer(mpiint), intent(in) :: comm
     type(t_repwvl_data), intent(in) :: repwvl_data_solar
     class(t_solver), intent(inout) :: solver
     type(t_tenstr_atm), intent(in), target :: atm
@@ -400,12 +414,14 @@ contains
     real(ireals) :: edirTOA
 
     integer(iintegers) :: iwvl
+    integer(mpiint) :: myid
 
     real(ireals), allocatable, dimension(:, :, :) :: kabs, ksca, kg      ! [nlyr, local_nx, local_ny]
 
     real(ireals), dimension(:, :, :), allocatable :: spec_edir, spec_edn, spec_eup, spec_abso
 
     ierr = 0
+    call mpi_comm_rank(comm, myid, ierr)
 
     if (present(opt_buildings)) call CHKERR(1_mpiint, 'opt_buildings not yet implemented for repwvl_solar')
     if (present(opt_tau)) call CHKERR(1_mpiint, 'opt_tau not yet implemented for repwvl_solar')
@@ -422,7 +438,7 @@ contains
     call set_angles(solver, sundir)
 
     do iwvl = 1, size(repwvl_data_solar%wvls)
-      if (ldebug) then
+      if (myid .eq. 0 .and. ldebug) then
         print *, 'Computing wavelengths '//toStr(iwvl)//' / '//toStr(size(repwvl_data_solar%wvls))//&
           & ' -- '//toStr(100._ireals * real(iwvl, ireals) / real(size(repwvl_data_solar%wvls), ireals))//' %'// &
           & ' ('//toStr(repwvl_data_solar%wvls(iwvl))//' nm,  wgt='//toStr(repwvl_data_solar%wgts(iwvl))//')'
@@ -440,9 +456,15 @@ contains
         & kabs,                    &
         & ksca,                    &
         & kg)
-      call solve_pprts(solver, lthermal=.false., lsolar=.true., edirTOA=edirTOA)
+      call solve_pprts(          &
+        & solver,                &
+        & lthermal=.false.,      &
+        & lsolar=.true.,         &
+        & edirTOA=edirTOA,       &
+        & opt_solution_uid=iwvl, &
+        & opt_solution_time=opt_time)
 
-      call pprts_get_result(solver, spec_edn, spec_eup, spec_abso, spec_edir)
+      call pprts_get_result(solver, spec_edn, spec_eup, spec_abso, spec_edir, opt_solution_uid=iwvl)
 
       edir = edir + spec_edir
       edn = edn + spec_edn

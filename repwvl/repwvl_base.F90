@@ -36,6 +36,7 @@ module m_repwvl_base
     & CHKERR, &
     & get_petsc_opt, &
     & get_arg, &
+    & imp_bcast, &
     & toStr
 
   use m_search, only: find_real_location
@@ -115,7 +116,8 @@ contains
     end if
   end subroutine
 
-  subroutine repwvl_init(repwvl_data_solar, repwvl_data_thermal, ierr, fname_repwvl_solar, fname_repwvl_thermal, lverbose)
+  subroutine repwvl_init(comm, repwvl_data_solar, repwvl_data_thermal, ierr, fname_repwvl_solar, fname_repwvl_thermal, lverbose)
+    integer(mpiint), intent(in) :: comm
     type(t_repwvl_data), allocatable, intent(inout) :: repwvl_data_solar, repwvl_data_thermal
     integer(mpiint), intent(out) :: ierr
     character(len=*), intent(in), optional :: fname_repwvl_solar, fname_repwvl_thermal
@@ -123,47 +125,87 @@ contains
 
     character(len=default_str_len) :: basepath, fname_thermal, fname_solar
     logical :: lset, lexists
+    integer(mpiint) :: myid
 
     ierr = 0
 
-    fname_thermal = get_arg('repwvl_thermal.lut', fname_repwvl_thermal)
-    fname_solar = get_arg('repwvl_solar.lut', fname_repwvl_solar)
+    call mpi_comm_rank(comm, myid, ierr)
 
-    basepath = ''
-    call get_petsc_opt('', '-repwvl_data', basepath, lset, ierr); call CHKERR(ierr)
-    fname_thermal = trim(basepath)//trim(fname_thermal)
-    fname_solar = trim(basepath)//trim(fname_solar)
+    if (myid .eq. 0) then
+      fname_thermal = get_arg('repwvl_thermal.lut', fname_repwvl_thermal)
+      fname_solar = get_arg('repwvl_solar.lut', fname_repwvl_solar)
 
-    call get_petsc_opt('', '-repwvl_thermal_lut', fname_thermal, lset, ierr); call CHKERR(ierr)
-    call get_petsc_opt('', '-repwvl_solar_lut', fname_solar, lset, ierr); call CHKERR(ierr)
+      basepath = ''
+      call get_petsc_opt('', '-repwvl_data', basepath, lset, ierr); call CHKERR(ierr)
+      fname_thermal = trim(basepath)//trim(fname_thermal)
+      fname_solar = trim(basepath)//trim(fname_solar)
 
-    inquire (file=trim(fname_thermal), exist=lexists)
-    if (.not. lexists) then
-      call CHKERR(1_mpiint, "File at repwvl thermal path "//toStr(fname_thermal)// &
-        & " does not exist"//new_line('')// &
-        & " please make sure the file is at this location"// &
-        & " you may set a directory with option "//new_line('')// &
-        & "   -repwvl_data  <path with file repwvl_thermal.lut>"//new_line('')// &
-        & " or specify a correct path with option"//new_line('')// &
-        & "   -repwvl_thermal_lut <path>")
+      call get_petsc_opt('', '-repwvl_thermal_lut', fname_thermal, lset, ierr); call CHKERR(ierr)
+      call get_petsc_opt('', '-repwvl_solar_lut', fname_solar, lset, ierr); call CHKERR(ierr)
+
+      inquire (file=trim(fname_thermal), exist=lexists)
+      if (.not. lexists) then
+        call CHKERR(1_mpiint, "File at repwvl thermal path "//toStr(fname_thermal)// &
+          & " does not exist"//new_line('')// &
+          & " please make sure the file is at this location"// &
+          & " you may set a directory with option "//new_line('')// &
+          & "   -repwvl_data  <path with file repwvl_thermal.lut>"//new_line('')// &
+          & " or specify a correct path with option"//new_line('')// &
+          & "   -repwvl_thermal_lut <path>")
+      end if
+
+      inquire (file=trim(fname_solar), exist=lexists)
+      if (.not. lexists) then
+        call CHKERR(1_mpiint, "File at repwvl solar path "//toStr(fname_solar)// &
+          & " does not exist"//new_line('')// &
+          & " please make sure the file is at this location"// &
+          & " you may set a directory with option "//new_line('')// &
+          & "   -repwvl_data  <path with file repwvl_solar.lut>"//new_line('')// &
+          & " or specify a correct path with option"//new_line('')// &
+          & "   -repwvl_solar_lut <path>")
+      end if
+
+      if (get_arg(.false., lverbose)) print *, 'Reading representative wavelength data from '//trim(fname_thermal)
+      call load_data(fname_thermal, repwvl_data_thermal, ierr, lverbose=lverbose); call CHKERR(ierr)
+
+      if (get_arg(.false., lverbose)) print *, 'Reading representative wavelength data from '//trim(fname_solar)
+      call load_data(fname_solar, repwvl_data_solar, ierr, lverbose=lverbose); call CHKERR(ierr)
     end if
 
-    inquire (file=trim(fname_solar), exist=lexists)
-    if (.not. lexists) then
-      call CHKERR(1_mpiint, "File at repwvl solar path "//toStr(fname_solar)// &
-        & " does not exist"//new_line('')// &
-        & " please make sure the file is at this location"// &
-        & " you may set a directory with option "//new_line('')// &
-        & "   -repwvl_data  <path with file repwvl_solar.lut>"//new_line('')// &
-        & " or specify a correct path with option"//new_line('')// &
-        & "   -repwvl_solar_lut <path>")
-    end if
+    call distribute_repwvl_table(comm, repwvl_data_thermal, ierr); call CHKERR(ierr)
+    call distribute_repwvl_table(comm, repwvl_data_solar, ierr); call CHKERR(ierr)
 
-    if (get_arg(.false., lverbose)) print *, 'Reading representative wavelength data from '//trim(fname_thermal)
-    call load_data(fname_thermal, repwvl_data_thermal, ierr, lverbose=lverbose); call CHKERR(ierr)
+  contains
 
-    if (get_arg(.false., lverbose)) print *, 'Reading representative wavelength data from '//trim(fname_solar)
-    call load_data(fname_solar, repwvl_data_solar, ierr, lverbose=lverbose); call CHKERR(ierr)
+    subroutine distribute_repwvl_table(comm, table, ierr)
+      integer(mpiint), intent(in) :: comm
+      type(t_repwvl_data), allocatable, intent(inout) :: table
+      integer(mpiint), intent(out) :: ierr
+      logical :: lhave_crs_o3, lhave_crs_n2o
+
+      ierr = 0
+      if (.not. allocated(table)) allocate (table)
+      call imp_bcast(comm, table%xsec, ierr); call CHKERR(ierr)
+      call imp_bcast(comm, table%wvls, ierr); call CHKERR(ierr)
+      call imp_bcast(comm, table%wgts, ierr); call CHKERR(ierr)
+      call imp_bcast(comm, table%p_ref, ierr); call CHKERR(ierr)
+      call imp_bcast(comm, table%t_ref, ierr); call CHKERR(ierr)
+      call imp_bcast(comm, table%t_pert, ierr); call CHKERR(ierr)
+      call imp_bcast(comm, table%vmrs_ref, ierr); call CHKERR(ierr)
+      call imp_bcast(comm, table%Nwvl, ierr); call CHKERR(ierr)
+      call imp_bcast(comm, table%Ntracer, ierr); call CHKERR(ierr)
+
+      lhave_crs_o3 = allocated(table%crs_o3)
+      call imp_bcast(comm, lhave_crs_o3, ierr); call CHKERR(ierr)
+      if (lhave_crs_o3) then
+        call imp_bcast(comm, table%crs_o3, ierr); call CHKERR(ierr)
+      end if
+      lhave_crs_n2o = allocated(table%crs_n2o)
+      call imp_bcast(comm, lhave_crs_n2o, ierr); call CHKERR(ierr)
+      if (lhave_crs_n2o) then
+        call imp_bcast(comm, table%crs_n2o, ierr); call CHKERR(ierr)
+      end if
+    end subroutine
   end subroutine
 
   subroutine repwvl_dtau(    &

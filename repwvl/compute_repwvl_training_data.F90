@@ -17,7 +17,7 @@
 ! Copyright (C) 2010-2015  Fabian Jakub, <fabian@jakub.com>
 !-------------------------------------------------------------------------
 
-module m_compute_training_data
+module m_compute_repwvl_training_data
   use m_data_parameters, only: &
     & AVOGADRO, &
     & EARTHACCEL, &
@@ -53,7 +53,7 @@ module m_compute_training_data
 
   implicit none
 
-  logical, parameter :: lboundary_flx_only=.True.
+  logical, parameter :: lboundary_flx_only = .true.
 
 contains
 
@@ -118,6 +118,7 @@ contains
     real(ireals), allocatable :: rnd(:, :)
     integer(iintegers) :: Nx, Ny, kmin, kmax, ke, ke1
     integer(iintegers) :: icld, ipert
+    integer(mpiint) :: myid
 
     integer(iintegers) :: h2o, co2, o3, ch4
     real(ireals), parameter :: H2O_pert(*) = [real(ireals) :: .01, .1, 1., 2., 10]
@@ -126,6 +127,8 @@ contains
     real(ireals), parameter :: CH4_pert(*) = [real(ireals) :: .1, 1., 10.]
 
     ierr = 0
+
+    call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
     ke1 = size(atm%plev, dim=1)
     ke = ke1 - 1
@@ -179,8 +182,8 @@ contains
     call random_number(rnd)
     ipert = ipert + 1; ptr(1:ke, 1:Nx, 1:Ny) => atm%h2o_lay; ptr(:, :, ipert) = ptr(:, :, ipert) * (rnd * 5)
 
-    print *, 'Nr. of atmosphere perturbation entries:', ipert, '/', Npert_atmo
-    call CHKERR(int(ipert - Npert_atmo, mpiint), 'havent used all perturbation slots')
+    if (myid .eq. 0 .and. get_arg(.false., lverbose)) print *, 'Nr. of atmosphere perturbation entries:', ipert, '/', Npert_atmo
+    call CHKERR(int(ipert - Npert_atmo, mpiint), 'havent used all perturbation slots '//toStr(ipert)//' / '//toStr(Npert_atmo))
 
   contains
     subroutine do_gas_pert(ipert, h2o, co2, o3, ch4)
@@ -192,8 +195,7 @@ contains
     end subroutine
   end subroutine
 
-  subroutine monochrome_solve(comm, solver, atm, lsolar, repwvl_data, iwvl, edn, eup, abso, ierr, edir)
-    integer(mpiint), intent(in) :: comm
+  subroutine monochrome_solve(solver, atm, lsolar, repwvl_data, iwvl, edn, eup, abso, ierr, edir)
     class(t_solver), intent(inout) :: solver
     type(t_tenstr_atm), intent(in) :: atm
     logical, intent(in) :: lsolar
@@ -256,7 +258,7 @@ contains
     call pprts_get_result(solver, edn, eup, abso, edir)
   end subroutine
 
-  subroutine solve_scene(comm, solver, atm, repwvl_data, edn, eup, abso, ierr, edir)
+  subroutine solve_scene(comm, solver, atm, repwvl_data, edn, eup, abso, ierr, edir, lverbose)
     integer(mpiint), intent(in) :: comm
     class(t_solver), intent(inout) :: solver
     type(t_tenstr_atm), intent(in) :: atm
@@ -264,6 +266,7 @@ contains
     real(ireals), allocatable, dimension(:, :, :, :), intent(inout) :: edn, eup, abso ! [nlyr(+1), nx, ny, Nwvl ]
     integer(mpiint), intent(out) :: ierr
     real(ireals), allocatable, dimension(:, :, :, :), intent(inout), optional :: edir
+    logical, intent(in), optional :: lverbose
 
     real(ireals), allocatable, dimension(:, :, :) :: spec_edir, spec_abso ! [nlyr(+1), nx, ny ]
     real(ireals), allocatable, dimension(:, :, :) :: spec_edn, spec_eup   ! [nlyr(+1), nx, ny ]
@@ -279,7 +282,7 @@ contains
     call set_angles(solver, sundir=spherical_2_cartesian(0._ireals, 60._ireals))
 
     ! solar part
-    if(lboundary_flx_only) then
+    if (lboundary_flx_only) then
       if (lsolar) allocate (edir(2, solver%C_dir%xm, solver%C_dir%ym, repwvl_data%Nwvl))
       allocate (edn(2, solver%C_diff%xm, solver%C_diff%ym, repwvl_data%Nwvl))
       allocate (eup(2, solver%C_diff%xm, solver%C_diff%ym, repwvl_data%Nwvl))
@@ -287,18 +290,18 @@ contains
       if (lsolar) allocate (edir(solver%C_dir%zm, solver%C_dir%xm, solver%C_dir%ym, repwvl_data%Nwvl))
       allocate (edn(solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym, repwvl_data%Nwvl))
       allocate (eup(solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym, repwvl_data%Nwvl))
-    endif
+    end if
     allocate (abso(solver%C_one%zm, solver%C_one%xm, solver%C_one%ym, repwvl_data%Nwvl), source=0._ireals)
 
     do iwvl = 1, size(repwvl_data%wvls)
 
-      if (myid .eq. 0) print *, 'Computing wavelengths '//toStr(iwvl)//' / '//toStr(size(repwvl_data%wvls))//&
+      if (myid .eq. 0 .and. get_arg(.false., lverbose)) &
+        & print *, 'Computing wavelengths '//toStr(iwvl)//' / '//toStr(size(repwvl_data%wvls))//&
         & ' -- '//toStr(100._ireals * real(iwvl, ireals) / real(size(repwvl_data%wvls), ireals))//' %'// &
         & ' ('//toStr(repwvl_data%wvls(iwvl))//' nm)'
 
       if (lsolar) then
         call monochrome_solve(&
-          & comm, &
           & solver, &
           & atm, &
           & lsolar, &
@@ -311,7 +314,6 @@ contains
           & spec_edir); call CHKERR(ierr)
       else
         call monochrome_solve(&
-          & comm, &
           & solver, &
           & atm, &
           & lsolar, &
@@ -323,20 +325,20 @@ contains
           & ierr); call CHKERR(ierr)
       end if
 
-      if(lboundary_flx_only) then
+      if (lboundary_flx_only) then
         if (lsolar) then
-          edir(1, :, :, iwvl) = edir(1, :, :, iwvl) + spec_edir(lbound(spec_edir,1),:,:) * repwvl_data%wgts(iwvl)
-          edir(2, :, :, iwvl) = edir(2, :, :, iwvl) + spec_edir(ubound(spec_edir,1),:,:) * repwvl_data%wgts(iwvl)
-        endif
-        edn(1, :, :, iwvl) = edn(1, :, :, iwvl) + spec_edn(lbound(spec_edn,1),:,:) * repwvl_data%wgts(iwvl)
-        edn(2, :, :, iwvl) = edn(2, :, :, iwvl) + spec_edn(ubound(spec_edn,1),:,:) * repwvl_data%wgts(iwvl)
-        eup(1, :, :, iwvl) = eup(1, :, :, iwvl) + spec_eup(lbound(spec_eup,1),:,:) * repwvl_data%wgts(iwvl)
-        eup(2, :, :, iwvl) = eup(2, :, :, iwvl) + spec_eup(ubound(spec_eup,1),:,:) * repwvl_data%wgts(iwvl)
+          edir(1, :, :, iwvl) = edir(1, :, :, iwvl) + spec_edir(lbound(spec_edir, 1), :, :) * repwvl_data%wgts(iwvl)
+          edir(2, :, :, iwvl) = edir(2, :, :, iwvl) + spec_edir(ubound(spec_edir, 1), :, :) * repwvl_data%wgts(iwvl)
+        end if
+        edn(1, :, :, iwvl) = edn(1, :, :, iwvl) + spec_edn(lbound(spec_edn, 1), :, :) * repwvl_data%wgts(iwvl)
+        edn(2, :, :, iwvl) = edn(2, :, :, iwvl) + spec_edn(ubound(spec_edn, 1), :, :) * repwvl_data%wgts(iwvl)
+        eup(1, :, :, iwvl) = eup(1, :, :, iwvl) + spec_eup(lbound(spec_eup, 1), :, :) * repwvl_data%wgts(iwvl)
+        eup(2, :, :, iwvl) = eup(2, :, :, iwvl) + spec_eup(ubound(spec_eup, 1), :, :) * repwvl_data%wgts(iwvl)
       else
         if (lsolar) edir(:, :, :, iwvl) = edir(:, :, :, iwvl) + spec_edir * repwvl_data%wgts(iwvl)
         edn(:, :, :, iwvl) = edn(:, :, :, iwvl) + spec_edn * repwvl_data%wgts(iwvl)
         eup(:, :, :, iwvl) = eup(:, :, :, iwvl) + spec_eup * repwvl_data%wgts(iwvl)
-      endif
+      end if
       abso(:, :, :, iwvl) = abso(:, :, :, iwvl) + spec_abso * repwvl_data%wgts(iwvl)
 
     end do
@@ -411,7 +413,18 @@ contains
     call ncwrite(groups, rdata%wvls, ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
   end subroutine
 
-  subroutine compute_training_data(comm, bg_atm_filename, atm_filename, out_filename, lsolar, edn, eup, abso, ierr, lverbose, edir)
+  subroutine compute_repwvl_training_data(&
+      & comm,            &
+      & bg_atm_filename, &
+      & atm_filename,    &
+      & out_filename,    &
+      & lsolar,          &
+      & edn,             &
+      & eup,             &
+      & abso,            &
+      & ierr,            &
+      & lverbose,        &
+      & edir)
     integer(mpiint), intent(in) :: comm
     character(len=*), intent(in) :: bg_atm_filename, atm_filename, out_filename
     logical, intent(in) :: lsolar
@@ -434,7 +447,7 @@ contains
 
     call allocate_pprts_solver_from_commandline(solver, '2str', ierr); call CHKERR(ierr)
 
-    call repwvl_init(repwvl_data_solar, repwvl_data_thermal, ierr, lverbose=.false.); call CHKERR(ierr)
+    call repwvl_init(comm, repwvl_data_solar, repwvl_data_thermal, ierr, lverbose=.false.); call CHKERR(ierr)
     if (lverbose) print *, 'repwvl_data_thermal Nwvl', size(repwvl_data_thermal%wvls)
     if (lverbose) print *, 'repwvl_data_solar Nwvl', size(repwvl_data_solar%wvls)
     call mie_tables_init(comm, ierr, lverbose=.false.)
@@ -443,7 +456,7 @@ contains
     call init_solver(comm, atm, Npert_atmo, solver, ierr)
 
     if (lsolar) then
-      call solve_scene(comm, solver, atm, repwvl_data_solar, edn, eup, abso, ierr, edir); call CHKERR(ierr)
+      call solve_scene(comm, solver, atm, repwvl_data_solar, edn, eup, abso, ierr, edir, lverbose=lverbose); call CHKERR(ierr)
       call write_output_data(out_filename, 'solar_', repwvl_data_solar, &
         & edn, eup, abso, ierr, edir, lverbose); call CHKERR(ierr)
       do ipert = 1, Npert_atmo
@@ -451,7 +464,7 @@ contains
         print *, 'edn  @ srfc ( perturbation='//toStr(ipert)//')', sum(edn(solver%C_diff%ze, :, ipert, :), dim=2)
       end do
     else
-      call solve_scene(comm, solver, atm, repwvl_data_thermal, edn, eup, abso, ierr); call CHKERR(ierr)
+      call solve_scene(comm, solver, atm, repwvl_data_thermal, edn, eup, abso, ierr, lverbose=lverbose); call CHKERR(ierr)
       call write_output_data(out_filename, 'thermal_', repwvl_data_thermal, &
         & edn, eup, abso, ierr, lverbose=lverbose); call CHKERR(ierr)
       do ipert = 1, Npert_atmo
@@ -475,7 +488,7 @@ program main
   use m_helper_functions, only: CHKERR, get_petsc_opt
   use m_tenstream_options, only: read_commandline_options
 
-  use m_compute_training_data, only: compute_training_data
+  use m_compute_repwvl_training_data, only: compute_repwvl_training_data
 
   integer(mpiint) :: comm, ierr
   character(len=default_str_len) :: bg_atm_filename, atm_filename, out_filename
@@ -506,7 +519,7 @@ program main
   call get_petsc_opt('', '-thermal', lthermal, lflg, ierr); call CHKERR(ierr)
 
   if (lsolar) then
-    call compute_training_data(&
+    call compute_repwvl_training_data(&
       & comm,                  &
       & bg_atm_filename,       &
       & atm_filename,          &
@@ -521,7 +534,7 @@ program main
   end if
 
   if (lthermal) then
-    call compute_training_data(&
+    call compute_repwvl_training_data(&
       & comm,                  &
       & bg_atm_filename,       &
       & atm_filename,          &
