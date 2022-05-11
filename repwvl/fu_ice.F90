@@ -36,19 +36,27 @@ module m_fu_ice
     & imp_bcast, &
     & toStr
 
-  use m_netcdfIO, only: ncload
+  use m_netcdfIO, only: ncload, get_global_attribute
 
   use m_tenstream_interpolation, only: interp_2d
   use m_search, only: find_real_location
+  use m_repwvl_base, only: t_repwvl_data
 
   implicit none
 
   private
-  public :: fu_ice_init, fu_ice_data_solar, fu_ice_data_thermal, t_fu96_ice_data, t_fu98_ice_data, fu_ice_optprop
-
-  logical, parameter :: ldebug = .true.
+  public :: &
+    & fu_ice_data_solar,   &
+    & fu_ice_data_thermal, &
+    & fu_ice_init,         &
+    & fu_ice_optprop,      &
+    & t_fu96_ice_data,     &
+    & t_fu98_ice_data
 
   type t_fu96_ice_data
+    logical :: is_repwvl                      ! flag to tell if its a general fu file or specifically for a repwvl case,
+    ! this determines if we need to do binary searches for wavelengts
+    ! or just use the indices
     real(irealLUT), allocatable :: wvl(:)     ! in [mu]
     real(irealLUT), allocatable :: ext(:, :)  ! dim [2, band], Extinction coefficient b = IWC * (a0 + a1/D), eq. 3.9a
     real(irealLUT), allocatable :: w0(:, :)   ! dim [4, band], Coalbedo  1-w  =  b0  +  b1 * D  +  b2 * D**2  +b3 * D**3, eq. 3.9b
@@ -56,6 +64,9 @@ module m_fu_ice
   end type
 
   type t_fu98_ice_data
+    logical :: is_repwvl                      ! flag to tell if its a general fu file or specifically for a repwvl case,
+    ! this determines if we need to do binary searches for wavelengts
+    ! or just use the indices
     real(irealLUT), allocatable :: wvl(:)     ! in [mu]
     real(irealLUT), allocatable :: ext(:, :)  ! dim [3, band], Extinction coefficient b = IWC * (a0 + a1/D + a2/D**2)
     real(irealLUT), allocatable :: abso(:, :) ! dim [4, band], Absorption coefficient b = IWC/D * (b0 + b1*D + b2*D**2 + b3*D**3)
@@ -66,8 +77,10 @@ module m_fu_ice
   type(t_fu98_ice_data), allocatable :: fu_ice_data_thermal
 
   interface fu_ice_optprop
-    module procedure fu_ice_optprop_solar
-    module procedure fu_ice_optprop_thermal
+    module procedure fu_ice_optprop_solar_index
+    module procedure fu_ice_optprop_solar_general
+    module procedure fu_ice_optprop_thermal_index
+    module procedure fu_ice_optprop_thermal_general
   end interface
 
   real(ireals), parameter :: MaxAsymmetryFactor = 1.0_ireals - 10.0_ireals * epsilon(1.0_ireals)
@@ -81,7 +94,8 @@ contains
     type(t_fu96_ice_data), allocatable, intent(inout) :: data96
     logical, intent(in), optional :: lverbose
 
-    character(len=default_str_len) :: groups(2)
+    character(len=default_str_len) :: groups(2), attr
+    integer(mpiint) :: have_attr
 
     ierr = 0
 
@@ -89,17 +103,22 @@ contains
     allocate (data96)
 
     groups(1) = trim(fname)
-    groups(2) = 'band_wvl'; call ncload(groups, data96%wvl, ierr, lverbose); call CHKERR(ierr)
-    groups(2) = 'repwvl_fu96_ext'; call ncload(groups, data96%ext, ierr, lverbose); call CHKERR(ierr)
-    groups(2) = 'repwvl_fu96_ssa'; call ncload(groups, data96%w0, ierr, lverbose); call CHKERR(ierr)
-    groups(2) = 'repwvl_fu96_asy'; call ncload(groups, data96%g, ierr, lverbose); call CHKERR(ierr)
+    groups(2) = 'fu96_wvl'; call ncload(groups, data96%wvl, ierr, lverbose); call CHKERR(ierr)
+    groups(2) = 'fu96_ext'; call ncload(groups, data96%ext, ierr, lverbose); call CHKERR(ierr)
+    groups(2) = 'fu96_ssa'; call ncload(groups, data96%w0, ierr, lverbose); call CHKERR(ierr)
+    groups(2) = 'fu96_asy'; call ncload(groups, data96%g, ierr, lverbose); call CHKERR(ierr)
+
+    attr = 'undef'
+    call get_global_attribute(fname, 'repwvl_file_96', attr, have_attr)
+    data96%is_repwvl = have_attr .eq. 0
 
     if (get_arg(.false., lverbose)) then
-      print *, 'Loaded Fu96 Ice data:'//new_line('')// &
+      print *, 'Loaded Fu96 Ice data '//new_line('')// &
         & ' wvl  ('//toStr(shape(data96%wvl))//')'//toStr(data96%wvl)//new_line('')// &
         & ' qext ('//toStr(shape(data96%ext))//')'//toStr(data96%ext)//new_line('')// &
         & ' w0   ('//toStr(shape(data96%w0))//')'//toStr(data96%w0)//new_line('')// &
-        & ' g    ('//toStr(shape(data96%g))//')'//toStr(data96%g)
+        & ' g    ('//toStr(shape(data96%g))//')'//toStr(data96%g)//new_line('')// &
+        & ' is_repwvl?'//toStr(data96%is_repwvl)//' <'//trim(attr)//'>'
     end if
   end subroutine
 
@@ -109,7 +128,8 @@ contains
     type(t_fu98_ice_data), allocatable, intent(inout) :: data98
     logical, intent(in), optional :: lverbose
 
-    character(len=default_str_len) :: groups(2)
+    character(len=default_str_len) :: groups(2), attr
+    integer(mpiint) :: have_attr
 
     ierr = 0
 
@@ -118,16 +138,21 @@ contains
 
     groups(1) = trim(fname)
     groups(2) = 'fu98_wvl'; call ncload(groups, data98%wvl, ierr, lverbose); call CHKERR(ierr)
-    groups(2) = 'repwvl_fu98_ext'; call ncload(groups, data98%ext, ierr, lverbose); call CHKERR(ierr)
-    groups(2) = 'repwvl_fu98_abs'; call ncload(groups, data98%abso, ierr, lverbose); call CHKERR(ierr)
-    groups(2) = 'repwvl_fu98_asy'; call ncload(groups, data98%g, ierr, lverbose); call CHKERR(ierr)
+    groups(2) = 'fu98_ext'; call ncload(groups, data98%ext, ierr, lverbose); call CHKERR(ierr)
+    groups(2) = 'fu98_abs'; call ncload(groups, data98%abso, ierr, lverbose); call CHKERR(ierr)
+    groups(2) = 'fu98_asy'; call ncload(groups, data98%g, ierr, lverbose); call CHKERR(ierr)
+
+    attr = 'undef'
+    call get_global_attribute(fname, 'repwvl_file_98', attr, have_attr)
+    data98%is_repwvl = have_attr .eq. 0
 
     if (get_arg(.false., lverbose)) then
-      print *, 'Loaded Fu98 Ice data:'//new_line('')// &
+      print *, 'Loaded Fu98 Ice data with '//new_line('')// &
         & ' wvl  ('//toStr(shape(data98%wvl))//')'//toStr(data98%wvl)//new_line('')// &
         & ' qext ('//toStr(shape(data98%ext))//')'//toStr(data98%ext)//new_line('')// &
         & ' w0   ('//toStr(shape(data98%abso))//')'//toStr(data98%abso)//new_line('')// &
-        & ' g    ('//toStr(shape(data98%g))//')'//toStr(data98%g)
+        & ' g    ('//toStr(shape(data98%g))//')'//toStr(data98%g)//new_line('')// &
+        & ' is_repwvl?'//toStr(data98%is_repwvl)//' <'//trim(attr)//'>'
     end if
   end subroutine
 
@@ -142,6 +167,7 @@ contains
     call imp_bcast(comm, data96%ext, ierr); call CHKERR(ierr)
     call imp_bcast(comm, data96%w0, ierr); call CHKERR(ierr)
     call imp_bcast(comm, data96%g, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, data96%is_repwvl, ierr); call CHKERR(ierr)
   end subroutine
 
   subroutine distribute_table98(comm, data98, ierr)
@@ -155,55 +181,48 @@ contains
     call imp_bcast(comm, data98%ext, ierr); call CHKERR(ierr)
     call imp_bcast(comm, data98%abso, ierr); call CHKERR(ierr)
     call imp_bcast(comm, data98%g, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, data98%is_repwvl, ierr); call CHKERR(ierr)
   end subroutine
 
-  subroutine fu_ice_init(comm, ierr, lverbose, path_solar, path_thermal)
+  subroutine fu_ice_init(  &
+      & comm,              &
+      & ierr,              &
+      & lverbose,          &
+      & path)
     integer(mpiint), intent(in) :: comm
     integer(mpiint), intent(out) :: ierr
     logical, intent(in), optional :: lverbose
-    character(len=*), intent(in), optional :: path_solar, path_thermal
+    character(len=*), intent(in), optional :: path
 
     integer(mpiint) :: myid
 
-    character(len=default_str_len), parameter :: default_path_solar = "fu.ice.repwvl_solar.nc"
-    character(len=default_str_len), parameter :: default_path_thermal = "fu.ice.repwvl_thermal.nc"
+    character(len=default_str_len), parameter :: default_path = "fu.ice.repwvl.nc"
 
-    character(len=default_str_len) :: psol, pth
+    character(len=default_str_len) :: prepwvl
 
     logical :: lset, lexists
 
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
     if (myid .eq. 0) then
-      psol = trim(get_arg(default_path_solar, path_solar))
-      pth = trim(get_arg(default_path_thermal, path_thermal))
+      prepwvl = trim(get_arg(default_path, path))
 
-      call get_petsc_opt('', '-fu_ice_solar', psol, lset, ierr); call CHKERR(ierr)
-      call get_petsc_opt('', '-fu_ice_thermal', pth, lset, ierr); call CHKERR(ierr)
+      call get_petsc_opt('', '-fu_ice', prepwvl, lset, ierr); call CHKERR(ierr)
 
-      inquire (file=trim(psol), exist=lexists)
+      inquire (file=trim(prepwvl), exist=lexists)
       if (.not. lexists) then
-        call CHKERR(1_mpiint, "File at fu ice solar path "//toStr(psol)// &
+        call CHKERR(1_mpiint, "File at fu ice path "//toStr(prepwvl)// &
           & " does not exist"//new_line('')// &
           & " please make sure the file is at this location"// &
           & " or specify a correct path with option"//new_line('')// &
-          & "   -fu_ice_solar <path>")
-      end if
-
-      inquire (file=trim(pth), exist=lexists)
-      if (.not. lexists) then
-        call CHKERR(1_mpiint, "File at fu ice thermal path "//toStr(pth)// &
-          & " does not exist"//new_line('')// &
-          & " please make sure the file is at this location"// &
-          & " or specify a correct path with option"//new_line('')// &
-          & "   -fu_ice_thermal <path>")
+          & "   -fu_ice <path>")
       end if
 
       if (.not. allocated(fu_ice_data_solar)) then
-        call load_data96(psol, fu_ice_data_solar, ierr, lverbose); call CHKERR(ierr)
+        call load_data96(prepwvl, fu_ice_data_solar, ierr, lverbose); call CHKERR(ierr)
       end if
       if (.not. allocated(fu_ice_data_thermal)) then
-        call load_data98(pth, fu_ice_data_thermal, ierr, lverbose); call CHKERR(ierr)
+        call load_data98(prepwvl, fu_ice_data_thermal, ierr, lverbose); call CHKERR(ierr)
       end if
     end if
 
@@ -211,7 +230,31 @@ contains
     call distribute_table98(comm, fu_ice_data_thermal, ierr); call CHKERR(ierr)
   end subroutine
 
-  subroutine fu_ice_optprop_solar(table, iwvl, reff, qext, w0, g, ierr)
+  subroutine fu_ice_optprop_solar_general(table, wvl, reff, qext, w0, g, ierr)
+    type(t_fu96_ice_data), intent(in) :: table
+    real(ireals), intent(in) :: wvl ! wvl in [mu]
+    real(ireals), intent(in) :: reff
+    real(ireals), intent(out) :: qext, w0, g
+    integer(mpiint), intent(out) :: ierr
+
+    real(ireals) :: loc, wgt
+    real(ireals) :: qext0, w00, g0
+    real(ireals) :: qext1, w01, g1
+
+    if (table%is_repwvl) &
+      & call CHKERR(1_mpiint, 'tried to call fu_ice_optprop_solar with wvl value '// &
+      & 'but loaded table is of type repwvl, use wvl index instead or load general table')
+    ierr = 0
+    loc = find_real_location(table%wvl, real(wvl, irealLUT))
+    call fu_ice_optprop(table, int(floor(loc), iintegers), reff, qext0, w00, g0, ierr); call CHKERR(ierr)
+    call fu_ice_optprop(table, int(ceiling(loc), iintegers), reff, qext1, w01, g1, ierr); call CHKERR(ierr)
+    wgt = loc - floor(loc)
+    qext = wgt * qext1 + (1._ireals - wgt) * qext0
+    w0 = wgt * w01 + (1._ireals - wgt) * w00
+    g = wgt * g1 + (1._ireals - wgt) * g0
+  end subroutine
+
+  subroutine fu_ice_optprop_solar_index(table, iwvl, reff, qext, w0, g, ierr)
     type(t_fu96_ice_data), intent(in) :: table
     integer(iintegers) :: iwvl ! index of repwvl bands
     real(ireals), intent(in) :: reff
@@ -242,7 +285,24 @@ contains
     ierr = 0
   end subroutine
 
-  subroutine fu_ice_optprop_thermal(table, iwvl, reff, qext, w0, g, ierr)
+  subroutine fu_ice_optprop_thermal_general(table, wvl, reff, qext, w0, g, ierr)
+    type(t_fu98_ice_data), intent(in) :: table
+    real(ireals), intent(in) :: wvl ! wvl in [mu]
+    real(ireals), intent(in) :: reff
+    real(ireals), intent(out) :: qext, w0, g
+    integer(mpiint), intent(out) :: ierr
+
+    real(ireals) :: loc
+
+    if (table%is_repwvl) &
+      & call CHKERR(1_mpiint, 'tried to call fu_ice_optprop_thermal with wvl value '// &
+      & 'but loaded table is of type repwvl, use wvl index instead or load general table')
+    ierr = 0
+    loc = find_real_location(table%wvl, real(wvl, irealLUT))
+    call fu_ice_optprop(table, int(floor(loc), iintegers), reff, qext, w0, g, ierr); call CHKERR(ierr)
+  end subroutine
+
+  subroutine fu_ice_optprop_thermal_index(table, iwvl, reff, qext, w0, g, ierr)
     type(t_fu98_ice_data), intent(in) :: table
     integer(iintegers) :: iwvl ! index of repwvl bands
     real(ireals), intent(in) :: reff
