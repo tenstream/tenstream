@@ -23,6 +23,7 @@ check_fprettify:pre:
     - echo -e "\e[0Ksection_end:`date +%s`:petsc_section\r\e[0K"
 
 variables:
+  DEBIAN_FRONTEND: noninteractive
   TEST_FILTER_WITHOUT_LUTS: 'boxmc|LUT|test_pprts_symmetry|test_rrtm_lw_Bsrfc|test_rrtm_lw_sw|test_plexrt_fish|test_plexrt_rrtmg_lw_sw|test_pprts_absorption_by_coeff_divergence|test_plexrt_rayli'
 
 # Build Stage
@@ -62,8 +63,8 @@ ubuntu-latest:
   needs: ["check_fprettify:pre"]
   image: ubuntu:latest
   before_script:
-    - DEBIAN_FRONTEND=noninteractive apt-get -qq update
-    - DEBIAN_FRONTEND=noninteractive apt-get -qq install -fy build-essential cmake gfortran git python3 openmpi-bin libopenmpi-dev libopenblas-dev curl pkg-config
+    - apt-get -qq update
+    - apt-get -qq install -fy build-essential cmake gfortran git python3 openmpi-bin libopenmpi-dev libopenblas-dev curl pkg-config
     - *template_build_PETSC
   tags:
     - docker.meteo.physik.lmu.de
@@ -81,8 +82,8 @@ ubuntu-rolling:
   needs: ["check_fprettify:pre"]
   image: ubuntu:rolling
   before_script:
-    - DEBIAN_FRONTEND=noninteractive apt-get -qq update
-    - DEBIAN_FRONTEND=noninteractive apt-get -qq install -fy build-essential cmake gfortran git python3 openmpi-bin libopenmpi-dev libopenblas-dev curl pkg-config libeigen3-dev
+    - apt-get -qq update
+    - apt-get -qq install -fy build-essential cmake gfortran git python3 openmpi-bin libopenmpi-dev libopenblas-dev curl pkg-config libeigen3-dev
     - *template_build_PETSC
   after_script:
     -  bash <(curl -s https://codecov.io/bash) || echo 'Codecov failed to upload'
@@ -104,8 +105,8 @@ ubuntu-rolling:
 #  extends: .build:default
 #  image: gcc:latest
 #  before_script:
-#    - DEBIAN_FRONTEND=noninteractive apt-get -qq update
-#    - DEBIAN_FRONTEND=noninteractive apt-get -qq install -fy build-essential cmake git python3 openmpi-bin libopenmpi-dev libopenblas-dev curl pkg-config
+#    - apt-get -qq update
+#    - apt-get -qq install -fy build-essential cmake git python3 openmpi-bin libopenmpi-dev libopenblas-dev curl pkg-config
 #    - *template_build_PETSC
 #  after_script:
 #    -  bash <(curl -s https://codecov.io/bash) || echo 'Codecov failed to upload'
@@ -147,9 +148,10 @@ intel:
   extends: .build:default
   needs: ["check_fprettify:pre"]
   #image: intel/oneapi-hpckit
-  image: intel/oneapi-hpckit:2021.4-devel-ubuntu18.04
+  #image: intel/oneapi-hpckit:2021.4-devel-ubuntu18.04
+  image:  intel/oneapi-hpckit:2022.1.2-devel-ubuntu18.04
   before_script:
-    - DEBIAN_FRONTEND=noninteractive apt-get -qq update && DEBIAN_FRONTEND=noninteractive apt-get -qq install -fy cmake git m4 curl libcurl3-dev
+    - apt-get -qq update && apt-get -qq install -fy cmake git m4 curl libcurl3-dev
     - *template_build_PETSC
   tags:
     - docker.meteo.physik.lmu.de
@@ -169,9 +171,10 @@ intel:debug:
   extends: .build:default
   needs: ["check_fprettify:pre"]
   #image: intel/oneapi-hpckit
-  image: intel/oneapi-hpckit:2021.4-devel-ubuntu18.04
+  #image: intel/oneapi-hpckit:2021.4-devel-ubuntu18.04
+  image:  intel/oneapi-hpckit:2022.1.2-devel-ubuntu18.04
   before_script:
-    - DEBIAN_FRONTEND=noninteractive apt-get -qq update && DEBIAN_FRONTEND=noninteractive apt-get -qq install -fy cmake git m4 curl libcurl3-dev
+    - apt-get -qq update && apt-get -qq install -fy cmake git m4 curl libcurl3-dev
     - *template_build_PETSC
   tags:
     - docker.meteo.physik.lmu.de
