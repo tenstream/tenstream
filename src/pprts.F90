@@ -5838,7 +5838,7 @@ contains
 
   subroutine gather_all_toZero(C, inp, outp)
     type(t_coord), intent(in) :: C
-    real(ireals), intent(in), allocatable :: inp(:, :, :) ! local array from get_result
+    real(ireals), intent(in) :: inp(:, :, :) ! local array from get_result
     real(ireals), intent(inout), allocatable :: outp(:, :, :) ! global sized array on rank 0
 
     type(tVec) :: vec, lvec_on_zero
@@ -5847,7 +5847,7 @@ contains
     call mpi_comm_rank(C%comm, myid, ierr)
 
     if (ldebug) then
-      print *, myid, 'exchange_var', allocated(inp), allocated(outp)
+      print *, myid, 'exchange_var', allocated(outp)
       print *, myid, 'exchange_var shape', shape(inp)
     end if
 
