@@ -13,6 +13,7 @@ module m_example_pprts_repwvl_lw_sw
 
   ! Import specific solver type: 3_10 for example uses 3 streams direct, 10 streams for diffuse radiation
   use m_pprts_base, only: t_solver, allocate_pprts_solver_from_commandline
+  use m_pprts, only: gather_all_toZero
 
   ! main entry point for solver, and desctructor
   use m_repwvl_pprts, only: repwvl_pprts, repwvl_pprts_destroy
@@ -25,7 +26,7 @@ contains
   subroutine ex_pprts_repwvl_lw_sw(comm, nxp, nyp, nzp, dx, dy, &
       & phi0, theta0, albedo_th, albedo_sol, &
       & lthermal, lsolar, atm_filename, &
-      & edir, edn, eup, abso, &
+      & gedir, gedn, geup, gabso, &
       & vlwc, viwc)
     integer(mpiint), intent(in) :: comm
     integer(iintegers), intent(in) :: nxp, nyp, nzp   ! local domain size for each rank
@@ -34,6 +35,7 @@ contains
     real(ireals), intent(in) :: albedo_th, albedo_sol ! broadband ground albedo for solar and thermal spectrum
     logical, intent(in) :: lthermal, lsolar                       ! switches to enable/disable spectral integration
     character(len=*), intent(in) :: atm_filename ! ='afglus_100m.dat'
+    real(ireals), allocatable, dimension(:, :, :), intent(out) :: gedir, gedn, geup, gabso
     real(ireals), intent(in), optional :: vlwc, viwc            ! liquid/ice water content to be set in a layer
 
     ! Fluxes and absorption in [W/m2] and [W/m3] respectively.
@@ -188,8 +190,14 @@ contains
       print *, 'TOA :: absorption ', meanval(abso(1, :, :))
     end if
 
+    if (allocated(edir)) &
+      & call gather_all_toZero(pprts_solver%C_one1, edir, gedir)
+    call gather_all_toZero(pprts_solver%C_one1, edn, gedn)
+    call gather_all_toZero(pprts_solver%C_one1, eup, geup)
+    call gather_all_toZero(pprts_solver%C_one, abso, gabso)
+
     ! Tidy up
-    call repwvl_pprts_destroy(pprts_solver, lfinalizepetsc=.true.)
+    call repwvl_pprts_destroy(pprts_solver, lfinalizepetsc=.true., ierr=ierr)
     call destroy_tenstr_atm(atm)
   end subroutine
 

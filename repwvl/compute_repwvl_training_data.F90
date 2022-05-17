@@ -49,7 +49,7 @@ module m_compute_repwvl_training_data
 
   use m_repwvl_base, only: t_repwvl_data, repwvl_init, repwvl_dtau
   use m_repwvl_pprts, only: repwvl_optprop
-  use m_mie_tables, only: mie_tables_init, mie_water_table, mie_optprop
+  use m_mie_tables, only: mie_tables_init, t_mie_table, mie_optprop, destroy_mie_table
   use m_fu_ice, only: fu_ice_init
   use m_rayleigh, only: rayleigh
 
@@ -279,11 +279,12 @@ contains
     end subroutine
   end subroutine
 
-  subroutine monochrome_solve(solver, atm, lsolar, repwvl_data, iwvl, edn, eup, abso, ierr, edir)
+  subroutine monochrome_solve(solver, atm, lsolar, repwvl_data, mie_table, iwvl, edn, eup, abso, ierr, edir)
     class(t_solver), intent(inout) :: solver
     type(t_tenstr_atm), intent(in) :: atm
     logical, intent(in) :: lsolar
     type(t_repwvl_data), intent(in) :: repwvl_data
+    type(t_mie_table), intent(in) :: mie_table
     integer(iintegers), intent(in) :: iwvl
     real(ireals), allocatable, dimension(:, :, :), intent(inout) :: edn, eup, abso ! [nlyr(+1), local_nx, local_ny ]
     integer(mpiint), intent(out) :: ierr
@@ -306,7 +307,7 @@ contains
       allocate (Bsrfc(solver%C_one1%xm, solver%C_one1%ym), source=-999._ireals)
     end if
 
-    call repwvl_optprop(repwvl_data, atm, lsolar, iwvl, kabs, ksca, kg, ierr); call CHKERR(ierr)
+    call repwvl_optprop(repwvl_data, atm, mie_table, lsolar, iwvl, kabs, ksca, kg, ierr); call CHKERR(ierr)
 
     if (lsolar) then
       albedo = .15
@@ -342,11 +343,12 @@ contains
     call pprts_get_result(solver, edn, eup, abso, edir)
   end subroutine
 
-  subroutine solve_scene(comm, solver, atm, repwvl_data, edn, eup, abso, ierr, edir, lverbose)
+  subroutine solve_scene(comm, solver, atm, repwvl_data, mie_table, edn, eup, abso, ierr, edir, lverbose)
     integer(mpiint), intent(in) :: comm
     class(t_solver), intent(inout) :: solver
     type(t_tenstr_atm), intent(in) :: atm
     type(t_repwvl_data), intent(in) :: repwvl_data
+    type(t_mie_table), intent(in) :: mie_table
     real(ireals), allocatable, dimension(:, :, :, :), intent(inout) :: edn, eup, abso ! [nlyr(+1), nx, ny, Nwvl ]
     integer(mpiint), intent(out) :: ierr
     real(ireals), allocatable, dimension(:, :, :, :), intent(inout), optional :: edir
@@ -390,6 +392,7 @@ contains
           & atm, &
           & lsolar, &
           & repwvl_data, &
+          & mie_table, &
           & iwvl, &
           & spec_edn, &
           & spec_eup, &
@@ -402,6 +405,7 @@ contains
           & atm, &
           & lsolar, &
           & repwvl_data, &
+          & mie_table, &
           & iwvl, &
           & spec_edn, &
           & spec_eup, &
@@ -603,6 +607,8 @@ contains
     integer(iintegers) :: Nx, Ny ! local domain sizes, we use the y axis to perturb the loaded atmospheres
     integer(iintegers), allocatable :: nxproc(:), nyproc(:)
 
+    type(t_mie_table), allocatable :: mie_table
+
     ierr = 0
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
@@ -619,15 +625,28 @@ contains
     call repwvl_init(comm, repwvl_data_solar, repwvl_data_thermal, ierr, lverbose=.false.); call CHKERR(ierr)
     if (myid .eq. 0 .and. lverbose) print *, 'repwvl_data_thermal Nwvl', size(repwvl_data_thermal%wvls)
     if (myid .eq. 0 .and. lverbose) print *, 'repwvl_data_solar Nwvl', size(repwvl_data_solar%wvls)
-    call mie_tables_init(comm, ierr, lverbose=.false.)
+    call mie_tables_init(comm, mie_table, ierr, lverbose=.false.)
     call fu_ice_init(comm, ierr, lverbose=.false.); call CHKERR(ierr)
 
     call init_solver(comm, atm, Nx, Ny, nxproc, nyproc, solver, ierr)
 
     if (lsolar) then
-      call solve_scene(comm, solver, atm, repwvl_data_solar, edn, eup, abso, ierr, edir, lverbose=lverbose); call CHKERR(ierr)
+      call solve_scene(&
+        & comm, &
+        & solver, &
+        & atm, &
+        & repwvl_data_solar, &
+        & mie_table, &
+        & edn, &
+        & eup, &
+        & abso, &
+        & ierr, &
+        & edir, &
+        & lverbose=lverbose); call CHKERR(ierr)
+
       call write_output_data(comm, solver, out_filename, 'solar_', repwvl_data_solar, &
         & edn, eup, abso, ierr, edir, lverbose); call CHKERR(ierr)
+
       if (myid .eq. 0) then
         do ipert = 1, Ny
           print *, 'edir @ srfc ( perturbation='//toStr(ipert)//')', sum(edir(ubound(edir, 1), :, ipert, :), dim=2)
@@ -635,9 +654,22 @@ contains
         end do
       end if
     else
-      call solve_scene(comm, solver, atm, repwvl_data_thermal, edn, eup, abso, ierr, lverbose=lverbose); call CHKERR(ierr)
+
+      call solve_scene(&
+        & comm, &
+        & solver, &
+        & atm, &
+        & repwvl_data_thermal, &
+        & mie_table, &
+        & edn, &
+        & eup, &
+        & abso, &
+        & ierr, &
+        & lverbose=lverbose); call CHKERR(ierr)
+
       call write_output_data(comm, solver, out_filename, 'thermal_', repwvl_data_thermal, &
         & edn, eup, abso, ierr, lverbose=lverbose); call CHKERR(ierr)
+
       if (myid .eq. 0) then
         do ipert = 1, Ny
           print *, 'edn @ srfc ( perturbation='//toStr(ipert)//')', sum(edn(ubound(edn, 1), :, ipert, :), dim=2)
@@ -645,6 +677,7 @@ contains
         end do
       end if
     end if
+    call destroy_mie_table(mie_table, ierr); call CHKERR(ierr)
   end subroutine
 end module
 

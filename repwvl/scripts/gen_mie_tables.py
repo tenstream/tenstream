@@ -81,13 +81,13 @@ output_user netcdf
         print(f"Written output for {mie_input} to {outfile}")
     return R
 
-def pool_fct(reff, wvls, phase, mie_bin, verbose, use_temp_dirs=False):
+def pool_fct(reff, wvls, phase, mie_bin, verbose, wdir='./'):
     fct_one_dir = lambda directory: run_mie_calc(directory, wvls, phase=phase, reff=reff, mie_bin=mie_bin, verbose=verbose)
-    if use_temp_dirs:
+    if wdir == 'tmp':
         with tempfile.TemporaryDirectory() as tmpdir:
             return fct_one_dir(tmpdir)
     else:
-        dirname = os.path.abspath(f"{sys.path[0]}/mie_calcs/{phase}/{reff}/{np.sum(wvls)}/")
+        dirname = os.path.abspath(f"{wdir}/mie_calcs/{phase}/{reff}/{np.sum(wvls)}/")
         if not os.path.exists(dirname):
             os.makedirs(dirname, exist_ok=True)
 
@@ -116,9 +116,9 @@ def estimate_cpus():
 
     return min(cpus, limit)
 
-def run_exp(wvls, reffs, phase, mie_bin, verbose=False):
+def run_exp(wvls, reffs, phase, mie_bin, verbose=False, wdir='./'):
     pool = multiprocessing.Pool(processes=estimate_cpus())
-    ret = list( pool.starmap(pool_fct, zip(reffs, repeat(wvls), repeat(phase), repeat(mie_bin), repeat(verbose))) )
+    ret = list( pool.starmap(pool_fct, zip(reffs, repeat(wvls), repeat(phase), repeat(mie_bin), repeat(verbose), repeat(wdir))) )
     return xr.merge(ret).sortby("reff").sortby("wvl")
 
 def _main():
@@ -131,6 +131,7 @@ def _main():
     parser.add_argument('--reffs', '-r', type=float, nargs='+', help='reffs to compute [mu]')
     parser.add_argument('--mietool', '-m', type=str, default=None, help='path to the libRadtran mietool')
     parser.add_argument('--verbose', '-v', action='store_true', default=False, help='verbose output')
+    parser.add_argument('--wdir', '-C', type=str, default="./", help='work directory where to compute mie calculations, if "tmp" then temporary dirs are used (no restarts though)')
     args = parser.parse_args()
 
     args.output = os.path.abspath(args.output)
@@ -144,7 +145,7 @@ def _main():
     if args.verbose:
         print(args)
 
-    ret = run_exp(args.wvls, args.reffs, args.phase, mie_bin=args.mietool, verbose=args.verbose)
+    ret = run_exp(args.wvls, args.reffs, args.phase, mie_bin=args.mietool, verbose=args.verbose, wdir=args.wdir)
 
     if args.verbose:
         print(ret)
