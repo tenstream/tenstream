@@ -5,16 +5,17 @@ program main
   use m_tenstream_options, only: read_commandline_options
   use m_data_parameters, only: iintegers, mpiint, ireals, default_str_len
   use m_example_pprts_repwvl_lw_sw, only: ex_pprts_repwvl_lw_sw
-  use m_helper_functions, only: CHKERR, get_petsc_opt
+  use m_helper_functions, only: CHKERR, get_petsc_opt, deallocate_allocatable
+  use m_netcdfIO, only: ncwrite
 
   implicit none
 
   integer(mpiint) :: ierr, comm, myid
   integer(iintegers) :: Nx, Ny, Nz
   real(ireals) :: dx, dy, phi0, theta0, albedo_th, albedo_sol, vlwc, viwc
-  character(len=default_str_len) :: atm_filename
-  logical :: lthermal, lsolar, lflg
-  real(ireals), allocatable, dimension(:, :, :) :: fdir, fdn, fup, fdiv
+  character(len=default_str_len) :: atm_filename, outfile, groups(2), dimnames(3)
+  logical :: lthermal, lsolar, lflg, lhave_outfile
+  real(ireals), allocatable, dimension(:, :, :) :: gedir, gedn, geup, gabso
 
   comm = MPI_COMM_WORLD
   call mpi_init(ierr)
@@ -60,14 +61,36 @@ program main
   viwc = 0
   call get_petsc_opt(PETSC_NULL_CHARACTER, "-iwc", viwc, lflg, ierr); call CHKERR(ierr)
 
+  call get_petsc_opt(PETSC_NULL_CHARACTER, '-out', outfile, lhave_outfile, ierr); call CHKERR(ierr)
+  ! if(.not.lhave_outfile) call CHKERR(1_mpiint, 'need to supply a output filename... please call with -out <output.nc>')
+
   if (myid .eq. 0) print *, 'Running repwvl_lw_sw example with grid size:', Nx, Ny, Nz
 
   call ex_pprts_repwvl_lw_sw(comm, &
     & Nx, Ny, Nz, dx, dy, &
     & phi0, theta0, albedo_th, albedo_sol, &
     & lthermal, lsolar, atm_filename, &
-    & fdir, fdn, fup, fdiv, &
+    & gedir, gedn, geup, gabso, &
     & vlwc, viwc)
+
+  if (myid .eq. 0_mpiint.and.lhave_outfile) then
+    dimnames(1) = 'nlev'
+    dimnames(2) = 'nx'
+    dimnames(3) = 'ny'
+    groups(1) = trim(outfile)
+    if (lsolar) then
+      groups(2) = 'edir'; call ncwrite(groups, gedir, ierr, dimnames=dimnames); call CHKERR(ierr)
+    end if
+    groups(2) = 'edn'; call ncwrite(groups, gedn, ierr, dimnames=dimnames); call CHKERR(ierr)
+    groups(2) = 'eup'; call ncwrite(groups, geup, ierr, dimnames=dimnames); call CHKERR(ierr)
+    dimnames(1) = 'nlay'
+    groups(2) = 'abso'; call ncwrite(groups, gabso, ierr, dimnames=dimnames); call CHKERR(ierr)
+  endif
+
+  call deallocate_allocatable(gedir)
+  call deallocate_allocatable(gedn)
+  call deallocate_allocatable(geup)
+  call deallocate_allocatable(gabso)
 
   call mpi_finalize(ierr)
 end program

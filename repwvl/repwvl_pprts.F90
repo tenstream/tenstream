@@ -75,7 +75,7 @@ module m_repwvl_pprts
     & PPRTS_BOT_FACE
 
   use m_repwvl_base, only: repwvl_init, t_repwvl_data, repwvl_dtau
-  use m_mie_tables, only: mie_tables_init, mie_water_table, mie_optprop
+  use m_mie_tables, only: mie_tables_init, t_mie_table, mie_optprop, destroy_mie_table
   use m_fu_ice, only: fu_ice_init, fu_ice_optprop, fu_ice_data_solar, fu_ice_data_thermal
   use m_rayleigh, only: rayleigh
 
@@ -91,6 +91,7 @@ module m_repwvl_pprts
 #endif
 
   type(t_repwvl_data), allocatable :: repwvl_data_solar, repwvl_data_thermal
+  type(t_mie_table), allocatable :: repwvl_mie_table
 
   real(ireals), parameter :: CO = 1e-9_ireals
   real(ireals), parameter :: HNO3 = 1e-9_ireals
@@ -209,7 +210,7 @@ contains
         & ierr,                &
         & lverbose=.false.); call CHKERR(ierr)
 
-      call mie_tables_init(comm, ierr, lverbose=.false.); call CHKERR(ierr)
+      call mie_tables_init(comm, repwvl_mie_table, ierr, lverbose=.false.); call CHKERR(ierr)
 
       call fu_ice_init(comm, ierr, lverbose=.true.); call CHKERR(ierr)
       call check_fu_table_consistency()
@@ -246,6 +247,7 @@ contains
         & comm,                                &
         & repwvl_data_thermal,                 &
         & solver,                              &
+        & repwvl_mie_table,                    &
         & atm,                                 &
         & albedo_thermal,                      &
         & edn, eup, abso,                      &
@@ -280,6 +282,7 @@ contains
           & comm,                                    &
           & repwvl_data_solar,                       &
           & solver,                                  &
+          & repwvl_mie_table,                        &
           & atm,                                     &
           & sundir, albedo_solar,                    &
           & edir, edn, eup, abso,                    &
@@ -300,6 +303,7 @@ contains
       & comm,                 &
       & repwvl_data_thermal,  &
       & solver,               &
+      & mie_table,            &
       & atm,                  &
       & albedo,               &
       & edn,                  &
@@ -314,6 +318,7 @@ contains
     integer(mpiint), intent(in) :: comm
     type(t_repwvl_data), intent(in) :: repwvl_data_thermal
     class(t_solver), intent(inout) :: solver
+    type(t_mie_table), intent(in) :: mie_table
     type(t_tenstr_atm), intent(in), target :: atm
     real(ireals), intent(in) :: albedo
     real(ireals), intent(inout), dimension(:, :, :) :: edn, eup, abso
@@ -351,7 +356,7 @@ contains
           & ' ('//toStr(repwvl_data_thermal%wvls(iwvl))//' nm,  wgt='//toStr(repwvl_data_thermal%wgts(iwvl))//')'
       end if
 
-      call repwvl_optprop(repwvl_data_thermal, atm, .false., iwvl, kabs, ksca, kg, ierr); call CHKERR(ierr)
+      call repwvl_optprop(repwvl_data_thermal, atm, mie_table, .false., iwvl, kabs, ksca, kg, ierr); call CHKERR(ierr)
 
       do j = 1, solver%C_one%ym
         do i = 1, solver%C_one%xm
@@ -392,6 +397,7 @@ contains
       & comm,               &
       & repwvl_data_solar,  &
       & solver,             &
+      & mie_table,          &
       & atm,                &
       & sundir,             &
       & albedo,             &
@@ -411,6 +417,7 @@ contains
     integer(mpiint), intent(in) :: comm
     type(t_repwvl_data), intent(in) :: repwvl_data_solar
     class(t_solver), intent(inout) :: solver
+    type(t_mie_table), intent(in) :: mie_table
     type(t_tenstr_atm), intent(in), target :: atm
 
     real(ireals), intent(in) :: albedo
@@ -457,7 +464,7 @@ contains
           & ' ('//toStr(repwvl_data_solar%wvls(iwvl))//' nm,  wgt='//toStr(repwvl_data_solar%wgts(iwvl))//')'
       end if
 
-      call repwvl_optprop(repwvl_data_solar, atm, .true., iwvl, kabs, ksca, kg, ierr); call CHKERR(ierr)
+      call repwvl_optprop(repwvl_data_solar, atm, mie_table, .true., iwvl, kabs, ksca, kg, ierr); call CHKERR(ierr)
 
       !call add_optional_optprop(tau, w0, g, opt_tau, opt_w0, opt_g)
 
@@ -487,9 +494,10 @@ contains
 
   end subroutine compute_solar
 
-  subroutine repwvl_optprop(repwvl_data, atm, lsolar, iwvl, kabs, ksca, kg, ierr)
+  subroutine repwvl_optprop(repwvl_data, atm, mie_table, lsolar, iwvl, kabs, ksca, kg, ierr)
     type(t_repwvl_data), intent(in) :: repwvl_data
     type(t_tenstr_atm), intent(in), target :: atm
+    type(t_mie_table), intent(in) :: mie_table
     logical, intent(in) :: lsolar
     integer(iintegers) :: iwvl
     real(ireals), dimension(:, :, :) :: kabs, ksca, kg
@@ -556,7 +564,7 @@ contains
 
           if (atm%lwc(k, icol) > 0) then
             call mie_optprop(&
-              & mie_water_table, &
+              & mie_table, &
               & repwvl_data%wvls(iwvl) * 1e-3_ireals, &
               & atm%reliq(k, icol), &
               & qext_cld, w0_cld, g_cld, ierr); call CHKERR(ierr)
@@ -686,10 +694,13 @@ contains
     end if
   end subroutine
 
-  subroutine repwvl_pprts_destroy(solver, lfinalizepetsc)
+  subroutine repwvl_pprts_destroy(solver, lfinalizepetsc, ierr)
     class(t_solver) :: solver
     logical, intent(in) :: lfinalizepetsc
+    integer(mpiint), intent(out) :: ierr
+    ierr = 0
 
+    call destroy_mie_table(repwvl_mie_table, ierr); call CHKERR(ierr)
     call destroy_pprts(solver, lfinalizepetsc=lfinalizepetsc)
   end subroutine
 end module

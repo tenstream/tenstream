@@ -1,6 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
+SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+PROJECT_ROOT="$(readlink -f $SCRIPTDIR)"
+
 SOLARDB=${1:-missing 1st argument}
 THERMALDB=${2:-missing 2nd argument}
 
@@ -28,16 +31,6 @@ ${MPIEXEC:-} python gen_mie_tables.py $WC -p water \
   -v -m $WORK/lib/libRadtran/bin/mie
 else
   echo "Skipping computation of $WC because file already exists"
-fi
-
-IC=mie.ic.table.nc
-if [ ! -e $IC ]; then
-${MPIEXEC:-} python gen_mie_tables.py $IC -p ice \
-  --wvls $ALL_WVL \
-  --reffs $REFF_IC \
-  -v -m $WORK/lib/libRadtran/bin/mie
-else
-  echo "Skipping computation of $IC because file already exists"
 fi
 
 echo done

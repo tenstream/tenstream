@@ -31,6 +31,7 @@ module m_mie_tables
 
   use m_helper_functions, only: &
     & CHKERR, &
+    & deallocate_allocatable, &
     & get_arg, &
     & get_petsc_opt, &
     & imp_bcast, &
@@ -44,7 +45,11 @@ module m_mie_tables
   implicit none
 
   private
-  public :: mie_tables_init, mie_water_table, t_mie_table, mie_optprop
+  public :: &
+    & destroy_mie_table, &
+    & mie_optprop, &
+    & mie_tables_init, &
+    & t_mie_table
 
   logical, parameter :: ldebug = .true.
 
@@ -56,7 +61,11 @@ module m_mie_tables
     real(irealLUT), allocatable :: g(:, :)    ! dim [reff, wvl], asymmetry parameter
   end type
 
-  type(t_mie_table), allocatable :: mie_water_table
+  interface mie_optprop
+    module procedure mie_optprop_general
+    module procedure mie_optprop_index
+  end interface
+
 contains
   subroutine load_data(fname, mie_table, ierr, lverbose)
     character(len=*), intent(in) :: fname
@@ -102,44 +111,47 @@ contains
     call imp_bcast(comm, mie_table%g, ierr); call CHKERR(ierr)
   end subroutine
 
-  subroutine mie_tables_init(comm, ierr, lverbose, path_water_table)
+  subroutine mie_tables_init(comm, table, ierr, lverbose, path_table, prefix)
     integer(mpiint), intent(in) :: comm
+    type(t_mie_table), allocatable, intent(inout) :: table
     integer(mpiint), intent(out) :: ierr
     logical, intent(in), optional :: lverbose
-    character(len=*), intent(in), optional :: path_water_table
+    character(len=*), intent(in), optional :: path_table, prefix
 
     integer(mpiint) :: myid
 
-    character(len=default_str_len), parameter :: default_water_path = "mie.wc.table.nc"
+    character(len=default_str_len), parameter :: default_path = "mie.wc.table.nc"
 
-    character(len=default_str_len) :: water_path
+    character(len=default_str_len) :: path
 
     logical :: lset, lexists
+
+    if(allocated(table)) return
 
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
     if (myid .eq. 0) then
-      water_path = trim(get_arg(default_water_path, path_water_table))
+      path = trim(get_arg(default_path, path_table))
 
-      call get_petsc_opt('', '-mie_wc', water_path, lset, ierr); call CHKERR(ierr)
+      call get_petsc_opt(get_arg('', prefix), '-mie_wc', path, lset, ierr); call CHKERR(ierr)
 
-      inquire (file=trim(water_path), exist=lexists)
+      inquire (file=trim(path), exist=lexists)
       if (.not. lexists) then
-        call CHKERR(1_mpiint, "File at mie_table path "//toStr(water_path)// &
+        call CHKERR(1_mpiint, "File at mie_table path "//toStr(path)// &
           & " does not exist"//new_line('')// &
           & " please make sure the file is at this location"// &
           & " or specify a correct path with option"//new_line('')// &
           & "   -mie_wc <path>")
       end if
 
-      if (.not. allocated(mie_water_table)) then
-        call load_data(water_path, mie_water_table, ierr, lverbose); call CHKERR(ierr)
+      if (.not. allocated(table)) then
+        call load_data(path, table, ierr, lverbose); call CHKERR(ierr)
       end if
     end if
-    call distribute_table(comm, mie_water_table, ierr); call CHKERR(ierr)
+    call distribute_table(comm, table, ierr); call CHKERR(ierr)
   end subroutine
 
-  subroutine mie_optprop(table, wvl, reff, qext, w0, g, ierr)
+  subroutine mie_optprop_general(table, wvl, reff, qext, w0, g, ierr)
     type(t_mie_table), intent(in) :: table
     real(ireals), intent(in) :: wvl, reff
     real(ireals), intent(out) :: qext, w0, g
@@ -158,5 +170,45 @@ contains
     qext = real(rqext, irealLUT)
     w0 = real(rw0, irealLUT)
     g = real(rg, irealLUT)
+  end subroutine
+
+  subroutine mie_optprop_index(table, iwvl, reff, qext, w0, g, ierr)
+    type(t_mie_table), intent(in) :: table
+    integer(iintegers), intent(in) :: iwvl
+    real(ireals), intent(in) :: reff
+    real(ireals), intent(out) :: qext, w0, g
+    integer(mpiint), intent(out) :: ierr
+
+    real(irealLUT) :: pt(2)
+    real(irealLUT) :: rqext, rw0, rg
+    call CHKERR(1_mpiint, "optimized lookups for repwvl are not yet implemented."//&
+      & " Note: one option would be to split solar and thermal and handle each case on its own."// &
+      & " or we have them in one file but somehow make it easy for repwvl indices to query the mie tables."//&
+      & " Have to think about it... For the moment, just use the general one")
+
+    ierr = 0
+
+    pt(1) = find_real_location(table%reff, real(reff, irealLUT))
+    pt(2) = iwvl
+    call interp_2d(pt, table%qext, rqext)
+    call interp_2d(pt, table%w0, rw0)
+    call interp_2d(pt, table%g, rg)
+    qext = real(rqext, irealLUT)
+    w0 = real(rw0, irealLUT)
+    g = real(rg, irealLUT)
+  end subroutine
+
+  subroutine destroy_mie_table(table, ierr)
+    type(t_mie_table), allocatable, intent(inout) :: table
+    integer(mpiint), intent(out) :: ierr
+
+    ierr = 0
+    if(.not.allocated(table)) return
+    call deallocate_allocatable(table%wvl)
+    call deallocate_allocatable(table%reff)
+    call deallocate_allocatable(table%qext)
+    call deallocate_allocatable(table%w0)
+    call deallocate_allocatable(table%g)
+    deallocate(table)
   end subroutine
 end module

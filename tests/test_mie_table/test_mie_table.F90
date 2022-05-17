@@ -10,8 +10,8 @@ module test_mie_table
     & mpiint
 
   use m_mie_tables, only: &
+    & destroy_mie_table, &
     & mie_tables_init, &
-    & mie_water_table, &
     & mie_optprop, &
     & t_mie_table
 
@@ -44,9 +44,11 @@ contains
     integer(mpiint) :: ierr
     integer(mpiint) :: comm
 
+    type(t_mie_table), allocatable :: mie_water_table
+
     comm = this%getMpiCommunicator()
 
-    call mie_tables_init(comm, ierr, lverbose=.true.)
+    call mie_tables_init(comm, mie_water_table, ierr, lverbose=.true.)
     @assertEqual(0, ierr)
     @assertTrue(allocated(mie_water_table), 'water_table is expected to be allocated')
     @assertTrue(allocated(mie_water_table%wvl ), 'water_table%wvl  is expected to be allocated')
@@ -54,6 +56,8 @@ contains
     @assertTrue(allocated(mie_water_table%qext), 'water_table%qext is expected to be allocated')
     @assertTrue(allocated(mie_water_table%w0  ), 'water_table%w0   is expected to be allocated')
     @assertTrue(allocated(mie_water_table%g   ), 'water_table%g    is expected to be allocated')
+    call destroy_mie_table(mie_water_table, ierr)
+    @assertEqual(0, ierr)
   end subroutine
 
   @test(npes = [1, 2])
@@ -62,12 +66,16 @@ contains
     integer(mpiint) :: ierr
     integer(mpiint) :: comm
 
+    type(t_mie_table), allocatable :: mie_water_table
+
     comm = this%getMpiCommunicator()
 
-    call mie_tables_init(comm, ierr)
+    call mie_tables_init(comm, mie_water_table, ierr)
     @assertEqual(0, ierr)
 
     call test_table(mie_water_table)
+    call destroy_mie_table(mie_water_table, ierr)
+    @assertEqual(0, ierr)
   contains
     subroutine test_table(table)
       type(t_mie_table), intent(in) :: table
@@ -92,12 +100,16 @@ contains
     integer(mpiint) :: ierr
     integer(mpiint) :: comm
 
+    type(t_mie_table), allocatable :: mie_water_table
+
     comm = this%getMpiCommunicator()
 
-    call mie_tables_init(comm, ierr)
+    call mie_tables_init(comm, mie_water_table, ierr)
     @assertEqual(0, ierr)
 
     call test_table(mie_water_table)
+    call destroy_mie_table(mie_water_table, ierr)
+    @assertEqual(0, ierr)
   contains
     subroutine test_table(table)
       type(t_mie_table), intent(in) :: table
