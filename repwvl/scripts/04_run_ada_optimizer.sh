@@ -4,7 +4,7 @@ set -euo pipefail
 
 . config.sh
 
-MPIEXEC=${MPIEXEC:-srun -n1 -c 20 -C $MODULES_MARCH -p met-cl,met-ws,cluster --mem=40G}
+MPIEXEC=${MPIEXEC:-srun -n1 -c 40 -C $MODULES_MARCH -p met-cl,met-ws,cluster --mem=40G}
 SOLVER=basinhopper
 VMODE=1
 
@@ -19,6 +19,7 @@ if [ ! -e $OPTIFILE ]; then
     --var_mode $VMODE \
     $TRAIN_LW \
     $OPTIFILE
+  rm -f $REPWVL_LW # invalidate annotated file
 fi
 
 if [ ! -e $REPWVL_LW ]; then
@@ -42,6 +43,7 @@ if [ ! -e $OPTIFILE ]; then
     --var_mode $VMODE \
     $TRAIN_SW \
     $OPTIFILE
+  rm -f $REPWVL_SW # invalidate annotated file
 fi
 
 if [ ! -e $REPWVL_SW ]; then
