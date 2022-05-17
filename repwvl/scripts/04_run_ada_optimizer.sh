@@ -4,7 +4,7 @@ set -euo pipefail
 
 . config.sh
 
-MPIEXEC=${MPIEXEC:-srun -n1 -c 40 -C $MODULES_MARCH -p met-cl,met-ws,cluster --mem=40G}
+MPIEXEC=${MPIEXEC:-srun -n1 -c 40 -p met-cl,met-ws,cluster --mem=40G --time=12:00:00}
 SOLVER=basinhopper
 VMODE=1
 
