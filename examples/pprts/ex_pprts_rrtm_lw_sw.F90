@@ -3,7 +3,7 @@ program main
   use petsc
   use mpi
   use m_tenstream_options, only: read_commandline_options
-  use m_data_parameters, only: iintegers, mpiint, ireals, default_str_len
+  use m_data_parameters, only: iintegers, mpiint, ireals, default_str_len, share_dir
   use m_example_pprts_rrtm_lw_sw, only: ex_pprts_rrtm_lw_sw
   use m_helper_functions, only: CHKERR, get_petsc_opt, deallocate_allocatable
 
@@ -45,7 +45,7 @@ program main
   call get_petsc_opt(PETSC_NULL_CHARACTER, "-Ag", albedo_sol, lflg, ierr); call CHKERR(ierr)
   call get_petsc_opt(PETSC_NULL_CHARACTER, "-Ag_solar", albedo_sol, lflg, ierr); call CHKERR(ierr)
 
-  atm_filename = 'atm.dat'
+  atm_filename = share_dir//'tenstream_default.atm'
   call get_petsc_opt(PETSC_NULL_CHARACTER, '-atm', atm_filename, lflg, ierr); call CHKERR(ierr)
 
   lthermal = .true.
