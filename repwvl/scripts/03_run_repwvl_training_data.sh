@@ -9,7 +9,7 @@ if [ ! -e $TENSTREAM_ROOT/bin/compute_repwvl_training_data ]; then
   make -j -C $TENSTREAM_ROOT compute_repwvl_training_data
 fi
 
-MPIEXEC=${MPIEXEC:-srun -n32 -C $MODULES_MARCH -p met-cl,met-ws,cluster --mem=40G}
+MPIEXEC=${MPIEXEC:-srun -n32 ${MODULES_MARCH:+-C} $MODULES_MARCH -p met-cl,met-ws,cluster --mem=40G --time=01:00:00}
 
 if [ ! -e $TRAIN_LW ]; then
   ${MPIEXEC} \
