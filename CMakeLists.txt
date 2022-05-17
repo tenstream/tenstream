@@ -309,6 +309,14 @@ if (CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
 endif()
 install(DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/ DESTINATION lib)
 
+# set path to '/share', i.e. common data files
+set (TENSTREAM_SHARE_DIR ${CMAKE_BINARY_DIR}/share CACHE STRING
+  "Directory where we find tenstream related data files"
+  FORCE)
+MESSAGE(STATUS "Tenstream shared data directory ${TENSTREAM_SHARE_DIR}")
+add_definitions(-DTENSTREAM_SHARE_DIR=\"${TENSTREAM_SHARE_DIR}\")
+install(DIRECTORY ${TENSTREAM_SHARE_DIR} DESTINATION .)
+
 # Find out if the compiler is XLF and if so give this to the C preprocessor
 string(COMPARE EQUAL ${CMAKE_Fortran_COMPILER_ID} "XL" _is_XLF)
 if(${_is_XLF})
@@ -340,6 +348,7 @@ add_subdirectory(external)
 add_subdirectory(src)
 add_subdirectory(disort)
 add_subdirectory(rayli_wrapper)
+add_subdirectory(misc)
 
 option(ENABLE_PLEXRT "Enable PLEXRT, Radiative transfer on wedges" OFF)
 if(ENABLE_PLEXRT)

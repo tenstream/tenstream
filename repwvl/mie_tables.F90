@@ -27,7 +27,8 @@ module m_mie_tables
     & iintegers, &
     & irealLUT, &
     & ireals, &
-    & mpiint
+    & mpiint, &
+    & share_dir
 
   use m_helper_functions, only: &
     & CHKERR, &
@@ -120,7 +121,7 @@ contains
 
     integer(mpiint) :: myid
 
-    character(len=default_str_len), parameter :: default_path = "mie.wc.table.nc"
+    character(len=default_str_len), parameter :: default_path = share_dir//"mie.wc.table.nc"
 
     character(len=default_str_len) :: path
 
