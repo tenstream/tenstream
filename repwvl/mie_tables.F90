@@ -126,7 +126,7 @@ contains
 
     logical :: lset, lexists
 
-    if(allocated(table)) return
+    if (allocated(table)) return
 
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
@@ -203,12 +203,12 @@ contains
     integer(mpiint), intent(out) :: ierr
 
     ierr = 0
-    if(.not.allocated(table)) return
+    if (.not. allocated(table)) return
     call deallocate_allocatable(table%wvl)
     call deallocate_allocatable(table%reff)
     call deallocate_allocatable(table%qext)
     call deallocate_allocatable(table%w0)
     call deallocate_allocatable(table%g)
-    deallocate(table)
+    deallocate (table)
   end subroutine
 end module

@@ -73,7 +73,7 @@ program main
     & gedir, gedn, geup, gabso, &
     & vlwc, viwc)
 
-  if (myid .eq. 0_mpiint.and.lhave_outfile) then
+  if (myid .eq. 0_mpiint .and. lhave_outfile) then
     dimnames(1) = 'nlev'
     dimnames(2) = 'nx'
     dimnames(3) = 'ny'
@@ -85,7 +85,7 @@ program main
     groups(2) = 'eup'; call ncwrite(groups, geup, ierr, dimnames=dimnames); call CHKERR(ierr)
     dimnames(1) = 'nlay'
     groups(2) = 'abso'; call ncwrite(groups, gabso, ierr, dimnames=dimnames); call CHKERR(ierr)
-  endif
+  end if
 
   call deallocate_allocatable(gedir)
   call deallocate_allocatable(gedn)
