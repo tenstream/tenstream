@@ -30,6 +30,5 @@ TARGET_LINK_LIBRARIES( repwvl_pprts
 add_executable(compute_repwvl_training_data "compute_repwvl_training_data.F90" )
 target_link_libraries( compute_repwvl_training_data repwvl_pprts ${EXTLIB})
 
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/data/fu.ice.general.nc" ${CMAKE_BINARY_DIR}/share/fu.ice.general.nc COPYONLY)
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/data/mie.wc.table.nc"   ${CMAKE_BINARY_DIR}/share/mie.wc.table.nc   COPYONLY)
-install(DIRECTORY ${CMAKE_BINARY_DIR}/share DESTINATION .)
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/data/fu.ice.general.nc" ${TENSTREAM_SHARE_DIR}/fu.ice.general.nc COPYONLY)
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/data/mie.wc.table.nc"   ${TENSTREAM_SHARE_DIR}/mie.wc.table.nc   COPYONLY)

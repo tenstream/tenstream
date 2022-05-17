@@ -66,7 +66,8 @@ module m_data_parameters
     pi64, &
     pi_irealLUT, &
     pi_ireal_params, &
-    R_DRY_AIR
+    R_DRY_AIR, &
+    share_dir
 
   integer :: mpiint_dummy
   PetscInt :: petscint_dummy
@@ -115,6 +116,13 @@ module m_data_parameters
   real(real64), parameter :: pi64 = 3.141592653589793_real64
   real(ireal_params), parameter :: pi_ireal_params = 3.141592653589793_ireal_params
   real(real128), parameter :: pi128 = 4 * atan(1._real128)
+
+#ifdef TENSTREAM_SHARE_DIR
+  character(len=*), parameter :: share_dir = &
+    & TENSTREAM_SHARE_DIR//"/"
+#else
+  character(len=*), parameter :: share_dir = "./"
+#endif
 
 contains
   subroutine init_mpi_data_parameters(comm)

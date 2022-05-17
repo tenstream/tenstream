@@ -27,7 +27,8 @@ module m_fu_ice
     & iintegers, &
     & irealLUT, &
     & ireals, &
-    & mpiint
+    & mpiint, &
+    & share_dir
 
   use m_helper_functions, only: &
     & CHKERR, &
@@ -196,7 +197,7 @@ contains
 
     integer(mpiint) :: myid
 
-    character(len=default_str_len), parameter :: default_path = "fu.ice.repwvl.nc"
+    character(len=default_str_len), parameter :: default_path = share_dir//"fu.ice.general.nc"
 
     character(len=default_str_len) :: prepwvl
 
