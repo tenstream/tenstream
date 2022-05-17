@@ -227,14 +227,14 @@ intel:debug:
 mim:gcc:default:
   extends: .mim:default
 
-mim:icc:debug:
-  extends: .mim:default
-  variables:
-    MODULES: "intel-oneapi-compilers/2021.4.0 intel-oneapi-mpi/2021.4.0-oneapi-2021.4.0"
-    BUILD_TYPE: DEBUG
-    CC: mpiicc
-    FC: mpiifort
-    CXX: mpiicpc
+#mim:icc:debug:
+#  extends: .mim:default
+#  variables:
+#    MODULES: "intel-oneapi-compilers/2021.4.0 intel-oneapi-mpi/2021.4.0-oneapi-2021.4.0"
+#    BUILD_TYPE: DEBUG
+#    CC: mpiicc
+#    FC: mpiifort
+#    CXX: mpiicpc
 
 implicit:mim:gcc:debug:
   extends: mim:gcc:default
