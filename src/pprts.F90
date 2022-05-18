@@ -2237,16 +2237,18 @@ contains
       end if
 
       ! --------- Calculate Radiative Transfer with RayLi ------------
-      call PetscLogEventBegin(solver%logs%solve_mcrts, ierr)
       luse_rayli = .false.
       call get_petsc_opt(solver%prefix, "-pprts_use_rayli", luse_rayli, lflg, ierr); call CHKERR(ierr)
       lrayli_snapshot = .false.
       call PetscOptionsHasName(PETSC_NULL_OPTIONS, solver%prefix, &
                                "-rayli_snapshot", lrayli_snapshot, ierr); call CHKERR(ierr)
 
-      call pprts_rayli_wrapper(luse_rayli, lrayli_snapshot, solver, edirTOA, solution, opt_buildings)
-      call PetscLogEventEnd(solver%logs%solve_mcrts, ierr)
-      if (luse_rayli) goto 99
+      if (luse_rayli .or. lrayli_snapshot) then
+        call PetscLogEventBegin(solver%logs%solve_mcrts, ierr)
+        call pprts_rayli_wrapper(luse_rayli, lrayli_snapshot, solver, edirTOA, solution, opt_buildings)
+        call PetscLogEventEnd(solver%logs%solve_mcrts, ierr)
+        if (luse_rayli) goto 99
+      end if
 
       ! --------- Calculate Radiative Transfer with Disort ------------
       luse_disort = .false.
