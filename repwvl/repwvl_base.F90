@@ -137,8 +137,10 @@ contains
 
       basepath = ''
       call get_petsc_opt('', '-repwvl_data', basepath, lset, ierr); call CHKERR(ierr)
-      fname_thermal = trim(basepath)//trim(fname_thermal)
-      fname_solar = trim(basepath)//trim(fname_solar)
+      if (lset) then
+        fname_thermal = trim(basepath)//'/'//trim(fname_thermal)
+        fname_solar = trim(basepath)//'/'//trim(fname_solar)
+      end if
 
       call get_petsc_opt('', '-repwvl_data_thermal', fname_thermal, lset, ierr); call CHKERR(ierr)
       call get_petsc_opt('', '-repwvl_data_solar', fname_solar, lset, ierr); call CHKERR(ierr)
