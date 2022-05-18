@@ -117,12 +117,27 @@ module m_data_parameters
   real(ireal_params), parameter :: pi_ireal_params = 3.141592653589793_ireal_params
   real(real128), parameter :: pi128 = 4 * atan(1._real128)
 
-#ifdef TENSTREAM_SHARE_DIR
-  character(len=*), parameter :: share_dir = &
-    & TENSTREAM_SHARE_DIR//"/"
-#else
-  character(len=*), parameter :: share_dir = "./"
+  character(len=*), parameter :: &
+    share_dir = &
+#ifdef TENSTREAM_SHARE_DIR1
+    TENSTREAM_SHARE_DIR1// &
 #endif
+#ifdef TENSTREAM_SHARE_DIR2
+    TENSTREAM_SHARE_DIR2// &
+#endif
+#ifdef TENSTREAM_SHARE_DIR3
+    TENSTREAM_SHARE_DIR3// &
+#endif
+#ifdef TENSTREAM_SHARE_DIR4
+    TENSTREAM_SHARE_DIR4// &
+#endif
+#ifdef TENSTREAM_SHARE_DIR5
+    TENSTREAM_SHARE_DIR5// &
+#endif
+#ifdef TENSTREAM_SHARE_DIR6
+    TENSTREAM_SHARE_DIR6// &
+#endif
+    "/"
 
 contains
   subroutine init_mpi_data_parameters(comm)
