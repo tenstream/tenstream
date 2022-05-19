@@ -121,7 +121,8 @@ function install_netcdf() {
   cd $ARCHIVE_DIR
   export LD_LIBRARY_PATH=${PREFIX}/lib:${LD_LIBRARY_PATH:-}
   export PATH=${PREFIX}/bin:${PATH:-}
-  CC=$CC FC=$FC F90=$FC CXX=$CXX CPPFLAGS=-I$PREFIX/include LDFLAGS=-L$PREFIX/lib ./configure --prefix=$PREFIX --disable-dap && make -j install
+  CC=$CC FC=$FC F90=$FC CXX=$CXX CPPFLAGS=-I$PREFIX/include LDFLAGS=-L$PREFIX/lib ./configure --prefix=$PREFIX --disable-dap
+  make -j install
   echo "Installed NetCDF lib $FILE into $PREFIX -- CC $CC FC $FC CXX $CXX"
 }
 

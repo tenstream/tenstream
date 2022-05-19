@@ -198,9 +198,13 @@ if(NOT PETSC_INSTALL)
     if(NOT EXISTS "${PETSC_INSTALL}" )
       message(FATAL "Directory ${PETSC_INSTALL} does not exist!")
     endif()
-    set(CMAKE_PREFIX_PATH ${PETSC_INSTALL} ${CMAKE_PREFIX_PATH})
   endif(NOT DEFINED ENV{PETSC_DIR})
 endif()
+if(PETSC_INSTALL)
+  set(CMAKE_PREFIX_PATH ${PETSC_INSTALL} ${CMAKE_PREFIX_PATH})
+  message(STATUS "Added ${PETSC_INSTALL} to CMAKE_PREFIX_PATH: ${CMAKE_PREFIX_PATH}")
+endif(PETSC_INSTALL)
+
 include(FindPkgConfig)
 pkg_search_module(PETSC REQUIRED PETSc)
 if(EXISTS ${PETSC_LIBDIR})
@@ -280,10 +284,13 @@ endif(${HDF5_FOUND})
 
 
 # Add Lapack
-find_package( LAPACK )
-if(${LAPACK_FOUND})
-  list (APPEND EXTLIB "${LAPACK_LIBRARIES}")
-endif(${LAPACK_FOUND})
+option(AUTODETECT_LAPACK "Let CMAKE try to find LAPACK" ON)
+if(AUTODETECT_LAPACK)
+  find_package( LAPACK )
+  if(${LAPACK_FOUND})
+    list (APPEND EXTLIB "${LAPACK_LIBRARIES}")
+  endif(${LAPACK_FOUND})
+endif(AUTODETECT_LAPACK)
 
 ## Add User Libs
 if(DEFINED USER_LIBS)

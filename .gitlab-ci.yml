@@ -147,9 +147,8 @@ intel:
   stage: build_docker
   extends: .build:default
   needs: ["check_fprettify:pre"]
-  #image: intel/oneapi-hpckit
-  #image: intel/oneapi-hpckit:2021.4-devel-ubuntu18.04
-  image:  intel/oneapi-hpckit:2022.1.2-devel-ubuntu18.04
+  image: intel/oneapi-hpckit:2021.4-devel-ubuntu18.04
+  #image: intel/oneapi-hpckit:2022.1.2-devel-ubuntu18.04 # brakes petsc
   before_script:
     - apt-get -qq update && apt-get -qq install -fy cmake git m4 curl libcurl3-dev
     - *template_build_PETSC
@@ -170,9 +169,9 @@ intel:debug:
   stage: build_docker
   extends: .build:default
   needs: ["check_fprettify:pre"]
-  #image: intel/oneapi-hpckit
-  #image: intel/oneapi-hpckit:2021.4-devel-ubuntu18.04
-  image:  intel/oneapi-hpckit:2022.1.2-devel-ubuntu18.04
+  image:  intel/oneapi-hpckit:2021.4-devel-ubuntu18.04
+  #image:  intel/oneapi-hpckit:2022.1.2-devel-ubuntu18.04 # brakes petsc
+  #image:  intel/oneapi-hpckit:2022.2-devel-ubuntu20.04 # brakes petsc
   before_script:
     - apt-get -qq update && apt-get -qq install -fy cmake git m4 curl libcurl3-dev
     - *template_build_PETSC
