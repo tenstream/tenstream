@@ -4,12 +4,10 @@ set -euo pipefail
 
 . config.sh
 
-if [ ! -e $TENSTREAM_ROOT/bin/compute_repwvl_training_data ]; then
-  echo "Building compute_repwvl_training_data in TenStream build dir"
-  make -j -C $TENSTREAM_ROOT compute_repwvl_training_data
-fi
+echo "Building compute_repwvl_training_data in TenStream build dir"
+make -j -C $TENSTREAM_ROOT compute_repwvl_training_data
 
-MPIEXEC=${MPIEXEC:-srun -n32 ${MODULES_MARCH:+-C} $MODULES_MARCH -p met-cl,met-ws,cluster --mem=40G --time=01:00:00}
+MPIEXEC=${MPIEXEC:-srun -n32 ${MODULES_MARCH:+-C} $MODULES_MARCH --mem=40G --time=01:00:00}
 
 if [ ! -e $TRAIN_LW ]; then
   ${MPIEXEC} \

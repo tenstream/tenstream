@@ -77,7 +77,6 @@ $BIN \
   -solver 2str \
   -solar   $SOLAR   \
   -thermal $THERMAL \
-  -atm $PROJECT_ROOT/../misc/atm.dat \
   -repwvl_data_thermal $ADA/repwvl/rdata.lbl.thermal.nc  \
   -repwvl_data_solar   $ADA/repwvl/rdata.lbl.solar.nc    \
   -mie_wc $MIE_GENERAL \
@@ -93,7 +92,6 @@ $BIN \
   -solver 2str \
   -solar   $SOLAR   \
   -thermal $THERMAL \
-  -atm $PROJECT_ROOT/../misc/atm.dat \
   -repwvl_data_thermal $REPWVL_LW \
   -repwvl_data_solar $REPWVL_SW \
   -mie_wc $MIE \
@@ -115,7 +113,6 @@ $BIN \
   -solver 2str \
   -solar   $SOLAR   \
   -thermal $THERMAL \
-  -atm $PROJECT_ROOT/../misc/atm.dat \
   -repwvl_data_thermal $ADA/repwvl/rdata.lbl.thermal.nc  \
   -repwvl_data_solar   $ADA/repwvl/rdata.lbl.solar.nc    \
   -mie_wc $MIE_GENERAL \
@@ -131,7 +128,6 @@ $BIN \
   -solver 2str \
   -solar   $SOLAR   \
   -thermal $THERMAL \
-  -atm $PROJECT_ROOT/../misc/atm.dat \
   -repwvl_data_thermal $REPWVL_LW \
   -repwvl_data_solar $REPWVL_SW \
   -mie_wc $MIE \
