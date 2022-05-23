@@ -4,7 +4,7 @@ set -euo pipefail
 
 . config.sh
 
-MPIEXEC=${MPIEXEC:-srun -n1 -c 40 -p met-cl,met-ws,cluster --mem=60G --time=12:00:00}
+MPIEXEC=${MPIEXEC:-srun -n1 -c 40 --mem=60G --time=12:00:00}
 SOLVER=basinhopper
 VMODE=1
 
@@ -13,7 +13,7 @@ OPTIFILE=$WORK/opti.$(basename $REPWVL_LW)
 if [ ! -e $OPTIFILE ]; then
   ${MPIEXEC} python $ADA/optipy/opti.py \
     --Nsamples $REPWVL_SAMPLES_LW \
-    --maxiter 1000 \
+    --maxiter 10000 \
     --verbose \
     --solver $SOLVER \
     --var_mode $VMODE \
@@ -37,7 +37,7 @@ OPTIFILE=$WORK/opti.$(basename $REPWVL_SW)
 if [ ! -e $OPTIFILE ]; then
   ${MPIEXEC} python $ADA/optipy/opti.py \
     --Nsamples $REPWVL_SAMPLES_SW \
-    --maxiter 1000 \
+    --maxiter 10000 \
     --verbose \
     --solver $SOLVER \
     --var_mode $VMODE \
