@@ -9,8 +9,8 @@ WORK=$SCRATCH/repwvl_work     # where intermediate data is stored and can be del
 
 ADA=$WORK/ada                 # git clone of the ADA repo
 
-NWVL_LBL_SW=2000 # number of line by line wavelengths (shortwave)
-NWVL_LBL_LW=2000 # number of line by line wavelengths (longwave)
+NWVL_LBL_SW=5000 # number of line by line wavelengths (shortwave)
+NWVL_LBL_LW=5000 # number of line by line wavelengths (longwave)
 
 LBL_SW=$ADA/ARTSrun_solar/arts_line_by_line.nc
 LBL_LW=$ADA/ARTSrun_thermal/arts_line_by_line.nc

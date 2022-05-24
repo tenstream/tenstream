@@ -7,7 +7,7 @@ set -euo pipefail
 echo "Building compute_repwvl_training_data in TenStream build dir"
 make -j -C $TENSTREAM_ROOT compute_repwvl_training_data
 
-MPIEXEC=${MPIEXEC:-srun -n32 ${MODULES_MARCH:+-C} $MODULES_MARCH --mem=40G --time=01:00:00}
+MPIEXEC=${MPIEXEC:-srun -n42 ${MODULES_MARCH:+-C} $MODULES_MARCH --mem=160G --time=01:00:00}
 
 if [ ! -e $TRAIN_LW ]; then
   ${MPIEXEC} \
