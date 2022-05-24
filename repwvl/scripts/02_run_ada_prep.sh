@@ -5,10 +5,15 @@ set -euo pipefail
 . config.sh
 
 ADA_URL=git@gitlab.lrz.de:libradtran/ada.git
-ADA_BRANCH=FJ/optipy
+ADA_BRANCH=main
 
 if [ ! -e $ADA ]; then
+  echo "Cloning ADA to $ADA"
   git clone -b $ADA_BRANCH $ADA_URL $ADA
+else
+  echo "Found ADA repo at $ADA ... updating"
+  cd $ADA
+  git pull
 fi
 
 sed -i "s/NUMWVL=.*/NUMWVL=$NWVL_LBL_SW/" $ADA/config.solar

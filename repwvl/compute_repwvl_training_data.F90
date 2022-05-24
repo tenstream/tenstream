@@ -164,7 +164,7 @@ contains
     logical :: run
 
     integer(iintegers) :: h2o, co2, o3, ch4
-    real(ireals), parameter :: H2O_pert(*) = [real(ireals) :: .01, .1, 1., 2., 10]
+    real(ireals), parameter :: H2O_pert(*) = [real(ireals) :: 0.0001, .01, .1, 1., 2., 10, 20]
     real(ireals), parameter :: CO2_pert(*) = [real(ireals) :: .1, 1., 10.]
     real(ireals), parameter :: O3_pert(*) = [real(ireals) :: .1, 1., 10.]
     real(ireals), parameter :: CH4_pert(*) = [real(ireals) :: .1, 1., 10.]
