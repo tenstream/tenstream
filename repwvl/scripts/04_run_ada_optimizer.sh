@@ -4,7 +4,7 @@ set -euo pipefail
 
 . config.sh
 
-MPIEXEC=${MPIEXEC:-srun -n1 -c 40 --mem=140G --time=24:00:00}
+MPIEXEC=${MPIEXEC:-srun -n1 -c 1 --mem=250G --time=72:00:00}
 SOLVER=basinhopper
 VMODE=1
 
@@ -42,7 +42,7 @@ OPTIFILE=$WORK/opti.$(basename $REPWVL_SW)
 
 if [ ! -e $OPTIFILE ]; then
   echo "Running optimizer for $OPTIFILE"
-  ${MPIEXEC} python $ADA/pyADA/pyAD.py \
+  ${MPIEXEC} python $ADA/pyADA/pyADA.py \
     --Nsamples $REPWVL_SAMPLES_SW \
     --maxiter 1000 \
     --verbose \

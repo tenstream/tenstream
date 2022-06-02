@@ -35,18 +35,18 @@ rep = xr.open_dataset(sys.argv[2])
 print("Mean errors in total atmosphere")
 for k in lbl.keys():
     err, rel, b, rb = [ _(rep[k].data, lbl[k].data) for _ in (rmse, rel_rmse, bias, rel_bias) ]
-    print(f"{k:10s} rmse {err:12.4g} ({rel:8.2f} %) bias {b:12.6f} ({rb:8.2f} %)")
+    print(f"{k:10s} abso lbl {lbl[k].mean().data:12.4g} rep {rep[k].mean().data:12.4f} bias {b:12.6f} ({rb:8.2f} %)")
 
 print("Absorption errors along vertical layers")
 for k in lbl.nlay:
     err, rel, b, rb = [ _(rep['abso'].isel(nlay=k).data, lbl['abso'].isel(nlay=k).data) for _ in (rmse, rel_rmse, bias, rel_bias) ]
-    print(f"abso lay {k.data:3} rmse {err:12.4g} ({rel:8.2f} %) bias {b:12.6f} ({rb:8.2f} %)")
+    print(f"abso lay {k.data:3} lbl {lbl['abso'].isel(nlay=k).mean().data:12.4g} rep {rep['abso'].isel(nlay=k).mean().data:12.4f} bias {b:12.6f} ({rb:8.2f} %)")
 
 print("Surface Irrdiance errors")
 for v in ('edir', 'edn', 'eup'):
     if v in lbl.keys():
         err, rel, b, rb = [ _(rep[v].isel(nlev=-1).data, lbl[v].isel(nlev=-1).data) for _ in (rmse, rel_rmse, bias, rel_bias) ]
-        print(f"{v:6s} srfce rmse {err:12.4g} ({rel:8.2f} %) bias {b:12.6f} ({rb:8.2f} %)")
+        print(f"{v:6s} srfce lbl {lbl[v].isel(nlev=-1).mean().data:12.4g} {rep[v].isel(nlev=-1).mean().data:12.4f} bias {b:12.6f} ({rb:8.2f} %)")
 EOF
 
 
@@ -67,14 +67,16 @@ if [ ! -e $FU_REPWVL ]; then
   FU=$FU_GENERAL
 fi
 
-LOG_PREFIX=$WORK/log.$(basename $BIN)
-###########
+LOG_PREFIX=$WORK/log.$(basename $BIN).$REPWVL_SAMPLES_SW.$REPWVL_SAMPLES_LW
+
+############
+BASEOPT="-solver 2str -lwc .1 -iwc .1"
 SOLAR="yes"
 THERMAL="no"
 LOG=${LOG_PREFIX}_SW${SOLAR}_LW${THERMAL}
 if [ ! -e $LOG.lbl.nc ]; then
 $BIN \
-  -solver 2str \
+  $BASEOPT \
   -solar   $SOLAR   \
   -thermal $THERMAL \
   -repwvl_data_thermal $ADA/repwvl/rdata.lbl.thermal.nc  \
@@ -89,7 +91,7 @@ fi
 
 if [ ! -e $LOG.repwvl.nc ]; then
 $BIN \
-  -solver 2str \
+  $BASEOPT \
   -solar   $SOLAR   \
   -thermal $THERMAL \
   -repwvl_data_thermal $REPWVL_LW \
