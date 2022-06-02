@@ -164,7 +164,7 @@ contains
     logical :: run
 
     integer(iintegers) :: h2o, co2, o3, ch4
-    real(ireals), parameter :: H2O_pert(*) = [real(ireals) :: 0.0001, .01, .1, 1., 2., 10, 20]
+    real(ireals), parameter :: H2O_pert(*) = [real(ireals) :: 0.0001, .01, .1, .5, 1., 2., 10, 20]
     real(ireals), parameter :: CO2_pert(*) = [real(ireals) :: .1, 1., 10.]
     real(ireals), parameter :: O3_pert(*) = [real(ireals) :: .1, 1., 10.]
     real(ireals), parameter :: CH4_pert(*) = [real(ireals) :: .1, 1., 10.]
@@ -215,7 +215,7 @@ contains
             ipert = ipert + 1
             if (run) call do_gas_pert(ipert, h2o, co2, o3, ch4)
 
-            do icld = 0, 1 ! ipert from 8 to 8 + 4*3 -1 = 19
+            do icld = 0, 2 ! ipert from 8 to 8 + 4*3 -1 = 19
               ! water cloud perturbations
               ipert = ipert + 1
               if (run) then
