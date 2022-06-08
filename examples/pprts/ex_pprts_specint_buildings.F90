@@ -7,7 +7,7 @@ program main
     & iintegers, mpiint, ireals, default_str_len, &
     & init_mpi_data_parameters, finalize_mpi
   use m_buildings, only: t_pprts_buildings
-  use m_examples_pprts_rrtm_buildings, only: ex_pprts_rrtm_buildings
+  use m_examples_pprts_specint_buildings, only: ex_pprts_specint_buildings
   use m_helper_functions, only: CHKERR, toStr, get_petsc_opt
   use m_netcdfio, only: ncwrite
   use m_tenstream_options, only: read_commandline_options
@@ -24,7 +24,7 @@ program main
   type(t_pprts_buildings), allocatable :: buildings_solar, buildings_thermal
 
   character(len=10*default_str_len) :: rayli_options
-  character(len=default_str_len) :: groups(2)
+  character(len=default_str_len) :: groups(2), specint
   logical :: lflg, lverbose, lrayli_opts, lsolar, lthermal, lfile_exists, lhave_outfile, lbuildings
   integer(mpiint) :: cid, comm, myid, numnodes, ierr
 
@@ -32,6 +32,9 @@ program main
   comm = mpi_comm_world
   call init_mpi_data_parameters(comm)
   call read_commandline_options(comm)
+
+  specint = 'no_default_set'
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-specint", specint, lflg, ierr); call CHKERR(ierr)
 
   atm_filename = 'afglus_100m.dat'
   call get_petsc_opt(PETSC_NULL_CHARACTER, '-atm', atm_filename, lflg, ierr); call CHKERR(ierr)
@@ -112,7 +115,8 @@ program main
   end if
 
   if (lbuildings) then
-    call ex_pprts_rrtm_buildings(             &
+    call ex_pprts_specint_buildings(           &
+      & specint,                            &
       & comm, lverbose,                     &
       & lthermal, lsolar,                   &
       & Nx, Ny, Nlay,                       &
@@ -125,7 +129,8 @@ program main
       & buildings_solar, buildings_thermal, &
       & icollapse=icollapse)
   else
-    call ex_pprts_rrtm_buildings(             &
+    call ex_pprts_specint_buildings(           &
+      & specint,                            &
       & comm, lverbose,                     &
       & lthermal, lsolar,                   &
       & Nx, Ny, Nlay,                       &
