@@ -35,7 +35,7 @@ rep = xr.open_dataset(sys.argv[2])
 print("Mean errors in total atmosphere")
 for k in lbl.keys():
     err, rel, b, rb = [ _(rep[k].data, lbl[k].data) for _ in (rmse, rel_rmse, bias, rel_bias) ]
-    print(f"{k:10s} abso lbl {lbl[k].mean().data:12.4g} rep {rep[k].mean().data:12.4f} bias {b:12.6f} ({rb:8.2f} %)")
+    print(f"{k:10s} lbl {lbl[k].mean().data:12.4g} rep {rep[k].mean().data:12.4f} bias {b:12.6f} ({rb:8.2f} %)")
 
 print("Absorption errors along vertical layers")
 for k in lbl.nlay:
@@ -46,7 +46,7 @@ print("Surface Irrdiance errors")
 for v in ('edir', 'edn', 'eup'):
     if v in lbl.keys():
         err, rel, b, rb = [ _(rep[v].isel(nlev=-1).data, lbl[v].isel(nlev=-1).data) for _ in (rmse, rel_rmse, bias, rel_bias) ]
-        print(f"{v:6s} srfce lbl {lbl[v].isel(nlev=-1).mean().data:12.4g} {rep[v].isel(nlev=-1).mean().data:12.4f} bias {b:12.6f} ({rb:8.2f} %)")
+        print(f"{v:6s} srfce lbl {lbl[v].isel(nlev=-1).mean().data:12.4g} rep {rep[v].isel(nlev=-1).mean().data:12.4f} bias {b:12.6f} ({rb:8.2f} %)")
 EOF
 
 
@@ -104,7 +104,7 @@ else
   echo "Skipping example computation because output $LOG.repwvl.nc exists"
 fi
 
-python $CMP $LOG.repwvl.nc $LOG.lbl.nc
+python $CMP $LOG.lbl.nc $LOG.repwvl.nc
 
 #############
 SOLAR="no"
@@ -140,4 +140,4 @@ else
   echo "Skipping example computation because output $LOG.repwvl.nc exists"
 fi
 
-python $CMP $LOG.repwvl.nc $LOG.lbl.nc
+python $CMP $LOG.lbl.nc $LOG.repwvl.nc
