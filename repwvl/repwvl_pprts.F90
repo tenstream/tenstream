@@ -71,8 +71,9 @@ module m_repwvl_pprts
     & vert_integral_coeff
 
   use m_buildings, only: &
-    & t_pprts_buildings, &
-    & PPRTS_BOT_FACE
+    & clone_buildings, &
+    & destroy_buildings, &
+    & t_pprts_buildings
 
   use m_repwvl_base, only: repwvl_init, t_repwvl_data, repwvl_dtau
   use m_mie_tables, only: mie_tables_init, t_mie_table, mie_optprop, destroy_mie_table
@@ -335,7 +336,7 @@ contains
     type(t_pprts_buildings), intent(inout), optional :: opt_buildings
     real(ireals), intent(in), optional, dimension(:, :, :, :) :: opt_tau
 
-    integer(iintegers) :: iwvl, i, j, k, icol
+    integer(iintegers) :: iwvl, i, j, k, icol, ke, ke1
     integer(mpiint) :: myid
 
     real(ireals), allocatable, dimension(:, :, :) :: kabs, ksca, kg ! [nlyr, local_nx, local_ny]
@@ -343,17 +344,43 @@ contains
 
     real(ireals), dimension(:, :, :), allocatable :: spec_edn, spec_eup, spec_abso
 
+    type(t_pprts_buildings), allocatable :: spec_buildings
+
     ierr = 0
     call mpi_comm_rank(comm, myid, ierr)
 
-    if (present(opt_buildings)) call CHKERR(1_mpiint, 'opt_buildings not yet implemented for repwvl_thermal')
+    !if (present(opt_buildings)) call CHKERR(1_mpiint, 'opt_buildings not yet implemented for repwvl_thermal')
     if (present(opt_tau)) call CHKERR(1_mpiint, 'opt_tau not yet implemented for repwvl_thermal')
     if (present(thermal_albedo_2d)) call CHKERR(1_mpiint, 'thermal_albedo_2d not yet implemented for repwvl_thermal')
+    if (allocated(atm%tskin)) call CHKERR(1_mpiint, 'atm%tskin not yet implemented for repwvl_thermal')
 
-    allocate (kabs(solver%C_one%zm, solver%C_one%xm, solver%C_one%ym))
-    allocate (ksca(solver%C_one%zm, solver%C_one%xm, solver%C_one%ym))
-    allocate (kg(solver%C_one%zm, solver%C_one%xm, solver%C_one%ym))
-    allocate (Blev(solver%C_one1%zm, solver%C_one1%xm, solver%C_one1%ym))
+    ke1 = ubound(atm%plev, 1)
+    ke = ubound(atm%tlay, 1)
+
+    allocate (kabs(ke, solver%C_one%xm, solver%C_one%ym))
+    allocate (ksca(ke, solver%C_one%xm, solver%C_one%ym))
+    allocate (kg(ke, solver%C_one%xm, solver%C_one%ym))
+    allocate (Blev(ke1, solver%C_one1%xm, solver%C_one1%ym))
+
+    if (present(opt_buildings)) then
+
+      call clone_buildings(opt_buildings, spec_buildings, l_copy_data=.false., ierr=ierr); call CHKERR(ierr)
+      if (.not. allocated(spec_buildings%albedo)) allocate (spec_buildings%albedo(size(opt_buildings%albedo)))
+      if (.not. allocated(opt_buildings%incoming)) allocate (opt_buildings%incoming(size(opt_buildings%iface)))
+      if (.not. allocated(opt_buildings%outgoing)) allocate (opt_buildings%outgoing(size(opt_buildings%iface)))
+      spec_buildings%albedo = opt_buildings%albedo
+      opt_buildings%incoming = zero
+      opt_buildings%outgoing = zero
+
+      if (.not. (allocated(opt_buildings%temp))) &
+        & call CHKERR(1_mpiint, 'Thermal computation but opt_buildings%temp is not allocated')
+      if ((allocated(opt_buildings%planck))) &
+        & call CHKERR(1_mpiint, 'Thermal computation but opt_buildings%planck is allocated... '//&
+                              & 'you should only provide temperatures. I`ll take care of planck emissison')
+
+      !allocate (spec_buildings%temp(size(opt_buildings%temp)))
+      allocate (spec_buildings%planck(size(opt_buildings%temp)))
+    end if
 
     do iwvl = 1, size(repwvl_data_thermal%wvls)
       if (myid .eq. 0 .and. ldebug) then
@@ -368,13 +395,23 @@ contains
       do j = 1, solver%C_one%ym
         do i = 1, solver%C_one%xm
           icol = i + (j - 1_iintegers) * solver%C_one%xm
-          do k = 1, solver%C_one1%zm
-            Blev(solver%C_one1%zm + 1 - k, i, j) = repwvl_data_thermal%wgts(iwvl) &
-                                                  & * planck(repwvl_data_thermal%wvls(iwvl) * 1e-9_ireals, atm%tlev(k, icol)) &
-                                                  & * 1e-9_ireals
+          do k = 1, ke1
+            Blev(ke1 + 1 - k, i, j) = repwvl_data_thermal%wgts(iwvl) &
+                                     & * planck(repwvl_data_thermal%wvls(iwvl) * 1e-9_ireals, atm%tlev(k, icol)) &
+                                     & * 1e-9_ireals
           end do
         end do
       end do
+
+      if (present(opt_buildings)) then
+        ! Use spec_buildings%temperature array to hold raw planck values ...
+        do k = 1, size(opt_buildings%temp)
+          spec_buildings%planck(k) = repwvl_data_thermal%wgts(iwvl) &
+                                    & * planck(repwvl_data_thermal%wvls(iwvl) * 1e-9_ireals, opt_buildings%temp(k)) &
+                                    & * 1e-9_ireals
+        end do
+      end if
+
       call PetscLogEventEnd(log_events%repwvl_optprop, ierr); call CHKERR(ierr)
 
       call set_optical_properties( &
@@ -385,20 +422,42 @@ contains
         & kg,                      &
         & planck=Blev)
 
-      call solve_pprts(          &
-        & solver,                &
-        & lthermal=.true.,       &
-        & lsolar=.false.,        &
-        & edirTOA=-1._ireals,    &
-        & opt_solution_uid=-iwvl, &
-        & opt_solution_time=opt_time)
+      call solve_pprts(               &
+        & solver,                     &
+        & lthermal=.true.,            &
+        & lsolar=.false.,             &
+        & edirTOA=-1._ireals,         &
+        & opt_solution_uid=-iwvl,     &
+        & opt_solution_time=opt_time, &
+        & opt_buildings=spec_buildings)
 
-      call pprts_get_result(solver, spec_edn, spec_eup, spec_abso, opt_solution_uid=-iwvl)
+      if (present(opt_buildings)) then
+        call pprts_get_result(           &
+          & solver,                      &
+          & spec_edn,                    &
+          & spec_eup,                    &
+          & spec_abso,                   &
+          & opt_solution_uid=-iwvl,      &
+          & opt_buildings=spec_buildings)
+        opt_buildings%incoming = opt_buildings%incoming + spec_buildings%incoming
+        opt_buildings%outgoing = opt_buildings%outgoing + spec_buildings%outgoing
+      else
+        call pprts_get_result(    &
+          & solver,               &
+          & spec_edn,             &
+          & spec_eup,             &
+          & spec_abso,            &
+          & opt_solution_uid=-iwvl)
+      end if
 
       edn = edn + spec_edn
       eup = eup + spec_eup
       abso = abso + spec_abso
     end do !iwvl
+
+    if (present(opt_buildings)) then
+      call destroy_buildings(spec_buildings, ierr)
+    end if
   end subroutine
 
   subroutine compute_solar( &
@@ -441,26 +500,42 @@ contains
 
     real(ireals) :: edirTOA
 
-    integer(iintegers) :: iwvl
+    integer(iintegers) :: iwvl, ke
     integer(mpiint) :: myid
 
     real(ireals), allocatable, dimension(:, :, :) :: kabs, ksca, kg      ! [nlyr, local_nx, local_ny]
 
     real(ireals), dimension(:, :, :), allocatable :: spec_edir, spec_edn, spec_eup, spec_abso
 
+    type(t_pprts_buildings), allocatable :: spec_buildings
+
     ierr = 0
     call mpi_comm_rank(comm, myid, ierr)
 
-    if (present(opt_buildings)) call CHKERR(1_mpiint, 'opt_buildings not yet implemented for repwvl_solar')
+    !if (present(opt_buildings)) call CHKERR(1_mpiint, 'opt_buildings not yet implemented for repwvl_solar')
     if (present(opt_tau)) call CHKERR(1_mpiint, 'opt_tau not yet implemented for repwvl_solar')
     if (present(opt_w0)) call CHKERR(1_mpiint, 'opt_w0 not yet implemented for repwvl_solar')
     if (present(opt_g)) call CHKERR(1_mpiint, 'opt_g not yet implemented for repwvl_solar')
     if (present(solar_albedo_2d)) call CHKERR(1_mpiint, 'solar_albedo_2d not yet implemented for repwvl_solar')
     if (present(opt_solar_constant)) call CHKERR(1_mpiint, 'opt_solar_constant not yet implemented for repwvl_solar')
 
-    allocate (kabs(solver%C_one%zm, solver%C_one%xm, solver%C_one%ym))
-    allocate (ksca(solver%C_one%zm, solver%C_one%xm, solver%C_one%ym))
-    allocate (kg(solver%C_one%zm, solver%C_one%xm, solver%C_one%ym))
+    ke = ubound(atm%tlay, 1)
+
+    allocate (kabs(ke, solver%C_one%xm, solver%C_one%ym))
+    allocate (ksca(ke, solver%C_one%xm, solver%C_one%ym))
+    allocate (kg(ke, solver%C_one%xm, solver%C_one%ym))
+
+    if (present(opt_buildings)) then
+      call clone_buildings(opt_buildings, spec_buildings, l_copy_data=.false., ierr=ierr); call CHKERR(ierr)
+      if (.not. allocated(spec_buildings%albedo)) allocate (spec_buildings%albedo(size(opt_buildings%albedo)))
+      if (.not. allocated(opt_buildings%edir)) allocate (opt_buildings%edir(size(opt_buildings%iface)))
+      if (.not. allocated(opt_buildings%incoming)) allocate (opt_buildings%incoming(size(opt_buildings%iface)))
+      if (.not. allocated(opt_buildings%outgoing)) allocate (opt_buildings%outgoing(size(opt_buildings%iface)))
+      spec_buildings%albedo = opt_buildings%albedo
+      opt_buildings%edir = zero
+      opt_buildings%incoming = zero
+      opt_buildings%outgoing = zero
+    end if
 
     call set_angles(solver, sundir)
 
@@ -485,15 +560,41 @@ contains
         & kabs,                    &
         & ksca,                    &
         & kg)
+
       call solve_pprts(          &
         & solver,                &
         & lthermal=.false.,      &
         & lsolar=.true.,         &
         & edirTOA=edirTOA,       &
         & opt_solution_uid=iwvl, &
-        & opt_solution_time=opt_time)
+        & opt_solution_time=opt_time,&
+        & opt_buildings=spec_buildings)
 
-      call pprts_get_result(solver, spec_edn, spec_eup, spec_abso, spec_edir, opt_solution_uid=iwvl)
+      if (present(opt_buildings)) then
+        call pprts_get_result(          &
+          & solver,                     &
+          & spec_edn,                   &
+          & spec_eup,                   &
+          & spec_abso,                  &
+          & spec_edir,                  &
+          & opt_solution_uid=iwvl,      &
+          & opt_buildings=spec_buildings)
+
+        opt_buildings%edir = opt_buildings%edir + spec_buildings%edir
+        opt_buildings%incoming = opt_buildings%incoming + spec_buildings%incoming
+        opt_buildings%outgoing = opt_buildings%outgoing + spec_buildings%outgoing
+
+      else
+
+        call pprts_get_result(          &
+          & solver,                     &
+          & spec_edn,                   &
+          & spec_eup,                   &
+          & spec_abso,                  &
+          & spec_edir,                  &
+          & opt_solution_uid=iwvl)
+
+      end if
 
       edir = edir + spec_edir
       edn = edn + spec_edn
@@ -501,6 +602,9 @@ contains
       abso = abso + spec_abso
     end do !iwvl
 
+    if (present(opt_buildings)) then
+      call destroy_buildings(spec_buildings, ierr)
+    end if
   end subroutine compute_solar
 
   subroutine repwvl_optprop(repwvl_data, atm, mie_table, lsolar, iwvl, kabs, ksca, kg, ierr)

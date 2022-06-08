@@ -50,10 +50,6 @@ module m_pprts_rrtmg
   use m_pprts, only: init_pprts, set_angles, set_optical_properties, solve_pprts, &
                      pprts_get_result, pprts_get_result_toZero
 
-  use m_buildings, only: &
-    & t_pprts_buildings, &
-    & PPRTS_BOT_FACE
-
   use m_xdmf_export, only: &
     & xdmf_pprts_buildings, &
     & xdmf_pprts_srfc_flux
@@ -92,7 +88,7 @@ module m_pprts_rrtmg
 
   use m_tenstr_disort, only: default_flx_computation
   use m_tenstr_rrtmg_base, only: t_rrtmg_log_events, setup_log_events
-  use m_buildings, only: t_pprts_buildings, clone_buildings, destroy_buildings
+  use m_buildings, only: t_pprts_buildings, clone_buildings, destroy_buildings, PPRTS_BOT_FACE
 
   use m_pprts_external_solvers, only: destroy_rayli_info
 
