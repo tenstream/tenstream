@@ -5448,8 +5448,15 @@ contains
     type(t_state_container), allocatable :: solutions(:)
     integer(iintegers), optional, intent(in) :: opt_solution_uid
     integer(iintegers) :: uid
+    logical :: lflg
+    integer(mpiint) :: ierr
 
     uid = get_arg(0_iintegers, opt_solution_uid)
+    call get_petsc_opt('', '-pprts_override_solution_uid', uid, lflg, ierr); call CHKERR(ierr)
+    if (lflg .and. ldebug) then
+      print *, 'Override solutions uid, returning '//toStr(uid)//' instead of '//toStr(get_arg(0_iintegers, opt_solution_uid))
+    end if
+
     if (.not. is_inrange(uid, lbound(solutions, 1, kind=iintegers), ubound(solutions, 1, kind=iintegers))) then
       call CHKWARN(int(uid, mpiint), "uid ("//toStr(uid)//") is not in range of "// &
         & "preallocated solutions container [ "//&
