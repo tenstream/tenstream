@@ -72,7 +72,7 @@ module m_pprts_base
     integer(iintegers) :: dof, dim                 ! degrees of freedom of Petsc Domain, dimension of dmda
     type(tDM) :: da                      ! The Domain Decomposition Object
     integer(mpiint) :: comm                    ! mpi communicatior for this DMDA
-    integer(mpiint), allocatable :: neighbors(:)        ! all 3d neighbours((x=-1,y=-1,z=-1), (x=0,y=-1,z=-1) ...), i.e. 14 is one self.
+    integer(mpiint), allocatable :: neighbors(:)        ! all 3d neighbours((x=-1,y=-1,z=-1), (x=0,y=-1,z=-1) ...), i.e. 14 is one self
   end type
 
   type t_atmosphere

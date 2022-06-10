@@ -29,7 +29,8 @@ module m_tenstr_disort_internal
      &                   RHOQ, RHOU, RHO_ACCURATE, BEMST, EMUST,&
      &                   ACCUR,  HEADER,&
      &                   RFLDIR, RFLDN, FLUP, DFDT, UAVG, UU,&
-     &                   ALBMED, TRNMED )
+     &                   ALBMED, TRNMED, &
+     &                   Blev, Bskin)
 
 ! *******************************************************************
 !       Plane-parallel discrete ordinates radiative transfer program
@@ -396,6 +397,7 @@ module m_tenstr_disort_internal
 !     Added this variable to account for the Planck fractions noted
 !     in RRTM
       real :: Bfracs(maxcly)
+      real, optional, intent(in) :: Blev(:), Bskin
 
 
 !     ..
@@ -529,7 +531,7 @@ module m_tenstr_disort_internal
 !      CORINT = .FALSE.
 
 !     ** For debugging purposes only
-!      PASS1 = .FALSE.
+      if (present(Blev)) PASS1 = .FALSE.
 
       IF( IBCND.EQ.1 .AND. ONLYFL ) THEN 
          CALL ERRMSG( 'ONLYFL must be .FALSE. for  '//&
@@ -539,7 +541,6 @@ module m_tenstr_disort_internal
      &                 .True.)
       ENDIF
       
-      IF( PASS1 ) THEN
 
         PI     = 2.*ASIN( 1.0 )
         DITHER = 10.*R1MACH( 4 )
@@ -552,6 +553,7 @@ module m_tenstr_disort_internal
         RPD  = PI / 180.0
 
 
+      IF( PASS1 ) THEN
 !       ** Set input values for self-test
 !       ** Ensure that SLFTST sets all print flags off
         COMPAR = .FALSE.
@@ -655,6 +657,12 @@ module m_tenstr_disort_internal
         CALL ZEROIT( PKAG,  MAXCLY + 1 )
       ELSE
 
+      if (present(Blev)) then
+        TPLANK = Bfracs(1) * TEMIS * Blev(1)
+        BPLANK = Bfracs(nlyr) * Blev(size(Blev))
+        PKAG(:) = Blev(:)
+        if (present(Bskin)) BPLANK = Bfracs(nlyr) * Bskin
+      else
 !    In order to pass the self-tests, let PASS1 go without including
 !    effect of Planck fraction
         if(pass1) then
@@ -668,6 +676,7 @@ module m_tenstr_disort_internal
         DO 40 LEV = 0, NLYR
           PKAG( LEV ) = PLKAVG( WVNMLO, WVNMHI, TEMPER( LEV ) )
    40   CONTINUE
+      endif
       ENDIF
 
 ! ========  BEGIN LOOP TO SUM AZIMUTHAL COMPONENTS OF INTENSITY  =======

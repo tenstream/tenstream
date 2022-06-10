@@ -873,9 +873,9 @@ contains
     function compute_thermal_disort() result(ldisort_only)
       logical :: ldisort_only
       integer(iintegers) :: nstreams
-      real :: mu0, S0, col_albedo, wvnms(2), col_tskin
+      real :: mu0, S0, col_albedo, wvnms(2), col_tskin, col_Bskin
       real, dimension(size(tau, 1)) :: col_Bfrac, col_dtau, col_w0, col_g
-      real, dimension(size(tau, 1) + 1) :: col_temper
+      real, dimension(size(tau, 1) + 1) :: col_temper, col_Blev
       real, dimension(size(edn, 1)) :: RFLDIR, RFLDN, FLUP, DFDT, UAVG
 
       ldisort_only = .false.
@@ -909,18 +909,25 @@ contains
               col_dtau = max(tiny(col_dtau), real(reverse(tau(:, i, j, ib))))
               wvnms = [real(wavenum1(ngb(ib))), real(wavenum2(ngb(ib)))]
 
+              do k = i1, ke1
+                col_Blev(ke1 - k + 1) = plkint(real(wavenum1(ngb(ib))), real(wavenum2(ngb(ib))), real(atm%tlev(k, icol)))
+              end do
+              col_Bskin = plkint(real(wavenum1(ngb(ib))), real(wavenum2(ngb(ib))), real(col_tskin))
+
               call default_flx_computation( &
-                mu0, &
-                S0, &
-                col_albedo, &
-                col_tskin, &
-                .true., wvnms, col_Bfrac, &
-                col_dtau, &
-                col_w0, &
-                col_g, &
-                col_temper, &
-                RFLDIR, RFLDN, FLUP, DFDT, UAVG, &
-                int(nstreams), lverbose=.false.)
+                & mu0, &
+                & S0, &
+                & col_albedo, &
+                & col_tskin, &
+                & .true., wvnms, col_Bfrac, &
+                & col_dtau, &
+                & col_w0, &
+                & col_g, &
+                & col_temper, &
+                & RFLDIR, RFLDN, FLUP, DFDT, UAVG, &
+                & int(nstreams), lverbose=.false., &
+                & Blev=col_Blev, &
+                & Bskin=col_Bskin)
 
               eup(:, i, j) = eup(:, i, j) + FLUP
               edn(:, i, j) = edn(:, i, j) + RFLDN
