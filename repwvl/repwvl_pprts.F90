@@ -341,6 +341,7 @@ contains
 
     real(ireals), allocatable, dimension(:, :, :) :: kabs, ksca, kg ! [nlyr, local_nx, local_ny]
     real(ireals), allocatable :: Blev(:, :, :)
+    real(ireals), allocatable, dimension(:, :) :: Bsrfc             ! [local_nx, local_ny]
 
     real(ireals), dimension(:, :, :), allocatable :: spec_edn, spec_eup, spec_abso
 
@@ -361,6 +362,7 @@ contains
     allocate (ksca(ke, solver%C_one%xm, solver%C_one%ym))
     allocate (kg(ke, solver%C_one%xm, solver%C_one%ym))
     allocate (Blev(ke1, solver%C_one1%xm, solver%C_one1%ym))
+    allocate (Bsrfc(solver%C_one1%xm, solver%C_one1%ym))
 
     if (present(opt_buildings)) then
 
@@ -400,6 +402,13 @@ contains
                                      & * planck(repwvl_data_thermal%wvls(iwvl) * 1e-9_ireals, atm%tlev(k, icol)) &
                                      & * 1e-9_ireals
           end do
+          if (allocated(atm%tskin)) then
+            Bsrfc(i, j) = repwvl_data_thermal%wgts(iwvl) &
+                         & * planck(repwvl_data_thermal%wvls(iwvl) * 1e-9_ireals, atm%tskin(icol)) &
+                         & * 1e-9_ireals
+          else
+            Bsrfc(i, j) = Blev(ke1, i, j)
+          end if
         end do
       end do
 
@@ -420,7 +429,8 @@ contains
         & kabs,                    &
         & ksca,                    &
         & kg,                      &
-        & planck=Blev)
+        & planck=Blev,             &
+        & planck_srfc=Bsrfc)
 
       call solve_pprts(               &
         & solver,                     &

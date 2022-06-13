@@ -111,6 +111,7 @@ module m_pprts
     & t_dof, &
     & t_mat_permute_info, &
     & t_solver_2str, &
+    & t_solver_disort, &
     & t_solver_1_2, &
     & t_solver_3_6, &
     & t_solver_3_10, &
@@ -217,6 +218,17 @@ contains
 
       select type (solver)
       class is (t_solver_2str)
+        allocate (solver%difftop%is_inward(2))
+        solver%difftop%is_inward = [.false., .true.]
+
+        allocate (solver%diffside%is_inward(0))
+
+        allocate (solver%dirtop%is_inward(1))
+        solver%dirtop%is_inward = [.true.]
+
+        allocate (solver%dirside%is_inward(0))
+
+      class is (t_solver_disort)
         allocate (solver%difftop%is_inward(2))
         solver%difftop%is_inward = [.false., .true.]
 
@@ -416,6 +428,8 @@ contains
       select type (solver)
       class is (t_solver_2str)
         continue
+      class is (t_solver_disort)
+        continue
       class default
         call init_memory(solver%C_dir, solver%C_diff, solver%incSolar, solver%b)
       end select
@@ -439,6 +453,8 @@ contains
     ! dont need LUT, we just compute Twostream anyway
     select type (solver)
     class is (t_solver_2str)
+      return
+    class is (t_solver_disort)
       return
     end select
     if (lmcrts) return
@@ -520,6 +536,8 @@ contains
 
       select type (solver)
       class is (t_solver_2str)
+        solver%atm%l1d = .true.
+      class is (t_solver_disort)
         solver%atm%l1d = .true.
       class default
         !TODO if we have a horiz. staggered grid, this may lead to the point where one 3d box has a outgoing sideward flux but the adjacent
@@ -1730,11 +1748,6 @@ contains
 
       call print_optical_properties_summary(solver, opt_lview=ldebug)
 
-      select type (solver)
-      class is (t_solver_2str)
-        return ! twostream should not depend on eddington coeffs... it will have to calculate it on its own.
-      end select
-
       if ((any([atm%kabs, atm%ksca, atm%g] .lt. zero)) .or. (any(isnan([atm%kabs, atm%ksca, atm%g])))) then
         call CHKERR(1_mpiint, 'set_optical_properties :: found illegal value in delta_scaled optical properties!'//new_line('')// &
         & 'min(atm%kabs) '//toStr(minval(atm%kabs))//' isnan? '//toStr(any(isnan(atm%kabs)))//new_line('')// &
@@ -1742,6 +1755,13 @@ contains
         & 'min(atm%g   ) '//toStr(minval(atm%g))//' isnan? '//toStr(any(isnan(atm%g)))//new_line('')// &
         & '')
       end if
+
+      select type (solver)
+      class is (t_solver_2str)
+        return ! twostream should not depend on eddington coeffs... it will have to calculate it on its own.
+      class is (t_solver_disort)
+        return
+      end select
 
       ! allocate space for twostream coefficients
       associate ( &
@@ -2172,7 +2192,7 @@ contains
     type(t_pprts_buildings), optional, intent(in) :: opt_buildings
 
     integer(iintegers) :: uid
-    logical :: lflg, derived_lsolar, luse_rayli, lrayli_snapshot, luse_disort
+    logical :: lflg, derived_lsolar, luse_rayli, lrayli_snapshot
     integer(mpiint) :: ierr
 
     if (.not. allocated(solver%atm)) call CHKERR(1_mpiint, 'atmosphere is not allocated?!')
@@ -2250,16 +2270,6 @@ contains
         if (luse_rayli) goto 99
       end if
 
-      ! --------- Calculate Radiative Transfer with Disort ------------
-      luse_disort = .false.
-      call get_petsc_opt(solver%prefix, "-pprts_use_disort", luse_disort, lflg, ierr); call CHKERR(ierr)
-      if (luse_disort) then
-        call PetscLogEventBegin(solver%logs%solve_disort, ierr)
-        call disort(solver, edirTOA, solution, opt_buildings)
-        call PetscLogEventEnd(solver%logs%solve_disort, ierr)
-        goto 99
-      end if
-
       select type (solver)
       class is (t_solver_2str)
         if (solution%lthermal_rad .and. lschwarzschild) then
@@ -2271,10 +2281,14 @@ contains
           call twostream(solver, edirTOA, solution, opt_buildings)
           call PetscLogEventEnd(solver%logs%solve_twostream, ierr)
         end if
-
-        if (ldebug .and. solver%myid .eq. 0) print *, '1D calculation done'
-
         goto 99
+
+      class is (t_solver_disort)
+        call PetscLogEventBegin(solver%logs%solve_disort, ierr)
+        call disort(solver, edirTOA, solution, opt_buildings)
+        call PetscLogEventEnd(solver%logs%solve_disort, ierr)
+        goto 99
+
       end select
 
       if (lmcrts) then

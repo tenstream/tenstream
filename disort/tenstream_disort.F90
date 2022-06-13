@@ -100,7 +100,6 @@ contains
     nstr = 16
     if(present(nstreams)) nstr = nstreams
 
-
     prnt = .False.
     if(present(lverbose)) then
       prnt(2) = lverbose
