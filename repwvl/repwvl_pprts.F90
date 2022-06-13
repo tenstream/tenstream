@@ -350,10 +350,7 @@ contains
     ierr = 0
     call mpi_comm_rank(comm, myid, ierr)
 
-    !if (present(opt_buildings)) call CHKERR(1_mpiint, 'opt_buildings not yet implemented for repwvl_thermal')
     if (present(opt_tau)) call CHKERR(1_mpiint, 'opt_tau not yet implemented for repwvl_thermal')
-    if (present(thermal_albedo_2d)) call CHKERR(1_mpiint, 'thermal_albedo_2d not yet implemented for repwvl_thermal')
-    if (allocated(atm%tskin)) call CHKERR(1_mpiint, 'atm%tskin not yet implemented for repwvl_thermal')
 
     ke1 = ubound(atm%plev, 1)
     ke = ubound(atm%tlay, 1)
@@ -430,7 +427,8 @@ contains
         & ksca,                    &
         & kg,                      &
         & planck=Blev,             &
-        & planck_srfc=Bsrfc)
+        & planck_srfc=Bsrfc,       &
+        & albedo_2d=thermal_albedo_2d)
 
       call solve_pprts(               &
         & solver,                     &
@@ -522,11 +520,9 @@ contains
     ierr = 0
     call mpi_comm_rank(comm, myid, ierr)
 
-    !if (present(opt_buildings)) call CHKERR(1_mpiint, 'opt_buildings not yet implemented for repwvl_solar')
     if (present(opt_tau)) call CHKERR(1_mpiint, 'opt_tau not yet implemented for repwvl_solar')
     if (present(opt_w0)) call CHKERR(1_mpiint, 'opt_w0 not yet implemented for repwvl_solar')
     if (present(opt_g)) call CHKERR(1_mpiint, 'opt_g not yet implemented for repwvl_solar')
-    if (present(solar_albedo_2d)) call CHKERR(1_mpiint, 'solar_albedo_2d not yet implemented for repwvl_solar')
     if (present(opt_solar_constant)) call CHKERR(1_mpiint, 'opt_solar_constant not yet implemented for repwvl_solar')
 
     ke = ubound(atm%tlay, 1)
@@ -569,7 +565,8 @@ contains
         & albedo,                  &
         & kabs,                    &
         & ksca,                    &
-        & kg)
+        & kg,                      &
+        & albedo_2d=solar_albedo_2d)
 
       call solve_pprts(          &
         & solver,                &
