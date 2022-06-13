@@ -30,7 +30,8 @@ module m_repwvl_base
     & K_BOLTZMANN, &
     & MOLMASSAIR, &
     & mpiint, &
-    & R_DRY_AIR
+    & R_DRY_AIR, &
+    & share_dir
 
   use m_helper_functions, only: &
     & CHKERR, &
@@ -124,6 +125,8 @@ contains
     logical, intent(in), optional :: lverbose
 
     character(len=default_str_len) :: basepath, fname_thermal, fname_solar
+    character(len=*), parameter :: fname_thermal_default = share_dir//"repwvl_thermal.lut"
+    character(len=*), parameter :: fname_solar_default = share_dir//"repwvl_solar.lut"
     logical :: lset, lexists
     integer(mpiint) :: myid
 
@@ -132,8 +135,8 @@ contains
     call mpi_comm_rank(comm, myid, ierr)
 
     if (myid .eq. 0) then
-      fname_thermal = get_arg('repwvl_thermal.lut', fname_repwvl_thermal)
-      fname_solar = get_arg('repwvl_solar.lut', fname_repwvl_solar)
+      fname_thermal = get_arg(fname_thermal_default, fname_repwvl_thermal)
+      fname_solar = get_arg(fname_solar_default, fname_repwvl_solar)
 
       basepath = ''
       call get_petsc_opt('', '-repwvl_data', basepath, lset, ierr); call CHKERR(ierr)
