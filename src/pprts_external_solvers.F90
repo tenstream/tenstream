@@ -1494,20 +1494,20 @@ contains
             end if
           end if
 
-          call default_flx_computation(     &
-            & mu0,                          &
-            & real(max(0._ireals, edirTOA)),&
-            & Ag,                           &
-            & 300.,                         & ! tskin (ignored because we provide planck values directly)
-            & .not. solution%lsolar_rad,    & ! lthermal
-            & [0., 1.],                     & ! wavenumbers (ignored because we provide planck values directly)
-            Bfrac,                          &
-            dtau,                           &
-            w0,                             &
-            g,                              &
-            tlev,                           & ! (ignored because we provide planck values directly)
-            FLDIR, FLDN, FLUP, DFDT, UAVG,  &
-            int(nstreams), lverbose=.false.,&
+          call default_flx_computation(       &
+            & mu0,                            &
+            & real(max(0._ireals, edirTOA)),  &
+            & Ag,                             &
+            & 300.,                           & ! tskin (ignored because we provide planck values directly)
+            & .not. solution%lsolar_rad,      & ! lthermal
+            & [0., 1.],                       & ! wavenumbers (ignored because we provide planck values directly)
+            & Bfrac,                          &
+            & dtau,                           &
+            & w0,                             &
+            & g,                              &
+            & tlev,                           & ! (ignored because we provide planck values directly)
+            & FLDIR, FLDN, FLUP, DFDT, UAVG,  &
+            & int(nstreams), lverbose=.false.,&
             & Blev=Blev, Bskin=Bskin)
 
           if (solution%lsolar_rad) then

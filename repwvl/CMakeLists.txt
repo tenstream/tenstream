@@ -30,5 +30,7 @@ TARGET_LINK_LIBRARIES( repwvl_pprts
 add_executable(compute_repwvl_training_data "compute_repwvl_training_data.F90" )
 target_link_libraries( compute_repwvl_training_data repwvl_pprts ${EXTLIB})
 
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/data/fu.ice.general.nc" ${TENSTREAM_SHARE_DIR}/fu.ice.general.nc COPYONLY)
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/data/mie.wc.table.nc"   ${TENSTREAM_SHARE_DIR}/mie.wc.table.nc   COPYONLY)
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/data/fu.ice.general.nc" ${TENSTREAM_SHARE_DIR}/fu.ice.general.nc   COPYONLY)
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/data/mie.wc.table.nc"   ${TENSTREAM_SHARE_DIR}/mie.wc.table.nc     COPYONLY)
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/data/repwvl_thermal.lut" ${TENSTREAM_SHARE_DIR}/repwvl_thermal.lut COPYONLY)
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/data/repwvl_solar.lut"   ${TENSTREAM_SHARE_DIR}/repwvl_solar.lut   COPYONLY)
