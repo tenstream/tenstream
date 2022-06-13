@@ -195,7 +195,8 @@ contains
       & dx, dy, &
       & phi0, theta0, albedo_th, albedo_sol, &
       & lthermal, lsolar, atm_filename, &
-      & fdir, fdn, fup, fdiv)
+      & fdir, fdn, fup, fdiv, &
+      & vlwc=1e-2_ireals)
 
     N = ubound(fdn, 1)
 
@@ -254,7 +255,8 @@ contains
       & dx, dy, &
       & phi0, theta0, albedo_th, albedo_sol, &
       & lthermal, lsolar, atm_filename, &
-      & fdir, fdn, fup, fdiv)
+      & fdir, fdn, fup, fdiv, &
+      & vlwc=1e-2_ireals)
 
     N = ubound(fdn, 1)
 

@@ -200,7 +200,7 @@
                elseif (iceflag .eq. 1) then
                   if (radice .lt. 13.0_rb .or. radice .gt. 130._rb) &
                     call CHKERR(1_mpiint, 'ICE EFFECTIVE RADIUS OUT OF BOUNDS '// &
-                                          '13 < '//toStr(radliq)//' < 130')
+                                          '13 < '//toStr(radice)//' < 130')
                   ncbands = 5
                   do ib = 1, ncbands
                      abscoice(ib) = absice1(1,ib) + absice1(2,ib)/radice
@@ -212,7 +212,7 @@
                elseif (iceflag .eq. 2) then
                   if (radice .lt. 5.0_rb .or. radice .gt. 131.0_rb) &
                        call CHKERR(1_mpiint, 'ICE EFFECTIVE RADIUS OUT OF BOUNDS '// &
-                                             '5 < '//toStr(radliq)//' < 131')
+                                             '5 < '//toStr(radice)//' < 131')
                      ncbands = 16
                      factor = (radice - 2._rb)/3._rb
                      index = int(factor)
@@ -230,7 +230,7 @@
                elseif (iceflag .eq. 3) then
                   if (radice .lt. 5.0_rb .or. radice .gt. 140.0_rb) &
                        call CHKERR(1_mpiint, 'ICE GENERALIZED EFFECTIVE SIZE OUT OF BOUNDS '// &
-                                             '5 < '//toStr(radliq)//' < 140')
+                                             '5 < '//toStr(radice)//' < 140')
                      ncbands = 16
                      factor = (radice - 2._rb)/3._rb
                      index = int(factor)

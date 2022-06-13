@@ -1,6 +1,7 @@
 stages:
   - pre
-  - build
+  - build_docker
+  - build_mim
 
 check_fprettify:pre:
   stage: pre
@@ -16,20 +17,20 @@ check_fprettify:pre:
 
 
 .template_build_PETSC: &template_build_PETSC
-    - export PETSC_DIR=$CI_PROJECT_DIR/$PETSC_DIR
+    - export PETSC_DIR=$(readlink -f $PETSC_DIR)
     - echo -e "\e[0Ksection_start:`date +%s`:petsc_section[collapsed=true]\r\e[0KInstalling build dependencies to ${PETSC_DIR}/${PETSC_ARCH}"
     - misc/build_dependencies.sh "${PETSC_DIR}" "${PETSC_ARCH}" "${PETSC_PRECISION}" "${PETSC_DEBUGGING}" "${PETSC_64_INTEGERS}" "${PETSC_OPTS}"
-    - cd $CI_PROJECT_DIR
     - echo -e "\e[0Ksection_end:`date +%s`:petsc_section\r\e[0K"
 
 variables:
+  DEBIAN_FRONTEND: noninteractive
   TEST_FILTER_WITHOUT_LUTS: 'boxmc|LUT|test_pprts_symmetry|test_rrtm_lw_Bsrfc|test_rrtm_lw_sw|test_plexrt_fish|test_plexrt_rrtmg_lw_sw|test_pprts_absorption_by_coeff_divergence|test_plexrt_rayli'
 
 # Build Stage
 .build:default:
-  stage: build
   script:
-    - if [ ! -z "$MODULES" ]; then module load $MODULES || exit 1; module list; fi
+    - export PETSC_DIR=$(readlink -f $PETSC_DIR)
+    - if [ ! -z "$MODULES" ]; then module load spack || echo 'no spack'; module load $MODULES || exit 1; module list; fi
     - mkdir -p build && cd build
     - cmake -DCMAKE_BUILD_TYPE="$BUILD_TYPE" -DCTEST_MPIRUN_FLAGS="$MPIRUN_FLAGS" -DMPIEXEC="$MPIEXEC" ${CMAKE_OPTS} .. || exit 1
     - make all -j || make all || exit 2
@@ -38,6 +39,8 @@ variables:
     - $CMD &> >(tee $CI_PROJECT_DIR/test.log) || exit 3
   retry: 2
   variables:
+    PETSC_DIR: petsc
+    PETSC_ARCH: default
     CTEST_ARGS: "-E 'boxmc|LUT'"
     BUILD_TYPE: RELEASE
     MPIEXEC: "mpirun"
@@ -48,34 +51,39 @@ variables:
     CXX: mpicxx
   artifacts:
     paths:
-      - petsc/configure.log
+      - ${PETSC_DIR}/configure.log
+      - ${PETSC_DIR}/include
+      - ${PETSC_DIR}/default/include
+      - ${PETSC_DIR}/default/lib
       - test.log
 
 ubuntu-latest:
+  stage: build_docker
   extends: .build:default
+  needs: ["check_fprettify:pre"]
   image: ubuntu:latest
   before_script:
-    - DEBIAN_FRONTEND=noninteractive apt-get -qq update
-    - DEBIAN_FRONTEND=noninteractive apt-get -qq install -fy build-essential cmake gfortran git python3 openmpi-bin libopenmpi-dev libopenblas-dev curl pkg-config
+    - apt-get -qq update
+    - apt-get -qq install -fy build-essential cmake gfortran git python3 openmpi-bin libopenmpi-dev libopenblas-dev curl pkg-config
     - *template_build_PETSC
   tags:
     - docker.meteo.physik.lmu.de
   variables:
     CTEST_ARGS: "-E ${TEST_FILTER_WITHOUT_LUTS}"
     MPIRUN_FLAGS: "--allow-run-as-root;--oversubscribe"
-    PETSC_DIR: petsc
-    PETSC_ARCH: default
     PETSC_PRECISION: double
     PETSC_64_INTEGERS: 0
     PETSC_DEBUGGING: 1
     BUILD_TYPE: RELEASE
 
 ubuntu-rolling:
+  stage: build_docker
   extends: .build:default
+  needs: ["check_fprettify:pre"]
   image: ubuntu:rolling
   before_script:
-    - DEBIAN_FRONTEND=noninteractive apt-get -qq update
-    - DEBIAN_FRONTEND=noninteractive apt-get -qq install -fy build-essential cmake gfortran git python3 openmpi-bin libopenmpi-dev libopenblas-dev curl pkg-config libeigen3-dev
+    - apt-get -qq update
+    - apt-get -qq install -fy build-essential cmake gfortran git python3 openmpi-bin libopenmpi-dev libopenblas-dev curl pkg-config libeigen3-dev
     - *template_build_PETSC
   after_script:
     -  bash <(curl -s https://codecov.io/bash) || echo 'Codecov failed to upload'
@@ -84,8 +92,6 @@ ubuntu-rolling:
   variables:
     CTEST_ARGS: "-E ${TEST_FILTER_WITHOUT_LUTS}"
     MPIRUN_FLAGS: "--allow-run-as-root;--oversubscribe"
-    PETSC_DIR: petsc
-    PETSC_ARCH: default
     PETSC_PRECISION: single
     PETSC_64_INTEGERS: 1
     PETSC_DEBUGGING: 1
@@ -95,11 +101,12 @@ ubuntu-rolling:
 
 # disabled because gcc image cannot apt install openmpi
 #gcc_latest:gcov:
+#  stage: build_docker
 #  extends: .build:default
 #  image: gcc:latest
 #  before_script:
-#    - DEBIAN_FRONTEND=noninteractive apt-get -qq update
-#    - DEBIAN_FRONTEND=noninteractive apt-get -qq install -fy build-essential cmake git python3 openmpi-bin libopenmpi-dev libopenblas-dev curl pkg-config
+#    - apt-get -qq update
+#    - apt-get -qq install -fy build-essential cmake git python3 openmpi-bin libopenmpi-dev libopenblas-dev curl pkg-config
 #    - *template_build_PETSC
 #  after_script:
 #    -  bash <(curl -s https://codecov.io/bash) || echo 'Codecov failed to upload'
@@ -108,8 +115,6 @@ ubuntu-rolling:
 #  variables:
 #    CTEST_ARGS: "-E ${TEST_FILTER_WITHOUT_LUTS}"
 #    MPIRUN_FLAGS: "--allow-run-as-root;--oversubscribe"
-#    PETSC_DIR: petsc
-#    PETSC_ARCH: default
 #    PETSC_PRECISION: single
 #    PETSC_64_INTEGERS: 0
 #    PETSC_DEBUGGING: 0
@@ -118,7 +123,9 @@ ubuntu-rolling:
 #    CODECOV_TOKEN: "7d5206f3-f1e3-4704-8bc3-1ee443e4ee49"
 
 debian-testing:
+  stage: build_docker
   extends: .build:default
+  needs: ["check_fprettify:pre"]
   image: debian:testing
   before_script:
     - DEBIAN_FRONTEND=noninteractive apt-get -qq update
@@ -129,8 +136,6 @@ debian-testing:
   variables:
     CTEST_ARGS: "-E ${TEST_FILTER_WITHOUT_LUTS}"
     MPIRUN_FLAGS: "--allow-run-as-root;--oversubscribe"
-    PETSC_DIR: petsc
-    PETSC_ARCH: default
     PETSC_PRECISION: double
     PETSC_64_INTEGERS: 1
     PETSC_DEBUGGING: 1
@@ -139,18 +144,18 @@ debian-testing:
 
 
 intel:
+  stage: build_docker
   extends: .build:default
-  #image: intel/oneapi-hpckit
+  needs: ["check_fprettify:pre"]
   image: intel/oneapi-hpckit:2021.4-devel-ubuntu18.04
+  #image: intel/oneapi-hpckit:2022.1.2-devel-ubuntu18.04 # brakes petsc
   before_script:
-    - DEBIAN_FRONTEND=noninteractive apt-get -qq update && DEBIAN_FRONTEND=noninteractive apt-get -qq install -fy cmake git m4 curl libcurl3-dev
+    - apt-get -qq update && apt-get -qq install -fy cmake git m4 curl libcurl3-dev
     - *template_build_PETSC
   tags:
     - docker.meteo.physik.lmu.de
   variables:
     CTEST_ARGS: "-E ${TEST_FILTER_WITHOUT_LUTS}"
-    PETSC_DIR: petsc
-    PETSC_ARCH: default
     PETSC_PRECISION: single
     PETSC_64_INTEGERS: 0
     PETSC_DEBUGGING: 1
@@ -161,18 +166,19 @@ intel:
 
 
 intel:debug:
+  stage: build_docker
   extends: .build:default
-  #image: intel/oneapi-hpckit
-  image: intel/oneapi-hpckit:2021.4-devel-ubuntu18.04
+  needs: ["check_fprettify:pre"]
+  image:  intel/oneapi-hpckit:2021.4-devel-ubuntu18.04
+  #image:  intel/oneapi-hpckit:2022.1.2-devel-ubuntu18.04 # brakes petsc
+  #image:  intel/oneapi-hpckit:2022.2-devel-ubuntu20.04 # brakes petsc
   before_script:
-    - DEBIAN_FRONTEND=noninteractive apt-get -qq update && DEBIAN_FRONTEND=noninteractive apt-get -qq install -fy cmake git m4 curl libcurl3-dev
+    - apt-get -qq update && apt-get -qq install -fy cmake git m4 curl libcurl3-dev
     - *template_build_PETSC
   tags:
     - docker.meteo.physik.lmu.de
   variables:
     CTEST_ARGS: "-E ${TEST_FILTER_WITHOUT_LUTS}"
-    PETSC_DIR: petsc
-    PETSC_ARCH: default
     PETSC_PRECISION: double
     PETSC_64_INTEGERS: 1
     PETSC_DEBUGGING: 1
@@ -183,54 +189,76 @@ intel:debug:
 
 
 # MIM runs
-.build:mim:default:
+.mim:default:
+  stage: build_docker
+  needs: ["check_fprettify:pre"]
   extends: .build:default
   before_script:
     - mkdir -p $CI_PROJECT_DIR/LUT; cp -rsn /project/meteo/homepages/Fabian.Jakub/TenstreamLUT/* $CI_PROJECT_DIR/LUT/
+    - if [ ! -z "$MODULES" ]; then module load spack || echo 'no spack'; module load $MODULES || exit 1; module list; fi
+    - *template_build_PETSC
   tags:
     - slurm.meteo.physik.lmu.de
   variables:
     LUT_BASENAME: "$CI_PROJECT_DIR/LUT/LUT"
-    SRUN_OPTIONS: "--time 02:00:00 --mem 6G -n 9"
+    SRUN_OPTIONS: "-p cluster,met-ws,met-cl --time 02:00:00 --mem 18G -n 9 -C x86-64-v2"
     MPIEXEC: "srun"
     MPIRUN_FLAGS: '--mpi=pmix'
     CTEST_ARGS: '-E boxmc|LUT'
+    PETSC_DIR: petsc
+    PETSC_ARCH: default
+    PETSC_PRECISION: single
+    PETSC_64_INTEGERS: 0
+    PETSC_DEBUGGING: 1
+    BUILD_TYPE: RELEASE
+    CC: mpicc
+    FC: mpif90
+    CXX: mpicxx
+  artifacts:
+    paths:
+      - ${PETSC_DIR}/configure.log
+      - ${PETSC_DIR}/include
+      - ${PETSC_DIR}/default/include
+      - ${PETSC_DIR}/default/lib
+    expire_in: 1 day
 
 # GCC
-mim:gcc:single_int64:
-  extends: .build:mim:default
-  variables:
-    MODULES: "cmake petsc/single_int64-gcc-9"
-    BUILD_TYPE: DEBUG
+mim:gcc:default:
+  extends: .mim:default
 
-mim:gcc:single:
-  extends: .build:mim:default
-  variables:
-    MODULES: "cmake petsc/single-gcc-9"
-
-mim:gcc:debug:
-  extends: .build:mim:default
-  variables:
-    MODULES: "cmake petsc/debug-gcc-9"
-    BUILD_TYPE: DEBUG
+#mim:icc:debug:
+#  extends: .mim:default
+#  variables:
+#    MODULES: "intel-oneapi-compilers/2021.4.0 intel-oneapi-mpi/2021.4.0-oneapi-2021.4.0"
+#    BUILD_TYPE: DEBUG
+#    CC: mpiicc
+#    FC: mpiifort
+#    CXX: mpiicpc
 
 implicit:mim:gcc:debug:
-  extends: .build:mim:default
+  extends: mim:gcc:default
   variables:
-    MODULES: "cmake petsc/single-gcc-9"
-    BUILD_TYPE: DEBUG
     PETSC_OPTIONS: "-solar_dir_explicit no -solar_diff_explicit no -thermal_diff_explicit no"
 
-explicit:mim:gcc:debug:
-  extends: .build:mim:default
-  variables:
-    MODULES: "cmake petsc/single-gcc-9"
-    BUILD_TYPE: DEBUG
-    PETSC_OPTIONS: "-solar_dir_explicit -solar_diff_explicit -thermal_diff_explicit -thermal_diff_pc_sor_omega .5 -solar_diff_pc_sor_omega .5"
-
 matshell:mim:gcc:debug:
-  extends: .build:mim:default
+  extends: mim:gcc:default
   variables:
-    MODULES: "cmake petsc/debug-gcc-9"
-    BUILD_TYPE: DEBUG
     PETSC_OPTIONS: "-solar_diff_shell -thermal_diff_shell"
+
+mim:gcc:debug:
+  extends: .mim:default
+  before_script:
+    - mkdir -p $CI_PROJECT_DIR/LUT; cp -rsn /project/meteo/homepages/Fabian.Jakub/TenstreamLUT/* $CI_PROJECT_DIR/LUT/
+    - if [ ! -z "$MODULES" ]; then module load spack || echo 'no spack'; module load $MODULES || exit 1; module list; fi
+    - export FC=mpif90; export CC=mpicc; export CXX=mpicxx
+    - *template_build_PETSC
+  variables:
+    MODULES: "gcc/11.2.0 openmpi/4.1.1-gcc-11.2.0"
+    BUILD_TYPE: DEBUG
+    PETSC_PRECISION: double
+    PETSC_64_INTEGERS: 1
+
+explicit:mim:gcc:debug:
+  extends: mim:gcc:debug
+  variables:
+    PETSC_OPTIONS: "-solar_dir_explicit -solar_diff_explicit -thermal_diff_explicit -thermal_diff_pc_sor_omega .5 -solar_diff_pc_sor_omega .5"

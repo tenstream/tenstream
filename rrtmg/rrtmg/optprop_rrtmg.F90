@@ -111,7 +111,7 @@ contains
     if (present(opt_cldfr)) then
       cldfr = real(opt_cldfr, rb)
     else
-      where (lwp .gt. 0)
+      where (lwp + iwp .gt. 0)
         cldfr = 1
       elsewhere
         cldfr = 0
@@ -248,7 +248,7 @@ contains
     if (present(opt_cldfr)) then
       cldfr = real(opt_cldfr, rb)
     else
-      where (lwp .gt. 0)
+      where (lwp + iwp .gt. 0)
         cldfr = 1
       elsewhere
         cldfr = 0

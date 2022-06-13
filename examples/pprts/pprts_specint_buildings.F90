@@ -1,4 +1,4 @@
-module m_examples_pprts_rrtm_buildings
+module m_examples_pprts_specint_buildings
 
 #include "petsc/finclude/petsc.h"
   use petsc
@@ -24,7 +24,7 @@ module m_examples_pprts_rrtm_buildings
   use m_pprts, only: gather_all_to_all
 
   ! main entry point for solver, and desctructor
-  use m_pprts_rrtmg, only: pprts_rrtmg, destroy_pprts_rrtmg
+  use m_specint_pprts, only: specint_pprts, specint_pprts_destroy
 
   ! tenstr_atm holds info about tracer and merges dynamics grid vars with background grids
   use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, destroy_tenstr_atm
@@ -40,7 +40,8 @@ module m_examples_pprts_rrtm_buildings
   implicit none
 
 contains
-  subroutine ex_pprts_rrtm_buildings(  &
+  subroutine ex_pprts_specint_buildings(       &
+      & specint,                            &
       & comm, lverbose,                     &
       & lthermal, lsolar,                   &
       & Nx, Ny, Nlay,                       &
@@ -53,6 +54,7 @@ contains
       & buildings_solar, buildings_thermal, &
       & local_dims, icollapse)
 
+    character(len=*), intent(in) :: specint           ! name of module to use for spectral integration
     integer(mpiint), intent(in) :: comm
     logical, intent(in) :: lverbose, lthermal, lsolar
     integer(iintegers), intent(in) :: Nx, Ny, Nlay   ! global domain size
@@ -117,7 +119,8 @@ contains
       & atm)
 
     ! only init grid structures
-    call pprts_rrtmg(comm,     &
+    call specint_pprts(specint,&
+      & comm,                  &
       & solver, atm,           &
       & nxp, nyp, dx, dy,      &
       & sundir,                &
@@ -140,7 +143,8 @@ contains
       call build_pyramid()
 
       ! call solver
-      call pprts_rrtmg(comm,     &
+      call specint_pprts(specint,&
+        & comm,                  &
         & solver, atm,           &
         & nxp, nyp, dx, dy,      &
         & sundir,                &
@@ -186,7 +190,8 @@ contains
       end if
 
     else ! without buildings
-      call pprts_rrtmg(comm,     &
+      call specint_pprts(specint,&
+        & comm,                  &
         & solver, atm,           &
         & nxp, nyp, dx, dy,      &
         & sundir,                &
@@ -205,7 +210,7 @@ contains
     call gather_all_to_all(solver%C_one, abso, gabso)
 
     ! Tidy up
-    call destroy_pprts_rrtmg(solver, lfinalizepetsc=.true.)
+    call specint_pprts_destroy(specint, solver, lfinalizepetsc=.true., ierr=ierr); call CHKERR(ierr)
     call destroy_tenstr_atm(atm)
 
   contains

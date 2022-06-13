@@ -4,12 +4,17 @@ set -euo pipefail
 SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 PROJECT_ROOT="$(readlink -f $SCRIPTDIR/../)"
 
-export PETSC_DIR=${1:-$PROJECT_ROOT/external/petsc}
-export PETSC_ARCH=${2:-default}
+export PETSC_DIR=${PETSC_DIR:-${1:-$PROJECT_ROOT/external/petsc}}
+export PETSC_ARCH=${PETSC_ARCH:-${2:-default}}
 PETSC_PRECISION=${3:-single}
 PETSC_DEBUGGING=${4:-0}
 PETSC_64_INTEGERS=${5:-0}
 PETSC_OPTS=${@:6}
+
+if [[ "x$PETSC_ARCH" == x"debug"* ]]; then
+  PETSC_DEBUGGING=1
+  PETSC_PRECISION=double
+fi
 
 if [[ -z ${PETSC_OPTS} ]]; then
   PETSC_OPTS="--download-hdf5 --download-szlib --download-zlib"
@@ -89,7 +94,7 @@ function download_file() {
     echo "Either download it yourself or make sure we have curl available"
     exit 1
   fi
-  curl --progress-bar $URL --output $DST
+  curl -L --progress-bar $URL --output $DST
   }
 
 function install_netcdf() {
@@ -99,24 +104,31 @@ function install_netcdf() {
   mkdir -p $SRCDIR
   cd $SRCDIR
 
-  if [ -e "$(basename $FILE .tar.gz)" ]; then
-    echo "Skipping netcdf install for $FILE because src directory already present"
-    return
-  fi
+  DOWNLOAD_FILE="download_netcdf.$(basename $FILE)"
 
-  URL="ftp://ftp.unidata.ucar.edu/pub/netcdf/$FILE"
-  download_file "$URL" "$SRCDIR/$FILE"
-  tar -xzf $FILE
-  cd $(basename $FILE .tar.gz)
+  URL="https://github.com/Unidata/$FILE"
+  download_file "$URL" "$SRCDIR/${DOWNLOAD_FILE}"
+
+  set +e
+  ARCHIVE_DIR="$(tar -tf ${DOWNLOAD_FILE}| head -n 1)"
+  set -e
+  if [ ! -e $ARCHIVE_DIR ]; then
+    echo "Unpacking $DOWNLOAD_FILE to $ARCHIVE_DIR"
+    tar -xzf $DOWNLOAD_FILE
+  else
+    echo "Skipping untar because dir $ARCHIVE_DIR already exists"
+  fi
+  cd $ARCHIVE_DIR
   export LD_LIBRARY_PATH=${PREFIX}/lib:${LD_LIBRARY_PATH:-}
   export PATH=${PREFIX}/bin:${PATH:-}
-  CC=$CC FC=$FC F90=$FC CXX=$CXX CPPFLAGS=-I$PREFIX/include LDFLAGS=-L$PREFIX/lib ./configure --prefix=$PREFIX --disable-dap && make -j install
+  CC=$CC FC=$FC F90=$FC CXX=$CXX CPPFLAGS=-I$PREFIX/include LDFLAGS=-L$PREFIX/lib ./configure --prefix=$PREFIX --disable-dap
+  make -j install
   echo "Installed NetCDF lib $FILE into $PREFIX -- CC $CC FC $FC CXX $CXX"
 }
 
-install_netcdf "netcdf-c-4.7.4.tar.gz"       "$PETSC_DIR/$PETSC_ARCH/"
-install_netcdf "netcdf-fortran-4.5.3.tar.gz" "$PETSC_DIR/$PETSC_ARCH/"
-install_netcdf "netcdf-cxx4-4.3.1.tar.gz"    "$PETSC_DIR/$PETSC_ARCH/"
+install_netcdf "netcdf-c/archive/refs/tags/v4.8.1.tar.gz"       "$PETSC_DIR/$PETSC_ARCH/"
+install_netcdf "netcdf-fortran/archive/refs/tags/v4.5.4.tar.gz" "$PETSC_DIR/$PETSC_ARCH/"
+install_netcdf "netcdf-cxx4/archive/refs/tags/v4.3.1.tar.gz"    "$PETSC_DIR/$PETSC_ARCH/"
 
 printf "\n** Make sure to export PETSC_DIR and PETSC_ARCH before cmake'ing TenStream, i.e. set \n\
   \n\

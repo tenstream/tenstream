@@ -54,8 +54,8 @@ set(PythonCompat_FIND_VERSION 3)
 find_package(PythonCompat REQUIRED)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 10)
-  set(CMAKE_Fortran_FLAGS  "${CMAKE_Fortran_FLAGS} --std=legacy")
+if(CMAKE_Fortran_COMPILER_VERSION VERSION_GREATER 10)
+  set(CMAKE_Fortran_FLAGS  "${CMAKE_Fortran_FLAGS} -fallow-argument-mismatch -std=legacy")
 endif()
 
 # Add IPO support if compiler allows it -- default is off because it A) doesnt work or B) compiles super slow
@@ -140,7 +140,7 @@ else()
 endif()
 
 ## Set MPI Stuff
-option(AUTODETECT_MPI "Let CMAKE try to find MPI variables" ON)
+option(AUTODETECT_MPI "Let CMAKE try to find MPI variables" OFF)
 if(AUTODETECT_MPI)
   find_package( MPI REQUIRED )
 
@@ -198,26 +198,32 @@ if(NOT PETSC_INSTALL)
     if(NOT EXISTS "${PETSC_INSTALL}" )
       message(FATAL "Directory ${PETSC_INSTALL} does not exist!")
     endif()
-    set(CMAKE_PREFIX_PATH ${PETSC_INSTALL} ${CMAKE_PREFIX_PATH})
   endif(NOT DEFINED ENV{PETSC_DIR})
 endif()
+if(PETSC_INSTALL)
+  set(CMAKE_PREFIX_PATH ${PETSC_INSTALL} ${CMAKE_PREFIX_PATH})
+  message(STATUS "Added ${PETSC_INSTALL} to CMAKE_PREFIX_PATH: ${CMAKE_PREFIX_PATH}")
+endif(PETSC_INSTALL)
+
 include(FindPkgConfig)
 pkg_search_module(PETSC REQUIRED PETSc)
-message(STATUS "PETSc Includes: ${PETSC_INCLUDEDIR}, ${PETSC_INCLUDE_DIRS}")
-message(STATUS "PETSc Library : ${PETSC_LIBRARIES}")
-message(STATUS "PETSc LDFLAGS : ${PETSC_LDFLAGS}")
-message(STATUS "PETSc STATIC Libraries : ${PETSC_STATIC_LIBRARIES}")
-message(STATUS "PETSc STATIC LDFLAGS   : ${PETSC_STATIC_LDFLAGS}")
-include_directories(${PETSC_INCLUDEDIR})
-include_directories(${PETSC_INCLUDE_DIRS})
-list (APPEND EXTLIB ${PETSC_LIBNAME} ${PETSC_LDFLAGS})
-list (APPEND CMAKE_INSTALL_RPATH ${PETSC_LIBRARY_DIRS})
-find_library(PETSC_LIBNAME NAMES petsc petsc_real)
-get_filename_component(PETSC_LIBEXT ${PETSC_LIBNAME} EXT)
-message(STATUS "PETSc Library Name: ${PETSC_LIBNAME} :: ${PETSC_LIBEXT}")
-if("${PETSC_LIBEXT}" STREQUAL ".a")
-  list (APPEND EXTLIB ${PETSC_STATIC_LDFLAGS} ${PETSC_STATIC_LIBRARIES})
-  list (APPEND CMAKE_INSTALL_RPATH ${PETSC_STATIC_LIBRARY_DIRS})
+if(EXISTS ${PETSC_LIBDIR})
+  set (PETSC_LDFLAGS "-L${PETSC_LIBDIR} ${PETSC_LDFLAGS}")
+endif()
+message(STATUS "PETSC_INCLUDEDIR     : ${PETSC_INCLUDEDIR}    ")
+message(STATUS "PETSC_INCLUDE_DIRS   : ${PETSC_INCLUDE_DIRS}  ")
+message(STATUS "PETSC_LIBDIR         : ${PETSC_LIBDIR}        ")
+message(STATUS "PETSC_LINK_LIBRARIES : ${PETSC_LINK_LIBRARIES}")
+message(STATUS "PETSC_LDFLAGS        : ${PETSC_LDFLAGS}       ")
+list (APPEND EXTLIB ${PETSC_LINK_LIBRARIES} ${PETSC_LDFLAGS})
+list (APPEND CMAKE_INSTALL_RPATH ${PETSC_LIBDIR})
+include_directories(${PETSC_INCLUDEDIR} ${PETSC_INCLUDE_DIRS})
+
+if(PETSC_STATIC_LIBS)
+  message(STATUS "PETSC_STATIC_LIBS         : ${PETSC_STATIC_LIBS}")
+  message(STATUS "PETSC_STATIC_LIBRARIES    : ${PETSC_STATIC_LIBRARIES}")
+  message(STATUS "PETSC_STATIC_LDFLAGS      : ${PETSC_STATIC_LDFLAGS}")
+  list (APPEND EXTLIB ${PETSC_STATIC_LDFLAGS} ${PETSC_STATIC_LIBS} ${PETSC_STATIC_LIBRARIES})
 endif()
 if(PETSC_VERSION VERSION_GREATER_EQUAL "3.16.99")
   add_definitions(-DPETSC_DMPlexDistributeSetDefault)
@@ -226,7 +232,7 @@ endif()
 # NetCDF
 set (NETCDF_FOUND FALSE)
 set (NETCDF_F90 "YES")
-find_package( NetCDF )
+find_package( NetCDF QUIET )
 if(${NETCDF_FOUND})
   message(STATUS "Found NetCDF:     ${NETCDF_FOUND}" )
   message(STATUS "NetCDF  Includes: ${NETCDF_INCLUDES}" )
@@ -269,23 +275,27 @@ if(${HDF5_FOUND})
   message(STATUS "HDF5 Includes: ${HDF5_INCLUDE_DIR}" )
   message(STATUS "HDF5 Library : ${HDF5_LIBRARIES}")
   include_directories(${HDF5_INCLUDE_DIR})
-  list (APPEND EXTLIB ${HDF5_LIBRARIES})
-  list (APPEND CMAKE_INSTALL_RPATH ${HDF5_LIBRARY_DIRS})
+  link_directories("${HDF5_BUILD_DIR}/lib")
+  list (APPEND ${EXTLIB} ${HDF5_C_LIBRARY} ${HDF5_LIBRARIES})
+  list (APPEND CMAKE_INSTALL_RPATH ${HDF5_BUILD_DIR}/lib ${HDF5_LIBRARY_DIRS})
 else(${HDF5_FOUND})
   message(WARNING "CMake could not find your HDF5 install, you may need to add the hdf5 libraries in config/<loc>.cmake by hand." )
 endif(${HDF5_FOUND})
 
 
 # Add Lapack
-find_package( LAPACK )
-if(${LAPACK_FOUND})
-  list (APPEND EXTLIB "${LAPACK_LIBRARIES}")
-endif(${LAPACK_FOUND})
+option(AUTODETECT_LAPACK "Let CMAKE try to find LAPACK" ON)
+if(AUTODETECT_LAPACK)
+  find_package( LAPACK )
+  if(${LAPACK_FOUND})
+    list (APPEND EXTLIB "${LAPACK_LIBRARIES}")
+  endif(${LAPACK_FOUND})
+endif(AUTODETECT_LAPACK)
 
 ## Add User Libs
 if(DEFINED USER_LIBS)
     list (APPEND EXTLIB "${USER_LIBS}" )
-    message(INFO " EXTLIB after user LIBS: ${USER_LIBS}")
+    message(STATUS "EXTLIB after user LIBS: ${USER_LIBS}")
 endif()
 
 set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
@@ -305,6 +315,31 @@ if (CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
   set (CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/install" CACHE PATH "default install path" FORCE )
 endif()
 install(DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/ DESTINATION lib)
+
+# set path to '/share', i.e. common data files
+set (TENSTREAM_SHARE_DIR ${CMAKE_BINARY_DIR}/share CACHE STRING
+  "Directory where we find tenstream related data files"
+  FORCE)
+set (TENSTREAM_SHARE_DIR_FULL ${TENSTREAM_SHARE_DIR})
+install(DIRECTORY ${TENSTREAM_SHARE_DIR} DESTINATION .)
+
+# split share dir string into multiple to adhere to fortran char line limits
+string(LENGTH "${TENSTREAM_SHARE_DIR_FULL}" TENSTREAM_SHARE_DIR_LEN)
+set(TENSTREAM_SHARE_DIR_CNT 0)
+set(TENSTREAM_SHARE_DIR_SUBLEN 100)
+while(TENSTREAM_SHARE_DIR_LEN GREATER 0)
+  MATH(EXPR TENSTREAM_SHARE_DIR_CNT "${TENSTREAM_SHARE_DIR_CNT}+1")
+  string(SUBSTRING "${TENSTREAM_SHARE_DIR_FULL}" 0 ${TENSTREAM_SHARE_DIR_SUBLEN} SUBSTR)
+  add_definitions(-DTENSTREAM_SHARE_DIR${TENSTREAM_SHARE_DIR_CNT}=\"${SUBSTR}\")
+  MESSAGE(STATUS "TENSTREAM_SHARE_DIR${TENSTREAM_SHARE_DIR_CNT}= ${SUBSTR}")
+  if(TENSTREAM_SHARE_DIR_LEN GREATER ${TENSTREAM_SHARE_DIR_SUBLEN})
+    string(SUBSTRING "${TENSTREAM_SHARE_DIR_FULL}" ${TENSTREAM_SHARE_DIR_SUBLEN} -1 TENSTREAM_SHARE_DIR_FULL)
+  else()
+    string(SUBSTRING "${TENSTREAM_SHARE_DIR_FULL}" ${TENSTREAM_SHARE_DIR_LEN} -1 TENSTREAM_SHARE_DIR_FULL)
+  endif()
+  string(LENGTH "${TENSTREAM_SHARE_DIR_FULL}" TENSTREAM_SHARE_DIR_LEN)
+endwhile()
+
 
 # Find out if the compiler is XLF and if so give this to the C preprocessor
 string(COMPARE EQUAL ${CMAKE_Fortran_COMPILER_ID} "XL" _is_XLF)
@@ -326,6 +361,8 @@ if(ENABLE_ALL)
   set(ENABLE_PLEXRT ON CACHE BOOL "Enable PLEXRT" FORCE)
   set(ENABLE_PFUNIT ON CACHE BOOL "Enable PFUNIT" FORCE)
   set(ENABLE_RRTM   ON CACHE BOOL "Enable RRTM" FORCE)
+  set(ENABLE_REPWVL ON CACHE BOOL "Enable REPWVL" FORCE)
+  set(ENABLE_SPECINT ON CACHE BOOL "Enable SPECINT" FORCE)
   set(ENABLE_C_WRAPPER ON CACHE BOOL "Enable C_WRAPPER" FORCE)
   set(ENABLE_EXAMPLES ON CACHE BOOL "Enable EXAMPLES" FORCE)
 endif(ENABLE_ALL)
@@ -336,6 +373,7 @@ add_subdirectory(external)
 add_subdirectory(src)
 add_subdirectory(disort)
 add_subdirectory(rayli_wrapper)
+add_subdirectory(misc)
 
 option(ENABLE_PLEXRT "Enable PLEXRT, Radiative transfer on wedges" OFF)
 if(ENABLE_PLEXRT)
@@ -363,6 +401,12 @@ if(ENABLE_PLEXRT)
 endif()
 if(ENABLE_RRTM)
   list(APPEND TENSTR_LIBS pprts_rrtm_sw pprts_rrtm_lw pprts_rrtmg)
+endif()
+if(ENABLE_REPWVL)
+  list(APPEND TENSTR_LIBS repwvl_pprts)
+endif()
+if(ENABLE_SPECINT)
+  list(APPEND TENSTR_LIBS specint_pprts)
 endif()
 if(BUILD_RAYLI)
   list(APPEND TENSTR_LIBS ${RAYLI_LIBS})
@@ -410,6 +454,16 @@ if(ENABLE_RRTM)
 	add_subdirectory(rrtmg)
 endif(ENABLE_RRTM)
 
+option(ENABLE_REPWVL "Enable use of REPWVL" OFF)
+if(ENABLE_REPWVL)
+	add_subdirectory(repwvl)
+endif(ENABLE_REPWVL)
+
+option(ENABLE_SPECINT "Enable use of SPECINT" OFF)
+if(ENABLE_SPECINT)
+  add_subdirectory(specint)
+endif(ENABLE_SPECINT)
+
 option(ENABLE_EXAMPLES "Enable compilation of EXAMPLES" OFF)
 if(ENABLE_EXAMPLES)
 	add_subdirectory(examples)
@@ -428,9 +482,21 @@ endif(ENABLE_PFUNIT)
 find_program(CTAGS_PATH ctags)
 if(CTAGS_PATH)
     message(STATUS "Found ctags: ${CTAGS_PATH}")
+
+    execute_process(COMMAND ctags --help
+        COMMAND grep "langmap"
+        OUTPUT_VARIABLE CTAGS_LANGMAP)
+    if(CTAGS_LANGMAP STREQUAL "")
+      set(CTAGS_LANGMAP "")
+    else()
+      set(CTAGS_LANGMAP "--langmap=Fortran:.fypp.f.for.ftn.f77.f90.f95.F.FOR.FTN.F77.F90.F95")
+    endif()
+    message(STATUS "ctags supports langmap?: ${CTAGS_LANGMAP}")
+
     set_source_files_properties( tags PROPERTIES GENERATED true)
     add_custom_target(tags ALL
       COMMAND ctags -R
+      ${CTAGS_LANGMAP}
       ${CMAKE_CURRENT_BINARY_DIR}/external
       ${CMAKE_CURRENT_SOURCE_DIR}/c_wrapper
       ${CMAKE_CURRENT_SOURCE_DIR}/disort
@@ -439,6 +505,8 @@ if(CTAGS_PATH)
       ${CMAKE_CURRENT_SOURCE_DIR}/python
       ${CMAKE_CURRENT_SOURCE_DIR}/rayli_wrapper
       ${CMAKE_CURRENT_SOURCE_DIR}/rrtmg
+      ${CMAKE_CURRENT_SOURCE_DIR}/repwvl
+      ${CMAKE_CURRENT_SOURCE_DIR}/specint
       ${CMAKE_CURRENT_SOURCE_DIR}/src
       ${CMAKE_CURRENT_SOURCE_DIR}/tests
       ${CMAKE_CURRENT_SOURCE_DIR}/twomax
@@ -507,4 +575,4 @@ string(REPLACE ";" " " EXTLIB_SPLIT "${EXTLIB}")
 #set(pc_req_private "")
 CONFIGURE_FILE("pkgconfig/tenstream.pc.in" "pkgconfig/tenstream.pc" @ONLY)
 CONFIGURE_FILE("pkgconfig/tenstream.pc.in" "pkgconfig/TenStream.pc" @ONLY)
-install(DIRECTORY ${CMAKE_BINARY_DIR}/pkgconfig DESTINATION .)
+install(DIRECTORY ${CMAKE_BINARY_DIR}/pkgconfig DESTINATION lib)

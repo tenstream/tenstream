@@ -178,8 +178,11 @@ module m_optprop_parameters
 
   ! Do some sanity checks on coefficients -- only disable if you are sure
   ! what to expect.
-  ! logical,parameter :: ldebug_optprop=.False.
+#ifdef __RELEASE_BUILD__
+  logical, parameter :: ldebug_optprop = .false.
+#else
   logical, parameter :: ldebug_optprop = .true.
+#endif
 
   ! Treat direct2diffuse radiation in a cone around solar angle as direct
   ! radiation.

@@ -1416,6 +1416,7 @@ contains
 
     real, allocatable :: &
       & Bfrac(:), &
+      & Blev(:), &
       & tlev(:), &
       & kext(:), &
       & dtau(:), &
@@ -1426,7 +1427,7 @@ contains
       & FLUP(:), &
       & DFDT(:), &
       & UAVG(:)
-    real :: mu0, Ag
+    real :: mu0, Ag, Bskin
     real(ireals) :: fac
     integer(mpiint) :: ierr
     logical :: lflg
@@ -1444,11 +1445,8 @@ contains
                          "-disort_streams", nstreams, lflg, ierr); call CHKERR(ierr)
 
       if (solution%lsolar_rad) then
-
         call PetscObjectSetName(solution%edir, 'twostream_edir_vec uid='//toStr(solution%uid), ierr); call CHKERR(ierr)
         call VecSet(solution%edir, zero, ierr); call CHKERR(ierr)
-      else
-        call CHKERR(1_mpiint, 'pprts_disort not allowed for thermal computations')
       end if
 
       call PetscObjectSetName(solution%ediff, 'twostream_ediff_vec uid='//toStr(solution%uid), ierr); call CHKERR(ierr)
@@ -1459,17 +1457,20 @@ contains
       allocate (w0(C_one_atm%zs:C_one_atm%ze))
       allocate (g(C_one_atm%zs:C_one_atm%ze))
       allocate (Bfrac(C_one_atm%zs:C_one_atm%ze))
+      allocate (tlev(C_one_atm1%zs:C_one_atm1%ze))
+      Bfrac = 1
+      tlev = 300
 
       if (solution%lsolar_rad) then
         call getVecPointer(C_dir%da, solution%edir, xv_dir1d, xv_dir)
         mu0 = real(solver%sun%costheta)
       else
         mu0 = 0
+        allocate (Blev(C_one_atm%zs:C_one_atm%ze))
       end if
 
       call getVecPointer(C_diff%da, solution%ediff, xv_diff1d, xv_diff)
 
-      allocate (tlev(C_one_atm1%zs:C_one_atm1%ze))
       allocate (FLDIR(C_one_atm1%zs:C_one_atm1%ze))
       allocate (FLDN(C_one_atm1%zs:C_one_atm1%ze))
       allocate (FLUP(C_one_atm1%zs:C_one_atm1%ze))
@@ -1484,21 +1485,30 @@ contains
           w0 = real(atm%ksca(:, i, j) / max(kext, epsilon(kext)))
           g = real(atm%g(:, i, j))
           Ag = real(atm%albedo(i, j))
+          if (.not. solution%lsolar_rad) then
+            Blev = real(atm%planck(:, i, j))
+            if (allocated(atm%Bsrfc)) then
+              Bskin = real(atm%Bsrfc(i, j))
+            else
+              Bskin = real(atm%planck(ubound(atm%planck, 1), i, j))
+            end if
+          end if
 
-          call default_flx_computation(&
-            & mu0,     &
-            & real(edirTOA), &
-            & Ag,      &
-            & 0.,            & ! tskin
-            & .false.,       & ! lthermal
-            & [0., 0.], & ! wavenumbers
-            Bfrac, &
-            dtau, &
-            w0, &
-            g, &
-            tlev, &
-            FLDIR, FLDN, FLUP, DFDT, UAVG, &
-            int(nstreams), lverbose=.false.)
+          call default_flx_computation(       &
+            & mu0,                            &
+            & real(max(0._ireals, edirTOA)),  &
+            & Ag,                             &
+            & 300.,                           & ! tskin (ignored because we provide planck values directly)
+            & .not. solution%lsolar_rad,      & ! lthermal
+            & [0., 1.],                       & ! wavenumbers (ignored because we provide planck values directly)
+            & Bfrac,                          &
+            & dtau,                           &
+            & w0,                             &
+            & g,                              &
+            & tlev,                           & ! (ignored because we provide planck values directly)
+            & FLDIR, FLDN, FLUP, DFDT, UAVG,  &
+            & int(nstreams), lverbose=.false.,&
+            & Blev=Blev, Bskin=Bskin)
 
           if (solution%lsolar_rad) then
             fac = real(solver%dirtop%area_divider, ireals) / real(solver%dirtop%streams, ireals)

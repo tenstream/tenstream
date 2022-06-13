@@ -12,7 +12,7 @@ module m_example_uvspec_cld_file
                                i0, i1, i2, zero, one, default_str_len
 
   ! main entry point for solver, and desctructor
-  use m_pprts_rrtmg, only: pprts_rrtmg, destroy_pprts_rrtmg
+  use m_specint_pprts, only: specint_pprts, specint_pprts_destroy
 
   use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, destroy_tenstr_atm, &
                                 hydrostat_dp, load_atmfile, t_bg_atm, print_tenstr_atm
@@ -47,13 +47,14 @@ module m_example_uvspec_cld_file
   implicit none
 
 contains
-  subroutine example_uvspec_cld_file_pprts(comm, &
+  subroutine example_uvspec_cld_file_pprts(specint, comm, &
                                            cldfile, atm_filename, outfile, &
                                            albedo_th, albedo_sol, &
                                            lsolar, lthermal, &
                                            phi0, theta0, &
                                            scene_shift_x, scene_shift_y, scene_shift_it)
 
+    character(len=*), intent(in) :: specint                  ! name of module to use for spectral integration
     integer(mpiint), intent(in) :: comm
     character(len=*), intent(in) :: cldfile, atm_filename, outfile
     real(ireals), intent(in) :: albedo_th, albedo_sol
@@ -66,7 +67,7 @@ contains
     real(ireals), dimension(:, :, :), allocatable, target :: plev, tlev ! will have local shape nzp+1, nxp, nyp
     real(ireals), dimension(:), allocatable :: hhl ! dim Nz+1
     real(ireals), pointer :: z(:, :, :, :) => null(), z1d(:) => null() ! dim Nz+1
-    character(len=default_str_len) :: groups(2)
+    character(len=default_str_len) :: groups(2), dimnames(3)
 
     real(ireals), allocatable, dimension(:, :, :) :: edir, edn, eup, abso ! [nlev_merged(-1), nxp, nyp]
     real(ireals), allocatable, dimension(:, :, :) :: gedir, gedn, geup, gabso ! global arrays which we will dump to netcdf
@@ -177,7 +178,9 @@ contains
       reliq = cshift(reliq, scene_shift_x, dim=2)
       lwc = cshift(lwc, scene_shift_y, dim=3)
       reliq = cshift(reliq, scene_shift_y, dim=3)
-      call run_rrtmg_lw_sw(pprts_solver, &
+      call run_rrtmg_lw_sw(&
+        & specint, &
+        & pprts_solver, &
         & nxproc, nyproc, &
         & atm_filename, &
         & dx, dy, phi0, theta0, &
@@ -197,11 +200,14 @@ contains
         & Ca => pprts_solver%C_one_atm, &
         & Ca1 => pprts_solver%C_one_atm1_box)
 
+      dimnames(1) = 'zlev'
+      dimnames(2) = 'nx'
+      dimnames(3) = 'ny'
       if (allocated(edir)) then
         call gather_all_toZero(C1, edir, gedir)
         if (myid .eq. 0) then
           print *, 'dumping direct radiation with local and global shape', shape(edir), ':', shape(gedir)
-          groups(2) = 'edir'; call ncwrite(groups, gedir, ierr); call CHKERR(ierr)
+          groups(2) = 'edir'; call ncwrite(groups, gedir, ierr, dimnames=dimnames); call CHKERR(ierr)
         end if
       end if
       call gather_all_toZero(C1, edn, gedn)
@@ -209,25 +215,37 @@ contains
       call gather_all_toZero(C, abso, gabso)
       if (myid .eq. 0) then
         print *, 'dumping edn radiation with local and global shape', shape(edn), ':', shape(gedn)
-        groups(2) = 'edn'; call ncwrite(groups, gedn, ierr); call CHKERR(ierr)
+        groups(2) = 'edn'; call ncwrite(groups, gedn, ierr, dimnames=dimnames); call CHKERR(ierr)
+
         print *, 'dumping eup radiation with local and global shape', shape(eup), ':', shape(geup)
-        groups(2) = 'eup'; call ncwrite(groups, geup, ierr); call CHKERR(ierr)
+        groups(2) = 'eup'; call ncwrite(groups, geup, ierr, dimnames=dimnames); call CHKERR(ierr)
+
         print *, 'dumping abso radiation with local and global shape', shape(abso), ':', shape(gabso)
-        groups(2) = 'abso'; call ncwrite(groups, gabso, ierr); call CHKERR(ierr)
-        print *, 'dumping hhl'
+        dimnames(1) = 'zlay'
+        groups(2) = 'abso'; call ncwrite(groups, gabso, ierr, dimnames=dimnames); call CHKERR(ierr)
+
+        print *, 'dumping z coords'
         call getVecPointer(Ca1%da, pprts_solver%atm%hhl, z1d, z)
-        groups(2) = 'hhl'; call ncwrite(groups, z(0, Ca1%zs:Ca1%ze, Ca1%xs:Ca1%xs, Ca1%ys:Ca1%ys), ierr); call CHKERR(ierr)
+        dimnames(1) = 'nlev'
+        groups(2) = 'zlev'; call ncwrite(groups, z(0, Ca1%zs:Ca1%ze, Ca1%xs, Ca1%ys), ierr, dimnames=dimnames(1:1))
+        call CHKERR(ierr)
+        dimnames(1) = 'nlay'
+        groups(2) = 'zlay'; call ncwrite(groups, &
+ & (z(0, Ca1%zs:Ca1%ze - 1, Ca1%xs, Ca1%ys) + z(0, Ca1%zs + 1:Ca1%ze, Ca1%xs, Ca1%ys))*.5_ireals, &
+ & ierr, dimnames=dimnames(1:1))
+        call CHKERR(ierr)
         call restoreVecPointer(Ca1%da, pprts_solver%atm%hhl, z1d, z)
       end if
 
     end associate
 
-    call destroy_pprts_rrtmg(pprts_solver, lfinalizepetsc=.true.)
+    call specint_pprts_destroy(specint, pprts_solver, lfinalizepetsc=.true., ierr=ierr)
   end subroutine
 
-  subroutine run_rrtmg_lw_sw(pprts_solver, nxproc, nyproc, atm_filename, dx, dy, phi0, theta0, &
+  subroutine run_rrtmg_lw_sw(specint, pprts_solver, nxproc, nyproc, atm_filename, dx, dy, phi0, theta0, &
                              plev, tlev, lwc, reliq, albedo_th, albedo_sol, lsolar, lthermal, &
                              edir, edn, eup, abso)
+    character(len=*), intent(in) :: specint                  ! name of module to use for spectral integration
     class(t_solver) :: pprts_solver
     integer(iintegers), intent(in) :: nxproc(:), nyproc(:)
     real(ireals), intent(in) :: dx, dy       ! horizontal grid spacing in [m]
@@ -301,13 +319,13 @@ contains
 
     !if(myid.eq.0) call print_tenstr_atm(atm)
 
-    call pprts_rrtmg(comm, pprts_solver, atm, &
-                     size(plev, 2, kind=iintegers), size(plev, 3, kind=iintegers), &
-                     dx, dy, sundir, &
-                     albedo_th, albedo_sol, &
-                     lthermal, lsolar, &
-                     edir, edn, eup, abso, &
-                     nxproc=nxproc, nyproc=nyproc, opt_time=zero)
+    call specint_pprts(specint, comm, pprts_solver, atm, &
+                       size(plev, 2, kind=iintegers), size(plev, 3, kind=iintegers), &
+                       dx, dy, sundir, &
+                       albedo_th, albedo_sol, &
+                       lthermal, lsolar, &
+                       edir, edn, eup, abso, &
+                       nxproc=nxproc, nyproc=nyproc, opt_time=zero)
 
     nlev = ubound(edn, 1)
     if (myid .eq. 0) then
@@ -592,7 +610,7 @@ program main
 #include "petsc/finclude/petsc.h"
   use petsc
   use mpi
-  use m_data_parameters, only: mpiint
+  use m_data_parameters, only: mpiint, share_dir
   use m_helper_functions, only: get_petsc_opt
   use m_example_uvspec_cld_file
 
@@ -602,7 +620,7 @@ program main
   logical :: lthermal, lsolar, lflg
   character(len=10*default_str_len) :: cldfile, outfile
   real(ireals) :: Ag, phi0, theta0, Tsrfc, dTdz
-  character(len=default_str_len) :: atm_filename
+  character(len=default_str_len) :: atm_filename, specint
   integer(iintegers) :: scene_shift_x, scene_shift_y, scene_shift_it
 
   logical :: luse_plexrt
@@ -612,14 +630,17 @@ program main
   call read_commandline_options(mpi_comm_world)
   call mpi_comm_rank(mpi_comm_world, myid, ierr)
 
+  specint = 'no default set'
+  call get_petsc_opt(PETSC_NULL_CHARACTER, '-specint', specint, lflg, ierr); call CHKERR(ierr)
+
   call get_petsc_opt(PETSC_NULL_CHARACTER, '-cld', cldfile, lflg, ierr); call CHKERR(ierr)
   if (.not. lflg) call CHKERR(1_mpiint, 'need to supply a cloud filename... please call with -cld <libRadtran_cloud_file.nc>')
 
   call get_petsc_opt(PETSC_NULL_CHARACTER, '-out', outfile, lflg, ierr); call CHKERR(ierr)
   if (.not. lflg) call CHKERR(1_mpiint, 'need to supply a output filename... please call with -out <output.nc>')
 
-  call get_petsc_opt(PETSC_NULL_CHARACTER, '-atm_filename', atm_filename, lflg, ierr); call CHKERR(ierr)
-  if (.not. lflg) call CHKERR(1_mpiint, 'need to supply an atmosphere filename... please call with -atm_filename <atm.dat>')
+  atm_filename = share_dir//'tenstream_default.atm'
+  call get_petsc_opt(PETSC_NULL_CHARACTER, '-atm', atm_filename, lflg, ierr); call CHKERR(ierr)
 
   Ag = .1
   call get_petsc_opt(PETSC_NULL_CHARACTER, "-Ag", Ag, lflg, ierr); call CHKERR(ierr)
@@ -661,6 +682,7 @@ program main
       & zero, Ag, lsolar, lthermal, phi0, theta0, Tsrfc, dTdz)
   else
     call example_uvspec_cld_file_pprts(&
+      & specint, &
       & mpi_comm_world, cldfile, atm_filename, outfile, &
       & zero, Ag, lsolar, lthermal, phi0, theta0, &
       & scene_shift_x, scene_shift_y, scene_shift_it)

@@ -111,6 +111,7 @@ module m_pprts
     & t_dof, &
     & t_mat_permute_info, &
     & t_solver_2str, &
+    & t_solver_disort, &
     & t_solver_1_2, &
     & t_solver_3_6, &
     & t_solver_3_10, &
@@ -217,6 +218,17 @@ contains
 
       select type (solver)
       class is (t_solver_2str)
+        allocate (solver%difftop%is_inward(2))
+        solver%difftop%is_inward = [.false., .true.]
+
+        allocate (solver%diffside%is_inward(0))
+
+        allocate (solver%dirtop%is_inward(1))
+        solver%dirtop%is_inward = [.true.]
+
+        allocate (solver%dirside%is_inward(0))
+
+      class is (t_solver_disort)
         allocate (solver%difftop%is_inward(2))
         solver%difftop%is_inward = [.false., .true.]
 
@@ -377,7 +389,7 @@ contains
       solver%dirtop%streams = solver%dirtop%dof
       solver%dirside%streams = solver%dirside%dof
 
-      allocate (solver%solutions(-1:1000))
+      allocate (solver%solutions(-1000:1000))
       solver%lenable_solutions_err_estimates = &
         options_max_solution_err .gt. zero .and. options_max_solution_time .gt. zero
 
@@ -416,6 +428,8 @@ contains
       select type (solver)
       class is (t_solver_2str)
         continue
+      class is (t_solver_disort)
+        continue
       class default
         call init_memory(solver%C_dir, solver%C_diff, solver%incSolar, solver%b)
       end select
@@ -439,6 +453,8 @@ contains
     ! dont need LUT, we just compute Twostream anyway
     select type (solver)
     class is (t_solver_2str)
+      return
+    class is (t_solver_disort)
       return
     end select
     if (lmcrts) return
@@ -520,6 +536,8 @@ contains
 
       select type (solver)
       class is (t_solver_2str)
+        solver%atm%l1d = .true.
+      class is (t_solver_disort)
         solver%atm%l1d = .true.
       class default
         !TODO if we have a horiz. staggered grid, this may lead to the point where one 3d box has a outgoing sideward flux but the adjacent
@@ -1730,14 +1748,20 @@ contains
 
       call print_optical_properties_summary(solver, opt_lview=ldebug)
 
+      if ((any([atm%kabs, atm%ksca, atm%g] .lt. zero)) .or. (any(isnan([atm%kabs, atm%ksca, atm%g])))) then
+        call CHKERR(1_mpiint, 'set_optical_properties :: found illegal value in delta_scaled optical properties!'//new_line('')// &
+        & 'min(atm%kabs) '//toStr(minval(atm%kabs))//' isnan? '//toStr(any(isnan(atm%kabs)))//new_line('')// &
+        & 'min(atm%ksca) '//toStr(minval(atm%ksca))//' isnan? '//toStr(any(isnan(atm%ksca)))//new_line('')// &
+        & 'min(atm%g   ) '//toStr(minval(atm%g))//' isnan? '//toStr(any(isnan(atm%g)))//new_line('')// &
+        & '')
+      end if
+
       select type (solver)
       class is (t_solver_2str)
         return ! twostream should not depend on eddington coeffs... it will have to calculate it on its own.
+      class is (t_solver_disort)
+        return
       end select
-
-      if ((any([atm%kabs, atm%ksca, atm%g] .lt. zero)) .or. (any(isnan([atm%kabs, atm%ksca, atm%g])))) then
-        call CHKERR(1_mpiint, 'set_optical_properties :: found illegal value in delta_scaled optical properties! abort!')
-      end if
 
       ! allocate space for twostream coefficients
       associate ( &
@@ -2168,7 +2192,7 @@ contains
     type(t_pprts_buildings), optional, intent(in) :: opt_buildings
 
     integer(iintegers) :: uid
-    logical :: lflg, derived_lsolar, luse_rayli, lrayli_snapshot, luse_disort
+    logical :: lflg, derived_lsolar, luse_rayli, lrayli_snapshot
     integer(mpiint) :: ierr
 
     if (.not. allocated(solver%atm)) call CHKERR(1_mpiint, 'atmosphere is not allocated?!')
@@ -2177,7 +2201,7 @@ contains
     if (.not. allocated(solver%atm%ksca)) &
       call CHKERR(1_mpiint, 'atmosphere%ksca is not allocated! - maybe you need to call set_optical_properties() first')
 
-    uid = get_arg(0_iintegers, opt_solution_uid)
+    uid = get_solution_uid(solver%solutions, opt_solution_uid)
 
     associate (solution => solver%solutions(uid))
 
@@ -2233,25 +2257,17 @@ contains
       end if
 
       ! --------- Calculate Radiative Transfer with RayLi ------------
-      call PetscLogEventBegin(solver%logs%solve_mcrts, ierr)
       luse_rayli = .false.
       call get_petsc_opt(solver%prefix, "-pprts_use_rayli", luse_rayli, lflg, ierr); call CHKERR(ierr)
       lrayli_snapshot = .false.
       call PetscOptionsHasName(PETSC_NULL_OPTIONS, solver%prefix, &
                                "-rayli_snapshot", lrayli_snapshot, ierr); call CHKERR(ierr)
 
-      call pprts_rayli_wrapper(luse_rayli, lrayli_snapshot, solver, edirTOA, solution, opt_buildings)
-      call PetscLogEventEnd(solver%logs%solve_mcrts, ierr)
-      if (luse_rayli) goto 99
-
-      ! --------- Calculate Radiative Transfer with Disort ------------
-      luse_disort = .false.
-      call get_petsc_opt(solver%prefix, "-pprts_use_disort", luse_disort, lflg, ierr); call CHKERR(ierr)
-      if (luse_disort) then
-        call PetscLogEventBegin(solver%logs%solve_disort, ierr)
-        call disort(solver, edirTOA, solution, opt_buildings)
-        call PetscLogEventEnd(solver%logs%solve_disort, ierr)
-        goto 99
+      if (luse_rayli .or. lrayli_snapshot) then
+        call PetscLogEventBegin(solver%logs%solve_mcrts, ierr)
+        call pprts_rayli_wrapper(luse_rayli, lrayli_snapshot, solver, edirTOA, solution, opt_buildings)
+        call PetscLogEventEnd(solver%logs%solve_mcrts, ierr)
+        if (luse_rayli) goto 99
       end if
 
       select type (solver)
@@ -2265,10 +2281,14 @@ contains
           call twostream(solver, edirTOA, solution, opt_buildings)
           call PetscLogEventEnd(solver%logs%solve_twostream, ierr)
         end if
-
-        if (ldebug .and. solver%myid .eq. 0) print *, '1D calculation done'
-
         goto 99
+
+      class is (t_solver_disort)
+        call PetscLogEventBegin(solver%logs%solve_disort, ierr)
+        call disort(solver, edirTOA, solution, opt_buildings)
+        call PetscLogEventEnd(solver%logs%solve_disort, ierr)
+        goto 99
+
       end select
 
       if (lmcrts) then
@@ -2313,6 +2333,7 @@ contains
 
     ! ---------------------------- Edir  -------------------
     if (solution%lsolar_rad) then
+      call PetscLogEventBegin(solver%logs%compute_Edir, ierr)
       prefix = "solar_dir_"
       if (len_trim(solver%prefix) .gt. 0) prefix = trim(solver%prefix)//prefix
 
@@ -2323,6 +2344,7 @@ contains
       else
         call edir(prefix)
       end if
+      call PetscLogEventEnd(solver%logs%compute_Edir, ierr)
     end if
 
     ! ---------------------------- Source Term -------------
@@ -2378,8 +2400,6 @@ contains
     subroutine edir(prefix)
       character(len=*), intent(in) :: prefix
       logical :: lmat_permute, lmat_permute_reuse, lshell
-
-      call PetscLogEventBegin(solver%logs%compute_Edir, ierr)
 
       call VecSet(solver%incSolar, zero, ierr); call CHKERR(ierr)
       call setup_incSolar(solver, edirTOA, solver%incSolar)
@@ -2469,7 +2489,6 @@ contains
       solution%lWm2_dir = .false.
       call PetscObjectSetName(solution%edir, 'debug_edir', ierr); call CHKERR(ierr)
       call PetscObjectViewFromOptions(solution%edir, PETSC_NULL_VEC, "-show_debug_edir", ierr); call CHKERR(ierr)
-      call PetscLogEventEnd(solver%logs%compute_Edir, ierr)
     end subroutine
 
     subroutine ediff(A, Aperm, ksp, prefix)
@@ -5439,6 +5458,31 @@ contains
 
   end subroutine
 
+  function get_solution_uid(solutions, opt_solution_uid) result(uid)
+    type(t_state_container), allocatable :: solutions(:)
+    integer(iintegers), optional, intent(in) :: opt_solution_uid
+    integer(iintegers) :: uid
+    logical :: lflg
+    integer(mpiint) :: ierr
+
+    uid = get_arg(0_iintegers, opt_solution_uid)
+    call get_petsc_opt('', '-pprts_override_solution_uid', uid, lflg, ierr); call CHKERR(ierr)
+    if (lflg .and. ldebug) then
+      print *, 'Override solutions uid, returning '//toStr(uid)//' instead of '//toStr(get_arg(0_iintegers, opt_solution_uid))
+    end if
+
+    if (.not. is_inrange(uid, lbound(solutions, 1, kind=iintegers), ubound(solutions, 1, kind=iintegers))) then
+      call CHKWARN(int(uid, mpiint), "uid ("//toStr(uid)//") is not in range of "// &
+        & "preallocated solutions container [ "//&
+        & toStr(lbound(solutions, 1))//", "//&
+        & toStr(ubound(solutions, 1))//" ]."//new_line('')// &
+        & "I will set it to 0 but this has some implications"//new_line('')// &
+        & "If you are not sure what you are doing, "// &
+        & "you can increase the size of the solutions container to fit all spectral bands")
+      uid = 0
+    end if
+  end function
+
   subroutine pprts_get_result(solver, redn, reup, rabso, redir, opt_solution_uid, opt_buildings)
     class(t_solver) :: solver
     real(ireals), dimension(:, :, :), intent(inout), allocatable :: redn, reup, rabso
@@ -5450,7 +5494,7 @@ contains
     real(ireals), pointer :: x1d(:) => null(), x4d(:, :, :, :) => null()
     integer(mpiint) :: ierr
 
-    uid = get_arg(0_iintegers, opt_solution_uid)
+    uid = get_solution_uid(solver%solutions, opt_solution_uid)
 
     associate (solution => solver%solutions(uid))
       if (solution%lsolar_rad) then
@@ -5817,7 +5861,7 @@ contains
 
   subroutine gather_all_toZero(C, inp, outp)
     type(t_coord), intent(in) :: C
-    real(ireals), intent(in), allocatable :: inp(:, :, :) ! local array from get_result
+    real(ireals), intent(in) :: inp(:, :, :) ! local array from get_result
     real(ireals), intent(inout), allocatable :: outp(:, :, :) ! global sized array on rank 0
 
     type(tVec) :: vec, lvec_on_zero
@@ -5826,7 +5870,7 @@ contains
     call mpi_comm_rank(C%comm, myid, ierr)
 
     if (ldebug) then
-      print *, myid, 'exchange_var', allocated(inp), allocated(outp)
+      print *, myid, 'exchange_var', allocated(outp)
       print *, myid, 'exchange_var shape', shape(inp)
     end if
 

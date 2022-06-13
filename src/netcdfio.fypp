@@ -36,7 +36,7 @@ module m_netcdfIO
     default_str_len, &
     ireals, &
     iintegers, mpiint
-  use m_helper_functions, only: CHKWARN, CHKERR, itoa, ftoa, get_arg
+  use m_helper_functions, only: CHKWARN, CHKERR, toStr, get_arg
   implicit none
 
   private
@@ -46,7 +46,7 @@ module m_netcdfIO
             get_number_global_attributes, list_global_attributes
 
 !  integer :: v=11
-  integer, parameter :: deflate_lvl = 1
+  integer, parameter :: default_deflate_lvl = 1
 !  real(ireals),parameter :: maxwait=600 !in seconds
 !  real(ireals),parameter :: waitinterval=.01 ! amount of cpu time to wait before trying anew in seconds
 !  integer :: iwait
@@ -155,12 +155,14 @@ contains
     #:set dKIND = '' if method == 'logical' else '('+dtype+')'
     #:for RANK in range(1, 8)
       subroutine ncwrite_${method}$_${dtype}$_${RANK}$d &
-        (groups, arr, ierr, arr_shape, startp, countp, stride, map, dimnames)
+        (groups, arr, ierr, arr_shape, startp, countp, stride, map, dimnames, deflate_lvl, verbose)
 
         character(len=*), intent(in) :: groups(:)
         ${method}$${dKIND}$, intent(in) :: arr${ranksuffix(RANK)}$
         integer, intent(in), optional :: arr_shape(:), startp(:), countp(:), stride(:), map(:)
         character(len=*), intent(in), optional :: dimnames(:)
+        integer, intent(in), optional :: deflate_lvl
+        logical, intent(in), optional :: verbose
 
         character(len=default_str_len) :: fname, varname
         integer :: Ndims, ncid, i, varid
@@ -168,11 +170,12 @@ contains
         integer, allocatable :: dims(:), dim_ids(:)
         character(len=default_str_len) :: dimname
 
-        logical :: file_exists, var_exists, def_mode
+        logical :: file_exists, var_exists, def_mode, lverbose
 
         integer(mpiint), intent(out) :: ierr
         integer(mpiint) :: ncerr, flock_unit
 
+        lverbose = get_arg(ldebug, verbose)
         fname = trim(groups(1))
 
         call acquire_file_lock(fname, flock_unit, ierr); call CHKERR(ierr, 'Could not obtain file lock')
@@ -182,10 +185,10 @@ contains
           varname = trim(varname)//'.'//trim(groups(i))
         end do
 
-        if (ldebug) print *, '***********************************************************************************************'
-        if (ldebug) print *, 'writing to file: ', trim(fname)
-        if (ldebug) print *, 'varname is: ', trim(varname)
-        if (ldebug) print *, '***********************************************************************************************'
+        if (lverbose) print *, '***********************************************************************************************'
+        if (lverbose) print *, 'writing to file: ', trim(fname)
+        if (lverbose) print *, 'varname is: ', trim(varname)
+        if (lverbose) print *, '***********************************************************************************************'
 
         if (present(arr_shape)) then
           Ndims = size(arr_shape)
@@ -202,28 +205,28 @@ contains
 
         allocate (dim_ids(Ndims))
 
-        if (ldebug) print *, 'Dimensions('//itoa(int(Ndims, iintegers))//') of array', dims
-        if (ldebug) then
+        if (lverbose) print *, 'Dimensions('//toStr(int(Ndims, iintegers))//') of array', dims
+        if (lverbose) then
           ncerr = nf90_set_log_level(2); call nccheck(ncerr)
         end if
 
         inquire (file=fname, exist=file_exists)
-        if (ldebug) print *, 'file '//trim(fname)//' exists :: ', file_exists
+        if (lverbose) print *, 'file '//trim(fname)//' exists :: ', file_exists
 
         ierr = 0
 
         if (.not. file_exists) then
           ncerr = nf90_create(trim(fname), NF90_HDF5, ncid); call nccheck(ncerr); ierr = ierr + ncerr
-          if (ldebug) print *, 'opened file to append: ', trim(fname), ' ::', ncerr
+          if (lverbose) print *, 'opened file to append: ', trim(fname), ' ::', ncerr
         else
           ncerr = nf90_open(path=trim(fname), mode=NF90_WRITE, ncid=ncid); call nccheck(ncerr); ierr = ierr + ncerr
-          if (ldebug) print *, 'opened file to write: ', trim(fname), ' ::', ncerr
+          if (lverbose) print *, 'opened file to write: ', trim(fname), ' ::', ncerr
         end if
         if (ncerr .ne. NF90_NOERR) call CHKERR(int(ncerr, mpiint), 'stopping because we couldnt write to file')
         ierr = 0
 
         ncerr = nf90_redef(ncid); call nccheck(ncerr); def_mode = .true.
-        if (ldebug) print *, 'Set NetCDF File to def_mode', ncerr
+        if (lverbose) print *, 'Set NetCDF File to def_mode', ncerr
 
         do i = 1, Ndims
           if (present(dimnames)) then
@@ -235,38 +238,44 @@ contains
 
           !See if we can find the dimension
           ncerr = nf90_inq_dimid(ncid, trim(dimname), dim_ids(i)); call nccheck(ncerr)
-          if (ldebug) print *, 'Check if dimension '//trim(dimname)//' exists', ncerr
+          if (lverbose) print *, 'Check if dimension '//trim(dimname)//' exists', ncerr
           if (ncerr .ne. NF90_NOERR) then !Otherwise create it
             ncerr = nf90_def_dim(ncid, trim(dimname), dims(i), dim_ids(i)); call nccheck(ncerr)
-            if (ldebug) print *, 'Create dimension :: ', i, dims(i), dim_ids(i), trim(dimname), ' :: ', ncerr
+            if (lverbose) print *, 'Create dimension :: ', i, dims(i), dim_ids(i), trim(dimname), ' :: ', ncerr
           end if
         end do
 
         !Check if variable already exists
         ncerr = nf90_inq_varid(ncid, varname, varid); call nccheck(ncerr)
         var_exists = ncerr .eq. NF90_NOERR
-        if (ldebug) print *, 'Check if variable exists', ncerr, '::', var_exists
+        if (lverbose) print *, 'Check if variable exists', ncerr, '::', var_exists
 
         if (.not. var_exists) then !Otherwise create it
-          if (ldebug) print *, 'Create variable '//itoa(varid)
-          ncerr = nf90_def_var(ncid, varname, NF90_FLOAT, dim_ids, varid, deflate_level=deflate_lvl); call nccheck(ncerr)
+          if (lverbose) print *, 'Create variable '//toStr(varid)
+          ncerr = nf90_def_var( &
+            & ncid, &
+            & varname, &
+            & NF90_FLOAT, &
+            & dim_ids, &
+            & varid, &
+            & deflate_level=get_arg(default_deflate_lvl, deflate_lvl)); call nccheck(ncerr)
           ierr = ierr + ncerr
-          call CHKWARN(ncerr, 'Could not create new variable '//trim(varname)//' varid: '//itoa(varid))
+          call CHKWARN(ncerr, 'Could not create new variable '//trim(varname)//' varid: '//toStr(varid))
         end if
 
         if (def_mode) then !if we created the file here, we need to leave define mode...
           ncerr = nf90_enddef(ncid); call nccheck(ncerr)
-          if (ldebug) print *, 'Putting netcdf file in datamode', ncerr
+          if (lverbose) print *, 'Putting netcdf file in datamode', ncerr
           call CHKWARN(ncerr, 'Could not put netcdf file in datamode')
         end if
 
-        if (ldebug) print *, 'writing data'
+        if (lverbose) print *, 'writing data'
         ncerr = nf90_put_var(ncid, varid, values=arr, &
                              start=startp, count=countp, stride=stride, map=map)
-        if (ldebug) print *, 'written data', ncerr
+        if (lverbose) print *, 'written data', ncerr
 
         ncerr = nf90_close(ncid); call nccheck(ncerr); ierr = ierr + ncerr
-        if (ldebug) print *, 'closed file', ncerr
+        if (lverbose) print *, 'closed file', ncerr
 
         call release_file_lock(flock_unit, ncerr); call CHKERR(ncerr, 'Could not release filelock')
       end subroutine
@@ -382,7 +391,7 @@ contains
       call cpusleep(waitinterval)
     end if
     inquire (unit=flock_unit, iostat=ios)
-    call CHKERR(ios, 'IOSTAT not 0... is =>'//itoa(ios))
+    call CHKERR(ios, 'IOSTAT not 0... is =>'//toStr(ios))
 
     inquire (unit=flock_unit, named=lnamed)
     if (.not. lnamed) call CHKERR(4_mpiint, 'Release lock file not named')
@@ -398,7 +407,7 @@ contains
       call cpusleep(waitinterval)
     end do
     ierr = 1
-    call CHKERR(1_mpiint, 'Error releasing file lock for unit '//itoa(flock_unit))
+    call CHKERR(1_mpiint, 'Error releasing file lock for unit '//toStr(flock_unit))
   end subroutine
 
   subroutine list_global_attributes(fname, ierr)
@@ -423,10 +432,10 @@ contains
     do k = 1, int(N)
       ncerr = nf90_inq_attname(ncid, varid=nf90_global, attnum=k, name=attNames(k))
       call nccheck(ncerr); ierr = ierr + ncerr
-      call CHKWARN(ierr, "Could not determine attribute name for attribute number "//itoa(k))
+      call CHKWARN(ierr, "Could not determine attribute name for attribute number "//toStr(k))
 
       ncerr = nf90_get_att(ncid, varid=nf90_global, name=trim(attNames(k)), values=attrs(k)); call nccheck(ncerr)
-      print *, 'Attribute '//itoa(k)//' : '//trim(attNames(k))//' => '//trim(attrs(k))
+      print *, 'Attribute '//toStr(k)//' : '//trim(attNames(k))//' => '//trim(attrs(k))
     end do
     ncerr = nf90_close(ncid); call nccheck(ncerr); ierr = ierr + ncerr
     return
@@ -434,7 +443,7 @@ contains
     do k = 1, int(N)
       call get_global_attribute(fname, attNames(k), attrs(k), ierr2)
       ierr = ierr + ierr2
-      print *, 'Attribute '//itoa(k)//' : '//trim(attNames(k))//' => '//trim(attrs(k))
+      print *, 'Attribute '//toStr(k)//' : '//trim(attNames(k))//' => '//trim(attrs(k))
     end do
   end subroutine
 
@@ -510,8 +519,8 @@ contains
       if (ierr .ne. 0) goto 99
 
       if (xtype .ne. ${nctype}$) then
-        call CHKWARN(1_mpiint, 'nc_datatype does not match NC_Type ${nctype}$ expected: '//itoa(${nctype}$)// &
-          & ' found: '//itoa(xtype))
+        call CHKWARN(1_mpiint, 'nc_datatype does not match NC_Type ${nctype}$ expected: '//toStr(${nctype}$)// &
+          & ' found: '//toStr(xtype))
       end if
 
       #:if method == 'character'
@@ -523,7 +532,7 @@ contains
         if (attrLength .gt. len(attr)) then
           ierr = ierr + 1
           call CHKWARN(ierr, 'Attribute `'//trim(attr_name//'` exceeds buffer length '&
-            & //itoa(attrLength)//' < '//itoa(len(attr))))
+            & //toStr(attrLength)//' < '//toStr(len(attr))))
         end if
         if (ierr .ne. 0) goto 99
       #:endif

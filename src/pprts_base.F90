@@ -45,6 +45,7 @@ module m_pprts_base
     & t_pprts_shell_ctx, &
     & t_solver, &
     & t_solver_2str, &
+    & t_solver_disort, &
     & t_solver_1_2, &
     & t_solver_3_6, &
     & t_solver_3_10, &
@@ -72,7 +73,7 @@ module m_pprts_base
     integer(iintegers) :: dof, dim                 ! degrees of freedom of Petsc Domain, dimension of dmda
     type(tDM) :: da                      ! The Domain Decomposition Object
     integer(mpiint) :: comm                    ! mpi communicatior for this DMDA
-    integer(mpiint), allocatable :: neighbors(:)        ! all 3d neighbours((x=-1,y=-1,z=-1), (x=0,y=-1,z=-1) ...), i.e. 14 is one self.
+    integer(mpiint), allocatable :: neighbors(:)        ! all 3d neighbours((x=-1,y=-1,z=-1), (x=0,y=-1,z=-1) ...), i.e. 14 is one self
   end type
 
   type t_atmosphere
@@ -211,6 +212,8 @@ module m_pprts_base
   end type
 
   type, extends(t_solver) :: t_solver_2str
+  end type
+  type, extends(t_solver) :: t_solver_disort
   end type
   type, extends(t_solver) :: t_solver_1_2
   end type
@@ -383,6 +386,9 @@ contains
     case ('2str')
       allocate (t_solver_2str :: pprts_solver)
 
+    case ('disort')
+      allocate (t_solver_disort :: pprts_solver)
+
     case ('1_2')
       allocate (t_solver_1_2 :: pprts_solver)
 
@@ -413,6 +419,7 @@ contains
     case default
       print *, 'error, have to provide solver type as argument, e.g. call with'
       print *, '-'//trim(pref)//'solver 2str'
+      print *, '-'//trim(pref)//'solver disort'
       print *, '-'//trim(pref)//'solver 1_2'
       print *, '-'//trim(pref)//'solver 3_6'
       print *, '-'//trim(pref)//'solver 3_10'

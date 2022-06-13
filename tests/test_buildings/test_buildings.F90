@@ -13,12 +13,6 @@ module test_buildings
     & deg2rad, &
     & ind_1d_to_nd
 
-  ! main entry point for solver, and desctructor
-!  use m_pprts_rrtmg, only : pprts_rrtmg, destroy_pprts_rrtmg
-
-!  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, destroy_tenstr_atm
-
-!  use m_pprts_base, only : t_solver_3_10
   use m_buildings, only: &
     & t_pprts_buildings, &
     & init_buildings,    &
@@ -27,7 +21,7 @@ module test_buildings
     & PPRTS_TOP_FACE
 
   use m_examples_pprts_buildings, only: ex_pprts_buildings
-  use m_examples_pprts_rrtm_buildings, only: ex_pprts_rrtm_buildings
+  use m_examples_pprts_specint_buildings, only: ex_pprts_specint_buildings
 
   use pfunit_mod
 
@@ -637,7 +631,7 @@ contains
     Ag_thermal = 0
 
     do i = 1, 2
-      call ex_pprts_rrtm_buildings(           &
+      call ex_pprts_specint_buildings('rrtmg',&
         & comm, lverbose,                     &
         & lthermal, lsolar,                   &
         & Nx, Ny, Nlay,                       &
@@ -732,7 +726,7 @@ contains
     Ag_thermal = 0
 
     do i = 1, 2
-      call ex_pprts_rrtm_buildings(           &
+      call ex_pprts_specint_buildings('rrtmg',&
         & comm, lverbose,                     &
         & lthermal, lsolar,                   &
         & Nx, Ny, Nlay,                       &

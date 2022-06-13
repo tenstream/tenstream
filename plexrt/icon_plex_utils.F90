@@ -1531,7 +1531,7 @@ contains
   ! and while the petsc vec lives, you should not deallocate the memory
   subroutine dmplex_gVec_from_f90_array_2d(comm, arr, pVec, dm, blocksize)
     integer(mpiint), intent(in) :: comm
-    real(ireals), intent(in) :: arr(:, :)
+    real(ireals), target, contiguous, intent(in) :: arr(:, :)
     type(tVec), intent(out) :: pVec
     type(tDM), intent(in), optional :: dm
     integer(iintegers), intent(in), optional :: blocksize
@@ -1540,6 +1540,7 @@ contains
     integer(iintegers) :: localsize, section_size, bs
     type(tPetscSection) :: lsection
     VecType :: vectype
+    real(ireals), pointer :: parr(:)
 
     call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
     localsize = size(arr)
@@ -1549,7 +1550,8 @@ contains
     if (numnodes .gt. 1) then
       call VecCreateMPIWithArray(comm, bs, localsize, PETSC_DECIDE, arr, pVec, ierr); call CHKERR(ierr)
     else
-      call VecCreateSeqWithArray(comm, bs, localsize, arr, pVec, ierr); call CHKERR(ierr)
+      parr(1:size(arr)) => arr(:, :)
+      call VecCreateSeqWithArray(comm, bs, localsize, parr, pVec, ierr); call CHKERR(ierr)
     end if
 
     if (present(dm)) then

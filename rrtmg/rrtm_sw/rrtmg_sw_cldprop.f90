@@ -24,6 +24,8 @@
                            abari, bbari, cbari, dbari, ebari, fbari
       use m_tenstr_rrsw_wvn, only : wavenum1, wavenum2
       use m_tenstr_rrsw_vsn, only : hvrcld, hnamcld
+      use m_helper_functions, only: CHKERR, toStr
+      use m_data_parameters, only: mpiint
 
       implicit none
 
@@ -229,7 +231,9 @@
 ! For iceflag=3 option, ice particle generalized effective size is limited to 5.0 to 140.0 microns
 
                elseif (iceflag .eq. 3) then
-                  if (radice .lt. 5.0_rb .or. radice .gt. 140.0_rb) stop 'ICE GENERALIZED EFFECTIVE SIZE OUT OF BOUNDS'
+                  if (radice .lt. 5.0_rb .or. radice .gt. 140.0_rb) &
+                       call CHKERR(1_mpiint, 'ICE GENERALIZED EFFECTIVE SIZE OUT OF BOUNDS '// &
+                                             '5 < '//toStr(radice)//' < 140')
                   factor = (radice - 2._rb)/3._rb
                   index = int(factor)
                   if (index .eq. 46) index = 45
