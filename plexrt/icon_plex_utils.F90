@@ -530,10 +530,12 @@ contains
       integer(iintegers) :: v2dStart, v2dEnd
       integer(iintegers) :: v3dStart, v3dEnd
 
+      real(ireals) :: opt_proj_origin(3)
+      integer(iintegers) :: Narg_proj_origin
       real(ireals) :: vert_height, direction(3)
       integer(mpiint) :: ierr
       integer(iintegers) :: i, k, ivertex
-      logical :: lhave_3d_surface_heights
+      logical :: lhave_3d_surface_heights, lflg
 
       if (size(hhl) .eq. ke1) then
         lhave_3d_surface_heights = .false.
@@ -544,6 +546,10 @@ contains
                     //toStr(size(hhl))//' should be '//toStr(ke1)//' or '//toStr(ke1 * Nverts2d))
       end if
       !print *,'size(hhl)', size(hhl), ':', ke1*Nverts2d, ':', lhave_3d_surface_heights
+
+      opt_proj_origin = proj_origin
+      Narg_proj_origin = size(opt_proj_origin)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, "-extrude_origin", opt_proj_origin, Narg_proj_origin, lflg, ierr); call CHKERR(ierr)
 
       call DMPlexGetDepthStratum(dm3d, i0, v3dStart, v3dEnd, ierr); call CHKERR(ierr) ! 3D vertices
       call DMPlexGetDepthStratum(dm2d, i0, v2dStart, v2dEnd, ierr); call CHKERR(ierr) ! 2D vertices
@@ -581,8 +587,9 @@ contains
       do i = v2dStart, v2dEnd - 1
         call PetscSectionGetOffset(coordSection2d, i, voff2d, ierr); call CHKERR(ierr)
 
-        direction = coords2d(voff2d + i1:voff2d + i3) - proj_origin
-        call normalize_vec(direction, ierr); call CHKERR(ierr)
+        direction = coords2d(voff2d + i1:voff2d + i3) - opt_proj_origin
+        call normalize_vec(direction, ierr)
+        call CHKERR(ierr, "failed to norm extrude direction: "//toStr(direction)//" origin: "//toStr(opt_proj_origin))
 
         do k = 0, ke1 - 1
           ivertex = ivertex_icon_2_plex(i, k)
