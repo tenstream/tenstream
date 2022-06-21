@@ -18,6 +18,7 @@
 !-------------------------------------------------------------------------
 
 logical, intent(in), optional :: lverbose
+integer, dimension(:), optional, intent(in) :: ostart, ocount, ostride, omap
 
 character(len=*) :: groups(:)
 
