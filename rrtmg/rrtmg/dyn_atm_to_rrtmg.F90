@@ -87,23 +87,23 @@ module m_dyn_atm_to_rrtmg
     ! level quantities dim(nlay+1 of merged grid, ncol)
     real(ireals), allocatable :: plev(:, :) ! interface pressure     [hPa]
     real(ireals), allocatable :: tlev(:, :) ! interface temperature  [K]
-    real(ireals), allocatable :: zt(:, :) ! interface heights      [m]
+    real(ireals), allocatable :: zt(:, :)   ! interface heights      [m]
 
     ! layer quantities dim(nlay of merged grid, ncol)
-    real(ireals), allocatable :: zm(:, :) ! layer mean height        [m]
-    real(ireals), allocatable :: dz(:, :) ! vertical layer thickness [m]
-    real(ireals), allocatable :: tlay(:, :) ! layer mean temperature   [K]
+    real(ireals), allocatable :: zm(:, :)      ! layer mean height        [m]
+    real(ireals), allocatable :: dz(:, :)      ! vertical layer thickness [m]
+    real(ireals), allocatable :: tlay(:, :)    ! layer mean temperature   [K]
     real(ireals), allocatable :: h2o_lay(:, :) ! watervapor volume mixing ratio [e.g. 1e-3]
-    real(ireals), allocatable :: o3_lay(:, :) ! ozone volume mixing ratio      [e.g. .1e-6]
+    real(ireals), allocatable :: o3_lay(:, :)  ! ozone volume mixing ratio      [e.g. .1e-6]
     real(ireals), allocatable :: co2_lay(:, :) ! CO2 volume mixing ratio        [e.g. 407e-6]
     real(ireals), allocatable :: ch4_lay(:, :) ! methane volume mixing ratio    [e.g. 2e-6]
     real(ireals), allocatable :: n2o_lay(:, :) ! n2o volume mixing ratio        [e.g. .32]
-    real(ireals), allocatable :: o2_lay(:, :) ! oxygen volume mixing ratio     [e.g. .2]
-    real(ireals), allocatable :: lwc(:, :) ! liq water content              [g/kg]
-    real(ireals), allocatable :: reliq(:, :) ! effective radius               [micron]
-    real(ireals), allocatable :: iwc(:, :) ! ice water content              [g/kg]
-    real(ireals), allocatable :: reice(:, :) ! ice effective radius           [micron]
-    real(ireals), allocatable :: cfrac(:, :) ! cloud fraction
+    real(ireals), allocatable :: o2_lay(:, :)  ! oxygen volume mixing ratio     [e.g. .2]
+    real(ireals), allocatable :: lwc(:, :)     ! liq water content              [g/kg]
+    real(ireals), allocatable :: reliq(:, :)   ! effective radius               [micron]
+    real(ireals), allocatable :: iwc(:, :)     ! ice water content              [g/kg]
+    real(ireals), allocatable :: reice(:, :)   ! ice effective radius           [micron]
+    real(ireals), allocatable :: cfrac(:, :)   ! cloud fraction
 
     real(ireals), allocatable :: opt_tau(:, :, :) ! optional optical properties: tau, w0, g dim (Nlay_dynamics, Ncol, Nbands(solar or thermal))
     real(ireals), allocatable :: opt_w0(:, :, :) ! will be added to the rrtmg optical properties
@@ -146,20 +146,20 @@ contains
     type(t_tenstr_atm), intent(inout) :: atm
 
     ! all have dim(nlay_dynamics, ncol)
-    real(ireals), intent(in), optional :: d_tlay(:, :)      ! layer mean temperature         [K]
-    real(ireals), intent(in), optional :: d_h2ovmr(:, :)      ! watervapor volume mixing ratio [e.g. 1e-3]
-    real(ireals), intent(in), optional :: d_o3vmr(:, :)      ! ozone volume mixing ratio      [e.g. .1e-6]
-    real(ireals), intent(in), optional :: d_co2vmr(:, :)      ! CO2 volume mixing ratio        [e.g. 407e-6]
-    real(ireals), intent(in), optional :: d_ch4vmr(:, :)      ! methane volume mixing ratio    [e.g. 2e-6]
-    real(ireals), intent(in), optional :: d_n2ovmr(:, :)      ! n2o volume mixing ratio        [e.g. .32]
-    real(ireals), intent(in), optional :: d_o2vmr(:, :)      ! oxygen volume mixing ratio     [e.g. .2]
-    real(ireals), intent(in), optional :: d_lwc(:, :)      ! liq water content              [g/kg]
-    real(ireals), intent(in), optional :: d_reliq(:, :)      ! effective radius               [micron]
-    real(ireals), intent(in), optional :: d_iwc(:, :)      ! ice water content              [g/kg]
-    real(ireals), intent(in), optional :: d_reice(:, :)      ! ice effective radius           [micron]
+    real(ireals), intent(in), optional :: d_tlay(:, :)           ! layer mean temperature         [K]
+    real(ireals), intent(in), optional :: d_h2ovmr(:, :)         ! watervapor volume mixing ratio [e.g. 1e-3]
+    real(ireals), intent(in), optional :: d_o3vmr(:, :)          ! ozone volume mixing ratio      [e.g. .1e-6]
+    real(ireals), intent(in), optional :: d_co2vmr(:, :)         ! CO2 volume mixing ratio        [e.g. 407e-6]
+    real(ireals), intent(in), optional :: d_ch4vmr(:, :)         ! methane volume mixing ratio    [e.g. 2e-6]
+    real(ireals), intent(in), optional :: d_n2ovmr(:, :)         ! n2o volume mixing ratio        [e.g. .32]
+    real(ireals), intent(in), optional :: d_o2vmr(:, :)          ! oxygen volume mixing ratio     [e.g. .2]
+    real(ireals), intent(in), optional :: d_lwc(:, :)            ! liq water content              [g/kg]
+    real(ireals), intent(in), optional :: d_reliq(:, :)          ! effective radius               [micron]
+    real(ireals), intent(in), optional :: d_iwc(:, :)            ! ice water content              [g/kg]
+    real(ireals), intent(in), optional :: d_reice(:, :)          ! ice effective radius           [micron]
     real(ireals), intent(in), optional :: d_cloud_fraction(:, :) ! cloud fraction
-    real(ireals), intent(in), optional :: d_surface_height(:)   ! surface height above sea     [m]
-    real(ireals), intent(in), optional :: d_skin_temperature(:) ! skin tempertaure             [K]
+    real(ireals), intent(in), optional :: d_surface_height(:)    ! surface height above sea     [m]
+    real(ireals), intent(in), optional :: d_skin_temperature(:)  ! skin tempertaure             [K]
 
     character(len=*), intent(in), optional :: prefix
 
