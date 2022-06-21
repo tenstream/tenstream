@@ -30,6 +30,7 @@ module m_data_parameters
   public &
     AVOGADRO, &
     CLIGHT, &
+    CP_DRY_AIR, &
     default_str_len, &
     EARTHACCEL, &
     EXP_MINVAL, EXP_MAXVAL, EXP_MINVAL128, EXP_MAXVAL128, &
@@ -109,6 +110,7 @@ module m_data_parameters
   real(ireals), parameter :: EARTHACCEL = 9.80665         ! (m s**-2)
   real(ireals), parameter :: K_BOLTZMANN = 1.38e-23       ! J / K
   real(ireals), parameter :: R_DRY_AIR = 287.058          ! J / (kg K) specific gas constant dry air
+  real(ireals), parameter :: CP_DRY_AIR = 1003.5          ! J / kg / K
   real(ireals), parameter :: CLIGHT = 299792458._ireals   ! m / s
   real(ireals), parameter :: PI = 3.141592653589793_ireals
   real(irealLUT), parameter :: pi_irealLUT = 3.141592653589793_ireallut
