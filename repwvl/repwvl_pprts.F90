@@ -523,7 +523,6 @@ contains
     if (present(opt_tau)) call CHKERR(1_mpiint, 'opt_tau not yet implemented for repwvl_solar')
     if (present(opt_w0)) call CHKERR(1_mpiint, 'opt_w0 not yet implemented for repwvl_solar')
     if (present(opt_g)) call CHKERR(1_mpiint, 'opt_g not yet implemented for repwvl_solar')
-    if (present(opt_solar_constant)) call CHKERR(1_mpiint, 'opt_solar_constant not yet implemented for repwvl_solar')
 
     ke = ubound(atm%tlay, 1)
 
@@ -559,6 +558,9 @@ contains
       call PetscLogEventEnd(log_events%repwvl_optprop, ierr); call CHKERR(ierr)
 
       edirTOA = repwvl_data_solar%wgts(iwvl)
+      if (present(opt_solar_constant)) then
+        edirTOA = repwvl_data_solar%wgts(iwvl) / sum(repwvl_data_solar%wgts(:)) * opt_solar_constant
+      end if
 
       call set_optical_properties( &
         & solver,                  &
