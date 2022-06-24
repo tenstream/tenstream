@@ -2474,6 +2474,7 @@ contains
                  solver%ksp_solar_dir, &
                  solver%incSolar, &
                  solution%edir, &
+                 solution%uid, &
                  solution%Niter_dir, &
                  solution%dir_ksp_residual_history)
       call PetscLogEventEnd(solver%logs%solve_Mdir, ierr)
@@ -2567,6 +2568,7 @@ contains
                  ksp, &
                  solver%b, &
                  solution%ediff, &
+                 solution%uid, &
                  solution%Niter_diff, &
                  solution%diff_ksp_residual_history)
       call PetscLogEventEnd(solver%logs%solve_Mdiff, ierr)
@@ -3982,11 +3984,12 @@ contains
   !> @details solve with ksp and save residual history of solver
   !> \n -- this may be handy later to decide next time if we have to calculate radiation again
   !> \n if we did not get convergence, we try again with standard GMRES and a resetted(zero) initial guess -- if that doesnt help, we got a problem!
-  subroutine solve(solver, ksp, b, x, iter, ksp_residual_history)
+  subroutine solve(solver, ksp, b, x, uid, iter, ksp_residual_history)
     class(t_solver) :: solver
     type(tKSP) :: ksp
     type(tVec) :: b
     type(tVec) :: x
+    integer(iintegers) :: uid
     integer(iintegers), intent(out) :: iter
     real(ireals), intent(inout), optional :: ksp_residual_history(:)
 
@@ -4028,7 +4031,8 @@ contains
     if (reason .le. 0) then
       call KSPGetOptionsPrefix(ksp, prefix, ierr); call CHKERR(ierr)
       if (solver%myid .eq. 0) &
-        & call CHKWARN(int(reason, mpiint), trim(prefix)//' :: Resetted initial guess to zero and try again with gmres')
+        & call CHKWARN(int(reason, mpiint), trim(prefix)//' :: Resetted initial guess to zero '// &
+        & 'and try again with gmres (uid='//toStr(uid)//')')
       call VecSet(x, zero, ierr); call CHKERR(ierr)
       call KSPGetType(ksp, old_ksp_type, ierr); call CHKERR(ierr)
       call KSPSetType(ksp, KSPGMRES, ierr); call CHKERR(ierr)
@@ -4042,12 +4046,12 @@ contains
       call KSPSetFromOptions(ksp, ierr); call CHKERR(ierr)
       call KSPSetUp(ksp, ierr); call CHKERR(ierr)
       if (solver%myid .eq. 0 .and. ldebug) &
-        & print *, solver%myid, 'Solver took', iter, 'iterations and converged', reason .gt. 0, 'because', reason
+        & print *, solver%myid, 'Solver took', iter, 'iterations and converged', reason .gt. 0, 'because', reason, 'uid', uid
     end if
 
     if (reason .le. 0) then
       call CHKERR(int(reason, mpiint), &
-        & '***** SOLVER did NOT converge :( -- '// &
+        & '***** SOLVER did NOT converge :( -- (uid='//toStr(uid)//')'// &
         & 'if you know what you are doing, you can use the option -accept_incomplete_solve to continue')
     end if
   end subroutine
