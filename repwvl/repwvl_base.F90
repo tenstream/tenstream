@@ -69,8 +69,6 @@ module m_repwvl_base
     integer(iintegers) :: Nwvl, Ntracer
   end type
 
-  logical, parameter :: ldebug = .true.
-
 contains
 
   subroutine load_data(fname, repwvl_data, ierr, lverbose)

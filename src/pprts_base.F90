@@ -116,8 +116,8 @@ module m_pprts_base
     !save error statistics
     real(ireals) :: time(30) = -one
     real(ireals) :: maxnorm(30) = zero
-    real(ireals) :: dir_ksp_residual_history(100)
-    real(ireals) :: diff_ksp_residual_history(100)
+    real(ireals) :: dir_ksp_residual_history(100) = -one
+    real(ireals) :: diff_ksp_residual_history(100) = -one
 
     integer(iintegers) :: Niter_dir = -1, Niter_diff = -1
   end type

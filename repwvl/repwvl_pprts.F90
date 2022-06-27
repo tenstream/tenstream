@@ -564,7 +564,7 @@ contains
     spectral_bands = min(max(spectral_bands, 1), size(repwvl_data_solar%wvls))
 
     do iwvl = spectral_bands(1), spectral_bands(2)
-      if (myid .eq. 0 .and. (lflg.or.ldebug)) then
+      if (myid .eq. 0 .and. (lflg .or. ldebug)) then
         print *, 'Computing wavelengths '//toStr(iwvl)//' / '//toStr(size(repwvl_data_solar%wvls))//&
           & ' -- '//toStr(100._ireals * real(iwvl, ireals) / real(size(repwvl_data_solar%wvls), ireals))//' %'// &
           & ' ('//toStr(repwvl_data_solar%wvls(iwvl))//' nm,  wgt='//toStr(repwvl_data_solar%wgts(iwvl))//')'
