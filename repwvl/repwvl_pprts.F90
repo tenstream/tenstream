@@ -347,6 +347,9 @@ contains
 
     type(t_pprts_buildings), allocatable :: spec_buildings
 
+    logical :: lflg
+    integer(iintegers) :: argcnt, spectral_bands(2)
+
     ierr = 0
     call mpi_comm_rank(comm, myid, ierr)
 
@@ -381,7 +384,14 @@ contains
       allocate (spec_buildings%planck(size(opt_buildings%temp)))
     end if
 
-    do iwvl = 1, size(repwvl_data_thermal%wvls)
+    spectral_bands = [integer(iintegers) :: 1, size(repwvl_data_thermal%wvls)]
+    argcnt = size(spectral_bands)
+    call get_petsc_opt(PETSC_NULL_CHARACTER, "-repwvl_bands", spectral_bands, argcnt, lflg, ierr); call CHKERR(ierr)
+    if (lflg) call CHKERR(int(argcnt - 2_iintegers, mpiint), "must provide 2 values for repwvl_bands, comma separated, no spaces")
+    spectral_bands = min(max(spectral_bands, 1), size(repwvl_data_thermal%wvls))
+
+    do iwvl = spectral_bands(1), spectral_bands(2)
+
       if (myid .eq. 0 .and. ldebug) then
         print *, 'Computing wavelengths '//toStr(iwvl)//' / '//toStr(size(repwvl_data_thermal%wvls))//&
           & ' -- '//toStr(100._ireals * real(iwvl, ireals) / real(size(repwvl_data_thermal%wvls), ireals))//' %'// &
@@ -517,6 +527,9 @@ contains
 
     type(t_pprts_buildings), allocatable :: spec_buildings
 
+    logical :: lflg
+    integer(iintegers) :: argcnt, spectral_bands(2)
+
     ierr = 0
     call mpi_comm_rank(comm, myid, ierr)
 
@@ -544,8 +557,14 @@ contains
 
     call set_angles(solver, sundir)
 
-    do iwvl = 1, size(repwvl_data_solar%wvls)
-      if (myid .eq. 0 .and. ldebug) then
+    spectral_bands = [integer(iintegers) :: 1, size(repwvl_data_solar%wvls)]
+    argcnt = size(spectral_bands)
+    call get_petsc_opt(PETSC_NULL_CHARACTER, "-repwvl_bands", spectral_bands, argcnt, lflg, ierr); call CHKERR(ierr)
+    if (lflg) call CHKERR(int(argcnt - 2_iintegers, mpiint), "must provide 2 values for repwvl_bands, comma separated, no spaces")
+    spectral_bands = min(max(spectral_bands, 1), size(repwvl_data_solar%wvls))
+
+    do iwvl = spectral_bands(1), spectral_bands(2)
+      if (myid .eq. 0 .and. (lflg .or. ldebug)) then
         print *, 'Computing wavelengths '//toStr(iwvl)//' / '//toStr(size(repwvl_data_solar%wvls))//&
           & ' -- '//toStr(100._ireals * real(iwvl, ireals) / real(size(repwvl_data_solar%wvls), ireals))//' %'// &
           & ' ('//toStr(repwvl_data_solar%wvls(iwvl))//' nm,  wgt='//toStr(repwvl_data_solar%wgts(iwvl))//')'

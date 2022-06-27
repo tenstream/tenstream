@@ -78,9 +78,10 @@ contains
     real(ireals), allocatable :: residual(:)
     real(ireals) :: residual_mmm(3), rel_residual, atol, rtol
 
+    integer(iintegers), parameter :: default_max_it = 1000
     real(ireals) :: ignore_max_it! Ignore max iter setting if time is less
 
-    logical :: lksp_view
+    logical :: lksp_view, lcomplete_initial_run
     logical :: lsun_north, lsun_east, lpermute, lskip_residual, lmonitor_residual, lconverged, lflg, lflg2
     logical :: laccept_incomplete_solve, lconverged_reason
 
@@ -95,7 +96,7 @@ contains
         & atm => solver%atm, &
         & C => solver%C_dir)
 
-      maxiter = 1000
+      maxiter = default_max_it
       call get_petsc_opt(prefix, "-ksp_max_it", maxiter, lflg, ierr); call CHKERR(ierr)
 
       lskip_residual = .false.
@@ -104,9 +105,17 @@ contains
       ignore_max_it = -huge(ignore_max_it)
       call get_petsc_opt(prefix, "-ksp_ignore_max_it", ignore_max_it, lflg, ierr); call CHKERR(ierr)
       if (solution%time(1) .lt. ignore_max_it) then
-        maxiter = 1001
+        maxiter = default_max_it + 1
         lskip_residual = .false.
       end if
+
+      lcomplete_initial_run = .false.
+      call get_petsc_opt(prefix, "-ksp_complete_initial_run", lcomplete_initial_run, lflg, ierr); call CHKERR(ierr)
+      if (lcomplete_initial_run .and. solution%dir_ksp_residual_history(1) .le. 0) then
+        maxiter = default_max_it + 2
+        lskip_residual = .false.
+      end if
+
       allocate (residual(maxiter))
 
       lmonitor_residual = .false.
@@ -144,7 +153,7 @@ contains
       call get_petsc_opt(prefix, "-ksp_view", lksp_view, lflg, ierr); call CHKERR(ierr)
       if (solver%myid .eq. 0 .and. lksp_view) then
         print *, '* Using pprts explicit solver for prefix <'//trim(prefix)//'>'
-        print *, '  -'//trim(prefix)//'max_it '//toStr(maxiter)
+        print *, '  -'//trim(prefix)//'ksp_max_it '//toStr(maxiter)
         print *, '  -'//trim(prefix)//'ksp_atol ', atol
         print *, '  -'//trim(prefix)//'ksp_rtol ', rtol
         print *, '  -'//trim(prefix)//'skip_residual '//toStr(lskip_residual)
@@ -201,6 +210,8 @@ contains
               & print *, trim(prefix)//' solve converged after', iter, 'iterations'
             exit
           end if
+        else
+          solution%dir_ksp_residual_history(min(size(solution%dir_ksp_residual_history, kind=iintegers), iter)) = zero
         end if
 
         if (iter .eq. maxiter) then
@@ -431,9 +442,10 @@ contains
     real(ireals), allocatable :: residual(:)
     real(ireals) :: residual_mmm(3), rel_residual, atol, rtol, omega
 
+    integer(iintegers), parameter :: default_max_it = 1000
     real(ireals) :: ignore_max_it! Ignore max iter setting if time is less
 
-    logical :: lksp_view
+    logical :: lksp_view, lcomplete_initial_run
     logical :: lskip_residual, lmonitor_residual, lconverged, lflg, lflg2
     logical :: laccept_incomplete_solve, lconverged_reason
 
@@ -447,7 +459,7 @@ contains
         & atm => solver%atm, &
         & C => solver%C_diff)
 
-      maxiter = 1000
+      maxiter = default_max_it
       call get_petsc_opt(prefix, "-ksp_max_it", maxiter, lflg, ierr); call CHKERR(ierr)
 
       lskip_residual = .false.
@@ -456,12 +468,20 @@ contains
       ignore_max_it = -huge(ignore_max_it)
       call get_petsc_opt(prefix, "-ksp_ignore_max_it", ignore_max_it, lflg, ierr); call CHKERR(ierr)
       if (solution%time(1) .lt. ignore_max_it) then
-        maxiter = 1001
+        maxiter = default_max_it + 1
         lskip_residual = .false.
       end if
+
+      lcomplete_initial_run = .false.
+      call get_petsc_opt(prefix, "-ksp_complete_initial_run", lcomplete_initial_run, lflg, ierr); call CHKERR(ierr)
+      if (lcomplete_initial_run .and. solution%diff_ksp_residual_history(1) .le. 0) then
+        maxiter = default_max_it + 2
+        lskip_residual = .false.
+      end if
+
       allocate (residual(maxiter))
       sub_iter = 1
-      call get_petsc_opt(prefix, "-sub_it", sub_iter, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt(prefix, "-pc_sub_it", sub_iter, lflg, ierr); call CHKERR(ierr)
 
       lmonitor_residual = .false.
       call get_petsc_opt(prefix, "-ksp_monitor", lmonitor_residual, lflg, ierr); call CHKERR(ierr)
@@ -487,8 +507,8 @@ contains
       call get_petsc_opt(prefix, "-ksp_view", lksp_view, lflg, ierr); call CHKERR(ierr)
       if (solver%myid .eq. 0 .and. lksp_view) then
         print *, '* Using pprts explicit solver for prefix <'//trim(prefix)//'>'
-        print *, '  -'//trim(prefix)//'max_it '//toStr(maxiter)
-        print *, '  -'//trim(prefix)//'sub_it '//toStr(sub_iter)
+        print *, '  -'//trim(prefix)//'ksp_max_it '//toStr(maxiter)
+        print *, '  -'//trim(prefix)//'pc_sub_it '//toStr(sub_iter)
         print *, '  -'//trim(prefix)//'ksp_atol ', atol
         print *, '  -'//trim(prefix)//'ksp_rtol ', rtol
         print *, '  -'//trim(prefix)//'pc_sor_omega '//toStr(omega)
@@ -579,6 +599,8 @@ contains
               & print *, trim(prefix), ' solve converged after', iter, 'iterations'
             exit
           end if
+        else
+          solution%diff_ksp_residual_history(min(size(solution%diff_ksp_residual_history, kind=iintegers), iter)) = zero
         end if
 
         if (iter .eq. maxiter) then

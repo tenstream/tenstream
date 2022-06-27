@@ -43,7 +43,8 @@ module m_netcdfIO
   public :: ncwrite, ncload, acquire_file_lock, release_file_lock, &
             get_attribute, set_attribute, &
             get_global_attribute, set_global_attribute, &
-            get_number_global_attributes, list_global_attributes
+            get_number_global_attributes, list_global_attributes, &
+            get_dim_info
 
 !  integer :: v=11
   integer, parameter :: default_deflate_lvl = 1
@@ -290,12 +291,12 @@ contains
     #:set dKIND = '' if method == 'logical' else '('+dtype+')'
     #:for RANK in range(1, 8)
       #:for modifier in ['allocatable', 'pointer']
-        subroutine ncload_${method}$_${dtype}$_${RANK}$d_${modifier}$ (groups, arr, ierr, lverbose)
+        subroutine ncload_${method}$_${dtype}$_${RANK}$d_${modifier}$ (groups, arr, ierr, lverbose, ostart, ocount, ostride, omap)
           ${method}$${dKIND}$#{if modifier}#,${modifier}$#{endif}#, intent(inout) :: arr${ranksuffix(RANK)}$
 
           #:if modifier == 'allocatable'
             include 'netcdfio_read_1.inc'
-            if (ierr .eq. 0) allocate (arr ${rankallocdims(RANK)}$)
+            if (ierr .eq. 0 .and. .not. allocated(arr)) allocate (arr ${rankallocdims(RANK)}$)
             include 'netcdfio_read_2.inc'
           #:endif
           #:if modifier == 'pointer'
@@ -620,4 +621,35 @@ contains
     end subroutine
   #:endfor
 
+  subroutine get_dim_info(fname, dimname, ierr, dimid, dimsize)
+    character(len=*), intent(in) :: fname, dimname
+    integer(mpiint), intent(out) :: ierr
+    integer(iintegers), intent(out), optional :: dimid, dimsize
+
+    character(len=default_str_len) :: adimname
+    integer :: ncid, adimid, adimsize, ncerr
+
+    ierr = 0
+    ncerr = nf90_open(trim(fname), nf90_nowrite, ncid); call nccheck(ncerr)
+    if (ncerr .ne. NF90_NOERR) ierr = ierr + 1
+    call CHKWARN(ierr, 'Could not open file '//trim(fname))
+    if (ierr .ne. 0) goto 99
+
+    ncerr = nf90_inq_dimid(ncid, dimname, adimid)
+    if (ncerr .ne. NF90_NOERR) ierr = ierr + 1
+    call CHKWARN(ierr, 'Could not determine dimid of '//trim(dimname))
+    if (ierr .ne. 0) goto 99
+
+    ncerr = nf90_inquire_dimension(ncid, adimid, adimname, adimsize)
+    if (ncerr .ne. NF90_NOERR) ierr = ierr + 1
+    call CHKWARN(ierr, 'Could not determine dim info of '//trim(dimname))
+    if (ierr .ne. 0) goto 99
+
+99  continue
+    ncerr = nf90_close(ncid); call nccheck(ncerr); ierr = ierr + ncerr
+    if (ncerr .ne. NF90_NOERR) call CHKWARN(1_mpiint, 'Could not close file '//trim(fname))
+
+    if (present(dimid)) dimid = adimid
+    if (present(dimsize)) dimsize = adimsize
+  end subroutine
 end module
