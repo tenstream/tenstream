@@ -735,7 +735,7 @@ contains
     logical, intent(in) :: l1d(:)
     real(ireals), intent(out) :: rtol, atol
     type(tKSP), intent(in), allocatable, optional :: ksp
-    real(ireals) :: rel_atol = 1e-6_ireals
+    real(ireals) :: rel_atol = 1e-4_ireals
     real(ireals) :: unconstrained_fraction
     integer(mpiint) :: myid, ierr
     integer(iintegers) :: maxit
