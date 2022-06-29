@@ -98,7 +98,7 @@ module m_pprts_rrtmg
   implicit none
 
   private
-  public :: pprts_rrtmg, destroy_pprts_rrtmg
+  public :: pprts_rrtmg, destroy_pprts_rrtmg, smooth_surface_fluxes, slope_correction_fluxes
 
 !  logical,parameter :: ldebug=.True.
   logical, parameter :: ldebug = .false.
@@ -167,7 +167,7 @@ contains
     call PetscLogEventBegin(log_events%smooth_surface_fluxes, ierr); call CHKERR(ierr)
     call mpi_comm_rank(solver%comm, myid, ierr); call CHKERR(ierr)
 
-    radius = 0; 
+    radius = 0
     call get_petsc_opt(solver%prefix, "-pprts_smooth_srfc_flx", radius, lflg, ierr); call CHKERR(ierr)
 
     if (lflg) then

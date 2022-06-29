@@ -80,6 +80,8 @@ module m_repwvl_pprts
   use m_fu_ice, only: fu_ice_init, fu_ice_optprop, fu_ice_data_solar, fu_ice_data_thermal
   use m_rayleigh, only: rayleigh
 
+  use m_pprts_rrtmg, only: smooth_surface_fluxes, slope_correction_fluxes
+
   implicit none
 
   private
@@ -305,6 +307,9 @@ contains
         call PetscLogStagePop(ierr); call CHKERR(ierr) ! pop log_events%stage_repwvl_solar
       end if
     end if
+
+    call smooth_surface_fluxes(solver, edn, eup)
+    if (lsolar) call slope_correction_fluxes(solver, edir)
   end subroutine
 
   subroutine compute_thermal( &
