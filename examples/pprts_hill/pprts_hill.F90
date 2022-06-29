@@ -19,7 +19,7 @@ module m_example_pprts_rrtmg_hill
   use m_petsc_helpers, only: getvecpointer, restorevecpointer, petscGlobalVecToZero, petscVecToF90, f90VecToPetsc
 
   ! main entry point for solver, and desctructor
-  use m_pprts_rrtmg, only: pprts_rrtmg, destroy_pprts_rrtmg
+  use m_specint_pprts, only: specint_pprts, specint_pprts_destroy
 
   use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, &
                                 destroy_tenstr_atm, print_tenstr_atm
@@ -35,12 +35,14 @@ contains
   end function
 
   subroutine example_pprts_rrtmg_hill(&
+      & specint, &
       & comm, &
       & nxp, nyp, nzp, &
       & dx, dy, &
       & Ag_thermal, Ag_solar, &
       & nxproc, nyproc, &
       & xstart, ystart)
+    character(len=*), intent(in) :: specint           ! name of module to use for spectral integration
     integer(mpiint), intent(in) :: comm
     integer(iintegers), intent(in) :: nxp, nyp, nzp  ! local domain size for each rank
     integer(iintegers), intent(in) :: nxproc(:), nyproc(:) ! local domain sizes on 2d cartesian decomposition
@@ -151,8 +153,8 @@ contains
     plwc(1:size(lwc, 1), 1:size(lwc, 2) * size(lwc, 3)) => lwc
     preliq(1:size(reliq, 1), 1:size(reliq, 2) * size(reliq, 3)) => reliq
 
-    atm_filename = 'afglus_100m.dat'
-    call get_petsc_opt(PETSC_NULL_CHARACTER, '-atm_filename', &
+    atm_filename = 'share/atm.dat'
+    call get_petsc_opt(PETSC_NULL_CHARACTER, '-atm', &
                        atm_filename, lflg, ierr); call CHKERR(ierr)
 
     phi0 = 180
@@ -177,12 +179,12 @@ contains
                                                    + meanval(atm%tlev(atm%d_ke1, :) - atm%tlev(atm%d_ke1 + 1, :))
     if (myid .eq. 0) call print_tenstr_atm(atm)
 
-    call pprts_rrtmg(comm, pprts_solver, atm, nxp, nyp, &
-                     dx, dy, spherical_2_cartesian(phi0, theta0), &
-                     Ag_thermal, Ag_solar, &
-                     lthermal, lsolar, &
-                     edir, edn, eup, abso, &
-                     nxproc=nxproc, nyproc=nyproc)
+    call specint_pprts(specint, comm, pprts_solver, atm, nxp, nyp, &
+                       dx, dy, spherical_2_cartesian(phi0, theta0), &
+                       Ag_thermal, Ag_solar, &
+                       lthermal, lsolar, &
+                       edir, edn, eup, abso, &
+                       nxproc=nxproc, nyproc=nyproc)
 
     nlev = ubound(edn, 1)
     if (myid .eq. 0) then
@@ -196,8 +198,10 @@ contains
         end do
       end if
 
-      if (allocated(edir)) &
+      if (allocated(edir)) then
         print *, 'surface :: direct flux', edir(nlev, 1, 1)
+        print *, 'surface :: direct flux', edir(nlev, 1, :)
+      end if
       print *, 'surface :: downw flux ', edn(nlev, 1, 1)
       print *, 'surface :: upward fl  ', eup(nlev, 1, 1)
       print *, 'surface :: absorption ', abso(nlev - 1, 1, 1)
@@ -229,47 +233,49 @@ contains
         & Ca1 => pprts_solver%C_one_atm1_box, &
         & Cs => pprts_solver%Csrfc_one)
 
-      call dump_vec(Ca%da, pprts_solver%atm%dz, 'dz')
+      call dump_vec(Ca%da, pprts_solver%atm%dz, 'dz', [character(len=default_str_len) :: 'ke', 'nx', 'ny'])
 
       patm(Ca1%zs:Ca1%ze, Ca1%xs:Ca1%xe, Ca1%ys:Ca1%ye) => atm%plev
-      call dump_vec(Ca1%da, reverse(patm), 'p_lev')
+      call dump_vec(Ca1%da, reverse(patm), 'p_lev', [character(len=default_str_len) :: 'ke1', 'nx', 'ny'])
 
       patm(Ca1%zs:Ca1%ze, Ca1%xs:Ca1%xe, Ca1%ys:Ca1%ye) => atm%tlev
-      call dump_vec(Ca1%da, reverse(patm), 't_lev')
+      call dump_vec(Ca1%da, reverse(patm), 't_lev', [character(len=default_str_len) :: 'ke1', 'nx', 'ny'])
 
       patm(Ca%zs:Ca%ze, Ca%xs:Ca%xe, Ca%ys:Ca%ye) => atm%tlay
-      call dump_vec(Ca%da, reverse(patm), 't_lay')
+      call dump_vec(Ca%da, reverse(patm), 't_lay', [character(len=default_str_len) :: 'ke', 'nx', 'ny'])
 
       patm(Ca%zs:Ca%ze, Ca%xs:Ca%xe, Ca%ys:Ca%ye) => atm%o3_lay
-      call dump_vec(Ca%da, reverse(patm), 'o3_lay')
+      call dump_vec(Ca%da, reverse(patm), 'o3_lay', [character(len=default_str_len) :: 'ke', 'nx', 'ny'])
 
       patm(Ca%zs:Ca%ze, Ca%xs:Ca%xe, Ca%ys:Ca%ye) => atm%o2_lay
-      call dump_vec(Ca%da, reverse(patm), 'o2_lay')
+      call dump_vec(Ca%da, reverse(patm), 'o2_lay', [character(len=default_str_len) :: 'ke', 'nx', 'ny'])
 
       patm(Ca%zs:Ca%ze, Ca%xs:Ca%xe, Ca%ys:Ca%ye) => atm%h2o_lay
-      call dump_vec(Ca%da, reverse(patm), 'h2o_lay')
+      call dump_vec(Ca%da, reverse(patm), 'h2o_lay', [character(len=default_str_len) :: 'ke', 'nx', 'ny'])
 
       patm(Ca%zs:Ca%ze, Ca%xs:Ca%xe, Ca%ys:Ca%ye) => atm%co2_lay
-      call dump_vec(Ca%da, reverse(patm), 'co2_lay')
+      call dump_vec(Ca%da, reverse(patm), 'co2_lay', [character(len=default_str_len) :: 'ke', 'nx', 'ny'])
 
       patm(Ca%zs:Ca%ze, Ca%xs:Ca%xe, Ca%ys:Ca%ye) => atm%n2o_lay
-      call dump_vec(Ca%da, reverse(patm), 'no2_lay')
+      call dump_vec(Ca%da, reverse(patm), 'no2_lay', [character(len=default_str_len) :: 'ke', 'nx', 'ny'])
 
       patm(Ca%zs:Ca%ze, Ca%xs:Ca%xe, Ca%ys:Ca%ye) => atm%lwc
-      call dump_vec(Ca%da, reverse(patm), 'lwc')
+      call dump_vec(Ca%da, reverse(patm), 'lwc', [character(len=default_str_len) :: 'ke', 'nx', 'ny'])
 
       patm(Ca%zs:Ca%ze, Ca%xs:Ca%xe, Ca%ys:Ca%ye) => atm%reliq
-      call dump_vec(Ca%da, reverse(patm), 'reliq')
+      call dump_vec(Ca%da, reverse(patm), 'reliq', [character(len=default_str_len) :: 'ke', 'nx', 'ny'])
 
       if (allocated(edir)) &
-        call dump_vec(C1%da, edir, 'edir')
-      call dump_vec(C1%da, edn, 'edn')
-      call dump_vec(C1%da, eup, 'eup')
-      call dump_vec(C%da, abso, 'abso')
+        & call dump_vec(C1%da, edir, 'edir', [character(len=default_str_len) :: 'ke1', 'nx', 'ny'])
+      call dump_vec(C1%da, edn, 'edn', [character(len=default_str_len) :: 'ke1', 'nx', 'ny'])
+      call dump_vec(C1%da, eup, 'eup', [character(len=default_str_len) :: 'ke1', 'nx', 'ny'])
+      call dump_vec(C%da, abso, 'abso', [character(len=default_str_len) :: 'ke', 'nx', 'ny'])
 
       call getVecPointer(Ca1%da, pprts_solver%atm%hhl, hhl1d, hhl)
-      call dump_vec(Ca1%da, hhl(0, Ca1%zs:Ca1%ze, Ca1%xs:Ca1%xe, Ca1%ys:Ca1%ye), 'hhl')
-      call dump_vec_2d(Cs%da, hhl(0, Ca1%ze, Ca1%xs:Ca1%xe, Ca1%ys:Ca1%ye), 'hsurf')
+      call dump_vec(Ca1%da, hhl(0, Ca1%zs:Ca1%ze, Ca1%xs:Ca1%xe, Ca1%ys:Ca1%ye), 'hhl', &
+        & [character(len=default_str_len) :: 'ke1', 'nx', 'ny'])
+      call dump_vec_2d(Cs%da, hhl(0, Ca1%ze, Ca1%xs:Ca1%xe, Ca1%ys:Ca1%ye), 'hsurf', &
+        & [character(len=default_str_len) :: 'nx', 'ny'])
       call restoreVecPointer(Ca1%da, pprts_solver%atm%hhl, hhl1d, hhl)
 
       if (myid .eq. 0) then
@@ -286,13 +292,15 @@ contains
     end associate
 
     ! Tidy up
-    call destroy_pprts_rrtmg(pprts_solver, lfinalizepetsc=.true.)
+    call specint_pprts_destroy(specint, pprts_solver, lfinalizepetsc=.true., ierr=ierr); call CHKERR(ierr)
     call destroy_tenstr_atm(atm)
   contains
-    subroutine dump_vec_2d(dm, arr, varname)
+    subroutine dump_vec_2d(dm, arr, varname, dimnames)
       type(tDM), intent(in) :: dm
       real(ireals), intent(in) :: arr(:, :)
       character(len=*), intent(in) :: varname
+      character(len=*), intent(in) :: dimnames(:)
+
       type(tVec) :: gvec, lVec
       real(ireals), allocatable :: larr(:, :)
       integer(mpiint) :: ierr
@@ -304,16 +312,18 @@ contains
         call petscVecToF90(lVec, dm, larr, only_on_rank0=.true.)
 
         outpath(2) = trim(varname)
-        call ncwrite(outpath, larr, ierr); call CHKERR(ierr)
+        call ncwrite(outpath, larr, ierr, dimnames=dimnames); call CHKERR(ierr)
       end if
       call VecDestroy(lVec, ierr); call CHKERR(ierr)
 
       call DMRestoreGlobalVector(dm, gvec, ierr); call CHKERR(ierr)
     end subroutine
-    subroutine dump_vec(dm, arr, varname)
+    subroutine dump_vec(dm, arr, varname, dimnames)
       type(tDM), intent(in) :: dm
       real(ireals), intent(in) :: arr(:, :, :)
       character(len=*), intent(in) :: varname
+      character(len=*), intent(in) :: dimnames(:)
+
       type(tVec) :: gvec, lVec
       real(ireals), allocatable :: larr(:, :, :)
       integer(mpiint) :: ierr
@@ -325,7 +335,7 @@ contains
         call petscVecToF90(lVec, dm, larr, only_on_rank0=.true.)
 
         outpath(2) = trim(varname)
-        call ncwrite(outpath, larr, ierr); call CHKERR(ierr)
+        call ncwrite(outpath, larr, ierr, dimnames=dimnames); call CHKERR(ierr)
       end if
       call VecDestroy(lVec, ierr); call CHKERR(ierr)
 
@@ -338,7 +348,7 @@ program main
 #include "petsc/finclude/petsc.h"
   use petsc
   use mpi
-  use m_data_parameters, only: iintegers, mpiint, ireals
+  use m_data_parameters, only: iintegers, mpiint, ireals, default_str_len
   use m_helper_functions, only: domain_decompose_2d_petsc, CHKERR, get_petsc_opt
   use m_example_pprts_rrtmg_hill, only: example_pprts_rrtmg_hill
 
@@ -347,6 +357,7 @@ program main
   integer(mpiint) :: ierr, myid
   integer(iintegers), allocatable :: nxproc(:), nyproc(:)
   integer(iintegers) :: Nx, Ny, Nz, nxp, nyp, xStart, yStart
+  character(len=default_str_len) :: specint
   real(ireals) :: dx, dy, Ag_thermal, Ag_solar
   logical :: lflg
 
@@ -354,6 +365,9 @@ program main
   call mpi_comm_rank(mpi_comm_world, myid, ierr)
 
   call PetscInitialize(PETSC_NULL_CHARACTER, ierr); call CHKERR(ierr)
+
+  specint = 'no_default_set'
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-specint", specint, lflg, ierr); call CHKERR(ierr)
 
   Nx = 3; Ny = 32; Nz = 10
   call get_petsc_opt(PETSC_NULL_CHARACTER, "-Nx", Nx, lflg, ierr); call CHKERR(ierr)
@@ -380,7 +394,9 @@ program main
       & '(decomp:', nxproc, nyproc, ')'
   end if
 
-  call example_pprts_rrtmg_hill(mpi_comm_world, &
+  call example_pprts_rrtmg_hill( &
+    & specint, &
+    & mpi_comm_world, &
     & nxp, nyp, Nz, &
     & dx, dy, &
     & Ag_thermal, Ag_solar, &
