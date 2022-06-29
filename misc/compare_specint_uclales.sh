@@ -6,8 +6,6 @@ BIN=ex_uclales_cld_file
 CLD=/project/meteo/public/jakub/phillip1_0d_25m_srfc/phillip1_0d_25m_srfc.merged.nc
 CLD=/project/meteo/public/jakub/phillip1_0d_25m_srfc/phillip1_0d_25m_srfc.strided_8.nc
 
-make -j -C $TENSTREAMROOT $BIN
-
 NP=8
 
 MPIEXEC=${MPIEXEC:-srun -n $NP -N1 -c1 --mem=120G --time=08:00:00 --exclusive --cpu-bind=cores,verbose}
@@ -136,13 +134,15 @@ print(f"plotting to file: {outfile}")
 plt.savefig(outfile, bbox_inches='tight')
 EOF
 
-for specint in repwvl rrtmg
+make -j -C $TENSTREAMROOT $BIN
+
+for specint in repwvl #rrtmg
 do
-for solver in 2str 3_10 3_10_incomplete
+for solver in 2str 3_10 3_10_incomplete 3_10_ilu0 3_10_ilu1 rayli
 do
   ID=$(basename $CLD .nc).np${NP}.$specint.$solver
   OUT=$SCRATCH/compare_specint_uclales/$ID.nc
-  OUT=
+  #OUT=
   LOG=$SCRATCH/compare_specint_uclales/$ID.log
   PLOTS=$SCRATCH/compare_specint_uclales/$ID.plots/
 
@@ -170,6 +170,50 @@ do
     "
   fi
 
+  if [[ $solver == *"ilu0"* ]]; then
+    OPT="$OPT \
+      -solver 3_10 \
+      -solar_diff_ksp_bcgs \
+      -solar_diff_pc_type bjacobi \
+      -solar_diff_sub_pc_type ilu \
+      -solar_diff_sub_pc_factor_levels 0 \
+      -Xsolar_diff_ksp_view \
+      -thermal_diff_ksp_type bcgs \
+      -thermal_diff_pc_type bjacobi \
+      -thermal_diff_sub_pc_type ilu \
+      -thermal_diff_sub_pc_factor_levels 0 \
+      -Xthermal_diff_ksp_view \
+      "
+  fi
+  if [[ $solver == *"ilu1"* ]]; then
+    OPT="$OPT \
+      -solver 3_10 \
+      -solar_diff_ksp_bcgs \
+      -solar_diff_pc_type bjacobi \
+      -solar_diff_sub_pc_type ilu \
+      -solar_diff_sub_pc_factor_levels 1 \
+      -Xsolar_diff_ksp_view \
+      -thermal_diff_ksp_type bcgs \
+      -thermal_diff_pc_type bjacobi \
+      -thermal_diff_sub_pc_type ilu \
+      -thermal_diff_sub_pc_factor_levels 1 \
+      -Xthermal_diff_ksp_view \
+      "
+  fi
+
+  if [[ $solver == *"rayli"* ]]; then
+    OPT="$OPT \
+      -solver rayli \
+      -rayli_cyclic_bc \
+      -pprts_rayli_photons 1e4 \
+      -rayli_min_photons 1e5 \
+      -mpi_split_type OMPI_COMM_TYPE_HWTHREAD \
+      "
+    TEND=$TSTART
+    export OMP_NUM_THREADS=2
+  fi
+
+
   if [ ! -z "$OUT" ]; then
     mkdir -p $(dirname $OUT)
   fi
@@ -194,7 +238,9 @@ do
 
   if [ ! -z "$OUT" ]; then
     mkdir -p $PLOTS
-    python plot_profiles.py $OUT $PLOTS
+    if [ -e $OUT ]; then
+      python plot_profiles.py $OUT $PLOTS
+    fi
   fi
 done
 done
