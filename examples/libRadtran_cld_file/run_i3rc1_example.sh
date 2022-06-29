@@ -18,5 +18,5 @@ OPT=$BASE_OPT
 NUMTHREADS=10
 RUN="mpirun -np 1 --cpus-per-rank $NUMTHREADS"
 OUT=$OUTDIR/example_i3rc1_rayli.nc
-OPT="$BASE_OPT -pprts_use_rayli -rayli_cyclic_bc -rayli_nthreads $NUMTHREADS"
+OPT="$BASE_OPT -solver rayli -rayli_cyclic_bc -rayli_nthreads $NUMTHREADS"
 [ ! -e $OUT ] && $RUN $BIN -cld $CLDFILE -atm_filename $ATMFILE -out $OUT $OPT

@@ -112,6 +112,7 @@ module m_pprts
     & t_mat_permute_info, &
     & t_solver_2str, &
     & t_solver_disort, &
+    & t_solver_rayli, &
     & t_solver_1_2, &
     & t_solver_3_6, &
     & t_solver_3_10, &
@@ -238,6 +239,19 @@ contains
         solver%dirtop%is_inward = [.true.]
 
         allocate (solver%dirside%is_inward(0))
+
+      class is (t_solver_rayli)
+        allocate (solver%difftop%is_inward(2))
+        solver%difftop%is_inward = [.false., .true.]
+
+        allocate (solver%diffside%is_inward(4))
+        solver%diffside%is_inward = [.false., .true., .false., .true.]
+
+        allocate (solver%dirtop%is_inward(1))
+        solver%dirtop%is_inward = [.true.]
+
+        allocate (solver%dirside%is_inward(1))
+        solver%dirside%is_inward = [.true.]
 
       class is (t_solver_1_2)
         allocate (t_optprop_1_2 :: solver%OPP)
@@ -430,6 +444,8 @@ contains
         continue
       class is (t_solver_disort)
         continue
+      class is (t_solver_rayli)
+        continue
       class default
         call init_memory(solver%C_dir, solver%C_diff, solver%incSolar, solver%b)
       end select
@@ -455,6 +471,8 @@ contains
     class is (t_solver_2str)
       return
     class is (t_solver_disort)
+      return
+    class is (t_solver_rayli)
       return
     end select
     if (lmcrts) return
@@ -1761,6 +1779,8 @@ contains
         return ! twostream should not depend on eddington coeffs... it will have to calculate it on its own.
       class is (t_solver_disort)
         return
+      class is (t_solver_rayli)
+        return
       end select
 
       ! allocate space for twostream coefficients
@@ -2192,7 +2212,7 @@ contains
     type(t_pprts_buildings), optional, intent(in) :: opt_buildings
 
     integer(iintegers) :: uid
-    logical :: lflg, derived_lsolar, luse_rayli, lrayli_snapshot
+    logical :: derived_lsolar, luse_rayli, lrayli_snapshot
     integer(mpiint) :: ierr
 
     if (.not. allocated(solver%atm)) call CHKERR(1_mpiint, 'atmosphere is not allocated?!')
@@ -2258,7 +2278,11 @@ contains
 
       ! --------- Calculate Radiative Transfer with RayLi ------------
       luse_rayli = .false.
-      call get_petsc_opt(solver%prefix, "-pprts_use_rayli", luse_rayli, lflg, ierr); call CHKERR(ierr)
+      select type (solver)
+      class is (t_solver_rayli)
+        luse_rayli = .true.
+      end select
+
       lrayli_snapshot = .false.
       call PetscOptionsHasName(PETSC_NULL_OPTIONS, solver%prefix, &
                                "-rayli_snapshot", lrayli_snapshot, ierr); call CHKERR(ierr)
@@ -4108,7 +4132,10 @@ contains
           call PCSetType(prec, PCSOR, ierr); call CHKERR(ierr)
           call PCSORSetSymmetric(prec, SOR_LOCAL_FORWARD_SWEEP, ierr); call CHKERR(ierr)
         else
-          call PCSetType(prec, PCSOR, ierr); call CHKERR(ierr)
+          call PCSetType(prec, PCBJACOBI, ierr); call CHKERR(ierr)
+
+          !call PCSetType(prec, PCSOR, ierr); call CHKERR(ierr)
+
           !call PCSetType(prec, PCASM, ierr); call CHKERR(ierr)
           !call PCASMSetOverlap(prec, i1, ierr); call CHKERR(ierr)
         end if
@@ -4157,6 +4184,19 @@ contains
             call PCSetType(subpc, PCSOR, ierr); call CHKERR(ierr)
             call KSPSetFromOptions(asm_ksps(i), ierr); call CHKERR(ierr)
           end do
+
+        else if (pctype .eq. PCBJACOBI) then
+
+          call PCBJacobiGetSubKSP(prec, asm_N, first_local, PETSC_NULL_KSP, ierr); call CHKERR(ierr)
+          allocate (asm_ksps(asm_N))
+          call PCBjacobiGetSubKSP(prec, asm_N, first_local, asm_ksps, ierr); call CHKERR(ierr)
+          do i = 1, asm_N
+            call KSPSetType(asm_ksps(i), KSPPREONLY, ierr); call CHKERR(ierr)
+            call KSPGetPC(asm_ksps(i), subpc, ierr); call CHKERR(ierr)
+            call PCSetType(subpc, PCILU, ierr); call CHKERR(ierr)
+            call KSPSetFromOptions(asm_ksps(i), ierr); call CHKERR(ierr)
+          end do
+
         end if
       end block default_preconditioner_settings
     end if

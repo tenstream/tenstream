@@ -1,6 +1,6 @@
 -skip_load_LUT no
 -LUT_mockup
--pprts_use_rayli
+-solver rayli
 -rayli_cyclic_bc
 -rayli_nthreads 2
 -rayli_photons_scale_with_src
