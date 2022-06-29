@@ -62,7 +62,7 @@ run_ex $NP $NC "twostr.nc" "-twostr_only ${1:-}"
 
 NP=1; NC=64
 ROPT="\
-  -pprts_use_rayli \
+  -solver rayli \
   -rayli_cyclic_bc \
   -pprts_rayli_photons 1e8 \
   -rayli_nthreads $(($NP * $NC)) \

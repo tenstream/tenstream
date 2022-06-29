@@ -25,7 +25,7 @@ baseopt="\
   $1"
 
 rayli_opt="\
-  -pprts_use_rayli \
+  -solver rayli \
   -pprts_rayli_photons 1e7 \
   -rayli_cyclic_bc \
   -show_rayli_dm3d hdf5:dm.h5 \

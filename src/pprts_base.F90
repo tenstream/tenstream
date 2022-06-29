@@ -46,6 +46,7 @@ module m_pprts_base
     & t_solver, &
     & t_solver_2str, &
     & t_solver_disort, &
+    & t_solver_rayli, &
     & t_solver_1_2, &
     & t_solver_3_6, &
     & t_solver_3_10, &
@@ -214,6 +215,8 @@ module m_pprts_base
   type, extends(t_solver) :: t_solver_2str
   end type
   type, extends(t_solver) :: t_solver_disort
+  end type
+  type, extends(t_solver) :: t_solver_rayli
   end type
   type, extends(t_solver) :: t_solver_1_2
   end type
@@ -388,6 +391,9 @@ contains
 
     case ('disort')
       allocate (t_solver_disort :: pprts_solver)
+
+    case ('rayli')
+      allocate (t_solver_rayli :: pprts_solver)
 
     case ('1_2')
       allocate (t_solver_1_2 :: pprts_solver)
