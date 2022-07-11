@@ -243,7 +243,7 @@ implicit:mim:gcc:debug:
 matshell:mim:gcc:debug:
   extends: mim:gcc:default
   variables:
-    PETSC_OPTIONS: "-solar_diff_shell -thermal_diff_shell"
+    PETSC_OPTIONS: "-solar_diff_shell -solar_diff_pc_type sor -thermal_diff_shell -thermal_diff_pc_type sor"
 
 mim:gcc:debug:
   extends: .mim:default
