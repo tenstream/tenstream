@@ -51,7 +51,7 @@ program main
   call PetscOptionsInsertString(PETSC_NULL_OPTIONS, default_options, ierr); call CHKERR(ierr)
 
   rayli_options = '-use_regular_mesh -plexrt_use_rayli -rayli_cyclic_bc'
-  ladd_rayli_opts = .False.
+  ladd_rayli_opts = .false.
   call get_petsc_opt(PETSC_NULL_CHARACTER, '-rayli_opts', &
                      ladd_rayli_opts, lflg, ierr); call CHKERR(ierr)
   if (ladd_rayli_opts) then
