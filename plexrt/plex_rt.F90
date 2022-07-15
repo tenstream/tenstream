@@ -1653,7 +1653,7 @@ contains
     call DMRestoreLocalVector(edirdm, localVec, ierr); call CHKERR(ierr)
     call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
-    call print_vec_min_mean_max(srcVec, 'srcVec')
+    !call print_vec_min_mean_max(srcVec, 'srcVec')
 
   contains
 
