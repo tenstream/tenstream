@@ -811,6 +811,7 @@ contains
         & solver%kabs,   &
         & solver%ksca,   &
         & solver%g,      &
+        & sundir,        &
         & solver%dir2dir,&
         & ierr); call CHKERR(ierr)
       call compute_dir2diff_coeff(&
@@ -1017,14 +1018,16 @@ contains
     end subroutine
   end subroutine
 
-  subroutine compute_dir2dir_coeff(solver, plex, OPP, kabs, ksca, g, dir2dir, ierr)
+  subroutine compute_dir2dir_coeff(solver, plex, OPP, kabs, ksca, g, sundir, dir2dir, ierr)
     class(t_plex_solver), intent(inout) :: solver
     type(t_plexgrid), intent(inout) :: plex
     class(t_optprop_wedge), intent(in) :: OPP
     type(tVec), allocatable, intent(in) :: kabs, ksca, g
-    real(ireals), allocatable, intent(inout) :: dir2dir(:, :)
+    real(ireals), intent(in) :: sundir(3)
+    real(ireals), allocatable, target, intent(inout) :: dir2dir(:, :)
     integer(mpiint), intent(out) :: ierr
 
+    real(ireals), pointer :: v(:, :) ! dim(src,dst)
     real(irealLUT) :: coeff(solver%dirdof**2)
 
     real(ireals), pointer :: xkabs(:), xksca(:), xg(:)
@@ -1034,6 +1037,10 @@ contains
 
     integer(iintegers) :: geom_offset, wedge_offset1, wedge_offset4
     real(ireals) :: Cx, Cy, aspect_zx, param_phi, param_theta, dz
+    real(ireals) :: dtau, mu0, w0
+    integer(iintegers) :: topface, botface
+    real(ireals) :: area_top, area_bot, face_normal(3)
+    real(ireals) :: c11, c12, c13, c23, c33
     logical :: l1d
 
     integer(iintegers) :: icell
@@ -1058,7 +1065,33 @@ contains
 
     do icell = plex%cStart, plex%cEnd - 1
       if (plex%l1d(icell)) then
-        dir2dir(:, icell) = nan
+        call get_top_bot_face_of_cell(plex%edir_dm, icell, topface, botface)
+
+        call get_inward_face_normal(topface, icell, geomSection, geoms, face_normal)
+        mu0 = dot_product(face_normal, sundir / norm2(sundir))
+
+        call PetscSectionGetFieldOffset(geomSection, icell, i3, geom_offset, ierr); call CHKERR(ierr)
+        dz = geoms(i1 + geom_offset)
+
+        dtau = (xkabs(i1 + icell) + xksca(i1 + icell))
+        w0 = xksca(i1 + icell) / max(tiny(dtau), dtau)
+        dtau = dtau * dz
+
+        call eddington_coeff_ec(dtau, w0, xg(i1 + icell), mu0, c11, c12, c13, c23, c33)
+
+        ! for the case of 1D spherical radiative transfer,
+        ! need to consider the change in area between upper and lower face
+        call PetscSectionGetFieldOffset(geomSection, topface, i2, geom_offset, ierr); call CHKERR(ierr)
+        area_top = geoms(i1 + geom_offset)
+        call PetscSectionGetFieldOffset(geomSection, botface, i2, geom_offset, ierr); call CHKERR(ierr)
+        area_bot = geoms(i1 + geom_offset)
+
+        ! super compensate direct radiation
+        c33 = c33 * (area_top / area_bot)
+
+        v(1:solver%dirdof, 1:solver%dirdof) => dir2dir(:, icell)
+        v(:, :) = zero
+        v(1, 5) = c33
       else
 
         call PetscSectionGetFieldOffset(wedgeSection, icell, i0, wedge_offset1, ierr); call CHKERR(ierr)
@@ -2813,12 +2846,13 @@ contains
     end subroutine
 
     subroutine set_1D_coeffs()
-      real(ireals) :: dz, dtau, mu0
+      real(ireals), pointer :: dir2dir(:, :) ! dim(src,dst)
+      !real(ireals) :: dz, dtau, mu0
       integer(iintegers) :: topface, botface
-      real(ireals) :: area_top, area_bot, face_normal(3)
+      !real(ireals) :: area_top, area_bot, face_normal(3)
       real(ireals) :: c33
       integer(iintegers) :: irow, icol, icell
-      integer(iintegers) :: geom_offset
+      !integer(iintegers) :: geom_offset
       integer(mpiint) :: ierr
 
       do icell = plex%cStart, plex%cEnd - 1
@@ -2826,25 +2860,8 @@ contains
 
         call get_top_bot_face_of_cell(plex%edir_dm, icell, topface, botface)
 
-        call PetscSectionGetFieldOffset(geomSection, icell, i3, geom_offset, ierr); call CHKERR(ierr)
-        dz = geoms(i1 + geom_offset)
-
-        call get_inward_face_normal(topface, icell, geomSection, geoms, face_normal)
-        mu0 = dot_product(face_normal, sundir)
-
-        dtau = (xkabs(i1 + icell) + xksca(i1 + icell)) * dz / mu0
-
-        c33 = exp(-dtau)
-
-        ! for the case of 1D spherical radiative transfer,
-        ! need to consider the change in area between upper and lower face
-        call PetscSectionGetFieldOffset(geomSection, topface, i2, geom_offset, ierr); call CHKERR(ierr)
-        area_top = geoms(i1 + geom_offset)
-        call PetscSectionGetFieldOffset(geomSection, botface, i2, geom_offset, ierr); call CHKERR(ierr)
-        area_bot = geoms(i1 + geom_offset)
-
-        ! super compensate direct radiation
-        c33 = c33 * (area_top / area_bot)
+        dir2dir(1:solver%dirdof, 1:solver%dirdof) => solver%dir2dir(:, icell)
+        c33 = dir2dir(1, 5)
 
         ! src is always top face, dst is botface
         call PetscSectionGetOffset(sec, topface, icol, ierr); call CHKERR(ierr)
@@ -3590,7 +3607,7 @@ contains
 
     if (solution%lchanged) then
 
-      by_coeff_divergence = get_arg(.false., absorption_by_coeff_divergence)
+      by_coeff_divergence = get_arg(.true., absorption_by_coeff_divergence)
       call get_petsc_opt(PETSC_NULL_CHARACTER, "-absorption_by_coeff_divergence", by_coeff_divergence, lflg, ierr)
       call CHKERR(ierr)
 
@@ -3626,6 +3643,7 @@ contains
         call compute_ediff_absorption_by_coeff_divergence(&
           & solver, &
           & solver%plex, &
+          & .not. solution%lsolar_rad, &
           & solution%ediff, &
           & solver%diffsrc, &
           & solution%abso)
@@ -3741,7 +3759,7 @@ contains
   end subroutine
 
   subroutine compute_edir_absorption_by_coeff_divergence(solver, edir, abso)
-    class(t_plex_solver), intent(in) :: solver
+    class(t_plex_solver), target, intent(in) :: solver
     type(tVec), intent(in) :: edir
     type(tVec), allocatable, intent(inout) :: abso
 
@@ -3766,6 +3784,8 @@ contains
     integer(iintegers) :: bmcsrcdof, dof_src_offset, icol, in_dof, isrc, isrc_side, numSrc, bmcsrcside
     integer(iintegers) :: face_plex2bmc(5)
     integer(iintegers) :: plex2bmc(solver%dirdof)
+
+    real(ireals), pointer :: dir2dir(:, :), dir2diff(:, :) ! dim(src,dst)
 
     logical :: lsrc(solver%dirdof) ! is src or destination of solar beam
 
@@ -3821,6 +3841,9 @@ contains
 
         call PetscSectionGetFieldOffset(geomSection, icell, i3, geom_offset, ierr); call CHKERR(ierr)
 
+        dir2dir(1:solver%dirdof, 1:solver%dirdof) => solver%dir2dir(:, icell)
+        dir2diff(1:solver%dirdof, 1:solver%diffdof / 2) => solver%dir2diff(:, icell)
+
         cell_abso = 0
 
         in_dof = 0 ! this counts plex dofs from 1 to solver%dirdof
@@ -3835,18 +3858,13 @@ contains
             call get_side_and_offset_from_total_bmc_dofs(solver%dirtop, solver%dirside, bmcsrcdof, &
                                                          bmcsrcside, dof_src_offset)
 
-            associate ( &
-              dir2dir => solver%dir2dir(bmcsrcdof:size(solver%dir2dir, dim=1):solver%dirdof, icell), &
-              dir2diff => solver%dir2diff(bmcsrcdof:size(solver%dir2diff, dim=1):solver%dirdof, icell) &
-              )
-              div = one - sum(dir2dir) - sum(dir2diff)
-              div = max(zero, min(one, div))
-            end associate
-
             call PetscSectionGetOffset(edir_section, iface, icol, ierr); call CHKERR(ierr)
             icol = icol + dof_src_offset
 
             if (lsrc(isrc_side)) then
+              div = one - sum(dir2dir(bmcsrcdof, :)) - sum(dir2diff(bmcsrcdof, :))
+              div = max(zero, min(one, div))
+
               cell_abso = cell_abso + div * xedir(i1 + icol)
               !print *,'Adding dir cell abso cell='//toStr(icell)//' src-face='//toStr(iface)//' bmcsrc='//toStr(bmcsrcdof)// &
               !  ' edir='//toStr(xedir(i1+icol)), 'div', div, 'lsrc', lsrc(isrc_side)
@@ -3948,6 +3966,11 @@ contains
           area_top = geoms(i1 + geom_offset)
           call DMPlexRestoreCone(plex%ediff_dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
 
+          call PetscSectionGetFieldOffset(geomSection, icell, i2, geom_offset, ierr); call CHKERR(ierr)
+          inv_volume = one / geoms(i1 + geom_offset)
+
+          call PetscSectionGetOffset(abso_section, icell, abso_offset, ierr); call CHKERR(ierr)
+
           print *, 'icell', i1 + icell, incoming_offsets(i), outgoing_offsets(i), 'abso', &
             xabso(i1 + abso_offset), &
             '+', xediff(i1 + incoming_offsets(i)) / area_top, &
@@ -3972,9 +3995,10 @@ contains
     !if(ldebug) print *,'plex_rt::compute_ediff_absorption....finished'
   end subroutine
 
-  subroutine compute_ediff_absorption_by_coeff_divergence(solver, plex, ediff, srcVec, abso)
+  subroutine compute_ediff_absorption_by_coeff_divergence(solver, plex, lthermal, ediff, srcVec, abso)
     class(t_plex_solver), target, intent(in) :: solver
     type(t_plexgrid), allocatable, intent(in) :: plex
+    logical, intent(in) :: lthermal
     type(tVec), intent(in) :: ediff, srcVec
     type(tVec), allocatable, intent(inout) :: abso
 
@@ -4080,13 +4104,15 @@ contains
           !  ' ediff='//toStr(xediff(i1+incoming_offsets(i))), 'div', div, '=', div * xediff(i1+incoming_offsets(i))
         end if
       end do
-      do i = 1, size(outgoing_offsets)
-        if (outgoing_offsets(i) .ge. 0) then
-          cell_abso = cell_abso - xsrc(i1 + outgoing_offsets(i))
-          !print *,'Subtracting diffuse cell abso cell='//toStr(icell)//' out_offset='//toStr(outgoing_offsets(i))// &
-          !  ' xsrc='//toStr(xsrc(i1+outgoing_offsets(i)))
-        end if
-      end do
+      if (lthermal) then
+        do i = 1, size(outgoing_offsets)
+          if (outgoing_offsets(i) .ge. 0) then
+            cell_abso = cell_abso - xsrc(i1 + outgoing_offsets(i))
+            !print *,'Subtracting diffuse cell abso cell='//toStr(icell)//' out_offset='//toStr(outgoing_offsets(i))// &
+            !  ' xsrc='//toStr(xsrc(i1+outgoing_offsets(i)))
+          end if
+        end do
+      end if
 
       call PetscSectionGetFieldOffset(geomSection, icell, i2, geom_offset, ierr); call CHKERR(ierr)
       inv_volume = one / geoms(i1 + geom_offset)
