@@ -32,7 +32,7 @@ program main
   call PetscInitialize(PETSC_NULL_CHARACTER, ierr); call CHKERR(ierr)
 
   default_options = ''
-  default_options = trim(default_options)//' -plexrt_view_geometry'
+  !default_options = trim(default_options)//' -plexrt_view_geometry'
   !default_options=trim(default_options)//' -plexrt_view_optprop'
   !default_options=trim(default_options)//' -show_ownership hdf5:'//trim(outfile)//'::append'
   !default_options=trim(default_options)//' -show_abso hdf5:'//trim(outfile)//'::append'
@@ -47,10 +47,11 @@ program main
   !default_options=trim(default_options)//' -show_fV2cV_ediff hdf5:'//trim(outfile)//'::append'
   !default_options=trim(default_options)//' -show_WedgeOrient hdf5:'//trim(outfile)//'::append'
 
-  if (lverbose) print *, 'Adding default Petsc Options:', trim(default_options)
+  print *, 'Adding default Petsc Options:', trim(default_options)
   call PetscOptionsInsertString(PETSC_NULL_OPTIONS, default_options, ierr); call CHKERR(ierr)
 
   rayli_options = '-use_regular_mesh -plexrt_use_rayli -rayli_cyclic_bc'
+  ladd_rayli_opts = .false.
   call get_petsc_opt(PETSC_NULL_CHARACTER, '-rayli_opts', &
                      ladd_rayli_opts, lflg, ierr); call CHKERR(ierr)
   if (ladd_rayli_opts) then

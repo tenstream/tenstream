@@ -15,7 +15,8 @@ contains
       lthermal, wvnm, Bfracs, &
       dtau, ssalb, gasym, temper, &
       RFLDIR, RFLDN, FLUP, DFDT, UAVG, &
-      nstreams, lverbose)
+      nstreams, lverbose, &
+      Blev, Bskin)
 
     real, intent(in)    :: mu0   ! cos(solar zenith angle)
     real, intent(in)    :: S0    ! solar constant
@@ -35,6 +36,8 @@ contains
     real, dimension(:), intent(out) :: UAVG        ! Mean intensity (including the direct beam)
     integer, optional, intent(in)   :: nstreams    ! number of streams to use (default: 16)
     logical, optional, intent(in)   :: lverbose    ! verbose output of disort (default: False)
+    real, dimension(:), intent(in), optional :: Blev ! Planck values at levels, if present wvnm(2) will be ignored
+    real, intent(in), optional :: Bskin ! Planck values at srfc, if present wvnm(2) will be ignored
 
     integer :: nlyr, ntau, nstr, nmom, numu
 
@@ -97,7 +100,6 @@ contains
     nstr = 16
     if(present(nstreams)) nstr = nstreams
 
-
     prnt = .False.
     if(present(lverbose)) then
       prnt(2) = lverbose
@@ -126,7 +128,8 @@ contains
       RHOQ, RHOU, RHO_ACCURATE, BEMST, EMUST, &
       ACCUR,  trim(HEADER), &
       RFLDIR, RFLDN, FLUP, DFDT, UAVG, UU, &
-      ALBMED, TRNMED )
+      ALBMED, TRNMED, &
+      Blev, Bskin)
 
     call check_bad_mu0()
 

@@ -441,9 +441,16 @@ module m_helper_functions
     module procedure cumprod_i32, cumprod_i64, cumprod_ireals
   end interface
   interface resize_arr
-    module procedure resize_arr_1d_int32, resize_arr_1d_int64, &
-      resize_arr_2d_r32, resize_arr_2d_r64, &
-      resize_arr_3d_r32, resize_arr_3d_r64
+    #:for intype,dtype in [ &
+      ('integer', 'INT32' ), &
+      ('integer', 'INT64' ), &
+      ('real'   , 'REAL32'), &
+      ('real'   , 'REAL64'), &
+      ('real'   , 'REAL128')]
+      module procedure resize_arr_1d_${dtype}$
+      module procedure resize_arr_2d_${dtype}$
+      module procedure resize_arr_3d_${dtype}$
+    #:endfor
   end interface
   interface reverse
     module procedure reverse_1d_real32, reverse_2d_real32, reverse_1d_real64, reverse_2d_real64, &
@@ -796,360 +803,192 @@ contains
     end function
   #:endfor
 
-  subroutine resize_arr_3d_r32(N, arr, dim, fillval, lrepeat)
-    integer(iintegers), intent(in) :: N
-    real(real32), allocatable, intent(inout) :: arr(:, :, :)
-    integer(mpiint), intent(in), optional :: dim
-    real(kind(arr)), intent(in), optional :: fillval
-    logical, intent(in), optional :: lrepeat
+  #:for intype,dtype in [ &
+    ('integer', 'INT32' ), &
+    ('integer', 'INT64' ), &
+    ('real'   , 'REAL32'), &
+    ('real'   , 'REAL64'), &
+    ('real'   , 'REAL128')]
+    subroutine resize_arr_1d_${dtype}$ (N, arr, dim, fillval, lrepeat)
+      integer(iintegers), intent(in) :: N
+      ${intype}$ (${dtype}$), allocatable, intent(inout) :: arr(:)
+      integer(mpiint), intent(in), optional :: dim
+      ${intype}$ (kind(arr)), intent(in), optional :: fillval
+      logical, intent(in), optional :: lrepeat
 
-    real(kind(arr)), allocatable :: tmp(:, :, :)
-    integer(kind(N)) :: sdim, i, j
-    integer(mpiint) :: idim
-    logical :: repeat_dim
+      ${intype}$ (kind(arr)), allocatable :: tmp(:)
+      integer(kind(N)) :: sdim, i, j
+      integer(mpiint) :: idim
+      logical :: repeat_dim
 
-    idim = get_arg(1_mpiint, dim)
-    if (idim .gt. size(shape(arr))) &
-      call CHKERR(idim, 'requested resize dimension is larger than max dimension of inp array')
-    sdim = size(arr, dim=idim)
-    if (sdim .eq. N) return
+      idim = get_arg(1_mpiint, dim)
+      if (idim .gt. size(shape(arr))) &
+        call CHKERR(idim, 'requested resize dimension is larger than max dimension of inp array')
+      sdim = size(arr, dim=idim)
+      if (sdim .eq. N) return
 
-    select case (idim)
-    case (1)
-      allocate (tmp(N, size(arr, dim=2), size(arr, dim=3))) !**
-    case (2)
-      allocate (tmp(size(arr, dim=1), N, size(arr, dim=3))) !**
-    case (3)
-      allocate (tmp(size(arr, dim=1), size(arr, dim=2), N)) !**
-    end select
+      allocate (tmp(N)) !**
 
-    if (N .lt. sdim) then ! shrinking
-      if (present(fillval)) call CHKERR(1_mpiint, 'resize_arr is about to shrink the input arr '// &
-                                        'but you provided a fillVal - this does not make sense')
+      if (N .lt. sdim) then ! shrinking
+        if (present(fillval)) call CHKERR(1_mpiint, 'resize_arr is about to shrink the input arr '// &
+                                          'but you provided a fillVal - this does not make sense')
+        tmp(1:N) = arr(1:N) !**
+      else
+        repeat_dim = get_arg(.false., lrepeat)
+        if (repeat_dim) then
+          if (modulo(N, sdim) .ne. 0) &
+            call CHKERR(1_mpiint, 'resize_arr cannot repeat the dimension('//itoa(idim)// &
+                        'because '//itoa(N)//' is does not a multiple of inp array size '//itoa(sdim))
+          do i = 1, N
+            j = modulo(i - 1, sdim)
+            tmp(i) = arr(1 + j) !**
+          end do
+        else
+          if (.not. present(fillVal)) call CHKERR(1_mpiint, 'fillVal is not present but needs to be given here')
+          tmp(1:sdim) = arr(1:sdim) !**
+          tmp(sdim + 1:N) = fillVal !**
+        end if
+      end if
+      call move_alloc(tmp, arr)
+    end subroutine
+
+    subroutine resize_arr_2d_${dtype}$ (N, arr, dim, fillval, lrepeat)
+      integer(iintegers), intent(in) :: N
+      ${intype}$ (${dtype}$), allocatable, intent(inout) :: arr(:, :)
+      integer(mpiint), intent(in), optional :: dim
+      ${intype}$ (kind(arr)), intent(in), optional :: fillval
+      logical, intent(in), optional :: lrepeat
+
+      ${intype}$ (kind(arr)), allocatable :: tmp(:, :)
+      integer(kind(N)) :: sdim, i, j
+      integer(mpiint) :: idim
+      logical :: repeat_dim
+
+      idim = get_arg(1_mpiint, dim)
+      if (idim .gt. size(shape(arr))) &
+        call CHKERR(idim, 'requested resize dimension is larger than max dimension of inp array')
+      sdim = size(arr, dim=idim)
+      if (sdim .eq. N) return
+
       select case (idim)
       case (1)
-        tmp(1:N, :, :) = arr(1:N, :, :) !**
+        allocate (tmp(N, size(arr, dim=2))) !**
       case (2)
-        tmp(:, 1:N, :) = arr(:, 1:N, :) !**
+        allocate (tmp(size(arr, dim=1), N)) !**
+      end select
+
+      if (N .lt. sdim) then ! shrinking
+        if (present(fillval)) call CHKERR(1_mpiint, 'resize_arr is about to shrink the input arr '// &
+                                          'but you provided a fillVal - this does not make sense')
+        select case (idim)
+        case (1)
+          tmp(1:N, :) = arr(1:N, :) !**
+        case (2)
+          tmp(:, 1:N) = arr(:, 1:N) !**
+        end select
+      else
+        repeat_dim = get_arg(.false., lrepeat)
+        if (repeat_dim) then
+          if (modulo(N, sdim) .ne. 0) &
+            call CHKERR(1_mpiint, 'resize_arr cannot repeat the dimension('//itoa(idim)// &
+                        'because '//itoa(N)//' is does not a multiple of inp array size '//itoa(sdim))
+          do i = 1, N
+            j = modulo(i - 1, sdim)
+            select case (idim)
+            case (1)
+              tmp(i, :) = arr(1 + j, :) !**
+            case (2)
+              tmp(:, i) = arr(:, 1 + j) !**
+            end select
+          end do
+        else
+          if (.not. present(fillVal)) call CHKERR(1_mpiint, 'fillVal is not present but needs to be given here')
+          select case (idim)
+          case (1)
+            tmp(1:sdim, :) = arr(1:sdim, :) !**
+            tmp(sdim + 1:N, :) = fillVal !**
+          case (2)
+            tmp(:, 1:sdim) = arr(:, 1:sdim) !**
+            tmp(:, sdim + 1:N) = fillVal !**
+          end select
+        end if
+      end if
+      call move_alloc(tmp, arr)
+    end subroutine
+
+    subroutine resize_arr_3d_${dtype}$ (N, arr, dim, fillval, lrepeat)
+      integer(iintegers), intent(in) :: N
+      ${intype}$ (${dtype}$), allocatable, intent(inout) :: arr(:, :, :)
+      integer(mpiint), intent(in), optional :: dim
+      ${intype}$ (kind(arr)), intent(in), optional :: fillval
+      logical, intent(in), optional :: lrepeat
+
+      ${intype}$ (kind(arr)), allocatable :: tmp(:, :, :)
+      integer(kind(N)) :: sdim, i, j
+      integer(mpiint) :: idim
+      logical :: repeat_dim
+
+      idim = get_arg(1_mpiint, dim)
+      if (idim .gt. size(shape(arr))) &
+        call CHKERR(idim, 'requested resize dimension is larger than max dimension of inp array')
+      sdim = size(arr, dim=idim)
+      if (sdim .eq. N) return
+
+      select case (idim)
+      case (1)
+        allocate (tmp(N, size(arr, dim=2), size(arr, dim=3))) !**
+      case (2)
+        allocate (tmp(size(arr, dim=1), N, size(arr, dim=3))) !**
       case (3)
-        tmp(:, :, 1:N) = arr(:, :, 1:N) !**
+        allocate (tmp(size(arr, dim=1), size(arr, dim=2), N)) !**
       end select
-    else
-      repeat_dim = get_arg(.false., lrepeat)
-      if (repeat_dim) then
-        if (modulo(N, sdim) .ne. 0) &
-          call CHKERR(1_mpiint, 'resize_arr cannot repeat the dimension('//itoa(idim)// &
-                      'because '//itoa(N)//' is does not a multiple of inp array size '//itoa(sdim))
-        do i = 1, N
-          j = modulo(i - 1, sdim)
-          select case (idim)
-          case (1)
-            tmp(i, :, :) = arr(1 + j, :, :) !**
-          case (2)
-            tmp(:, i, :) = arr(:, 1 + j, :) !**
-          case (3)
-            tmp(:, :, i) = arr(:, :, 1 + j) !**
-          end select
-        end do
-      else
-        if (.not. present(fillVal)) call CHKERR(1_mpiint, 'fillVal is not present but needs to be given here')
+
+      if (N .lt. sdim) then ! shrinking
+        if (present(fillval)) call CHKERR(1_mpiint, 'resize_arr is about to shrink the input arr '// &
+                                          'but you provided a fillVal - this does not make sense')
         select case (idim)
         case (1)
-          tmp(1:sdim, :, :) = arr(1:sdim, :, :) !**
-          tmp(sdim + 1:N, :, :) = fillVal !**
+          tmp(1:N, :, :) = arr(1:N, :, :) !**
         case (2)
-          tmp(:, 1:sdim, :) = arr(:, 1:sdim, :) !**
-          tmp(:, sdim + 1:N, :) = fillVal !**
+          tmp(:, 1:N, :) = arr(:, 1:N, :) !**
         case (3)
-          tmp(:, :, 1:sdim) = arr(:, :, 1:sdim) !**
-          tmp(:, :, sdim + 1:N) = fillVal !**
+          tmp(:, :, 1:N) = arr(:, :, 1:N) !**
         end select
-      end if
-    end if
-    call move_alloc(tmp, arr)
-  end subroutine
-  subroutine resize_arr_3d_r64(N, arr, dim, fillval, lrepeat)
-    integer(iintegers), intent(in) :: N
-    real(real64), allocatable, intent(inout) :: arr(:, :, :)
-    integer(mpiint), intent(in), optional :: dim
-    real(kind(arr)), intent(in), optional :: fillval
-    logical, intent(in), optional :: lrepeat
-
-    real(kind(arr)), allocatable :: tmp(:, :, :)
-    integer(kind(N)) :: sdim, i, j
-    integer(mpiint) :: idim
-    logical :: repeat_dim
-
-    idim = get_arg(1_mpiint, dim)
-    if (idim .gt. size(shape(arr))) &
-      call CHKERR(idim, 'requested resize dimension is larger than max dimension of inp array')
-    sdim = size(arr, dim=idim)
-    if (sdim .eq. N) return
-
-    select case (idim)
-    case (1)
-      allocate (tmp(N, size(arr, dim=2), size(arr, dim=3))) !**
-    case (2)
-      allocate (tmp(size(arr, dim=1), N, size(arr, dim=3))) !**
-    case (3)
-      allocate (tmp(size(arr, dim=1), size(arr, dim=2), N)) !**
-    end select
-
-    if (N .lt. sdim) then ! shrinking
-      if (present(fillval)) call CHKERR(1_mpiint, 'resize_arr is about to shrink the input arr '// &
-                                        'but you provided a fillVal - this does not make sense')
-      select case (idim)
-      case (1)
-        tmp(1:N, :, :) = arr(1:N, :, :) !**
-      case (2)
-        tmp(:, 1:N, :) = arr(:, 1:N, :) !**
-      case (3)
-        tmp(:, :, 1:N) = arr(:, :, 1:N) !**
-      end select
-    else
-      repeat_dim = get_arg(.false., lrepeat)
-      if (repeat_dim) then
-        if (modulo(N, sdim) .ne. 0) &
-          call CHKERR(1_mpiint, 'resize_arr cannot repeat the dimension('//itoa(idim)// &
-                      'because '//itoa(N)//' is does not a multiple of inp array size '//itoa(sdim))
-        do i = 1, N
-          j = modulo(i - 1, sdim)
+      else
+        repeat_dim = get_arg(.false., lrepeat)
+        if (repeat_dim) then
+          if (modulo(N, sdim) .ne. 0) &
+            call CHKERR(1_mpiint, 'resize_arr cannot repeat the dimension('//itoa(idim)// &
+                        'because '//itoa(N)//' is does not a multiple of inp array size '//itoa(sdim))
+          do i = 1, N
+            j = modulo(i - 1, sdim)
+            select case (idim)
+            case (1)
+              tmp(i, :, :) = arr(1 + j, :, :) !**
+            case (2)
+              tmp(:, i, :) = arr(:, 1 + j, :) !**
+            case (3)
+              tmp(:, :, i) = arr(:, :, 1 + j) !**
+            end select
+          end do
+        else
+          if (.not. present(fillVal)) call CHKERR(1_mpiint, 'fillVal is not present but needs to be given here')
           select case (idim)
           case (1)
-            tmp(i, :, :) = arr(1 + j, :, :) !**
+            tmp(1:sdim, :, :) = arr(1:sdim, :, :) !**
+            tmp(sdim + 1:N, :, :) = fillVal !**
           case (2)
-            tmp(:, i, :) = arr(:, 1 + j, :) !**
+            tmp(:, 1:sdim, :) = arr(:, 1:sdim, :) !**
+            tmp(:, sdim + 1:N, :) = fillVal !**
           case (3)
-            tmp(:, :, i) = arr(:, :, 1 + j) !**
+            tmp(:, :, 1:sdim) = arr(:, :, 1:sdim) !**
+            tmp(:, :, sdim + 1:N) = fillVal !**
           end select
-        end do
-      else
-        if (.not. present(fillVal)) call CHKERR(1_mpiint, 'fillVal is not present but needs to be given here')
-        select case (idim)
-        case (1)
-          tmp(1:sdim, :, :) = arr(1:sdim, :, :) !**
-          tmp(sdim + 1:N, :, :) = fillVal !**
-        case (2)
-          tmp(:, 1:sdim, :) = arr(:, 1:sdim, :) !**
-          tmp(:, sdim + 1:N, :) = fillVal !**
-        case (3)
-          tmp(:, :, 1:sdim) = arr(:, :, 1:sdim) !**
-          tmp(:, :, sdim + 1:N) = fillVal !**
-        end select
+        end if
       end if
-    end if
-    call move_alloc(tmp, arr)
-  end subroutine
-  subroutine resize_arr_2d_r32(N, arr, dim, fillval, lrepeat)
-    integer(iintegers), intent(in) :: N
-    real(real32), allocatable, intent(inout) :: arr(:, :)
-    integer(mpiint), intent(in), optional :: dim
-    real(kind(arr)), intent(in), optional :: fillval
-    logical, intent(in), optional :: lrepeat
-
-    real(kind(arr)), allocatable :: tmp(:, :)
-    integer(kind(N)) :: sdim, i, j
-    integer(mpiint) :: idim
-    logical :: repeat_dim
-
-    idim = get_arg(1_mpiint, dim)
-    if (idim .gt. size(shape(arr))) &
-      call CHKERR(idim, 'requested resize dimension is larger than max dimension of inp array')
-    sdim = size(arr, dim=idim)
-    if (sdim .eq. N) return
-
-    select case (idim)
-    case (1)
-      allocate (tmp(N, size(arr, dim=2))) !**
-    case (2)
-      allocate (tmp(size(arr, dim=1), N)) !**
-    end select
-
-    if (N .lt. sdim) then ! shrinking
-      if (present(fillval)) call CHKERR(1_mpiint, 'resize_arr is about to shrink the input arr '// &
-                                        'but you provided a fillVal - this does not make sense')
-      select case (idim)
-      case (1)
-        tmp(1:N, :) = arr(1:N, :) !**
-      case (2)
-        tmp(:, 1:N) = arr(:, 1:N) !**
-      end select
-    else
-      repeat_dim = get_arg(.false., lrepeat)
-      if (repeat_dim) then
-        if (modulo(N, sdim) .ne. 0) &
-          call CHKERR(1_mpiint, 'resize_arr cannot repeat the dimension('//itoa(idim)// &
-                      'because '//itoa(N)//' is does not a multiple of inp array size '//itoa(sdim))
-        do i = 1, N
-          j = modulo(i - 1, sdim)
-          select case (idim)
-          case (1)
-            tmp(i, :) = arr(1 + j, :) !**
-          case (2)
-            tmp(:, i) = arr(:, 1 + j) !**
-          end select
-        end do
-      else
-        if (.not. present(fillVal)) call CHKERR(1_mpiint, 'fillVal is not present but needs to be given here')
-        select case (idim)
-        case (1)
-          tmp(1:sdim, :) = arr(1:sdim, :) !**
-          tmp(sdim + 1:N, :) = fillVal !**
-        case (2)
-          tmp(:, 1:sdim) = arr(:, 1:sdim) !**
-          tmp(:, sdim + 1:N) = fillVal !**
-        end select
-      end if
-    end if
-    call move_alloc(tmp, arr)
-  end subroutine
-  subroutine resize_arr_2d_r64(N, arr, dim, fillval, lrepeat)
-    integer(iintegers), intent(in) :: N
-    real(real64), allocatable, intent(inout) :: arr(:, :)
-    integer(mpiint), intent(in), optional :: dim
-    real(kind(arr)), intent(in), optional :: fillval
-    logical, intent(in), optional :: lrepeat
-
-    real(kind(arr)), allocatable :: tmp(:, :)
-    integer(kind(N)) :: sdim, i, j
-    integer(mpiint) :: idim
-    logical :: repeat_dim
-
-    idim = get_arg(1_mpiint, dim)
-    if (idim .gt. size(shape(arr))) &
-      call CHKERR(idim, 'requested resize dimension is larger than max dimension of inp array')
-    sdim = size(arr, dim=idim)
-    if (sdim .eq. N) return
-
-    select case (idim)
-    case (1)
-      allocate (tmp(N, size(arr, dim=2))) !**
-    case (2)
-      allocate (tmp(size(arr, dim=1), N)) !**
-    end select
-
-    if (N .lt. sdim) then ! shrinking
-      if (present(fillval)) call CHKERR(1_mpiint, 'resize_arr is about to shrink the input arr '// &
-                                        'but you provided a fillVal - this does not make sense')
-      select case (idim)
-      case (1)
-        tmp(1:N, :) = arr(1:N, :) !**
-      case (2)
-        tmp(:, 1:N) = arr(:, 1:N) !**
-      end select
-    else
-      repeat_dim = get_arg(.false., lrepeat)
-      if (repeat_dim) then
-        if (modulo(N, sdim) .ne. 0) &
-          call CHKERR(1_mpiint, 'resize_arr cannot repeat the dimension('//itoa(idim)// &
-                      'because '//itoa(N)//' is does not a multiple of inp array size '//itoa(sdim))
-        do i = 1, N
-          j = modulo(i - 1, sdim)
-          select case (idim)
-          case (1)
-            tmp(i, :) = arr(1 + j, :) !**
-          case (2)
-            tmp(:, i) = arr(:, 1 + j) !**
-          end select
-        end do
-      else
-        if (.not. present(fillVal)) call CHKERR(1_mpiint, 'fillVal is not present but needs to be given here')
-        select case (idim)
-        case (1)
-          tmp(1:sdim, :) = arr(1:sdim, :) !**
-          tmp(sdim + 1:N, :) = fillVal !**
-        case (2)
-          tmp(:, 1:sdim) = arr(:, 1:sdim) !**
-          tmp(:, sdim + 1:N) = fillVal !**
-        end select
-      end if
-    end if
-    call move_alloc(tmp, arr)
-  end subroutine
-  subroutine resize_arr_1d_int32(N, arr, dim, fillval, lrepeat)
-    integer(iintegers), intent(in) :: N
-    integer(int32), allocatable, intent(inout) :: arr(:)
-    integer(mpiint), intent(in), optional :: dim
-    integer(kind(arr)), intent(in), optional :: fillval
-    logical, intent(in), optional :: lrepeat
-
-    integer(kind(arr)), allocatable :: tmp(:)
-    integer(kind(N)) :: sdim, i, j
-    integer(mpiint) :: idim
-    logical :: repeat_dim
-
-    idim = get_arg(1_mpiint, dim)
-    if (idim .gt. size(shape(arr))) &
-      call CHKERR(idim, 'requested resize dimension is larger than max dimension of inp array')
-    sdim = size(arr, dim=idim)
-    if (sdim .eq. N) return
-
-    allocate (tmp(N)) !**
-
-    if (N .lt. sdim) then ! shrinking
-      if (present(fillval)) call CHKERR(1_mpiint, 'resize_arr is about to shrink the input arr '// &
-                                        'but you provided a fillVal - this does not make sense')
-      tmp(1:N) = arr(1:N) !**
-    else
-      repeat_dim = get_arg(.false., lrepeat)
-      if (repeat_dim) then
-        if (modulo(N, sdim) .ne. 0) &
-          call CHKERR(1_mpiint, 'resize_arr cannot repeat the dimension('//itoa(idim)// &
-                      'because '//itoa(N)//' is does not a multiple of inp array size '//itoa(sdim))
-        do i = 1, N
-          j = modulo(i - 1, sdim)
-          tmp(i) = arr(1 + j) !**
-        end do
-      else
-        if (.not. present(fillVal)) call CHKERR(1_mpiint, 'fillVal is not present but needs to be given here')
-        tmp(1:sdim) = arr(1:sdim) !**
-        tmp(sdim + 1:N) = fillVal !**
-      end if
-    end if
-    call move_alloc(tmp, arr)
-  end subroutine
-  subroutine resize_arr_1d_int64(N, arr, dim, fillval, lrepeat)
-    integer(iintegers), intent(in) :: N
-    integer(int64), allocatable, intent(inout) :: arr(:)
-    integer(mpiint), intent(in), optional :: dim
-    integer(kind(arr)), intent(in), optional :: fillval
-    logical, intent(in), optional :: lrepeat
-
-    integer(kind(arr)), allocatable :: tmp(:)
-    integer(kind(N)) :: sdim, i, j
-    integer(mpiint) :: idim
-    logical :: repeat_dim
-
-    idim = get_arg(1_mpiint, dim)
-    if (idim .gt. size(shape(arr))) &
-      call CHKERR(idim, 'requested resize dimension is larger than max dimension of inp array')
-    sdim = size(arr, dim=idim)
-    if (sdim .eq. N) return
-
-    allocate (tmp(N)) !**
-
-    if (N .lt. sdim) then ! shrinking
-      if (present(fillval)) call CHKERR(1_mpiint, 'resize_arr is about to shrink the input arr '// &
-                                        'but you provided a fillVal - this does not make sense')
-      tmp(1:N) = arr(1:N) !**
-    else
-      repeat_dim = get_arg(.false., lrepeat)
-      if (repeat_dim) then
-        if (modulo(N, sdim) .ne. 0) &
-          call CHKERR(1_mpiint, 'resize_arr cannot repeat the dimension('//itoa(idim)// &
-                      'because '//itoa(N)//' is does not a multiple of inp array size '//itoa(sdim))
-        do i = 1, N
-          j = modulo(i - 1, sdim)
-          tmp(i) = arr(1 + j) !**
-        end do
-      else
-        if (.not. present(fillVal)) call CHKERR(1_mpiint, 'fillVal is not present but needs to be given here')
-        tmp(1:sdim) = arr(1:sdim) !**
-        tmp(sdim + 1:N) = fillVal !**
-      end if
-    end if
-    call move_alloc(tmp, arr)
-  end subroutine
+      call move_alloc(tmp, arr)
+    end subroutine
+  #:endfor
 
   #:for dtype, pi in [('REAL32', 'pi32'), ('REAL64', 'pi64'), ('REAL128', 'pi128')]
     elemental function deg2rad_${dtype}$ (deg) result(r)
@@ -1764,6 +1603,8 @@ contains
         read (funit, '(A)', iostat=io) line_str
 
         if (io .eq. 0) then
+          if (len_trim(line_str) .eq. 0) cycle ! ignore empty lines
+
           call split(line_str, line, ' ', ierr)
 
           if (ierr .eq. 0) then

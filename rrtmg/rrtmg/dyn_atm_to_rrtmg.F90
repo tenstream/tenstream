@@ -87,23 +87,23 @@ module m_dyn_atm_to_rrtmg
     ! level quantities dim(nlay+1 of merged grid, ncol)
     real(ireals), allocatable :: plev(:, :) ! interface pressure     [hPa]
     real(ireals), allocatable :: tlev(:, :) ! interface temperature  [K]
-    real(ireals), allocatable :: zt(:, :) ! interface heights      [m]
+    real(ireals), allocatable :: zt(:, :)   ! interface heights      [m]
 
     ! layer quantities dim(nlay of merged grid, ncol)
-    real(ireals), allocatable :: zm(:, :) ! layer mean height        [m]
-    real(ireals), allocatable :: dz(:, :) ! vertical layer thickness [m]
-    real(ireals), allocatable :: tlay(:, :) ! layer mean temperature   [K]
+    real(ireals), allocatable :: zm(:, :)      ! layer mean height        [m]
+    real(ireals), allocatable :: dz(:, :)      ! vertical layer thickness [m]
+    real(ireals), allocatable :: tlay(:, :)    ! layer mean temperature   [K]
     real(ireals), allocatable :: h2o_lay(:, :) ! watervapor volume mixing ratio [e.g. 1e-3]
-    real(ireals), allocatable :: o3_lay(:, :) ! ozone volume mixing ratio      [e.g. .1e-6]
+    real(ireals), allocatable :: o3_lay(:, :)  ! ozone volume mixing ratio      [e.g. .1e-6]
     real(ireals), allocatable :: co2_lay(:, :) ! CO2 volume mixing ratio        [e.g. 407e-6]
     real(ireals), allocatable :: ch4_lay(:, :) ! methane volume mixing ratio    [e.g. 2e-6]
     real(ireals), allocatable :: n2o_lay(:, :) ! n2o volume mixing ratio        [e.g. .32]
-    real(ireals), allocatable :: o2_lay(:, :) ! oxygen volume mixing ratio     [e.g. .2]
-    real(ireals), allocatable :: lwc(:, :) ! liq water content              [g/kg]
-    real(ireals), allocatable :: reliq(:, :) ! effective radius               [micron]
-    real(ireals), allocatable :: iwc(:, :) ! ice water content              [g/kg]
-    real(ireals), allocatable :: reice(:, :) ! ice effective radius           [micron]
-    real(ireals), allocatable :: cfrac(:, :) ! cloud fraction
+    real(ireals), allocatable :: o2_lay(:, :)  ! oxygen volume mixing ratio     [e.g. .2]
+    real(ireals), allocatable :: lwc(:, :)     ! liq water content              [g/kg]
+    real(ireals), allocatable :: reliq(:, :)   ! effective radius               [micron]
+    real(ireals), allocatable :: iwc(:, :)     ! ice water content              [g/kg]
+    real(ireals), allocatable :: reice(:, :)   ! ice effective radius           [micron]
+    real(ireals), allocatable :: cfrac(:, :)   ! cloud fraction
 
     real(ireals), allocatable :: opt_tau(:, :, :) ! optional optical properties: tau, w0, g dim (Nlay_dynamics, Ncol, Nbands(solar or thermal))
     real(ireals), allocatable :: opt_w0(:, :, :) ! will be added to the rrtmg optical properties
@@ -136,7 +136,7 @@ contains
     logical, intent(in) :: lTOA_to_srfc    ! True if provided variables go from TOA to srfc or False if starting at surface
 
     ! Filename of background atmosphere file. ASCII file with columns:
-    ! z(km)  p(hPa)  T(K)  air(cm-3)  o3(cm-3) o2(cm-3) h2o(cm-3)  co2(cm-3) no2(cm-3)
+    ! z(km)  p(hPa)  T(K)  air(cm-3)  o3(cm-3) o2(cm-3) h2o(cm-3)  co2(cm-3) no2(cm-3) n2o(cm-3) ch4(cm-3)
     character(len=*), intent(in) :: atm_filename
 
     ! dim(nlay_dynamics+1, ncol)
@@ -146,20 +146,20 @@ contains
     type(t_tenstr_atm), intent(inout) :: atm
 
     ! all have dim(nlay_dynamics, ncol)
-    real(ireals), intent(in), optional :: d_tlay(:, :)      ! layer mean temperature         [K]
-    real(ireals), intent(in), optional :: d_h2ovmr(:, :)      ! watervapor volume mixing ratio [e.g. 1e-3]
-    real(ireals), intent(in), optional :: d_o3vmr(:, :)      ! ozone volume mixing ratio      [e.g. .1e-6]
-    real(ireals), intent(in), optional :: d_co2vmr(:, :)      ! CO2 volume mixing ratio        [e.g. 407e-6]
-    real(ireals), intent(in), optional :: d_ch4vmr(:, :)      ! methane volume mixing ratio    [e.g. 2e-6]
-    real(ireals), intent(in), optional :: d_n2ovmr(:, :)      ! n2o volume mixing ratio        [e.g. .32]
-    real(ireals), intent(in), optional :: d_o2vmr(:, :)      ! oxygen volume mixing ratio     [e.g. .2]
-    real(ireals), intent(in), optional :: d_lwc(:, :)      ! liq water content              [g/kg]
-    real(ireals), intent(in), optional :: d_reliq(:, :)      ! effective radius               [micron]
-    real(ireals), intent(in), optional :: d_iwc(:, :)      ! ice water content              [g/kg]
-    real(ireals), intent(in), optional :: d_reice(:, :)      ! ice effective radius           [micron]
+    real(ireals), intent(in), optional :: d_tlay(:, :)           ! layer mean temperature         [K]
+    real(ireals), intent(in), optional :: d_h2ovmr(:, :)         ! watervapor volume mixing ratio [e.g. 1e-3]
+    real(ireals), intent(in), optional :: d_o3vmr(:, :)          ! ozone volume mixing ratio      [e.g. .1e-6]
+    real(ireals), intent(in), optional :: d_co2vmr(:, :)         ! CO2 volume mixing ratio        [e.g. 407e-6]
+    real(ireals), intent(in), optional :: d_ch4vmr(:, :)         ! methane volume mixing ratio    [e.g. 2e-6]
+    real(ireals), intent(in), optional :: d_n2ovmr(:, :)         ! n2o volume mixing ratio        [e.g. .32]
+    real(ireals), intent(in), optional :: d_o2vmr(:, :)          ! oxygen volume mixing ratio     [e.g. .2]
+    real(ireals), intent(in), optional :: d_lwc(:, :)            ! liq water content              [g/kg]
+    real(ireals), intent(in), optional :: d_reliq(:, :)          ! effective radius               [micron]
+    real(ireals), intent(in), optional :: d_iwc(:, :)            ! ice water content              [g/kg]
+    real(ireals), intent(in), optional :: d_reice(:, :)          ! ice effective radius           [micron]
     real(ireals), intent(in), optional :: d_cloud_fraction(:, :) ! cloud fraction
-    real(ireals), intent(in), optional :: d_surface_height(:)   ! surface height above sea     [m]
-    real(ireals), intent(in), optional :: d_skin_temperature(:) ! skin tempertaure             [K]
+    real(ireals), intent(in), optional :: d_surface_height(:)    ! surface height above sea     [m]
+    real(ireals), intent(in), optional :: d_skin_temperature(:)  ! skin tempertaure             [K]
 
     character(len=*), intent(in), optional :: prefix
 
@@ -770,7 +770,7 @@ contains
 
     integer(mpiint) :: myid, ierr
     integer(iintegers) :: k, nlev
-    real(ireals), allocatable :: prof(:, :) ! # z(km)  p(mb)  T(K) air(cm-3) o3(cm-3) o2(cm-3)  h2o(cm-3) co2(cm-3) no2(cm-3)
+    real(ireals), allocatable :: prof(:, :) ! # z(km) p(mb) T(K) air(cm-3) o3(cm-3) o2(cm-3) h2o(cm-3) co2(cm-3) no2(cm-3) n2o(cm-3) ch4(cm-3)
 
     if (allocated(atm)) return
 
@@ -780,6 +780,9 @@ contains
     if (myid .eq. 0) then
       call read_ascii_file_2d(atm_filename, prof, ierr)
       call CHKERR(ierr, 'Failed loading background atmosphere file '//trim(atm_filename))
+      call CHKERR(int(size(prof, dim=2) - 11, mpiint), 'Found '//toStr(size(prof, dim=2))//' columns '// &
+        & 'in atmosphere file <'//trim(atm_filename)//'> but expected 11'//new_line('')// &
+        & 'Please check an example file from the repo, e.g. tenstream/misc/atm.dat')
 
       nlev = ubound(prof, 1)
 
@@ -799,8 +802,8 @@ contains
       atm%h2o_lev = prof(:, 7) / prof(:, 4)
       atm%o3_lev = prof(:, 5) / prof(:, 4)
       atm%co2_lev = prof(:, 8) / prof(:, 4)
-      atm%ch4_lev = atm%co2_lev / 1e2
-      atm%n2o_lev = prof(:, 9) / prof(:, 4)
+      atm%n2o_lev = prof(:, 10) / prof(:, 4)
+      atm%ch4_lev = prof(:, 11) / prof(:, 4)
       atm%o2_lev = prof(:, 6) / prof(:, 4)
 
       if (ldebug .and. myid .eq. 0) then
@@ -971,4 +974,14 @@ contains
     c = dp / grav
   end function
 
+  elemental function planck(wvl, temperature)
+    real(ireals), intent(in) :: wvl, temperature ! wavelength in [m] and temperature in [K]
+    real(ireals) :: planck                       ! planck radiation in [W/(m2 m sterad)]
+    real(ireals), parameter :: H_PLANCK = 6.626068e-34_ireals
+    real(ireals), parameter :: C_LIGHT = 299792458._ireals
+    real(ireals), parameter :: K_BOLTZMANN = 1.3806503e-23_ireals
+
+    planck = 2._ireals * H_PLANCK * C_LIGHT**2 / &
+           & (wvl**5 * (exp(H_PLANCK * C_LIGHT / (wvl * K_BOLTZMANN * temperature)) - 1.0))
+  end function
 end module

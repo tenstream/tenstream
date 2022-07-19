@@ -27,21 +27,48 @@ module m_data_parameters
   implicit none
 
   private
-  public pi, pi_irealLUT, pi_ireal_params, pi32, pi64, pi128, &
-    clight, nil, zero, one, &
-    i0, i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, inil, &
-    iintegers, mpiint, &
-    ireals, ireal128, ireal_dp, irealLUT, &
-    ireal_params, irealbmc, irealeddington, &
-    nan32, nan64, nan, &
-    neginf, inf, &
-    imp_iinteger, imp_int4, imp_int8, &
-    imp_ireals, imp_real_dp, imp_irealLUT, &
-    imp_logical, imp_character, &
-    imp_REAL32, imp_REAL64, &
-    init_mpi_data_parameters, finalize_mpi, &
+  public &
+    AVOGADRO, &
+    CLIGHT, &
+    CP_DRY_AIR, &
     default_str_len, &
-    EXP_MINVAL, EXP_MAXVAL, EXP_MINVAL128, EXP_MAXVAL128
+    EARTHACCEL, &
+    EXP_MINVAL, EXP_MAXVAL, EXP_MINVAL128, EXP_MAXVAL128, &
+    finalize_mpi, &
+    i0, i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, inil, &
+    iintegers, &
+    imp_character, &
+    imp_iinteger, &
+    imp_int4, &
+    imp_int8, &
+    imp_irealLUT, &
+    imp_ireals, &
+    imp_logical, &
+    imp_REAL32, &
+    imp_REAL64, &
+    imp_real_dp, &
+    init_mpi_data_parameters, &
+    ireal128, &
+    irealbmc, &
+    ireal_dp, &
+    irealeddington, &
+    irealLUT, &
+    ireal_params, &
+    ireals, &
+    K_BOLTZMANN, &
+    MOLMASSAIR, &
+    mpiint, &
+    nan, nan32, nan64, &
+    neginf, inf, &
+    nil, zero, one, &
+    PI, &
+    pi128, &
+    pi32, &
+    pi64, &
+    pi_irealLUT, &
+    pi_ireal_params, &
+    R_DRY_AIR, &
+    share_dir
 
   integer :: mpiint_dummy
   PetscInt :: petscint_dummy
@@ -60,12 +87,7 @@ module m_data_parameters
     irealeddington = real64, &
     mpiint = kind(mpiint_dummy)
 
-  real(ireals), parameter :: pi = 3.141592653589793_ireals, clight = 299792458._ireals, nil = -9999._ireals
-  real(irealLUT), parameter :: pi_irealLUT = 3.141592653589793_ireallut
-  real(real32), parameter :: pi32 = 3.141592653589793_real32
-  real(real64), parameter :: pi64 = 3.141592653589793_real64
-  real(ireal_params), parameter :: pi_ireal_params = 3.141592653589793_ireal_params
-  real(real128), parameter :: pi128 = 4 * atan(1._real128)
+  real(ireals), parameter :: nil = -9999._ireals
   real(ireals), parameter :: zero = 0, one = 1
 
   integer(iintegers), parameter :: i0 = 0, i1 = 1, i2 = 2, i3 = 3, i4 = 4, &
@@ -82,6 +104,42 @@ module m_data_parameters
   integer(mpiint) :: imp_logical, imp_character
   integer(mpiint) :: imp_iinteger, imp_int4, imp_int8
   real(ireals) :: nan, inf, neginf
+
+  real(ireals), parameter :: AVOGADRO = 6.02214076e23     ! mol**-1
+  real(ireals), parameter :: MOLMASSAIR = 0.0289647       ! (kg / mol)
+  real(ireals), parameter :: EARTHACCEL = 9.80665         ! (m s**-2)
+  real(ireals), parameter :: K_BOLTZMANN = 1.38e-23       ! J / K
+  real(ireals), parameter :: R_DRY_AIR = 287.058          ! J / (kg K) specific gas constant dry air
+  real(ireals), parameter :: CP_DRY_AIR = 1003.5          ! J / kg / K
+  real(ireals), parameter :: CLIGHT = 299792458._ireals   ! m / s
+  real(ireals), parameter :: PI = 3.141592653589793_ireals
+  real(irealLUT), parameter :: pi_irealLUT = 3.141592653589793_ireallut
+  real(real32), parameter :: pi32 = 3.141592653589793_real32
+  real(real64), parameter :: pi64 = 3.141592653589793_real64
+  real(ireal_params), parameter :: pi_ireal_params = 3.141592653589793_ireal_params
+  real(real128), parameter :: pi128 = 4 * atan(1._real128)
+
+  character(len=*), parameter :: &
+    share_dir = &
+#ifdef TENSTREAM_SHARE_DIR1
+    TENSTREAM_SHARE_DIR1// &
+#endif
+#ifdef TENSTREAM_SHARE_DIR2
+    TENSTREAM_SHARE_DIR2// &
+#endif
+#ifdef TENSTREAM_SHARE_DIR3
+    TENSTREAM_SHARE_DIR3// &
+#endif
+#ifdef TENSTREAM_SHARE_DIR4
+    TENSTREAM_SHARE_DIR4// &
+#endif
+#ifdef TENSTREAM_SHARE_DIR5
+    TENSTREAM_SHARE_DIR5// &
+#endif
+#ifdef TENSTREAM_SHARE_DIR6
+    TENSTREAM_SHARE_DIR6// &
+#endif
+    "/"
 
 contains
   subroutine init_mpi_data_parameters(comm)

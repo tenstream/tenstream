@@ -12,6 +12,7 @@ echo "  -v, --verbose                    Increase verbosity"
 echo "  -f, --files                      Specify files on which to run"
 echo "  -h, --help                       Show this help text and exit"
 echo "  -p, --parallel <ncpu>            set the number of parallel threads or we use as many as we find in /proc/cpuinfo "
+echo "  -s, --staging                    only look at files that are currently changed "
 }
 
 SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
@@ -26,10 +27,12 @@ PYTHON=$(which "python3")
 BIN=$PROJECT_ROOT/external/fprettify/fprettify.py
 if [[ ! -e $BIN ]]; then
   git clone https://github.com/pseewald/fprettify.git $(dirname $BIN)
+  sed -i 's#COMMENT_LINE_STR = r"^!"#COMMENT_LINE_STR = r"^!|^@"#' $(dirname $BIN)/fprettify/fparse_utils.py
 fi
 DIFF=false
 DRYRUN=false
 VERBOSE=false
+NAMEONLY=false
 
 # Determine number of processors
 if [ -e /proc/cpuinfo ]; then
@@ -44,8 +47,11 @@ FILES="\
   src/*.F90 \
   src/*.inc \
   rrtmg/rrtmg/*.F90 \
+  repwvl/*.F90 \
+  specint/*.F90 \
   plexrt/*.F90 \
   c_wrapper/*.F90 \
+  tests/**/*.F90 \
   examples/**/*.F90 \
   "
 
@@ -75,6 +81,11 @@ case $key in
     NCPU="$2"
     shift # past argument
     shift # past value
+    ;;
+    -s|--staging)
+    NAMEONLY=true
+    FILES_VIEW="staging"
+    shift # past argument
     ;;
     -f|--file)
     FILES="$2"
@@ -107,10 +118,12 @@ if $VERBOSE ; then
 	echo "--diff=$DIFF"
 	echo "--verbose=$VERBOSE"
 	echo "--parallel=$NCPU"
+	echo "--staging=$NAMEONLY"
   echo "--files=$FILES_VIEW"
 	echo ""
 fi
 
+if $NAMEONLY; then FILES=$(git diff --name-only | egrep "\.inc$|\.F90$|\.fypp$"); fi
 
 if [[ ! -e $PYTHON ]]; then
   echo "Could not find python3! ($PYTHON)"

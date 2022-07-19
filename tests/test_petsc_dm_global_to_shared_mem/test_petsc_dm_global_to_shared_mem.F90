@@ -2,15 +2,15 @@ module test_petsc_dm_global_to_shared_mem
 
 #include "petsc/finclude/petsc.h"
   use petsc
-  use m_data_parameters, only : iintegers, ireals, mpiint, zero, one, &
+  use m_data_parameters, only: iintegers, ireals, mpiint, zero, one, &
     & init_mpi_data_parameters
   use m_tenstream_options, only: read_commandline_options
-  use m_pprts_base, only : t_solver, destroy_pprts, allocate_pprts_solver_from_commandline
-  use m_pprts, only : init_pprts
-  use m_petsc_helpers, only : &
+  use m_pprts_base, only: t_solver, destroy_pprts, allocate_pprts_solver_from_commandline
+  use m_pprts, only: init_pprts
+  use m_petsc_helpers, only: &
     gen_shared_subcomm, gen_shared_scatter_ctx, &
     getvecpointer, restorevecpointer
-  use m_helper_functions, only : itoa, CHKERR, imp_allreduce_sum
+  use m_helper_functions, only: itoa, CHKERR, imp_allreduce_sum
 
   use pfunit_mod
 
@@ -20,24 +20,23 @@ contains
 
   @before
   subroutine setup(this)
-    class (MpiTestMethod), intent(inout) :: this
+    class(MpiTestMethod), intent(inout) :: this
     call init_mpi_data_parameters(this%getMpiCommunicator())
     call read_commandline_options(this%getMpiCommunicator())
   end subroutine setup
 
   @after
   subroutine teardown(this)
-    class (MpiTestMethod), intent(inout) :: this
+    class(MpiTestMethod), intent(inout) :: this
     logical :: lpetsc_is_initialized
     integer(mpiint) :: mpierr
     call PetscInitialized(lpetsc_is_initialized, mpierr)
-    if(lpetsc_is_initialized) call PetscFinalize(mpierr)
+    if (lpetsc_is_initialized) call PetscFinalize(mpierr)
   end subroutine teardown
 
-
-  @test(npes =[3])
+  @test(npes=[3])
   subroutine test_gen_shared_subcomm(this)
-    class (MpiTestMethod), intent(inout) :: this
+    class(MpiTestMethod), intent(inout) :: this
 
     integer(mpiint) :: comm, numnodes, myid
     integer(mpiint) :: subcomm, subnumnodes, submyid
@@ -45,49 +44,47 @@ contains
 
     integer(iintegers) :: k
 
-    comm     = this%getMpiCommunicator()
+    comm = this%getMpiCommunicator()
     numnodes = this%getNumProcesses()
-    myid     = this%getProcessRank()
+    myid = this%getProcessRank()
 
-    if(myid.eq.0) print *,'Main Comm:'
-    do k=0,numnodes-1
-      if(myid.eq.k) print *,'Hi, from main comm: this is',myid,'out of ',numnodes
-      call mpi_barrier(comm,ierr); call CHKERR(ierr)
-    enddo
-    call mpi_barrier(comm,ierr); call CHKERR(ierr)
+    if (myid .eq. 0) print *, 'Main Comm:'
+    do k = 0, numnodes - 1
+      if (myid .eq. k) print *, 'Hi, from main comm: this is', myid, 'out of ', numnodes
+      call mpi_barrier(comm, ierr); call CHKERR(ierr)
+    end do
+    call mpi_barrier(comm, ierr); call CHKERR(ierr)
 
     call gen_shared_subcomm(comm, subcomm, ierr); call CHKERR(ierr)
 
-    call mpi_comm_rank(subcomm,submyid,ierr); call CHKERR(ierr)
-    call mpi_comm_size(subcomm,subnumnodes,ierr); call CHKERR(ierr)
+    call mpi_comm_rank(subcomm, submyid, ierr); call CHKERR(ierr)
+    call mpi_comm_size(subcomm, subnumnodes, ierr); call CHKERR(ierr)
 
-
-    if(myid.eq.0) print *,'Sub Comm:'
-    do k=0,subnumnodes-1
-      if(submyid.eq.k) print *,'Hi, from sub comm: this is',myid,'out of ',numnodes,' sub:', submyid, 'of', subnumnodes
-      call mpi_barrier(subcomm,ierr); call CHKERR(ierr)
-    enddo
-    call mpi_barrier(comm,ierr); call CHKERR(ierr)
+    if (myid .eq. 0) print *, 'Sub Comm:'
+    do k = 0, subnumnodes - 1
+      if (submyid .eq. k) print *, 'Hi, from sub comm: this is', myid, 'out of ', numnodes, ' sub:', submyid, 'of', subnumnodes
+      call mpi_barrier(subcomm, ierr); call CHKERR(ierr)
+    end do
+    call mpi_barrier(comm, ierr); call CHKERR(ierr)
   end subroutine
 
-
-  @test(npes =[1,2,3])
+  @test(npes=[1, 2, 3])
   subroutine test_scatter_to_shared_subcomm(this)
-    class (MpiTestMethod), intent(inout) :: this
+    class(MpiTestMethod), intent(inout) :: this
 
     integer(mpiint) :: comm, numnodes, myid
     integer(mpiint) :: subcomm, subnumnodes, submyid
     integer(mpiint) :: ierr
 
-    integer(iintegers),parameter :: nxp=3,nyp=3,nv=2
-    real(ireals),parameter :: dx=100,dy=dx
-    real(ireals),parameter :: sundir(3) = 0
-    real(ireals),parameter :: dz=dx
+    integer(iintegers), parameter :: nxp = 3, nyp = 3, nv = 2
+    real(ireals), parameter :: dx = 100, dy = dx
+    real(ireals), parameter :: sundir(3) = 0
+    real(ireals), parameter :: dz = dx
     real(ireals) :: dz1d(nv)
 
     class(t_solver), allocatable :: solver
     type(tVec) :: gvec, svec, gvec_target
-    real(ireals), pointer :: x1d(:)=>NULL(), xv(:,:,:,:)=>NULL()
+    real(ireals), pointer :: x1d(:) => null(), xv(:, :, :, :) => null()
 
     integer(iintegers) :: N, k, num_shared_masters
     type(tVecScatter) :: ctx
@@ -95,19 +92,19 @@ contains
 
     dz1d = dz
 
-    comm     = this%getMpiCommunicator()
+    comm = this%getMpiCommunicator()
     numnodes = this%getNumProcesses()
-    myid     = this%getProcessRank()
+    myid = this%getProcessRank()
 
     call gen_shared_subcomm(comm, subcomm, ierr); call CHKERR(ierr)
 
-    call mpi_comm_rank(subcomm,submyid,ierr); call CHKERR(ierr)
-    call mpi_comm_size(subcomm,subnumnodes,ierr); call CHKERR(ierr)
+    call mpi_comm_rank(subcomm, submyid, ierr); call CHKERR(ierr)
+    call mpi_comm_size(subcomm, subnumnodes, ierr); call CHKERR(ierr)
 
     call allocate_pprts_solver_from_commandline(solver, '2str', ierr); call CHKERR(ierr)
-    call init_pprts(comm, nv, nxp, nyp, dx,dy, sundir, solver, dz1d)
+    call init_pprts(comm, nv, nxp, nyp, dx, dy, sundir, solver, dz1d)
 
-    associate(C=>solver%C_one)
+    associate (C => solver%C_one)
       ! Gen new global vector
       call DMGetGlobalVector(C%da, gvec, ierr); call CHKERR(ierr)
 
@@ -116,28 +113,27 @@ contains
       call restoreVecPointer(C%da, gvec, x1d, xv)
       call PetscObjectViewFromOptions(gvec, PETSC_NULL_VEC, '-show_gvec', ierr); call CHKERR(ierr)
 
-      if(submyid.eq.0) then
+      if (submyid .eq. 0) then
         call VecGetSize(gvec, N, ierr); call CHKERR(ierr)
       else
         N = 0
-      endif
+      end if
       call VecCreateSeq(PETSC_COMM_SELF, N, svec, ierr); call CHKERR(ierr)
       call VecSetFromOptions(svec, ierr); call CHKERR(ierr)
-      call PetscObjectSetName(svec, 'shared_mem_vec_rank_'//itoa(myid), ierr);call CHKERR(ierr)
+      call PetscObjectSetName(svec, 'shared_mem_vec_rank_'//itoa(myid), ierr); call CHKERR(ierr)
 
       call gen_shared_scatter_ctx(gvec, svec, ctx, ierr); call CHKERR(ierr)
 
       call VecScatterBegin(ctx, gvec, svec, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
-      call VecScatterEnd  (ctx, gvec, svec, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
+      call VecScatterEnd(ctx, gvec, svec, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
 
-      do k=0, numnodes-1
-        if(k.eq.myid) then
+      do k = 0, numnodes - 1
+        if (k .eq. myid) then
           call PetscObjectViewFromOptions(svec, PETSC_NULL_VEC, '-show_svec', ierr); call CHKERR(ierr)
-        endif
+        end if
         call mpi_barrier(comm, ierr); call CHKERR(ierr)
-      enddo
+      end do
       call mpi_barrier(comm, ierr); call CHKERR(ierr)
-
 
       ! And read back the average values
       call VecDuplicate(gvec, gvec_target, ierr); call CHKERR(ierr)
@@ -145,15 +141,15 @@ contains
       call VecSet(gvec, zero, ierr); call CHKERR(ierr)
 
       call VecScatterBegin(ctx, svec, gvec, ADD_VALUES, SCATTER_REVERSE, ierr); call CHKERR(ierr)
-      call VecScatterEnd  (ctx, svec, gvec, ADD_VALUES, SCATTER_REVERSE, ierr); call CHKERR(ierr)
+      call VecScatterEnd(ctx, svec, gvec, ADD_VALUES, SCATTER_REVERSE, ierr); call CHKERR(ierr)
 
-      if(submyid.eq.0) then
+      if (submyid .eq. 0) then
         k = 1
       else
         k = 0
-      endif
+      end if
       call imp_allreduce_sum(comm, k, num_shared_masters)
-      call VecScale(gvec, one/real(num_shared_masters, ireals), ierr); call CHKERR(ierr)
+      call VecScale(gvec, one / real(num_shared_masters, ireals), ierr); call CHKERR(ierr)
 
       call PetscObjectViewFromOptions(gvec, PETSC_NULL_VEC, '-show_gvec', ierr); call CHKERR(ierr)
 
@@ -166,7 +162,7 @@ contains
     ! Tidy up
     call VecScatterDestroy(ctx, ierr); call CHKERR(ierr)
     call DMRestoreGlobalVector(solver%C_one%da, gvec, ierr); call CHKERR(ierr)
-    call destroy_pprts(solver, lfinalizepetsc=.True.)
+    call destroy_pprts(solver, lfinalizepetsc=.true.)
 
   end subroutine
 

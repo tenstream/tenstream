@@ -7,8 +7,8 @@ module m_search
 
   interface find_real_location
     #:for dtype in ['REAL32', 'REAL64']
-      module procedure find_real_location_${dtype}$
-      !module procedure search_sorted_bisection_${dtype}$
+      !module procedure find_real_location_${dtype}$
+      module procedure search_sorted_bisection_${dtype}$
     #:endfor
   end interface
 
@@ -149,6 +149,7 @@ contains
       res = real(N, kind=kind(res))
     end function
 
+    ! linear search for descending ordering
     pure function find_real_location_linear_desc${dtype}$ (arr, val) result(res)
       real(${dtype}$), intent(in) :: arr(:)
       real(${dtype}$), intent(in) :: val
@@ -172,7 +173,7 @@ contains
       res = real(N, kind=kind(res))
     end function
 
-    ! return index+residula i where val is between arr(i) and arr(i+1)
+    ! return index+residual i where val is between arr(i) and arr(i+1)
     pure function search_sorted_bisection_${dtype}$ (arr, val) result(res)
       real(${dtype}$), intent(in) :: arr(:)
       real(${dtype}$), intent(in) :: val
@@ -227,7 +228,7 @@ contains
     end function
   #:endfor
 
-  ! return index+residula i where val is between arr(i) and arr(i+1)
+  ! return index+residual i where val is between arr(i) and arr(i+1)
   function find_real_location_petsc(arr, val) result(loc)
     real(ireals), intent(in) :: arr(:)
     real(ireals), intent(in) :: val

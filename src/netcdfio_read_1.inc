@@ -18,6 +18,7 @@
 !-------------------------------------------------------------------------
 
 logical, intent(in), optional :: lverbose
+integer, dimension(:), optional, intent(in) :: ostart, ocount, ostride, omap
 
 character(len=*) :: groups(:)
 
@@ -33,11 +34,11 @@ real(kind(arr)) :: bytesize_dummy
 integer(mpiint), intent(out) :: ierr
 ierr = 0
 
-if (allocated(arr)) then
-  print *, 'Array which should have been read in is already allocated... I will not overwrite it...'
-  ierr = 100
-  return
-end if
+!if (allocated(arr)) then
+!  print *, 'Array which should have been read in is already allocated... I will not overwrite it...'
+!  ierr = 100
+!  return
+!end if
 
 fname = trim(groups(1))
 
@@ -71,7 +72,7 @@ bytesize = c_sizeof(bytesize_dummy)
 if (var_exists) then ! How big are the data dimensions?
   ncerr = nf90_inquire_variable(ncid, varid, ndims=ndims); call nccheck(ncerr); ierr = ierr + ncerr
   if (ndims .ne. size(shape(arr))) then
-    if (ldebug) print *, 'Input and NC variable have different number dimensions '//itoa(size(shape(arr)))//' vs '//itoa(ndims)
+    print *, 'Input and NC variable have different number dimensions '//toStr(size(shape(arr)))//' vs '//toStr(ndims)
     ierr = ierr + 100 * size(shape(arr)) + ndims
     goto 100
   end if
@@ -84,5 +85,5 @@ if (var_exists) then ! How big are the data dimensions?
 end if
 
 if (ldebug .or. get_arg(.false., lverbose)) &
-  print *, 'Dimension of variable: '//trim(varname), dimsize, '( '//ftoa(real(bytesize) / 1024.**3)//' Gb )'
+  print *, 'Dimension of variable: '//trim(varname), dimsize, '( '//toStr(real(bytesize) / 1024.**3)//' Gb )'
 

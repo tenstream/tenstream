@@ -45,6 +45,8 @@ module m_pprts_base
     & t_pprts_shell_ctx, &
     & t_solver, &
     & t_solver_2str, &
+    & t_solver_disort, &
+    & t_solver_rayli, &
     & t_solver_1_2, &
     & t_solver_3_6, &
     & t_solver_3_10, &
@@ -72,7 +74,7 @@ module m_pprts_base
     integer(iintegers) :: dof, dim                 ! degrees of freedom of Petsc Domain, dimension of dmda
     type(tDM) :: da                      ! The Domain Decomposition Object
     integer(mpiint) :: comm                    ! mpi communicatior for this DMDA
-    integer(mpiint), allocatable :: neighbors(:)        ! all 3d neighbours((x=-1,y=-1,z=-1), (x=0,y=-1,z=-1) ...), i.e. 14 is one self.
+    integer(mpiint), allocatable :: neighbors(:)        ! all 3d neighbours((x=-1,y=-1,z=-1), (x=0,y=-1,z=-1) ...), i.e. 14 is one self
   end type
 
   type t_atmosphere
@@ -115,8 +117,8 @@ module m_pprts_base
     !save error statistics
     real(ireals) :: time(30) = -one
     real(ireals) :: maxnorm(30) = zero
-    real(ireals) :: dir_ksp_residual_history(100)
-    real(ireals) :: diff_ksp_residual_history(100)
+    real(ireals) :: dir_ksp_residual_history(100) = -one
+    real(ireals) :: diff_ksp_residual_history(100) = -one
 
     integer(iintegers) :: Niter_dir = -1, Niter_diff = -1
   end type
@@ -211,6 +213,10 @@ module m_pprts_base
   end type
 
   type, extends(t_solver) :: t_solver_2str
+  end type
+  type, extends(t_solver) :: t_solver_disort
+  end type
+  type, extends(t_solver) :: t_solver_rayli
   end type
   type, extends(t_solver) :: t_solver_1_2
   end type
@@ -383,6 +389,12 @@ contains
     case ('2str')
       allocate (t_solver_2str :: pprts_solver)
 
+    case ('disort')
+      allocate (t_solver_disort :: pprts_solver)
+
+    case ('rayli')
+      allocate (t_solver_rayli :: pprts_solver)
+
     case ('1_2')
       allocate (t_solver_1_2 :: pprts_solver)
 
@@ -413,6 +425,7 @@ contains
     case default
       print *, 'error, have to provide solver type as argument, e.g. call with'
       print *, '-'//trim(pref)//'solver 2str'
+      print *, '-'//trim(pref)//'solver disort'
       print *, '-'//trim(pref)//'solver 1_2'
       print *, '-'//trim(pref)//'solver 3_6'
       print *, '-'//trim(pref)//'solver 3_10'
@@ -728,7 +741,7 @@ contains
     logical, intent(in) :: l1d(:)
     real(ireals), intent(out) :: rtol, atol
     type(tKSP), intent(in), allocatable, optional :: ksp
-    real(ireals) :: rel_atol = 1e-6_ireals
+    real(ireals) :: rel_atol = 1e-4_ireals
     real(ireals) :: unconstrained_fraction
     integer(mpiint) :: myid, ierr
     integer(iintegers) :: maxit

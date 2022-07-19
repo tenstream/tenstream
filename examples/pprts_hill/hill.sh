@@ -6,6 +6,7 @@ bin="ex_pprts_hill"
 
 make -j $bin || exit 1
 baseopt="\
+  -specint repwvl
   -dx 100 \
   -dy 100 \
   -atm_filename $SCRIPTDIR/atm.dat \
@@ -22,10 +23,11 @@ baseopt="\
   -hill_shape 10 \
   -theta0 40 -phi0 180 \
   -rrtmg_bands 60,60 \
+  -repwvl_bands 4,4 \
   $1"
 
 rayli_opt="\
-  -pprts_use_rayli \
+  -solver rayli \
   -pprts_rayli_photons 1e7 \
   -rayli_cyclic_bc \
   -show_rayli_dm3d hdf5:dm.h5 \
@@ -185,14 +187,15 @@ function runex {
   fi
 }
 
-mpiexec="srun --time=08:00:00 -n 40 -N 1-4 -p met-ws,cluster --mpi=pmix"
-rayexec="srun --time=08:00:00 -n 2 -N 2 -c 10 -p met-ws,cluster --mpi=pmix"
+mpiexec="srun --time=08:00:00 -n 40 -N 1-8 --mpi=pmix -C x86-64-v4"
+rayexec="srun --time=08:00:00 -n 2 -N 2 -c 8 --mpi=pmix -C x86-64-v4"
 
 for SZA in 0 20 40 60
 do
-  runex "$mpiexec" "res_${SZA}_1d.nc                  "  "-theta0 $SZA  -twostr_only"
+  runex "$mpiexec" "res_${SZA}_1d.nc                  "  "-theta0 $SZA  -solver 2str"
   runex "$rayexec" "res_${SZA}_rayli_ac.nc            "  "-theta0 $SZA  -pprts_atm_correction $rayli_opt"
   runex "$mpiexec" "res_${SZA}_3_10str.nc             "  "-theta0 $SZA "
+  runex "$mpiexec" "res_${SZA}_3_10str_ac_gc.nc       "  "-theta0 $SZA  -pprts_atm_correction -pprts_geometric_coeffs -pprts_conserve_lut_atm_abso"
   runex "$mpiexec" "res_${SZA}_3_10str_distorted_ac.nc"  "-theta0 $SZA  -pprts_atm_correction -bmc_online"
   wait
 

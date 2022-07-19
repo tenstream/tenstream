@@ -17,7 +17,9 @@
 ! Copyright (C) 2010-2015  Fabian Jakub, <fabian@jakub.com>
 !-------------------------------------------------------------------------
 
-  ncerr = nf90_get_var(ncid, varid, arr); call nccheck(ncerr); ierr = ierr + ncerr
+  ncerr = nf90_get_var(ncid, varid, arr, &
+    & start=ostart, count=ocount, stride=ostride, map=omap)
+  call nccheck(ncerr); ierr = ierr + ncerr
 
 100 continue
   ncerr = nf90_close(ncid); call nccheck(ncerr); ierr = ierr + ncerr

@@ -66,6 +66,11 @@ module m_tenstream_interpolation
     module procedure interp_1d_r32, interp_1d_r64
   end interface
 
+  interface interp_2d
+    module procedure interp_2d_scalar
+    module procedure interp_2d_vec
+  end interface
+
 contains
 
   recursive subroutine interpn(n, a, t, i, res)
@@ -137,7 +142,43 @@ contains
     end if
   end function
 
-  pure subroutine interp_2d(pti, db, C)
+  pure subroutine interp_2d_scalar(pti, db, C)
+    integer(iintegers), parameter :: Ndim = 2
+    real(irealLUT), intent(in) :: pti(Ndim), db(:, :)
+    real(irealLUT), intent(out) :: C
+
+    integer(iintegers) :: indices(Ndim, 2**Ndim), fpti(Ndim)
+    integer(iintegers) :: i, d
+    real(irealLUT) :: weights(Ndim)
+    real(irealLUT) :: db2(2**(Ndim))
+    real(irealLUT) :: db1(2**(Ndim - 1))
+
+    ! First determine the array indices, where to look.
+    fpti = floor(pti)
+    weights = modulo(pti, one)
+
+    do i = 1, 2**Ndim
+      indices(:, i) = permu2d(:, i) + fpti
+    end do
+    ! Make sure we dont recall a value outside of array dimensions
+    do d = 1, Ndim
+      indices(d, :) = max(i1, min(ubound(db, d, iintegers), indices(d, :)))
+    end do
+
+    ! Then get the corner values of hypercube
+    do i = 1, 2**Ndim
+      db2(i) = db(indices(1, i), indices(2, i))
+    end do
+
+    ! Permutations for 1st axis
+    do i = 1, 2**(Ndim - 1)
+      db1(i) = db2(2 * i - 1) + (db2(2 * i) - db2(2 * i - 1)) * (weights(1))
+    end do
+
+    C = db1(2 - 1) + (db1(2) - db1(2 - 1)) * (weights(2))
+  end subroutine
+
+  pure subroutine interp_2d_vec(pti, db, C)
     integer(iintegers), parameter :: Ndim = 2
     real(irealLUT), intent(in) :: pti(Ndim), db(:, :, :)
     real(irealLUT), intent(out) :: C(:)

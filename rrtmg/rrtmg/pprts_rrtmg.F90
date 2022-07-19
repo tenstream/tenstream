@@ -50,10 +50,6 @@ module m_pprts_rrtmg
   use m_pprts, only: init_pprts, set_angles, set_optical_properties, solve_pprts, &
                      pprts_get_result, pprts_get_result_toZero
 
-  use m_buildings, only: &
-    & t_pprts_buildings, &
-    & PPRTS_BOT_FACE
-
   use m_xdmf_export, only: &
     & xdmf_pprts_buildings, &
     & xdmf_pprts_srfc_flux
@@ -92,7 +88,7 @@ module m_pprts_rrtmg
 
   use m_tenstr_disort, only: default_flx_computation
   use m_tenstr_rrtmg_base, only: t_rrtmg_log_events, setup_log_events
-  use m_buildings, only: t_pprts_buildings, clone_buildings, destroy_buildings
+  use m_buildings, only: t_pprts_buildings, clone_buildings, destroy_buildings, PPRTS_BOT_FACE
 
   use m_pprts_external_solvers, only: destroy_rayli_info
 
@@ -102,7 +98,7 @@ module m_pprts_rrtmg
   implicit none
 
   private
-  public :: pprts_rrtmg, destroy_pprts_rrtmg
+  public :: pprts_rrtmg, destroy_pprts_rrtmg, smooth_surface_fluxes, slope_correction_fluxes
 
 !  logical,parameter :: ldebug=.True.
   logical, parameter :: ldebug = .false.
@@ -171,7 +167,7 @@ contains
     call PetscLogEventBegin(log_events%smooth_surface_fluxes, ierr); call CHKERR(ierr)
     call mpi_comm_rank(solver%comm, myid, ierr); call CHKERR(ierr)
 
-    radius = 0; 
+    radius = 0
     call get_petsc_opt(solver%prefix, "-pprts_smooth_srfc_flx", radius, lflg, ierr); call CHKERR(ierr)
 
     if (lflg) then
@@ -877,9 +873,9 @@ contains
     function compute_thermal_disort() result(ldisort_only)
       logical :: ldisort_only
       integer(iintegers) :: nstreams
-      real :: mu0, S0, col_albedo, wvnms(2), col_tskin
+      real :: mu0, S0, col_albedo, wvnms(2), col_tskin, col_Bskin
       real, dimension(size(tau, 1)) :: col_Bfrac, col_dtau, col_w0, col_g
-      real, dimension(size(tau, 1) + 1) :: col_temper
+      real, dimension(size(tau, 1) + 1) :: col_temper, col_Blev
       real, dimension(size(edn, 1)) :: RFLDIR, RFLDN, FLUP, DFDT, UAVG
 
       ldisort_only = .false.
@@ -913,18 +909,25 @@ contains
               col_dtau = max(tiny(col_dtau), real(reverse(tau(:, i, j, ib))))
               wvnms = [real(wavenum1(ngb(ib))), real(wavenum2(ngb(ib)))]
 
+              do k = i1, ke1
+                col_Blev(ke1 - k + 1) = plkint(real(wavenum1(ngb(ib))), real(wavenum2(ngb(ib))), real(atm%tlev(k, icol)))
+              end do
+              col_Bskin = plkint(real(wavenum1(ngb(ib))), real(wavenum2(ngb(ib))), real(col_tskin))
+
               call default_flx_computation( &
-                mu0, &
-                S0, &
-                col_albedo, &
-                col_tskin, &
-                .true., wvnms, col_Bfrac, &
-                col_dtau, &
-                col_w0, &
-                col_g, &
-                col_temper, &
-                RFLDIR, RFLDN, FLUP, DFDT, UAVG, &
-                int(nstreams), lverbose=.false.)
+                & mu0, &
+                & S0, &
+                & col_albedo, &
+                & col_tskin, &
+                & .true., wvnms, col_Bfrac, &
+                & col_dtau, &
+                & col_w0, &
+                & col_g, &
+                & col_temper, &
+                & RFLDIR, RFLDN, FLUP, DFDT, UAVG, &
+                & int(nstreams), lverbose=.false., &
+                & Blev=col_Blev, &
+                & Bskin=col_Bskin)
 
               eup(:, i, j) = eup(:, i, j) + FLUP
               edn(:, i, j) = edn(:, i, j) + RFLDN

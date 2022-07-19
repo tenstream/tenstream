@@ -29,7 +29,8 @@ module m_tenstr_disort_internal
      &                   RHOQ, RHOU, RHO_ACCURATE, BEMST, EMUST,&
      &                   ACCUR,  HEADER,&
      &                   RFLDIR, RFLDN, FLUP, DFDT, UAVG, UU,&
-     &                   ALBMED, TRNMED )
+     &                   ALBMED, TRNMED, &
+     &                   Blev, Bskin)
 
 ! *******************************************************************
 !       Plane-parallel discrete ordinates radiative transfer program
@@ -396,6 +397,7 @@ module m_tenstr_disort_internal
 !     Added this variable to account for the Planck fractions noted
 !     in RRTM
       real :: Bfracs(maxcly)
+      real, optional, intent(in) :: Blev(:), Bskin
 
 
 !     ..
@@ -660,14 +662,24 @@ module m_tenstr_disort_internal
         if(pass1) then
           TPLANK = TEMIS*PLKAVG(WVNMLO, WVNMHI, TTEMP)
           BPLANK = PLKAVG(WVNMLO, WVNMHI, BTEMP)
+          DO 40 LEV = 0, NLYR
+            PKAG( LEV ) = PLKAVG( WVNMLO, WVNMHI, TEMPER( LEV ) )
+   40     CONTINUE
         else
-          TPLANK = Bfracs(1)*TEMIS*PLKAVG(WVNMLO, WVNMHI, TTEMP)
-          BPLANK = Bfracs(nlyr)*PLKAVG(WVNMLO, WVNMHI, BTEMP)
-        endif
+          if (present(Blev)) then
+            TPLANK = Bfracs(1) * TEMIS * Blev(1)
+            BPLANK = Bfracs(nlyr) * Blev(size(Blev))
+            PKAG(:) = Blev(:)
+            if (present(Bskin)) BPLANK = Bfracs(nlyr) * Bskin
+          else
+            TPLANK = Bfracs(1)*TEMIS*PLKAVG(WVNMLO, WVNMHI, TTEMP)
+            BPLANK = Bfracs(nlyr)*PLKAVG(WVNMLO, WVNMHI, BTEMP)
 
-        DO 40 LEV = 0, NLYR
-          PKAG( LEV ) = PLKAVG( WVNMLO, WVNMHI, TEMPER( LEV ) )
-   40   CONTINUE
+            DO 41 LEV = 0, NLYR
+              PKAG( LEV ) = PLKAVG( WVNMLO, WVNMHI, TEMPER( LEV ) )
+   41       CONTINUE
+          endif
+        endif
       ENDIF
 
 ! ========  BEGIN LOOP TO SUM AZIMUTHAL COMPONENTS OF INTENSITY  =======
