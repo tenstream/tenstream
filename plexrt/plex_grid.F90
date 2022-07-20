@@ -2389,7 +2389,7 @@ contains
       end if
     end if
 
-    call imp_bcast(plex%comm, face_normal, 0_mpiint)
+    call imp_bcast(plex%comm, face_normal, 0_mpiint, ierr); call CHKERR(ierr)
     get_normal_of_first_TOA_face = face_normal
 
   end function

@@ -1348,14 +1348,17 @@ contains
         end if
       end if
 
-      if (mpi_logical_or(comm,.not. associated(OPP%Sdir%c))) &
-        call imp_bcast(comm, OPP%Sdir%c, 0_mpiint)  ! DIRECT 2 DIRECT
+      if (mpi_logical_or(comm,.not. associated(OPP%Sdir%c))) then
+        call imp_bcast(comm, OPP%Sdir%c, 0_mpiint, ierr); call CHKERR(ierr)  ! DIRECT 2 DIRECT
+      end if
 
-      if (mpi_logical_or(comm,.not. associated(OPP%Tdir%c))) &
-        call imp_bcast(comm, OPP%Tdir%c, 0_mpiint)  ! DIRECT 2 DIFFUSE
+      if (mpi_logical_or(comm,.not. associated(OPP%Tdir%c))) then
+        call imp_bcast(comm, OPP%Tdir%c, 0_mpiint, ierr); call CHKERR(ierr)  ! DIRECT 2 DIFFUSE
+      end if
 
-      if (mpi_logical_or(comm,.not. associated(OPP%Sdiff%c))) &
-        call imp_bcast(comm, OPP%Sdiff%c, 0_mpiint)
+      if (mpi_logical_or(comm,.not. associated(OPP%Sdiff%c))) then
+        call imp_bcast(comm, OPP%Sdiff%c, 0_mpiint, ierr); call CHKERR(ierr)
+      end if
 
     end if
 

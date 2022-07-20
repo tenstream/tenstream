@@ -86,9 +86,9 @@ contains
 
       if (myid .eq. 0) print *, 'plev shape', shape(glob_plev)
     end if
-    call imp_bcast(comm, glob_plev, 0_mpiint)
-    call imp_bcast(comm, glob_tlev, 0_mpiint)
-    call imp_bcast(comm, glob_lwc, 0_mpiint)
+    call imp_bcast(comm, glob_plev, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, glob_tlev, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, glob_lwc, 0_mpiint, ierr); call CHKERR(ierr)
 
     Nlay = ubound(glob_plev, 1) - 1
     Nx = ubound(glob_plev, 2)

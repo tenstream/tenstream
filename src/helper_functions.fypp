@@ -1317,11 +1317,12 @@ contains
     #:for RANK in range(0, 8)
       #:for modifier in [None, 'allocatable', 'pointer']
         #:if (modifier is None and (RANK==0)) or (modifier is not None and (RANK>0))
-          subroutine imp_bcast_${method}$_${dtype}$_${RANK}$d_${modifier}$ (comm, arr, sendid)
+          subroutine imp_bcast_${method}$_${dtype}$_${RANK}$d_${modifier}$ (comm, arr, sendid, ierr)
             integer(mpiint), intent(in) :: comm
             ${method}$${dKIND}$#{if modifier}#,${modifier}$#{endif}#, intent(inout) :: arr${ranksuffix(RANK)}$
             integer(mpiint), intent(in) :: sendid
-            integer(mpiint) :: commsize, ierr
+            integer(mpiint), intent(out) :: ierr
+            integer(mpiint) :: commsize
             #:if RANK > 0
               integer(mpiint) :: myid
               integer(iintegers) :: Ntot(${RANK}$)

@@ -2108,10 +2108,10 @@ contains
                   'please call init first!')
     end if
 
-    lhave_kabs = present(global_kabs); call imp_bcast(solver%comm, lhave_kabs, 0_mpiint)
-    lhave_ksca = present(global_ksca); call imp_bcast(solver%comm, lhave_ksca, 0_mpiint)
-    lhave_g = present(global_g); call imp_bcast(solver%comm, lhave_g, 0_mpiint)
-    lhave_planck = present(global_planck); call imp_bcast(solver%comm, lhave_planck, 0_mpiint)
+    lhave_kabs = present(global_kabs); call imp_bcast(solver%comm, lhave_kabs, 0_mpiint, ierr); call CHKERR(ierr)
+    lhave_ksca = present(global_ksca); call imp_bcast(solver%comm, lhave_ksca, 0_mpiint, ierr); call CHKERR(ierr)
+    lhave_g = present(global_g); call imp_bcast(solver%comm, lhave_g, 0_mpiint, ierr); call CHKERR(ierr)
+    lhave_planck = present(global_planck); call imp_bcast(solver%comm, lhave_planck, 0_mpiint, ierr); call CHKERR(ierr)
 
     ! Make sure that our domain has at least 3 entries in each dimension.... otherwise violates boundary conditions
     if (solver%myid .eq. 0) then
@@ -2141,7 +2141,7 @@ contains
         'xstart/end', solver%C_one_atm%xs, solver%C_one_atm%xe, &
         'ystart/end', solver%C_one_atm%ys, solver%C_one_atm%ye
 
-      call imp_bcast(solver%comm, local_albedo, 0_mpiint)
+      call imp_bcast(solver%comm, local_albedo, 0_mpiint, ierr); call CHKERR(ierr)
 
       call DMGetGlobalVector(solver%C_one_atm%da, local_vec, ierr); call CHKERR(ierr)
 

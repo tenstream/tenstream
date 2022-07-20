@@ -28,7 +28,7 @@ module m_f2c_pprts_rrtm
                                iintegers, ireals, mpiint, default_str_len, &
                                zero, one
 
-  use m_helper_functions, only: imp_bcast, CHKERR, spherical_2_cartesian
+  use m_helper_functions, only: spherical_2_cartesian
 
   use m_pprts_base, only: t_solver_3_10
   use m_pprts_rrtmg, only: pprts_rrtmg, destroy_pprts_rrtmg

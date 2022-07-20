@@ -101,12 +101,12 @@ contains
       call get_petsc_opt(PETSC_NULL_CHARACTER, "-dy", dy, lflg, ierr); call CHKERR(ierr)
       print *, 'Timesteps: ', size(time), 'Nx', size(dimx), 'Ny', size(dimy), 'Nz', size(zlev), 'dx', dx, 'dy', dy
     end if
-    call imp_bcast(comm, time, 0_mpiint)
-    call imp_bcast(comm, zlev, 0_mpiint)
-    call imp_bcast(comm, Nx, 0_mpiint)
-    call imp_bcast(comm, Ny, 0_mpiint)
-    call imp_bcast(comm, dx, 0_mpiint)
-    call imp_bcast(comm, dy, 0_mpiint)
+    call imp_bcast(comm, time, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, zlev, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, Nx, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, Ny, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, dx, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, dy, 0_mpiint, ierr); call CHKERR(ierr)
 
     ierr = 0
   end subroutine
@@ -150,11 +150,11 @@ contains
       print *, 'Min/Max ql   ', minval(ql), maxval(ql)
       print *, 'Min/Max reliq', minval(reliq), maxval(reliq)
     end if
-    call imp_bcast(comm, plev, 0_mpiint)
-    call imp_bcast(comm, tlev, 0_mpiint)
-    call imp_bcast(comm, qv, 0_mpiint)
-    call imp_bcast(comm, ql, 0_mpiint)
-    call imp_bcast(comm, reliq, 0_mpiint)
+    call imp_bcast(comm, plev, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, tlev, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, qv, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, ql, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, reliq, 0_mpiint, ierr); call CHKERR(ierr)
 
     ierr = 0
   end subroutine

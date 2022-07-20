@@ -72,6 +72,7 @@ contains
     integer(iintegers), parameter :: N = 10
     integer(iintegers), parameter :: repetitions = 100
     integer(iintegers) :: rep, i
+    integer(mpiint) :: ierr
 
     comm = this%getMpiCommunicator()
     numnodes = this%getNumProcesses()
@@ -85,7 +86,7 @@ contains
       if (myid .eq. 0) then
         s = s_target
       end if
-      call imp_bcast(comm, s, 0_mpiint)
+      call imp_bcast(comm, s, 0_mpiint, ierr)
       @mpiAssertEqual(s_target, s)
 
       ! array of strings
@@ -94,7 +95,7 @@ contains
           s1d(i) = "Rep"//toStr(rep)//':'//toStr(i)
         end do
       end if
-      call imp_bcast(comm, s1d, 0_mpiint)
+      call imp_bcast(comm, s1d, 0_mpiint, ierr)
       do i = 1, size(s1d)
         s_target = "Rep"//toStr(rep)//':'//toStr(i)
         @mpiAssertEqual(s_target, s1d(i))
@@ -107,7 +108,7 @@ contains
   subroutine test_mpi_functions(this)
     class(MpiTestMethod), intent(inout) :: this
 
-    integer(mpiint) :: numnodes, comm, myid, i
+    integer(mpiint) :: numnodes, comm, myid, i, ierr
 
     integer(iintegers), allocatable :: arr(:)
     integer(iintegers), allocatable :: bcast_arr(:)
@@ -146,7 +147,7 @@ contains
       if (myid .eq. 0) then
         large_size_t_int = 8589934592_c_size_t ! 2**33
       end if
-      call imp_bcast(comm, large_size_t_int, 0_mpiint)
+      call imp_bcast(comm, large_size_t_int, 0_mpiint, ierr)
       @assertEqual(8589934592_c_size_t, large_size_t_int, 'c_size_t broadcast wrong')
 
       ! Check if scalar and array bcasts work
@@ -172,43 +173,43 @@ contains
         if (associated(bcast_2d_arr_ptr)) deallocate (bcast_2d_arr_ptr)
       end if
 
-      call imp_bcast(comm, bcast_arr, 0_mpiint)
+      call imp_bcast(comm, bcast_arr, 0_mpiint, ierr)
       @assertTrue(allocated(bcast_arr), 'int array broadcast wrong, allocation failed')
       do i = 1, size(bcast_arr)
         @assertEqual(1234, bcast_arr(i), 'int array broadcast wrong')
       end do
 
-      call imp_bcast(comm, bcast_1d_arr, 0_mpiint)
+      call imp_bcast(comm, bcast_1d_arr, 0_mpiint, ierr)
       @assertTrue(allocated(bcast_1d_arr), 'real array broadcast wrong, allocation failed')
       @assertEqual(1234, bcast_1d_arr(1), 'real array broadcast wrong')
       @assertEqual(1234, bcast_1d_arr(2), 'real array broadcast wrong')
 
-      call imp_bcast(comm, bcast_2d_arr, 0_mpiint)
+      call imp_bcast(comm, bcast_2d_arr, 0_mpiint, ierr)
       @assertTrue(allocated(bcast_2d_arr), 'real array broadcast wrong, allocation failed')
       @assertEqual(1234, bcast_2d_arr(1, 1), 'real array broadcast wrong')
       @assertEqual(1234, bcast_2d_arr(2, 1), 'real array broadcast wrong')
 
-      call imp_bcast(comm, bcast_3d_arr, 0_mpiint)
+      call imp_bcast(comm, bcast_3d_arr, 0_mpiint, ierr)
       @assertTrue(allocated(bcast_3d_arr), 'real array broadcast wrong, allocation failed')
       @assertEqual(1234, bcast_3d_arr(1, 1, 1), 'real array broadcast wrong')
       @assertEqual(1234, bcast_3d_arr(2, 1, 1), 'real array broadcast wrong')
 
-      call imp_bcast(comm, bcast_5d_arr, 0_mpiint)
+      call imp_bcast(comm, bcast_5d_arr, 0_mpiint, ierr)
       @assertTrue(allocated(bcast_5d_arr), 'real array broadcast wrong, allocation failed')
       @assertEqual(1234, bcast_5d_arr(1, 1, 1, 1, 1), 'real array broadcast wrong')
       @assertEqual(1234, bcast_5d_arr(2, 1, 1, 1, 1), 'real array broadcast wrong')
 
       ! Check pointer Bcasts:
-      call imp_bcast(comm, bcast_2d_arr_ptr, 0_mpiint)
+      call imp_bcast(comm, bcast_2d_arr_ptr, 0_mpiint, ierr)
       @assertTrue(associated(bcast_2d_arr_ptr), 'real pointer array broadcast wrong, allocation failed')
       @assertEqual(1234, bcast_2d_arr_ptr(1, 1), 'real pointer array broadcast wrong')
       @assertEqual(1234, bcast_2d_arr_ptr(2, 1), 'real pointer array broadcast wrong')
 
       ! Scalar Bcasts:
-      call imp_bcast(comm, bcast_scalar, 0_mpiint)
+      call imp_bcast(comm, bcast_scalar, 0_mpiint, ierr)
       @assertEqual(1234, bcast_scalar, 'int scalar broadcast wrong')
 
-      call imp_bcast(comm, bcast_real_scalar, 0_mpiint)
+      call imp_bcast(comm, bcast_real_scalar, 0_mpiint, ierr)
       @assertEqual(1234, bcast_real_scalar, 'real scalar broadcast wrong')
 
       ! Logical Bcasts:
@@ -217,7 +218,7 @@ contains
       else
         l_all_true = .false.
       end if
-      call imp_bcast(comm, l_all_true, 0_mpiint)
+      call imp_bcast(comm, l_all_true, 0_mpiint, ierr)
       @assertEqual(.true., l_all_true, 'logical bcast wrong')
 
       ! Check for logical reductions

@@ -814,15 +814,15 @@ contains
 
       end if
     end if
-    call imp_bcast(comm, atm%plev, 0_mpiint)
-    call imp_bcast(comm, atm%zt, 0_mpiint)
-    call imp_bcast(comm, atm%tlev, 0_mpiint)
-    call imp_bcast(comm, atm%h2o_lev, 0_mpiint)
-    call imp_bcast(comm, atm%o3_lev, 0_mpiint)
-    call imp_bcast(comm, atm%co2_lev, 0_mpiint)
-    call imp_bcast(comm, atm%ch4_lev, 0_mpiint)
-    call imp_bcast(comm, atm%n2o_lev, 0_mpiint)
-    call imp_bcast(comm, atm%o2_lev, 0_mpiint)
+    call imp_bcast(comm, atm%plev, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, atm%zt, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, atm%tlev, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, atm%h2o_lev, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, atm%o3_lev, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, atm%co2_lev, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, atm%ch4_lev, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, atm%n2o_lev, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, atm%o2_lev, 0_mpiint, ierr); call CHKERR(ierr)
 
     nlev = size(atm%plev)
 

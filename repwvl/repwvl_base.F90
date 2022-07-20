@@ -185,28 +185,29 @@ contains
       type(t_repwvl_data), allocatable, intent(inout) :: table
       integer(mpiint), intent(out) :: ierr
       logical :: lhave_crs_o3, lhave_crs_n2o
+      integer(mpiint), parameter :: sendid = 0
 
       ierr = 0
       if (.not. allocated(table)) allocate (table)
-      call imp_bcast(comm, table%xsec, ierr); call CHKERR(ierr)
-      call imp_bcast(comm, table%wvls, ierr); call CHKERR(ierr)
-      call imp_bcast(comm, table%wgts, ierr); call CHKERR(ierr)
-      call imp_bcast(comm, table%p_ref, ierr); call CHKERR(ierr)
-      call imp_bcast(comm, table%t_ref, ierr); call CHKERR(ierr)
-      call imp_bcast(comm, table%t_pert, ierr); call CHKERR(ierr)
-      call imp_bcast(comm, table%vmrs_ref, ierr); call CHKERR(ierr)
-      call imp_bcast(comm, table%Nwvl, ierr); call CHKERR(ierr)
-      call imp_bcast(comm, table%Ntracer, ierr); call CHKERR(ierr)
+      call imp_bcast(comm, table%xsec, sendid, ierr); call CHKERR(ierr)
+      call imp_bcast(comm, table%wvls, sendid, ierr); call CHKERR(ierr)
+      call imp_bcast(comm, table%wgts, sendid, ierr); call CHKERR(ierr)
+      call imp_bcast(comm, table%p_ref, sendid, ierr); call CHKERR(ierr)
+      call imp_bcast(comm, table%t_ref, sendid, ierr); call CHKERR(ierr)
+      call imp_bcast(comm, table%t_pert, sendid, ierr); call CHKERR(ierr)
+      call imp_bcast(comm, table%vmrs_ref, sendid, ierr); call CHKERR(ierr)
+      call imp_bcast(comm, table%Nwvl, sendid, ierr); call CHKERR(ierr)
+      call imp_bcast(comm, table%Ntracer, sendid, ierr); call CHKERR(ierr)
 
       lhave_crs_o3 = allocated(table%crs_o3)
-      call imp_bcast(comm, lhave_crs_o3, ierr); call CHKERR(ierr)
+      call imp_bcast(comm, lhave_crs_o3, sendid, ierr); call CHKERR(ierr)
       if (lhave_crs_o3) then
-        call imp_bcast(comm, table%crs_o3, ierr); call CHKERR(ierr)
+        call imp_bcast(comm, table%crs_o3, sendid, ierr); call CHKERR(ierr)
       end if
       lhave_crs_n2o = allocated(table%crs_n2o)
-      call imp_bcast(comm, lhave_crs_n2o, ierr); call CHKERR(ierr)
+      call imp_bcast(comm, lhave_crs_n2o, sendid, ierr); call CHKERR(ierr)
       if (lhave_crs_n2o) then
-        call imp_bcast(comm, table%crs_n2o, ierr); call CHKERR(ierr)
+        call imp_bcast(comm, table%crs_n2o, sendid, ierr); call CHKERR(ierr)
       end if
     end subroutine
   end subroutine

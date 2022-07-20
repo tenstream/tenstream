@@ -9,15 +9,9 @@ module m_examples_plex_ex_fish
     & angle_between_two_vec, &
     & CHKERR, &
     & cstr, &
-    & deallocate_allocatable, &
-    & deg2rad, &
-    & determine_normal_direction, &
-    & imp_bcast, &
     & imp_reduce_mean, &
-    & meanval, &
     & rad2deg, &
     & reverse, &
-    & spherical_2_cartesian, &
     & toStr
 
   use m_data_parameters, only: ireals, iintegers, mpiint, &

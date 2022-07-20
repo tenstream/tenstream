@@ -105,15 +105,15 @@ contains
       if (.not. allocated(veg)) call CHKERR(1_mpiint, 'I expected that rank 0 has database allocated but it isnt')
       Nmat = size(veg)
     end if
-    call imp_bcast(comm, Nmat, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, Nmat, 0_mpiint, ierr); call CHKERR(ierr)
     if (.not. allocated(veg)) then
       allocate (veg(Nmat))
     end if
 
     do i = 1, Nmat
-      call imp_bcast(comm, veg(i)%vname, ierr); call CHKERR(ierr)
-      call imp_bcast(comm, veg(i)%lambda, ierr); call CHKERR(ierr)
-      call imp_bcast(comm, veg(i)%albedo, ierr); call CHKERR(ierr)
+      call imp_bcast(comm, veg(i)%vname, 0_mpiint, ierr); call CHKERR(ierr)
+      call imp_bcast(comm, veg(i)%lambda, 0_mpiint, ierr); call CHKERR(ierr)
+      call imp_bcast(comm, veg(i)%albedo, 0_mpiint, ierr); call CHKERR(ierr)
     end do
   end subroutine
 
