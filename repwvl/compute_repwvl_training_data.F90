@@ -34,6 +34,7 @@ module m_compute_repwvl_training_data
     & CHKWARN, &
     & get_arg, &
     & imp_bcast, &
+    & imp_min_mean_max, &
     & domain_decompose_2d_petsc, &
     & imp_min_mean_max, &
     & resize_arr, &
@@ -42,7 +43,7 @@ module m_compute_repwvl_training_data
     & toStr
 
   use m_search, only: find_real_location
-  use m_netcdfIO, only: ncload, ncwrite
+  use m_netcdfIO, only: ncload, ncwrite, get_global_attribute, list_global_attributes
   use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, destroy_tenstr_atm, print_tenstr_atm, planck
   use m_pprts_base, only: t_coord, t_solver, allocate_pprts_solver_from_commandline
   use m_pprts, only: init_pprts, set_optical_properties, solve_pprts, pprts_get_result, set_angles, gather_all_toZero
@@ -55,13 +56,12 @@ module m_compute_repwvl_training_data
 
   implicit none
 
+  logical, parameter :: lglobal_output = .false.
   logical, parameter :: lboundary_flx_only = .true.
 
 contains
 
   subroutine load_atmospheres(comm, bg_atm_filename, atm_filename, atm, Nx, Ny, nxproc, nyproc, ierr, lverbose)
-    ! Garand profiles (9 columns)
-    ! p, T, z, H2O, O3, CO2, N2O, CO, CH4
     integer(mpiint), intent(in) :: comm
     character(len=*), intent(in) :: bg_atm_filename, atm_filename
     type(t_tenstr_atm), intent(out) :: atm
@@ -71,82 +71,185 @@ contains
     logical, intent(in), optional :: lverbose
 
     integer(mpiint) :: myid
-    integer(iintegers) :: ke, ke1, Natm
-    real(ireals), allocatable :: atmdat(:, :, :) ! dim (cols, nlev, Natm)
-    character(len=default_str_len) :: groups(2)
-
-    integer(iintegers) :: xs, ys
-
-    integer(iintegers) :: i, j, icol, icolatm
-    real(ireals), allocatable, dimension(:, :) :: plev, tlev, h2ovmr, o3vmr, co2vmr, n2ovmr, ch4vmr
+    integer(iintegers) :: input_mode
+    character(len=default_str_len) :: attr
 
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
+    input_mode = -1
+
     if (myid .eq. 0) then
-      groups(1) = trim(atm_filename)
-      groups(2) = 'Atmosphere'
       if (get_arg(.false., lverbose)) then
-        print *, 'Reading Atmospheres from '//trim(groups(1))//' : '//trim(groups(2))
+        call list_global_attributes(trim(atm_filename), ierr); call CHKERR(ierr)
       end if
-      call ncload(groups, atmdat, ierr, lverbose); call CHKERR(ierr)
-      if (get_arg(.false., lverbose)) then
-        print *, 'Shape Atmospheres: (tracer, nlev, Natm)', shape(atmdat)
-      end if
+      call get_global_attribute(trim(atm_filename), 'project', attr, ierr)
+      if (ierr .ne. 0) input_mode = 1
+      if (trim(attr) .eq. 'CKDMIP') input_mode = 2
     end if
+    call imp_bcast(comm, input_mode, 0_mpiint, ierr); call CHKERR(ierr)
 
-    call imp_bcast(comm, atmdat, ierr); call CHKERR(ierr)
-
-    ke1 = size(atmdat, dim=2)
-    ke = ke1 - 1_iintegers
-    Natm = size(atmdat, dim=3)
-
-    call domain_decompose_2d_petsc(comm, Natm, 1_iintegers, Nx, Ny, xs, ys, nxproc, nyproc, ierr); call CHKERR(ierr)
-    if (get_arg(.false., lverbose)) &
-      & print *, 'domain decomp Nx', Nx, 'Ny', Ny, 'nxproc', nxproc, 'nyproc', nyproc, 'xs/ys', xs, ys
-
-    select case (size(atmdat, dim=1))
-    case (9) ! Garand
-
-      allocate (plev(1:ke1, Nx * Ny))
-      allocate (tlev(1:ke1, Nx * Ny))
-      allocate (h2ovmr(1:ke, Nx * Ny))
-      allocate (o3vmr(1:ke, Nx * Ny))
-      allocate (co2vmr(1:ke, Nx * Ny))
-      allocate (n2ovmr(1:ke, Nx * Ny))
-      allocate (ch4vmr(1:ke, Nx * Ny))
-
-      do j = ys + 1, ys + Ny
-        do i = xs + 1, xs + Nx
-          icolatm = i + (j - 1_iintegers) * Natm
-          icol = (i - xs) + ((j - ys) - 1_iintegers) * Nx
-
-          plev(:, icol) = atmdat(1, :, icolatm) * 1e-2_ireals
-          tlev(:, icol) = atmdat(2, :, icolatm)
-
-          h2ovmr(:, icol) = (atmdat(4, 1:ke, icolatm) + atmdat(4, 2:ke1, icolatm))*.5_ireals
-          o3vmr(:, icol) = (atmdat(5, 1:ke, icolatm) + atmdat(5, 2:ke1, icolatm))*.5_ireals
-          co2vmr(:, icol) = (atmdat(6, 1:ke, icolatm) + atmdat(6, 2:ke1, icolatm))*.5_ireals
-          n2ovmr(:, icol) = (atmdat(7, 1:ke, icolatm) + atmdat(7, 2:ke1, icolatm))*.5_ireals
-          ch4vmr(:, icol) = (atmdat(9, 1:ke, icolatm) + atmdat(9, 2:ke1, icolatm))*.5_ireals
-        end do
-      end do
-
-      call setup_tenstr_atm(            &
-        & comm,                         &
-        & lTOA_to_srfc=.false.,         &
-        & atm_filename=bg_atm_filename, &
-        & d_plev=plev,                  &
-        & d_tlev=tlev,                  &
-        & atm=atm,                      &
-        & d_h2ovmr=h2ovmr,              &
-        & d_o3vmr=o3vmr,                &
-        & d_co2vmr=co2vmr,              &
-        & d_n2ovmr=n2ovmr,              &
-        & d_ch4vmr=ch4vmr)
+    select case (input_mode)
+    case (1)
+      call garand_input()
+    case (2)
+      call CKDMIP_input()
     case default
-      call CHKERR(1_mpiint, 'No clue what kind of atmosphere file this could be')
+      call CHKERR(-1_mpiint, "dont know what atmosphere input file that is supposed to be")
     end select
-    if (myid .eq. 0 .and. get_arg(.false., lverbose)) call print_tenstr_atm(atm, 1_iintegers)
+
+  contains
+    subroutine CKDMIP_input()
+      ! CKDMIP profiles
+      ! p, T, H2O, O3, CO2, N2O, O2, CH4
+      character(len=default_str_len) :: groups(2)
+      real(ireals), allocatable, dimension(:, :) :: plev, play, tlev, tlay, h2ovmr, o3vmr, co2vmr, n2ovmr, ch4vmr, o2vmr
+      integer(iintegers) :: ke, ke1, Natm
+      integer(iintegers) :: xs, ys
+
+      if (myid .eq. 0) then
+        groups(1) = trim(atm_filename)
+        if (get_arg(.false., lverbose)) then
+          print *, 'Reading Atmospheres from '//trim(groups(1))
+        end if
+        groups(2) = 'pressure_hl'; call ncload(groups, plev, ierr, lverbose); call CHKERR(ierr)
+        if (get_arg(.false., lverbose)) then
+          print *, 'Shape Atmospheres: (nlev, Natm)', shape(plev)
+        end if
+        groups(2) = 'pressure_fl'; call ncload(groups, play, ierr, lverbose); call CHKERR(ierr)
+        groups(2) = 'temperature_hl'; call ncload(groups, tlev, ierr, lverbose); call CHKERR(ierr)
+        groups(2) = 'temperature_fl'; call ncload(groups, tlay, ierr, lverbose); call CHKERR(ierr)
+        groups(2) = 'h2o_mole_fraction_fl'; call ncload(groups, h2ovmr, ierr, lverbose); call CHKERR(ierr)
+        groups(2) = 'o3_mole_fraction_fl'; call ncload(groups, o3vmr, ierr, lverbose); call CHKERR(ierr)
+        groups(2) = 'co2_mole_fraction_fl'; call ncload(groups, co2vmr, ierr, lverbose); call CHKERR(ierr)
+        groups(2) = 'ch4_mole_fraction_fl'; call ncload(groups, ch4vmr, ierr, lverbose); call CHKERR(ierr)
+        groups(2) = 'n2o_mole_fraction_fl'; call ncload(groups, n2ovmr, ierr, lverbose); call CHKERR(ierr)
+        groups(2) = 'o2_mole_fraction_fl'; call ncload(groups, o2vmr, ierr, lverbose); call CHKERR(ierr)
+
+        plev = reverse(plev)
+        play = reverse(play)
+        tlev = reverse(tlev)
+        tlay = reverse(tlay)
+        h2ovmr = reverse(h2ovmr)
+        o3vmr = reverse(o3vmr)
+        co2vmr = reverse(co2vmr)
+        ch4vmr = reverse(ch4vmr)
+        n2ovmr = reverse(n2ovmr)
+        o2vmr = reverse(o2vmr)
+      end if
+
+      call imp_bcast(comm, plev, 0_mpiint, ierr); call CHKERR(ierr)
+      call imp_bcast(comm, play, 0_mpiint, ierr); call CHKERR(ierr)
+      call imp_bcast(comm, tlev, 0_mpiint, ierr); call CHKERR(ierr)
+      call imp_bcast(comm, tlay, 0_mpiint, ierr); call CHKERR(ierr)
+      call imp_bcast(comm, h2ovmr, 0_mpiint, ierr); call CHKERR(ierr)
+      call imp_bcast(comm, o3vmr, 0_mpiint, ierr); call CHKERR(ierr)
+      call imp_bcast(comm, co2vmr, 0_mpiint, ierr); call CHKERR(ierr)
+      call imp_bcast(comm, ch4vmr, 0_mpiint, ierr); call CHKERR(ierr)
+      call imp_bcast(comm, n2ovmr, 0_mpiint, ierr); call CHKERR(ierr)
+      call imp_bcast(comm, o2vmr, 0_mpiint, ierr); call CHKERR(ierr)
+
+      ke1 = size(plev, dim=1)
+      ke = ke1 - 1_iintegers
+      Natm = size(plev, dim=2)
+
+      call domain_decompose_2d_petsc(comm, Natm, 1_iintegers, Nx, Ny, xs, ys, nxproc, nyproc, ierr); call CHKERR(ierr)
+      if (get_arg(.false., lverbose)) &
+        & print *, 'domain decomp Nx', Nx, 'Ny', Ny, 'nxproc', nxproc, 'nyproc', nyproc, 'xs/ys', xs, ys
+
+      call setup_tenstr_atm(              &
+        & comm,                           &
+        & lTOA_to_srfc=.false.,           &
+        & atm_filename=bg_atm_filename,   &
+        & d_plev=plev(:, xs + 1:xs + Nx) * 1e-2, &
+        & d_tlev=tlev(:, xs + 1:xs + Nx),      &
+        & atm=atm,                        &
+        & d_h2ovmr=h2ovmr(:, xs + 1:xs + Nx),  &
+        & d_o3vmr=o3vmr(:, xs + 1:xs + Nx),  &
+        & d_co2vmr=co2vmr(:, xs + 1:xs + Nx),  &
+        & d_ch4vmr=ch4vmr(:, xs + 1:xs + Nx),  &
+        & d_n2ovmr=n2ovmr(:, xs + 1:xs + Nx),  &
+        & d_o2vmr=o2vmr(:, xs + 1:xs + Nx))
+
+      if (myid .eq. 0 .and. get_arg(.false., lverbose)) call print_tenstr_atm(atm, 1_iintegers)
+    end subroutine
+
+    subroutine garand_input()
+      ! Garand profiles (9 columns)
+      ! p, T, z, H2O, O3, CO2, N2O, CO, CH4
+      integer(iintegers) :: ke, ke1, Natm
+      real(ireals), allocatable :: atmdat(:, :, :) ! dim (cols, nlev, Natm)
+      character(len=default_str_len) :: groups(2)
+
+      integer(iintegers) :: xs, ys
+
+      integer(iintegers) :: i, j, icol, icolatm
+      real(ireals), allocatable, dimension(:, :) :: plev, tlev, h2ovmr, o3vmr, co2vmr, n2ovmr, ch4vmr
+      if (myid .eq. 0) then
+        groups(1) = trim(atm_filename)
+        groups(2) = 'Atmosphere'
+        if (get_arg(.false., lverbose)) then
+          print *, 'Reading Atmospheres from '//trim(groups(1))//' : '//trim(groups(2))
+        end if
+        call ncload(groups, atmdat, ierr, lverbose); call CHKERR(ierr)
+        if (get_arg(.false., lverbose)) then
+          print *, 'Shape Atmospheres: (tracer, nlev, Natm)', shape(atmdat)
+        end if
+      end if
+
+      call imp_bcast(comm, atmdat, 0_mpiint, ierr); call CHKERR(ierr)
+
+      ke1 = size(atmdat, dim=2)
+      ke = ke1 - 1_iintegers
+      Natm = size(atmdat, dim=3)
+
+      call domain_decompose_2d_petsc(comm, Natm, 1_iintegers, Nx, Ny, xs, ys, nxproc, nyproc, ierr); call CHKERR(ierr)
+      if (get_arg(.false., lverbose)) &
+        & print *, 'domain decomp Nx', Nx, 'Ny', Ny, 'nxproc', nxproc, 'nyproc', nyproc, 'xs/ys', xs, ys
+
+      select case (size(atmdat, dim=1))
+      case (9) ! Garand
+
+        allocate (plev(1:ke1, Nx * Ny))
+        allocate (tlev(1:ke1, Nx * Ny))
+        allocate (h2ovmr(1:ke, Nx * Ny))
+        allocate (o3vmr(1:ke, Nx * Ny))
+        allocate (co2vmr(1:ke, Nx * Ny))
+        allocate (n2ovmr(1:ke, Nx * Ny))
+        allocate (ch4vmr(1:ke, Nx * Ny))
+
+        do j = ys + 1, ys + Ny
+          do i = xs + 1, xs + Nx
+            icolatm = i + (j - 1_iintegers) * Natm
+            icol = (i - xs) + ((j - ys) - 1_iintegers) * Nx
+
+            plev(:, icol) = atmdat(1, :, icolatm) * 1e-2_ireals
+            tlev(:, icol) = atmdat(2, :, icolatm)
+
+            h2ovmr(:, icol) = (atmdat(4, 1:ke, icolatm) + atmdat(4, 2:ke1, icolatm))*.5_ireals
+            o3vmr(:, icol) = (atmdat(5, 1:ke, icolatm) + atmdat(5, 2:ke1, icolatm))*.5_ireals
+            co2vmr(:, icol) = (atmdat(6, 1:ke, icolatm) + atmdat(6, 2:ke1, icolatm))*.5_ireals
+            n2ovmr(:, icol) = (atmdat(7, 1:ke, icolatm) + atmdat(7, 2:ke1, icolatm))*.5_ireals
+            ch4vmr(:, icol) = (atmdat(9, 1:ke, icolatm) + atmdat(9, 2:ke1, icolatm))*.5_ireals
+          end do
+        end do
+
+        call setup_tenstr_atm(            &
+          & comm,                         &
+          & lTOA_to_srfc=.false.,         &
+          & atm_filename=bg_atm_filename, &
+          & d_plev=plev,                  &
+          & d_tlev=tlev,                  &
+          & atm=atm,                      &
+          & d_h2ovmr=h2ovmr,              &
+          & d_o3vmr=o3vmr,                &
+          & d_co2vmr=co2vmr,              &
+          & d_n2ovmr=n2ovmr,              &
+          & d_ch4vmr=ch4vmr)
+      case default
+        call CHKERR(1_mpiint, 'No clue what kind of atmosphere file this could be')
+      end select
+      if (myid .eq. 0 .and. get_arg(.false., lverbose)) call print_tenstr_atm(atm, 1_iintegers)
+    end subroutine
   end subroutine
 
   subroutine perturb_atmospheres(comm, Npert_atmo, atm, ierr, lverbose, ldryrun)
@@ -158,20 +261,21 @@ contains
 
     real(ireals), pointer :: ptr(:, :, :)
     real(ireals), allocatable :: rnd(:, :)
+    real(ireals) :: rnddp
     integer(iintegers) :: Nx, Ny, kmin, kmax, ke, ke1
     integer(iintegers) :: icld, ipert
     integer(mpiint) :: myid
     logical :: run
 
     integer(iintegers) :: h2o, co2, o3, ch4
-    real(ireals), parameter :: H2O_pert(*) = [real(ireals) :: 0.0001, .01, .1, .5, 1., 2., 10, 20]
-    real(ireals), parameter :: CO2_pert(*) = [real(ireals) :: .1, 1., 10.]
-    real(ireals), parameter :: O3_pert(*) = [real(ireals) :: .1, 1., 10.]
-    real(ireals), parameter :: CH4_pert(*) = [real(ireals) :: .1, 1., 10.]
-    !real(ireals), parameter :: H2O_pert(*) = [real(ireals) :: 1.]
-    !real(ireals), parameter :: CO2_pert(*) = [real(ireals) :: 1.]
-    !real(ireals), parameter :: O3_pert(*) = [real(ireals) :: 1.]
-    !real(ireals), parameter :: CH4_pert(*) = [real(ireals) :: 1.]
+    !real(ireals), parameter :: H2O_pert(*) = [real(ireals) :: .1, .5, 1., 2., 10.]
+    !real(ireals), parameter :: CO2_pert(*) = [real(ireals) :: .5, 1., 2.]
+    !real(ireals), parameter :: O3_pert(*) = [real(ireals) :: .5, 1., 2.]
+    !real(ireals), parameter :: CH4_pert(*) = [real(ireals) :: .5, 1., 2.]
+    real(ireals), parameter :: H2O_pert(*) = [real(ireals) :: .5, 2.]
+    real(ireals), parameter :: CO2_pert(*) = [real(ireals) :: 1.]
+    real(ireals), parameter :: O3_pert(*) = [real(ireals) :: 1.]
+    real(ireals), parameter :: CH4_pert(*) = [real(ireals) :: 1.]
 
     ierr = 0
 
@@ -215,39 +319,66 @@ contains
             ipert = ipert + 1
             if (run) call do_gas_pert(ipert, h2o, co2, o3, ch4)
 
-            do icld = 0, 2 ! ipert from 8 to 8 + 4*3 -1 = 19
+            do icld = 0, -1 ! ipert from 8 to 8 + 4*3 -1 = 19
               ! water cloud perturbations
               ipert = ipert + 1
               if (run) then
+                call random_number(rnddp)
+                rnddp = rnddp * 100
+
                 call do_gas_pert(ipert, h2o, co2, o3, ch4)
-                kmin = int(find_real_location(atm%plev(:, 1), 850._ireals + real(icld, ireals) * 50._ireals), iintegers)
-                kmax = int(find_real_location(atm%plev(:, 1), 800._ireals + real(icld, ireals) * 50._ireals), iintegers)
-                ptr(1:ke, 1:Nx, 1:Ny) => atm%lwc; ptr(kmin:kmax, :, ipert) = .1
+                kmin = int(find_real_location(atm%plev(:, 1), 850._ireals + real(icld, ireals) * 50._ireals - rnddp), iintegers)
+                kmax = int(find_real_location(atm%plev(:, 1), 800._ireals + real(icld, ireals) * 50._ireals - rnddp), iintegers)
+                print *, 'kmin/max', kmin, kmax, rnddp, 850._ireals + real(icld, ireals) * 50._ireals - rnddp
+                allocate (rnd(kmin:kmax, Nx))
+                call random_number(rnd)
+                rnd = rnd*.1
+                ptr(1:ke, 1:Nx, 1:Ny) => atm%lwc; ptr(kmin:kmax, :, ipert) = rnd
                 ptr(1:ke, 1:Nx, 1:Ny) => atm%reliq; ptr(kmin:kmax, :, ipert) = 10
+                deallocate (rnd)
               end if
 
               ! ice cloud perturbations
               ipert = ipert + 1
               if (run) then
+                call random_number(rnddp)
+                rnddp = rnddp * 100
+
                 call do_gas_pert(ipert, h2o, co2, o3, ch4)
-                kmin = int(find_real_location(atm%plev(:, 1), 300._ireals + real(icld, ireals) * 50._ireals), iintegers)
-                kmax = int(find_real_location(atm%plev(:, 1), 200._ireals + real(icld, ireals) * 50._ireals), iintegers)
-                ptr(1:ke, 1:Nx, 1:Ny) => atm%iwc; ptr(kmin:kmax, :, ipert) = .01
+                kmin = int(find_real_location(atm%plev(:, 1), 300._ireals + real(icld, ireals) * 50._ireals - rnddp), iintegers)
+                kmax = int(find_real_location(atm%plev(:, 1), 200._ireals + real(icld, ireals) * 50._ireals - rnddp), iintegers)
+                allocate (rnd(kmin:kmax, Nx))
+                call random_number(rnd)
+                rnd = rnd*.01
+                ptr(1:ke, 1:Nx, 1:Ny) => atm%iwc; ptr(kmin:kmax, :, ipert) = rnd
                 ptr(1:ke, 1:Nx, 1:Ny) => atm%reice; ptr(kmin:kmax, :, ipert) = 20
+                deallocate (rnd)
               end if
 
               ! water + ice cloud perturbations
               ipert = ipert + 1
               if (run) then
+                call random_number(rnddp)
+                rnddp = rnddp * 100
+
                 call do_gas_pert(ipert, h2o, co2, o3, ch4)
-                kmin = int(find_real_location(atm%plev(:, 1), 850._ireals + real(icld, ireals) * 50._ireals), iintegers)
-                kmax = int(find_real_location(atm%plev(:, 1), 800._ireals + real(icld, ireals) * 50._ireals), iintegers)
-                ptr(1:ke, 1:Nx, 1:Ny) => atm%lwc; ptr(kmin:kmax, :, ipert) = .1
+                kmin = int(find_real_location(atm%plev(:, 1), 750._ireals + real(icld, ireals) * 50._ireals - rnddp), iintegers)
+                kmax = int(find_real_location(atm%plev(:, 1), 700._ireals + real(icld, ireals) * 50._ireals - rnddp), iintegers)
+                allocate (rnd(kmin:kmax, Nx))
+                call random_number(rnd)
+                rnd = rnd*.1
+                ptr(1:ke, 1:Nx, 1:Ny) => atm%lwc; ptr(kmin:kmax, :, ipert) = rnd
                 ptr(1:ke, 1:Nx, 1:Ny) => atm%reliq; ptr(kmin:kmax, :, ipert) = 10
-                kmin = int(find_real_location(atm%plev(:, 1), 300._ireals + real(icld, ireals) * 50._ireals), iintegers)
-                kmax = int(find_real_location(atm%plev(:, 1), 200._ireals + real(icld, ireals) * 50._ireals), iintegers)
-                ptr(1:ke, 1:Nx, 1:Ny) => atm%iwc; ptr(kmin:kmax, :, ipert) = .01
+                deallocate (rnd)
+
+                kmin = int(find_real_location(atm%plev(:, 1), 200._ireals + real(icld, ireals) * 50._ireals - rnddp), iintegers)
+                kmax = int(find_real_location(atm%plev(:, 1), 100._ireals + real(icld, ireals) * 50._ireals - rnddp), iintegers)
+                allocate (rnd(kmin:kmax, Nx))
+                call random_number(rnd)
+                rnd = rnd*.01
+                ptr(1:ke, 1:Nx, 1:Ny) => atm%iwc; ptr(kmin:kmax, :, ipert) = rnd
                 ptr(1:ke, 1:Nx, 1:Ny) => atm%reice; ptr(kmin:kmax, :, ipert) = 20
+                deallocate (rnd)
               end if
             end do
           end do
@@ -262,10 +393,13 @@ contains
       allocate (rnd(1:ke, 1:Nx))
       call random_number(rnd)
       ptr(1:ke, 1:Nx, 1:Ny) => atm%h2o_lay; ptr(:, :, ipert) = ptr(:, :, ipert) * (rnd * 5)
+      deallocate (rnd)
 
       if (myid .eq. 0 .and. get_arg(.false., lverbose)) print *, 'Nr. of atmosphere perturbation entries:', ipert, '/', Npert_atmo
       call CHKERR(int(ipert - Npert_atmo, mpiint), 'havent used all perturbation slots '//toStr(ipert)//' / '//toStr(Npert_atmo))
-    else
+    end if
+
+    if (.not. run) then
       Npert_atmo = ipert
     end if
 
@@ -377,14 +511,19 @@ contains
       allocate (edn(solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym, repwvl_data%Nwvl))
       allocate (eup(solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym, repwvl_data%Nwvl))
     end if
-    allocate (abso(solver%C_one%zm, solver%C_one%xm, solver%C_one%ym, repwvl_data%Nwvl), source=0._ireals)
+    allocate (abso(solver%C_one%zm, solver%C_one%xm, solver%C_one%ym, repwvl_data%Nwvl))
+
+    if (lsolar) edir = 0
+    edn = 0
+    eup = 0
+    abso = 0
 
     do iwvl = 1, size(repwvl_data%wvls)
 
       if (myid .eq. 0 .and. get_arg(.false., lverbose)) &
         & print *, 'Computing wavelengths '//toStr(iwvl)//' / '//toStr(size(repwvl_data%wvls))//&
         & ' -- '//toStr(100._ireals * real(iwvl, ireals) / real(size(repwvl_data%wvls), ireals))//' %'// &
-        & ' ('//toStr(repwvl_data%wvls(iwvl))//' nm)'
+        & ' ('//toStr(repwvl_data%wvls(iwvl))//' nm)'//' wgt= '//toStr(repwvl_data%wgts(iwvl))
 
       if (lsolar) then
         call monochrome_solve(&
@@ -471,19 +610,23 @@ contains
 
   end subroutine
 
-  subroutine write_output_data(comm, solver, out_filename, prefix, rdata, edn, eup, abso, ierr, edir, lverbose)
+  subroutine write_output_data_local(comm, solver, out_filename, prefix, rdata, atm, edn, eup, abso, ierr, edir, lverbose)
     integer(mpiint), intent(in) :: comm
     class(t_solver), intent(in) :: solver
     character(len=*), intent(in) :: out_filename, prefix
     type(t_repwvl_data), intent(in) :: rdata
+    type(t_tenstr_atm), target, intent(in) :: atm
     real(ireals), dimension(:, :, :, :), intent(in) :: edn, eup, abso ! [nlyr(+1), nx, ny, Nwvl]
     integer(mpiint), intent(out) :: ierr
     real(ireals), dimension(:, :, :, :), intent(in), optional :: edir
     logical, intent(in), optional :: lverbose
 
+    real(ireals), pointer, dimension(:, :, :) :: pplev
     character(len=default_str_len) :: groups(2), dimnames(4)
-    real(ireals), allocatable, dimension(:, :, :, :) :: gflx ! global domain [nlyr(+1), nx, ny, Nwvl]
+    real(ireals), allocatable :: xcoord(:), ycoord(:)
+    integer(iintegers) :: i
 
+    character(len=4) :: rankstr
     integer(mpiint) :: myid
 
     ierr = 0
@@ -494,7 +637,96 @@ contains
     dimnames(3) = trim(prefix)//'ny'
     dimnames(4) = trim(prefix)//'wvl'
 
+    write (rankstr, '(i0.4)') myid
+    groups(1) = trim(out_filename)//'.'//rankstr
+
+    pplev(1:solver%C_one_atm1%zm, 1:solver%C_one_atm1%xm, 1:solver%C_one_atm1%ym) => atm%plev
+    dimnames(1) = trim(prefix)//'nlev_pressure'
+    dimnames(2) = trim(prefix)//'nx'
+    dimnames(3) = trim(prefix)//'ny'
+    groups(2) = trim(prefix)//'plev'
+    call ncwrite(groups, pplev, ierr, dimnames=dimnames(1:3), deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
+
+    dimnames(1) = trim(prefix)//'nlev'
+    dimnames(2) = trim(prefix)//'nx'
+    dimnames(3) = trim(prefix)//'ny'
+    dimnames(4) = trim(prefix)//'wvl'
+    groups(2) = trim(prefix)//'edn'
+    call ncwrite(groups, edn, ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
+
+    groups(2) = trim(prefix)//'eup'
+    call ncwrite(groups, eup, ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
+
+    if (present(edir)) then
+      groups(2) = trim(prefix)//'edir'
+      call ncwrite(groups, edir, ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
+    end if
+
+    dimnames(1) = trim(prefix)//'nlay'
+    groups(2) = trim(prefix)//'abso'
+    call ncwrite(groups, abso, ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
+
+    dimnames(1) = trim(prefix)//'wvl'
+    groups(2) = trim(prefix)//'wvl'
+    call ncwrite(groups, rdata%wvls, ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
+
+    allocate (xcoord(solver%C_diff%xs:solver%C_diff%xe))
+    allocate (ycoord(solver%C_diff%ys:solver%C_diff%ye))
+
+    do i = solver%C_diff%xs, solver%C_diff%xe
+      xcoord(i) = (i + .5_ireals) * solver%atm%dx
+    end do
+    dimnames(1) = trim(prefix)//'nx'
+    groups(2) = trim(prefix)//'nx'
+    call ncwrite(groups, xcoord, ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
+
+    do i = solver%C_diff%ys, solver%C_diff%ye
+      ycoord(i) = (i + .5_ireals) * solver%atm%dy
+    end do
+    dimnames(1) = trim(prefix)//'ny'
+    groups(2) = trim(prefix)//'ny'
+    call ncwrite(groups, ycoord, ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
+  end subroutine
+
+  subroutine write_output_data_global(comm, solver, out_filename, prefix, rdata, atm, edn, eup, abso, ierr, edir, lverbose)
+    integer(mpiint), intent(in) :: comm
+    class(t_solver), intent(in) :: solver
+    character(len=*), intent(in) :: out_filename, prefix
+    type(t_repwvl_data), intent(in) :: rdata
+    type(t_tenstr_atm), target, intent(in) :: atm
+    real(ireals), dimension(:, :, :, :), intent(in) :: edn, eup, abso ! [nlyr(+1), nx, ny, Nwvl]
+    integer(mpiint), intent(out) :: ierr
+    real(ireals), dimension(:, :, :, :), intent(in), optional :: edir
+    logical, intent(in), optional :: lverbose
+
+    real(ireals), pointer, dimension(:, :, :) :: pplev
+    character(len=default_str_len) :: groups(2), dimnames(4)
+    real(ireals), allocatable, dimension(:, :, :, :) :: gflx ! global domain [nlyr(+1), nx, ny, Nwvl]
+    real(ireals), allocatable, dimension(:, :, :) :: pglobal ! global domain [nlyr(+1), nx, ny]
+
+    integer(mpiint) :: myid
+
+    ierr = 0
+    call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+
     groups(1) = trim(out_filename)
+
+    dimnames(1) = trim(prefix)//'nlev_pressure'
+    dimnames(2) = trim(prefix)//'nx'
+    dimnames(3) = trim(prefix)//'ny'
+    groups(2) = trim(prefix)//'plev'
+    pplev(1:solver%C_one_atm1%zm, 1:solver%C_one_atm1%xm, 1:solver%C_one_atm1%ym) => atm%plev
+    call gather_all_toZero(solver%C_one_atm1, pplev, pglobal)
+    if (myid .eq. 0) then
+      call ncwrite(groups, pglobal, ierr, dimnames=dimnames(1:3), deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
+      deallocate (pglobal)
+    end if
+
+    dimnames(1) = trim(prefix)//'nlev'
+    dimnames(2) = trim(prefix)//'nx'
+    dimnames(3) = trim(prefix)//'ny'
+    dimnames(4) = trim(prefix)//'wvl'
+
     groups(2) = trim(prefix)//'edn'
     if (lboundary_flx_only) then
       call local2global_bounds_only(solver%Csrfc_one, edn, gflx)
@@ -609,6 +841,8 @@ contains
 
     type(t_mie_table), allocatable :: mie_table
 
+    real(ireals) :: mmm_edir(3), mmm_edn(3), mmm_eup(3), mmm_abso(3)
+
     ierr = 0
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
@@ -644,14 +878,29 @@ contains
         & edir, &
         & lverbose=lverbose); call CHKERR(ierr)
 
-      call write_output_data(comm, solver, out_filename, 'solar_', repwvl_data_solar, &
-        & edn, eup, abso, ierr, edir, lverbose); call CHKERR(ierr)
+      if (lglobal_output) then
+        call write_output_data_global(comm, solver, out_filename, 'solar_', repwvl_data_solar, &
+          & atm, edn, eup, abso, ierr, edir, lverbose); call CHKERR(ierr)
+      else
+        call write_output_data_local(comm, solver, out_filename, 'solar_', repwvl_data_solar, &
+          & atm, edn, eup, abso, ierr, edir, lverbose); call CHKERR(ierr)
+      end if
 
       if (myid .eq. 0) then
         do ipert = 1, Ny
           print *, 'edir @ srfc ( perturbation='//toStr(ipert)//')', sum(edir(ubound(edir, 1), :, ipert, :), dim=2)
           print *, 'edn  @ srfc ( perturbation='//toStr(ipert)//')', sum(edn(ubound(edn, 1), :, ipert, :), dim=2)
         end do
+      end if
+      call imp_min_mean_max(comm, edir, mmm_edir)
+      call imp_min_mean_max(comm, edir, mmm_edn)
+      call imp_min_mean_max(comm, edir, mmm_eup)
+      call imp_min_mean_max(comm, edir, mmm_abso)
+      if (myid .eq. 0) then
+        print *, 'Min/Mean/Max edir', mmm_edir
+        print *, 'Min/Mean/Max edn ', mmm_edn
+        print *, 'Min/Mean/Max eup ', mmm_eup
+        print *, 'Min/Mean/Max abso', mmm_abso
       end if
     else
 
@@ -667,14 +916,27 @@ contains
         & ierr, &
         & lverbose=lverbose); call CHKERR(ierr)
 
-      call write_output_data(comm, solver, out_filename, 'thermal_', repwvl_data_thermal, &
-        & edn, eup, abso, ierr, lverbose=lverbose); call CHKERR(ierr)
+      if (lglobal_output) then
+        call write_output_data_global(comm, solver, out_filename, 'thermal_', repwvl_data_thermal, &
+          & atm, edn, eup, abso, ierr, lverbose=lverbose); call CHKERR(ierr)
+      else
+        call write_output_data_local(comm, solver, out_filename, 'thermal_', repwvl_data_thermal, &
+          & atm, edn, eup, abso, ierr, lverbose=lverbose); call CHKERR(ierr)
+      end if
 
       if (myid .eq. 0) then
         do ipert = 1, Ny
           print *, 'edn @ srfc ( perturbation='//toStr(ipert)//')', sum(edn(ubound(edn, 1), :, ipert, :), dim=2)
           print *, 'eup @ srfc ( perturbation='//toStr(ipert)//')', sum(eup(ubound(eup, 1), :, ipert, :), dim=2)
         end do
+      end if
+      call imp_min_mean_max(comm, edir, mmm_edn)
+      call imp_min_mean_max(comm, edir, mmm_eup)
+      call imp_min_mean_max(comm, edir, mmm_abso)
+      if (myid .eq. 0) then
+        print *, 'Min/Mean/Max edn ', mmm_edn
+        print *, 'Min/Mean/Max eup ', mmm_eup
+        print *, 'Min/Mean/Max abso', mmm_abso
       end if
     end if
     call destroy_mie_table(mie_table, ierr); call CHKERR(ierr)
