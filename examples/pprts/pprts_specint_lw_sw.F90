@@ -57,7 +57,7 @@ contains
     ! Layer values for the atmospheric constituents -- those are actually all
     ! optional and if not provided, will be taken from the background profile file (atm_filename)
     ! see interface of `tenstream_rrtmg()` for units
-    ! real(ireals), dimension(nzp,nxp,nyp) :: h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr
+    real(ireals), dimension(nzp, nxp, nyp), target :: h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr
 
     ! Liquid water cloud content [g/kg] and effective radius in micron
     real(ireals), dimension(nzp, nxp, nyp), target :: lwc, reliq, iwc, reice
@@ -72,8 +72,9 @@ contains
 
     ! reshape pointer to convert i,j vecs to column vecs
     real(ireals), pointer, dimension(:, :) :: pplev, ptlev, plwc, preliq, piwc, preice
+    real(ireals), pointer, dimension(:, :) :: ph2ovmr, po3vmr, pco2vmr, pch4vmr, pn2ovmr, po2vmr
 
-    real(ireals) :: sundir(3)
+    real(ireals) :: vmr, sundir(3)
 
     logical, parameter :: ldebug = .true.
 
@@ -100,19 +101,36 @@ contains
     ! Start with a dynamics grid ranging from 1000 hPa up to 500 hPa and a
     ! Temperature difference of 50K
     do k = 1, nzp + 1
-      plev(k, :, :) = linspace(k, [1e3_ireals, 500._ireals], nzp + 1)
+      plev(k, :, :) = linspace(k, [1e3_ireals, 100._ireals], nzp + 1)
       tlev(k, :, :) = linspace(k, [288._ireals, 250._ireals], nzp + 1)
     end do
 
     ! Not much going on in the dynamics grid, we actually don't supply trace
     ! gases to the TenStream solver... this will then be interpolated from the
     ! background profile (read from `atm_filename`)
-    ! h2ovmr = zero
-    ! o3vmr  = zero
-    ! co2vmr = zero
-    ! ch4vmr = zero
-    ! n2ovmr = zero
-    ! o2vmr  = zero
+    h2ovmr = .007
+    call get_petsc_opt(PETSC_NULL_CHARACTER, "-h2o", vmr, lflg, ierr); call CHKERR(ierr)
+    if (lflg) h2ovmr = vmr
+
+    o3vmr = 3e-8
+    call get_petsc_opt(PETSC_NULL_CHARACTER, "-o3", vmr, lflg, ierr); call CHKERR(ierr)
+    if (lflg) o3vmr = vmr
+
+    co2vmr = 400e-6
+    call get_petsc_opt(PETSC_NULL_CHARACTER, "-co2", vmr, lflg, ierr); call CHKERR(ierr)
+    if (lflg) co2vmr = vmr
+
+    ch4vmr = 1.7e-6
+    call get_petsc_opt(PETSC_NULL_CHARACTER, "-ch4", vmr, lflg, ierr); call CHKERR(ierr)
+    if (lflg) ch4vmr = vmr
+
+    n2ovmr = 3.2e-7
+    call get_petsc_opt(PETSC_NULL_CHARACTER, "-n2o", vmr, lflg, ierr); call CHKERR(ierr)
+    if (lflg) n2ovmr = vmr
+
+    o2vmr = .2
+    call get_petsc_opt(PETSC_NULL_CHARACTER, "-o2", vmr, lflg, ierr); call CHKERR(ierr)
+    if (lflg) o2vmr = vmr
 
     ! define a cloud, with liquid water content and effective radius 10 micron
     lwc = 0
@@ -143,11 +161,23 @@ contains
     preliq(1:size(reliq, 1), 1:size(reliq, 2) * size(reliq, 3)) => reliq
     piwc(1:size(iwc, 1), 1:size(iwc, 2) * size(iwc, 3)) => iwc
     preice(1:size(reice, 1), 1:size(reice, 2) * size(reice, 3)) => reice
+    pco2vmr(1:size(co2vmr, 1), 1:size(co2vmr, 2) * size(co2vmr, 3)) => co2vmr
+    ph2ovmr(1:size(h2ovmr, 1), 1:size(h2ovmr, 2) * size(h2ovmr, 3)) => h2ovmr
+    po3vmr(1:size(o3vmr, 1), 1:size(o3vmr, 2) * size(o3vmr, 3)) => o3vmr
+    pch4vmr(1:size(ch4vmr, 1), 1:size(ch4vmr, 2) * size(ch4vmr, 3)) => ch4vmr
+    pn2ovmr(1:size(n2ovmr, 1), 1:size(n2ovmr, 2) * size(n2ovmr, 3)) => n2ovmr
+    po2vmr(1:size(o2vmr, 1), 1:size(o2vmr, 2) * size(o2vmr, 3)) => o2vmr
 
     call setup_tenstr_atm(comm, .false., atm_filename, &
                           pplev, ptlev, atm, &
                           d_lwc=plwc, d_reliq=preliq, &
-                          d_iwc=piwc, d_reice=preice)
+                          d_iwc=piwc, d_reice=preice, &
+                          d_co2vmr=pco2vmr, &
+                          d_h2ovmr=ph2ovmr, &
+                          d_o3vmr=po3vmr, &
+                          d_ch4vmr=pch4vmr, &
+                          d_n2ovmr=pn2ovmr, &
+                          d_o2vmr=po2vmr)
 
     sundir = spherical_2_cartesian(phi0, theta0)
 

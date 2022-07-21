@@ -86,7 +86,7 @@ module m_repwvl_pprts
 
   real(ireals), parameter :: CO = 1e-9_ireals
   real(ireals), parameter :: HNO3 = 1e-9_ireals
-  real(ireals), parameter :: N2 = 0.7808_ireals
+  real(ireals), parameter :: N2 = 0.78102_ireals
 
   type t_repwvl_log_events
     PetscLogStage :: stage_repwvl_solar
