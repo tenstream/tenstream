@@ -23,7 +23,7 @@
 #:enddef ranksuffix
 
 #:def rankallocdims(RANK)
-  $:'' if RANK == 0 else '('+','.join(['Ntot({})'.format(_) for _ in range(1,RANK+1)]) + ')'
+  $:'' if RANK == 0 else ''+','.join(['Ntot({})'.format(_) for _ in range(1,RANK+1)]) + ''
 #:enddef rankallocdims
 
 module m_helper_functions
@@ -1324,9 +1324,17 @@ contains
             integer(mpiint), intent(out) :: ierr
             integer(mpiint) :: commsize
             #:if RANK > 0
+              integer(int64) :: msglimit = (int(huge(1_mpiint), kind=int64) + 1) / 32 ! 128 MB chunks
+              #:if method != 'character'
+                ${method}$${dKIND}$, allocatable :: buffer(:)
+                ${method}$${dKIND}$, allocatable :: arr1d(:)
+                integer(int64) :: i, Nmsg, is, ie
+              #:endif
+              integer(int64) :: arrsize
               integer(mpiint) :: myid
-              integer(iintegers) :: Ntot(${RANK}$)
+              integer(int64) :: Ntot(${RANK}$)
             #:endif
+            ierr = 0
             call MPI_Comm_size(comm, commsize, ierr); call CHKERR(ierr)
             if (commsize .le. 1) return
 
@@ -1339,37 +1347,67 @@ contains
             #:else
 
               call mpi_comm_rank(comm, myid, ierr); call chkerr(ierr)
-              if (sendid .eq. myid) Ntot = shape(arr)
+              if (sendid .eq. myid) Ntot = shape(arr, kind=int64)
 
-              call mpi_bcast(Ntot, ${RANK}$_mpiint, imp_iinteger, sendid, comm, ierr); call CHKERR(ierr)
+              call mpi_bcast(Ntot, ${RANK}$_mpiint, imp_int8, sendid, comm, ierr); call CHKERR(ierr)
 
               if (myid .ne. sendid) then
                 #:if modifier == 'allocatable'
                   if (allocated(arr)) then
-                    if (.not. all(shape(arr) .eq. Ntot)) &
+                    if (.not. all(shape(arr, kind=int64) .eq. Ntot)) &
                       call CHKERR(1_mpiint, 'Called a imp_bcast with an already allocated array on a receiving rank.'// &
                                           & ' However, it has the wrong shape: send_array is shape '//toStr(Ntot)// &
-                                          & ' inp_arr is shape '//toStr(shape(arr)))
+                                          & ' inp_arr is shape '//toStr(shape(arr, kind=int64)))
                   else
-                    allocate (arr ${rankallocdims(RANK)}$)
+                    allocate (arr(${rankallocdims(RANK)}$))
                   end if
                 #:endif
                 #:if modifier == 'pointer'
-                  if (.not. associated(arr)) allocate (arr ${rankallocdims(RANK)}$)
+                  if (.not. associated(arr)) allocate (arr(${rankallocdims(RANK)}$))
                 #:endif
 
-                if (.not. all(shape(arr) .eq. Ntot)) &
+                if (.not. all(shape(arr, kind=int64) .eq. Ntot)) &
                   call CHKERR(1_mpiint, 'Called a imp_bcast with an already allocated array on a receiving rank.'// &
                                       & ' However, it has the wrong shape: send_array is shape '//toStr(Ntot)// &
-                                      & ' inp_arr is shape '//toStr(shape(arr)))
+                                      & ' inp_arr is shape '//toStr(shape(arr, kind=int64)))
               end if
 
+              ! handle messages for large arrays
               #:if method == 'character'
-                call mpi_bcast(arr, size(arr) * len(arr), ${mpitype}$, sendid, comm, ierr); call CHKERR(ierr)
-              #:else
-                call mpi_bcast(arr, size(arr), ${mpitype}$, sendid, comm, ierr); call CHKERR(ierr)
-              #:endif
 
+                arrsize = size(arr, kind=int64) * len(arr)
+                if (arrsize .gt. msglimit) then
+                  ierr = 1
+                  call CHKERR(ierr, "array size too large for mpiint "//toStr(arrsize)//" > "//tostr(msglimit))
+                end if
+                call mpi_bcast(arr, size(arr) * len(arr), ${mpitype}$, sendid, comm, ierr); call CHKERR(ierr)
+
+              #:else
+
+                arrsize = size(arr, kind=int64)
+
+                if (arrsize .gt. msglimit) then
+
+                  allocate (buffer(msglimit))
+                  allocate (arr1d(arrsize))
+                  if (myid .eq. sendid) then
+                    arr1d(:) = reshape(arr, [arrsize])
+                  end if
+                  Nmsg = int(arrsize / msglimit, kind=iintegers)
+                  do i = 0, Nmsg
+                    is = 1 + i * msglimit
+                    ie = min((i + 1) * msglimit, arrsize)
+                    if (myid .eq. sendid) then
+                      buffer(1:ie - is + 1) = arr1d(is:ie)
+                    end if
+                    call mpi_bcast(buffer, int(ie - is + 1, mpiint), ${mpitype}$, sendid, comm, ierr); call CHKERR(ierr)
+                    arr1d(is:ie) = buffer(1:ie - is + 1)
+                  end do
+                  arr${ranksuffix(RANK)}$ = reshape(arr1d, [${rankallocdims(RANK)}$])
+                else
+                  call mpi_bcast(arr, size(arr), ${mpitype}$, sendid, comm, ierr); call CHKERR(ierr)
+                end if
+              #:endif
             #:endif
           end subroutine
         #:endif

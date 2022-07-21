@@ -1,5 +1,5 @@
 module test_helper_functions
-  use iso_fortran_env, only: real32, real64
+  use iso_fortran_env, only: real32, real64, int64
   use iso_c_binding
   use m_data_parameters, only: ireals, ireal128, iintegers, mpiint, init_mpi_data_parameters
   use m_helper_functions, only: &
@@ -102,6 +102,31 @@ contains
       end do
 
     end do
+  end subroutine
+
+  @test(npes=[ 2, 3])
+  subroutine test_mpi_bcast_large_int(this)
+    class(MpiTestMethod), intent(inout) :: this
+
+    integer(mpiint) :: numnodes, comm, myid
+
+    integer(int64), parameter :: N = (int(huge(1_mpiint), kind=int64) + 1) / 32 +10
+    integer(iintegers), allocatable :: arr(:)
+
+    integer(mpiint) :: ierr
+
+    comm = this%getMpiCommunicator()
+    numnodes = this%getNumProcesses()
+    myid = this%getProcessRank()
+
+    if (myid .eq. 0) then
+      allocate (arr(N))
+      arr = 123
+    end if
+
+    call imp_bcast(comm, arr, 0_mpiint, ierr)
+    @mpiAssertEqual(0_mpiint, ierr)
+    @AssertEqual(123, arr)
   end subroutine
 
   @test(npes=[1, 2, 3])
