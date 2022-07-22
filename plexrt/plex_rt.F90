@@ -49,8 +49,13 @@ module m_plex_rt
   use m_optprop_base, only: find_op_dim_by_name
   use m_optprop_parameters, only: ldebug_optprop
 
-  use m_pprts_base, only: t_state_container, prepare_solution, destroy_solution, &
-                          t_solver_log_events, setup_log_events
+  use m_pprts_base, only: &
+    & destroy_solution, &
+    & get_solution_uid, &
+    & prepare_solution, &
+    & setup_log_events, &
+    & t_solver_log_events, &
+    & t_state_container
 
   use m_plex_rt_base, only: &
     t_plex_solver, &
@@ -593,7 +598,7 @@ contains
       call setup_IS_diff_in_out_dof(solver%plex, solver%plex%ediff_dm, solver%IS_diff_in_out_dof)
 
     ! Prepare the space for the solution
-    suid = get_arg(i0, opt_solution_uid)
+    suid = get_solution_uid(solver%solutions, opt_solution_uid)
 
     if (.not. solver%solutions(suid)%lset) then
       call prepare_solution(solver%plex%edir_dm, solver%plex%ediff_dm, solver%plex%abso_dm, &
@@ -4238,7 +4243,8 @@ contains
 
     call PetscLogEventBegin(solver%logs%get_result, ierr)
 
-    uid = get_arg(0_iintegers, opt_solution_uid)
+    uid = get_solution_uid(solver%solutions, opt_solution_uid)
+
     if (.not. solver%solutions(uid)%lset) &
       call CHKERR(1_mpiint, 'You tried to retrieve results from a solution uid which has not yet been calculated')
 

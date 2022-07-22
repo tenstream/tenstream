@@ -15,6 +15,7 @@ module m_pprts_base
     & get_arg, &
     & get_petsc_opt, &
     & imp_allreduce_min, &
+    & is_inrange, &
     & toStr
 
   use m_petsc_helpers, only: &
@@ -32,31 +33,32 @@ module m_pprts_base
     & destroy_pprts, &
     & destroy_solution, &
     & determine_ksp_tolerances, &
+    & get_solution_uid, &
     & interpolate_cell_values_to_vertices, &
     & prepare_solution, &
     & print_solution, &
     & set_dmda_cell_coordinates, &
-    & setup_log_events, &
     & setup_incSolar, &
+    & setup_log_events, &
     & t_atmosphere, &
     & t_coord, &
     & t_dof, &
     & t_mat_permute_info, &
     & t_pprts_shell_ctx, &
     & t_solver, &
-    & t_solver_2str, &
-    & t_solver_disort, &
-    & t_solver_rayli, &
     & t_solver_1_2, &
-    & t_solver_3_6, &
+    & t_solver_2str, &
     & t_solver_3_10, &
     & t_solver_3_16, &
     & t_solver_3_24, &
     & t_solver_3_30, &
+    & t_solver_3_6, &
     & t_solver_8_10, &
     & t_solver_8_16, &
     & t_solver_8_18, &
+    & t_solver_disort, &
     & t_solver_log_events, &
+    & t_solver_rayli, &
     & t_state_container, &
     & t_suninfo
 
@@ -809,5 +811,31 @@ contains
       & '(', fac, ')'
 
   end subroutine
+
+  function get_solution_uid(solutions, opt_solution_uid) result(uid)
+    type(t_state_container), allocatable :: solutions(:)
+    integer(iintegers), optional, intent(in) :: opt_solution_uid
+    integer(iintegers) :: uid
+    logical :: lflg
+    integer(mpiint) :: ierr
+
+    uid = get_arg(0_iintegers, opt_solution_uid)
+    call get_petsc_opt('', '-override_solution_uid', uid, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', '-pprts_override_solution_uid', uid, lflg, ierr); call CHKERR(ierr)
+    if (lflg) then
+      print *, 'Override solutions uid, returning '//toStr(uid)//' instead of '//toStr(get_arg(0_iintegers, opt_solution_uid))
+    end if
+
+    if (.not. is_inrange(uid, lbound(solutions, 1, kind=iintegers), ubound(solutions, 1, kind=iintegers))) then
+      call CHKWARN(int(uid, mpiint), "uid ("//toStr(uid)//") is not in range of "// &
+        & "preallocated solutions container [ "//&
+        & toStr(lbound(solutions, 1))//", "//&
+        & toStr(ubound(solutions, 1))//" ]."//new_line('')// &
+        & "I will set it to 0 but this has some implications"//new_line('')// &
+        & "If you are not sure what you are doing, "// &
+        & "you can increase the size of the solutions container to fit all spectral bands")
+      uid = 0
+    end if
+  end function
 
 end module

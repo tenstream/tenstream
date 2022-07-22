@@ -101,6 +101,7 @@ module m_pprts
     & compute_gradient, &
     & destroy_solution, &
     & determine_ksp_tolerances, &
+    & get_solution_uid, &
     & interpolate_cell_values_to_vertices, &
     & prepare_solution, &
     & set_dmda_cell_coordinates, &
@@ -5501,31 +5502,6 @@ contains
     end subroutine
 
   end subroutine
-
-  function get_solution_uid(solutions, opt_solution_uid) result(uid)
-    type(t_state_container), allocatable :: solutions(:)
-    integer(iintegers), optional, intent(in) :: opt_solution_uid
-    integer(iintegers) :: uid
-    logical :: lflg
-    integer(mpiint) :: ierr
-
-    uid = get_arg(0_iintegers, opt_solution_uid)
-    call get_petsc_opt('', '-pprts_override_solution_uid', uid, lflg, ierr); call CHKERR(ierr)
-    if (lflg .and. ldebug) then
-      print *, 'Override solutions uid, returning '//toStr(uid)//' instead of '//toStr(get_arg(0_iintegers, opt_solution_uid))
-    end if
-
-    if (.not. is_inrange(uid, lbound(solutions, 1, kind=iintegers), ubound(solutions, 1, kind=iintegers))) then
-      call CHKWARN(int(uid, mpiint), "uid ("//toStr(uid)//") is not in range of "// &
-        & "preallocated solutions container [ "//&
-        & toStr(lbound(solutions, 1))//", "//&
-        & toStr(ubound(solutions, 1))//" ]."//new_line('')// &
-        & "I will set it to 0 but this has some implications"//new_line('')// &
-        & "If you are not sure what you are doing, "// &
-        & "you can increase the size of the solutions container to fit all spectral bands")
-      uid = 0
-    end if
-  end function
 
   subroutine pprts_get_result(solver, redn, reup, rabso, redir, opt_solution_uid, opt_buildings)
     class(t_solver) :: solver
