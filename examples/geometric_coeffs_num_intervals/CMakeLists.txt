@@ -9,5 +9,5 @@ foreach(_file ${files})
   get_filename_component (_example_EXT  ${_file} EXT    )
 
   add_executable("ex_${_example_WE}" "${_example_NAME}")
-  target_link_libraries("ex_${_example_WE}" pprts_rrtmg pprts_rrtm_lw pprts_rrtm_sw pprts pprts_base)
+  target_link_libraries("ex_${_example_WE}" ${TENSTR_SINGLE_LIB} ${EXTLIB})
 endforeach()

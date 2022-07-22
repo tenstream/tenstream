@@ -14,12 +14,12 @@ if(ENABLE_RRTM)
     FILES_MATCHING PATTERN "*.h" )
 
   add_executable( "cwrapper_opp" "opp.c" )
-  target_link_libraries( "cwrapper_opp" ${TENSTR_LIBS} )
+  target_link_libraries( "cwrapper_opp" ${TENSTR_SINGLE_LIB} ${EXTLIB})
 
   add_executable( "cwrapper_pprts" "pprts.c" )
-  target_link_libraries( "cwrapper_pprts" ${TENSTR_LIBS} )
+  target_link_libraries( "cwrapper_pprts" ${TENSTR_SINGLE_LIB} ${EXTLIB})
 
   add_executable( "cwrapper_pprts_rrtmg" "pprts_rrtmg.c" )
-  target_link_libraries( "cwrapper_pprts_rrtmg" ${TENSTR_LIBS} )
+  target_link_libraries( "cwrapper_pprts_rrtmg" ${TENSTR_SINGLE_LIB} ${EXTLIB})
 
 endif()
