@@ -32,10 +32,11 @@ module m_compute_repwvl_training_data
   use m_helper_functions, only: &
     & CHKERR, &
     & CHKWARN, &
+    & domain_decompose_2d_petsc, &
     & get_arg, &
+    & get_petsc_opt, &
     & imp_bcast, &
     & imp_min_mean_max, &
-    & domain_decompose_2d_petsc, &
     & imp_min_mean_max, &
     & resize_arr, &
     & reverse, &
@@ -56,8 +57,7 @@ module m_compute_repwvl_training_data
 
   implicit none
 
-  logical, parameter :: lglobal_output = .false.
-  logical, parameter :: lboundary_flx_only = .true.
+  logical :: lboundary_flx_only
 
 contains
 
@@ -632,39 +632,8 @@ contains
     ierr = 0
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
-    dimnames(1) = trim(prefix)//'nlev'
-    dimnames(2) = trim(prefix)//'nx'
-    dimnames(3) = trim(prefix)//'ny'
-    dimnames(4) = trim(prefix)//'wvl'
-
     write (rankstr, '(i0.4)') myid
     groups(1) = trim(out_filename)//'.'//rankstr
-
-    pplev(1:solver%C_one_atm1%zm, 1:solver%C_one_atm1%xm, 1:solver%C_one_atm1%ym) => atm%plev
-    dimnames(1) = trim(prefix)//'nlev_pressure'
-    dimnames(2) = trim(prefix)//'nx'
-    dimnames(3) = trim(prefix)//'ny'
-    groups(2) = trim(prefix)//'plev'
-    call ncwrite(groups, pplev, ierr, dimnames=dimnames(1:3), deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
-
-    dimnames(1) = trim(prefix)//'nlev'
-    dimnames(2) = trim(prefix)//'nx'
-    dimnames(3) = trim(prefix)//'ny'
-    dimnames(4) = trim(prefix)//'wvl'
-    groups(2) = trim(prefix)//'edn'
-    call ncwrite(groups, edn, ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
-
-    groups(2) = trim(prefix)//'eup'
-    call ncwrite(groups, eup, ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
-
-    if (present(edir)) then
-      groups(2) = trim(prefix)//'edir'
-      call ncwrite(groups, edir, ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
-    end if
-
-    dimnames(1) = trim(prefix)//'nlay'
-    groups(2) = trim(prefix)//'abso'
-    call ncwrite(groups, abso, ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
 
     dimnames(1) = trim(prefix)//'wvl'
     groups(2) = trim(prefix)//'wvl'
@@ -686,6 +655,41 @@ contains
     dimnames(1) = trim(prefix)//'ny'
     groups(2) = trim(prefix)//'ny'
     call ncwrite(groups, ycoord, ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
+
+    pplev(1:solver%C_one_atm1%zm, 1:solver%C_one_atm1%xm, 1:solver%C_one_atm1%ym) => atm%plev
+    dimnames(1) = trim(prefix)//'nlev_pressure'
+    dimnames(2) = trim(prefix)//'nx'
+    dimnames(3) = trim(prefix)//'ny'
+    groups(2) = trim(prefix)//'plev'
+    call ncwrite(groups, reverse(pplev), ierr, dimnames=dimnames(1:3), deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
+
+    dimnames(1) = trim(prefix)//'nlev'
+    dimnames(2) = trim(prefix)//'nx'
+    dimnames(3) = trim(prefix)//'ny'
+    dimnames(4) = trim(prefix)//'wvl'
+    groups(2) = trim(prefix)//'edn'
+    call ncwrite(groups, edn, ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
+    groups(2) = trim(prefix)//'edn_int'
+    call ncwrite(groups, sum(edn, dim=4), ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
+
+    groups(2) = trim(prefix)//'eup'
+    call ncwrite(groups, eup, ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
+    groups(2) = trim(prefix)//'eup_int'
+    call ncwrite(groups, sum(eup, dim=4), ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
+
+    if (present(edir)) then
+      groups(2) = trim(prefix)//'edir'
+      call ncwrite(groups, edir, ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
+      groups(2) = trim(prefix)//'edir_int'
+      call ncwrite(groups, sum(edir, dim=4), ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
+    end if
+
+    dimnames(1) = trim(prefix)//'nlay'
+    groups(2) = trim(prefix)//'abso'
+    call ncwrite(groups, abso, ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
+    groups(2) = trim(prefix)//'abso_int'
+    call ncwrite(groups, sum(abso, dim=4), ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
+
   end subroutine
 
   subroutine write_output_data_global(comm, solver, out_filename, prefix, rdata, atm, edn, eup, abso, ierr, edir, lverbose)
@@ -711,6 +715,12 @@ contains
 
     groups(1) = trim(out_filename)
 
+    dimnames(1) = trim(prefix)//'wvl'
+    groups(2) = trim(prefix)//'wvl'
+    if (myid .eq. 0) then
+      call ncwrite(groups, rdata%wvls, ierr, dimnames=dimnames(1:1), deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
+    end if
+
     dimnames(1) = trim(prefix)//'nlev_pressure'
     dimnames(2) = trim(prefix)//'nx'
     dimnames(3) = trim(prefix)//'ny'
@@ -718,7 +728,7 @@ contains
     pplev(1:solver%C_one_atm1%zm, 1:solver%C_one_atm1%xm, 1:solver%C_one_atm1%ym) => atm%plev
     call gather_all_toZero(solver%C_one_atm1, pplev, pglobal)
     if (myid .eq. 0) then
-      call ncwrite(groups, pglobal, ierr, dimnames=dimnames(1:3), deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
+      call ncwrite(groups, reverse(pglobal), ierr, dimnames=dimnames(1:3), deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
       deallocate (pglobal)
     end if
 
@@ -727,14 +737,17 @@ contains
     dimnames(3) = trim(prefix)//'ny'
     dimnames(4) = trim(prefix)//'wvl'
 
-    groups(2) = trim(prefix)//'edn'
     if (lboundary_flx_only) then
       call local2global_bounds_only(solver%Csrfc_one, edn, gflx)
     else
       call local2global(solver%C_one_atm1, edn, gflx)
     end if
     if (myid .eq. 0) then
+      groups(2) = trim(prefix)//'edn'
       call ncwrite(groups, gflx, ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
+
+      groups(2) = trim(prefix)//'edn_int'
+      call ncwrite(groups, sum(gflx, dim=4), ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
     end if
     if (allocated(gflx)) deallocate (gflx)
 
@@ -743,38 +756,38 @@ contains
     else
       call local2global(solver%C_one_atm1, eup, gflx)
     end if
-    groups(2) = trim(prefix)//'eup'
     if (myid .eq. 0) then
+      groups(2) = trim(prefix)//'eup'
       call ncwrite(groups, gflx, ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
+
+      groups(2) = trim(prefix)//'eup_int'
+      call ncwrite(groups, sum(gflx, dim=4), ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
     end if
     if (allocated(gflx)) deallocate (gflx)
 
     if (present(edir)) then
-      groups(2) = trim(prefix)//'edir'
       if (lboundary_flx_only) then
         call local2global_bounds_only(solver%Csrfc_one, edir, gflx)
       else
         call local2global(solver%C_one_atm1, edir, gflx)
       end if
       if (myid .eq. 0) then
+        groups(2) = trim(prefix)//'edir'
         call ncwrite(groups, gflx, ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
+        groups(2) = trim(prefix)//'edir_int'
+        call ncwrite(groups, sum(gflx, dim=4), ierr, dimnames=dimnames(1:3), deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
       end if
       if (allocated(gflx)) deallocate (gflx)
     end if
 
     dimnames(1) = trim(prefix)//'nlay'
-    groups(2) = trim(prefix)//'abso'
     call local2global(solver%C_one_atm, abso, gflx)
     if (myid .eq. 0) then
+      groups(2) = trim(prefix)//'abso'
       call ncwrite(groups, gflx, ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
+      groups(2) = trim(prefix)//'abso_int'
+      call ncwrite(groups, sum(gflx, dim=4), ierr, dimnames=dimnames(1:3), deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
     end if
-
-    dimnames(1) = trim(prefix)//'wvl'
-    groups(2) = trim(prefix)//'wvl'
-    if (myid .eq. 0) then
-      call ncwrite(groups, rdata%wvls, ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
-    end if
-
   contains
 
     subroutine local2global_bounds_only(C, local, gflx)
@@ -842,6 +855,7 @@ contains
     type(t_mie_table), allocatable :: mie_table
 
     real(ireals) :: mmm_edir(3), mmm_edn(3), mmm_eup(3), mmm_abso(3)
+    logical :: lglobal_output, lflg
 
     ierr = 0
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
@@ -863,6 +877,12 @@ contains
     call fu_ice_init(comm, ierr, lverbose=.false.); call CHKERR(ierr)
 
     call init_solver(comm, atm, Nx, Ny, nxproc, nyproc, solver, ierr)
+
+    lglobal_output = .true.
+    call get_petsc_opt('', '-globalIO', lglobal_output, lflg, ierr); call CHKERR(ierr)
+
+    lboundary_flx_only = .true.
+    call get_petsc_opt('', '-boundary_flx_only', lboundary_flx_only, lflg, ierr); call CHKERR(ierr)
 
     if (lsolar) then
       call solve_scene(&
