@@ -20,6 +20,9 @@ module m_example_pprts_specint_lw_sw
 
   use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, destroy_tenstr_atm
 
+  use m_petsc_helpers, only: getvecpointer, restorevecpointer
+  use m_netcdfio, only: ncwrite
+
   implicit none
 
 contains
@@ -27,7 +30,7 @@ contains
       & phi0, theta0, albedo_th, albedo_sol, &
       & lthermal, lsolar, atm_filename, &
       & gedir, gedn, geup, gabso, &
-      & vlwc, viwc)
+      & vlwc, viwc, outfile)
     character(len=*), intent(in) :: specint           ! name of module to use for spectral integration
     integer(mpiint), intent(in) :: comm
     integer(iintegers), intent(in) :: nxp, nyp, nzp   ! local domain size for each rank
@@ -38,6 +41,7 @@ contains
     character(len=*), intent(in) :: atm_filename ! ='afglus_100m.dat'
     real(ireals), allocatable, dimension(:, :, :), intent(out) :: gedir, gedn, geup, gabso
     real(ireals), intent(in), optional :: vlwc, viwc            ! liquid/ice water content to be set in a layer
+    character(len=*), intent(in), optional :: outfile
 
     ! Fluxes and absorption in [W/m2] and [W/m3] respectively.
     ! Dimensions will probably be bigger than the dynamics grid, i.e. will have
@@ -69,6 +73,8 @@ contains
     !------------ Local vars ------------------
     integer(iintegers) :: k, nlev, icld, iter
     integer(iintegers), allocatable :: nxproc(:), nyproc(:)
+    character(len=default_str_len) :: groups(2), dimnames(3)
+    real(ireals), pointer :: z(:, :, :, :) => null(), z1d(:) => null() ! dim Nz+1
 
     ! reshape pointer to convert i,j vecs to column vecs
     real(ireals), pointer, dimension(:, :) :: pplev, ptlev, plwc, preliq, piwc, preice
@@ -227,6 +233,35 @@ contains
     call gather_all_toZero(pprts_solver%C_one1, edn, gedn)
     call gather_all_toZero(pprts_solver%C_one1, eup, geup)
     call gather_all_toZero(pprts_solver%C_one, abso, gabso)
+
+    if (myid .eq. 0_mpiint .and. present(outfile)) then
+      dimnames(1) = 'zlev'
+      dimnames(2) = 'nx'
+      dimnames(3) = 'ny'
+      groups(1) = trim(outfile)
+      if (lsolar) then
+        groups(2) = 'edir'; call ncwrite(groups, gedir, ierr, dimnames=dimnames); call CHKERR(ierr)
+      end if
+      groups(2) = 'edn'; call ncwrite(groups, gedn, ierr, dimnames=dimnames); call CHKERR(ierr)
+      groups(2) = 'eup'; call ncwrite(groups, geup, ierr, dimnames=dimnames); call CHKERR(ierr)
+      dimnames(1) = 'zlay'
+      groups(2) = 'abso'; call ncwrite(groups, gabso, ierr, dimnames=dimnames); call CHKERR(ierr)
+
+      print *, 'dumping z coords'
+      associate (Ca1 => pprts_solver%C_one_atm1_box)
+        call getVecPointer(Ca1%da, pprts_solver%atm%hhl, z1d, z)
+        dimnames(1) = 'nlev'
+        groups(2) = 'zlev'
+        call ncwrite(groups, z(0, Ca1%zs:Ca1%ze, Ca1%xs, Ca1%ys), ierr, dimnames=dimnames(1:1))
+        call CHKERR(ierr)
+        dimnames(1) = 'nlay'
+        groups(2) = 'zlay'; call ncwrite(groups, &
+          & (z(0, Ca1%zs:Ca1%ze - 1, Ca1%xs, Ca1%ys) + z(0, Ca1%zs + 1:Ca1%ze, Ca1%xs, Ca1%ys))*.5_ireals, &
+          & ierr, dimnames=dimnames(1:1))
+        call CHKERR(ierr)
+        call restoreVecPointer(Ca1%da, pprts_solver%atm%hhl, z1d, z)
+      end associate
+    end if
 
     ! Tidy up
     call specint_pprts_destroy(specint, pprts_solver, lfinalizepetsc=.true., ierr=ierr)
