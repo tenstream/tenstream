@@ -31,8 +31,10 @@ contains
 
     integer(iintegers), parameter :: N = 100000, iter = 3
     integer :: ilvl, i
-    real :: R(N)
+    real, allocatable :: R(:)
     double precision :: s, e
+
+    allocate(R(N))
 
     do ilvl = 1, 4
       call RLUXGO(ilvl, 1, 0, 0)
