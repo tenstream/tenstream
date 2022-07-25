@@ -132,7 +132,8 @@ if(BUILD_RAYLI)
 
   set(RAYLI_LIBS rayli_c_wrapper rayli_common spdlog fmt CACHE INTERNAL "RAYLI Libraries")
   message(STATUS " Rayli Libraries => ${RAYLI_LIBS}")
-
+  set(EXTLIB "${EXTLIB};stdc++;pthread;m" PARENT_SCOPE)
+  message(STATUS "EXTLIB after user Rayli: ${EXTLIB}")
 else(BUILD_RAYLI) # else, check if we have a custom RAYLI_DIR set as environment variable
 
   set(RAYLI_DIR "$ENV{RAYLI_DIR}")
