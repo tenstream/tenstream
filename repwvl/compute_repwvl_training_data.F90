@@ -49,8 +49,7 @@ module m_compute_repwvl_training_data
   use m_pprts_base, only: t_coord, t_solver, allocate_pprts_solver_from_commandline
   use m_pprts, only: init_pprts, set_optical_properties, solve_pprts, pprts_get_result, set_angles, gather_all_toZero
 
-  use m_repwvl_base, only: t_repwvl_data, repwvl_init, repwvl_dtau
-  use m_repwvl_pprts, only: repwvl_optprop
+  use m_repwvl_base, only: t_repwvl_data, repwvl_init, repwvl_optprop
   use m_mie_tables, only: mie_tables_init, t_mie_table, mie_optprop, destroy_mie_table
   use m_fu_ice, only: fu_ice_init
   use m_rayleigh, only: rayleigh
@@ -441,7 +440,21 @@ contains
       allocate (Bsrfc(solver%C_one1%xm, solver%C_one1%ym), source=-999._ireals)
     end if
 
-    call repwvl_optprop(repwvl_data, atm, mie_table, lsolar, iwvl, kabs, ksca, kg, ierr); call CHKERR(ierr)
+    do j = 1, solver%C_one%ym
+      do i = 1, solver%C_one%xm
+        icol = i + (j - 1_iintegers) * solver%C_one%xm
+
+        do k = 1, solver%C_one%zm
+          call repwvl_optprop(&
+            & repwvl_data, atm, mie_table, &
+            & lsolar, k, icol, iwvl, &
+            & kabs(size(kabs, dim=1) + 1 - k, i, j), &
+            & ksca(size(ksca, dim=1) + 1 - k, i, j), &
+            & kg(size(kg, dim=1) + 1 - k, i, j), &
+            & ierr); call CHKERR(ierr)
+        end do
+      end do
+    end do
 
     if (lsolar) then
       albedo = .15

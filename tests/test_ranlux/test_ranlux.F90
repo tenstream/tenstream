@@ -34,7 +34,7 @@ contains
     real, allocatable :: R(:)
     double precision :: s, e
 
-    allocate(R(N))
+    allocate (R(N))
 
     do ilvl = 1, 4
       call RLUXGO(ilvl, 1, 0, 0)

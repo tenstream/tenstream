@@ -77,7 +77,7 @@ program main
       & lthermal, lsolar, atm_filename, &
       & gedir, gedn, geup, gabso, &
       & vlwc, viwc, &
-      & outfile=outfile )
+      & outfile=outfile)
   else
     call ex_pprts_specint_lw_sw(specint, &
       & comm, &
@@ -85,8 +85,8 @@ program main
       & phi0, theta0, albedo_th, albedo_sol, &
       & lthermal, lsolar, atm_filename, &
       & gedir, gedn, geup, gabso, &
-      & vlwc, viwc )
-  endif
+      & vlwc, viwc)
+  end if
 
   call deallocate_allocatable(gedir)
   call deallocate_allocatable(gedn)

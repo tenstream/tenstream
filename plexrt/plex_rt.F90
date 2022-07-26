@@ -157,7 +157,7 @@ contains
     allocate (solver%plex)
     solver%plex = plex
 
-    allocate (solver%solutions(-1:1000))
+    allocate (solver%solutions(-1000:1000))
 
     call setup_log_events(solver%logs, 'plexrt')
 

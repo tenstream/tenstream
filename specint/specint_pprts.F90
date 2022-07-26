@@ -17,7 +17,7 @@
 ! Copyright (C) 2010-2015  Fabian Jakub, <fabian@jakub.com>
 !-------------------------------------------------------------------------
 
-!> \page Routines to call tenstream with optical properties from a representative wavelength approach
+!> \page Routines to call tenstream with optical properties from different spectral integration approaches
 
 module m_specint_pprts
 #include "petsc/finclude/petsc.h"

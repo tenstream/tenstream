@@ -110,7 +110,7 @@ contains
 
     integer(mpiint) :: numnodes, comm, myid
 
-    integer(int64), parameter :: N = (int(huge(1_mpiint), kind=int64) + 1) / 32 +10
+    integer(int64), parameter :: N = (int(huge(1_mpiint), kind=int64) + 1) / 32 + 10
     integer(iintegers), allocatable :: arr(:)
 
     integer(mpiint) :: ierr

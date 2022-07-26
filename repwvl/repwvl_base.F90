@@ -20,6 +20,8 @@
 !> \page Routines to call tenstream with optical properties from a representative wavelength approach
 
 module m_repwvl_base
+#include "petsc/finclude/petsc.h"
+  use petsc
 
   use m_data_parameters, only: &
     & AVOGADRO, &
@@ -44,10 +46,16 @@ module m_repwvl_base
 
   use m_netcdfIO, only: ncload
 
+  use m_dyn_atm_to_rrtmg, only: &
+    & t_tenstr_atm
+  use m_mie_tables, only: t_mie_table, mie_optprop
+  use m_fu_ice, only: fu_ice_optprop, fu_ice_data_solar, fu_ice_data_thermal
+  use m_rayleigh, only: rayleigh
+
   implicit none
 
   private
-  public :: t_repwvl_data, repwvl_init, repwvl_dtau
+  public :: t_repwvl_data, repwvl_init, repwvl_dtau, repwvl_optprop, repwvl_log_events, setup_log_events, check_fu_table_consistency
 
   type t_repwvl_data
     ! dims xsec(pressure, wvl, tracer, temperature)
@@ -68,6 +76,27 @@ module m_repwvl_base
 
     integer(iintegers) :: Nwvl, Ntracer
   end type
+
+  real(ireals), parameter :: CO = 1e-9_ireals
+  real(ireals), parameter :: HNO3 = 1e-9_ireals
+  real(ireals), parameter :: N2 = 0.78102_ireals
+
+  type t_repwvl_log_events
+    PetscLogStage :: stage_repwvl_solar
+    PetscLogStage :: stage_repwvl_thermal
+    PetscLogEvent :: repwvl_optprop
+    PetscLogEvent :: repwvl_optprop_dtau
+    PetscLogEvent :: repwvl_optprop_rayleigh
+    PetscLogEvent :: repwvl_optprop_mie
+    PetscLogEvent :: repwvl_optprop_fu_ice
+  end type
+  type(t_repwvl_log_events) :: repwvl_log_events
+
+#ifdef __RELEASE_BUILD__
+  logical, parameter :: ldebug = .true.
+#else
+  logical, parameter :: ldebug = .true.
+#endif
 
 contains
 
@@ -131,6 +160,8 @@ contains
     ierr = 0
 
     call mpi_comm_rank(comm, myid, ierr)
+
+    call setup_log_events(repwvl_log_events)
 
     if (myid .eq. 0) then
       fname_thermal = get_arg(fname_thermal_default, fname_repwvl_thermal)
@@ -308,5 +339,223 @@ contains
       dtau = vmr * N * sigma
       tau = tau + dtau
     end subroutine
+  end subroutine
+
+  subroutine repwvl_optprop(repwvl_data, atm, mie_table, lsolar, k, icol, iwvl, kabs, ksca, kg, ierr)
+    type(t_repwvl_data), intent(in) :: repwvl_data
+    type(t_tenstr_atm), intent(in), target :: atm
+    type(t_mie_table), intent(in) :: mie_table
+    logical, intent(in) :: lsolar
+    integer(iintegers), intent(in) :: k, icol, iwvl
+    real(ireals), intent(out) :: kabs, ksca, kg
+    integer(mpiint), intent(out) :: ierr
+
+    real(ireals) :: VMRS(repwvl_data%Ntracer)
+    real(ireals) :: tabs, tsca, g
+    real(ireals) :: P, dP, dtau, rayleigh_xsec, N, lwc_vmr, qext_cld, w0_cld, g_cld, iwp
+
+    logical, parameter :: lprofile = ldebug
+
+    ierr = 0
+
+    !do j = lbound(kabs, 3), ubound(kabs, 3)
+    !do i = lbound(kabs, 2), ubound(kabs, 2)
+    !icol = i + (j - 1) * size(kabs, dim=2)
+    !do k = lbound(kabs, 1), ubound(kabs, 1)
+
+    P = (atm%plev(k, icol) + atm%plev(k + 1, icol))*.5_ireals * 1e2_ireals
+    dP = (atm%plev(k, icol) - atm%plev(k + 1, icol)) * 1e2_ireals
+
+    ! Repwvl molecular absorption cross section
+    if (lprofile) then
+      call PetscLogEventBegin(repwvl_log_events%repwvl_optprop_dtau, ierr); call CHKERR(ierr)
+    end if
+    VMRS(:) = [ &
+      & atm%h2o_lay(k, icol), &
+      & atm%h2o_lay(k, icol), &
+      & atm%co2_lay(k, icol), &
+      & atm%o3_lay(k, icol), &
+      & atm%n2o_lay(k, icol), &
+      & CO, &
+      & atm%ch4_lay(k, icol), &
+      & atm%o2_lay(k, icol), &
+      & HNO3, &
+      & N2]
+
+    call repwvl_dtau(&
+      & repwvl_data, &
+      & iwvl, &
+      & P, &
+      & dP, &
+      & atm%tlay(k, icol), &
+      & VMRS, &
+      & dtau, &
+      & ierr); call CHKERR(ierr)
+
+    tabs = dtau / atm%dz(k, icol)
+    if (lprofile) then
+      call PetscLogEventEnd(repwvl_log_events%repwvl_optprop_dtau, ierr); call CHKERR(ierr)
+    end if
+    if (ldebug) then
+      if (tabs .lt. 0) call CHKERR(1_mpiint, 'kabs from repwvl negative!'//toStr(tabs))
+    end if
+
+    ! Repwvl molecular scattering cross section
+    if (lprofile) then
+      call PetscLogEventBegin(repwvl_log_events%repwvl_optprop_rayleigh, ierr); call CHKERR(ierr)
+    end if
+    call rayleigh(&
+      & repwvl_data%wvls(iwvl) * 1e-3_ireals, &
+      & atm%co2_lay(k, icol), &
+      & rayleigh_xsec, &
+      & ierr); call CHKERR(ierr)
+    if (ldebug) then
+      if (rayleigh_xsec .lt. 0) call CHKERR(1_mpiint, 'rayleigh xsec negative!'//toStr(rayleigh_xsec))
+    end if
+
+    N = dP * AVOGADRO / EARTHACCEL / MOLMASSAIR
+    tsca = N * rayleigh_xsec * 1e-4 / atm%dz(k, icol) ! [1e-4 from cm2 to m2]
+    if (ldebug) then
+      if (tsca .lt. 0) call CHKERR(1_mpiint, 'rayleigh scattering coeff negative!'//toStr(tsca))
+    end if
+    g = 0                                             ! rayleigh has symmetric asymmetry parameter
+
+    if (lprofile) then
+      call PetscLogEventEnd(repwvl_log_events%repwvl_optprop_rayleigh, ierr); call CHKERR(ierr)
+    end if
+
+    ! Repwvl water cloud
+    if (atm%lwc(k, icol) > 0) then
+      if (lprofile) then
+        call PetscLogEventBegin(repwvl_log_events%repwvl_optprop_mie, ierr); call CHKERR(ierr)
+      end if
+      call mie_optprop(&
+        & mie_table, &
+        & repwvl_data%wvls(iwvl) * 1e-3_ireals, &
+        & atm%reliq(k, icol), &
+        & qext_cld, w0_cld, g_cld, ierr); call CHKERR(ierr)
+
+      lwc_vmr = atm%lwc(k, icol) * dP / (EARTHACCEL * atm%dz(k, icol)) ! have lwc in [ g / kg ], lwc_vmr in [ g / m3 ]
+      qext_cld = qext_cld * 1e-3 * lwc_vmr                             ! from [km^-1 / (g / m^3)] to [1/m]
+
+      g = (g * tsca + g_cld * qext_cld) / (tsca + qext_cld)
+      tabs = tabs + qext_cld * max(0._ireals, (1._ireals - w0_cld))
+      tsca = tsca + qext_cld * w0_cld
+      if (lprofile) then
+        call PetscLogEventEnd(repwvl_log_events%repwvl_optprop_mie, ierr); call CHKERR(ierr)
+      end if
+    end if
+
+    ! Repwvl ice cloud
+    if (atm%iwc(k, icol) > 0) then
+      if (lprofile) then
+        call PetscLogEventBegin(repwvl_log_events%repwvl_optprop_fu_ice, ierr); call CHKERR(ierr)
+      end if
+
+      call get_fu_ice_optprop()
+      iwp = atm%iwc(k, icol) * dP / (EARTHACCEL * atm%dz(k, icol)) ! have iwc in [ g / kg ], iwp in [ g / m3 ]
+      qext_cld = qext_cld * iwp                                    ! from [m^-1 / (g / m^3)] to [1/m]
+
+      g = (g * tsca + g_cld * qext_cld) / (tsca + qext_cld)
+      tabs = tabs + qext_cld * max(0._ireals, (1._ireals - w0_cld))
+      tsca = tsca + qext_cld * w0_cld
+      if (lprofile) then
+        call PetscLogEventEnd(repwvl_log_events%repwvl_optprop_fu_ice, ierr); call CHKERR(ierr)
+      end if
+    end if
+
+    !kabs(size(kabs, dim=1) + 1 - k, i, j) = tabs
+    !ksca(size(ksca, dim=1) + 1 - k, i, j) = tsca
+    !kg(size(kg, dim=1) + 1 - k, i, j) = g
+    kabs = tabs
+    ksca = tsca
+    kg = g
+
+    !end do
+    !end do
+    !end do
+
+  contains
+
+    subroutine get_fu_ice_optprop()
+      if (lsolar) then
+        if (fu_ice_data_solar%is_repwvl) then
+          call fu_ice_optprop(&
+            & fu_ice_data_solar, &
+            & iwvl, &
+            & atm%reice(k, icol), &
+            & qext_cld, w0_cld, g_cld, ierr); call CHKERR(ierr)
+        else
+          call fu_ice_optprop(&
+            & fu_ice_data_solar, &
+            & repwvl_data%wvls(iwvl) * 1e-3_ireals, &
+            & atm%reice(k, icol), &
+            & qext_cld, w0_cld, g_cld, ierr); call CHKERR(ierr)
+        end if
+      else
+        if (fu_ice_data_thermal%is_repwvl) then
+          call fu_ice_optprop(&
+            & fu_ice_data_thermal, &
+            & iwvl, &
+            & atm%reice(k, icol), &
+            & qext_cld, w0_cld, g_cld, ierr); call CHKERR(ierr)
+        else
+          call fu_ice_optprop(&
+            & fu_ice_data_thermal, &
+            & repwvl_data%wvls(iwvl) * 1e-3_ireals, &
+            & atm%reice(k, icol), &
+            & qext_cld, w0_cld, g_cld, ierr); call CHKERR(ierr)
+        end if
+      end if
+    end subroutine
+
+  end subroutine
+
+  subroutine setup_log_events(logs, solvername)
+    type(t_repwvl_log_events), intent(inout) :: logs
+    character(len=*), optional :: solvername
+    character(len=default_str_len) :: s
+    PetscClassId :: cid
+    integer(mpiint) :: ierr
+
+    s = get_arg('tenstr_repwvl.', solvername)
+    call PetscClassIdRegister(trim(s), cid, ierr); call CHKERR(ierr)
+
+    call setup_stage(trim(s)//'repwvl_solar', logs%stage_repwvl_solar)
+    call setup_stage(trim(s)//'repwvl_thermal', logs%stage_repwvl_thermal)
+
+    call PetscLogEventRegister(trim(s)//'repwvl_optprop', cid, logs%repwvl_optprop, ierr); call CHKERR(ierr)
+    call PetscLogEventRegister(trim(s)//'repwvl_optprop_dtau', cid, logs%repwvl_optprop_dtau, ierr); call CHKERR(ierr)
+    call PetscLogEventRegister(trim(s)//'repwvl_optprop_rayleigh', cid, logs%repwvl_optprop_rayleigh, ierr); call CHKERR(ierr)
+    call PetscLogEventRegister(trim(s)//'repwvl_optprop_mie', cid, logs%repwvl_optprop_mie, ierr); call CHKERR(ierr)
+    call PetscLogEventRegister(trim(s)//'repwvl_optprop_fu_ice', cid, logs%repwvl_optprop_fu_ice, ierr); call CHKERR(ierr)
+
+  contains
+    subroutine setup_stage(stagename, logstage)
+      character(len=*), intent(in) :: stagename
+      PetscLogStage, intent(inout) :: logstage
+      call PetscLogStageGetId(stagename, logstage, ierr); call CHKERR(ierr)
+      if (logstage .lt. 0_iintegers) then
+        call PetscLogStageRegister(stagename, logstage, ierr); call CHKERR(ierr)
+      end if
+    end subroutine
+  end subroutine
+
+  subroutine check_fu_table_consistency(repwvl_data_solar, repwvl_data_thermal)
+    type(t_repwvl_data) :: repwvl_data_solar, repwvl_data_thermal
+    if (fu_ice_data_solar%is_repwvl) then
+      if (size(fu_ice_data_solar%wvl) .ne. size(repwvl_data_solar%wvls)) then
+        call CHKERR(1_mpiint, 'loaded a repwvl fu table that does not fit the solar repwvl file'// &
+          & ' Nwvl_fu '//toStr(size(fu_ice_data_solar%wvl))//&
+          & ' Nwvl_repwvl = '//toStr(size(repwvl_data_solar%wvls)))
+      end if
+    end if
+    if (fu_ice_data_thermal%is_repwvl) then
+      if (size(fu_ice_data_thermal%wvl) .ne. size(repwvl_data_thermal%wvls)) then
+        call CHKERR(1_mpiint, 'loaded a repwvl fu table that does not fit the thermal repwvl file'// &
+          & ' Nwvl_fu = '//toStr(size(fu_ice_data_thermal%wvl))//&
+          & ' Nwvl_repwvl = '//toStr(size(repwvl_data_thermal%wvls)))
+      end if
+    end if
   end subroutine
 end module
