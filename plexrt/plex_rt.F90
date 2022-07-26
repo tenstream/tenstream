@@ -60,9 +60,11 @@ module m_plex_rt
   use m_plex_rt_base, only: &
     t_plex_solver, &
     t_plex_solver_2str, &
+    t_plex_solver_disort, &
     t_plex_solver_5_8, &
     t_plex_solver_rectilinear_5_8, &
     t_plex_solver_18_8, &
+    t_plex_solver_rayli, &
     t_dof
 
   use m_plexrt_external_solvers, only: plexrt_schwarz, plexrt_twostream, plexrt_disort, plexrt_NCA_wrapper
@@ -112,6 +114,19 @@ contains
 
       lplexrt_skip_loadLUT = .true.
 
+    class is (t_plex_solver_disort)
+      solver%dirtop%dof = 1
+      solver%dirtop%area_divider = 1
+      solver%dirside%dof = 1
+      solver%dirside%area_divider = 1
+
+      solver%difftop%dof = 2
+      solver%difftop%area_divider = 1
+      solver%diffside%dof = 0
+      solver%diffside%area_divider = 1
+
+      lplexrt_skip_loadLUT = .true.
+
     class is (t_plex_solver_5_8)
       allocate (t_optprop_wedge_5_8 :: solver%OPP)
       solver%dirtop%dof = 1
@@ -147,6 +162,19 @@ contains
       solver%difftop%area_divider = 1
       solver%diffside%dof = 4
       solver%diffside%area_divider = 1
+
+    class is (t_plex_solver_rayli)
+      solver%dirtop%dof = 1
+      solver%dirtop%area_divider = 1
+      solver%dirside%dof = 1
+      solver%dirside%area_divider = 1
+
+      solver%difftop%dof = 2
+      solver%difftop%area_divider = 1
+      solver%diffside%dof = 4
+      solver%diffside%area_divider = 1
+
+      lplexrt_skip_loadLUT = .true.
 
     class default
       call CHKERR(1_mpiint, 'unexpected type for solver')
@@ -585,7 +613,7 @@ contains
     integer(mpiint) :: myid, ierr
 
     real(ireals), save :: last_sundir(3) = [zero, zero, zero]
-    logical :: lrayli_snap, luse_rayli, lvacuum_domain_boundary, luse_disort, lflg
+    logical :: lrayli_snap, luse_rayli, lvacuum_domain_boundary, lflg
 
     call check_input_arguments()
 
@@ -680,12 +708,8 @@ contains
 
         if (ldebug) print *, '1D calculation done', suid, ':', solution%lsolar_rad, lschwarzschild
         goto 99
-      end select
 
-      ! DISORT interface
-      luse_disort = .false.
-      call get_petsc_opt(PETSC_NULL_CHARACTER, "-plexrt_use_disort", luse_disort, lflg, ierr); call CHKERR(ierr)
-      if (luse_disort) then
+      class is (t_plex_solver_disort)
         call PetscLogEventBegin(solver%logs%solve_twostream, ierr)
         call plexrt_disort(solver, solver%plex, solver%kabs, solver%ksca, solver%g, &
                            solver%albedo, sundir, solution, plck=solver%plck)
@@ -693,11 +717,16 @@ contains
 
         if (ldebug) print *, '1D disort calculation done', suid
         goto 99
-      end if
+
+      end select
 
       ! RayLi Raytracer interface
       luse_rayli = .false.
-      call get_petsc_opt(PETSC_NULL_CHARACTER, "-plexrt_use_rayli", luse_rayli, lflg, ierr); call CHKERR(ierr)
+
+      select type (solver)
+      class is (t_plex_solver_rayli)
+        luse_rayli = .true.
+      end select
 
       lrayli_snap = .false.
       call PetscOptionsHasName(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &

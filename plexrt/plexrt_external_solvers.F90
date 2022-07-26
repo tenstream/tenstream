@@ -391,7 +391,6 @@ contains
     lsolar = solution%lsolar_rad
     lthermal = .not. solution%lsolar_rad
 
-
     call DMGetStratumIS(plex%edir_dm, 'DomainBoundary', TOAFACE, boundary_ids, ierr); call CHKERR(ierr)
     if (boundary_ids .eq. PETSC_NULL_IS) then ! dont have TOA boundary faces
     else
