@@ -350,10 +350,10 @@ contains
     real(ireals), intent(in) :: sundir(:)
     type(t_state_container) :: solution
 
-    real, allocatable :: vdtau(:), vw0(:), vg(:), col_Bfrac(:) ! size nlay
+    real, allocatable :: vdtau(:), vw0(:), vg(:), col_Bfrac(:), col_Blev(:) ! size nlay
     real, allocatable :: col_temper(:) ! size nlay+1
     real, allocatable :: RFLDIR(:), RFLDN(:), FLUP(:), DFDT(:), UAVG(:) ! size nlev
-    real :: col_tskin, col_albedo, mu0
+    real :: col_tskin, col_albedo, mu0, col_Bskin
 
     type(tIS) :: boundary_ids
     integer(iintegers), pointer :: xitoa(:), cell_support(:)
@@ -391,8 +391,6 @@ contains
     lsolar = solution%lsolar_rad
     lthermal = .not. solution%lsolar_rad
 
-    if (lthermal) call CHKERR(1_mpiint, 'currently cannot use the plexrt disort solver for thermal computations '// &
-                              'because we dont put the wavenumbers through')
 
     call DMGetStratumIS(plex%edir_dm, 'DomainBoundary', TOAFACE, boundary_ids, ierr); call CHKERR(ierr)
     if (boundary_ids .eq. PETSC_NULL_IS) then ! dont have TOA boundary faces
@@ -406,8 +404,11 @@ contains
       allocate (DFDT(plex%Nlay + 1))
       allocate (UAVG(plex%Nlay + 1))
 
-      allocate (col_temper(plex%Nlay + 1), source=0.)
-      allocate (col_Bfrac(plex%Nlay), source=1.)
+      allocate (col_temper(plex%Nlay + 1))
+      allocate (col_Bfrac(plex%Nlay))
+      allocate (col_Blev(plex%Nlay + 1))
+      col_temper = 300
+      col_Bfrac = 1
       col_tskin = 0
 
       call DMGetSection(plex%ediff_dm, ediff_section, ierr); call CHKERR(ierr)
@@ -418,6 +419,7 @@ contains
       call VecGetArrayReadF90(ksca, xksca, ierr); call CHKERR(ierr)
       call VecGetArrayReadF90(g, xg, ierr); call CHKERR(ierr)
       call VecGetArrayReadF90(albedo, xalbedo, ierr); call CHKERR(ierr)
+      call VecGetArrayReadF90(plck, xplck, ierr); call CHKERR(ierr)
       call VecGetArrayReadF90(plex%geomVec, xgeoms, ierr); call CHKERR(ierr)
 
       call DMGetSection(plex%abso_dm, abso_section, ierr); call CHKERR(ierr)
@@ -465,20 +467,29 @@ contains
 
         col_albedo = real(xalbedo(i))
 
-        if (solution%lsolar_rad) then
-          call default_flx_computation( &
-            mu0, &
-            real(norm2(sundir)), &
-            col_albedo, &
-            col_tskin, &
-            .false., [0., 0.], col_Bfrac, &
-            real(vdtau), &
-            real(vw0), &
-            real(vg), &
-            col_temper, &
-            RFLDIR, RFLDN, FLUP, DFDT, UAVG, &
-            int(nstreams), lverbose=.false.)
+        if (lthermal) then
+          do k = 0, ke1 - 1
+            call PetscSectionGetOffset(plck_Section, iface + k, voff, ierr); call CHKERR(ierr)
+            col_Blev(1 + k) = real(xplck(i1 + voff), kind(col_Blev))
+          end do
+          col_Bskin = col_Blev(ke1)
         end if
+
+        call default_flx_computation( &
+          & mu0, &
+          & real(norm2(sundir)), &
+          & col_albedo, &
+          & col_tskin, & ! tskin (ignored because we provide planck values directly)
+          & lthermal, &
+          & [0., 1.], & ! wavenumbers (ignored because we provide planck values directly)
+          & col_Bfrac, &
+          & real(vdtau), &
+          & real(vw0), &
+          & real(vg), &
+          & col_temper, & ! (ignored because we provide planck values directly)
+          & RFLDIR, RFLDN, FLUP, DFDT, UAVG, &
+          & int(nstreams), lverbose=.false., &
+          & Blev=col_Blev, Bskin=col_Bskin)
 
         if (lsolar) then
           do k = 0, ke1 - 1
@@ -522,6 +533,7 @@ contains
       call VecRestoreArrayReadF90(kabs, xkabs, ierr); call CHKERR(ierr)
       call VecRestoreArrayReadF90(ksca, xksca, ierr); call CHKERR(ierr)
       call VecRestoreArrayReadF90(g, xg, ierr); call CHKERR(ierr)
+      call VecRestoreArrayReadF90(plck, xplck, ierr); call CHKERR(ierr)
       call VecRestoreArrayReadF90(plex%geomVec, xgeoms, ierr); call CHKERR(ierr)
 
       if (lsolar) then
