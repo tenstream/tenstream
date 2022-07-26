@@ -5,6 +5,7 @@ set( files
   "fu_ice.F90"
   "rayleigh.F90"
   "repwvl_base.F90"
+  "repwvl_optprop.F90"
   "repwvl_pprts.F90"
   "repwvl_plexrt.F90"
   )

@@ -32,13 +32,9 @@ module m_repwvl_pprts
     & toStr
 
   use m_data_parameters, only: &
-    & init_mpi_data_parameters, &
     & iintegers, ireals, mpiint, &
     & zero, one, default_str_len, &
-    & i0, i1, &
-    & AVOGADRO, &
-    & EARTHACCEL, &
-    & MOLMASSAIR
+    & i1
 
   use m_tenstream_options, only: read_commandline_options
 
@@ -53,20 +49,18 @@ module m_repwvl_pprts
 
   use m_dyn_atm_to_rrtmg, only: &
     & planck, &
-    & plkint, &
     & print_tenstr_atm, &
-    & t_tenstr_atm, &
-    & vert_integral_coeff
+    & t_tenstr_atm
 
   use m_buildings, only: &
     & clone_buildings, &
     & destroy_buildings, &
     & t_pprts_buildings
 
-  use m_repwvl_base, only: repwvl_init, t_repwvl_data, repwvl_optprop, repwvl_log_events, check_fu_table_consistency
-  use m_mie_tables, only: mie_tables_init, t_mie_table, mie_optprop, destroy_mie_table
-  use m_fu_ice, only: fu_ice_init, fu_ice_optprop, fu_ice_data_solar, fu_ice_data_thermal
-  use m_rayleigh, only: rayleigh
+  use m_repwvl_base, only: repwvl_init, t_repwvl_data, repwvl_log_events
+  use m_repwvl_optprop, only: repwvl_optprop, check_fu_table_consistency
+  use m_mie_tables, only: mie_tables_init, t_mie_table, destroy_mie_table
+  use m_fu_ice, only: fu_ice_init
 
   use m_pprts_rrtmg, only: smooth_surface_fluxes, slope_correction_fluxes
 

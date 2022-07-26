@@ -24,41 +24,31 @@ module m_repwvl_plexrt
   use petsc
 
   use m_data_parameters, only: &
-    & init_mpi_data_parameters, &
     & iintegers, ireals, mpiint, &
-    & zero, one, default_str_len, &
-    & i0, i1, &
-    & AVOGADRO, &
-    & EARTHACCEL, &
-    & MOLMASSAIR
+    & zero, one, default_str_len
 
   use m_helper_functions, only: &
     & CHKERR, &
     & get_arg, &
     & get_petsc_opt, &
     & is_inrange, &
-    & mpi_logical_all_same, &
-    & reverse, &
     & toStr
 
   use m_tenstream_options, only: read_commandline_options
 
   use m_dyn_atm_to_rrtmg, only: &
     & planck, &
-    & plkint, &
     & print_tenstr_atm, &
-    & t_tenstr_atm, &
-    & vert_integral_coeff
+    & t_tenstr_atm
 
-  use m_repwvl_base, only: repwvl_init, t_repwvl_data, repwvl_optprop, repwvl_log_events, check_fu_table_consistency
-  use m_mie_tables, only: mie_tables_init, t_mie_table, mie_optprop, destroy_mie_table
-  use m_fu_ice, only: fu_ice_init, fu_ice_optprop, fu_ice_data_solar, fu_ice_data_thermal
-  use m_rayleigh, only: rayleigh
+  use m_repwvl_base, only: repwvl_init, t_repwvl_data, repwvl_log_events
+  use m_repwvl_optprop, only: repwvl_optprop, check_fu_table_consistency
+  use m_mie_tables, only: mie_tables_init, t_mie_table, destroy_mie_table
+  use m_fu_ice, only: fu_ice_init
 
   use m_plex_grid, only: TOAFACE
   use m_plex_rt_base, only: t_plex_solver
-  use m_plex_rt, only: run_plex_rt_solver, &
-                       destroy_plexrt_solver, plexrt_get_result
+  use m_plex_rt, only: run_plex_rt_solver, destroy_plexrt_solver, plexrt_get_result
 
   use m_icon_plex_utils, only: Nz_Ncol_vec_to_celldm1, Nz_Ncol_vec_to_horizface1_dm
 
