@@ -816,13 +816,13 @@ contains
     type(t_state_container), allocatable :: solutions(:)
     integer(iintegers), optional, intent(in) :: opt_solution_uid
     integer(iintegers) :: uid
-    logical :: lflg
+    logical :: lflg1, lflg2
     integer(mpiint) :: ierr
 
     uid = get_arg(0_iintegers, opt_solution_uid)
-    call get_petsc_opt('', '-override_solution_uid', uid, lflg, ierr); call CHKERR(ierr)
-    call get_petsc_opt('', '-pprts_override_solution_uid', uid, lflg, ierr); call CHKERR(ierr)
-    if (lflg) then
+    call get_petsc_opt('', '-override_solution_uid', uid, lflg1, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', '-pprts_override_solution_uid', uid, lflg2, ierr); call CHKERR(ierr)
+    if (lflg1 .or. lflg2) then
       print *, 'Override solutions uid, returning '//toStr(uid)//' instead of '//toStr(get_arg(0_iintegers, opt_solution_uid))
     end if
 
