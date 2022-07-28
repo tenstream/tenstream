@@ -927,9 +927,9 @@ contains
         end do
       end if
       call imp_min_mean_max(comm, edir, mmm_edir)
-      call imp_min_mean_max(comm, edir, mmm_edn)
-      call imp_min_mean_max(comm, edir, mmm_eup)
-      call imp_min_mean_max(comm, edir, mmm_abso)
+      call imp_min_mean_max(comm, edn, mmm_edn)
+      call imp_min_mean_max(comm, eup, mmm_eup)
+      call imp_min_mean_max(comm, abso, mmm_abso)
       if (myid .eq. 0) then
         print *, 'Min/Mean/Max edir', mmm_edir
         print *, 'Min/Mean/Max edn ', mmm_edn
@@ -964,9 +964,9 @@ contains
           print *, 'eup @ srfc ( perturbation='//toStr(ipert)//')', sum(eup(ubound(eup, 1), :, ipert, :), dim=2)
         end do
       end if
-      call imp_min_mean_max(comm, edir, mmm_edn)
-      call imp_min_mean_max(comm, edir, mmm_eup)
-      call imp_min_mean_max(comm, edir, mmm_abso)
+      call imp_min_mean_max(comm, edn, mmm_edn)
+      call imp_min_mean_max(comm, eup, mmm_eup)
+      call imp_min_mean_max(comm, abso, mmm_abso)
       if (myid .eq. 0) then
         print *, 'Min/Mean/Max edn ', mmm_edn
         print *, 'Min/Mean/Max eup ', mmm_eup
