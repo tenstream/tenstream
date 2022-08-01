@@ -373,7 +373,7 @@ contains
     end do
     ierr = iwait
     if (lblocking) then
-      call CHKERR(1_mpiint, 'Couldnt lock file '//fname// &
+      call CHKERR(1_mpiint, 'Couldnt lock file '//trim(fname)// &
                   ' .. waited now for quite a while but we couldnt open the lock: '//lockfile)
     end if
   end subroutine
@@ -428,7 +428,7 @@ contains
 
     ncerr = nf90_open(trim(fname), nf90_nowrite, ncid)
     call nccheck(ncerr); ierr = ierr + ncerr
-    call CHKWARN(ierr, "Could not open File "//fname)
+    call CHKWARN(ierr, "Could not open File "//trim(fname))
 
     do k = 1, int(N)
       ncerr = nf90_inq_attname(ncid, varid=nf90_global, attnum=k, name=attNames(k))
@@ -459,12 +459,12 @@ contains
 
     ncerr = nf90_open(trim(fname), nf90_nowrite, ncid)
     call nccheck(ncerr); ierr = ierr + ncerr
-    call CHKWARN(ierr, "Could not open File "//fname)
+    call CHKWARN(ierr, "Could not open File "//trim(fname))
     ncerr = nf90_inquire(ncid, nAttributes=nattrs)
     call nccheck(ncerr); ierr = ierr + ncerr
     nattributes = nattrs
     ncerr = nf90_close(ncid); call nccheck(ncerr); ierr = ierr + ncerr
-    call CHKWARN(ierr, "Could not determine number of global attributes "//fname)
+    call CHKWARN(ierr, "Could not determine number of global attributes "//trim(fname))
   end subroutine
 
   #:for method,dtype,nctype in [   &
