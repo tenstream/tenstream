@@ -923,10 +923,10 @@ contains
           C%neighbors(5), &
           'while I am ', C%neighbors(4)
       end if
-      if (C%glob_xm .lt. i3) call CHKERR(1_mpiint, 'Global domain is too small in x-direction (Nx='//toStr(C%glob_xm)// &
-                                         '). However, need at least 3 because of horizontal ghost cells')
-      if (C%glob_ym .lt. i3) call CHKERR(1_mpiint, 'Global domain is too small in y-direction (Ny='//toStr(C%glob_ym)// &
-                                         '). However, need at least 3 because of horizontal ghost cells')
+      if (C%glob_xm .lt. i2) call CHKWARN(1_mpiint, 'Global domain is too small in x-direction (Nx='//toStr(C%glob_xm)// &
+                                          '). Iterative solvers may not converge. You may want to stick to 1D solvers anyway.')
+      if (C%glob_ym .lt. i2) call CHKWARN(1_mpiint, 'Global domain is too small in y-direction (Ny='//toStr(C%glob_ym)// &
+                                          '). Iterative solvers may not converge. You may want to stick to 1D solvers anyway.')
 
       if (C%xm .lt. i1) call CHKERR(1_mpiint, 'Local domain is too small in x-direction (Nx='//toStr(C%xm)// &
                                     '). However, need at least 1')
