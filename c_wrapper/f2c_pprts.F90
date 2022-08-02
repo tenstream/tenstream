@@ -49,6 +49,8 @@ module m_f2c_pprts
     & t_coord, &
     & t_solver, &
     & t_solver_2str, &
+    & t_solver_disort, &
+    & t_solver_rayli, &
     & t_solver_1_2, &
     & t_solver_3_10, &
     & t_solver_3_16, &
@@ -228,6 +230,12 @@ contains
     select case (solver_id)
     case (SOLVER_ID_PPRTS_2STR)
       allocate (t_solver_2str :: pprts_solver); ierr = 0
+      call init_pprts(comm, oNz, oNx, oNy, odx, ody, osundir, pprts_solver, dz1d=odz)
+    case (SOLVER_ID_PPRTS_DISORT)
+      allocate (t_solver_disort :: pprts_solver); ierr = 0
+      call init_pprts(comm, oNz, oNx, oNy, odx, ody, osundir, pprts_solver, dz1d=odz)
+    case (SOLVER_ID_PPRTS_RAYLI)
+      allocate (t_solver_rayli :: pprts_solver); ierr = 0
       call init_pprts(comm, oNz, oNx, oNy, odx, ody, osundir, pprts_solver, dz1d=odz)
     case (SOLVER_ID_PPRTS_1_2)
       allocate (t_solver_1_2 :: pprts_solver); ierr = 0
