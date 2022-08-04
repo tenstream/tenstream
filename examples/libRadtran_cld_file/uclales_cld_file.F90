@@ -159,7 +159,7 @@ contains
     ierr = 0
   end subroutine
 
-  subroutine run_rrtmg_lw_sw(&
+  subroutine run_lw_sw(&
       & specint, &
       & comm, &
       & pprts_solver, &
@@ -342,7 +342,7 @@ contains
       if (myid .eq. 0) print *, 'Computing timestep', it, '(time='//toStr(time(it))
       call load_timestep_data(comm, cldfile, it, plev, tlev, qv, ql, reliq, ierr); call CHKERR(ierr)
 
-      call run_rrtmg_lw_sw(&
+      call run_lw_sw(&
         & specint, &
         & comm, &
         & pprts_solver, &
