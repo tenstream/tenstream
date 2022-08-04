@@ -111,7 +111,7 @@ contains
 
       lcomplete_initial_run = .false.
       call get_petsc_opt(prefix, "-ksp_complete_initial_run", lcomplete_initial_run, lflg, ierr); call CHKERR(ierr)
-      if (lcomplete_initial_run .and. solution%dir_ksp_residual_history(1) .le. 0) then
+      if (lcomplete_initial_run .and. solution%dir_ksp_residual_history(1) .lt. 0) then
         maxiter = default_max_it + 2
         lskip_residual = .false.
       end if
@@ -474,7 +474,7 @@ contains
 
       lcomplete_initial_run = .false.
       call get_petsc_opt(prefix, "-ksp_complete_initial_run", lcomplete_initial_run, lflg, ierr); call CHKERR(ierr)
-      if (lcomplete_initial_run .and. solution%diff_ksp_residual_history(1) .le. 0) then
+      if (lcomplete_initial_run .and. solution%diff_ksp_residual_history(1) .lt. 0) then
         maxiter = default_max_it + 2
         lskip_residual = .false.
       end if
