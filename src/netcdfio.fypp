@@ -348,8 +348,6 @@ contains
           if (ldebug .or. get_arg(.false., lverbose)) print *, 'reading from file: ', trim(fname)
           if (ldebug .or. get_arg(.false., lverbose)) print *, 'variable: ', trim(varname), ' :: Ndims', size(shape(arr))
 
-
-
           ncerr = nf90_open(trim(fname), NF90_NOWRITE, ncid); call nccheck(ncerr); ierr = ierr + ncerr
           if (ncerr .ne. NF90_NOERR) goto 100
           ncerr = nf90_inq_varid(ncid, trim(varname), varid); call nccheck(ncerr); ierr = ierr + ncerr
@@ -358,7 +356,6 @@ contains
           var_exists = ncerr .eq. NF90_NOERR
           if (ldebug .or. get_arg(.false., lverbose)) &
             & print *, 'Reading NetCDF :: varname: ', trim(varname), ' :: exists?', var_exists
-
 
           bytesize = c_sizeof(bytesize_dummy)
           if (var_exists) then ! How big are the data dimensions?
@@ -379,7 +376,6 @@ contains
           if (ldebug .or. get_arg(.false., lverbose)) &
             print *, 'Dimension of variable: '//trim(varname), dimsize, '( '//toStr(real(bytesize) / 1024.**3)//' Gb )'
 
-
           #:if modifier == 'allocatable'
             if (ierr .eq. 0 .and. .not. allocated(arr)) allocate (arr ${rankallocdims(RANK)}$)
           #:elif modifier == 'pointer'
@@ -390,7 +386,7 @@ contains
             & start=ostart, count=ocount, stride=ostride, map=omap)
           call nccheck(ncerr); ierr = ierr + ncerr
 
-          100 continue
+100       continue
           ncerr = nf90_close(ncid); call nccheck(ncerr); ierr = ierr + ncerr
           if (ldebug) print *, 'Reading Netcdf file returned with ierr: ', ierr
           call release_file_lock(flock_unit, ncerr); call CHKERR(ncerr, 'Could not release file lock')
