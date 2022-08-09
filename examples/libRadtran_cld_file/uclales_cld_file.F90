@@ -27,6 +27,7 @@ module m_example_uclales_cld_file
   use m_helper_functions, only: &
     & CHKERR, &
     & domain_decompose_2d_petsc, &
+    & deg2rad, &
     & get_petsc_opt, &
     & imp_bcast, &
     & resize_arr, &
@@ -206,6 +207,9 @@ contains
 
     logical, parameter :: ldebug = .true.
 
+    real(ireals) :: timeofday, tod_offset, tod_theta, tod_phi
+    logical :: lflg
+
     call mpi_comm_rank(comm, myid, ierr)
 
     if (myid .eq. 0 .and. ldebug) print *, 'Setup Atmosphere...'
@@ -217,6 +221,19 @@ contains
     preliq(1:size(reliq, 1), 1:size(reliq, 2) * size(reliq, 3)) => reliq
 
     sundir = spherical_2_cartesian(phi0, theta0)
+
+    tod_offset = 0
+    call get_petsc_opt(PETSC_NULL_CHARACTER, "-tod_offset", tod_offset, lflg, ierr); call CHKERR(ierr)
+
+    if (lflg) then
+      timeofday = modulo(time / 86400._ireals + tod_offset, 1._ireals)
+      tod_phi = modulo(timeofday * 360._ireals, 360._ireals)
+      tod_theta = 1._ireals - max(0._ireals, sin(deg2rad(timeofday * 360._ireals - 90))) ! range [0,1]
+      sundir = spherical_2_cartesian(tod_phi, tod_theta * 90)
+      print *, k, timeofday, 'new phi0', tod_phi
+      print *, k, timeofday, 'new theta0', tod_theta * 90
+      print *, k, timeofday, 'new sundir', sundir
+    end if
 
     call setup_tenstr_atm(comm, .false., atm_filename, &
                           pplev, ptlev, atm, &
