@@ -252,8 +252,9 @@ contains
     end subroutine
   end subroutine
 
-  subroutine perturb_atmospheres(comm, Npert_atmo, atm, ierr, lverbose, ldryrun)
+  subroutine perturb_atmospheres(comm, lperturb, Npert_atmo, atm, ierr, lverbose, ldryrun)
     integer(mpiint), intent(in) :: comm
+    logical, intent(in) :: lperturb
     integer(iintegers), intent(inout) :: Npert_atmo
     type(t_tenstr_atm), target, intent(inout) :: atm
     integer(mpiint), intent(out) :: ierr
@@ -311,92 +312,94 @@ contains
       if (allocated(atm%tskin)) call resize_arr(Nx * Npert_atmo, atm%tskin, lrepeat=.true.)
     end if
 
-    do h2o = 1, size(H2O_pert)
-      do co2 = 1, size(CO2_pert)
-        do o3 = 1, size(O3_pert)
-          do ch4 = 1, size(CH4_pert)
+    if (lperturb) then
+      do h2o = 1, size(H2O_pert)
+        do co2 = 1, size(CO2_pert)
+          do o3 = 1, size(O3_pert)
+            do ch4 = 1, size(CH4_pert)
 
-            ipert = ipert + 1
-            if (run) call do_gas_pert(ipert, h2o, co2, o3, ch4)
-
-            do icld = 0, -1 ! ipert from 8 to 8 + 4*3 -1 = 19
-              ! water cloud perturbations
               ipert = ipert + 1
-              if (run) then
-                call random_number(rnddp)
-                rnddp = rnddp * 100
+              if (run) call do_gas_pert(ipert, h2o, co2, o3, ch4)
 
-                call do_gas_pert(ipert, h2o, co2, o3, ch4)
-                kmin = int(find_real_location(atm%plev(:, 1), 850._ireals + real(icld, ireals) * 50._ireals - rnddp), iintegers)
-                kmax = int(find_real_location(atm%plev(:, 1), 800._ireals + real(icld, ireals) * 50._ireals - rnddp), iintegers)
-                print *, 'kmin/max', kmin, kmax, rnddp, 850._ireals + real(icld, ireals) * 50._ireals - rnddp
-                allocate (rnd(kmin:kmax, Nx))
-                call random_number(rnd)
-                rnd = rnd*.1
-                ptr(1:ke, 1:Nx, 1:Ny) => atm%lwc; ptr(kmin:kmax, :, ipert) = rnd
-                ptr(1:ke, 1:Nx, 1:Ny) => atm%reliq; ptr(kmin:kmax, :, ipert) = 10
-                deallocate (rnd)
-              end if
+              do icld = 0, -1 ! ipert from 8 to 8 + 4*3 -1 = 19
+                ! water cloud perturbations
+                ipert = ipert + 1
+                if (run) then
+                  call random_number(rnddp)
+                  rnddp = rnddp * 100
 
-              ! ice cloud perturbations
-              ipert = ipert + 1
-              if (run) then
-                call random_number(rnddp)
-                rnddp = rnddp * 100
+                  call do_gas_pert(ipert, h2o, co2, o3, ch4)
+                  kmin = int(find_real_location(atm%plev(:, 1), 850._ireals + real(icld, ireals) * 50._ireals - rnddp), iintegers)
+                  kmax = int(find_real_location(atm%plev(:, 1), 800._ireals + real(icld, ireals) * 50._ireals - rnddp), iintegers)
+                  print *, 'kmin/max', kmin, kmax, rnddp, 850._ireals + real(icld, ireals) * 50._ireals - rnddp
+                  allocate (rnd(kmin:kmax, Nx))
+                  call random_number(rnd)
+                  rnd = rnd*.1
+                  ptr(1:ke, 1:Nx, 1:Ny) => atm%lwc; ptr(kmin:kmax, :, ipert) = rnd
+                  ptr(1:ke, 1:Nx, 1:Ny) => atm%reliq; ptr(kmin:kmax, :, ipert) = 10
+                  deallocate (rnd)
+                end if
 
-                call do_gas_pert(ipert, h2o, co2, o3, ch4)
-                kmin = int(find_real_location(atm%plev(:, 1), 300._ireals + real(icld, ireals) * 50._ireals - rnddp), iintegers)
-                kmax = int(find_real_location(atm%plev(:, 1), 200._ireals + real(icld, ireals) * 50._ireals - rnddp), iintegers)
-                allocate (rnd(kmin:kmax, Nx))
-                call random_number(rnd)
-                rnd = rnd*.01
-                ptr(1:ke, 1:Nx, 1:Ny) => atm%iwc; ptr(kmin:kmax, :, ipert) = rnd
-                ptr(1:ke, 1:Nx, 1:Ny) => atm%reice; ptr(kmin:kmax, :, ipert) = 20
-                deallocate (rnd)
-              end if
+                ! ice cloud perturbations
+                ipert = ipert + 1
+                if (run) then
+                  call random_number(rnddp)
+                  rnddp = rnddp * 100
 
-              ! water + ice cloud perturbations
-              ipert = ipert + 1
-              if (run) then
-                call random_number(rnddp)
-                rnddp = rnddp * 100
+                  call do_gas_pert(ipert, h2o, co2, o3, ch4)
+                  kmin = int(find_real_location(atm%plev(:, 1), 300._ireals + real(icld, ireals) * 50._ireals - rnddp), iintegers)
+                  kmax = int(find_real_location(atm%plev(:, 1), 200._ireals + real(icld, ireals) * 50._ireals - rnddp), iintegers)
+                  allocate (rnd(kmin:kmax, Nx))
+                  call random_number(rnd)
+                  rnd = rnd*.01
+                  ptr(1:ke, 1:Nx, 1:Ny) => atm%iwc; ptr(kmin:kmax, :, ipert) = rnd
+                  ptr(1:ke, 1:Nx, 1:Ny) => atm%reice; ptr(kmin:kmax, :, ipert) = 20
+                  deallocate (rnd)
+                end if
 
-                call do_gas_pert(ipert, h2o, co2, o3, ch4)
-                kmin = int(find_real_location(atm%plev(:, 1), 750._ireals + real(icld, ireals) * 50._ireals - rnddp), iintegers)
-                kmax = int(find_real_location(atm%plev(:, 1), 700._ireals + real(icld, ireals) * 50._ireals - rnddp), iintegers)
-                allocate (rnd(kmin:kmax, Nx))
-                call random_number(rnd)
-                rnd = rnd*.1
-                ptr(1:ke, 1:Nx, 1:Ny) => atm%lwc; ptr(kmin:kmax, :, ipert) = rnd
-                ptr(1:ke, 1:Nx, 1:Ny) => atm%reliq; ptr(kmin:kmax, :, ipert) = 10
-                deallocate (rnd)
+                ! water + ice cloud perturbations
+                ipert = ipert + 1
+                if (run) then
+                  call random_number(rnddp)
+                  rnddp = rnddp * 100
 
-                kmin = int(find_real_location(atm%plev(:, 1), 200._ireals + real(icld, ireals) * 50._ireals - rnddp), iintegers)
-                kmax = int(find_real_location(atm%plev(:, 1), 100._ireals + real(icld, ireals) * 50._ireals - rnddp), iintegers)
-                allocate (rnd(kmin:kmax, Nx))
-                call random_number(rnd)
-                rnd = rnd*.01
-                ptr(1:ke, 1:Nx, 1:Ny) => atm%iwc; ptr(kmin:kmax, :, ipert) = rnd
-                ptr(1:ke, 1:Nx, 1:Ny) => atm%reice; ptr(kmin:kmax, :, ipert) = 20
-                deallocate (rnd)
-              end if
+                  call do_gas_pert(ipert, h2o, co2, o3, ch4)
+                  kmin = int(find_real_location(atm%plev(:, 1), 750._ireals + real(icld, ireals) * 50._ireals - rnddp), iintegers)
+                  kmax = int(find_real_location(atm%plev(:, 1), 700._ireals + real(icld, ireals) * 50._ireals - rnddp), iintegers)
+                  allocate (rnd(kmin:kmax, Nx))
+                  call random_number(rnd)
+                  rnd = rnd*.1
+                  ptr(1:ke, 1:Nx, 1:Ny) => atm%lwc; ptr(kmin:kmax, :, ipert) = rnd
+                  ptr(1:ke, 1:Nx, 1:Ny) => atm%reliq; ptr(kmin:kmax, :, ipert) = 10
+                  deallocate (rnd)
+
+                  kmin = int(find_real_location(atm%plev(:, 1), 200._ireals + real(icld, ireals) * 50._ireals - rnddp), iintegers)
+                  kmax = int(find_real_location(atm%plev(:, 1), 100._ireals + real(icld, ireals) * 50._ireals - rnddp), iintegers)
+                  allocate (rnd(kmin:kmax, Nx))
+                  call random_number(rnd)
+                  rnd = rnd*.01
+                  ptr(1:ke, 1:Nx, 1:Ny) => atm%iwc; ptr(kmin:kmax, :, ipert) = rnd
+                  ptr(1:ke, 1:Nx, 1:Ny) => atm%reice; ptr(kmin:kmax, :, ipert) = 20
+                  deallocate (rnd)
+                end if
+              end do
             end do
           end do
         end do
       end do
-    end do
 
-    ! Random H2O perturbations
-    ipert = ipert + 1
+      ! Random H2O perturbations
+      ipert = ipert + 1
 
-    if (run) then
-      allocate (rnd(1:ke, 1:Nx))
-      call random_number(rnd)
-      ptr(1:ke, 1:Nx, 1:Ny) => atm%h2o_lay; ptr(:, :, ipert) = ptr(:, :, ipert) * (rnd * 5)
-      deallocate (rnd)
+      if (run) then
+        allocate (rnd(1:ke, 1:Nx))
+        call random_number(rnd)
+        ptr(1:ke, 1:Nx, 1:Ny) => atm%h2o_lay; ptr(:, :, ipert) = ptr(:, :, ipert) * (rnd * 5)
+        deallocate (rnd)
 
-      if (myid .eq. 0 .and. get_arg(.false., lverbose)) print *, 'Nr. of atmosphere perturbation entries:', ipert, '/', Npert_atmo
-      call CHKERR(int(ipert - Npert_atmo, mpiint), 'havent used all perturbation slots '//toStr(ipert)//' / '//toStr(Npert_atmo))
+        if (myid .eq. 0 .and. get_arg(.false., lverbose)) print *, 'Nr. of atmosphere perturbation entries:', ipert, '/', Npert_atmo
+        call CHKERR(int(ipert - Npert_atmo, mpiint), 'havent used all perturbation slots '//toStr(ipert)//' / '//toStr(Npert_atmo))
+      end if
     end if
 
     if (.not. run) then
@@ -491,15 +494,19 @@ contains
     call pprts_get_result(solver, edn, eup, abso, edir)
   end subroutine
 
-  subroutine solve_scene(comm, solver, atm, repwvl_data, mie_table, edn, eup, abso, ierr, edir, lverbose)
+  subroutine solve_scene(comm, solver, atm, repwvl_data, mie_table, lspectral_output, &
+      & edn, eup, abso, edn_int, eup_int, abso_int, ierr, edir, edir_int, lverbose)
     integer(mpiint), intent(in) :: comm
     class(t_solver), intent(inout) :: solver
     type(t_tenstr_atm), intent(in) :: atm
     type(t_repwvl_data), intent(in) :: repwvl_data
     type(t_mie_table), intent(in) :: mie_table
+    logical, intent(in) :: lspectral_output
     real(ireals), allocatable, dimension(:, :, :, :), intent(inout) :: edn, eup, abso ! [nlyr(+1), nx, ny, Nwvl ]
+    real(ireals), allocatable, dimension(:, :, :), intent(inout) :: edn_int, eup_int, abso_int ! [nlyr(+1), nx, ny ]
     integer(mpiint), intent(out) :: ierr
     real(ireals), allocatable, dimension(:, :, :, :), intent(inout), optional :: edir
+    real(ireals), allocatable, dimension(:, :, :), intent(inout), optional :: edir_int
     logical, intent(in), optional :: lverbose
 
     real(ireals), allocatable, dimension(:, :, :) :: spec_edir, spec_abso ! [nlyr(+1), nx, ny ]
@@ -515,22 +522,39 @@ contains
 
     call set_angles(solver, sundir=spherical_2_cartesian(0._ireals, 60._ireals))
 
-    ! solar part
-    if (lboundary_flx_only) then
-      if (lsolar) allocate (edir(2, solver%C_dir%xm, solver%C_dir%ym, repwvl_data%Nwvl))
-      allocate (edn(2, solver%C_diff%xm, solver%C_diff%ym, repwvl_data%Nwvl))
-      allocate (eup(2, solver%C_diff%xm, solver%C_diff%ym, repwvl_data%Nwvl))
-    else
-      if (lsolar) allocate (edir(solver%C_dir%zm, solver%C_dir%xm, solver%C_dir%ym, repwvl_data%Nwvl))
-      allocate (edn(solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym, repwvl_data%Nwvl))
-      allocate (eup(solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym, repwvl_data%Nwvl))
-    end if
-    allocate (abso(solver%C_one%zm, solver%C_one%xm, solver%C_one%ym, repwvl_data%Nwvl))
+    if (lspectral_output) then
+      if (lboundary_flx_only) then
+        if (lsolar) allocate (edir(2, solver%C_dir%xm, solver%C_dir%ym, repwvl_data%Nwvl))
+        allocate (edn(2, solver%C_diff%xm, solver%C_diff%ym, repwvl_data%Nwvl))
+        allocate (eup(2, solver%C_diff%xm, solver%C_diff%ym, repwvl_data%Nwvl))
+      else
+        if (lsolar) allocate (edir(solver%C_dir%zm, solver%C_dir%xm, solver%C_dir%ym, repwvl_data%Nwvl))
+        allocate (edn(solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym, repwvl_data%Nwvl))
+        allocate (eup(solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym, repwvl_data%Nwvl))
+      end if
+      allocate (abso(solver%C_one%zm, solver%C_one%xm, solver%C_one%ym, repwvl_data%Nwvl))
 
-    if (lsolar) edir = 0
-    edn = 0
-    eup = 0
-    abso = 0
+      if (lsolar) edir = 0
+      edn = 0
+      eup = 0
+      abso = 0
+    end if
+
+    if (lboundary_flx_only) then
+      if (lsolar) allocate (edir_int(2, solver%C_dir%xm, solver%C_dir%ym))
+      allocate (edn_int(2, solver%C_diff%xm, solver%C_diff%ym))
+      allocate (eup_int(2, solver%C_diff%xm, solver%C_diff%ym))
+    else
+      if (lsolar) allocate (edir_int(solver%C_dir%zm, solver%C_dir%xm, solver%C_dir%ym))
+      allocate (edn_int(solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym))
+      allocate (eup_int(solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym))
+    end if
+    allocate (abso_int(solver%C_one%zm, solver%C_one%xm, solver%C_one%ym))
+
+    if (lsolar) edir_int = 0
+    edn_int = 0
+    eup_int = 0
+    abso_int = 0
 
     do iwvl = 1, size(repwvl_data%wvls)
 
@@ -566,21 +590,39 @@ contains
           & ierr); call CHKERR(ierr)
       end if
 
+      if (lspectral_output) then
+        if (lboundary_flx_only) then
+          if (lsolar) then
+            edir(1, :, :, iwvl) = edir(1, :, :, iwvl) + spec_edir(lbound(spec_edir, 1), :, :) * repwvl_data%wgts(iwvl)
+            edir(2, :, :, iwvl) = edir(2, :, :, iwvl) + spec_edir(ubound(spec_edir, 1), :, :) * repwvl_data%wgts(iwvl)
+          end if
+          edn(1, :, :, iwvl) = edn(1, :, :, iwvl) + spec_edn(lbound(spec_edn, 1), :, :) * repwvl_data%wgts(iwvl)
+          edn(2, :, :, iwvl) = edn(2, :, :, iwvl) + spec_edn(ubound(spec_edn, 1), :, :) * repwvl_data%wgts(iwvl)
+          eup(1, :, :, iwvl) = eup(1, :, :, iwvl) + spec_eup(lbound(spec_eup, 1), :, :) * repwvl_data%wgts(iwvl)
+          eup(2, :, :, iwvl) = eup(2, :, :, iwvl) + spec_eup(ubound(spec_eup, 1), :, :) * repwvl_data%wgts(iwvl)
+        else
+          if (lsolar) edir(:, :, :, iwvl) = edir(:, :, :, iwvl) + spec_edir * repwvl_data%wgts(iwvl)
+          edn(:, :, :, iwvl) = edn(:, :, :, iwvl) + spec_edn * repwvl_data%wgts(iwvl)
+          eup(:, :, :, iwvl) = eup(:, :, :, iwvl) + spec_eup * repwvl_data%wgts(iwvl)
+        end if
+        abso(:, :, :, iwvl) = abso(:, :, :, iwvl) + spec_abso * repwvl_data%wgts(iwvl)
+      end if
+
       if (lboundary_flx_only) then
         if (lsolar) then
-          edir(1, :, :, iwvl) = edir(1, :, :, iwvl) + spec_edir(lbound(spec_edir, 1), :, :) * repwvl_data%wgts(iwvl)
-          edir(2, :, :, iwvl) = edir(2, :, :, iwvl) + spec_edir(ubound(spec_edir, 1), :, :) * repwvl_data%wgts(iwvl)
+          edir_int(1, :, :) = edir_int(1, :, :) + spec_edir(lbound(spec_edir, 1), :, :) * repwvl_data%wgts(iwvl)
+          edir_int(2, :, :) = edir_int(2, :, :) + spec_edir(ubound(spec_edir, 1), :, :) * repwvl_data%wgts(iwvl)
         end if
-        edn(1, :, :, iwvl) = edn(1, :, :, iwvl) + spec_edn(lbound(spec_edn, 1), :, :) * repwvl_data%wgts(iwvl)
-        edn(2, :, :, iwvl) = edn(2, :, :, iwvl) + spec_edn(ubound(spec_edn, 1), :, :) * repwvl_data%wgts(iwvl)
-        eup(1, :, :, iwvl) = eup(1, :, :, iwvl) + spec_eup(lbound(spec_eup, 1), :, :) * repwvl_data%wgts(iwvl)
-        eup(2, :, :, iwvl) = eup(2, :, :, iwvl) + spec_eup(ubound(spec_eup, 1), :, :) * repwvl_data%wgts(iwvl)
+        edn_int(1, :, :) = edn_int(1, :, :) + spec_edn(lbound(spec_edn, 1), :, :) * repwvl_data%wgts(iwvl)
+        edn_int(2, :, :) = edn_int(2, :, :) + spec_edn(ubound(spec_edn, 1), :, :) * repwvl_data%wgts(iwvl)
+        eup_int(1, :, :) = eup_int(1, :, :) + spec_eup(lbound(spec_eup, 1), :, :) * repwvl_data%wgts(iwvl)
+        eup_int(2, :, :) = eup_int(2, :, :) + spec_eup(ubound(spec_eup, 1), :, :) * repwvl_data%wgts(iwvl)
       else
-        if (lsolar) edir(:, :, :, iwvl) = edir(:, :, :, iwvl) + spec_edir * repwvl_data%wgts(iwvl)
-        edn(:, :, :, iwvl) = edn(:, :, :, iwvl) + spec_edn * repwvl_data%wgts(iwvl)
-        eup(:, :, :, iwvl) = eup(:, :, :, iwvl) + spec_eup * repwvl_data%wgts(iwvl)
+        if (lsolar) edir_int(:, :, :) = edir_int(:, :, :) + spec_edir * repwvl_data%wgts(iwvl)
+        edn_int(:, :, :) = edn_int(:, :, :) + spec_edn * repwvl_data%wgts(iwvl)
+        eup_int(:, :, :) = eup_int(:, :, :) + spec_eup * repwvl_data%wgts(iwvl)
       end if
-      abso(:, :, :, iwvl) = abso(:, :, :, iwvl) + spec_abso * repwvl_data%wgts(iwvl)
+      abso_int(:, :, :) = abso_int(:, :, :) + spec_abso * repwvl_data%wgts(iwvl)
 
     end do
   end subroutine
@@ -624,15 +666,18 @@ contains
 
   end subroutine
 
-  subroutine write_output_data_local(comm, solver, out_filename, prefix, rdata, atm, edn, eup, abso, ierr, edir, lverbose)
+  subroutine write_output_data_local(comm, solver, out_filename, prefix, rdata, atm, &
+      & edn, eup, abso, edn_int, eup_int, abso_int, ierr, edir, edir_int, lverbose)
     integer(mpiint), intent(in) :: comm
     class(t_solver), intent(in) :: solver
     character(len=*), intent(in) :: out_filename, prefix
     type(t_repwvl_data), intent(in) :: rdata
     type(t_tenstr_atm), target, intent(in) :: atm
-    real(ireals), dimension(:, :, :, :), intent(in) :: edn, eup, abso ! [nlyr(+1), nx, ny, Nwvl]
+    real(ireals), allocatable, dimension(:, :, :, :), intent(in) :: edn, eup, abso ! [nlyr(+1), nx, ny, Nwvl]
+    real(ireals), allocatable, dimension(:, :, :), intent(in) :: edn_int, eup_int, abso_int ! [nlyr(+1), nx, ny]
     integer(mpiint), intent(out) :: ierr
-    real(ireals), dimension(:, :, :, :), intent(in), optional :: edir
+    real(ireals), allocatable, dimension(:, :, :, :), intent(in), optional :: edir
+    real(ireals), allocatable, dimension(:, :, :), intent(in), optional :: edir_int
     logical, intent(in), optional :: lverbose
 
     real(ireals), pointer, dimension(:, :, :) :: pplev
@@ -681,45 +726,57 @@ contains
     dimnames(2) = trim(prefix)//'nx'
     dimnames(3) = trim(prefix)//'ny'
     dimnames(4) = trim(prefix)//'wvl'
-    groups(2) = trim(prefix)//'edn'
-    call ncwrite(groups, edn, ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
+    if (allocated(edn)) then
+      groups(2) = trim(prefix)//'edn'
+      call ncwrite(groups, edn, ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
+    end if
     groups(2) = trim(prefix)//'edn_int'
-    call ncwrite(groups, sum(edn, dim=4), ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
+    call ncwrite(groups, edn_int, ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
 
-    groups(2) = trim(prefix)//'eup'
-    call ncwrite(groups, eup, ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
+    if (allocated(eup)) then
+      groups(2) = trim(prefix)//'eup'
+      call ncwrite(groups, eup, ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
+    end if
     groups(2) = trim(prefix)//'eup_int'
-    call ncwrite(groups, sum(eup, dim=4), ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
+    call ncwrite(groups, eup_int, ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
 
     if (present(edir)) then
-      groups(2) = trim(prefix)//'edir'
-      call ncwrite(groups, edir, ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
+      if (allocated(edir)) then
+        groups(2) = trim(prefix)//'edir'
+        call ncwrite(groups, edir, ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
+      end if
       groups(2) = trim(prefix)//'edir_int'
-      call ncwrite(groups, sum(edir, dim=4), ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
+      call ncwrite(groups, edir_int, ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
     end if
 
     dimnames(1) = trim(prefix)//'nlay'
-    groups(2) = trim(prefix)//'abso'
-    call ncwrite(groups, abso, ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
+    if (allocated(abso)) then
+      groups(2) = trim(prefix)//'abso'
+      call ncwrite(groups, abso, ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
+    end if
     groups(2) = trim(prefix)//'abso_int'
-    call ncwrite(groups, sum(abso, dim=4), ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
+    call ncwrite(groups, abso_int, ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
 
   end subroutine
 
-  subroutine write_output_data_global(comm, solver, out_filename, prefix, rdata, atm, edn, eup, abso, ierr, edir, lverbose)
+  subroutine write_output_data_global(comm, solver, out_filename, prefix, rdata, atm, &
+      & edn, eup, abso, edn_int, eup_int, abso_int, ierr, edir, edir_int, lverbose)
     integer(mpiint), intent(in) :: comm
     class(t_solver), intent(in) :: solver
     character(len=*), intent(in) :: out_filename, prefix
     type(t_repwvl_data), intent(in) :: rdata
     type(t_tenstr_atm), target, intent(in) :: atm
-    real(ireals), dimension(:, :, :, :), intent(in) :: edn, eup, abso ! [nlyr(+1), nx, ny, Nwvl]
+    real(ireals), allocatable, dimension(:, :, :, :), intent(in) :: edn, eup, abso ! [nlyr(+1), nx, ny, Nwvl]
+    real(ireals), allocatable, dimension(:, :, :), intent(in) :: edn_int, eup_int, abso_int ! [nlyr(+1), nx, ny, Nwvl]
     integer(mpiint), intent(out) :: ierr
-    real(ireals), dimension(:, :, :, :), intent(in), optional :: edir
+    real(ireals), allocatable, dimension(:, :, :, :), intent(in), optional :: edir
+    real(ireals), allocatable, dimension(:, :, :), intent(in), optional :: edir_int
     logical, intent(in), optional :: lverbose
 
     real(ireals), pointer, dimension(:, :, :) :: pplev
     character(len=default_str_len) :: groups(2), dimnames(4)
     real(ireals), allocatable, dimension(:, :, :, :) :: gflx ! global domain [nlyr(+1), nx, ny, Nwvl]
+    real(ireals), allocatable, dimension(:, :, :) :: gflx_int ! global domain [nlyr(+1), nx, ny]
     real(ireals), allocatable, dimension(:, :, :) :: pglobal ! global domain [nlyr(+1), nx, ny]
 
     integer(mpiint) :: myid
@@ -751,56 +808,116 @@ contains
     dimnames(3) = trim(prefix)//'ny'
     dimnames(4) = trim(prefix)//'wvl'
 
-    if (lboundary_flx_only) then
-      call local2global_bounds_only(solver%Csrfc_one, edn, gflx)
-    else
-      call local2global(solver%C_one_atm1, edn, gflx)
-    end if
-    if (myid .eq. 0) then
-      groups(2) = trim(prefix)//'edn'
-      call ncwrite(groups, gflx, ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
-
-      groups(2) = trim(prefix)//'edn_int'
-      call ncwrite(groups, sum(gflx, dim=4), ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
-    end if
-    if (allocated(gflx)) deallocate (gflx)
-
-    if (lboundary_flx_only) then
-      call local2global_bounds_only(solver%Csrfc_one, eup, gflx)
-    else
-      call local2global(solver%C_one_atm1, eup, gflx)
-    end if
-    if (myid .eq. 0) then
-      groups(2) = trim(prefix)//'eup'
-      call ncwrite(groups, gflx, ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
-
-      groups(2) = trim(prefix)//'eup_int'
-      call ncwrite(groups, sum(gflx, dim=4), ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
-    end if
-    if (allocated(gflx)) deallocate (gflx)
-
-    if (present(edir)) then
+    ! Edn
+    if (allocated(edn)) then
       if (lboundary_flx_only) then
-        call local2global_bounds_only(solver%Csrfc_one, edir, gflx)
+        call local2global_bounds_only(solver%Csrfc_one, edn, gflx)
       else
-        call local2global(solver%C_one_atm1, edir, gflx)
+        call local2global(solver%C_one_atm1, edn, gflx)
       end if
       if (myid .eq. 0) then
-        groups(2) = trim(prefix)//'edir'
+        groups(2) = trim(prefix)//'edn'
         call ncwrite(groups, gflx, ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
-        groups(2) = trim(prefix)//'edir_int'
+      end if
+      if (allocated(gflx)) deallocate (gflx)
+    end if
+
+    ! Edn_int
+    if (allocated(edn_int)) then
+      if (lboundary_flx_only) then
+        call local2global_bounds_only_int(solver%Csrfc_one, edn_int, gflx_int)
+      else
+        call local2global_int(solver%C_one_atm1, edn_int, gflx_int)
+      end if
+      if (myid .eq. 0) then
+        groups(2) = trim(prefix)//'edn_int'
+        call ncwrite(groups, gflx_int, ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
+      end if
+      if (allocated(gflx_int)) deallocate (gflx_int)
+    end if
+
+    ! Eup
+    if (allocated(eup)) then
+      if (lboundary_flx_only) then
+        call local2global_bounds_only(solver%Csrfc_one, eup, gflx)
+      else
+        call local2global(solver%C_one_atm1, eup, gflx)
+      end if
+      if (myid .eq. 0) then
+        groups(2) = trim(prefix)//'eup'
+        call ncwrite(groups, gflx, ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
+      end if
+      if (allocated(gflx)) deallocate (gflx)
+    end if
+
+    ! Eup_int
+    if (allocated(eup_int)) then
+      if (lboundary_flx_only) then
+        call local2global_bounds_only_int(solver%Csrfc_one, eup_int, gflx_int)
+      else
+        call local2global_int(solver%C_one_atm1, eup_int, gflx_int)
+      end if
+      if (myid .eq. 0) then
+        groups(2) = trim(prefix)//'eup_int'
+        call ncwrite(groups, gflx_int, ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
+      end if
+      if (allocated(gflx_int)) deallocate (gflx_int)
+    end if
+
+    ! Edir
+    if (present(edir)) then
+      if (allocated(edir)) then
+        if (lboundary_flx_only) then
+          call local2global_bounds_only(solver%Csrfc_one, edir, gflx)
+        else
+          call local2global(solver%C_one_atm1, edir, gflx)
+        end if
+        if (myid .eq. 0) then
+          groups(2) = trim(prefix)//'edir'
+          call ncwrite(groups, gflx, ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
+        end if
+        if (allocated(gflx)) deallocate (gflx)
+      end if
+    end if
+
+    ! Edir_int
+    if (present(edir_int)) then
+      if (allocated(edir_int)) then
+        if (lboundary_flx_only) then
+          call local2global_bounds_only_int(solver%Csrfc_one, edir_int, gflx_int)
+        else
+          call local2global_int(solver%C_one_atm1, edir_int, gflx_int)
+        end if
+        if (myid .eq. 0) then
+          groups(2) = trim(prefix)//'edir_int'
+          call ncwrite(groups, gflx_int, ierr, dimnames=dimnames(1:3), deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
+        end if
+        if (allocated(gflx_int)) deallocate (gflx_int)
+      end if
+    end if
+
+    ! Abso
+    dimnames(1) = trim(prefix)//'nlay'
+    if (allocated(abso)) then
+      call local2global(solver%C_one_atm, abso, gflx)
+      if (myid .eq. 0) then
+        groups(2) = trim(prefix)//'abso'
+        call ncwrite(groups, gflx, ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
+        groups(2) = trim(prefix)//'abso_int'
         call ncwrite(groups, sum(gflx, dim=4), ierr, dimnames=dimnames(1:3), deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
       end if
       if (allocated(gflx)) deallocate (gflx)
     end if
 
+    ! Abso_int
     dimnames(1) = trim(prefix)//'nlay'
-    call local2global(solver%C_one_atm, abso, gflx)
-    if (myid .eq. 0) then
-      groups(2) = trim(prefix)//'abso'
-      call ncwrite(groups, gflx, ierr, dimnames=dimnames, deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
-      groups(2) = trim(prefix)//'abso_int'
-      call ncwrite(groups, sum(gflx, dim=4), ierr, dimnames=dimnames(1:3), deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
+    if (allocated(abso_int)) then
+      call local2global_int(solver%C_one_atm, abso_int, gflx_int)
+      if (myid .eq. 0) then
+        groups(2) = trim(prefix)//'abso_int'
+        call ncwrite(groups, gflx_int, ierr, dimnames=dimnames(1:3), deflate_lvl=0, verbose=lverbose); call CHKERR(ierr)
+      end if
+      if (allocated(gflx_int)) deallocate (gflx_int)
     end if
   contains
 
@@ -834,6 +951,30 @@ contains
         if (myid .eq. 0) gflx(:, :, :, iwvl) = tmp
       end do
     end subroutine
+
+    subroutine local2global_bounds_only_int(C, local, gflx)
+      type(t_coord), intent(in) :: C
+      real(ireals), intent(in) :: local(:, :, :)
+      real(ireals), allocatable, intent(out) :: gflx(:, :, :) ! global array on rank0
+      real(ireals), allocatable :: tmp(:, :, :) ! global array on rank0
+      integer(iintegers) :: k
+      if (myid .eq. 0) then
+        allocate (gflx(size(local, dim=1), C%glob_xm, C%glob_ym))
+      end if
+      do k = 1, 2
+        call gather_all_toZero(C, local(k:k, :, :), tmp)
+        if (myid .eq. 0) gflx(k:k, :, :) = tmp
+      end do
+    end subroutine
+    subroutine local2global_int(C, local, gflx)
+      type(t_coord), intent(in) :: C
+      real(ireals), intent(in) :: local(:, :, :)
+      real(ireals), allocatable, intent(out) :: gflx(:, :, :) ! global array on rank0
+      if (myid .eq. 0) then
+        allocate (gflx(C%glob_zm, C%glob_xm, C%glob_ym))
+      end if
+      call gather_all_toZero(C, local, gflx)
+    end subroutine
   end subroutine
 
   subroutine compute_repwvl_training_data(&
@@ -845,16 +986,21 @@ contains
       & edn,             &
       & eup,             &
       & abso,            &
+      & edn_int,         &
+      & eup_int,         &
+      & abso_int,        &
       & ierr,            &
       & lverbose,        &
-      & edir)
+      & edir, edir_int)
     integer(mpiint), intent(in) :: comm
     character(len=*), intent(in) :: bg_atm_filename, atm_filename, out_filename
     logical, intent(in) :: lsolar
     real(ireals), allocatable, dimension(:, :, :, :), intent(inout) :: edn, eup, abso ! [nlyr(+1), nx, ny, Nwvl]
+    real(ireals), allocatable, dimension(:, :, :), intent(inout) :: edn_int, eup_int, abso_int ! [nlyr(+1), nx, ny]
     integer(mpiint), intent(out) :: ierr
     logical, intent(in), optional :: lverbose
     real(ireals), allocatable, dimension(:, :, :, :), intent(inout), optional :: edir
+    real(ireals), allocatable, dimension(:, :, :), intent(inout), optional :: edir_int
 
     type(t_tenstr_atm) :: atm
     class(t_solver), allocatable :: solver
@@ -869,18 +1015,20 @@ contains
     type(t_mie_table), allocatable :: mie_table
 
     real(ireals) :: mmm_edir(3), mmm_edn(3), mmm_eup(3), mmm_abso(3)
-    logical :: lglobal_output, lflg
+    logical :: lglobal_output, lspectral_output, lflg
+    logical, parameter :: lperturb = .false.
 
     ierr = 0
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
-    call perturb_atmospheres(comm, Npert_atmo, atm, ierr, lverbose, ldryrun=.true.); call CHKERR(ierr)
+    call perturb_atmospheres(comm, lperturb, Npert_atmo, atm, ierr, lverbose, ldryrun=.true.); call CHKERR(ierr)
     if (myid .eq. 0 .and. lverbose) print *, 'Number of perturbations', Npert_atmo
 
     call load_atmospheres(comm, bg_atm_filename, atm_filename, atm, Nx, Ny, nxproc, nyproc, ierr, lverbose); call CHKERR(ierr)
     Ny = Npert_atmo
+
     nyproc(:) = Ny
-    call perturb_atmospheres(comm, Ny, atm, ierr, lverbose)
+    call perturb_atmospheres(comm, lperturb, Ny, atm, ierr, lverbose)
 
     call allocate_pprts_solver_from_commandline(solver, '2str', ierr); call CHKERR(ierr)
 
@@ -891,6 +1039,9 @@ contains
     call fu_ice_init(comm, ierr, lverbose=.false.); call CHKERR(ierr)
 
     call init_solver(comm, atm, Nx, Ny, nxproc, nyproc, solver, ierr)
+
+    lspectral_output = .true.
+    call get_petsc_opt('', '-spectral_output', lspectral_output, lflg, ierr); call CHKERR(ierr)
 
     lglobal_output = .true.
     call get_petsc_opt('', '-globalIO', lglobal_output, lflg, ierr); call CHKERR(ierr)
@@ -905,38 +1056,46 @@ contains
         & atm, &
         & repwvl_data_solar, &
         & mie_table, &
+        & lspectral_output, &
         & edn, &
         & eup, &
         & abso, &
+        & edn_int, &
+        & eup_int, &
+        & abso_int, &
         & ierr, &
         & edir, &
+        & edir_int, &
         & lverbose=lverbose); call CHKERR(ierr)
 
       if (lglobal_output) then
         call write_output_data_global(comm, solver, out_filename, 'solar_', repwvl_data_solar, &
-          & atm, edn, eup, abso, ierr, edir, lverbose); call CHKERR(ierr)
+          & atm, edn, eup, abso, edn_int, eup_int, abso_int, ierr, edir, edir_int, lverbose); call CHKERR(ierr)
       else
         call write_output_data_local(comm, solver, out_filename, 'solar_', repwvl_data_solar, &
-          & atm, edn, eup, abso, ierr, edir, lverbose); call CHKERR(ierr)
+          & atm, edn, eup, abso, edn_int, eup_int, abso_int, ierr, edir, edir_int, lverbose); call CHKERR(ierr)
       end if
 
       if (myid .eq. 0) then
         do ipert = 1, Ny
-          print *, 'edir @ srfc ( perturbation='//toStr(ipert)//')', sum(edir(ubound(edir, 1), :, ipert, :), dim=2)
-          print *, 'edn  @ srfc ( perturbation='//toStr(ipert)//')', sum(edn(ubound(edn, 1), :, ipert, :), dim=2)
+          print *, 'edir @ srfc ( perturbation='//toStr(ipert)//')', edir_int(ubound(edir_int, 1), :, ipert)
+          print *, 'edn  @ srfc ( perturbation='//toStr(ipert)//')', edn_int(ubound(edn_int, 1), :, ipert)
         end do
       end if
-      call imp_min_mean_max(comm, edir, mmm_edir)
-      call imp_min_mean_max(comm, edn, mmm_edn)
-      call imp_min_mean_max(comm, eup, mmm_eup)
-      call imp_min_mean_max(comm, abso, mmm_abso)
-      if (myid .eq. 0) then
-        print *, 'Min/Mean/Max edir', mmm_edir
-        print *, 'Min/Mean/Max edn ', mmm_edn
-        print *, 'Min/Mean/Max eup ', mmm_eup
-        print *, 'Min/Mean/Max abso', mmm_abso
+      if (lspectral_output) then
+        call imp_min_mean_max(comm, edir, mmm_edir)
+        call imp_min_mean_max(comm, edn, mmm_edn)
+        call imp_min_mean_max(comm, eup, mmm_eup)
+        call imp_min_mean_max(comm, abso, mmm_abso)
+        if (myid .eq. 0) then
+          print *, 'Min/Mean/Max edir', mmm_edir
+          print *, 'Min/Mean/Max edn ', mmm_edn
+          print *, 'Min/Mean/Max eup ', mmm_eup
+          print *, 'Min/Mean/Max abso', mmm_abso
+        end if
       end if
-    else
+
+    else ! lthermal
 
       call solve_scene(&
         & comm, &
@@ -944,35 +1103,42 @@ contains
         & atm, &
         & repwvl_data_thermal, &
         & mie_table, &
+        & lspectral_output, &
         & edn, &
         & eup, &
         & abso, &
+        & edn_int, &
+        & eup_int, &
+        & abso_int, &
         & ierr, &
         & lverbose=lverbose); call CHKERR(ierr)
 
       if (lglobal_output) then
         call write_output_data_global(comm, solver, out_filename, 'thermal_', repwvl_data_thermal, &
-          & atm, edn, eup, abso, ierr, lverbose=lverbose); call CHKERR(ierr)
+          & atm, edn, eup, abso, edn_int, eup_int, abso_int, ierr, lverbose=lverbose); call CHKERR(ierr)
       else
         call write_output_data_local(comm, solver, out_filename, 'thermal_', repwvl_data_thermal, &
-          & atm, edn, eup, abso, ierr, lverbose=lverbose); call CHKERR(ierr)
+          & atm, edn, eup, abso, edn_int, eup_int, abso_int, ierr, lverbose=lverbose); call CHKERR(ierr)
       end if
 
       if (myid .eq. 0) then
         do ipert = 1, Ny
-          print *, 'edn @ srfc ( perturbation='//toStr(ipert)//')', sum(edn(ubound(edn, 1), :, ipert, :), dim=2)
-          print *, 'eup @ srfc ( perturbation='//toStr(ipert)//')', sum(eup(ubound(eup, 1), :, ipert, :), dim=2)
+          print *, 'edn @ srfc ( perturbation='//toStr(ipert)//')', edn_int(ubound(edn_int, 1), :, ipert)
+          print *, 'eup @ srfc ( perturbation='//toStr(ipert)//')', eup_int(ubound(eup_int, 1), :, ipert)
         end do
       end if
-      call imp_min_mean_max(comm, edn, mmm_edn)
-      call imp_min_mean_max(comm, eup, mmm_eup)
-      call imp_min_mean_max(comm, abso, mmm_abso)
-      if (myid .eq. 0) then
-        print *, 'Min/Mean/Max edn ', mmm_edn
-        print *, 'Min/Mean/Max eup ', mmm_eup
-        print *, 'Min/Mean/Max abso', mmm_abso
+      if (lspectral_output) then
+        call imp_min_mean_max(comm, edn, mmm_edn)
+        call imp_min_mean_max(comm, eup, mmm_eup)
+        call imp_min_mean_max(comm, abso, mmm_abso)
+        if (myid .eq. 0) then
+          print *, 'Min/Mean/Max edn ', mmm_edn
+          print *, 'Min/Mean/Max eup ', mmm_eup
+          print *, 'Min/Mean/Max abso', mmm_abso
+        end if
       end if
     end if
+
     call destroy_mie_table(mie_table, ierr); call CHKERR(ierr)
   end subroutine
 end module
@@ -997,6 +1163,7 @@ program main
   logical :: lflg, lverbose, lsolar, lthermal
 
   real(ireals), allocatable, dimension(:, :, :, :) :: edir, edn, eup, abso
+  real(ireals), allocatable, dimension(:, :, :) :: edir_int, edn_int, eup_int, abso_int
   integer(mpiint) :: myid
 
   comm = MPI_COMM_WORLD
@@ -1031,9 +1198,10 @@ program main
       & out_filename,          &
       & .true.,                &
       & edn, eup, abso,        &
+      & edn_int, eup_int, abso_int,&
       & ierr,                  &
       & lverbose=lverbose,     &
-      & edir=edir); call CHKERR(ierr)
+      & edir=edir, edir_int=edir_int); call CHKERR(ierr)
   else
     if (myid .eq. 0) print *, 'Not computing solar part: enable with -solar'
   end if
@@ -1046,6 +1214,7 @@ program main
       & out_filename,          &
       & .false.,               &
       & edn, eup, abso,        &
+      & edn_int, eup_int, abso_int,&
       & ierr,                  &
       & lverbose); call CHKERR(ierr)
   else
