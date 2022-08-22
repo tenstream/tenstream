@@ -31,12 +31,18 @@ variables:
   script:
     - export PETSC_DIR=$(readlink -f $PETSC_DIR)
     - if [ ! -z "$MODULES" ]; then module load spack || echo 'no spack'; module load $MODULES || exit 1; module list; fi
+    - echo -e "\e[0Ksection_start:`date +%s`:cmake[collapsed=true]\r\e[0KRun cmake"
     - mkdir -p build && cd build
     - cmake -DCMAKE_BUILD_TYPE="$BUILD_TYPE" -DCTEST_MPIRUN_FLAGS="$MPIRUN_FLAGS" -DMPIEXEC="$MPIEXEC" ${CMAKE_OPTS} .. || exit 1
+    - echo -e "\e[0Ksection_end:`date +%s`:cmake\r\e[0K"
+    - echo -e "\e[0Ksection_start:`date +%s`:make[collapsed=true]\r\e[0KRun make"
     - make all -j || make all || exit 2
+    - echo -e "\e[0Ksection_end:`date +%s`:make\r\e[0K"
+    - echo -e "\e[0Ksection_start:`date +%s`:test[collapsed=true]\r\e[0KRun ctest"
     - CMD="ctest --output-on-failure $CTEST_ARGS"
     - echo $CMD
     - $CMD &> >(tee $CI_PROJECT_DIR/test.log) || exit 3
+    - echo -e "\e[0Ksection_end:`date +%s`:test\r\e[0K"
   retry: 2
   variables:
     PETSC_DIR: petsc
@@ -63,8 +69,10 @@ ubuntu-latest:
   needs: ["check_fprettify:pre"]
   image: ubuntu:latest
   before_script:
+    - echo -e "\e[0Ksection_start:`date +%s`:apt_install[collapsed=true]\r\e[0KInstall APT packages"
     - apt-get -qq update
     - apt-get -qq install -fy build-essential cmake gfortran git python3 openmpi-bin libopenmpi-dev libopenblas-dev curl pkg-config
+    - echo -e "\e[0Ksection_end:`date +%s`:apt_install\r\e[0K"
     - *template_build_PETSC
   tags:
     - docker.meteo.physik.lmu.de
@@ -82,8 +90,10 @@ ubuntu-rolling:
   needs: ["check_fprettify:pre"]
   image: ubuntu:rolling
   before_script:
+    - echo -e "\e[0Ksection_start:`date +%s`:apt_install[collapsed=true]\r\e[0KInstall APT packages"
     - apt-get -qq update
     - apt-get -qq install -fy build-essential cmake gfortran git python3 openmpi-bin libopenmpi-dev libopenblas-dev curl pkg-config libeigen3-dev
+    - echo -e "\e[0Ksection_end:`date +%s`:apt_install\r\e[0K"
     - *template_build_PETSC
   after_script:
     -  bash <(curl -s https://codecov.io/bash) || echo 'Codecov failed to upload'
@@ -105,9 +115,11 @@ ubuntu-rolling:
 #  extends: .build:default
 #  image: gcc:latest
 #  before_script:
+#    - echo -e "\e[0Ksection_start:`date +%s`:apt_install[collapsed=true]\r\e[0KInstall APT packages"
 #    - apt-get -qq update
 #    - apt-get -qq install -fy build-essential cmake git python3 openmpi-bin libopenmpi-dev libopenblas-dev curl pkg-config
 #    - *template_build_PETSC
+#    - echo -e "\e[0Ksection_end:`date +%s`:apt_install\r\e[0K"
 #  after_script:
 #    -  bash <(curl -s https://codecov.io/bash) || echo 'Codecov failed to upload'
 #  tags:
@@ -128,8 +140,10 @@ debian-testing:
   needs: ["check_fprettify:pre"]
   image: debian:testing
   before_script:
-    - DEBIAN_FRONTEND=noninteractive apt-get -qq update
-    - DEBIAN_FRONTEND=noninteractive apt-get -qq install -fy build-essential cmake gfortran git python3 openmpi-bin libopenmpi-dev libopenblas-dev curl pkg-config
+    - echo -e "\e[0Ksection_start:`date +%s`:apt_install[collapsed=true]\r\e[0KInstall APT packages"
+    - apt-get -qq update
+    - apt-get -qq install -fy build-essential cmake gfortran git python3 openmpi-bin libopenmpi-dev libopenblas-dev curl pkg-config
+    - echo -e "\e[0Ksection_end:`date +%s`:apt_install\r\e[0K"
     - *template_build_PETSC
   tags:
     - docker.meteo.physik.lmu.de
@@ -150,7 +164,9 @@ intel:
   image: intel/oneapi-hpckit:2021.4-devel-ubuntu18.04
   #image: intel/oneapi-hpckit:2022.1.2-devel-ubuntu18.04 # brakes petsc
   before_script:
+    - echo -e "\e[0Ksection_start:`date +%s`:apt_install[collapsed=true]\r\e[0KInstall APT packages"
     - apt-get -qq update && apt-get -qq install -fy cmake git m4 curl libcurl3-dev
+    - echo -e "\e[0Ksection_end:`date +%s`:apt_install\r\e[0K"
     - *template_build_PETSC
   tags:
     - docker.meteo.physik.lmu.de
@@ -173,7 +189,9 @@ intel:debug:
   #image:  intel/oneapi-hpckit:2022.1.2-devel-ubuntu18.04 # brakes petsc
   #image:  intel/oneapi-hpckit:2022.2-devel-ubuntu20.04 # brakes petsc
   before_script:
+    - echo -e "\e[0Ksection_start:`date +%s`:apt_install[collapsed=true]\r\e[0KInstall APT packages"
     - apt-get -qq update && apt-get -qq install -fy cmake git m4 curl libcurl3-dev
+    - echo -e "\e[0Ksection_end:`date +%s`:apt_install\r\e[0K"
     - *template_build_PETSC
   tags:
     - docker.meteo.physik.lmu.de
