@@ -765,7 +765,7 @@ contains
     unconstrained_fraction = real(count(.not. l1d), ireals) / real(size(l1d), ireals)
     call imp_allreduce_min(C%comm, &
       & rel_atol &
-      & * real(C%dof * C%glob_xm * C%glob_ym * C%glob_zm, ireals) &
+      & * real(C%glob_xm * C%glob_ym * C%glob_zm, ireals) &
       & * unconstrained_fraction, atol)
     atol = max(1e-8_ireals, atol)
 
