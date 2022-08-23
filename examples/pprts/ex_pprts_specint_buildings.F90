@@ -177,24 +177,24 @@ program main
     end if
   end if
 
-  if (lverbose .and. myid.eq.0) then
-    print *,''
-    if(lsolar) then
-      print *,'          k   edir             edn              eup             abso'
-      do k=lbound(gabso,1), ubound(gabso,1)
-        print *, k, meanval(gedir(k,:,:)), meanval(gedn(k,:,:)), meanval(geup(k,:,:)), meanval(gabso(k,:,:))
-      enddo
-      k = ubound(gedn,1)
-      print *, k, meanval(gedn(k,:,:)), meanval(geup(k,:,:))
+  if (lverbose .and. myid .eq. 0) then
+    print *, ''
+    if (lsolar) then
+      print *, '          k   edir             edn              eup             abso'
+      do k = lbound(gabso, 1), ubound(gabso, 1)
+        print *, k, meanval(gedir(k, :, :)), meanval(gedn(k, :, :)), meanval(geup(k, :, :)), meanval(gabso(k, :, :))
+      end do
+      k = ubound(gedn, 1)
+      print *, k, meanval(gedn(k, :, :)), meanval(geup(k, :, :))
     else
-      print *,'          k   edn              eup             abso'
-      do k=lbound(gabso,1), ubound(gabso,1)
-        print *, k, meanval(gedn(k,:,:)), meanval(geup(k,:,:)), meanval(gabso(k,:,:))
-      enddo
-      k = ubound(gedn,1)
-      print *, k, meanval(gedn(k,:,:)), meanval(geup(k,:,:))
-    endif
-  endif
+      print *, '          k   edn              eup             abso'
+      do k = lbound(gabso, 1), ubound(gabso, 1)
+        print *, k, meanval(gedn(k, :, :)), meanval(geup(k, :, :)), meanval(gabso(k, :, :))
+      end do
+      k = ubound(gedn, 1)
+      print *, k, meanval(gedn(k, :, :)), meanval(geup(k, :, :))
+    end if
+  end if
 
   call finalize_mpi(ierr, .true., .true.)
 end program
