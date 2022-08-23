@@ -528,37 +528,43 @@ contains
 
         do isub = 1, sub_iter
           if (approx(omega, 1._ireals)) then
-            call explicit_ediff_forward_sweep(&
-              & solver, &
-              & solver%diff2diff, &
-              & dx=[C%xs, C%xe, i1], &
-              & dy=[C%ys, C%ye, i1], &
-              & dz=[C%zs, C%ze - 1, i1], &
-              & b=lvb, x=v0)
-            call explicit_ediff_forward_sweep(&
-              & solver, &
-              & solver%diff2diff, &
-              & dx=[C%xe, C%xs, -i1], &
-              & dy=[C%ye, C%ys, -i1], &
-              & dz=[C%ze - 1, C%zs, -i1], &
-              & b=lvb, x=v0)
+            if (modulo(iter + isub, 2) .eq. 0) then
+              call explicit_ediff_forward_sweep(&
+                & solver, &
+                & solver%diff2diff, &
+                & dx=[C%xs, C%xe, i1], &
+                & dy=[C%ys, C%ye, i1], &
+                & dz=[C%zs, C%ze - 1, i1], &
+                & b=lvb, x=v0)
+            else
+              call explicit_ediff_forward_sweep(&
+                & solver, &
+                & solver%diff2diff, &
+                & dx=[C%xe, C%xs, -i1], &
+                & dy=[C%ye, C%ys, -i1], &
+                & dz=[C%ze - 1, C%zs, -i1], &
+                & b=lvb, x=v0)
+            end if
           else
-            call explicit_ediff_sor_sweep(&
-              & solver, &
-              & solver%diff2diff, &
-              & dx=[C%xs, C%xe, i1], &
-              & dy=[C%ys, C%ye, i1], &
-              & dz=[C%zs, C%ze - 1, i1], &
-              & omega=omega, &
-              & b=lvb, x=v0)
-            call explicit_ediff_sor_sweep(&
-              & solver, &
-              & solver%diff2diff, &
-              & dx=[C%xe, C%xs, -i1], &
-              & dy=[C%ye, C%ys, -i1], &
-              & dz=[C%ze - 1, C%zs, -i1], &
-              & omega=omega, &
-              & b=lvb, x=v0)
+            if (modulo(iter + isub, 2) .eq. 0) then
+              call explicit_ediff_sor_sweep(&
+                & solver, &
+                & solver%diff2diff, &
+                & dx=[C%xs, C%xe, i1], &
+                & dy=[C%ys, C%ye, i1], &
+                & dz=[C%zs, C%ze - 1, i1], &
+                & omega=omega, &
+                & b=lvb, x=v0)
+            else
+              call explicit_ediff_sor_sweep(&
+                & solver, &
+                & solver%diff2diff, &
+                & dx=[C%xe, C%xs, -i1], &
+                & dy=[C%ye, C%ys, -i1], &
+                & dz=[C%ze - 1, C%zs, -i1], &
+                & omega=omega, &
+                & b=lvb, x=v0)
+            end if
           end if
         end do
 
