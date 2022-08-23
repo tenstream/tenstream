@@ -321,7 +321,7 @@ contains
               ipert = ipert + 1
               if (run) call do_gas_pert(ipert, h2o, co2, o3, ch4)
 
-              do icld = 0, -1 ! ipert from 8 to 8 + 4*3 -1 = 19
+              do icld = 0, 2 ! ipert from 8 to 8 + 4*3 -1 = 19
                 ! water cloud perturbations
                 ipert = ipert + 1
                 if (run) then
@@ -1016,10 +1016,13 @@ contains
 
     real(ireals) :: mmm_edir(3), mmm_edn(3), mmm_eup(3), mmm_abso(3)
     logical :: lglobal_output, lspectral_output, lflg
-    logical, parameter :: lperturb = .false.
+    logical :: lperturb
 
     ierr = 0
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+
+    lperturb = .false.
+    call get_petsc_opt('', '-perturb', lperturb, lflg, ierr); call CHKERR(ierr)
 
     call perturb_atmospheres(comm, lperturb, Npert_atmo, atm, ierr, lverbose, ldryrun=.true.); call CHKERR(ierr)
     if (myid .eq. 0 .and. lverbose) print *, 'Number of perturbations', Npert_atmo
