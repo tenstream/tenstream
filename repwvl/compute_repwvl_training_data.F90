@@ -261,8 +261,6 @@ contains
     logical, intent(in), optional :: lverbose, ldryrun
 
     real(ireals), pointer :: ptr(:, :, :)
-    real(ireals), allocatable :: rnd(:, :)
-    real(ireals) :: rnddp
     integer(iintegers) :: Nx, Ny, kmin, kmax, ke, ke1
     integer(iintegers) :: icld, ipert
     integer(mpiint) :: myid
@@ -273,7 +271,7 @@ contains
     !real(ireals), parameter :: CO2_pert(*) = [real(ireals) :: .5, 1., 2.]
     !real(ireals), parameter :: O3_pert(*) = [real(ireals) :: .5, 1., 2.]
     !real(ireals), parameter :: CH4_pert(*) = [real(ireals) :: .5, 1., 2.]
-    real(ireals), parameter :: H2O_pert(*) = [real(ireals) :: .5, 2.]
+    real(ireals), parameter :: H2O_pert(*) = [real(ireals) :: .5, 1., 2.]
     real(ireals), parameter :: CO2_pert(*) = [real(ireals) :: 1.]
     real(ireals), parameter :: O3_pert(*) = [real(ireals) :: 1.]
     real(ireals), parameter :: CH4_pert(*) = [real(ireals) :: 1.]
@@ -325,62 +323,37 @@ contains
                 ! water cloud perturbations
                 ipert = ipert + 1
                 if (run) then
-                  call random_number(rnddp)
-                  rnddp = rnddp * 100
-
                   call do_gas_pert(ipert, h2o, co2, o3, ch4)
-                  kmin = int(find_real_location(atm%plev(:, 1), 850._ireals + real(icld, ireals) * 50._ireals - rnddp), iintegers)
-                  kmax = int(find_real_location(atm%plev(:, 1), 800._ireals + real(icld, ireals) * 50._ireals - rnddp), iintegers)
-                  print *, 'kmin/max', kmin, kmax, rnddp, 850._ireals + real(icld, ireals) * 50._ireals - rnddp
-                  allocate (rnd(kmin:kmax, Nx))
-                  call random_number(rnd)
-                  rnd = rnd*.1
-                  ptr(1:ke, 1:Nx, 1:Ny) => atm%lwc; ptr(kmin:kmax, :, ipert) = rnd
+                  kmin = int(find_real_location(atm%plev(:, 1), 850._ireals + real(icld, ireals) * 50._ireals), iintegers)
+                  kmax = int(find_real_location(atm%plev(:, 1), 800._ireals + real(icld, ireals) * 50._ireals), iintegers)
+                  print *, 'kmin/max', kmin, kmax, 850._ireals + real(icld, ireals) * 50._ireals
+                  ptr(1:ke, 1:Nx, 1:Ny) => atm%lwc; ptr(kmin:kmax, :, ipert) = 0.1 * (icld + 1)
                   ptr(1:ke, 1:Nx, 1:Ny) => atm%reliq; ptr(kmin:kmax, :, ipert) = 10
-                  deallocate (rnd)
                 end if
 
                 ! ice cloud perturbations
                 ipert = ipert + 1
                 if (run) then
-                  call random_number(rnddp)
-                  rnddp = rnddp * 100
-
                   call do_gas_pert(ipert, h2o, co2, o3, ch4)
-                  kmin = int(find_real_location(atm%plev(:, 1), 300._ireals + real(icld, ireals) * 50._ireals - rnddp), iintegers)
-                  kmax = int(find_real_location(atm%plev(:, 1), 200._ireals + real(icld, ireals) * 50._ireals - rnddp), iintegers)
-                  allocate (rnd(kmin:kmax, Nx))
-                  call random_number(rnd)
-                  rnd = rnd*.01
-                  ptr(1:ke, 1:Nx, 1:Ny) => atm%iwc; ptr(kmin:kmax, :, ipert) = rnd
+                  kmin = int(find_real_location(atm%plev(:, 1), 300._ireals + real(icld, ireals) * 50._ireals), iintegers)
+                  kmax = int(find_real_location(atm%plev(:, 1), 200._ireals + real(icld, ireals) * 50._ireals), iintegers)
+                  ptr(1:ke, 1:Nx, 1:Ny) => atm%iwc; ptr(kmin:kmax, :, ipert) = 0.05 * (icld + 1)
                   ptr(1:ke, 1:Nx, 1:Ny) => atm%reice; ptr(kmin:kmax, :, ipert) = 20
-                  deallocate (rnd)
                 end if
 
                 ! water + ice cloud perturbations
                 ipert = ipert + 1
                 if (run) then
-                  call random_number(rnddp)
-                  rnddp = rnddp * 100
-
                   call do_gas_pert(ipert, h2o, co2, o3, ch4)
-                  kmin = int(find_real_location(atm%plev(:, 1), 750._ireals + real(icld, ireals) * 50._ireals - rnddp), iintegers)
-                  kmax = int(find_real_location(atm%plev(:, 1), 700._ireals + real(icld, ireals) * 50._ireals - rnddp), iintegers)
-                  allocate (rnd(kmin:kmax, Nx))
-                  call random_number(rnd)
-                  rnd = rnd*.1
-                  ptr(1:ke, 1:Nx, 1:Ny) => atm%lwc; ptr(kmin:kmax, :, ipert) = rnd
-                  ptr(1:ke, 1:Nx, 1:Ny) => atm%reliq; ptr(kmin:kmax, :, ipert) = 10
-                  deallocate (rnd)
+                  kmin = int(find_real_location(atm%plev(:, 1), 750._ireals + real(icld, ireals) * 50._ireals), iintegers)
+                  kmax = int(find_real_location(atm%plev(:, 1), 700._ireals + real(icld, ireals) * 50._ireals), iintegers)
+                  ptr(1:ke, 1:Nx, 1:Ny) => atm%lwc; ptr(kmin:kmax, :, ipert) = 0.2 * (icld + 1)
+                  ptr(1:ke, 1:Nx, 1:Ny) => atm%reliq; ptr(kmin:kmax, :, ipert) = 20
 
-                  kmin = int(find_real_location(atm%plev(:, 1), 200._ireals + real(icld, ireals) * 50._ireals - rnddp), iintegers)
-                  kmax = int(find_real_location(atm%plev(:, 1), 100._ireals + real(icld, ireals) * 50._ireals - rnddp), iintegers)
-                  allocate (rnd(kmin:kmax, Nx))
-                  call random_number(rnd)
-                  rnd = rnd*.01
-                  ptr(1:ke, 1:Nx, 1:Ny) => atm%iwc; ptr(kmin:kmax, :, ipert) = rnd
-                  ptr(1:ke, 1:Nx, 1:Ny) => atm%reice; ptr(kmin:kmax, :, ipert) = 20
-                  deallocate (rnd)
+                  kmin = int(find_real_location(atm%plev(:, 1), 200._ireals + real(icld, ireals) * 50._ireals), iintegers)
+                  kmax = int(find_real_location(atm%plev(:, 1), 100._ireals + real(icld, ireals) * 50._ireals), iintegers)
+                  ptr(1:ke, 1:Nx, 1:Ny) => atm%iwc; ptr(kmin:kmax, :, ipert) = 0.1 * (icld + 1)
+                  ptr(1:ke, 1:Nx, 1:Ny) => atm%reice; ptr(kmin:kmax, :, ipert) = 40
                 end if
               end do
             end do
@@ -388,15 +361,7 @@ contains
         end do
       end do
 
-      ! Random H2O perturbations
-      ipert = ipert + 1
-
       if (run) then
-        allocate (rnd(1:ke, 1:Nx))
-        call random_number(rnd)
-        ptr(1:ke, 1:Nx, 1:Ny) => atm%h2o_lay; ptr(:, :, ipert) = ptr(:, :, ipert) * (rnd * 5)
-        deallocate (rnd)
-
         if (myid .eq. 0 .and. get_arg(.false., lverbose)) print *, 'Nr. of atmosphere perturbation entries:', ipert, '/', Npert_atmo
         call CHKERR(int(ipert - Npert_atmo, mpiint), 'havent used all perturbation slots '//toStr(ipert)//' / '//toStr(Npert_atmo))
       end if
