@@ -30,8 +30,21 @@ module m_dyn_atm_to_rrtmg
   use iso_fortran_env, only: real32, real64
   use m_tenstr_parkind_sw, only: im => kind_im, rb => kind_rb
 
-  use m_data_parameters, only: iintegers, mpiint, ireals, default_str_len, &
-                               zero, one, pi, i1, i2, i9, init_mpi_data_parameters
+  use m_data_parameters, only: &
+    & CLIGHT, &
+    & CP_DRY_AIR, &
+    & default_str_len, &
+    & EARTHACCEL, &
+    & H_PLANCK, &
+    & iintegers, &
+    & init_mpi_data_parameters, &
+    & ireals, &
+    & K_BOLTZMANN, &
+    & mpiint, &
+    & one, &
+    & pi, &
+    & R_DRY_AIR, &
+    & zero
 
   use m_helper_functions, only: &
     & assert_arr_is_monotonous, &
@@ -56,11 +69,6 @@ module m_dyn_atm_to_rrtmg
 
   !logical,parameter :: ldebug=.True.
   logical, parameter :: ldebug = .false.
-
-  ! specific gas constant for dry air [J kg−1 K−1] and standard gravity on earth
-  real(ireals), parameter :: Ra = 287.058_ireals, grav = 9.80665_ireals
-  real(real32), parameter :: Ra32 = 287.058_real32, grav32 = 9.80665_real32
-  real(real64), parameter :: Ra64 = 287.058_real64, grav64 = 9.80665_real64
 
   interface
     real function PLKINT(WVLLO, WVLHI, T)
@@ -289,7 +297,7 @@ contains
     integer(iintegers), optional :: icol
     integer(iintegers) :: k, j
 
-    j = get_arg(i1, icol)
+    j = get_arg(1_iintegers, icol)
 
     print *, 'atm%bg_atm ', allocated(atm%bg_atm)
     call alloc_info(atm%plev, 'atm%plev   ')
@@ -479,7 +487,7 @@ contains
           if (dz .lt. one) then
             !call CHKWARN(1_mpiint, 'bg atmosphere and dynamics grid pressure are very close.' // &
             !  'Note that I`ll drop one layer here.')
-            minval_plev = min(minval_plev, (bg_atm%plev(m) + bg_atm%plev(max(i1, m - i1)))*.5_ireals)
+            minval_plev = min(minval_plev, (bg_atm%plev(m) + bg_atm%plev(max(1_iintegers, m - 1_iintegers)))*.5_ireals)
           end if
         end do
 
@@ -849,17 +857,17 @@ contains
     atm%o2_lay = meanvec(atm%o2_lev)
   end subroutine
 
-  pure elemental function hydrostat_dz_real32(dp, p, T)
+  pure elemental function hydrostat_dz_real32(dp, p, T) result(dz)
     real(real32), intent(in) :: dp, p, T
-    real(real32) :: hydrostat_dz_real32, rho
-    rho = p / Ra32 / T
-    hydrostat_dz_real32 = dp / rho / grav32
+    real(real32) :: dz, rho
+    rho = p / real(R_DRY_AIR, kind(rho)) / T
+    dz = dp / rho / real(EARTHACCEL, kind(dz))
   end function
-  pure elemental function hydrostat_dz_real64(dp, p, T)
+  pure elemental function hydrostat_dz_real64(dp, p, T) result(dz)
     real(real64), intent(in) :: dp, p, T
-    real(real64) :: hydrostat_dz_real64, rho
-    rho = p / Ra64 / T
-    hydrostat_dz_real64 = dp / rho / grav64
+    real(real64) :: dz, rho
+    rho = p / real(R_DRY_AIR, kind(rho)) / T
+    dz = dp / rho / real(EARTHACCEL, kind(dz))
   end function
 
   subroutine hydrostat_lev(plev, tlay, hsrfc, hhl, dz)
@@ -882,17 +890,17 @@ contains
     end if
   end subroutine
 
-  pure elemental function hydrostat_dp_real32(dz, p, T)
+  pure elemental function hydrostat_dp_real32(dz, p, T) result(dp)
     real(real32), intent(in) :: dz, p, T
-    real(real32) :: hydrostat_dp_real32, rho
-    rho = p / Ra32 / T
-    hydrostat_dp_real32 = dz * rho * grav32
+    real(real32) :: dp, rho
+    rho = p / real(R_DRY_AIR, kind(rho)) / T
+    dp = dz * rho * real(EARTHACCEL, kind(dp))
   end function
-  pure elemental function hydrostat_dp_real64(dz, p, T)
+  pure elemental function hydrostat_dp_real64(dz, p, T) result(dp)
     real(real64), intent(in) :: dz, p, T
-    real(real64) :: hydrostat_dp_real64, rho
-    rho = p / Ra64 / T
-    hydrostat_dp_real64 = dz * rho * grav64
+    real(real64) :: dp, rho
+    rho = p / real(R_DRY_AIR, kind(rho)) / T
+    dp = dz * rho * real(EARTHACCEL, kind(dp))
   end function
 
   subroutine hydrostat_plev(psrfc, tlay, hhl, plev, dp)
@@ -971,17 +979,68 @@ contains
     real(ireals) :: dp
 
     dp = abs(p1 - p0) * 1e2_ireals
-    c = dp / grav
+    c = dp / EARTHACCEL
   end function
 
   elemental function planck(wvl, temperature)
     real(ireals), intent(in) :: wvl, temperature ! wavelength in [m] and temperature in [K]
     real(ireals) :: planck                       ! planck radiation in [W/(m2 m sterad)]
-    real(ireals), parameter :: H_PLANCK = 6.626068e-34_ireals
-    real(ireals), parameter :: C_LIGHT = 299792458._ireals
-    real(ireals), parameter :: K_BOLTZMANN = 1.3806503e-23_ireals
+    real(ireals), parameter :: param1 = 2._ireals * H_PLANCK * CLIGHT**2
+    real(ireals), parameter :: param2 = H_PLANCK * CLIGHT / K_BOLTZMANN
 
-    planck = 2._ireals * H_PLANCK * C_LIGHT**2 / &
-           & (wvl**5 * (exp(H_PLANCK * C_LIGHT / (wvl * K_BOLTZMANN * temperature)) - 1.0))
+    planck = param1 / (wvl**5 * (exp(param2 / (wvl * temperature)) - 1.0))
   end function
+
+  ! convert absorption in [W/m3] to [K/s] for a given tenstream atmosphere.
+  ! if atmosphere is collapsed, this is taken care of in the first layer where mean temperature is taken as pressure layer weighted
+  ! mean
+  subroutine abso2hr(atm, abso, hr, ierr)
+    type(t_tenstr_atm), target, intent(in) :: atm
+    real(ireals), intent(in) :: abso(:, :, :)
+    real(ireals), intent(out) :: hr(:, :, :)
+    integer(mpiint), intent(out) :: ierr
+
+    integer(iintegers) :: i, j, k, ak, Nz_abso, Nz_atm, Nz_offset
+
+    ! reshape pointer to convert column vecs to i,j vecs compatible to abso
+    real(ireals), pointer, dimension(:, :, :) :: pplev, ptlay
+    real(ireals), parameter :: c1 = .5_ireals * 100._ireals / R_DRY_AIR * CP_DRY_AIR ! pressure mean * 100 from hPa divided by Ra
+    real(ireals) :: dp, rho_cp, Tmean, psum
+    ierr = 0
+
+    pplev(1:size(atm%plev, 1), 1:size(abso, 2), 1:size(abso, 3)) => atm%plev
+    ptlay(1:size(atm%tlay, 1), 1:size(abso, 2), 1:size(abso, 3)) => atm%tlay
+
+    Nz_atm = size(atm%tlay, 1)
+    Nz_abso = size(abso, 1)
+    Nz_offset = Nz_atm - Nz_abso
+
+    do j = 1, size(abso, 3)
+      do i = 1, size(abso, 2)
+        do k = 1, size(abso, 1)
+          ak = Nz_atm - k + 1 - Nz_offset
+          dp = pplev(ak, i, j) + pplev(ak + 1, i, j)
+          rho_cp = dp * c1 / ptlay(ak, i, j)
+          hr(k, i, j) = abso(k, i, j) / rho_cp
+        end do
+      end do
+    end do
+    if (Nz_offset .ne. 0_iintegers) then
+      do j = 1, size(abso, 3)
+        do i = 1, size(abso, 2)
+          psum = 0
+          Tmean = 0
+          do k = 1, Nz_offset
+            ak = Nz_atm - (k - 1)
+            dp = pplev(ak, i, j) + pplev(ak - 1, i, j)
+            psum = psum + dp
+            Tmean = Tmean + ptlay(ak - 1, i, j) * dp
+          end do
+          Tmean = Tmean / psum
+          rho_cp = psum * c1 / Tmean
+          hr(1, i, j) = abso(1, i, j) / rho_cp
+        end do
+      end do
+    end if
+  end subroutine
 end module

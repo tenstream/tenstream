@@ -18,7 +18,7 @@ module m_example_pprts_specint_lw_sw
   ! main entry point for solver, and desctructor
   use m_specint_pprts, only: specint_pprts, specint_pprts_destroy
 
-  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, destroy_tenstr_atm
+  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, destroy_tenstr_atm, abso2hr
 
   use m_petsc_helpers, only: getvecpointer, restorevecpointer
   use m_netcdfio, only: ncwrite
@@ -50,7 +50,7 @@ contains
     !   edn(ubound(edn,1)-nlay_dynamics : ubound(edn,1) )
     ! or:
     !   abso(ubound(abso,1)-nlay_dynamics+1 : ubound(abso,1) )
-    real(ireals), allocatable, dimension(:, :, :) :: edir, edn, eup, abso ! [nlev_merged(-1), nxp, nyp]
+    real(ireals), allocatable, dimension(:, :, :) :: edir, edn, eup, abso, hr ! [nlev_merged(-1), nxp, nyp]
 
     ! MPI variables and domain decomposition sizes
     integer(mpiint) :: numnodes, myid, N_ranks_x, N_ranks_y, ierr
@@ -71,7 +71,7 @@ contains
     logical :: lflg
 
     !------------ Local vars ------------------
-    integer(iintegers) :: k, nlev, icld, iter
+    integer(iintegers) :: k, nlev, icld, iter, icollapse
     integer(iintegers), allocatable :: nxproc(:), nyproc(:)
     character(len=default_str_len) :: groups(2), dimnames(3)
     real(ireals), pointer :: z(:, :, :, :) => null(), z1d(:) => null() ! dim Nz+1
@@ -189,6 +189,9 @@ contains
 
     call allocate_pprts_solver_from_commandline(pprts_solver, '3_10', ierr); call CHKERR(ierr)
 
+    icollapse = 1
+    call get_petsc_opt(PETSC_NULL_CHARACTER, "-icollapse", icollapse, lflg, ierr)
+
     iter = 1
     call get_petsc_opt(PETSC_NULL_CHARACTER, "-iter", iter, lflg, ierr)
 
@@ -199,8 +202,12 @@ contains
                          lthermal, lsolar, &
                          edir, edn, eup, abso, &
                          nxproc=nxproc, nyproc=nyproc, &
+                         icollapse=icollapse, &
                          opt_time=real(k, ireals))
     end do
+
+    allocate (hr(size(abso, 1), size(abso, 2), size(abso, 3)))
+    call abso2hr(atm, abso, hr, ierr); call CHKERR(ierr)
 
     nlev = ubound(edn, 1)
     if (myid .eq. 0) then
@@ -208,9 +215,10 @@ contains
         do k = 1, nlev
           if (allocated(edir)) then
             print *, k, 'edir', meanval(edir(k, :, :)), 'edn', meanval(edn(k, :, :)), 'eup', meanval(eup(k, :, :)), &
-              & 'abso', meanval(abso(min(nlev - 1, k), :, :))
+              & 'abso', meanval(abso(min(nlev - 1, k), :, :)), 'hr', meanval(hr(min(nlev - 1, k), :, :)) * 3600 * 24
           else
-            print *, k, 'edn', meanval(edn(k, :, :)), 'eup', meanval(eup(k, :, :)), meanval(abso(min(nlev - 1, k), :, :))
+            print *, k, 'edn', meanval(edn(k, :, :)), 'eup', meanval(eup(k, :, :)), &
+              & 'abso', meanval(abso(min(nlev - 1, k), :, :)), 'hr', meanval(hr(min(nlev - 1, k), :, :)) * 3600 * 24
           end if
         end do
       end if
