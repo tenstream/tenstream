@@ -234,7 +234,7 @@ contains
         print *, timeofday, 'new phi0', tod_phi
         print *, timeofday, 'new theta0', tod_theta * 90
         print *, timeofday, 'new sundir', sundir
-      endif
+      end if
     end if
 
     call setup_tenstr_atm(comm, .false., atm_filename, &
