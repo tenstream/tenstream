@@ -30,6 +30,7 @@ module m_compute_repwvl_training_data
     & mpiint
 
   use m_helper_functions, only: &
+    & allocnd, &
     & CHKERR, &
     & CHKWARN, &
     & domain_decompose_2d_petsc, &
@@ -489,16 +490,21 @@ contains
 
     if (lspectral_output) then
       if (lboundary_flx_only) then
-        if (lsolar) allocate (edir(2, solver%C_dir%xm, solver%C_dir%ym, repwvl_data%Nwvl))
-        allocate (edn(2, solver%C_diff%xm, solver%C_diff%ym, repwvl_data%Nwvl))
-        allocate (eup(2, solver%C_diff%xm, solver%C_diff%ym, repwvl_data%Nwvl))
+        if (lsolar) then
+          call allocnd(edir, [2, solver%C_dir%xm, solver%C_dir%ym, repwvl_data%Nwvl], ierr, 'edir'); call CHKERR(ierr)
+        end if
+        call allocnd(edn, [2, solver%C_diff%xm, solver%C_diff%ym, repwvl_data%Nwvl], ierr, 'edn'); call CHKERR(ierr)
+        call allocnd(eup, [2, solver%C_diff%xm, solver%C_diff%ym, repwvl_data%Nwvl], ierr, 'eup'); call CHKERR(ierr)
       else
-        if (lsolar) allocate (edir(solver%C_dir%zm, solver%C_dir%xm, solver%C_dir%ym, repwvl_data%Nwvl))
-        allocate (edn(solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym, repwvl_data%Nwvl))
-        allocate (eup(solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym, repwvl_data%Nwvl))
+        if (lsolar) then
+          call allocnd(edir, &
+            & [solver%C_dir%zm, solver%C_dir%xm, solver%C_dir%ym, repwvl_data%Nwvl], &
+            & ierr, 'edir'); call CHKERR(ierr)
+        end if
+        call allocnd(edn, [solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym, repwvl_data%Nwvl], ierr, 'edn'); call CHKERR(ierr)
+        call allocnd(eup, [solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym, repwvl_data%Nwvl], ierr, 'eup'); call CHKERR(ierr)
       end if
-      allocate (abso(solver%C_one%zm, solver%C_one%xm, solver%C_one%ym, repwvl_data%Nwvl))
-
+      call allocnd(abso, [solver%C_one%zm, solver%C_one%xm, solver%C_one%ym, repwvl_data%Nwvl], ierr, 'abso'); call CHKERR(ierr)
       if (lsolar) edir = 0
       edn = 0
       eup = 0
