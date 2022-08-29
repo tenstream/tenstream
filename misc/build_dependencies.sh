@@ -17,7 +17,7 @@ if [[ "x$PETSC_ARCH" == x"debug"* ]]; then
 fi
 
 if [[ -z ${PETSC_OPTS} ]]; then
-  PETSC_OPTS="--download-hdf5 --download-szlib --download-zlib"
+  PETSC_OPTS="--download-hdf5 --download-szlib --download-zlib --download-fblaslapack=1"
 fi
 
 echo ""
