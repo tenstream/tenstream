@@ -491,10 +491,10 @@ contains
     if (lspectral_output) then
       if (lboundary_flx_only) then
         if (lsolar) then
-          call allocnd(edir, [2, solver%C_dir%xm, solver%C_dir%ym, repwvl_data%Nwvl], ierr, 'edir'); call CHKERR(ierr)
+          call allocnd(edir, [2_iintegers, solver%C_dir%xm, solver%C_dir%ym, repwvl_data%Nwvl], ierr, 'edir'); call CHKERR(ierr)
         end if
-        call allocnd(edn, [2, solver%C_diff%xm, solver%C_diff%ym, repwvl_data%Nwvl], ierr, 'edn'); call CHKERR(ierr)
-        call allocnd(eup, [2, solver%C_diff%xm, solver%C_diff%ym, repwvl_data%Nwvl], ierr, 'eup'); call CHKERR(ierr)
+        call allocnd(edn, [2_iintegers, solver%C_diff%xm, solver%C_diff%ym, repwvl_data%Nwvl], ierr, 'edn'); call CHKERR(ierr)
+        call allocnd(eup, [2_iintegers, solver%C_diff%xm, solver%C_diff%ym, repwvl_data%Nwvl], ierr, 'eup'); call CHKERR(ierr)
       else
         if (lsolar) then
           call allocnd(edir, &
