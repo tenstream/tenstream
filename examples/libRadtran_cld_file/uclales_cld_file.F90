@@ -230,9 +230,11 @@ contains
       tod_phi = modulo(timeofday * 360._ireals, 360._ireals)
       tod_theta = 1._ireals - max(0._ireals, sin(deg2rad(timeofday * 360._ireals - 90))) ! range [0,1]
       sundir = spherical_2_cartesian(tod_phi, tod_theta * 90)
-      print *, k, timeofday, 'new phi0', tod_phi
-      print *, k, timeofday, 'new theta0', tod_theta * 90
-      print *, k, timeofday, 'new sundir', sundir
+      if (myid .eq. 0) then
+        print *, timeofday, 'new phi0', tod_phi
+        print *, timeofday, 'new theta0', tod_theta * 90
+        print *, timeofday, 'new sundir', sundir
+      endif
     end if
 
     call setup_tenstr_atm(comm, .false., atm_filename, &
