@@ -311,7 +311,7 @@
     end subroutine
 
     recursive subroutine print_list(self)
-      class(t_list_${name}$), intent(inout) :: self
+      class(t_list_${name}$), intent(in) :: self
       type(t_node), pointer :: node
       integer(iintegers) :: i
 
