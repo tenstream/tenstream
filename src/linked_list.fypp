@@ -82,7 +82,7 @@
 
   contains
 
-    recursive subroutine list_finalize(self)
+    subroutine list_finalize(self)
       class(t_list_${name}$), intent(inout) :: self
       type(t_node), pointer :: node, next
 
@@ -121,7 +121,7 @@
       self%length = self%length + 1
     end subroutine
 
-    subroutine list_for_each(self, proc)
+    recursive subroutine list_for_each(self, proc)
       class(t_list_${name}$) :: self
       procedure(foreach_sub) :: proc
       type(t_node), pointer :: node, next
@@ -138,7 +138,7 @@
       end do
     end subroutine
 
-    logical function list_all(self, proc) result(res)
+    recursive logical function list_all(self, proc) result(res)
       class(t_list_${name}$), intent(inout) :: self
       procedure(elem_logical_fun) :: proc
       type(t_node), pointer :: node
@@ -157,7 +157,7 @@
       end do
     end function
 
-    logical function list_any(self, proc) result(res)
+    recursive logical function list_any(self, proc) result(res)
       class(t_list_${name}$), intent(inout) :: self
       procedure(elem_logical_fun) :: proc
       type(t_node), pointer :: node
@@ -262,7 +262,7 @@
       res = node%item
     end subroutine
 
-    recursive subroutine list_pop_nth(self, n, val, ierr)
+    subroutine list_pop_nth(self, n, val, ierr)
       class(t_list_${name}$), intent(inout) :: self
       integer(iintegers), intent(in) :: n
       ${dtype}$, intent(out) :: val
@@ -310,7 +310,7 @@
       self%length = self%length - 1
     end subroutine
 
-    recursive subroutine print_list(self)
+    subroutine print_list(self)
       class(t_list_${name}$), intent(in) :: self
       type(t_node), pointer :: node
       integer(iintegers) :: i
