@@ -54,7 +54,7 @@ set( general_sources
   "data_parameters.F90"
   "eddington.F90"
   "interpolation.F90"
-  "mcrts_dmda.F90"
+  "mcdmda.F90"
   "mmap.F90"
   "nca.F90"
   "petsc_helpers.F90"

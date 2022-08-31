@@ -17,20 +17,28 @@
 ! Copyright (C) 2010-2015  Fabian Jakub, <fabian@jakub.com>
 !-------------------------------------------------------------------------
 
-module m_mcrts_dmda
+module m_mcdmda
+  use iso_fortran_env, only: int64
 
 #include "petsc/finclude/petsc.h"
   use petsc
-  use m_tenstream_options, only: mcrts_photons_per_pixel
 
   use m_data_parameters, only: ireals, iintegers, ireal_dp, &
-                               init_mpi_data_parameters, mpiint, imp_iinteger, &
-                               zero, one, nil, i0, i1, i2, i3, i4, i5, i6, i7, i8, i10, pi, &
-                               default_str_len
+                               mpiint, imp_iinteger, imp_int8, &
+                               zero, i0, i1, i2, i3, i4, i5, i6
 
-  use m_helper_functions, only: CHKERR, spherical_2_cartesian, &
-                                ind_nd_to_1d, ind_1d_to_nd, ndarray_offsets, imp_allreduce_sum, &
-                                get_arg, toStr, cstr, deg2rad
+  use m_helper_functions, only: &
+    & CHKERR, &
+    & cstr, &
+    & deg2rad, &
+    & get_arg, &
+    & get_petsc_opt, &
+    & imp_allreduce_sum, &
+    & ind_1d_to_nd, &
+    & ind_nd_to_1d, &
+    & ndarray_offsets, &
+    & spherical_2_cartesian, &
+    & toStr
 
   use m_boxmc, only: t_photon, print_photon, scatter_photon, roulette, R, &
                      tau, distance, update_photon_loc, &
@@ -39,23 +47,51 @@ module m_mcrts_dmda
 
   use m_boxmc_geometry, only: setup_default_unit_cube_geometry
 
-  use m_pprts_base, only: t_solver, t_solver_1_2, t_solver_3_6, &
+  use m_pprts_base, only: t_solver, t_solver_1_2, t_solver_3_6, t_solver_mcdmda, &
                           t_state_container, t_coord
 
   use m_petsc_helpers, only: getVecPointer, restoreVecPointer
 
+  use m_buildings, only: &
+    & t_pprts_buildings!, &
+  !& t_plex_buildings, &
+  !& clone_buildings, &
+  !& destroy_buildings, &
+  !& check_buildings_consistency, &
+  !& PPRTS_TOP_FACE, &
+  !& PPRTS_BOT_FACE, &
+  !& PPRTS_LEFT_FACE, &
+  !& PPRTS_REAR_FACE
+
   implicit none
 
+  ! queue status indices
   integer(mpiint), parameter :: &
     PQ_SELF = 1, &
     PQ_NORTH = 2, &
     PQ_EAST = 3, &
     PQ_SOUTH = 4, &
-    PQ_WEST = 5, &
-    PQ_NULL = 10, &
-    PQ_READY_TO_RUN = 12, &
-    PQ_RUNNING = 13, &
-    PQ_SENDING = 14
+    PQ_WEST = 5
+
+  ! states a photon can have
+  integer(mpiint), parameter :: &
+    PQ_NULL = 6, &
+    PQ_READY_TO_RUN = 7, &
+    PQ_RUNNING = 8, &
+    PQ_SENDING = 9
+
+  character(len=16), parameter :: id2name(9) = [ &
+    & character(len=16) :: &
+    & 'PQ_SELF', &
+    & 'PQ_NORTH', &
+    & 'PQ_EAST', &
+    & 'PQ_SOUTH', &
+    & 'PQ_WEST', &
+    & 'PQ_NULL', &
+    & 'PQ_READY_TO_RUN', &
+    & 'PQ_RUNNING', &
+    & 'PQ_SENDING' &
+    & ]
 
   type :: t_distributed_photon
     type(t_photon) :: p
@@ -65,44 +101,83 @@ module m_mcrts_dmda
   type :: t_photon_queue
     type(t_distributed_photon), allocatable :: photons(:)
     integer(mpiint) :: current, current_size
+    integer(mpiint) :: readyslots ! count of ready_to_run slots
     integer(mpiint) :: emptyslots ! count of empty slots in this queue
     integer(mpiint) :: owner ! owner is the owning rank, i.e. myid or the neighbor id
     integer(mpiint) :: queue_index ! is the STATUS integer, i.e. one of PQ_SELF, PQ_NORTH etc.
   end type
 
-  !logical, parameter :: ldebug=.True.
+!#ifdef __RELEASE_BUILD__
+!  logical, parameter :: ldebug = .true.
+!#else
+!  logical, parameter :: ldebug = .true.
+!#endif
+  !logical, parameter :: ldebug = .true.
   logical, parameter :: ldebug = .false.
 
-  real(ireal_dp), parameter :: loceps = zero !sqrt(epsilon(loceps))
+  real(ireal_dp), parameter :: loceps = 0 !sqrt(epsilon(loceps))
   integer(iintegers), parameter :: E_up = 0, E_dn = 1
 
 contains
-  subroutine solve_mcrts(solver, edirTOA, solution)
+  subroutine determine_Nphotons(solver, Nphotons_local, ierr)
+    class(t_solver), intent(in) :: solver
+    integer(iintegers), intent(out) :: Nphotons_local
+    integer(mpiint), intent(out) :: ierr
+    integer(iintegers) :: mcdmda_photons_per_pixel ! has to be constant over all TOA faces
+    real(ireals) :: rN
+    logical :: lflg
+    integer(mpiint) :: numnodes
+
+    ierr = 0
+
+    call mpi_comm_size(solver%comm, numnodes, ierr); call CHKERR(ierr)
+
+    mcdmda_photons_per_pixel = 1000
+    call get_petsc_opt(PETSC_NULL_CHARACTER, "-mcdmda_photons_per_px", &
+                       mcdmda_photons_per_pixel, lflg, ierr); call CHKERR(ierr)
+
+    call get_petsc_opt(PETSC_NULL_CHARACTER, "-mcdmda_photons", rN, lflg, ierr); call CHKERR(ierr)
+    if (lflg) then
+      mcdmda_photons_per_pixel = int(rN, kind(Nphotons_local)) / (numnodes * solver%C_one%xm * solver%C_one%ym)
+      mcdmda_photons_per_pixel = max(1_iintegers, mcdmda_photons_per_pixel)
+    end if
+
+    Nphotons_local = solver%C_one%xm * solver%C_one%ym * mcdmda_photons_per_pixel
+
+  end subroutine
+
+  subroutine solve_mcdmda(solver, edirTOA, solution, ierr, opt_buildings)
     class(t_solver), intent(in) :: solver
     real(ireals), intent(in) :: edirTOA
     type(t_state_container) :: solution
+    integer(mpiint), intent(out) :: ierr
+    type(t_pprts_buildings), intent(in), optional :: opt_buildings
 
-    integer(mpiint) :: myid, numnodes, ierr
+    integer(mpiint) :: myid
 
     type(t_photon_queue) :: pqueues(5) ! [own, north, east, south, west]
 
-    integer(iintegers) :: Nphotons, photon_limit
-    integer(iintegers) :: ip, kp, iter
-    integer(iintegers) :: started_photons, globally_started_photons
-    integer(iintegers) :: killed_photons, globally_killed_photons
+    integer(iintegers) :: Nphotons_global, globally_killed_photons
+    integer(iintegers) :: Nphotons_local, photon_limit
+    integer(iintegers) :: started_photons
+    integer(iintegers) :: killed_photons
+    integer(iintegers) :: ip, kp
+    integer(iintegers) :: iter
     integer(mpiint) :: killed_request, stat(mpi_status_size)
     logical :: lcomm_finished
 
     class(t_boxmc), allocatable :: bmc
 
-    globally_started_photons = solver%C_one%glob_xm * solver%C_one%glob_ym * mcrts_photons_per_pixel
-    Nphotons = solver%C_one%xm * solver%C_one%ym * mcrts_photons_per_pixel
+    ierr = 0
+
+    call determine_Nphotons(solver, Nphotons_local, ierr); call CHKERR(ierr)
+    call mpi_allreduce(Nphotons_local, Nphotons_global, 1_mpiint, imp_iinteger, &
+                       MPI_SUM, solver%comm, ierr); call CHKERR(ierr)
 
     call mpi_comm_rank(solver%comm, myid, ierr); call CHKERR(ierr)
-    call mpi_comm_size(solver%comm, numnodes, ierr); call CHKERR(ierr)
 
     if (ldebug) then
-      print *, myid, 'Edir TOA', edirTOA, ':', Nphotons
+      print *, myid, 'Edir TOA', edirTOA, ': Nphotons_local', Nphotons_local, 'Nphotons_global', Nphotons_global
       print *, myid, 'Domain start:', solver%C_one%zs, solver%C_one%xs, solver%C_one%ys
       print *, myid, 'Domain end  :', solver%C_one%ze, solver%C_one%xe, solver%C_one%ye
       print *, myid, 'Domain Size :', solver%C_one%zm, solver%C_one%xm, solver%C_one%ym
@@ -112,13 +187,11 @@ contains
         solver%C_one%neighbors(22), solver%C_one%neighbors(16), solver%C_one%neighbors(4), solver%C_one%neighbors(10)
     end if
 
-    !if(numnodes.ne.1) call CHKERR(1_mpiint, 'cannot run mcrts in parallel, would need to implement message passing and for that, need global unique indices')
-
-    call setup_photon_queue(pqueues(PQ_SELF), Nphotons, myid, PQ_SELF)
-    call setup_photon_queue(pqueues(PQ_NORTH), Nphotons * 10, solver%C_one%neighbors(22), PQ_NORTH)
-    call setup_photon_queue(pqueues(PQ_EAST), Nphotons * 10, solver%C_one%neighbors(16), PQ_EAST)
-    call setup_photon_queue(pqueues(PQ_SOUTH), Nphotons * 10, solver%C_one%neighbors(4), PQ_SOUTH)
-    call setup_photon_queue(pqueues(PQ_WEST), Nphotons * 10, solver%C_one%neighbors(10), PQ_WEST)
+    call setup_photon_queue(pqueues(PQ_SELF), Nphotons_local, myid, PQ_SELF)
+    call setup_photon_queue(pqueues(PQ_NORTH), Nphotons_local * 10, solver%C_one%neighbors(22), PQ_NORTH)
+    call setup_photon_queue(pqueues(PQ_EAST), Nphotons_local * 10, solver%C_one%neighbors(16), PQ_EAST)
+    call setup_photon_queue(pqueues(PQ_SOUTH), Nphotons_local * 10, solver%C_one%neighbors(4), PQ_SOUTH)
+    call setup_photon_queue(pqueues(PQ_WEST), Nphotons_local * 10, solver%C_one%neighbors(10), PQ_WEST)
 
     if (solver%C_one%neighbors(22) .lt. zero) call CHKERR(solver%C_one%neighbors(22), 'Bad neighbor id for PQ_NORTH')
     if (solver%C_one%neighbors(16) .lt. zero) call CHKERR(solver%C_one%neighbors(16), 'Bad neighbor id for PQ_EAST')
@@ -136,8 +209,11 @@ contains
     class is (t_solver_3_6)
       allocate (t_boxmc_3_6 :: bmc)
 
+    class is (t_solver_mcdmda)
+      allocate (t_boxmc_3_6 :: bmc)
+
     class default
-      call CHKERR(1_mpiint, 'initialize bmc for mcrts: unexpected type for solver object for DMDA computations!'// &
+      call CHKERR(1_mpiint, 'initialize bmc for mcdmda: unexpected type for solver object for DMDA computations!'// &
                   '-- call with -solver 1_2 or -solver 3_6')
 
     end select
@@ -149,10 +225,10 @@ contains
     end if
 
     ! Initialize the locally owned photons
-    call prepare_locally_owned_photons(solver, bmc, pqueues(PQ_SELF), mcrts_photons_per_pixel)
+    call prepare_locally_owned_photons(solver, bmc, pqueues(PQ_SELF), Nphotons_local)
 
-    !pqueues(PQ_SELF)%photons(:)%p%weight = edirTOA*solver%atm%dx*solver%atm%dy/mcrts_photons_per_pixel
-    pqueues(PQ_SELF)%photons(:)%p%weight = edirTOA / real(mcrts_photons_per_pixel, ireals)
+    !pqueues(PQ_SELF)%photons(:)%p%weight = edirTOA*solver%atm%dx*solver%atm%dy/mcdmda_photons_per_pixel
+    pqueues(PQ_SELF)%photons(:)%p%weight = edirTOA * solver%C_one%xm * solver%C_one%ym / real(Nphotons_local, ireals)
 
     killed_photons = 0
     call mpi_iallreduce(killed_photons, globally_killed_photons, 1_mpiint, imp_iinteger, &
@@ -163,12 +239,12 @@ contains
       iter = iter + 1
 
       ! Start local photons in batches
-      photon_limit = size(pqueues(PQ_NORTH)%photons, kind=iintegers) / 100_iintegers
-      photon_limit = max(mcrts_photons_per_pixel, photon_limit)
+      photon_limit = max(1_iintegers, size(pqueues(PQ_NORTH)%photons, kind=iintegers) / 100_iintegers)
 
       call run_photon_queue(solver, bmc, solution, pqueues, PQ_SELF, &
                             started_photons=ip, killed_photons=kp, limit_number_photons=photon_limit)
       started_photons = ip; killed_photons = killed_photons + kp
+      if (ldebug) print *, 'SELF', 'started_photons', started_photons, 'killed_photons', killed_photons
 
       remote_photons: do ! Run remote photons until they are done, only then go on, this hopefully keeps the queue small
         started_photons = 0
@@ -176,32 +252,39 @@ contains
 
         call run_photon_queue(solver, bmc, solution, pqueues, PQ_NORTH, started_photons=ip, killed_photons=kp)
         started_photons = started_photons + ip; killed_photons = killed_photons + kp
+        if (ldebug) print *, 'NORTH', 'started_photons', ip, 'killed_photons', kp
 
         call run_photon_queue(solver, bmc, solution, pqueues, PQ_EAST, started_photons=ip, killed_photons=kp)
         started_photons = started_photons + ip; killed_photons = killed_photons + kp
+        if (ldebug) print *, 'EAST', 'started_photons', ip, 'killed_photons', kp
 
         call run_photon_queue(solver, bmc, solution, pqueues, PQ_SOUTH, started_photons=ip, killed_photons=kp)
         started_photons = started_photons + ip; killed_photons = killed_photons + kp
+        if (ldebug) print *, 'SOUTH', 'started_photons', ip, 'killed_photons', kp
 
         call run_photon_queue(solver, bmc, solution, pqueues, PQ_WEST, started_photons=ip, killed_photons=kp)
         started_photons = started_photons + ip; killed_photons = killed_photons + kp
+        if (ldebug) print *, 'WEST', 'started_photons', ip, 'killed_photons', kp
 
-        if (started_photons .eq. 0) exit remote_photons
+        if (started_photons .eq. 0) then
+          if (ldebug) print *, 'exit remote_photons branch'
+          exit remote_photons
+        end if
       end do remote_photons
 
       call mpi_test(killed_request, lcomm_finished, stat, ierr); call CHKERR(ierr)
       if (lcomm_finished) then
         if (myid .eq. 0) print *, iter, &
-          'Globally killed photons', globally_killed_photons, '/', globally_started_photons, &
-          '('//toStr(100 * real(globally_killed_photons) / real(globally_started_photons))//' % )'
+          'Globally killed photons', globally_killed_photons, '/', Nphotons_global, &
+          '('//toStr(100 * real(globally_killed_photons) / real(Nphotons_global))//' % )'
         if (ldebug) then
-          print *, myid, 'Globally killed photons', globally_killed_photons, '/', globally_started_photons
+          print *, myid, 'Globally killed photons', globally_killed_photons, '/', Nphotons_global
           call print_pqueue(pqueues(PQ_NORTH))
           call print_pqueue(pqueues(PQ_EAST))
           call print_pqueue(pqueues(PQ_SOUTH))
           call print_pqueue(pqueues(PQ_WEST))
         end if
-        if (globally_killed_photons .eq. globally_started_photons) then
+        if (globally_killed_photons .eq. Nphotons_global) then
           exit
         end if
         ! if we reach here this means there is still work todo, setup a new allreduce
@@ -216,9 +299,9 @@ contains
     !call VecScale(solution%abso, one/Nphotons, ierr); call CHKERR(ierr)
 
     call PetscObjectSetName(solution%edir, 'edir', ierr); call CHKERR(ierr)
-    call PetscObjectViewFromOptions(solution%edir, PETSC_NULL_VEC, '-mcrts_show_edir', ierr); call CHKERR(ierr)
-    call PetscObjectViewFromOptions(solution%ediff, PETSC_NULL_VEC, '-mcrts_show_ediff', ierr); call CHKERR(ierr)
-    call PetscObjectViewFromOptions(solution%abso, PETSC_NULL_VEC, '-mcrts_show_abso', ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(solution%edir, PETSC_NULL_VEC, '-mcdmda_show_edir', ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(solution%ediff, PETSC_NULL_VEC, '-mcdmda_show_ediff', ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(solution%abso, PETSC_NULL_VEC, '-mcdmda_show_abso', ierr); call CHKERR(ierr)
   end subroutine
 
   subroutine run_photon_queue(solver, bmc, solution, pqueues, ipq, started_photons, killed_photons, limit_number_photons)
@@ -235,8 +318,14 @@ contains
     real(ireals), pointer, dimension(:) :: xv_dir1d => null(), xv_diff1d => null(), xv_abso1d => null()
     logical :: lkilled_photon
 
+    if (ldebug) then
+      print *, 'run photon queue ', id2name(pqueues(ipq)%queue_index)
+      call print_pqueue(pqueues(ipq))
+    end if
+
     Nphotmax = get_arg(huge(Nphotmax), limit_number_photons)
     Nphotmax = min(size(pqueues(ipq)%photons, kind=iintegers), Nphotmax)
+    !Nphotmax = min(int(pqueues(ipq)%readyslots, kind=iintegers), Nphotmax)
 
     call getVecPointer(solver%C_dir%da, solution%edir, xv_dir1d, xv_dir)
     call getVecPointer(solver%C_diff%da, solution%ediff, xv_diff1d, xv_diff)
@@ -284,7 +373,7 @@ contains
 
     associate (p => pqueues(ipq)%photons(iphoton)%p)
 
-      if (ldebug) print *, myid, cstr('Start of run_photon :: QUEUE:', 'pink'), ipq, 'iphoton', iphoton
+      if (ldebug) print *, myid, cstr('Start of run_photon :: QUEUE:', 'pink'), id2name(ipq), 'iphoton', iphoton
       if (ldebug) call print_photon(p)
       call check_if_photon_is_in_domain(solver%C_one, p)
 
@@ -469,16 +558,17 @@ contains
     end if
   end subroutine
 
-  subroutine prepare_locally_owned_photons(solver, bmc, pqueue, Nphotons_per_pixel)
+  subroutine prepare_locally_owned_photons(solver, bmc, pqueue, Nphotons)
     class(t_solver), intent(in) :: solver
     class(t_boxmc), intent(in) :: bmc
     type(t_photon_queue), intent(inout) :: pqueue
-    integer(iintegers), intent(in) :: Nphotons_per_pixel
+    integer(iintegers), intent(in) :: Nphotons
 
     type(t_photon) :: p
     real(ireals) :: phi0, theta0
     integer(mpiint) :: ip, myid, ierr
-    integer(iintegers) :: i, j, l
+    integer(iintegers) :: i, j
+    integer(iintegers) :: Nphotons_per_pixel, iphoton, l
     real(ireals), allocatable :: vertices(:)
     real(ireals) :: initial_dir(3)
 
@@ -488,12 +578,22 @@ contains
     theta0 = solver%sun%theta
     initial_dir = spherical_2_cartesian(phi0, theta0)
 
-    do i = solver%C_one%xs, solver%C_one%xe
-      do j = solver%C_one%ys, solver%C_one%ye
-        call setup_default_unit_cube_geometry(solver%atm%dx, solver%atm%dy, &
-                                              solver%atm%dz(i0, i, j), vertices)
+    Nphotons_per_pixel = max(1_iintegers, 1_iintegers + Nphotons / int(solver%C_one%xm * solver%C_one%ym, kind(Nphotons)))
 
-        do l = 1, Nphotons_per_pixel
+    iphoton = 0
+    do l = 1, Nphotons_per_pixel
+      do i = solver%C_one%xs, solver%C_one%xe
+        do j = solver%C_one%ys, solver%C_one%ye
+          iphoton = iphoton + 1
+          !print *, 'Preparing Photon', i, j, ': iphoton', iphoton, Nphotons
+          !call print_pqueue(pqueue)
+          if (iphoton .gt. Nphotons) then
+            return
+          end if
+
+          call setup_default_unit_cube_geometry(solver%atm%dx, solver%atm%dy, &
+                                                solver%atm%dz(i0, i, j), vertices)
+
           call bmc%init_dir_photon(p, i1, .true., real(initial_dir, ireal_dp), real(vertices, ireal_dp), ierr)
           p%i = i
           p%j = j
@@ -510,7 +610,7 @@ contains
           pqueue%photons(ip)%p%cellid = myid * 100 + ip
 
           if (ldebug) then
-            print *, 'Prepared Photon', i, j, ': iphoton', ip
+            print *, 'Prepared Photon', i, j, ': iphoton', ip, iphoton, Nphotons
             call print_photon(pqueue%photons(ip)%p)
           end if
         end do
@@ -544,8 +644,8 @@ contains
       return
     end if
 
-    j = (ip - 1) / Nx ! zero based offsets
-    i = (ip - 1) - j * Nx
+    j = (ip - 1) / int(Nx, kind(ip)) ! zero based offsets
+    i = (ip - 1) - j * int(Nx, kind(ip))
 
     x = real(i + 1, ireals) / real(Nx + 1, ireals) * sqrt(5._ireals) / 2._ireals
     y = real(j + 1, ireals) / real(Ny + 1, ireals) * sqrt(5._ireals) / 2._ireals
@@ -568,18 +668,24 @@ contains
     integer(mpiint), intent(out) :: emptyid
     integer(mpiint), intent(out) :: ierr
     integer(mpiint) :: i
+    ! if we know that there is no more space in the buffer, lets grow it
     if (pqueue%emptyslots .eq. 0) then
       pqueue%current_size = pqueue%current_size + 1
       pqueue%emptyslots = 1
     end if
-    if (pqueue%current_size .gt. size(pqueue%photons)) call CHKERR(1_mpiint, 'cant enlarge pqueue%currentsize, reached max')
+    if (pqueue%current_size .gt. size(pqueue%photons)) then
+      ierr = 1_mpiint
+      call CHKERR(1_mpiint, 'cant enlarge pqueue%currentsize, reached max')
+    end if
     ierr = 0
+    ! beginning from the last photon, we look for an empty space
     do i = pqueue%current + 1, pqueue%current_size
       if (pqueue%photons(i)%pstatus .eq. PQ_NULL) then
         emptyid = i
         return
       end if
     end do
+    ! if no new slots are available, maybe a slot from earlier freed up
     do i = 1, pqueue%current
       if (pqueue%photons(i)%pstatus .eq. PQ_NULL) then
         emptyid = i
@@ -587,29 +693,28 @@ contains
       end if
     end do
     emptyid = -1
-    ierr = 1
+    ierr = 1_mpiint
   end subroutine
 
   subroutine print_pqueue(pq)
     type(t_photon_queue), intent(in) :: pq
-    !integer(iintegers) :: i
-    print *, 'PQUEUE:', pq%owner, '::', pq%queue_index
+    integer(iintegers) :: i
+    print *, 'PQUEUE:', pq%owner, '::', pq%queue_index, 'name ', cstr(trim(id2name(pq%queue_index)), 'blue')
+    print *, 'current', pq%current, 'current_size', pq%current_size
+    print *, 'readyslots', pq%readyslots
+    print *, 'emptyslots', pq%emptyslots
     print *, 'READY:  ', count(pq%photons(:)%pstatus .eq. PQ_READY_TO_RUN)
     print *, 'RUNNING:', count(pq%photons(:)%pstatus .eq. PQ_RUNNING)
     print *, 'SENDING:', count(pq%photons(:)%pstatus .eq. PQ_SENDING)
     print *, 'PQ_NULL:', count(pq%photons(:)%pstatus .eq. PQ_NULL)
-    !do i=1,size(pq%photons)
-    !  select case(pq%photons(i)%pstatus)
-    !  case (PQ_NULL)
-    !    !print *,i,':',pq%photons(i)%pstatus
-    !  case (PQ_READY_TO_RUN )
-    !    print *,i,': READY_TO_RUN'
-    !  case (PQ_RUNNING)
-    !    print *,i,': RUNNING'
-    !  case (PQ_SENDING )
-    !    print *,i,': SENDING'
-    !  end select
-    !enddo
+
+    if (count(pq%photons(:)%pstatus .eq. PQ_NULL) .ne. pq%emptyslots) &
+      & call CHKERR(1_mpiint, 'emptyslots not tracked correctly')
+    if (count(pq%photons(:)%pstatus .eq. PQ_READY_TO_RUN) .ne. pq%readyslots) &
+      & call CHKERR(1_mpiint, 'readyslots not tracked correctly')
+    do i = 1, size(pq%photons)
+      print *, cstr(id2name(pq%queue_index), 'blue'), i, id2name(pq%photons(i)%pstatus)
+    end do
   end subroutine
 
   subroutine pqueue_add_photon(pqueue, p, pstatus, request, ind)
@@ -620,8 +725,9 @@ contains
     integer(mpiint) :: ierr
 
     call find_empty_entry_in_pqueue(pqueue, ind, ierr)
+    call CHKERR(ierr, 'Could not find an empty slot in neighbor queue '//toStr(pqueue%queue_index))
     if (ierr .ne. 0) then
-      call finalize_msgs(pqueue, lwait=.true.)
+      call finalize_msgs_blocking(pqueue)
       call find_empty_entry_in_pqueue(pqueue, ind, ierr)
       call CHKERR(ierr, 'Could not find an empty slot in neighbor queue '//toStr(pqueue%queue_index))
     end if
@@ -629,18 +735,36 @@ contains
     pqueue%current = ind
     ! Put photon to send queue to neighbor
     pqueue%photons(ind)%p = p
-    pqueue%photons(ind)%pstatus = pstatus
     pqueue%photons(ind)%request = request
-    pqueue%emptyslots = pqueue%emptyslots - 1
+
+    call pqueue_set_status(pqueue, ind, pstatus)
   end subroutine
 
-  subroutine pqueue_set_status(pqueue, ind, pstatus)
+  subroutine pqueue_set_status(pqueue, ind, newstatus)
     type(t_photon_queue), intent(inout) :: pqueue
     integer(iintegers), intent(in) :: ind
-    integer(mpiint), intent(in) :: pstatus
-    if (pqueue%photons(ind)%pstatus .eq. PQ_NULL) pqueue%emptyslots = pqueue%emptyslots - 1
-    pqueue%photons(ind)%pstatus = pstatus
-    if (pstatus .eq. PQ_NULL) pqueue%emptyslots = pqueue%emptyslots + 1
+    integer(mpiint), intent(in) :: newstatus
+    integer(mpiint) :: oldstatus
+
+    oldstatus = pqueue%photons(ind)%pstatus
+
+    if (oldstatus .eq. newstatus) return
+
+    select case (oldstatus)
+    case (PQ_NULL)
+      pqueue%emptyslots = pqueue%emptyslots - 1
+    case (PQ_READY_TO_RUN)
+      pqueue%readyslots = pqueue%readyslots - 1
+    end select
+
+    select case (newstatus)
+    case (PQ_NULL)
+      pqueue%emptyslots = pqueue%emptyslots + 1
+    case (PQ_READY_TO_RUN)
+      pqueue%readyslots = pqueue%readyslots + 1
+    end select
+
+    pqueue%photons(ind)%pstatus = newstatus
   end subroutine
 
   subroutine setup_photon_queue(pq, N, owner, queue_index)
@@ -656,6 +780,7 @@ contains
     pq%queue_index = queue_index
     pq%current_size = int(N, mpiint)
     pq%emptyslots = pq%current_size
+    pq%readyslots = 0
   end subroutine
 
   subroutine send_photon_to_neighbor(solver, C, p_in, pqueue)
@@ -677,7 +802,6 @@ contains
       select case (pqueue%queue_index)
       case (PQ_SELF)
         call CHKERR(1_mpiint, 'should not happen that a photon is sent to ourselves?')
-        print *, C%xm
       case (PQ_WEST)
         !print *,'Sending Photon WEST'
         if (p%side .ne. i3) call CHKERR(1_mpiint, 'I would assume that side should be 3 when sending WEST')
@@ -715,16 +839,15 @@ contains
       call pqueue_set_status(pqueue, int(iphoton, iintegers), PQ_SENDING)
 
       if (ldebug) then
-        print *, 'Sending the following photon to', pqueue%owner, ':tag', tag
+        print *, 'Sending the following photon to rank', pqueue%owner, ':tag', tag
         call print_photon(p)
       end if
 
     end associate
   end subroutine
 
-  subroutine finalize_msgs(pqueue, lwait)
+  subroutine finalize_msgs_non_blocking(pqueue)
     type(t_photon_queue), intent(inout) :: pqueue
-    logical, intent(in) :: lwait
 
     integer(iintegers) :: i
     integer(mpiint) :: iter, stat(mpi_status_size), ierr
@@ -747,7 +870,35 @@ contains
           end if
         end if
       end do
-      if (.not. lwait) return
+      return
+      if (cnt_finished_msgs .ne. 0) return
+    end do
+    call CHKERR(1_mpiint, 'waited too long but nothing happened... exiting...')
+  end subroutine
+  subroutine finalize_msgs_blocking(pqueue)
+    type(t_photon_queue), intent(inout) :: pqueue
+
+    integer(iintegers) :: i
+    integer(mpiint) :: iter, stat(mpi_status_size), ierr
+    integer(mpiint) :: cnt_finished_msgs
+    logical :: lcomm_finished
+
+    cnt_finished_msgs = 0
+    do iter = 1, 1000
+      ! See if we can close messages already
+      do i = 1, size(pqueue%photons)
+        if (pqueue%photons(i)%pstatus .eq. PQ_SENDING) then
+          call mpi_test(pqueue%photons(i)%request, lcomm_finished, stat, ierr); call CHKERR(ierr)
+          if (lcomm_finished) then
+            call pqueue_set_status(pqueue, i, PQ_NULL)
+            cnt_finished_msgs = cnt_finished_msgs + 1
+            if (ldebug) then
+              print *, 'Finalized Sending a photon:', i
+              call print_photon(pqueue%photons(i)%p)
+            end if
+          end if
+        end if
+      end do
       if (cnt_finished_msgs .ne. 0) return
     end do
     call CHKERR(1_mpiint, 'waited too long but nothing happened... exiting...')
@@ -762,7 +913,7 @@ contains
     call mpi_comm_rank(solver%comm, myid, ierr)
 
     do ipq = 1, size(pqueues)
-      call finalize_msgs(pqueues(ipq), lwait=.false.)
+      call finalize_msgs_non_blocking(pqueues(ipq))
     end do
 
     ! receive all messages that we can get
@@ -784,7 +935,7 @@ contains
 
         call find_empty_entry_in_pqueue(pqueues(ipq), pqueues(ipq)%current, ierr)
         if (ierr .ne. 0) then
-          call finalize_msgs(pqueues(ipq), lwait=.true.)
+          call finalize_msgs_blocking(pqueues(ipq))
           call find_empty_entry_in_pqueue(pqueues(ipq), pqueues(ipq)%current, ierr)
           call CHKERR(ierr, 'no space in queue to receive a msg')
         end if
@@ -795,7 +946,7 @@ contains
         call pqueue_set_status(pqueues(ipq), int(pqueues(ipq)%current, iintegers), PQ_READY_TO_RUN)
 
         if (ldebug) then
-          print *, myid, 'Got Message from:', mpi_status(MPI_SOURCE), 'Receiving ipq', ipq
+          print *, myid, 'Got Message from rank:', mpi_status(MPI_SOURCE), 'Receiving ipq ', id2name(ipq)
           call print_photon(pqueues(ipq)%photons(pqueues(ipq)%current)%p)
           !call check_if_cellid_is_in_domain(solver%C_one, pqueues(ipq)%photons(pqueues(ipq)%current)%p%cellid)
         end if

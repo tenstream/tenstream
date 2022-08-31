@@ -34,7 +34,6 @@ module m_tenstream_options
     luse_eddington = .true., & ! use delta eddington coefficients for upper atmosphere, if False , we use boxmc 2-str coeffs
     lcalc_nca = .false., & ! calculate twostream and modify absorption with NCA algorithm
     lschwarzschild = .false., & ! use schwarzschild solver instead of twostream for thermal calculations
-    lmcrts = .false., & ! use monte carlo solver
     lskip_thermal = .false., & ! Skip thermal calculations and just return zero for fluxes and absorption
     ltopography = .false., & ! use raybending to include surface topography
     lLUT_mockup = .false.
@@ -42,7 +41,7 @@ module m_tenstream_options
   real(ireals) :: twostr_ratio, &
                   options_max_solution_err, options_max_solution_time
 
-  integer(iintegers) :: pert_xshift, pert_yshift, mcrts_photons_per_pixel
+  integer(iintegers) :: pert_xshift, pert_yshift
 
 contains
   subroutine show_options()
@@ -51,9 +50,7 @@ contains
     print *, 'Tenstream options:'
     print *, '-show_options         :: show this text                                                                           '
     print *, '-schwarzschild        :: use schwarzschild solver instead of twostream for thermal calculations                   '
-    print *, '-mcrts                :: use a montecarlo solver'
-    print *, '-mcrts_photons_per_px :: number of photons per pixel'
-    print *, '-twostr_ratio <limit> :: when aspect ratio (dz/dx) is larger than <limit> then we use twostr_coeffs(default = 2.)'
+    print *, '-twostr_ratio <limit> :: when aspect ratio (dz/dx) is larger than <limit> then we use twostr_coeffs(default = 2.) '
     print *, '-calc_nca             :: calculate twostream and modify absorption with NCA algorithm (Klinger)                   '
     print *, '-skip_thermal         :: skip thermal calculations and just return zero for flux and absorption                   '
     print *, '-topography           :: use raybending to include surface topography, needs a 3D dz information                  '
@@ -140,13 +137,6 @@ contains
     call get_petsc_opt(PETSC_NULL_CHARACTER, "-schwarzschild", &
                        lschwarzschild, lflg, ierr); call CHKERR(ierr)
 
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-mcrts", &
-                       lmcrts, lflg, ierr); call CHKERR(ierr)
-
-    mcrts_photons_per_pixel = 1000
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-mcrts_photons_per_px", &
-                       mcrts_photons_per_pixel, lflg, ierr); call CHKERR(ierr)
-
     call get_petsc_opt(PETSC_NULL_CHARACTER, "-tenstr_view", &
                        ltenstr_view, lflg, ierr); call CHKERR(ierr)
 
@@ -160,7 +150,6 @@ contains
       print *, '***   eddington    ', luse_eddington
       print *, '***   calc_nca     ', lcalc_nca
       print *, '***   schwarzschild', lschwarzschild
-      print *, '***   mcrts        ', lmcrts
       print *, '***   skip_thermal ', lskip_thermal
       print *, '***   topography   ', ltopography
       print *, '***   twostr_ratio ', twostr_ratio

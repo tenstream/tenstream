@@ -59,6 +59,7 @@ module m_pprts_base
     & t_solver_disort, &
     & t_solver_log_events, &
     & t_solver_rayli, &
+    & t_solver_mcdmda, &
     & t_state_container, &
     & t_suninfo
 
@@ -219,6 +220,8 @@ module m_pprts_base
   type, extends(t_solver) :: t_solver_disort
   end type
   type, extends(t_solver) :: t_solver_rayli
+  end type
+  type, extends(t_solver) :: t_solver_mcdmda
   end type
   type, extends(t_solver) :: t_solver_1_2
   end type
@@ -396,6 +399,9 @@ contains
 
     case ('rayli')
       allocate (t_solver_rayli :: pprts_solver)
+
+    case ('mcdmda')
+      allocate (t_solver_mcdmda :: pprts_solver)
 
     case ('1_2')
       allocate (t_solver_1_2 :: pprts_solver)

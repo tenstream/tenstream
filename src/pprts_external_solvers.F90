@@ -844,18 +844,20 @@ contains
   ! * implement pprts to wedge interface
   ! * average results over shared mem comm
   ! * distribute results
-  subroutine pprts_rayli_wrapper(lcall_solver, lcall_snap, solver, edirTOA, solution, opt_buildings)
+  subroutine pprts_rayli_wrapper(lcall_solver, lcall_snap, solver, edirTOA, solution, ierr, opt_buildings)
     logical, intent(in) :: lcall_solver, lcall_snap
     class(t_solver), intent(inout) :: solver
     real(ireals), intent(in) :: edirTOA
     type(t_state_container), intent(inout) :: solution
+    integer(mpiint), intent(out) :: ierr
     type(t_pprts_buildings), intent(in), optional :: opt_buildings
 
-    integer(mpiint) :: ierr
     integer(mpiint) :: myid, numnodes
     integer(mpiint) :: submyid, subnumnodes
 
     real(ireals) :: sundir(3)
+
+    ierr = 0
 
     if (all([lcall_solver, lcall_snap] .eqv. .false.)) return
 

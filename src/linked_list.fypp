@@ -1,0 +1,353 @@
+!-------------------------------------------------------------------------
+! This file is part of the tenstream solver.
+!
+! This program is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by
+! the Free Software Foundation, either version 3 of the License, or
+! (at your option) any later version.
+!
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+!
+! You should have received a copy of the GNU General Public License
+! along with this program.  If not, see <http://www.gnu.org/licenses/>.
+!
+! Copyright (C) 2010-2015  Fabian Jakub, <fabian@jakub.com>
+!-------------------------------------------------------------------------
+
+! The implementation follows the example at
+! https://github.com/LadaF/fortran-list/blob/master/src/lists.f90
+
+#:for name,dtype in [&
+  ('iintegers', 'integer(iintegers)'), &
+  ]
+
+  !('int32', 'integer(INT32)', '='), &
+!    ('integer', 'INT64'  ), &
+!    ('real'   , 'REAL32' ), &
+!    ('real'   , 'REAL64' ), &
+!  ('real'   , 'REAL128'), &
+  module m_linked_list_${name}$
+    use iso_c_binding, only: c_loc
+    use m_data_parameters, only: iintegers, mpiint
+    use m_helper_functions, only: CHKERR, CHKWARN, toStr
+    implicit none
+
+    type t_node
+      ${dtype}$::item
+      type(t_node), pointer :: next => null()
+      type(t_node), pointer :: prev => null()
+    end type
+
+    type t_list_${name}$
+      type(t_node), pointer, private :: first => null()
+      type(t_node), pointer, private :: last => null()
+      integer, private :: length = 0
+    contains
+      procedure :: finalize => list_finalize
+      procedure :: add => list_add
+      procedure :: for_each => list_for_each
+      procedure :: all => list_All
+      procedure :: any => list_Any
+      procedure :: len => list_len
+      procedure :: get_first => list_get_first
+      procedure :: get_last => list_get_last
+      procedure :: get_nth => list_get_nth
+      procedure :: push => list_push
+      procedure :: pop => list_pop
+      procedure :: pop_first => list_pop_first
+      procedure :: pop_nth => list_pop_nth
+      procedure :: view => print_list
+      procedure :: del_node => list_del_node
+    end type
+
+    abstract interface
+      subroutine foreach_sub(idx, node, val)
+        import
+        integer, intent(in) :: idx
+        type(t_node), pointer, intent(inout) :: node
+        ${dtype}$, intent(inout) :: val
+      end subroutine
+      logical function elem_logical_fun(item)
+        import
+        ${dtype}$, intent(in) :: item
+      end function
+    end interface
+
+  contains
+
+    recursive subroutine list_finalize(self)
+      class(t_list_${name}$), intent(inout) :: self
+      type(t_node), pointer :: node, tmp
+
+      if (self%length > 0) then
+        node => self%first
+
+        do while (associated(node))
+          tmp => node
+          node => node%next
+
+          deallocate (tmp)
+        end do
+      end if
+
+      self%last => null()
+      self%first => null()
+
+      self%length = 0
+    end subroutine
+
+    subroutine list_add(self, item)
+      class(t_list_${name}$), intent(inout) :: self
+      !class(*),intent(in) :: item
+      ${dtype}$, intent(in) :: item
+
+      if (.not. associated(self%last)) then
+        allocate (self%first)
+        self%last => self%first
+      else
+        allocate (self%last%next)
+        self%last%next%prev => self%last
+        self%last => self%last%next
+      end if
+
+      self%last%item = item
+
+      self%length = self%length + 1
+
+    end subroutine
+
+    subroutine list_for_each(self, proc)
+      class(t_list_${name}$) :: self
+      procedure(foreach_sub) :: proc
+      type(t_node), pointer :: node, next
+      integer :: i
+
+      node => self%first
+
+      i = 0
+      do while (associated(node))
+        i = i + 1
+        next => node%next
+        call proc(i, node, node%item)
+        node => next
+      end do
+
+    end subroutine
+
+    logical function list_all(self, proc) result(res)
+      class(t_list_${name}$), intent(inout) :: self
+      procedure(elem_logical_fun) :: proc
+      type(t_node), pointer :: node
+
+      res = .true.
+
+      node => self%first
+
+      do while (associated(node))
+        res = proc(node%item)
+        if (.not. res) return
+        node => node%next
+      end do
+
+    end function
+
+    logical function list_any(self, proc) result(res)
+      class(t_list_${name}$), intent(inout) :: self
+      procedure(elem_logical_fun) :: proc
+      type(t_node), pointer :: node
+
+      res = .false.
+
+      node => self%first
+
+      do while (associated(node))
+        res = proc(node%item)
+        if (res) return
+        node => node%next
+      end do
+
+    end function
+
+    pure integer function list_len(self)
+      class(t_list_${name}$), intent(in) :: self
+
+      list_len = self%length
+    end function
+
+    function list_get_last(self) result(res)
+      ${dtype}$::res
+      class(t_list_${name}$), intent(in) :: self
+
+      res = self%last%item
+    end function
+
+    function list_get_first(self) result(res)
+      ${dtype}$::res
+      class(t_list_${name}$), intent(in) :: self
+
+      res = self%first%item
+    end function
+
+    function list_get_nth(self, n) result(res)
+      ${dtype}$::res
+      class(t_list_${name}$), intent(in) :: self
+      integer, intent(in) :: n
+      integer :: i
+      type(t_node), pointer :: node
+
+      if (associated(self%first) .and. self%length >= n) then
+        node => self%first
+
+        i = 1
+        do
+          if (i == n) then
+            res = node%item
+            exit
+          else if (i < n .and. .not. associated(node%next)) then
+            exit
+          else
+            i = i + 1
+            node => node%next
+          end if
+        end do
+      else
+      end if
+    end function
+
+    recursive subroutine list_pop_nth(self, n, val, ierr)
+      class(t_list_${name}$), intent(inout) :: self
+      integer, intent(in) :: n
+      ${dtype}$, intent(out) :: val
+      integer(mpiint), intent(out) :: ierr
+      integer :: i
+      type(t_node), pointer :: node
+
+      ierr = 0
+      if (.not. associated(self%first)) then
+        ierr = 1
+        call CHKWARN(ierr, 'list not initialized')
+        return
+      end if
+      if (n > self%length) then
+        ierr = 2
+        call CHKWARN(ierr, 'n '//toStr(n)//' > len(list) '//toStr(self%length))
+        return
+      end if
+
+      node => self%first
+      !print *, 'first', c_loc(node)
+
+      do i = 1, n - 1
+        if (.not. associated(node%next)) then
+          ierr = 3
+          call CHKWARN(ierr, 'found broken link before reaching the requested index of the list')
+          return
+        end if
+        node => node%next
+      end do
+
+      val = node%item
+
+      call self%del_node(node, ierr)
+    end subroutine
+
+    subroutine list_del_node(self, node, ierr)
+      class(t_list_${name}$), intent(inout) :: self
+      type(t_node), pointer, intent(inout) :: node
+      integer(mpiint), intent(out) :: ierr
+      ierr = 0
+      if (associated(node%prev)) then
+        if (.not. associated(node%next)) then
+          !print *, 'this is the last one... nullify next of prev', c_loc(node%prev)
+          self%last => node%prev
+          nullify (node%prev%next)
+        else
+          !print *, 'setting prev', c_loc(node%prev), 'next -> ', c_loc(node%next)
+          node%prev%next => node%next
+          node%next%prev => node%prev
+        end if
+      else ! not prev, i.e. first node
+        if (associated(node%next)) then
+          self%first => node%next
+          nullify (node%next%prev)
+        else ! not prev and not next, this is the only one
+          nullify (self%first)
+          nullify (self%last)
+        end if
+      end if
+
+      !print *, 'deleting node', c_loc(node)
+      deallocate (node)
+      self%length = self%length - 1
+    end subroutine
+
+    recursive subroutine print_list(self)
+      class(t_list_${name}$), intent(inout) :: self
+      type(t_node), pointer :: node
+      integer :: i
+
+      print *, 'linked list with len', self%len()
+      node => self%first
+
+      i = 0
+      do while (associated(node))
+        i = i + 1
+        print *, i, c_loc(node), node%item
+        node => node%next
+      end do
+    end subroutine
+
+    subroutine list_pop(self, item, ierr)
+      class(t_list_${name}$), intent(inout) :: self
+      ${dtype}$, intent(out) :: item
+      integer(mpiint), intent(out) :: ierr
+
+      ierr = 0
+      if (.not. associated(self%last)) then
+        ierr = 1
+        call CHKERR(ierr, 'list not initialized')
+        return
+      end if
+
+      item = self%last%item
+
+      if (associated(self%last%prev)) then
+        deallocate (self%last%prev%next)
+      else
+        deallocate (self%first)
+      end if
+
+      self%last => self%last%prev
+
+      self%length = self%length - 1
+    end subroutine
+
+    subroutine list_push(self, item)
+      class(t_list_${name}$), intent(inout) :: self
+      ${dtype}$, intent(in) :: item
+
+      call self%add(item)
+    end subroutine
+
+    subroutine list_pop_first(self, item)
+      class(t_list_${name}$), intent(inout) :: self
+      ${dtype}$, intent(out) :: item
+      type(t_node), pointer :: node
+
+      if (associated(self%first)) then
+        item = self%first%item
+
+        node => self%first%next
+        deallocate (self%first)
+        self%first => node
+
+        self%length = self%length - 1
+        if (self%length == 0) nullify (self%last)
+      else
+      end if
+    end subroutine
+  end module
+#:endfor

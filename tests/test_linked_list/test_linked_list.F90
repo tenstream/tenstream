@@ -1,0 +1,129 @@
+module test_linked_list
+  use iso_c_binding
+  use m_data_parameters, only: iintegers, mpiint
+  use m_linked_list_iintegers, only: t_list_iintegers, t_node
+
+  use pfunit_mod
+
+  implicit none
+
+contains
+
+  @test(npes=[1])
+  subroutine test_list_iintegers(this)
+    class(MpiTestMethod), intent(inout) :: this
+
+    type(t_list_iintegers) :: list
+    integer(iintegers) :: i
+    integer(mpiint) :: ierr
+
+    call list%add(1_iintegers)
+    @assertEqual(1_iintegers, list%get_first())
+    @assertEqual(1_iintegers, list%get_last())
+
+    call list%add(2_iintegers)
+    @assertEqual(1_iintegers, list%get_first())
+    @assertEqual(2_iintegers, list%get_last())
+
+    call list%for_each(square)
+    @assertEqual(1_iintegers, list%get_first())
+    @assertEqual(4_iintegers, list%get_last())
+
+    @assertEqual(2_iintegers, list%len())
+    call list%add(3_iintegers)
+    @assertEqual(3_iintegers, list%len())
+
+    @assertEqual(4_iintegers, list%get_nth(2))
+
+    call list%pop(i, ierr)
+    @assertEqual(0_iintegers, ierr)
+    @assertEqual(3_iintegers, i)
+    call list%pop(i, ierr)
+    @assertEqual(0_iintegers, ierr)
+    @assertEqual(4_iintegers, i)
+    call list%pop(i, ierr)
+    @assertEqual(0_iintegers, ierr)
+    @assertEqual(1_iintegers, i)
+
+    call list%finalize()
+    @assertEqual(0_iintegers, list%len())
+
+    call list%add(1_iintegers)
+    call list%add(2_iintegers)
+    call list%add(3_iintegers)
+
+    call list%pop_nth(5, i, ierr)
+    @assertLessThan(0_iintegers, ierr)
+
+    call list%view()
+
+    call list%pop_nth(2, i, ierr)
+    call list%view()
+    @assertEqual(0_iintegers, ierr)
+    @assertEqual(2_iintegers, list%len())
+
+    @assertEqual(1_iintegers, list%get_first())
+    @assertEqual(3_iintegers, list%get_last())
+
+    call list%pop_nth(2, i, ierr)
+    call list%view()
+    @assertEqual(0_iintegers, ierr)
+    @assertEqual(1_iintegers, list%len())
+
+    @assertEqual(1_iintegers, list%get_first())
+    @assertEqual(1_iintegers, list%get_last())
+
+    call list%pop_nth(1, i, ierr)
+    @assertEqual(0_iintegers, ierr)
+    @assertEqual(0_iintegers, list%len())
+
+    call list%pop_nth(1, i, ierr)
+    @assertLessThan(0_iintegers, ierr)
+
+    call list%add(1_iintegers)
+    call list%add(2_iintegers)
+    call list%add(3_iintegers)
+    call list%add(4_iintegers)
+    call list%add(5_iintegers)
+
+    call list%view()
+
+    call list%pop_nth(1, i, ierr)
+    call list%pop_nth(4, i, ierr)
+
+    call list%view()
+    call list%pop_nth(1, i, ierr)
+    call list%pop_nth(1, i, ierr)
+    call list%pop_nth(1, i, ierr)
+    call list%view()
+
+    call list%add(1_iintegers)
+    call list%add(2_iintegers)
+    call list%add(3_iintegers)
+    call list%add(4_iintegers)
+    call list%add(5_iintegers)
+    call list%view()
+    call list%for_each(delete_uneven)
+    call list%view()
+
+  contains
+    subroutine square(idx, node, val)
+      integer, intent(in) :: idx
+      type(t_node), pointer, intent(inout) :: node
+      integer(iintegers), intent(inout) :: val
+      print *, 'squaring idx', idx, val
+      val = val**2
+    end subroutine
+
+    recursive subroutine delete_uneven(idx, node, val)
+      integer, intent(in) :: idx
+      type(t_node), pointer, intent(inout) :: node
+      integer(iintegers), intent(inout) :: val
+      if (modulo(val, 2) .ne. 0) then
+        print *, 'deleting', idx, val
+        call list%del_node(node, ierr)
+      end if
+    end subroutine
+  end subroutine
+
+end module
