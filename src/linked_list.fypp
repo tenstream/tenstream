@@ -21,17 +21,20 @@
 ! https://github.com/LadaF/fortran-list/blob/master/src/lists.f90
 
 #:for name,dtype in [&
+  ('mpiint'   , 'integer(mpiint)'   ), &
   ('iintegers', 'integer(iintegers)'), &
+  ('int32'    , 'integer(INT32)'    ), &
+  ('int64'    , 'integer(INT64)'    ), &
+  ('ireals'   , 'real(ireals)'      ), &
+  ('real128'  , 'real(REAL128)'     ), &
+  ('real32'   , 'real(REAL32)'      ), &
+  ('real64'   , 'real(REAL64)'      ), &
   ]
 
-  !('int32', 'integer(INT32)', '='), &
-!    ('integer', 'INT64'  ), &
-!    ('real'   , 'REAL32' ), &
-!    ('real'   , 'REAL64' ), &
-!  ('real'   , 'REAL128'), &
   module m_linked_list_${name}$
     use iso_c_binding, only: c_loc
-    use m_data_parameters, only: iintegers, mpiint
+    use iso_fortran_env, only: int32, int64, real32, real64, real128
+    use m_data_parameters, only: iintegers, mpiint, ireals
     use m_helper_functions, only: CHKERR, CHKWARN, toStr
     implicit none
 
@@ -55,6 +58,7 @@
       procedure :: get_first => list_get_first
       procedure :: get_last => list_get_last
       procedure :: get_nth => list_get_nth
+      procedure :: get_nth_node => list_get_nth_node
       procedure :: push => list_push
       procedure :: pop => list_pop
       procedure :: pop_first => list_pop_first
@@ -64,14 +68,16 @@
     end type
 
     abstract interface
-      subroutine foreach_sub(idx, node, val)
+      subroutine foreach_sub(idx, node, item)
         import
         integer, intent(in) :: idx
         type(t_node), pointer, intent(inout) :: node
-        ${dtype}$, intent(inout) :: val
+        ${dtype}$, intent(inout) :: item
       end subroutine
-      logical function elem_logical_fun(item)
+      logical function elem_logical_fun(idx, node, item)
         import
+        integer, intent(in) :: idx
+        type(t_node), pointer, intent(inout) :: node
         ${dtype}$, intent(in) :: item
       end function
     end interface
@@ -80,16 +86,15 @@
 
     recursive subroutine list_finalize(self)
       class(t_list_${name}$), intent(inout) :: self
-      type(t_node), pointer :: node, tmp
+      type(t_node), pointer :: node, next
 
       if (self%length > 0) then
         node => self%first
 
         do while (associated(node))
-          tmp => node
-          node => node%next
-
-          deallocate (tmp)
+          next => node%next
+          deallocate (node)
+          node => next
         end do
       end if
 
@@ -116,7 +121,6 @@
       self%last%item = item
 
       self%length = self%length + 1
-
     end subroutine
 
     subroutine list_for_each(self, proc)
@@ -134,41 +138,44 @@
         call proc(i, node, node%item)
         node => next
       end do
-
     end subroutine
 
     logical function list_all(self, proc) result(res)
       class(t_list_${name}$), intent(inout) :: self
       procedure(elem_logical_fun) :: proc
       type(t_node), pointer :: node
+      integer :: i
 
       res = .true.
 
       node => self%first
 
+      i = 0
       do while (associated(node))
-        res = proc(node%item)
+        i = i + 1
+        res = proc(i, node, node%item)
         if (.not. res) return
         node => node%next
       end do
-
     end function
 
     logical function list_any(self, proc) result(res)
       class(t_list_${name}$), intent(inout) :: self
       procedure(elem_logical_fun) :: proc
       type(t_node), pointer :: node
+      integer :: i
 
       res = .false.
 
       node => self%first
 
+      i = 0
       do while (associated(node))
-        res = proc(node%item)
+        i = i + 1
+        res = proc(i, node, node%item)
         if (res) return
         node => node%next
       end do
-
     end function
 
     pure integer function list_len(self)
@@ -191,41 +198,15 @@
       res = self%first%item
     end function
 
-    function list_get_nth(self, n) result(res)
-      ${dtype}$::res
+    subroutine list_get_nth_node(self, n, node, ierr)
       class(t_list_${name}$), intent(in) :: self
       integer, intent(in) :: n
-      integer :: i
-      type(t_node), pointer :: node
-
-      if (associated(self%first) .and. self%length >= n) then
-        node => self%first
-
-        i = 1
-        do
-          if (i == n) then
-            res = node%item
-            exit
-          else if (i < n .and. .not. associated(node%next)) then
-            exit
-          else
-            i = i + 1
-            node => node%next
-          end if
-        end do
-      else
-      end if
-    end function
-
-    recursive subroutine list_pop_nth(self, n, val, ierr)
-      class(t_list_${name}$), intent(inout) :: self
-      integer, intent(in) :: n
-      ${dtype}$, intent(out) :: val
+      type(t_node), pointer, intent(out) :: node
       integer(mpiint), intent(out) :: ierr
       integer :: i
-      type(t_node), pointer :: node
 
       ierr = 0
+
       if (.not. associated(self%first)) then
         ierr = 1
         call CHKWARN(ierr, 'list not initialized')
@@ -238,7 +219,6 @@
       end if
 
       node => self%first
-      !print *, 'first', c_loc(node)
 
       do i = 1, n - 1
         if (.not. associated(node%next)) then
@@ -248,6 +228,35 @@
         end if
         node => node%next
       end do
+    end subroutine
+
+    subroutine list_get_nth(self, n, res, ierr)
+      class(t_list_${name}$), intent(in) :: self
+      integer, intent(in) :: n
+      ${dtype}$, intent(out) :: res
+      integer(mpiint), intent(out) :: ierr
+      type(t_node), pointer :: node
+
+      call self%get_nth_node(n, node, ierr)
+      if (ierr .ne. 0_mpiint) then
+        call CHKWARN(ierr)
+        return
+      end if
+      res = node%item
+    end subroutine
+
+    recursive subroutine list_pop_nth(self, n, val, ierr)
+      class(t_list_${name}$), intent(inout) :: self
+      integer, intent(in) :: n
+      ${dtype}$, intent(out) :: val
+      integer(mpiint), intent(out) :: ierr
+      type(t_node), pointer :: node
+
+      call self%get_nth_node(n, node, ierr); call CHKWARN(ierr)
+      if (ierr .ne. 0_mpiint) then
+        call CHKWARN(ierr)
+        return
+      end if
 
       val = node%item
 

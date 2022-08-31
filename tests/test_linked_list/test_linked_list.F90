@@ -33,7 +33,9 @@ contains
     call list%add(3_iintegers)
     @assertEqual(3_iintegers, list%len())
 
-    @assertEqual(4_iintegers, list%get_nth(2))
+    call list%get_nth(2, i, ierr)
+    @assertEqual(0_iintegers, ierr)
+    @assertEqual(4_iintegers, i)
 
     call list%pop(i, ierr)
     @assertEqual(0_iintegers, ierr)
