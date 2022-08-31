@@ -59,9 +59,7 @@
       procedure :: get_last => list_get_last
       procedure :: get_nth => list_get_nth
       procedure :: get_nth_node => list_get_nth_node
-      procedure :: push => list_push
       procedure :: pop => list_pop
-      procedure :: pop_first => list_pop_first
       procedure :: pop_nth => list_pop_nth
       procedure :: view => print_list
       procedure :: del_node => list_del_node
@@ -70,13 +68,13 @@
     abstract interface
       subroutine foreach_sub(idx, node, item)
         import
-        integer, intent(in) :: idx
+        integer(iintegers), intent(in) :: idx
         type(t_node), pointer, intent(inout) :: node
         ${dtype}$, intent(inout) :: item
       end subroutine
       logical function elem_logical_fun(idx, node, item)
         import
-        integer, intent(in) :: idx
+        integer(iintegers), intent(in) :: idx
         type(t_node), pointer, intent(inout) :: node
         ${dtype}$, intent(in) :: item
       end function
@@ -127,7 +125,7 @@
       class(t_list_${name}$) :: self
       procedure(foreach_sub) :: proc
       type(t_node), pointer :: node, next
-      integer :: i
+      integer(iintegers) :: i
 
       node => self%first
 
@@ -144,7 +142,7 @@
       class(t_list_${name}$), intent(inout) :: self
       procedure(elem_logical_fun) :: proc
       type(t_node), pointer :: node
-      integer :: i
+      integer(iintegers) :: i
 
       res = .true.
 
@@ -163,7 +161,7 @@
       class(t_list_${name}$), intent(inout) :: self
       procedure(elem_logical_fun) :: proc
       type(t_node), pointer :: node
-      integer :: i
+      integer(iintegers) :: i
 
       res = .false.
 
@@ -178,9 +176,8 @@
       end do
     end function
 
-    pure integer function list_len(self)
+    pure integer(iintegers) function list_len(self)
       class(t_list_${name}$), intent(in) :: self
-
       list_len = self%length
     end function
 
@@ -200,10 +197,10 @@
 
     subroutine list_get_nth_node(self, n, node, ierr)
       class(t_list_${name}$), intent(in) :: self
-      integer, intent(in) :: n
+      integer(iintegers), intent(in) :: n
       type(t_node), pointer, intent(out) :: node
       integer(mpiint), intent(out) :: ierr
-      integer :: i
+      integer(iintegers) :: i
 
       ierr = 0
 
@@ -212,27 +209,47 @@
         call CHKWARN(ierr, 'list not initialized')
         return
       end if
-      if (n > self%length) then
+      if (abs(n) > self%length) then
         ierr = 2
         call CHKWARN(ierr, 'n '//toStr(n)//' > len(list) '//toStr(self%length))
         return
       end if
 
-      node => self%first
+      if (n .eq. 0) then
+        ierr = 3
+        call CHKWARN(ierr, 'n '//toStr(n)//' cant be 0, first element is retrieved with index 1')
+        return
+      end if
 
-      do i = 1, n - 1
-        if (.not. associated(node%next)) then
-          ierr = 3
-          call CHKWARN(ierr, 'found broken link before reaching the requested index of the list')
-          return
-        end if
-        node => node%next
-      end do
+      if (n > 0) then
+        node => self%first
+
+        do i = 1, n - 1
+          if (.not. associated(node%next)) then
+            ierr = 4
+            call CHKWARN(ierr, 'found broken link before reaching the requested index of the list')
+            return
+          end if
+          node => node%next
+        end do
+      else ! reverse
+        node => self%last
+
+        do i = 1, abs(n) - 1
+          if (.not. associated(node%prev)) then
+            ierr = 5
+            call CHKWARN(ierr, 'found broken link before reaching the requested index of the list')
+            return
+          end if
+          node => node%prev
+        end do
+
+      end if
     end subroutine
 
     subroutine list_get_nth(self, n, res, ierr)
       class(t_list_${name}$), intent(in) :: self
-      integer, intent(in) :: n
+      integer(iintegers), intent(in) :: n
       ${dtype}$, intent(out) :: res
       integer(mpiint), intent(out) :: ierr
       type(t_node), pointer :: node
@@ -247,7 +264,7 @@
 
     recursive subroutine list_pop_nth(self, n, val, ierr)
       class(t_list_${name}$), intent(inout) :: self
-      integer, intent(in) :: n
+      integer(iintegers), intent(in) :: n
       ${dtype}$, intent(out) :: val
       integer(mpiint), intent(out) :: ierr
       type(t_node), pointer :: node
@@ -296,7 +313,7 @@
     recursive subroutine print_list(self)
       class(t_list_${name}$), intent(inout) :: self
       type(t_node), pointer :: node
-      integer :: i
+      integer(iintegers) :: i
 
       print *, 'linked list with len', self%len()
       node => self%first
@@ -314,49 +331,20 @@
       ${dtype}$, intent(out) :: item
       integer(mpiint), intent(out) :: ierr
 
+      type(t_node), pointer :: node
+
       ierr = 0
       if (.not. associated(self%last)) then
         ierr = 1
-        call CHKERR(ierr, 'list not initialized')
+        call CHKWARN(ierr, 'list not initialized')
         return
       end if
 
-      item = self%last%item
+      node => self%last
 
-      if (associated(self%last%prev)) then
-        deallocate (self%last%prev%next)
-      else
-        deallocate (self%first)
-      end if
+      item = node%item
 
-      self%last => self%last%prev
-
-      self%length = self%length - 1
-    end subroutine
-
-    subroutine list_push(self, item)
-      class(t_list_${name}$), intent(inout) :: self
-      ${dtype}$, intent(in) :: item
-
-      call self%add(item)
-    end subroutine
-
-    subroutine list_pop_first(self, item)
-      class(t_list_${name}$), intent(inout) :: self
-      ${dtype}$, intent(out) :: item
-      type(t_node), pointer :: node
-
-      if (associated(self%first)) then
-        item = self%first%item
-
-        node => self%first%next
-        deallocate (self%first)
-        self%first => node
-
-        self%length = self%length - 1
-        if (self%length == 0) nullify (self%last)
-      else
-      end if
+      call self%del_node(node, ierr)
     end subroutine
   end module
 #:endfor
