@@ -48,8 +48,14 @@ module m_mcdmda
 
   use m_boxmc_geometry, only: setup_default_unit_cube_geometry
 
-  use m_pprts_base, only: t_solver, t_solver_1_2, t_solver_3_6, t_solver_mcdmda, &
-                          t_state_container, t_coord
+  use m_pprts_base, only: &
+    & atmk, &
+    & t_coord, &
+    & t_solver, &
+    & t_solver_1_2, &
+    & t_solver_3_6, &
+    & t_solver_mcdmda, &
+    & t_state_container
 
   use m_petsc_helpers, only: getVecPointer, restoreVecPointer
 
@@ -104,7 +110,7 @@ module m_mcdmda
   real(ireal_dp), parameter :: loceps = 0 !sqrt(epsilon(loceps))
   integer(iintegers), parameter :: E_up = 0, E_dn = 1
 
-  real(ireals) :: blocking_waittime = 1 ! sec
+  real(ireals), parameter :: blocking_waittime = 5 ! sec
 contains
 
   subroutine solve_mcdmda(solver, edirTOA, solution, ierr, opt_buildings)
@@ -118,15 +124,16 @@ contains
 
     type(t_photon_queue) :: pqueues(5) ! [own, north, east, south, west]
 
-    integer(iintegers) :: Nqueuesize
-    integer(iintegers) :: Nphotons_global, globally_killed_photons
-    integer(iintegers) :: Nphotons_local, photon_limit
+    integer(iintegers) :: Nqueuesize, Nbatchsize
+    integer(iintegers) :: Nphotons_global
+    integer(iintegers) :: locally_started_photons, globally_started_photons, globally_killed_photons
+    integer(iintegers) :: Nphotons_local
     integer(iintegers) :: started_photons
     integer(iintegers) :: killed_photons
     integer(iintegers) :: ip, kp
-    integer(iintegers) :: iter
-    integer(mpiint) :: killed_request, stat(mpi_status_size)
-    logical :: lcomm_finished, lflg
+    integer(iintegers) :: iter, percent_printed, last_percent_printed
+    integer(mpiint) :: started_request, killed_request, stat(mpi_status_size)
+    logical :: lcomm_finished, lflg, lfirst_print, lfinish_border_photons_first
 
     class(t_boxmc), allocatable :: bmc
 
@@ -143,10 +150,17 @@ contains
 
     call mpi_comm_rank(solver%comm, myid, ierr); call CHKERR(ierr)
 
-    Nqueuesize = 100000
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-mcdmda_queue_size", Nqueuesize, lflg, ierr); call CHKERR(ierr)
+    Nbatchsize = 1000
+    call get_petsc_opt(solver%prefix, "-mcdmda_batch_size", Nbatchsize, lflg, ierr); call CHKERR(ierr)
 
-    associate (C => solver%C_one, Cdir => solver%C_dir, Cdiff => solver%C_diff)
+    Nqueuesize = 10000
+    call get_petsc_opt(solver%prefix, "-mcdmda_queue_size", Nqueuesize, lflg, ierr); call CHKERR(ierr)
+
+    lfinish_border_photons_first = .false.
+    call get_petsc_opt(solver%prefix, "-mcdmda_finish_border_photons_first", lfinish_border_photons_first, lflg, ierr)
+    call CHKERR(ierr)
+
+    associate (C => solver%C_one_atm, C1 => solver%C_one_atm1, Cdir => solver%C_dir, Cdiff => solver%C_diff)
       if (ldebug) then
         print *, myid, 'Edir TOA', edirTOA, ': Nphotons_local', Nphotons_local, 'Nphotons_global', Nphotons_global
         print *, myid, 'Domain start:', C%zs, C%xs, C%ys
@@ -159,8 +173,8 @@ contains
       end if
 
       allocate ( &
-        & edir(0:Cdir%dof - 1, Cdir%zs:Cdir%ze, Cdir%xs:Cdir%xe, Cdir%ys:Cdir%ye), &
-        & ediff(0:Cdiff%dof - 1, Cdiff%zs:Cdiff%ze, Cdiff%xs:Cdiff%xe, Cdiff%ys:Cdiff%ye), &
+        & edir(0:Cdir%dof - 1, C1%zs:C1%ze, C%xs:C%xe, C%ys:C%ye), &
+        & ediff(0:Cdiff%dof - 1, C1%zs:C1%ze, C%xs:C%xe, C%ys:C%ye), &
         & abso(0:C%dof - 1, C%zs:C%ze, C%xs:C%xe, C%ys:C%ye), &
         & source=0._ireal_dp)
 
@@ -175,7 +189,6 @@ contains
       if (C%neighbors(4) .lt. zero) call CHKERR(C%neighbors(4), 'Bad neighbor id for PQ_SOUTH')
       if (C%neighbors(10) .lt. zero) call CHKERR(C%neighbors(10), 'Bad neighbor id for PQ_WEST')
     end associate
-
     select type (solver)
     class is (t_solver_1_2)
       allocate (t_boxmc_1_2 :: bmc)
@@ -193,25 +206,30 @@ contains
     end select
 
     if (ldebug) then
-      call bmc%init(MPI_COMM_WORLD, rngseed=9, luse_random_seed=.false.)
+      call bmc%init(MPI_COMM_SELF, rngseed=9, luse_random_seed=.false.)
     else
-      call bmc%init(MPI_COMM_WORLD, rngseed=9, luse_random_seed=.false.)
+      call bmc%init(MPI_COMM_SELF, rngseed=9, luse_random_seed=.false.)
     end if
 
     ! Initialize the locally owned photons
     call prepare_locally_owned_photons(solver, bmc, pqueues(PQ_SELF), Nphotons_local, &
-      & weight=edirTOA * solver%C_one%xm * solver%C_one%ym / real(Nphotons_local, ireals))
+      & weight=edirTOA * solver%C_one_atm%xm * solver%C_one_atm%ym / real(Nphotons_local, ireals))
 
     killed_photons = 0
     call mpi_iallreduce(killed_photons, globally_killed_photons, 1_mpiint, imp_iinteger, &
                         MPI_SUM, solver%comm, killed_request, ierr); call CHKERR(ierr)
 
+    if (ldebug) then
+      lfirst_print = .true.
+      locally_started_photons = 0
+      call mpi_iallreduce(locally_started_photons, globally_started_photons, 1_mpiint, imp_iinteger, &
+                          MPI_SUM, solver%comm, started_request, ierr); call CHKERR(ierr)
+    end if
+
+    last_percent_printed = -1
     iter = 0
     do
       iter = iter + 1
-
-      ! Start local photons in batches
-      photon_limit = Nqueuesize / 2
 
       call run_photon_queue( &
         & solver, bmc, &
@@ -219,7 +237,9 @@ contains
         & edir, ediff, abso, &
         & started_photons=ip, &
         & killed_photons=kp, &
-        & limit_number_photons=photon_limit)
+        & limit_number_photons=Nbatchsize)
+
+      locally_started_photons = locally_started_photons + ip
 
       started_photons = ip; killed_photons = killed_photons + kp
       if (ldebug) print *, 'SELF', 'started_photons', started_photons, 'killed_photons', killed_photons
@@ -238,6 +258,8 @@ contains
         started_photons = started_photons + ip; killed_photons = killed_photons + kp
         if (ldebug) print *, 'NORTH', 'started_photons', ip, 'killed_photons', kp
 
+        call exchange_photons(solver, pqueues)
+
         call run_photon_queue( &
           & solver, bmc, &
           & pqueues, PQ_EAST, &
@@ -247,6 +269,8 @@ contains
 
         started_photons = started_photons + ip; killed_photons = killed_photons + kp
         if (ldebug) print *, 'EAST', 'started_photons', ip, 'killed_photons', kp
+
+        call exchange_photons(solver, pqueues)
 
         call run_photon_queue( &
           & solver, bmc, &
@@ -258,6 +282,8 @@ contains
         started_photons = started_photons + ip; killed_photons = killed_photons + kp
         if (ldebug) print *, 'SOUTH', 'started_photons', ip, 'killed_photons', kp
 
+        call exchange_photons(solver, pqueues)
+
         call run_photon_queue( &
           & solver, bmc, &
           & pqueues, PQ_WEST, &
@@ -267,24 +293,40 @@ contains
         started_photons = started_photons + ip; killed_photons = killed_photons + kp
         if (ldebug) print *, 'WEST', 'started_photons', ip, 'killed_photons', kp
 
-        if (started_photons .eq. 0) then
-          if (ldebug) print *, 'exit remote_photons branch'
+        call exchange_photons(solver, pqueues)
+
+        if (.not. lfinish_border_photons_first) then
+          exit remote_photons
+        elseif (started_photons .eq. 0) then
           exit remote_photons
         end if
       end do remote_photons
 
+      if (ldebug) then
+        if (lfirst_print .or. globally_started_photons .ne. Nphotons_global) then
+          call mpi_test(started_request, lcomm_finished, stat, ierr); call CHKERR(ierr)
+          if (lcomm_finished) then
+            if (globally_started_photons .eq. Nphotons_global) lfirst_print = .false.
+            if (myid .eq. 0) print *, iter, &
+              'Globally started photons', globally_started_photons, '/', Nphotons_global, &
+              '('//toStr(100 * real(globally_started_photons) / real(Nphotons_global))//' % )'
+            call mpi_iallreduce(locally_started_photons, globally_started_photons, 1_mpiint, imp_iinteger, &
+                                MPI_SUM, solver%comm, started_request, ierr); call CHKERR(ierr)
+          end if
+        end if
+      end if
+
       call mpi_test(killed_request, lcomm_finished, stat, ierr); call CHKERR(ierr)
       if (lcomm_finished) then
-        if (myid .eq. 0) print *, iter, &
-          'Globally killed photons', globally_killed_photons, '/', Nphotons_global, &
-          '('//toStr(100 * real(globally_killed_photons) / real(Nphotons_global))//' % )'
-        if (ldebug) then
-          print *, myid, 'Globally killed photons', globally_killed_photons, '/', Nphotons_global
-          call print_pqueue(pqueues(PQ_NORTH))
-          call print_pqueue(pqueues(PQ_EAST))
-          call print_pqueue(pqueues(PQ_SOUTH))
-          call print_pqueue(pqueues(PQ_WEST))
+        if (myid .eq. 0) then
+          percent_printed = int(100 * real(globally_killed_photons) / real(Nphotons_global), kind(percent_printed))
+          if (ldebug .or. percent_printed .ne. last_percent_printed) then
+            print *, iter, 'Globally killed photons', globally_killed_photons, '/', Nphotons_global, &
+              '('//toStr(percent_printed)//' % )'
+            last_percent_printed = percent_printed
+          end if
         end if
+        if (ldebug) call debug_output_queues()
         if (globally_killed_photons .eq. Nphotons_global) then
           exit
         end if
@@ -307,23 +349,74 @@ contains
       real(ireals), pointer, dimension(:, :, :, :) :: xv_dir => null(), xv_diff => null(), xv_abso => null()
       real(ireals), pointer, dimension(:) :: xv_dir1d => null(), xv_diff1d => null(), xv_abso1d => null()
 
-      call getVecPointer(solver%C_dir%da, solution%edir, xv_dir1d, xv_dir)
-      xv_dir = real(edir, kind(xv_dir))
-      call restoreVecPointer(solver%C_dir%da, solution%edir, xv_dir1d, xv_dir)
+      associate (&
+          & atm => solver%atm,&
+          & C_one => solver%C_one, &
+          & C_dir => solver%C_dir, &
+          & C_diff => solver%C_diff, &
+          & C_one_atm => solver%C_one_atm,&
+          & C_one_atm1 => solver%C_one_atm1)
 
-      call getVecPointer(solver%C_diff%da, solution%ediff, xv_diff1d, xv_diff)
-      xv_diff = real(ediff, kind(xv_diff))
-      call restoreVecPointer(solver%C_diff%da, solution%ediff, xv_diff1d, xv_diff)
+        call getVecPointer(C_dir%da, solution%edir, xv_dir1d, xv_dir)
 
-      call getVecPointer(solver%C_one%da, solution%abso, xv_abso1d, xv_abso)
-      xv_abso = real(abso, kind(xv_abso))
-      call restoreVecPointer(solver%C_one%da, solution%abso, xv_abso1d, xv_abso)
+        xv_dir(:, C_dir%zs + 1:, :, :) = real(&
+          & edir(:, atmk(atm, C_one_atm1%zs + 1):C_one_atm1%ze, :, :), &
+          & kind(xv_dir))
+        xv_dir(:, C_dir%zs, :, :) = edir(:, C_one_atm1%zs, :, :)
+
+        call restoreVecPointer(C_dir%da, solution%edir, xv_dir1d, xv_dir)
+
+        call getVecPointer(C_diff%da, solution%ediff, xv_diff1d, xv_diff)
+
+        xv_diff(:, C_diff%zs + 1:, :, :) = real(&
+          & ediff(:, atmk(atm, C_one_atm1%zs + 1):C_one_atm1%ze, :, :), &
+          & kind(xv_diff))
+        xv_diff(:, C_diff%zs, :, :) = ediff(:, C_one_atm1%zs, :, :)
+
+        call restoreVecPointer(C_diff%da, solution%ediff, xv_diff1d, xv_diff)
+
+        call getVecPointer(C_one%da, solution%abso, xv_abso1d, xv_abso)
+
+        xv_abso(i0, C_one%zs + 1:, :, :) = real(&
+          & abso(i0, atmk(atm, C_one_atm%zs + 1):C_one_atm%ze, :, :) &
+          & / atm%dz(atmk(atm, C_one_atm%zs + 1):C_one_atm%ze, :, :), &
+          & kind(xv_abso))
+
+        xv_abso(i0, C_one%zs, :, :) = &
+          & sum(abso(i0, :atmk(atm, C_one_atm%zs), :, :), dim=1) &
+          & / sum(atm%dz(:atmk(atm, C_one_atm%zs), :, :), dim=1)
+
+        call restoreVecPointer(C_one%da, solution%abso, xv_abso1d, xv_abso)
+      end associate
 
       call PetscObjectSetName(solution%edir, 'edir', ierr); call CHKERR(ierr)
       call PetscObjectSetName(solution%ediff, 'ediff', ierr); call CHKERR(ierr)
       call PetscObjectViewFromOptions(solution%edir, PETSC_NULL_VEC, '-mcdmda_show_edir', ierr); call CHKERR(ierr)
       call PetscObjectViewFromOptions(solution%ediff, PETSC_NULL_VEC, '-mcdmda_show_ediff', ierr); call CHKERR(ierr)
       call PetscObjectViewFromOptions(solution%abso, PETSC_NULL_VEC, '-mcdmda_show_abso', ierr); call CHKERR(ierr)
+
+      !Rayli solver returns fluxes as [W]
+      solution%lWm2_dir = .true.
+      solution%lWm2_diff = .true.
+      ! and mark solution that it is up to date (to prevent absoprtion computations)
+      solution%lchanged = .false.
+    end subroutine
+
+    subroutine debug_output_queues()
+      integer(mpiint) :: myid, numnodes, ierr, i
+      call mpi_comm_rank(solver%comm, myid, ierr); call CHKERR(ierr)
+      call mpi_comm_size(solver%comm, numnodes, ierr); call CHKERR(ierr)
+      do i = 0, numnodes - 1
+        if (i .eq. myid) then
+          print *, '---------- rank ', myid
+          call print_pqueue(pqueues(PQ_SELF))
+          call print_pqueue(pqueues(PQ_NORTH))
+          call print_pqueue(pqueues(PQ_EAST))
+          call print_pqueue(pqueues(PQ_SOUTH))
+          call print_pqueue(pqueues(PQ_WEST))
+        end if
+        call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
+      end do
     end subroutine
   end subroutine
 
@@ -341,16 +434,16 @@ contains
     call mpi_comm_size(solver%comm, numnodes, ierr); call CHKERR(ierr)
 
     mcdmda_photons_per_pixel = 1000
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-mcdmda_photons_per_px", &
+    call get_petsc_opt(solver%prefix, "-mcdmda_photons_per_px", &
                        mcdmda_photons_per_pixel, lflg, ierr); call CHKERR(ierr)
 
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-mcdmda_photons", rN, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt(solver%prefix, "-mcdmda_photons", rN, lflg, ierr); call CHKERR(ierr)
     if (lflg) then
-      mcdmda_photons_per_pixel = int(rN, kind(Nphotons_local)) / (numnodes * solver%C_one%xm * solver%C_one%ym)
+      mcdmda_photons_per_pixel = int(rN, kind(Nphotons_local)) / (numnodes * solver%C_one_atm%xm * solver%C_one_atm%ym)
       mcdmda_photons_per_pixel = max(1_iintegers, mcdmda_photons_per_pixel)
     end if
 
-    Nphotons_local = solver%C_one%xm * solver%C_one%ym * mcdmda_photons_per_pixel
+    Nphotons_local = solver%C_one_atm%xm * solver%C_one_atm%ym * mcdmda_photons_per_pixel
   end subroutine
 
   subroutine photon_queue_destroy(pq, ierr)
@@ -441,7 +534,7 @@ contains
 
       if (ldebug) print *, myid, cstr('Start of run_photon :: QUEUE:', 'pink'), id2name(ipq), 'iphoton', iphoton
       if (ldebug) call print_photon(p)
-      call check_if_photon_is_in_domain(solver%C_one, p)
+      call check_if_photon_is_in_domain(solver%C_one_atm, p)
 
       if (p%src_side .eq. i1) then ! started at the top of the box, lets increment TOA downward flux
         if (p%direct) then
@@ -459,7 +552,7 @@ contains
           exit move
         end if
 
-        call check_if_photon_is_in_domain(solver%C_one, p)
+        call check_if_photon_is_in_domain(solver%C_one_atm, p)
 
         kabs = solver%atm%kabs(p%k, p%i, p%j)
         ksca = solver%atm%ksca(p%k, p%i, p%j)
@@ -487,14 +580,14 @@ contains
           ! Determine actions on boundaries
           select case (p%side)
           case (1)
-            if (p%k .eq. solver%C_one%zs) then ! outgoing at TOA
+            if (p%k .eq. solver%C_one_atm%zs) then ! outgoing at TOA
               call update_flx(p, p%k, p%i, p%j, edir, ediff)
               if (ldebug) print *, myid, '********************* Exit TOA', p%k, p%i, p%j
               lkilled_photon = .true.
               exit move
             end if
           case (2)
-            if (p%k .eq. solver%C_one%ze) then ! hit the surface, need reflection
+            if (p%k .eq. solver%C_one_atm%ze) then ! hit the surface, need reflection
               call update_flx(p, p%k, p%i, p%j, edir, ediff)
               if (ldebug) print *, myid, '********************* Before Reflection', p%k, p%i, p%j
 
@@ -532,36 +625,36 @@ contains
             p%loc(1) = solver%atm%dx - loceps
             p%i = p%i - 1
             p%src_side = 4
-            if (p%i .eq. solver%C_one%xs - 1) then
+            if (p%i .eq. solver%C_one_atm%xs - 1) then
               if (ldebug) print *, myid, cstr('* Sending to WEST', 'blue'), pqueues(PQ_WEST)%owner, p%k, p%i, p%j
-              call send_photon_to_neighbor(solver, solver%C_one, p, pqueues(PQ_WEST))
+              call send_photon_to_neighbor(solver, solver%C_one_atm, p, pqueues(PQ_WEST))
               exit move
             end if
           case (4)
             p%loc(1) = zero + loceps
             p%i = p%i + 1
             p%src_side = 3
-            if (p%i .eq. solver%C_one%xe + 1) then
+            if (p%i .eq. solver%C_one_atm%xe + 1) then
               if (ldebug) print *, myid, cstr('* Sending to EAST', 'blue'), pqueues(PQ_EAST)%owner, p%k, p%i, p%j
-              call send_photon_to_neighbor(solver, solver%C_one, p, pqueues(PQ_EAST))
+              call send_photon_to_neighbor(solver, solver%C_one_atm, p, pqueues(PQ_EAST))
               exit move
             end if
           case (5)
             p%loc(2) = solver%atm%dy - loceps
             p%j = p%j - 1
             p%src_side = 6
-            if (p%j .eq. solver%C_one%ys - 1) then
+            if (p%j .eq. solver%C_one_atm%ys - 1) then
               if (ldebug) print *, myid, cstr('* Sending to SOUTH', 'blue'), pqueues(PQ_SOUTH)%owner, p%k, p%i, p%j
-              call send_photon_to_neighbor(solver, solver%C_one, p, pqueues(PQ_SOUTH))
+              call send_photon_to_neighbor(solver, solver%C_one_atm, p, pqueues(PQ_SOUTH))
               exit move
             end if
           case (6)
             p%loc(2) = zero + loceps
             p%j = p%j + 1
             p%src_side = 5
-            if (p%j .eq. solver%C_one%ye + 1) then
+            if (p%j .eq. solver%C_one_atm%ye + 1) then
               if (ldebug) print *, myid, cstr('* Sending to NORTH', 'blue'), pqueues(PQ_NORTH)%owner, p%k, p%i, p%j
-              call send_photon_to_neighbor(solver, solver%C_one, p, pqueues(PQ_NORTH))
+              call send_photon_to_neighbor(solver, solver%C_one_atm, p, pqueues(PQ_NORTH))
               exit move
             end if
           end select
@@ -645,13 +738,13 @@ contains
     theta0 = solver%sun%theta
     initial_dir = spherical_2_cartesian(phi0, theta0)
 
-    Nphotons_per_pixel = max(1_iintegers, Nphotons / int(solver%C_one%xm * solver%C_one%ym, kind(Nphotons)))
+    Nphotons_per_pixel = max(1_iintegers, Nphotons / int(solver%C_one_atm%xm * solver%C_one_atm%ym, kind(Nphotons)))
     if (modulo(Nphotons, Nphotons_per_pixel) .ne. 0) &
       & call CHKERR(1_mpiint, 'Nphotons '//toStr(Nphotons)//' not divisible by Nphotons_per_pixel '//toStr(Nphotons_per_pixel))
 
     do l = 1, Nphotons_per_pixel
-      do i = solver%C_one%xs, solver%C_one%xe
-        do j = solver%C_one%ys, solver%C_one%ye
+      do i = solver%C_one_atm%xs, solver%C_one_atm%xe
+        do j = solver%C_one_atm%ys, solver%C_one_atm%ye
 
           call setup_default_unit_cube_geometry(solver%atm%dx, solver%atm%dy, &
                                                 solver%atm%dz(i0, i, j), vertices)
@@ -666,7 +759,6 @@ contains
           !p%loc(1) = solver%atm%dx/2
           !p%loc(2) = solver%atm%dy/2
           call antialiased_photon_start(Nphotons_per_pixel, l, p%loc(1), p%loc(2))
-          !call random_number(p%loc(1:2))
           p%loc(1) = p%loc(1) * solver%atm%dx
           p%loc(2) = p%loc(2) * solver%atm%dy
 
@@ -732,17 +824,28 @@ contains
     integer(iintegers), intent(out) :: emptyid
     integer(mpiint), intent(out) :: ierr
     call pqueue%empty%pop(emptyid, ierr)
+    if (ierr .ne. 0) then
+      call print_pqueue(pqueue)
+    end if
   end subroutine
 
-  subroutine print_pqueue(pq)
+  subroutine print_pqueue(pq, list_queue)
     type(t_photon_queue), intent(in) :: pq
-    print *, 'PQUEUE:', pq%owner, '::', pq%queue_index, 'name ', cstr(trim(id2name(pq%queue_index)), 'blue')
-    print *, 'ready:'
-    call pq%ready%view()
-    print *, 'empty:'
-    call pq%empty%view()
-    print *, 'sending:'
-    call pq%sending%view()
+    logical, intent(in), optional :: list_queue
+    if (get_arg(.false., list_queue)) then
+      print *, 'PQUEUE:', pq%owner, '::', pq%queue_index, 'name ', cstr(trim(id2name(pq%queue_index)), 'blue')
+      print *, 'empty:'
+      call pq%empty%view()
+      print *, 'ready:'
+      call pq%ready%view()
+      print *, 'sending:'
+      call pq%sending%view()
+    else
+      print *, pq%owner, cstr(id2name(pq%queue_index), 'blue'), &
+        & '  '//'empty', pq%empty%len(), &
+        & '  '//cstr('ready '//toStr(pq%ready%len()), 'green'), &
+        & '  '//cstr('send  '//toStr(pq%sending%len()), 'peach')
+    end if
   end subroutine
 
   subroutine pqueue_add_photon(pqueue, p, request, ind, ierr)
@@ -771,8 +874,11 @@ contains
     integer(iintegers), intent(in) :: queue_index
     integer(iintegers) :: i
 
-    if (allocated(pq%photons)) call CHKERR(1_mpiint, 'photon queue already allocated')
-    allocate (pq%photons(N))
+    if (allocated(pq%photons)) then
+      call CHKERR(1_mpiint, 'photon queue already allocated')
+    else
+      allocate (pq%photons(N))
+    end if
     pq%owner = owner
     pq%queue_index = queue_index
     do i = 1, N
@@ -880,6 +986,8 @@ contains
     integer(iintegers) :: cnt_finished_msgs
 
     real(ireal_dp) :: tstart, t
+    integer(iintegers), save :: count_warnings = 0
+    integer(iintegers), parameter :: max_warnings = 10
 
     call cpu_time(tstart)
 
@@ -887,13 +995,21 @@ contains
     do
       call pqueue%sending%for_each(check_sending)
       call cpu_time(t)
-      if (cnt_finished_msgs .ne. 0) then
-        call CHKWARN(1_mpiint, 'waited for '//toStr(t - tstart)//' s.'// &
-          & ' The queue has freed up... but this is bad for performance'// &
-          & ' Maybe increasing the queue size helps at the cost of more memory.'// &
-          & ' use -mcdmda_queue_size <int>')
-        return
+      count_warnings = count_warnings + 1
+      if (count_warnings .lt. max_warnings) then
+        call CHKWARN(1_mpiint, id2name(pqueue%queue_index)// &
+          & ': waited for '//toStr(t - tstart)//' s.'//new_line('')// &
+          & ' But this is bad for performance!'//new_line('')// &
+        & ' Maybe increasing the queue size helps at the cost of more memory.'//new_line('')// &
+          & ' -mcdmda_queue_size <int>'//new_line('')// &
+          & ' or try to reduce the batch_size with '//new_line('')// &
+          & ' -mcdmda_batch_size <int>'//new_line('')// &
+          & ' or try to wait for all boundary photons to be finished emitting new photons locally'//new_line('')// &
+          & ' -mcdmda_finish_border_photons_first')
+      elseif (count_warnings .eq. max_warnings) then
+        call CHKWARN(1_mpiint, 'waiting warning has been issued '//toStr(max_warnings)//' times... now suppressing it.')
       end if
+      if (cnt_finished_msgs .ne. 0) return
       if (t - tstart .gt. blocking_waittime) then
         call CHKERR(1_mpiint, 'waited for '//toStr(t - tstart)//' s but the queues havent freed up... ')
       end if
@@ -949,6 +1065,8 @@ contains
           ipq = PQ_NORTH
         case (PQ_NORTH)
           ipq = PQ_SOUTH
+        case default
+          call CHKERR(1_mpiint, 'received unexpected message with tag '//toStr(tag))
         end select
         if (mpi_status(MPI_SOURCE) .ne. pqueues(ipq)%owner) call CHKERR(1_mpiint, 'Something unexpected happened')
 
