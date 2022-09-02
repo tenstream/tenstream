@@ -328,8 +328,8 @@ contains
                   kmin = int(find_real_location(atm%plev(:, 1), 850._ireals + real(icld, ireals) * 50._ireals), iintegers)
                   kmax = int(find_real_location(atm%plev(:, 1), 800._ireals + real(icld, ireals) * 50._ireals), iintegers)
                   print *, 'kmin/max', kmin, kmax, 850._ireals + real(icld, ireals) * 50._ireals
-                  ptr(1:ke, 1:Nx, 1:Ny) => atm%lwc; ptr(kmin:kmax, :, ipert) = 0.1 * (icld + 1)
-                  ptr(1:ke, 1:Nx, 1:Ny) => atm%reliq; ptr(kmin:kmax, :, ipert) = 10
+                  ptr(1:ke, 1:Nx, 1:Ny) => atm%lwc; ptr(kmin:kmax, :, ipert) = 0.1_ireals * real(icld + 1, ireals)
+                  ptr(1:ke, 1:Nx, 1:Ny) => atm%reliq; ptr(kmin:kmax, :, ipert) = 10._ireals
                 end if
 
                 ! ice cloud perturbations
@@ -338,8 +338,8 @@ contains
                   call do_gas_pert(ipert, h2o, co2, o3, ch4)
                   kmin = int(find_real_location(atm%plev(:, 1), 300._ireals + real(icld, ireals) * 50._ireals), iintegers)
                   kmax = int(find_real_location(atm%plev(:, 1), 200._ireals + real(icld, ireals) * 50._ireals), iintegers)
-                  ptr(1:ke, 1:Nx, 1:Ny) => atm%iwc; ptr(kmin:kmax, :, ipert) = 0.05 * (icld + 1)
-                  ptr(1:ke, 1:Nx, 1:Ny) => atm%reice; ptr(kmin:kmax, :, ipert) = 20
+                  ptr(1:ke, 1:Nx, 1:Ny) => atm%iwc; ptr(kmin:kmax, :, ipert) = 0.05_ireals * real(icld + 1, ireals)
+                  ptr(1:ke, 1:Nx, 1:Ny) => atm%reice; ptr(kmin:kmax, :, ipert) = 20._ireals
                 end if
 
                 ! water + ice cloud perturbations
@@ -348,13 +348,13 @@ contains
                   call do_gas_pert(ipert, h2o, co2, o3, ch4)
                   kmin = int(find_real_location(atm%plev(:, 1), 750._ireals + real(icld, ireals) * 50._ireals), iintegers)
                   kmax = int(find_real_location(atm%plev(:, 1), 700._ireals + real(icld, ireals) * 50._ireals), iintegers)
-                  ptr(1:ke, 1:Nx, 1:Ny) => atm%lwc; ptr(kmin:kmax, :, ipert) = 0.2 * (icld + 1)
-                  ptr(1:ke, 1:Nx, 1:Ny) => atm%reliq; ptr(kmin:kmax, :, ipert) = 20
+                  ptr(1:ke, 1:Nx, 1:Ny) => atm%lwc; ptr(kmin:kmax, :, ipert) = 0.2_ireals * real(icld + 1, ireals)
+                  ptr(1:ke, 1:Nx, 1:Ny) => atm%reliq; ptr(kmin:kmax, :, ipert) = 20._ireals
 
                   kmin = int(find_real_location(atm%plev(:, 1), 200._ireals + real(icld, ireals) * 50._ireals), iintegers)
                   kmax = int(find_real_location(atm%plev(:, 1), 100._ireals + real(icld, ireals) * 50._ireals), iintegers)
-                  ptr(1:ke, 1:Nx, 1:Ny) => atm%iwc; ptr(kmin:kmax, :, ipert) = 0.1 * (icld + 1)
-                  ptr(1:ke, 1:Nx, 1:Ny) => atm%reice; ptr(kmin:kmax, :, ipert) = 40
+                  ptr(1:ke, 1:Nx, 1:Ny) => atm%iwc; ptr(kmin:kmax, :, ipert) = 0.1_ireals * real(icld + 1, ireals)
+                  ptr(1:ke, 1:Nx, 1:Ny) => atm%reice; ptr(kmin:kmax, :, ipert) = 40._ireals
                 end if
               end do
             end do
