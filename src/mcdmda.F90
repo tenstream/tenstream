@@ -25,13 +25,14 @@ module m_mcdmda
 
   use m_data_parameters, only: ireals, iintegers, ireal_dp, &
                                mpiint, imp_iinteger, imp_int8, &
-                               zero, i0, i1, i2, i3, i4, i5, i6
+                               zero, i0, i1, i2, i3, i4, i5, i6, pi
 
   use m_helper_functions, only: &
     & CHKERR, &
     & CHKWARN, &
     & cstr, &
     & deg2rad, &
+    & expm1, &
     & get_arg, &
     & get_petsc_opt, &
     & imp_allreduce_sum, &
@@ -42,7 +43,7 @@ module m_mcdmda
     & toStr
 
   use m_boxmc, only: t_photon, print_photon, scatter_photon, roulette, R, &
-                     tau, distance, update_photon_loc, &
+                     tau, distance, update_photon_loc, absorb_photon, &
                      t_boxmc, t_boxmc_1_2, t_boxmc_3_6, &
                      imp_t_photon
 
@@ -134,15 +135,16 @@ contains
     integer(iintegers) :: iter, percent_printed, last_percent_printed
     integer(mpiint) :: started_request, killed_request, stat(mpi_status_size)
     logical :: lcomm_finished, lflg, lfirst_print, lfinish_border_photons_first
+    real(ireals) :: photon_weight
 
     class(t_boxmc), allocatable :: bmc
 
     real(ireal_dp), dimension(:, :, :, :), allocatable :: edir, ediff, abso
+    integer(iintegers), dimension(:, :, :, :), allocatable :: Nediff
 
     ierr = 0
 
     if (present(opt_buildings)) call CHKERR(1_mpiint, 'buildings not yet implemented')
-    if (solution%lthermal_rad) call CHKERR(1_mpiint, 'thermal not yet implemented')
 
     call determine_Nphotons(solver, Nphotons_local, ierr); call CHKERR(ierr)
     call mpi_allreduce(Nphotons_local, Nphotons_global, 1_mpiint, imp_iinteger, &
@@ -172,11 +174,20 @@ contains
           C%neighbors(22), C%neighbors(16), C%neighbors(4), C%neighbors(10)
       end if
 
+      if (solution%lsolar_rad) then
+        allocate (edir(0:Cdir%dof - 1, C1%zs:C1%ze, C%xs:C%xe, C%ys:C%ye), source=0._ireal_dp)
+        photon_weight = edirTOA * solver%C_one_atm%xm * solver%C_one_atm%ym / real(Nphotons_local, ireals)
+      else
+        photon_weight = 0
+      end if
+
       allocate ( &
-        & edir(0:Cdir%dof - 1, C1%zs:C1%ze, C%xs:C%xe, C%ys:C%ye), &
         & ediff(0:Cdiff%dof - 1, C1%zs:C1%ze, C%xs:C%xe, C%ys:C%ye), &
         & abso(0:C%dof - 1, C%zs:C%ze, C%xs:C%xe, C%ys:C%ye), &
         & source=0._ireal_dp)
+      allocate ( &
+        & Nediff(0:Cdiff%dof - 1, C1%zs:C1%ze, C%xs:C%xe, C%ys:C%ye), &
+        & source=0_iintegers)
 
       call setup_photon_queue(pqueues(PQ_SELF), Nphotons_local, myid, PQ_SELF)
       call setup_photon_queue(pqueues(PQ_NORTH), Nqueuesize, C%neighbors(22), PQ_NORTH)
@@ -212,8 +223,7 @@ contains
     end if
 
     ! Initialize the locally owned photons
-    call prepare_locally_owned_photons(solver, bmc, pqueues(PQ_SELF), Nphotons_local, &
-      & weight=edirTOA * solver%C_one_atm%xm * solver%C_one_atm%ym / real(Nphotons_local, ireals))
+    call prepare_locally_owned_photons(solver, bmc, solution%lsolar_rad, pqueues(PQ_SELF), Nphotons_local, weight=photon_weight)
 
     killed_photons = 0
     call mpi_iallreduce(killed_photons, globally_killed_photons, 1_mpiint, imp_iinteger, &
@@ -234,7 +244,7 @@ contains
       call run_photon_queue( &
         & solver, bmc, &
         & pqueues, PQ_SELF, &
-        & edir, ediff, abso, &
+        & edir, ediff, Nediff, abso, &
         & started_photons=ip, &
         & killed_photons=kp, &
         & limit_number_photons=Nbatchsize)
@@ -251,7 +261,7 @@ contains
         call run_photon_queue(&
           & solver, bmc, &
           & pqueues, PQ_NORTH, &
-          & edir, ediff, abso, &
+          & edir, ediff, Nediff, abso, &
           & started_photons=ip, &
           & killed_photons=kp)
 
@@ -263,7 +273,7 @@ contains
         call run_photon_queue( &
           & solver, bmc, &
           & pqueues, PQ_EAST, &
-          & edir, ediff, abso, &
+          & edir, ediff, Nediff, abso, &
           & started_photons=ip, &
           & killed_photons=kp)
 
@@ -275,7 +285,7 @@ contains
         call run_photon_queue( &
           & solver, bmc, &
           & pqueues, PQ_SOUTH, &
-          & edir, ediff, abso, &
+          & edir, ediff, Nediff, abso, &
           & started_photons=ip, &
           & killed_photons=kp)
 
@@ -287,7 +297,7 @@ contains
         call run_photon_queue( &
           & solver, bmc, &
           & pqueues, PQ_WEST, &
-          & edir, ediff, abso, &
+          & edir, ediff, Nediff, abso, &
           & started_photons=ip, &
           & killed_photons=kp)
         started_photons = started_photons + ip; killed_photons = killed_photons + kp
@@ -357,16 +367,24 @@ contains
           & C_one_atm => solver%C_one_atm,&
           & C_one_atm1 => solver%C_one_atm1)
 
-        call getVecPointer(C_dir%da, solution%edir, xv_dir1d, xv_dir)
+        if (solution%lsolar_rad) then
+          call PetscObjectSetName(solution%edir, 'edir', ierr); call CHKERR(ierr)
+          call getVecPointer(C_dir%da, solution%edir, xv_dir1d, xv_dir)
 
-        xv_dir(:, C_dir%zs + 1:, :, :) = real(&
-          & edir(:, atmk(atm, C_one_atm1%zs + 1):C_one_atm1%ze, :, :), &
-          & kind(xv_dir))
-        xv_dir(:, C_dir%zs, :, :) = edir(:, C_one_atm1%zs, :, :)
+          xv_dir(:, C_dir%zs + 1:, :, :) = real(&
+            & edir(:, atmk(atm, C_one_atm1%zs + 1):C_one_atm1%ze, :, :), &
+            & kind(xv_dir))
+          xv_dir(:, C_dir%zs, :, :) = edir(:, C_one_atm1%zs, :, :)
 
-        call restoreVecPointer(C_dir%da, solution%edir, xv_dir1d, xv_dir)
+          call restoreVecPointer(C_dir%da, solution%edir, xv_dir1d, xv_dir)
+          call PetscObjectViewFromOptions(solution%edir, PETSC_NULL_VEC, '-mcdmda_show_edir', ierr); call CHKERR(ierr)
+        end if
 
         call getVecPointer(C_diff%da, solution%ediff, xv_diff1d, xv_diff)
+
+        if (.not. solution%lsolar_rad) then
+          ediff = ediff / max(1_iintegers, Nediff) * pi
+        end if
 
         xv_diff(:, C_diff%zs + 1:, :, :) = real(&
           & ediff(:, atmk(atm, C_one_atm1%zs + 1):C_one_atm1%ze, :, :), &
@@ -376,6 +394,10 @@ contains
         call restoreVecPointer(C_diff%da, solution%ediff, xv_diff1d, xv_diff)
 
         call getVecPointer(C_one%da, solution%abso, xv_abso1d, xv_abso)
+
+        if (.not. solution%lsolar_rad) then
+          abso = abso * pi * C_one%glob_xm * C_one%glob_ym / Nphotons_global
+        end if
 
         xv_abso(i0, C_one%zs + 1:, :, :) = real(&
           & abso(i0, atmk(atm, C_one_atm%zs + 1):C_one_atm%ze, :, :) &
@@ -389,9 +411,7 @@ contains
         call restoreVecPointer(C_one%da, solution%abso, xv_abso1d, xv_abso)
       end associate
 
-      call PetscObjectSetName(solution%edir, 'edir', ierr); call CHKERR(ierr)
       call PetscObjectSetName(solution%ediff, 'ediff', ierr); call CHKERR(ierr)
-      call PetscObjectViewFromOptions(solution%edir, PETSC_NULL_VEC, '-mcdmda_show_edir', ierr); call CHKERR(ierr)
       call PetscObjectViewFromOptions(solution%ediff, PETSC_NULL_VEC, '-mcdmda_show_ediff', ierr); call CHKERR(ierr)
       call PetscObjectViewFromOptions(solution%abso, PETSC_NULL_VEC, '-mcdmda_show_abso', ierr); call CHKERR(ierr)
 
@@ -458,13 +478,14 @@ contains
 
   subroutine run_photon_queue(solver, bmc, &
       & pqueues, ipq, &
-      & edir, ediff, abso, &
+      & edir, ediff, Nediff, abso, &
       & started_photons, killed_photons, limit_number_photons)
     class(t_solver), intent(in) :: solver
     class(t_boxmc), intent(in) :: bmc
     type(t_photon_queue), intent(inout) :: pqueues(:) ! [own, north, east, south, west]
     integer(iintegers), intent(in) :: ipq
     real(ireal_dp), allocatable, dimension(:, :, :, :), intent(inout) :: edir, ediff, abso
+    integer(iintegers), allocatable, dimension(:, :, :, :), intent(inout) :: Nediff
     integer(iintegers), intent(out) :: started_photons
     integer(iintegers), intent(out) :: killed_photons
     integer(iintegers), optional, intent(in) :: limit_number_photons
@@ -500,6 +521,7 @@ contains
         & iphoton, &
         & edir, &
         & ediff, &
+        & Nediff, &
         & abso, &
         & lkilled_photon)
 
@@ -512,18 +534,20 @@ contains
     end subroutine
   end subroutine
 
-  subroutine run_photon(solver, bmc, pqueues, ipq, iphoton, edir, ediff, abso, lkilled_photon)
+  subroutine run_photon(solver, bmc, pqueues, ipq, iphoton, edir, ediff, Nediff, abso, lkilled_photon)
     class(t_solver), intent(in) :: solver
     class(t_boxmc), intent(in) :: bmc
     type(t_photon_queue), intent(inout) :: pqueues(:) ! [own, north, east, south, west]
     integer(iintegers), intent(in) :: ipq
     integer(iintegers), intent(in) :: iphoton
     real(ireal_dp), allocatable, dimension(:, :, :, :), intent(inout) :: edir, ediff, abso
+    integer(iintegers), allocatable, dimension(:, :, :, :), intent(inout) :: Nediff
     logical, intent(out) :: lkilled_photon
 
-    real(ireal_dp) :: kabs, ksca, g, mu, phi
+    real(ireal_dp) :: kabs, ksca, g, mu, phi, pathlen
+    real(ireal_dp) :: Btop, Bbot, B1, B2, dz, tauabs, tm1
     real(ireals), allocatable :: vertices(:)
-    logical :: lexit_cell
+    logical :: lexit_cell, lthermal
     integer(mpiint) :: myid, ierr
 
     lkilled_photon = .false.
@@ -536,12 +560,12 @@ contains
       if (ldebug) call print_photon(p)
       call check_if_photon_is_in_domain(solver%C_one_atm, p)
 
+      lthermal = allocated(solver%atm%planck)
+
       if (p%src_side .eq. i1) then ! started at the top of the box, lets increment TOA downward flux
         if (p%direct) then
           p%side = 1
-          call update_flx(p, p%k, p%i, p%j, edir, ediff)
-        else
-          call CHKERR(1_mpiint, 'shouldnt happen?')
+          call update_flx(p, p%k, p%i, p%j, edir, ediff, Nediff)
         end if
       end if
 
@@ -556,14 +580,32 @@ contains
 
         kabs = solver%atm%kabs(p%k, p%i, p%j)
         ksca = solver%atm%ksca(p%k, p%i, p%j)
+        dz = solver%atm%dz(p%k, p%i, p%j)
+        if (lthermal) then
+          Btop = solver%atm%planck(p%k, p%i, p%j)
+          Bbot = solver%atm%planck(p%k + 1, p%i, p%j)
+          B1 = (Btop * p%loc(3) + Bbot * (dz - p%loc(3))) / dz ! planck at start of the ray
+        end if
 
-        call setup_default_unit_cube_geometry(solver%atm%dx, solver%atm%dy, &
-                                              solver%atm%dz(p%k, p%i, p%j), vertices)
+        call setup_default_unit_cube_geometry(solver%atm%dx, solver%atm%dy, dz, vertices)
 
         abso(i0, p%k, p%i, p%j) = abso(i0, p%k, p%i, p%j) + real(p%weight, ireals)
 
-        call move_photon(bmc, real(vertices, ireal_dp), kabs, ksca, p, lexit_cell)
+        call move_photon(bmc, real(vertices, ireal_dp), ksca, p, pathlen, lexit_cell)
 
+        if (lthermal) then
+          B2 = (Btop * p%loc(3) + Bbot * (dz - p%loc(3))) / dz ! planck at end of the ray
+          tauabs = kabs * pathlen
+          if (tauabs > 1e-10_ireal_dp) then
+            tm1 = expm1(-tauabs)
+            p%weight = p%weight * (tm1 + 1._ireal_dp) + (B2 - B1) - (B1 - (B2 - B1) / tauabs) * tm1
+          else
+            p%weight = p%weight * (1._ireal_dp - tauabs) + (B1 + B2)*.5_ireal_dp * tauabs
+          end if
+          !print *,p%k, p%i, p%j,'Btop/bot', Btop, Bbot, 'B1,2', B1, B2, 'weight', p%weight
+        else ! lsolar
+          call absorb_photon(p, pathlen, kabs)
+        end if
         abso(i0, p%k, p%i, p%j) = abso(i0, p%k, p%i, p%j) - real(p%weight, ireals)
 
         !print *,'start of move', k, i, j
@@ -581,17 +623,24 @@ contains
           select case (p%side)
           case (1)
             if (p%k .eq. solver%C_one_atm%zs) then ! outgoing at TOA
-              call update_flx(p, p%k, p%i, p%j, edir, ediff)
+              call update_flx(p, p%k, p%i, p%j, edir, ediff, Nediff)
               if (ldebug) print *, myid, '********************* Exit TOA', p%k, p%i, p%j
               lkilled_photon = .true.
               exit move
             end if
           case (2)
             if (p%k .eq. solver%C_one_atm%ze) then ! hit the surface, need reflection
-              call update_flx(p, p%k, p%i, p%j, edir, ediff)
+              call update_flx(p, p%k, p%i, p%j, edir, ediff, Nediff)
               if (ldebug) print *, myid, '********************* Before Reflection', p%k, p%i, p%j
 
               p%weight = p%weight * solver%atm%albedo(p%i, p%j)
+              if (lthermal) then
+                if (allocated(solver%atm%Bsrfc)) then
+                  p%weight = p%weight + (1._ireals - solver%atm%albedo(p%i, p%j)) * solver%atm%Bsrfc(p%i, p%j)
+                else
+                  p%weight = p%weight + (1._ireals - solver%atm%albedo(p%i, p%j)) * Bbot
+                end if
+              end if
               p%direct = .false.
               p%scattercnt = p%scattercnt + 1
 
@@ -602,7 +651,7 @@ contains
 
               p%side = i1
               p%src_side = i2
-              call update_flx(p, p%k + 1, p%i, p%j, edir, ediff)
+              call update_flx(p, p%k + 1, p%i, p%j, edir, ediff, Nediff)
               if (ldebug) print *, myid, cstr('********************* After  Reflection', 'aqua'), p%k, p%i, p%j
               cycle move
             end if
@@ -613,12 +662,12 @@ contains
           select case (p%side)
           case (1) ! exit on top
             p%loc(3) = zero + loceps
-            call update_flx(p, p%k, p%i, p%j, edir, ediff)
+            call update_flx(p, p%k, p%i, p%j, edir, ediff, Nediff)
             p%k = p%k - 1
             p%src_side = 2
           case (2)
             p%loc(3) = solver%atm%dz(p%k + 1, p%i, p%j) - loceps
-            call update_flx(p, p%k, p%i, p%j, edir, ediff)
+            call update_flx(p, p%k, p%i, p%j, edir, ediff, Nediff)
             p%k = p%k + 1
             p%src_side = 1
           case (3)
@@ -665,10 +714,11 @@ contains
     end associate
   end subroutine
 
-  subroutine update_flx(p, k, i, j, edir, ediff)
+  subroutine update_flx(p, k, i, j, edir, ediff, Nediff)
     type(t_photon), intent(in) :: p
     integer(iintegers), intent(in) :: k, i, j ! layer/box indices
-    real(ireal_dp), allocatable, dimension(:, :, :, :) :: edir, ediff
+    real(ireal_dp), allocatable, dimension(:, :, :, :), intent(inout) :: edir, ediff
+    integer(iintegers), allocatable, dimension(:, :, :, :), intent(inout) :: Nediff
 
     if (ldebug) print *, 'Update Flux', k, i, j, p%direct, p%side
 
@@ -708,8 +758,10 @@ contains
       select case (p%side)
       case (1) ! Eup
         ediff(E_up, k, i, j) = ediff(E_up, k, i, j) + real(p%weight, ireals)
+        Nediff(E_up, k, i, j) = Nediff(E_up, k, i, j) + 1_iintegers
       case (2) ! Edn
         ediff(E_dn, k + 1, i, j) = ediff(E_dn, k + 1, i, j) + real(p%weight, ireals)
+        Nediff(E_dn, k + 1, i, j) = Nediff(E_dn, k + 1, i, j) + 1_iintegers
       case default
         !call print_photon(p)
         call CHKERR(1_mpiint, 'hmpf .. didnt expect a p%side gt 2'//toStr(p%side))
@@ -717,9 +769,10 @@ contains
     end if
   end subroutine
 
-  subroutine prepare_locally_owned_photons(solver, bmc, pqueue, Nphotons, weight)
+  subroutine prepare_locally_owned_photons(solver, bmc, lsolar, pqueue, Nphotons, weight)
     class(t_solver), intent(in) :: solver
     class(t_boxmc), intent(in) :: bmc
+    logical, intent(in) :: lsolar
     type(t_photon_queue), intent(inout) :: pqueue
     integer(iintegers), intent(in) :: Nphotons
     real(ireals), intent(in) :: weight
@@ -749,7 +802,11 @@ contains
           call setup_default_unit_cube_geometry(solver%atm%dx, solver%atm%dy, &
                                                 solver%atm%dz(i0, i, j), vertices)
 
-          call bmc%init_dir_photon(p, i1, .true., real(initial_dir, ireal_dp), real(vertices, ireal_dp), ierr)
+          if (lsolar) then
+            call bmc%init_dir_photon(p, i1, .true., real(initial_dir, ireal_dp), real(vertices, ireal_dp), ierr)
+          else
+            call bmc%init_diff_photon(p, i2, real(vertices, ireal_dp), ierr)
+          end if
           p%i = i
           p%j = j
           p%k = i0
@@ -1093,10 +1150,11 @@ contains
 
   end subroutine
 
-  subroutine move_photon(bmc, vertices, kabs, ksca, p, lexit_cell)
+  subroutine move_photon(bmc, vertices, ksca, p, pathlen, lexit_cell)
     class(t_boxmc) :: bmc
-    real(ireal_dp), intent(in) :: vertices(:), kabs, ksca
+    real(ireal_dp), intent(in) :: vertices(:), ksca
     type(t_photon), intent(inout) :: p
+    real(ireal_dp) :: pathlen
     logical, intent(out) :: lexit_cell
 
     real(ireal_dp) :: dist, intersec_dist
@@ -1105,11 +1163,13 @@ contains
 
     dist = distance(p%tau_travel, ksca)
 
+    pathlen = min(intersec_dist, dist)
+
+    call update_photon_loc(p, pathlen, ksca)
+
     if (intersec_dist .le. dist) then
-      call update_photon_loc(p, intersec_dist, kabs, ksca)
       lexit_cell = .true.
     else
-      call update_photon_loc(p, dist, kabs, ksca)
       lexit_cell = .false.
     end if
   end subroutine move_photon
