@@ -564,7 +564,7 @@ contains
 
   contains
     subroutine run_ready(idx, node, iphoton)
-      integer, intent(in) :: idx
+      integer(iintegers), intent(in) :: idx
       type(t_node), pointer, intent(inout) :: node
       integer(iintegers), intent(inout) :: iphoton
       integer(mpiint) :: ierr
@@ -1196,7 +1196,7 @@ contains
       end if
 
       ! asynchronous SEND starts here
-      tag = pqueue%queue_index
+      tag = int(pqueue%queue_index, kind(tag))
       call mpi_isend(p, 1_mpiint, imp_t_photon, &
                      pqueue%owner, tag, solver%comm, pqueue%photons(iphoton)%request, ierr); call CHKERR(ierr, 'mpi isend failed')
       !call mpi_send(p, 1_mpiint, imp_t_photon, &
@@ -1218,7 +1218,7 @@ contains
   contains
 
     subroutine check_sending(idx, node, iphoton)
-      integer, intent(in) :: idx
+      integer(iintegers), intent(in) :: idx
       type(t_node), pointer, intent(inout) :: node
       integer(iintegers), intent(inout) :: iphoton
 
@@ -1274,7 +1274,7 @@ contains
     end do
   contains
     subroutine check_sending(idx, node, iphoton)
-      integer, intent(in) :: idx
+      integer(iintegers), intent(in) :: idx
       type(t_node), pointer, intent(inout) :: node
       integer(iintegers), intent(inout) :: iphoton
 
