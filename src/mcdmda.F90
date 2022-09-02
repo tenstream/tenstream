@@ -381,7 +381,6 @@ contains
               call ind_1d_to_nd(B%da_offsets, B%iface(m), idx)
               idx(2:4) = idx(2:4) - 1 + [C_diff%zs, C_diff%xs, C_diff%ys]
               associate (k => idx(2), i => idx(3), j => idx(4))
-                print *, 'have building in px ', atmk(atm, k), i, j
                 select case (idx(1))
                 case (PPRTS_TOP_FACE)
                   buildings_idx(PPRTS_TOP_FACE, atmk(atm, k), i, j) = m
