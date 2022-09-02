@@ -165,7 +165,6 @@ contains
     integer(iintegers) :: i_am_master
     integer(mpiint) :: submyid, ierr
 
-    !if(allocated(rayli_info)) return
     if (.not. allocated(rayli_info)) then
       allocate (rayli_info)
 
@@ -1584,7 +1583,7 @@ contains
           allocate (buildings_face(C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye))
           buildings_mink(:, :) = C_diff%ze
           buildings_face(:, :) = -1
-          do m = 1, size(opt_buildings%iface)
+          do m = 1, size(B%iface)
             call ind_1d_to_nd(B%da_offsets, B%iface(m), idx)
             idx(2:4) = idx(2:4) - 1 + [C_diff%zs, C_diff%xs, C_diff%ys]
 

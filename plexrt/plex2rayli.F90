@@ -324,7 +324,7 @@ contains
       & print *, 'Increasing Nphotons from '//toStr(Nphotons)//' to min_photons '//toStr(int(min_photons, c_size_t))
     Nphotons = max(int(min_photons, c_size_t), Nphotons)
 
-    lcyclic = .false.
+    lcyclic = .true.
     call get_petsc_opt(PETSC_NULL_CHARACTER, '-rayli_cyclic_bc', lcyclic, lflg, ierr); call CHKERR(ierr)
     if (lcyclic) then
       icyclic = 1

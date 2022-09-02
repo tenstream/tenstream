@@ -39,6 +39,8 @@ module m_mcdmda
     & ind_1d_to_nd, &
     & ind_nd_to_1d, &
     & ndarray_offsets, &
+    & rotate_angle_x, &
+    & rotate_angle_y, &
     & spherical_2_cartesian, &
     & toStr
 
@@ -61,15 +63,13 @@ module m_mcdmda
   use m_petsc_helpers, only: getVecPointer, restoreVecPointer
 
   use m_buildings, only: &
-    & t_pprts_buildings!, &
-  !& t_plex_buildings, &
-  !& clone_buildings, &
-  !& destroy_buildings, &
-  !& check_buildings_consistency, &
-  !& PPRTS_TOP_FACE, &
-  !& PPRTS_BOT_FACE, &
-  !& PPRTS_LEFT_FACE, &
-  !& PPRTS_REAR_FACE
+    & t_pprts_buildings, &
+    & PPRTS_TOP_FACE, &
+    & PPRTS_BOT_FACE, &
+    & PPRTS_LEFT_FACE, &
+    & PPRTS_RIGHT_FACE, &
+    & PPRTS_FRONT_FACE, &
+    & PPRTS_REAR_FACE
 
   use m_linked_list_iintegers, only: t_list_iintegers, t_node
 
@@ -107,9 +107,9 @@ module m_mcdmda
   end type
 
   logical, parameter :: ldebug = .false.
+  logical, parameter :: ldebug_tracing = .false.
 
   real(ireal_dp), parameter :: loceps = 0 !sqrt(epsilon(loceps))
-  integer(iintegers), parameter :: E_up = 0, E_dn = 1
 
   real(ireals), parameter :: blocking_waittime = 5 ! sec
 contains
@@ -140,11 +140,9 @@ contains
     class(t_boxmc), allocatable :: bmc
 
     real(ireal_dp), dimension(:, :, :, :), allocatable :: edir, ediff, abso
-    integer(iintegers), dimension(:, :, :, :), allocatable :: Nediff
+    integer(iintegers), dimension(:, :, :, :), allocatable :: Nediff, buildings_idx
 
     ierr = 0
-
-    if (present(opt_buildings)) call CHKERR(1_mpiint, 'buildings not yet implemented')
 
     call determine_Nphotons(solver, Nphotons_local, ierr); call CHKERR(ierr)
     call mpi_allreduce(Nphotons_local, Nphotons_global, 1_mpiint, imp_iinteger, &
@@ -188,6 +186,8 @@ contains
       allocate ( &
         & Nediff(0:Cdiff%dof - 1, C1%zs:C1%ze, C%xs:C%xe, C%ys:C%ye), &
         & source=0_iintegers)
+
+      call fill_buildings_idx(solver, opt_buildings, buildings_idx)
 
       call setup_photon_queue(pqueues(PQ_SELF), Nphotons_local, myid, PQ_SELF)
       call setup_photon_queue(pqueues(PQ_NORTH), Nqueuesize, C%neighbors(22), PQ_NORTH)
@@ -247,7 +247,9 @@ contains
         & edir, ediff, Nediff, abso, &
         & started_photons=ip, &
         & killed_photons=kp, &
-        & limit_number_photons=Nbatchsize)
+        & limit_number_photons=Nbatchsize, &
+        & opt_buildings=opt_buildings, &
+        & buildings_idx=buildings_idx)
 
       locally_started_photons = locally_started_photons + ip
 
@@ -263,7 +265,9 @@ contains
           & pqueues, PQ_NORTH, &
           & edir, ediff, Nediff, abso, &
           & started_photons=ip, &
-          & killed_photons=kp)
+          & killed_photons=kp, &
+          & opt_buildings=opt_buildings, &
+          & buildings_idx=buildings_idx)
 
         started_photons = started_photons + ip; killed_photons = killed_photons + kp
         if (ldebug) print *, 'NORTH', 'started_photons', ip, 'killed_photons', kp
@@ -275,7 +279,9 @@ contains
           & pqueues, PQ_EAST, &
           & edir, ediff, Nediff, abso, &
           & started_photons=ip, &
-          & killed_photons=kp)
+          & killed_photons=kp, &
+          & opt_buildings=opt_buildings, &
+          & buildings_idx=buildings_idx)
 
         started_photons = started_photons + ip; killed_photons = killed_photons + kp
         if (ldebug) print *, 'EAST', 'started_photons', ip, 'killed_photons', kp
@@ -287,7 +293,9 @@ contains
           & pqueues, PQ_SOUTH, &
           & edir, ediff, Nediff, abso, &
           & started_photons=ip, &
-          & killed_photons=kp)
+          & killed_photons=kp, &
+          & opt_buildings=opt_buildings, &
+          & buildings_idx=buildings_idx)
 
         started_photons = started_photons + ip; killed_photons = killed_photons + kp
         if (ldebug) print *, 'SOUTH', 'started_photons', ip, 'killed_photons', kp
@@ -299,7 +307,9 @@ contains
           & pqueues, PQ_WEST, &
           & edir, ediff, Nediff, abso, &
           & started_photons=ip, &
-          & killed_photons=kp)
+          & killed_photons=kp, &
+          & opt_buildings=opt_buildings, &
+          & buildings_idx=buildings_idx)
         started_photons = started_photons + ip; killed_photons = killed_photons + kp
         if (ldebug) print *, 'WEST', 'started_photons', ip, 'killed_photons', kp
 
@@ -355,6 +365,50 @@ contains
       call photon_queue_destroy(pqueues(ip), ierr); call CHKERR(ierr)
     end do
   contains
+
+    subroutine fill_buildings_idx(solver, opt_buildings, buildings_idx)
+      class(t_solver), intent(in) :: solver
+      type(t_pprts_buildings), intent(in), optional :: opt_buildings
+      integer(iintegers), dimension(:, :, :, :), allocatable :: buildings_idx
+      integer(iintegers) :: m, idx(4)
+
+      if (present(opt_buildings)) then
+        associate (C => solver%C_one_atm, C_diff => solver%C_diff, atm => solver%atm)
+          allocate (buildings_idx(6, C%zs:C%ze, C%xs:C%xe, C%ys:C%ye))
+          buildings_idx = -1
+          associate (B => opt_buildings)
+            do m = 1, size(B%iface)
+              call ind_1d_to_nd(B%da_offsets, B%iface(m), idx)
+              idx(2:4) = idx(2:4) - 1 + [C_diff%zs, C_diff%xs, C_diff%ys]
+              associate (k => idx(2), i => idx(3), j => idx(4))
+                print *, 'have building in px ', atmk(atm, k), i, j
+                select case (idx(1))
+                case (PPRTS_TOP_FACE)
+                  buildings_idx(PPRTS_TOP_FACE, atmk(atm, k), i, j) = m
+
+                case (PPRTS_BOT_FACE)
+                  buildings_idx(PPRTS_BOT_FACE, atmk(atm, k), i, j) = m
+
+                case (PPRTS_LEFT_FACE)
+                  buildings_idx(PPRTS_LEFT_FACE, atmk(atm, k), i, j) = m
+
+                case (PPRTS_RIGHT_FACE)
+                  buildings_idx(PPRTS_RIGHT_FACE, atmk(atm, k), i, j) = m
+
+                case (PPRTS_REAR_FACE)
+                  buildings_idx(PPRTS_REAR_FACE, atmk(atm, k), i, j) = m
+
+                case (PPRTS_FRONT_FACE)
+                  buildings_idx(PPRTS_FRONT_FACE, atmk(atm, k), i, j) = m
+
+                end select
+              end associate
+            end do
+          end associate
+        end associate
+      end if
+    end subroutine
+
     subroutine get_result()
       real(ireals), pointer, dimension(:, :, :, :) :: xv_dir => null(), xv_diff => null(), xv_abso => null()
       real(ireals), pointer, dimension(:) :: xv_dir1d => null(), xv_diff1d => null(), xv_abso1d => null()
@@ -479,7 +533,9 @@ contains
   subroutine run_photon_queue(solver, bmc, &
       & pqueues, ipq, &
       & edir, ediff, Nediff, abso, &
-      & started_photons, killed_photons, limit_number_photons)
+      & started_photons, killed_photons, &
+      & limit_number_photons, &
+      & opt_buildings, buildings_idx)
     class(t_solver), intent(in) :: solver
     class(t_boxmc), intent(in) :: bmc
     type(t_photon_queue), intent(inout) :: pqueues(:) ! [own, north, east, south, west]
@@ -489,6 +545,8 @@ contains
     integer(iintegers), intent(out) :: started_photons
     integer(iintegers), intent(out) :: killed_photons
     integer(iintegers), optional, intent(in) :: limit_number_photons
+    type(t_pprts_buildings), intent(in), optional :: opt_buildings
+    integer(iintegers), allocatable, dimension(:, :, :, :), intent(in) :: buildings_idx
     integer(iintegers) :: Nphotmax
     logical :: lkilled_photon
 
@@ -523,7 +581,9 @@ contains
         & ediff, &
         & Nediff, &
         & abso, &
-        & lkilled_photon)
+        & lkilled_photon, &
+        & opt_buildings=opt_buildings, &
+        & buildings_idx=buildings_idx)
 
       started_photons = started_photons + 1
       if (lkilled_photon) killed_photons = killed_photons + 1
@@ -534,7 +594,10 @@ contains
     end subroutine
   end subroutine
 
-  subroutine run_photon(solver, bmc, pqueues, ipq, iphoton, edir, ediff, Nediff, abso, lkilled_photon)
+  subroutine run_photon(solver, bmc, pqueues, ipq, iphoton, &
+      & edir, ediff, Nediff, abso, &
+      & lkilled_photon, &
+      & opt_buildings, buildings_idx)
     class(t_solver), intent(in) :: solver
     class(t_boxmc), intent(in) :: bmc
     type(t_photon_queue), intent(inout) :: pqueues(:) ! [own, north, east, south, west]
@@ -543,11 +606,10 @@ contains
     real(ireal_dp), allocatable, dimension(:, :, :, :), intent(inout) :: edir, ediff, abso
     integer(iintegers), allocatable, dimension(:, :, :, :), intent(inout) :: Nediff
     logical, intent(out) :: lkilled_photon
+    type(t_pprts_buildings), intent(in), optional :: opt_buildings
+    integer(iintegers), allocatable, dimension(:, :, :, :), intent(in) :: buildings_idx
 
-    real(ireal_dp) :: kabs, ksca, g, mu, phi, pathlen
-    real(ireal_dp) :: Btop, Bbot, B1, B2, dz, tauabs, tm1
-    real(ireals), allocatable :: vertices(:)
-    logical :: lexit_cell, lthermal
+    logical :: lexit_cell, lthermal, lexit_domain
     integer(mpiint) :: myid, ierr
 
     lkilled_photon = .false.
@@ -556,28 +618,63 @@ contains
 
     associate (p => pqueues(ipq)%photons(iphoton)%p)
 
-      if (ldebug) print *, myid, cstr('Start of run_photon :: QUEUE:', 'pink'), id2name(ipq), 'iphoton', iphoton
-      if (ldebug) call print_photon(p)
+      if (ldebug_tracing) print *, myid, cstr('Start of run_photon :: QUEUE:', 'pink'), id2name(ipq), 'iphoton', iphoton
+      if (ldebug_tracing) call print_photon(p)
       call check_if_photon_is_in_domain(solver%C_one_atm, p)
 
       lthermal = allocated(solver%atm%planck)
 
-      if (p%src_side .eq. i1) then ! started at the top of the box, lets increment TOA downward flux
+      if (p%src_side .eq. PPRTS_TOP_FACE) then ! started at the top of the box, lets increment TOA downward flux
         if (p%direct) then
-          p%side = 1
-          call update_flx(p, p%k, p%i, p%j, edir, ediff, Nediff)
+          p%side = PPRTS_TOP_FACE
+          call update_flx(solver, p, p%k, p%i, p%j, edir, ediff, Nediff)
         end if
       end if
 
-      move: do ! this loop will move the photon to the edge of the subdomain
-        !call roulette(p)
-        if (.not. p%alive) then
-          lkilled_photon = .true.
-          exit move
+      lexit_domain = .false.
+      move: do while (.not. lexit_domain) ! this loop will move the photon to the edge of the subdomain
+        if (ldebug_tracing) then
+          print *, 'start of move', p%k, p%i, p%j
+          call print_photon(p)
         end if
 
         call check_if_photon_is_in_domain(solver%C_one_atm, p)
 
+        lexit_cell = .false.
+
+        if (present(opt_buildings)) call building_interaction(lexit_cell)
+
+        if (.not. lexit_cell) call move_inside_cell(lexit_cell)
+
+        ! Define new cellindex and update local position
+        if (.not. lexit_cell) then
+          call scatter_photon_in_cell()
+        else
+          call exit_cell(lexit_domain)
+        end if
+
+      end do move
+      call pqueues(ipq)%empty%add(iphoton)
+    end associate
+
+  contains
+
+    subroutine scatter_photon_in_cell()
+      associate (p => pqueues(ipq)%photons(iphoton)%p)
+        call scatter_photon(p, real(solver%atm%g(p%k, p%i, p%j), ireal_dp))
+        p%tau_travel = tau(R())
+        if (ldebug_tracing) print *, myid, cstr('********************* SCATTERING', 'peach'), p%k, p%i, p%j
+      end associate
+    end subroutine
+
+    subroutine move_inside_cell(lexit_cell)
+      logical, intent(out) :: lexit_cell
+
+      real(ireal_dp) :: kabs, ksca, pathlen
+      real(ireal_dp) :: Btop, Bbot, B1, B2, dz, tauabs, tm1
+      real(ireals), allocatable :: vertices(:)
+
+      associate (p => pqueues(ipq)%photons(iphoton)%p)
         kabs = solver%atm%kabs(p%k, p%i, p%j)
         ksca = solver%atm%ksca(p%k, p%i, p%j)
         dz = solver%atm%dz(p%k, p%i, p%j)
@@ -587,7 +684,7 @@ contains
           B1 = (Btop * p%loc(3) + Bbot * (dz - p%loc(3))) / dz ! planck at start of the ray
         end if
 
-        call setup_default_unit_cube_geometry(solver%atm%dx, solver%atm%dy, dz, vertices)
+        call setup_default_unit_cube_geometry(solver%atm%dx, solver%atm%dy, real(dz, ireals), vertices)
 
         abso(i0, p%k, p%i, p%j) = abso(i0, p%k, p%i, p%j) + real(p%weight, ireals)
 
@@ -607,134 +704,194 @@ contains
           call absorb_photon(p, pathlen, kabs)
         end if
         abso(i0, p%k, p%i, p%j) = abso(i0, p%k, p%i, p%j) - real(p%weight, ireals)
+      end associate
+    end subroutine
 
-        !print *,'start of move', k, i, j
-        !call print_photon(p)
+    subroutine building_interaction(lexit_cell)
+      logical, intent(out) :: lexit_cell
+      integer(iintegers) :: bidx
+      real(ireal_dp) :: mu, phi
 
-        ! Define new cellindex and update local position
+      lexit_cell = .false.
 
-        if (.not. lexit_cell) then
-          g = solver%atm%g(p%k, p%i, p%j)
-          call scatter_photon(p, g)
-          p%tau_travel = tau(R())
-          if (ldebug) print *, myid, cstr('********************* SCATTERING', 'peach'), p%k, p%i, p%j
-        else ! lexit_cell
-          ! Determine actions on boundaries
-          select case (p%side)
-          case (1)
-            if (p%k .eq. solver%C_one_atm%zs) then ! outgoing at TOA
-              call update_flx(p, p%k, p%i, p%j, edir, ediff, Nediff)
-              if (ldebug) print *, myid, '********************* Exit TOA', p%k, p%i, p%j
-              lkilled_photon = .true.
-              exit move
-            end if
-          case (2)
-            if (p%k .eq. solver%C_one_atm%ze) then ! hit the surface, need reflection
-              call update_flx(p, p%k, p%i, p%j, edir, ediff, Nediff)
-              if (ldebug) print *, myid, '********************* Before Reflection', p%k, p%i, p%j
+      associate (p => pqueues(ipq)%photons(iphoton)%p)
+        ! p%src_side - side where it is coming from, i.e. where it starts,
+        ! .e.g if flying down, i.e. entering from top, it will be PPRTS_TOP_FACE
+        bidx = buildings_idx(p%src_side, p%k, p%i, p%j)
+        if (bidx .gt. 0) then
 
-              p%weight = p%weight * solver%atm%albedo(p%i, p%j)
-              if (lthermal) then
-                if (allocated(solver%atm%Bsrfc)) then
-                  p%weight = p%weight + (1._ireals - solver%atm%albedo(p%i, p%j)) * solver%atm%Bsrfc(p%i, p%j)
-                else
-                  p%weight = p%weight + (1._ireals - solver%atm%albedo(p%i, p%j)) * Bbot
-                end if
-              end if
-              p%direct = .false.
-              p%scattercnt = p%scattercnt + 1
+          if (ldebug_tracing) print *, 'hit building @ '//toStr([p%src_side, p%k, p%i, p%j])
+          p%direct = .false.
+          p%scattercnt = p%scattercnt + 1
 
-              mu = sqrt(R())
-              phi = deg2rad(R() * 360)
-              p%dir = (/sin(phi) * sin(acos(mu)), cos(phi) * sin(acos(mu)), mu/)
-              p%loc(3) = zero + loceps
+          p%weight = p%weight * opt_buildings%albedo(bidx)
+          if (lthermal) then
+            p%weight = p%weight + (1._ireals - opt_buildings%albedo(bidx)) * opt_buildings%planck(bidx) * pi
+          end if
 
-              p%side = i1
-              p%src_side = i2
-              call update_flx(p, p%k + 1, p%i, p%j, edir, ediff, Nediff)
-              if (ldebug) print *, myid, cstr('********************* After  Reflection', 'aqua'), p%k, p%i, p%j
-              cycle move
-            end if
+          ! send right back to where it came from:
+          p%side = p%src_side
+
+          mu = sqrt(R())
+          phi = deg2rad(R() * 360)
+          p%dir = [sin(phi) * sin(acos(mu)), cos(phi) * sin(acos(mu)), mu]
+
+          select case (p%src_side)
+          case (PPRTS_TOP_FACE)
+            continue
+
+          case (PPRTS_BOT_FACE)
+            p%dir = rotate_angle_y(p%dir, 180._ireal_dp)
+
+          case (PPRTS_LEFT_FACE)
+            p%dir = rotate_angle_y(p%dir, 90._ireal_dp)
+
+          case (PPRTS_RIGHT_FACE)
+            p%dir = rotate_angle_y(p%dir, 270._ireal_dp)
+
+          case (PPRTS_REAR_FACE)
+            p%dir = rotate_angle_x(p%dir, 270._ireal_dp)
+
+          case (PPRTS_FRONT_FACE)
+            p%dir = rotate_angle_x(p%dir, 90._ireal_dp)
+
+          case default
+            call CHKERR(1_mpiint, 'Dont know what to do with source spec: '//toStr(p%src_side))
           end select
 
-          ! Move photon to new box
-          if (ldebug) print *, myid, cstr('* MOVE Photon', 'green')
-          select case (p%side)
-          case (1) ! exit on top
-            p%loc(3) = zero + loceps
-            call update_flx(p, p%k, p%i, p%j, edir, ediff, Nediff)
-            p%k = p%k - 1
-            p%src_side = 2
-          case (2)
-            p%loc(3) = solver%atm%dz(p%k + 1, p%i, p%j) - loceps
-            call update_flx(p, p%k, p%i, p%j, edir, ediff, Nediff)
-            p%k = p%k + 1
-            p%src_side = 1
-          case (3)
-            p%loc(1) = solver%atm%dx - loceps
-            p%i = p%i - 1
-            p%src_side = 4
-            if (p%i .eq. solver%C_one_atm%xs - 1) then
-              if (ldebug) print *, myid, cstr('* Sending to WEST', 'blue'), pqueues(PQ_WEST)%owner, p%k, p%i, p%j
-              call send_photon_to_neighbor(solver, solver%C_one_atm, p, pqueues(PQ_WEST))
-              exit move
-            end if
-          case (4)
-            p%loc(1) = zero + loceps
-            p%i = p%i + 1
-            p%src_side = 3
-            if (p%i .eq. solver%C_one_atm%xe + 1) then
-              if (ldebug) print *, myid, cstr('* Sending to EAST', 'blue'), pqueues(PQ_EAST)%owner, p%k, p%i, p%j
-              call send_photon_to_neighbor(solver, solver%C_one_atm, p, pqueues(PQ_EAST))
-              exit move
-            end if
-          case (5)
-            p%loc(2) = solver%atm%dy - loceps
-            p%j = p%j - 1
-            p%src_side = 6
-            if (p%j .eq. solver%C_one_atm%ys - 1) then
-              if (ldebug) print *, myid, cstr('* Sending to SOUTH', 'blue'), pqueues(PQ_SOUTH)%owner, p%k, p%i, p%j
-              call send_photon_to_neighbor(solver, solver%C_one_atm, p, pqueues(PQ_SOUTH))
-              exit move
-            end if
-          case (6)
-            p%loc(2) = zero + loceps
-            p%j = p%j + 1
-            p%src_side = 5
-            if (p%j .eq. solver%C_one_atm%ye + 1) then
-              if (ldebug) print *, myid, cstr('* Sending to NORTH', 'blue'), pqueues(PQ_NORTH)%owner, p%k, p%i, p%j
-              call send_photon_to_neighbor(solver, solver%C_one_atm, p, pqueues(PQ_NORTH))
-              exit move
-            end if
-          end select
-
+          lexit_cell = .true.
         end if
-      end do move
-      call pqueues(ipq)%empty%add(iphoton)
-    end associate
+      end associate
+    end subroutine
+
+    subroutine exit_cell(lexit_domain)
+      logical, intent(out) :: lexit_domain
+      real(ireal_dp) :: mu, phi
+
+      lexit_domain = .false.
+
+      associate (p => pqueues(ipq)%photons(iphoton)%p)
+
+        ! Move photon to new cell
+        if (ldebug_tracing) print *, myid, cstr('* MOVE Photon to new cell', 'green')
+
+        select case (p%side)
+
+        case (PPRTS_TOP_FACE) ! exit on top
+
+          if (p%k .eq. solver%C_one_atm%zs) then ! outgoing at TOA
+            if (ldebug_tracing) print *, myid, '********************* Exit TOA', p%k, p%i, p%j
+            lkilled_photon = .true.
+            lexit_domain = .true.
+          end if
+
+          p%loc(3) = zero + loceps
+          call update_flx(solver, p, p%k, p%i, p%j, edir, ediff, Nediff)
+          p%k = p%k - 1
+          p%src_side = PPRTS_BOT_FACE
+
+        case (PPRTS_BOT_FACE) ! exit cell at bottom
+
+          if (p%k .eq. solver%C_one_atm%ze) then ! hit the surface, need reflection
+            call update_flx(solver, p, p%k, p%i, p%j, edir, ediff, Nediff)
+            if (ldebug_tracing) print *, myid, '********************* Before Reflection', p%k, p%i, p%j
+
+            p%weight = p%weight * solver%atm%albedo(p%i, p%j)
+            if (lthermal) then
+              if (allocated(solver%atm%Bsrfc)) then
+                p%weight = p%weight + (1._ireals - solver%atm%albedo(p%i, p%j)) * solver%atm%Bsrfc(p%i, p%j)
+              else
+                p%weight = p%weight + (1._ireals - solver%atm%albedo(p%i, p%j)) * solver%atm%planck(p%k + 1, p%i, p%j)
+              end if
+            end if
+            p%direct = .false.
+            p%scattercnt = p%scattercnt + 1
+
+            mu = sqrt(R())
+            phi = deg2rad(R() * 360)
+            p%dir = [sin(phi) * sin(acos(mu)), cos(phi) * sin(acos(mu)), mu]
+            p%loc(3) = zero + loceps
+
+            p%side = PPRTS_TOP_FACE
+            p%src_side = PPRTS_BOT_FACE
+            call update_flx(solver, p, p%k + 1, p%i, p%j, edir, ediff, Nediff)
+            if (ldebug_tracing) print *, myid, cstr('********************* After  Reflection', 'aqua'), p%k, p%i, p%j
+            lexit_domain = .false.
+
+          else
+
+            p%loc(3) = solver%atm%dz(p%k + 1, p%i, p%j) - loceps
+            call update_flx(solver, p, p%k, p%i, p%j, edir, ediff, Nediff)
+            p%k = p%k + 1
+            p%src_side = PPRTS_TOP_FACE
+
+          end if
+
+        case (PPRTS_LEFT_FACE)
+          p%loc(1) = solver%atm%dx - loceps
+          p%i = p%i - 1
+          p%src_side = PPRTS_RIGHT_FACE
+          if (p%i .eq. solver%C_one_atm%xs - 1) then
+            if (ldebug_tracing) print *, myid, cstr('* Sending to WEST', 'blue'), pqueues(PQ_WEST)%owner, p%k, p%i, p%j
+            call send_photon_to_neighbor(solver, solver%C_one_atm, p, pqueues(PQ_WEST))
+            lexit_domain = .true.
+          end if
+        case (PPRTS_RIGHT_FACE)
+          p%loc(1) = zero + loceps
+          p%i = p%i + 1
+          p%src_side = PPRTS_LEFT_FACE
+          if (p%i .eq. solver%C_one_atm%xe + 1) then
+            if (ldebug_tracing) print *, myid, cstr('* Sending to EAST', 'blue'), pqueues(PQ_EAST)%owner, p%k, p%i, p%j
+            call send_photon_to_neighbor(solver, solver%C_one_atm, p, pqueues(PQ_EAST))
+            lexit_domain = .true.
+          end if
+        case (PPRTS_REAR_FACE)
+          p%loc(2) = solver%atm%dy - loceps
+          p%j = p%j - 1
+          p%src_side = PPRTS_FRONT_FACE
+          if (p%j .eq. solver%C_one_atm%ys - 1) then
+            if (ldebug_tracing) print *, myid, cstr('* Sending to SOUTH', 'blue'), pqueues(PQ_SOUTH)%owner, p%k, p%i, p%j
+            call send_photon_to_neighbor(solver, solver%C_one_atm, p, pqueues(PQ_SOUTH))
+            lexit_domain = .true.
+          end if
+        case (PPRTS_FRONT_FACE)
+          p%loc(2) = zero + loceps
+          p%j = p%j + 1
+          p%src_side = PPRTS_REAR_FACE
+          if (p%j .eq. solver%C_one_atm%ye + 1) then
+            if (ldebug_tracing) print *, myid, cstr('* Sending to NORTH', 'blue'), pqueues(PQ_NORTH)%owner, p%k, p%i, p%j
+            call send_photon_to_neighbor(solver, solver%C_one_atm, p, pqueues(PQ_NORTH))
+            lexit_domain = .true.
+          end if
+        end select
+      end associate
+    end subroutine
   end subroutine
 
-  subroutine update_flx(p, k, i, j, edir, ediff, Nediff)
+  subroutine update_flx(solver, p, k, i, j, edir, ediff, Nediff)
+    class(t_solver), intent(in) :: solver
     type(t_photon), intent(in) :: p
     integer(iintegers), intent(in) :: k, i, j ! layer/box indices
     real(ireal_dp), allocatable, dimension(:, :, :, :), intent(inout) :: edir, ediff
     integer(iintegers), allocatable, dimension(:, :, :, :), intent(inout) :: Nediff
+    integer(iintegers) :: off, dof
 
-    if (ldebug) print *, 'Update Flux', k, i, j, p%direct, p%side
+    if (ldebug_tracing) print *, 'Update Flux', k, i, j, p%direct, p%side
+    !if (k==3.and.i==3.and.j==3) call CHKERR(1_mpiint, 'DEBUG')
 
     select case (p%side)
-    case (1)
+    case (PPRTS_TOP_FACE)
       if (k .lt. lbound(ediff, 2) .or. k .gt. ubound(ediff, 2)) &
         & call CHKERR(1_mpiint, 'invalid k '//toStr(k)//' '// &
                        & toStr(lbound(ediff, 2))//'/'//toStr(ubound(ediff, 2)))
-    case (2)
+    case (PPRTS_BOT_FACE)
       if (k .lt. lbound(ediff, 2) .or. k .gt. ubound(ediff, 2) - 1) &
         & call CHKERR(1_mpiint, 'invalid k '//toStr(k)//' '// &
                       & toStr(lbound(ediff, 2))//'/'//toStr(ubound(ediff, 2) - 1))
     case (3:6)
       continue
     case default
-      call CHKERR(1_mpiint, 'hmpf .. didnt expect a p%side gt 6'//toStr(p%side))
+      call CHKERR(1_mpiint, 'hmpf .. didnt expect a p%side gt 6, have '//toStr(p%side))
     end select
 
     if (i .lt. lbound(ediff, 3) .or. i .gt. ubound(ediff, 3)) &
@@ -746,25 +903,70 @@ contains
 
     if (p%direct) then
       select case (p%side)
-      case (1)
+      case (PPRTS_TOP_FACE)
         edir(i0, k, i, j) = edir(i0, k, i, j) + real(p%weight, kind(edir))
-      case (2)
+      case (PPRTS_BOT_FACE)
         edir(i0, k + 1, i, j) = edir(i0, k + 1, i, j) + real(p%weight, kind(edir))
       case default
         call print_photon(p)
-        call CHKERR(1_mpiint, 'hmpf .. didnt expect a p%side gt 2'//toStr(p%side))
+        call CHKERR(1_mpiint, 'hmpf .. didnt expect a p%side gt 2, have '//toStr(p%side))
       end select
+
     else
+
       select case (p%side)
-      case (1) ! Eup
-        ediff(E_up, k, i, j) = ediff(E_up, k, i, j) + real(p%weight, ireals)
-        Nediff(E_up, k, i, j) = Nediff(E_up, k, i, j) + 1_iintegers
-      case (2) ! Edn
-        ediff(E_dn, k + 1, i, j) = ediff(E_dn, k + 1, i, j) + real(p%weight, ireals)
-        Nediff(E_dn, k + 1, i, j) = Nediff(E_dn, k + 1, i, j) + 1_iintegers
+      case (PPRTS_TOP_FACE)
+        do dof = 0, solver%difftop%dof - 1
+          if (.not. solver%difftop%is_inward(i1 + dof)) then !Eup
+            ediff(dof, k, i, j) = ediff(dof, k, i, j) + real(p%weight, kind(ediff))
+            Nediff(dof, k, i, j) = Nediff(dof, k, i, j) + 1_iintegers
+          end if
+        end do
+      case (PPRTS_BOT_FACE)
+        do dof = 0, solver%difftop%dof - 1
+          if (solver%difftop%is_inward(i1 + dof)) then !Edn
+            ediff(dof, k + 1, i, j) = ediff(dof, k + 1, i, j) + real(p%weight, kind(ediff))
+            Nediff(dof, k + 1, i, j) = Nediff(dof, k + 1, i, j) + 1_iintegers
+          end if
+        end do
+
+      case (PPRTS_LEFT_FACE)
+        off = solver%difftop%dof
+        do dof = 0, solver%diffside%dof - 1
+          if (.not. solver%diffside%is_inward(i1 + dof)) then !Eleft
+            ediff(dof, k, i, j) = ediff(dof, k, i, j) + real(p%weight, kind(ediff))
+            Nediff(dof, k, i, j) = Nediff(dof, k, i, j) + 1_iintegers
+          end if
+        end do
+      case (PPRTS_RIGHT_FACE)
+        off = solver%difftop%dof
+        do dof = 0, solver%diffside%dof - 1
+          if (solver%diffside%is_inward(i1 + dof)) then !Eright
+            ediff(dof, k, i + 1, j) = ediff(dof, k, i + 1, j) + real(p%weight, kind(ediff))
+            Nediff(dof, k, i + 1, j) = Nediff(dof, k, i + 1, j) + 1_iintegers
+          end if
+        end do
+
+      case (PPRTS_REAR_FACE) ! rear
+        off = solver%difftop%dof + solver%diffside%dof
+        do dof = 0, solver%diffside%dof - 1
+          if (.not. solver%diffside%is_inward(i1 + dof)) then !Erear
+            ediff(dof, k, i, j) = ediff(dof, k, i, j) + real(p%weight, kind(ediff))
+            Nediff(dof, k, i, j) = Nediff(dof, k, i, j) + 1_iintegers
+          end if
+        end do
+      case (PPRTS_FRONT_FACE) ! front
+        off = solver%difftop%dof + solver%diffside%dof
+        do dof = 0, solver%diffside%dof - 1
+          if (solver%diffside%is_inward(i1 + dof)) then !Eforward
+            ediff(dof, k, i, j + 1) = ediff(dof, k, i, j + 1) + real(p%weight, kind(ediff))
+            Nediff(dof, k, i, j + 1) = Nediff(dof, k, i, j + 1) + 1_iintegers
+          end if
+        end do
+
       case default
         !call print_photon(p)
-        call CHKERR(1_mpiint, 'hmpf .. didnt expect a p%side gt 2'//toStr(p%side))
+        call CHKERR(1_mpiint, 'hmpf .. didnt expect a p%side gt 2, have'//toStr(p%side))
       end select
     end if
   end subroutine
@@ -810,7 +1012,7 @@ contains
           p%i = i
           p%j = j
           p%k = i0
-          p%src_side = i1
+          p%src_side = PPRTS_TOP_FACE
           p%weight = weight
           p%tau_travel = tau(R())
           !p%loc(1) = solver%atm%dx/2
@@ -967,20 +1169,20 @@ contains
           call CHKERR(1_mpiint, 'should not happen that a photon is sent to ourselves?')
         case (PQ_WEST)
           !print *,'Sending Photon WEST'
-          if (p%side .ne. i3) call CHKERR(1_mpiint, 'I would assume that side should be 3 when sending WEST')
-          if (p%src_side .ne. i4) call CHKERR(1_mpiint, 'I would assume that src_side should be 4 when sending WEST')
+          if (p%side .ne. PPRTS_LEFT_FACE) call CHKERR(1_mpiint, 'I would assume that side should be 3 when sending WEST')
+          if (p%src_side .ne. PPRTS_RIGHT_FACE) call CHKERR(1_mpiint, 'I would assume that src_side should be 4 when sending WEST')
         case (PQ_EAST)
           !print *,'Sending Photon EAST'
-          if (p%side .ne. i4) call CHKERR(1_mpiint, 'I would assume that side should be 4 when sending EAST')
-          if (p%src_side .ne. i3) call CHKERR(1_mpiint, 'I would assume that src_side should be 3 when sending EAST')
+          if (p%side .ne. PPRTS_RIGHT_FACE) call CHKERR(1_mpiint, 'I would assume that side should be 4 when sending EAST')
+          if (p%src_side .ne. PPRTS_LEFT_FACE) call CHKERR(1_mpiint, 'I would assume that src_side should be 3 when sending EAST')
         case (PQ_NORTH)
           !print *,'Sending Photon NORTH'
-          if (p%side .ne. i6) call CHKERR(1_mpiint, 'I would assume that side should be 6 when sending NORTH')
-          if (p%src_side .ne. i5) call CHKERR(1_mpiint, 'I would assume that src_side should be 5 when sending NORTH')
+          if (p%side .ne. PPRTS_FRONT_FACE) call CHKERR(1_mpiint, 'I would assume that side should be 6 when sending NORTH')
+          if (p%src_side .ne. PPRTS_REAR_FACE) call CHKERR(1_mpiint, 'I would assume that src_side should be 5 when sending NORTH')
         case (PQ_SOUTH)
           !print *,'Sending Photon SOUTH'
-          if (p%side .ne. i5) call CHKERR(1_mpiint, 'I would assume that side should be 5 when sending SOUTH')
-          if (p%src_side .ne. i6) call CHKERR(1_mpiint, 'I would assume that src_side should be 6 when sending SOUTH')
+          if (p%side .ne. PPRTS_REAR_FACE) call CHKERR(1_mpiint, 'I would assume that side should be 5 when sending SOUTH')
+          if (p%src_side .ne. PPRTS_FRONT_FACE) call CHKERR(1_mpiint, 'I would assume that src_side should be 6 when sending SOUTH')
         end select
       end if
 
@@ -1029,7 +1231,6 @@ contains
         call pqueue%sending%del_node(node, ierr); call CHKERR(ierr)
         if (ldebug) then
           print *, 'Finalized Sending a photon:', iphoton
-          call print_photon(pqueue%photons(iphoton)%p)
         end if
       end if
       return

@@ -113,9 +113,9 @@ program main
     call PetscOptionsInsertString(PETSC_NULL_OPTIONS, trim(rayli_options), ierr); call CHKERR(ierr)
   end if
 
-  if (lsolar) then
+  if (lthermal) then
     call ex_pprts_buildings(mpi_comm_world, lverbose, &
-      & .false., lsolar, Nx, Ny, Nlay, icollapse, &
+      & lthermal, .false., Nx, Ny, Nlay, icollapse, &
       & glob_box_i, glob_box_j, box_k,            &
       & box_Ni, box_Nj, box_Nk,                   &
       & box_albedo, box_planck,                   &
@@ -126,9 +126,10 @@ program main
       & buildings,                                &
       & outfile=outfile)
   end if
-  if (lthermal) then
+
+  if (lsolar) then
     call ex_pprts_buildings(mpi_comm_world, lverbose, &
-      & lthermal, .false., Nx, Ny, Nlay, icollapse, &
+      & .false., lsolar, Nx, Ny, Nlay, icollapse, &
       & glob_box_i, glob_box_j, box_k,            &
       & box_Ni, box_Nj, box_Nk,                   &
       & box_albedo, box_planck,                   &
