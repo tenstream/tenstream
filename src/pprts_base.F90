@@ -828,9 +828,9 @@ contains
     uid = get_arg(0_iintegers, opt_solution_uid)
     call get_petsc_opt('', '-override_solution_uid', uid, lflg1, ierr); call CHKERR(ierr)
     call get_petsc_opt('', '-pprts_override_solution_uid', uid, lflg2, ierr); call CHKERR(ierr)
-    if (lflg1 .or. lflg2) then
-      print *, 'Override solutions uid, returning '//toStr(uid)//' instead of '//toStr(get_arg(0_iintegers, opt_solution_uid))
-    end if
+    !if (lflg1 .or. lflg2) then
+    !  print *, 'Override solutions uid, returning '//toStr(uid)//' instead of '//toStr(get_arg(0_iintegers, opt_solution_uid))
+    !end if
 
     if (.not. is_inrange(uid, lbound(solutions, 1, kind=iintegers), ubound(solutions, 1, kind=iintegers))) then
       call CHKWARN(int(uid, mpiint), "uid ("//toStr(uid)//") is not in range of "// &
