@@ -33,19 +33,19 @@ contains
     call list%add(3_iintegers)
     @assertEqual(3_iintegers, list%len())
 
-    call list%get_nth(2, i, ierr)
+    call list%get_nth(2_iintegers, i, ierr)
     @assertEqual(0_iintegers, ierr)
     @assertEqual(4_iintegers, i)
 
-    call list%get_nth(-2, i, ierr)
+    call list%get_nth(-2_iintegers, i, ierr)
     @assertEqual(0_iintegers, ierr)
     @assertEqual(4_iintegers, i)
 
-    call list%get_nth(3, i, ierr)
+    call list%get_nth(3_iintegers, i, ierr)
     @assertEqual(0_iintegers, ierr)
     @assertEqual(3_iintegers, i)
 
-    call list%get_nth(-1, i, ierr)
+    call list%get_nth(-1_iintegers, i, ierr)
     @assertEqual(0_iintegers, ierr)
     @assertEqual(3_iintegers, i)
 
@@ -122,7 +122,7 @@ contains
 
   contains
     subroutine square(idx, node, val)
-      integer, intent(in) :: idx
+      integer(iintegers), intent(in) :: idx
       type(t_node), pointer, intent(inout) :: node
       integer(iintegers), intent(inout) :: val
       print *, 'squaring idx', idx, val
@@ -130,10 +130,10 @@ contains
     end subroutine
 
     recursive subroutine delete_uneven(idx, node, val)
-      integer, intent(in) :: idx
+      integer(iintegers), intent(in) :: idx
       type(t_node), pointer, intent(inout) :: node
       integer(iintegers), intent(inout) :: val
-      if (modulo(val, 2) .ne. 0) then
+      if (modulo(val, 2_iintegers) .ne. 0) then
         print *, 'deleting', idx, val
         call list%del_node(node, ierr)
       end if
@@ -175,7 +175,7 @@ contains
     print *, 'Time for get_last():', tend - tstart, 's'
 
     call cpu_time(tstart)
-    call list%get_nth(N - 1, s, ierr)
+    call list%get_nth(N - 1_iintegers, s, ierr)
     call cpu_time(tend)
     print *, 'Time for get_nth(N-1):', tend - tstart, 's'
 
@@ -192,7 +192,7 @@ contains
   contains
 
     recursive subroutine delete_uneven(idx, node, val)
-      integer, intent(in) :: idx
+      integer(iintegers), intent(in) :: idx
       type(t_node), pointer, intent(inout) :: node
       integer(iintegers), intent(inout) :: val
       if (modulo(val, 2) .ne. 0) then
