@@ -32,7 +32,7 @@
   ]
 
   module m_linked_list_${name}$
-    use iso_c_binding, only: c_loc
+    !use iso_c_binding, only: c_loc
     use iso_fortran_env, only: int32, int64, real32, real64, real128
     use m_data_parameters, only: iintegers, mpiint, ireals
     use m_helper_functions, only: CHKERR, CHKWARN, toStr
@@ -321,7 +321,7 @@
       i = 0
       do while (associated(node))
         i = i + 1
-        print *, i, c_loc(node), node%item
+        print *, i, node%item
         node => node%next
       end do
     end subroutine
