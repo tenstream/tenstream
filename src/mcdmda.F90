@@ -174,7 +174,8 @@ contains
 
       if (solution%lsolar_rad) then
         allocate (edir(0:Cdir%dof - 1, C1%zs:C1%ze, C%xs:C%xe, C%ys:C%ye), source=0._ireal_dp)
-        photon_weight = edirTOA * solver%C_one_atm%xm * solver%C_one_atm%ym / real(Nphotons_local, ireals)
+        photon_weight = edirTOA * real(solver%sun%costheta, ireals) &
+                       & * solver%C_one_atm%xm * solver%C_one_atm%ym / real(Nphotons_local, ireals)
       else
         photon_weight = 0
       end if
@@ -427,7 +428,7 @@ contains
           xv_dir(:, C_dir%zs + 1:, :, :) = real(&
             & edir(:, atmk(atm, C_one_atm1%zs + 1):C_one_atm1%ze, :, :), &
             & kind(xv_dir))
-          xv_dir(:, C_dir%zs, :, :) = edir(:, C_one_atm1%zs, :, :)
+          xv_dir(:, C_dir%zs, :, :) = real(edir(:, C_one_atm1%zs, :, :), kind(xv_dir))
 
           call restoreVecPointer(C_dir%da, solution%edir, xv_dir1d, xv_dir)
           call PetscObjectViewFromOptions(solution%edir, PETSC_NULL_VEC, '-mcdmda_show_edir', ierr); call CHKERR(ierr)
@@ -436,13 +437,13 @@ contains
         call getVecPointer(C_diff%da, solution%ediff, xv_diff1d, xv_diff)
 
         if (.not. solution%lsolar_rad) then
-          ediff = ediff / max(1_iintegers, Nediff) * pi
+          ediff = ediff * real(pi / max(1_iintegers, Nediff), kind(ediff))
         end if
 
         xv_diff(:, C_diff%zs + 1:, :, :) = real(&
           & ediff(:, atmk(atm, C_one_atm1%zs + 1):C_one_atm1%ze, :, :), &
           & kind(xv_diff))
-        xv_diff(:, C_diff%zs, :, :) = ediff(:, C_one_atm1%zs, :, :)
+        xv_diff(:, C_diff%zs, :, :) = real(ediff(:, C_one_atm1%zs, :, :), kind(xv_diff))
 
         call restoreVecPointer(C_diff%da, solution%ediff, xv_diff1d, xv_diff)
 
@@ -457,9 +458,9 @@ contains
           & / atm%dz(atmk(atm, C_one_atm%zs + 1):C_one_atm%ze, :, :), &
           & kind(xv_abso))
 
-        xv_abso(i0, C_one%zs, :, :) = &
+        xv_abso(i0, C_one%zs, :, :) = real( &
           & sum(abso(i0, :atmk(atm, C_one_atm%zs), :, :), dim=1) &
-          & / sum(atm%dz(:atmk(atm, C_one_atm%zs), :, :), dim=1)
+          & / sum(atm%dz(:atmk(atm, C_one_atm%zs), :, :), dim=1), kind(xv_abso))
 
         call restoreVecPointer(C_one%da, solution%abso, xv_abso1d, xv_abso)
       end associate
