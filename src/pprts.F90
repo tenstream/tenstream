@@ -86,14 +86,13 @@ module m_pprts
 
   use m_tenstream_options, only: read_commandline_options, luse_eddington, twostr_ratio, &
                                  options_max_solution_err, options_max_solution_time, &
-                                 lcalc_nca, lskip_thermal, lschwarzschild, ltopography, &
-                                 lmcrts
+                                 lcalc_nca, lskip_thermal, lschwarzschild, ltopography
 
   use m_petsc_helpers, only: petscGlobalVecToZero, scatterZerotoPetscGlobal, &
                              petscGlobalVecToAll, &
                              petscVecToF90, f90VecToPetsc, getVecPointer, restoreVecPointer, hegedus_trick
 
-  use m_mcrts_dmda, only: solve_mcrts
+  use m_mcdmda, only: solve_mcdmda
 
   use m_pprts_base, only: &
     & t_solver, &
@@ -114,6 +113,7 @@ module m_pprts
     & t_solver_2str, &
     & t_solver_disort, &
     & t_solver_rayli, &
+    & t_solver_mcdmda, &
     & t_solver_1_2, &
     & t_solver_3_6, &
     & t_solver_3_10, &
@@ -240,6 +240,19 @@ contains
         solver%dirtop%is_inward = [.true.]
 
         allocate (solver%dirside%is_inward(0))
+
+      class is (t_solver_mcdmda)
+        allocate (solver%difftop%is_inward(2))
+        solver%difftop%is_inward = [.false., .true.]
+
+        allocate (solver%diffside%is_inward(4))
+        solver%diffside%is_inward = [.false., .true.]
+
+        allocate (solver%dirtop%is_inward(1))
+        solver%dirtop%is_inward = [.true.]
+
+        allocate (solver%dirside%is_inward(1))
+        solver%dirside%is_inward = [.true.]
 
       class is (t_solver_rayli)
         allocate (solver%difftop%is_inward(2))
@@ -447,6 +460,8 @@ contains
         continue
       class is (t_solver_rayli)
         continue
+      class is (t_solver_mcdmda)
+        continue
       class default
         call init_memory(solver%C_dir, solver%C_diff, solver%incSolar, solver%b)
       end select
@@ -475,8 +490,9 @@ contains
       return
     class is (t_solver_rayli)
       return
+    class is (t_solver_mcdmda)
+      return
     end select
-    if (lmcrts) return
 
     if (.not. luse_eddington) then
       allocate (t_optprop_1_2 :: solver%OPP1d)
@@ -1782,6 +1798,8 @@ contains
         return
       class is (t_solver_rayli)
         return
+      class is (t_solver_mcdmda)
+        return
       end select
 
       ! allocate space for twostream coefficients
@@ -2289,39 +2307,38 @@ contains
                                "-rayli_snapshot", lrayli_snapshot, ierr); call CHKERR(ierr)
 
       if (luse_rayli .or. lrayli_snapshot) then
-        call PetscLogEventBegin(solver%logs%solve_mcrts, ierr)
-        call pprts_rayli_wrapper(luse_rayli, lrayli_snapshot, solver, edirTOA, solution, opt_buildings)
-        call PetscLogEventEnd(solver%logs%solve_mcrts, ierr)
+        call PetscLogEventBegin(solver%logs%solve_mcrts, ierr); call CHKERR(ierr)
+        call pprts_rayli_wrapper(luse_rayli, lrayli_snapshot, solver, edirTOA, solution, ierr, opt_buildings); call CHKERR(ierr)
+        call PetscLogEventEnd(solver%logs%solve_mcrts, ierr); call CHKERR(ierr)
         if (luse_rayli) goto 99
       end if
 
       select type (solver)
       class is (t_solver_2str)
         if (solution%lthermal_rad .and. lschwarzschild) then
-          call PetscLogEventBegin(solver%logs%solve_schwarzschild, ierr)
+          call PetscLogEventBegin(solver%logs%solve_schwarzschild, ierr); call CHKERR(ierr)
           call schwarz(solver, solution, opt_buildings)
-          call PetscLogEventEnd(solver%logs%solve_schwarzschild, ierr)
+          call PetscLogEventEnd(solver%logs%solve_schwarzschild, ierr); call CHKERR(ierr)
         else
-          call PetscLogEventBegin(solver%logs%solve_twostream, ierr)
+          call PetscLogEventBegin(solver%logs%solve_twostream, ierr); call CHKERR(ierr)
           call twostream(solver, edirTOA, solution, opt_buildings)
-          call PetscLogEventEnd(solver%logs%solve_twostream, ierr)
+          call PetscLogEventEnd(solver%logs%solve_twostream, ierr); call CHKERR(ierr)
         end if
         goto 99
 
       class is (t_solver_disort)
-        call PetscLogEventBegin(solver%logs%solve_disort, ierr)
+        call PetscLogEventBegin(solver%logs%solve_disort, ierr); call CHKERR(ierr)
         call disort(solver, edirTOA, solution, opt_buildings)
-        call PetscLogEventEnd(solver%logs%solve_disort, ierr)
+        call PetscLogEventEnd(solver%logs%solve_disort, ierr); call CHKERR(ierr)
+        goto 99
+
+      class is (t_solver_mcdmda)
+        call PetscLogEventBegin(solver%logs%solve_mcrts, ierr); call CHKERR(ierr)
+        call solve_mcdmda(solver, edirTOA, solution, ierr, opt_buildings); call CHKERR(ierr)
+        call PetscLogEventEnd(solver%logs%solve_mcrts, ierr); call CHKERR(ierr)
         goto 99
 
       end select
-
-      if (lmcrts) then
-        call PetscLogEventBegin(solver%logs%solve_mcrts, ierr)
-        call solve_mcrts(solver, edirTOA, solution)
-        call PetscLogEventEnd(solver%logs%solve_mcrts, ierr)
-        goto 99
-      end if
 
       call pprts(solver, edirTOA, solution, opt_buildings)
 

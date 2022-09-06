@@ -191,11 +191,11 @@ contains
       call pprts_get_result(solver, fdn, fup, fdiv, fdir, opt_buildings=buildings)
 
       if (lsolar) then
-        call gather_all_toZero(solver%C_one_atm1, fdir, gedir)
+        call gather_all_toZero(solver%C_one1, fdir, gedir)
       end if
-      call gather_all_toZero(solver%C_one_atm1, fdn, gedn)
-      call gather_all_toZero(solver%C_one_atm1, fup, geup)
-      call gather_all_toZero(solver%C_one_atm, fdiv, gabso)
+      call gather_all_toZero(solver%C_one1, fdn, gedn)
+      call gather_all_toZero(solver%C_one1, fup, geup)
+      call gather_all_toZero(solver%C_one, fdiv, gabso)
 
       if (myid .eq. 0_mpiint .and. present(outfile)) then
         groups(1) = trim(outfile)

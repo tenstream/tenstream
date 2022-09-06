@@ -18,9 +18,9 @@ check_fprettify:pre:
 
 .template_build_PETSC: &template_build_PETSC
     - export PETSC_DIR=$(readlink -f $PETSC_DIR)
-    - echo -e "\e[0Ksection_start:`date +%s`:petsc_section[collapsed=true]\r\e[0KInstalling build dependencies to ${PETSC_DIR}/${PETSC_ARCH}"
+    - echo -e "\e[0Ksection_start:`date +%s`:petsc[collapsed=true]\r\e[0KBuild PETSc"
     - misc/build_dependencies.sh "${PETSC_DIR}" "${PETSC_ARCH}" "${PETSC_PRECISION}" "${PETSC_DEBUGGING}" "${PETSC_64_INTEGERS}" "${PETSC_OPTS}"
-    - echo -e "\e[0Ksection_end:`date +%s`:petsc_section\r\e[0K"
+    - echo -e "\e[0Ksection_end:`date +%s`:petsc\r\e[0K"
 
 variables:
   DEBIAN_FRONTEND: noninteractive

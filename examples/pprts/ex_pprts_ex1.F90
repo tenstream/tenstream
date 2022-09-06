@@ -130,4 +130,5 @@ program main
     print *, 'colorbar(); savefig("edir_x0.pdf")'
   end if
   call finalize_mpi(mpi_comm_world, lfinalize_mpi=.true., lfinalize_petsc=.true.)
+  deallocate (fdir, fdn, fup, fdiv)
 end program

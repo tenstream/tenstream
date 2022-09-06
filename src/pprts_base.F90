@@ -59,6 +59,7 @@ module m_pprts_base
     & t_solver_disort, &
     & t_solver_log_events, &
     & t_solver_rayli, &
+    & t_solver_mcdmda, &
     & t_state_container, &
     & t_suninfo
 
@@ -219,6 +220,8 @@ module m_pprts_base
   type, extends(t_solver) :: t_solver_disort
   end type
   type, extends(t_solver) :: t_solver_rayli
+  end type
+  type, extends(t_solver) :: t_solver_mcdmda
   end type
   type, extends(t_solver) :: t_solver_1_2
   end type
@@ -396,6 +399,9 @@ contains
 
     case ('rayli')
       allocate (t_solver_rayli :: pprts_solver)
+
+    case ('mcdmda')
+      allocate (t_solver_mcdmda :: pprts_solver)
 
     case ('1_2')
       allocate (t_solver_1_2 :: pprts_solver)
@@ -822,9 +828,9 @@ contains
     uid = get_arg(0_iintegers, opt_solution_uid)
     call get_petsc_opt('', '-override_solution_uid', uid, lflg1, ierr); call CHKERR(ierr)
     call get_petsc_opt('', '-pprts_override_solution_uid', uid, lflg2, ierr); call CHKERR(ierr)
-    if (lflg1 .or. lflg2) then
-      print *, 'Override solutions uid, returning '//toStr(uid)//' instead of '//toStr(get_arg(0_iintegers, opt_solution_uid))
-    end if
+    !if (lflg1 .or. lflg2) then
+    !  print *, 'Override solutions uid, returning '//toStr(uid)//' instead of '//toStr(get_arg(0_iintegers, opt_solution_uid))
+    !end if
 
     if (.not. is_inrange(uid, lbound(solutions, 1, kind=iintegers), ubound(solutions, 1, kind=iintegers))) then
       call CHKWARN(int(uid, mpiint), "uid ("//toStr(uid)//") is not in range of "// &

@@ -153,18 +153,18 @@ subroutine init_diff_photon_3_6(bmc, p, src, vertices, ierr)
   call setup_cube_coords_from_vertices(vertices, dx, dy, dz)
 
   select case (src)
-  case (2)
-    p%loc = [R() * dx, R() * dy, dz]
-  case (1)
+  case (1) ! eup
     p%loc = [R() * dx, R() * dy, zero]
-  case (4)
-    p%loc = [zero, R() * dy, R() * dz]
-  case (3)
+  case (2) ! edn
+    p%loc = [R() * dx, R() * dy, dz]
+  case (3) ! left
     p%loc = [dx, R() * dy, R() * dz]
-  case (6)
-    p%loc = [R() * dx, zero, R() * dz]
-  case (5)
+  case (4) ! right
+    p%loc = [zero, R() * dy, R() * dz]
+  case (5) ! backward
     p%loc = [R() * dx, dy, R() * dz]
+  case (6) ! forward
+    p%loc = [R() * dx, zero, R() * dz]
   case default
     print *, 'Dont know what to do with source spec:', src
     call exit

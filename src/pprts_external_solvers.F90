@@ -165,7 +165,6 @@ contains
     integer(iintegers) :: i_am_master
     integer(mpiint) :: submyid, ierr
 
-    !if(allocated(rayli_info)) return
     if (.not. allocated(rayli_info)) then
       allocate (rayli_info)
 
@@ -844,18 +843,20 @@ contains
   ! * implement pprts to wedge interface
   ! * average results over shared mem comm
   ! * distribute results
-  subroutine pprts_rayli_wrapper(lcall_solver, lcall_snap, solver, edirTOA, solution, opt_buildings)
+  subroutine pprts_rayli_wrapper(lcall_solver, lcall_snap, solver, edirTOA, solution, ierr, opt_buildings)
     logical, intent(in) :: lcall_solver, lcall_snap
     class(t_solver), intent(inout) :: solver
     real(ireals), intent(in) :: edirTOA
     type(t_state_container), intent(inout) :: solution
+    integer(mpiint), intent(out) :: ierr
     type(t_pprts_buildings), intent(in), optional :: opt_buildings
 
-    integer(mpiint) :: ierr
     integer(mpiint) :: myid, numnodes
     integer(mpiint) :: submyid, subnumnodes
 
     real(ireals) :: sundir(3)
+
+    ierr = 0
 
     if (all([lcall_solver, lcall_snap] .eqv. .false.)) return
 
@@ -1582,7 +1583,7 @@ contains
           allocate (buildings_face(C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye))
           buildings_mink(:, :) = C_diff%ze
           buildings_face(:, :) = -1
-          do m = 1, size(opt_buildings%iface)
+          do m = 1, size(B%iface)
             call ind_1d_to_nd(B%da_offsets, B%iface(m), idx)
             idx(2:4) = idx(2:4) - 1 + [C_diff%zs, C_diff%xs, C_diff%ys]
 
