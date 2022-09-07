@@ -19,6 +19,7 @@
 
 module m_mcdmda
   use iso_fortran_env, only: int64
+  use iso_c_binding, only: c_backspace
 
 #include "petsc/finclude/petsc.h"
   use petsc
@@ -342,8 +343,12 @@ contains
         if (myid .eq. 0) then
           percent_printed = int(100 * real(globally_killed_photons) / real(Nphotons_global), kind(percent_printed))
           if (ldebug .or. percent_printed .ne. last_percent_printed) then
-            print *, iter, 'Globally killed photons', globally_killed_photons, '/', Nphotons_global, &
-              '('//toStr(percent_printed)//' % )'
+            !print *, iter, 'Globally killed photons', globally_killed_photons, '/', Nphotons_global, &
+            !  '('//toStr(percent_printed)//' % )'
+            write (*, fmt="(A)", advance='no') repeat(c_backspace, 100)//toStr(iter)// &
+              & ' Globally killed photons '//toStr(globally_killed_photons)//' / '//toStr(Nphotons_global)// &
+              & '( '//toStr(percent_printed)//' % )'
+            call flush ()
             last_percent_printed = percent_printed
           end if
         end if
@@ -726,7 +731,7 @@ contains
 
           p%weight = p%weight * opt_buildings%albedo(bidx)
           if (lthermal) then
-            p%weight = p%weight + (1._ireals - opt_buildings%albedo(bidx)) * opt_buildings%planck(bidx) * pi
+            p%weight = p%weight + (1._ireals - opt_buildings%albedo(bidx)) * opt_buildings%planck(bidx)
           end if
 
           ! send right back to where it came from:
