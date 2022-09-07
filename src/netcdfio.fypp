@@ -462,7 +462,8 @@ contains
     ierr = iwait
     if (lblocking) then
       call CHKERR(1_mpiint, 'Couldnt lock file '//trim(fname)// &
-                  ' .. waited now for quite a while but we couldnt open the lock: '//lockfile)
+                  & ' .. waited now for quite a while but we couldnt open the lock: '//lockfile// &
+                  & ' if you know that you have no other processes running, you can safely delete the file.')
     end if
   end subroutine
 

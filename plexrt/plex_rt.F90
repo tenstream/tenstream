@@ -35,12 +35,28 @@ module m_plex_rt
                                i0, i1, i2, i3, i4, i5, i6, i7, i8, default_str_len, &
                                zero, one, pi, EXP_MINVAL, EXP_MAXVAL, nan
 
-  use m_plex_grid, only: t_plexgrid, compute_face_geometry, &
-                         setup_cell1_dmplex, setup_edir_dmplex, setup_ediff_dmplex, setup_abso_dmplex, &
-                         orient_face_normals_along_sundir, compute_wedge_orientation, is_solar_src, get_inward_face_normal, &
-                         facevec2cellvec, icell_icon_2_plex, iface_top_icon_2_plex, get_consecutive_vertical_cell_idx, &
-                         get_top_bot_face_of_cell, destroy_plexgrid, determine_diff_incoming_outgoing_offsets, &
-                         TOAFACE, BOTFACE, SIDEFACE
+  use m_plex_grid, only: &
+    & BOTFACE, &
+    & compute_face_geometry, &
+    & compute_wedge_orientation, &
+    & destroy_plexgrid, &
+    & determine_diff_incoming_outgoing_offsets, &
+    & facevec2cellvec, &
+    & get_consecutive_vertical_cell_idx, &
+    & get_inward_face_normal, &
+    & get_top_bot_face_of_cell, &
+    & icell_icon_2_plex, &
+    & iface_top_icon_2_plex, &
+    & is_solar_src, &
+    & orient_face_normals_along_sundir, &
+    & plex_view_geometry, &
+    & setup_abso_dmplex, &
+    & setup_cell1_dmplex, &
+    & setup_ediff_dmplex, &
+    & setup_edir_dmplex, &
+    & SIDEFACE, &
+    & TOAFACE, &
+    & t_plexgrid
 
   use m_optprop, only: t_optprop_wedge, OPP_1D_RETCODE, OPP_TINYASPECT_RETCODE, &
                        t_optprop_wedge_5_8, &
@@ -203,106 +219,8 @@ contains
                             solver%difftop%dof / 2, solver%diffside%dof / 2, i2, &
                             solver%plex%ediff_dm)
 
-    call plexrt_view_geometry(plex%comm)
+    call plex_view_geometry(solver%plex)
     if (ldebug .and. myid .eq. 0) print *, 'Init_plex_rt_solver ... done'
-  contains
-    subroutine plexrt_view_geometry(comm)
-      integer(mpiint) :: comm
-      logical :: lview, lflg
-      type(tPetscSection) :: geom_section
-      real(ireals), pointer :: xgeoms(:) ! pointer to coordinates vec
-      integer(iintegers) :: geom_offset
-      integer(iintegers), pointer :: xitoa(:), cell_support(:)
-      type(tIS) :: boundary_ids
-
-      real(ireals), allocatable, dimension(:, :) :: top_area, bot_area, dz, vol
-      logical, allocatable, dimension(:) :: l1d
-      real(ireals), dimension(3) :: mtop_area, mbot_area, mdz, mvol
-      integer(iintegers), allocatable :: cell_idx(:)
-      integer(iintegers) :: i, k, icell, iface
-
-      integer(mpiint) :: myid, ierr
-
-      if (.not. allocated(solver%plex%geom_dm)) &
-        call CHKERR(1_mpiint, 'run_plex_rt_solver::geom_dm has to be allocated first')
-
-      lview = .false.
-      call get_petsc_opt(PETSC_NULL_CHARACTER, "-plexrt_view_geometry", lview, lflg, ierr); call CHKERR(ierr)
-      if (.not. lview) return
-
-      associate (plex => solver%plex, geom_dm => solver%plex%geom_dm)
-
-        call DMGetStratumIS(plex%edir_dm, 'DomainBoundary', TOAFACE, boundary_ids, ierr); call CHKERR(ierr)
-        if (boundary_ids .eq. PETSC_NULL_IS) then ! dont have TOA boundary faces
-          allocate (&
-            & l1d(plex%Nlay), &
-            & dz(plex%Nlay, 0), &
-            & vol(plex%Nlay, 0), &
-            & top_area(plex%Nlay, 0), &
-            & bot_area(plex%Nlay, 0))
-        else
-          call DMGetSection(geom_dm, geom_section, ierr); call CHKERR(ierr)
-          call VecGetArrayReadF90(plex%geomVec, xgeoms, ierr); call CHKERR(ierr)
-          call ISGetIndicesF90(boundary_ids, xitoa, ierr); call CHKERR(ierr)
-
-          allocate ( &
-            l1d(plex%Nlay), &
-            dz(plex%Nlay, size(xitoa)), &
-            vol(plex%Nlay, size(xitoa)), &
-            top_area(plex%Nlay, size(xitoa)), &
-            bot_area(plex%Nlay, size(xitoa)))
-
-          do i = 1, size(xitoa)
-            iface = xitoa(i)
-
-            call DMPlexGetSupport(geom_dm, iface, cell_support, ierr); call CHKERR(ierr) ! support of face is cell
-            icell = cell_support(1)
-            call DMPlexRestoreSupport(geom_dm, iface, cell_support, ierr); call CHKERR(ierr) ! support of face is cell
-            call get_consecutive_vertical_cell_idx(plex, icell, cell_idx)
-            do k = 0, size(cell_idx) - 1
-              icell = cell_idx(i1 + k)
-
-              l1d(i1 + k) = plex%l1d(icell)
-
-              call PetscSectionGetFieldOffset(geom_section, icell, i3, geom_offset, ierr); call CHKERR(ierr)
-              dz(i1 + k, i) = xgeoms(i1 + geom_offset)
-
-              call PetscSectionGetFieldOffset(geom_section, icell, i2, geom_offset, ierr); call CHKERR(ierr)
-              vol(i1 + k, i) = xgeoms(i1 + geom_offset)
-
-              call PetscSectionGetFieldOffset(geom_section, iface + k, i2, geom_offset, ierr); call CHKERR(ierr)
-              top_area(i1 + k, i) = xgeoms(i1 + geom_offset)
-              call PetscSectionGetFieldOffset(geom_section, iface + k + 1, i2, geom_offset, ierr); call CHKERR(ierr)
-              bot_area(i1 + k, i) = xgeoms(i1 + geom_offset)
-            end do
-          end do
-
-          call ISRestoreIndicesF90(boundary_ids, xitoa, ierr); call CHKERR(ierr)
-          call VecRestoreArrayReadF90(plex%geomVec, xgeoms, ierr); call CHKERR(ierr)
-        end if
-      end associate
-
-      call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
-
-      if (myid .eq. 0) print *, '*        k 1D '// &
-        '                '//cstr(' dz (min/mean/max)', 'blue')//'                   '// &
-        '                '//cstr(' volume           ', 'red')//'                   '// &
-        '                '//cstr(' cell_top_area    ', 'blue')//'                   '// &
-        '                '//cstr(' cell_bot_area    ', 'red')
-
-      print *, myid, 'size l1d', allocated(l1d), shape(l1d)
-      do k = 1, size(dz, dim=1)
-        call imp_min_mean_max(comm, dz(k, :), mdz)
-        call imp_min_mean_max(comm, vol(k, :), mvol)
-        call imp_min_mean_max(comm, top_area(k, :), mtop_area)
-        call imp_min_mean_max(comm, bot_area(k, :), mbot_area)
-
-        if (myid .eq. 0) then
-          print *, k, cstr(toStr(l1d(k)), 'red'), cstr(toStr(mdz), 'blue'), cstr(toStr(mvol), 'red'), &
-            cstr(toStr(mtop_area), 'blue'), cstr(toStr(mbot_area), 'red')
-        end if
-      end do
-    end subroutine
   end subroutine
 
   subroutine destroy_plexrt_solver(solver, lfinalizepetsc)
