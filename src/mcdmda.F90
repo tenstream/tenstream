@@ -463,6 +463,7 @@ contains
           & / atm%dz(atmk(atm, C_one_atm%zs + 1):C_one_atm%ze, :, :), &
           & kind(xv_abso))
 
+        ! eventually collapsed entry at the top
         xv_abso(i0, C_one%zs, :, :) = real( &
           & sum(abso(i0, :atmk(atm, C_one_atm%zs), :, :), dim=1) &
           & / sum(atm%dz(:atmk(atm, C_one_atm%zs), :, :), dim=1), kind(xv_abso))
@@ -637,6 +638,8 @@ contains
       end if
 
       lexit_domain = .false.
+      lexit_cell = .true. ! mark es exited because it obviously came from some neighbouring box
+
       move: do while (.not. lexit_domain) ! this loop will move the photon to the edge of the subdomain
         if (ldebug_tracing) then
           print *, 'start of move', p%k, p%i, p%j
@@ -645,9 +648,16 @@ contains
 
         call check_if_photon_is_in_domain(solver%C_one_atm, p)
 
-        lexit_cell = .false.
+        if (lexit_cell) then
+          ! if photon exited cell before, this is the reentrant state
+          abso(i0, p%k, p%i, p%j) = abso(i0, p%k, p%i, p%j) + real(p%weight, ireals)
+        end if
 
-        if (present(opt_buildings)) call building_interaction(lexit_cell)
+        if (present(opt_buildings)) then
+          call building_interaction(lexit_cell)
+        else
+          lexit_cell = .false.
+        end if
 
         if (.not. lexit_cell) call move_inside_cell(lexit_cell)
 
@@ -655,6 +665,7 @@ contains
         if (.not. lexit_cell) then
           call scatter_photon_in_cell()
         else
+          abso(i0, p%k, p%i, p%j) = abso(i0, p%k, p%i, p%j) - real(p%weight, ireals)
           call exit_cell(lexit_domain)
         end if
 
@@ -691,8 +702,6 @@ contains
 
         call setup_default_unit_cube_geometry(solver%atm%dx, solver%atm%dy, real(dz, ireals), vertices)
 
-        abso(i0, p%k, p%i, p%j) = abso(i0, p%k, p%i, p%j) + real(p%weight, ireals)
-
         call move_photon(bmc, real(vertices, ireal_dp), ksca, p, pathlen, lexit_cell)
 
         if (lthermal) then
@@ -708,7 +717,6 @@ contains
         else ! lsolar
           call absorb_photon(p, pathlen, kabs)
         end if
-        abso(i0, p%k, p%i, p%j) = abso(i0, p%k, p%i, p%j) - real(p%weight, ireals)
       end associate
     end subroutine
 
