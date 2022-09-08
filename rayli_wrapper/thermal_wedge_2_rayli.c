@@ -53,6 +53,11 @@ int main(int argc, char *argv[]) {
       100, 0, 0, 10
     };
 
+    const float Bsurfaces[]={ // Nfaces
+      100, 0, 0, 0, 10,
+      100, 0, 0, 10
+    };
+
     const size_t verts_of_face[] = { // 4 * Nfaces
         0,2,4,-1,
         0,2,3,1,
@@ -74,11 +79,11 @@ int main(int argc, char *argv[]) {
     albedo[4] = .10;
     albedo[8] = .10;
 
-    fprintf(stderr, "Huhu %s \n", rayli_version());
+    fprintf(stderr, "Rayli Version %s \n", rayli_version());
 
     ierr = rfft_wedge_thermal(Nthreads, Nphotons, Nwedges, Nfaces, Nverts, cyclic,
             verts_of_face, faces_of_wedges, vert_coords,
-            kabs, ksca, g, albedo, Bfaces,
+            kabs, ksca, g, albedo, Bfaces, Bsurfaces,
             flx_through_faces_ediff,
             abso_in_cells);
     if(ierr) {
