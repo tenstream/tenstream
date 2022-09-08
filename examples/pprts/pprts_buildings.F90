@@ -107,8 +107,8 @@ contains
 
       if (lthermal) then
         allocate (plck(Ca%zm + 1, Ca%xm, Ca%ym))
-        plck(:, :, :) = 0
-        plck(Ca%zm + 1, :, :) = 0
+        plck(:, :, :) = 100._ireals / pi
+        plck(Ca%zm + 1, :, :) = 100._ireals / pi
       end if
 
       kabs = dtau * (one - w0) / dz / real(Nlay, ireals)

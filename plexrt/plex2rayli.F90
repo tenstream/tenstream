@@ -272,7 +272,7 @@ contains
     real(c_double), allocatable :: vert_coords(:, :)
     real(c_float), allocatable :: rkabs(:), rksca(:), rg(:)
     real(c_float), allocatable :: ralbedo_on_faces(:)
-    real(c_float), allocatable :: rB_on_faces(:)
+    real(c_float), allocatable :: rB_on_faces(:), rB_on_surfaces(:)
     real(c_float) :: rsundir(3)
     real(c_double), allocatable :: flx_through_faces_edir(:)
     real(c_double), allocatable :: flx_through_faces_ediff(:)
@@ -365,6 +365,7 @@ contains
 
     if (solution%lthermal_rad) then
       allocate (rB_on_faces(Nfaces))
+      allocate (rB_on_surfaces(Nfaces))
     else
       allocate (flx_through_faces_edir(Nfaces))
     end if
@@ -411,7 +412,7 @@ contains
     call VecRestoreArrayReadF90(g, xg, ierr); call CHKERR(ierr)
 
     if (solution%lthermal_rad) then
-      call fill_planck(plex, plck, rB_on_faces, opt_buildings)
+      call fill_planck(plex, plck, rB_on_faces, rB_on_surfaces, opt_buildings)
     end if
 
     call fill_albedo(plex, albedo, ralbedo_on_faces, opt_buildings)
@@ -444,7 +445,7 @@ contains
           & Nphotons, Nwedges, Nfaces, Nverts, icyclic, &
           & verts_of_face, faces_of_wedges, vert_coords, &
           & rkabs, rksca, rg, &
-          & ralbedo_on_faces, rB_on_faces, &
+          & ralbedo_on_faces, rB_on_faces, rB_on_surfaces, &
           & flx_through_faces_ediff, abso_in_cells); call CHKERR(ierr)
       else
         ierr = rfft_wedgeF90(Nthreads, &
@@ -604,10 +605,11 @@ contains
     end if
   end subroutine
 
-  subroutine fill_planck(plex, plck, rB_on_faces, opt_buildings)
+  subroutine fill_planck(plex, plck, rB_on_faces, rB_on_surfaces, opt_buildings)
     type(t_plexgrid), intent(in) :: plex
     type(tVec), intent(in) :: plck
     real(c_float), intent(out) :: rB_on_faces(:)
+    real(c_float), intent(out) :: rB_on_surfaces(:)
     type(t_plex_buildings), intent(in), optional :: opt_buildings
 
     type(tPetscSection) :: horizface1Section
@@ -624,6 +626,12 @@ contains
 
     call VecGetArrayReadF90(plck, xplanck, ierr); call CHKERR(ierr)
 
+    do i = 1, size(xtoa_faces)
+      j = xtoa_faces(i) + plex%Nlay
+      call PetscSectionGetOffset(horizface1Section, j, voff, ierr); call CHKERR(ierr)
+      rB_on_surfaces(j - fStart + 1) = real(xplanck(voff + 1), kind(rB_on_surfaces))
+    end do
+
     do i = fStart, fEnd - 1
       call PetscSectionGetOffset(horizface1Section, i, voff, ierr); call CHKERR(ierr)
       call PetscSectionGetDof(horizface1Section, i, num_dof, ierr); call CHKERR(ierr)
@@ -637,7 +645,7 @@ contains
     if (present(opt_buildings)) then
       associate (b => opt_buildings)
         do i = 1, size(b%iface)
-          rB_on_faces(b%iface(i) - fStart + 1) = real(b%planck(i), c_float)
+          rB_on_surfaces(b%iface(i) - fStart + 1) = real(b%planck(i), c_float)
         end do
       end associate
     end if

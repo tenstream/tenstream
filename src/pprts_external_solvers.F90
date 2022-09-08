@@ -139,6 +139,10 @@ contains
 
     if (all([lcall_solver, lcall_snap] .eqv. .false.)) return
 
+    if (allocated(solver%atm%Bsrfc)) then
+      call CHKERR(1_mpiint, 'explicit temperature/planck values for the surface are currently not implemented for rayli')
+    end if
+
     sundir = spherical_2_cartesian(solver%sun%phi, solver%sun%theta) &
             & * edirTOA
 
