@@ -167,7 +167,7 @@ contains
     real(c_double), intent(in) :: vert_coords(:, :)
     real(c_float), intent(in) :: kabs(:), ksca(:), g(:)
     real(c_float), intent(in) :: albedo_on_faces(1:Nfaces)
-    real(c_float), intent(in) :: B_on_faces(1:Nfaces), B_on_surfaces(1:Nfaces),
+    real(c_float), intent(in) :: B_on_faces(1:Nfaces), B_on_surfaces(1:Nfaces)
     real(c_double), intent(out) :: flx_through_faces_ediff(:)
     real(c_double), intent(out) :: abso_in_cells(:)
 
