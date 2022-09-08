@@ -182,11 +182,11 @@ contains
       end if
 
       allocate ( &
-        & ediff(0:Cdiff%dof - 1, C1%zs:C1%ze, C%xs:C%xe, C%ys:C%ye), &
+        & ediff(0:Cdiff%dof - 1, C1%zs:C1%ze, C%gxs:C%gxe, C%gys:C%gye), &
         & abso(0:C%dof - 1, C%zs:C%ze, C%xs:C%xe, C%ys:C%ye), &
         & source=0._ireal_dp)
       allocate ( &
-        & Nediff(0:Cdiff%dof - 1, C1%zs:C1%ze, C%xs:C%xe, C%ys:C%ye), &
+        & Nediff(0:Cdiff%dof - 1, C1%zs:C1%ze, C%gxs:C%gxe, C%gys:C%gye), &
         & source=0_iintegers)
 
       call fill_buildings_idx(solver, opt_buildings, buildings_idx)
@@ -415,6 +415,7 @@ contains
     end subroutine
 
     subroutine get_result()
+      type(tVec) :: ediff_local
       real(ireals), pointer, dimension(:, :, :, :) :: xv_dir => null(), xv_diff => null(), xv_abso => null()
       real(ireals), pointer, dimension(:) :: xv_dir1d => null(), xv_diff1d => null(), xv_abso1d => null()
 
@@ -439,6 +440,14 @@ contains
           call PetscObjectViewFromOptions(solution%edir, PETSC_NULL_VEC, '-mcdmda_show_edir', ierr); call CHKERR(ierr)
         end if
 
+        ! handle ghosts of ediff
+        call DMGetLocalVector(C_diff%da, ediff_local, ierr); call CHKERR(ierr)
+        call VecSet(ediff_local, zero, ierr); call CHKERR(ierr)
+        call DMLocalToGlobalBegin(C_diff%da, ediff_local, ADD_VALUES, solution%ediff, ierr); call CHKERR(ierr)
+        call DMLocalToGlobalEnd(C_diff%da, ediff_local, ADD_VALUES, solution%ediff, ierr); call CHKERR(ierr)
+        call DMRestoreLocalVector(C_diff%da, ediff_local, ierr); call CHKERR(ierr)
+
+        ! handle normalization of ediff
         call getVecPointer(C_diff%da, solution%ediff, xv_diff1d, xv_diff)
 
         if (.not. solution%lsolar_rad) then
@@ -446,9 +455,9 @@ contains
         end if
 
         xv_diff(:, C_diff%zs + 1:, :, :) = real(&
-          & ediff(:, atmk(atm, C_one_atm1%zs + 1):C_one_atm1%ze, :, :), &
+          & ediff(:, atmk(atm, C_one_atm1%zs + 1):C_one_atm1%ze, C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye), &
           & kind(xv_diff))
-        xv_diff(:, C_diff%zs, :, :) = real(ediff(:, C_one_atm1%zs, :, :), kind(xv_diff))
+        xv_diff(:, C_diff%zs, :, :) = real(ediff(:, C_one_atm1%zs, C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye), kind(xv_diff))
 
         call restoreVecPointer(C_diff%da, solution%ediff, xv_diff1d, xv_diff)
 
@@ -458,9 +467,9 @@ contains
           abso = abso * pi * C_one%glob_xm * C_one%glob_ym / Nphotons_global
         end if
 
-        xv_abso(i0, C_one%zs + 1:, :, :) = real(&
-          & abso(i0, atmk(atm, C_one_atm%zs + 1):C_one_atm%ze, :, :) &
-          & / atm%dz(atmk(atm, C_one_atm%zs + 1):C_one_atm%ze, :, :), &
+        xv_abso(i0, :, :, :) = real(&
+          & abso(i0, atmk(atm, C_one_atm%zs):C_one_atm%ze, :, :) &
+          & / atm%dz(atmk(atm, C_one_atm%zs):C_one_atm%ze, :, :), &
           & kind(xv_abso))
 
         ! eventually collapsed entry at the top
@@ -713,7 +722,7 @@ contains
           else
             p%weight = p%weight * (1._ireal_dp - tauabs) + (B1 + B2)*.5_ireal_dp * tauabs
           end if
-          !print *,p%k, p%i, p%j,'Btop/bot', Btop, Bbot, 'B1,2', B1, B2, 'weight', p%weight
+          !print *,p%k, p%i, p%j,'Btop/bot', Btop, Bbot, 'B1,2', B1, B2, 'weight', p%weight, 'kabs', kabs, 'ksca', ksca
         else ! lsolar
           call absorb_photon(p, pathlen, kabs)
         end if
@@ -785,6 +794,8 @@ contains
 
       associate (p => pqueues(ipq)%photons(iphoton)%p)
 
+        call update_flx(solver, p, p%k, p%i, p%j, edir, ediff, Nediff)
+
         ! Move photon to new cell
         if (ldebug_tracing) print *, myid, cstr('* MOVE Photon to new cell', 'green')
 
@@ -799,14 +810,12 @@ contains
           end if
 
           p%loc(3) = zero + loceps
-          call update_flx(solver, p, p%k, p%i, p%j, edir, ediff, Nediff)
           p%k = p%k - 1
           p%src_side = PPRTS_BOT_FACE
 
         case (PPRTS_BOT_FACE) ! exit cell at bottom
 
           if (p%k .eq. solver%C_one_atm%ze) then ! hit the surface, need reflection
-            call update_flx(solver, p, p%k, p%i, p%j, edir, ediff, Nediff)
             if (ldebug_tracing) print *, myid, '********************* Before Reflection', p%k, p%i, p%j
 
             p%weight = p%weight * solver%atm%albedo(p%i, p%j)
@@ -834,7 +843,6 @@ contains
           else
 
             p%loc(3) = solver%atm%dz(p%k + 1, p%i, p%j) - loceps
-            call update_flx(solver, p, p%k, p%i, p%j, edir, ediff, Nediff)
             p%k = p%k + 1
             p%src_side = PPRTS_TOP_FACE
 
@@ -947,16 +955,16 @@ contains
         off = solver%difftop%dof
         do dof = 0, solver%diffside%dof - 1
           if (.not. solver%diffside%is_inward(i1 + dof)) then !Eleft
-            ediff(dof, k, i, j) = ediff(dof, k, i, j) + real(p%weight, kind(ediff))
-            Nediff(dof, k, i, j) = Nediff(dof, k, i, j) + 1_iintegers
+            ediff(off + dof, k, i, j) = ediff(off + dof, k, i, j) + real(p%weight, kind(ediff))
+            Nediff(off + dof, k, i, j) = Nediff(off + dof, k, i, j) + 1_iintegers
           end if
         end do
       case (PPRTS_RIGHT_FACE)
         off = solver%difftop%dof
         do dof = 0, solver%diffside%dof - 1
           if (solver%diffside%is_inward(i1 + dof)) then !Eright
-            ediff(dof, k, i + 1, j) = ediff(dof, k, i + 1, j) + real(p%weight, kind(ediff))
-            Nediff(dof, k, i + 1, j) = Nediff(dof, k, i + 1, j) + 1_iintegers
+            ediff(off + dof, k, i + 1, j) = ediff(off + dof, k, i + 1, j) + real(p%weight, kind(ediff))
+            Nediff(off + dof, k, i + 1, j) = Nediff(off + dof, k, i + 1, j) + 1_iintegers
           end if
         end do
 
@@ -964,16 +972,16 @@ contains
         off = solver%difftop%dof + solver%diffside%dof
         do dof = 0, solver%diffside%dof - 1
           if (.not. solver%diffside%is_inward(i1 + dof)) then !Erear
-            ediff(dof, k, i, j) = ediff(dof, k, i, j) + real(p%weight, kind(ediff))
-            Nediff(dof, k, i, j) = Nediff(dof, k, i, j) + 1_iintegers
+            ediff(off + dof, k, i, j) = ediff(off + dof, k, i, j) + real(p%weight, kind(ediff))
+            Nediff(off + dof, k, i, j) = Nediff(off + dof, k, i, j) + 1_iintegers
           end if
         end do
       case (PPRTS_FRONT_FACE) ! front
         off = solver%difftop%dof + solver%diffside%dof
         do dof = 0, solver%diffside%dof - 1
           if (solver%diffside%is_inward(i1 + dof)) then !Eforward
-            ediff(dof, k, i, j + 1) = ediff(dof, k, i, j + 1) + real(p%weight, kind(ediff))
-            Nediff(dof, k, i, j + 1) = Nediff(dof, k, i, j + 1) + 1_iintegers
+            ediff(off + dof, k, i, j + 1) = ediff(off + dof, k, i, j + 1) + real(p%weight, kind(ediff))
+            Nediff(off + dof, k, i, j + 1) = Nediff(off + dof, k, i, j + 1) + 1_iintegers
           end if
         end do
 
