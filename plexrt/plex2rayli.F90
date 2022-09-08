@@ -241,7 +241,7 @@ contains
   !> @details solve the radiative transfer equation with RayLi, currently only works for single task mpi runs
   subroutine rayli_wrapper(lcall_solver, lcall_snapshot, &
       & plex, kabs, ksca, g, albedo, solution, &
-      & sundir, plck, nr_photons, petsc_log, opt_buildings, opt_Nthreads)
+      & sundir, plck, plck_srfc, nr_photons, petsc_log, opt_buildings, opt_Nthreads)
     use iso_c_binding
     logical, intent(in) :: lcall_solver, lcall_snapshot
     type(t_plexgrid), intent(in) :: plex
@@ -249,6 +249,7 @@ contains
     type(t_state_container), intent(inout) :: solution
     real(ireals), intent(in), optional :: sundir(:)
     type(tVec), intent(in), optional :: plck
+    type(tVec), intent(in), allocatable, optional :: plck_srfc
     real(ireals), intent(in), optional :: nr_photons
     PetscLogEvent, intent(in), optional :: petsc_log
     type(t_plex_buildings), intent(in), optional :: opt_buildings
@@ -412,7 +413,7 @@ contains
     call VecRestoreArrayReadF90(g, xg, ierr); call CHKERR(ierr)
 
     if (solution%lthermal_rad) then
-      call fill_planck(plex, plck, rB_on_faces, rB_on_surfaces, opt_buildings)
+      call fill_planck(plex, plck, rB_on_faces, rB_on_surfaces, opt_buildings=opt_buildings, plck_srfc=plck_srfc)
     end if
 
     call fill_albedo(plex, albedo, ralbedo_on_faces, opt_buildings)
@@ -605,17 +606,18 @@ contains
     end if
   end subroutine
 
-  subroutine fill_planck(plex, plck, rB_on_faces, rB_on_surfaces, opt_buildings)
+  subroutine fill_planck(plex, plck, rB_on_faces, rB_on_surfaces, opt_buildings, plck_srfc)
     type(t_plexgrid), intent(in) :: plex
     type(tVec), intent(in) :: plck
     real(c_float), intent(out) :: rB_on_faces(:)
     real(c_float), intent(out) :: rB_on_surfaces(:)
     type(t_plex_buildings), intent(in), optional :: opt_buildings
+    type(tVec), intent(in), allocatable, optional :: plck_srfc
 
     type(tPetscSection) :: horizface1Section
     type(tIS) :: toa_ids
     integer(iintegers), pointer :: xtoa_faces(:)
-    real(ireals), pointer :: xplanck(:)
+    real(ireals), pointer :: xplanck(:), xplanck_srfc(:)
     integer(iintegers) :: i, j, fStart, fEnd, voff, num_dof
     integer(mpiint) :: ierr
 
@@ -624,14 +626,30 @@ contains
     call DMPlexGetDepthStratum(plex%horizface1_dm, i2, fStart, fEnd, ierr); call CHKERR(ierr) ! faces
     call DMGetSection(plex%horizface1_dm, horizface1Section, ierr); call CHKERR(ierr)
 
+    ! set Planck on surface
     call VecGetArrayReadF90(plck, xplanck, ierr); call CHKERR(ierr)
-
     do i = 1, size(xtoa_faces)
       j = xtoa_faces(i) + plex%Nlay
       call PetscSectionGetOffset(horizface1Section, j, voff, ierr); call CHKERR(ierr)
       rB_on_surfaces(j - fStart + 1) = real(xplanck(voff + 1), kind(rB_on_surfaces))
     end do
+    call VecRestoreArrayReadF90(plck, xplanck, ierr); call CHKERR(ierr)
 
+    ! from Bsrfc if we have it
+    if (present(plck_srfc)) then
+      if (allocated(plck_srfc)) then
+
+        call VecGetArrayReadF90(plck_srfc, xplanck_srfc, ierr); call CHKERR(ierr)
+        do i = 1, size(xtoa_faces)
+          j = xtoa_faces(i) + plex%Nlay
+          rB_on_surfaces(j - fStart + 1) = real(xplanck_srfc(i), kind(rB_on_surfaces))
+        end do
+        call VecRestoreArrayReadF90(plck_srfc, xplanck_srfc, ierr); call CHKERR(ierr)
+      end if
+    end if
+
+    ! Planck in Atmosphere
+    call VecGetArrayReadF90(plck, xplanck, ierr); call CHKERR(ierr)
     do i = fStart, fEnd - 1
       call PetscSectionGetOffset(horizface1Section, i, voff, ierr); call CHKERR(ierr)
       call PetscSectionGetDof(horizface1Section, i, num_dof, ierr); call CHKERR(ierr)
@@ -639,9 +657,9 @@ contains
         rB_on_faces(i - fStart + 1) = real(xplanck(voff + j), kind(rB_on_faces))
       end do
     end do
-
     call VecRestoreArrayReadF90(plck, xplanck, ierr); call CHKERR(ierr)
 
+    ! Planck on buildings
     if (present(opt_buildings)) then
       associate (b => opt_buildings)
         do i = 1, size(b%iface)

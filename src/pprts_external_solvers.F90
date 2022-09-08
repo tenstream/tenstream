@@ -108,6 +108,7 @@ module m_pprts_external_solvers
     type(tVecScatter) :: ctx_ediff
     type(tVecScatter) :: ctx_abso
     type(tVec) :: albedo, kabs, ksca, g, planck
+    type(tVec), allocatable :: planck_srfc
     type(t_rayli_info_buildings), allocatable :: buildings_info
   end type
 
@@ -139,10 +140,6 @@ contains
 
     if (all([lcall_solver, lcall_snap] .eqv. .false.)) return
 
-    if (allocated(solver%atm%Bsrfc)) then
-      call CHKERR(1_mpiint, 'explicit temperature/planck values for the surface are currently not implemented for rayli')
-    end if
-
     sundir = spherical_2_cartesian(solver%sun%phi, solver%sun%theta) &
             & * edirTOA
 
@@ -159,7 +156,7 @@ contains
 
   contains
     subroutine prepare_input()
-      type(tVec) :: glob_albedo, glob_kabs, glob_ksca, glob_g, glob_B
+      type(tVec) :: glob_albedo, glob_kabs, glob_ksca, glob_g, glob_B, glob_Bsrfc
       character(len=*), parameter :: log_event_name = "pprts_rayli_prepare_input"
 
       PetscClassId :: cid
@@ -182,6 +179,15 @@ contains
         call VecScatterBegin(ri%ctx_albedo, glob_albedo, ri%albedo, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
         call VecScatterEnd(ri%ctx_albedo, glob_albedo, ri%albedo, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
         call DMRestoreGlobalVector(Cs%da, glob_albedo, ierr); call CHKERR(ierr)
+
+        if (allocated(atm%Bsrfc)) then
+          if (.not. allocated(ri%planck_srfc)) call CHKERR(1_mpiint, 'ri%planck_srfc not allocated. Developer error!')
+          call DMGetGlobalVector(Cs%da, glob_Bsrfc, ierr); call CHKERR(ierr)
+          call f90VecToPetsc(atm%Bsrfc, Cs%da, glob_Bsrfc)
+          call VecScatterBegin(ri%ctx_albedo, glob_Bsrfc, ri%planck_srfc, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
+          call VecScatterEnd(ri%ctx_albedo, glob_Bsrfc, ri%planck_srfc, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
+          call DMRestoreGlobalVector(Cs%da, glob_Bsrfc, ierr); call CHKERR(ierr)
+        end if
 
         if (present(opt_buildings)) then
           ! Create a pprts buildings object on each subcomm
@@ -236,6 +242,7 @@ contains
         call PetscObjectViewFromOptions(ri%ksca, PETSC_NULL_VEC, '-show_rayli_ksca', ierr); call CHKERR(ierr)
         call PetscObjectViewFromOptions(ri%g, PETSC_NULL_VEC, '-show_rayli_g', ierr); call CHKERR(ierr)
         call PetscObjectViewFromOptions(ri%albedo, PETSC_NULL_VEC, '-show_rayli_albedo', ierr); call CHKERR(ierr)
+        call PetscObjectViewFromOptions(ri%planck_srfc, PETSC_NULL_VEC, '-show_rayli_planck_srfc', ierr); call CHKERR(ierr)
       end associate
       call PetscLogEventEnd(log_event, ierr); call CHKERR(ierr)
     end subroutine
@@ -354,7 +361,7 @@ contains
             if (present(opt_buildings)) then
               call rayli_wrapper(lcall_solver, lcall_snap, &
                 & ri%plex, ri%kabs, ri%ksca, ri%g, ri%albedo, &
-                & plex_solution, plck=ri%planck, &
+                & plex_solution, plck=ri%planck, plck_srfc=ri%planck_srfc, &
                 & nr_photons=Nphotons_r, petsc_log=solver%logs%rayli_tracing, &
                 & opt_buildings=ri%buildings_info%plex_buildings, &
                 & opt_Nthreads=int(subnumnodes, iintegers))
@@ -362,7 +369,7 @@ contains
               call rayli_wrapper(&
                 & lcall_solver, lcall_snap, &
                 & ri%plex, ri%kabs, ri%ksca, ri%g, ri%albedo, &
-                & plex_solution, plck=ri%planck, &
+                & plex_solution, plck=ri%planck, plck_srfc=ri%planck_srfc, &
                 & nr_photons=Nphotons_r, petsc_log=solver%logs%rayli_tracing)
             end if
 
@@ -532,6 +539,10 @@ contains
       call VecDestroy(ri%ksca, ierr); call CHKERR(ierr)
       call VecDestroy(ri%g, ierr); call CHKERR(ierr)
       call VecDestroy(ri%planck, ierr); call CHKERR(ierr)
+      if (allocated(ri%planck_srfc)) then
+        call VecDestroy(ri%planck_srfc, ierr); call CHKERR(ierr)
+        deallocate (ri%planck_srfc)
+      end if
       if (allocated(ri%buildings_info)) then
         if (allocated(ri%buildings_info%subcomm_buildings)) then
           call destroy_buildings(ri%buildings_info%subcomm_buildings, ierr); call CHKERR(ierr)
@@ -585,7 +596,7 @@ contains
       end if
 
       ! Setup albedo scatter context
-      call setup_albedo_scatter_context()
+      call setup_surface_and_optprop_scatter_context()
 
       ! Setup result scatter contexts
       call setup_ediff_scatter_context()
@@ -743,7 +754,7 @@ contains
       end associate
     end subroutine
 
-    subroutine setup_albedo_scatter_context()
+    subroutine setup_surface_and_optprop_scatter_context()
       integer(iintegers) :: Nalbedo, Noptprop, i, k
       AO :: dmda_ao
       type(tIS) :: is_in, is_out
@@ -757,6 +768,10 @@ contains
         Nalbedo = i0
       end if
       call VecCreateSeq(PETSC_COMM_SELF, Nalbedo * i2, rayli_info%albedo, ierr); call CHKERR(ierr)
+      if (allocated(solver%atm%Bsrfc)) then
+        if (.not. allocated(rayli_info%planck_srfc)) allocate (rayli_info%planck_srfc)
+        call VecCreateSeq(PETSC_COMM_SELF, Nalbedo * i2, rayli_info%planck_srfc, ierr); call CHKERR(ierr)
+      end if
       allocate (is_data(Nalbedo * i2), source=(/(i / i2, i=i0, Nalbedo * i2 - i1)/))
       call ISCreateGeneral(PETSC_COMM_SELF, Nalbedo * i2, is_data, PETSC_USE_POINTER, is_in, ierr); call CHKERR(ierr)
       call ISCreateStride(PETSC_COMM_SELF, Nalbedo * i2, 0_iintegers, 1_iintegers, is_out, ierr); call CHKERR(ierr)

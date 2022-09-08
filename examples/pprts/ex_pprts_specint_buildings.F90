@@ -20,6 +20,7 @@ program main
   real(ireals) :: dx, dy
   real(ireals) :: phi0, theta0
   real(ireals) :: Ag_solar, Ag_thermal
+  real(ireals) :: skin_temp
   real(ireals), allocatable, dimension(:, :, :) :: gedir, gedn, geup, gabso ! global arrays on rank 0
   type(t_pprts_buildings), allocatable :: buildings_solar, buildings_thermal
 
@@ -90,6 +91,9 @@ program main
   Ag_thermal = 0.05_ireals
   call get_petsc_opt(PETSC_NULL_CHARACTER, "-Ag_thermal", Ag_thermal, lflg, ierr); call CHKERR(ierr)
 
+  skin_temp = 300_ireals
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-tskin", skin_temp, lflg, ierr); call CHKERR(ierr)
+
   lverbose = .true.
   call get_petsc_opt(PETSC_NULL_CHARACTER, '-verbose', lverbose, lflg, ierr); call CHKERR(ierr)
 
@@ -126,6 +130,7 @@ program main
       & atm_filename,                       &
       & phi0, theta0,                       &
       & Ag_solar, Ag_thermal,               &
+      & skin_temp,                          &
       & gedir, gedn, geup, gabso,           &
       & buildings_solar, buildings_thermal, &
       & icollapse=icollapse)
@@ -140,6 +145,7 @@ program main
       & atm_filename,                       &
       & phi0, theta0,                       &
       & Ag_solar, Ag_thermal,               &
+      & skin_temp,                          &
       & gedir, gedn, geup, gabso,           &
       & icollapse=icollapse)
   end if
