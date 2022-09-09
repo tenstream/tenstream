@@ -18,7 +18,7 @@
 !-------------------------------------------------------------------------
 
 module m_mcdmda
-  use iso_fortran_env, only: int64
+  use iso_fortran_env, only: int64, output_unit
   use iso_c_binding, only: c_backspace
 
 #include "petsc/finclude/petsc.h"
@@ -348,7 +348,7 @@ contains
             write (*, fmt="(A)", advance='no') repeat(c_backspace, 100)//toStr(iter)// &
               & ' Globally killed photons '//toStr(globally_killed_photons)//' / '//toStr(Nphotons_global)// &
               & '( '//toStr(percent_printed)//' % )'
-            call flush ()
+            call flush (output_unit)
             last_percent_printed = percent_printed
           end if
         end if
