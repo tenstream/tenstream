@@ -596,7 +596,7 @@ contains
       end if
 
       ! Setup albedo scatter context
-      call setup_surface_and_optprop_scatter_context()
+      call setup_srfc_opp_sct_ctx()
 
       ! Setup result scatter contexts
       call setup_ediff_scatter_context()
@@ -754,7 +754,7 @@ contains
       end associate
     end subroutine
 
-    subroutine setup_surface_and_optprop_scatter_context()
+    subroutine setup_srfc_opp_sct_ctx()
       integer(iintegers) :: Nalbedo, Noptprop, i, k
       AO :: dmda_ao
       type(tIS) :: is_in, is_out
