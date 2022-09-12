@@ -236,13 +236,13 @@ contains
           call VecScatterEnd(ri%ctx_planck, glob_B, ri%planck, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
           call DMRestoreGlobalVector(Ca1%da, glob_B, ierr); call CHKERR(ierr)
           call PetscObjectViewFromOptions(ri%planck, PETSC_NULL_VEC, '-show_rayli_planck', ierr); call CHKERR(ierr)
+          call PetscObjectViewFromOptions(ri%planck_srfc, PETSC_NULL_VEC, '-show_rayli_planck_srfc', ierr); call CHKERR(ierr)
         end if
 
         call PetscObjectViewFromOptions(ri%kabs, PETSC_NULL_VEC, '-show_rayli_kabs', ierr); call CHKERR(ierr)
         call PetscObjectViewFromOptions(ri%ksca, PETSC_NULL_VEC, '-show_rayli_ksca', ierr); call CHKERR(ierr)
         call PetscObjectViewFromOptions(ri%g, PETSC_NULL_VEC, '-show_rayli_g', ierr); call CHKERR(ierr)
         call PetscObjectViewFromOptions(ri%albedo, PETSC_NULL_VEC, '-show_rayli_albedo', ierr); call CHKERR(ierr)
-        call PetscObjectViewFromOptions(ri%planck_srfc, PETSC_NULL_VEC, '-show_rayli_planck_srfc', ierr); call CHKERR(ierr)
       end associate
       call PetscLogEventEnd(log_event, ierr); call CHKERR(ierr)
     end subroutine

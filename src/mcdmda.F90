@@ -174,7 +174,7 @@ contains
       end if
 
       if (solution%lsolar_rad) then
-        allocate (edir(0:Cdir%dof - 1, C1%zs:C1%ze, C%xs:C%xe, C%ys:C%ye), source=0._ireal_dp)
+        allocate (edir(0:Cdir%dof - 1, C1%zs:C1%ze, C%gxs:C%gxe, C%gys:C%gye), source=0._ireal_dp)
         photon_weight = edirTOA * real(solver%sun%costheta, ireals) &
                        & * solver%C_one_atm%xm * solver%C_one_atm%ym / real(Nphotons_local, ireals)
       else
@@ -415,7 +415,7 @@ contains
     end subroutine
 
     subroutine get_result()
-      type(tVec) :: ediff_local
+      type(tVec) :: ediff_local, edir_local
       real(ireals), pointer, dimension(:, :, :, :) :: xv_dir => null(), xv_diff => null(), xv_abso => null()
       real(ireals), pointer, dimension(:) :: xv_dir1d => null(), xv_diff1d => null(), xv_abso1d => null()
 
@@ -428,13 +428,20 @@ contains
           & C_one_atm1 => solver%C_one_atm1)
 
         if (solution%lsolar_rad) then
+          ! handle ghosts of edir
+          call DMGetLocalVector(C_dir%da, edir_local, ierr); call CHKERR(ierr)
+          call VecSet(edir_local, zero, ierr); call CHKERR(ierr)
+          call DMLocalToGlobalBegin(C_dir%da, edir_local, ADD_VALUES, solution%edir, ierr); call CHKERR(ierr)
+          call DMLocalToGlobalEnd(C_dir%da, edir_local, ADD_VALUES, solution%edir, ierr); call CHKERR(ierr)
+          call DMRestoreLocalVector(C_dir%da, edir_local, ierr); call CHKERR(ierr)
+
           call PetscObjectSetName(solution%edir, 'edir', ierr); call CHKERR(ierr)
           call getVecPointer(C_dir%da, solution%edir, xv_dir1d, xv_dir)
 
           xv_dir(:, C_dir%zs + 1:, :, :) = real(&
-            & edir(:, atmk(atm, C_one_atm1%zs + 1):C_one_atm1%ze, :, :), &
+            & edir(:, atmk(atm, C_one_atm1%zs + 1):C_one_atm1%ze, C_dir%xs:C_dir%xe, C_dir%ys:C_dir%ye), &
             & kind(xv_dir))
-          xv_dir(:, C_dir%zs, :, :) = real(edir(:, C_one_atm1%zs, :, :), kind(xv_dir))
+          xv_dir(:, C_dir%zs, :, :) = real(edir(:, C_one_atm1%zs, C_dir%xs:C_dir%xe, C_dir%ys:C_dir%ye), kind(xv_dir))
 
           call restoreVecPointer(C_dir%da, solution%edir, xv_dir1d, xv_dir)
           call PetscObjectViewFromOptions(solution%edir, PETSC_NULL_VEC, '-mcdmda_show_edir', ierr); call CHKERR(ierr)
@@ -898,7 +905,6 @@ contains
     integer(iintegers) :: off, dof
 
     if (ldebug_tracing) print *, 'Update Flux', k, i, j, p%direct, p%side
-    !if (k==3.and.i==3.and.j==3) call CHKERR(1_mpiint, 'DEBUG')
 
     select case (p%side)
     case (PPRTS_TOP_FACE)
@@ -912,6 +918,7 @@ contains
     case (3:6)
       continue
     case default
+      call print_photon(p)
       call CHKERR(1_mpiint, 'hmpf .. didnt expect a p%side gt 6, have '//toStr(p%side))
     end select
 
@@ -928,9 +935,31 @@ contains
         edir(i0, k, i, j) = edir(i0, k, i, j) + real(p%weight, kind(edir))
       case (PPRTS_BOT_FACE)
         edir(i0, k + 1, i, j) = edir(i0, k + 1, i, j) + real(p%weight, kind(edir))
+
+      case (PPRTS_LEFT_FACE)
+        off = solver%dirtop%dof
+        do dof = 0, solver%dirside%dof - 1
+          edir(off + dof, k, i, j) = edir(off + dof, k, i, j) + real(p%weight, kind(edir))
+        end do
+      case (PPRTS_RIGHT_FACE)
+        off = solver%dirtop%dof
+        do dof = 0, solver%dirside%dof - 1
+          edir(off + dof, k, i + 1, j) = edir(off + dof, k, i + 1, j) + real(p%weight, kind(edir))
+        end do
+
+      case (PPRTS_REAR_FACE) ! rear
+        off = solver%dirtop%dof + solver%dirside%dof
+        do dof = 0, solver%dirside%dof - 1
+          edir(off + dof, k, i, j) = edir(off + dof, k, i, j) + real(p%weight, kind(edir))
+        end do
+      case (PPRTS_FRONT_FACE) ! front
+        off = solver%dirtop%dof + solver%dirside%dof
+        do dof = 0, solver%dirside%dof - 1
+          edir(off + dof, k, i, j + 1) = edir(off + dof, k, i, j + 1) + real(p%weight, kind(edir))
+        end do
       case default
         call print_photon(p)
-        call CHKERR(1_mpiint, 'hmpf .. didnt expect a p%side gt 2, have '//toStr(p%side))
+        call CHKERR(1_mpiint, 'hmpf .. didnt expect p%side '//toStr(p%side))
       end select
 
     else
@@ -986,8 +1015,8 @@ contains
         end do
 
       case default
-        !call print_photon(p)
-        call CHKERR(1_mpiint, 'hmpf .. didnt expect a p%side gt 2, have'//toStr(p%side))
+        call print_photon(p)
+        call CHKERR(1_mpiint, 'hmpf .. didnt expect this p%side, have'//toStr(p%side))
       end select
     end if
   end subroutine
