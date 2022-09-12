@@ -98,7 +98,7 @@ module m_pprts_external_solvers
   type t_rayli_info
     type(t_state_container) :: plex_solution
     type(t_plexgrid), allocatable :: plex
-    integer(mpiint) :: subcomm
+    integer(mpiint) :: comm, subcomm
     integer(iintegers) :: num_subcomm_masters
     type(tVecScatter) :: ctx_hhl
     type(tVecScatter) :: ctx_albedo
@@ -426,6 +426,7 @@ contains
       type(tPetscSection) :: abso_section, geomSection
       real(ireals), pointer :: xabso(:), geoms(:)
       integer(iintegers) :: icell, cStart, cEnd, voff, geom_offset
+      integer(mpiint) :: submyid
 
       character(len=*), parameter :: log_event_name = "pprts_rayli_transfer_result"
       PetscClassId :: cid
@@ -439,44 +440,43 @@ contains
 
       if (allocated(solution%edir)) then
         call VecSet(solution%edir, zero, ierr); call CHKERR(ierr)
-      end if
-      call VecSet(solution%ediff, zero, ierr); call CHKERR(ierr)
-      call VecSet(solution%abso, zero, ierr); call CHKERR(ierr)
-
-      if (allocated(solution%edir)) then
         call VecScatterBegin(rayli_info%ctx_edir, plex_solution%edir, solution%edir, &
                              ADD_VALUES, SCATTER_REVERSE, ierr); call CHKERR(ierr)
-      end if
-      call VecScatterBegin(rayli_info%ctx_ediff, plex_solution%ediff, solution%ediff, &
-                           ADD_VALUES, SCATTER_REVERSE, ierr); call CHKERR(ierr)
-      if (allocated(solution%edir)) then
         call VecScatterEnd(rayli_info%ctx_edir, plex_solution%edir, solution%edir, &
                            ADD_VALUES, SCATTER_REVERSE, ierr); call CHKERR(ierr)
       end if
+
+      call VecSet(solution%ediff, zero, ierr); call CHKERR(ierr)
+      call VecSet(solution%abso, zero, ierr); call CHKERR(ierr)
+
+      call VecScatterBegin(rayli_info%ctx_ediff, plex_solution%ediff, solution%ediff, &
+                           ADD_VALUES, SCATTER_REVERSE, ierr); call CHKERR(ierr)
       call VecScatterEnd(rayli_info%ctx_ediff, plex_solution%ediff, solution%ediff, &
                          ADD_VALUES, SCATTER_REVERSE, ierr); call CHKERR(ierr)
 
-      ! need absorption as W, not W/m3 to handle collapsed area correctly
-      associate (plex => rayli_info%plex)
-        call VecDuplicate(plex_solution%abso, abso_in_W, ierr); call CHKERR(ierr)
-        call VecCopy(plex_solution%abso, abso_in_W, ierr); call CHKERR(ierr)
-        call DMGetSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
-        call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
-        call DMGetSection(plex%abso_dm, abso_section, ierr); call CHKERR(ierr)
-        call VecGetArrayF90(abso_in_W, xabso, ierr); call CHKERR(ierr)
-        call DMPlexGetHeightStratum(plex%abso_dm, i0, cStart, cEnd, ierr); call CHKERR(ierr) ! cells
-        do icell = cStart, cEnd - 1
-          call PetscSectionGetFieldOffset(geomSection, icell, i3, geom_offset, ierr); call CHKERR(ierr) ! cell dz
-          call PetscSectionGetOffset(abso_section, icell, voff, ierr); call CHKERR(ierr)
-          xabso(i1 + voff) = xabso(i1 + voff) * geoms(i1 + geom_offset)
-        end do
-        call VecRestoreArrayF90(abso_in_W, xabso, ierr); call CHKERR(ierr)
-        call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
-      end associate
+      call mpi_comm_rank(rayli_info%subcomm, submyid, ierr); call CHKERR(ierr)
+      call VecDuplicate(plex_solution%abso, abso_in_W, ierr); call CHKERR(ierr)
+      if (submyid .eq. 0) then
+        ! need absorption as W, not W/m3 to handle collapsed area correctly
+        associate (plex => rayli_info%plex)
+          call VecCopy(plex_solution%abso, abso_in_W, ierr); call CHKERR(ierr)
+          call DMGetSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
+          call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+          call DMGetSection(plex%abso_dm, abso_section, ierr); call CHKERR(ierr)
+          call VecGetArrayF90(abso_in_W, xabso, ierr); call CHKERR(ierr)
+          call DMPlexGetHeightStratum(plex%abso_dm, i0, cStart, cEnd, ierr); call CHKERR(ierr) ! cells
+          do icell = cStart, cEnd - 1
+            call PetscSectionGetFieldOffset(geomSection, icell, i3, geom_offset, ierr); call CHKERR(ierr) ! cell dz
+            call PetscSectionGetOffset(abso_section, icell, voff, ierr); call CHKERR(ierr)
+            xabso(i1 + voff) = xabso(i1 + voff) * geoms(i1 + geom_offset)
+          end do
+          call VecRestoreArrayF90(abso_in_W, xabso, ierr); call CHKERR(ierr)
+          call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+        end associate
+      end if
 
       call VecScatterBegin(rayli_info%ctx_abso, abso_in_W, solution%abso, &
                            ADD_VALUES, SCATTER_REVERSE, ierr); call CHKERR(ierr)
-
       call VecScatterEnd(rayli_info%ctx_abso, abso_in_W, solution%abso, &
                          ADD_VALUES, SCATTER_REVERSE, ierr); call CHKERR(ierr)
 
@@ -572,6 +572,8 @@ contains
     if (.not. allocated(rayli_info)) then
       allocate (rayli_info)
 
+      rayli_info%comm = solver%comm
+
       ! Scatter height info to subcomm[0]
       call gen_shared_subcomm(solver%comm, rayli_info%subcomm, ierr); call CHKERR(ierr)
       call mpi_comm_rank(rayli_info%subcomm, submyid, ierr); call CHKERR(ierr)
@@ -601,6 +603,11 @@ contains
       ! Setup result scatter contexts
       call setup_ediff_scatter_context()
       call setup_abso_scatter_context()
+    end if
+
+    if (solver%comm .ne. rayli_info%comm) then
+      call CHKERR(ierr, 'comms of rayli_info and solver diverged.'// &
+                      & 'Make sure you call rayli solver with the same mpi comm consecutively')
     end if
 
     if (solution%lsolar_rad) call setup_edir_scatter_context()

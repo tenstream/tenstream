@@ -190,7 +190,7 @@ contains
     ierr = 0
 
     pt(1) = find_real_location(table%reff, real(reff, irealLUT))
-    pt(2) = iwvl
+    pt(2) = real(iwvl, kind(pt))
     call interp_2d(pt, table%qext, rqext)
     call interp_2d(pt, table%w0, rw0)
     call interp_2d(pt, table%g, rg)

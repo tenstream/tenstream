@@ -122,7 +122,7 @@ contains
     integer(mpiint) :: myid
     integer :: ostart(4)
 
-    ostart = [integer(iintegers) :: 1, 1, 1, it]
+    ostart = [integer :: 1, 1, 1, int(it)]
 
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
