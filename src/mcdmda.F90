@@ -218,10 +218,10 @@ contains
 
     end select
 
-    if (ldebug) then
+    if (ldebug_tracing) then
       call bmc%init(MPI_COMM_SELF, rngseed=9, luse_random_seed=.false.)
     else
-      call bmc%init(MPI_COMM_SELF, rngseed=9, luse_random_seed=.false.)
+      call bmc%init(MPI_COMM_SELF, luse_random_seed=.true.)
     end if
 
     ! Initialize the locally owned photons
@@ -418,6 +418,7 @@ contains
       type(tVec) :: ediff_local, edir_local
       real(ireals), pointer, dimension(:, :, :, :) :: xv_dir => null(), xv_diff => null(), xv_abso => null()
       real(ireals), pointer, dimension(:) :: xv_dir1d => null(), xv_diff1d => null(), xv_abso1d => null()
+      integer(iintegers) :: Nundersampled
 
       associate (&
           & atm => solver%atm,&
@@ -428,46 +429,54 @@ contains
           & C_one_atm1 => solver%C_one_atm1)
 
         if (solution%lsolar_rad) then
-          ! handle ghosts of edir
+          ! handle edir
           call DMGetLocalVector(C_dir%da, edir_local, ierr); call CHKERR(ierr)
-          call VecSet(edir_local, zero, ierr); call CHKERR(ierr)
+
+          call getVecPointer(C_dir%da, edir_local, xv_dir1d, xv_dir)
+
+          xv_dir(:, C_dir%zs + 1:, :, :) = real(&
+            & edir(:, atmk(atm, C_one_atm1%zs + 1):C_one_atm1%ze, :, :), &
+            & kind(xv_dir))
+          xv_dir(:, C_dir%zs, :, :) = real(edir(:, C_one_atm1%zs, :, :), kind(xv_dir))
+
+          call restoreVecPointer(C_dir%da, edir_local, xv_dir1d, xv_dir)
+
           call DMLocalToGlobalBegin(C_dir%da, edir_local, ADD_VALUES, solution%edir, ierr); call CHKERR(ierr)
           call DMLocalToGlobalEnd(C_dir%da, edir_local, ADD_VALUES, solution%edir, ierr); call CHKERR(ierr)
           call DMRestoreLocalVector(C_dir%da, edir_local, ierr); call CHKERR(ierr)
 
           call PetscObjectSetName(solution%edir, 'edir', ierr); call CHKERR(ierr)
-          call getVecPointer(C_dir%da, solution%edir, xv_dir1d, xv_dir)
-
-          xv_dir(:, C_dir%zs + 1:, :, :) = real(&
-            & edir(:, atmk(atm, C_one_atm1%zs + 1):C_one_atm1%ze, C_dir%xs:C_dir%xe, C_dir%ys:C_dir%ye), &
-            & kind(xv_dir))
-          xv_dir(:, C_dir%zs, :, :) = real(edir(:, C_one_atm1%zs, C_dir%xs:C_dir%xe, C_dir%ys:C_dir%ye), kind(xv_dir))
-
-          call restoreVecPointer(C_dir%da, solution%edir, xv_dir1d, xv_dir)
           call PetscObjectViewFromOptions(solution%edir, PETSC_NULL_VEC, '-mcdmda_show_edir', ierr); call CHKERR(ierr)
         end if
 
-        ! handle ghosts of ediff
+        ! handle normalization of ediff
         call DMGetLocalVector(C_diff%da, ediff_local, ierr); call CHKERR(ierr)
         call VecSet(ediff_local, zero, ierr); call CHKERR(ierr)
-        call DMLocalToGlobalBegin(C_diff%da, ediff_local, ADD_VALUES, solution%ediff, ierr); call CHKERR(ierr)
-        call DMLocalToGlobalEnd(C_diff%da, ediff_local, ADD_VALUES, solution%ediff, ierr); call CHKERR(ierr)
-        call DMRestoreLocalVector(C_diff%da, ediff_local, ierr); call CHKERR(ierr)
 
-        ! handle normalization of ediff
-        call getVecPointer(C_diff%da, solution%ediff, xv_diff1d, xv_diff)
+        call getVecPointer(C_diff%da, ediff_local, xv_diff1d, xv_diff)
 
         if (.not. solution%lsolar_rad) then
+          Nundersampled = count(Nediff .gt. 0_iintegers .and. Nediff .le. 10)
+          call CHKWARN(int(Nundersampled, mpiint), 'Found '//toStr(Nundersampled)//' fluxes that were certainly reacheable,'// &
+            & 'but were sampled crudely. This may lead to large biases in the results. Please consider using more photons!')
+
           ediff = ediff * real(pi / max(1_iintegers, Nediff), kind(ediff))
         end if
 
         xv_diff(:, C_diff%zs + 1:, :, :) = real(&
-          & ediff(:, atmk(atm, C_one_atm1%zs + 1):C_one_atm1%ze, C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye), &
+          & ediff(:, atmk(atm, C_one_atm1%zs + 1):C_one_atm1%ze, :, :), &
           & kind(xv_diff))
-        xv_diff(:, C_diff%zs, :, :) = real(ediff(:, C_one_atm1%zs, C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye), kind(xv_diff))
+        xv_diff(:, C_diff%zs, :, :) = real(ediff(:, C_one_atm1%zs, :, :), kind(xv_diff))
 
-        call restoreVecPointer(C_diff%da, solution%ediff, xv_diff1d, xv_diff)
+        call restoreVecPointer(C_diff%da, ediff_local, xv_diff1d, xv_diff)
+        call DMLocalToGlobalBegin(C_diff%da, ediff_local, ADD_VALUES, solution%ediff, ierr); call CHKERR(ierr)
+        call DMLocalToGlobalEnd(C_diff%da, ediff_local, ADD_VALUES, solution%ediff, ierr); call CHKERR(ierr)
+        call DMRestoreLocalVector(C_diff%da, ediff_local, ierr); call CHKERR(ierr)
 
+        call PetscObjectSetName(solution%ediff, 'ediff', ierr); call CHKERR(ierr)
+        call PetscObjectViewFromOptions(solution%ediff, PETSC_NULL_VEC, '-mcdmda_show_ediff', ierr); call CHKERR(ierr)
+
+        ! absorption
         call getVecPointer(C_one%da, solution%abso, xv_abso1d, xv_abso)
 
         if (.not. solution%lsolar_rad) then
@@ -487,8 +496,6 @@ contains
         call restoreVecPointer(C_one%da, solution%abso, xv_abso1d, xv_abso)
       end associate
 
-      call PetscObjectSetName(solution%ediff, 'ediff', ierr); call CHKERR(ierr)
-      call PetscObjectViewFromOptions(solution%ediff, PETSC_NULL_VEC, '-mcdmda_show_ediff', ierr); call CHKERR(ierr)
       call PetscObjectViewFromOptions(solution%abso, PETSC_NULL_VEC, '-mcdmda_show_abso', ierr); call CHKERR(ierr)
 
       !Rayli solver returns fluxes as [W]
@@ -657,6 +664,13 @@ contains
       lexit_cell = .true. ! mark es exited because it obviously came from some neighbouring box
 
       move: do while (.not. lexit_domain) ! this loop will move the photon to the edge of the subdomain
+        if (.not. lthermal) then
+          call roulette(p)
+          if (.not. p%alive) then
+            lkilled_photon = .true.
+            exit move
+          end if
+        end if
         if (ldebug_tracing) then
           print *, 'start of move', p%k, p%i, p%j
           call print_photon(p)
