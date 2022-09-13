@@ -151,10 +151,10 @@ contains
 
     call mpi_comm_rank(solver%comm, myid, ierr); call CHKERR(ierr)
 
-    Nbatchsize = 1000
+    Nbatchsize = 10000
     call get_petsc_opt(solver%prefix, "-mcdmda_batch_size", Nbatchsize, lflg, ierr); call CHKERR(ierr)
 
-    Nqueuesize = 10000
+    Nqueuesize = Nphotons_local
     call get_petsc_opt(solver%prefix, "-mcdmda_queue_size", Nqueuesize, lflg, ierr); call CHKERR(ierr)
 
     lfinish_border_photons_first = .false.
