@@ -1079,9 +1079,12 @@ contains
           p%src_side = PPRTS_TOP_FACE
           p%weight = weight
           p%tau_travel = tau(R())
-          !p%loc(1) = solver%atm%dx/2
-          !p%loc(2) = solver%atm%dy/2
-          call antialiased_photon_start(Nphotons_per_pixel, l, p%loc(1), p%loc(2))
+          if (ldebug_tracing) then
+            call antialiased_photon_start(Nphotons_per_pixel, l, p%loc(1), p%loc(2))
+          else
+            p%loc(1) = R()
+            p%loc(2) = R()
+          end if
           p%loc(1) = p%loc(1) * solver%atm%dx
           p%loc(2) = p%loc(2) * solver%atm%dy
 
