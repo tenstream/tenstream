@@ -610,6 +610,8 @@ contains
                       & 'Make sure you call rayli solver with the same mpi comm consecutively')
     end if
 
+    call mpi_comm_rank(rayli_info%subcomm, submyid, ierr); call CHKERR(ierr)
+
     if (solution%lsolar_rad) call setup_edir_scatter_context()
     if (solution%lthermal_rad) call setup_planck_scatter_context()
 
