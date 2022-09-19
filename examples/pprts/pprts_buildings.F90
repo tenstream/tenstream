@@ -107,8 +107,8 @@ contains
 
       if (lthermal) then
         allocate (plck(Ca%zm + 1, Ca%xm, Ca%ym))
-        plck(:, :, :) = 0
-        plck(Ca%zm + 1, :, :) = 0
+        plck(:, :, :) = 100._ireals / pi
+        plck(Ca%zm + 1, :, :) = 100._ireals / pi
       end if
 
       kabs = dtau * (one - w0) / dz / real(Nlay, ireals)
@@ -191,11 +191,11 @@ contains
       call pprts_get_result(solver, fdn, fup, fdiv, fdir, opt_buildings=buildings)
 
       if (lsolar) then
-        call gather_all_toZero(solver%C_one_atm1, fdir, gedir)
+        call gather_all_toZero(solver%C_one1, fdir, gedir)
       end if
-      call gather_all_toZero(solver%C_one_atm1, fdn, gedn)
-      call gather_all_toZero(solver%C_one_atm1, fup, geup)
-      call gather_all_toZero(solver%C_one_atm, fdiv, gabso)
+      call gather_all_toZero(solver%C_one1, fdn, gedn)
+      call gather_all_toZero(solver%C_one1, fup, geup)
+      call gather_all_toZero(solver%C_one, fdiv, gabso)
 
       if (myid .eq. 0_mpiint .and. present(outfile)) then
         groups(1) = trim(outfile)

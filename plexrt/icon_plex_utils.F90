@@ -1504,7 +1504,7 @@ contains
           & [meanval(cartesian_x_vertices), meanval(cartesian_y_vertices), meanval(cartesian_z_vertices)]
       end if
       if (lcoord_displacement) then
-        call imp_bcast(comm, vertices_centroid, 0_mpiint)
+        call imp_bcast(comm, vertices_centroid, 0_mpiint, ierr); call CHKERR(ierr)
       end if
       if (present(coord_displacement)) coord_displacement = real(vertices_centroid, ireals)
 
@@ -1603,7 +1603,7 @@ contains
     if (myid .eq. 0) then
       ke = size(arr, dim=1)
     end if ! rank 0
-    call imp_bcast(comm, ke, 0_mpiint)
+    call imp_bcast(comm, ke, 0_mpiint, ierr); call CHKERR(ierr)
 
     call DMClone(dm2d_serial, dm2d_serial_clone, ierr); call CHKERR(ierr)
     call dmplex_set_new_section(dm2d_serial_clone, 'face_section', i1, [i0], [ke], [i0], [i0])

@@ -239,7 +239,7 @@ contains
 
           !See if we can find the dimension
           ncerr = nf90_inq_dimid(ncid, trim(dimname), dim_ids(i)); call nccheck(ncerr)
-          if (lverbose) print *, 'Check if dimension '//trim(dimname)//' exists', ncerr
+          if (lverbose) print *, 'Check if dimension '//trim(dimname)//' exists', ncerr, 'id ->', dim_ids(i)
           if (ncerr .ne. NF90_NOERR) then !Otherwise create it
             ncerr = nf90_def_dim(ncid, trim(dimname), dims(i), dim_ids(i)); call nccheck(ncerr)
             if (lverbose) print *, 'Create dimension :: ', i, dims(i), dim_ids(i), trim(dimname), ' :: ', ncerr
@@ -291,19 +291,107 @@ contains
     #:set dKIND = '' if method == 'logical' else '('+dtype+')'
     #:for RANK in range(1, 8)
       #:for modifier in ['allocatable', 'pointer']
-        subroutine ncload_${method}$_${dtype}$_${RANK}$d_${modifier}$ (groups, arr, ierr, lverbose, ostart, ocount, ostride, omap)
+        subroutine ncload_${method}$_${dtype}$_${RANK}$d_${modifier}$ &
+            & (groups, arr, ierr, lverbose, ostart, ocount, ostride, omap, lock_waittime)
+
           ${method}$${dKIND}$#{if modifier}#,${modifier}$#{endif}#, intent(inout) :: arr${ranksuffix(RANK)}$
 
+          logical, intent(in), optional :: lverbose
+          integer, dimension(:), optional, intent(in) :: ostart, ocount, ostride, omap
+          integer(mpiint), intent(in), optional :: lock_waittime
+
+          character(len=*) :: groups(:)
+
+          character(len=default_str_len) :: fname, varname
+          integer :: i, ncid, varid
+          integer, dimension(size(shape(arr))) :: dimIDs, dimsize
+
+          logical :: file_exists, var_exists
+
+          integer :: ncerr, flock_unit, ndims
+          integer(int64) :: bytesize
+          real(kind(arr)) :: bytesize_dummy
+          integer(mpiint), intent(out) :: ierr
+          ierr = 0
+
           #:if modifier == 'allocatable'
-            include 'netcdfio_read_1.inc'
+            !if (allocated(arr)) then
+            !  print *, 'Array which should have been read in is already allocated... I will not overwrite it...'
+            !  ierr = 100
+            !  return
+            !end if
+          #:else
+            if (associated(arr)) then
+              print *, 'Array which should have been read in is already allocated... I will not overwrite it...'
+              ierr = 100
+              return
+            end if
+          #:endif
+
+          fname = trim(groups(1))
+
+          inquire (file=trim(fname), exist=file_exists)
+          if (.not. file_exists) then
+            print *, ''
+            print *, 'ERROR! NetCDF File ', trim(fname), ' could not be found!'
+            print *, ''
+            ierr = 101
+            return
+          end if
+
+          call acquire_file_lock(fname, flock_unit, ierr, waittime=lock_waittime); call CHKERR(ierr, 'Could not obtain file lock')
+
+          varname = trim(groups(2))
+          do i = 3, size(groups)
+            varname = trim(varname)//'.'//trim(groups(i))
+          end do
+          if (ldebug .or. get_arg(.false., lverbose)) print *, 'reading from file: ', trim(fname)
+          if (ldebug .or. get_arg(.false., lverbose)) print *, 'variable: ', trim(varname), ' :: Ndims', size(shape(arr))
+
+          ncerr = nf90_open(trim(fname), NF90_NOWRITE, ncid); call nccheck(ncerr); ierr = ierr + ncerr
+          if (ncerr .ne. NF90_NOERR) goto 100
+          ncerr = nf90_inq_varid(ncid, trim(varname), varid); call nccheck(ncerr); ierr = ierr + ncerr
+          if (ncerr .ne. NF90_NOERR) goto 100
+
+          var_exists = ncerr .eq. NF90_NOERR
+          if (ldebug .or. get_arg(.false., lverbose)) &
+            & print *, 'Reading NetCDF :: varname: ', trim(varname), ' :: exists?', var_exists
+
+          bytesize = c_sizeof(bytesize_dummy)
+          if (var_exists) then ! How big are the data dimensions?
+            ncerr = nf90_inquire_variable(ncid, varid, ndims=ndims); call nccheck(ncerr); ierr = ierr + ncerr
+            if (ndims .ne. size(shape(arr))) then
+              print *, 'Input and NC variable have different number dimensions '//toStr(size(shape(arr)))//' vs '//toStr(ndims)
+              ierr = ierr + 100 * size(shape(arr)) + ndims
+              goto 100
+            end if
+
+            ncerr = nf90_inquire_variable(ncid, varid, dimids=dimIDs); call nccheck(ncerr); ierr = ierr + ncerr
+            do i = 1, size(shape(arr))
+              ncerr = nf90_inquire_dimension(ncid, dimIDs(i), len=dimsize(i)); call nccheck(ncerr); ierr = ierr + ncerr
+              bytesize = bytesize * dimsize(i)
+            end do
+          end if
+
+          if (ldebug .or. get_arg(.false., lverbose)) &
+            print *, 'Dimension of variable: '//trim(varname), dimsize, '( '//toStr(real(bytesize) / 1024.**3)//' Gb )'
+
+          #:if modifier == 'allocatable'
             if (ierr .eq. 0 .and. .not. allocated(arr)) allocate (arr ${rankallocdims(RANK)}$)
-            include 'netcdfio_read_2.inc'
-          #:endif
-          #:if modifier == 'pointer'
-            include 'netcdfio_read_1_ptr.inc'
+          #:elif modifier == 'pointer'
             if (ierr .eq. 0) allocate (arr ${rankallocdims(RANK)}$)
-            include 'netcdfio_read_2.inc'
           #:endif
+
+          ncerr = nf90_get_var(ncid, varid, arr, &
+            & start=ostart, count=ocount, stride=ostride, map=omap)
+          call nccheck(ncerr); ierr = ierr + ncerr
+
+100       continue
+          ncerr = nf90_close(ncid); call nccheck(ncerr); ierr = ierr + ncerr
+          if (ldebug) print *, 'Reading Netcdf file returned with ierr: ', ierr
+          call release_file_lock(flock_unit, ncerr); call CHKERR(ncerr, 'Could not release file lock')
+
+          return
 
         end subroutine
       #:endfor
@@ -373,8 +461,9 @@ contains
     end do
     ierr = iwait
     if (lblocking) then
-      call CHKERR(1_mpiint, 'Couldnt lock file '//fname// &
-                  ' .. waited now for quite a while but we couldnt open the lock: '//lockfile)
+      call CHKERR(1_mpiint, 'Couldnt lock file '//trim(fname)// &
+                  & ' .. waited now for quite a while but we couldnt open the lock: '//lockfile// &
+                  & ' if you know that you have no other processes running, you can safely delete the file.')
     end if
   end subroutine
 
@@ -428,7 +517,7 @@ contains
 
     ncerr = nf90_open(trim(fname), nf90_nowrite, ncid)
     call nccheck(ncerr); ierr = ierr + ncerr
-    call CHKWARN(ierr, "Could not open File "//fname)
+    call CHKWARN(ierr, "Could not open File "//trim(fname))
 
     do k = 1, int(N)
       ncerr = nf90_inq_attname(ncid, varid=nf90_global, attnum=k, name=attNames(k))
@@ -459,12 +548,12 @@ contains
 
     ncerr = nf90_open(trim(fname), nf90_nowrite, ncid)
     call nccheck(ncerr); ierr = ierr + ncerr
-    call CHKWARN(ierr, "Could not open File "//fname)
+    call CHKWARN(ierr, "Could not open File "//trim(fname))
     ncerr = nf90_inquire(ncid, nAttributes=nattrs)
     call nccheck(ncerr); ierr = ierr + ncerr
     nattributes = nattrs
     ncerr = nf90_close(ncid); call nccheck(ncerr); ierr = ierr + ncerr
-    call CHKWARN(ierr, "Could not determine number of global attributes "//fname)
+    call CHKWARN(ierr, "Could not determine number of global attributes "//trim(fname))
   end subroutine
 
   #:for method,dtype,nctype in [   &

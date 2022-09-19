@@ -374,11 +374,16 @@ contains
     real(ireal_dp) :: dist(3)
     real(ireal_dp), parameter :: zero = 0, one = 1
 
+    real(ireal_dp), parameter :: nx(3) = [one, zero, zero]
+    real(ireal_dp), parameter :: ny(3) = [zero, one, zero]
+    real(ireal_dp), parameter :: nz(3) = [zero, zero, one]
+    real(ireal_dp), parameter :: o0(3) = [zero, zero, zero]
+
     call setup_cube_coords_from_vertices(vertices, dx, dy, dz)
 
     !crossing with bottom and top plane:
     if (pdir(3) .ge. zero) then
-      max_dist = hit_plane(ploc, pdir, [zero, zero, dz], [zero, zero, one])
+      max_dist = hit_plane(ploc, pdir, [zero, zero, dz], nz)
       pside = 1
       x = ploc(1) + pdir(1) * max_dist
       y = ploc(2) + pdir(2) * max_dist
@@ -386,7 +391,7 @@ contains
       dist(1) = max_dist; sides(1) = 1
     end if
     if (pdir(3) .le. zero) then
-      max_dist = hit_plane(ploc, pdir, [zero, zero, zero], [zero, zero, one])
+      max_dist = hit_plane(ploc, pdir, o0, nz)
       pside = 2
       x = ploc(1) + pdir(1) * max_dist
       y = ploc(2) + pdir(2) * max_dist
@@ -396,7 +401,7 @@ contains
 
     !crossing with left and right plane:
     if (pdir(1) .le. zero) then
-      max_dist = hit_plane(ploc, pdir, [zero, zero, zero], [one, zero, zero])
+      max_dist = hit_plane(ploc, pdir, o0, nx)
       pside = 3
       y = ploc(2) + pdir(2) * max_dist
       z = ploc(3) + pdir(3) * max_dist
@@ -404,7 +409,7 @@ contains
       dist(2) = max_dist; sides(2) = 3
     end if
     if (pdir(1) .ge. zero) then
-      max_dist = hit_plane(ploc, pdir, [dx, zero, zero], [one, zero, zero])
+      max_dist = hit_plane(ploc, pdir, [dx, zero, zero], nx)
       pside = 4
       y = ploc(2) + pdir(2) * max_dist
       z = ploc(3) + pdir(3) * max_dist
@@ -414,7 +419,7 @@ contains
 
     !crossing with back and forward plane:
     if (pdir(2) .le. zero) then
-      max_dist = hit_plane(ploc, pdir, [zero, zero, zero], [zero, one, zero])
+      max_dist = hit_plane(ploc, pdir, o0, ny)
       pside = 5
       x = ploc(1) + pdir(1) * max_dist
       z = ploc(3) + pdir(3) * max_dist
@@ -422,7 +427,7 @@ contains
       dist(3) = max_dist; sides(3) = 5
     end if
     if (pdir(2) .ge. zero) then
-      max_dist = hit_plane(ploc, pdir, [zero, dy, zero], [zero, one, zero])
+      max_dist = hit_plane(ploc, pdir, [zero, dy, zero], ny)
       pside = 6
       x = ploc(1) + pdir(1) * max_dist
       z = ploc(3) + pdir(3) * max_dist

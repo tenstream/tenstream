@@ -13,7 +13,7 @@ program main
   integer(mpiint) :: ierr, comm, myid
   integer(iintegers) :: Nx, Ny, Nz
   real(ireals) :: dx, dy, phi0, theta0, albedo_th, albedo_sol, vlwc, viwc
-  character(len=default_str_len) :: atm_filename, outfile, groups(2), dimnames(3), specint
+  character(len=default_str_len) :: atm_filename, outfile, specint
   logical :: lthermal, lsolar, lflg, lhave_outfile
   real(ireals), allocatable, dimension(:, :, :) :: gedir, gedn, geup, gabso
 
@@ -69,26 +69,23 @@ program main
 
   if (myid .eq. 0) print *, 'Running repwvl_lw_sw example with grid size:', Nx, Ny, Nz
 
-  call ex_pprts_specint_lw_sw(specint, &
-    & comm, &
-    & Nx, Ny, Nz, dx, dy, &
-    & phi0, theta0, albedo_th, albedo_sol, &
-    & lthermal, lsolar, atm_filename, &
-    & gedir, gedn, geup, gabso, &
-    & vlwc, viwc)
-
-  if (myid .eq. 0_mpiint .and. lhave_outfile) then
-    dimnames(1) = 'nlev'
-    dimnames(2) = 'nx'
-    dimnames(3) = 'ny'
-    groups(1) = trim(outfile)
-    if (lsolar) then
-      groups(2) = 'edir'; call ncwrite(groups, gedir, ierr, dimnames=dimnames); call CHKERR(ierr)
-    end if
-    groups(2) = 'edn'; call ncwrite(groups, gedn, ierr, dimnames=dimnames); call CHKERR(ierr)
-    groups(2) = 'eup'; call ncwrite(groups, geup, ierr, dimnames=dimnames); call CHKERR(ierr)
-    dimnames(1) = 'nlay'
-    groups(2) = 'abso'; call ncwrite(groups, gabso, ierr, dimnames=dimnames); call CHKERR(ierr)
+  if (lhave_outfile) then
+    call ex_pprts_specint_lw_sw(specint, &
+      & comm, &
+      & Nx, Ny, Nz, dx, dy, &
+      & phi0, theta0, albedo_th, albedo_sol, &
+      & lthermal, lsolar, atm_filename, &
+      & gedir, gedn, geup, gabso, &
+      & vlwc, viwc, &
+      & outfile=outfile)
+  else
+    call ex_pprts_specint_lw_sw(specint, &
+      & comm, &
+      & Nx, Ny, Nz, dx, dy, &
+      & phi0, theta0, albedo_th, albedo_sol, &
+      & lthermal, lsolar, atm_filename, &
+      & gedir, gedn, geup, gabso, &
+      & vlwc, viwc)
   end if
 
   call deallocate_allocatable(gedir)

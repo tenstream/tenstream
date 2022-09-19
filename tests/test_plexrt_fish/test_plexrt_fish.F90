@@ -227,7 +227,9 @@ contains
     do k = 1, size(eup, 1)
       call imp_allreduce_mean(comm, eup(k, :), m)
       @mpiassertEqual((1._ireals - Ag)*Bplck*pi, m, Bplck*pi*eps, 'for low optical absorption thickness Eup emissivities should be 1-Albedo * Srfc_Planck')
+    end do
 
+    do k = 1, size(abso, 1)
       call imp_allreduce_mean(comm, abso(k, :), m)
       @mpiassertEqual(0._ireals, m, eps, 'for low optical absorption thickness absorption in atm should be zero')
     end do

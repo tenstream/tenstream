@@ -27,6 +27,7 @@ module m_example_uclales_cld_file
   use m_helper_functions, only: &
     & CHKERR, &
     & domain_decompose_2d_petsc, &
+    & deg2rad, &
     & get_petsc_opt, &
     & imp_bcast, &
     & resize_arr, &
@@ -89,10 +90,10 @@ contains
 
     if (myid .eq. 0) then
       call list_global_attributes(cldfile, ierr); call CHKERR(ierr)
-      call ncload([character(len=default_str_len) :: cldfile, dimnametime], time, ierr); call CHKERR(ierr)
-      call ncload([character(len=default_str_len) :: cldfile, dimnamez], zlev, ierr); call CHKERR(ierr)
-      call ncload([character(len=default_str_len) :: cldfile, dimnamex], dimx, ierr); call CHKERR(ierr)
-      call ncload([character(len=default_str_len) :: cldfile, dimnamey], dimy, ierr); call CHKERR(ierr)
+      call ncload([character(len=default_str_len) :: cldfile, dimnametime], time, ierr, lock_waittime=10_mpiint); call CHKERR(ierr)
+      call ncload([character(len=default_str_len) :: cldfile, dimnamez], zlev, ierr, lock_waittime=10_mpiint); call CHKERR(ierr)
+      call ncload([character(len=default_str_len) :: cldfile, dimnamex], dimx, ierr, lock_waittime=10_mpiint); call CHKERR(ierr)
+      call ncload([character(len=default_str_len) :: cldfile, dimnamey], dimy, ierr, lock_waittime=10_mpiint); call CHKERR(ierr)
       Nx = size(dimx)
       Ny = size(dimy)
       dx = dimx(2) - dimx(1)
@@ -101,12 +102,12 @@ contains
       call get_petsc_opt(PETSC_NULL_CHARACTER, "-dy", dy, lflg, ierr); call CHKERR(ierr)
       print *, 'Timesteps: ', size(time), 'Nx', size(dimx), 'Ny', size(dimy), 'Nz', size(zlev), 'dx', dx, 'dy', dy
     end if
-    call imp_bcast(comm, time, 0_mpiint)
-    call imp_bcast(comm, zlev, 0_mpiint)
-    call imp_bcast(comm, Nx, 0_mpiint)
-    call imp_bcast(comm, Ny, 0_mpiint)
-    call imp_bcast(comm, dx, 0_mpiint)
-    call imp_bcast(comm, dy, 0_mpiint)
+    call imp_bcast(comm, time, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, zlev, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, Nx, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, Ny, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, dx, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, dy, 0_mpiint, ierr); call CHKERR(ierr)
 
     ierr = 0
   end subroutine
@@ -121,7 +122,7 @@ contains
     integer(mpiint) :: myid
     integer :: ostart(4)
 
-    ostart = [integer(iintegers) :: 1, 1, 1, it]
+    ostart = [integer :: 1, 1, 1, int(it)]
 
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
@@ -150,16 +151,16 @@ contains
       print *, 'Min/Max ql   ', minval(ql), maxval(ql)
       print *, 'Min/Max reliq', minval(reliq), maxval(reliq)
     end if
-    call imp_bcast(comm, plev, 0_mpiint)
-    call imp_bcast(comm, tlev, 0_mpiint)
-    call imp_bcast(comm, qv, 0_mpiint)
-    call imp_bcast(comm, ql, 0_mpiint)
-    call imp_bcast(comm, reliq, 0_mpiint)
+    call imp_bcast(comm, plev, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, tlev, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, qv, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, ql, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, reliq, 0_mpiint, ierr); call CHKERR(ierr)
 
     ierr = 0
   end subroutine
 
-  subroutine run_rrtmg_lw_sw(&
+  subroutine run_lw_sw(&
       & specint, &
       & comm, &
       & pprts_solver, &
@@ -206,6 +207,9 @@ contains
 
     logical, parameter :: ldebug = .true.
 
+    real(ireals) :: timeofday, tod_offset, tod_theta, tod_phi
+    logical :: lflg
+
     call mpi_comm_rank(comm, myid, ierr)
 
     if (myid .eq. 0 .and. ldebug) print *, 'Setup Atmosphere...'
@@ -217,6 +221,21 @@ contains
     preliq(1:size(reliq, 1), 1:size(reliq, 2) * size(reliq, 3)) => reliq
 
     sundir = spherical_2_cartesian(phi0, theta0)
+
+    tod_offset = 0
+    call get_petsc_opt(PETSC_NULL_CHARACTER, "-tod_offset", tod_offset, lflg, ierr); call CHKERR(ierr)
+
+    if (lflg) then
+      timeofday = modulo(time / 86400._ireals + tod_offset, 1._ireals)
+      tod_phi = modulo(timeofday * 360._ireals, 360._ireals)
+      tod_theta = 1._ireals - max(0._ireals, sin(deg2rad(timeofday * 360._ireals - 90))) ! range [0,1]
+      sundir = spherical_2_cartesian(tod_phi, tod_theta * 90)
+      if (myid .eq. 0) then
+        print *, timeofday, 'new phi0', tod_phi
+        print *, timeofday, 'new theta0', tod_theta * 90
+        print *, timeofday, 'new sundir', sundir
+      end if
+    end if
 
     call setup_tenstr_atm(comm, .false., atm_filename, &
                           pplev, ptlev, atm, &
@@ -342,7 +361,7 @@ contains
       if (myid .eq. 0) print *, 'Computing timestep', it, '(time='//toStr(time(it))
       call load_timestep_data(comm, cldfile, it, plev, tlev, qv, ql, reliq, ierr); call CHKERR(ierr)
 
-      call run_rrtmg_lw_sw(&
+      call run_lw_sw(&
         & specint, &
         & comm, &
         & pprts_solver, &

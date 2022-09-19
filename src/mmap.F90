@@ -3,7 +3,7 @@ module m_mmap
   use iso_c_binding
 
   use m_data_parameters, only: iintegers, irealLUT, mpiint
-  use m_helper_functions, only: CHKWARN, CHKERR, imp_bcast, itoa, resize_arr
+  use m_helper_functions, only: CHKWARN, CHKERR, itoa
   use m_netcdfIO, only: acquire_file_lock, release_file_lock
 
   use m_c_syscall_wrappers, only: c_sysconf, c_mmap, c_munmap, &

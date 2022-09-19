@@ -9,13 +9,10 @@ module m_examples_plex_ex_rrtmg_icon
     & angle_between_two_vec, &
     & CHKERR, &
     & deg2rad, &
-    & determine_normal_direction, &
     & get_petsc_opt, &
-    & imp_bcast, &
     & meanvec, &
     & rad2deg, &
-    & reverse, &
-    & spherical_2_cartesian
+    & reverse
 
   use m_data_parameters, only: &
     & i0, i1, i2, i3, i4, i5,  &

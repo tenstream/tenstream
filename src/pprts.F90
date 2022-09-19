@@ -86,14 +86,13 @@ module m_pprts
 
   use m_tenstream_options, only: read_commandline_options, luse_eddington, twostr_ratio, &
                                  options_max_solution_err, options_max_solution_time, &
-                                 lcalc_nca, lskip_thermal, lschwarzschild, ltopography, &
-                                 lmcrts
+                                 lcalc_nca, lskip_thermal, lschwarzschild, ltopography
 
   use m_petsc_helpers, only: petscGlobalVecToZero, scatterZerotoPetscGlobal, &
                              petscGlobalVecToAll, &
                              petscVecToF90, f90VecToPetsc, getVecPointer, restoreVecPointer, hegedus_trick
 
-  use m_mcrts_dmda, only: solve_mcrts
+  use m_mcdmda, only: solve_mcdmda
 
   use m_pprts_base, only: &
     & t_solver, &
@@ -101,6 +100,7 @@ module m_pprts
     & compute_gradient, &
     & destroy_solution, &
     & determine_ksp_tolerances, &
+    & get_solution_uid, &
     & interpolate_cell_values_to_vertices, &
     & prepare_solution, &
     & set_dmda_cell_coordinates, &
@@ -113,6 +113,7 @@ module m_pprts
     & t_solver_2str, &
     & t_solver_disort, &
     & t_solver_rayli, &
+    & t_solver_mcdmda, &
     & t_solver_1_2, &
     & t_solver_3_6, &
     & t_solver_3_10, &
@@ -239,6 +240,19 @@ contains
         solver%dirtop%is_inward = [.true.]
 
         allocate (solver%dirside%is_inward(0))
+
+      class is (t_solver_mcdmda)
+        allocate (solver%difftop%is_inward(2))
+        solver%difftop%is_inward = [.false., .true.]
+
+        allocate (solver%diffside%is_inward(4))
+        solver%diffside%is_inward = [.false., .true.]
+
+        allocate (solver%dirtop%is_inward(1))
+        solver%dirtop%is_inward = [.true.]
+
+        allocate (solver%dirside%is_inward(1))
+        solver%dirside%is_inward = [.true.]
 
       class is (t_solver_rayli)
         allocate (solver%difftop%is_inward(2))
@@ -446,6 +460,8 @@ contains
         continue
       class is (t_solver_rayli)
         continue
+      class is (t_solver_mcdmda)
+        continue
       class default
         call init_memory(solver%C_dir, solver%C_diff, solver%incSolar, solver%b)
       end select
@@ -474,8 +490,9 @@ contains
       return
     class is (t_solver_rayli)
       return
+    class is (t_solver_mcdmda)
+      return
     end select
-    if (lmcrts) return
 
     if (.not. luse_eddington) then
       allocate (t_optprop_1_2 :: solver%OPP1d)
@@ -922,10 +939,10 @@ contains
           C%neighbors(5), &
           'while I am ', C%neighbors(4)
       end if
-      if (C%glob_xm .lt. i3) call CHKERR(1_mpiint, 'Global domain is too small in x-direction (Nx='//toStr(C%glob_xm)// &
-                                         '). However, need at least 3 because of horizontal ghost cells')
-      if (C%glob_ym .lt. i3) call CHKERR(1_mpiint, 'Global domain is too small in y-direction (Ny='//toStr(C%glob_ym)// &
-                                         '). However, need at least 3 because of horizontal ghost cells')
+      if (C%glob_xm .lt. i2) call CHKWARN(1_mpiint, 'Global domain is too small in x-direction (Nx='//toStr(C%glob_xm)// &
+                                          '). Iterative solvers may not converge. You may want to stick to 1D solvers anyway.')
+      if (C%glob_ym .lt. i2) call CHKWARN(1_mpiint, 'Global domain is too small in y-direction (Ny='//toStr(C%glob_ym)// &
+                                          '). Iterative solvers may not converge. You may want to stick to 1D solvers anyway.')
 
       if (C%xm .lt. i1) call CHKERR(1_mpiint, 'Local domain is too small in x-direction (Nx='//toStr(C%xm)// &
                                     '). However, need at least 1')
@@ -1781,6 +1798,8 @@ contains
         return
       class is (t_solver_rayli)
         return
+      class is (t_solver_mcdmda)
+        return
       end select
 
       ! allocate space for twostream coefficients
@@ -2108,10 +2127,10 @@ contains
                   'please call init first!')
     end if
 
-    lhave_kabs = present(global_kabs); call imp_bcast(solver%comm, lhave_kabs, 0_mpiint)
-    lhave_ksca = present(global_ksca); call imp_bcast(solver%comm, lhave_ksca, 0_mpiint)
-    lhave_g = present(global_g); call imp_bcast(solver%comm, lhave_g, 0_mpiint)
-    lhave_planck = present(global_planck); call imp_bcast(solver%comm, lhave_planck, 0_mpiint)
+    lhave_kabs = present(global_kabs); call imp_bcast(solver%comm, lhave_kabs, 0_mpiint, ierr); call CHKERR(ierr)
+    lhave_ksca = present(global_ksca); call imp_bcast(solver%comm, lhave_ksca, 0_mpiint, ierr); call CHKERR(ierr)
+    lhave_g = present(global_g); call imp_bcast(solver%comm, lhave_g, 0_mpiint, ierr); call CHKERR(ierr)
+    lhave_planck = present(global_planck); call imp_bcast(solver%comm, lhave_planck, 0_mpiint, ierr); call CHKERR(ierr)
 
     ! Make sure that our domain has at least 3 entries in each dimension.... otherwise violates boundary conditions
     if (solver%myid .eq. 0) then
@@ -2141,7 +2160,7 @@ contains
         'xstart/end', solver%C_one_atm%xs, solver%C_one_atm%xe, &
         'ystart/end', solver%C_one_atm%ys, solver%C_one_atm%ye
 
-      call imp_bcast(solver%comm, local_albedo, 0_mpiint)
+      call imp_bcast(solver%comm, local_albedo, 0_mpiint, ierr); call CHKERR(ierr)
 
       call DMGetGlobalVector(solver%C_one_atm%da, local_vec, ierr); call CHKERR(ierr)
 
@@ -2288,39 +2307,38 @@ contains
                                "-rayli_snapshot", lrayli_snapshot, ierr); call CHKERR(ierr)
 
       if (luse_rayli .or. lrayli_snapshot) then
-        call PetscLogEventBegin(solver%logs%solve_mcrts, ierr)
-        call pprts_rayli_wrapper(luse_rayli, lrayli_snapshot, solver, edirTOA, solution, opt_buildings)
-        call PetscLogEventEnd(solver%logs%solve_mcrts, ierr)
+        call PetscLogEventBegin(solver%logs%solve_mcrts, ierr); call CHKERR(ierr)
+        call pprts_rayli_wrapper(luse_rayli, lrayli_snapshot, solver, edirTOA, solution, ierr, opt_buildings); call CHKERR(ierr)
+        call PetscLogEventEnd(solver%logs%solve_mcrts, ierr); call CHKERR(ierr)
         if (luse_rayli) goto 99
       end if
 
       select type (solver)
       class is (t_solver_2str)
         if (solution%lthermal_rad .and. lschwarzschild) then
-          call PetscLogEventBegin(solver%logs%solve_schwarzschild, ierr)
+          call PetscLogEventBegin(solver%logs%solve_schwarzschild, ierr); call CHKERR(ierr)
           call schwarz(solver, solution, opt_buildings)
-          call PetscLogEventEnd(solver%logs%solve_schwarzschild, ierr)
+          call PetscLogEventEnd(solver%logs%solve_schwarzschild, ierr); call CHKERR(ierr)
         else
-          call PetscLogEventBegin(solver%logs%solve_twostream, ierr)
+          call PetscLogEventBegin(solver%logs%solve_twostream, ierr); call CHKERR(ierr)
           call twostream(solver, edirTOA, solution, opt_buildings)
-          call PetscLogEventEnd(solver%logs%solve_twostream, ierr)
+          call PetscLogEventEnd(solver%logs%solve_twostream, ierr); call CHKERR(ierr)
         end if
         goto 99
 
       class is (t_solver_disort)
-        call PetscLogEventBegin(solver%logs%solve_disort, ierr)
+        call PetscLogEventBegin(solver%logs%solve_disort, ierr); call CHKERR(ierr)
         call disort(solver, edirTOA, solution, opt_buildings)
-        call PetscLogEventEnd(solver%logs%solve_disort, ierr)
+        call PetscLogEventEnd(solver%logs%solve_disort, ierr); call CHKERR(ierr)
+        goto 99
+
+      class is (t_solver_mcdmda)
+        call PetscLogEventBegin(solver%logs%solve_mcrts, ierr); call CHKERR(ierr)
+        call solve_mcdmda(solver, edirTOA, solution, ierr, opt_buildings); call CHKERR(ierr)
+        call PetscLogEventEnd(solver%logs%solve_mcrts, ierr); call CHKERR(ierr)
         goto 99
 
       end select
-
-      if (lmcrts) then
-        call PetscLogEventBegin(solver%logs%solve_mcrts, ierr)
-        call solve_mcrts(solver, edirTOA, solution)
-        call PetscLogEventEnd(solver%logs%solve_mcrts, ierr)
-        goto 99
-      end if
 
       call pprts(solver, edirTOA, solution, opt_buildings)
 
@@ -5501,31 +5519,6 @@ contains
     end subroutine
 
   end subroutine
-
-  function get_solution_uid(solutions, opt_solution_uid) result(uid)
-    type(t_state_container), allocatable :: solutions(:)
-    integer(iintegers), optional, intent(in) :: opt_solution_uid
-    integer(iintegers) :: uid
-    logical :: lflg
-    integer(mpiint) :: ierr
-
-    uid = get_arg(0_iintegers, opt_solution_uid)
-    call get_petsc_opt('', '-pprts_override_solution_uid', uid, lflg, ierr); call CHKERR(ierr)
-    if (lflg .and. ldebug) then
-      print *, 'Override solutions uid, returning '//toStr(uid)//' instead of '//toStr(get_arg(0_iintegers, opt_solution_uid))
-    end if
-
-    if (.not. is_inrange(uid, lbound(solutions, 1, kind=iintegers), ubound(solutions, 1, kind=iintegers))) then
-      call CHKWARN(int(uid, mpiint), "uid ("//toStr(uid)//") is not in range of "// &
-        & "preallocated solutions container [ "//&
-        & toStr(lbound(solutions, 1))//", "//&
-        & toStr(ubound(solutions, 1))//" ]."//new_line('')// &
-        & "I will set it to 0 but this has some implications"//new_line('')// &
-        & "If you are not sure what you are doing, "// &
-        & "you can increase the size of the solutions container to fit all spectral bands")
-      uid = 0
-    end if
-  end function
 
   subroutine pprts_get_result(solver, redn, reup, rabso, redir, opt_solution_uid, opt_buildings)
     class(t_solver) :: solver

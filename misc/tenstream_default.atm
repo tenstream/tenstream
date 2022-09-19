@@ -1,5 +1,5 @@
-# AFGL atmospheric constituent profile. U.S. standard atmosphere 1976. ( AFGL-TR-86-0110)       
-#     z(km)      p(mb)        T(K)    air(cm-3)    o3(cm-3)     o2(cm-3)    h2o(cm-3)    co2(cm-3)     no2(cm-3)     n2o(cm-3)     ch4(cm-3)
+# AFGL atmospheric constituent profile. U.S. standard atmosphere 1976. ( AFGL-TR-86-0110)
+#         z(km)          p(mb)          T(K)    air(cm-3)      o3(cm-3)          o2(cm-3)      h2o(cm-3)      co2(cm-3)      no2(cm-3)      n2o(cm-3)      ch4(cm-3)
 
             30          11.97          226.5   3.827699e+17   2.509799e+12     8.0047e+16   1.809675e+12     1.2639e+14    2.35928e+09  5.3652074e+10  3.4971022e+11
           27.5          17.43            224   5.635873e+17   3.272892e+12    1.17876e+17     2.5803e+12     1.8612e+14    2.71284e+09  8.9830914e+10  5.5756456e+11

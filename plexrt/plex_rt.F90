@@ -35,12 +35,28 @@ module m_plex_rt
                                i0, i1, i2, i3, i4, i5, i6, i7, i8, default_str_len, &
                                zero, one, pi, EXP_MINVAL, EXP_MAXVAL, nan
 
-  use m_plex_grid, only: t_plexgrid, compute_face_geometry, &
-                         setup_cell1_dmplex, setup_edir_dmplex, setup_ediff_dmplex, setup_abso_dmplex, &
-                         orient_face_normals_along_sundir, compute_wedge_orientation, is_solar_src, get_inward_face_normal, &
-                         facevec2cellvec, icell_icon_2_plex, iface_top_icon_2_plex, get_consecutive_vertical_cell_idx, &
-                         get_top_bot_face_of_cell, destroy_plexgrid, determine_diff_incoming_outgoing_offsets, &
-                         TOAFACE, BOTFACE, SIDEFACE
+  use m_plex_grid, only: &
+    & BOTFACE, &
+    & compute_face_geometry, &
+    & compute_wedge_orientation, &
+    & destroy_plexgrid, &
+    & determine_diff_incoming_outgoing_offsets, &
+    & facevec2cellvec, &
+    & get_consecutive_vertical_cell_idx, &
+    & get_inward_face_normal, &
+    & get_top_bot_face_of_cell, &
+    & icell_icon_2_plex, &
+    & iface_top_icon_2_plex, &
+    & is_solar_src, &
+    & orient_face_normals_along_sundir, &
+    & plex_view_geometry, &
+    & setup_abso_dmplex, &
+    & setup_cell1_dmplex, &
+    & setup_ediff_dmplex, &
+    & setup_edir_dmplex, &
+    & SIDEFACE, &
+    & TOAFACE, &
+    & t_plexgrid
 
   use m_optprop, only: t_optprop_wedge, OPP_1D_RETCODE, OPP_TINYASPECT_RETCODE, &
                        t_optprop_wedge_5_8, &
@@ -49,15 +65,22 @@ module m_plex_rt
   use m_optprop_base, only: find_op_dim_by_name
   use m_optprop_parameters, only: ldebug_optprop
 
-  use m_pprts_base, only: t_state_container, prepare_solution, destroy_solution, &
-                          t_solver_log_events, setup_log_events
+  use m_pprts_base, only: &
+    & destroy_solution, &
+    & get_solution_uid, &
+    & prepare_solution, &
+    & setup_log_events, &
+    & t_solver_log_events, &
+    & t_state_container
 
   use m_plex_rt_base, only: &
     t_plex_solver, &
     t_plex_solver_2str, &
+    t_plex_solver_disort, &
     t_plex_solver_5_8, &
     t_plex_solver_rectilinear_5_8, &
     t_plex_solver_18_8, &
+    t_plex_solver_rayli, &
     t_dof
 
   use m_plexrt_external_solvers, only: plexrt_schwarz, plexrt_twostream, plexrt_disort, plexrt_NCA_wrapper
@@ -107,6 +130,19 @@ contains
 
       lplexrt_skip_loadLUT = .true.
 
+    class is (t_plex_solver_disort)
+      solver%dirtop%dof = 1
+      solver%dirtop%area_divider = 1
+      solver%dirside%dof = 1
+      solver%dirside%area_divider = 1
+
+      solver%difftop%dof = 2
+      solver%difftop%area_divider = 1
+      solver%diffside%dof = 0
+      solver%diffside%area_divider = 1
+
+      lplexrt_skip_loadLUT = .true.
+
     class is (t_plex_solver_5_8)
       allocate (t_optprop_wedge_5_8 :: solver%OPP)
       solver%dirtop%dof = 1
@@ -143,6 +179,19 @@ contains
       solver%diffside%dof = 4
       solver%diffside%area_divider = 1
 
+    class is (t_plex_solver_rayli)
+      solver%dirtop%dof = 1
+      solver%dirtop%area_divider = 1
+      solver%dirside%dof = 1
+      solver%dirside%area_divider = 1
+
+      solver%difftop%dof = 2
+      solver%difftop%area_divider = 1
+      solver%diffside%dof = 4
+      solver%diffside%area_divider = 1
+
+      lplexrt_skip_loadLUT = .true.
+
     class default
       call CHKERR(1_mpiint, 'unexpected type for solver')
     end select
@@ -152,7 +201,7 @@ contains
     allocate (solver%plex)
     solver%plex = plex
 
-    allocate (solver%solutions(-1:1000))
+    allocate (solver%solutions(-1000:1000))
 
     call setup_log_events(solver%logs, 'plexrt')
 
@@ -170,106 +219,8 @@ contains
                             solver%difftop%dof / 2, solver%diffside%dof / 2, i2, &
                             solver%plex%ediff_dm)
 
-    call plexrt_view_geometry(plex%comm)
+    call plex_view_geometry(solver%plex)
     if (ldebug .and. myid .eq. 0) print *, 'Init_plex_rt_solver ... done'
-  contains
-    subroutine plexrt_view_geometry(comm)
-      integer(mpiint) :: comm
-      logical :: lview, lflg
-      type(tPetscSection) :: geom_section
-      real(ireals), pointer :: xgeoms(:) ! pointer to coordinates vec
-      integer(iintegers) :: geom_offset
-      integer(iintegers), pointer :: xitoa(:), cell_support(:)
-      type(tIS) :: boundary_ids
-
-      real(ireals), allocatable, dimension(:, :) :: top_area, bot_area, dz, vol
-      logical, allocatable, dimension(:) :: l1d
-      real(ireals), dimension(3) :: mtop_area, mbot_area, mdz, mvol
-      integer(iintegers), allocatable :: cell_idx(:)
-      integer(iintegers) :: i, k, icell, iface
-
-      integer(mpiint) :: myid, ierr
-
-      if (.not. allocated(solver%plex%geom_dm)) &
-        call CHKERR(1_mpiint, 'run_plex_rt_solver::geom_dm has to be allocated first')
-
-      lview = .false.
-      call get_petsc_opt(PETSC_NULL_CHARACTER, "-plexrt_view_geometry", lview, lflg, ierr); call CHKERR(ierr)
-      if (.not. lview) return
-
-      associate (plex => solver%plex, geom_dm => solver%plex%geom_dm)
-
-        call DMGetStratumIS(plex%edir_dm, 'DomainBoundary', TOAFACE, boundary_ids, ierr); call CHKERR(ierr)
-        if (boundary_ids .eq. PETSC_NULL_IS) then ! dont have TOA boundary faces
-          allocate (&
-            & l1d(plex%Nlay), &
-            & dz(plex%Nlay, 0), &
-            & vol(plex%Nlay, 0), &
-            & top_area(plex%Nlay, 0), &
-            & bot_area(plex%Nlay, 0))
-        else
-          call DMGetSection(geom_dm, geom_section, ierr); call CHKERR(ierr)
-          call VecGetArrayReadF90(plex%geomVec, xgeoms, ierr); call CHKERR(ierr)
-          call ISGetIndicesF90(boundary_ids, xitoa, ierr); call CHKERR(ierr)
-
-          allocate ( &
-            l1d(plex%Nlay), &
-            dz(plex%Nlay, size(xitoa)), &
-            vol(plex%Nlay, size(xitoa)), &
-            top_area(plex%Nlay, size(xitoa)), &
-            bot_area(plex%Nlay, size(xitoa)))
-
-          do i = 1, size(xitoa)
-            iface = xitoa(i)
-
-            call DMPlexGetSupport(geom_dm, iface, cell_support, ierr); call CHKERR(ierr) ! support of face is cell
-            icell = cell_support(1)
-            call DMPlexRestoreSupport(geom_dm, iface, cell_support, ierr); call CHKERR(ierr) ! support of face is cell
-            call get_consecutive_vertical_cell_idx(plex, icell, cell_idx)
-            do k = 0, size(cell_idx) - 1
-              icell = cell_idx(i1 + k)
-
-              l1d(i1 + k) = plex%l1d(icell)
-
-              call PetscSectionGetFieldOffset(geom_section, icell, i3, geom_offset, ierr); call CHKERR(ierr)
-              dz(i1 + k, i) = xgeoms(i1 + geom_offset)
-
-              call PetscSectionGetFieldOffset(geom_section, icell, i2, geom_offset, ierr); call CHKERR(ierr)
-              vol(i1 + k, i) = xgeoms(i1 + geom_offset)
-
-              call PetscSectionGetFieldOffset(geom_section, iface + k, i2, geom_offset, ierr); call CHKERR(ierr)
-              top_area(i1 + k, i) = xgeoms(i1 + geom_offset)
-              call PetscSectionGetFieldOffset(geom_section, iface + k + 1, i2, geom_offset, ierr); call CHKERR(ierr)
-              bot_area(i1 + k, i) = xgeoms(i1 + geom_offset)
-            end do
-          end do
-
-          call ISRestoreIndicesF90(boundary_ids, xitoa, ierr); call CHKERR(ierr)
-          call VecRestoreArrayReadF90(plex%geomVec, xgeoms, ierr); call CHKERR(ierr)
-        end if
-      end associate
-
-      call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
-
-      if (myid .eq. 0) print *, '*        k 1D '// &
-        '                '//cstr(' dz (min/mean/max)', 'blue')//'                   '// &
-        '                '//cstr(' volume           ', 'red')//'                   '// &
-        '                '//cstr(' cell_top_area    ', 'blue')//'                   '// &
-        '                '//cstr(' cell_bot_area    ', 'red')
-
-      print *, myid, 'size l1d', allocated(l1d), shape(l1d)
-      do k = 1, size(dz, dim=1)
-        call imp_min_mean_max(comm, dz(k, :), mdz)
-        call imp_min_mean_max(comm, vol(k, :), mvol)
-        call imp_min_mean_max(comm, top_area(k, :), mtop_area)
-        call imp_min_mean_max(comm, bot_area(k, :), mbot_area)
-
-        if (myid .eq. 0) then
-          print *, k, cstr(toStr(l1d(k)), 'red'), cstr(toStr(mdz), 'blue'), cstr(toStr(mvol), 'red'), &
-            cstr(toStr(mtop_area), 'blue'), cstr(toStr(mbot_area), 'red')
-        end if
-      end do
-    end subroutine
   end subroutine
 
   subroutine destroy_plexrt_solver(solver, lfinalizepetsc)
@@ -580,7 +531,7 @@ contains
     integer(mpiint) :: myid, ierr
 
     real(ireals), save :: last_sundir(3) = [zero, zero, zero]
-    logical :: lrayli_snap, luse_rayli, lvacuum_domain_boundary, luse_disort, lflg
+    logical :: lrayli_snap, luse_rayli, lvacuum_domain_boundary, lflg
 
     call check_input_arguments()
 
@@ -593,7 +544,7 @@ contains
       call setup_IS_diff_in_out_dof(solver%plex, solver%plex%ediff_dm, solver%IS_diff_in_out_dof)
 
     ! Prepare the space for the solution
-    suid = get_arg(i0, opt_solution_uid)
+    suid = get_solution_uid(solver%solutions, opt_solution_uid)
 
     if (.not. solver%solutions(suid)%lset) then
       call prepare_solution(solver%plex%edir_dm, solver%plex%ediff_dm, solver%plex%abso_dm, &
@@ -675,12 +626,8 @@ contains
 
         if (ldebug) print *, '1D calculation done', suid, ':', solution%lsolar_rad, lschwarzschild
         goto 99
-      end select
 
-      ! DISORT interface
-      luse_disort = .false.
-      call get_petsc_opt(PETSC_NULL_CHARACTER, "-plexrt_use_disort", luse_disort, lflg, ierr); call CHKERR(ierr)
-      if (luse_disort) then
+      class is (t_plex_solver_disort)
         call PetscLogEventBegin(solver%logs%solve_twostream, ierr)
         call plexrt_disort(solver, solver%plex, solver%kabs, solver%ksca, solver%g, &
                            solver%albedo, sundir, solution, plck=solver%plck)
@@ -688,11 +635,16 @@ contains
 
         if (ldebug) print *, '1D disort calculation done', suid
         goto 99
-      end if
+
+      end select
 
       ! RayLi Raytracer interface
       luse_rayli = .false.
-      call get_petsc_opt(PETSC_NULL_CHARACTER, "-plexrt_use_rayli", luse_rayli, lflg, ierr); call CHKERR(ierr)
+
+      select type (solver)
+      class is (t_plex_solver_rayli)
+        luse_rayli = .true.
+      end select
 
       lrayli_snap = .false.
       call PetscOptionsHasName(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
@@ -4238,7 +4190,8 @@ contains
 
     call PetscLogEventBegin(solver%logs%get_result, ierr)
 
-    uid = get_arg(0_iintegers, opt_solution_uid)
+    uid = get_solution_uid(solver%solutions, opt_solution_uid)
+
     if (.not. solver%solutions(uid)%lset) &
       call CHKERR(1_mpiint, 'You tried to retrieve results from a solution uid which has not yet been calculated')
 

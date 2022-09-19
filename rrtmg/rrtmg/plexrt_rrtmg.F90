@@ -39,8 +39,7 @@ module m_plexrt_rrtmg
 
   use mpi, only: mpi_comm_rank
   use m_tenstr_parkind_sw, only: im => kind_im, rb => kind_rb
-  use m_data_parameters, only: init_mpi_data_parameters, &
-                               iintegers, ireals, zero, one, i0, i1, i2, i9, &
+  use m_data_parameters, only: iintegers, ireals, zero, one, i0, i1, i2, i9, &
                                mpiint, pi, default_str_len
   use m_adaptive_spectral_integration, only: need_new_solution
   use m_helper_functions, only: &
@@ -496,6 +495,11 @@ contains
               Blev(k, i) = plkint(real(wavenum1(ngb(ib))), real(wavenum2(ngb(ib))), real(atm%tlev(k, i)))
             end do
           end do
+          if (allocated(atm%tskin)) then
+            do i = i1, Ncol
+              Blev(i1, i) = plkint(real(wavenum1(ngb(ib))), real(wavenum2(ngb(ib))), real(atm%tskin(i)))
+            end do
+          end if
           current_ibnd = ngb(ib)
         end if
 

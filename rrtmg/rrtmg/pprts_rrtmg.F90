@@ -57,23 +57,17 @@ module m_pprts_rrtmg
   use m_adaptive_spectral_integration, only: need_new_solution
 
   use m_helper_functions, only: &
-    & approx, &
     & CHKERR, &
     & cross_3d, &
     & deg2rad, &
     & get_arg, &
     & get_petsc_opt, &
-    & gradient, &
     & imp_allreduce_max, &
     & imp_allreduce_mean, &
     & imp_allreduce_min, &
-    & imp_bcast, &
     & ind_1d_to_nd, &
-    & meanvec, &
     & mpi_logical_all_same, &
-    & read_ascii_file_2d, &
     & reverse, &
-    & spherical_2_cartesian, &
     & toStr
 
   use m_search, only: find_real_location

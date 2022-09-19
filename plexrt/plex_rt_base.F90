@@ -13,9 +13,11 @@ module m_plex_rt_base
   private
   public :: t_plex_solver, &
             t_plex_solver_2str, &
+            t_plex_solver_disort, &
             t_plex_solver_5_8, &
             t_plex_solver_rectilinear_5_8, &
             t_plex_solver_18_8, &
+            t_plex_solver_rayli, &
             t_dof, &
             allocate_plexrt_solver_from_commandline
 
@@ -58,11 +60,15 @@ module m_plex_rt_base
 
   type, extends(t_plex_solver) :: t_plex_solver_2str
   end type
+  type, extends(t_plex_solver) :: t_plex_solver_disort
+  end type
   type, extends(t_plex_solver) :: t_plex_solver_5_8
   end type
   type, extends(t_plex_solver) :: t_plex_solver_rectilinear_5_8
   end type
   type, extends(t_plex_solver) :: t_plex_solver_18_8
+  end type
+  type, extends(t_plex_solver) :: t_plex_solver_rayli
   end type
 
 contains
@@ -89,6 +95,9 @@ contains
     case ('2str')
       allocate (t_plex_solver_2str :: plexrt_solver)
 
+    case ('disort')
+      allocate (t_plex_solver_disort :: plexrt_solver)
+
     case ('5_8')
       allocate (t_plex_solver_5_8 :: plexrt_solver)
 
@@ -98,12 +107,17 @@ contains
     case ('18_8')
       allocate (t_plex_solver_18_8 :: plexrt_solver)
 
+    case ('rayli')
+      allocate (t_plex_solver_rayli :: plexrt_solver)
+
     case default
       print *, 'error, have to provide solver type as argument, e.g. call with'
       print *, '-solver 2str'
+      print *, '-solver disort'
       print *, '-solver 5_8'
       print *, '-solver rectilinear_5_8'
       print *, '-solver 18_8'
+      print *, '-solver rayli'
       call CHKERR(1_mpiint, 'have to provide solver type')
     end select
 

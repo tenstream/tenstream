@@ -117,7 +117,7 @@ module m_boxmc
             t_boxmc_wedge_5_5, t_boxmc_wedge_5_8, &
             t_boxmc_wedge_18_8, &
             scatter_photon, print_photon, roulette, R, &
-            tau, distance, update_photon_loc, &
+            tau, distance, update_photon_loc, absorb_photon, &
             imp_t_photon
 
   real(ireal_dp), parameter :: zero = 0, one = 1, nil = -9999
@@ -796,9 +796,11 @@ contains
 
     if (intersec_dist .le. dist) then
       p%alive = .false.
-      call update_photon_loc(p, intersec_dist, kabs, ksca)
+      call update_photon_loc(p, intersec_dist, ksca)
+      call absorb_photon(p, intersec_dist, kabs)
     else
-      call update_photon_loc(p, dist, kabs, ksca)
+      call update_photon_loc(p, dist, ksca)
+      call absorb_photon(p, dist, kabs)
     end if
 
     if (p%scattercnt .gt. 1e9_iintegers) then
@@ -807,7 +809,8 @@ contains
         ' that this is a dirty hack i.e. absorption will be wrong!'
       call print_photon(p)
       p%alive = .false.
-      call update_photon_loc(p, intersec_dist, kabs, ksca)
+      call update_photon_loc(p, intersec_dist, ksca)
+      call absorb_photon(p, intersec_dist, kabs)
       call print_photon(p)
     end if
   end subroutine move_photon
@@ -832,10 +835,9 @@ contains
   end function
 
   !> @brief update physical location of photon and consider absorption
-  subroutine update_photon_loc(p, dist, kabs, ksca)
+  subroutine update_photon_loc(p, dist, ksca)
     type(t_photon), intent(inout) :: p
-    real(ireal_dp), intent(in) :: dist, kabs, ksca
-    call absorb_photon(p, dist, kabs)
+    real(ireal_dp), intent(in) :: dist, ksca
     p%loc = p%loc + (dist * p%dir)
     p%tau_travel = p%tau_travel - dist * ksca
     if (any(isnan(p%loc))) then

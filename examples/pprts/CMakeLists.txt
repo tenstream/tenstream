@@ -9,7 +9,7 @@ file(GLOB src_files "${CMAKE_CURRENT_SOURCE_DIR}/*.[fF]90")
 list(REMOVE_ITEM src_files ${exe_files})
 
 add_library(pprts_examples ${src_files})
-target_link_libraries(pprts_examples ${TENSTR_LIBS})
+target_link_libraries(pprts_examples ${TENSTR_SINGLE_LIB} ${EXTLIB})
 
 foreach(_file ${exe_files})
   get_filename_component (_example_NAME ${_file} NAME   )
@@ -17,5 +17,5 @@ foreach(_file ${exe_files})
   get_filename_component (_example_EXT  ${_file} EXT    )
 
   add_executable("${_example_WE}" "${_example_NAME}")
-  target_link_libraries("${_example_WE}" pprts_examples ${TENSTR_LIBS})
+  target_link_libraries("${_example_WE}" pprts_examples)
 endforeach()

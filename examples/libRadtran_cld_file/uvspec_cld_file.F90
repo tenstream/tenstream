@@ -112,11 +112,11 @@ contains
       allocate (reliq(size(tmp, dim=1), ie - is + 1, je - js + 1), source=tmp(:, is:ie, js:je))
       deallocate (tmp)
     end if
-    call imp_bcast(comm, dx, 0_mpiint)
-    call imp_bcast(comm, dy, 0_mpiint)
-    call imp_bcast(comm, lwc, 0_mpiint)
-    call imp_bcast(comm, reliq, 0_mpiint)
-    call imp_bcast(comm, hhl, 0_mpiint)
+    call imp_bcast(comm, dx, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, dy, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, lwc, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, reliq, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, hhl, 0_mpiint, ierr); call CHKERR(ierr)
 
     if (size(lwc, dim=2) .eq. 1) call resize_arr(3_iintegers, lwc, dim=2, lrepeat=.true.)
     if (size(reliq, dim=2) .eq. 1) call resize_arr(3_iintegers, reliq, dim=2, lrepeat=.true.)
@@ -436,12 +436,12 @@ contains
       print *, 'shape reliq', shape(glob_reliq)
     end if
 
-    call imp_bcast(comm, Nx_global, 0_mpiint)
-    call imp_bcast(comm, Ny_global, 0_mpiint)
-    call imp_bcast(comm, Nz, 0_mpiint)
-    call imp_bcast(comm, dx, 0_mpiint)
-    call imp_bcast(comm, dy, 0_mpiint)
-    call imp_bcast(comm, hhl, 0_mpiint)
+    call imp_bcast(comm, Nx_global, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, Ny_global, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, Nz, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, dx, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, dy, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, hhl, 0_mpiint, ierr); call CHKERR(ierr)
 
     call create_2d_regular_plex(comm, Nx_global + 1, Ny_global + 1, dm2d, dm2d_dist, &
                                 opt_migration_sf=migration_sf, opt_dx=dx)

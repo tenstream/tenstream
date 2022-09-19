@@ -8,7 +8,7 @@ program main
     & init_mpi_data_parameters, finalize_mpi
   use m_buildings, only: t_pprts_buildings
   use m_examples_pprts_specint_buildings, only: ex_pprts_specint_buildings
-  use m_helper_functions, only: CHKERR, toStr, get_petsc_opt
+  use m_helper_functions, only: CHKERR, toStr, get_petsc_opt, meanval
   use m_netcdfio, only: ncwrite
   use m_tenstream_options, only: read_commandline_options
 
@@ -20,6 +20,7 @@ program main
   real(ireals) :: dx, dy
   real(ireals) :: phi0, theta0
   real(ireals) :: Ag_solar, Ag_thermal
+  real(ireals) :: skin_temp
   real(ireals), allocatable, dimension(:, :, :) :: gedir, gedn, geup, gabso ! global arrays on rank 0
   type(t_pprts_buildings), allocatable :: buildings_solar, buildings_thermal
 
@@ -27,6 +28,7 @@ program main
   character(len=default_str_len) :: groups(2), specint
   logical :: lflg, lverbose, lrayli_opts, lsolar, lthermal, lfile_exists, lhave_outfile, lbuildings
   integer(mpiint) :: cid, comm, myid, numnodes, ierr
+  integer(iintegers) :: k
 
   call mpi_init(ierr)
   comm = mpi_comm_world
@@ -89,6 +91,9 @@ program main
   Ag_thermal = 0.05_ireals
   call get_petsc_opt(PETSC_NULL_CHARACTER, "-Ag_thermal", Ag_thermal, lflg, ierr); call CHKERR(ierr)
 
+  skin_temp = 300_ireals
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-tskin", skin_temp, lflg, ierr); call CHKERR(ierr)
+
   lverbose = .true.
   call get_petsc_opt(PETSC_NULL_CHARACTER, '-verbose', lverbose, lflg, ierr); call CHKERR(ierr)
 
@@ -125,6 +130,7 @@ program main
       & atm_filename,                       &
       & phi0, theta0,                       &
       & Ag_solar, Ag_thermal,               &
+      & skin_temp,                          &
       & gedir, gedn, geup, gabso,           &
       & buildings_solar, buildings_thermal, &
       & icollapse=icollapse)
@@ -139,6 +145,7 @@ program main
       & atm_filename,                       &
       & phi0, theta0,                       &
       & Ag_solar, Ag_thermal,               &
+      & skin_temp,                          &
       & gedir, gedn, geup, gabso,           &
       & icollapse=icollapse)
   end if
@@ -173,6 +180,25 @@ program main
         call mpi_barrier(comm, ierr); call CHKERR(ierr)
       end do
       call mpi_barrier(comm, ierr); call CHKERR(ierr)
+    end if
+  end if
+
+  if (lverbose .and. myid .eq. 0) then
+    print *, ''
+    if (lsolar) then
+      print *, '          k   edir             edn              eup             abso'
+      do k = lbound(gabso, 1), ubound(gabso, 1)
+        print *, k, meanval(gedir(k, :, :)), meanval(gedn(k, :, :)), meanval(geup(k, :, :)), meanval(gabso(k, :, :))
+      end do
+      k = ubound(gedn, 1)
+      print *, k, meanval(gedn(k, :, :)), meanval(geup(k, :, :))
+    else
+      print *, '          k   edn              eup             abso'
+      do k = lbound(gabso, 1), ubound(gabso, 1)
+        print *, k, meanval(gedn(k, :, :)), meanval(geup(k, :, :)), meanval(gabso(k, :, :))
+      end do
+      k = ubound(gedn, 1)
+      print *, k, meanval(gedn(k, :, :)), meanval(geup(k, :, :))
     end if
   end if
 

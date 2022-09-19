@@ -49,6 +49,9 @@ module m_f2c_pprts
     & t_coord, &
     & t_solver, &
     & t_solver_2str, &
+    & t_solver_disort, &
+    & t_solver_rayli, &
+    & t_solver_mcdmda, &
     & t_solver_1_2, &
     & t_solver_3_10, &
     & t_solver_3_16, &
@@ -190,17 +193,17 @@ contains
       ohhl = hhl
     end if
 
-    call imp_bcast(comm, osolver_id, 0_mpiint)
-    call imp_bcast(comm, oNx, 0_mpiint)
-    call imp_bcast(comm, oNy, 0_mpiint)
-    call imp_bcast(comm, oNz, 0_mpiint)
-    call imp_bcast(comm, odx, 0_mpiint)
-    call imp_bcast(comm, ody, 0_mpiint)
-    call imp_bcast(comm, ophi0, 0_mpiint)
-    call imp_bcast(comm, otheta0, 0_mpiint)
-    call imp_bcast(comm, ocollapseindex, 0_mpiint)
+    call imp_bcast(comm, osolver_id, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, oNx, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, oNy, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, oNz, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, odx, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, ody, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, ophi0, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, otheta0, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, ocollapseindex, 0_mpiint, ierr); call CHKERR(ierr)
 
-    call imp_bcast(comm, ohhl, 0_mpiint)
+    call imp_bcast(comm, ohhl, 0_mpiint, ierr); call CHKERR(ierr)
 
     ! and overwrite input values to propagate values back to caller...
     solver_id = int(osolver_id, kind=c_int)
@@ -228,6 +231,15 @@ contains
     select case (solver_id)
     case (SOLVER_ID_PPRTS_2STR)
       allocate (t_solver_2str :: pprts_solver); ierr = 0
+      call init_pprts(comm, oNz, oNx, oNy, odx, ody, osundir, pprts_solver, dz1d=odz)
+    case (SOLVER_ID_PPRTS_DISORT)
+      allocate (t_solver_disort :: pprts_solver); ierr = 0
+      call init_pprts(comm, oNz, oNx, oNy, odx, ody, osundir, pprts_solver, dz1d=odz)
+    case (SOLVER_ID_PPRTS_RAYLI)
+      allocate (t_solver_rayli :: pprts_solver); ierr = 0
+      call init_pprts(comm, oNz, oNx, oNy, odx, ody, osundir, pprts_solver, dz1d=odz)
+    case (SOLVER_ID_PPRTS_MCDMDA)
+      allocate (t_solver_mcdmda :: pprts_solver); ierr = 0
       call init_pprts(comm, oNz, oNx, oNy, odx, ody, osundir, pprts_solver, dz1d=odz)
     case (SOLVER_ID_PPRTS_1_2)
       allocate (t_solver_1_2 :: pprts_solver); ierr = 0
@@ -310,7 +322,7 @@ contains
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
     if (myid .eq. 0) oedirTOA = real(edirTOA, ireals)
-    call imp_bcast(comm, oedirTOA, 0_mpiint)
+    call imp_bcast(comm, oedirTOA, 0_mpiint, ierr); call CHKERR(ierr)
 
     if (allocated(pprts_solver)) then
       lsolar = oedirTOA .gt. 0
@@ -504,7 +516,7 @@ contains
     call PetscObjectGetComm(plex_solver%plex%dm, comm, ierr); call CHKERR(ierr)
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
     if (myid .eq. 0) oalbedo = real(albedo, ireals)
-    call imp_bcast(comm, oalbedo, 0_mpiint); call CHKERR(ierr)
+    call imp_bcast(comm, oalbedo, 0_mpiint, ierr); call CHKERR(ierr)
 
     if (.not. allocated(plex_solver%albedo)) then
       allocate (plex_solver%albedo)
@@ -519,7 +531,7 @@ contains
 
     if (myid .eq. 0) lthermal = any(planck .gt. zero)
     if (ldebug .and. myid .eq. 0) print *, 'plexrt_f2c_set_global_optprop lthermal', lthermal
-    call imp_bcast(comm, lthermal, 0_mpiint)
+    call imp_bcast(comm, lthermal, 0_mpiint, ierr); call CHKERR(ierr)
 
     if (lthermal) then
       if (myid .eq. 0) then

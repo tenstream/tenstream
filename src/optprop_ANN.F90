@@ -195,13 +195,13 @@ contains
     ierr = 0
   contains
     subroutine scatter_net()
-      call imp_bcast(comm, ann%lphysical_input, 0_mpiint)
-      call imp_bcast(comm, Nlayer, 0_mpiint)
+      call imp_bcast(comm, ann%lphysical_input, 0_mpiint, ierr); call CHKERR(ierr)
+      call imp_bcast(comm, Nlayer, 0_mpiint, ierr); call CHKERR(ierr)
       if (.not. allocated(ann%fann%layers)) allocate (ann%fann%layers(Nlayer))
       do i = 1, size(ann%fann%layers)
-        call imp_bcast(comm, ann%fann%layers(i)%wgt, 0_mpiint)
-        call imp_bcast(comm, ann%fann%layers(i)%bias, 0_mpiint)
-        call imp_bcast(comm, ann%fann%layers(i)%activation_id, 0_mpiint)
+        call imp_bcast(comm, ann%fann%layers(i)%wgt, 0_mpiint, ierr); call CHKERR(ierr)
+        call imp_bcast(comm, ann%fann%layers(i)%bias, 0_mpiint, ierr); call CHKERR(ierr)
+        call imp_bcast(comm, ann%fann%layers(i)%activation_id, 0_mpiint, ierr); call CHKERR(ierr)
       end do
     end subroutine
   end subroutine

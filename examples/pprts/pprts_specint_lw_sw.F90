@@ -18,7 +18,10 @@ module m_example_pprts_specint_lw_sw
   ! main entry point for solver, and desctructor
   use m_specint_pprts, only: specint_pprts, specint_pprts_destroy
 
-  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, destroy_tenstr_atm
+  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, destroy_tenstr_atm, abso2hr
+
+  use m_petsc_helpers, only: getvecpointer, restorevecpointer
+  use m_netcdfio, only: ncwrite
 
   implicit none
 
@@ -27,7 +30,7 @@ contains
       & phi0, theta0, albedo_th, albedo_sol, &
       & lthermal, lsolar, atm_filename, &
       & gedir, gedn, geup, gabso, &
-      & vlwc, viwc)
+      & vlwc, viwc, outfile)
     character(len=*), intent(in) :: specint           ! name of module to use for spectral integration
     integer(mpiint), intent(in) :: comm
     integer(iintegers), intent(in) :: nxp, nyp, nzp   ! local domain size for each rank
@@ -38,6 +41,7 @@ contains
     character(len=*), intent(in) :: atm_filename ! ='afglus_100m.dat'
     real(ireals), allocatable, dimension(:, :, :), intent(out) :: gedir, gedn, geup, gabso
     real(ireals), intent(in), optional :: vlwc, viwc            ! liquid/ice water content to be set in a layer
+    character(len=*), intent(in), optional :: outfile
 
     ! Fluxes and absorption in [W/m2] and [W/m3] respectively.
     ! Dimensions will probably be bigger than the dynamics grid, i.e. will have
@@ -46,7 +50,7 @@ contains
     !   edn(ubound(edn,1)-nlay_dynamics : ubound(edn,1) )
     ! or:
     !   abso(ubound(abso,1)-nlay_dynamics+1 : ubound(abso,1) )
-    real(ireals), allocatable, dimension(:, :, :) :: edir, edn, eup, abso ! [nlev_merged(-1), nxp, nyp]
+    real(ireals), allocatable, dimension(:, :, :) :: edir, edn, eup, abso, hr ! [nlev_merged(-1), nxp, nyp]
 
     ! MPI variables and domain decomposition sizes
     integer(mpiint) :: numnodes, myid, N_ranks_x, N_ranks_y, ierr
@@ -57,7 +61,7 @@ contains
     ! Layer values for the atmospheric constituents -- those are actually all
     ! optional and if not provided, will be taken from the background profile file (atm_filename)
     ! see interface of `tenstream_rrtmg()` for units
-    ! real(ireals), dimension(nzp,nxp,nyp) :: h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr
+    real(ireals), dimension(nzp, nxp, nyp), target :: h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr
 
     ! Liquid water cloud content [g/kg] and effective radius in micron
     real(ireals), dimension(nzp, nxp, nyp), target :: lwc, reliq, iwc, reice
@@ -67,13 +71,16 @@ contains
     logical :: lflg
 
     !------------ Local vars ------------------
-    integer(iintegers) :: k, nlev, icld, iter
+    integer(iintegers) :: k, nlev, icld, iter, icollapse
     integer(iintegers), allocatable :: nxproc(:), nyproc(:)
+    character(len=default_str_len) :: groups(2), dimnames(3)
+    real(ireals), pointer :: z(:, :, :, :) => null(), z1d(:) => null() ! dim Nz+1
 
     ! reshape pointer to convert i,j vecs to column vecs
     real(ireals), pointer, dimension(:, :) :: pplev, ptlev, plwc, preliq, piwc, preice
+    real(ireals), pointer, dimension(:, :) :: ph2ovmr, po3vmr, pco2vmr, pch4vmr, pn2ovmr, po2vmr
 
-    real(ireals) :: sundir(3)
+    real(ireals) :: vmr, sundir(3)
 
     logical, parameter :: ldebug = .true.
 
@@ -100,19 +107,36 @@ contains
     ! Start with a dynamics grid ranging from 1000 hPa up to 500 hPa and a
     ! Temperature difference of 50K
     do k = 1, nzp + 1
-      plev(k, :, :) = linspace(k, [1e3_ireals, 500._ireals], nzp + 1)
+      plev(k, :, :) = linspace(k, [1e3_ireals, 100._ireals], nzp + 1)
       tlev(k, :, :) = linspace(k, [288._ireals, 250._ireals], nzp + 1)
     end do
 
     ! Not much going on in the dynamics grid, we actually don't supply trace
     ! gases to the TenStream solver... this will then be interpolated from the
     ! background profile (read from `atm_filename`)
-    ! h2ovmr = zero
-    ! o3vmr  = zero
-    ! co2vmr = zero
-    ! ch4vmr = zero
-    ! n2ovmr = zero
-    ! o2vmr  = zero
+    h2ovmr = .007
+    call get_petsc_opt(PETSC_NULL_CHARACTER, "-h2o", vmr, lflg, ierr); call CHKERR(ierr)
+    if (lflg) h2ovmr = vmr
+
+    o3vmr = 3e-8
+    call get_petsc_opt(PETSC_NULL_CHARACTER, "-o3", vmr, lflg, ierr); call CHKERR(ierr)
+    if (lflg) o3vmr = vmr
+
+    co2vmr = 400e-6
+    call get_petsc_opt(PETSC_NULL_CHARACTER, "-co2", vmr, lflg, ierr); call CHKERR(ierr)
+    if (lflg) co2vmr = vmr
+
+    ch4vmr = 1.7e-6
+    call get_petsc_opt(PETSC_NULL_CHARACTER, "-ch4", vmr, lflg, ierr); call CHKERR(ierr)
+    if (lflg) ch4vmr = vmr
+
+    n2ovmr = 3.2e-7
+    call get_petsc_opt(PETSC_NULL_CHARACTER, "-n2o", vmr, lflg, ierr); call CHKERR(ierr)
+    if (lflg) n2ovmr = vmr
+
+    o2vmr = .2
+    call get_petsc_opt(PETSC_NULL_CHARACTER, "-o2", vmr, lflg, ierr); call CHKERR(ierr)
+    if (lflg) o2vmr = vmr
 
     ! define a cloud, with liquid water content and effective radius 10 micron
     lwc = 0
@@ -143,15 +167,30 @@ contains
     preliq(1:size(reliq, 1), 1:size(reliq, 2) * size(reliq, 3)) => reliq
     piwc(1:size(iwc, 1), 1:size(iwc, 2) * size(iwc, 3)) => iwc
     preice(1:size(reice, 1), 1:size(reice, 2) * size(reice, 3)) => reice
+    pco2vmr(1:size(co2vmr, 1), 1:size(co2vmr, 2) * size(co2vmr, 3)) => co2vmr
+    ph2ovmr(1:size(h2ovmr, 1), 1:size(h2ovmr, 2) * size(h2ovmr, 3)) => h2ovmr
+    po3vmr(1:size(o3vmr, 1), 1:size(o3vmr, 2) * size(o3vmr, 3)) => o3vmr
+    pch4vmr(1:size(ch4vmr, 1), 1:size(ch4vmr, 2) * size(ch4vmr, 3)) => ch4vmr
+    pn2ovmr(1:size(n2ovmr, 1), 1:size(n2ovmr, 2) * size(n2ovmr, 3)) => n2ovmr
+    po2vmr(1:size(o2vmr, 1), 1:size(o2vmr, 2) * size(o2vmr, 3)) => o2vmr
 
     call setup_tenstr_atm(comm, .false., atm_filename, &
                           pplev, ptlev, atm, &
                           d_lwc=plwc, d_reliq=preliq, &
-                          d_iwc=piwc, d_reice=preice)
+                          d_iwc=piwc, d_reice=preice, &
+                          d_co2vmr=pco2vmr, &
+                          d_h2ovmr=ph2ovmr, &
+                          d_o3vmr=po3vmr, &
+                          d_ch4vmr=pch4vmr, &
+                          d_n2ovmr=pn2ovmr, &
+                          d_o2vmr=po2vmr)
 
     sundir = spherical_2_cartesian(phi0, theta0)
 
     call allocate_pprts_solver_from_commandline(pprts_solver, '3_10', ierr); call CHKERR(ierr)
+
+    icollapse = 1
+    call get_petsc_opt(PETSC_NULL_CHARACTER, "-icollapse", icollapse, lflg, ierr)
 
     iter = 1
     call get_petsc_opt(PETSC_NULL_CHARACTER, "-iter", iter, lflg, ierr)
@@ -163,8 +202,12 @@ contains
                          lthermal, lsolar, &
                          edir, edn, eup, abso, &
                          nxproc=nxproc, nyproc=nyproc, &
+                         icollapse=icollapse, &
                          opt_time=real(k, ireals))
     end do
+
+    allocate (hr(size(abso, 1), size(abso, 2), size(abso, 3)))
+    call abso2hr(atm, abso, hr, ierr); call CHKERR(ierr)
 
     nlev = ubound(edn, 1)
     if (myid .eq. 0) then
@@ -172,9 +215,10 @@ contains
         do k = 1, nlev
           if (allocated(edir)) then
             print *, k, 'edir', meanval(edir(k, :, :)), 'edn', meanval(edn(k, :, :)), 'eup', meanval(eup(k, :, :)), &
-              & 'abso', meanval(abso(min(nlev - 1, k), :, :))
+              & 'abso', meanval(abso(min(nlev - 1, k), :, :)), 'hr', meanval(hr(min(nlev - 1, k), :, :)) * 3600 * 24
           else
-            print *, k, 'edn', meanval(edn(k, :, :)), 'eup', meanval(eup(k, :, :)), meanval(abso(min(nlev - 1, k), :, :))
+            print *, k, 'edn', meanval(edn(k, :, :)), 'eup', meanval(eup(k, :, :)), &
+              & 'abso', meanval(abso(min(nlev - 1, k), :, :)), 'hr', meanval(hr(min(nlev - 1, k), :, :)) * 3600 * 24
           end if
         end do
       end if
@@ -197,6 +241,38 @@ contains
     call gather_all_toZero(pprts_solver%C_one1, edn, gedn)
     call gather_all_toZero(pprts_solver%C_one1, eup, geup)
     call gather_all_toZero(pprts_solver%C_one, abso, gabso)
+
+    if (myid .eq. 0_mpiint .and. present(outfile)) then
+      dimnames(1) = 'zlev'
+      dimnames(2) = 'nx'
+      dimnames(3) = 'ny'
+      groups(1) = trim(outfile)
+      if (lsolar) then
+        groups(2) = 'edir'; call ncwrite(groups, gedir, ierr, dimnames=dimnames); call CHKERR(ierr)
+      end if
+      groups(2) = 'edn'; call ncwrite(groups, gedn, ierr, dimnames=dimnames); call CHKERR(ierr)
+      groups(2) = 'eup'; call ncwrite(groups, geup, ierr, dimnames=dimnames); call CHKERR(ierr)
+      dimnames(1) = 'zlay'
+      groups(2) = 'abso'; call ncwrite(groups, gabso, ierr, dimnames=dimnames); call CHKERR(ierr)
+
+      print *, 'dumping z coords'
+      associate (Ca1 => pprts_solver%C_one_atm1_box)
+        call getVecPointer(Ca1%da, pprts_solver%atm%hhl, z1d, z)
+        dimnames(1) = 'nlev'
+        groups(2) = 'zlev'
+        call ncwrite(groups, z(0, Ca1%zs:Ca1%ze, Ca1%xs, Ca1%ys), ierr, dimnames=dimnames(1:1))
+        call CHKERR(ierr)
+        dimnames(1) = 'nlay'
+        groups(2) = 'zlay'
+        call ncwrite(groups, &
+                     & (z(0, Ca1%zs:Ca1%ze - 1, Ca1%xs, Ca1%ys) &
+                     & + z(0, Ca1%zs + 1:Ca1%ze, Ca1%xs, Ca1%ys) &
+                     & )*.5_ireals, &
+                     & ierr, dimnames=dimnames(1:1))
+        call CHKERR(ierr)
+        call restoreVecPointer(Ca1%da, pprts_solver%atm%hhl, z1d, z)
+      end associate
+    end if
 
     ! Tidy up
     call specint_pprts_destroy(specint, pprts_solver, lfinalizepetsc=.true., ierr=ierr)

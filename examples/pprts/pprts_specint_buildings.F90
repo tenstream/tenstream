@@ -50,6 +50,7 @@ contains
       & atm_filename,                       &
       & phi0, theta0,                       &
       & Ag_solar, Ag_thermal,               &
+      & skin_temp,                          &
       & gedir, gedn, geup, gabso,           &
       & buildings_solar, buildings_thermal, &
       & local_dims, icollapse)
@@ -64,6 +65,7 @@ contains
     character(len=*), intent(in) :: atm_filename     ! e.g. 'afglus_100m.dat'
     real(ireals), intent(in) :: phi0, theta0         ! sun azimuth(phi) and zenith(theta) angle
     real(ireals), intent(in) :: Ag_solar, Ag_thermal ! surface albedo
+    real(ireals), intent(in) :: skin_temp            ! surface skin temperature
     real(ireals), allocatable, dimension(:, :, :), intent(out) :: gedir, gedn, geup, gabso
     type(t_pprts_buildings), allocatable, intent(inout), optional :: buildings_solar, buildings_thermal
     integer(iintegers), intent(out), optional :: local_dims(:) ! local domain indices (zs, zm, xs, xm, ys, ym), dim(6)
@@ -76,9 +78,11 @@ contains
 
     real(ireals), allocatable, dimension(:, :, :), target :: plev ! pressure on layer interfaces [hPa]
     real(ireals), allocatable, dimension(:, :, :), target :: tlev ! Temperature on layer interfaces [K]
+    real(ireals), allocatable, dimension(:, :), target :: tskin ! Temperature on ground surface [K]
 
     ! reshape pointer to convert i,j vecs to column vecs
     real(ireals), pointer, dimension(:, :) :: pplev, ptlev
+    real(ireals), pointer, dimension(:) :: ptskin
 
     real(ireals), allocatable, dimension(:, :, :) :: edir, edn, eup, abso ! [nlev_merged(-1), nxp, nyp]
 
@@ -101,6 +105,7 @@ contains
 
     allocate (plev(Nlay + 1, nxp, nyp))
     allocate (tlev(Nlay + 1, nxp, nyp))
+    allocate (tskin(nxp, nyp))
 
     ! Start with a dynamics grid ranging from 1000 hPa up to 900 hPa and a
     ! Temperature difference of 10K
@@ -108,15 +113,18 @@ contains
       plev(k, :, :) = linspace(k, [1e3_ireals, 900._ireals], Nlay + 1)
       tlev(k, :, :) = linspace(k, [288._ireals, 278._ireals], Nlay + 1)
     end do
+    tskin(:, :) = skin_temp
 
     pplev(1:size(plev, 1), 1:size(plev, 2) * size(plev, 3)) => plev
     ptlev(1:size(tlev, 1), 1:size(tlev, 2) * size(tlev, 3)) => tlev
+    ptskin(1:size(tskin)) => tskin
 
     call setup_tenstr_atm( &
       & comm, .false.,     &
       & atm_filename,      &
       & pplev, ptlev,      &
-      & atm)
+      & atm,               &
+      & d_skin_temperature=ptskin)
 
     ! only init grid structures
     call specint_pprts(specint,&

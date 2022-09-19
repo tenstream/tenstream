@@ -164,11 +164,11 @@ contains
 
     ierr = 0
     if (.not. allocated(data96)) allocate (data96)
-    call imp_bcast(comm, data96%wvl, ierr); call CHKERR(ierr)
-    call imp_bcast(comm, data96%ext, ierr); call CHKERR(ierr)
-    call imp_bcast(comm, data96%w0, ierr); call CHKERR(ierr)
-    call imp_bcast(comm, data96%g, ierr); call CHKERR(ierr)
-    call imp_bcast(comm, data96%is_repwvl, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, data96%wvl, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, data96%ext, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, data96%w0, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, data96%g, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, data96%is_repwvl, 0_mpiint, ierr); call CHKERR(ierr)
   end subroutine
 
   subroutine distribute_table98(comm, data98, ierr)
@@ -178,11 +178,11 @@ contains
 
     ierr = 0
     if (.not. allocated(data98)) allocate (data98)
-    call imp_bcast(comm, data98%wvl, ierr); call CHKERR(ierr)
-    call imp_bcast(comm, data98%ext, ierr); call CHKERR(ierr)
-    call imp_bcast(comm, data98%abso, ierr); call CHKERR(ierr)
-    call imp_bcast(comm, data98%g, ierr); call CHKERR(ierr)
-    call imp_bcast(comm, data98%is_repwvl, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, data98%wvl, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, data98%ext, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, data98%abso, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, data98%g, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, data98%is_repwvl, 0_mpiint, ierr); call CHKERR(ierr)
   end subroutine
 
   subroutine fu_ice_init(  &

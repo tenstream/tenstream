@@ -105,11 +105,11 @@ contains
 
     ierr = 0
     if (.not. allocated(mie_table)) allocate (mie_table)
-    call imp_bcast(comm, mie_table%wvl, ierr); call CHKERR(ierr)
-    call imp_bcast(comm, mie_table%reff, ierr); call CHKERR(ierr)
-    call imp_bcast(comm, mie_table%qext, ierr); call CHKERR(ierr)
-    call imp_bcast(comm, mie_table%w0, ierr); call CHKERR(ierr)
-    call imp_bcast(comm, mie_table%g, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, mie_table%wvl, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, mie_table%reff, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, mie_table%qext, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, mie_table%w0, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, mie_table%g, 0_mpiint, ierr); call CHKERR(ierr)
   end subroutine
 
   subroutine mie_tables_init(comm, table, ierr, lverbose, path_table, prefix)
@@ -190,7 +190,7 @@ contains
     ierr = 0
 
     pt(1) = find_real_location(table%reff, real(reff, irealLUT))
-    pt(2) = iwvl
+    pt(2) = real(iwvl, kind(pt))
     call interp_2d(pt, table%qext, rqext)
     call interp_2d(pt, table%w0, rw0)
     call interp_2d(pt, table%g, rg)

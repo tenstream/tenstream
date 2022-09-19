@@ -20,17 +20,14 @@
 !> \page Routines to call tenstream with optical properties from a representative wavelength approach
 
 module m_repwvl_base
+#include "petsc/finclude/petsc.h"
+  use petsc
 
   use m_data_parameters, only: &
-    & AVOGADRO, &
     & default_str_len, &
-    & EARTHACCEL, &
     & iintegers, &
     & ireals, &
-    & K_BOLTZMANN, &
-    & MOLMASSAIR, &
     & mpiint, &
-    & R_DRY_AIR, &
     & share_dir
 
   use m_helper_functions, only: &
@@ -40,14 +37,16 @@ module m_repwvl_base
     & imp_bcast, &
     & toStr
 
-  use m_search, only: find_real_location
-
   use m_netcdfIO, only: ncload
 
   implicit none
 
   private
-  public :: t_repwvl_data, repwvl_init, repwvl_dtau
+  public :: &
+    & repwvl_init, &
+    & repwvl_log_events, &
+    & setup_log_events, &
+    & t_repwvl_data
 
   type t_repwvl_data
     ! dims xsec(pressure, wvl, tracer, temperature)
@@ -68,6 +67,23 @@ module m_repwvl_base
 
     integer(iintegers) :: Nwvl, Ntracer
   end type
+
+  type t_repwvl_log_events
+    PetscLogStage :: stage_repwvl_solar
+    PetscLogStage :: stage_repwvl_thermal
+    PetscLogEvent :: repwvl_optprop
+    PetscLogEvent :: repwvl_optprop_dtau
+    PetscLogEvent :: repwvl_optprop_rayleigh
+    PetscLogEvent :: repwvl_optprop_mie
+    PetscLogEvent :: repwvl_optprop_fu_ice
+  end type
+  type(t_repwvl_log_events) :: repwvl_log_events
+
+#ifdef __RELEASE_BUILD__
+  logical, parameter :: ldebug = .true.
+#else
+  logical, parameter :: ldebug = .true.
+#endif
 
 contains
 
@@ -132,6 +148,8 @@ contains
 
     call mpi_comm_rank(comm, myid, ierr)
 
+    call setup_log_events(repwvl_log_events)
+
     if (myid .eq. 0) then
       fname_thermal = get_arg(fname_thermal_default, fname_repwvl_thermal)
       fname_solar = get_arg(fname_solar_default, fname_repwvl_solar)
@@ -185,127 +203,60 @@ contains
       type(t_repwvl_data), allocatable, intent(inout) :: table
       integer(mpiint), intent(out) :: ierr
       logical :: lhave_crs_o3, lhave_crs_n2o
+      integer(mpiint), parameter :: sendid = 0
 
       ierr = 0
       if (.not. allocated(table)) allocate (table)
-      call imp_bcast(comm, table%xsec, ierr); call CHKERR(ierr)
-      call imp_bcast(comm, table%wvls, ierr); call CHKERR(ierr)
-      call imp_bcast(comm, table%wgts, ierr); call CHKERR(ierr)
-      call imp_bcast(comm, table%p_ref, ierr); call CHKERR(ierr)
-      call imp_bcast(comm, table%t_ref, ierr); call CHKERR(ierr)
-      call imp_bcast(comm, table%t_pert, ierr); call CHKERR(ierr)
-      call imp_bcast(comm, table%vmrs_ref, ierr); call CHKERR(ierr)
-      call imp_bcast(comm, table%Nwvl, ierr); call CHKERR(ierr)
-      call imp_bcast(comm, table%Ntracer, ierr); call CHKERR(ierr)
+      call imp_bcast(comm, table%xsec, sendid, ierr); call CHKERR(ierr)
+      call imp_bcast(comm, table%wvls, sendid, ierr); call CHKERR(ierr)
+      call imp_bcast(comm, table%wgts, sendid, ierr); call CHKERR(ierr)
+      call imp_bcast(comm, table%p_ref, sendid, ierr); call CHKERR(ierr)
+      call imp_bcast(comm, table%t_ref, sendid, ierr); call CHKERR(ierr)
+      call imp_bcast(comm, table%t_pert, sendid, ierr); call CHKERR(ierr)
+      call imp_bcast(comm, table%vmrs_ref, sendid, ierr); call CHKERR(ierr)
+      call imp_bcast(comm, table%Nwvl, sendid, ierr); call CHKERR(ierr)
+      call imp_bcast(comm, table%Ntracer, sendid, ierr); call CHKERR(ierr)
 
       lhave_crs_o3 = allocated(table%crs_o3)
-      call imp_bcast(comm, lhave_crs_o3, ierr); call CHKERR(ierr)
+      call imp_bcast(comm, lhave_crs_o3, sendid, ierr); call CHKERR(ierr)
       if (lhave_crs_o3) then
-        call imp_bcast(comm, table%crs_o3, ierr); call CHKERR(ierr)
+        call imp_bcast(comm, table%crs_o3, sendid, ierr); call CHKERR(ierr)
       end if
       lhave_crs_n2o = allocated(table%crs_n2o)
-      call imp_bcast(comm, lhave_crs_n2o, ierr); call CHKERR(ierr)
+      call imp_bcast(comm, lhave_crs_n2o, sendid, ierr); call CHKERR(ierr)
       if (lhave_crs_n2o) then
-        call imp_bcast(comm, table%crs_n2o, ierr); call CHKERR(ierr)
+        call imp_bcast(comm, table%crs_n2o, sendid, ierr); call CHKERR(ierr)
       end if
     end subroutine
   end subroutine
 
-  subroutine repwvl_dtau(    &
-      & repwvl_data,         & !> data tables
-      & iwvl,                & !> wavelenght index
-      & P,                   & !> mean pressure of layer [Pa]
-      & dP,                  & !> delta pressure of layer [Pa]
-      & T,                   & !> mean Temperature of layer [K]
-      & VMRS,                & !> vol mix ratios as in the repwvl data, e.g. (H2O, H2O, CO2, O3, N2O, CO, CH4, O2, HNO3, N2)
-      & dtau,                & !> optical thickness of layer
-      & ierr)
+  subroutine setup_log_events(logs, solvername)
+    type(t_repwvl_log_events), intent(inout) :: logs
+    character(len=*), optional :: solvername
+    character(len=default_str_len) :: s
+    PetscClassId :: cid
+    integer(mpiint) :: ierr
 
-    type(t_repwvl_data), intent(in) :: repwvl_data
-    integer(iintegers), intent(in) :: iwvl
-    real(ireals), intent(in) :: P, dP, T
-    real(ireals), intent(in) :: VMRS(:)
-    real(ireals), intent(out) :: dtau
-    integer(mpiint), intent(out) :: ierr
+    s = get_arg('tenstr_repwvl.', solvername)
+    call PetscClassIdRegister(trim(s), cid, ierr); call CHKERR(ierr)
 
-    real(ireals) :: numDens, wP, wT
-    real(ireals) :: wgt_P, wgt_T, xsecP0, xsecP1
-    integer(iintegers) :: ip0, ip1, iT0, iT1, spec
-    ierr = 0
+    call setup_stage(trim(s)//'repwvl_solar', logs%stage_repwvl_solar)
+    call setup_stage(trim(s)//'repwvl_thermal', logs%stage_repwvl_thermal)
 
-    if (any([T, P, dP] .lt. 0)) then
-      ierr = 1
-      call CHKERR(ierr, "Found bad input, one of variables T,p,dP < 0:"//new_line('')// &
-        & " T = "//toStr(T)//new_line('')// &
-        & " p = "//toStr(P)//new_line('')// &
-        & " dP= "//toStr(dP)//new_line('')// &
-        & "")
-    end if
-
-    if (any(VMRS .lt. 0) .or. any(VMRS .gt. 1)) then
-      ierr = 1
-      call CHKERR(ierr, "Found bad input, one of VMRS < 0 or > 1:"//new_line('')// &
-        & " VMRS = "//toStr(VMRS)//new_line('')// &
-        & "")
-    end if
-
-    numDens = dP * AVOGADRO / MOLMASSAIR / EARTHACCEL
-
-    wP = find_real_location(repwvl_data%p_ref, P)
-    ip0 = int(floor(wP), iintegers)
-    ip1 = ip0 + 1
-
-    wT = find_real_location(repwvl_data%t_pert + repwvl_data%t_ref(ip0), T)
-    iT0 = int(floor(wT), iintegers)
-    iT1 = iT0 + 1
-
-    wgt_P = wP - real(ip0, ireals)
-    wgt_T = wT - real(iT0, ireals)
-
-    dtau = 0
-
-    ! H2O continuum is quadratic
-    spec = 1
-    xsecP0 = (repwvl_data%xsec(ip0, iwvl, spec, iT1) * wgt_T &
-           & + repwvl_data%xsec(ip0, iwvl, spec, iT0) * (1._ireals - wgt_T)) &
-           & / repwvl_data%vmrs_ref(ip0, spec)
-    xsecP1 = (repwvl_data%xsec(ip1, iwvl, spec, iT1) * wgt_T &
-           & + repwvl_data%xsec(ip1, iwvl, spec, iT0) * (1._ireals - wgt_T)) &
-           & / repwvl_data%vmrs_ref(ip1, spec)
-    dtau = dtau + (xsecP1 * wgt_P + xsecP0 * (1._ireals - wgt_P)) * numDens * (VMRS(spec) * VMRS(spec))
-
-    do spec = 2, size(VMRS)
-      xsecP0 = (repwvl_data%xsec(ip0, iwvl, spec, iT1) * wgt_T &
-             & + repwvl_data%xsec(ip0, iwvl, spec, iT0) * (1._ireals - wgt_T))
-      xsecP1 = (repwvl_data%xsec(ip1, iwvl, spec, iT1) * wgt_T &
-             & + repwvl_data%xsec(ip1, iwvl, spec, iT0) * (1._ireals - wgt_T))
-      dtau = dtau + (xsecP1 * wgt_P + xsecP0 * (1._ireals - wgt_P)) * numDens * VMRS(spec)
-    end do
-
-    if (allocated(repwvl_data%crs_o3)) &
-      & call additional_tracer_from_bremen_data(repwvl_data%crs_o3(:, iwvl), VMRS(4), dtau)
-    if (allocated(repwvl_data%crs_n2o)) &
-      & call additional_tracer_from_bremen_data(repwvl_data%crs_n2o(:, iwvl), VMRS(5), dtau)
-
-    if (dtau .lt. 0) then
-      ierr = 2
-      call CHKERR(ierr, "Resulted in negative dtau ?! dtau = "//toStr(dtau))
-    end if
+    call PetscLogEventRegister(trim(s)//'repwvl_optprop', cid, logs%repwvl_optprop, ierr); call CHKERR(ierr)
+    call PetscLogEventRegister(trim(s)//'repwvl_optprop_dtau', cid, logs%repwvl_optprop_dtau, ierr); call CHKERR(ierr)
+    call PetscLogEventRegister(trim(s)//'repwvl_optprop_rayleigh', cid, logs%repwvl_optprop_rayleigh, ierr); call CHKERR(ierr)
+    call PetscLogEventRegister(trim(s)//'repwvl_optprop_mie', cid, logs%repwvl_optprop_mie, ierr); call CHKERR(ierr)
+    call PetscLogEventRegister(trim(s)//'repwvl_optprop_fu_ice', cid, logs%repwvl_optprop_fu_ice, ierr); call CHKERR(ierr)
 
   contains
-    subroutine additional_tracer_from_bremen_data(coeff, vmr, tau)
-      real(ireals), intent(in) :: coeff(:), vmr
-      real(ireals), intent(inout) :: tau
-
-      real(ireals), parameter :: T0 = 273.15
-      real(ireals) :: rho, dz, N, sigma, dtau
-
-      rho = P / (R_DRY_AIR * T)
-      dz = dP / (rho * EARTHACCEL)
-      N = P / (K_BOLTZMANN * T) * 1e-4_ireals * dz
-      sigma = max(0._ireals, (coeff(1) + coeff(2) * (T - T0) + coeff(3) * (T - T0)**2) * 1e-20_ireals)
-      dtau = vmr * N * sigma
-      tau = tau + dtau
+    subroutine setup_stage(stagename, logstage)
+      character(len=*), intent(in) :: stagename
+      PetscLogStage, intent(inout) :: logstage
+      call PetscLogStageGetId(stagename, logstage, ierr); call CHKERR(ierr)
+      if (logstage .lt. 0_iintegers) then
+        call PetscLogStageRegister(stagename, logstage, ierr); call CHKERR(ierr)
+      end if
     end subroutine
   end subroutine
 end module

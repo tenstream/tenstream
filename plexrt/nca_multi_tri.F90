@@ -84,7 +84,7 @@ contains
           call ncload(groups, arr, ierr); call CHKERR(ierr)
         end if
       end if
-      call imp_bcast(comm, arr, 0_mpiint)
+      call imp_bcast(comm, arr, 0_mpiint, ierr); call CHKERR(ierr)
     end subroutine
     subroutine loadvar_2d(vname, arr)
       character(len=*), intent(in) :: vname
@@ -97,7 +97,7 @@ contains
           call ncload(groups, arr, ierr); call CHKERR(ierr)
         end if
       end if
-      call imp_bcast(comm, arr, 0_mpiint)
+      call imp_bcast(comm, arr, 0_mpiint, ierr); call CHKERR(ierr)
     end subroutine
   end subroutine
 

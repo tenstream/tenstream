@@ -111,7 +111,7 @@ contains
 
       lcomplete_initial_run = .false.
       call get_petsc_opt(prefix, "-ksp_complete_initial_run", lcomplete_initial_run, lflg, ierr); call CHKERR(ierr)
-      if (lcomplete_initial_run .and. solution%dir_ksp_residual_history(1) .le. 0) then
+      if (lcomplete_initial_run .and. solution%dir_ksp_residual_history(1) .lt. 0) then
         maxiter = default_max_it + 2
         lskip_residual = .false.
       end if
@@ -442,7 +442,7 @@ contains
     real(ireals), allocatable :: residual(:)
     real(ireals) :: residual_mmm(3), rel_residual, atol, rtol, omega
 
-    integer(iintegers), parameter :: default_max_it = 1000
+    integer(iintegers), parameter :: default_max_it = 10000
     real(ireals) :: ignore_max_it! Ignore max iter setting if time is less
 
     logical :: lksp_view, lcomplete_initial_run
@@ -472,11 +472,16 @@ contains
         lskip_residual = .false.
       end if
 
-      lcomplete_initial_run = .false.
+      laccept_incomplete_solve = .false.
+      call get_petsc_opt(PETSC_NULL_CHARACTER, "-accept_incomplete_solve", laccept_incomplete_solve, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt(prefix, "-accept_incomplete_solve", laccept_incomplete_solve, lflg, ierr); call CHKERR(ierr)
+
+      lcomplete_initial_run = .true.
       call get_petsc_opt(prefix, "-ksp_complete_initial_run", lcomplete_initial_run, lflg, ierr); call CHKERR(ierr)
-      if (lcomplete_initial_run .and. solution%diff_ksp_residual_history(1) .le. 0) then
+      if (lcomplete_initial_run .and. (solution%diff_ksp_residual_history(1) .lt. 0)) then
         maxiter = default_max_it + 2
         lskip_residual = .false.
+        laccept_incomplete_solve = .false.
       end if
 
       allocate (residual(maxiter))
@@ -491,10 +496,6 @@ contains
 
       lconverged_reason = lmonitor_residual
       call get_petsc_opt(prefix, "-ksp_converged_reason", lconverged_reason, lflg, ierr); call CHKERR(ierr)
-
-      laccept_incomplete_solve = .false.
-      call get_petsc_opt(PETSC_NULL_CHARACTER, "-accept_incomplete_solve", laccept_incomplete_solve, lflg, ierr); call CHKERR(ierr)
-      call get_petsc_opt(prefix, "-accept_incomplete_solve", laccept_incomplete_solve, lflg, ierr); call CHKERR(ierr)
 
       call determine_ksp_tolerances(C, atm%l1d, rtol, atol)
       call get_petsc_opt(prefix, "-ksp_atol", atol, lflg, ierr); call CHKERR(ierr)
@@ -528,37 +529,43 @@ contains
 
         do isub = 1, sub_iter
           if (approx(omega, 1._ireals)) then
-            call explicit_ediff_forward_sweep(&
-              & solver, &
-              & solver%diff2diff, &
-              & dx=[C%xs, C%xe, i1], &
-              & dy=[C%ys, C%ye, i1], &
-              & dz=[C%zs, C%ze - 1, i1], &
-              & b=lvb, x=v0)
-            call explicit_ediff_forward_sweep(&
-              & solver, &
-              & solver%diff2diff, &
-              & dx=[C%xe, C%xs, -i1], &
-              & dy=[C%ye, C%ys, -i1], &
-              & dz=[C%ze - 1, C%zs, -i1], &
-              & b=lvb, x=v0)
+            if (modulo(iter + isub, 2) .eq. 0) then
+              call explicit_ediff_forward_sweep(&
+                & solver, &
+                & solver%diff2diff, &
+                & dx=[C%xs, C%xe, i1], &
+                & dy=[C%ys, C%ye, i1], &
+                & dz=[C%zs, C%ze - 1, i1], &
+                & b=lvb, x=v0)
+            else
+              call explicit_ediff_forward_sweep(&
+                & solver, &
+                & solver%diff2diff, &
+                & dx=[C%xe, C%xs, -i1], &
+                & dy=[C%ye, C%ys, -i1], &
+                & dz=[C%ze - 1, C%zs, -i1], &
+                & b=lvb, x=v0)
+            end if
           else
-            call explicit_ediff_sor_sweep(&
-              & solver, &
-              & solver%diff2diff, &
-              & dx=[C%xs, C%xe, i1], &
-              & dy=[C%ys, C%ye, i1], &
-              & dz=[C%zs, C%ze - 1, i1], &
-              & omega=omega, &
-              & b=lvb, x=v0)
-            call explicit_ediff_sor_sweep(&
-              & solver, &
-              & solver%diff2diff, &
-              & dx=[C%xe, C%xs, -i1], &
-              & dy=[C%ye, C%ys, -i1], &
-              & dz=[C%ze - 1, C%zs, -i1], &
-              & omega=omega, &
-              & b=lvb, x=v0)
+            if (modulo(iter + isub, 2) .eq. 0) then
+              call explicit_ediff_sor_sweep(&
+                & solver, &
+                & solver%diff2diff, &
+                & dx=[C%xs, C%xe, i1], &
+                & dy=[C%ys, C%ye, i1], &
+                & dz=[C%zs, C%ze - 1, i1], &
+                & omega=omega, &
+                & b=lvb, x=v0)
+            else
+              call explicit_ediff_sor_sweep(&
+                & solver, &
+                & solver%diff2diff, &
+                & dx=[C%xe, C%xs, -i1], &
+                & dy=[C%ye, C%ys, -i1], &
+                & dz=[C%ze - 1, C%zs, -i1], &
+                & omega=omega, &
+                & b=lvb, x=v0)
+            end if
           end if
         end do
 

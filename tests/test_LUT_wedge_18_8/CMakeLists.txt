@@ -50,7 +50,7 @@ add_executable(
 target_link_libraries(
   pfunit_${CDIR}
   ${PFUNIT_DIR}/lib/libpfunit.a
-  ${TENSTR_LIBS}
+  ${TENSTR_SINGLE_LIB} ${EXTLIB}
   )
 add_test(
   NAME pfunit_${CDIR}

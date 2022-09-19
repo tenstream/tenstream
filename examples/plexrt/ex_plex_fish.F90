@@ -1,6 +1,6 @@
 program main
   use m_examples_plex_ex_fish
-  use m_helper_functions, only: get_petsc_opt
+  use m_helper_functions, only: get_petsc_opt, deg2rad
   implicit none
 
   character(len=default_str_len) :: outfile

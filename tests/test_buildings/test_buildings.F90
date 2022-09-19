@@ -610,7 +610,7 @@ contains
     logical :: lsolar, lthermal
     real(ireals) :: buildings_albedo, buildings_temp
     real(ireals) :: phi0, theta0
-    real(ireals) :: Ag_solar, Ag_thermal
+    real(ireals) :: Ag_solar, Ag_thermal, tskin
     real(ireals), allocatable, dimension(:, :, :) :: gedir, gedn, geup, gabso
     type(t_pprts_buildings), allocatable :: buildings_solar, buildings_thermal
 
@@ -625,6 +625,7 @@ contains
     lthermal = .false.
     buildings_albedo = 0
     buildings_temp = 0
+    tskin = 288.2
     phi0 = 0
     theta0 = 0
     Ag_solar = 0
@@ -640,6 +641,7 @@ contains
         & atm_filename,                       &
         & phi0, theta0,                       &
         & Ag_solar, Ag_thermal,               &
+        & tskin,                              &
         & gedir, gedn, geup, gabso,           &
         & buildings_solar, buildings_thermal, &
         & local_dims)
@@ -704,7 +706,7 @@ contains
     logical :: lsolar, lthermal
     real(ireals) :: buildings_albedo, buildings_temp
     real(ireals) :: phi0, theta0
-    real(ireals) :: Ag_solar, Ag_thermal
+    real(ireals) :: Ag_solar, Ag_thermal, tskin
     real(ireals), allocatable, dimension(:, :, :) :: gedir, gedn, geup, gabso
     type(t_pprts_buildings), allocatable :: buildings_solar, buildings_thermal
 
@@ -720,6 +722,7 @@ contains
     lthermal = .true.
     buildings_albedo = 0
     buildings_temp = 288._ireals
+    tskin = 288._ireals
     phi0 = 0
     theta0 = -1
     Ag_solar = 0
@@ -735,6 +738,7 @@ contains
         & atm_filename,                       &
         & phi0, theta0,                       &
         & Ag_solar, Ag_thermal,               &
+        & tskin,                              &
         & gedir, gedn, geup, gabso,           &
         & buildings_solar, buildings_thermal, &
         & local_dims)

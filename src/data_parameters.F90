@@ -35,6 +35,7 @@ module m_data_parameters
     EARTHACCEL, &
     EXP_MINVAL, EXP_MAXVAL, EXP_MINVAL128, EXP_MAXVAL128, &
     finalize_mpi, &
+    H_PLANCK, &
     i0, i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, inil, &
     iintegers, &
     imp_character, &
@@ -106,18 +107,20 @@ module m_data_parameters
   real(ireals) :: nan, inf, neginf
 
   real(ireals), parameter :: AVOGADRO = 6.02214076e23     ! mol**-1
-  real(ireals), parameter :: MOLMASSAIR = 0.0289647       ! (kg / mol)
-  real(ireals), parameter :: EARTHACCEL = 9.80665         ! (m s**-2)
-  real(ireals), parameter :: K_BOLTZMANN = 1.38e-23       ! J / K
-  real(ireals), parameter :: R_DRY_AIR = 287.058          ! J / (kg K) specific gas constant dry air
-  real(ireals), parameter :: CP_DRY_AIR = 1003.5          ! J / kg / K
   real(ireals), parameter :: CLIGHT = 299792458._ireals   ! m / s
+  real(ireals), parameter :: CP_DRY_AIR = 1003.5          ! J / kg / K
+  real(ireals), parameter :: EARTHACCEL = 9.80665         ! (m s**-2)
+  real(ireals), parameter :: H_PLANCK = 6.626068e-34_ireals
+  real(ireals), parameter :: K_BOLTZMANN = 1.3806503e-23_ireals ! J / K
+  real(ireals), parameter :: MOLMASSAIR = 0.0289647       ! (kg / mol)
+  real(ireals), parameter :: R_DRY_AIR = 287.058          ! J / (kg K) specific gas constant dry air
+
   real(ireals), parameter :: PI = 3.141592653589793_ireals
   real(irealLUT), parameter :: pi_irealLUT = 3.141592653589793_ireallut
-  real(real32), parameter :: pi32 = 3.141592653589793_real32
-  real(real64), parameter :: pi64 = 3.141592653589793_real64
   real(ireal_params), parameter :: pi_ireal_params = 3.141592653589793_ireal_params
   real(real128), parameter :: pi128 = 4 * atan(1._real128)
+  real(real32), parameter :: pi32 = 3.141592653589793_real32
+  real(real64), parameter :: pi64 = 3.141592653589793_real64
 
   character(len=*), parameter :: &
     share_dir = &

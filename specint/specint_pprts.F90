@@ -17,13 +17,17 @@
 ! Copyright (C) 2010-2015  Fabian Jakub, <fabian@jakub.com>
 !-------------------------------------------------------------------------
 
-!> \page Routines to call tenstream with optical properties from a representative wavelength approach
+!> \page Routines to call tenstream with optical properties from different spectral integration approaches
 
 module m_specint_pprts
+#include "petsc/finclude/petsc.h"
+  use petsc
+
   use m_helper_functions, only: &
     & CHKERR, &
     & get_arg, &
-    & get_petsc_opt
+    & get_petsc_opt, &
+    & toStr
 
   use m_data_parameters, only: &
     & iintegers, ireals, mpiint, &
@@ -37,6 +41,12 @@ module m_specint_pprts
 
   use m_pprts_rrtmg, only: pprts_rrtmg, destroy_pprts_rrtmg
   use m_repwvl_pprts, only: repwvl_pprts, repwvl_pprts_destroy
+
+  use m_xdmf_export, only: &
+    & xdmf_pprts_buildings, &
+    & xdmf_pprts_srfc_flux
+
+  use m_petsc_helpers, only: f90vectopetsc
 
   implicit none
 
@@ -157,6 +167,77 @@ contains
       ierr = 1
       call CHKERR(1_mpiint, 'invalid specint mode <'//trim(spec)//'>')
     end select
+
+    call dump_results()
+  contains
+    subroutine dump_variable(var, dm, dumpstring, varname)
+      real(ireals), intent(in) :: var(:, :, :)
+      type(tDM), intent(in) :: dm
+      character(len=*), intent(in) :: dumpstring, varname
+      character(len=default_str_len) :: vname
+      logical :: lflg
+      type(tVec) :: dumpvec
+
+      call PetscOptionsHasName(PETSC_NULL_OPTIONS, solver%prefix, &
+                               trim(dumpstring), lflg, ierr); call CHKERR(ierr)
+      if (lflg) then
+        vname = trim(varname)
+        if (present(opt_time)) vname = trim(vname)//'.t'//trim(adjustl(toStr(opt_time)))
+        if (.not. lsolar .or. .not. lthermal) vname = trim(vname)//'.sol'//toStr(lsolar)//'.th'//toStr(lthermal)
+        call DMGetGlobalVector(dm, dumpvec, ierr); call CHKERR(ierr)
+        call PetscObjectSetName(dumpvec, trim(vname), ierr); call CHKERR(ierr)
+        call f90VecToPetsc(var, dm, dumpvec)
+
+        call PetscObjectViewFromOptions(dumpvec, PETSC_NULL_VEC, &
+                                        trim(dumpstring), ierr); call CHKERR(ierr)
+        call DMRestoreGlobalVector(dm, dumpvec, ierr); call CHKERR(ierr)
+      end if
+    end subroutine
+
+    subroutine dump_results()
+      logical :: lflg
+      character(len=default_str_len) :: fname
+      integer(mpiint) :: ierr
+
+      if (get_arg(.false., lonly_initialize)) return
+
+      if (lsolar) then
+        call dump_variable(edir, solver%C_one1%da, "-specint_dump_edir", "edir")
+      end if
+      call dump_variable(edn, solver%C_one1%da, "-specint_dump_edn", "edn")
+      call dump_variable(eup, solver%C_one1%da, "-specint_dump_eup", "eup")
+      call dump_variable(abso, solver%C_one%da, "-specint_dump_abso", "abso")
+
+      fname = ''
+      if (lsolar .and. present(opt_buildings_solar)) then
+        call get_petsc_opt(solver%prefix, '-specint_xdmf_buildings_solar', fname, lflg, ierr); call CHKERR(ierr)
+        if (lflg) then
+          if (present(opt_time)) fname = trim(fname)//'.t'//trim(adjustl(toStr(opt_time)))
+          if (.not. lsolar .or. .not. lthermal) fname = trim(fname)//'.sol'//toStr(lsolar)//'.th'//toStr(lthermal)
+          call xdmf_pprts_buildings(solver, opt_buildings_solar, fname, ierr, verbose=.true.); call CHKERR(ierr)
+        end if
+      end if
+
+      if (lthermal .and. present(opt_buildings_thermal)) then
+        call get_petsc_opt(solver%prefix, '-specint_xdmf_buildings_thermal', fname, lflg, ierr); call CHKERR(ierr)
+        if (lflg) then
+          if (present(opt_time)) fname = trim(fname)//'.t'//trim(adjustl(toStr(opt_time)))
+          if (.not. lsolar .or. .not. lthermal) fname = trim(fname)//'.sol'//toStr(lsolar)//'.th'//toStr(lthermal)
+          call xdmf_pprts_buildings(solver, opt_buildings_thermal, fname, ierr, verbose=.true.); call CHKERR(ierr)
+        end if
+      end if
+
+      call get_petsc_opt(solver%prefix, '-specint_xdmf', fname, lflg, ierr); call CHKERR(ierr)
+      if (lflg) then
+        if (present(opt_time)) fname = trim(fname)//'.t'//trim(adjustl(toStr(opt_time)))
+        if (.not. lsolar .or. .not. lthermal) fname = trim(fname)//'.sol'//toStr(lsolar)//'.th'//toStr(lthermal)
+        if (lsolar) then
+          call xdmf_pprts_srfc_flux(solver, fname, edn, eup, ierr, edir=edir, verbose=.true.); call CHKERR(ierr)
+        else
+          call xdmf_pprts_srfc_flux(solver, fname, edn, eup, ierr, verbose=.true.); call CHKERR(ierr)
+        end if
+      end if
+    end subroutine
   end subroutine
 
   subroutine select_specint(specint, spec, ierr)
