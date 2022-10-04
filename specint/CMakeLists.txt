@@ -11,6 +11,7 @@ add_dependencies(tenstr_specint_objs
   pprts_base
   pprts_rrtmg
   repwvl_pprts
+  ecckd_pprts
   plexrt
   plexrt_rrtmg
   repwvl_plexrt
@@ -24,6 +25,7 @@ TARGET_LINK_LIBRARIES( specint
   tenstr_disort
   pprts_rrtmg
   repwvl_pprts
+  ecckd_pprts
   plexrt
   plexrt_rrtmg
   repwvl_plexrt
