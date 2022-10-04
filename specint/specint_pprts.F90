@@ -41,6 +41,7 @@ module m_specint_pprts
 
   use m_pprts_rrtmg, only: pprts_rrtmg, destroy_pprts_rrtmg
   use m_repwvl_pprts, only: repwvl_pprts, repwvl_pprts_destroy
+  use m_ecckd_pprts, only: ecckd_pprts, ecckd_pprts_destroy
 
   use m_xdmf_export, only: &
     & xdmf_pprts_buildings, &
@@ -133,6 +134,21 @@ contains
     character(len=default_str_len) :: spec
     call select_specint(specint, spec, ierr)
     select case (trim(spec))
+    case ("ecckd")
+      call ecckd_pprts(comm, solver, atm, ie, je,       &
+        & dx, dy, sundir,                               &
+        & albedo_thermal, albedo_solar,                 &
+        & lthermal, lsolar,                             &
+        & edir, edn, eup, abso,                         &
+        & nxproc, nyproc, icollapse,                    &
+        & opt_time, solar_albedo_2d, thermal_albedo_2d, &
+        & opt_solar_constant,                           &
+        & opt_buildings_solar, opt_buildings_thermal,   &
+        & opt_tau_solar,                                &
+        & opt_w0_solar,                                 &
+        & opt_g_solar,                                  &
+        & opt_tau_thermal,                              &
+        & lonly_initialize)
     case ("rrtmg")
       call pprts_rrtmg(comm, solver, atm, ie, je,       &
         & dx, dy, sundir,                               &
@@ -254,12 +270,14 @@ contains
     select case (trim(spec))
     case ("rrtmg")
     case ("repwvl")
+    case ("ecckd")
     case default
       ierr = 1
       call CHKERR(1_mpiint, 'invalid specint mode <'//trim(spec)//'>'//new_line('')// &
         & "use one of:"//new_line('')// &
         & "  -specint rrtmg"//new_line('')// &
         & "  -specint repwvl"//new_line('')// &
+        & "  -specint ecckd"//new_line('')// &
         & "")
     end select
   end subroutine
@@ -276,10 +294,12 @@ contains
     call select_specint(specint, spec, ierr); call CHKERR(ierr)
 
     select case (trim(spec))
+    case ("ecckd")
+      call ecckd_pprts_destroy(solver, lfinalizepetsc, ierr); call CHKERR(ierr)
     case ("rrtmg")
       call destroy_pprts_rrtmg(solver, lfinalizepetsc)
     case ("repwvl")
-      call repwvl_pprts_destroy(solver, lfinalizepetsc, ierr)
+      call repwvl_pprts_destroy(solver, lfinalizepetsc, ierr); call CHKERR(ierr)
     case default
       ierr = 1
       call CHKERR(1_mpiint, 'invalid specint mode <'//trim(spec)//'>')

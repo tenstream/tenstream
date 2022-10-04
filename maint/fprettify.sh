@@ -48,6 +48,7 @@ FILES="\
   src/*.inc \
   rrtmg/rrtmg/*.F90 \
   repwvl/*.F90 \
+  ecrad/*.F90 \
   specint/*.F90 \
   plexrt/*.F90 \
   c_wrapper/*.F90 \
