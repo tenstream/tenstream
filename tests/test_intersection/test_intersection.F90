@@ -67,7 +67,7 @@ contains
     @assertFalse(pnt_in_triangle(A, B, C, B + [one, zero]), 'pnt_in_triangle wrong for outside case 22')
     @assertFalse(pnt_in_triangle(A, B, C, C + [one, one]), 'pnt_in_triangle wrong for outside case 3')
 
-    @assertTrue(pnt_in_triangle(A, B, C, [0.38475394248962402_ireal_dp, zero]), 'custom edge case point should be in triangle! case 1')
+ @assertTrue(pnt_in_triangle(A, B, C, [0.38475394248962402_ireal_dp, zero]), 'custom edge case point should be in triangle! case 1')
 
     @assertFalse(pnt_in_triangle(A, B, C, [dx, dx]), 'point (dx,dy) should not be in triangle!')
 

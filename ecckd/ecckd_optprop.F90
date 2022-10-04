@@ -27,6 +27,7 @@ module m_ecckd_optprop
     & K_BOLTZMANN, &
     & MOLMASSAIR, &
     & mpiint, &
+    & PI_inv, &
     & R_DRY_AIR
 
   use m_helper_functions, only: &
@@ -37,7 +38,16 @@ module m_ecckd_optprop
   use m_fu_ice, only: fu_ice_optprop, fu_ice_data_solar, fu_ice_data_thermal
   use m_mie_tables, only: t_mie_table, mie_optprop
   use m_rayleigh, only: rayleigh
-  use m_ecckd_base, only: t_ecckd_data, ecckd_log_events
+
+  use m_ecckd_base, only: &
+    & ecckd_log_events, &
+    & IConcDependenceLinear, &
+    & IConcDependenceLUT, &
+    & IConcDependenceNone, &
+    & IConcDependenceRelativeLinear, &
+    & t_ecckd_atm_gas, &
+    & t_ecckd_data
+
   use m_search, only: find_real_location
 
   implicit none
@@ -45,27 +55,14 @@ module m_ecckd_optprop
   private
   public :: &
     & check_fu_table_consistency, &
-    & ecckd_optprop
-
-  ! constant trace gas volume mixing ratios
-  real(ireals), parameter :: CFC11 = 0e-9_ireals
-  real(ireals), parameter :: CFC12 = 0e-9_ireals
-  real(ireals), parameter :: N2 = 0.78102_ireals
+    & ecckd_optprop, &
+    & ecckd_planck
 
 #ifdef __RELEASE_BUILD__
-  logical, parameter :: ldebug = .true.
+  logical, parameter :: ldebug = .false.
 #else
   logical, parameter :: ldebug = .true.
 #endif
-
-! Concentration dependence of individual gases
-enum, bind(c)
-  enumerator :: IConcDependenceNone = 0, &
-    &        IConcDependenceLinear, &
-    &        IConcDependenceLUT, &
-    &        IConcDependenceRelativeLinear
-end enum
-
 
 contains
 
@@ -78,7 +75,6 @@ contains
     real(ireals), intent(out) :: kabs, ksca, kg
     integer(mpiint), intent(out) :: ierr
 
-    real(ireals) :: VMRS(ecckd_data%n_gases)
     real(ireals) :: tabs, tsca, g
     real(ireals) :: P, dP, dtau, rayleigh_xsec, N, lwc_vmr, qext_cld, w0_cld, g_cld, iwp
 
@@ -86,29 +82,21 @@ contains
 
     ierr = 0
 
-    P = (atm%plev(k, icol) + atm%plev(k + 1, icol)) * .5_ireals * 1e2_ireals
+    P = (atm%plev(k, icol) + atm%plev(k + 1, icol))*.5_ireals * 1e2_ireals
     dP = (atm%plev(k, icol) - atm%plev(k + 1, icol)) * 1e2_ireals
 
     ! ecckd molecular absorption cross section
     if (lprofile) then
       call PetscLogEventBegin(ecckd_log_events%ecckd_optprop_dtau, ierr); call CHKERR(ierr)
     end if
-    VMRS(:) = [ &
-      & atm%o2_lay(k, icol) + N2 + atm%n2o_lay(k, icol) + atm%ch4_lay(k, icol), & ! composite
-      & atm%h2o_lay(k, icol), &
-      & atm%o3_lay(k, icol), &
-      & atm%co2_lay(k, icol), &
-      & atm%ch4_lay(k, icol), &
-      & atm%n2o_lay(k, icol), &
-      & CFC11, CFC12]
 
     call ecckd_dtau(&
+      & k, icol, &
       & ecckd_data, &
       & iband, &
       & P, &
       & dP, &
       & atm%tlay(k, icol), &
-      & VMRS, &
       & dtau, &
       & ierr); call CHKERR(ierr)
 
@@ -126,10 +114,10 @@ contains
     end if
 
     tsca = 0
-    if(allocated(ecckd_data%rayleigh_molar_scattering_coeff)) then
+    if (allocated(ecckd_data%rayleigh_molar_scattering_coeff)) then
       tsca = dP * ecckd_data%rayleigh_molar_scattering_coeff(iband) / &
         & (EARTHACCEL * MOLMASSAIR * atm%dz(k, icol))
-    endif
+    end if
 
     !N = dP * AVOGADRO / EARTHACCEL / MOLMASSAIR
     !tsca = N * rayleigh_xsec * 1e-4 / atm%dz(k, icol) ! [1e-4 from cm2 to m2]
@@ -218,32 +206,33 @@ contains
   end subroutine
 
   ! Solar ckd
-  !	"composite h2o o3 co2 ch4 n2o" ;
-  !	:composite_constituent_id = "o2 n2 n2o ch4" ;
+  !        "composite h2o o3 co2 ch4 n2o" ;
+  !        :composite_constituent_id = "o2 n2 n2o ch4" ;
   ! Thermal ckd
-  !	:constituent_id = "composite h2o o3 co2 ch4 n2o cfc11 cfc12" ;
+  !        :constituent_id = "composite h2o o3 co2 ch4 n2o cfc11 cfc12" ;
   ! :composite_constituent_id = "o2 n2 n2o ch4" ;
 
   subroutine ecckd_dtau(     &
+      & atm_k,               & !> vertical index in atm
+      & atm_icol,            & !> column index in atm
       & ecckd_data,          & !> data tables
       & igpt,                & !> wavelenght index
       & P,                   & !> mean pressure of layer [Pa]
       & dP,                  & !> delta pressure of layer [Pa]
       & T,                   & !> mean Temperature of layer [K]
-      & VMRS,                & !> vol mix ratios as in the ecckd data
       & dtau,                & !> optical thickness of layer
       & ierr)
 
+    integer(iintegers), intent(in) :: atm_k, atm_icol
     type(t_ecckd_data), intent(in) :: ecckd_data
     integer(iintegers), intent(in) :: igpt
     real(ireals), intent(in) :: P, dP, T
-    real(ireals), intent(in) :: VMRS(:)
     real(ireals), intent(out) :: dtau
     integer(mpiint), intent(out) :: ierr
 
-    real(ireals) :: numDens, wP, wT, simple_multiplier
+    real(ireals) :: numDens, wP, wT, simple_multiplier, taugas
     real(ireals) :: wgt_P0, wgt_P1, wgt_T0, wgt_T1
-    integer(iintegers) :: ip0, ip1, iT0, iT1
+    integer(iintegers) :: ip0, ip1, iT0, iT1, igas
     ierr = 0
 
     if (any([T, P, dP] .lt. 0)) then
@@ -255,20 +244,13 @@ contains
         & "")
     end if
 
-    if (any(VMRS .lt. 0) .or. any(VMRS .gt. 1)) then
-      ierr = 1
-      call CHKERR(ierr, "Found bad input, one of VMRS < 0 or > 1:"//new_line('')// &
-        & " VMRS = "//toStr(VMRS)//new_line('')// &
-        & "")
-    end if
-
     numDens = dP * AVOGADRO / MOLMASSAIR / EARTHACCEL
 
     wP = find_real_location(ecckd_data%pressure, P)
     ip0 = int(floor(wP), iintegers)
     ip1 = ip0 + 1
 
-    wT = find_real_location(ecckd_data%temperature(ip0,:), T)
+    wT = find_real_location(ecckd_data%temperature(ip0, :), T)
     iT0 = int(floor(wT), iintegers)
     iT1 = iT0 + 1
 
@@ -279,99 +261,146 @@ contains
 
     dtau = 0
 
-    simple_multiplier = dP / (MOLMASSAIR / EARTHACCEL)
-    !call additional_tracer(simple_multiplier, VMRS[0], ecckd_data%composite_conc_dependence_code, ecckd_data%composite_molar_absorption_coeff, dtau)
+    simple_multiplier = dP / (MOLMASSAIR * EARTHACCEL)
 
-    !call additional_tracer(simple_multiplier, VMRS(2), &
-    !  & ecckd_data%h2o_conc_dependence_code, &
-    !  & ecckd_data%h2o_molar_absorption_coeff, dtau, &
-    !  & h2o_mole_fraction(:), &
-    !  & )
-
-    call additional_tracer( &
-      & simple_multiplier, VMRS(3), &
-      & ecckd_data%o3_conc_dependence_code, &
-      & ecckd_data%o3_molar_absorption_coeff, &
-      & dtau)
-    !print *, 'dtau1', dtau
-
-    call additional_tracer( &
-      & simple_multiplier, VMRS(4), &
-      & ecckd_data%co2_conc_dependence_code, &
-      & ecckd_data%co2_molar_absorption_coeff, &
-      & dtau)
-    !print *, 'dtau2', dtau
-
-    call additional_tracer( &
-      & simple_multiplier, VMRS(5), &
-      & ecckd_data%ch4_conc_dependence_code, &
-      & ecckd_data%ch4_molar_absorption_coeff, &
-      & dtau, &
-      & ref_vmr=ecckd_data%ch4_reference_mole_fraction)
-    !print *, 'dtau3', dtau
+    do igas = 1, size(ecckd_data%gases)
+      call additional_tracer( &
+        & simple_multiplier, &
+        & ecckd_data%gases(igas), &
+        & taugas, ierr)
+      !print *, igas, trim(ecckd_data%gases(igas)%id), ' => tau', taugas
+      call CHKERR(ierr, 'dep_code '//toStr(ecckd_data%gases(igas)%conc_dependence_code)// &
+        & ' not implemented for gas: '//trim(ecckd_data%gases(igas)%id))
+      dtau = dtau + taugas
+    end do
 
     dtau = max(0._ireals, dtau)
 
-!    ! H2O continuum is quadratic
-!    spec = 1
-!    xsecP0 = (ecckd_data%xsec(ip0, iwvl, spec, iT1) * wgt_T &
-!           & + ecckd_data%xsec(ip0, iwvl, spec, iT0) * (1._ireals - wgt_T)) &
-!           & / ecckd_data%vmrs_ref(ip0, spec)
-!    xsecP1 = (ecckd_data%xsec(ip1, iwvl, spec, iT1) * wgt_T &
-!           & + ecckd_data%xsec(ip1, iwvl, spec, iT0) * (1._ireals - wgt_T)) &
-!           & / ecckd_data%vmrs_ref(ip1, spec)
-!    dtau = dtau + (xsecP1 * wgt_P + xsecP0 * (1._ireals - wgt_P)) * numDens * (VMRS(spec) * VMRS(spec))
-!
-!    do spec = 2, size(VMRS)
-!      xsecP0 = (ecckd_data%xsec(ip0, iwvl, spec, iT1) * wgt_T &
-!             & + ecckd_data%xsec(ip0, iwvl, spec, iT0) * (1._ireals - wgt_T))
-!      xsecP1 = (ecckd_data%xsec(ip1, iwvl, spec, iT1) * wgt_T &
-!             & + ecckd_data%xsec(ip1, iwvl, spec, iT0) * (1._ireals - wgt_T))
-!      dtau = dtau + (xsecP1 * wgt_P + xsecP0 * (1._ireals - wgt_P)) * numDens * VMRS(spec)
-!    end do
-!
-!    if (allocated(ecckd_data%crs_o3)) &
-!      & call additional_tracer_from_bremen_data(ecckd_data%crs_o3(:, iwvl), VMRS(4), dtau)
-!    if (allocated(ecckd_data%crs_n2o)) &
-!      & call additional_tracer_from_bremen_data(ecckd_data%crs_n2o(:, iwvl), VMRS(5), dtau)
-!
-!    if (dtau .lt. 0) then
-!      ierr = 2
-!      call CHKERR(ierr, "Resulted in negative dtau ?! dtau = "//toStr(dtau))
-!    end if
-!
   contains
 
-    subroutine additional_tracer(simple_multiplier, vmr, dep_code, molar_abs, dtau, ref_vmr)
-      real(ireals), intent(in) :: simple_multiplier, vmr
-      integer(iintegers), intent(in) :: dep_code
-      real(ireals), intent(in) :: molar_abs(:,:,:)
-      real(ireals), intent(inout) :: dtau
-      real(ireals), intent(in), optional :: ref_vmr
+    !pure &
+    subroutine additional_tracer(simple_multiplier, gas, taugas, ierr)
+      real(ireals), intent(in) :: simple_multiplier
+      type(t_ecckd_atm_gas), intent(in) :: gas
+      real(ireals), intent(out) :: taugas
+      integer(mpiint), intent(out) :: ierr
 
-      select case (dep_code)
-      case (IConcDependenceNone)
-        dtau = dtau + simple_multiplier * ( &
-          &   wgt_T0 * (wgt_P0 * molar_abs(igpt, ip0, iT0) + wgt_P1 * molar_abs(igpt, ip1, iT0)) &
-          & + wgt_T1 * (wgt_P0 * molar_abs(igpt, ip0, iT1) + wgt_P1 * molar_abs(igpt, ip1, iT1)) &
-          & )
-      case (IConcDependenceLinear)
-        dtau = dtau + simple_multiplier * vmr * ( &
-          &   wgt_T0 * (wgt_P0 * molar_abs(igpt, ip0, iT0) + wgt_P1 * molar_abs(igpt, ip1, iT0)) &
-          & + wgt_T1 * (wgt_P0 * molar_abs(igpt, ip0, iT1) + wgt_P1 * molar_abs(igpt, ip1, iT1)) &
-          & )
-      case (IConcDependenceRelativeLinear)
-        !print *, 'IConcDependenceRelativeLinear fac', simple_multiplier, 'vmr', vmr, 'ref', ref_vmr
-        dtau = dtau + simple_multiplier * (vmr - ref_vmr) * ( &
-          &   wgt_T0 * (wgt_P0 * molar_abs(igpt, ip0, iT0) + wgt_P1 * molar_abs(igpt, ip1, iT0)) &
-          & + wgt_T1 * (wgt_P0 * molar_abs(igpt, ip0, iT1) + wgt_P1 * molar_abs(igpt, ip1, iT1)) &
-          & )
+      real(ireals) :: wC, wgt_C0, wgt_C1
+      integer(iintegers) :: iC0, iC1
 
-      case default
-        call CHKERR(1_mpiint, 'dep_code '//toStr(dep_code)//' not implemented?!')
-      end select
+      ierr = 0
+
+      associate ( &
+          & code => gas%conc_dependence_code, &
+          & ref_vmr => gas%reference_mole_fraction, &
+          & mabs3 => gas%molar_absorption_coeff3, &
+          & mabs4 => gas%molar_absorption_coeff4, &
+          & mfrac1 => gas%mole_fraction1)
+
+        select case (code)
+        case (IConcDependenceNone)
+          if (ldebug .and. .not. associated(gas%molar_absorption_coeff3)) &
+            & call CHKERR(1_mpiint, 'gas%molar_absorption_coeff3 not associated for gas '//trim(gas%id))
+
+          taugas = simple_multiplier * ( &
+            &   wgt_T0 * (wgt_P0 * mabs3(igpt, ip0, iT0) + wgt_P1 * mabs3(igpt, ip1, iT0)) &
+            & + wgt_T1 * (wgt_P0 * mabs3(igpt, ip0, iT1) + wgt_P1 * mabs3(igpt, ip1, iT1)) &
+            & )
+        case (IConcDependenceLinear)
+          if (ldebug .and. .not. associated(gas%molar_absorption_coeff3)) &
+            & call CHKERR(1_mpiint, 'gas%molar_absorption_coeff3 not associated for gas '//trim(gas%id))
+
+          if (associated(gas%vmr)) then
+            taugas = simple_multiplier * gas%vmr(atm_k, atm_icol) * ( &
+              &   wgt_T0 * (wgt_P0 * mabs3(igpt, ip0, iT0) + wgt_P1 * mabs3(igpt, ip1, iT0)) &
+              & + wgt_T1 * (wgt_P0 * mabs3(igpt, ip0, iT1) + wgt_P1 * mabs3(igpt, ip1, iT1)) &
+              & )
+          else
+            if (ldebug .and. gas%vmr_const .lt. 0) &
+              & call CHKERR(1_mpiint, 'gas%vmr_const has a bad value'//toStr(gas%vmr_const)//' '//trim(gas%id))
+            taugas = simple_multiplier * gas%vmr_const * ( &
+              &   wgt_T0 * (wgt_P0 * mabs3(igpt, ip0, iT0) + wgt_P1 * mabs3(igpt, ip1, iT0)) &
+              & + wgt_T1 * (wgt_P0 * mabs3(igpt, ip0, iT1) + wgt_P1 * mabs3(igpt, ip1, iT1)) &
+              & )
+          end if
+
+        case (IConcDependenceRelativeLinear)
+          if (ldebug .and. .not. associated(gas%molar_absorption_coeff3)) &
+            & call CHKERR(1_mpiint, 'gas%molar_absorption_coeff3 not associated for gas '//trim(gas%id))
+          if (ldebug .and. ref_vmr .lt. 0) call CHKERR(1_mpiint, 'bad ref_vmr value'//toStr(ref_vmr)//' for gas '//trim(gas%id))
+          if (ldebug .and. .not. associated(gas%vmr)) call CHKERR(1_mpiint, 'gas%vmr not associated for gas '//trim(gas%id))
+
+          taugas = simple_multiplier * (gas%vmr(atm_k, atm_icol) - ref_vmr) * ( &
+            &   wgt_T0 * (wgt_P0 * mabs3(igpt, ip0, iT0) + wgt_P1 * mabs3(igpt, ip1, iT0)) &
+            & + wgt_T1 * (wgt_P0 * mabs3(igpt, ip0, iT1) + wgt_P1 * mabs3(igpt, ip1, iT1)) &
+            & )
+
+        case (IConcDependenceLUT)
+          if (ldebug .and. .not. associated(gas%molar_absorption_coeff4)) &
+            & call CHKERR(1_mpiint, 'gas%molar_absorption_coeff4 not associated for gas '//trim(gas%id))
+          if (ldebug .and. .not. associated(gas%mole_fraction1)) &
+            & call CHKERR(1_mpiint, 'gas%mole_fraction1 not associated for gas '//trim(gas%id))
+          if (ldebug .and. .not. associated(gas%vmr)) call CHKERR(1_mpiint, 'gas%vmr not associated for gas '//trim(gas%id))
+
+          wC = find_real_location(mfrac1, gas%vmr(atm_k, atm_icol))
+          iC0 = int(floor(wC), iintegers)
+          iC1 = iC0 + 1
+          wgt_C1 = wC - real(iC0, ireals)
+          wgt_C0 = (1._ireals - wgt_C1)
+
+          !print *,trim(gas%id)//' interpolation vmr', vmr(atm_k, atm_icol), 'in', mfrac1, 'idx:', wC
+
+          taugas = simple_multiplier * gas%vmr(atm_k, atm_icol) * ( &
+            & wgt_C0 * ( &
+            &   wgt_T0 * (wgt_P0 * mabs4(igpt, ip0, iT0, iC0) + wgt_P1 * mabs4(igpt, ip1, iT0, iC0)) &
+            & + wgt_T1 * (wgt_P0 * mabs4(igpt, ip0, iT1, iC0) + wgt_P1 * mabs4(igpt, ip1, iT1, iC0)) &
+            & ) + &
+            & wgt_C1 * ( &
+            &   wgt_T0 * (wgt_P0 * mabs4(igpt, ip0, iT0, iC1) + wgt_P1 * mabs4(igpt, ip1, iT0, iC1)) &
+            & + wgt_T1 * (wgt_P0 * mabs4(igpt, ip0, iT1, iC1) + wgt_P1 * mabs4(igpt, ip1, iT1, iC1)) &
+            & ))
+
+        end select
+      end associate
 
     end subroutine
+  end subroutine
+
+  subroutine ecckd_planck(   &
+      & ecckd_data,          & !> data tables
+      & igpt,                & !> wavelenght index
+      & T,                   & !> Temperature [K]
+      & B,                   & !> emitted blackbody flux [W/m2]
+      & ierr)
+
+    type(t_ecckd_data), intent(in) :: ecckd_data
+    integer(iintegers), intent(in) :: igpt
+    real(ireals), intent(in) :: T
+    real(ireals), intent(out) :: B
+    integer(mpiint), intent(out) :: ierr
+
+    real(ireals) :: wT
+    real(ireals) :: wgt_T0, wgt_T1
+    integer(iintegers) :: iT0, iT1
+    ierr = 0
+
+    if (T .lt. 0) then
+      ierr = 1
+      call CHKERR(ierr, "Found bad input, for Temperature < 0:"//new_line('')// &
+        & " T = "//toStr(T)//new_line('')// &
+        & "")
+    end if
+
+    wT = find_real_location(ecckd_data%temperature_planck, T)
+    iT0 = int(floor(wT), iintegers)
+    iT1 = iT0 + 1
+
+    wgt_T1 = wT - real(iT0, ireals)
+    wgt_T0 = (1._ireals - wgt_T1)
+
+    B = wgt_T0 * ecckd_data%planck_function(igpt, iT0) + &
+      & wgt_T1 * ecckd_data%planck_function(igpt, iT1)
+    B = B * PI_inv
   end subroutine
 
 end module

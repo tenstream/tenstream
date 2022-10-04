@@ -32,6 +32,7 @@ program main
 
   call mpi_init(ierr)
   comm = mpi_comm_world
+  call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
   call init_mpi_data_parameters(comm)
   call read_commandline_options(comm)
 
@@ -153,7 +154,6 @@ program main
   if (lhave_outfile) then
     groups(1) = trim(outfile)
 
-    call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
     if (myid .eq. 0_mpiint) then
       if (lsolar) then
         groups(2) = 'edir'; call ncwrite(groups, gedir, ierr); call CHKERR(ierr)

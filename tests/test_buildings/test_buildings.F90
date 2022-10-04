@@ -370,12 +370,12 @@ contains
     if (myid .eq. 0) then
       trgt = S0 * cos(deg2rad(theta0))
       @assertEqual(trgt, gedir(Nlay + 1, glob_box_i, glob_box_j), atol, 'edir beneath building should be clear sky value')
-      @assertEqual(trgt, gedir(glob_box_k, glob_box_i, glob_box_j), atol, 'edir at top of building should be the one from clear sky')
+     @assertEqual(trgt, gedir(glob_box_k, glob_box_i, glob_box_j), atol, 'edir at top of building should be the one from clear sky')
 
       @assertEqual(0, gedir(glob_box_k + 1, glob_box_i, glob_box_j), atol, 'edir at bot of building should be zero')
-      @assertEqual(0, gedir(glob_box_k + 1, glob_box_i, glob_box_j - 1), atol, 'edir building shadow should go south and should be zero')
-      @assertEqual(0, gedir(glob_box_k + 2, glob_box_i, glob_box_j - 1), atol, 'edir building shadow should go south and should be zero')
-      @assertEqual(0, gedir(glob_box_k + 2, glob_box_i, glob_box_j - 2), atol, 'edir building shadow should go south and should be zero')
+ @assertEqual(0, gedir(glob_box_k + 1, glob_box_i, glob_box_j - 1), atol, 'edir building shadow should go south and should be zero')
+ @assertEqual(0, gedir(glob_box_k + 2, glob_box_i, glob_box_j - 1), atol, 'edir building shadow should go south and should be zero')
+ @assertEqual(0, gedir(glob_box_k + 2, glob_box_i, glob_box_j - 2), atol, 'edir building shadow should go south and should be zero')
     end if
     if (size(buildings%edir) .gt. 0) then
       trgt = S0 * cos(deg2rad(theta0))
@@ -438,12 +438,12 @@ contains
     if (myid .eq. 0) then
       trgt = S0 * cos(deg2rad(theta0))
       @assertEqual(trgt, gedir(Nlay + 1, glob_box_i, glob_box_j), atol, 'edir beneath building should be clear sky value')
-      @assertEqual(trgt, gedir(glob_box_k, glob_box_i, glob_box_j), atol, 'edir at top of building should be the one from clear sky')
+     @assertEqual(trgt, gedir(glob_box_k, glob_box_i, glob_box_j), atol, 'edir at top of building should be the one from clear sky')
 
       @assertEqual(0, gedir(glob_box_k + 1, glob_box_i, glob_box_j), atol, 'edir at bot of building should be zero')
-      @assertEqual(0, gedir(glob_box_k + 1, glob_box_i, glob_box_j + 1), atol, 'edir building shadow should go north and should be zero')
-      @assertEqual(0, gedir(glob_box_k + 2, glob_box_i, glob_box_j + 1), atol, 'edir building shadow should go north and should be zero')
-      @assertEqual(0, gedir(glob_box_k + 2, glob_box_i, glob_box_j + 2), atol, 'edir building shadow should go north and should be zero')
+ @assertEqual(0, gedir(glob_box_k + 1, glob_box_i, glob_box_j + 1), atol, 'edir building shadow should go north and should be zero')
+ @assertEqual(0, gedir(glob_box_k + 2, glob_box_i, glob_box_j + 1), atol, 'edir building shadow should go north and should be zero')
+ @assertEqual(0, gedir(glob_box_k + 2, glob_box_i, glob_box_j + 2), atol, 'edir building shadow should go north and should be zero')
     end if
     if (size(buildings%edir) .gt. 0) then
       trgt = S0 * cos(deg2rad(theta0))
@@ -507,12 +507,12 @@ contains
     if (myid .eq. 0) then
       trgt = S0 * cos(deg2rad(theta0))
       @assertEqual(trgt, gedir(Nlay + 1, glob_box_i, glob_box_j), atol, 'edir beneath building should be clear sky value')
-      @assertEqual(trgt, gedir(glob_box_k, glob_box_i, glob_box_j), atol, 'edir at top of building should be the one from clear sky')
+     @assertEqual(trgt, gedir(glob_box_k, glob_box_i, glob_box_j), atol, 'edir at top of building should be the one from clear sky')
 
       @assertEqual(0, gedir(glob_box_k + 1, glob_box_i, glob_box_j), atol, 'edir at bot of building should be zero')
-      @assertEqual(0, gedir(glob_box_k + 1, glob_box_i - 1, glob_box_j), atol, 'edir building shadow should go west and should be zero')
-      @assertEqual(0, gedir(glob_box_k + 2, glob_box_i - 1, glob_box_j), atol, 'edir building shadow should go west and should be zero')
-      @assertEqual(0, gedir(glob_box_k + 2, glob_box_i - 2, glob_box_j), atol, 'edir building shadow should go west and should be zero')
+  @assertEqual(0, gedir(glob_box_k + 1, glob_box_i - 1, glob_box_j), atol, 'edir building shadow should go west and should be zero')
+  @assertEqual(0, gedir(glob_box_k + 2, glob_box_i - 1, glob_box_j), atol, 'edir building shadow should go west and should be zero')
+  @assertEqual(0, gedir(glob_box_k + 2, glob_box_i - 2, glob_box_j), atol, 'edir building shadow should go west and should be zero')
     end if
     if (size(buildings%edir) .gt. 0) then
       trgt = S0 * cos(deg2rad(theta0))
@@ -576,12 +576,12 @@ contains
     if (myid .eq. 0) then
       trgt = S0 * cos(deg2rad(theta0))
       @assertEqual(trgt, gedir(Nlay + 1, glob_box_i, glob_box_j), atol, 'edir beneath building should be clear sky value')
-      @assertEqual(trgt, gedir(glob_box_k, glob_box_i, glob_box_j), atol, 'edir at top of building should be the one from clear sky')
+     @assertEqual(trgt, gedir(glob_box_k, glob_box_i, glob_box_j), atol, 'edir at top of building should be the one from clear sky')
 
       @assertEqual(0, gedir(glob_box_k + 1, glob_box_i, glob_box_j), atol, 'edir at bot of building should be zero')
-      @assertEqual(0, gedir(glob_box_k + 1, glob_box_i + 1, glob_box_j), atol, 'edir building shadow should go east and should be zero')
-      @assertEqual(0, gedir(glob_box_k + 2, glob_box_i + 1, glob_box_j), atol, 'edir building shadow should go east and should be zero')
-      @assertEqual(0, gedir(glob_box_k + 2, glob_box_i + 2, glob_box_j), atol, 'edir building shadow should go east and should be zero')
+  @assertEqual(0, gedir(glob_box_k + 1, glob_box_i + 1, glob_box_j), atol, 'edir building shadow should go east and should be zero')
+  @assertEqual(0, gedir(glob_box_k + 2, glob_box_i + 1, glob_box_j), atol, 'edir building shadow should go east and should be zero')
+  @assertEqual(0, gedir(glob_box_k + 2, glob_box_i + 2, glob_box_j), atol, 'edir building shadow should go east and should be zero')
     end if
     if (size(buildings%edir) .gt. 0) then
       trgt = S0 * cos(deg2rad(theta0))
@@ -669,9 +669,9 @@ contains
             & 'edir', Bs%edir(iface), 'inc', Bs%incoming(iface), 'out', Bs%outgoing(iface)
 
           if (k .eq. ke .and. i .eq. 3 .and. j .eq. 3) then ! center pyramid box
-            @assertEqual(0._ireals, Bs%edir(iface), rtol, 'all fluxes of center building should be zero bc it is encircled by others')
-            @assertEqual(0._ireals, Bs%incoming(iface), rtol, 'all fluxes of center building should be zero bc it is encircled by others')
-            @assertEqual(0._ireals, Bs%outgoing(iface), rtol, 'all fluxes of center building should be zero bc it is encircled by others')
+          @assertEqual(0._ireals, Bs%edir(iface), rtol, 'all fluxes of center building should be zero bc it is encircled by others')
+      @assertEqual(0._ireals, Bs%incoming(iface), rtol, 'all fluxes of center building should be zero bc it is encircled by others')
+      @assertEqual(0._ireals, Bs%outgoing(iface), rtol, 'all fluxes of center building should be zero bc it is encircled by others')
           end if
 
           if (d .eq. PPRTS_TOP_FACE .and. k .eq. ke - 1 .and. i .eq. 3 .and. j .eq. 3) then ! center pyramid box above
