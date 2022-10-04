@@ -78,6 +78,7 @@ module m_netcdfIO
           module procedure ncload_${method}$_${dtype}$_${RANK}$d_${modifier}$
         #:endfor
       #:endfor
+      module procedure ncload_${method}$_${dtype}$_scalar
     #:endfor
   end interface
 
@@ -396,6 +397,66 @@ contains
         end subroutine
       #:endfor
     #:endfor
+
+    subroutine ncload_${method}$_${dtype}$_scalar &
+        & (groups, arr, ierr, lverbose, lock_waittime)
+
+      ${method}$${dKIND}$, intent(inout) :: arr
+
+      logical, intent(in), optional :: lverbose
+      integer(mpiint), intent(in), optional :: lock_waittime
+
+      character(len=*) :: groups(:)
+
+      character(len=default_str_len) :: fname, varname
+      integer :: i, ncid, varid
+
+      logical :: file_exists, var_exists
+
+      integer :: ncerr, flock_unit
+      integer(mpiint), intent(out) :: ierr
+      ierr = 0
+
+      fname = trim(groups(1))
+
+      inquire (file=trim(fname), exist=file_exists)
+      if (.not. file_exists) then
+        print *, ''
+        print *, 'ERROR! NetCDF File ', trim(fname), ' could not be found!'
+        print *, ''
+        ierr = 101
+        return
+      end if
+
+      call acquire_file_lock(fname, flock_unit, ierr, waittime=lock_waittime); call CHKERR(ierr, 'Could not obtain file lock')
+
+      varname = trim(groups(2))
+      do i = 3, size(groups)
+        varname = trim(varname)//'.'//trim(groups(i))
+      end do
+      if (ldebug .or. get_arg(.false., lverbose)) print *, 'reading from file: ', trim(fname)
+      if (ldebug .or. get_arg(.false., lverbose)) print *, 'variable: ', trim(varname), ' :: Ndims', size(shape(arr))
+
+      ncerr = nf90_open(trim(fname), NF90_NOWRITE, ncid); call nccheck(ncerr); ierr = ierr + ncerr
+      if (ncerr .ne. NF90_NOERR) goto 100
+      ncerr = nf90_inq_varid(ncid, trim(varname), varid); call nccheck(ncerr); ierr = ierr + ncerr
+      if (ncerr .ne. NF90_NOERR) goto 100
+
+      var_exists = ncerr .eq. NF90_NOERR
+      if (ldebug .or. get_arg(.false., lverbose)) &
+        & print *, 'Reading NetCDF :: varname: ', trim(varname), ' :: exists?', var_exists
+
+      ncerr = nf90_get_var(ncid, varid, arr)
+      call nccheck(ncerr); ierr = ierr + ncerr
+
+100   continue
+      ncerr = nf90_close(ncid); call nccheck(ncerr); ierr = ierr + ncerr
+      if (ldebug) print *, 'Reading Netcdf file returned with ierr: ', ierr
+      call release_file_lock(flock_unit, ncerr); call CHKERR(ncerr, 'Could not release file lock')
+
+      return
+
+    end subroutine
   #:endfor
 
   subroutine cpusleep(sec)
