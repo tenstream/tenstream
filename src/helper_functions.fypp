@@ -1766,7 +1766,7 @@ contains
     #:endif
     subroutine split_${dtype}$ (str, a, sep, ierr)
       character(len=*), intent(in) :: str, sep
-      ${basetype}$ ${dKIND}$, intent(out), allocatable :: a(:)
+      ${basetype}$${dKIND}$, intent(out), allocatable :: a(:)
       integer(mpiint), intent(out) :: ierr
       integer(iintegers) :: i, n
       logical :: last_char_was_sep

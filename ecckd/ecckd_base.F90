@@ -32,8 +32,9 @@ module m_ecckd_base
 
   use m_helper_functions, only: &
     & CHKERR, &
-    & get_petsc_opt, &
+    & CHKWARN, &
     & get_arg, &
+    & get_petsc_opt, &
     & imp_bcast, &
     & split, &
     & toStr
@@ -49,18 +50,32 @@ module m_ecckd_base
   public :: &
     & ecckd_init, &
     & ecckd_log_events, &
+    & IConcDependenceLinear, &
+    & IConcDependenceLUT, &
+    & IConcDependenceNone, &
+    & IConcDependenceRelativeLinear, &
     & setup_log_events, &
+    & t_ecckd_atm_gas, &
     & t_ecckd_data
+
+! Concentration dependence of individual gases
+  enum, bind(c)
+    enumerator :: IConcDependenceNone = 0, &
+      &        IConcDependenceLinear, &
+      &        IConcDependenceLUT, &
+      &        IConcDependenceRelativeLinear
+  end enum
 
   type t_ecckd_atm_gas
     character(len=default_str_len) :: id
     integer(iintegers) :: conc_dependence_code
     real(ireals) :: reference_mole_fraction
     real(ireals), pointer :: mole_fraction1(:)
-    real(ireals), pointer :: mole_fraction2(:,:)
+    real(ireals), pointer :: mole_fraction2(:, :)
     real(ireals), pointer :: molar_absorption_coeff3(:, :, :)
     real(ireals), pointer :: molar_absorption_coeff4(:, :, :, :)
-    real(ireals), pointer :: vmr(:,:) ! dim(k,icol) pointer into a gas, usually from a t_tenstr_atm
+    real(ireals), pointer :: vmr(:, :) ! dim(k,icol) pointer into a gas, usually from a t_tenstr_atm
+    real(ireals) :: vmr_const ! const vmr of a gas
   end type
 
   type t_ecckd_data
@@ -73,7 +88,7 @@ module m_ecckd_base
     real(ireals), allocatable :: temperature(:, :) ! dim(temperature, pressure) [K]
     real(ireals), allocatable :: pressure(:)      ! dim(pressure) [Pa]
     real(ireals), allocatable :: temperature_planck(:) ! dim(temperature_planck) [K] Temperature for Planck function look-up table
-    real(ireals), allocatable :: planck_function(:, :) ! dim(temperature_planck, g_point) [Wm-2] Planck function look-up table
+    real(ireals), allocatable :: planck_function(:, :) ! dim(g_point, temperature_planck) [Wm-2] Planck function look-up table
     real(ireals), allocatable :: solar_irradiance(:) ! dim(g_point) [Wm-2] Solar irradiance across each g point
     real(ireals), allocatable :: rayleigh_molar_scattering_coeff(:) ! dim(g_point) [m2 mol-1] ayleigh molar scattering coefficient in each gpt
     real(ireals), allocatable :: wavenumber1(:)        ! dim(wavenumber) [cm-1] Lower wavenumber bound of spectral interval
@@ -101,6 +116,16 @@ module m_ecckd_base
     real(ireals) :: ch4_reference_mole_fraction ! Reference mole fraction of CH4
     real(ireals), allocatable :: ch4_molar_absorption_coeff(:, :, :) ! dim(temperature, pressure, g_point) [m2 mol-1] Molar absorption coefficient of ch4
 
+    integer(iintegers) :: n2o_conc_dependence_code ! n2o concentration dependence code
+    real(ireals) :: n2o_reference_mole_fraction ! Reference mole fraction of n2o
+    real(ireals), allocatable :: n2o_molar_absorption_coeff(:, :, :) ! dim(temperature, pressure, g_point) [m2 mol-1] Molar absorption coefficient of n2o
+
+    integer(iintegers) :: cfc11_conc_dependence_code ! cfc11 concentration dependence code
+    real(ireals), allocatable :: cfc11_molar_absorption_coeff(:, :, :) ! dim(temperature, pressure, g_point) [m2 mol-1] Molar absorption coefficient of cfc11
+
+    integer(iintegers) :: cfc12_conc_dependence_code ! cfc12 concentration dependence code
+    real(ireals), allocatable :: cfc12_molar_absorption_coeff(:, :, :) ! dim(temperature, pressure, g_point) [m2 mol-1] Molar absorption coefficient of cfc12
+
     ! following is populated to have a mapping between atm%gas_vmrs and ecckd_data entries
     type(t_ecckd_atm_gas), allocatable :: gases(:) ! dim(n_gases)
   end type
@@ -116,8 +141,12 @@ module m_ecckd_base
   end type
   type(t_ecckd_log_events) :: ecckd_log_events
 
+  ! constant trace gas volume mixing ratios
+  real(ireals), parameter :: CFC11 = 0e-9_ireals
+  real(ireals), parameter :: CFC12 = 0e-9_ireals
+
 #ifdef __RELEASE_BUILD__
-  logical, parameter :: ldebug = .true.
+  logical, parameter :: ldebug = .false.
 #else
   logical, parameter :: ldebug = .true.
 #endif
@@ -180,16 +209,34 @@ contains
     groups(2) = 'ch4_molar_absorption_coeff'
     call ncload(groups, ecckd_data%ch4_molar_absorption_coeff, ierr, lverbose); call CHKERR(ierr)
 
+    groups(2) = 'n2o_conc_dependence_code'
+    call ncload(groups, ecckd_data%n2o_conc_dependence_code, ierr, lverbose); call CHKERR(ierr)
+    groups(2) = 'n2o_reference_mole_fraction'
+    call ncload(groups, ecckd_data%n2o_reference_mole_fraction, ierr, lverbose); call CHKERR(ierr)
+    groups(2) = 'n2o_molar_absorption_coeff'
+    call ncload(groups, ecckd_data%n2o_molar_absorption_coeff, ierr, lverbose); call CHKERR(ierr)
+
     if (lsw) then
       groups(2) = 'solar_irradiance'
       call ncload(groups, ecckd_data%solar_irradiance, ierr, lverbose); call CHKERR(ierr)
       groups(2) = 'rayleigh_molar_scattering_coeff'
       call ncload(groups, ecckd_data%rayleigh_molar_scattering_coeff, ierr, lverbose); call CHKERR(ierr)
+
     end if
 
     if (llw) then
       groups(2) = 'temperature_planck'; call ncload(groups, ecckd_data%temperature_planck, ierr, lverbose); call CHKERR(ierr)
       groups(2) = 'planck_function'; call ncload(groups, ecckd_data%planck_function, ierr, lverbose); call CHKERR(ierr)
+
+      groups(2) = 'cfc11_conc_dependence_code'
+      call ncload(groups, ecckd_data%cfc11_conc_dependence_code, ierr, lverbose); call CHKERR(ierr)
+      groups(2) = 'cfc11_molar_absorption_coeff'
+      call ncload(groups, ecckd_data%cfc11_molar_absorption_coeff, ierr, lverbose); call CHKERR(ierr)
+
+      groups(2) = 'cfc12_conc_dependence_code'
+      call ncload(groups, ecckd_data%cfc12_conc_dependence_code, ierr, lverbose); call CHKERR(ierr)
+      groups(2) = 'cfc12_molar_absorption_coeff'
+      call ncload(groups, ecckd_data%cfc12_molar_absorption_coeff, ierr, lverbose); call CHKERR(ierr)
     end if
 
     if (get_arg(.false., lverbose)) then
@@ -218,9 +265,20 @@ contains
       print *, 'ch4_reference_mole_fraction     ', shape(ecckd_data%ch4_reference_mole_fraction)
       print *, 'ch4_molar_absorption_coeff      ', shape(ecckd_data%ch4_molar_absorption_coeff)
 
+      print *, 'n2o_conc_dependence_code      ', shape(ecckd_data%n2o_conc_dependence_code)
+      print *, 'n2o_reference_mole_fraction   ', shape(ecckd_data%n2o_reference_mole_fraction)
+      print *, 'n2o_molar_absorption_coeff    ', shape(ecckd_data%n2o_molar_absorption_coeff)
+
+      if (lsw) then
+      end if
+
       if (llw) then
         print *, 'temperature_planck            ', shape(ecckd_data%temperature_planck)
         print *, 'planck_function               ', shape(ecckd_data%planck_function)
+        print *, 'cfc11_conc_dependence_code    ', shape(ecckd_data%cfc11_conc_dependence_code)
+        print *, 'cfc11_molar_absorption_coeff  ', shape(ecckd_data%cfc11_molar_absorption_coeff)
+        print *, 'cfc12_conc_dependence_code    ', shape(ecckd_data%cfc12_conc_dependence_code)
+        print *, 'cfc12_molar_absorption_coeff  ', shape(ecckd_data%cfc12_molar_absorption_coeff)
       end if
 
     end if
@@ -296,7 +354,6 @@ contains
 
     call populate_gas_info(atm, ecckd_data_thermal, ierr); call CHKERR(ierr)
     call populate_gas_info(atm, ecckd_data_solar, ierr); call CHKERR(ierr)
-    call CHKERR(1_mpiint, 'DEBUG')
   contains
 
     subroutine distribute_ecckd_table(comm, table, ierr)
@@ -320,16 +377,21 @@ contains
       call imp_bcast(comm, table%wavenumber1_band, sendid, ierr); call CHKERR(ierr)
       call imp_bcast(comm, table%wavenumber2_band, sendid, ierr); call CHKERR(ierr)
       call imp_bcast(comm, table%band_number, sendid, ierr); call CHKERR(ierr)
+
       call imp_bcast(comm, table%composite_conc_dependence_code, sendid, ierr); call CHKERR(ierr)
       call imp_bcast(comm, table%composite_molar_absorption_coeff, sendid, ierr); call CHKERR(ierr)
       call imp_bcast(comm, table%composite_mole_fraction, sendid, ierr); call CHKERR(ierr)
+
       call imp_bcast(comm, table%h2o_conc_dependence_code, sendid, ierr); call CHKERR(ierr)
       call imp_bcast(comm, table%h2o_mole_fraction, sendid, ierr); call CHKERR(ierr)
       call imp_bcast(comm, table%h2o_molar_absorption_coeff, sendid, ierr); call CHKERR(ierr)
+
       call imp_bcast(comm, table%o3_conc_dependence_code, sendid, ierr); call CHKERR(ierr)
       call imp_bcast(comm, table%o3_molar_absorption_coeff, sendid, ierr); call CHKERR(ierr)
+
       call imp_bcast(comm, table%co2_conc_dependence_code, sendid, ierr); call CHKERR(ierr)
       call imp_bcast(comm, table%co2_molar_absorption_coeff, sendid, ierr); call CHKERR(ierr)
+
       call imp_bcast(comm, table%ch4_conc_dependence_code, sendid, ierr); call CHKERR(ierr)
       call imp_bcast(comm, table%ch4_reference_mole_fraction, sendid, ierr); call CHKERR(ierr)
       call imp_bcast(comm, table%ch4_molar_absorption_coeff, sendid, ierr); call CHKERR(ierr)
@@ -339,40 +401,111 @@ contains
       if (lhave_solar) then
         call imp_bcast(comm, table%solar_irradiance, sendid, ierr); call CHKERR(ierr)
         call imp_bcast(comm, table%rayleigh_molar_scattering_coeff, sendid, ierr); call CHKERR(ierr)
+
+        call imp_bcast(comm, table%n2o_conc_dependence_code, sendid, ierr); call CHKERR(ierr)
+        call imp_bcast(comm, table%n2o_reference_mole_fraction, sendid, ierr); call CHKERR(ierr)
+        call imp_bcast(comm, table%n2o_molar_absorption_coeff, sendid, ierr); call CHKERR(ierr)
       end if
       lhave_thermal = allocated(table%temperature_planck)
       call imp_bcast(comm, lhave_thermal, sendid, ierr); call CHKERR(ierr)
       if (lhave_thermal) then
         call imp_bcast(comm, table%temperature_planck, sendid, ierr); call CHKERR(ierr)
         call imp_bcast(comm, table%planck_function, sendid, ierr); call CHKERR(ierr)
+
+        call imp_bcast(comm, table%cfc11_conc_dependence_code, sendid, ierr); call CHKERR(ierr)
+        call imp_bcast(comm, table%cfc11_molar_absorption_coeff, sendid, ierr); call CHKERR(ierr)
+
+        call imp_bcast(comm, table%cfc12_conc_dependence_code, sendid, ierr); call CHKERR(ierr)
+        call imp_bcast(comm, table%cfc12_molar_absorption_coeff, sendid, ierr); call CHKERR(ierr)
       end if
     end subroutine
   end subroutine
 
   subroutine populate_gas_info(atm, ecckd_data, ierr)
-    type(t_tenstr_atm), intent(in), target :: atm
-    type(t_ecckd_data), intent(inout) :: ecckd_data
+    type(t_tenstr_atm), target, intent(in) :: atm
+    type(t_ecckd_data), target, intent(inout) :: ecckd_data
     integer(mpiint), intent(out) :: ierr
     character(len=default_str_len), allocatable :: gas_strings(:), composite_gas_strings(:)
     integer(iintegers) :: i, j
     ierr = 0
 
     call split(ecckd_data%constituent_id, gas_strings, ' ', ierr); call CHKERR(ierr)
-    do i=1, size(gas_strings)
-      print *,'gas string', i, trim(gas_strings(i))
-      select case (trim(gas_strings(i)))
-      case ('composite')
-        call split(ecckd_data%composite_constituent_id, composite_gas_strings, ' ', ierr); call CHKERR(ierr)
-        do j=1, size(composite_gas_strings)
-          print *,'composite gas string', j, trim(composite_gas_strings(j))
-        enddo
+    allocate (ecckd_data%gases(size(gas_strings)))
 
-      case ('h2o')
+    do i = 1, size(gas_strings)
+      print *, 'gas string', i, trim(gas_strings(i))
+      associate (gas => ecckd_data%gases(i))
+        gas%id = trim(gas_strings(i))
+        gas%reference_mole_fraction = -1
+        nullify (gas%mole_fraction1)
+        nullify (gas%mole_fraction2)
+        nullify (gas%molar_absorption_coeff3)
+        nullify (gas%molar_absorption_coeff4)
+        nullify (gas%vmr)
+        gas%vmr_const = -1
 
-      case default
-        call CHKERR(1_mpiint, 'dont know how to handle gas string '//trim(gas_strings(i)))
-      end select
-    enddo
+        select case (trim(gas_strings(i)))
+        case ('composite')
+          call split(ecckd_data%composite_constituent_id, composite_gas_strings, ' ', ierr); call CHKERR(ierr)
+          do j = 1, size(composite_gas_strings)
+            print *, 'composite gas string', j, trim(composite_gas_strings(j))
+          end do
+          gas%conc_dependence_code = ecckd_data%composite_conc_dependence_code
+          gas%mole_fraction2 => ecckd_data%composite_mole_fraction
+          gas%molar_absorption_coeff3 => ecckd_data%composite_molar_absorption_coeff
+
+        case ('h2o')
+          gas%conc_dependence_code = ecckd_data%h2o_conc_dependence_code
+          gas%mole_fraction1 => ecckd_data%h2o_mole_fraction
+          gas%molar_absorption_coeff4 => ecckd_data%h2o_molar_absorption_coeff
+          gas%vmr => atm%h2o_lay
+
+        case ('o3')
+          gas%conc_dependence_code = ecckd_data%o3_conc_dependence_code
+          gas%molar_absorption_coeff3 => ecckd_data%o3_molar_absorption_coeff
+          gas%vmr => atm%o3_lay
+
+        case ('co2')
+          gas%conc_dependence_code = ecckd_data%co2_conc_dependence_code
+          gas%molar_absorption_coeff3 => ecckd_data%co2_molar_absorption_coeff
+          gas%vmr => atm%co2_lay
+
+        case ('ch4')
+          gas%conc_dependence_code = ecckd_data%ch4_conc_dependence_code
+          gas%molar_absorption_coeff3 => ecckd_data%ch4_molar_absorption_coeff
+          gas%reference_mole_fraction = ecckd_data%ch4_reference_mole_fraction
+          gas%vmr => atm%ch4_lay
+
+        case ('n2o')
+          gas%conc_dependence_code = ecckd_data%n2o_conc_dependence_code
+          gas%molar_absorption_coeff3 => ecckd_data%n2o_molar_absorption_coeff
+          gas%reference_mole_fraction = ecckd_data%n2o_reference_mole_fraction
+          gas%vmr => atm%n2o_lay
+
+        case ('cfc11')
+          gas%conc_dependence_code = ecckd_data%cfc11_conc_dependence_code
+          gas%molar_absorption_coeff3 => ecckd_data%cfc11_molar_absorption_coeff
+          gas%vmr_const = CFC11
+
+        case ('cfc12')
+          gas%conc_dependence_code = ecckd_data%cfc12_conc_dependence_code
+          gas%molar_absorption_coeff3 => ecckd_data%cfc12_molar_absorption_coeff
+          gas%vmr_const = CFC12
+
+        case default
+          call CHKERR(1_mpiint, 'dont know how to handle gas string '//trim(gas_strings(i)))
+        end select
+
+        select case (gas%conc_dependence_code)
+        case (IConcDependenceNone, IConcDependenceLinear, IConcDependenceLUT, IConcDependenceRelativeLinear)
+          continue
+        case default
+          call CHKWARN(int(gas%conc_dependence_code, mpiint), 'Gas concentration dependence code '// &
+            & toStr(gas%conc_dependence_code)// &
+            & ' is unknown. The gas '//trim(gas_strings(i))//' will be ignored')
+        end select
+      end associate
+    end do
   end subroutine
 
   subroutine setup_log_events(logs, solvername)

@@ -58,7 +58,7 @@ module m_ecckd_pprts
     & t_pprts_buildings
 
   use m_ecckd_base, only: ecckd_init, t_ecckd_data, ecckd_log_events
-  use m_ecckd_optprop, only: ecckd_optprop, check_fu_table_consistency
+  use m_ecckd_optprop, only: ecckd_optprop, ecckd_planck, check_fu_table_consistency
   use m_mie_tables, only: mie_tables_init, t_mie_table, destroy_mie_table
   use m_fu_ice, only: fu_ice_init
 
@@ -384,29 +384,38 @@ contains
               & ierr); call CHKERR(ierr)
           end do
 
-!          do k = 1, ke1
-!            Blev(ke1 + 1 - k, i, j) = ecckd_data_thermal%wgts(iwvl) &
-!                                     & * planck(ecckd_data_thermal%wvls(iwvl) * 1e-9_ireals, atm%tlev(k, icol)) &
-!                                     & * 1e-9_ireals
-!          end do
-!          if (allocated(atm%tskin)) then
-!            Bsrfc(i, j) = ecckd_data_thermal%wgts(iwvl) &
-!                         & * planck(ecckd_data_thermal%wvls(iwvl) * 1e-9_ireals, atm%tskin(icol)) &
-!                         & * 1e-9_ireals
-!          else
-!            Bsrfc(i, j) = Blev(ke1, i, j)
-!          end if
+          do k = 1, ke1
+            call ecckd_planck( &
+              & ecckd_data_thermal, &
+              & ig, &
+              & atm%tlev(k, icol), &
+              & Blev(ke1 + 1 - k, i, j), &
+              & ierr); call CHKERR(ierr)
+          end do
+          if (allocated(atm%tskin)) then
+            call ecckd_planck( &
+              & ecckd_data_thermal, &
+              & ig, &
+              & atm%tskin(icol), &
+              & Bsrfc(i, j), &
+              & ierr); call CHKERR(ierr)
+          else
+            Bsrfc(i, j) = Blev(ke1, i, j)
+          end if
         end do
       end do
 
-!      if (present(opt_buildings)) then
-!        ! Use spec_buildings%temperature array to hold raw planck values ...
-!        do k = 1, size(opt_buildings%temp)
-!          spec_buildings%planck(k) = ecckd_data_thermal%wgts(iwvl) &
-!                                    & * planck(ecckd_data_thermal%wvls(iwvl) * 1e-9_ireals, opt_buildings%temp(k)) &
-!                                    & * 1e-9_ireals
-!        end do
-!      end if
+      if (present(opt_buildings)) then
+        ! Use spec_buildings%temperature array to hold raw planck values ...
+        do k = 1, size(opt_buildings%temp)
+          call ecckd_planck( &
+            & ecckd_data_thermal, &
+            & ig, &
+            & opt_buildings%temp(k), &
+            & spec_buildings%planck(k), &
+            & ierr); call CHKERR(ierr)
+        end do
+      end if
 
       call PetscLogEventEnd(ecckd_log_events%ecckd_optprop, ierr); call CHKERR(ierr)
 

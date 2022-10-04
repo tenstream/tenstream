@@ -28,7 +28,7 @@ contains
     call finalize_mpi(this%getMpiCommunicator(), lfinalize_mpi=.false., lfinalize_petsc=.true.)
   end subroutine teardown
 
-  @test(npes = [1])
+  @test(npes=[1])
   subroutine test_load(this)
     class(MpiTestMethod), intent(inout) :: this
 
@@ -43,25 +43,25 @@ contains
 
       call rayleigh(wvl, ksca, ierr)
       if (ierr .eq. 0) then
-        @assertTrue(ksca.gt.0, 'should be positive')
+        @assertTrue(ksca .gt. 0, 'should be positive')
       end if
 
       call rayleigh(wvl, co2, ksca2, ierr)
       if (ierr .eq. 0) then
-        @assertTrue(ksca2.gt.0, 'should be positive')
+        @assertTrue(ksca2 .gt. 0, 'should be positive')
       end if
 
       print *, 'wvl', wvl, '[mu]', ' bodhaine', ksca, 'bodhaine_co2', ksca2
     end do
 
     call rayleigh(.1_ireals, ksca, ierr)
-    @assertTrue(ierr.ne.0, 'Should throw an error for small wavelengths')
+    @assertTrue(ierr .ne. 0, 'Should throw an error for small wavelengths')
 
     call rayleigh(.5_ireals, ksca, ierr)
-    @assertEqual(6.66140033E-27_ireals, ksca, ksca*releps)
+    @assertEqual(6.66140033e-27_ireals, ksca, ksca * releps)
 
     call rayleigh(.5_ireals, co2, ksca2, ierr)
-    @assertEqual(6.66123701E-27_ireals, ksca2, ksca*releps)
+    @assertEqual(6.66123701e-27_ireals, ksca2, ksca * releps)
   end subroutine
 
 end module

@@ -123,7 +123,7 @@ contains
     end do
 
     sundir = get_sun_vector(2018_iintegers, 9_iintegers, 3._ireals + real(19 * 3600 + 8 * 60 + 23, ireals) / 86400._ireals)
-    @assertEqual([-0.29155451713720204_ireals, -0.94795805644649656_ireals, 0.12795111080046895_ireals], sundir, sqrt(epsilon(sundir)))
+ @assertEqual([-0.29155451713720204_ireals, -0.94795805644649656_ireals, 0.12795111080046895_ireals], sundir, sqrt(epsilon(sundir)))
   end subroutine
 
   @test(npes=[1, 2, 3])

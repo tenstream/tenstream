@@ -12,6 +12,7 @@ add_dependencies(tenstr_ecckd_objs
   pprts
   pprts_base
   pprts_rrtmg
+  repwvl_pprts
   )
 
 # PPRTS
@@ -22,6 +23,7 @@ TARGET_LINK_LIBRARIES( ecckd_pprts
   pprts_base
   tenstr_disort
   pprts_rrtmg
+  repwvl_pprts
   ${EXTLIB} ${USERLIB} ${LIBS})
 
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/data/ecckd-1.0_lw_climate_fsck-16_ckd-definition.nc" ${TENSTREAM_SHARE_DIR}/ecckd-1.0_lw_climate_fsck-16_ckd-definition.nc COPYONLY)
