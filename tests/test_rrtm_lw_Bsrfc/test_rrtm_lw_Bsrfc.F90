@@ -161,7 +161,7 @@ contains
         end if
       end if
       target_Eup = 5.67e-8_ireals * tskin(1, 1)**4 * (one - albedo_th) + edn(nlev, 1, 1) * albedo_th
-    @assertEqual(target_Eup, eup(nlev, 1, 1), atolerance, 'emission not as expected. it should use the skin temperature emission?!')
+      @assertEqual(target_Eup, eup(nlev, 1, 1), atolerance, 'emission not as expected. it should use the skin temperature emission?!')
     end do
   end subroutine
 end module
