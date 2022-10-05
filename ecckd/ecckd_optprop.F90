@@ -309,8 +309,14 @@ contains
     !call delta_scale_optprop(qext_cld_i, w0_cld_i, g_cld_i, g_cld_i**2)
   end subroutine
 
-  subroutine check_fu_table_consistency(ecckd_data_solar, ecckd_data_thermal)
-    type(t_ecckd_data) :: ecckd_data_solar, ecckd_data_thermal
+  subroutine check_fu_table_consistency()
+    !type(t_ecckd_data) :: ecckd_data_solar, ecckd_data_thermal
+    if (fu_ice_data_solar%is_repwvl) then
+      call CHKERR(1_mpiint, 'solar fu table is repwvl but this is ecckd')
+    end if
+    if (fu_ice_data_thermal%is_repwvl) then
+      call CHKERR(1_mpiint, 'thermal fu table is repwvl but this is ecckd')
+    end if
   end subroutine
 
   ! Solar ckd
@@ -395,6 +401,7 @@ contains
       integer(iintegers) :: iC0, iC1
 
       ierr = 0
+      taugas = 0
 
       associate ( &
           & code => gas%conc_dependence_code, &

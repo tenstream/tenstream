@@ -70,7 +70,7 @@ module m_ecckd_pprts
   public :: ecckd_pprts, ecckd_pprts_destroy
 
 #ifdef __RELEASE_BUILD__
-  logical, parameter :: ldebug = .true.
+  logical, parameter :: ldebug = .false.
 #else
   logical, parameter :: ldebug = .true.
 #endif
@@ -190,7 +190,7 @@ contains
       call mie_tables_init(comm, ecckd_mie_table, ierr, lverbose=.false.); call CHKERR(ierr)
 
       call fu_ice_init(comm, ierr, lverbose=.false.); call CHKERR(ierr)
-      call check_fu_table_consistency(ecckd_data_solar, ecckd_data_thermal)
+      call check_fu_table_consistency()!ecckd_data_solar, ecckd_data_thermal)
 
       call init_pprts_ecckd(comm, solver, &
                             dx, dy, atm%dz, &
@@ -301,7 +301,7 @@ contains
     type(t_pprts_buildings), intent(inout), optional :: opt_buildings
     real(ireals), intent(in), optional, dimension(:, :, :, :) :: opt_tau
 
-    integer(iintegers) :: ig, iband, i, j, k, icol, ke, ke1
+    integer(iintegers) :: ig, i, j, k, icol, ke, ke1
     integer(mpiint) :: myid
 
     real(ireals), allocatable, dimension(:, :, :) :: kabs, ksca, kg ! [nlyr, local_nx, local_ny]
