@@ -85,7 +85,7 @@ module m_ecckd_base
     integer(iintegers) :: n_gases ! Number of gases treated
     character(len=default_str_len) :: constituent_id, composite_constituent_id
     integer(iintegers) :: n_g_pnt ! Number of g-points
-    real(ireals), allocatable :: temperature(:, :) ! dim(temperature, pressure) [K]
+    real(ireals), allocatable :: temperature(:, :) ! dim(pressure, temperature) [K]
     real(ireals), allocatable :: pressure(:)      ! dim(pressure) [Pa]
     real(ireals), allocatable :: temperature_planck(:) ! dim(temperature_planck) [K] Temperature for Planck function look-up table
     real(ireals), allocatable :: planck_function(:, :) ! dim(g_point, temperature_planck) [Wm-2] Planck function look-up table
@@ -93,38 +93,38 @@ module m_ecckd_base
     real(ireals), allocatable :: rayleigh_molar_scattering_coeff(:) ! dim(g_point) [m2 mol-1] ayleigh molar scattering coefficient in each gpt
     real(ireals), allocatable :: wavenumber1(:)        ! dim(wavenumber) [cm-1] Lower wavenumber bound of spectral interval
     real(ireals), allocatable :: wavenumber2(:)        ! dim(wavenumber) [cm-1] Upper wavenumber bound of spectral interval
-    real(ireals), allocatable :: gpoint_fraction(:, :)  ! dim(g_point, wavenumber) Fraction of spectrum contributing to each g-point
+    real(ireals), allocatable :: gpoint_fraction(:, :)  ! dim(wavenumber, g_point) Fraction of spectrum contributing to each g-point
     real(ireals), allocatable :: wavenumber1_band(:)   ! dim(band) [cm-1] Lower wavenumber bound of band
     real(ireals), allocatable :: wavenumber2_band(:)   ! dim(band) [cm-1] Upper wavenumber bound of band
     integer(iintegers), allocatable :: band_number(:)        ! dim(g_point) Band number of each g point
 
     integer(iintegers) :: composite_conc_dependence_code ! COMPOSITE concentration dependence code
-    real(ireals), allocatable :: composite_molar_absorption_coeff(:, :, :) ! dim(temperature, pressure, g_point) [m2 mol-1] Molar absorption coefficient of background gases
-    real(ireals), allocatable :: composite_mole_fraction(:, :) ! dim(composite_gas, pressure) [1] Mole fractions of the gases that make up COMPOSITE
+    real(ireals), allocatable :: composite_molar_absorption_coeff(:, :, :) ! dim(g_point, pressure, temperature) [m2 mol-1] Molar absorption coefficient of background gases
+    real(ireals), allocatable :: composite_mole_fraction(:, :) ! dim(pressure, composite_gas) [1] Mole fractions of the gases that make up COMPOSITE
 
     integer(iintegers) :: h2o_conc_dependence_code ! H2O concentration dependence code
     real(ireals), allocatable :: h2o_mole_fraction(:) ! dim(h2o_mole_fraction) [1] H2O mole fraction for look-up table
-    real(ireals), allocatable :: h2o_molar_absorption_coeff(:, :, :, :) ! dim(h2o_mole_fraction, temperature, pressure, g_point) [m2 mol-1] Molar absorption coefficient of H2O
+    real(ireals), allocatable :: h2o_molar_absorption_coeff(:, :, :, :) ! dim(g_point, pressure, temperature, h2o_mole_fraction) [m2 mol-1] Molar absorption coefficient of H2O
 
     integer(iintegers) :: o3_conc_dependence_code ! o3 concentration dependence code
-    real(ireals), allocatable :: o3_molar_absorption_coeff(:, :, :) ! dim(temperature, pressure, g_point) [m2 mol-1] Molar absorption coefficient of o3
+    real(ireals), allocatable :: o3_molar_absorption_coeff(:, :, :) ! dim(g_point, pressure, temperature) [m2 mol-1] Molar absorption coefficient of o3
 
     integer(iintegers) :: co2_conc_dependence_code ! co2 concentration dependence code
-    real(ireals), allocatable :: co2_molar_absorption_coeff(:, :, :) ! dim(temperature, pressure, g_point) [m2 mol-1] Molar absorption coefficient of co2
+    real(ireals), allocatable :: co2_molar_absorption_coeff(:, :, :) ! dim(g_point, pressure, temperature) [m2 mol-1] Molar absorption coefficient of co2
 
     integer(iintegers) :: ch4_conc_dependence_code ! ch4 concentration dependence code
     real(ireals) :: ch4_reference_mole_fraction ! Reference mole fraction of CH4
-    real(ireals), allocatable :: ch4_molar_absorption_coeff(:, :, :) ! dim(temperature, pressure, g_point) [m2 mol-1] Molar absorption coefficient of ch4
+    real(ireals), allocatable :: ch4_molar_absorption_coeff(:, :, :) ! dim(g_point, pressurem temperature) [m2 mol-1] Molar absorption coefficient of ch4
 
     integer(iintegers) :: n2o_conc_dependence_code ! n2o concentration dependence code
     real(ireals) :: n2o_reference_mole_fraction ! Reference mole fraction of n2o
-    real(ireals), allocatable :: n2o_molar_absorption_coeff(:, :, :) ! dim(temperature, pressure, g_point) [m2 mol-1] Molar absorption coefficient of n2o
+    real(ireals), allocatable :: n2o_molar_absorption_coeff(:, :, :) ! dim(g_point, pressure, temperature) [m2 mol-1] Molar absorption coefficient of n2o
 
     integer(iintegers) :: cfc11_conc_dependence_code ! cfc11 concentration dependence code
-    real(ireals), allocatable :: cfc11_molar_absorption_coeff(:, :, :) ! dim(temperature, pressure, g_point) [m2 mol-1] Molar absorption coefficient of cfc11
+    real(ireals), allocatable :: cfc11_molar_absorption_coeff(:, :, :) ! dim(g_point, pressure, temperature) [m2 mol-1] Molar absorption coefficient of cfc11
 
     integer(iintegers) :: cfc12_conc_dependence_code ! cfc12 concentration dependence code
-    real(ireals), allocatable :: cfc12_molar_absorption_coeff(:, :, :) ! dim(temperature, pressure, g_point) [m2 mol-1] Molar absorption coefficient of cfc12
+    real(ireals), allocatable :: cfc12_molar_absorption_coeff(:, :, :) ! dim(g_point, pressure, temperature) [m2 mol-1] Molar absorption coefficient of cfc12
 
     ! following is populated to have a mapping between atm%gas_vmrs and ecckd_data entries
     type(t_ecckd_atm_gas), allocatable :: gases(:) ! dim(n_gases)

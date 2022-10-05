@@ -185,11 +185,11 @@ contains
         & ecckd_data_solar,   &
         & ecckd_data_thermal, &
         & ierr,                &
-        & lverbose=.true.); call CHKERR(ierr)
+        & lverbose=.false.); call CHKERR(ierr)
 
       call mie_tables_init(comm, ecckd_mie_table, ierr, lverbose=.false.); call CHKERR(ierr)
 
-      call fu_ice_init(comm, ierr, lverbose=.true.); call CHKERR(ierr)
+      call fu_ice_init(comm, ierr, lverbose=.false.); call CHKERR(ierr)
       call check_fu_table_consistency(ecckd_data_solar, ecckd_data_thermal)
 
       call init_pprts_ecckd(comm, solver, &
@@ -314,7 +314,6 @@ contains
 
     logical :: lflg
     integer(iintegers) :: argcnt, spectral_gpts(2)
-    real(ireals) :: wvl_lo, wvl_hi
 
     ierr = 0
     call mpi_comm_rank(comm, myid, ierr)
@@ -357,17 +356,7 @@ contains
     spectral_gpts = min(max(spectral_gpts, 1), ecckd_data_thermal%n_g_pnt)
 
     do ig = spectral_gpts(1), spectral_gpts(2)
-      iband = ecckd_data_thermal%band_number(ig) + i1
-
-      wvl_lo = 1e7_ireals / ecckd_data_thermal%wavenumber2_band(iband)
-      wvl_hi = 1e7_ireals / ecckd_data_thermal%wavenumber1_band(iband)
-
-      if (myid .eq. 0 .and. ldebug) then
-        print *, 'Computing wavelengths '//toStr(ig)//' / '//toStr(ecckd_data_thermal%n_g_pnt)//&
-          & ' -- '//toStr(100._ireals * real(ig, ireals) / real(ecckd_data_thermal%n_g_pnt, ireals))//' %'// &
-          & ' ('//toStr(wvl_lo)//' nm  - '//toStr(wvl_hi)//' nm)'
-      end if
-
+      call spectral_integration_progress_report(comm, ecckd_data_thermal, ig, ierr); call CHKERR(ierr)
       call PetscLogEventBegin(ecckd_log_events%ecckd_optprop, ierr); call CHKERR(ierr)
 
       do j = 1, solver%C_one%ym
@@ -460,6 +449,7 @@ contains
       edn = edn + spec_edn
       eup = eup + spec_eup
       abso = abso + spec_abso
+
     end do !ig
 
     if (present(opt_buildings)) then
@@ -507,7 +497,7 @@ contains
 
     real(ireals) :: edirTOA
 
-    integer(iintegers) :: i, j, icol, k, ig, iband, ke
+    integer(iintegers) :: i, j, icol, k, ig, ke
     integer(mpiint) :: myid
 
     real(ireals), allocatable, dimension(:, :, :) :: kabs, ksca, kg      ! [nlyr, local_nx, local_ny]
@@ -518,7 +508,6 @@ contains
 
     logical :: lflg
     integer(iintegers) :: argcnt, spectral_gpts(2)
-    real(ireals) :: wvl_lo, wvl_hi
 
     ierr = 0
     call mpi_comm_rank(comm, myid, ierr)
@@ -554,16 +543,7 @@ contains
     spectral_gpts = min(max(spectral_gpts, 1), ecckd_data_solar%n_g_pnt)
 
     do ig = spectral_gpts(1), spectral_gpts(2)
-      iband = ecckd_data_solar%band_number(ig) + i1
-      wvl_lo = 1e7_ireals / ecckd_data_solar%wavenumber2_band(iband)
-      wvl_hi = 1e7_ireals / ecckd_data_solar%wavenumber1_band(iband)
-
-      if (myid .eq. 0 .and. (lflg .or. ldebug)) then
-        print *, 'Computing wavelengths '//toStr(ig)//' / '//toStr(ecckd_data_solar%n_g_pnt)//&
-          & ' -- '//toStr(100._ireals * real(ig, ireals) / real(ecckd_data_solar%n_g_pnt, ireals))//' %'// &
-          & ' ('//toStr(wvl_lo)//' nm  - '//toStr(wvl_hi)//' nm)'
-      end if
-
+      call spectral_integration_progress_report(comm, ecckd_data_solar, ig, ierr); call CHKERR(ierr)
       call PetscLogEventBegin(ecckd_log_events%ecckd_optprop, ierr); call CHKERR(ierr)
 
       do j = 1, solver%C_one%ym
@@ -697,6 +677,31 @@ contains
 
     !call destroy_mie_table(ecckd_mie_table, ierr); call CHKERR(ierr)
     call destroy_pprts(solver, lfinalizepetsc=lfinalizepetsc)
+  end subroutine
+
+  subroutine spectral_integration_progress_report(comm, ecckd_data, ig, ierr)
+    integer(mpiint), intent(in) :: comm
+    type(t_ecckd_data), intent(in) :: ecckd_data
+    integer(iintegers), intent(in) :: ig
+    integer(mpiint), intent(out) :: ierr
+    integer(iintegers) :: iband
+    real(ireals) :: wvl_lo, wvl_hi
+    integer(mpiint) :: myid
+
+    ierr = 0
+    call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+
+    if (myid .eq. 0 .and. ldebug) then
+      iband = ecckd_data%band_number(ig) + i1
+
+      wvl_lo = 1e7_ireals / ecckd_data%wavenumber2_band(iband)
+      wvl_hi = 1e7_ireals / ecckd_data%wavenumber1_band(iband)
+
+      print *, 'Computing wavelengths '//toStr(ig)//' / '//toStr(ecckd_data%n_g_pnt)//&
+        & ' -- '//toStr(100._ireals * real(ig, ireals) / real(ecckd_data%n_g_pnt, ireals))//' %'// &
+        & ' ('//toStr(wvl_lo)//' nm  - '//toStr(wvl_hi)//' nm)'
+    end if
+
   end subroutine
 
 end module

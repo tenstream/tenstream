@@ -32,6 +32,7 @@ module m_ecckd_optprop
 
   use m_helper_functions, only: &
     & CHKERR, &
+    & delta_scale_optprop, &
     & toStr
 
   use m_dyn_atm_to_rrtmg, only: t_tenstr_atm
@@ -64,19 +65,26 @@ module m_ecckd_optprop
   logical, parameter :: ldebug = .true.
 #endif
 
+  logical, parameter :: lgeometric_optics = .false.
+  real(ireals) :: geometric_sw_single_scattering_albedo = 0.999999_ireals
+  real(ireals) :: geometric_sw_asymmetry_factor = 0.86_ireals
+  real(ireals) :: geometric_lw_single_scattering_albedo = 0.538_ireals
+  real(ireals) :: geometric_lw_asymmetry_factor = 0.925_ireals
+
 contains
 
-  subroutine ecckd_optprop(ecckd_data, atm, mie_table, lsolar, k, icol, iband, kabs, ksca, kg, ierr)
+  subroutine ecckd_optprop(ecckd_data, atm, mie_table, lsolar, k, icol, igpt, kabs, ksca, kg, ierr)
     type(t_ecckd_data), intent(in) :: ecckd_data
-    type(t_tenstr_atm), intent(in), target :: atm
+    type(t_tenstr_atm), intent(in) :: atm
     type(t_mie_table), intent(in) :: mie_table
     logical, intent(in) :: lsolar
-    integer(iintegers), intent(in) :: k, icol, iband
+    integer(iintegers), intent(in) :: k, icol, igpt
     real(ireals), intent(out) :: kabs, ksca, kg
     integer(mpiint), intent(out) :: ierr
 
-    real(ireals) :: tabs, tsca, g
-    real(ireals) :: P, dP, dtau, rayleigh_xsec, N, lwc_vmr, qext_cld, w0_cld, g_cld, iwp
+    real(ireals) :: P, dP, dtau
+    real(ireals) :: qext_cld_l, w0_cld_l, g_cld_l
+    real(ireals) :: qext_cld_i, w0_cld_i, g_cld_i
 
     logical, parameter :: lprofile = ldebug
 
@@ -93,19 +101,19 @@ contains
     call ecckd_dtau(&
       & k, icol, &
       & ecckd_data, &
-      & iband, &
+      & igpt, &
       & P, &
       & dP, &
       & atm%tlay(k, icol), &
       & dtau, &
       & ierr); call CHKERR(ierr)
 
-    tabs = dtau / atm%dz(k, icol)
+    kabs = dtau / atm%dz(k, icol)
     if (lprofile) then
       call PetscLogEventEnd(ecckd_log_events%ecckd_optprop_dtau, ierr); call CHKERR(ierr)
     end if
     if (ldebug) then
-      if (tabs .lt. 0) call CHKERR(1_mpiint, 'kabs from ecckd negative!'//toStr(tabs))
+      if (kabs .lt. 0) call CHKERR(1_mpiint, 'kabs from ecckd negative!'//toStr(kabs))
     end if
 
     ! ecckd molecular scattering cross section
@@ -113,92 +121,192 @@ contains
       call PetscLogEventBegin(ecckd_log_events%ecckd_optprop_rayleigh, ierr); call CHKERR(ierr)
     end if
 
-    tsca = 0
+    ksca = 0
     if (allocated(ecckd_data%rayleigh_molar_scattering_coeff)) then
-      tsca = dP * ecckd_data%rayleigh_molar_scattering_coeff(iband) / &
+      ksca = dP * ecckd_data%rayleigh_molar_scattering_coeff(igpt) / &
         & (EARTHACCEL * MOLMASSAIR * atm%dz(k, icol))
     end if
 
-    !N = dP * AVOGADRO / EARTHACCEL / MOLMASSAIR
-    !tsca = N * rayleigh_xsec * 1e-4 / atm%dz(k, icol) ! [1e-4 from cm2 to m2]
     if (ldebug) then
-      if (tsca .lt. 0) call CHKERR(1_mpiint, 'rayleigh scattering coeff negative!'//toStr(tsca))
+      if (ksca .lt. 0) call CHKERR(1_mpiint, 'rayleigh scattering coeff negative!'//toStr(ksca))
     end if
-    g = 0                                             ! rayleigh has symmetric asymmetry parameter
+    kg = 0                                             ! rayleigh has symmetric asymmetry parameter
 
     if (lprofile) then
       call PetscLogEventEnd(ecckd_log_events%ecckd_optprop_rayleigh, ierr); call CHKERR(ierr)
     end if
 
-    ! ecckd water cloud
-!    if (atm%lwc(k, icol) > 0) then
-!      if (lprofile) then
-!        call PetscLogEventBegin(ecckd_log_events%ecckd_optprop_mie, ierr); call CHKERR(ierr)
-!      end if
-!      call mie_optprop(&
-!        & mie_table, &
-!        & ecckd_data%wvls(iwvl) * 1e-3_ireals, &
-!        & atm%reliq(k, icol), &
-!        & qext_cld, w0_cld, g_cld, ierr); call CHKERR(ierr)
-!
-!      lwc_vmr = atm%lwc(k, icol) * dP / (EARTHACCEL * atm%dz(k, icol)) ! have lwc in [ g / kg ], lwc_vmr in [ g / m3 ]
-!      qext_cld = qext_cld * 1e-3 * lwc_vmr                             ! from [km^-1 / (g / m^3)] to [1/m]
-!
-!      g = (g * tsca + g_cld * qext_cld) / (tsca + qext_cld)
-!      tabs = tabs + qext_cld * max(0._ireals, (1._ireals - w0_cld))
-!      tsca = tsca + qext_cld * w0_cld
-!      if (lprofile) then
-!        call PetscLogEventEnd(ecckd_log_events%ecckd_optprop_mie, ierr); call CHKERR(ierr)
-!      end if
-!    end if
-!
-!    ! ecckd ice cloud
-!    if (atm%iwc(k, icol) > 0) then
-!      if (lprofile) then
-!        call PetscLogEventBegin(ecckd_log_events%ecckd_optprop_fu_ice, ierr); call CHKERR(ierr)
-!      end if
-!
-!      call get_fu_ice_optprop()
-!      iwp = atm%iwc(k, icol) * dP / (EARTHACCEL * atm%dz(k, icol)) ! have iwc in [ g / kg ], iwp in [ g / m3 ]
-!      qext_cld = qext_cld * iwp                                    ! from [m^-1 / (g / m^3)] to [1/m]
-!
-!      g = (g * tsca + g_cld * qext_cld) / (tsca + qext_cld)
-!      tabs = tabs + qext_cld * max(0._ireals, (1._ireals - w0_cld))
-!      tsca = tsca + qext_cld * w0_cld
-!      if (lprofile) then
-!        call PetscLogEventEnd(ecckd_log_events%ecckd_optprop_fu_ice, ierr); call CHKERR(ierr)
-!      end if
-!    end if
-
-    !kabs(size(kabs, dim=1) + 1 - k, i, j) = tabs
-    !ksca(size(ksca, dim=1) + 1 - k, i, j) = tsca
-    !kg(size(kg, dim=1) + 1 - k, i, j) = g
-    kabs = tabs
-    ksca = tsca
-    kg = g
-
-    !end do
-    !end do
-    !end do
-
-  contains
-
-    subroutine get_fu_ice_optprop()
-      if (lsolar) then
-!TODO          call fu_ice_optprop(&
-!TODO            & fu_ice_data_solar, &
-!TODO            & ecckd_data%wvls(iwvl) * 1e-3_ireals, &
-!TODO            & atm%reice(k, icol), &
-!TODO            & qext_cld, w0_cld, g_cld, ierr); call CHKERR(ierr)
-      else
-!TODO          call fu_ice_optprop(&
-!TODO            & fu_ice_data_thermal, &
-!TODO            & ecckd_data%wvls(iwvl) * 1e-3_ireals, &
-!TODO            & atm%reice(k, icol), &
-!TODO            & qext_cld, w0_cld, g_cld, ierr); call CHKERR(ierr)
+    if (atm%lwc(k, icol) > 0) then
+      if (lprofile) then
+        call PetscLogEventBegin(ecckd_log_events%ecckd_optprop_mie, ierr); call CHKERR(ierr)
       end if
-    end subroutine
 
+      call get_liq_cld_optprop(ecckd_data, mie_table, lsolar, igpt, &
+        & atm%lwc(k, icol), atm%reliq(k, icol), atm%dz(k, icol), dP, &
+        & qext_cld_l, w0_cld_l, g_cld_l, ierr); call CHKERR(ierr)
+      !print *, 'liq cld optprop single', qext_cld_l, w0_cld_l, g_cld_l
+
+      kg = (kg * ksca + g_cld_l * qext_cld_l * w0_cld_l) / (ksca + qext_cld_l * w0_cld_l)
+      kabs = kabs + qext_cld_l * max(0._ireals, (1._ireals - w0_cld_l))
+      ksca = ksca + qext_cld_l * w0_cld_l
+
+      if (lprofile) then
+        call PetscLogEventEnd(ecckd_log_events%ecckd_optprop_mie, ierr); call CHKERR(ierr)
+      end if
+    end if
+
+    ! ecckd ice cloud
+    if (atm%iwc(k, icol) > 0) then
+      if (lprofile) then
+        call PetscLogEventBegin(ecckd_log_events%ecckd_optprop_fu_ice, ierr); call CHKERR(ierr)
+      end if
+
+      call get_ice_cld_optprop(ecckd_data, lsolar, igpt, &
+        & atm%iwc(k, icol), atm%reice(k, icol), atm%dz(k, icol), dP, &
+        & qext_cld_i, w0_cld_i, g_cld_i, ierr); call CHKERR(ierr)
+      !print *, 'ice cld optprop single', qext_cld_i, w0_cld_i, g_cld_i
+
+      kg = (kg * ksca + g_cld_i * qext_cld_i * w0_cld_i) / (ksca + qext_cld_i * w0_cld_i)
+      kabs = kabs + qext_cld_i * max(0._ireals, (1._ireals - w0_cld_i))
+      ksca = ksca + qext_cld_i * w0_cld_i
+
+      if (lprofile) then
+        call PetscLogEventEnd(ecckd_log_events%ecckd_optprop_fu_ice, ierr); call CHKERR(ierr)
+      end if
+    end if
+
+  end subroutine
+
+  subroutine get_liq_cld_optprop(ecckd_data, mie_table, lsolar, igpt, lwc, reliq, dz, dP, qext_cld_l, w0_cld_l, g_cld_l, ierr)
+    type(t_ecckd_data), intent(in) :: ecckd_data
+    type(t_mie_table), intent(in) :: mie_table
+    logical, intent(in) :: lsolar
+    integer(iintegers), intent(in) :: igpt
+    real(ireals), intent(in) :: lwc, reliq, dz, dP
+    real(ireals), intent(out) :: qext_cld_l, w0_cld_l, g_cld_l
+    integer(mpiint), intent(out) :: ierr
+
+    real(ireals), parameter :: DensityLiquidWater = 1000.0_ireals ! kg m-3
+
+    real(ireals) :: lwp
+    integer(iintegers) :: iwvnr
+    real(ireals) :: qext, w0, g, wgt, wvl_lo, wvl_hi, wvl
+
+    ierr = 0
+
+    if (lgeometric_optics) then
+
+      if (lsolar) then
+        qext_cld_l = (3.0_ireals / (2.0_ireals * DensityLiquidWater) * 1e3_ireals / EARTHACCEL) * &
+          & lwc * dP / (dz * reliq)
+        w0_cld_l = geometric_sw_single_scattering_albedo
+        g_cld_l = geometric_sw_asymmetry_factor
+      else
+        qext_cld_l = lwc * dP / (EARTHACCEL * dz) * 137.22_ireals
+        w0_cld_l = geometric_lw_single_scattering_albedo
+        g_cld_l = geometric_lw_asymmetry_factor
+      end if
+
+      call delta_scale_optprop(qext_cld_l, w0_cld_l, g_cld_l, g_cld_l**2)
+
+    else
+
+      qext_cld_l = 0
+      w0_cld_l = 0
+      g_cld_l = 0
+
+      do iwvnr = 1, size(ecckd_data%gpoint_fraction, dim=1)
+        wgt = ecckd_data%gpoint_fraction(iwvnr, igpt)
+        if (wgt .gt. 0) then
+          wvl_lo = 1e7_ireals / ecckd_data%wavenumber2(iwvnr)
+          wvl_hi = 1e7_ireals / ecckd_data%wavenumber1(iwvnr)
+          wvl = (wvl_lo + wvl_hi)*.5
+
+          call mie_optprop(&
+            & mie_table, &
+            & wvl * 1e-3_ireals, &
+            & reliq, &
+            & qext, w0, g, ierr); call CHKERR(ierr)
+
+          qext_cld_l = qext_cld_l + wgt * qext
+          w0_cld_l = w0_cld_l + wgt * w0
+          g_cld_l = g_cld_l + wgt * g
+        end if
+      end do
+
+      lwp = lwc * dP / (EARTHACCEL * dz) ! have lwc in [ g / kg ] -> lwc_vmr in [ g / m3 ]
+      qext_cld_l = qext_cld_l * 1e-3_ireals * lwp                  ! from [km^-1 / (g / m^3)] to [1/m]
+
+    end if
+  end subroutine
+
+  subroutine get_ice_cld_optprop(ecckd_data, lsolar, igpt, iwc, reice, dz, dP, qext_cld_i, w0_cld_i, g_cld_i, ierr)
+    type(t_ecckd_data), intent(in) :: ecckd_data
+    logical, intent(in) :: lsolar
+    integer(iintegers), intent(in) :: igpt
+    real(ireals), intent(in) :: iwc, reice, dz, dP
+    real(ireals), intent(out) :: qext_cld_i, w0_cld_i, g_cld_i
+    integer(mpiint), intent(out) :: ierr
+
+    real(ireals), parameter :: DensitySolidIce = 916.7_ireals  ! kg m-3
+
+    real(ireals) :: iwp
+    integer(iintegers) :: iwvnr
+    real(ireals) :: qext, w0, g, wgt, wvl_lo, wvl_hi, wvl
+
+    ierr = 0
+
+    if (lgeometric_optics) then
+
+      qext_cld_i = (3.0_ireals / (2.0_ireals * DensitySolidIce) * 1e3_ireals / EARTHACCEL) * &
+        & iwc * dP / (dz * reice)
+
+      if (lsolar) then
+        w0_cld_i = geometric_sw_single_scattering_albedo
+        g_cld_i = geometric_sw_asymmetry_factor
+      else
+        w0_cld_i = geometric_lw_single_scattering_albedo
+        g_cld_i = geometric_lw_asymmetry_factor
+      end if
+
+    else
+
+      qext_cld_i = 0
+      w0_cld_i = 0
+      g_cld_i = 0
+
+      do iwvnr = 1, size(ecckd_data%gpoint_fraction, dim=1)
+        wgt = ecckd_data%gpoint_fraction(iwvnr, igpt)
+        if (wgt .gt. 0) then
+          wvl_lo = 1e7_ireals / ecckd_data%wavenumber2(iwvnr)
+          wvl_hi = 1e7_ireals / ecckd_data%wavenumber1(iwvnr)
+          wvl = (wvl_lo + wvl_hi)*.5
+
+          if (lsolar) then
+            call fu_ice_optprop(&
+              & fu_ice_data_solar, &
+              & wvl * 1e-3_ireals, &
+              & reice, &
+              & qext, w0, g, ierr); call CHKERR(ierr)
+          else
+            call fu_ice_optprop(&
+              & fu_ice_data_thermal, &
+              & wvl * 1e-3_ireals, &
+              & reice, &
+              & qext, w0, g, ierr); call CHKERR(ierr)
+          end if
+
+          qext_cld_i = qext_cld_i + wgt * qext
+          w0_cld_i = w0_cld_i + wgt * w0
+          g_cld_i = g_cld_i + wgt * g
+        end if
+      end do
+
+      iwp = iwc * dP / (EARTHACCEL * dz) ! have iwc in [ g / kg ] -> iwp in [ g / m3 ]
+      qext_cld_i = qext_cld_i * iwp      ! from [m^-1 / (g / m^3)] to [1/m]
+    end if
+
+    !call delta_scale_optprop(qext_cld_i, w0_cld_i, g_cld_i, g_cld_i**2)
   end subroutine
 
   subroutine check_fu_table_consistency(ecckd_data_solar, ecckd_data_thermal)
@@ -230,7 +338,7 @@ contains
     real(ireals), intent(out) :: dtau
     integer(mpiint), intent(out) :: ierr
 
-    real(ireals) :: numDens, wP, wT, simple_multiplier, taugas
+    real(ireals) :: wP, wT, simple_multiplier, taugas
     real(ireals) :: wgt_P0, wgt_P1, wgt_T0, wgt_T1
     integer(iintegers) :: ip0, ip1, iT0, iT1, igas
     ierr = 0
@@ -243,8 +351,6 @@ contains
         & " dP= "//toStr(dP)//new_line('')// &
         & "")
     end if
-
-    numDens = dP * AVOGADRO / MOLMASSAIR / EARTHACCEL
 
     wP = find_real_location(ecckd_data%pressure, P)
     ip0 = int(floor(wP), iintegers)
