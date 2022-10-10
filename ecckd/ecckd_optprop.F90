@@ -358,7 +358,9 @@ contains
         & "")
     end if
 
-    wP = find_real_location(ecckd_data%pressure, P)
+    !wP = find_real_location(ecckd_data%pressure, P)
+    wP = find_real_location(ecckd_data%log_pressure, log(P))
+
     ip0 = int(floor(wP), iintegers)
     ip1 = ip0 + 1
 
@@ -408,7 +410,8 @@ contains
           & ref_vmr => gas%reference_mole_fraction, &
           & mabs3 => gas%molar_absorption_coeff3, &
           & mabs4 => gas%molar_absorption_coeff4, &
-          & mfrac1 => gas%mole_fraction1)
+          & mfrac1 => gas%mole_fraction1, &
+          & log_mfrac1 => gas%log_mole_fraction1)
 
         select case (code)
         case (IConcDependenceNone)
@@ -453,9 +456,12 @@ contains
             & call CHKERR(1_mpiint, 'gas%molar_absorption_coeff4 not associated for gas '//trim(gas%id))
           if (ldebug .and. .not. associated(gas%mole_fraction1)) &
             & call CHKERR(1_mpiint, 'gas%mole_fraction1 not associated for gas '//trim(gas%id))
+          if (ldebug .and. .not. allocated(gas%log_mole_fraction1)) &
+            & call CHKERR(1_mpiint, 'gas%log_mole_fraction1 not allocated for gas '//trim(gas%id))
           if (ldebug .and. .not. associated(gas%vmr)) call CHKERR(1_mpiint, 'gas%vmr not associated for gas '//trim(gas%id))
 
-          wC = find_real_location(mfrac1, gas%vmr(atm_k, atm_icol))
+          !wC = find_real_location(mfrac1, gas%vmr(atm_k, atm_icol))
+          wC = find_real_location(log_mfrac1, log(gas%vmr(atm_k, atm_icol)))
           iC0 = int(floor(wC), iintegers)
           iC1 = iC0 + 1
           wgt_C1 = wC - real(iC0, ireals)

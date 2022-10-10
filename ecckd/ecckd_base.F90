@@ -71,7 +71,8 @@ module m_ecckd_base
     integer(iintegers) :: conc_dependence_code
     real(ireals) :: reference_mole_fraction
     real(ireals), pointer :: mole_fraction1(:)
-    real(ireals), pointer :: mole_fraction2(:, :)
+    real(ireals), allocatable :: log_mole_fraction1(:)
+    !real(ireals), pointer :: mole_fraction2(:, :)
     real(ireals), pointer :: molar_absorption_coeff3(:, :, :)
     real(ireals), pointer :: molar_absorption_coeff4(:, :, :, :)
     real(ireals), pointer :: vmr(:, :) ! dim(k,icol) pointer into a gas, usually from a t_tenstr_atm
@@ -85,18 +86,19 @@ module m_ecckd_base
     integer(iintegers) :: n_gases ! Number of gases treated
     character(len=default_str_len) :: constituent_id, composite_constituent_id
     integer(iintegers) :: n_g_pnt ! Number of g-points
-    real(ireals), allocatable :: temperature(:, :) ! dim(pressure, temperature) [K]
-    real(ireals), allocatable :: pressure(:)      ! dim(pressure) [Pa]
+    real(ireals), allocatable :: temperature(:, :)     ! dim(pressure, temperature) [K]
+    real(ireals), allocatable :: pressure(:)           ! dim(pressure) [Pa]
+    real(ireals), allocatable :: log_pressure(:)       ! dim(pressure) [Pa]
     real(ireals), allocatable :: temperature_planck(:) ! dim(temperature_planck) [K] Temperature for Planck function look-up table
     real(ireals), allocatable :: planck_function(:, :) ! dim(g_point, temperature_planck) [Wm-2] Planck function look-up table
     real(ireals), allocatable :: solar_irradiance(:) ! dim(g_point) [Wm-2] Solar irradiance across each g point
     real(ireals), allocatable :: rayleigh_molar_scattering_coeff(:) ! dim(g_point) [m2 mol-1] ayleigh molar scattering coefficient in each gpt
     real(ireals), allocatable :: wavenumber1(:)        ! dim(wavenumber) [cm-1] Lower wavenumber bound of spectral interval
     real(ireals), allocatable :: wavenumber2(:)        ! dim(wavenumber) [cm-1] Upper wavenumber bound of spectral interval
-    real(ireals), allocatable :: gpoint_fraction(:, :)  ! dim(wavenumber, g_point) Fraction of spectrum contributing to each g-point
+    real(ireals), allocatable :: gpoint_fraction(:, :) ! dim(wavenumber, g_point) Fraction of spectrum contributing to each g-point
     real(ireals), allocatable :: wavenumber1_band(:)   ! dim(band) [cm-1] Lower wavenumber bound of band
     real(ireals), allocatable :: wavenumber2_band(:)   ! dim(band) [cm-1] Upper wavenumber bound of band
-    integer(iintegers), allocatable :: band_number(:)        ! dim(g_point) Band number of each g point
+    integer(iintegers), allocatable :: band_number(:)  ! dim(g_point) Band number of each g point
 
     integer(iintegers) :: composite_conc_dependence_code ! COMPOSITE concentration dependence code
     real(ireals), allocatable :: composite_molar_absorption_coeff(:, :, :) ! dim(g_point, pressure, temperature) [m2 mol-1] Molar absorption coefficient of background gases
@@ -429,6 +431,9 @@ contains
     integer(iintegers) :: i, j
     ierr = 0
 
+    allocate (ecckd_data%log_pressure(size(ecckd_data%pressure)))
+    ecckd_data%log_pressure = log(ecckd_data%pressure)
+
     call split(ecckd_data%constituent_id, gas_strings, ' ', ierr); call CHKERR(ierr)
     allocate (ecckd_data%gases(size(gas_strings)))
 
@@ -438,7 +443,7 @@ contains
         gas%id = trim(gas_strings(i))
         gas%reference_mole_fraction = -1
         nullify (gas%mole_fraction1)
-        nullify (gas%mole_fraction2)
+        !nullify (gas%mole_fraction2)
         nullify (gas%molar_absorption_coeff3)
         nullify (gas%molar_absorption_coeff4)
         nullify (gas%vmr)
@@ -451,12 +456,14 @@ contains
             print *, 'composite gas string', j, trim(composite_gas_strings(j))
           end do
           gas%conc_dependence_code = ecckd_data%composite_conc_dependence_code
-          gas%mole_fraction2 => ecckd_data%composite_mole_fraction
+          !gas%mole_fraction2 => ecckd_data%composite_mole_fraction
           gas%molar_absorption_coeff3 => ecckd_data%composite_molar_absorption_coeff
 
         case ('h2o')
           gas%conc_dependence_code = ecckd_data%h2o_conc_dependence_code
           gas%mole_fraction1 => ecckd_data%h2o_mole_fraction
+          allocate (gas%log_mole_fraction1(size(gas%mole_fraction1)))
+          gas%log_mole_fraction1 = log(gas%mole_fraction1)
           gas%molar_absorption_coeff4 => ecckd_data%h2o_molar_absorption_coeff
           gas%vmr => atm%h2o_lay
 
