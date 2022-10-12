@@ -176,6 +176,7 @@ module m_helper_functions
 
   interface split
     #:for basetype,dtype in [&
+      ('character', ''  ), &
       ('integer', 'INT32'  ), &
       ('integer', 'INT64'  ), &
       ('real'   , 'REAL32' ), &
@@ -1752,14 +1753,20 @@ contains
   #:endfor
 
   #:for basetype,dtype in [&
+    ('character', ''  ), &
     ('integer', 'INT32'  ), &
     ('integer', 'INT64'  ), &
     ('real'   , 'REAL32' ), &
     ('real'   , 'REAL64' ), &
     ('real'   , 'REAL128')]
+    #:if basetype == 'character'
+      #:set dKIND = '(len=default_str_len)'
+    #:else
+      #:set dKIND = '('+dtype+')'
+    #:endif
     subroutine split_${dtype}$ (str, a, sep, ierr)
       character(len=*), intent(in) :: str, sep
-      ${basetype}$ (${dtype}$), intent(out), allocatable :: a(:)
+      ${basetype}$${dKIND}$, intent(out), allocatable :: a(:)
       integer(mpiint), intent(out) :: ierr
       integer(iintegers) :: i, n
       logical :: last_char_was_sep

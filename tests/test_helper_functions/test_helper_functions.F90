@@ -104,7 +104,7 @@ contains
     end do
   end subroutine
 
-  @test(npes=[ 2, 3])
+  @test(npes=[2, 3])
   subroutine test_mpi_bcast_large_int(this)
     class(MpiTestMethod), intent(inout) :: this
 

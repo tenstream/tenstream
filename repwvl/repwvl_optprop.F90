@@ -53,7 +53,7 @@ module m_repwvl_optprop
   real(ireals), parameter :: N2 = 0.78102_ireals
 
 #ifdef __RELEASE_BUILD__
-  logical, parameter :: ldebug = .true.
+  logical, parameter :: ldebug = .false.
 #else
   logical, parameter :: ldebug = .true.
 #endif
@@ -76,11 +76,6 @@ contains
     logical, parameter :: lprofile = ldebug
 
     ierr = 0
-
-    !do j = lbound(kabs, 3), ubound(kabs, 3)
-    !do i = lbound(kabs, 2), ubound(kabs, 2)
-    !icol = i + (j - 1) * size(kabs, dim=2)
-    !do k = lbound(kabs, 1), ubound(kabs, 1)
 
     P = (atm%plev(k, icol) + atm%plev(k + 1, icol))*.5_ireals * 1e2_ireals
     dP = (atm%plev(k, icol) - atm%plev(k + 1, icol)) * 1e2_ireals
@@ -157,7 +152,7 @@ contains
       lwc_vmr = atm%lwc(k, icol) * dP / (EARTHACCEL * atm%dz(k, icol)) ! have lwc in [ g / kg ], lwc_vmr in [ g / m3 ]
       qext_cld = qext_cld * 1e-3 * lwc_vmr                             ! from [km^-1 / (g / m^3)] to [1/m]
 
-      g = (g * tsca + g_cld * qext_cld) / (tsca + qext_cld)
+      g = (g * tsca + g_cld * qext_cld * w0_cld) / (tsca + qext_cld * w0_cld)
       tabs = tabs + qext_cld * max(0._ireals, (1._ireals - w0_cld))
       tsca = tsca + qext_cld * w0_cld
       if (lprofile) then
@@ -175,7 +170,7 @@ contains
       iwp = atm%iwc(k, icol) * dP / (EARTHACCEL * atm%dz(k, icol)) ! have iwc in [ g / kg ], iwp in [ g / m3 ]
       qext_cld = qext_cld * iwp                                    ! from [m^-1 / (g / m^3)] to [1/m]
 
-      g = (g * tsca + g_cld * qext_cld) / (tsca + qext_cld)
+      g = (g * tsca + g_cld * qext_cld * w0_cld) / (tsca + qext_cld * w0_cld)
       tabs = tabs + qext_cld * max(0._ireals, (1._ireals - w0_cld))
       tsca = tsca + qext_cld * w0_cld
       if (lprofile) then
@@ -183,16 +178,9 @@ contains
       end if
     end if
 
-    !kabs(size(kabs, dim=1) + 1 - k, i, j) = tabs
-    !ksca(size(ksca, dim=1) + 1 - k, i, j) = tsca
-    !kg(size(kg, dim=1) + 1 - k, i, j) = g
     kabs = tabs
     ksca = tsca
     kg = g
-
-    !end do
-    !end do
-    !end do
 
   contains
 

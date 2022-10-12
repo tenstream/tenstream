@@ -85,7 +85,7 @@ module m_fu_ice
   end interface
 
   real(ireals), parameter :: MaxAsymmetryFactor = 1.0_ireals - 10.0_ireals * epsilon(1.0_ireals)
-  real(ireals), parameter :: MaxEffectiveRadius = 100.0e-6_ireals ! [metres]
+  real(ireals), parameter :: MaxEffectiveRadius = 100._ireals ! [metres]
 
 contains
 
@@ -265,8 +265,7 @@ contains
     real(ireals) :: de_um
 
     ! Convert to effective diameter using the relationship in the IFS (as in EcRad)
-    de_um = min(reff, MaxEffectiveRadius) * (1.0e6_ireals / 0.64952_ireals)
-    !iwp_gm_2  = ice_wp * 1000.0_jprb
+    de_um = min(reff * (1.0_ireals / 0.64952_ireals), MaxEffectiveRadius)
 
     qext = table%ext(1, iwvl) + table%ext(2, iwvl) / de_um
 
@@ -313,7 +312,7 @@ contains
     real(ireals) :: de_um, inv_de_um
 
     ! Convert to effective diameter using the relationship in the IFS (as in EcRad)
-    de_um = min(reff, MaxEffectiveRadius) * (1.0e6_ireals / 0.64952_ireals)
+    de_um = min(reff * (1.0_ireals / 0.64952_ireals), MaxEffectiveRadius)
     inv_de_um = 1._ireals / de_um
 
     qext = table%ext(1, iwvl) &

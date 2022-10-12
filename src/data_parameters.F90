@@ -63,6 +63,7 @@ module m_data_parameters
     neginf, inf, &
     nil, zero, one, &
     PI, &
+    PI_inv, &
     pi128, &
     pi32, &
     pi64, &
@@ -116,6 +117,7 @@ module m_data_parameters
   real(ireals), parameter :: R_DRY_AIR = 287.058          ! J / (kg K) specific gas constant dry air
 
   real(ireals), parameter :: PI = 3.141592653589793_ireals
+  real(ireals), parameter :: PI_inv = 1._ireals / PI
   real(irealLUT), parameter :: pi_irealLUT = 3.141592653589793_ireallut
   real(ireal_params), parameter :: pi_ireal_params = 3.141592653589793_ireal_params
   real(real128), parameter :: pi128 = 4 * atan(1._real128)
