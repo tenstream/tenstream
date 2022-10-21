@@ -24,6 +24,7 @@ module m_ecckd_optprop
     & EARTHACCEL, &
     & iintegers, &
     & ireals, &
+    & irealLUT, &
     & K_BOLTZMANN, &
     & MOLMASSAIR, &
     & mpiint, &
@@ -73,10 +74,9 @@ module m_ecckd_optprop
 
 contains
 
-  subroutine ecckd_optprop(ecckd_data, atm, mie_table, lsolar, k, icol, igpt, kabs, ksca, kg, ierr)
+  subroutine ecckd_optprop(ecckd_data, atm, lsolar, k, icol, igpt, kabs, ksca, kg, ierr)
     type(t_ecckd_data), intent(in) :: ecckd_data
     type(t_tenstr_atm), intent(in) :: atm
-    type(t_mie_table), intent(in) :: mie_table
     logical, intent(in) :: lsolar
     integer(iintegers), intent(in) :: k, icol, igpt
     real(ireals), intent(out) :: kabs, ksca, kg
@@ -141,7 +141,7 @@ contains
         call PetscLogEventBegin(ecckd_log_events%ecckd_optprop_mie, ierr); call CHKERR(ierr)
       end if
 
-      call get_liq_cld_optprop(ecckd_data, mie_table, lsolar, igpt, &
+      call get_liq_cld_optprop(ecckd_data, lsolar, igpt, &
         & atm%lwc(k, icol), atm%reliq(k, icol), atm%dz(k, icol), dP, &
         & qext_cld_l, w0_cld_l, g_cld_l, ierr); call CHKERR(ierr)
       !print *, 'liq cld optprop single', qext_cld_l, w0_cld_l, g_cld_l
@@ -177,9 +177,8 @@ contains
 
   end subroutine
 
-  subroutine get_liq_cld_optprop(ecckd_data, mie_table, lsolar, igpt, lwc, reliq, dz, dP, qext_cld_l, w0_cld_l, g_cld_l, ierr)
+  subroutine get_liq_cld_optprop(ecckd_data, lsolar, igpt, lwc, reliq, dz, dP, qext_cld_l, w0_cld_l, g_cld_l, ierr)
     type(t_ecckd_data), intent(in) :: ecckd_data
-    type(t_mie_table), intent(in) :: mie_table
     logical, intent(in) :: lsolar
     integer(iintegers), intent(in) :: igpt
     real(ireals), intent(in) :: lwc, reliq, dz, dP
@@ -189,8 +188,8 @@ contains
     real(ireals), parameter :: DensityLiquidWater = 1000.0_ireals ! kg m-3
 
     real(ireals) :: lwp
-    integer(iintegers) :: iwvnr
-    real(ireals) :: qext, w0, g, wgt, wvl_lo, wvl_hi, wvl
+    integer(iintegers) :: iR0, iR1
+    real(ireals) :: wR, wR0, wR1
 
     ierr = 0
 
@@ -215,27 +214,26 @@ contains
       w0_cld_l = 0
       g_cld_l = 0
 
-      do iwvnr = 1, size(ecckd_data%gpoint_fraction, dim=1)
-        wgt = ecckd_data%gpoint_fraction(iwvnr, igpt)
-        if (wgt .gt. 0) then
-          wvl_lo = 1e7_ireals / ecckd_data%wavenumber2(iwvnr)
-          wvl_hi = 1e7_ireals / ecckd_data%wavenumber1(iwvnr)
-          wvl = (wvl_lo + wvl_hi)*.5
+      wR = find_real_location(ecckd_data%mie_table%reff, real(reliq, irealLUT))
 
-          call mie_optprop(&
-            & mie_table, &
-            & wvl * 1e-3_ireals, &
-            & reliq, &
-            & qext, w0, g, ierr); call CHKERR(ierr)
+      iR0 = int(floor(wR), iintegers)
+      iR1 = iR0 + 1
 
-          qext_cld_l = qext_cld_l + wgt * qext
-          w0_cld_l = w0_cld_l + wgt * w0
-          g_cld_l = g_cld_l + wgt * g
-        end if
-      end do
+      wR1 = wR - real(iR0, ireals)
+      wR0 = (1._ireals - wR1)
+
+      if (wR1 .lt. sqrt(epsilon(wR0))) then
+        qext_cld_l = ecckd_data%mie_table%qext(iR0, igpt)
+        w0_cld_l = ecckd_data%mie_table%w0(iR0, igpt)
+        g_cld_l = ecckd_data%mie_table%g(iR0, igpt)
+      else
+        qext_cld_l = ecckd_data%mie_table%qext(iR0, igpt) * wR0 + ecckd_data%mie_table%qext(iR1, igpt) * wR1
+        w0_cld_l = ecckd_data%mie_table%w0(iR0, igpt) * wR0 + ecckd_data%mie_table%w0(iR1, igpt) * wR1
+        g_cld_l = ecckd_data%mie_table%g(iR0, igpt) * wR0 + ecckd_data%mie_table%g(iR1, igpt) * wR1
+      end if
 
       lwp = lwc * dP / (EARTHACCEL * dz) ! have lwc in [ g / kg ] -> lwc_vmr in [ g / m3 ]
-      qext_cld_l = qext_cld_l * 1e-3_ireals * lwp                  ! from [km^-1 / (g / m^3)] to [1/m]
+      qext_cld_l = qext_cld_l * 1e-3_ireals * lwp ! from [km^-1 / (g / m^3)] to [1/m]
 
     end if
   end subroutine

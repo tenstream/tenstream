@@ -76,7 +76,7 @@ module m_ecckd_pprts
 #endif
 
   type(t_ecckd_data), allocatable :: ecckd_data_solar, ecckd_data_thermal
-  type(t_mie_table), allocatable :: ecckd_mie_table
+  type(t_mie_table), allocatable :: ecckd_general_mie_table
 
 contains
 
@@ -179,18 +179,18 @@ contains
 
     if (.not. solver%linitialized) then
 
+      call mie_tables_init(comm, ecckd_general_mie_table, ierr, lverbose=.false.); call CHKERR(ierr)
+
+      call fu_ice_init(comm, ierr, lverbose=.false.); call CHKERR(ierr)
+
       call ecckd_init(        &
         & comm,               &
         & atm,                &
+        & ecckd_general_mie_table,    &
         & ecckd_data_solar,   &
         & ecckd_data_thermal, &
         & ierr,                &
         & lverbose=.false.); call CHKERR(ierr)
-
-      call mie_tables_init(comm, ecckd_mie_table, ierr, lverbose=.false.); call CHKERR(ierr)
-
-      call fu_ice_init(comm, ierr, lverbose=.false.); call CHKERR(ierr)
-      call check_fu_table_consistency()!ecckd_data_solar, ecckd_data_thermal)
 
       call init_pprts_ecckd(comm, solver, &
                             dx, dy, atm%dz, &
@@ -223,9 +223,8 @@ contains
       call PetscLogStagePush(ecckd_log_events%stage_ecckd_thermal, ierr); call CHKERR(ierr)
       call compute_thermal(                    &
         & comm,                                &
-        & ecckd_data_thermal,                 &
+        & ecckd_data_thermal,                  &
         & solver,                              &
-        & ecckd_mie_table,                    &
         & atm,                                 &
         & albedo_thermal,                      &
         & edn, eup, abso,                      &
@@ -249,9 +248,8 @@ contains
         call PetscLogStagePush(ecckd_log_events%stage_ecckd_solar, ierr); call CHKERR(ierr)
         call compute_solar(                          &
           & comm,                                    &
-          & ecckd_data_solar,                       &
+          & ecckd_data_solar,                        &
           & solver,                                  &
-          & ecckd_mie_table,                        &
           & atm,                                     &
           & sundir, albedo_solar,                    &
           & edir, edn, eup, abso,                    &
@@ -276,7 +274,6 @@ contains
       & comm,                 &
       & ecckd_data_thermal,  &
       & solver,               &
-      & mie_table,            &
       & atm,                  &
       & albedo,               &
       & edn,                  &
@@ -291,7 +288,6 @@ contains
     integer(mpiint), intent(in) :: comm
     type(t_ecckd_data), intent(in) :: ecckd_data_thermal
     class(t_solver), intent(inout) :: solver
-    type(t_mie_table), intent(in) :: mie_table
     type(t_tenstr_atm), intent(in), target :: atm
     real(ireals), intent(in) :: albedo
     real(ireals), intent(inout), dimension(:, :, :) :: edn, eup, abso
@@ -365,7 +361,7 @@ contains
 
           do k = 1, ke
             call ecckd_optprop(&
-              & ecckd_data_thermal, atm, mie_table, &
+              & ecckd_data_thermal, atm, &
               & .false., k, icol, ig, &
               & kabs(size(kabs, dim=1) + 1 - k, i, j), &
               & ksca(size(ksca, dim=1) + 1 - k, i, j), &
@@ -461,7 +457,6 @@ contains
       & comm,               &
       & ecckd_data_solar,  &
       & solver,             &
-      & mie_table,          &
       & atm,                &
       & sundir,             &
       & albedo,             &
@@ -481,7 +476,6 @@ contains
     integer(mpiint), intent(in) :: comm
     type(t_ecckd_data), intent(in) :: ecckd_data_solar
     class(t_solver), intent(inout) :: solver
-    type(t_mie_table), intent(in) :: mie_table
     type(t_tenstr_atm), intent(in), target :: atm
 
     real(ireals), intent(in) :: albedo
@@ -552,7 +546,7 @@ contains
 
           do k = 1, ke
             call ecckd_optprop(&
-              & ecckd_data_solar, atm, mie_table, &
+              & ecckd_data_solar, atm, &
               & .true., k, icol, ig, &
               & kabs(size(kabs, dim=1) + 1 - k, i, j), &
               & ksca(size(ksca, dim=1) + 1 - k, i, j), &
@@ -675,7 +669,7 @@ contains
     integer(mpiint), intent(out) :: ierr
     ierr = 0
 
-    !call destroy_mie_table(ecckd_mie_table, ierr); call CHKERR(ierr)
+    call destroy_mie_table(ecckd_general_mie_table, ierr); call CHKERR(ierr)
     call destroy_pprts(solver, lfinalizepetsc=lfinalizepetsc)
   end subroutine
 

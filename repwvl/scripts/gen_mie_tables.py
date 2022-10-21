@@ -48,7 +48,7 @@ output_user netcdf
     np.savetxt(mie_input['wvl_grid_file'], list(zip(range(1,len(wvls)+1), wvls)))
     inp = mie_template.render(mie_input)
     if verbose:
-        print(f"Wavelenghts {wvls}")
+        print(f"Wavelenghts ({len(wvls)}) {wvls}")
         print(inp)
 
     with open("mie.inp", "w") as fh:
@@ -117,8 +117,9 @@ def estimate_cpus():
     return min(cpus, limit)
 
 def run_exp(wvls, reffs, phase, mie_bin, verbose=False, wdir='./'):
+    abs_wdir = os.path.abspath(wdir)
     pool = multiprocessing.Pool(processes=estimate_cpus())
-    ret = list( pool.starmap(pool_fct, zip(reffs, repeat(wvls), repeat(phase), repeat(mie_bin), repeat(verbose), repeat(wdir))) )
+    ret = list( pool.starmap(pool_fct, zip(reffs, repeat(wvls), repeat(phase), repeat(mie_bin), repeat(verbose), repeat(abs_wdir))) )
     return xr.merge(ret).sortby("reff").sortby("wvl")
 
 def _main():
