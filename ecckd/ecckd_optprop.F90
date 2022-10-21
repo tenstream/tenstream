@@ -217,7 +217,7 @@ contains
       wR = find_real_location(ecckd_data%mie_table%reff, real(reliq, irealLUT))
 
       iR0 = int(floor(wR), iintegers)
-      iR1 = min(iR0 + 1, size(ecckd_data%mie_table%reff, kind=iintegers))
+      iR1 = int(ceiling(wR), iintegers)
 
       wR1 = wR - real(iR0, ireals)
       wR0 = (1._ireals - wR1)
@@ -354,11 +354,11 @@ contains
     wP = find_real_location(ecckd_data%log_pressure, log(P))
 
     ip0 = int(floor(wP), iintegers)
-    ip1 = min(ip0 + 1, size(ecckd_data%log_pressure, kind=iintegers))
+    ip1 = int(ceiling(wP), iintegers)
 
     wT = find_real_location(ecckd_data%temperature(ip0, :), T)
     iT0 = int(floor(wT), iintegers)
-    iT1 = min(iT0 + 1, size(ecckd_data%temperature, dim=2, kind=iintegers))
+    iT1 = int(ceiling(wT), iintegers)
 
     wgt_P1 = wP - real(ip0, ireals)
     wgt_T1 = wT - real(iT0, ireals)
@@ -457,7 +457,7 @@ contains
           !wC = find_real_location(mfrac1, gas%vmr(atm_k, atm_icol))
           wC = find_real_location(log_mfrac1, log(gas%vmr(atm_k, atm_icol)))
           iC0 = int(floor(wC), iintegers)
-          iC1 = min(iC0 + 1, size(log_mfrac1, kind=iintegers))
+          iC1 = int(ceiling(wC), iintegers)
           wgt_C1 = wC - real(iC0, ireals)
           wgt_C0 = (1._ireals - wgt_C1)
 
@@ -506,7 +506,7 @@ contains
 
     wT = find_real_location(ecckd_data%temperature_planck, T)
     iT0 = int(floor(wT), iintegers)
-    iT1 = min(iT0 + 1, size(ecckd_data%temperature_planck, kind=iintegers))
+    iT1 = int(ceiling(wT), iintegers)
 
     wgt_T1 = wT - real(iT0, ireals)
     wgt_T0 = (1._ireals - wgt_T1)
