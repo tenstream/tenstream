@@ -217,20 +217,14 @@ contains
       wR = find_real_location(ecckd_data%mie_table%reff, real(reliq, irealLUT))
 
       iR0 = int(floor(wR), iintegers)
-      iR1 = iR0 + 1
+      iR1 = min(iR0 + 1, size(ecckd_data%mie_table%reff, kind=iintegers))
 
       wR1 = wR - real(iR0, ireals)
       wR0 = (1._ireals - wR1)
 
-      if (wR1 .lt. sqrt(epsilon(wR0))) then
-        qext_cld_l = ecckd_data%mie_table%qext(iR0, igpt)
-        w0_cld_l = ecckd_data%mie_table%w0(iR0, igpt)
-        g_cld_l = ecckd_data%mie_table%g(iR0, igpt)
-      else
-        qext_cld_l = ecckd_data%mie_table%qext(iR0, igpt) * wR0 + ecckd_data%mie_table%qext(iR1, igpt) * wR1
-        w0_cld_l = ecckd_data%mie_table%w0(iR0, igpt) * wR0 + ecckd_data%mie_table%w0(iR1, igpt) * wR1
-        g_cld_l = ecckd_data%mie_table%g(iR0, igpt) * wR0 + ecckd_data%mie_table%g(iR1, igpt) * wR1
-      end if
+      qext_cld_l = ecckd_data%mie_table%qext(iR0, igpt) * wR0 + ecckd_data%mie_table%qext(iR1, igpt) * wR1
+      w0_cld_l = ecckd_data%mie_table%w0(iR0, igpt) * wR0 + ecckd_data%mie_table%w0(iR1, igpt) * wR1
+      g_cld_l = ecckd_data%mie_table%g(iR0, igpt) * wR0 + ecckd_data%mie_table%g(iR1, igpt) * wR1
 
       lwp = lwc * dP / (EARTHACCEL * dz) ! have lwc in [ g / kg ] -> lwc_vmr in [ g / m3 ]
       qext_cld_l = qext_cld_l * 1e-3_ireals * lwp ! from [km^-1 / (g / m^3)] to [1/m]
@@ -273,7 +267,7 @@ contains
       w0_cld_i = 0
       g_cld_i = 0
 
-      do iwvnr = 1, size(ecckd_data%gpoint_fraction, dim=1)
+      do iwvnr = 1, size(ecckd_data%gpoint_fraction, dim=1, kind=iintegers)
         wgt = ecckd_data%gpoint_fraction(iwvnr, igpt)
         if (wgt .gt. 0) then
           wvl_lo = 1e7_ireals / ecckd_data%wavenumber2(iwvnr)
@@ -360,11 +354,11 @@ contains
     wP = find_real_location(ecckd_data%log_pressure, log(P))
 
     ip0 = int(floor(wP), iintegers)
-    ip1 = ip0 + 1
+    ip1 = min(ip0 + 1, size(ecckd_data%log_pressure, kind=iintegers))
 
     wT = find_real_location(ecckd_data%temperature(ip0, :), T)
     iT0 = int(floor(wT), iintegers)
-    iT1 = iT0 + 1
+    iT1 = min(iT0 + 1, size(ecckd_data%temperature, dim=2, kind=iintegers))
 
     wgt_P1 = wP - real(ip0, ireals)
     wgt_T1 = wT - real(iT0, ireals)
@@ -381,8 +375,10 @@ contains
         & ecckd_data%gases(igas), &
         & taugas, ierr)
       !print *, igas, trim(ecckd_data%gases(igas)%id), ' => tau', taugas
-      call CHKERR(ierr, 'dep_code '//toStr(ecckd_data%gases(igas)%conc_dependence_code)// &
-        & ' not implemented for gas: '//trim(ecckd_data%gases(igas)%id))
+      if (ierr .ne. 0) then
+        call CHKERR(ierr, 'dep_code '//toStr(ecckd_data%gases(igas)%conc_dependence_code)// &
+          & ' not implemented for gas: '//trim(ecckd_data%gases(igas)%id))
+      end if
       dtau = dtau + taugas
     end do
 
@@ -461,7 +457,7 @@ contains
           !wC = find_real_location(mfrac1, gas%vmr(atm_k, atm_icol))
           wC = find_real_location(log_mfrac1, log(gas%vmr(atm_k, atm_icol)))
           iC0 = int(floor(wC), iintegers)
-          iC1 = iC0 + 1
+          iC1 = min(iC0 + 1, size(log_mfrac1, kind=iintegers))
           wgt_C1 = wC - real(iC0, ireals)
           wgt_C0 = (1._ireals - wgt_C1)
 
@@ -510,7 +506,7 @@ contains
 
     wT = find_real_location(ecckd_data%temperature_planck, T)
     iT0 = int(floor(wT), iintegers)
-    iT1 = iT0 + 1
+    iT1 = min(iT0 + 1, size(ecckd_data%temperature_planck, kind=iintegers))
 
     wgt_T1 = wT - real(iT0, ireals)
     wgt_T0 = (1._ireals - wgt_T1)
