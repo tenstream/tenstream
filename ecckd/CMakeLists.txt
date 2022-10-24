@@ -28,3 +28,4 @@ TARGET_LINK_LIBRARIES( ecckd_pprts
 
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/data/ecckd-1.0_lw_climate_fsck-16_ckd-definition.nc" ${TENSTREAM_SHARE_DIR}/ecckd-1.0_lw_climate_fsck-16_ckd-definition.nc COPYONLY)
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/data/ecckd-1.0_sw_climate_rgb-16_ckd-definition.nc"  ${TENSTREAM_SHARE_DIR}/ecckd-1.0_sw_climate_rgb-16_ckd-definition.nc  COPYONLY)
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/data/fu-muskatel-rough_ice_scattering.nc"  ${TENSTREAM_SHARE_DIR}/fu-muskatel-rough_ice_scattering.nc  COPYONLY)

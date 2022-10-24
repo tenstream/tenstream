@@ -58,9 +58,9 @@ module m_ecckd_pprts
     & t_pprts_buildings
 
   use m_ecckd_base, only: ecckd_init, t_ecckd_data, ecckd_log_events
-  use m_ecckd_optprop, only: ecckd_optprop, ecckd_planck, check_fu_table_consistency
+  use m_ecckd_optprop, only: ecckd_optprop, ecckd_planck
   use m_mie_tables, only: mie_tables_init, t_mie_table, destroy_mie_table
-  use m_fu_ice, only: fu_ice_init
+  use m_fu_ice, only: fu_ice_init, fu_muskatel_ice_data
 
   use m_pprts_rrtmg, only: smooth_surface_fluxes, slope_correction_fluxes
 
@@ -186,7 +186,8 @@ contains
       call ecckd_init(        &
         & comm,               &
         & atm,                &
-        & ecckd_general_mie_table,    &
+        & ecckd_general_mie_table, &
+        & fu_muskatel_ice_data, &
         & ecckd_data_solar,   &
         & ecckd_data_thermal, &
         & ierr,                &

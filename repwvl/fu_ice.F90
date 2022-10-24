@@ -49,10 +49,12 @@ module m_fu_ice
   public :: &
     & fu_ice_data_solar,   &
     & fu_ice_data_thermal, &
+    & fu_muskatel_ice_data,&
     & fu_ice_init,         &
     & fu_ice_optprop,      &
     & t_fu96_ice_data,     &
-    & t_fu98_ice_data
+    & t_fu98_ice_data,     &
+    & t_fu_muskatel_ice_data
 
   type t_fu96_ice_data
     logical :: is_repwvl                      ! flag to tell if its a general fu file or specifically for a repwvl case,
@@ -74,14 +76,24 @@ module m_fu_ice
     real(irealLUT), allocatable :: g(:, :)    ! dim [4, band], Asymmetry parameter g = c0 +  c1 * D  + c2 * D**2  +  c3 * D**3
   end type
 
+  type t_fu_muskatel_ice_data
+    real(irealLUT), allocatable :: wvl(:)    ! in [mu]
+    real(irealLUT), allocatable :: reff(:)   ! in [mu]
+    real(irealLUT), allocatable :: ext(:, :) ! dim [wvl, reff] Mass extinction coefficient [m2 kg-1]
+    real(irealLUT), allocatable :: w0(:, :) ! dim [wvl, reff], Single scattering albedo
+    real(irealLUT), allocatable :: g(:, :) ! dim [wvl, reff], Asymmetry parameter
+  end type
+
   type(t_fu96_ice_data), allocatable :: fu_ice_data_solar
   type(t_fu98_ice_data), allocatable :: fu_ice_data_thermal
+  type(t_fu_muskatel_ice_data), allocatable :: fu_muskatel_ice_data
 
   interface fu_ice_optprop
     module procedure fu_ice_optprop_solar_index
     module procedure fu_ice_optprop_solar_general
     module procedure fu_ice_optprop_thermal_index
     module procedure fu_ice_optprop_thermal_general
+    module procedure fu_ice_optprop_muskatel
   end interface
 
   real(ireals), parameter :: MaxAsymmetryFactor = 1.0_ireals - 10.0_ireals * epsilon(1.0_ireals)
@@ -185,6 +197,53 @@ contains
     call imp_bcast(comm, data98%is_repwvl, 0_mpiint, ierr); call CHKERR(ierr)
   end subroutine
 
+  subroutine distribute_table_muskatel(comm, table, ierr)
+    integer(mpiint), intent(in) :: comm
+    type(t_fu_muskatel_ice_data), allocatable, intent(inout) :: table
+    integer(mpiint), intent(out) :: ierr
+
+    ierr = 0
+    if (.not. allocated(table)) allocate (table)
+    call imp_bcast(comm, table%wvl, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, table%reff, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, table%ext, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, table%w0, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, table%g, 0_mpiint, ierr); call CHKERR(ierr)
+  end subroutine
+
+  subroutine load_data_muskatel(fname, table, ierr, lverbose)
+    character(len=*), intent(in) :: fname
+    integer(mpiint), intent(out) :: ierr
+    type(t_fu_muskatel_ice_data), allocatable, intent(inout) :: table
+    logical, intent(in), optional :: lverbose
+
+    character(len=default_str_len) :: groups(2)
+
+    ierr = 0
+
+    if (allocated(table)) return
+    allocate (table)
+
+    groups(1) = trim(fname)
+    groups(2) = 'wavelength'; call ncload(groups, table%wvl, ierr, lverbose); call CHKERR(ierr)
+    table%wvl = table%wvl * 1e6_ireallut
+    groups(2) = 'effective_radius'; call ncload(groups, table%reff, ierr, lverbose); call CHKERR(ierr)
+    table%reff = table%reff * 1e6_ireallut
+    groups(2) = 'mass_extinction_coefficient'; call ncload(groups, table%ext, ierr, lverbose); call CHKERR(ierr)
+    groups(2) = 'single_scattering_albedo'; call ncload(groups, table%w0, ierr, lverbose); call CHKERR(ierr)
+    groups(2) = 'asymmetry_factor'; call ncload(groups, table%g, ierr, lverbose); call CHKERR(ierr)
+
+    if (get_arg(.false., lverbose)) then
+      print *, 'Loaded Fu-Muskatel Ice data with '//new_line('')// &
+        & ' wvl  ('//toStr(shape(table%wvl))//')'//toStr(minval(table%wvl))//' '//toStr(maxval(table%wvl))//new_line('')// &
+        & ' reff ('//toStr(shape(table%reff))//')'//toStr(minval(table%reff))//' '//toStr(maxval(table%reff))//new_line('')// &
+        & ' qext ('//toStr(shape(table%ext))//')'//toStr(minval(table%ext))//' '//toStr(maxval(table%ext))//new_line('')// &
+        & ' w0   ('//toStr(shape(table%w0))//')'//toStr(minval(table%w0))//' '//toStr(maxval(table%w0))//new_line('')// &
+        & ' g    ('//toStr(shape(table%g))//')'//toStr(minval(table%g))//' '//toStr(maxval(table%g))//new_line('')// &
+        & ''
+    end if
+  end subroutine
+
   subroutine fu_ice_init(  &
       & comm,              &
       & ierr,              &
@@ -198,6 +257,7 @@ contains
     integer(mpiint) :: myid
 
     character(len=default_str_len), parameter :: default_path = share_dir//"fu.ice.general.nc"
+    character(len=default_str_len), parameter :: default_path_muskatel = share_dir//"fu-muskatel-rough_ice_scattering.nc"
 
     character(len=default_str_len) :: prepwvl
 
@@ -225,10 +285,27 @@ contains
       if (.not. allocated(fu_ice_data_thermal)) then
         call load_data98(prepwvl, fu_ice_data_thermal, ierr, lverbose); call CHKERR(ierr)
       end if
+
+      prepwvl = trim(default_path_muskatel)
+      call get_petsc_opt('', '-fu_ice_muskatel', prepwvl, lset, ierr); call CHKERR(ierr)
+
+      inquire (file=trim(prepwvl), exist=lexists)
+      if (.not. lexists) then
+        call CHKERR(1_mpiint, "File at fu ice path "//toStr(prepwvl)// &
+          & " does not exist"//new_line('')// &
+          & " please make sure the file is at this location"// &
+          & " or specify a correct path with option"//new_line('')// &
+          & "   -fu_ice_muskatel <path>")
+      end if
+
+      if (.not. allocated(fu_muskatel_ice_data)) then
+        call load_data_muskatel(prepwvl, fu_muskatel_ice_data, ierr, lverbose); call CHKERR(ierr)
+      end if
     end if
 
     call distribute_table96(comm, fu_ice_data_solar, ierr); call CHKERR(ierr)
     call distribute_table98(comm, fu_ice_data_thermal, ierr); call CHKERR(ierr)
+    call distribute_table_muskatel(comm, fu_muskatel_ice_data, ierr); call CHKERR(ierr)
   end subroutine
 
   subroutine fu_ice_optprop_solar_general(table, wvl, reff, qext, w0, g, ierr)
@@ -334,4 +411,27 @@ contains
 
     ierr = 0
   end subroutine
+
+  subroutine fu_ice_optprop_muskatel(table, wvl, reff, qext, w0, g, ierr)
+    type(t_fu_muskatel_ice_data), intent(in) :: table
+    real(ireals), intent(in) :: wvl ! wvl in [mu]
+    real(ireals), intent(in) :: reff ! reff in [mu]
+    real(ireals), intent(out) :: qext, w0, g
+    integer(mpiint), intent(out) :: ierr
+
+    real(irealLUT) :: pt(2)
+    real(irealLUT) :: rqext, rw0, rg
+
+    ierr = 0
+
+    pt(1) = find_real_location(table%wvl, real(wvl, irealLUT))
+    pt(2) = find_real_location(table%reff, real(reff, irealLUT))
+    call interp_2d(pt, table%ext, rqext)
+    call interp_2d(pt, table%w0, rw0)
+    call interp_2d(pt, table%g, rg)
+    qext = real(rqext, irealLUT)
+    w0 = real(rw0, irealLUT)
+    g = real(rg, irealLUT)
+  end subroutine
+
 end module

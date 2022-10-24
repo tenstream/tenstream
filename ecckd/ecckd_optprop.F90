@@ -38,7 +38,6 @@ module m_ecckd_optprop
 
   use m_dyn_atm_to_rrtmg, only: t_tenstr_atm
   use m_fu_ice, only: fu_ice_optprop, fu_ice_data_solar, fu_ice_data_thermal
-  use m_mie_tables, only: t_mie_table, mie_optprop
   use m_rayleigh, only: rayleigh
 
   use m_ecckd_base, only: &
@@ -56,7 +55,6 @@ module m_ecckd_optprop
 
   private
   public :: &
-    & check_fu_table_consistency, &
     & ecckd_optprop, &
     & ecckd_planck
 
@@ -210,10 +208,6 @@ contains
 
     else
 
-      qext_cld_l = 0
-      w0_cld_l = 0
-      g_cld_l = 0
-
       wR = find_real_location(ecckd_data%mie_table%reff, real(reliq, irealLUT))
 
       iR0 = int(floor(wR), iintegers)
@@ -243,8 +237,9 @@ contains
     real(ireals), parameter :: DensitySolidIce = 916.7_ireals  ! kg m-3
 
     real(ireals) :: iwp
-    integer(iintegers) :: iwvnr
-    real(ireals) :: qext, w0, g, wgt, wvl_lo, wvl_hi, wvl
+
+    integer(iintegers) :: iR0, iR1
+    real(ireals) :: wR, wR0, wR1
 
     ierr = 0
 
@@ -263,52 +258,23 @@ contains
 
     else
 
-      qext_cld_i = 0
-      w0_cld_i = 0
-      g_cld_i = 0
+      wR = find_real_location(ecckd_data%fu_ice_table%reff, real(reice, irealLUT))
 
-      do iwvnr = 1, size(ecckd_data%gpoint_fraction, dim=1, kind=iintegers)
-        wgt = ecckd_data%gpoint_fraction(iwvnr, igpt)
-        if (wgt .gt. 0) then
-          wvl_lo = 1e7_ireals / ecckd_data%wavenumber2(iwvnr)
-          wvl_hi = 1e7_ireals / ecckd_data%wavenumber1(iwvnr)
-          wvl = (wvl_lo + wvl_hi)*.5
+      iR0 = int(floor(wR), iintegers)
+      iR1 = int(ceiling(wR), iintegers)
 
-          if (lsolar) then
-            call fu_ice_optprop(&
-              & fu_ice_data_solar, &
-              & wvl * 1e-3_ireals, &
-              & reice, &
-              & qext, w0, g, ierr); call CHKERR(ierr)
-          else
-            call fu_ice_optprop(&
-              & fu_ice_data_thermal, &
-              & wvl * 1e-3_ireals, &
-              & reice, &
-              & qext, w0, g, ierr); call CHKERR(ierr)
-          end if
+      wR1 = wR - real(iR0, ireals)
+      wR0 = (1._ireals - wR1)
 
-          qext_cld_i = qext_cld_i + wgt * qext
-          w0_cld_i = w0_cld_i + wgt * w0
-          g_cld_i = g_cld_i + wgt * g
-        end if
-      end do
+      qext_cld_i = ecckd_data%fu_ice_table%qext(iR0, igpt) * wR0 + ecckd_data%fu_ice_table%qext(iR1, igpt) * wR1
+      w0_cld_i = ecckd_data%fu_ice_table%w0(iR0, igpt) * wR0 + ecckd_data%fu_ice_table%w0(iR1, igpt) * wR1
+      g_cld_i = ecckd_data%fu_ice_table%g(iR0, igpt) * wR0 + ecckd_data%fu_ice_table%g(iR1, igpt) * wR1
 
-      iwp = iwc * dP / (EARTHACCEL * dz) ! have iwc in [ g / kg ] -> iwp in [ g / m3 ]
-      qext_cld_i = qext_cld_i * iwp      ! from [m^-1 / (g / m^3)] to [1/m]
+      iwp = iwc * dP / (EARTHACCEL * dz) * 1e-3_ireals ! have iwc in [ g / kg ] -> iwp in [ kg / m3 ]
+      qext_cld_i = qext_cld_i * iwp      ! from [ (m^2 / kg)  * (kg / m^3)] to [1/m]
     end if
 
     !call delta_scale_optprop(qext_cld_i, w0_cld_i, g_cld_i, g_cld_i**2)
-  end subroutine
-
-  subroutine check_fu_table_consistency()
-    !type(t_ecckd_data) :: ecckd_data_solar, ecckd_data_thermal
-    if (fu_ice_data_solar%is_repwvl) then
-      call CHKERR(1_mpiint, 'solar fu table is repwvl but this is ecckd')
-    end if
-    if (fu_ice_data_thermal%is_repwvl) then
-      call CHKERR(1_mpiint, 'thermal fu table is repwvl but this is ecckd')
-    end if
   end subroutine
 
   ! Solar ckd
