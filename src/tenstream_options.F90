@@ -33,7 +33,7 @@ module m_tenstream_options
   logical :: &
     luse_eddington = .true., & ! use delta eddington coefficients for upper atmosphere, if False , we use boxmc 2-str coeffs
     lcalc_nca = .false., & ! calculate twostream and modify absorption with NCA algorithm
-    lschwarzschild = .false., & ! use schwarzschild solver instead of twostream for thermal calculations
+    lschwarzschild = .true., & ! use schwarzschild solver instead of twostream for thermal calculations
     lskip_thermal = .false., & ! Skip thermal calculations and just return zero for fluxes and absorption
     ltopography = .false., & ! use raybending to include surface topography
     lLUT_mockup = .false.
