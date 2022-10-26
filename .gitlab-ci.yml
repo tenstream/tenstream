@@ -106,7 +106,7 @@ ubuntu-rolling:
     PETSC_64_INTEGERS: 1
     PETSC_DEBUGGING: 1
     BUILD_TYPE: RELEASE
-    CMAKE_OPTS: '-DBUILD_RAYLI=ON -DENABLE_GCOV=ON -DCMAKE_Fortran_FLAGS=--std=legacy'
+    CMAKE_OPTS: '-DENABLE_GCOV=ON -DCMAKE_Fortran_FLAGS=--std=legacy'
     CODECOV_TOKEN: "7d5206f3-f1e3-4704-8bc3-1ee443e4ee49"
 
 # disabled because gcc image cannot apt install openmpi
