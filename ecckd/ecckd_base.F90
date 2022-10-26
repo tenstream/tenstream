@@ -246,7 +246,6 @@ contains
       call ncload(groups, ecckd_data%solar_irradiance, ierr, lverbose); call CHKERR(ierr)
       groups(2) = 'rayleigh_molar_scattering_coeff'
       call ncload(groups, ecckd_data%rayleigh_molar_scattering_coeff, ierr, lverbose); call CHKERR(ierr)
-
     end if
 
     if (llw) then
@@ -430,15 +429,15 @@ contains
       call imp_bcast(comm, table%ch4_reference_mole_fraction, sendid, ierr); call CHKERR(ierr)
       call imp_bcast(comm, table%ch4_molar_absorption_coeff, sendid, ierr); call CHKERR(ierr)
 
+      call imp_bcast(comm, table%n2o_conc_dependence_code, sendid, ierr); call CHKERR(ierr)
+      call imp_bcast(comm, table%n2o_reference_mole_fraction, sendid, ierr); call CHKERR(ierr)
+      call imp_bcast(comm, table%n2o_molar_absorption_coeff, sendid, ierr); call CHKERR(ierr)
+
       lhave_solar = allocated(table%solar_irradiance)
       call imp_bcast(comm, lhave_solar, sendid, ierr); call CHKERR(ierr)
       if (lhave_solar) then
         call imp_bcast(comm, table%solar_irradiance, sendid, ierr); call CHKERR(ierr)
         call imp_bcast(comm, table%rayleigh_molar_scattering_coeff, sendid, ierr); call CHKERR(ierr)
-
-        call imp_bcast(comm, table%n2o_conc_dependence_code, sendid, ierr); call CHKERR(ierr)
-        call imp_bcast(comm, table%n2o_reference_mole_fraction, sendid, ierr); call CHKERR(ierr)
-        call imp_bcast(comm, table%n2o_molar_absorption_coeff, sendid, ierr); call CHKERR(ierr)
       end if
       lhave_thermal = allocated(table%temperature_planck)
       call imp_bcast(comm, lhave_thermal, sendid, ierr); call CHKERR(ierr)
