@@ -460,7 +460,7 @@ contains
           call CHKWARN(int(Nundersampled, mpiint), 'Found '//toStr(Nundersampled)//' fluxes that were certainly reacheable,'// &
             & 'but were sampled crudely. This may lead to large biases in the results. Please consider using more photons!')
 
-          ediff = ediff * real(pi / max(1_iintegers, Nediff), kind(ediff))
+          ediff = ediff * real(pi, kind(ediff)) / real(max(1_iintegers, Nediff), kind(ediff))
         end if
 
         xv_diff(:, C_diff%zs + 1:, :, :) = real(&
