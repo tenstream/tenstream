@@ -30,7 +30,7 @@ contains
       & phi0, theta0, albedo_th, albedo_sol, &
       & lthermal, lsolar, atm_filename, &
       & gedir, gedn, geup, gabso, &
-      & vlwc, viwc, outfile)
+      & vlwc, viwc, vreff, vreice, outfile)
     character(len=*), intent(in) :: specint           ! name of module to use for spectral integration
     integer(mpiint), intent(in) :: comm
     integer(iintegers), intent(in) :: nxp, nyp, nzp   ! local domain size for each rank
@@ -41,6 +41,7 @@ contains
     character(len=*), intent(in) :: atm_filename ! ='afglus_100m.dat'
     real(ireals), allocatable, dimension(:, :, :), intent(out) :: gedir, gedn, geup, gabso
     real(ireals), intent(in), optional :: vlwc, viwc            ! liquid/ice water content to be set in a layer
+    real(ireals), intent(in), optional :: vreff, vreice         ! liquid/ice effective radius
     character(len=*), intent(in), optional :: outfile
 
     ! Fluxes and absorption in [W/m2] and [W/m3] respectively.
@@ -145,7 +146,11 @@ contains
     if (present(vlwc)) then
       icld = int(real(nzp + 1) / 2)
       lwc(icld, :, :) = vlwc
-      reliq(icld, :, :) = 10
+      if (present(vreff)) then
+        reliq(icld, :, :) = vreff
+      else
+        reliq(icld, :, :) = 10
+      end if
       tlev(icld + 1, :, :) = tlev(icld, :, :)
     end if
 
@@ -155,7 +160,11 @@ contains
     if (present(viwc)) then
       icld = nzp
       iwc(icld, :, :) = viwc
-      reice(icld, :, :) = 60
+      if (present(vreice)) then
+        reice(icld, :, :) = vreice
+      else
+        reice(icld, :, :) = 60
+      end if
       tlev(icld + 1, :, :) = tlev(icld, :, :)
     end if
 
