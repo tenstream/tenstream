@@ -2230,8 +2230,9 @@ contains
     real(ireals), optional, intent(in) :: opt_solution_time
     type(t_pprts_buildings), optional, intent(in) :: opt_buildings
 
-    integer(iintegers) :: uid
+    integer(iintegers) :: uid, last_uid
     logical :: derived_lsolar, luse_rayli, lrayli_snapshot
+    logical :: linitial_guess_from_last_uid, linitial_guess_from_2str, lflg
     integer(mpiint) :: ierr
 
     if (.not. allocated(solver%atm)) call CHKERR(1_mpiint, 'atmosphere is not allocated?!')
@@ -2268,6 +2269,31 @@ contains
       if (.not. solution%lset) then
         call prepare_solution(solver%C_dir%da, solver%C_diff%da, solver%C_one%da, &
                               lsolar=derived_lsolar, lthermal=lthermal, solution=solution, uid=uid)
+
+        linitial_guess_from_last_uid = .true.
+        call get_petsc_opt('', "-initial_guess_from_last_uid", &
+          & linitial_guess_from_last_uid, lflg, ierr); call CHKERR(ierr)
+        call get_petsc_opt(solver%prefix, "-initial_guess_from_last_uid", &
+          & linitial_guess_from_last_uid, lflg, ierr); call CHKERR(ierr)
+        if (linitial_guess_from_last_uid) then
+          last_uid = get_solution_uid(solver%solutions, uid - 1)
+          if (solver%solutions(last_uid)%lset) then
+            call VecCopy(solver%solutions(last_uid)%edir, solution%edir, ierr); call CHKERR(ierr)
+            solution%lWm2_dir = solver%solutions(last_uid)%lWm2_dir
+            call VecCopy(solver%solutions(last_uid)%ediff, solution%ediff, ierr); call CHKERR(ierr)
+            solution%lWm2_diff = solver%solutions(last_uid)%lWm2_diff
+          end if
+        end if
+
+        linitial_guess_from_2str = .false.
+        call get_petsc_opt('', "-initial_guess_from_2str", linitial_guess_from_2str, lflg, ierr); call CHKERR(ierr)
+        call get_petsc_opt(solver%prefix, "-initial_guess_from_2str", linitial_guess_from_2str, lflg, ierr); call CHKERR(ierr)
+        if (linitial_guess_from_2str) then
+          call PetscLogEventBegin(solver%logs%solve_twostream, ierr); call CHKERR(ierr)
+          call twostream(solver, edirTOA, solution, opt_buildings)
+          call PetscLogEventEnd(solver%logs%solve_twostream, ierr); call CHKERR(ierr)
+        end if
+
       else
         if (solution%lsolar_rad .neqv. derived_lsolar) then
           call destroy_solution(solution)
@@ -2557,7 +2583,9 @@ contains
 
       lmat_permute = .false.
       call get_petsc_opt(prefix, "-mat_permute", lmat_permute, lflg, ierr); call CHKERR(ierr)
+
       if (lmat_permute) then ! prepare mat permutation
+
         call PetscLogEventBegin(solver%logs%permute_mat_gen_diff, ierr)
         call gen_mat_permutation( &
           & A=A, &
@@ -2592,7 +2620,7 @@ contains
             call MatCreateSubMatrix(A, solver%perm_diff%is, solver%perm_diff%is, &
               & MAT_REUSE_MATRIX, Aperm, ierr); call CHKERR(ierr)
           else
-            call MatDestroy(Aperm, ierr); call CHKERR(ierr); 
+            call MatDestroy(Aperm, ierr); call CHKERR(ierr)
             call MatCreateSubMatrix(A, solver%perm_diff%is, solver%perm_diff%is, &
               & MAT_INITIAL_MATRIX, Aperm, ierr); call CHKERR(ierr)
           end if
@@ -2601,8 +2629,11 @@ contains
         call PetscLogEventEnd(solver%logs%permute_mat_diff, ierr)
 
         call setup_ksp(solver, ksp, solver%C_diff, Aperm, prefix=prefix)
-      else
+
+      else ! without permutation (normal case)
+
         call setup_ksp(solver, ksp, solver%C_diff, A, prefix=prefix)
+
       end if
 
       call PetscLogEventBegin(solver%logs%solve_Mdiff, ierr)
