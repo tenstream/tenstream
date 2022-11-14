@@ -381,13 +381,9 @@ if(ENABLE_PLEXRT)
   add_subdirectory (plexrt)
 endif(ENABLE_PLEXRT)
 
-# Add Twostream Solvers of Nina
-add_subdirectory(twomax)
-
 set(TENSTR_LIBS
   pprts_base
   pprts
-  f2c_twomax
   tenstr_disort
   f2c_rayli
   )
@@ -517,7 +513,6 @@ if(CTAGS_PATH)
       ${CMAKE_CURRENT_SOURCE_DIR}/specint
       ${CMAKE_CURRENT_SOURCE_DIR}/src
       ${CMAKE_CURRENT_SOURCE_DIR}/tests
-      ${CMAKE_CURRENT_SOURCE_DIR}/twomax
       WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
         COMMENT "Creating ctags" VERBATIM
         )

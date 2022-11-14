@@ -478,7 +478,6 @@ contains
     spectral_bands = get_spectral_bands(comm, i1, int(ngptlw, iintegers))
 
     if (compute_thermal_disort()) return
-    if (handle_twomax_rt_solvers()) return
 
     do ib = spectral_bands(1), spectral_bands(2)
 
@@ -576,89 +575,6 @@ contains
                 - eup(1:ke, :) + eup(2:ke + 1, :)) / reverse(atm%dz)
       end if
     end function
-    logical function handle_twomax_rt_solvers()
-      use m_f2c_twomax, only: twostream_maxrandF90
-      use iso_c_binding
-
-      real(c_double), dimension(ke) :: dtau_c, omega0_c, g_c
-      real(c_double), dimension(ke) :: dtau_f, omega0_f, g_f
-      real(c_double), dimension(ke) :: cfrac
-      real(c_double), dimension(ke1) :: B, Edir, spec_Edn, spec_Eup
-      integer(c_int) :: ret, delta, flagSolar, flagThermal
-      integer(c_int) :: Nlev
-      real(c_double) :: S0, mu0
-      real(c_double) :: Bg, Ag
-      real(ireals) :: Blev(ke1)
-
-      integer(iintegers) :: ib, icol
-      integer(mpiint) :: ierr
-      logical :: lflg
-
-      handle_twomax_rt_solvers = .false.
-      call get_petsc_opt(PETSC_NULL_CHARACTER, "-plexrt_twomax_lw", handle_twomax_rt_solvers, lflg, ierr); call CHKERR(ierr)
-
-      if (.not. handle_twomax_rt_solvers) return
-
-      if (.not. allocated(atm%cfrac)) then
-        call CHKWARN(1_mpiint, 'Need to have cloud fraction allocated if we want to use twomax solvers... '// &
-                     ' if you are calling from ICON, maybe call with option: -plexrt_twomax_cfrac !'// &
-                     ' I will set it to 1 in the mean time')
-        cfrac = 1
-      end if
-
-      Ag = albedo
-      delta = 0
-      flagSolar = 0
-      flagThermal = 1
-      S0 = 0
-      mu0 = 1
-      Nlev = int(ke1, kind=c_int)
-
-      omega0_c = 0
-      g_c = 0
-
-      omega0_f = 0
-      g_f = 0
-
-      current_ibnd = -1 ! current lw band
-      do ib = spectral_bands(1), spectral_bands(2)
-        !Compute Plank Emission for nbndlw, Bfrac starts at bot, dim(ke)
-        do icol = i1, Ncol
-          if (allocated(atm%cfrac)) cfrac = atm%cfrac(:, icol)
-          if (present(thermal_albedo_2d)) Ag = thermal_albedo_2d(icol)
-
-          dtau_f = reverse(tau_f(:, icol, ib))
-          dtau_c = reverse(tau(:, icol, ib))
-
-          if (current_ibnd .eq. ngb(ib)) then ! still the same band, dont need to upgrade the plank emission
-            continue
-          else
-            do k = 1, ke1
-              Blev(k) = plkint(real(wavenum1(ngb(ib))), real(wavenum2(ngb(ib))), real(atm%tlev(k, icol)))
-            end do
-            current_ibnd = ngb(ib)
-          end if
-
-          B = reverse(Blev * Bfrac(:, icol, ib))
-          Bg = B(ke1)
-
-          ret = twostream_maxrandF90( &
-                dtau_c, omega0_c, g_c, &
-                dtau_f, omega0_f, g_f, &
-                cfrac, Nlev, S0, mu0, Ag, &
-                Bg, B, delta, flagSolar, flagThermal, &
-                Edir, spec_edn, spec_eup)
-          call CHKERR(int(ret, mpiint), 'twostream_maxrandF90 returned an error')
-
-          edn(:, icol) = edn(:, icol) + real(spec_edn, ireals)
-          eup(:, icol) = eup(:, icol) + real(spec_eup, ireals)
-          abso(:, icol) = abso(:, icol) + real( &
-                          +spec_edn(1:ke) - spec_edn(2:ke1) &
-                          - spec_eup(1:ke) + spec_eup(2:ke1), ireals) / reverse(atm%dz(:, icol))
-
-        end do !icol
-      end do !ib
-    end function handle_twomax_rt_solvers
 
   end subroutine compute_thermal
 
@@ -888,7 +804,6 @@ contains
     spectral_bands = get_spectral_bands(comm, i1, int(ngptsw, iintegers))
 
     if (compute_solar_disort()) return
-    if (handle_twomax_rt_solvers()) return
 
     do ib = spectral_bands(1), spectral_bands(2)
 
@@ -1008,94 +923,6 @@ contains
       end if
 
     end function
-
-    logical function handle_twomax_rt_solvers()
-      use m_f2c_twomax, only: twostream_maxrandF90
-      use iso_c_binding
-
-      real(c_double), dimension(ke) :: dtau_c, omega0_c, g2_c
-      real(c_double), dimension(ke) :: dtau_f, omega0_f, g2_f
-      real(c_double), dimension(ke) :: cfrac
-      real(c_double), dimension(ke1) :: B, spec_edir, spec_Edn, spec_Eup
-      integer(c_int) :: ret, delta, flagSolar, flagThermal
-      integer(c_int) :: Nlev
-      real(c_double) :: S0, mu0
-      real(c_double) :: Bg, Ag
-
-      integer(iintegers) :: ib, icol
-      integer(mpiint) :: ierr
-      logical :: lflg
-
-      handle_twomax_rt_solvers = .false.
-      call get_petsc_opt(PETSC_NULL_CHARACTER, "-plexrt_twomax_sw", handle_twomax_rt_solvers, lflg, ierr); call CHKERR(ierr)
-
-      if (.not. handle_twomax_rt_solvers) return
-
-      if (.not. allocated(atm%cfrac)) then
-        call CHKWARN(1_mpiint, 'Need to have cloud fraction allocated if we want to use twomax solvers... '// &
-                     ' if you are calling from ICON, maybe call with option: -plexrt_twomax_cfrac !'// &
-                     ' I will set it to 1 in the mean time')
-        cfrac = 1
-      end if
-
-      Ag = albedo
-      delta = 0
-      flagSolar = 1
-      flagThermal = 0
-      Nlev = int(ke1, kind=c_int)
-      B = 0
-      Bg = 0
-
-      call VecGetArrayReadF90(solver%plex%geomVec, geoms, ierr); call CHKERR(ierr)
-      call ISGetIndicesF90(toa_ids, xitoa_faces, ierr); call CHKERR(ierr)
-
-      do ib = spectral_bands(1), spectral_bands(2)
-        if (present(opt_solar_constant)) then
-          S0 = tenstr_solsrc(ib) / sum(tenstr_solsrc) * opt_solar_constant
-        else
-          S0 = tenstr_solsrc(ib)
-        end if
-        do icol = i1, Ncol
-          if (allocated(atm%cfrac)) cfrac = atm%cfrac(:, icol)
-          if (present(solar_albedo_2d)) Ag = solar_albedo_2d(icol)
-
-          dtau_c = reverse(tau(:, icol, ib))
-          omega0_c = reverse(w0(:, icol, ib))
-          g2_c = reverse(g(:, icol, ib))
-          dtau_f = reverse(tau_f(:, icol, ib))
-          omega0_f = reverse(w0_f(:, icol, ib))
-          g2_f = reverse(g_f(:, icol, ib))
-
-          iface = xitoa_faces(icol)
-          call DMPlexGetSupport(solver%plex%geom_dm, iface, cell_support, ierr); call CHKERR(ierr)
-          call get_inward_face_normal(iface, cell_support(1), geomSection, geoms, face_normal)
-          call DMPlexRestoreSupport(solver%plex%geom_dm, iface, cell_support, ierr); call CHKERR(ierr)
-          theta0 = rad2deg(angle_between_two_vec(face_normal, sundir))
-
-          mu0 = real(cos(deg2rad(theta0)))
-
-          ret = twostream_maxrandF90( &
-                dtau_c, omega0_c, g2_c, &
-                dtau_f, omega0_f, g2_f, &
-                cfrac, Nlev, S0, mu0, Ag, &
-                Bg, B, delta, flagSolar, flagThermal, &
-                spec_edir, spec_edn, spec_eup)
-          call CHKERR(int(ret, mpiint), 'twostream_maxrandF90 returned an error')
-
-          edir(:, icol) = edir(:, icol) + real(spec_edir, ireals)
-          edn(:, icol) = edn(:, icol) + real(spec_edn, ireals)
-          eup(:, icol) = eup(:, icol) + real(spec_eup, ireals)
-          abso(:, icol) = abso(:, icol) + real( &
-                          +spec_edir(1:ke) - spec_edir(2:ke1) &
-                          + spec_edn(1:ke) - spec_edn(2:ke1) &
-                          - spec_eup(1:ke) + spec_eup(2:ke1), ireals) / reverse(atm%dz(:, icol))
-
-        end do !icol
-      end do !ib
-
-      call ISRestoreIndicesF90(toa_ids, xitoa_faces, ierr); call CHKERR(ierr)
-      call VecRestoreArrayReadF90(solver%plex%geomVec, geoms, ierr); call CHKERR(ierr)
-    end function handle_twomax_rt_solvers
 
   end subroutine compute_solar
 

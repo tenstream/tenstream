@@ -40,7 +40,6 @@ TARGET_LINK_LIBRARIES( plexrt_rrtmg
   pprts_rrtm_lw
   pprts_rrtm_sw
   plexrt
-  f2c_twomax
   pprts_base
   tenstr_disort
   ${EXTLIB} ${USERLIB} ${LIBS})
