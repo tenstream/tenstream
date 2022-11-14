@@ -34,7 +34,8 @@ module m_ecckd_pprts
   use m_data_parameters, only: &
     & iintegers, ireals, mpiint, &
     & zero, one, default_str_len, &
-    & i1
+    & i1, &
+    & share_dir
 
   use m_tenstream_options, only: read_commandline_options
 
@@ -179,7 +180,8 @@ contains
 
     if (.not. solver%linitialized) then
 
-      call mie_tables_init(comm, ecckd_general_mie_table, ierr, lverbose=.false.); call CHKERR(ierr)
+      call mie_tables_init(comm, ecckd_general_mie_table, ierr, lverbose=.true., &
+        & path_table=share_dir//"mie_droplet_scattering.nc"); call CHKERR(ierr)
 
       call fu_ice_init(comm, ierr, lverbose=.false.); call CHKERR(ierr)
 
