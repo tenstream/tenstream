@@ -318,7 +318,9 @@ contains
     type(t_pprts_buildings), allocatable :: spec_buildings
 
     logical :: lflg
-    integer(iintegers) :: argcnt, spectral_bands(2)
+    integer(iintegers) :: argcnt
+    integer(iintegers), allocatable :: spectral_bands(:)
+    logical, allocatable :: wvl_mask(:)
 
     ierr = 0
     call mpi_comm_rank(comm, myid, ierr)
@@ -354,13 +356,25 @@ contains
       allocate (spec_buildings%planck(size(opt_buildings%temp)))
     end if
 
-    spectral_bands = [integer(iintegers) :: 1, size(repwvl_data_thermal%wvls)]
+    allocate (wvl_mask(size(repwvl_data_thermal%wvls)), source=.false.)
+    allocate (spectral_bands(size(repwvl_data_thermal%wvls)))
+    do iwvl = 1, size(repwvl_data_thermal%wvls)
+      spectral_bands(iwvl) = iwvl
+    end do
+
     argcnt = size(spectral_bands)
     call get_petsc_opt(PETSC_NULL_CHARACTER, "-repwvl_bands", spectral_bands, argcnt, lflg, ierr); call CHKERR(ierr)
-    if (lflg) call CHKERR(int(argcnt - 2_iintegers, mpiint), "must provide 2 values for repwvl_bands, comma separated, no spaces")
-    spectral_bands = min(max(spectral_bands, 1), size(repwvl_data_thermal%wvls))
+    if (lflg) then
+      spectral_bands = min(max(spectral_bands, 1), size(repwvl_data_thermal%wvls))
+      do iwvl = 1, argcnt
+        wvl_mask(spectral_bands(iwvl)) = .true.
+      end do
+    else
+      wvl_mask(:) = .true.
+    end if
 
-    do iwvl = spectral_bands(1), spectral_bands(2)
+    do iwvl = 1, size(repwvl_data_thermal%wvls)
+      if (.not. wvl_mask(iwvl)) cycle
 
       if (myid .eq. 0 .and. ldebug) then
         print *, 'Computing wavelengths '//toStr(iwvl)//' / '//toStr(size(repwvl_data_thermal%wvls))//&
@@ -508,7 +522,9 @@ contains
     type(t_pprts_buildings), allocatable :: spec_buildings
 
     logical :: lflg
-    integer(iintegers) :: argcnt, spectral_bands(2)
+    integer(iintegers) :: argcnt
+    integer(iintegers), allocatable :: spectral_bands(:)
+    logical, allocatable :: wvl_mask(:)
 
     ierr = 0
     call mpi_comm_rank(comm, myid, ierr)
@@ -537,13 +553,26 @@ contains
 
     call set_angles(solver, sundir)
 
-    spectral_bands = [integer(iintegers) :: 1, size(repwvl_data_solar%wvls)]
+    allocate (wvl_mask(size(repwvl_data_solar%wvls)), source=.false.)
+    allocate (spectral_bands(size(repwvl_data_solar%wvls)))
+    do iwvl = 1, size(repwvl_data_solar%wvls)
+      spectral_bands(iwvl) = iwvl
+    end do
+
     argcnt = size(spectral_bands)
     call get_petsc_opt(PETSC_NULL_CHARACTER, "-repwvl_bands", spectral_bands, argcnt, lflg, ierr); call CHKERR(ierr)
-    if (lflg) call CHKERR(int(argcnt - 2_iintegers, mpiint), "must provide 2 values for repwvl_bands, comma separated, no spaces")
-    spectral_bands = min(max(spectral_bands, 1), size(repwvl_data_solar%wvls))
+    if (lflg) then
+      spectral_bands = min(max(spectral_bands, 1), size(repwvl_data_solar%wvls))
+      do iwvl = 1, argcnt
+        wvl_mask(spectral_bands(iwvl)) = .true.
+      end do
+    else
+      wvl_mask(:) = .true.
+    end if
 
-    do iwvl = spectral_bands(1), spectral_bands(2)
+    do iwvl = 1, size(repwvl_data_solar%wvls)
+      if (.not. wvl_mask(iwvl)) cycle
+
       if (myid .eq. 0 .and. (lflg .or. ldebug)) then
         print *, 'Computing wavelengths '//toStr(iwvl)//' / '//toStr(size(repwvl_data_solar%wvls))//&
           & ' -- '//toStr(100._ireals * real(iwvl, ireals) / real(size(repwvl_data_solar%wvls), ireals))//' %'// &
