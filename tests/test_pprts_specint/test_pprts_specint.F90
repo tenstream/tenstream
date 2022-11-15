@@ -29,7 +29,6 @@ module test_pprts_specint
   type(t_solver_3_10) :: solver
   type(t_tenstr_atm) :: atm
 
-
   integer(iintegers), parameter :: nxp = 3, nyp = 3, nzp = 10 ! local domain size for each rank
 
   ! MPI variables and domain decomposition sizes
@@ -122,11 +121,10 @@ contains
   @after
   subroutine teardown(this)
     class(MpiTestMethod), intent(inout) :: this
-    deallocate(nxproc)
-    deallocate(nyproc)
+    deallocate (nxproc)
+    deallocate (nyproc)
     call destroy_tenstr_atm(atm)
   end subroutine teardown
-
 
   !@test(npes=[1, 2])
   subroutine specint_rrtm_lw_sw(this)
@@ -147,12 +145,12 @@ contains
     lthermal = .false.; lsolar = .true.
 
     call specint_pprts(specint, comm, solver, atm, nxp, nyp, &
-                     dx, dy, spherical_2_cartesian(phi0, theta0), &
-                     albedo_th, albedo_sol, &
-                     lthermal, lsolar, &
-                     edir, edn, eup, abso, &
-                     nxproc=nxproc, nyproc=nyproc, &
-                     opt_time=zero)
+                       dx, dy, spherical_2_cartesian(phi0, theta0), &
+                       albedo_th, albedo_sol, &
+                       lthermal, lsolar, &
+                       edir, edn, eup, abso, &
+                       nxproc=nxproc, nyproc=nyproc, &
+                       opt_time=zero)
 
     ! Determine number of actual output levels from returned flux arrays.
     ! We dont know the size before hand because we get the fluxes on the merged
@@ -186,11 +184,11 @@ contains
     lthermal = .true.; lsolar = .false.
 
     call specint_pprts(specint, comm, solver, atm, nxp, nyp, &
-                     dx, dy, spherical_2_cartesian(phi0, theta0), &
-                     albedo_th, albedo_sol, &
-                     lthermal, lsolar, &
-                     edir, edn, eup, abso, &
-                     nxproc=nxproc, nyproc=nyproc, opt_time=zero)
+                       dx, dy, spherical_2_cartesian(phi0, theta0), &
+                       albedo_th, albedo_sol, &
+                       lthermal, lsolar, &
+                       edir, edn, eup, abso, &
+                       nxproc=nxproc, nyproc=nyproc, opt_time=zero)
 
     if (myid .eq. 0 .and. ldebug) print *, 'Computing Thermal Radiation done'
 
@@ -219,10 +217,10 @@ contains
     lthermal = .true.; lsolar = .true.
 
     call specint_pprts(specint, comm, solver, atm, nxp, nyp, &
-                     dx, dy, spherical_2_cartesian(phi0, theta0), &
-                     albedo_th, albedo_sol, lthermal, lsolar, &
-                     edir, edn, eup, abso, &
-                     nxproc=nxproc, nyproc=nyproc, opt_time=zero)
+                       dx, dy, spherical_2_cartesian(phi0, theta0), &
+                       albedo_th, albedo_sol, lthermal, lsolar, &
+                       edir, edn, eup, abso, &
+                       nxproc=nxproc, nyproc=nyproc, opt_time=zero)
 
     nlev = ubound(edn, 1)
     if (myid .eq. 0) then
@@ -271,12 +269,12 @@ contains
     lthermal = .false.; lsolar = .true.
 
     call specint_pprts(specint, comm, solver, atm, nxp, nyp, &
-                     dx, dy, spherical_2_cartesian(phi0, theta0), &
-                     albedo_th, albedo_sol, &
-                     lthermal, lsolar, &
-                     edir, edn, eup, abso, &
-                     nxproc=nxproc, nyproc=nyproc, &
-                     opt_time=zero)
+                       dx, dy, spherical_2_cartesian(phi0, theta0), &
+                       albedo_th, albedo_sol, &
+                       lthermal, lsolar, &
+                       edir, edn, eup, abso, &
+                       nxproc=nxproc, nyproc=nyproc, &
+                       opt_time=zero)
 
     ! Determine number of actual output levels from returned flux arrays.
     ! We dont know the size before hand because we get the fluxes on the merged
@@ -310,11 +308,11 @@ contains
     lthermal = .true.; lsolar = .false.
 
     call specint_pprts(specint, comm, solver, atm, nxp, nyp, &
-                     dx, dy, spherical_2_cartesian(phi0, theta0), &
-                     albedo_th, albedo_sol, &
-                     lthermal, lsolar, &
-                     edir, edn, eup, abso, &
-                     nxproc=nxproc, nyproc=nyproc, opt_time=zero)
+                       dx, dy, spherical_2_cartesian(phi0, theta0), &
+                       albedo_th, albedo_sol, &
+                       lthermal, lsolar, &
+                       edir, edn, eup, abso, &
+                       nxproc=nxproc, nyproc=nyproc, opt_time=zero)
 
     if (myid .eq. 0 .and. ldebug) print *, 'Computing Thermal Radiation done'
 
@@ -343,10 +341,10 @@ contains
     lthermal = .true.; lsolar = .true.
 
     call specint_pprts(specint, comm, solver, atm, nxp, nyp, &
-                     dx, dy, spherical_2_cartesian(phi0, theta0), &
-                     albedo_th, albedo_sol, lthermal, lsolar, &
-                     edir, edn, eup, abso, &
-                     nxproc=nxproc, nyproc=nyproc, opt_time=zero)
+                       dx, dy, spherical_2_cartesian(phi0, theta0), &
+                       albedo_th, albedo_sol, lthermal, lsolar, &
+                       edir, edn, eup, abso, &
+                       nxproc=nxproc, nyproc=nyproc, opt_time=zero)
 
     nlev = ubound(edn, 1)
     if (myid .eq. 0) then
@@ -395,12 +393,12 @@ contains
     lthermal = .false.; lsolar = .true.
 
     call specint_pprts(specint, comm, solver, atm, nxp, nyp, &
-                     dx, dy, spherical_2_cartesian(phi0, theta0), &
-                     albedo_th, albedo_sol, &
-                     lthermal, lsolar, &
-                     edir, edn, eup, abso, &
-                     nxproc=nxproc, nyproc=nyproc, &
-                     opt_time=zero)
+                       dx, dy, spherical_2_cartesian(phi0, theta0), &
+                       albedo_th, albedo_sol, &
+                       lthermal, lsolar, &
+                       edir, edn, eup, abso, &
+                       nxproc=nxproc, nyproc=nyproc, &
+                       opt_time=zero)
 
     ! Determine number of actual output levels from returned flux arrays.
     ! We dont know the size before hand because we get the fluxes on the merged
@@ -434,11 +432,11 @@ contains
     lthermal = .true.; lsolar = .false.
 
     call specint_pprts(specint, comm, solver, atm, nxp, nyp, &
-                     dx, dy, spherical_2_cartesian(phi0, theta0), &
-                     albedo_th, albedo_sol, &
-                     lthermal, lsolar, &
-                     edir, edn, eup, abso, &
-                     nxproc=nxproc, nyproc=nyproc, opt_time=zero)
+                       dx, dy, spherical_2_cartesian(phi0, theta0), &
+                       albedo_th, albedo_sol, &
+                       lthermal, lsolar, &
+                       edir, edn, eup, abso, &
+                       nxproc=nxproc, nyproc=nyproc, opt_time=zero)
 
     if (myid .eq. 0 .and. ldebug) print *, 'Computing Thermal Radiation done'
 
@@ -467,10 +465,10 @@ contains
     lthermal = .true.; lsolar = .true.
 
     call specint_pprts(specint, comm, solver, atm, nxp, nyp, &
-                     dx, dy, spherical_2_cartesian(phi0, theta0), &
-                     albedo_th, albedo_sol, lthermal, lsolar, &
-                     edir, edn, eup, abso, &
-                     nxproc=nxproc, nyproc=nyproc, opt_time=zero)
+                       dx, dy, spherical_2_cartesian(phi0, theta0), &
+                       albedo_th, albedo_sol, lthermal, lsolar, &
+                       edir, edn, eup, abso, &
+                       nxproc=nxproc, nyproc=nyproc, opt_time=zero)
 
     nlev = ubound(edn, 1)
     if (myid .eq. 0) then
