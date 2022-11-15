@@ -211,7 +211,7 @@ contains
 
         if (lspectral_output) then
           Nspectral = count(pprts_solver%solutions(:)%lset)
-          if(myid.eq.0) then
+          if (myid .eq. 0) then
             print *, 'found ', Nspectral, '3d fields'
 
             dimnames(1) = 'zlev'
@@ -225,7 +225,7 @@ contains
             allocate (gedn_s(Cdiff%glob_zm, Cdiff%glob_xm, Cdiff%glob_ym, Nspectral))
             allocate (geup_s(Cdiff%glob_zm, Cdiff%glob_xm, Cdiff%glob_ym, Nspectral))
             allocate (gabso_s(C%glob_zm, C%glob_xm, C%glob_ym, Nspectral))
-          endif
+          end if
 
           k = 1
           do uid = lbound(pprts_solver%solutions, 1), ubound(pprts_solver%solutions, 1)
