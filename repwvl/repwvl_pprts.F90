@@ -710,6 +710,8 @@ contains
     integer(mpiint), intent(out) :: ierr
     ierr = 0
 
+    if (allocated(repwvl_data_solar)) deallocate (repwvl_data_solar)
+    if (allocated(repwvl_data_thermal)) deallocate (repwvl_data_thermal)
     call destroy_mie_table(repwvl_mie_table, ierr); call CHKERR(ierr)
     call destroy_pprts(solver, lfinalizepetsc=lfinalizepetsc)
   end subroutine

@@ -672,6 +672,8 @@ contains
     integer(mpiint), intent(out) :: ierr
     ierr = 0
 
+    if (allocated(ecckd_data_solar)) deallocate (ecckd_data_solar)
+    if (allocated(ecckd_data_thermal)) deallocate (ecckd_data_thermal)
     call destroy_mie_table(ecckd_general_mie_table, ierr); call CHKERR(ierr)
     call destroy_pprts(solver, lfinalizepetsc=lfinalizepetsc)
   end subroutine

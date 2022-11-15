@@ -59,6 +59,7 @@ module test_pprts_specint
   logical, parameter :: ldebug = .true.
   logical :: lthermal, lsolar
 
+  character(len=default_str_len) :: specint
 contains
 
   @before
@@ -123,13 +124,13 @@ contains
     class(MpiTestMethod), intent(inout) :: this
     deallocate (nxproc)
     deallocate (nyproc)
+    call specint_pprts_destroy(specint, solver, lfinalizepetsc=.true., ierr=ierr); call CHKERR(ierr)
     call destroy_tenstr_atm(atm)
   end subroutine teardown
 
-  @test(npes=[1, 2])
+  @test(npes=[1,2])
   subroutine specint_rrtm_lw_sw(this)
     class(MpiTestMethod), intent(inout) :: this
-    character(len=*), parameter :: specint = 'rrtmg'
 
     ! Fluxes and absorption in [W/m2] and [W/m3] respectively.
     ! Dimensions will probably be bigger than the dynamics grid, i.e. will have
@@ -140,8 +141,10 @@ contains
     !   abso(ubound(abso,1)-nlay_dynamics+1 : ubound(abso,1) )
     real(ireals), allocatable, dimension(:, :, :) :: edir, edn, eup, abso ! [nlev_merged(-1), nxp, nyp]
 
+    specint = 'rrtmg'
+
     ! For comparison, compute lw and sw separately
-    if (myid .eq. 0 .and. ldebug) print *, 'Computing Solar Radiation:'
+    if (myid .eq. 0 .and. ldebug) print *, 'Computing Solar Radiation: '//trim(specint)
     lthermal = .false.; lsolar = .true.
 
     call specint_pprts(specint, comm, solver, atm, nxp, nyp, &
@@ -180,7 +183,7 @@ contains
     @mpiassertEqual(194.19, eup(nlev - icld, 1, 1), atolerance, 'solar at icloud :: upward fl  not correct')
     @mpiassertEqual(0.0224, abso(nlev - icld, 1, 1), atolerance * 1e-2, 'solar at icloud :: absorption not correct')
 
-    if (myid .eq. 0 .and. ldebug) print *, 'Computing Thermal Radiation:'
+    if (myid .eq. 0 .and. ldebug) print *, 'Computing Thermal Radiation: '//trim(specint)
     lthermal = .true.; lsolar = .false.
 
     call specint_pprts(specint, comm, solver, atm, nxp, nyp, &
@@ -190,7 +193,7 @@ contains
                        edir, edn, eup, abso, &
                        nxproc=nxproc, nyproc=nyproc, opt_time=zero)
 
-    if (myid .eq. 0 .and. ldebug) print *, 'Computing Thermal Radiation done'
+    if (myid .eq. 0 .and. ldebug) print *, 'Computing Thermal Radiation done '//trim(specint)
 
     nlev = ubound(edn, 1)
     if (myid .eq. 0) then
@@ -213,7 +216,7 @@ contains
     @mpiassertEqual(384.82, eup(nlev - icld, 1, 1), atolerance, 'thermal at icloud :: upward fl  not correct')
     @mpiassertEqual(-0.199, abso(nlev - icld, 1, 1), atolerance * 1e-2, 'thermal at icloud :: absorption not correct')
 
-    if (myid .eq. 0 .and. ldebug) print *, 'Computing Solar AND Thermal Radiation:'
+    if (myid .eq. 0 .and. ldebug) print *, 'Computing Solar AND Thermal Radiation: '//trim(specint)
     lthermal = .true.; lsolar = .true.
 
     call specint_pprts(specint, comm, solver, atm, nxp, nyp, &
@@ -247,13 +250,11 @@ contains
     @mpiassertEqual(194.18 + 384.82, eup(nlev - icld, 1, 1), atolerance, 'solar+thermal at icloud :: upward fl  not correct')
     @mpiassertEqual(0.0243 - 0.199, abso(nlev - icld, 1, 1), atolerance * 1e-2, 'solar+thermal at icloud :: absorption not correct')
 
-    call specint_pprts_destroy(specint, solver, lfinalizepetsc=.true., ierr=ierr); call CHKERR(ierr)
   end subroutine
 
-  @test(npes=[1, 2])
+  @test(npes=[1,2])
   subroutine specint_repwvl_lw_sw(this)
     class(MpiTestMethod), intent(inout) :: this
-    character(len=*), parameter :: specint = 'repwvl'
 
     ! Fluxes and absorption in [W/m2] and [W/m3] respectively.
     ! Dimensions will probably be bigger than the dynamics grid, i.e. will have
@@ -264,8 +265,10 @@ contains
     !   abso(ubound(abso,1)-nlay_dynamics+1 : ubound(abso,1) )
     real(ireals), allocatable, dimension(:, :, :) :: edir, edn, eup, abso ! [nlev_merged(-1), nxp, nyp]
 
+    specint = 'repwvl'
+
     ! For comparison, compute lw and sw separately
-    if (myid .eq. 0 .and. ldebug) print *, 'Computing Solar Radiation:'
+    if (myid .eq. 0 .and. ldebug) print *, 'Computing Solar Radiation: '//trim(specint)
     lthermal = .false.; lsolar = .true.
 
     call specint_pprts(specint, comm, solver, atm, nxp, nyp, &
@@ -288,23 +291,23 @@ contains
       end if
     end if
 
-    @mpiassertEqual( 63.05, edir(nlev, 1, 1), atolerance, 'solar at surface :: direct flux not correct')
-    @mpiassertEqual(373.33, edn(nlev, 1, 1), atolerance, 'solar at surface :: downw flux not correct')
-    @mpiassertEqual(130.91, eup(nlev, 1, 1), atolerance, 'solar at surface :: upward fl  not correct')
-    @mpiassertEqual(1.332e-02, abso(nlev - 1, 1, 1), atolerance * 1e-2, 'solar at surface :: absorption not correct')
+    @mpiassertEqual( 95.54, edir(nlev, 1, 1), atolerance, 'solar at surface :: direct flux not correct')
+    @mpiassertEqual(352.19, edn(nlev, 1, 1), atolerance, 'solar at surface :: downw flux not correct')
+    @mpiassertEqual(134.32, eup(nlev, 1, 1), atolerance, 'solar at surface :: upward fl  not correct')
+    @mpiassertEqual(1.392e-02, abso(nlev - 1, 1, 1), atolerance * 1e-2, 'solar at surface :: absorption not correct')
 
     @mpiassertEqual(684.27, edir(1, 1, 1), atolerance, 'solar at TOA :: direct flux not correct')
     @mpiassertEqual(0, edn(1, 1, 1), atolerance, 'solar at TOA :: downw flux not correct')
-    @mpiassertEqual(241.15, eup(1, 1, 1), atolerance, 'solar at TOA :: upward fl  not correct')
-    @mpiassertEqual(7.552e-08, abso(1, 1, 1), atolerance * 1e-2, 'solar at TOA :: absorption not correct')
+    @mpiassertEqual(234.00, eup(1, 1, 1), atolerance, 'solar at TOA :: upward fl  not correct')
+    @mpiassertEqual(3.595e-10, abso(1, 1, 1), atolerance * 1e-2, 'solar at TOA :: absorption not correct')
 
-    @mpiassertEqual(516.43, edir(nlev - icld, 1, 1), atolerance, 'solar at icloud :: direct flux not correct')
-    @mpiassertEqual( 67.97, edir(nlev - icld + 1, 1, 1), atolerance, 'solar at icloud+1 :: direct flux not correct')
-    @mpiassertEqual(391.26, edn(nlev - icld + 1, 1, 1), atolerance, 'solar at icloud+1 :: downw flux not correct')
-    @mpiassertEqual(224.00, eup(nlev - icld, 1, 1), atolerance, 'solar at icloud :: upward fl  not correct')
-    @mpiassertEqual(0.0226, abso(nlev - icld, 1, 1), atolerance * 1e-2, 'solar at icloud :: absorption not correct')
+    @mpiassertEqual(516.44, edir(nlev - icld, 1, 1), atolerance, 'solar at icloud :: direct flux not correct')
+    @mpiassertEqual(102.94, edir(nlev - icld + 1, 1, 1), atolerance, 'solar at icloud+1 :: direct flux not correct')
+    @mpiassertEqual(368.65, edn(nlev - icld + 1, 1, 1), atolerance, 'solar at icloud+1 :: downw flux not correct')
+    @mpiassertEqual(216.10, eup(nlev - icld, 1, 1), atolerance, 'solar at icloud :: upward fl  not correct')
+    @mpiassertEqual(0.0201, abso(nlev - icld, 1, 1), atolerance * 1e-2, 'solar at icloud :: absorption not correct')
 
-    if (myid .eq. 0 .and. ldebug) print *, 'Computing Thermal Radiation:'
+    if (myid .eq. 0 .and. ldebug) print *, 'Computing Thermal Radiation: '//trim(specint)
     lthermal = .true.; lsolar = .false.
 
     call specint_pprts(specint, comm, solver, atm, nxp, nyp, &
@@ -314,7 +317,7 @@ contains
                        edir, edn, eup, abso, &
                        nxproc=nxproc, nyproc=nyproc, opt_time=zero)
 
-    if (myid .eq. 0 .and. ldebug) print *, 'Computing Thermal Radiation done'
+    if (myid .eq. 0 .and. ldebug) print *, 'Computing Thermal Radiation done '//trim(specint)
 
     nlev = ubound(edn, 1)
     if (myid .eq. 0) then
@@ -325,19 +328,19 @@ contains
       end if
     end if
 
-    @mpiassertEqual(338.72, edn(nlev, 1, 1), atolerance, 'thermal at surface :: downw flux not correct')
-    @mpiassertEqual(384.44, eup(nlev, 1, 1), atolerance, 'thermal at surface :: upward fl  not correct')
-    @mpiassertEqual(-1.333e-02, abso(nlev - 1, 1, 1), atolerance * 1e-2, 'thermal at surface :: absorption not correct')
+    @mpiassertEqual(335.19, edn(nlev, 1, 1), atolerance, 'thermal at surface :: downw flux not correct')
+    @mpiassertEqual(384.09, eup(nlev, 1, 1), atolerance, 'thermal at surface :: upward fl  not correct')
+    @mpiassertEqual(-1.432e-02, abso(nlev - 1, 1, 1), atolerance * 1e-2, 'thermal at surface :: absorption not correct')
 
     @mpiassertEqual(0.0, edn(1, 1, 1), atolerance, 'thermal at TOA :: downw flux not correct')
-    @mpiassertEqual(248.75, eup(1, 1, 1), atolerance, 'thermal at TOA :: upward fl  not correct')
-    @mpiassertEqual(-4.924e-16, abso(1, 1, 1), atolerance * 1e-2, 'thermal at TOA :: absorption not correct')
+    @mpiassertEqual(248.66, eup(1, 1, 1), atolerance, 'thermal at TOA :: upward fl  not correct')
+    @mpiassertEqual(-1.656e-11, abso(1, 1, 1), atolerance * 1e-2, 'thermal at TOA :: absorption not correct')
 
-    @mpiassertEqual(329.87, edn(nlev - icld + 1, 1, 1), atolerance, 'thermal at icloud :: downw flux not correct')
-    @mpiassertEqual(381.32, eup(nlev - icld, 1, 1), atolerance, 'thermal at icloud :: upward fl  not correct')
-    @mpiassertEqual(-0.203, abso(nlev - icld, 1, 1), atolerance * 1e-2, 'thermal at icloud :: absorption not correct')
+    @mpiassertEqual(324.00, edn(nlev - icld + 1, 1, 1), atolerance, 'thermal at icloud :: downw flux not correct')
+    @mpiassertEqual(381.12, eup(nlev - icld, 1, 1), atolerance, 'thermal at icloud :: upward fl  not correct')
+    @mpiassertEqual(-0.192, abso(nlev - icld, 1, 1), atolerance * 1e-2, 'thermal at icloud :: absorption not correct')
 
-    if (myid .eq. 0 .and. ldebug) print *, 'Computing Solar AND Thermal Radiation:'
+    if (myid .eq. 0 .and. ldebug) print *, 'Computing Solar AND Thermal Radiation: '//trim(specint)
     lthermal = .true.; lsolar = .true.
 
     call specint_pprts(specint, comm, solver, atm, nxp, nyp, &
@@ -355,29 +358,27 @@ contains
       end if
     end if
 
-    @mpiassertEqual( 63.05, edir(nlev, 1, 1), atolerance, 'solar at surface :: direct flux not correct')
-    @mpiassertEqual(373.33 + 338.72, edn(nlev, 1, 1), atolerance, 'solar+thermal at surface :: downw flux not correct')
-    @mpiassertEqual(130.91 + 384.44, eup(nlev, 1, 1), atolerance, 'solar+thermal at surface :: upward fl  not correct')
-    @mpiassertEqual(1.332e-02-1.333e-02, abso(nlev-1,1,1), atolerance*1e-2, 'solar+thermal at surface :: absorption not correct')
+    @mpiassertEqual( 95.54, edir(nlev, 1, 1), atolerance, 'solar at surface :: direct flux not correct')
+    @mpiassertEqual(352.19 + 335.19, edn(nlev, 1, 1), atolerance, 'solar+thermal at surface :: downw flux not correct')
+    @mpiassertEqual(134.32 + 384.09, eup(nlev, 1, 1), atolerance, 'solar+thermal at surface :: upward fl  not correct')
+    @mpiassertEqual(1.392e-02-1.432e-02, abso(nlev-1,1,1), atolerance*1e-2, 'solar+thermal at surface :: absorption not correct')
 
     @mpiassertEqual(684.2709, edir(1, 1, 1), atolerance, 'solar+thermal at TOA :: direct flux not correct')
     @mpiassertEqual(0, edn(1, 1, 1), atolerance, 'solar+thermal at TOA :: downw flux not correct')
-    @mpiassertEqual(241.15 + 248.75, eup(1, 1, 1), atolerance, 'solar+thermal at TOA :: upward fl  not correct')
-    @mpiassertEqual(7.552e-08 -4.924e-16, abso(1, 1, 1), atolerance * 1e-2, 'solar+thermal at TOA :: absorption not correct')
+    @mpiassertEqual(234.00 + 248.66, eup(1, 1, 1), atolerance, 'solar+thermal at TOA :: upward fl  not correct')
+    @mpiassertEqual(3.595e-10 -1.656e-11, abso(1, 1, 1), atolerance * 1e-2, 'solar+thermal at TOA :: absorption not correct')
 
-    @mpiassertEqual(516.43, edir(nlev - icld, 1, 1), atolerance, 'solar+thermal at icloud :: direct flux not correct')
-    @mpiassertEqual( 67.97, edir(nlev - icld + 1, 1, 1), atolerance, 'solar+thermal at icloud+1 :: direct flux not correct')
-    @mpiassertEqual(391.26 + 329.87, edn(nlev - icld + 1, 1, 1), atolerance, 'solar+thermal at icloud :: downw flux not correct')
-    @mpiassertEqual(224.00 + 381.32, eup(nlev - icld, 1, 1), atolerance, 'solar+thermal at icloud :: upward fl  not correct')
-    @mpiassertEqual(0.0226 - 0.203, abso(nlev - icld, 1, 1), atolerance * 1e-2, 'solar+thermal at icloud :: absorption not correct')
+    @mpiassertEqual(516.44, edir(nlev - icld, 1, 1), atolerance, 'solar+thermal at icloud :: direct flux not correct')
+    @mpiassertEqual(102.94, edir(nlev - icld + 1, 1, 1), atolerance, 'solar+thermal at icloud+1 :: direct flux not correct')
+    @mpiassertEqual(368.65 + 324.00, edn(nlev - icld + 1, 1, 1), atolerance, 'solar+thermal at icloud :: downw flux not correct')
+    @mpiassertEqual(216.10 + 381.12, eup(nlev - icld, 1, 1), atolerance, 'solar+thermal at icloud :: upward fl  not correct')
+    @mpiassertEqual(0.0201 - 0.192, abso(nlev - icld, 1, 1), atolerance * 1e-2, 'solar+thermal at icloud :: absorption not correct')
 
-    call specint_pprts_destroy(specint, solver, lfinalizepetsc=.true., ierr=ierr); call CHKERR(ierr)
   end subroutine
 
-  @test(npes=[1, 2])
+  @test(npes=[1,2])
   subroutine specint_ecckd_lw_sw(this)
     class(MpiTestMethod), intent(inout) :: this
-    character(len=*), parameter :: specint = 'ecckd'
 
     ! Fluxes and absorption in [W/m2] and [W/m3] respectively.
     ! Dimensions will probably be bigger than the dynamics grid, i.e. will have
@@ -388,8 +389,10 @@ contains
     !   abso(ubound(abso,1)-nlay_dynamics+1 : ubound(abso,1) )
     real(ireals), allocatable, dimension(:, :, :) :: edir, edn, eup, abso ! [nlev_merged(-1), nxp, nyp]
 
+    specint = 'ecckd'
+
     ! For comparison, compute lw and sw separately
-    if (myid .eq. 0 .and. ldebug) print *, 'Computing Solar Radiation:'
+    if (myid .eq. 0 .and. ldebug) print *, 'Computing Solar Radiation: '//trim(specint)
     lthermal = .false.; lsolar = .true.
 
     call specint_pprts(specint, comm, solver, atm, nxp, nyp, &
@@ -428,7 +431,7 @@ contains
     @mpiassertEqual(210.88, eup(nlev - icld, 1, 1), atolerance, 'solar at icloud :: upward fl  not correct')
     @mpiassertEqual(0.0310, abso(nlev - icld, 1, 1), atolerance * 1e-2, 'solar at icloud :: absorption not correct')
 
-    if (myid .eq. 0 .and. ldebug) print *, 'Computing Thermal Radiation:'
+    if (myid .eq. 0 .and. ldebug) print *, 'Computing Thermal Radiation: '//trim(specint)
     lthermal = .true.; lsolar = .false.
 
     call specint_pprts(specint, comm, solver, atm, nxp, nyp, &
@@ -438,7 +441,7 @@ contains
                        edir, edn, eup, abso, &
                        nxproc=nxproc, nyproc=nyproc, opt_time=zero)
 
-    if (myid .eq. 0 .and. ldebug) print *, 'Computing Thermal Radiation done'
+    if (myid .eq. 0 .and. ldebug) print *, 'Computing Thermal Radiation done '//trim(specint)
 
     nlev = ubound(edn, 1)
     if (myid .eq. 0) then
@@ -461,7 +464,7 @@ contains
     @mpiassertEqual(378.14, eup(nlev - icld, 1, 1), atolerance, 'thermal at icloud :: upward fl  not correct')
     @mpiassertEqual(-0.173, abso(nlev - icld, 1, 1), atolerance * 1e-2, 'thermal at icloud :: absorption not correct')
 
-    if (myid .eq. 0 .and. ldebug) print *, 'Computing Solar AND Thermal Radiation:'
+    if (myid .eq. 0 .and. ldebug) print *, 'Computing Solar AND Thermal Radiation: '//trim(specint)
     lthermal = .true.; lsolar = .true.
 
     call specint_pprts(specint, comm, solver, atm, nxp, nyp, &
@@ -495,6 +498,5 @@ contains
     @mpiassertEqual(210.88 + 378.14, eup(nlev - icld, 1, 1), atolerance, 'solar+thermal at icloud :: upward fl  not correct')
     @mpiassertEqual(0.0310 - 0.173, abso(nlev - icld, 1, 1), atolerance * 1e-2, 'solar+thermal at icloud :: absorption not correct')
 
-    call specint_pprts_destroy(specint, solver, lfinalizepetsc=.true., ierr=ierr); call CHKERR(ierr)
   end subroutine
 end module
