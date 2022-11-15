@@ -2278,8 +2278,10 @@ contains
         if (linitial_guess_from_last_uid) then
           last_uid = get_solution_uid(solver%solutions, uid - 1)
           if (solver%solutions(last_uid)%lset) then
-            call VecCopy(solver%solutions(last_uid)%edir, solution%edir, ierr); call CHKERR(ierr)
-            solution%lWm2_dir = solver%solutions(last_uid)%lWm2_dir
+            if(solver%solutions(last_uid)%lsolar_rad) then
+              call VecCopy(solver%solutions(last_uid)%edir, solution%edir, ierr); call CHKERR(ierr)
+              solution%lWm2_dir = solver%solutions(last_uid)%lWm2_dir
+            endif
             call VecCopy(solver%solutions(last_uid)%ediff, solution%ediff, ierr); call CHKERR(ierr)
             solution%lWm2_diff = solver%solutions(last_uid)%lWm2_diff
           end if
