@@ -180,7 +180,7 @@ contains
 
     if (.not. solver%linitialized) then
 
-      call mie_tables_init(comm, ecckd_general_mie_table, ierr, lverbose=.true., &
+      call mie_tables_init(comm, ecckd_general_mie_table, ierr, lverbose=.false., &
         & path_table=share_dir//"mie_droplet_scattering.nc"); call CHKERR(ierr)
 
       call fu_ice_init(comm, ierr, lverbose=.false.); call CHKERR(ierr)
