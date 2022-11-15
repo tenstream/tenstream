@@ -194,7 +194,7 @@ contains
 
       call mie_tables_init(comm, repwvl_mie_table, ierr, lverbose=.false.); call CHKERR(ierr)
 
-      call fu_ice_init(comm, ierr, lverbose=.true.); call CHKERR(ierr)
+      call fu_ice_init(comm, ierr, lverbose=.false.); call CHKERR(ierr)
       call check_fu_table_consistency(repwvl_data_solar, repwvl_data_thermal)
 
       call init_pprts_repwvl(comm, solver, &

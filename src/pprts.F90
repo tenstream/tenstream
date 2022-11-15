@@ -5886,22 +5886,22 @@ contains
 
     call PetscLogEventBegin(solver%logs%scatter_to_Zero, ierr); call CHKERR(ierr)
     if (solver%myid .eq. 0) then
-      call check_arr_size(solver%C_one_atm1, gedn)
-      call check_arr_size(solver%C_one_atm1, geup)
-      call check_arr_size(solver%C_one_atm, gabso)
-      if (present(gedir)) call check_arr_size(solver%C_one_atm1, gedir)
+      call check_arr_size(solver%C_one1, gedn)
+      call check_arr_size(solver%C_one1, geup)
+      call check_arr_size(solver%C_one, gabso)
+      if (present(gedir)) call check_arr_size(solver%C_one1, gedir)
     end if
 
     if (present(gedir)) then
       call pprts_get_result(solver, redn, reup, rabso, redir=redir, opt_solution_uid=opt_solution_uid)
-      call gather_all_toZero(solver%C_one_atm1, redir, gedir)
+      call gather_all_toZero(solver%C_one1, redir, gedir)
     else
       call pprts_get_result(solver, redn, reup, rabso, opt_solution_uid=opt_solution_uid)
     end if
 
-    call gather_all_toZero(solver%C_one_atm1, redn, gedn)
-    call gather_all_toZero(solver%C_one_atm1, reup, geup)
-    call gather_all_toZero(solver%C_one_atm, rabso, gabso)
+    call gather_all_toZero(solver%C_one1, redn, gedn)
+    call gather_all_toZero(solver%C_one1, reup, geup)
+    call gather_all_toZero(solver%C_one, rabso, gabso)
 
     if (solver%myid .eq. 0 .and. ldebug) then
       print *, 'Retrieving results:'
