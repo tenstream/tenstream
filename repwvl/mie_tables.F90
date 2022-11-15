@@ -138,7 +138,7 @@ contains
 
     integer(mpiint) :: myid
 
-    character(len=default_str_len), parameter :: default_path = share_dir//"mie.wc.table.nc"
+    character(len=default_str_len), parameter :: default_path = share_dir//"mie_droplet_scattering.nc"
 
     character(len=default_str_len) :: path
 
