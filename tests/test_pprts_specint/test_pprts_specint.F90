@@ -126,7 +126,7 @@ contains
     call destroy_tenstr_atm(atm)
   end subroutine teardown
 
-  !@test(npes=[1, 2])
+  @test(npes=[1, 2])
   subroutine specint_rrtm_lw_sw(this)
     class(MpiTestMethod), intent(inout) :: this
     character(len=*), parameter :: specint = 'rrtmg'
@@ -250,7 +250,7 @@ contains
     call specint_pprts_destroy(specint, solver, lfinalizepetsc=.true., ierr=ierr); call CHKERR(ierr)
   end subroutine
 
-  !@test(npes=[1, 2])
+  @test(npes=[1, 2])
   subroutine specint_repwvl_lw_sw(this)
     class(MpiTestMethod), intent(inout) :: this
     character(len=*), parameter :: specint = 'repwvl'
