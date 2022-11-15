@@ -3558,7 +3558,7 @@ contains
       goto 99
     end select
 
-    by_coeff_divergence = .false.
+    by_coeff_divergence = .true.
     call get_petsc_opt(solver%prefix, "-absorption_by_coeff_divergence", by_coeff_divergence, lflg, ierr); call CHKERR(ierr)
 
     if (by_coeff_divergence) then
