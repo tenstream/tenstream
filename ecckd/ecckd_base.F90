@@ -379,8 +379,8 @@ contains
     call distribute_ecckd_table(comm, ecckd_data_thermal, ierr); call CHKERR(ierr)
     call distribute_ecckd_table(comm, ecckd_data_solar, ierr); call CHKERR(ierr)
 
-    call populate_gas_info(atm, ecckd_data_thermal, ierr); call CHKERR(ierr)
-    call populate_gas_info(atm, ecckd_data_solar, ierr); call CHKERR(ierr)
+    call populate_gas_info(atm, ecckd_data_thermal, ierr, lverbose=lverbose); call CHKERR(ierr)
+    call populate_gas_info(atm, ecckd_data_solar, ierr, lverbose=lverbose); call CHKERR(ierr)
 
     call init_mie_table(general_mie_table, ecckd_data_thermal, ierr); call CHKERR(ierr)
     call init_mie_table(general_mie_table, ecckd_data_solar, ierr); call CHKERR(ierr)
@@ -564,10 +564,11 @@ contains
 
   end subroutine
 
-  subroutine populate_gas_info(atm, ecckd_data, ierr)
+  subroutine populate_gas_info(atm, ecckd_data, ierr, lverbose)
     type(t_tenstr_atm), target, intent(in) :: atm
     type(t_ecckd_data), target, intent(inout) :: ecckd_data
     integer(mpiint), intent(out) :: ierr
+    logical, intent(in), optional :: lverbose
     character(len=default_str_len), allocatable :: gas_strings(:), composite_gas_strings(:)
     integer(iintegers) :: i, j
     ierr = 0
@@ -579,7 +580,7 @@ contains
     allocate (ecckd_data%gases(size(gas_strings)))
 
     do i = 1, size(gas_strings)
-      print *, 'gas string', i, trim(gas_strings(i))
+      if (get_arg(.false., lverbose)) print *, 'gas string', i, trim(gas_strings(i))
       associate (gas => ecckd_data%gases(i))
         gas%id = trim(gas_strings(i))
         gas%reference_mole_fraction = -1
@@ -593,9 +594,11 @@ contains
         select case (trim(gas_strings(i)))
         case ('composite')
           call split(ecckd_data%composite_constituent_id, composite_gas_strings, ' ', ierr); call CHKERR(ierr)
-          do j = 1, size(composite_gas_strings)
-            print *, 'composite gas string', j, trim(composite_gas_strings(j))
-          end do
+          if (get_arg(.false., lverbose)) then
+            do j = 1, size(composite_gas_strings)
+              print *, 'composite gas string', j, trim(composite_gas_strings(j))
+            end do
+          end if
           gas%conc_dependence_code = ecckd_data%composite_conc_dependence_code
           !gas%mole_fraction2 => ecckd_data%composite_mole_fraction
           gas%molar_absorption_coeff3 => ecckd_data%composite_molar_absorption_coeff
