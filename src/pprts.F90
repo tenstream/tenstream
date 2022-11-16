@@ -2125,6 +2125,10 @@ contains
 
     call get_petsc_opt(solver%prefix, '-pprts_dump_optprop', fname, lflg, ierr); call CHKERR(ierr)
     if (lflg) then
+      if (len_trim(fname) .eq. 0) then
+        ierr = 1
+        call CHKERR(ierr, '-pprts_dump_optprop options needs file name as argument')
+      end if
       dimnames(1) = 'nlay'
       dimnames(2) = 'nx'
       dimnames(3) = 'ny'
@@ -2157,13 +2161,12 @@ contains
         var_exists = .true.
         prefixid = 0
         do while (var_exists)
-          groups(2) = trim(varname)//'.'//toStr(prefixid)
+          groups(2) = trim(varname)//'.'//trim(toStr(prefixid))
 
-          call nc_var_exists(groups, var_exists, ierr, verbose=.true.)
-          print *, 'nc_var_exists ', trim(groups(2)), var_exists
+          call nc_var_exists(groups, var_exists, ierr, verbose=.false.)
           prefixid = prefixid + 1
         end do
-        call ncwrite(groups, var0, ierr, dimnames=dimnames, verbose=.true.); call CHKERR(ierr)
+        call ncwrite(groups, var0, ierr, dimnames=dimnames, verbose=.false.); call CHKERR(ierr)
         call set_attribute(groups(1), groups(2), 'units', units, ierr); call CHKERR(ierr)
       end if
       ierr = 0

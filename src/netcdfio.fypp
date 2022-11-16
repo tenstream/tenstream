@@ -168,7 +168,7 @@ contains
     if (.not. file_exists) then
       ierr = 1
       if (ldebug .or. get_arg(.false., verbose)) &
-        & call CHKWARN(ierr, 'nc_var_exists: file does not exist: '//trim(fname))
+        & call CHKWARN(ierr, 'nc_var_exists file does not exist <'//trim(fname)//'>')
       return
     end if
 
