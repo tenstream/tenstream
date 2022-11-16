@@ -44,7 +44,8 @@ module m_netcdfIO
             get_attribute, set_attribute, &
             get_global_attribute, set_global_attribute, &
             get_number_global_attributes, list_global_attributes, &
-            get_dim_info
+            get_dim_info, &
+            nc_var_exists
 
 !  integer :: v=11
   integer, parameter :: default_deflate_lvl = 1
@@ -147,6 +148,50 @@ contains
     r = 0
   end function
 #endif
+
+  subroutine nc_var_exists(groups, var_exists, ierr, verbose)
+    character(len=*), intent(in) :: groups(:)
+    logical, intent(out) :: var_exists
+    integer(mpiint), intent(out) :: ierr
+    logical, intent(in), optional :: verbose
+
+    character(len=default_str_len) :: fname, varname
+    logical :: file_exists
+    integer(mpiint) :: ncerr, ncid, varid
+    integer(iintegers) :: i
+
+    ierr = 0
+    fname = trim(groups(1))
+    var_exists = .false.
+
+    inquire (file=trim(fname), exist=file_exists)
+    if (.not. file_exists) then
+      ierr = 1
+      if (ldebug .or. get_arg(.false., verbose)) &
+        & call CHKWARN(ierr, 'nc_var_exists: file does not exist: '//trim(fname))
+      return
+    end if
+
+    varname = trim(groups(2))
+    do i = 3, size(groups)
+      varname = trim(varname)//'.'//trim(groups(i))
+    end do
+
+    if (ldebug .or. get_arg(.false., verbose)) print *, 'nc_var_exists: file: ', trim(fname), ' :: variable:', trim(varname)
+
+    ncerr = nf90_open(trim(fname), NF90_NOWRITE, ncid); call nccheck(ncerr); ierr = ierr + ncerr
+    if (ncerr .ne. NF90_NOERR) goto 100
+    ncerr = nf90_inq_varid(ncid, trim(varname), varid); call nccheck(ncerr); ierr = ierr + ncerr
+    if (ncerr .ne. NF90_NOERR) goto 100
+
+    var_exists = ncerr .eq. NF90_NOERR
+    if (ldebug .or. get_arg(.false., verbose)) &
+      & print *, 'nc_var_exists? :: varname: ', trim(varname), ' :: exists?', var_exists
+
+100 continue
+    ncerr = nf90_close(ncid); call nccheck(ncerr); ierr = ierr + ncerr
+    if (ldebug) print *, 'nc_var_exists returned with ierr: ', ierr
+  end subroutine
 
 ! NCWRITE templates
   #:for method,dtype in [ &
