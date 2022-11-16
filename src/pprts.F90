@@ -155,6 +155,8 @@ module m_pprts
 
   use m_boxmc_geometry, only: setup_default_unit_cube_geometry
 
+  use m_netcdfio, only: ncwrite, set_attribute, nc_var_exists
+
   implicit none
   private
 
@@ -1782,6 +1784,7 @@ contains
       end if
 
       call print_optical_properties_summary(solver, opt_lview=ldebug)
+      call dump_optical_properties(solver, ierr); call CHKERR(ierr)
 
       if ((any([atm%kabs, atm%ksca, atm%g] .lt. zero)) .or. (any(isnan([atm%kabs, atm%ksca, atm%g])))) then
         call CHKERR(1_mpiint, 'set_optical_properties :: found illegal value in delta_scaled optical properties!'//new_line('')// &
@@ -2107,6 +2110,64 @@ contains
 
     end associate
     call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
+  end subroutine
+
+  subroutine dump_optical_properties(solver, ierr)
+    class(t_solver), intent(in) :: solver
+    integer(mpiint), intent(out) :: ierr
+
+    character(len=default_str_len) :: fname
+    logical :: lflg
+
+    character(len=default_str_len) :: dimnames(3)
+
+    ierr = 0
+
+    call get_petsc_opt(solver%prefix, '-pprts_dump_optprop', fname, lflg, ierr); call CHKERR(ierr)
+    if (lflg) then
+      dimnames(1) = 'nlay'
+      dimnames(2) = 'nx'
+      dimnames(3) = 'ny'
+      call dump_var(solver%C_one_atm, solver%atm%kabs, 'kabs', 'm-1', dimnames, ierr); call CHKERR(ierr)
+      call dump_var(solver%C_one_atm, solver%atm%ksca, 'ksca', 'm-1', dimnames, ierr); call CHKERR(ierr)
+      call dump_var(solver%C_one_atm, solver%atm%g, 'g', 'm-1', dimnames, ierr); call CHKERR(ierr)
+
+      if (allocated(solver%atm%planck)) then
+        dimnames(1) = 'nlev'
+        call dump_var(solver%C_one_atm1, solver%atm%planck, 'planck', 'W m-2', dimnames, ierr); call CHKERR(ierr)
+      end if
+    end if
+
+  contains
+    subroutine dump_var(C, var, varname, units, dimnames, ierr)
+      type(t_coord), intent(in) :: C
+      real(ireals), intent(in) :: var(:, :, :)
+      character(len=*), intent(in) :: varname, units, dimnames(:)
+      integer(mpiint), intent(out) :: ierr
+
+      real(ireals), allocatable :: var0(:, :, :)
+      character(len=default_str_len) :: groups(2)
+      logical :: var_exists
+      integer(iintegers) :: prefixid
+
+      call gather_all_toZero(C, var, var0)
+
+      if (solver%myid .eq. 0) then
+        groups(1) = trim(fname)
+        var_exists = .true.
+        prefixid = 0
+        do while (var_exists)
+          groups(2) = trim(varname)//'.'//toStr(prefixid)
+
+          call nc_var_exists(groups, var_exists, ierr, verbose=.true.)
+          print *, 'nc_var_exists ', trim(groups(2)), var_exists
+          prefixid = prefixid + 1
+        end do
+        call ncwrite(groups, var0, ierr, dimnames=dimnames, verbose=.true.); call CHKERR(ierr)
+        call set_attribute(groups(1), groups(2), 'units', units, ierr); call CHKERR(ierr)
+      end if
+      ierr = 0
+    end subroutine
   end subroutine
 
   subroutine set_global_optical_properties(solver, global_albedo, global_kabs, global_ksca, global_g, global_planck)
