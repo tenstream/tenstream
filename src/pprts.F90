@@ -2134,7 +2134,7 @@ contains
       dimnames(3) = 'ny'
       call dump_var(solver%C_one_atm, solver%atm%kabs, 'kabs', 'm-1', dimnames, ierr); call CHKERR(ierr)
       call dump_var(solver%C_one_atm, solver%atm%ksca, 'ksca', 'm-1', dimnames, ierr); call CHKERR(ierr)
-      call dump_var(solver%C_one_atm, solver%atm%g, 'g', 'm-1', dimnames, ierr); call CHKERR(ierr)
+      call dump_var(solver%C_one_atm, solver%atm%g, 'g', '', dimnames, ierr); call CHKERR(ierr)
 
       if (allocated(solver%atm%planck)) then
         dimnames(1) = 'nlev'
