@@ -95,35 +95,38 @@ module m_pprts
   use m_mcdmda, only: solve_mcdmda
 
   use m_pprts_base, only: &
-    & t_solver, &
+    & allocate_pprts_solver_from_commandline, &
     & atmk, &
     & compute_gradient, &
+    & destroy_pprts, &
     & destroy_solution, &
     & determine_ksp_tolerances, &
     & get_solution_uid, &
     & interpolate_cell_values_to_vertices, &
     & prepare_solution, &
     & set_dmda_cell_coordinates, &
-    & setup_log_events, &
     & setup_incSolar, &
+    & setup_log_events, &
+    & solver_to_str, &
     & t_atmosphere, &
     & t_coord, &
     & t_dof, &
     & t_mat_permute_info, &
-    & t_solver_2str, &
-    & t_solver_disort, &
-    & t_solver_rayli, &
-    & t_solver_mcdmda, &
+    & t_solver, &
     & t_solver_1_2, &
-    & t_solver_3_6, &
+    & t_solver_2str, &
     & t_solver_3_10, &
     & t_solver_3_16, &
     & t_solver_3_24, &
     & t_solver_3_30, &
+    & t_solver_3_6, &
     & t_solver_8_10, &
     & t_solver_8_16, &
     & t_solver_8_18, &
+    & t_solver_disort, &
     & t_solver_log_events, &
+    & t_solver_mcdmda, &
+    & t_solver_rayli, &
     & t_state_container, &
     & t_suninfo
 
@@ -468,7 +471,11 @@ contains
         call init_memory(solver%C_dir, solver%C_diff, solver%incSolar, solver%b)
       end select
 
-      if (present(solvername)) solver%solvername = trim(solver%solvername)//trim(solvername)
+      if (present(solvername)) then
+        solver%solvername = trim(solver%solvername)//trim(solvername)
+      else
+        solver%solvername = ''
+      end if
       ! init petsc logging facilities
       call setup_log_events(solver%logs, solver%solvername)
 
@@ -2286,7 +2293,7 @@ contains
 
   end subroutine
 
-  subroutine solve_pprts(solver, lthermal, lsolar, edirTOA, opt_solution_uid, opt_solution_time, opt_buildings)
+  recursive subroutine solve_pprts(solver, lthermal, lsolar, edirTOA, opt_solution_uid, opt_solution_time, opt_buildings)
     class(t_solver), intent(inout) :: solver
     logical, intent(in) :: lthermal, lsolar
     real(ireals), intent(in) :: edirTOA
@@ -2296,7 +2303,7 @@ contains
 
     integer(iintegers) :: uid, last_uid
     logical :: derived_lsolar, luse_rayli, lrayli_snapshot
-    logical :: linitial_guess_from_last_uid, linitial_guess_from_2str, lflg
+    logical :: linitial_guess_from_last_uid, linitial_guess_from_2str, linitial_guess_from_sc, lflg
     integer(mpiint) :: ierr
 
     if (.not. allocated(solver%atm)) call CHKERR(1_mpiint, 'atmosphere is not allocated?!')
@@ -2334,6 +2341,7 @@ contains
         call prepare_solution(solver%C_dir%da, solver%C_diff%da, solver%C_one%da, &
                               lsolar=derived_lsolar, lthermal=lthermal, solution=solution, uid=uid)
 
+        call PetscLogEventBegin(solver%logs%setup_initial_guess, ierr); call CHKERR(ierr)
         linitial_guess_from_last_uid = .true.
         call get_petsc_opt('', "-initial_guess_from_last_uid", &
           & linitial_guess_from_last_uid, lflg, ierr); call CHKERR(ierr)
@@ -2359,6 +2367,14 @@ contains
           call twostream(solver, edirTOA, solution, opt_buildings)
           call PetscLogEventEnd(solver%logs%solve_twostream, ierr); call CHKERR(ierr)
         end if
+
+        linitial_guess_from_sc = .false.
+        call get_petsc_opt('', "-initial_guess_from_sc", linitial_guess_from_sc, lflg, ierr); call CHKERR(ierr)
+        call get_petsc_opt(solver%prefix, "-initial_guess_from_sc", linitial_guess_from_sc, lflg, ierr); call CHKERR(ierr)
+        if (linitial_guess_from_sc) then
+          call initial_guess_from_single_column_comp(solver, edirTOA, solution, ierr, opt_buildings); call CHKERR(ierr)
+        end if
+        call PetscLogEventEnd(solver%logs%setup_initial_guess, ierr); call CHKERR(ierr)
 
       else
         if (solution%lsolar_rad .neqv. derived_lsolar) then
@@ -4240,8 +4256,15 @@ contains
     if (.not. prec_is_set) then
       !call CHKWARN(1_mpiint, 'no preconditioner setting found, applying defaults')
       call KSPGetPC(ksp, prec, ierr); call CHKERR(ierr)
-      if (numnodes .eq. 0) then
-        call PCSetType(prec, PCILU, ierr); call CHKERR(ierr)
+      if (numnodes .le. 1_mpiint) then
+        if (C%glob_xm .lt. 9_iintegers .and. C%glob_ym .lt. 9_iintegers) then ! small domains can use direct solves
+          call KSPSetInitialGuessNonzero(ksp, PETSC_FALSE, ierr); call CHKERR(ierr)
+          call KSPSetType(ksp, KSPPREONLY, ierr); call CHKERR(ierr)
+          call PCSetType(prec, PCLU, ierr); call CHKERR(ierr)
+          call PCFactorSetFill(prec, 16._ireals, ierr); call CHKERR(ierr)
+        else
+          call PCSetType(prec, PCILU, ierr); call CHKERR(ierr)
+        end if
       else
         if (trim(prefix) .eq. 'solar_dir_') then
           call PCSetType(prec, PCSOR, ierr); call CHKERR(ierr)
@@ -6041,6 +6064,125 @@ contains
 
     call petscVecToF90(lvec, C%da, outp)
     call VecDestroy(lvec, ierr); call CHKERR(ierr)
+  end subroutine
+
+  !> @brief single column tenstream solve from horizontally averaged optical properties
+  recursive subroutine initial_guess_from_single_column_comp(solver, edirTOA, solution, ierr, opt_buildings)
+    class(t_solver), intent(in) :: solver
+    real(ireals), intent(in) :: edirTOA
+    type(t_state_container), intent(inout) :: solution
+    integer(mpiint), intent(out) :: ierr
+    type(t_pprts_buildings), optional, intent(in) :: opt_buildings
+
+    class(t_solver), allocatable :: solver1d
+    character(len=default_str_len) :: prefix
+
+    integer(iintegers) :: k, idof
+    integer(iintegers), parameter :: solution_uid = 0
+
+    real(ireals), allocatable, dimension(:, :, :) :: kabs, ksca, g, planck
+    real(ireals), allocatable, dimension(:, :) :: planck_srfc
+    real(ireals), allocatable, dimension(:) :: dz
+
+    real(ireals), pointer :: x1d(:) => null(), x4d(:, :, :, :) => null()
+    real(ireals), pointer :: y1d(:) => null(), y4d(:, :, :, :) => null()
+
+    ierr = 0
+    if (solver%C_one%glob_xm .le. 5_iintegers .and. solver%C_one%glob_ym .le. 5_iintegers) return ! if domains are really small we dont do single column initializations
+
+    if (len_trim(solver%solvername) .gt. 0) then
+      prefix = trim(solver%solvername)//'_initial_guess_'
+    else
+      prefix = 'initial_guess_'
+    end if
+
+    call allocate_pprts_solver_from_commandline(solver1d, solver_to_str(solver), ierr, trim(prefix)); call CHKERR(ierr)
+
+    allocate (dz(solver%C_one_atm%zs:solver%C_one_atm%ze))
+    do k = solver%C_one_atm%zs, solver%C_one_atm%ze
+      dz(k) = meanval(solver%atm%dz(k, :, :))
+    end do
+
+    call init_pprts(MPI_COMM_SELF, &
+      & solver%C_one_atm%zm, &
+      & i1, &
+      & i1, &
+      & solver%atm%dx, &
+      & solver%atm%dy, &
+      & solver%sun%sundir, &
+      & solver1d, &
+      & dz1d=dz, &
+      & collapseindex=solver%atm%icollapse, &
+      & solvername=prefix)
+
+    associate ( &
+        & Catm => solver1d%C_one_atm, &
+        & Catm1 => solver1d%C_one_atm1 &
+        )
+      allocate (kabs(Catm%zs:Catm%ze, Catm%xs:Catm%xe, Catm%ys:Catm%ye))
+      allocate (ksca(Catm%zs:Catm%ze, Catm%xs:Catm%xe, Catm%ys:Catm%ye))
+      allocate (g(Catm%zs:Catm%ze, Catm%xs:Catm%xe, Catm%ys:Catm%ye))
+      do k = Catm%zs, Catm%ze
+        kabs(k, :, :) = meanval(solver%atm%kabs(k, :, :))
+        ksca(k, :, :) = meanval(solver%atm%ksca(k, :, :))
+        g(k, :, :) = meanval(solver%atm%g(k, :, :))
+      end do
+      if (.not. solution%lsolar_rad) then
+        allocate (planck(Catm1%zs:Catm1%ze, Catm1%xs:Catm1%xe, Catm1%ys:Catm1%ye))
+        allocate (planck_srfc(Catm1%xs:Catm1%xe, Catm1%ys:Catm1%ye))
+        do k = Catm1%zs, Catm1%ze
+          planck(k, :, :) = meanval(solver%atm%planck(k, :, :))
+        end do
+        planck_srfc(:, :) = meanval(solver%atm%Bsrfc)
+      end if
+    end associate
+
+    if (solution%lsolar_rad) then
+      call set_optical_properties(solver1d, meanval(solver%atm%albedo), kabs, ksca, g)
+      call set_angles(solver1d, solver%sun%sundir)
+    else
+      call set_optical_properties(solver1d, meanval(solver%atm%albedo), kabs, ksca, g, &
+        & planck=planck, planck_srfc=planck_srfc)
+    end if
+
+    call solve_pprts(solver1d, &
+      & lthermal=.not. solution%lsolar_rad, &
+      & lsolar=solution%lsolar_rad, &
+      & edirTOA=edirTOA, &
+      & opt_solution_uid=solution_uid)
+
+    associate (solution1d => solver1d%solutions(solution_uid))
+      if (solution%lsolar_rad) then
+        call getVecPointer(solver1d%C_dir%da, solution1d%edir, x1d, x4d)
+        call getVecPointer(solver%C_dir%da, solution%edir, y1d, y4d)
+
+        do k = solver%C_dir%zs, solver%C_dir%ze
+          do idof = 0, solver%C_dir%dof - 1
+            y4d(idof, k, :, :) = meanval(x4d(idof, k, :, :))
+          end do
+        end do
+
+        call restoreVecPointer(solver1d%C_dir%da, solution1d%edir, y1d, y4d)
+        call restoreVecPointer(solver%C_dir%da, solution%edir, x1d, x4d)
+      end if
+
+      call getVecPointer(solver1d%C_diff%da, solution1d%ediff, x1d, x4d)
+      call getVecPointer(solver%C_diff%da, solution%ediff, y1d, y4d)
+
+      do k = solver%C_diff%zs, solver%C_diff%ze
+        do idof = 0, solver%C_diff%dof - 1
+          y4d(idof, k, :, :) = meanval(x4d(idof, k, :, :))
+        end do
+      end do
+
+      call restoreVecPointer(solver%C_diff%da, solution%ediff, y1d, y4d)
+      call restoreVecPointer(solver1d%C_diff%da, solution1d%ediff, x1d, x4d)
+
+      solution%lWm2_dir = solution1d%lWm2_dir
+      solution%lWm2_diff = solution1d%lWm2_diff
+    end associate
+
+    call destroy_pprts(solver1d)
   end subroutine
 end module
 
