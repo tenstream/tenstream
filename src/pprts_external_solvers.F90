@@ -1676,7 +1676,7 @@ contains
       allocate (Eup(C_one_atm1%zs:C_one_atm1%ze))
       allocate (Edn(C_one_atm1%zs:C_one_atm1%ze))
 
-      Nmu = 4
+      Nmu = 2
       call get_petsc_opt(solver%prefix, &
                          "-schwarzschild_Nmu", Nmu, lflg, ierr); call CHKERR(ierr)
 

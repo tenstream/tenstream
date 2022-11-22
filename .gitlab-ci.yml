@@ -24,7 +24,7 @@ check_fprettify:pre:
 
 variables:
   DEBIAN_FRONTEND: noninteractive
-  TEST_FILTER_WITHOUT_LUTS: 'boxmc|LUT|test_pprts_symmetry|test_rrtm_lw_Bsrfc|test_rrtm_lw_sw|test_plexrt_fish|test_plexrt_rrtmg_lw_sw|test_pprts_absorption_by_coeff_divergence|test_plexrt_rayli'
+  TEST_FILTER_WITHOUT_LUTS: 'boxmc|LUT|test_pprts_symmetry|test_rrtm_lw_Bsrfc|test_rrtm_lw_sw|test_pprts_specint|test_plexrt_fish|test_plexrt_rrtmg_lw_sw|test_pprts_absorption_by_coeff_divergence|test_plexrt_rayli'
 
 # Build Stage
 .build:default:
@@ -106,7 +106,7 @@ ubuntu-rolling:
     PETSC_64_INTEGERS: 1
     PETSC_DEBUGGING: 1
     BUILD_TYPE: RELEASE
-    CMAKE_OPTS: '-DBUILD_RAYLI=ON -DENABLE_GCOV=ON -DCMAKE_Fortran_FLAGS=--std=legacy'
+    CMAKE_OPTS: '-DENABLE_GCOV=ON -DCMAKE_Fortran_FLAGS=--std=legacy'
     CODECOV_TOKEN: "7d5206f3-f1e3-4704-8bc3-1ee443e4ee49"
 
 # disabled because gcc image cannot apt install openmpi
@@ -157,30 +157,53 @@ debian-testing:
     CMAKE_OPTS: '-DCMAKE_Fortran_FLAGS=--std=legacy'
 
 
-#intel:
-#  stage: build_docker
-#  extends: .build:default
-#  needs: ["check_fprettify:pre"]
-#  image: intel/oneapi-hpckit:2021.4-devel-ubuntu18.04
-#  #image: intel/oneapi-hpckit:2022.1.2-devel-ubuntu18.04 # brakes petsc
-#  before_script:
-#    - echo -e "\e[0Ksection_start:`date +%s`:apt_install[collapsed=true]\r\e[0KInstall APT packages"
-#    - apt-get -qq update && apt-get -qq install -fy cmake git m4 curl libcurl3-dev
-#    - echo -e "\e[0Ksection_end:`date +%s`:apt_install\r\e[0K"
-#    - *template_build_PETSC
-#  tags:
-#    - docker.meteo.physik.lmu.de
-#  variables:
-#    CTEST_ARGS: "-E ${TEST_FILTER_WITHOUT_LUTS}"
-#    PETSC_PRECISION: single
-#    PETSC_64_INTEGERS: 0
-#    PETSC_DEBUGGING: 1
-#    BUILD_TYPE: RELEASE
-#    CC: mpiicc
-#    FC: mpiifort
-#    CXX: mpiicpc
-#
-#
+intel-icc:
+  stage: build_docker
+  extends: .build:default
+  needs: ["check_fprettify:pre"]
+  image: intel/oneapi-hpckit
+  before_script:
+    - echo -e "\e[0Ksection_start:`date +%s`:apt_install[collapsed=true]\r\e[0KInstall APT packages"
+    - apt-get -qq update && apt-get -qq install -fy cmake git m4 curl libcurl3-dev
+    - echo -e "\e[0Ksection_end:`date +%s`:apt_install\r\e[0K"
+    - *template_build_PETSC
+  tags:
+    - docker.meteo.physik.lmu.de
+  variables:
+    CTEST_ARGS: "-E ${TEST_FILTER_WITHOUT_LUTS}"
+    PETSC_PRECISION: single
+    PETSC_64_INTEGERS: 0
+    PETSC_DEBUGGING: 1
+    BUILD_TYPE: RELEASE
+    CC: mpiicc
+    FC: mpiifort
+    CXX: mpiicpc
+
+intel-icx:
+  stage: build_docker
+  extends: .build:default
+  needs: ["check_fprettify:pre"]
+  image: intel/oneapi-hpckit
+  before_script:
+    - echo -e "\e[0Ksection_start:`date +%s`:apt_install[collapsed=true]\r\e[0KInstall APT packages"
+    - apt-get -qq update && apt-get -qq install -fy cmake git m4 curl libcurl3-dev
+    - echo -e "\e[0Ksection_end:`date +%s`:apt_install\r\e[0K"
+    - *template_build_PETSC
+  tags:
+    - docker.meteo.physik.lmu.de
+  variables:
+    CTEST_ARGS: "-E ${TEST_FILTER_WITHOUT_LUTS}"
+    PETSC_PRECISION: double
+    PETSC_64_INTEGERS: 1
+    PETSC_DEBUGGING: 1
+    BUILD_TYPE: RELEASE
+    I_MPI_CC: icx
+    I_MPI_FC: ifx
+    I_MPI_CXX: icpx
+    CC: mpiicc
+    FC: mpiifort
+    CXX: mpiicpc
+
 #intel:debug:
 #  stage: build_docker
 #  extends: .build:default

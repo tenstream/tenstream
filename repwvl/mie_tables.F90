@@ -38,7 +38,7 @@ module m_mie_tables
     & imp_bcast, &
     & toStr
 
-  use m_netcdfIO, only: ncload
+  use m_netcdfIO, only: ncload, get_global_attribute
 
   use m_tenstream_interpolation, only: interp_2d
   use m_search, only: find_real_location
@@ -74,19 +74,36 @@ contains
     type(t_mie_table), allocatable, intent(inout) :: mie_table
     logical, intent(in), optional :: lverbose
 
-    character(len=default_str_len) :: groups(2)
+    character(len=default_str_len) :: groups(2), creator_name
+    logical :: lecckd_mie_file
 
     ierr = 0
 
     if (allocated(mie_table)) return
     allocate (mie_table)
 
-    groups(1) = trim(fname)
-    groups(2) = 'wvl'; call ncload(groups, mie_table%wvl, ierr, lverbose); call CHKERR(ierr)
-    groups(2) = 'reff'; call ncload(groups, mie_table%reff, ierr, lverbose); call CHKERR(ierr)
-    groups(2) = 'ext'; call ncload(groups, mie_table%qext, ierr, lverbose); call CHKERR(ierr)
-    groups(2) = 'ssa'; call ncload(groups, mie_table%w0, ierr, lverbose); call CHKERR(ierr)
-    groups(2) = 'g'; call ncload(groups, mie_table%g, ierr, lverbose); call CHKERR(ierr)
+    call get_global_attribute(fname, 'creator_name', creator_name, ierr)
+    lecckd_mie_file = ierr .eq. 0 .and. trim(creator_name) .eq. "Robin J. Hogan"
+    if (lecckd_mie_file) then
+      groups(1) = trim(fname)
+      groups(2) = 'wavelength'; call ncload(groups, mie_table%wvl, ierr, lverbose); call CHKERR(ierr)
+      groups(2) = 'effective_radius'; call ncload(groups, mie_table%reff, ierr, lverbose); call CHKERR(ierr)
+      groups(2) = 'mass_extinction_coefficient'; call ncload(groups, mie_table%qext, ierr, lverbose); call CHKERR(ierr)
+      groups(2) = 'single_scattering_albedo'; call ncload(groups, mie_table%w0, ierr, lverbose); call CHKERR(ierr)
+      groups(2) = 'asymmetry_factor'; call ncload(groups, mie_table%g, ierr, lverbose); call CHKERR(ierr)
+      mie_table%wvl = mie_table%wvl * 1e6_ireallut
+      mie_table%reff = mie_table%reff * 1e6_ireallut
+      mie_table%qext = transpose(mie_table%qext)
+      mie_table%w0 = transpose(mie_table%w0)
+      mie_table%g = transpose(mie_table%g)
+    else
+      groups(1) = trim(fname)
+      groups(2) = 'wvl'; call ncload(groups, mie_table%wvl, ierr, lverbose); call CHKERR(ierr)
+      groups(2) = 'reff'; call ncload(groups, mie_table%reff, ierr, lverbose); call CHKERR(ierr)
+      groups(2) = 'ext'; call ncload(groups, mie_table%qext, ierr, lverbose); call CHKERR(ierr)
+      groups(2) = 'ssa'; call ncload(groups, mie_table%w0, ierr, lverbose); call CHKERR(ierr)
+      groups(2) = 'g'; call ncload(groups, mie_table%g, ierr, lverbose); call CHKERR(ierr)
+    end if
 
     if (get_arg(.false., lverbose)) then
       print *, 'Loaded Mie table:'//new_line('')// &
@@ -121,7 +138,7 @@ contains
 
     integer(mpiint) :: myid
 
-    character(len=default_str_len), parameter :: default_path = share_dir//"mie.wc.table.nc"
+    character(len=default_str_len), parameter :: default_path = share_dir//"mie_droplet_scattering.nc"
 
     character(len=default_str_len) :: path
 

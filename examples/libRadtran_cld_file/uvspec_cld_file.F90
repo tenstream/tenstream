@@ -3,7 +3,7 @@ module m_example_uvspec_cld_file
   use petsc
   use mpi
   use m_pprts_base, only: t_solver, allocate_pprts_solver_from_commandline
-  use m_pprts, only: gather_all_toZero
+  use m_pprts, only: gather_all_toZero, pprts_get_result_toZero
 
   ! Import datatype from the TenStream lib. Depending on how PETSC is
   ! compiled(single or double floats, or long ints), this will determine what
@@ -26,7 +26,7 @@ module m_example_uvspec_cld_file
     & resize_arr, &
     & reverse, &
     & spherical_2_cartesian
-  use m_netcdfio, only: ncload, ncwrite, get_global_attribute
+  use m_netcdfio, only: ncload, ncwrite, get_global_attribute, set_attribute
 
   use m_petsc_helpers, only: getvecpointer, restorevecpointer
 
@@ -62,15 +62,12 @@ contains
     real(ireals), intent(in) :: phi0, theta0 ! Sun's angles, azimuth phi(0=North, 90=East), zenith(0 high sun, 80=low sun)
     integer(iintegers), intent(in) :: scene_shift_x, scene_shift_y, scene_shift_it
 
-    real(ireals), dimension(:, :, :), allocatable :: tmp ! used to resize input data
     real(ireals), dimension(:, :, :), allocatable, target :: lwc, reliq ! will have global shape Nz, Nx, Ny
     real(ireals), dimension(:, :, :), allocatable, target :: plev, tlev ! will have local shape nzp+1, nxp, nyp
     real(ireals), dimension(:), allocatable :: hhl ! dim Nz+1
     real(ireals), pointer :: z(:, :, :, :) => null(), z1d(:) => null() ! dim Nz+1
-    character(len=default_str_len) :: groups(2), dimnames(3)
 
     real(ireals), allocatable, dimension(:, :, :) :: edir, edn, eup, abso ! [nlev_merged(-1), nxp, nyp]
-    real(ireals), allocatable, dimension(:, :, :) :: gedir, gedn, geup, gabso ! global arrays which we will dump to netcdf
     type(t_bg_atm), allocatable :: bg_atm
 
     class(t_solver), allocatable :: pprts_solver
@@ -80,61 +77,11 @@ contains
     integer(iintegers) :: is, ie, js, je
     integer(iintegers) :: nxp, nyp, nzp ! local sizes of domain, nzp being number of layers
     integer(iintegers), allocatable :: nxproc(:), nyproc(:)
-    logical :: lflg
 
     integer(iintegers) :: k
 
     call mpi_comm_rank(comm, myid, ierr)
-
-    ! Load LibRadtran Cloud File
-    if (myid .eq. 0) then
-      call get_global_attribute(cldfile, 'dx', dx, ierr); call CHKERR(ierr)
-      call get_global_attribute(cldfile, 'dy', dy, ierr); call CHKERR(ierr)
-      groups(1) = trim(cldfile)
-      groups(2) = trim('lwc'); call ncload(groups, lwc, ierr); call CHKERR(ierr)
-      groups(2) = trim('reff'); call ncload(groups, reliq, ierr); call CHKERR(ierr)
-      groups(2) = trim('z'); call ncload(groups, hhl, ierr); call CHKERR(ierr)
-
-      is = lbound(lwc, dim=2); ie = ubound(lwc, dim=2)
-      js = lbound(lwc, dim=3); je = ubound(lwc, dim=3)
-      call get_petsc_opt(PETSC_NULL_CHARACTER, '-xs', is, lflg, ierr); call CHKERR(ierr)
-      call get_petsc_opt(PETSC_NULL_CHARACTER, '-xe', ie, lflg, ierr); call CHKERR(ierr)
-      call get_petsc_opt(PETSC_NULL_CHARACTER, '-ys', js, lflg, ierr); call CHKERR(ierr)
-      call get_petsc_opt(PETSC_NULL_CHARACTER, '-ye', je, lflg, ierr); call CHKERR(ierr)
-      allocate (tmp(size(lwc, dim=1), size(lwc, dim=2), size(lwc, dim=3)))
-      tmp = lwc
-      deallocate (lwc)
-      allocate (lwc(size(tmp, dim=1), ie - is + 1, je - js + 1), source=tmp(:, is:ie, js:je))
-      deallocate (tmp)
-      allocate (tmp(size(reliq, dim=1), size(reliq, dim=2), size(reliq, dim=3)))
-      tmp = reliq
-      deallocate (reliq)
-      allocate (reliq(size(tmp, dim=1), ie - is + 1, je - js + 1), source=tmp(:, is:ie, js:je))
-      deallocate (tmp)
-    end if
-    call imp_bcast(comm, dx, 0_mpiint, ierr); call CHKERR(ierr)
-    call imp_bcast(comm, dy, 0_mpiint, ierr); call CHKERR(ierr)
-    call imp_bcast(comm, lwc, 0_mpiint, ierr); call CHKERR(ierr)
-    call imp_bcast(comm, reliq, 0_mpiint, ierr); call CHKERR(ierr)
-    call imp_bcast(comm, hhl, 0_mpiint, ierr); call CHKERR(ierr)
-
-    if (size(lwc, dim=2) .eq. 1) call resize_arr(3_iintegers, lwc, dim=2, lrepeat=.true.)
-    if (size(reliq, dim=2) .eq. 1) call resize_arr(3_iintegers, reliq, dim=2, lrepeat=.true.)
-
-    if (size(lwc, dim=3) .eq. 1) call resize_arr(3_iintegers, lwc, dim=3, lrepeat=.true.)
-    if (size(reliq, dim=3) .eq. 1) call resize_arr(3_iintegers, reliq, dim=3, lrepeat=.true.)
-
-    dx = dx * 1e+3_ireals
-    dy = dy * 1e+3_ireals
-    hhl = hhl * 1e+3_ireals
-
-    if (myid .eq. 0) then
-      print *, 'Loaded LibRadtran Cloud File with:'
-      print *, 'dx, dy:', dx, dy
-      print *, 'hhl', hhl
-      print *, 'shape lwc ', shape(lwc)
-      print *, 'shape reliq', shape(reliq)
-    end if
+    call load_input(comm, cldfile, dx, dy, is, ie, js, je, hhl, lwc, reliq, ierr); call CHKERR(ierr)
 
     ! Determine Domain Decomposition
     call domain_decompose_2d_petsc(comm, &
@@ -192,54 +139,197 @@ contains
         & edir, edn, eup, abso)
     end do
 
-    groups(1) = trim(outfile)
-
-    associate (&
-        & C => pprts_solver%C_one,     &
-        & C1 => pprts_solver%C_one1,    &
-        & Ca => pprts_solver%C_one_atm, &
-        & Ca1 => pprts_solver%C_one_atm1_box)
-
-      dimnames(1) = 'zlev'
-      dimnames(2) = 'nx'
-      dimnames(3) = 'ny'
-      if (allocated(edir)) then
-        call gather_all_toZero(C1, edir, gedir)
-        if (myid .eq. 0) then
-          print *, 'dumping direct radiation with local and global shape', shape(edir), ':', shape(gedir)
-          groups(2) = 'edir'; call ncwrite(groups, gedir, ierr, dimnames=dimnames); call CHKERR(ierr)
-        end if
-      end if
-      call gather_all_toZero(C1, edn, gedn)
-      call gather_all_toZero(C1, eup, geup)
-      call gather_all_toZero(C, abso, gabso)
-      if (myid .eq. 0) then
-        print *, 'dumping edn radiation with local and global shape', shape(edn), ':', shape(gedn)
-        groups(2) = 'edn'; call ncwrite(groups, gedn, ierr, dimnames=dimnames); call CHKERR(ierr)
-
-        print *, 'dumping eup radiation with local and global shape', shape(eup), ':', shape(geup)
-        groups(2) = 'eup'; call ncwrite(groups, geup, ierr, dimnames=dimnames); call CHKERR(ierr)
-
-        print *, 'dumping abso radiation with local and global shape', shape(abso), ':', shape(gabso)
-        dimnames(1) = 'zlay'
-        groups(2) = 'abso'; call ncwrite(groups, gabso, ierr, dimnames=dimnames); call CHKERR(ierr)
-
-        print *, 'dumping z coords'
-        call getVecPointer(Ca1%da, pprts_solver%atm%hhl, z1d, z)
-        dimnames(1) = 'nlev'
-        groups(2) = 'zlev'; call ncwrite(groups, z(0, Ca1%zs:Ca1%ze, Ca1%xs, Ca1%ys), ierr, dimnames=dimnames(1:1))
-        call CHKERR(ierr)
-        dimnames(1) = 'nlay'
-        groups(2) = 'zlay'; call ncwrite(groups, &
- & (z(0, Ca1%zs:Ca1%ze - 1, Ca1%xs, Ca1%ys) + z(0, Ca1%zs + 1:Ca1%ze, Ca1%xs, Ca1%ys))*.5_ireals, &
- & ierr, dimnames=dimnames(1:1))
-        call CHKERR(ierr)
-        call restoreVecPointer(Ca1%da, pprts_solver%atm%hhl, z1d, z)
-      end if
-
-    end associate
+    call do_output()
 
     call specint_pprts_destroy(specint, pprts_solver, lfinalizepetsc=.true., ierr=ierr)
+
+  contains
+
+    subroutine do_output()
+      character(len=default_str_len) :: groups(2), dimnames(4)
+      logical :: lspectral_output, lflg
+      real(ireals), allocatable, dimension(:, :, :) :: gedir, gedn, geup, gabso ! global arrays which we will dump to netcdf
+      !real(ireals), allocatable, dimension(:, :, :, :) :: tmp_in, tmp_out ! tmp var to gather spectral output
+      real(ireals), allocatable, dimension(:, :, :, :) :: gedir_s, gedn_s, geup_s, gabso_s ! global arrays for spectral output
+      integer(iintegers) :: uid, k, Nspectral
+
+      groups(1) = trim(outfile)
+
+      associate (&
+          & Cdir => pprts_solver%C_dir,    &
+          & Cdiff => pprts_solver%C_diff,  &
+          & C => pprts_solver%C_one,      &
+          & C1 => pprts_solver%C_one1,    &
+          & Ca => pprts_solver%C_one_atm, &
+          & Ca1 => pprts_solver%C_one_atm1_box)
+
+        dimnames(1) = 'zlev'
+        dimnames(2) = 'nx'
+        dimnames(3) = 'ny'
+        if (allocated(edir)) then
+          call gather_all_toZero(C1, edir, gedir)
+          if (myid .eq. 0) then
+            print *, 'dumping direct radiation with local and global shape', shape(edir), ':', shape(gedir)
+            groups(2) = 'edir'; call ncwrite(groups, gedir, ierr, dimnames=dimnames); call CHKERR(ierr)
+            call set_attribute(groups(1), 'edir', 'units', 'W/m2', ierr); call CHKERR(ierr)
+          end if
+        end if
+        call gather_all_toZero(C1, edn, gedn)
+        call gather_all_toZero(C1, eup, geup)
+        call gather_all_toZero(C, abso, gabso)
+        if (myid .eq. 0) then
+          print *, 'dumping edn radiation with local and global shape', shape(edn), ':', shape(gedn)
+          groups(2) = 'edn'; call ncwrite(groups, gedn, ierr, dimnames=dimnames); call CHKERR(ierr)
+          call set_attribute(groups(1), 'edn', 'units', 'W/m2', ierr); call CHKERR(ierr)
+
+          print *, 'dumping eup radiation with local and global shape', shape(eup), ':', shape(geup)
+          groups(2) = 'eup'; call ncwrite(groups, geup, ierr, dimnames=dimnames); call CHKERR(ierr)
+          call set_attribute(groups(1), 'eup', 'units', 'W/m2', ierr); call CHKERR(ierr)
+
+          print *, 'dumping abso radiation with local and global shape', shape(abso), ':', shape(gabso)
+          dimnames(1) = 'zlay'
+          groups(2) = 'abso'; call ncwrite(groups, gabso, ierr, dimnames=dimnames); call CHKERR(ierr)
+          call set_attribute(groups(1), 'abso', 'units', 'W/m3', ierr); call CHKERR(ierr)
+
+          print *, 'dumping z coords'
+          call getVecPointer(Ca1%da, pprts_solver%atm%hhl, z1d, z)
+          dimnames(1) = 'nlev'
+          groups(2) = 'zlev'; call ncwrite(groups, z(0, Ca1%zs:Ca1%ze, Ca1%xs, Ca1%ys), ierr, dimnames=dimnames(1:1))
+          call CHKERR(ierr)
+          call set_attribute(groups(1), 'zlev', 'units', 'm', ierr); call CHKERR(ierr)
+          dimnames(1) = 'nlay'
+          groups(2) = 'zlay'; call ncwrite(groups, &
+ & (z(0, Ca1%zs:Ca1%ze - 1, Ca1%xs, Ca1%ys) + z(0, Ca1%zs + 1:Ca1%ze, Ca1%xs, Ca1%ys))*.5_ireals, &
+ & ierr, dimnames=dimnames(1:1))
+          call CHKERR(ierr)
+          call set_attribute(groups(1), 'zlay', 'units', 'm', ierr); call CHKERR(ierr)
+          call restoreVecPointer(Ca1%da, pprts_solver%atm%hhl, z1d, z)
+        end if
+
+        lspectral_output = .false.
+        call get_petsc_opt(PETSC_NULL_CHARACTER, '-spectral_output', lspectral_output, lflg, ierr); call CHKERR(ierr)
+
+        if (lspectral_output) then
+          Nspectral = count(pprts_solver%solutions(:)%lset)
+          if (myid .eq. 0) then
+            print *, 'found ', Nspectral, '3d fields'
+
+            dimnames(1) = 'zlev'
+            dimnames(2) = 'nx'
+            dimnames(3) = 'ny'
+            dimnames(4) = 'spectral'
+
+            if (allocated(edir)) then
+              allocate (gedir_s(Cdir%glob_zm, Cdir%glob_xm, Cdir%glob_ym, Nspectral))
+            end if
+            allocate (gedn_s(Cdiff%glob_zm, Cdiff%glob_xm, Cdiff%glob_ym, Nspectral))
+            allocate (geup_s(Cdiff%glob_zm, Cdiff%glob_xm, Cdiff%glob_ym, Nspectral))
+            allocate (gabso_s(C%glob_zm, C%glob_xm, C%glob_ym, Nspectral))
+          end if
+
+          k = 1
+          do uid = lbound(pprts_solver%solutions, 1), ubound(pprts_solver%solutions, 1)
+            if (pprts_solver%solutions(uid)%lset) then
+              if (allocated(edir)) then
+                call pprts_get_result_toZero(pprts_solver, gedn, geup, gabso, gedir=gedir, opt_solution_uid=uid)
+                if (myid .eq. 0) gedir_s(:, :, :, k) = gedir
+              else
+                call pprts_get_result_toZero(pprts_solver, gedn, geup, gabso, opt_solution_uid=uid)
+              end if
+              if (myid .eq. 0) then
+                gedn_s(:, :, :, k) = gedn
+                geup_s(:, :, :, k) = geup
+                gabso_s(:, :, :, k) = gabso
+              end if
+              k = k + 1
+            end if
+          end do
+
+          if (myid .eq. 0) then
+            if (allocated(gedir_s)) then
+              groups(2) = 'edir_spectral'; call ncwrite(groups, gedir_s, ierr, dimnames=dimnames); call CHKERR(ierr)
+              call set_attribute(groups(1), 'edir_spectral', 'units', 'W/m2/band', ierr); call CHKERR(ierr)
+            end if
+            groups(2) = 'edn_spectral'; call ncwrite(groups, gedn_s, ierr, dimnames=dimnames); call CHKERR(ierr)
+            call set_attribute(groups(1), 'edn_spectral', 'units', 'W/m2/band', ierr); call CHKERR(ierr)
+            groups(2) = 'eup_spectral'; call ncwrite(groups, geup_s, ierr, dimnames=dimnames); call CHKERR(ierr)
+            call set_attribute(groups(1), 'eup_spectral', 'units', 'W/m2/band', ierr); call CHKERR(ierr)
+            groups(2) = 'abso_spectral'; call ncwrite(groups, gabso_s, ierr, dimnames=dimnames); call CHKERR(ierr)
+            call set_attribute(groups(1), 'abso_spectral', 'units', 'W/m3/band', ierr); call CHKERR(ierr)
+          end if
+
+        end if
+
+      end associate
+
+    end subroutine
+  end subroutine
+
+  subroutine load_input(comm, cldfile, dx, dy, is, ie, js, je, hhl, lwc, reliq, ierr)
+    integer(mpiint), intent(in) :: comm
+    character(len=*), intent(in) :: cldfile
+    real(ireals), intent(out) :: dx, dy
+    integer(iintegers), intent(out) :: is, ie, js, je
+    real(ireals), allocatable, intent(out) :: hhl(:)
+    real(ireals), allocatable, intent(out) :: lwc(:, :, :)
+    real(ireals), allocatable, intent(out) :: reliq(:, :, :)
+    integer(mpiint), intent(out) :: ierr
+
+    integer(mpiint) :: myid
+    real(ireals), dimension(:, :, :), allocatable :: tmp ! used to resize input data
+    character(len=default_str_len) :: groups(2)
+    logical :: lflg
+
+    call mpi_comm_rank(comm, myid, ierr)
+    ! Load LibRadtran Cloud File
+    if (myid .eq. 0) then
+      call get_global_attribute(cldfile, 'dx', dx, ierr); call CHKERR(ierr)
+      call get_global_attribute(cldfile, 'dy', dy, ierr); call CHKERR(ierr)
+      groups(1) = trim(cldfile)
+      groups(2) = trim('lwc'); call ncload(groups, lwc, ierr); call CHKERR(ierr)
+      groups(2) = trim('reff'); call ncload(groups, reliq, ierr); call CHKERR(ierr)
+      groups(2) = trim('z'); call ncload(groups, hhl, ierr); call CHKERR(ierr)
+
+      is = lbound(lwc, dim=2); ie = ubound(lwc, dim=2)
+      js = lbound(lwc, dim=3); je = ubound(lwc, dim=3)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, '-xs', is, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, '-xe', ie, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, '-ys', js, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt(PETSC_NULL_CHARACTER, '-ye', je, lflg, ierr); call CHKERR(ierr)
+      allocate (tmp(size(lwc, dim=1), size(lwc, dim=2), size(lwc, dim=3)))
+      tmp = lwc
+      deallocate (lwc)
+      allocate (lwc(size(tmp, dim=1), ie - is + 1, je - js + 1), source=tmp(:, is:ie, js:je))
+      deallocate (tmp)
+      allocate (tmp(size(reliq, dim=1), size(reliq, dim=2), size(reliq, dim=3)))
+      tmp = reliq
+      deallocate (reliq)
+      allocate (reliq(size(tmp, dim=1), ie - is + 1, je - js + 1), source=tmp(:, is:ie, js:je))
+      deallocate (tmp)
+    end if
+    call imp_bcast(comm, dx, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, dy, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, lwc, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, reliq, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, hhl, 0_mpiint, ierr); call CHKERR(ierr)
+
+    if (size(lwc, dim=2) .eq. 1) call resize_arr(3_iintegers, lwc, dim=2, lrepeat=.true.)
+    if (size(reliq, dim=2) .eq. 1) call resize_arr(3_iintegers, reliq, dim=2, lrepeat=.true.)
+
+    if (size(lwc, dim=3) .eq. 1) call resize_arr(3_iintegers, lwc, dim=3, lrepeat=.true.)
+    if (size(reliq, dim=3) .eq. 1) call resize_arr(3_iintegers, reliq, dim=3, lrepeat=.true.)
+
+    dx = dx * 1e+3_ireals
+    dy = dy * 1e+3_ireals
+    hhl = hhl * 1e+3_ireals
+
+    if (myid .eq. 0) then
+      print *, 'Loaded LibRadtran Cloud File with:'
+      print *, 'dx, dy:', dx, dy
+      print *, 'hhl', hhl
+      print *, 'shape lwc ', shape(lwc)
+      print *, 'shape reliq', shape(reliq)
+    end if
   end subroutine
 
   subroutine run_rrtmg_lw_sw(specint, pprts_solver, nxproc, nyproc, atm_filename, dx, dy, phi0, theta0, &

@@ -155,6 +155,8 @@ module m_pprts
 
   use m_boxmc_geometry, only: setup_default_unit_cube_geometry
 
+  use m_netcdfio, only: ncwrite, set_attribute, nc_var_exists
+
   implicit none
   private
 
@@ -1782,6 +1784,7 @@ contains
       end if
 
       call print_optical_properties_summary(solver, opt_lview=ldebug)
+      call dump_optical_properties(solver, ierr); call CHKERR(ierr)
 
       if ((any([atm%kabs, atm%ksca, atm%g] .lt. zero)) .or. (any(isnan([atm%kabs, atm%ksca, atm%g])))) then
         call CHKERR(1_mpiint, 'set_optical_properties :: found illegal value in delta_scaled optical properties!'//new_line('')// &
@@ -2109,6 +2112,67 @@ contains
     call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
   end subroutine
 
+  subroutine dump_optical_properties(solver, ierr)
+    class(t_solver), intent(in) :: solver
+    integer(mpiint), intent(out) :: ierr
+
+    character(len=default_str_len) :: fname
+    logical :: lflg
+
+    character(len=default_str_len) :: dimnames(3)
+
+    ierr = 0
+
+    call get_petsc_opt(solver%prefix, '-pprts_dump_optprop', fname, lflg, ierr); call CHKERR(ierr)
+    if (lflg) then
+      if (len_trim(fname) .eq. 0) then
+        ierr = 1
+        call CHKERR(ierr, '-pprts_dump_optprop options needs file name as argument')
+      end if
+      dimnames(1) = 'nlay'
+      dimnames(2) = 'nx'
+      dimnames(3) = 'ny'
+      call dump_var(solver%C_one_atm, solver%atm%kabs, 'kabs', 'm-1', dimnames, ierr); call CHKERR(ierr)
+      call dump_var(solver%C_one_atm, solver%atm%ksca, 'ksca', 'm-1', dimnames, ierr); call CHKERR(ierr)
+      call dump_var(solver%C_one_atm, solver%atm%g, 'g', '', dimnames, ierr); call CHKERR(ierr)
+
+      if (allocated(solver%atm%planck)) then
+        dimnames(1) = 'nlev'
+        call dump_var(solver%C_one_atm1, solver%atm%planck, 'planck', 'W m-2', dimnames, ierr); call CHKERR(ierr)
+      end if
+    end if
+
+  contains
+    subroutine dump_var(C, var, varname, units, dimnames, ierr)
+      type(t_coord), intent(in) :: C
+      real(ireals), intent(in) :: var(:, :, :)
+      character(len=*), intent(in) :: varname, units, dimnames(:)
+      integer(mpiint), intent(out) :: ierr
+
+      real(ireals), allocatable :: var0(:, :, :)
+      character(len=default_str_len) :: groups(2)
+      logical :: var_exists
+      integer(iintegers) :: prefixid
+
+      call gather_all_toZero(C, var, var0)
+
+      if (solver%myid .eq. 0) then
+        groups(1) = trim(fname)
+        var_exists = .true.
+        prefixid = 0
+        do while (var_exists)
+          groups(2) = trim(varname)//'.'//trim(toStr(prefixid))
+
+          call nc_var_exists(groups, var_exists, ierr, verbose=.false.)
+          prefixid = prefixid + 1
+        end do
+        call ncwrite(groups, var0, ierr, dimnames=dimnames, verbose=.false.); call CHKERR(ierr)
+        call set_attribute(groups(1), groups(2), 'units', units, ierr); call CHKERR(ierr)
+      end if
+      ierr = 0
+    end subroutine
+  end subroutine
+
   subroutine set_global_optical_properties(solver, global_albedo, global_kabs, global_ksca, global_g, global_planck)
     class(t_solver), intent(in) :: solver
     real(ireals), intent(inout), optional :: global_albedo
@@ -2230,8 +2294,9 @@ contains
     real(ireals), optional, intent(in) :: opt_solution_time
     type(t_pprts_buildings), optional, intent(in) :: opt_buildings
 
-    integer(iintegers) :: uid
+    integer(iintegers) :: uid, last_uid
     logical :: derived_lsolar, luse_rayli, lrayli_snapshot
+    logical :: linitial_guess_from_last_uid, linitial_guess_from_2str, lflg
     integer(mpiint) :: ierr
 
     if (.not. allocated(solver%atm)) call CHKERR(1_mpiint, 'atmosphere is not allocated?!')
@@ -2268,6 +2333,33 @@ contains
       if (.not. solution%lset) then
         call prepare_solution(solver%C_dir%da, solver%C_diff%da, solver%C_one%da, &
                               lsolar=derived_lsolar, lthermal=lthermal, solution=solution, uid=uid)
+
+        linitial_guess_from_last_uid = .true.
+        call get_petsc_opt('', "-initial_guess_from_last_uid", &
+          & linitial_guess_from_last_uid, lflg, ierr); call CHKERR(ierr)
+        call get_petsc_opt(solver%prefix, "-initial_guess_from_last_uid", &
+          & linitial_guess_from_last_uid, lflg, ierr); call CHKERR(ierr)
+        if (linitial_guess_from_last_uid) then
+          last_uid = get_solution_uid(solver%solutions, uid - 1)
+          if (solver%solutions(last_uid)%lset) then
+            if (solver%solutions(last_uid)%lsolar_rad) then
+              call VecCopy(solver%solutions(last_uid)%edir, solution%edir, ierr); call CHKERR(ierr)
+              solution%lWm2_dir = solver%solutions(last_uid)%lWm2_dir
+            end if
+            call VecCopy(solver%solutions(last_uid)%ediff, solution%ediff, ierr); call CHKERR(ierr)
+            solution%lWm2_diff = solver%solutions(last_uid)%lWm2_diff
+          end if
+        end if
+
+        linitial_guess_from_2str = .false.
+        call get_petsc_opt('', "-initial_guess_from_2str", linitial_guess_from_2str, lflg, ierr); call CHKERR(ierr)
+        call get_petsc_opt(solver%prefix, "-initial_guess_from_2str", linitial_guess_from_2str, lflg, ierr); call CHKERR(ierr)
+        if (linitial_guess_from_2str) then
+          call PetscLogEventBegin(solver%logs%solve_twostream, ierr); call CHKERR(ierr)
+          call twostream(solver, edirTOA, solution, opt_buildings)
+          call PetscLogEventEnd(solver%logs%solve_twostream, ierr); call CHKERR(ierr)
+        end if
+
       else
         if (solution%lsolar_rad .neqv. derived_lsolar) then
           call destroy_solution(solution)
@@ -2557,7 +2649,9 @@ contains
 
       lmat_permute = .false.
       call get_petsc_opt(prefix, "-mat_permute", lmat_permute, lflg, ierr); call CHKERR(ierr)
+
       if (lmat_permute) then ! prepare mat permutation
+
         call PetscLogEventBegin(solver%logs%permute_mat_gen_diff, ierr)
         call gen_mat_permutation( &
           & A=A, &
@@ -2592,7 +2686,7 @@ contains
             call MatCreateSubMatrix(A, solver%perm_diff%is, solver%perm_diff%is, &
               & MAT_REUSE_MATRIX, Aperm, ierr); call CHKERR(ierr)
           else
-            call MatDestroy(Aperm, ierr); call CHKERR(ierr); 
+            call MatDestroy(Aperm, ierr); call CHKERR(ierr)
             call MatCreateSubMatrix(A, solver%perm_diff%is, solver%perm_diff%is, &
               & MAT_INITIAL_MATRIX, Aperm, ierr); call CHKERR(ierr)
           end if
@@ -2601,8 +2695,11 @@ contains
         call PetscLogEventEnd(solver%logs%permute_mat_diff, ierr)
 
         call setup_ksp(solver, ksp, solver%C_diff, Aperm, prefix=prefix)
-      else
+
+      else ! without permutation (normal case)
+
         call setup_ksp(solver, ksp, solver%C_diff, A, prefix=prefix)
+
       end if
 
       call PetscLogEventBegin(solver%logs%solve_Mdiff, ierr)
@@ -3525,7 +3622,7 @@ contains
       goto 99
     end select
 
-    by_coeff_divergence = .false.
+    by_coeff_divergence = .true.
     call get_petsc_opt(solver%prefix, "-absorption_by_coeff_divergence", by_coeff_divergence, lflg, ierr); call CHKERR(ierr)
 
     if (by_coeff_divergence) then
@@ -5853,22 +5950,22 @@ contains
 
     call PetscLogEventBegin(solver%logs%scatter_to_Zero, ierr); call CHKERR(ierr)
     if (solver%myid .eq. 0) then
-      call check_arr_size(solver%C_one_atm1, gedn)
-      call check_arr_size(solver%C_one_atm1, geup)
-      call check_arr_size(solver%C_one_atm, gabso)
-      if (present(gedir)) call check_arr_size(solver%C_one_atm1, gedir)
+      call check_arr_size(solver%C_one1, gedn)
+      call check_arr_size(solver%C_one1, geup)
+      call check_arr_size(solver%C_one, gabso)
+      if (present(gedir)) call check_arr_size(solver%C_one1, gedir)
     end if
 
     if (present(gedir)) then
       call pprts_get_result(solver, redn, reup, rabso, redir=redir, opt_solution_uid=opt_solution_uid)
-      call gather_all_toZero(solver%C_one_atm1, redir, gedir)
+      call gather_all_toZero(solver%C_one1, redir, gedir)
     else
       call pprts_get_result(solver, redn, reup, rabso, opt_solution_uid=opt_solution_uid)
     end if
 
-    call gather_all_toZero(solver%C_one_atm1, redn, gedn)
-    call gather_all_toZero(solver%C_one_atm1, reup, geup)
-    call gather_all_toZero(solver%C_one_atm, rabso, gabso)
+    call gather_all_toZero(solver%C_one1, redn, gedn)
+    call gather_all_toZero(solver%C_one1, reup, geup)
+    call gather_all_toZero(solver%C_one, rabso, gabso)
 
     if (solver%myid .eq. 0 .and. ldebug) then
       print *, 'Retrieving results:'

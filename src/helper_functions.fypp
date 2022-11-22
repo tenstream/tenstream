@@ -3014,6 +3014,7 @@ contains
           & ')', 'dark grey')// &
           & ' => '//cstr(trim(toStr(optval))//' (cnt='//toStr(argcnt)//')', color)
       end if
+      nmax = argcnt
     end subroutine
   #:endfor
 

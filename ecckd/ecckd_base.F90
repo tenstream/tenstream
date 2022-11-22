@@ -27,6 +27,7 @@ module m_ecckd_base
     & default_str_len, &
     & iintegers, &
     & ireals, &
+    & irealLUT, &
     & mpiint, &
     & share_dir
 
@@ -44,6 +45,9 @@ module m_ecckd_base
 
   use m_netcdfIO, only: ncload, get_global_attribute
 
+  use m_mie_tables, only: t_mie_table, mie_optprop
+  use m_fu_ice, only: t_fu_muskatel_ice_data, fu_ice_optprop
+
   implicit none
 
   private
@@ -56,7 +60,8 @@ module m_ecckd_base
     & IConcDependenceRelativeLinear, &
     & setup_log_events, &
     & t_ecckd_atm_gas, &
-    & t_ecckd_data
+    & t_ecckd_data, &
+    & t_ecckd_mie_table
 
 ! Concentration dependence of individual gases
   enum, bind(c)
@@ -77,6 +82,21 @@ module m_ecckd_base
     real(ireals), pointer :: molar_absorption_coeff4(:, :, :, :)
     real(ireals), pointer :: vmr(:, :) ! dim(k,icol) pointer into a gas, usually from a t_tenstr_atm
     real(ireals) :: vmr_const ! const vmr of a gas
+  end type
+
+  type t_ecckd_mie_table
+    real(irealLUT), allocatable :: reff(:)   ! in [mu]
+    real(irealLUT), allocatable :: qext(:, :) ! dim(reff, gpt)
+    real(irealLUT), allocatable :: w0(:, :) ! dim(reff, gpt)
+    real(irealLUT), allocatable :: g(:, :) ! dim(reff, gpt)
+  end type
+
+  type t_ecckd_fu_ice_table
+    ! for units look at t_fu_muskatel_ice_data
+    real(irealLUT), allocatable :: reff(:)   ! in [mu]
+    real(irealLUT), allocatable :: qext(:, :) ! dim(reff, gpt)
+    real(irealLUT), allocatable :: w0(:, :) ! dim(reff, gpt)
+    real(irealLUT), allocatable :: g(:, :) ! dim(reff, gpt)
   end type
 
   type t_ecckd_data
@@ -130,6 +150,9 @@ module m_ecckd_base
 
     ! following is populated to have a mapping between atm%gas_vmrs and ecckd_data entries
     type(t_ecckd_atm_gas), allocatable :: gases(:) ! dim(n_gases)
+
+    type(t_ecckd_mie_table), allocatable :: mie_table
+    type(t_ecckd_fu_ice_table), allocatable :: fu_ice_table
   end type
 
   type t_ecckd_log_events
@@ -223,7 +246,6 @@ contains
       call ncload(groups, ecckd_data%solar_irradiance, ierr, lverbose); call CHKERR(ierr)
       groups(2) = 'rayleigh_molar_scattering_coeff'
       call ncload(groups, ecckd_data%rayleigh_molar_scattering_coeff, ierr, lverbose); call CHKERR(ierr)
-
     end if
 
     if (llw) then
@@ -286,9 +308,12 @@ contains
     end if
   end subroutine
 
-  subroutine ecckd_init(comm, atm, ecckd_data_solar, ecckd_data_thermal, ierr, fname_ecckd_solar, fname_ecckd_thermal, lverbose)
+  subroutine ecckd_init(comm, atm, general_mie_table, general_fu_ice_table, ecckd_data_solar, ecckd_data_thermal, ierr, &
+      & fname_ecckd_solar, fname_ecckd_thermal, lverbose)
     integer(mpiint), intent(in) :: comm
     type(t_tenstr_atm), intent(in), target :: atm
+    type(t_mie_table), intent(in) :: general_mie_table
+    type(t_fu_muskatel_ice_data), intent(in) :: general_fu_ice_table
     type(t_ecckd_data), allocatable, intent(inout) :: ecckd_data_solar, ecckd_data_thermal
     integer(mpiint), intent(out) :: ierr
     character(len=*), intent(in), optional :: fname_ecckd_solar, fname_ecckd_thermal
@@ -354,8 +379,14 @@ contains
     call distribute_ecckd_table(comm, ecckd_data_thermal, ierr); call CHKERR(ierr)
     call distribute_ecckd_table(comm, ecckd_data_solar, ierr); call CHKERR(ierr)
 
-    call populate_gas_info(atm, ecckd_data_thermal, ierr); call CHKERR(ierr)
-    call populate_gas_info(atm, ecckd_data_solar, ierr); call CHKERR(ierr)
+    call populate_gas_info(atm, ecckd_data_thermal, ierr, lverbose=lverbose); call CHKERR(ierr)
+    call populate_gas_info(atm, ecckd_data_solar, ierr, lverbose=lverbose); call CHKERR(ierr)
+
+    call init_mie_table(general_mie_table, ecckd_data_thermal, ierr); call CHKERR(ierr)
+    call init_mie_table(general_mie_table, ecckd_data_solar, ierr); call CHKERR(ierr)
+
+    call init_fu_ice_table(general_fu_ice_table, ecckd_data_thermal, ierr); call CHKERR(ierr)
+    call init_fu_ice_table(general_fu_ice_table, ecckd_data_solar, ierr); call CHKERR(ierr)
   contains
 
     subroutine distribute_ecckd_table(comm, table, ierr)
@@ -398,15 +429,15 @@ contains
       call imp_bcast(comm, table%ch4_reference_mole_fraction, sendid, ierr); call CHKERR(ierr)
       call imp_bcast(comm, table%ch4_molar_absorption_coeff, sendid, ierr); call CHKERR(ierr)
 
+      call imp_bcast(comm, table%n2o_conc_dependence_code, sendid, ierr); call CHKERR(ierr)
+      call imp_bcast(comm, table%n2o_reference_mole_fraction, sendid, ierr); call CHKERR(ierr)
+      call imp_bcast(comm, table%n2o_molar_absorption_coeff, sendid, ierr); call CHKERR(ierr)
+
       lhave_solar = allocated(table%solar_irradiance)
       call imp_bcast(comm, lhave_solar, sendid, ierr); call CHKERR(ierr)
       if (lhave_solar) then
         call imp_bcast(comm, table%solar_irradiance, sendid, ierr); call CHKERR(ierr)
         call imp_bcast(comm, table%rayleigh_molar_scattering_coeff, sendid, ierr); call CHKERR(ierr)
-
-        call imp_bcast(comm, table%n2o_conc_dependence_code, sendid, ierr); call CHKERR(ierr)
-        call imp_bcast(comm, table%n2o_reference_mole_fraction, sendid, ierr); call CHKERR(ierr)
-        call imp_bcast(comm, table%n2o_molar_absorption_coeff, sendid, ierr); call CHKERR(ierr)
       end if
       lhave_thermal = allocated(table%temperature_planck)
       call imp_bcast(comm, lhave_thermal, sendid, ierr); call CHKERR(ierr)
@@ -423,10 +454,121 @@ contains
     end subroutine
   end subroutine
 
-  subroutine populate_gas_info(atm, ecckd_data, ierr)
+  subroutine init_fu_ice_table(general_fu_ice_table, ecckd_data, ierr)
+    type(t_fu_muskatel_ice_data), intent(in) :: general_fu_ice_table
+    type(t_ecckd_data), target, intent(inout) :: ecckd_data
+    integer(mpiint), intent(out) :: ierr
+
+    integer(iintegers) :: ireff, igpt, iwvnr
+    real(ireals) :: reff, wgt, wvl_lo, wvl_hi, wvl, gpt_qext, gpt_w0, gpt_g, qext, w0, g
+    ierr = 0
+
+    if (allocated(ecckd_data%fu_ice_table)) return
+    allocate (ecckd_data%fu_ice_table)
+
+    allocate (ecckd_data%fu_ice_table%reff(size(general_fu_ice_table%reff)))
+    ecckd_data%fu_ice_table%reff(:) = general_fu_ice_table%reff(:)
+
+    allocate (ecckd_data%fu_ice_table%qext(size(general_fu_ice_table%reff), ecckd_data%n_g_pnt))
+    allocate (ecckd_data%fu_ice_table%w0(size(general_fu_ice_table%reff), ecckd_data%n_g_pnt))
+    allocate (ecckd_data%fu_ice_table%g(size(general_fu_ice_table%reff), ecckd_data%n_g_pnt))
+
+    do ireff = 1, size(ecckd_data%fu_ice_table%reff)
+      reff = ecckd_data%fu_ice_table%reff(ireff)
+
+      do igpt = 1, size(ecckd_data%gpoint_fraction, dim=2)
+
+        gpt_qext = 0
+        gpt_w0 = 0
+        gpt_g = 0
+
+        do iwvnr = 1, size(ecckd_data%gpoint_fraction, dim=1)
+          wgt = ecckd_data%gpoint_fraction(iwvnr, igpt)
+          if (wgt .gt. 0) then
+            wvl_lo = 1e7_ireals / ecckd_data%wavenumber2(iwvnr)
+            wvl_hi = 1e7_ireals / ecckd_data%wavenumber1(iwvnr)
+            wvl = (wvl_lo + wvl_hi)*.5
+
+            call fu_ice_optprop(&
+              & general_fu_ice_table, &
+              & wvl * 1e-3_ireals, &
+              & reff, &
+              & qext, w0, g, ierr); call CHKERR(ierr)
+
+            gpt_qext = gpt_qext + wgt * qext
+            gpt_w0 = gpt_w0 + wgt * w0
+            gpt_g = gpt_g + wgt * g
+          end if
+        end do
+
+        ecckd_data%fu_ice_table%qext(ireff, igpt) = real(gpt_qext, irealLUT)
+        ecckd_data%fu_ice_table%w0(ireff, igpt) = real(gpt_w0, irealLUT)
+        ecckd_data%fu_ice_table%g(ireff, igpt) = real(gpt_g, irealLUT)
+      end do
+    end do
+
+  end subroutine
+
+  subroutine init_mie_table(general_mie_table, ecckd_data, ierr)
+    type(t_mie_table), intent(in) :: general_mie_table
+    type(t_ecckd_data), target, intent(inout) :: ecckd_data
+    integer(mpiint), intent(out) :: ierr
+
+    integer(iintegers) :: ireff, igpt, iwvnr
+    real(ireals) :: reff, wgt, wvl_lo, wvl_hi, wvl, gpt_qext, gpt_w0, gpt_g, qext, w0, g
+    ierr = 0
+
+    if (allocated(ecckd_data%mie_table)) return
+    allocate (ecckd_data%mie_table)
+
+    allocate (ecckd_data%mie_table%reff(size(general_mie_table%reff)))
+    ecckd_data%mie_table%reff(:) = general_mie_table%reff(:)
+
+    allocate (ecckd_data%mie_table%qext(size(general_mie_table%reff), ecckd_data%n_g_pnt))
+    allocate (ecckd_data%mie_table%w0(size(general_mie_table%reff), ecckd_data%n_g_pnt))
+    allocate (ecckd_data%mie_table%g(size(general_mie_table%reff), ecckd_data%n_g_pnt))
+
+    do ireff = 1, size(ecckd_data%mie_table%reff)
+      reff = ecckd_data%mie_table%reff(ireff)
+
+      do igpt = 1, size(ecckd_data%gpoint_fraction, dim=2)
+
+        gpt_qext = 0
+        gpt_w0 = 0
+        gpt_g = 0
+
+        do iwvnr = 1, size(ecckd_data%gpoint_fraction, dim=1)
+          wgt = ecckd_data%gpoint_fraction(iwvnr, igpt)
+          if (wgt .gt. 0) then
+            wvl_lo = 1e7_ireals / ecckd_data%wavenumber2(iwvnr)
+            wvl_hi = 1e7_ireals / ecckd_data%wavenumber1(iwvnr)
+            wvl = (wvl_lo + wvl_hi)*.5
+
+            call mie_optprop(&
+              & general_mie_table, &
+              & wvl * 1e-3_ireals, &
+              & reff, &
+              & qext, w0, g, ierr); call CHKERR(ierr)
+
+            gpt_qext = gpt_qext + wgt * qext
+            gpt_w0 = gpt_w0 + wgt * w0
+            gpt_g = gpt_g + wgt * g
+          end if
+        end do
+
+        ecckd_data%mie_table%qext(ireff, igpt) = real(gpt_qext, irealLUT)
+        ecckd_data%mie_table%w0(ireff, igpt) = real(gpt_w0, irealLUT)
+        ecckd_data%mie_table%g(ireff, igpt) = real(gpt_g, irealLUT)
+      end do
+    end do
+
+  end subroutine
+
+  subroutine populate_gas_info(atm, ecckd_data, ierr, lverbose)
     type(t_tenstr_atm), target, intent(in) :: atm
     type(t_ecckd_data), target, intent(inout) :: ecckd_data
     integer(mpiint), intent(out) :: ierr
+    logical, intent(in), optional :: lverbose
     character(len=default_str_len), allocatable :: gas_strings(:), composite_gas_strings(:)
     integer(iintegers) :: i, j
     ierr = 0
@@ -438,7 +580,7 @@ contains
     allocate (ecckd_data%gases(size(gas_strings)))
 
     do i = 1, size(gas_strings)
-      print *, 'gas string', i, trim(gas_strings(i))
+      if (get_arg(.false., lverbose)) print *, 'gas string', i, trim(gas_strings(i))
       associate (gas => ecckd_data%gases(i))
         gas%id = trim(gas_strings(i))
         gas%reference_mole_fraction = -1
@@ -452,9 +594,11 @@ contains
         select case (trim(gas_strings(i)))
         case ('composite')
           call split(ecckd_data%composite_constituent_id, composite_gas_strings, ' ', ierr); call CHKERR(ierr)
-          do j = 1, size(composite_gas_strings)
-            print *, 'composite gas string', j, trim(composite_gas_strings(j))
-          end do
+          if (get_arg(.false., lverbose)) then
+            do j = 1, size(composite_gas_strings)
+              print *, 'composite gas string', j, trim(composite_gas_strings(j))
+            end do
+          end if
           gas%conc_dependence_code = ecckd_data%composite_conc_dependence_code
           !gas%mole_fraction2 => ecckd_data%composite_mole_fraction
           gas%molar_absorption_coeff3 => ecckd_data%composite_molar_absorption_coeff

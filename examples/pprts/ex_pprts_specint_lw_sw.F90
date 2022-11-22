@@ -12,7 +12,7 @@ program main
 
   integer(mpiint) :: ierr, comm, myid
   integer(iintegers) :: Nx, Ny, Nz
-  real(ireals) :: dx, dy, phi0, theta0, albedo_th, albedo_sol, vlwc, viwc
+  real(ireals) :: dx, dy, phi0, theta0, albedo_th, albedo_sol, vlwc, viwc, vreff, vreice
   character(len=default_str_len) :: atm_filename, outfile, specint
   logical :: lthermal, lsolar, lflg, lhave_outfile
   real(ireals), allocatable, dimension(:, :, :) :: gedir, gedn, geup, gabso
@@ -64,6 +64,12 @@ program main
   viwc = 0
   call get_petsc_opt(PETSC_NULL_CHARACTER, "-iwc", viwc, lflg, ierr); call CHKERR(ierr)
 
+  vreff = 10
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-reff", vreff, lflg, ierr); call CHKERR(ierr)
+
+  vreice = 60
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-reice", vreice, lflg, ierr); call CHKERR(ierr)
+
   call get_petsc_opt(PETSC_NULL_CHARACTER, '-out', outfile, lhave_outfile, ierr); call CHKERR(ierr)
   ! if(.not.lhave_outfile) call CHKERR(1_mpiint, 'need to supply a output filename... please call with -out <output.nc>')
 
@@ -76,7 +82,7 @@ program main
       & phi0, theta0, albedo_th, albedo_sol, &
       & lthermal, lsolar, atm_filename, &
       & gedir, gedn, geup, gabso, &
-      & vlwc, viwc, &
+      & vlwc, viwc, vreff, vreice, &
       & outfile=outfile)
   else
     call ex_pprts_specint_lw_sw(specint, &
@@ -85,7 +91,7 @@ program main
       & phi0, theta0, albedo_th, albedo_sol, &
       & lthermal, lsolar, atm_filename, &
       & gedir, gedn, geup, gabso, &
-      & vlwc, viwc)
+      & vlwc, viwc, vreff, vreice)
   end if
 
   call deallocate_allocatable(gedir)
