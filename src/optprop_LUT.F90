@@ -204,7 +204,7 @@ contains
     call MPI_Comm_rank(comm, myid, mpierr); call CHKERR(mpierr)
     call MPI_Comm_size(comm, comm_size, mpierr); call CHKERR(mpierr)
 
-    if (OPP%optprop_LUT_debug .and. myid .eq. 0) print *, 'Initializing LUT`s...'
+    if (ldebug .and. myid .eq. 0) print *, 'Initializing LUT`s...'
 
     if (.not. allocated(OPP%bmc)) then
       select type (OPP)
@@ -328,7 +328,7 @@ contains
 
     OPP%initialized = .true.
 
-    if (OPP%optprop_LUT_debug .and. myid .eq. 0) print *, 'Initializing LUT`s... finished'
+    if (ldebug .and. myid .eq. 0) print *, 'Initializing LUT`s... finished'
 
     lshow_LUT = ldebug
     call get_petsc_opt(PETSC_NULL_CHARACTER, '-LUT_view', lshow_LUT, lflg, ierr); call CHKERR(ierr)
