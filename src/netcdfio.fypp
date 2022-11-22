@@ -48,7 +48,7 @@ module m_netcdfIO
             nc_var_exists
 
 !  integer :: v=11
-  integer, parameter :: default_deflate_lvl = 1
+  integer, parameter :: default_deflate_lvl = 0
 !  real(ireals),parameter :: maxwait=600 !in seconds
 !  real(ireals),parameter :: waitinterval=.01 ! amount of cpu time to wait before trying anew in seconds
 !  integer :: iwait
