@@ -254,6 +254,7 @@ contains
             call set_attribute(groups(1), 'edn_spectral', 'units', 'W/m2/band', ierr); call CHKERR(ierr)
             groups(2) = 'eup_spectral'; call ncwrite(groups, geup_s, ierr, dimnames=dimnames); call CHKERR(ierr)
             call set_attribute(groups(1), 'eup_spectral', 'units', 'W/m2/band', ierr); call CHKERR(ierr)
+            dimnames(1) = 'zlay'
             groups(2) = 'abso_spectral'; call ncwrite(groups, gabso_s, ierr, dimnames=dimnames); call CHKERR(ierr)
             call set_attribute(groups(1), 'abso_spectral', 'units', 'W/m3/band', ierr); call CHKERR(ierr)
           end if
