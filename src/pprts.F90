@@ -2173,7 +2173,9 @@ contains
           call nc_var_exists(groups, var_exists, ierr, verbose=.false.)
           prefixid = prefixid + 1
         end do
-        call ncwrite(groups, var0, ierr, dimnames=dimnames, verbose=.false.); call CHKERR(ierr)
+        call ncwrite(groups, var0, ierr, dimnames=dimnames, verbose=.false., &
+          & deflate_lvl=5, &
+          & chunksizes=[integer :: 1, min(64, size(var0, 2)), min(64, size(var0, 3))]); call CHKERR(ierr)
         call set_attribute(groups(1), groups(2), 'units', units, ierr); call CHKERR(ierr)
       end if
       ierr = 0
