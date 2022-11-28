@@ -3601,7 +3601,7 @@ contains
     real(ireals), pointer, dimension(:, :, :, :) :: xediff => null(), xedir => null(), xabso => null()
     real(ireals), pointer, dimension(:) :: xediff1d => null(), xedir1d => null(), xabso1d => null()
 
-    integer(iintegers) :: offset, isrc, src
+    integer(iintegers) :: isrc, src
     integer(iintegers) :: i, j, k, xinc, yinc
     type(tVec) :: ledir, lediff ! local copies of vectors, including ghosts
     real(ireals) :: Volume, Az
@@ -3911,7 +3911,6 @@ contains
                 end do
 
               else ! 3D-radiation
-                offset = solver%dirtop%dof + solver%dirside%dof * 2
 
                 ! direct part of absorption
                 if (solution%lsolar_rad) then
