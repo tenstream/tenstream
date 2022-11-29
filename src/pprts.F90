@@ -3606,7 +3606,7 @@ contains
     type(tVec) :: ledir, lediff ! local copies of vectors, including ghosts
     real(ireals) :: Volume, Az
 
-    logical :: by_coeff_divergence, lflg
+    logical :: by_coeff_divergence, ldirect_absorption_only, lflg
     integer(mpiint) :: ierr
 
     if (solver%myid .eq. 0 .and. ldebug) print *, 'Calculating flux divergence solar?', solution%lsolar_rad, 'NCA?', lcalc_nca
@@ -3632,6 +3632,14 @@ contains
     ! make sure to bring the fluxes into [W] before the absorption calculation
     call scale_flx(solver, solution, lWm2=.false.)
 
+    ldirect_absorption_only = .false.
+    call get_petsc_opt('', "-direct_absorption_only", ldirect_absorption_only, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt(solver%prefix, "-direct_absorption_only", ldirect_absorption_only, lflg, ierr); call CHKERR(ierr)
+    if (ldirect_absorption_only) then
+      call direct_absorption_only()
+      goto 99
+    end if
+
     ! if there are no 3D layers globally, we should skip the ghost value copying....
     !lhave_no_3d_layer = mpi_logical_and(solver%comm, all(atm%l1d.eqv..True.))
     select type (solver)
@@ -3654,6 +3662,89 @@ contains
 
     call PetscLogEventEnd(solver%logs%compute_absorption, ierr); call CHKERR(ierr)
   contains
+
+    subroutine direct_absorption_only()
+      real(ireals) :: dtau
+      real(ireals), target :: dir2dir(solver%C_dir%dof**2)
+      real(ireals), pointer :: pdir2dir(:, :) ! dim(src,dst)
+      integer(iintegers) :: ak
+      associate ( &
+        sun => solver%sun, &
+        atm => solver%atm, &
+        C_dir => solver%C_dir, &
+        C_one => solver%C_one)
+
+        pdir2dir(0:solver%C_dir%dof - 1, 0:solver%C_dir%dof - 1) => dir2dir
+
+        if (solution%lsolar_rad) then
+          ! Copy ghosted values for direct vec
+          call DMGetLocalVector(C_dir%da, ledir, ierr); call CHKERR(ierr)
+          call DMGlobalToLocalBegin(C_dir%da, solution%edir, INSERT_VALUES, ledir, ierr); call CHKERR(ierr)
+          call DMGlobalToLocalEnd(C_dir%da, solution%edir, INSERT_VALUES, ledir, ierr); call CHKERR(ierr)
+          call getVecPointer(C_dir%da, ledir, xedir1d, xedir, readonly=.true.)
+        end if
+
+        call getVecPointer(C_one%da, solution%abso, xabso1d, xabso)
+
+        if (solution%lsolar_rad) then
+          do j = C_one%ys, C_one%ye
+            do i = C_one%xs, C_one%xe
+              do k = C_one%zs, C_one%ze
+                ak = atmk(atm, k)
+
+                if (atm%l1d(atmk(atm, k))) then ! one dimensional i.e. twostream
+                  do isrc = 0, solver%dirtop%dof - 1
+                    dtau = atm%kabs(ak, i, j) * atm%dz(ak, i, j) / sun%costheta
+                    xabso(i0, k, i, j) = xabso(i0, k, i, j) + xedir(isrc, k, i, j) * (one - exp(-dtau))
+                  end do
+
+                else ! 3D-radiation
+                  ! direct part of absorption
+                  xinc = sun%xinc
+                  yinc = sun%yinc
+
+                  call get_coeff( &
+                    & solver%OPP, &
+                    & atm%kabs(ak, i, j), &
+                    & zero, &
+                    & atm%g(ak, i, j), &
+                    & atm%dz(ak, i, j), &
+                    & atm%dx, &
+                    & .true., &
+                    & dir2dir, &
+                    & [real(irealLUT) :: sun%symmetry_phi, sun%theta], &
+                    & lswitch_east=xinc .eq. 0, lswitch_north=yinc .eq. 0 &
+                    & )
+
+                  src = 0
+                  do isrc = 0, solver%dirtop%dof - 1
+                    xabso(i0, k, i, j) = xabso(i0, k, i, j) + xedir(src, k, i, j) * (one - sum(pdir2dir(src, :)))
+                    src = src + 1
+                  end do
+
+                  do isrc = 0, solver%dirside%dof - 1
+                    xabso(i0, k, i, j) = xabso(i0, k, i, j) + xedir(src, k, i + 1 - xinc, j) * (one - sum(pdir2dir(src, :)))
+                    src = src + 1
+                  end do
+
+                  do isrc = 0, solver%dirside%dof - 1
+                    xabso(i0, k, i, j) = xabso(i0, k, i, j) + xedir(src, k, i, j + i1 - yinc) * (one - sum(pdir2dir(src, :)))
+                    src = src + 1
+                  end do
+                end if ! 1d/3D
+              end do
+            end do
+          end do
+        end if
+
+        if (solution%lsolar_rad) then
+          call restoreVecPointer(C_dir%da, ledir, xedir1d, xedir, readonly=.true.)
+          call DMRestoreLocalVector(C_dir%da, ledir, ierr); call CHKERR(ierr)
+        end if
+
+        call restoreVecPointer(C_one%da, solution%abso, xabso1d, xabso)
+      end associate
+    end subroutine
 
     subroutine compute_1D_absorption()
       associate ( &
