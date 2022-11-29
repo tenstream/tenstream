@@ -3789,9 +3789,9 @@ contains
 
     subroutine compute_absorption_by_coeff_divergence()
       real(ireals) :: cdiv
-      real(ireals), pointer :: dir2dir(:, :) ! dim(dst, src)
-      real(ireals), pointer :: dir2diff(:, :) ! dim(dst, src)
-      real(ireals), pointer :: diff2diff(:, :) ! dim(dst, src)
+      real(ireals), pointer :: dir2dir(:, :) ! dim(src, dst)
+      real(ireals), pointer :: dir2diff(:, :) ! dim(src, dst)
+      real(ireals), pointer :: diff2diff(:, :) ! dim(src, dst)
 
       type(tVec) :: local_b
       real(ireals), pointer, dimension(:, :, :, :) :: xsrc => null()
