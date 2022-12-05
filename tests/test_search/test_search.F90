@@ -190,7 +190,7 @@ contains
           & ': auto_select algorithm', time(1), '( ratio=', time(1) / minval(time), ')'
         ! make sure that the generic version of search algorithm is selected well,
         ! i.e. that we are not off by a factor of 3
-        @assertTrue(time(1) .lt. minval(time) * 2, 'the auto selected search algorithm was the wrong one')
+        @assertTrue(time(1) .lt. minval(time) * 3, 'the auto selected search algorithm was the wrong one')
       end associate
     end do
   end subroutine
