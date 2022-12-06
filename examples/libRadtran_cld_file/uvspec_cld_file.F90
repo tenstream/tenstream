@@ -205,8 +205,8 @@ contains
           call set_attribute(groups(1), 'zlev', 'units', 'm', ierr); call CHKERR(ierr)
           dimnames(1) = 'nlay'
           groups(2) = 'zlay'; call ncwrite(groups, &
-            & (z(0, Ca1%zs:Ca1%ze - 1, Ca1%xs, Ca1%ys) + z(0, Ca1%zs + 1:Ca1%ze, Ca1%xs, Ca1%ys))*.5_ireals, &
-            & ierr, dimnames=dimnames(1:1))
+ & (z(0, Ca1%zs:Ca1%ze - 1, Ca1%xs, Ca1%ys) + z(0, Ca1%zs + 1:Ca1%ze, Ca1%xs, Ca1%ys))*.5_ireals, &
+ & ierr, dimnames=dimnames(1:1))
           call CHKERR(ierr)
           call set_attribute(groups(1), 'zlay', 'units', 'm', ierr); call CHKERR(ierr)
           call restoreVecPointer(Ca1%da, pprts_solver%atm%hhl, z1d, z)
