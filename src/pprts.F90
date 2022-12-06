@@ -3665,8 +3665,8 @@ contains
 
     subroutine direct_absorption_only()
       real(ireals) :: dtau
-      real(ireals), target :: dir2dir(solver%C_dir%dof**2)
-      real(ireals), pointer :: pdir2dir(:, :) ! dim(src,dst)
+      real(irealLUT), target :: dir2dir(solver%C_dir%dof**2)
+      real(irealLUT), pointer :: pdir2dir(:, :) ! dim(src,dst)
       integer(iintegers) :: ak
       associate ( &
         sun => solver%sun, &
