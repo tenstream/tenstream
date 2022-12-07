@@ -4349,7 +4349,7 @@ contains
       !call CHKWARN(1_mpiint, 'no preconditioner setting found, applying defaults')
       call KSPGetPC(ksp, prec, ierr); call CHKERR(ierr)
       if (numnodes .le. 1_mpiint) then
-        if (C%glob_xm .lt. 9_iintegers .and. C%glob_ym .lt. 9_iintegers) then ! small domains can use direct solves
+        if (C%glob_xm .le. 3_iintegers .and. C%glob_ym .le. 3_iintegers) then ! small domains can use direct solves
           call KSPSetInitialGuessNonzero(ksp, PETSC_FALSE, ierr); call CHKERR(ierr)
           call KSPSetType(ksp, KSPPREONLY, ierr); call CHKERR(ierr)
           call PCSetType(prec, PCLU, ierr); call CHKERR(ierr)
