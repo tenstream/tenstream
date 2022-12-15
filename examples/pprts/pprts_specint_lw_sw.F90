@@ -207,7 +207,7 @@ contains
     do k = 1, iter
       call specint_pprts(specint, comm, pprts_solver, atm, nxp, nyp, &
                          dx, dy, sundir, &
-                         albedo_th, albedo_sol, &
+                         albedo_th, albedo_sol + 0.1_ireals*iter, &
                          lthermal, lsolar, &
                          edir, edn, eup, abso, &
                          nxproc=nxproc, nyproc=nyproc, &

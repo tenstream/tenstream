@@ -335,12 +335,12 @@ contains
     type(t_pprts_buildings), intent(inout), optional :: opt_buildings_solar
     type(t_pprts_buildings), intent(inout), optional :: opt_buildings_thermal
 
-    ! optional optical properties with dims(nlyr(srfc to TOA), local_nx, local_ny, nr-g-points)
+    ! optional optical properties with dims(nlyr(srfc to TOA), local_nx, local_ny)
     ! used e.g. for aerosol or vegetation, you can provide only tau or (tau and w0) defaults to w0=0 and g=0
     ! note that first dimension can also be smaller than nlyr, we will fill it up from the ground,
     ! i.e. if you provide only two layers, the two lowermost layers near the surface will be filled with addition optprops
-    real(ireals), intent(in), optional, dimension(:, :, :, :) :: opt_tau_solar, opt_w0_solar, opt_g_solar
-    real(ireals), intent(in), optional, dimension(:, :, :, :) :: opt_tau_thermal
+    real(ireals), intent(in), optional, dimension(:, :, :) :: opt_tau_solar, opt_w0_solar, opt_g_solar
+    real(ireals), intent(in), optional, dimension(:, :, :) :: opt_tau_thermal
 
     ! Fluxes and absorption in [W/m2] and [W/m3] respectively.
     ! Dimensions will probably be bigger than the dynamics grid, i.e. will have
@@ -595,7 +595,7 @@ contains
     real(ireals), optional, intent(in) :: opt_time, thermal_albedo_2d(:, :)
     logical, optional, intent(in) :: lrrtmg_only
     type(t_pprts_buildings), intent(inout), optional :: opt_buildings
-    real(ireals), intent(in), optional, dimension(:, :, :, :) :: opt_tau
+    real(ireals), intent(in), optional, dimension(:, :, :) :: opt_tau
 
     real(ireals), allocatable, target, dimension(:, :, :, :) :: tau, Bfrac  ! [nlyr, ie, je, ngptlw]
     real(ireals), allocatable, dimension(:, :, :) :: kabs, ksca, g, Blev   ! [nlyr(+1), local_nx, local_ny]
@@ -973,7 +973,7 @@ contains
     logical, optional, intent(in) :: lrrtmg_only
     real(ireals), intent(in), optional :: opt_solar_constant
     type(t_pprts_buildings), intent(inout), optional :: opt_buildings
-    real(ireals), intent(in), optional, dimension(:, :, :, :) :: opt_tau, opt_w0, opt_g
+    real(ireals), intent(in), optional, dimension(:, :, :) :: opt_tau, opt_w0, opt_g
 
     real(ireals) :: edirTOA
 
@@ -1290,7 +1290,7 @@ contains
 
   subroutine add_optional_optprop(tau, w0, g, opt_tau, opt_w0, opt_g)
     real(ireals), intent(inout), optional, dimension(:, :, :, :) :: tau, w0, g
-    real(ireals), intent(in), optional, dimension(:, :, :, :) :: opt_tau, opt_w0, opt_g
+    real(ireals), intent(in), optional, dimension(:, :, :) :: opt_tau, opt_w0, opt_g
 
     real(ireals) :: tausca_old, tausca_new
     integer(iintegers) :: k, i, j, l
@@ -1304,39 +1304,39 @@ contains
       & call CHKERR(1_mpiint, 'if opt_g or opt_w0 is provided, need also opt_tau')
 
     if (present(opt_g)) then
-      do l = 1, size(opt_tau, 4)
+      do l = 1, size(tau, 4)
         do j = 1, size(opt_tau, 3)
           do i = 1, size(opt_tau, 2)
             do k = 1, size(opt_tau, 1)
               tausca_old = tau(k, i, j, l) * w0(k, i, j, l)
-              tausca_new = opt_tau(k, i, j, l) * opt_w0(k, i, j, l)
-              g(k, i, j, l) = (g(k, i, j, l) * tausca_old + opt_g(k, i, j, l) * tausca_new) / (tausca_old + tausca_new)
-              w0(k, i, j, l) = (tausca_old + tausca_new) / (tau(k, i, j, l) + opt_tau(k, i, j, l))
-              tau(k, i, j, l) = tau(k, i, j, l) + opt_tau(k, i, j, l)
+              tausca_new = opt_tau(k, i, j) * opt_w0(k, i, j)
+              g(k, i, j, l) = (g(k, i, j, l) * tausca_old + opt_g(k, i, j) * tausca_new) / (tausca_old + tausca_new)
+              w0(k, i, j, l) = (tausca_old + tausca_new) / (tau(k, i, j, l) + opt_tau(k, i, j))
+              tau(k, i, j, l) = tau(k, i, j, l) + opt_tau(k, i, j)
             end do
           end do
         end do
       end do
     elseif (present(opt_w0)) then
-      do l = 1, size(opt_tau, 4)
+      do l = 1, size(tau, 4)
         do j = 1, size(opt_tau, 3)
           do i = 1, size(opt_tau, 2)
             do k = 1, size(opt_tau, 1)
               tausca_old = tau(k, i, j, l) * w0(k, i, j, l)
-              tausca_new = opt_tau(k, i, j, l) * opt_w0(k, i, j, l)
+              tausca_new = opt_tau(k, i, j) * opt_w0(k, i, j)
               g(k, i, j, l) = g(k, i, j, l) * tausca_old / (tausca_old + tausca_new)
-              w0(k, i, j, l) = (tausca_old + tausca_new) / (tau(k, i, j, l) + opt_tau(k, i, j, l))
-              tau(k, i, j, l) = tau(k, i, j, l) + opt_tau(k, i, j, l)
+              w0(k, i, j, l) = (tausca_old + tausca_new) / (tau(k, i, j, l) + opt_tau(k, i, j))
+              tau(k, i, j, l) = tau(k, i, j, l) + opt_tau(k, i, j)
             end do
           end do
         end do
       end do
     elseif (present(opt_tau)) then
-      do l = 1, size(opt_tau, 4)
+      do l = 1, size(tau, 4)
         do j = 1, size(opt_tau, 3)
           do i = 1, size(opt_tau, 2)
             do k = 1, size(opt_tau, 1)
-              tau(k, i, j, l) = tau(k, i, j, l) + opt_tau(k, i, j, l)
+              tau(k, i, j, l) = tau(k, i, j, l) + opt_tau(k, i, j)
             end do
           end do
         end do
@@ -1347,7 +1347,7 @@ contains
     subroutine check_shape(varname, var, opt_var)
       character(len=*), intent(in) :: varname
       real(ireals), intent(in), optional, dimension(:, :, :, :) :: var
-      real(ireals), intent(in), optional, dimension(:, :, :, :) :: opt_var
+      real(ireals), intent(in), optional, dimension(:, :, :) :: opt_var
       integer :: i
 
       if (.not. present(opt_var)) return
@@ -1363,7 +1363,7 @@ contains
           & " shape(var)    "//toStr(shape(var))//new_line('')// &
           & " shape(opt_var)"//toStr(shape(opt_var)))
       end if
-      do i = 2, 4
+      do i = 2, 3
         if (size(opt_var, i) .gt. size(var, i)) then
           call CHKERR(1_mpiint, trim(varname)//" :: dimension "//toStr(i)//" of opt_var "// &
             & " has to be same as the target array. "//new_line('')// &

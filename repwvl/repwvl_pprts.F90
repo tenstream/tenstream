@@ -124,12 +124,12 @@ contains
     type(t_pprts_buildings), intent(inout), optional :: opt_buildings_solar
     type(t_pprts_buildings), intent(inout), optional :: opt_buildings_thermal
 
-    ! optional optical properties with dims(nlyr(srfc to TOA), local_nx, local_ny, nr-g-points)
+    ! optional optical properties with dims(nlyr(srfc to TOA), local_nx, local_ny)
     ! used e.g. for aerosol or vegetation, you can provide only tau or (tau and w0) defaults to w0=0 and g=0
     ! note that first dimension can also be smaller than nlyr, we will fill it up from the ground,
     ! i.e. if you provide only two layers, the two lowermost layers near the surface will be filled with addition optprops
-    real(ireals), intent(in), optional, dimension(:, :, :, :) :: opt_tau_solar, opt_w0_solar, opt_g_solar
-    real(ireals), intent(in), optional, dimension(:, :, :, :) :: opt_tau_thermal
+    real(ireals), intent(in), optional, dimension(:, :, :) :: opt_tau_solar, opt_w0_solar, opt_g_solar
+    real(ireals), intent(in), optional, dimension(:, :, :) :: opt_tau_thermal
 
     ! Fluxes and absorption in [W/m2] and [W/m3] respectively.
     ! Dimensions will probably be bigger than the dynamics grid, i.e. will have
@@ -304,7 +304,7 @@ contains
 
     real(ireals), optional, intent(in) :: opt_time, thermal_albedo_2d(:, :)
     type(t_pprts_buildings), intent(inout), optional :: opt_buildings
-    real(ireals), intent(in), optional, dimension(:, :, :, :) :: opt_tau
+    real(ireals), intent(in), optional, dimension(:, :, :) :: opt_tau
 
     integer(iintegers) :: iwvl, i, j, k, icol, ke, ke1
     integer(mpiint) :: myid
@@ -508,7 +508,7 @@ contains
     real(ireals), optional, intent(in) :: opt_time, solar_albedo_2d(:, :)
     real(ireals), intent(in), optional :: opt_solar_constant
     type(t_pprts_buildings), intent(inout), optional :: opt_buildings
-    real(ireals), intent(in), optional, dimension(:, :, :, :) :: opt_tau, opt_w0, opt_g
+    real(ireals), intent(in), optional, dimension(:, :, :) :: opt_tau, opt_w0, opt_g
 
     real(ireals) :: edirTOA
 
