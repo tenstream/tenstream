@@ -590,7 +590,10 @@ contains
         associate (C => solver%C_one_atm, dz => solver%atm%dz)
           solver%atm%l1d(C%ze) = any((dz(C%ze, C%xs:C%xe, C%ys:C%ye) / solver%atm%dx) .gt. twostr_ratio)
           do k = C%ze - 1, C%zs, -1
-            solver%atm%l1d(k) = any((solver%atm%dz(k, C%xs:C%xe, C%ys:C%ye) / solver%atm%dx) .gt. twostr_ratio)
+            if (any((solver%atm%dz(k, C%xs:C%xe, C%ys:C%ye) / solver%atm%dx) .gt. twostr_ratio)) then
+              solver%atm%l1d(C%zs:k) = .true.
+              exit
+            end if
           end do
         end associate
 
@@ -629,10 +632,11 @@ contains
 
       N1dlayers = count(solver%atm%l1d)
       call imp_allreduce_max(solver%comm, N1dlayers, N1dlayers_max)
-      call CHKERR(int(N1dlayers - N1dlayers_max, mpiint), &
+      call CHKWARN(int(N1dlayers - N1dlayers_max, mpiint), &
         & 'Nr of 1D layers does not match on all ranks'// &
         & ' while the global max(N1D_layers) is'//toStr(N1dlayers_max)// &
         & ' here (rank='//toStr(solver%myid)//') we have N1D_layers='//tostr(N1dlayers))
+      solver%atm%l1d(solver%C_one_atm%zs:solver%C_one_atm%zs + N1dlayers_max) = .true.
 
     end subroutine
 
