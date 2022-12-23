@@ -636,7 +636,7 @@ contains
         & 'Nr of 1D layers does not match on all ranks'// &
         & ' while the global max(N1D_layers) is'//toStr(N1dlayers_max)// &
         & ' here (rank='//toStr(solver%myid)//') we have N1D_layers='//tostr(N1dlayers))
-      solver%atm%l1d(solver%C_one_atm%zs:solver%C_one_atm%zs + N1dlayers_max) = .true.
+      solver%atm%l1d(solver%C_one_atm%zs:solver%C_one_atm%zs + N1dlayers_max - 1) = .true.
 
     end subroutine
 
