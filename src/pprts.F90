@@ -577,6 +577,7 @@ contains
       if (.not. allocated(solver%atm%l1d)) then
         allocate (solver%atm%l1d(solver%C_one_atm%zs:solver%C_one_atm%ze))
       end if
+      solver%atm%l1d = .false.
 
       select type (solver)
       class is (t_solver_2str)
@@ -619,8 +620,8 @@ contains
 
       if (present(collapseindex)) then
         solver%atm%lcollapse = collapseindex .gt. i1
+        solver%atm%icollapse = collapseindex
         if (solver%atm%lcollapse) then
-          solver%atm%icollapse = collapseindex
           ierr = count(.not. solver%atm%l1d(solver%C_one_atm%zs:atmk(solver%atm, solver%C_one%zs)))
           call CHKWARN(ierr, 'Found non 1D layers in an area that will be collapsed.'// &
             & 'This will change the results! '//&
@@ -632,11 +633,13 @@ contains
 
       N1dlayers = count(solver%atm%l1d)
       call imp_allreduce_max(solver%comm, N1dlayers, N1dlayers_max)
-      call CHKWARN(int(N1dlayers - N1dlayers_max, mpiint), &
-        & 'Nr of 1D layers does not match on all ranks'// &
-        & ' while the global max(N1D_layers) is'//toStr(N1dlayers_max)// &
-        & ' here (rank='//toStr(solver%myid)//') we have N1D_layers='//tostr(N1dlayers))
-      solver%atm%l1d(solver%C_one_atm%zs:solver%C_one_atm%zs + N1dlayers_max - 1) = .true.
+      if (N1dlayers_max .gt. 0) then
+        call CHKWARN(int(N1dlayers - N1dlayers_max, mpiint), &
+          & 'Nr of 1D layers does not match on all ranks'// &
+          & ' while the global max(N1D_layers) is'//toStr(N1dlayers_max)// &
+          & ' here (rank='//toStr(solver%myid)//') we have N1D_layers='//tostr(N1dlayers))
+        solver%atm%l1d(solver%C_one_atm%zs:solver%C_one_atm%zs + N1dlayers_max - 1) = .true.
+      end if
 
     end subroutine
 
