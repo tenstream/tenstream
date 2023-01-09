@@ -264,24 +264,36 @@ subroutine intersect_distance_1_2(bmc, vertices, p, max_dist)
     p%loc(1:2) = pA(1:2) ! horizontally move the photon back to the vicinity of the initial vertices (reduces numeric errors)
 
     hit(1) = hit_plane(p%loc, p%dir, pE, cross_3d(pF - pE, pG - pE))
+    !hit(1) = hit_plane(p%loc, p%dir, pE+[0._ireal_dp, 0._ireal_dp, 1e-7_ireal_dp], cross_3d(pF - pE, pG - pE))
     hit(2) = hit_plane(p%loc, p%dir, pA, cross_3d(pC - pA, pB - pA))
-  end associate
 
-  p%side = 0
-  max_dist = huge(max_dist)
-  do i = 1, 2
-    if (hit(i) .lt. zero) cycle
-    if (p%scattercnt .eq. 0 .and. i .eq. p%src_side) cycle
-    if (hit(i) .lt. max_dist) then
-      max_dist = hit(i)
-      p%side = i
-      p%subface = 1
+    p%side = 0
+    max_dist = huge(max_dist)
+    do i = 1, 2
+      if (hit(i) .lt. zero) cycle
+      if (p%scattercnt .eq. 0 .and. i .eq. p%src_side) cycle
+      if (hit(i) .lt. max_dist) then
+        max_dist = hit(i)
+        p%side = i
+        p%subface = 1
+      end if
+    end do
+    if (p%side .eq. 0) then
+      call print_photon(p)
+      print *, 'should actually not be here at the end of crossings in intersect distance!'
+      print *, 'A', pA
+      print *, 'B', pB
+      print *, 'C', pC
+      print *, 'D', pD
+      print *, 'E', pE
+      print *, 'F', pF
+      print *, 'G', pG
+      print *, 'H', pH
+      print *, 'hit1', hit(1)
+      print *, 'hit2', hit(2)
+      call CHKERR(1_mpiint, 'did not hit anything')
     end if
-  end do
-  if (p%side .eq. 0) then
-    call print_photon(p)
-    call CHKERR(1_mpiint, 'did not hit anything')
-  end if
+  end associate
   select type (bmc)
   end select
 end subroutine
