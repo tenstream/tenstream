@@ -238,7 +238,7 @@ contains
     integer(mpiint) :: i, j
     real(ireals), allocatable :: a2d(:, :)
 
-    integer(mpiint), parameter :: N = 10
+    integer(mpiint), parameter :: N = 3
     character(len=default_str_len) :: groups(2)
 
     groups(1) = 'pfunit_hyperslab_test.nc'
@@ -249,13 +249,15 @@ contains
     myid = this%getProcessRank()
 
     allocate (a2d(N, N))
-    do i = 1, N
-      a2d(:, i) = i
+    do j = 1, N
+      do i = 1, N
+        a2d(i, j) = i * N + j
+      end do
     end do
 
     do i = 1, N
       call ncwrite(groups, a2d(i, 1:N), ierr, &
-                   arr_shape=shape(a2d), startp=[1, i], countp=[N])
+                   arr_shape=shape(a2d), startp=[1, i], countp=[N], verbose=.true.)
     end do
 
     deallocate (a2d)
@@ -264,7 +266,7 @@ contains
 
     do j = 1, N
       do i = 1, N
-        @assertEqual(i, a2d(i, j))
+        @assertEqual(i * N + j, a2d(j, i))
       end do
     end do
   end subroutine
