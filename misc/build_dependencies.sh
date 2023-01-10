@@ -44,9 +44,9 @@ printf "Using:\n\
   PETSC_64_INTEGERS   $PETSC_64_INTEGERS \n\
   PETSC_OPTS          $PETSC_OPTS \n\
 
-  C-Compiler:   ${CC}\n\
-  F-Compiler:   ${FC}\n\
-  C++ Compiler: ${CXX}\n\
+  C-Compiler:   ${CC}  ($(which ${CC} ))\n\
+  F-Compiler:   ${FC}  ($(which ${FC} ))\n\
+  C++ Compiler: ${CXX} ($(which ${CXX}))\n\
   \n"
 
 PETSC_URL=https://gitlab.com/petsc/petsc.git
