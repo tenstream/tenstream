@@ -590,9 +590,9 @@ contains
           & opt_solution_uid=ig,      &
           & opt_buildings=spec_buildings)
 
-        opt_buildings%edir = opt_buildings%edir + spec_buildings%edir
-        opt_buildings%incoming = opt_buildings%incoming + spec_buildings%incoming
-        opt_buildings%outgoing = opt_buildings%outgoing + spec_buildings%outgoing
+        opt_buildings%edir = opt_buildings%edir + spec_buildings%edir * edirTOA
+        opt_buildings%incoming = opt_buildings%incoming + spec_buildings%incoming * edirTOA
+        opt_buildings%outgoing = opt_buildings%outgoing + spec_buildings%outgoing * edirTOA
 
       else
 
