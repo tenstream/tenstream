@@ -78,7 +78,7 @@ PETSC_OPTIONS="\
 cd $PETSC_DIR
 COPT="$PETSC_OPTIONS PETSC_DIR=$(pwd)"
 echo "Running configure with: $COPT"
-./configure $COPT
+./configure $COPT || (cat configure.log; exit 1)
 make
 
 
