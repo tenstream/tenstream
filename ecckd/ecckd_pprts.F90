@@ -125,12 +125,12 @@ contains
     type(t_pprts_buildings), intent(inout), optional :: opt_buildings_solar
     type(t_pprts_buildings), intent(inout), optional :: opt_buildings_thermal
 
-    ! optional optical properties with dims(nlyr(srfc to TOA), local_nx, local_ny, nr-g-points)
+    ! optional optical properties with dims(nlyr(srfc to TOA), local_nx, local_ny)
     ! used e.g. for aerosol or vegetation, you can provide only tau or (tau and w0) defaults to w0=0 and g=0
     ! note that first dimension can also be smaller than nlyr, we will fill it up from the ground,
     ! i.e. if you provide only two layers, the two lowermost layers near the surface will be filled with addition optprops
-    real(ireals), intent(in), optional, dimension(:, :, :, :) :: opt_tau_solar, opt_w0_solar, opt_g_solar
-    real(ireals), intent(in), optional, dimension(:, :, :, :) :: opt_tau_thermal
+    real(ireals), intent(in), optional, dimension(:, :, :) :: opt_tau_solar, opt_w0_solar, opt_g_solar
+    real(ireals), intent(in), optional, dimension(:, :, :) :: opt_tau_thermal
 
     ! Fluxes and absorption in [W/m2] and [W/m3] respectively.
     ! Dimensions will probably be bigger than the dynamics grid, i.e. will have
@@ -298,7 +298,7 @@ contains
 
     real(ireals), optional, intent(in) :: opt_time, thermal_albedo_2d(:, :)
     type(t_pprts_buildings), intent(inout), optional :: opt_buildings
-    real(ireals), intent(in), optional, dimension(:, :, :, :) :: opt_tau
+    real(ireals), intent(in), optional, dimension(:, :, :) :: opt_tau
 
     integer(iintegers) :: ig, i, j, k, icol, ke, ke1
     integer(mpiint) :: myid
@@ -316,8 +316,6 @@ contains
 
     ierr = 0
     call mpi_comm_rank(comm, myid, ierr)
-
-    if (present(opt_tau)) call CHKERR(1_mpiint, 'opt_tau not yet implemented for ecckd_thermal')
 
     ke1 = ubound(atm%plev, 1)
     ke = ubound(atm%tlay, 1)
@@ -405,6 +403,8 @@ contains
         end do
       end if
 
+      call add_optional_optprop(solver%atm%dz, kabs=kabs, opt_tau=opt_tau)
+
       call PetscLogEventEnd(ecckd_log_events%ecckd_optprop, ierr); call CHKERR(ierr)
 
       call set_optical_properties( &
@@ -490,7 +490,7 @@ contains
     real(ireals), optional, intent(in) :: opt_time, solar_albedo_2d(:, :)
     real(ireals), intent(in), optional :: opt_solar_constant
     type(t_pprts_buildings), intent(inout), optional :: opt_buildings
-    real(ireals), intent(in), optional, dimension(:, :, :, :) :: opt_tau, opt_w0, opt_g
+    real(ireals), intent(in), optional, dimension(:, :, :) :: opt_tau, opt_w0, opt_g
 
     real(ireals) :: edirTOA
 
@@ -508,10 +508,6 @@ contains
 
     ierr = 0
     call mpi_comm_rank(comm, myid, ierr)
-
-    if (present(opt_tau)) call CHKERR(1_mpiint, 'opt_tau not yet implemented for ecckd_solar')
-    if (present(opt_w0)) call CHKERR(1_mpiint, 'opt_w0 not yet implemented for ecckd_solar')
-    if (present(opt_g)) call CHKERR(1_mpiint, 'opt_g not yet implemented for ecckd_solar')
 
     ke = ubound(atm%tlay, 1)
 
@@ -559,7 +555,7 @@ contains
         end do
       end do
 
-      !call add_optional_optprop(tau, w0, g, opt_tau, opt_w0, opt_g)
+      call add_optional_optprop(solver%atm%dz, kabs, ksca, kg, opt_tau, opt_w0, opt_g)
       call PetscLogEventEnd(ecckd_log_events%ecckd_optprop, ierr); call CHKERR(ierr)
 
       edirTOA = ecckd_data_solar%solar_irradiance(ig)
@@ -579,7 +575,7 @@ contains
         & solver,                &
         & lthermal=.false.,      &
         & lsolar=.true.,         &
-        & edirTOA=edirTOA,       &
+        & edirTOA=1._ireals,     &
         & opt_solution_uid=ig, &
         & opt_solution_time=opt_time,&
         & opt_buildings=spec_buildings)
@@ -594,9 +590,9 @@ contains
           & opt_solution_uid=ig,      &
           & opt_buildings=spec_buildings)
 
-        opt_buildings%edir = opt_buildings%edir + spec_buildings%edir
-        opt_buildings%incoming = opt_buildings%incoming + spec_buildings%incoming
-        opt_buildings%outgoing = opt_buildings%outgoing + spec_buildings%outgoing
+        opt_buildings%edir = opt_buildings%edir + spec_buildings%edir * edirTOA
+        opt_buildings%incoming = opt_buildings%incoming + spec_buildings%incoming * edirTOA
+        opt_buildings%outgoing = opt_buildings%outgoing + spec_buildings%outgoing * edirTOA
 
       else
 
@@ -610,10 +606,10 @@ contains
 
       end if
 
-      edir = edir + spec_edir
-      edn = edn + spec_edn
-      eup = eup + spec_eup
-      abso = abso + spec_abso
+      edir = edir + spec_edir * edirTOA
+      edn = edn + spec_edn * edirTOA
+      eup = eup + spec_eup * edirTOA
+      abso = abso + spec_abso * edirTOA
     end do !ig
 
     if (present(opt_buildings)) then
@@ -703,4 +699,97 @@ contains
 
   end subroutine
 
+  subroutine add_optional_optprop(dz, kabs, ksca, g, opt_tau, opt_w0, opt_g)
+    real(ireals), intent(in), dimension(:, :, :) :: dz
+    real(ireals), intent(inout), optional, dimension(:, :, :) :: kabs, ksca, g
+    real(ireals), intent(in), optional, dimension(:, :, :) :: opt_tau, opt_w0, opt_g
+
+    real(ireals) :: tausca_old, tausca_new, tau, w0
+    integer(iintegers) :: k_r, k, i, j
+
+    call check_shape('tau', kabs, opt_tau)
+    call check_shape('w0', ksca, opt_w0)
+    call check_shape('g', g, opt_g)
+
+    if (present(opt_g) .and. .not. present(opt_w0)) call CHKERR(1_mpiint, 'if opt_g is provided, need also opt_w0')
+    if ((present(opt_w0) .or. present(opt_g)) .and. .not. present(opt_tau)) &
+      & call CHKERR(1_mpiint, 'if opt_g or opt_w0 is provided, need also opt_tau')
+
+    if (present(opt_g)) then
+      if (.not. all([present(kabs), present(ksca), present(g)])) &
+        & call CHKERR(1_mpiint, 'if opt_g is provided, need to have kabs, ksca, and g in call to add_optional_optprop')
+      do j = 1, size(opt_tau, 3)
+        do i = 1, size(opt_tau, 2)
+          do k = 1, size(opt_tau, 1)
+            k_r = size(kabs, 1) - k + 1
+            tausca_old = ksca(k_r, i, j) * dz(k_r, i, j)
+            tausca_new = opt_tau(k, i, j) * opt_w0(k, i, j)
+            g(k_r, i, j) = (g(k_r, i, j) * tausca_old + opt_g(k, i, j) * tausca_new) / (tausca_old + tausca_new)
+            tau = (kabs(k_r, i, j) + ksca(k_r, i, j)) * dz(k_r, i, j) + opt_tau(k, i, j)
+            w0 = (tausca_old + tausca_new) / tau
+            kabs(k_r, i, j) = tau * (1.-w0) / dz(k_r, i, j)
+            ksca(k_r, i, j) = tau * w0 / dz(k_r, i, j)
+          end do
+        end do
+      end do
+    elseif (present(opt_w0)) then
+      if (.not. all([present(kabs), present(ksca)])) &
+        & call CHKERR(1_mpiint, 'if opt_w0 is provided, need to have kabs, ksca in call to add_optional_optprop')
+      do j = 1, size(opt_tau, 3)
+        do i = 1, size(opt_tau, 2)
+          do k = 1, size(opt_tau, 1)
+            k_r = size(kabs, 1) - k + 1
+            tausca_old = ksca(k_r, i, j) * dz(k_r, i, j)
+            tausca_new = opt_tau(k, i, j) * opt_w0(k, i, j)
+            g(k_r, i, j) = g(k_r, i, j) * tausca_old / (tausca_old + tausca_new)
+            tau = (kabs(k_r, i, j) + ksca(k_r, i, j)) * dz(k_r, i, j) + opt_tau(k, i, j)
+            w0 = (tausca_old + tausca_new) / tau
+            kabs(k_r, i, j) = tau * (1.-w0) / dz(k_r, i, j)
+            ksca(k_r, i, j) = tau * w0 / dz(k_r, i, j)
+          end do
+        end do
+      end do
+    elseif (present(opt_tau)) then
+      if (any([present(ksca), present(g)])) &
+        & call CHKERR(1_mpiint, 'if only opt_tau is provided, only kabs can be in call to add_optional_optprop')
+      do j = 1, size(opt_tau, 3)
+        do i = 1, size(opt_tau, 2)
+          do k = 1, size(opt_tau, 1)
+            k_r = size(kabs, 1) - k + 1
+            kabs(k_r, i, j) = kabs(k_r, i, j) + opt_tau(k, i, j) / dz(k_r, i, j)
+          end do
+        end do
+      end do
+    end if
+
+  contains
+    subroutine check_shape(varname, var, opt_var)
+      character(len=*), intent(in) :: varname
+      real(ireals), intent(in), optional, dimension(:, :, :) :: var
+      real(ireals), intent(in), optional, dimension(:, :, :) :: opt_var
+      integer :: i
+
+      if (.not. present(opt_var)) return
+
+      if (present(var) .neqv. present(opt_var)) &
+        & call CHKERR(-1_mpiint, trim(varname)//' / opt_'//trim(varname)//&
+          & ' :: cannot have one argument, need both or none '// &
+          & '('//toStr(present(var))//'/'//toStr(present(opt_var))//')')
+
+      if (size(opt_var, 1) .gt. size(var, 1)) then
+        call CHKERR(1_mpiint, trim(varname)//" :: first dimension (nlyr) of opt_var "// &
+          & " cannot be larger than the target array. "//new_line('')// &
+          & " shape(var)    "//toStr(shape(var))//new_line('')// &
+          & " shape(opt_var)"//toStr(shape(opt_var)))
+      end if
+      do i = 2, 3
+        if (size(opt_var, i) .gt. size(var, i)) then
+          call CHKERR(1_mpiint, trim(varname)//" :: dimension "//toStr(i)//" of opt_var "// &
+            & " has to be same as the target array. "//new_line('')// &
+            & " shape(var)    "//toStr(shape(var))//new_line('')// &
+            & " shape(opt_var)"//toStr(shape(opt_var)))
+        end if
+      end do
+    end subroutine
+  end subroutine
 end module

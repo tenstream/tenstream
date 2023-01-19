@@ -40,6 +40,7 @@ module m_pprts_base
     & set_dmda_cell_coordinates, &
     & setup_incSolar, &
     & setup_log_events, &
+    & solver_to_str, &
     & t_atmosphere, &
     & t_coord, &
     & t_dof, &
@@ -58,8 +59,8 @@ module m_pprts_base
     & t_solver_8_18, &
     & t_solver_disort, &
     & t_solver_log_events, &
-    & t_solver_rayli, &
     & t_solver_mcdmda, &
+    & t_solver_rayli, &
     & t_state_container, &
     & t_suninfo
 
@@ -163,6 +164,7 @@ module m_pprts_base
     PetscLogEvent :: compute_orientation
     PetscLogEvent :: orient_face_normals
     PetscLogEvent :: debug_output
+    PetscLogEvent :: setup_initial_guess
   end type
 
   type t_pprts_shell_ctx
@@ -348,7 +350,7 @@ contains
     call PetscLogEventRegister(trim(s)//'comp_Ediff', cid, logs%compute_Ediff, ierr); call CHKERR(ierr)
     call PetscLogEventRegister(trim(s)//'solve_Mdiff', cid, logs%solve_Mdiff, ierr); call CHKERR(ierr)
     call PetscLogEventRegister(trim(s)//'setup_Mdiff', cid, logs%setup_Mdiff, ierr); call CHKERR(ierr)
-    call PetscLogEventRegister(trim(s)//'compute_absorption', cid, logs%compute_absorption, ierr); call CHKERR(ierr)
+    call PetscLogEventRegister(trim(s)//'comp_abso', cid, logs%compute_absorption, ierr); call CHKERR(ierr)
 
     call PetscLogEventRegister(trim(s)//'solve_twostr', cid, logs%solve_twostream, ierr); call CHKERR(ierr)
     call PetscLogEventRegister(trim(s)//'solve_schwarz', cid, logs%solve_schwarzschild, ierr); call CHKERR(ierr)
@@ -366,11 +368,12 @@ contains
     call PetscLogEventRegister(trim(s)//'compute_orientation', cid, logs%compute_orientation, ierr); call CHKERR(ierr)
     call PetscLogEventRegister(trim(s)//'orient_face_normals', cid, logs%orient_face_normals, ierr); call CHKERR(ierr)
     call PetscLogEventRegister(trim(s)//'debug_output', cid, logs%debug_output, ierr); call CHKERR(ierr)
+    call PetscLogEventRegister(trim(s)//'setup_initial_guess', cid, logs%setup_initial_guess, ierr); call CHKERR(ierr)
   end subroutine
 
   subroutine allocate_pprts_solver_from_commandline(pprts_solver, default_solver, ierr, prefix)
     class(t_solver), intent(inout), allocatable :: pprts_solver
-    character(len=*), intent(in), optional :: default_solver
+    character(len=*), intent(in) :: default_solver
     integer(mpiint), intent(out) :: ierr
     character(len=*), intent(in), optional :: prefix
 
@@ -448,6 +451,56 @@ contains
 
     pprts_solver%prefix = pref
   end subroutine
+
+  function solver_to_str(solver) result(s)
+    character(len=default_str_len) :: s
+    class(t_solver), intent(in) :: solver
+
+    select type (solver)
+    type is (t_solver_2str)
+      s = '2str'
+
+    type is (t_solver_disort)
+      s = 'disort'
+
+    type is (t_solver_rayli)
+      s = 'rayli'
+
+    type is (t_solver_mcdmda)
+      s = 'mcdmda'
+
+    type is (t_solver_1_2)
+      s = '1_2'
+
+    type is (t_solver_3_6)
+      s = '3_6'
+
+    type is (t_solver_3_10)
+      s = '3_10'
+
+    type is (t_solver_8_10)
+      s = '8_10'
+
+    type is (t_solver_3_16)
+      s = '3_16'
+
+    type is (t_solver_3_24)
+      s = '3_24'
+
+    type is (t_solver_3_30)
+      s = '3_30'
+
+    type is (t_solver_8_16)
+      s = '8_16'
+
+    type is (t_solver_8_18)
+      s = '8_18'
+
+    class default
+      s = 'NaN'
+      call CHKERR(1_mpiint, 'could not determine description str for solver')
+    end select
+  end function
 
   subroutine destroy_coord(C)
     type(t_coord), allocatable, intent(inout) :: C

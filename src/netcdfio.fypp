@@ -49,6 +49,7 @@ module m_netcdfIO
 
 !  integer :: v=11
   integer, parameter :: default_deflate_lvl = 1
+  integer, parameter :: default_chunksize = nf90_sizehint_default
 !  real(ireals),parameter :: maxwait=600 !in seconds
 !  real(ireals),parameter :: waitinterval=.01 ! amount of cpu time to wait before trying anew in seconds
 !  integer :: iwait
@@ -194,21 +195,23 @@ contains
   end subroutine
 
 ! NCWRITE templates
-  #:for method,dtype in [ &
-    ('integer', 'INT32') , &
-    ('integer', 'INT64') , &
-    ('real'   , 'REAL32'), &
-    ('real'   , 'REAL64')]
+  #:for method,dtype,ncdtype in [ &
+    ('integer', 'INT32' , 'NF90_INT') , &
+    ('integer', 'INT64' , 'NF90_INT') , &
+    ('real'   , 'REAL32', 'NF90_FLOAT'), &
+    ('real'   , 'REAL64', 'NF90_DOUBLE')]
     #:set dKIND = '' if method == 'logical' else '('+dtype+')'
     #:for RANK in range(1, 8)
-      subroutine ncwrite_${method}$_${dtype}$_${RANK}$d &
-        (groups, arr, ierr, arr_shape, startp, countp, stride, map, dimnames, deflate_lvl, verbose)
+      subroutine ncwrite_${method}$_${dtype}$_${RANK}$d( &
+        & groups, arr, ierr, arr_shape, &
+        & startp, countp, stride, map, dimnames, &
+        & deflate_lvl, chunksizes, verbose)
 
         character(len=*), intent(in) :: groups(:)
         ${method}$${dKIND}$, intent(in) :: arr${ranksuffix(RANK)}$
         integer, intent(in), optional :: arr_shape(:), startp(:), countp(:), stride(:), map(:)
         character(len=*), intent(in), optional :: dimnames(:)
-        integer, intent(in), optional :: deflate_lvl
+        integer, intent(in), optional :: deflate_lvl, chunksizes(:)
         logical, intent(in), optional :: verbose
 
         character(len=default_str_len) :: fname, varname
@@ -221,6 +224,8 @@ contains
 
         integer(mpiint), intent(out) :: ierr
         integer(mpiint) :: ncerr, flock_unit
+
+        integer, allocatable :: chunks(:)
 
         lverbose = get_arg(ldebug, verbose)
         fname = trim(groups(1))
@@ -243,11 +248,18 @@ contains
           Ndims = size(shape(arr))
         end if
         allocate (dims(Ndims))
+        allocate (chunks(Ndims))
 
         if (present(arr_shape)) then
           dims = arr_shape
         else
           dims = shape(arr)
+        end if
+
+        if (present(chunksizes)) then
+          chunks = chunksizes
+        else
+          chunks = default_chunksize
         end if
 
         allocate (dim_ids(Ndims))
@@ -298,14 +310,24 @@ contains
         if (lverbose) print *, 'Check if variable exists', ncerr, '::', var_exists
 
         if (.not. var_exists) then !Otherwise create it
-          if (lverbose) print *, 'Create variable '//toStr(varid)
+          if (lverbose) print *, &
+            & 'Create variable '//toStr(varid), '::', &
+            & 'ncid', ncid, &
+            & 'varname ', trim(varname), &
+            & 'netcdf data type', ${ncdtype}$, &
+            & 'dim_ids', dim_ids, &
+            & 'deflate_level', get_arg(default_deflate_lvl, deflate_lvl), &
+            & 'chunksizes', chunks
+
           ncerr = nf90_def_var( &
             & ncid, &
             & varname, &
-            & NF90_FLOAT, &
+            & ${ncdtype}$, &
             & dim_ids, &
             & varid, &
-            & deflate_level=get_arg(default_deflate_lvl, deflate_lvl)); call nccheck(ncerr)
+            & deflate_level=get_arg(default_deflate_lvl, deflate_lvl), &
+            & chunksizes=chunks &
+            & ); call nccheck(ncerr)
           ierr = ierr + ncerr
           call CHKWARN(ncerr, 'Could not create new variable '//trim(varname)//' varid: '//toStr(varid))
         end if

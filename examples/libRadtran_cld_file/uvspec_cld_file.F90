@@ -26,7 +26,7 @@ module m_example_uvspec_cld_file
     & resize_arr, &
     & reverse, &
     & spherical_2_cartesian
-  use m_netcdfio, only: ncload, ncwrite, get_global_attribute, set_attribute
+  use m_netcdfio, only: ncload, ncwrite, get_global_attribute, set_global_attribute, set_attribute
 
   use m_petsc_helpers, only: getvecpointer, restorevecpointer
 
@@ -178,6 +178,12 @@ contains
         call gather_all_toZero(C1, eup, geup)
         call gather_all_toZero(C, abso, gabso)
         if (myid .eq. 0) then
+
+          call set_global_attribute(groups(1), 'theta', pprts_solver%sun%theta, ierr); call CHKERR(ierr)
+          call set_global_attribute(groups(1), 'phi', pprts_solver%sun%phi, ierr); call CHKERR(ierr)
+          call set_global_attribute(groups(1), 'dx', pprts_solver%atm%dx, ierr); call CHKERR(ierr)
+          call set_global_attribute(groups(1), 'dy', pprts_solver%atm%dy, ierr); call CHKERR(ierr)
+
           print *, 'dumping edn radiation with local and global shape', shape(edn), ':', shape(gedn)
           groups(2) = 'edn'; call ncwrite(groups, gedn, ierr, dimnames=dimnames); call CHKERR(ierr)
           call set_attribute(groups(1), 'edn', 'units', 'W/m2', ierr); call CHKERR(ierr)
@@ -254,6 +260,7 @@ contains
             call set_attribute(groups(1), 'edn_spectral', 'units', 'W/m2/band', ierr); call CHKERR(ierr)
             groups(2) = 'eup_spectral'; call ncwrite(groups, geup_s, ierr, dimnames=dimnames); call CHKERR(ierr)
             call set_attribute(groups(1), 'eup_spectral', 'units', 'W/m2/band', ierr); call CHKERR(ierr)
+            dimnames(1) = 'zlay'
             groups(2) = 'abso_spectral'; call ncwrite(groups, gabso_s, ierr, dimnames=dimnames); call CHKERR(ierr)
             call set_attribute(groups(1), 'abso_spectral', 'units', 'W/m3/band', ierr); call CHKERR(ierr)
           end if

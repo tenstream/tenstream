@@ -4,16 +4,22 @@ program main
   use mpi, only: MPI_COMM_WORLD
 
   use m_data_parameters, only: &
-    & iintegers, mpiint, ireals, default_str_len, &
-    & init_mpi_data_parameters, finalize_mpi
-  use m_examples_pprts_rrtmg_tree, only: ex_pprts_rrtmg_tree
+    & default_str_len, &
+    & finalize_mpi, &
+    & iintegers, &
+    & init_mpi_data_parameters, &
+    & ireals, &
+    & mpiint, &
+    & share_dir
+
+  use m_examples_pprts_specint_tree, only: ex_pprts_specint_tree
   use m_helper_functions, only: CHKERR, toStr, get_petsc_opt
   use m_netcdfio, only: ncwrite
   use m_tenstream_options, only: read_commandline_options
 
   implicit none
 
-  character(len=default_str_len) :: outfile, atm_filename
+  character(len=default_str_len) :: outfile, atm_filename, specint
   integer(iintegers) :: Nx, Ny, Nlay, icollapse, Ntree_height
   real(ireals) :: dx, dy
   real(ireals) :: phi0, theta0
@@ -21,7 +27,7 @@ program main
   real(ireals), allocatable, dimension(:, :, :) :: gedir, gedn, geup, gabso ! global arrays on rank 0
 
   character(len=10*default_str_len) :: rayli_options
-  character(len=default_str_len) :: groups(2)
+  character(len=default_str_len) :: groups(2), dimnames(3)
   logical :: lflg, lverbose, lrayli_opts, lsolar, lthermal, lfile_exists, lhave_outfile, luse_usgs_db
   integer(mpiint) :: comm, myid, ierr
 
@@ -30,7 +36,10 @@ program main
   call init_mpi_data_parameters(comm)
   call read_commandline_options(comm)
 
-  atm_filename = 'afglus_100m.dat'
+  specint = 'no_default_set'
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-specint", specint, lflg, ierr); call CHKERR(ierr)
+
+  atm_filename = share_dir//'tenstream_default.atm'
   call get_petsc_opt(PETSC_NULL_CHARACTER, '-atm', &
     & atm_filename, lflg, ierr); call CHKERR(ierr)
   inquire (file=trim(atm_filename), exist=lfile_exists)
@@ -108,7 +117,8 @@ program main
     call PetscOptionsInsertString(PETSC_NULL_OPTIONS, trim(rayli_options), ierr); call CHKERR(ierr)
   end if
 
-  call ex_pprts_rrtmg_tree(     &
+  call ex_pprts_specint_tree(   &
+    & specint,                  &
     & comm, lverbose,           &
     & lthermal, lsolar,         &
     & Nx, Ny, Nlay,             &
@@ -126,12 +136,14 @@ program main
 
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
     if (myid .eq. 0_mpiint) then
+      dimnames = [character(len=default_str_len) :: 'zlev', 'x', 'y']
       if (lsolar) then
-        groups(2) = 'edir'; call ncwrite(groups, gedir, ierr); call CHKERR(ierr)
+        groups(2) = 'edir'; call ncwrite(groups, gedir, ierr, dimnames=dimnames); call CHKERR(ierr)
       end if
-      groups(2) = 'edn'; call ncwrite(groups, gedn, ierr); call CHKERR(ierr)
-      groups(2) = 'eup'; call ncwrite(groups, geup, ierr); call CHKERR(ierr)
-      groups(2) = 'abso'; call ncwrite(groups, gabso, ierr); call CHKERR(ierr)
+      groups(2) = 'edn'; call ncwrite(groups, gedn, ierr, dimnames=dimnames); call CHKERR(ierr)
+      groups(2) = 'eup'; call ncwrite(groups, geup, ierr, dimnames=dimnames); call CHKERR(ierr)
+      dimnames = [character(len=default_str_len) :: 'zlay', 'x', 'y']
+      groups(2) = 'abso'; call ncwrite(groups, gabso, ierr, dimnames=dimnames); call CHKERR(ierr)
     end if
   end if
 

@@ -44,9 +44,9 @@ printf "Using:\n\
   PETSC_64_INTEGERS   $PETSC_64_INTEGERS \n\
   PETSC_OPTS          $PETSC_OPTS \n\
 
-  C-Compiler:   ${CC}\n\
-  F-Compiler:   ${FC}\n\
-  C++ Compiler: ${CXX}\n\
+  C-Compiler:   ${CC}  ($(which ${CC} ))\n\
+  F-Compiler:   ${FC}  ($(which ${FC} ))\n\
+  C++ Compiler: ${CXX} ($(which ${CXX}))\n\
   \n"
 
 PETSC_URL=https://gitlab.com/petsc/petsc.git
@@ -63,9 +63,9 @@ PETSC_OPTIONS="\
   --with-cc=${CC} \
   --with-cxx=${CXX} \
   --with-fc=${FC} \
-  --CFLAGS=-g \
-  --CXXFLAGS=-g \
-  --FFLAGS=-g \
+  --CFLAGS= \
+  --CXXFLAGS= \
+  --FFLAGS= \
   --COPTFLAGS=-O3 \
   --CXXOPTFLAGS=-O3 \
   --FOPTFLAGS=-O3 \
@@ -78,7 +78,7 @@ PETSC_OPTIONS="\
 cd $PETSC_DIR
 COPT="$PETSC_OPTIONS PETSC_DIR=$(pwd)"
 echo "Running configure with: $COPT"
-./configure $COPT
+./configure $COPT || (cat configure.log; exit 1)
 make
 
 

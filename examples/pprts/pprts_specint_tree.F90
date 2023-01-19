@@ -1,5 +1,5 @@
-module m_examples_pprts_rrtmg_tree
-  ! Example to compute with additional, optional optical properties with rrtmg.
+module m_examples_pprts_specint_tree
+  ! Example to compute with additional, optional optical properties with specint.
   ! This allows to add other species with custom optical properties to scenes.
   ! For example necessary for aerosols or in this case vegetation.
   ! The optical properties will given from the vegetation module,
@@ -32,22 +32,10 @@ module m_examples_pprts_rrtmg_tree
   use m_pprts, only: gather_all_to_all
 
   ! main entry point for solver, and desctructor
-  use m_pprts_rrtmg, only: pprts_rrtmg, destroy_pprts_rrtmg
+  use m_specint_pprts, only: specint_pprts, specint_pprts_destroy
 
   ! tenstr_atm holds info about tracer and merges dynamics grid vars with background grids
   use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, destroy_tenstr_atm
-
-  use m_tenstr_parrrtm, only: ngptlw
-  use m_tenstr_rrlw_wvn, only: &
-    & ngb_lw => ngb, &
-    & wavenum1_lw => wavenum1, &
-    & wavenum2_lw => wavenum2
-
-  use m_tenstr_parrrsw, only: ngptsw
-  use m_tenstr_rrsw_wvn, only: &
-    & ngb_sw => ngb, &
-    & wavenum1_sw => wavenum1, &
-    & wavenum2_sw => wavenum2
 
   use m_vegetation_optprop, only: &
     & init_vegetation_types_simple, &
@@ -58,7 +46,8 @@ module m_examples_pprts_rrtmg_tree
   implicit none
 
 contains
-  subroutine ex_pprts_rrtmg_tree(  &
+  subroutine ex_pprts_specint_tree(         &
+      & specint,                            &
       & comm, lverbose,                     &
       & lthermal, lsolar,                   &
       & Nx, Ny, Nlay,                       &
@@ -72,6 +61,7 @@ contains
       & local_dims, icollapse               &
       & )
 
+    character(len=*), intent(in) :: specint           ! name of module to use for spectral integration
     integer(mpiint), intent(in) :: comm
     logical, intent(in) :: lverbose, lthermal, lsolar
     integer(iintegers), intent(in) :: Nx, Ny, Nlay   ! global domain size
@@ -94,7 +84,7 @@ contains
     real(ireals), allocatable, dimension(:, :, :), target :: plev ! pressure on layer interfaces [hPa]
     real(ireals), allocatable, dimension(:, :, :), target :: tlev ! Temperature on layer interfaces [K]
 
-    real(ireals), allocatable, dimension(:, :, :, :) :: tree_tau_solar, tree_w0_solar, tree_tau_thermal
+    real(ireals), allocatable, dimension(:, :, :) :: tree_tau_solar, tree_w0_solar, tree_tau_thermal
 
     ! reshape pointer to convert i,j vecs to column vecs
     real(ireals), pointer, dimension(:, :) :: pplev, ptlev
@@ -138,7 +128,9 @@ contains
       & atm)
 
     ! only init grid structures
-    call pprts_rrtmg(comm,     &
+    call specint_pprts(        &
+      & specint,               &
+      & comm,                  &
       & solver, atm,           &
       & nxp, nyp, dx, dy,      &
       & sundir,                &
@@ -160,19 +152,21 @@ contains
     end if
 
     ! call solver
-    call pprts_rrtmg(comm,                                 &
-      & solver, atm,                                       &
-      & nxp, nyp, dx, dy,                                  &
-      & sundir,                                            &
-      & Ag_thermal, Ag_solar,                              &
-      & lthermal, lsolar,                                  &
-      & edir, edn, eup, abso,                              &
-      & icollapse=get_arg(1_iintegers, icollapse), &
-      & nxproc=nxproc,                          &
-      & nyproc=nyproc,                          &
-      & opt_tau_solar=tree_tau_solar,                  &
-      & opt_w0_solar=tree_w0_solar,                   &
-      & opt_tau_thermal=tree_tau_thermal                 &
+    call specint_pprts(                             &
+      & specint,                                    &
+      & comm,                                       &
+      & solver, atm,                                &
+      & nxp, nyp, dx, dy,                           &
+      & sundir,                                     &
+      & Ag_thermal, Ag_solar,                       &
+      & lthermal, lsolar,                           &
+      & edir, edn, eup, abso,                       &
+      & icollapse=get_arg(1_iintegers, icollapse),  &
+      & nxproc=nxproc,                              &
+      & nyproc=nyproc,                              &
+      & opt_tau_solar=tree_tau_solar,               &
+      & opt_w0_solar=tree_w0_solar,                 &
+      & opt_tau_thermal=tree_tau_thermal            &
       & )
 
     if (allocated(edir)) &
@@ -182,7 +176,7 @@ contains
     call gather_all_to_all(solver%C_one, abso, gabso)
 
     ! Tidy up
-    call destroy_pprts_rrtmg(solver, lfinalizepetsc=.true.)
+    call specint_pprts_destroy(specint, solver, lfinalizepetsc=.true., ierr=ierr)
     call destroy_tenstr_atm(atm)
 
   contains
@@ -195,7 +189,6 @@ contains
       integer(iintegers) :: center(3) ! global indices (i,j), of center box of domain, and (3) the vertical center of the leaves
       integer(iintegers) :: i, j, k, vid
       integer(iintegers) :: li, lj, lk
-      integer(iintegers) :: ib
       real(ireals) :: radius, albedo, lambda_start, lambda_end
       real(ireals) :: LAI ! leaf area index
       real(ireals), parameter :: LAI_leaf = 1, LAI_bark = .1_ireals
@@ -218,9 +211,9 @@ contains
 
       associate (C1 => solver%C_one)
         allocate ( &
-          & tree_tau_solar(Ntree_height, C1%xm, C1%ym, ngptsw), &
-          & tree_w0_solar(Ntree_height, C1%xm, C1%ym, ngptsw), &
-          & tree_tau_thermal(Ntree_height, C1%xm, C1%ym, ngptlw), &
+          & tree_tau_solar(Ntree_height, C1%xm, C1%ym), &
+          & tree_w0_solar(Ntree_height, C1%xm, C1%ym), &
+          & tree_tau_thermal(Ntree_height, C1%xm, C1%ym), &
           & source=0._ireals)
 
         center(1) = int(real(C1%glob_xm + 1) / 2.) ! midpoint of domain
@@ -228,98 +221,94 @@ contains
         center(3) = C1%glob_zm - Ntree_height + 1
 
         ! Solar wavelengths
-        do ib = 1, ngptsw
-          lambda_start = 1e-2_ireals / real(wavenum2_sw(ngb_sw(ib)), ireals)
-          lambda_end = 1e-2_ireals / real(wavenum1_sw(ngb_sw(ib)), ireals)
+        lambda_start = 450
+        lambda_end = 1200
 
-          ! trunk
-          i = center(1)
-          j = center(2)
-          do k = C1%glob_zm - Ntree_height + 1, C1%glob_zm ! lowermost layer
-            if (have_box(k, i, j)) then
-              li = i - solver%C_one%xs ! local Fortran index
-              lj = j - solver%C_one%ys ! local Fortran index
-              lk = C1%glob_zm - k + 1 ! local Fortran index starting at bot
+        ! trunk
+        i = center(1)
+        j = center(2)
+        do k = C1%glob_zm - Ntree_height + 1, C1%glob_zm ! lowermost layer
+          if (have_box(k, i, j)) then
+            li = i - solver%C_one%xs ! local Fortran index
+            lj = j - solver%C_one%ys ! local Fortran index
+            lk = C1%glob_zm - k + 1 ! local Fortran index starting at bot
 
-              if (luse_usgs_db) then
-                vid = get_veg_type_id('WhitebarkPine YNP-WB-1 frst AVIRISb RTGC')
-              else
-                vid = get_veg_type_id('bark')
-              end if
-              LAI = LAI_bark
-              albedo = get_albedo_for_range(vid, lambda_start, lambda_end)
-
-              tree_w0_solar(lk, li, lj, ib) = albedo
-              tree_tau_solar(lk, li, lj, ib) = LAI
+            if (luse_usgs_db) then
+              vid = get_veg_type_id('WhitebarkPine YNP-WB-1 frst AVIRISb RTGC')
+            else
+              vid = get_veg_type_id('bark')
             end if
-          end do
+            LAI = LAI_bark
+            albedo = get_albedo_for_range(vid, lambda_start, lambda_end)
 
-          ! canopy
+            tree_w0_solar(lk, li, lj) = albedo
+            tree_tau_solar(lk, li, lj) = LAI
+          end if
+        end do
 
-          do j = center(2) - Ntree_height / 2, center(2) + Ntree_height / 2
-            do i = center(1) - Ntree_height / 2, center(1) + Ntree_height / 2
-              do k = C1%glob_zm - Ntree_height, C1%glob_zm
-                radius = sqrt(real(i - center(1))**2 + real(j - center(2))**2 + 4 * real(k - center(3))**2)
-                if (radius .le. real(Ntree_height, ireals) / 3._ireals .and. have_box(k, i, j)) then
-                  li = i - solver%C_one%xs
-                  lj = j - solver%C_one%ys
-                  lk = C1%glob_zm - k + 1
+        ! canopy
 
-                  if (luse_usgs_db) then
-                    vid = get_veg_type_id('Oak Oak-Leaf-1 fresh         ASDFRa AREF')
-                  else
-                    vid = get_veg_type_id('leaf')
-                  end if
-                  LAI = LAI_leaf
-                  albedo = get_albedo_for_range(vid, lambda_start, lambda_end)
+        do j = center(2) - Ntree_height / 2, center(2) + Ntree_height / 2
+          do i = center(1) - Ntree_height / 2, center(1) + Ntree_height / 2
+            do k = C1%glob_zm - Ntree_height, C1%glob_zm
+              radius = sqrt(real(i - center(1))**2 + real(j - center(2))**2 + 4 * real(k - center(3))**2)
+              if (radius .le. real(Ntree_height, ireals) / 3._ireals .and. have_box(k, i, j)) then
+                li = i - solver%C_one%xs
+                lj = j - solver%C_one%ys
+                lk = C1%glob_zm - k + 1
 
-                  ! mixing bark and leaf albedi
-                  tree_w0_solar(lk, li, lj, ib) = &
-                    & (albedo * LAI + tree_w0_solar(lk, li, lj, ib) * tree_tau_solar(lk, li, lj, ib)) &
-                    & / (LAI + tree_tau_solar(lk, li, lj, ib))
-
-                  tree_tau_solar(lk, li, lj, ib) = tree_tau_solar(lk, li, lj, ib) + LAI
+                if (luse_usgs_db) then
+                  vid = get_veg_type_id('Oak Oak-Leaf-1 fresh         ASDFRa AREF')
+                else
+                  vid = get_veg_type_id('leaf')
                 end if
-              end do
+                LAI = LAI_leaf
+                albedo = get_albedo_for_range(vid, lambda_start, lambda_end)
+
+                ! mixing bark and leaf albedi
+                tree_w0_solar(lk, li, lj) = &
+                  & (albedo * LAI + tree_w0_solar(lk, li, lj) * tree_tau_solar(lk, li, lj)) &
+                  & / (LAI + tree_tau_solar(lk, li, lj))
+
+                tree_tau_solar(lk, li, lj) = tree_tau_solar(lk, li, lj) + LAI
+              end if
             end do
           end do
         end do
 
         ! Thermal part
-        do ib = 1, ngptlw
-          lambda_start = 1e-2_ireals / real(wavenum2_lw(ngb_lw(ib)), ireals)
-          lambda_end = 1e-2_ireals / real(wavenum1_lw(ngb_lw(ib)), ireals)
+        lambda_start = 4000
+        lambda_end = 40000
 
-          ! trunk
-          i = center(1)
-          j = center(2)
-          do k = C1%glob_zm - Ntree_height + 1, C1%glob_zm ! lowermost layer
-            if (have_box(k, i, j)) then
-              li = i - solver%C_one%xs ! F_idx
-              lj = j - solver%C_one%ys ! F_idx
-              lk = C1%glob_zm - k + 1 ! F_idx starting at bot
+        ! trunk
+        i = center(1)
+        j = center(2)
+        do k = C1%glob_zm - Ntree_height + 1, C1%glob_zm ! lowermost layer
+          if (have_box(k, i, j)) then
+            li = i - solver%C_one%xs ! F_idx
+            lj = j - solver%C_one%ys ! F_idx
+            lk = C1%glob_zm - k + 1 ! F_idx starting at bot
 
-              LAI = LAI_bark
-              tree_tau_thermal(lk, li, lj, ib) = LAI
-            end if
-          end do
+            LAI = LAI_bark
+            tree_tau_thermal(lk, li, lj) = LAI
+          end if
+        end do
 
-          ! canopy
+        ! canopy
 
-          do j = center(2) - Ntree_height / 2, center(2) + Ntree_height / 2
-            do i = center(1) - Ntree_height / 2, center(1) + Ntree_height / 2
-              do k = C1%glob_zm - Ntree_height, C1%glob_zm ! lowermost layer
-                radius = sqrt(real(i - center(1))**2 + real(j - center(2))**2 + 4 * real(k - center(3))**2)
-                if (radius .le. real(Ntree_height, ireals) / 3._ireals .and. have_box(k, i, j)) then
-                  li = i - solver%C_one%xs ! F_idx
-                  lj = j - solver%C_one%ys ! F_idx
-                  lk = C1%glob_zm - k + 1 ! F_idx starting at bot
+        do j = center(2) - Ntree_height / 2, center(2) + Ntree_height / 2
+          do i = center(1) - Ntree_height / 2, center(1) + Ntree_height / 2
+            do k = C1%glob_zm - Ntree_height, C1%glob_zm ! lowermost layer
+              radius = sqrt(real(i - center(1))**2 + real(j - center(2))**2 + 4 * real(k - center(3))**2)
+              if (radius .le. real(Ntree_height, ireals) / 3._ireals .and. have_box(k, i, j)) then
+                li = i - solver%C_one%xs ! F_idx
+                lj = j - solver%C_one%ys ! F_idx
+                lk = C1%glob_zm - k + 1 ! F_idx starting at bot
 
-                  LAI = LAI_leaf
+                LAI = LAI_leaf
 
-                  tree_tau_thermal(lk, li, lj, ib) = tree_tau_thermal(lk, li, lj, ib) + LAI
-                end if
-              end do
+                tree_tau_thermal(lk, li, lj) = tree_tau_thermal(lk, li, lj) + LAI
+              end if
             end do
           end do
         end do

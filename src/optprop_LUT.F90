@@ -204,7 +204,7 @@ contains
     call MPI_Comm_rank(comm, myid, mpierr); call CHKERR(mpierr)
     call MPI_Comm_size(comm, comm_size, mpierr); call CHKERR(mpierr)
 
-    if (OPP%optprop_LUT_debug .and. myid .eq. 0) print *, 'Initializing LUT`s...'
+    if (ldebug .and. myid .eq. 0) print *, 'Initializing LUT`s...'
 
     if (.not. allocated(OPP%bmc)) then
       select type (OPP)
@@ -328,7 +328,7 @@ contains
 
     OPP%initialized = .true.
 
-    if (OPP%optprop_LUT_debug .and. myid .eq. 0) print *, 'Initializing LUT`s... finished'
+    if (ldebug .and. myid .eq. 0) print *, 'Initializing LUT`s... finished'
 
     lshow_LUT = ldebug
     call get_petsc_opt(PETSC_NULL_CHARACTER, '-LUT_view', lshow_LUT, lflg, ierr); call CHKERR(ierr)
@@ -576,7 +576,7 @@ contains
       else ! Otherwise, just save the current ones
         if (ldebug) print *, kdim, 'Writing pspace for ', trim(groups(1)), ':', trim(groups(2)), &
           ':', trim(groups(3)), trim(groups(4)), '::', config%dims(kdim)%v
-        call ncwrite(groups, config%dims(kdim)%v, ierr); call CHKERR(ierr)
+        call ncwrite(groups, config%dims(kdim)%v, ierr, deflate_lvl=0); call CHKERR(ierr)
       end if
 
       groups(4) = 'range'
@@ -589,7 +589,7 @@ contains
       else ! Otherwise, just save the current ones
         if (ldebug) print *, kdim, 'Writing pspace for ', trim(groups(1)), ':', trim(groups(2)), &
           ':', trim(groups(3)), trim(groups(4)), '::', config%dims(kdim)%vrange
-        call ncwrite(groups, config%dims(kdim)%vrange, ierr); call CHKERR(ierr)
+        call ncwrite(groups, config%dims(kdim)%vrange, ierr, deflate_lvl=0); call CHKERR(ierr)
       end if
     end do
   end subroutine
@@ -761,14 +761,18 @@ contains
               print *, 'Dumping LUT after ', (now - lastsavetime) / 60, 'minutes'
               if (present(T)) then
                 print *, 'Writing table to file... ', char_arr_to_str(T%table_name_c)
-                call ncwrite(T%table_name_c, T%c, iierr); call CHKERR(iierr, 'Could not write Table to file')
+                call ncwrite(T%table_name_c, T%c, iierr, deflate_lvl=0)
+                call CHKERR(iierr, 'Could not write Table to file')
                 print *, 'Writing table to file... ', char_arr_to_str(T%table_name_tol)
-                call ncwrite(T%table_name_tol, T%stddev_tol, iierr); call CHKERR(iierr, 'Could not write Table to file')
+                call ncwrite(T%table_name_tol, T%stddev_tol, iierr, deflate_lvl=0)
+                call CHKERR(iierr, 'Could not write Table to file')
               end if
               print *, 'Writing table to file... ', char_arr_to_str(S%table_name_c)
-              call ncwrite(S%table_name_c, S%c, iierr); call CHKERR(iierr, 'Could not write Table to file')
+              call ncwrite(S%table_name_c, S%c, iierr, deflate_lvl=0)
+              call CHKERR(iierr, 'Could not write Table to file')
               print *, 'Writing table to file... ', char_arr_to_str(S%table_name_tol)
-              call ncwrite(S%table_name_tol, S%stddev_tol, iierr); call CHKERR(iierr, 'Could not write Table to file')
+              call ncwrite(S%table_name_tol, S%stddev_tol, iierr, deflate_lvl=0)
+              call CHKERR(iierr, 'Could not write Table to file')
               print *, 'done writing!', iierr
               lastsavetime = now ! reset the countdown
               if ((now - starttime) .gt. LUT_max_create_jobtime) then
@@ -787,11 +791,11 @@ contains
       end do
 
       print *, 'Writing table to file... '
-      call ncwrite(S%table_name_c, S%c, iierr)
-      call ncwrite(S%table_name_tol, S%stddev_tol, iierr)
+      call ncwrite(S%table_name_c, S%c, iierr, deflate_lvl=0)
+      call ncwrite(S%table_name_tol, S%stddev_tol, iierr, deflate_lvl=0)
       if (present(T)) then
-        call ncwrite(T%table_name_c, T%c, iierr)
-        call ncwrite(T%table_name_tol, T%stddev_tol, iierr)
+        call ncwrite(T%table_name_c, T%c, iierr, deflate_lvl=0)
+        call ncwrite(T%table_name_tol, T%stddev_tol, iierr, deflate_lvl=0)
         print *, 'done writing!', iierr, ':: max_atol S', maxval(S%stddev_tol), 'max_atol T', maxval(T%stddev_tol)
       else
         print *, 'done writing!', iierr, ':: max_atol S', maxval(S%stddev_tol)
