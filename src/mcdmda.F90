@@ -431,6 +431,7 @@ contains
         if (solution%lsolar_rad) then
           ! handle edir
           call DMGetLocalVector(C_dir%da, edir_local, ierr); call CHKERR(ierr)
+          call VecSet(edir_local, 0._ireals, ierr); call CHKERR(ierr)
 
           call getVecPointer(C_dir%da, edir_local, xv_dir1d, xv_dir)
 
@@ -441,6 +442,7 @@ contains
 
           call restoreVecPointer(C_dir%da, edir_local, xv_dir1d, xv_dir)
 
+          call VecSet(solution%edir, 0._ireals, ierr); call CHKERR(ierr)
           call DMLocalToGlobalBegin(C_dir%da, edir_local, ADD_VALUES, solution%edir, ierr); call CHKERR(ierr)
           call DMLocalToGlobalEnd(C_dir%da, edir_local, ADD_VALUES, solution%edir, ierr); call CHKERR(ierr)
           call DMRestoreLocalVector(C_dir%da, edir_local, ierr); call CHKERR(ierr)
@@ -469,6 +471,8 @@ contains
         xv_diff(:, C_diff%zs, :, :) = real(ediff(:, C_one_atm1%zs, :, :), kind(xv_diff))
 
         call restoreVecPointer(C_diff%da, ediff_local, xv_diff1d, xv_diff)
+
+        call VecSet(solution%ediff, 0._ireals, ierr); call CHKERR(ierr)
         call DMLocalToGlobalBegin(C_diff%da, ediff_local, ADD_VALUES, solution%ediff, ierr); call CHKERR(ierr)
         call DMLocalToGlobalEnd(C_diff%da, ediff_local, ADD_VALUES, solution%ediff, ierr); call CHKERR(ierr)
         call DMRestoreLocalVector(C_diff%da, ediff_local, ierr); call CHKERR(ierr)
@@ -477,6 +481,7 @@ contains
         call PetscObjectViewFromOptions(solution%ediff, PETSC_NULL_VEC, '-mcdmda_show_ediff', ierr); call CHKERR(ierr)
 
         ! absorption
+        call VecSet(solution%abso, 0._ireals, ierr); call CHKERR(ierr)
         call getVecPointer(C_one%da, solution%abso, xv_abso1d, xv_abso)
 
         if (.not. solution%lsolar_rad) then
