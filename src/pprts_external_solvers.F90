@@ -1474,9 +1474,9 @@ contains
     type(t_state_container) :: solution
     type(t_pprts_buildings), optional, intent(in) :: opt_buildings
 
-    real(ireals), pointer, dimension(:, :, :, :) :: xv_dir => null(), xv_diff => null()
-    real(ireals), pointer, dimension(:) :: xv_dir1d => null(), xv_diff1d => null()
-    integer(iintegers) :: i, j, src, nstreams
+    real(ireals), pointer, dimension(:, :, :, :) :: xv_dir => null(), xv_diff => null(), xv_abso => null()
+    real(ireals), pointer, dimension(:) :: xv_dir1d => null(), xv_diff1d => null(), xv_abso1d => null()
+    integer(iintegers) :: i, j, k, src, nstreams
 
     real, allocatable :: &
       & Bfrac(:), &
@@ -1501,6 +1501,7 @@ contains
     associate (atm => solver%atm, &
                C_diff => solver%C_diff, &
                C_dir => solver%C_dir, &
+               C_one => solver%C_one, &
                C_one_atm => solver%C_one_atm, &
                C_one_atm1 => solver%C_one_atm1)
 
@@ -1533,6 +1534,7 @@ contains
         allocate (Blev(C_one_atm%zs:C_one_atm%ze))
       end if
 
+      call getVecPointer(C_one%da, solution%abso, xv_abso1d, xv_abso)
       call getVecPointer(C_diff%da, solution%ediff, xv_diff1d, xv_diff)
 
       allocate (FLDIR(C_one_atm1%zs:C_one_atm1%ze))
@@ -1592,18 +1594,36 @@ contains
               xv_diff(src - 1, C_diff%zs, i, j) = FLUP(C_one_atm1%zs) * fac
             end if
           end do
+
+          xv_abso(i0, :, i, j) = &
+            & +FLDN(atmk(atm, C_one_atm1%zs):C_one_atm1%ze - 1) &
+            & - FLDN(atmk(atm, C_one_atm1%zs) + 1:C_one_atm1%ze) &
+            & - FLUP(atmk(atm, C_one_atm1%zs):C_one_atm1%ze - 1) &
+            & + FLUP(atmk(atm, C_one_atm1%zs) + 1:C_one_atm1%ze)
+
+          if (solution%lsolar_rad) then
+            xv_abso(i0, :, i, j) = xv_abso(i0, :, i, j) &
+              & + FLDIR(atmk(atm, C_one_atm1%zs):C_one_atm1%ze - 1) &
+              & - FLDIR(atmk(atm, C_one_atm1%zs) + 1:C_one_atm1%ze)
+          end if
+
+          do k = C_one%zs, C_one%ze
+            xv_abso(i0, k, i, j) = xv_abso(i0, k, i, j) / atm%dz(atmk(atm, k), i, j)
+          end do
+
         end do
       end do
 
       if (solution%lsolar_rad) &
         call restoreVecPointer(C_dir%da, solution%edir, xv_dir1d, xv_dir)
       call restoreVecPointer(C_diff%da, solution%ediff, xv_diff1d, xv_diff)
+      call restoreVecPointer(C_one%da, solution%abso, xv_abso1d, xv_abso)
 
       !Disort returns fluxes as [W]
       solution%lWm2_dir = .true.
       solution%lWm2_diff = .true.
       ! and mark solution that it is not up to date
-      solution%lchanged = .true.
+      solution%lchanged = .false.
 
     end associate
   end subroutine
