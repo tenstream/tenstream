@@ -20,6 +20,7 @@ module m_example_uvspec_cld_file
   use m_tenstream_options, only: read_commandline_options
   use m_helper_functions, only: &
     & CHKERR, &
+    & CHKWARN, &
     & domain_decompose_2d_petsc, &
     & get_petsc_opt, &
     & imp_bcast, &
@@ -149,7 +150,6 @@ contains
       character(len=default_str_len) :: groups(2), dimnames(4)
       logical :: lspectral_output, lflg
       real(ireals), allocatable, dimension(:, :, :) :: gedir, gedn, geup, gabso ! global arrays which we will dump to netcdf
-      !real(ireals), allocatable, dimension(:, :, :, :) :: tmp_in, tmp_out ! tmp var to gather spectral output
       real(ireals), allocatable, dimension(:, :, :, :) :: gedir_s, gedn_s, geup_s, gabso_s ! global arrays for spectral output
       integer(iintegers) :: uid, k, Nspectral
 
@@ -618,6 +618,11 @@ contains
     sundir = spherical_2_cartesian(phi0, theta0)
     print *, 'sundir', sundir
 
+    if (myid .eq. 0) then
+      call CHKWARN(1_mpiint, 'Here we use rrtmg instead of specint interface, '// &
+        & 'this should be refactored.'// &
+        & 'Furthermore, the output format does not fit the pprts version.')
+    end if
     call plexrt_rrtmg(solver, atm, sundir, &
                       albedo_thermal=albedo_th, albedo_solar=albedo_sol, &
                       lthermal=lthermal, lsolar=lsolar, &
