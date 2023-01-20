@@ -418,7 +418,6 @@ contains
       call VecGetArrayReadF90(ksca, xksca, ierr); call CHKERR(ierr)
       call VecGetArrayReadF90(g, xg, ierr); call CHKERR(ierr)
       call VecGetArrayReadF90(albedo, xalbedo, ierr); call CHKERR(ierr)
-      call VecGetArrayReadF90(plck, xplck, ierr); call CHKERR(ierr)
       call VecGetArrayReadF90(plex%geomVec, xgeoms, ierr); call CHKERR(ierr)
 
       call DMGetSection(plex%abso_dm, abso_section, ierr); call CHKERR(ierr)
@@ -428,6 +427,10 @@ contains
       if (lsolar) then
         call DMGetSection(plex%edir_dm, edir_section, ierr); call CHKERR(ierr)
         call VecGetArrayF90(solution%edir, xedir, ierr); call CHKERR(ierr)
+      end if
+
+      if (lthermal) then
+        call VecGetArrayReadF90(plck, xplck, ierr); call CHKERR(ierr)
       end if
 
       call ISGetIndicesF90(boundary_ids, xitoa, ierr); call CHKERR(ierr)
@@ -532,7 +535,6 @@ contains
       call VecRestoreArrayReadF90(kabs, xkabs, ierr); call CHKERR(ierr)
       call VecRestoreArrayReadF90(ksca, xksca, ierr); call CHKERR(ierr)
       call VecRestoreArrayReadF90(g, xg, ierr); call CHKERR(ierr)
-      call VecRestoreArrayReadF90(plck, xplck, ierr); call CHKERR(ierr)
       call VecRestoreArrayReadF90(plex%geomVec, xgeoms, ierr); call CHKERR(ierr)
 
       if (lsolar) then
