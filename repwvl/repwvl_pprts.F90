@@ -617,7 +617,7 @@ contains
         & solver,                &
         & lthermal=.false.,      &
         & lsolar=.true.,         &
-        & edirTOA=edirTOA,       &
+        & edirTOA=1._ireals,     &
         & opt_solution_uid=iwvl, &
         & opt_solution_time=opt_time,&
         & opt_buildings=spec_buildings)
@@ -632,9 +632,9 @@ contains
           & opt_solution_uid=iwvl,      &
           & opt_buildings=spec_buildings)
 
-        opt_buildings%edir = opt_buildings%edir + spec_buildings%edir
-        opt_buildings%incoming = opt_buildings%incoming + spec_buildings%incoming
-        opt_buildings%outgoing = opt_buildings%outgoing + spec_buildings%outgoing
+        opt_buildings%edir = opt_buildings%edir + spec_buildings%edir * edirTOA
+        opt_buildings%incoming = opt_buildings%incoming + spec_buildings%incoming * edirTOA
+        opt_buildings%outgoing = opt_buildings%outgoing + spec_buildings%outgoing * edirTOA
 
       else
 
@@ -648,10 +648,10 @@ contains
 
       end if
 
-      edir = edir + spec_edir
-      edn = edn + spec_edn
-      eup = eup + spec_eup
-      abso = abso + spec_abso
+      edir = edir + spec_edir * edirTOA
+      edn = edn + spec_edn * edirTOA
+      eup = eup + spec_eup * edirTOA
+      abso = abso + spec_abso * edirTOA
     end do !iwvl
 
     if (present(opt_buildings)) then
