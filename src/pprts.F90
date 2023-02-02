@@ -1683,7 +1683,7 @@ contains
     real(ireals) :: pprts_delta_scale_max_g
     integer(iintegers) :: k, i, j
     logical :: lpprts_delta_scale, lzdun, lflg
-    real(ireals) :: pprts_set_absorption, pprts_set_scatter, pprts_set_asymmetry, pprts_set_albedo
+    real(ireals) :: pprts_set_absorption, pprts_set_scatter, pprts_set_asymmetry, pprts_set_albedo, pprts_scale_optprop
     real(irealLUT) :: c1d_dir2dir(1), c1d_dir2diff(2), c1d_diff2diff(4)
     integer(mpiint) :: ierr
 
@@ -1769,16 +1769,34 @@ contains
         atm%kabs = pprts_set_absorption
       end if
 
+      pprts_scale_optprop = 1
+      call get_petsc_opt(solver%prefix, "-pprts_scale_kabs", pprts_scale_optprop, lflg, ierr); call CHKERR(ierr)
+      if (lflg) then
+        atm%kabs = atm%kabs * pprts_scale_optprop
+      end if
+
       pprts_set_scatter = -1
       call get_petsc_opt(solver%prefix, "-pprts_set_ksca", pprts_set_scatter, lflg, ierr); call CHKERR(ierr)
       if (lflg) then
         atm%ksca = pprts_set_scatter
       end if
 
+      pprts_scale_optprop = 1
+      call get_petsc_opt(solver%prefix, "-pprts_scale_ksca", pprts_scale_optprop, lflg, ierr); call CHKERR(ierr)
+      if (lflg) then
+        atm%ksca = atm%ksca * pprts_scale_optprop
+      end if
+
       pprts_set_asymmetry = -1
       call get_petsc_opt(solver%prefix, "-pprts_set_asymmetry", pprts_set_asymmetry, lflg, ierr); call CHKERR(ierr)
       if (lflg) then
         atm%g = pprts_set_asymmetry
+      end if
+
+      pprts_scale_optprop = 1
+      call get_petsc_opt(solver%prefix, "-pprts_scale_asymmetry", pprts_scale_optprop, lflg, ierr); call CHKERR(ierr)
+      if (lflg) then
+        atm%g = atm%g * pprts_scale_optprop
       end if
 
       lpprts_delta_scale = get_arg(.true., ldelta_scaling)
