@@ -2830,6 +2830,7 @@ contains
     real(ireals) :: norm
     real(ireals), pointer :: c(:, :)
     logical :: lgeometric_coeffs, ltop_bottom_faces_planar, ltop_bottom_planes_parallel
+    real(ireals), parameter :: eps = one + sqrt(sqrt(epsilon(eps)))
 
     associate ( &
         & atm => solver%atm, &
@@ -2900,7 +2901,7 @@ contains
                 do src = 1, C_dir%dof
                   norm = sum(c(src, :))
                   if (norm .gt. one) then ! could renormalize
-                    if (norm .gt. one + 100._ireals * sqrt(epsilon(norm))) then ! fatally off
+                    if (norm .gt. eps) then ! fatally off
                       print *, 'direct sum(dst==', src, ') gt one', norm
                       print *, 'direct coeff', norm, '::', c(src, :)
                       call CHKERR(1_mpiint, 'omg.. shouldnt be happening')
@@ -3137,6 +3138,7 @@ contains
     integer(mpiint) :: ierr
 
     real(ireals) :: norm
+    real(ireals), parameter :: eps = one + sqrt(sqrt(epsilon(eps)))
     real(ireals), pointer :: c(:, :)
     real(ireals), pointer :: xhhl(:, :, :, :) => null(), xhhl1d(:) => null()
 
@@ -3194,7 +3196,7 @@ contains
                 do src = 1, C_diff%dof
                   norm = sum(c(src, :))
                   if (norm .gt. one) then ! could renormalize
-                    if (norm .gt. one + 100._ireals * sqrt(epsilon(norm))) then ! fatally off
+                    if (norm .gt. eps) then ! fatally off
                       print *, 'diffuse sum(dst==', src, ') gt one', norm
                       print *, 'diffuse coeff', norm, '::', c(src, :)
                       call CHKERR(1_mpiint, 'omg.. shouldnt be happening')
