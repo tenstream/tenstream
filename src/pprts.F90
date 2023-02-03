@@ -2121,7 +2121,10 @@ contains
         end if
 
         if (myid .eq. 0) &
-          & print *, k, cstr(toStr(mkabs), 'blue'), cstr(toStr(mksca), 'red'), cstr(toStr(mg), 'blue'), cstr(toStr(mplck), 'red')
+          & print *, k, cstr(toStr(mkabs, fmt='g16.7'), 'blue'), &
+                        cstr(toStr(mksca, fmt='g16.7'), 'red'), &
+                        cstr(toStr(mg), 'blue'), &
+                        cstr(toStr(mplck), 'red')
 
       end do
 

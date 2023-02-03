@@ -807,25 +807,31 @@ contains
     ('real'   , 'REAL32' , "'(F16.7)'"), &
     ('real'   , 'REAL64' , "'(F16.7)'"), &
     ('real'   , 'REAL128', "'(F16.7)'")]
-    function toStr${dtype}$ (inp) result(res)
+    function toStr${dtype}$ (inp, fmt) result(res)
       ${basetype}$ (${dtype}$), intent(in) :: inp
+      character(len=*), intent(in), optional :: fmt
       character(len=:), allocatable :: res
       character(range(inp) + 2) :: tmp
-      write (tmp, fmt=${fmt}$) inp
+      if (present(fmt)) then
+        write (tmp, fmt='('//fmt//')') inp
+      else
+        write (tmp, fmt=${fmt}$) inp
+      end if
       res = trim(tmp)
     end function
 
     #:for RANK in range(1, 8)
-      function toStr${dtype}$_${RANK}$d(inp, deliminator) result(res)
+      function toStr${dtype}$_${RANK}$d(inp, deliminator, fmt) result(res)
         ${basetype}$ (${dtype}$), intent(in) :: inp${ranksuffix(RANK)}$
         character(len=:), allocatable :: res
         character(len=*), intent(in), optional :: deliminator
+        character(len=*), intent(in), optional :: fmt
         character(range(inp) + 2) :: tmp(size(inp))
         ${basetype}$ (${dtype}$), allocatable :: inp1d(:)
         integer(iintegers) :: i
         inp1d = pack(inp, .true.)
         do i = 1, size(inp1d)
-          tmp(i) = toStr(inp1d(i))
+          tmp(i) = toStr(inp1d(i), fmt)
         end do
         res = trim(char_arr_to_str(tmp, deliminator))
       end function
