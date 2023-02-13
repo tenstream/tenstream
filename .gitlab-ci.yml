@@ -307,6 +307,6 @@ explicit:mim:gcc:debug:
     PETSC_OPTIONS: "-solar_dir_explicit -solar_diff_explicit -thermal_diff_explicit -thermal_diff_pc_sor_omega .5 -solar_diff_pc_sor_omega .5"
 
 mim:gcc:spack:latest:
-  extends: .mim:spack
+  extends: mim:gcc:spack
   variables:
     MODULES: "spack/2023.02 gcc/11.3.0 openmpi/4.1.4-gcc-11.3.0-cuda11.7"
