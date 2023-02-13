@@ -295,7 +295,7 @@ matshell:mim:gcc:debug:
     PETSC_OPTIONS: "-solar_diff_shell -solar_diff_pc_type sor -thermal_diff_shell -thermal_diff_pc_type sor"
 
 mim:gcc:debug:
-  extends: .mim:spack
+  extends: .mim:gcc:spack
   variables:
     BUILD_TYPE: DEBUG
     PETSC_PRECISION: double
