@@ -242,7 +242,7 @@ intel-icx:
     - slurm.meteo.physik.lmu.de
   variables:
     LUT_BASENAME: "$CI_PROJECT_DIR/LUT/LUT"
-    SRUN_OPTIONS: "--time 02:00:00 --mem 18G -n 9"
+    SRUN_OPTIONS: "--time 04:00:00 --mem 18G -n 9"
     MPIEXEC: "srun"
     MPIRUN_FLAGS: '--mpi=pmix'
     CTEST_ARGS: '-E boxmc|LUT'
