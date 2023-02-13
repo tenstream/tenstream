@@ -360,13 +360,12 @@ contains
     #:for RANK in range(1, 8)
       #:for modifier in ['allocatable', 'pointer']
         subroutine ncload_${method}$_${dtype}$_${RANK}$d_${modifier}$ &
-            & (groups, arr, ierr, lverbose, ostart, ocount, ostride, omap, lock_waittime)
+            & (groups, arr, ierr, lverbose, ostart, ocount, ostride, omap)
 
           ${method}$${dKIND}$#{if modifier}#,${modifier}$#{endif}#, intent(inout) :: arr${ranksuffix(RANK)}$
 
           logical, intent(in), optional :: lverbose
           integer, dimension(:), optional, intent(in) :: ostart, ocount, ostride, omap
-          integer(mpiint), intent(in), optional :: lock_waittime
 
           character(len=*) :: groups(:)
 
@@ -376,7 +375,7 @@ contains
 
           logical :: file_exists, var_exists
 
-          integer :: ncerr, flock_unit, ndims
+          integer :: ncerr, ndims
           integer(int64) :: bytesize
           real(kind(arr)) :: bytesize_dummy
           integer(mpiint), intent(out) :: ierr
@@ -406,8 +405,6 @@ contains
             ierr = 101
             return
           end if
-
-          call acquire_file_lock(fname, flock_unit, ierr, waittime=lock_waittime); call CHKERR(ierr, 'Could not obtain file lock')
 
           varname = trim(groups(2))
           do i = 3, size(groups)
@@ -457,7 +454,6 @@ contains
 100       continue
           ncerr = nf90_close(ncid); call nccheck(ncerr); ierr = ierr + ncerr
           if (ldebug) print *, 'Reading Netcdf file returned with ierr: ', ierr
-          call release_file_lock(flock_unit, ncerr); call CHKERR(ncerr, 'Could not release file lock')
 
           return
 
@@ -466,12 +462,11 @@ contains
     #:endfor
 
     subroutine ncload_${method}$_${dtype}$_scalar &
-        & (groups, arr, ierr, lverbose, lock_waittime)
+        & (groups, arr, ierr, lverbose)
 
       ${method}$${dKIND}$, intent(inout) :: arr
 
       logical, intent(in), optional :: lverbose
-      integer(mpiint), intent(in), optional :: lock_waittime
 
       character(len=*) :: groups(:)
 
@@ -480,7 +475,7 @@ contains
 
       logical :: file_exists, var_exists
 
-      integer :: ncerr, flock_unit
+      integer :: ncerr
       integer(mpiint), intent(out) :: ierr
       ierr = 0
 
@@ -494,8 +489,6 @@ contains
         ierr = 101
         return
       end if
-
-      call acquire_file_lock(fname, flock_unit, ierr, waittime=lock_waittime); call CHKERR(ierr, 'Could not obtain file lock')
 
       varname = trim(groups(2))
       do i = 3, size(groups)
@@ -519,7 +512,6 @@ contains
 100   continue
       ncerr = nf90_close(ncid); call nccheck(ncerr); ierr = ierr + ncerr
       if (ldebug) print *, 'Reading Netcdf file returned with ierr: ', ierr
-      call release_file_lock(flock_unit, ncerr); call CHKERR(ncerr, 'Could not release file lock')
 
       return
 

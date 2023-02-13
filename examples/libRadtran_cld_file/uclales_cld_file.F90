@@ -90,10 +90,10 @@ contains
 
     if (myid .eq. 0) then
       call list_global_attributes(cldfile, ierr); call CHKERR(ierr)
-      call ncload([character(len=default_str_len) :: cldfile, dimnametime], time, ierr, lock_waittime=10_mpiint); call CHKERR(ierr)
-      call ncload([character(len=default_str_len) :: cldfile, dimnamez], zlev, ierr, lock_waittime=10_mpiint); call CHKERR(ierr)
-      call ncload([character(len=default_str_len) :: cldfile, dimnamex], dimx, ierr, lock_waittime=10_mpiint); call CHKERR(ierr)
-      call ncload([character(len=default_str_len) :: cldfile, dimnamey], dimy, ierr, lock_waittime=10_mpiint); call CHKERR(ierr)
+      call ncload([character(len=default_str_len) :: cldfile, dimnametime], time, ierr); call CHKERR(ierr)
+      call ncload([character(len=default_str_len) :: cldfile, dimnamez], zlev, ierr); call CHKERR(ierr)
+      call ncload([character(len=default_str_len) :: cldfile, dimnamex], dimx, ierr); call CHKERR(ierr)
+      call ncload([character(len=default_str_len) :: cldfile, dimnamey], dimy, ierr); call CHKERR(ierr)
       Nx = size(dimx)
       Ny = size(dimy)
       dx = dimx(2) - dimx(1)
