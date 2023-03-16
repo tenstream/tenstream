@@ -684,7 +684,7 @@ contains
 
       move: do while (.not. lexit_domain) ! this loop will move the photon to the edge of the subdomain
         if (.not. lthermal) then
-          call roulette(p)
+          !call roulette(p)
           if (.not. p%alive) then
             lkilled_photon = .true.
             exit move

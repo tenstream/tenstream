@@ -612,7 +612,7 @@ contains
 
       move: do
         call bmc%move_photon(vertices, kabs, ksca, tau_scaling, p)
-        call roulette(p)
+        if(.False.) call roulette(p)
 
         if (.not. p%alive) exit move
         call scatter_photon(p, g)
