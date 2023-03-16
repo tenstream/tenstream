@@ -103,6 +103,14 @@ module m_boxmc
 
   use m_ranlux, only: ranlux, rluxgo
 
+  use m_boxmc_geometry, only: &
+    & PPRTS_TOP_FACE,         &
+    & PPRTS_BOT_FACE,         &
+    & PPRTS_LEFT_FACE,        &
+    & PPRTS_RIGHT_FACE,       &
+    & PPRTS_REAR_FACE,        &
+    & PPRTS_FRONT_FACE
+
   implicit none
 
   private

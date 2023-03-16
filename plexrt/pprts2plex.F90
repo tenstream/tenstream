@@ -9,13 +9,15 @@ module m_pprts2plex
     & is_inrange, &
     & ndarray_offsets, ind_1d_to_nd, ind_nd_to_1d
 
-  use m_buildings, only: t_plex_buildings, t_pprts_buildings, &
-    & PPRTS_TOP_FACE,                     &
-    & PPRTS_BOT_FACE,                     &
-    & PPRTS_LEFT_FACE,                    &
-    & PPRTS_RIGHT_FACE,                   &
-    & PPRTS_REAR_FACE,                    &
-    & PPRTS_FRONT_FACE
+  use m_buildings, only: t_plex_buildings, t_pprts_buildings
+
+  use m_boxmc_geometry, only: &
+    & PPRTS_TOP_FACE, &
+    & PPRTS_BOT_FACE, &
+    & PPRTS_LEFT_FACE, &
+    & PPRTS_RIGHT_FACE, &
+    & PPRTS_FRONT_FACE, &
+    & PPRTS_REAR_FACE
 
   use m_pprts_base, only: t_solver, t_coord, atmk
 

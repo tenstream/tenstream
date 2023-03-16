@@ -76,7 +76,9 @@ module m_pprts_external_solvers
     & t_pprts_buildings, t_plex_buildings, &
     & clone_buildings, &
     & destroy_buildings, &
-    & check_buildings_consistency, &
+    & check_buildings_consistency
+
+  use m_boxmc_geometry, only: &
     & PPRTS_TOP_FACE, &
     & PPRTS_BOT_FACE, &
     & PPRTS_LEFT_FACE, &

@@ -34,7 +34,9 @@ module m_examples_pprts_specint_buildings
     & init_buildings, &
     & clone_buildings, &
     & check_buildings_consistency, &
-    & faceidx_by_cell_plus_offset, &
+    & faceidx_by_cell_plus_offset
+
+  use m_boxmc_geometry, only: &
     & PPRTS_TOP_FACE
 
   implicit none

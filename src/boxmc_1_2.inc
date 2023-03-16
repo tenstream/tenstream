@@ -47,6 +47,7 @@ subroutine update_diff_stream_1_2(bmc, vertices, p, S)
   type(t_photon), intent(in) :: p
   real(irealbmc), intent(inout) :: S(:)
 
+  ! Dst numbering
   !         _______1_______
   !        |               |
   !        |               |
@@ -80,9 +81,6 @@ subroutine init_dir_photon_1_2(bmc, p, src, ldirect, initial_dir, vertices, ierr
   integer(mpiint), intent(out) :: ierr
 
   real(ireal_dp), dimension(3) :: normal, U, V, cube_center, dir_p_to_cube_center
-
-  p%dir = initial_dir
-  p%alive = .false.
 
   call CHKERR(size(vertices) - 24, 'wrong size of vertices, expected 24 but found '//toStr(size(vertices)))
   associate ( &
@@ -121,6 +119,7 @@ subroutine init_dir_photon_1_2(bmc, p, src, ldirect, initial_dir, vertices, ierr
   p%side = int(nil)
   p%src = src
   p%scattercnt = 0
+  p%dir = initial_dir
 
   select type (bmc)
   end select

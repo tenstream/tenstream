@@ -5,7 +5,8 @@ program main
 
   use m_data_parameters, only: &
     & iintegers, mpiint, ireals, default_str_len, &
-    & init_mpi_data_parameters, finalize_mpi
+    & init_mpi_data_parameters, finalize_mpi, &
+    & share_dir
   use m_buildings, only: t_pprts_buildings
   use m_examples_pprts_specint_buildings, only: ex_pprts_specint_buildings
   use m_helper_functions, only: CHKERR, toStr, get_petsc_opt, meanval
@@ -39,7 +40,7 @@ program main
   specint = 'no_default_set'
   call get_petsc_opt(PETSC_NULL_CHARACTER, "-specint", specint, lflg, ierr); call CHKERR(ierr)
 
-  atm_filename = 'afglus_100m.dat'
+  atm_filename = share_dir//'tenstream_default.atm'
   call get_petsc_opt(PETSC_NULL_CHARACTER, '-atm', atm_filename, lflg, ierr); call CHKERR(ierr)
   inquire (file=trim(atm_filename), exist=lfile_exists)
   if (.not. lfile_exists) then

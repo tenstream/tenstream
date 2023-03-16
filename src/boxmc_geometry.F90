@@ -42,6 +42,14 @@ module m_boxmc_geometry
 
   implicit none
 
+  integer(iintegers), parameter :: &
+    & PPRTS_TOP_FACE = 1, & ! z+0
+    & PPRTS_BOT_FACE = 2, & ! z+1
+    & PPRTS_LEFT_FACE = 3, & ! x+0
+    & PPRTS_RIGHT_FACE = 4, & ! x+1
+    & PPRTS_REAR_FACE = 5, & ! y+0
+    & PPRTS_FRONT_FACE = 6    ! y+1
+
   interface setup_default_unit_cube_geometry
     module procedure setup_default_unit_cube_geometry_r32, setup_default_unit_cube_geometry_r64
   end interface
@@ -448,7 +456,7 @@ contains
     end do
 
     if (max_dist .gt. norm2([dx, dy, dz])) then
-      print *, 'should actually not be here at the end of crossings in intersect distance! '// &
+      print *, 'should actually not be here at the end of crossings in intersect_cube! '// &
         '- however, please check if distance makes sense?:', &
         max_dist, norm2([dx, dy, dz]), '::', dist, ':', vertices, &
         'pdir', pdir, 'ploc side', ploc, psrc_side, 'target_side', pside
@@ -490,14 +498,14 @@ contains
       hit = huge(hit)
       iface(:) = -1
       !crossing with bottom and top plane:
-      call square_intersection(ploc, pdir, E, F, H, G, lhit(1), hit(1, :), iface(1))
-      call square_intersection(ploc, pdir, A, C, D, B, lhit(2), hit(2, :), iface(2))
+      call square_intersection(ploc, pdir, E, F, H, G, lhit(PPRTS_TOP_FACE), hit(PPRTS_TOP_FACE, :), iface(PPRTS_TOP_FACE))
+      call square_intersection(ploc, pdir, A, C, D, B, lhit(PPRTS_BOT_FACE), hit(PPRTS_BOT_FACE, :), iface(PPRTS_BOT_FACE))
 
       !crossing with side planes:
-      call square_intersection(ploc, pdir, A, E, G, C, lhit(3), hit(3, :), iface(3))
-      call square_intersection(ploc, pdir, B, D, H, F, lhit(4), hit(4, :), iface(4))
-      call square_intersection(ploc, pdir, A, B, F, E, lhit(5), hit(5, :), iface(5))
-      call square_intersection(ploc, pdir, C, G, H, D, lhit(6), hit(6, :), iface(6))
+      call square_intersection(ploc, pdir, A, E, G, C, lhit(PPRTS_LEFT_FACE), hit(PPRTS_LEFT_FACE, :), iface(PPRTS_LEFT_FACE))
+      call square_intersection(ploc, pdir, B, D, H, F, lhit(PPRTS_RIGHT_FACE), hit(PPRTS_RIGHT_FACE, :), iface(PPRTS_RIGHT_FACE))
+      call square_intersection(ploc, pdir, A, B, F, E, lhit(PPRTS_REAR_FACE), hit(PPRTS_REAR_FACE, :), iface(PPRTS_REAR_FACE))
+      call square_intersection(ploc, pdir, C, G, H, D, lhit(PPRTS_FRONT_FACE), hit(PPRTS_FRONT_FACE, :), iface(PPRTS_FRONT_FACE))
 
       pside = 0
       max_dist = huge(max_dist)

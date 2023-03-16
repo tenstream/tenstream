@@ -30,7 +30,7 @@
 !
 ! Face numbering is
 ! 1 -> top/bot face
-! 2 -> side face between (A,C)/(A,D)
+! 2 -> side face between (A,C)/(B,D)
 ! 3 -> side face between (A,B)/(C,D)
 
 ! Distribution Code for diffuse streams/targets:
@@ -43,7 +43,7 @@
 !   A ------- B
 !        6
 !
-! Face numbering is
+! Stream dst numbering is
 ! 2 -> top
 ! 1 -> bottom face
 ! 4 -> side face between (A,C)
@@ -67,10 +67,13 @@ subroutine init_dir_photon_3_6(bmc, p, src, ldirect, initial_dir, vertices, ierr
   select case (src)
   case (1)
     p%loc = [R() * dx, R() * dy, dz * (one - e)]
+    p%src_side = PPRTS_TOP_FACE
   case (2)
     p%loc = [e, R() * dy, R() * dz]
+    p%src_side = PPRTS_LEFT_FACE
   case (3)
     p%loc = [R() * dx, e, R() * dz]
+    p%src_side = PPRTS_REAR_FACE
   case default
     print *, 'Dont know what to do with source spec:', src
     call exit
@@ -83,6 +86,7 @@ subroutine init_dir_photon_3_6(bmc, p, src, ldirect, initial_dir, vertices, ierr
   p%src = src
   p%scattercnt = 0
   p%dir = initial_dir
+
   select type (bmc)
   end select
 
@@ -155,16 +159,22 @@ subroutine init_diff_photon_3_6(bmc, p, src, vertices, ierr)
   select case (src)
   case (1) ! eup
     p%loc = [R() * dx, R() * dy, zero]
+    p%src_side = PPRTS_BOT_FACE
   case (2) ! edn
     p%loc = [R() * dx, R() * dy, dz]
+    p%src_side = PPRTS_TOP_FACE
   case (3) ! left
     p%loc = [dx, R() * dy, R() * dz]
+    p%src_side = PPRTS_RIGHT_FACE
   case (4) ! right
     p%loc = [zero, R() * dy, R() * dz]
+    p%src_side = PPRTS_LEFT_FACE
   case (5) ! backward
     p%loc = [R() * dx, dy, R() * dz]
+    p%src_side = PPRTS_FRONT_FACE
   case (6) ! forward
     p%loc = [R() * dx, zero, R() * dz]
+    p%src_side = PPRTS_REAR_FACE
   case default
     print *, 'Dont know what to do with source spec:', src
     call exit
@@ -219,14 +229,19 @@ subroutine intersect_distance_3_6(bmc, vertices, p, max_dist)
   real(ireal_dp), intent(in) :: vertices(:)
   type(t_photon), intent(inout) :: p
   real(ireal_dp), intent(out) :: max_dist
+  integer(mpiint) :: i, ierr
 
   if (.not. pnt_in_cube(vertices, p%loc)) then
-    print *, 'Before intersection:', pnt_in_cube(vertices, p%loc), ':', vertices
+    print *, 'Before intersection: pnt is in cube? ', pnt_in_cube(vertices, p%loc)
+    do i = 1, 8
+      print *, 'vertex ', i, ':', vertices(1 + (i - 1) * 3:i * 3)
+    end do
     call print_photon(p)
     call CHKERR(1_mpiint, cstr('photon is not inside the local cube', 'red'))
   end if
-  call intersect_cube(vertices, p%loc, p%dir, p%scattercnt, p%src_side, &
-                      p%side, max_dist)
+
+  call intersect_cube_general(vertices, p%loc, p%dir, p%scattercnt, p%src_side, &
+    & p%side, p%weight, max_dist, p%subface, ierr)
 
   !print *,cstr('After intersection:','red'), pnt_in_cube(vertices, p%loc), ':', vertices
   !call print_photon(p)

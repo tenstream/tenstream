@@ -28,7 +28,9 @@ module m_examples_pprts_buildings
     & check_buildings_consistency, &
     & faceidx_by_cell_plus_offset, &
     & init_buildings, &
-    & t_pprts_buildings, &
+    & t_pprts_buildings
+
+  use m_boxmc_geometry, only: &
     & PPRTS_TOP_FACE, &
     & PPRTS_BOT_FACE, &
     & PPRTS_FRONT_FACE, &

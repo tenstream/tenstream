@@ -82,7 +82,8 @@ module m_pprts_rrtmg
 
   use m_tenstr_disort, only: default_flx_computation
   use m_tenstr_rrtmg_base, only: t_rrtmg_log_events, setup_log_events
-  use m_buildings, only: t_pprts_buildings, clone_buildings, destroy_buildings, PPRTS_BOT_FACE
+  use m_buildings, only: t_pprts_buildings, clone_buildings, destroy_buildings
+  use m_boxmc_geometry, only: PPRTS_BOT_FACE
 
   use m_pprts_external_solvers, only: destroy_rayli_info
 

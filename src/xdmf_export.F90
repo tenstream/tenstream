@@ -20,7 +20,9 @@ module m_xdmf_export
     & t_solver
 
   use m_buildings, only: &
-    & t_pprts_buildings, &
+    & t_pprts_buildings
+
+  use m_boxmc_geometry, only: &
     & PPRTS_TOP_FACE, &
     & PPRTS_BOT_FACE, &
     & PPRTS_FRONT_FACE, &

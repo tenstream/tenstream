@@ -19,6 +19,14 @@ module m_buildings
   use m_pprts_base, only: &
     & t_solver
 
+  use m_boxmc_geometry, only: &
+    & PPRTS_TOP_FACE,         &
+    & PPRTS_BOT_FACE,         &
+    & PPRTS_LEFT_FACE,        &
+    & PPRTS_RIGHT_FACE,       &
+    & PPRTS_REAR_FACE,        &
+    & PPRTS_FRONT_FACE
+
   implicit none
 
   private
@@ -30,13 +38,7 @@ module m_buildings
     & faceidx_by_cell_plus_offset,        &
     & init_buildings,                     &
     & t_plex_buildings,                   &
-    & t_pprts_buildings,                  &
-    & PPRTS_TOP_FACE,                     &
-    & PPRTS_BOT_FACE,                     &
-    & PPRTS_LEFT_FACE,                    &
-    & PPRTS_RIGHT_FACE,                   &
-    & PPRTS_REAR_FACE,                    &
-    & PPRTS_FRONT_FACE
+    & t_pprts_buildings
 
   type :: t_buildings_face_data
     ! iface_data is, depending on the implementing class:
@@ -78,14 +80,6 @@ module m_buildings
   type, extends(t_buildings) :: t_plex_buildings
     !integer(iintegers), pointer :: iface(:) => null() ! face indices dim(Nbuilding_faces) valid in range [fStart, fEnd-1]
   end type
-
-  integer(iintegers), parameter :: &
-    & PPRTS_TOP_FACE = 1, & ! z+0
-    & PPRTS_BOT_FACE = 2, & ! z+1
-    & PPRTS_LEFT_FACE = 3, & ! x+0
-    & PPRTS_RIGHT_FACE = 4, & ! x+1
-    & PPRTS_REAR_FACE = 5, & ! y+0
-    & PPRTS_FRONT_FACE = 6    ! y+1
 
   interface destroy_buildings
     module procedure destroy_pprts_buildings

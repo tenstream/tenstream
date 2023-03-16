@@ -52,8 +52,11 @@ module m_mcdmda
 
   use m_boxmc_geometry, only: setup_default_unit_cube_geometry
 
+  use m_intersection, only: pnt_in_cube
+
   use m_pprts_base, only: &
     & atmk, &
+    & t_atmosphere, &
     & t_coord, &
     & t_solver, &
     & t_solver_1_2, &
@@ -63,8 +66,9 @@ module m_mcdmda
 
   use m_petsc_helpers, only: getVecPointer, restoreVecPointer
 
-  use m_buildings, only: &
-    & t_pprts_buildings, &
+  use m_buildings, only: t_pprts_buildings
+
+  use m_boxmc_geometry, only: &
     & PPRTS_TOP_FACE, &
     & PPRTS_BOT_FACE, &
     & PPRTS_LEFT_FACE, &
@@ -109,6 +113,7 @@ module m_mcdmda
 
   logical, parameter :: ldebug = .false.
   logical, parameter :: ldebug_tracing = .false.
+  logical :: lfull3d = .false. ! option if 1d layers are treated 1d or really 3d (heavy toll on performance for high resolution)
 
   real(ireal_dp), parameter :: loceps = 0 !sqrt(epsilon(loceps))
 
@@ -139,6 +144,7 @@ contains
     real(ireals) :: photon_weight
 
     class(t_boxmc), allocatable :: bmc
+    type(t_boxmc_1_2) :: bmc_1_2 ! 1_2 tracer needed for 1D layers
 
     real(ireal_dp), dimension(:, :, :, :), allocatable :: edir, ediff, abso
     integer(iintegers), dimension(:, :, :, :), allocatable :: Nediff, buildings_idx
@@ -150,6 +156,8 @@ contains
                        MPI_SUM, solver%comm, ierr); call CHKERR(ierr)
 
     call mpi_comm_rank(solver%comm, myid, ierr); call CHKERR(ierr)
+
+    call get_petsc_opt(solver%prefix, "-mcdmda_full3d", lfull3d, lflg, ierr); call CHKERR(ierr)
 
     Nbatchsize = 10000
     call get_petsc_opt(solver%prefix, "-mcdmda_batch_size", Nbatchsize, lflg, ierr); call CHKERR(ierr)
@@ -220,8 +228,10 @@ contains
 
     if (ldebug_tracing) then
       call bmc%init(MPI_COMM_SELF, rngseed=9, luse_random_seed=.false.)
+      call bmc_1_2%init(MPI_COMM_SELF, rngseed=9, luse_random_seed=.false.)
     else
       call bmc%init(MPI_COMM_SELF, luse_random_seed=.true.)
+      call bmc_1_2%init(MPI_COMM_SELF, luse_random_seed=.true.)
     end if
 
     ! Initialize the locally owned photons
@@ -244,7 +254,7 @@ contains
       iter = iter + 1
 
       call run_photon_queue( &
-        & solver, bmc, &
+        & solver, bmc, bmc_1_2, &
         & pqueues, PQ_SELF, &
         & edir, ediff, Nediff, abso, &
         & started_photons=ip, &
@@ -263,7 +273,7 @@ contains
         call exchange_photons(solver, pqueues)
 
         call run_photon_queue(&
-          & solver, bmc, &
+          & solver, bmc, bmc_1_2, &
           & pqueues, PQ_NORTH, &
           & edir, ediff, Nediff, abso, &
           & started_photons=ip, &
@@ -277,7 +287,7 @@ contains
         call exchange_photons(solver, pqueues)
 
         call run_photon_queue( &
-          & solver, bmc, &
+          & solver, bmc, bmc_1_2, &
           & pqueues, PQ_EAST, &
           & edir, ediff, Nediff, abso, &
           & started_photons=ip, &
@@ -291,7 +301,7 @@ contains
         call exchange_photons(solver, pqueues)
 
         call run_photon_queue( &
-          & solver, bmc, &
+          & solver, bmc, bmc_1_2, &
           & pqueues, PQ_SOUTH, &
           & edir, ediff, Nediff, abso, &
           & started_photons=ip, &
@@ -305,7 +315,7 @@ contains
         call exchange_photons(solver, pqueues)
 
         call run_photon_queue( &
-          & solver, bmc, &
+          & solver, bmc, bmc_1_2, &
           & pqueues, PQ_WEST, &
           & edir, ediff, Nediff, abso, &
           & started_photons=ip, &
@@ -354,6 +364,7 @@ contains
         end if
         if (ldebug) call debug_output_queues()
         if (globally_killed_photons .eq. Nphotons_global) then
+          if (myid .eq. 0) print *, ''
           exit
         end if
         ! if we reach here this means there is still work todo, setup a new allreduce
@@ -367,6 +378,7 @@ contains
 
     ! cleanup
     call bmc%destroy(ierr); call CHKERR(ierr)
+    call bmc_1_2%destroy(ierr); call CHKERR(ierr)
     do ip = 1, size(pqueues)
       call photon_queue_destroy(pqueues(ip), ierr); call CHKERR(ierr)
     end do
@@ -564,7 +576,7 @@ contains
     call pq%sending%finalize()
   end subroutine
 
-  subroutine run_photon_queue(solver, bmc, &
+  subroutine run_photon_queue(solver, bmc, bmc_1_2, &
       & pqueues, ipq, &
       & edir, ediff, Nediff, abso, &
       & started_photons, killed_photons, &
@@ -572,6 +584,7 @@ contains
       & opt_buildings, buildings_idx)
     class(t_solver), intent(in) :: solver
     class(t_boxmc), intent(in) :: bmc
+    class(t_boxmc_1_2), intent(in) :: bmc_1_2
     type(t_photon_queue), intent(inout) :: pqueues(:) ! [own, north, east, south, west]
     integer(iintegers), intent(in) :: ipq
     real(ireal_dp), allocatable, dimension(:, :, :, :), intent(inout) :: edir, ediff, abso
@@ -607,7 +620,7 @@ contains
 
       call run_photon(&
         & solver, &
-        & bmc, &
+        & bmc, bmc_1_2, &
         & pqueues, &
         & ipq, &
         & iphoton, &
@@ -628,12 +641,13 @@ contains
     end subroutine
   end subroutine
 
-  subroutine run_photon(solver, bmc, pqueues, ipq, iphoton, &
+  subroutine run_photon(solver, bmc, bmc_1_2, pqueues, ipq, iphoton, &
       & edir, ediff, Nediff, abso, &
       & lkilled_photon, &
       & opt_buildings, buildings_idx)
     class(t_solver), intent(in) :: solver
     class(t_boxmc), intent(in) :: bmc
+    class(t_boxmc_1_2), intent(in) :: bmc_1_2
     type(t_photon_queue), intent(inout) :: pqueues(:) ! [own, north, east, south, west]
     integer(iintegers), intent(in) :: ipq
     integer(iintegers), intent(in) :: iphoton
@@ -723,21 +737,34 @@ contains
 
       real(ireal_dp) :: kabs, ksca, pathlen
       real(ireal_dp) :: Btop, Bbot, B1, B2, dz, tauabs, tm1
-      real(ireals), allocatable :: vertices(:)
+      real(ireal_dp), allocatable :: vertices(:)
 
       associate (p => pqueues(ipq)%photons(iphoton)%p)
+
+        dz = solver%atm%dz(p%k, p%i, p%j)
+        call setup_default_unit_cube_geometry( &
+          & real(solver%atm%dx, ireal_dp), &
+          & real(solver%atm%dy, ireal_dp), &
+          & dz, vertices)
+
+        if (.not. pnt_in_cube(vertices, p%loc)) then
+          ! on warped grids we encounter local photon coordinates that dont match the uniform cube
+          ! in this case, one option would be to use global coordinates and search for the correct vertical index
+          ! however, this brings along the need for epsilons which we try hard to get rid of when tracking cell ids
+          ! a dirty hack here just moves the photon inside the cube vertically. On strongly warped grids, this introduces errors.
+          ! However, I currently don't have a good idea how to do it. Use RayLi if you need this to be handled.
+          p%loc(3) = min(max(p%loc(3), 0._ireal_dp), dz - 1e-3_ireal_dp)
+        end if
+
         kabs = solver%atm%kabs(p%k, p%i, p%j)
         ksca = solver%atm%ksca(p%k, p%i, p%j)
-        dz = solver%atm%dz(p%k, p%i, p%j)
         if (lthermal) then
           Btop = solver%atm%planck(p%k, p%i, p%j)
           Bbot = solver%atm%planck(p%k + 1, p%i, p%j)
           B1 = (Btop * p%loc(3) + Bbot * (dz - p%loc(3))) / dz ! planck at start of the ray
         end if
 
-        call setup_default_unit_cube_geometry(solver%atm%dx, solver%atm%dy, real(dz, ireals), vertices)
-
-        call move_photon(bmc, real(vertices, ireal_dp), ksca, p, pathlen, lexit_cell)
+        call move_photon(solver%atm, bmc, bmc_1_2, vertices, ksca, p, pathlen, lexit_cell)
 
         if (lthermal) then
           B2 = (Btop * p%loc(3) + Bbot * (dz - p%loc(3))) / dz ! planck at end of the ray
@@ -770,7 +797,7 @@ contains
 
           if (ldebug_tracing) print *, 'hit building @ '//toStr([p%src_side, p%k, p%i, p%j])
           p%direct = .false.
-          p%scattercnt = p%scattercnt + 1
+          p%scattercnt = 0
 
           p%weight = p%weight * opt_buildings%albedo(bidx)
           if (lthermal) then
@@ -825,6 +852,10 @@ contains
         ! Move photon to new cell
         if (ldebug_tracing) print *, myid, cstr('* MOVE Photon to new cell', 'green')
 
+        ! reset scatter count in new cell, remove scatter info from last box,
+        ! i.e. don't allow intersections with source side immediately
+        p%scattercnt = 0
+
         select case (p%side)
 
         case (PPRTS_TOP_FACE) ! exit on top
@@ -853,7 +884,7 @@ contains
               end if
             end if
             p%direct = .false.
-            p%scattercnt = p%scattercnt + 1
+            !p%scattercnt = p%scattercnt + 1
 
             mu = sqrt(R())
             phi = deg2rad(R() * 360)
@@ -1423,22 +1454,30 @@ contains
 
   end subroutine
 
-  subroutine move_photon(bmc, vertices, ksca, p, pathlen, lexit_cell)
+  subroutine move_photon(atm, bmc, bmc_1_2, vertices, ksca, p, pathlen, lexit_cell)
+    type(t_atmosphere), intent(in) :: atm
     class(t_boxmc) :: bmc
+    class(t_boxmc_1_2), intent(in) :: bmc_1_2
     real(ireal_dp), intent(in) :: vertices(:), ksca
     type(t_photon), intent(inout) :: p
-    real(ireal_dp) :: pathlen
+    real(ireal_dp) :: pathlen, old_loc(3)
     logical, intent(out) :: lexit_cell
 
     real(ireal_dp) :: dist, intersec_dist
 
-    call bmc%intersect_distance(vertices, p, intersec_dist)
-
-    dist = distance(p%tau_travel, ksca)
-
-    pathlen = min(intersec_dist, dist)
-
-    call update_photon_loc(p, pathlen, ksca)
+    if ((.not. lfull3d) .and. atm%l1d(p%k)) then
+      old_loc = p%loc
+      call bmc_1_2%intersect_distance(vertices, p, intersec_dist)
+      dist = distance(p%tau_travel, ksca)
+      pathlen = min(intersec_dist, dist)
+      call update_photon_loc(p, pathlen, ksca)
+      p%loc(1:2) = old_loc(1:2)
+    else
+      call bmc%intersect_distance(vertices, p, intersec_dist)
+      dist = distance(p%tau_travel, ksca)
+      pathlen = min(intersec_dist, dist)
+      call update_photon_loc(p, pathlen, ksca)
+    end if
 
     if (intersec_dist .le. dist) then
       lexit_cell = .true.

@@ -17,7 +17,9 @@ module test_buildings
     & t_pprts_buildings, &
     & init_buildings,    &
     & clone_buildings,   &
-    & destroy_buildings, &
+    & destroy_buildings
+
+  use m_boxmc_geometry, only: &
     & PPRTS_TOP_FACE
 
   use m_examples_pprts_buildings, only: ex_pprts_buildings

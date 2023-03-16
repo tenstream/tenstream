@@ -142,7 +142,9 @@ module m_pprts
     & explicit_edir, &
     & explicit_ediff
 
-  use m_buildings, only: t_pprts_buildings, &
+  use m_buildings, only: t_pprts_buildings
+
+  use m_boxmc_geometry, only: &
     & PPRTS_TOP_FACE, &
     & PPRTS_BOT_FACE, &
     & PPRTS_LEFT_FACE, &

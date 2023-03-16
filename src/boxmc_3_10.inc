@@ -30,7 +30,7 @@
 !
 ! Face numbering is
 ! 1 -> top/bot face
-! 2 -> side face between (A,C)/(A,D)
+! 2 -> side face between (A,C)/(B,D)
 ! 3 -> side face between (A,B)/(C,D)
 
 ! Distribution Code for diffuse streams/targets:
@@ -211,10 +211,10 @@ subroutine init_diff_photon_3_10(bmc, p, src, vertices, ierr)
       p%loc = (/L(dx), L(dy), L(dz)/)
       mu = 2 * mu2 - one
       p%src_side = -1
-    case (1)
+    case (1) ! eup
       call rand_pnt_on_plane(pA, pB, pD, pC, p%loc, normal, U, V)
       p%src_side = 2
-    case (2)
+    case (2) ! edn
       call rand_pnt_on_plane(pE, pG, pH, pF, p%loc, normal, U, V)
       p%src_side = 1
     case (3, 5)
