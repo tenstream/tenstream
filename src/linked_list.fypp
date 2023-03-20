@@ -20,15 +20,15 @@
 ! The implementation follows the example at
 ! https://github.com/LadaF/fortran-list/blob/master/src/lists.f90
 
-#:for name,dtype in [&
-  ('mpiint'   , 'integer(mpiint)'   ), &
-  ('iintegers', 'integer(iintegers)'), &
-  ('int32'    , 'integer(INT32)'    ), &
-  ('int64'    , 'integer(INT64)'    ), &
-  ('ireals'   , 'real(ireals)'      ), &
-  ('real128'  , 'real(REAL128)'     ), &
-  ('real32'   , 'real(REAL32)'      ), &
-  ('real64'   , 'real(REAL64)'      ), &
+#:for name,itype,dtype in [&
+  ('mpiint'   , 'mpiint'   , 'integer(mpiint)'   ), &
+  ('iintegers', 'iintegers', 'integer(iintegers)'), &
+  ('int32'    , 'iintegers', 'integer(INT32)'    ), &
+  ('int64'    , 'int64',     'integer(INT64)'    ), &
+  ('ireals'   , 'iintegers', 'real(ireals)'      ), &
+  ('real128'  , 'iintegers', 'real(REAL128)'     ), &
+  ('real32'   , 'iintegers', 'real(REAL32)'      ), &
+  ('real64'   , 'iintegers', 'real(REAL64)'      ), &
   ]
 
   module m_linked_list_${name}$
@@ -68,13 +68,13 @@
     abstract interface
       subroutine foreach_sub(idx, node, item)
         import
-        integer(iintegers), intent(in) :: idx
+        integer(${itype}$), intent(in) :: idx
         type(t_node), pointer, intent(inout) :: node
         ${dtype}$, intent(inout) :: item
       end subroutine
       logical function elem_logical_fun(idx, node, item)
         import
-        integer(iintegers), intent(in) :: idx
+        integer(${itype}$), intent(in) :: idx
         type(t_node), pointer, intent(inout) :: node
         ${dtype}$, intent(in) :: item
       end function
@@ -125,7 +125,7 @@
       class(t_list_${name}$) :: self
       procedure(foreach_sub) :: proc
       type(t_node), pointer :: node, next
-      integer(iintegers) :: i
+      integer(${itype}$) :: i
 
       node => self%first
 
@@ -142,7 +142,7 @@
       class(t_list_${name}$), intent(inout) :: self
       procedure(elem_logical_fun) :: proc
       type(t_node), pointer :: node
-      integer(iintegers) :: i
+      integer(${itype}$) :: i
 
       res = .true.
 
@@ -161,7 +161,7 @@
       class(t_list_${name}$), intent(inout) :: self
       procedure(elem_logical_fun) :: proc
       type(t_node), pointer :: node
-      integer(iintegers) :: i
+      integer(${itype}$) :: i
 
       res = .false.
 

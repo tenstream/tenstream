@@ -76,7 +76,7 @@ module m_mcdmda
     & PPRTS_FRONT_FACE, &
     & PPRTS_REAR_FACE
 
-  use m_linked_list_iintegers, only: t_list_iintegers, t_node
+  use m_linked_list_int64, only: t_list_int64, t_node
 
   implicit none
 
@@ -104,9 +104,9 @@ module m_mcdmda
 
   type :: t_photon_queue
     type(t_distributed_photon), allocatable :: photons(:)
-    type(t_list_iintegers) :: ready ! linked list for read_to_go photon indices
-    type(t_list_iintegers) :: empty ! linked_list of empty slots in this queue
-    type(t_list_iintegers) :: sending ! linked_list of sending slots in this queue
+    type(t_list_int64) :: ready ! linked list for read_to_go photon indices
+    type(t_list_int64) :: empty ! linked_list of empty slots in this queue
+    type(t_list_int64) :: sending ! linked_list of sending slots in this queue
     integer(mpiint) :: owner ! owner is the owning rank, i.e. myid or the neighbor id
     integer(iintegers) :: queue_index ! is the STATUS integer, i.e. one of PQ_SELF, PQ_NORTH etc.
   end type
@@ -131,13 +131,14 @@ contains
 
     type(t_photon_queue) :: pqueues(5) ! [own, north, east, south, west]
 
-    integer(iintegers) :: Nqueuesize, Nbatchsize
-    integer(iintegers) :: Nphotons_global
-    integer(iintegers) :: locally_started_photons, globally_started_photons, globally_killed_photons
-    integer(iintegers) :: Nphotons_local
-    integer(iintegers) :: started_photons
-    integer(iintegers) :: killed_photons
-    integer(iintegers) :: ip, kp
+    integer(int64) :: Nqueuesize, Nbatchsize
+    real(ireals) :: rNqueuesize, rNbatchsize
+    integer(int64) :: Nphotons_global
+    integer(int64) :: locally_started_photons, globally_started_photons, globally_killed_photons
+    integer(int64) :: Nphotons_local
+    integer(int64) :: started_photons
+    integer(int64) :: killed_photons
+    integer(int64) :: ip, kp
     integer(iintegers) :: iter, percent_printed, last_percent_printed
     integer(mpiint) :: started_request, killed_request, stat(mpi_status_size)
     logical :: lcomm_finished, lflg, lfirst_print, lfinish_border_photons_first
@@ -152,7 +153,7 @@ contains
     ierr = 0
 
     call determine_Nphotons(solver, Nphotons_local, ierr); call CHKERR(ierr)
-    call mpi_allreduce(Nphotons_local, Nphotons_global, 1_mpiint, imp_iinteger, &
+    call mpi_allreduce(Nphotons_local, Nphotons_global, 1_mpiint, imp_int8, &
                        MPI_SUM, solver%comm, ierr); call CHKERR(ierr)
 
     call mpi_comm_rank(solver%comm, myid, ierr); call CHKERR(ierr)
@@ -160,10 +161,12 @@ contains
     call get_petsc_opt(solver%prefix, "-mcdmda_full3d", lfull3d, lflg, ierr); call CHKERR(ierr)
 
     Nbatchsize = 10000
-    call get_petsc_opt(solver%prefix, "-mcdmda_batch_size", Nbatchsize, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt(solver%prefix, "-mcdmda_batch_size", rNbatchsize, lflg, ierr); call CHKERR(ierr)
+    if (lflg) Nbatchsize = int(rNbatchsize, kind(Nbatchsize))
 
-    Nqueuesize = Nphotons_local
-    call get_petsc_opt(solver%prefix, "-mcdmda_queue_size", Nqueuesize, lflg, ierr); call CHKERR(ierr)
+    Nqueuesize = int(Nphotons_local, int64)
+    call get_petsc_opt(solver%prefix, "-mcdmda_queue_size", rNqueuesize, lflg, ierr); call CHKERR(ierr)
+    if (lflg) Nqueuesize = int(rNqueuesize, kind(Nqueuesize))
 
     lfinish_border_photons_first = .false.
     call get_petsc_opt(solver%prefix, "-mcdmda_finish_border_photons_first", lfinish_border_photons_first, lflg, ierr)
@@ -238,13 +241,13 @@ contains
     call prepare_locally_owned_photons(solver, bmc, solution%lsolar_rad, pqueues(PQ_SELF), Nphotons_local, weight=photon_weight)
 
     killed_photons = 0
-    call mpi_iallreduce(killed_photons, globally_killed_photons, 1_mpiint, imp_iinteger, &
+    call mpi_iallreduce(killed_photons, globally_killed_photons, 1_mpiint, imp_int8, &
                         MPI_SUM, solver%comm, killed_request, ierr); call CHKERR(ierr)
 
     if (ldebug) then
       lfirst_print = .true.
       locally_started_photons = 0
-      call mpi_iallreduce(locally_started_photons, globally_started_photons, 1_mpiint, imp_iinteger, &
+      call mpi_iallreduce(locally_started_photons, globally_started_photons, 1_mpiint, imp_int8, &
                           MPI_SUM, solver%comm, started_request, ierr); call CHKERR(ierr)
     end if
 
@@ -339,10 +342,10 @@ contains
           call mpi_test(started_request, lcomm_finished, stat, ierr); call CHKERR(ierr)
           if (lcomm_finished) then
             if (globally_started_photons .eq. Nphotons_global) lfirst_print = .false.
-            if (myid .eq. 0) print *, iter, &
+            if (myid .eq. 0) print *, '#it ', iter, &
               'Globally started photons', globally_started_photons, '/', Nphotons_global, &
               '('//toStr(100 * real(globally_started_photons) / real(Nphotons_global))//' % )'
-            call mpi_iallreduce(locally_started_photons, globally_started_photons, 1_mpiint, imp_iinteger, &
+            call mpi_iallreduce(locally_started_photons, globally_started_photons, 1_mpiint, imp_int8, &
                                 MPI_SUM, solver%comm, started_request, ierr); call CHKERR(ierr)
           end if
         end if
@@ -355,7 +358,7 @@ contains
           if (ldebug .or. percent_printed .ne. last_percent_printed) then
             !print *, iter, 'Globally killed photons', globally_killed_photons, '/', Nphotons_global, &
             !  '('//toStr(percent_printed)//' % )'
-            write (*, fmt="(A)", advance='no') repeat(c_backspace, 100)//toStr(iter)// &
+            write (*, fmt="(A)", advance='no') repeat(c_backspace, 100)//'#it '//toStr(iter)// &
               & ' Globally killed photons '//toStr(globally_killed_photons)//' / '//toStr(Nphotons_global)// &
               & '( '//toStr(percent_printed)//' % )'
             call flush (output_unit)
@@ -368,7 +371,7 @@ contains
           exit
         end if
         ! if we reach here this means there is still work todo, setup a new allreduce
-        call mpi_iallreduce(killed_photons, globally_killed_photons, 1_mpiint, imp_iinteger, &
+        call mpi_iallreduce(killed_photons, globally_killed_photons, 1_mpiint, imp_int8, &
                             MPI_SUM, solver%comm, killed_request, ierr); call CHKERR(ierr)
       end if
 
@@ -542,9 +545,10 @@ contains
 
   subroutine determine_Nphotons(solver, Nphotons_local, ierr)
     class(t_solver), intent(in) :: solver
-    integer(iintegers), intent(out) :: Nphotons_local
+    integer(int64), intent(out) :: Nphotons_local
     integer(mpiint), intent(out) :: ierr
-    integer(iintegers) :: mcdmda_photons_per_pixel ! has to be constant over all TOA faces
+    integer(int64) :: mcdmda_photons_per_pixel ! has to be constant over all TOA faces
+    real(ireals) :: rmcdmda_photons_per_pixel ! has to be constant over all TOA faces
     real(ireals) :: rN
     logical :: lflg
     integer(mpiint) :: numnodes
@@ -555,15 +559,19 @@ contains
 
     mcdmda_photons_per_pixel = 1000
     call get_petsc_opt(solver%prefix, "-mcdmda_photons_per_px", &
-                       mcdmda_photons_per_pixel, lflg, ierr); call CHKERR(ierr)
+                       rmcdmda_photons_per_pixel, lflg, ierr); call CHKERR(ierr)
+    if (lflg) mcdmda_photons_per_pixel = int(rmcdmda_photons_per_pixel, int64)
+    if (ldebug) print *, 'mcdmda_photons_per_pixel', mcdmda_photons_per_pixel
 
     call get_petsc_opt(solver%prefix, "-mcdmda_photons", rN, lflg, ierr); call CHKERR(ierr)
     if (lflg) then
-      mcdmda_photons_per_pixel = int(rN, kind(Nphotons_local)) / (numnodes * solver%C_one_atm%xm * solver%C_one_atm%ym)
-      mcdmda_photons_per_pixel = max(1_iintegers, mcdmda_photons_per_pixel)
+      mcdmda_photons_per_pixel = int(rN / (numnodes * solver%C_one_atm%xm * solver%C_one_atm%ym), kind(Nphotons_local))
+      mcdmda_photons_per_pixel = max(1_int64, mcdmda_photons_per_pixel)
+      if (ldebug) print *, 'override by -mcdmda_photons', rN, '-> mcdmda_photons_per_pixel ', mcdmda_photons_per_pixel
     end if
 
-    Nphotons_local = solver%C_one_atm%xm * solver%C_one_atm%ym * mcdmda_photons_per_pixel
+    Nphotons_local = int(solver%C_one_atm%xm, int64) * int(solver%C_one_atm%ym, int64) * mcdmda_photons_per_pixel
+    if (ldebug) print *, 'Nphotons_local', Nphotons_local
   end subroutine
 
   subroutine photon_queue_destroy(pq, ierr)
@@ -589,12 +597,12 @@ contains
     integer(iintegers), intent(in) :: ipq
     real(ireal_dp), allocatable, dimension(:, :, :, :), intent(inout) :: edir, ediff, abso
     integer(iintegers), allocatable, dimension(:, :, :, :), intent(inout) :: Nediff
-    integer(iintegers), intent(out) :: started_photons
-    integer(iintegers), intent(out) :: killed_photons
-    integer(iintegers), optional, intent(in) :: limit_number_photons
+    integer(int64), intent(out) :: started_photons
+    integer(int64), intent(out) :: killed_photons
+    integer(int64), optional, intent(in) :: limit_number_photons
     type(t_pprts_buildings), intent(in), optional :: opt_buildings
     integer(iintegers), allocatable, dimension(:, :, :, :), intent(in) :: buildings_idx
-    integer(iintegers) :: Nphotmax
+    integer(int64) :: Nphotmax
     logical :: lkilled_photon
 
     if (ldebug) then
@@ -603,7 +611,7 @@ contains
     end if
 
     Nphotmax = get_arg(huge(Nphotmax), limit_number_photons)
-    Nphotmax = min(size(pqueues(ipq)%photons, kind=iintegers), Nphotmax)
+    Nphotmax = min(size(pqueues(ipq)%photons, kind=int64), Nphotmax)
 
     killed_photons = 0
     started_photons = 0
@@ -611,9 +619,9 @@ contains
 
   contains
     subroutine run_ready(idx, node, iphoton)
-      integer(iintegers), intent(in) :: idx
+      integer(int64), intent(in) :: idx
       type(t_node), pointer, intent(inout) :: node
-      integer(iintegers), intent(inout) :: iphoton
+      integer(int64), intent(inout) :: iphoton
       integer(mpiint) :: ierr
 
       if (started_photons .ge. Nphotmax) return
@@ -650,7 +658,7 @@ contains
     class(t_boxmc_1_2), intent(in) :: bmc_1_2
     type(t_photon_queue), intent(inout) :: pqueues(:) ! [own, north, east, south, west]
     integer(iintegers), intent(in) :: ipq
-    integer(iintegers), intent(in) :: iphoton
+    integer(int64), intent(in) :: iphoton
     real(ireal_dp), allocatable, dimension(:, :, :, :), intent(inout) :: edir, ediff, abso
     integer(iintegers), allocatable, dimension(:, :, :, :), intent(inout) :: Nediff
     logical, intent(out) :: lkilled_photon
@@ -1076,14 +1084,14 @@ contains
     class(t_boxmc), intent(in) :: bmc
     logical, intent(in) :: lsolar
     type(t_photon_queue), intent(inout) :: pqueue
-    integer(iintegers), intent(in) :: Nphotons
+    integer(int64), intent(in) :: Nphotons
     real(ireals), intent(in) :: weight
 
     type(t_photon) :: p
     real(ireals) :: phi0, theta0
     integer(mpiint) :: myid, ierr
-    integer(iintegers) :: ip, i, j
-    integer(iintegers) :: Nphotons_per_pixel, l
+    integer(iintegers) :: i, j
+    integer(int64) :: ip, Nphotons_per_pixel, l
     real(ireals), allocatable :: vertices(:)
     real(ireals) :: initial_dir(3)
 
@@ -1093,7 +1101,7 @@ contains
     theta0 = solver%sun%theta
     initial_dir = spherical_2_cartesian(phi0, theta0)
 
-    Nphotons_per_pixel = max(1_iintegers, Nphotons / int(solver%C_one_atm%xm * solver%C_one_atm%ym, kind(Nphotons)))
+    Nphotons_per_pixel = max(1_int64, Nphotons / int(solver%C_one_atm%xm * solver%C_one_atm%ym, kind(Nphotons)))
     if (modulo(Nphotons, Nphotons_per_pixel) .ne. 0) &
       & call CHKERR(1_mpiint, 'Nphotons '//toStr(Nphotons)//' not divisible by Nphotons_per_pixel '//toStr(Nphotons_per_pixel))
 
@@ -1137,23 +1145,23 @@ contains
   end subroutine
 
   subroutine antialiased_photon_start(Nmax, ip, x, y, tilt_angle)
-    integer(iintegers), intent(in) :: Nmax, ip ! total number of photons per pixel, and the ip'th point for that
+    integer(int64), intent(in) :: Nmax, ip ! total number of photons per pixel, and the ip'th point for that
     real(ireal_dp), intent(in), optional :: tilt_angle ! angle by which the grid is rotated in [rad], default: 30deg
     real(ireal_dp), intent(out) :: x, y ! gives x and y position for a regularly sampled tilted grid
 
     real(ireal_dp) :: tilt_grid, rot_x, rot_y
-    integer(iintegers) :: Nx, Ny ! number of pixels in x and y direction
-    integer(iintegers) :: i, j
+    integer(int64) :: Nx, Ny ! number of pixels in x and y direction
+    integer(int64) :: i, j
 
     tilt_grid = get_arg(deg2rad(26.6_ireal_dp), tilt_angle)
 
-    if (Nmax .eq. i1) then
+    if (Nmax .eq. 1_int64) then
       x = .5_ireals
       y = .5_ireals
       return
     end if
 
-    Nx = int(sqrt(real(Nmax, ireal_dp)), iintegers)
+    Nx = int(sqrt(real(Nmax, ireal_dp)), int64)
     Ny = Nx
 
     if (ip .gt. Nx * Ny) then
@@ -1183,7 +1191,7 @@ contains
 
   subroutine find_empty_entry_in_pqueue(pqueue, emptyid, ierr)
     type(t_photon_queue), intent(inout) :: pqueue
-    integer(iintegers), intent(out) :: emptyid
+    integer(int64), intent(out) :: emptyid
     integer(mpiint), intent(out) :: ierr
     call pqueue%empty%pop(emptyid, ierr)
     if (ierr .ne. 0) then
@@ -1214,7 +1222,7 @@ contains
     type(t_photon_queue), intent(inout) :: pqueue
     type(t_photon), intent(in) :: p
     integer(mpiint), intent(in) :: request
-    integer(iintegers), intent(out) :: ind
+    integer(int64), intent(out) :: ind
     integer(mpiint), intent(out) :: ierr
 
     call find_empty_entry_in_pqueue(pqueue, ind, ierr)
@@ -1231,10 +1239,10 @@ contains
 
   subroutine setup_photon_queue(pq, N, owner, queue_index)
     type(t_photon_queue), intent(inout) :: pq
-    integer(iintegers), intent(in) :: N
+    integer(int64), intent(in) :: N
     integer(mpiint), intent(in) :: owner
     integer(iintegers), intent(in) :: queue_index
-    integer(iintegers) :: i
+    integer(int64) :: i
 
     if (allocated(pq%photons)) then
       call CHKERR(1_mpiint, 'photon queue already allocated')
@@ -1254,7 +1262,7 @@ contains
     type(t_photon), intent(in) :: p_in
     type(t_photon_queue), intent(inout) :: pqueue
     integer(mpiint) :: myid, tag, ierr
-    integer(iintegers) :: iphoton
+    integer(int64) :: iphoton
 
     logical, parameter :: lcyclic_boundary = .true.
 
@@ -1321,9 +1329,9 @@ contains
   contains
 
     subroutine check_sending(idx, node, iphoton)
-      integer(iintegers), intent(in) :: idx
+      integer(int64), intent(in) :: idx
       type(t_node), pointer, intent(inout) :: node
-      integer(iintegers), intent(inout) :: iphoton
+      integer(int64), intent(inout) :: iphoton
 
       integer(mpiint) :: stat(mpi_status_size), ierr
       logical :: lcomm_finished
@@ -1377,9 +1385,9 @@ contains
     end do
   contains
     subroutine check_sending(idx, node, iphoton)
-      integer(iintegers), intent(in) :: idx
+      integer(int64), intent(in) :: idx
       type(t_node), pointer, intent(inout) :: node
-      integer(iintegers), intent(inout) :: iphoton
+      integer(int64), intent(inout) :: iphoton
 
       integer(mpiint) :: stat(mpi_status_size), ierr
       logical :: lcomm_finished
@@ -1403,7 +1411,7 @@ contains
     class(t_solver), intent(in) :: solver
     type(t_photon_queue), intent(inout) :: pqueues(:) ! [own, north, east, south, west]
     integer(mpiint) :: myid, mpi_status(mpi_status_size), ierr, tag
-    integer(iintegers) :: ipq, iphoton
+    integer(int64) :: ipq, iphoton
     logical :: lgot_msg
 
     call mpi_comm_rank(solver%comm, myid, ierr)
