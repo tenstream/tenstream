@@ -120,4 +120,5 @@ foreach ( stream ${streams} )
 
   add_executable("${basename}" "${basename}${fnameext}" )
   target_link_libraries( "${basename}" pprts_base ${EXTLIB})
+  install(TARGETS ${basename} DESTINATION bin/)
 endforeach ()
