@@ -565,8 +565,7 @@ contains
 
     call get_petsc_opt(solver%prefix, "-mcdmda_photons", rN, lflg, ierr); call CHKERR(ierr)
     if (lflg) then
-      mcdmda_photons_per_pixel = int(rN / (numnodes * solver%C_one_atm%xm * solver%C_one_atm%ym), kind(Nphotons_local))
-      mcdmda_photons_per_pixel = max(1_int64, mcdmda_photons_per_pixel)
+      mcdmda_photons_per_pixel = 1_int64 + int((rN / solver%C_one_atm%glob_xm) / solver%C_one_atm%glob_ym, kind(Nphotons_local))
       if (ldebug) print *, 'override by -mcdmda_photons', rN, '-> mcdmda_photons_per_pixel ', mcdmda_photons_per_pixel
     end if
 
