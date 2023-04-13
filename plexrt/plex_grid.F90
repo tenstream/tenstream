@@ -871,6 +871,7 @@ contains
     call DMClone(orig_dm, dm, ierr); call CHKERR(ierr)
     call PetscObjectSetName(dm, 'plex_cell1_dm', ierr); call CHKERR(ierr)
     call dmplex_set_new_section(dm, 'cell_section', i1, [i1], [i0], [i0], [i0])
+    call DMSetFromOptions(dm, ierr); call CHKERR(ierr)
   end subroutine
 
   subroutine setup_edir_dmplex(plex, orig_dm, top_streams, side_streams, dof_per_stream, dm)
@@ -898,6 +899,7 @@ contains
     call PetscSectionDestroy(section, ierr); call CHKERR(ierr)
 
     call DMSetFromOptions(dm, ierr); call CHKERR(ierr)
+    call DMCreateDS(dm, ierr); call CHKERR(ierr)
   end subroutine
 
   !> @brief setup the section on which diffuse radiation lives, e.g. 2 dof on top/bot faces and 4 dof on side faces
@@ -933,6 +935,7 @@ contains
     call PetscObjectViewFromOptions(section, PETSC_NULL_SECTION, '-show_diff_section', ierr); call CHKERR(ierr)
     call PetscSectionDestroy(section, ierr); call CHKERR(ierr)
     call DMSetFromOptions(dm, ierr); call CHKERR(ierr)
+    call DMCreateDS(dm, ierr); call CHKERR(ierr)
   end subroutine
 
   subroutine set_1D_constraints(plex, constraint_height, constraint_radius)
