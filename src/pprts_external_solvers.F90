@@ -1425,10 +1425,10 @@ contains
 
           fac = real(solver%difftop%area_divider, ireals) / real(solver%difftop%streams, ireals)
           do src = 1, solver%difftop%dof
-            if (solver%difftop%is_inward(src)) then
+            if (solver%difftop%is_inward(src)) then ! E_dn
               xv_diff(src - 1, C_diff%zs + 1:C_diff%ze, i, j) = Edn(atmk(atm, C_one_atm1%zs) + 1:C_one_atm1%ze) * fac
               xv_diff(src - 1, C_diff%zs, i, j) = Edn(C_one_atm1%zs) * fac
-            else
+            else ! E_up
               xv_diff(src - 1, C_diff%zs + 1:C_diff%ze, i, j) = Eup(atmk(atm, C_one_atm1%zs) + 1:C_one_atm1%ze) * fac
               xv_diff(src - 1, C_diff%zs, i, j) = Eup(C_one_atm1%zs) * fac
             end if
@@ -1727,6 +1727,10 @@ contains
             else
               bk = C_one_atm%ze
             end if
+
+            Edn(:) = zero
+            Eup(:) = zero
+
             call schwarzschild(          &
               & Nmu,                     &
               & dtau(C_one_atm%zs:bk),   &
