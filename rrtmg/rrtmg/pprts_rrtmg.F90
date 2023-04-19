@@ -45,7 +45,7 @@ module m_pprts_rrtmg
                                iintegers, ireals, zero, one, i0, i1, i2, i9, &
                                mpiint, pi, default_str_len
 
-  use m_pprts_base, only: t_solver, compute_gradient, destroy_pprts, atmk
+  use m_pprts_base, only: t_solver, destroy_pprts, atmk
 
   use m_pprts, only: init_pprts, set_angles, set_optical_properties, solve_pprts, &
                      pprts_get_result, pprts_get_result_toZero
