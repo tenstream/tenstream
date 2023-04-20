@@ -5900,6 +5900,13 @@ contains
     subroutine fill_buildings
       integer(iintegers) :: m, idx(4), dof_offset, idof
       type(tVec) :: ledir, lediff
+      real(ireals) :: fac, src, n(3), dotup
+      integer(iintegers) :: adj_i, adj_j
+      logical :: lfill_1D_side_walls, lflg
+
+      lfill_1D_side_walls = .false.
+      call get_petsc_opt("", "-pprts_fill_1D_side_walls", lfill_1D_side_walls, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt(solver%prefix, "-pprts_fill_1D_side_walls", lfill_1D_side_walls, lflg, ierr); call CHKERR(ierr)
 
       associate (                               &
           & solution => solver%solutions(uid), &
@@ -5954,6 +5961,45 @@ contains
               end select
             end associate
           end do
+
+          !> set fluxes on vertical faces in case we have buildings. Coming out of 1D solvers, they are 0 otherwise
+          if (lfill_1D_side_walls .and. (solver%dirside%dof .eq. i0)) then
+            dotup = one / dot_product(solver%sun%sundir, [zero, zero, one]) / real(solver%dirtop%area_divider, ireals)
+
+            do m = 1, size(B%iface)
+              call ind_1d_to_nd(B%da_offsets, B%iface(m), idx)
+              idx(2:4) = idx(2:4) - 1 + [C%zs, C%xs, C%ys]
+
+              associate (k => idx(2), i => idx(3), j => idx(4))
+                select case (idx(1))
+                case (PPRTS_LEFT_FACE)
+                  n = [real(ireals) :: -1, 0, 0]
+                  fac = max(zero, dot_product(solver%sun%sundir, n) * dotup)
+                  src = sum(x4d(0:solver%dirtop%dof - 1, k + 1, i - 1, j))
+                  B%edir(m) = src * fac
+                case (PPRTS_RIGHT_FACE)
+                  n = [real(ireals) :: 1, 0, 0]
+                  fac = max(zero, dot_product(solver%sun%sundir, n) * dotup)
+                  src = sum(x4d(0:solver%dirtop%dof - 1, k + 1, i + 1, j))
+                  B%edir(m) = src * fac
+                case (PPRTS_REAR_FACE)
+                  n = [real(ireals) :: 0, -1, 0]
+                  fac = max(zero, dot_product(solver%sun%sundir, n) * dotup)
+                  src = sum(x4d(0:solver%dirtop%dof - 1, k + 1, i, j - 1))
+                  B%edir(m) = src * fac
+                case (PPRTS_FRONT_FACE)
+                  n = [real(ireals) :: 0, 1, 0]
+                  fac = max(zero, dot_product(solver%sun%sundir, n) * dotup)
+                  src = sum(x4d(0:solver%dirtop%dof - 1, k + 1, i, j + 1))
+                  B%edir(m) = src * fac
+
+                case default
+                  continue
+                end select
+
+              end associate
+            end do
+          end if
 
           call restoreVecPointer(C%da, ledir, x1d, x4d, readonly=.true.)
           call DMRestoreLocalVector(C%da, ledir, ierr); call CHKERR(ierr)
@@ -6060,9 +6106,56 @@ contains
           end associate
         end do
 
+        !> set fluxes on vertical faces in case we have buildings. Coming out of 1D solvers, they are 0 otherwise
+        if (lfill_1D_side_walls .and. (solver%diffside%dof .eq. i0)) then
+
+          buildings_loop: do m = 1, size(B%iface)
+            call ind_1d_to_nd(B%da_offsets, B%iface(m), idx)
+            idx(2:4) = idx(2:4) - 1 + [C%zs, C%xs, C%ys]
+
+            src = 0
+
+            associate (k => idx(2), i => idx(3), j => idx(4))
+              select case (idx(1))
+              case (PPRTS_LEFT_FACE)
+                adj_i = i - 1
+                adj_j = j
+
+              case (PPRTS_RIGHT_FACE)
+                adj_i = i + 1
+                adj_j = j
+
+              case (PPRTS_REAR_FACE)
+                adj_i = i
+                adj_j = j - 1
+
+              case (PPRTS_FRONT_FACE)
+                adj_i = i
+                adj_j = j + 1
+
+              case default
+                cycle buildings_loop
+              end select
+
+              do idof = 0, solver%difftop%dof - 1
+                if (solver%difftop%is_inward(i1 + idof)) then ! e_down
+                  src = src + x4d(idof, k, adj_i, adj_j)
+                else ! e_up
+                  src = src + x4d(idof, k + 1, adj_i, adj_j)
+                end if
+              end do
+              src = src / real(solver%difftop%area_divider, ireals)*.5_ireals
+
+              B%incoming(m) = src
+              B%outgoing(m) = B%incoming(m) * B%albedo(m)
+            end associate
+          end do buildings_loop
+        end if
+
         call restoreVecPointer(C%da, solution%ediff, x1d, x4d, readonly=.true.)
         call DMRestoreLocalVector(C%da, lediff, ierr); call CHKERR(ierr)
       end associate
+
     end subroutine
 
     subroutine alloc_or_check_size(C, arr, varname)
