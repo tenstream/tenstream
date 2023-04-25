@@ -76,7 +76,7 @@ subroutine init_dir_photon_3_10(bmc, p, src, ldirect, initial_dir, vertices, ier
   p%dir = initial_dir
   p%alive = .false.
 
-  call CHKERR(size(vertices) - 24, 'wrong size of vertices, expected 24 but found '//toStr(size(vertices)))
+  call CHKERR(size(vertices) - 24, 'wrong size of vertices, expected 24 but found ', size(vertices))
   associate ( &
     pA => vertices(1:3), &
     pB => vertices(4:6), &
@@ -167,7 +167,7 @@ subroutine update_dir_stream_3_10(bmc, vertices, p, T)
   case (5, 6)
     T(3) = T(3) + p%weight
   case default
-    call CHKERR(1_mpiint, 'called update dirstream with incorrect source'//toStr(p%side))
+    call CHKERR(1_mpiint, 'called update dirstream with incorrect source', p%side)
     print *, 'remove unused compiler warning', vertices
   end select
   select type (bmc)
@@ -194,7 +194,7 @@ subroutine init_diff_photon_3_10(bmc, p, src, vertices, ierr)
 
   mu = mu1
 
-  call CHKERR(size(vertices) - 24, 'wrong size of vertices, expected 24 but found '//toStr(size(vertices)))
+  call CHKERR(size(vertices) - 24, 'wrong size of vertices, expected 24 but found ', size(vertices))
   associate ( &
     pA => vertices(1:3), &
     pB => vertices(4:6), &
@@ -230,7 +230,7 @@ subroutine init_diff_photon_3_10(bmc, p, src, vertices, ierr)
       call rand_pnt_on_plane(pE, pF, pB, pA, p%loc, normal, U, V)
       p%src_side = 5
     case default
-      call CHKERR(1_mpiint, 'Dont know what to do with source spec: '//toStr(src))
+      call CHKERR(1_mpiint, 'Dont know what to do with source spec: ', src)
     end select
 
     ! always nudge the photon a little bit inside the volume
@@ -250,7 +250,7 @@ subroutine init_diff_photon_3_10(bmc, p, src, vertices, ierr)
     phi = deg2rad(interv_R(-90._ireal_dp, 90._ireal_dp))
   case default
     phi = -1
-    call CHKERR(1_mpiint, 'Dont know what to do with source spec: '//toStr(src))
+    call CHKERR(1_mpiint, 'Dont know what to do with source spec: ', src)
   end select
 
   p%dir = (/sin(phi) * sin(acos(mu)), cos(phi) * sin(acos(mu)), mu/)

@@ -751,14 +751,14 @@ contains
     integer(mpiint) :: ierr
 
     call CHKERR(int(C_cells%glob_xm - C_verts%glob_xm + i1, mpiint), &
-      & 'nonconforming size: cells/verts %xe '//toStr(C_cells%glob_xm)//' '//toStr(C_verts%glob_xm))
+      & 'nonconforming size: cells/verts %xe ', C_cells%glob_xm, C_verts%glob_xm)
     call CHKERR(int(C_cells%glob_ym - C_verts%glob_ym + i1, mpiint), &
-      & 'nonconforming size: cells/verts %ye '//toStr(C_cells%glob_ym)//' '//toStr(C_verts%glob_ym))
+      & 'nonconforming size: cells/verts %ye ', C_cells%glob_ym, C_verts%glob_ym)
     call CHKERR(int(C_cells%ze - C_verts%ze, mpiint), &
-      & 'nonconforming size: cells/verts %ze '//toStr(C_cells%ze)//' '//toStr(C_verts%ze))
+      & 'nonconforming size: cells/verts %ze ', C_cells%ze, C_verts%ze)
 
     call CHKERR(int(C_cells%dof - C_verts%dof, mpiint), &
-      & 'nonconforming size: cells/verts %dof '//toStr(C_cells%dof)//' '//toStr(C_verts%dof))
+      & 'nonconforming size: cells/verts %dof ', C_cells%dof, C_verts%dof)
 
     call is_local_vec(C_cells%da, cell_vals, is_local, ierr); call CHKERR(ierr)
     if (is_local) then

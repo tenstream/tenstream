@@ -487,6 +487,52 @@ module m_helper_functions
     #:endfor
   end interface
 
+  interface CHKERR
+    #:set CHKERR_funcnames = []
+    #:for basetype0,dtype0,tname0 in [&
+      (None, None, None), &
+      ('character','len=*' ,'CHAR'), &
+      ('integer', 'INT32'  ,'I32' ), &
+      ('integer', 'INT64'  ,'I64' ), &
+      ('real'   , 'REAL32' ,'R32' ), &
+      ('real'   , 'REAL64' ,'R64' ), &
+      ('real'   , 'REAL128','R128')]
+      #:for basetype1,dtype1,tname1 in [&
+        (None, None, None), &
+        ('character','len=*' ,'CHAR'), &
+        ('integer', 'INT32'  ,'I32' ), &
+        ('integer', 'INT64'  ,'I64' ), &
+        ('real'   , 'REAL32' ,'R32' ), &
+        ('real'   , 'REAL64' ,'R64' ), &
+        ('real'   , 'REAL128','R128')]
+        #:for basetype2,dtype2,tname2 in [&
+          (None, None, None), &
+          ('character','len=*' ,'CHAR'), &
+          ('integer', 'INT32'  ,'I32' ), &
+          ('integer', 'INT64'  ,'I64' ), &
+          ('real'   , 'REAL32' ,'R32' ), &
+          ('real'   , 'REAL64' ,'R64' ), &
+          ('real'   , 'REAL128','R128')]
+          #:for basetype3,dtype3,tname3 in [&
+            (None, None, None), &
+            ('character','len=*' ,'CHAR'), &
+            ('integer', 'INT32'  ,'I32' ), &
+            ('integer', 'INT64'  ,'I64' ), &
+            ('real'   , 'REAL32' ,'R32' ), &
+            ('real'   , 'REAL64' ,'R64' ), &
+            ('real'   , 'REAL128','R128')]
+            #:set CHKERR_names     = list(filter(lambda _: _ is not None, [tname0, tname1, tname2, tname3]))
+            #:set CHKERR_funcname = 'CHKERR_' + ''.join(CHKERR_names)
+            #:if CHKERR_funcname not in CHKERR_funcnames
+              module procedure CHKERR_${CHKERR_funcname}$
+              #: set CHKERR_funcnames = CHKERR_funcnames + [CHKERR_funcname,]
+            #:endif
+          #:endfor
+        #:endfor
+      #:endfor
+    #:endfor
+  end interface
+
   interface cross_2d
     #:for dtype in ['REAL32', 'REAL64', 'REAL128']
       module procedure cross_2d_${dtype}$
@@ -733,26 +779,69 @@ contains
     end function
   #:endfor
 
-  subroutine CHKERR(ierr, descr)
-    integer(mpiint), intent(in) :: ierr
-    character(len=*), intent(in), optional :: descr
-    integer(mpiint) :: myid, mpierr
+  #:set CHKERR_funcnames = []
+  #:for basetype0,dtype0,tname0 in [&
+    (None, None, None), &
+    ('character','len=*' ,'CHAR'), &
+    ('integer', 'INT32'  ,'I32' ), &
+    ('integer', 'INT64'  ,'I64' ), &
+    ('real'   , 'REAL32' ,'R32' ), &
+    ('real'   , 'REAL64' ,'R64' ), &
+    ('real'   , 'REAL128','R128')]
+    #:for basetype1,dtype1,tname1 in [&
+      (None, None, None), &
+      ('character','len=*' ,'CHAR'), &
+      ('integer', 'INT32'  ,'I32' ), &
+      ('integer', 'INT64'  ,'I64' ), &
+      ('real'   , 'REAL32' ,'R32' ), &
+      ('real'   , 'REAL64' ,'R64' ), &
+      ('real'   , 'REAL128','R128')]
+      #:for basetype2,dtype2,tname2 in [&
+        (None, None, None), &
+        ('character','len=*' ,'CHAR'), &
+        ('integer', 'INT32'  ,'I32' ), &
+        ('integer', 'INT64'  ,'I64' ), &
+        ('real'   , 'REAL32' ,'R32' ), &
+        ('real'   , 'REAL64' ,'R64' ), &
+        ('real'   , 'REAL128','R128')]
+        #:for basetype3,dtype3,tname3 in [&
+          (None, None, None), &
+          ('character','len=*' ,'CHAR'), &
+          ('integer', 'INT32'  ,'I32' ), &
+          ('integer', 'INT64'  ,'I64' ), &
+          ('real'   , 'REAL32' ,'R32' ), &
+          ('real'   , 'REAL64' ,'R64' ), &
+          ('real'   , 'REAL128','R128')]
+          #:set CHKERR_names     = list(filter(lambda _: _ is not None, [tname0, tname1, tname2, tname3]))
+          #:set CHKERR_basetypes = list(filter(lambda _: _ is not None, [basetype0, basetype1, basetype2, basetype3]))
+          #:set CHKERR_dtypes    = list(filter(lambda _: _ is not None, [dtype0, dtype1, dtype2, dtype3]))
+          #:set CHKERR_funcname = 'CHKERR_' + ''.join(CHKERR_names)
+          #:set CHKERR_argnames = [ 'arg{}{}'.format(*_) for _ in enumerate(CHKERR_names) ]
+          #:if CHKERR_funcname not in CHKERR_funcnames
+            #: set CHKERR_funcnames = CHKERR_funcnames + [CHKERR_funcname,]
+            subroutine CHKERR_${CHKERR_funcname}$ (${','.join(['ierr',] + CHKERR_argnames)}$)
+              integer(mpiint), intent(in) :: ierr
+              #:for basetype, dtype, argname in zip(CHKERR_basetypes, CHKERR_dtypes, CHKERR_argnames)
+                ${basetype}$ (${dtype}$), intent(in) :: ${argname}$
+              #:endfor
+              integer(mpiint) :: myid, mpierr
 
-    if (ierr .ne. 0) then
-      call mpi_comm_rank(MPI_COMM_WORLD, myid, mpierr)
-      if (present(descr)) then
-        print *, itoa(myid)//cstr(' ERROR: '//itoa(ierr)//': '//trim(descr), 'red')
-      else
-        print *, itoa(myid)//cstr(' ERROR: '//itoa(ierr), 'red')
-      end if
+              if (ierr .ne. 0) then
+                call mpi_comm_rank(MPI_COMM_WORLD, myid, mpierr)
+                print *, itoa(myid)//cstr(' ERROR: '//itoa(ierr), 'red') ${','.join(['',] + CHKERR_argnames)}$
 #ifdef _GNU
-      call BACKTRACE
+                call BACKTRACE
 #elif defined _INTEL
-      call tracebackqq
+                call tracebackqq
 #endif
-      call mpi_abort(mpi_comm_world, ierr, mpierr)
-    end if
-  end subroutine
+                call mpi_abort(mpi_comm_world, ierr, mpierr)
+              end if
+            end subroutine
+          #:endif
+        #:endfor
+      #:endfor
+    #:endfor
+  #:endfor
 
   subroutine CHKWARN(ierr, descr)
     integer(mpiint), intent(in) :: ierr
@@ -2620,7 +2709,7 @@ contains
           do k = 2, size(arr)
             if (arr(k) .le. arr(k - 1)) then
               lis_linear = .false.
-              if (is_verbose) print *, 'non monotonicity @ k='//toStr(k)
+              if (is_verbose) print *, 'non monotonicity @ k=', k
               return
             end if
           end do
@@ -2628,7 +2717,7 @@ contains
           do k = 2, size(arr)
             if (arr(k) .lt. arr(k - 1)) then
               lis_linear = .false.
-              if (is_verbose) print *, 'non monotonicity @ k='//toStr(k)
+              if (is_verbose) print *, 'non monotonicity @ k=', k
               return
             end if
           end do
@@ -2638,7 +2727,7 @@ contains
           do k = 2, size(arr)
             if (arr(k) .ge. arr(k - 1)) then
               lis_linear = .false.
-              if (is_verbose) print *, 'non monotonicity @ k='//toStr(k)
+              if (is_verbose) print *, 'non monotonicity @ k=', k
               return
             end if
           end do
@@ -2646,7 +2735,7 @@ contains
           do k = 2, size(arr)
             if (arr(k) .gt. arr(k - 1)) then
               lis_linear = .false.
-              if (is_verbose) print *, 'non monotonicity @ k='//toStr(k)
+              if (is_verbose) print *, 'non monotonicity @ k=', k
               return
             end if
           end do

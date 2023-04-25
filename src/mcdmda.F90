@@ -1228,7 +1228,7 @@ contains
     if (ierr .ne. 0) then
       call finalize_msgs_blocking(pqueue)
       call find_empty_entry_in_pqueue(pqueue, ind, ierr)
-      call CHKERR(ierr, 'Could not find an empty slot in neighbor queue '//toStr(pqueue%queue_index))
+      call CHKERR(ierr, 'Could not find an empty slot in neighbor queue ', pqueue%queue_index)
     end if
 
     ! Put photon to send queue to neighbor

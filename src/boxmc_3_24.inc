@@ -138,7 +138,7 @@ subroutine init_dir_photon_3_24(bmc, p, src, ldirect, initial_dir, vertices, ier
   p%dir = initial_dir
   p%alive = .false.
 
-  call CHKERR(size(vertices) - 24, 'wrong size of vertices, expected 24 but found '//toStr(size(vertices)))
+  call CHKERR(size(vertices) - 24, 'wrong size of vertices, expected 24 but found ', size(vertices))
   associate ( &
     pA => vertices(1:3), &
     pB => vertices(4:6), &
@@ -224,7 +224,7 @@ subroutine update_dir_stream_3_24(bmc, vertices, p, T)
   case (5, 6)
     T(3) = T(3) + p%weight
   case default
-    call CHKERR(1_mpiint, 'called update dirstream with incorrect source'//toStr(p%side))
+    call CHKERR(1_mpiint, 'called update dirstream with incorrect source', p%side)
     print *, 'remove unused compiler warning', vertices
   end select
   select type (bmc)
@@ -242,7 +242,7 @@ subroutine init_diff_photon_3_24(bmc, p, src, vertices, ierr)
   real(ireal_dp) :: phi, mu
   real(ireal_dp), dimension(3) :: normal, U, V, cube_center, dir_p_to_cube_center
 
-  call CHKERR(size(vertices) - 24, 'wrong size of vertices, expected 24 but found '//toStr(size(vertices)))
+  call CHKERR(size(vertices) - 24, 'wrong size of vertices, expected 24 but found ', size(vertices))
   associate ( &
     pA => vertices(1:3), &
     pB => vertices(4:6), &
@@ -274,7 +274,7 @@ subroutine init_diff_photon_3_24(bmc, p, src, vertices, ierr)
       call rand_pnt_on_plane(pG, pC, pD, pH, p%loc, normal, U, V)
       p%src_side = 6
     case default
-      call CHKERR(1_mpiint, 'Dont know what to do with source spec: '//toStr(src))
+      call CHKERR(1_mpiint, 'Dont know what to do with source spec: ', src)
     end select
 
     select case (src)
@@ -288,7 +288,7 @@ subroutine init_diff_photon_3_24(bmc, p, src, vertices, ierr)
       phi = deg2rad(interv_R(90._ireal_dp, 180._ireal_dp))
     case default
       phi = -999
-      call CHKERR(1_mpiint, 'Dont know what to do with source spec: '//toStr(src))
+      call CHKERR(1_mpiint, 'Dont know what to do with source spec: ', src)
     end select
 
     select case (src)
@@ -296,7 +296,7 @@ subroutine init_diff_photon_3_24(bmc, p, src, vertices, ierr)
       mu = sqrt(interv_R(zero, one))
     case default
       mu = -1
-      call CHKERR(1_mpiint, 'Dont know what to do with source spec: '//toStr(src))
+      call CHKERR(1_mpiint, 'Dont know what to do with source spec: ', src)
     end select
 
     p%dir = (/sin(phi) * sin(acos(mu)), cos(phi) * sin(acos(mu)), mu/)
@@ -320,7 +320,7 @@ subroutine init_diff_photon_3_24(bmc, p, src, vertices, ierr)
       p%dir = rotate_angle_x(p%dir, -90._ireal_dp)
       p%dir(2) = -p%dir(2)
     case default
-      call CHKERR(1_mpiint, 'Dont know what to do with source spec: '//toStr(src))
+      call CHKERR(1_mpiint, 'Dont know what to do with source spec: ', src)
     end select
 
     ! always nudge the photon a little bit inside the volume

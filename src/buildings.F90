@@ -11,7 +11,6 @@ module m_buildings
   use m_helper_functions, only: &
     & CHKERR, &
     & CHKWARN, &
-    & toStr, &
     & ind_1d_to_nd, ind_nd_to_1d, ndarray_offsets, &
     & get_arg, &
     & deallocate_allocatable
@@ -96,10 +95,10 @@ contains
     ierr = 0
     if (allocated(buildings)) then
       ierr = int(size(buildings%iface) - Nfaces, mpiint)
-      call CHKERR(ierr, 'buildings struct already allocated with different size ('//toStr(size(buildings%iface)))
+      call CHKERR(ierr, 'buildings struct already allocated with different size ', size(buildings%iface))
       ierr = int(size(buildings%da_offsets) - size(da_sizes), mpiint)
-      call CHKERR(ierr, 'buildings struct already allocated with different size of da_offsets '//&
-        & ' '//toStr(size(buildings%da_offsets))//' vs '//toStr(size(da_sizes)))
+      call CHKERR(ierr, 'buildings struct already allocated with different size of da_offsets ', &
+        & size(buildings%da_offsets), size(da_sizes))
     else
       allocate (buildings)
       allocate (buildings%iface_data)
@@ -131,10 +130,10 @@ contains
     if (allocated(buildings_clone)) then
       ierr = int(size(buildings%iface) - size(buildings_clone%iface), mpiint)
       call CHKERR(ierr, 'clone already allocated but with a non-matching size faces'//&
-        & '(orig:'//toStr(size(buildings%iface))//'.vs.clone:'//toStr(size(buildings_clone%iface)))
+        & '(orig:', size(buildings%iface), '.vs.clone:', size(buildings_clone%iface))
       ierr = int(size(buildings%da_offsets) - size(buildings_clone%da_offsets), mpiint)
       call CHKERR(ierr, 'clone already allocated but with a non-matching size offsets'//&
-        & ' '//toStr(size(buildings%da_offsets))//' vs '//toStr(size(buildings_clone%da_offsets)))
+        & ' ', size(buildings%da_offsets), ' vs ', size(buildings_clone%da_offsets))
     else
       allocate (buildings_clone)
       if (allocated(buildings%da_offsets)) then
@@ -165,7 +164,7 @@ contains
           allocate (var_clone(size(var_in)))
         else
           call CHKERR(int(size(var_in) - size(var_clone), mpiint), &
-            & 'wrong size in clone ('//toStr(size(var_in))//'/'//toStr(size(var_clone))//')')
+            & 'wrong size in clone ', size(var_in), size(var_clone))
         end if
         var_clone = var_in
       else
@@ -253,14 +252,14 @@ contains
     ierr = 0
 
     call CHKERR(int(buildings%da_offsets(2) - 6_iintegers, mpiint), &
-      & 'da_offsets(2) should be 6 as in 6 sides but found '//toStr(buildings%da_offsets(2)))
+      & 'da_offsets(2) should be 6 as in 6 sides but found ', buildings%da_offsets(2))
     call CHKERR(int(buildings%da_offsets(3) - 6 * Nz, mpiint), &
-      & 'da_offsets(3) should be 6*Nz but found '//toStr(buildings%da_offsets(3))// &
-      & ' instead of '//toStr(Nz * 6))
+      & 'da_offsets(3) should be 6*Nz but found ', buildings%da_offsets(3), &
+      & ' instead of ', Nz * 6)
 
     call CHKERR(int(buildings%da_offsets(4) - 6 * Nz * Nx, mpiint), &
-      & 'da_offsets(3) should be 6*Nz*Nx but found '//toStr(buildings%da_offsets(4))// &
-      & ' instead of '//toStr(6 * Nz * Nx))
+      & 'da_offsets(3) should be 6*Nz*Nx but found ', buildings%da_offsets(4), &
+      & ' instead of ', 6 * Nz * Nx)
 
     allocate (sides(6, Nz, Nx, Ny))
     sides = .false.
@@ -307,7 +306,7 @@ contains
     case (PPRTS_FRONT_FACE)
       str = "PPRTS_FRONT_FACE"
     case default
-      call CHKERR(1_mpiint, 'unknown building face_idx '//toStr(bid))
+      call CHKERR(1_mpiint, 'unknown building face_idx ', bid)
     end select
   end function
 end module

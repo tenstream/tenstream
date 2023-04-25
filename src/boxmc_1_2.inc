@@ -82,7 +82,7 @@ subroutine init_dir_photon_1_2(bmc, p, src, ldirect, initial_dir, vertices, ierr
 
   real(ireal_dp), dimension(3) :: normal, U, V, cube_center, dir_p_to_cube_center
 
-  call CHKERR(size(vertices) - 24, 'wrong size of vertices, expected 24 but found '//toStr(size(vertices)))
+  call CHKERR(size(vertices) - 24, 'wrong size of vertices, expected 24 but found ', size(vertices))
   associate ( &
     pA => vertices(1:3), &
     pB => vertices(4:6), &
@@ -151,7 +151,7 @@ subroutine init_diff_photon_1_2(bmc, p, src, vertices, ierr)
   real(ireal_dp) :: phi, mu
   real(ireal_dp), dimension(3) :: normal, U, V, cube_center, dir_p_to_cube_center
 
-  call CHKERR(size(vertices) - 24, 'wrong size of vertices, expected 24 but found '//toStr(size(vertices)))
+  call CHKERR(size(vertices) - 24, 'wrong size of vertices, expected 24 but found ', size(vertices))
   associate ( &
     pA => vertices(1:3), &
     pB => vertices(4:6), &

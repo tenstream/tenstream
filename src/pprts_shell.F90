@@ -29,8 +29,7 @@ module m_pprts_shell
 
   use m_helper_functions, only: &
     & approx, &
-    & CHKERR, &
-    & toStr
+    & CHKERR
 
   use m_pprts_base, only: &
     & atmk, &

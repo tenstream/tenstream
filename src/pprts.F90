@@ -625,9 +625,11 @@ contains
         solver%atm%icollapse = collapseindex
         if (solver%atm%lcollapse) then
           ierr = count(.not. solver%atm%l1d(solver%C_one_atm%zs:atmk(solver%atm, solver%C_one%zs)))
-          call CHKWARN(ierr, 'Found non 1D layers in an area that will be collapsed.'// &
-            & 'This will change the results! '//&
-            & 'collapse index: '//toStr(collapseindex))
+          if (ierr .ne. 0_mpiint) then
+            call CHKWARN(ierr, 'Found non 1D layers in an area that will be collapsed.'// &
+              & 'This will change the results! '//&
+              & 'collapse index: '//toStr(collapseindex))
+          end if
           solver%atm%l1d(solver%C_one_atm%zs:atmk(solver%atm, solver%C_one%zs)) = .true. ! if need to be collapsed, they have to be 1D.
           if (ldebug) print *, 'Using icollapse:', collapseindex, solver%atm%lcollapse
         end if
@@ -636,10 +638,13 @@ contains
       N1dlayers = count(solver%atm%l1d)
       call imp_allreduce_max(solver%comm, N1dlayers, N1dlayers_max)
       if (N1dlayers_max .gt. 0) then
-        call CHKWARN(int(N1dlayers - N1dlayers_max, mpiint), &
-          & 'Nr of 1D layers does not match on all ranks'// &
-          & ' while the global max(N1D_layers) is'//toStr(N1dlayers_max)// &
-          & ' here (rank='//toStr(solver%myid)//') we have N1D_layers='//tostr(N1dlayers))
+        ierr = int(N1dlayers - N1dlayers_max, mpiint)
+        if (ierr .ne. 0_mpiint) then
+          call CHKWARN(ierr, &
+            & 'Nr of 1D layers does not match on all ranks'// &
+            & ' while the global max(N1D_layers) is'//toStr(N1dlayers_max)// &
+            & ' here (rank='//toStr(solver%myid)//') we have N1D_layers='//tostr(N1dlayers))
+        end if
         solver%atm%l1d(solver%C_one_atm%zs:solver%C_one_atm%zs + N1dlayers_max - 1) = .true.
       end if
 
@@ -3102,7 +3107,7 @@ contains
                   if (lcheck_coeff_sums) then
                     normref = norm_dir + norm_diff
                     if (normref .gt. eps) &
-                      call CHKERR(1, 'Failed since for src'//toStr(src)//new_line('A')//&
+                      call CHKERR(1_mpiint, 'Failed since for src'//toStr(src)//new_line('A')//&
                         & ', norm(dir2dir(src)) + norm(dir2diff(src)) = '//new_line('A')//&
                         & toStr(norm_dir)//' + '//toStr(norm_diff)//&
                         & ' = '//toStr(normref)//' > '//toStr(eps)//new_line('')//&
@@ -5173,7 +5178,7 @@ contains
                 end do
 
               case default
-                call CHKERR(1_mpiint, 'unknown building face_idx '//toStr(idx(1) + 1))
+                call CHKERR(1_mpiint, 'unknown building face_idx ', idx(1) + 1)
               end select
             end associate
           end do ! loop over building faces
@@ -5260,7 +5265,7 @@ contains
               end do
 
             case default
-              call CHKERR(1_mpiint, 'unknown building face_idx '//toStr(idx(1) + 1))
+              call CHKERR(1_mpiint, 'unknown building face_idx ', idx(1) + 1)
             end select
           end associate
         end do
@@ -5957,7 +5962,7 @@ contains
                 B%edir(m) = sum(x4d(dof_offset:dof_offset + solver%dirside%dof - 1, k, i, j + 1)) &
                   & / real(solver%dirside%area_divider, ireals)
               case default
-                call CHKERR(1_mpiint, 'unknown building face_idx '//toStr(idx(1) + 1))
+                call CHKERR(1_mpiint, 'unknown building face_idx ', idx(1) + 1)
               end select
             end associate
           end do
@@ -6101,7 +6106,7 @@ contains
               B%outgoing(m) = B%outgoing(m) / real(solver%diffside%area_divider, ireals)
 
             case default
-              call CHKERR(1_mpiint, 'unknown building face_idx '//toStr(idx(1) + 1))
+              call CHKERR(1_mpiint, 'unknown building face_idx ', idx(1) + 1)
             end select
           end associate
         end do

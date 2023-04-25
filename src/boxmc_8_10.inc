@@ -172,7 +172,7 @@ subroutine init_dir_photon_8_10(bmc, p, src, ldirect, initial_dir, vertices, ier
 !        |    7          |
 !      5 |_______________|
 
-  call CHKERR(size(vertices) - 24, 'wrong size of vertices, expected 24 but found '//toStr(size(vertices)))
+  call CHKERR(size(vertices) - 24, 'wrong size of vertices, expected 24 but found ', size(vertices))
   associate ( &
     pA => vertices(1:3), &
     pB => vertices(4:6), &
