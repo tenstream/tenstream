@@ -939,7 +939,7 @@ contains
     meanvec = (v(2:size(v)) + v(1:size(v) - 1))*.5_ireals
   end function
 
-  !> @brief Cross product, right hand rule, a(thumb), b(pointing finger)
+!> @brief Cross product, right hand rule, a(thumb), b(pointing finger)
   #:for dtype in ['REAL32', 'REAL64', 'REAL128']
     pure function cross_3d_${dtype}$ (a, b) result(cross_3d)
       real(${dtype}$), dimension(3), intent(in) :: a, b
@@ -1635,7 +1635,7 @@ contains
     end do
   end function
 
-  ! From Numerical Recipes: cumulative product on an array, with optional multiplicative seed.
+! From Numerical Recipes: cumulative product on an array, with optional multiplicative seed.
   pure recursive function cumprod_ireals(arr, seed) result(ans)
     real(ireals), dimension(:), intent(in) :: arr
     real(ireals), optional, intent(in) :: seed
@@ -1938,10 +1938,10 @@ contains
     end function
   #:endfor
 
-  !> @brief reverse of spherical_2_cartesian
-  !> @details theta == 0 :: z = -1, i.e. downward
-  !> @details azimuth == 0 :: vector going toward minus y, i.e. sun shines from the north
-  !> @details azimuth == 90 :: vector going toward minus x, i.e. sun shines from the east
+!> @brief reverse of spherical_2_cartesian
+!> @details theta == 0 :: z = -1, i.e. downward
+!> @details azimuth == 0 :: vector going toward minus y, i.e. sun shines from the north
+!> @details azimuth == 90 :: vector going toward minus x, i.e. sun shines from the east
   #:for dtype in ['REAL32', 'REAL64', 'REAL128']
     subroutine cartesian_2_spherical_${dtype}$ (sundir, phi, theta, ierr)
       real(${dtype}$), intent(in) :: sundir(3)
@@ -1970,10 +1970,10 @@ contains
     end subroutine
   #:endfor
 
-  !> @brief For local azimuth and zenith angles, return the local cartesian vectors phi azimuth, theta zenith angles, angles are input in degrees.
-  !> @details theta == 0 :: z = -1, i.e. downward
-  !> @details azimuth == 0 :: vector going toward minus y, i.e. sun shines from the north
-  !> @details azimuth == 90 :: vector going toward minus x, i.e. sun shines from the east
+!> @brief For local azimuth and zenith angles, return the local cartesian vectors phi azimuth, theta zenith angles, angles are input in degrees.
+!> @details theta == 0 :: z = -1, i.e. downward
+!> @details azimuth == 0 :: vector going toward minus y, i.e. sun shines from the north
+!> @details azimuth == 90 :: vector going toward minus x, i.e. sun shines from the east
   #:for dtype in ['REAL32', 'REAL64', 'REAL128']
     pure function spherical_2_cartesian_${dtype}$ (phi, theta, r) result(spherical_2_cartesian)
       real(${dtype}$), intent(in) :: phi, theta
@@ -2018,7 +2018,7 @@ contains
     end subroutine
   #:endfor
 
-  !> @brief returns the angle between two not necessarily normed vectors. Result is in radians
+!> @brief returns the angle between two not necessarily normed vectors. Result is in radians
   #:for dtype in ['REAL32', 'REAL64', 'REAL128']
     function angle_between_two_vec_${dtype}$ (p1, p2) result(angle_between_two_vec)
       real(${dtype}$), intent(in) :: p1(:), p2(:)
@@ -2050,7 +2050,7 @@ contains
     end function
   #:endfor
 
-  !> @brief Determine Edge length/ distance between two points
+!> @brief Determine Edge length/ distance between two points
   #:for dtype in ['REAL32', 'REAL64', 'REAL128']
     pure function distance_${dtype}$ (p1, p2) result(distance)
       real(${dtype}$), intent(in) :: p1(:), p2(:)
@@ -2064,7 +2064,7 @@ contains
     end function
   #:endfor
 
-  !> @brief Use Herons Formula to determine the area of a triangle given the 3 edge lengths
+!> @brief Use Herons Formula to determine the area of a triangle given the 3 edge lengths
   #:for dtype in ['REAL32', 'REAL64', 'REAL128']
     pure function triangle_area_by_edgelengths_${dtype}$ (e1, e2, e3) result(triangle_area_by_edgelengths)
       real(${dtype}$), intent(in) :: e1, e2, e3
@@ -2076,7 +2076,7 @@ contains
     end function
   #:endfor
 
-  !> @brief Use Herons Formula to determine the area of a triangle given the 3 vertices
+!> @brief Use Herons Formula to determine the area of a triangle given the 3 vertices
   #:for dtype in ['REAL32', 'REAL64', 'REAL128']
     pure function triangle_area_by_vertices_${dtype}$ (v1, v2, v3) result(triangle_area_by_vertices)
       real(${dtype}$), intent(in) :: v1(:), v2(:), v3(:)
@@ -2089,7 +2089,7 @@ contains
     end function
   #:endfor
 
-  !> @brief compute the inner circle center of a triangle
+!> @brief compute the inner circle center of a triangle
   #:for dtype in ['REAL32', 'REAL64', 'REAL128']
     pure subroutine triangle_inner_circle_center_${dtype}$ (p1, p2, p3, center)
       real(${dtype}$), dimension(:), intent(in) :: p1, p2, p3
@@ -2165,7 +2165,7 @@ contains
     end function
   #:endfor
 
-  ! https://en.wikipedia.org/wiki/Rotation_matrix#General_rotations
+! https://en.wikipedia.org/wiki/Rotation_matrix#General_rotations
   #:for dtype in ['REAL32', 'REAL64', 'REAL128']
     pure function rotation_matrix_around_axis_vec_${dtype}$ (angle, rot_axis) result(M)
       ! left hand rule
@@ -2189,7 +2189,7 @@ contains
     end function
   #:endfor
 
-  ! the resulting matrix will transform a vector from world coords into the given new coord system
+! the resulting matrix will transform a vector from world coords into the given new coord system
   pure function rotation_matrix_world_to_local_basis(ex, ey, ez) result(M)
     real(ireals), dimension(3), intent(in) :: ex, ey, ez
     real(ireals), dimension(3), parameter :: kx = [1, 0, 0], ky = [0, 1, 0], kz = [0, 0, 1]
@@ -2205,7 +2205,7 @@ contains
     M(3, 3) = dot_product(ez, kz)
   end function
 
-  ! the resulting matrix will transform a vector from the given coord system into the world coordinate system
+! the resulting matrix will transform a vector from the given coord system into the world coordinate system
   #:for dtype in ['REAL32', 'REAL64', 'REAL128']
     pure function rotation_matrix_local_basis_to_world_${dtype}$ (ex, ey, ez) result(M)
       real(${dtype}$), dimension(3), intent(in) :: ex, ey, ez
@@ -2223,7 +2223,7 @@ contains
     end function
   #:endfor
 
-  ! https://www.maplesoft.com/support/help/maple/view.aspx?path=MathApps%2FProjectionOfVectorOntoPlane
+! https://www.maplesoft.com/support/help/maple/view.aspx?path=MathApps%2FProjectionOfVectorOntoPlane
   #:for dtype in ['REAL32', 'REAL64', 'REAL128']
     pure function vec_proj_on_plane_${dtype}$ (v, plane_normal) result(vec_proj_on_plane)
       real(${dtype}$), dimension(3), intent(in) :: v, plane_normal
@@ -2293,7 +2293,7 @@ contains
     end if
   end function
 
-  ! https://gist.github.com/t-nissie/479f0f16966925fa29ea
+! https://gist.github.com/t-nissie/479f0f16966925fa29ea
   recursive subroutine quicksort(a, first, last)
     integer(iintegers), intent(inout) :: a(:)
     integer(iintegers), intent(in) :: first, last
@@ -2318,7 +2318,7 @@ contains
     if (j + 1 < last) call quicksort(a, j + 1, last)
   end subroutine quicksort
 
-  ! https://stackoverflow.com/questions/44198212/a-fortran-equivalent-to-unique
+! https://stackoverflow.com/questions/44198212/a-fortran-equivalent-to-unique
   function unique(inp)
       !! usage sortedlist = unique(list)
       !! or reshape it first to 1D: sortedlist = unique(reshape(list, [size(list)]))
@@ -2339,9 +2339,9 @@ contains
     unique = pack(list,.not. mask)
   end function unique
 
-  ! @brief: map from the flattened numbering to the coefficients in Ndims
-  ! This is something like numpy.unravel
-  ! offset could usually look like [1, size(arr, dim=1), size(arr, dim=1)*size(arr, dim=2), ...]
+! @brief: map from the flattened numbering to the coefficients in Ndims
+! This is something like numpy.unravel
+! offset could usually look like [1, size(arr, dim=1), size(arr, dim=1)*size(arr, dim=2), ...]
   pure subroutine ind_1d_to_nd(offsets, ind, nd_indices, cstyle)
     integer(iintegers), intent(in) :: offsets(:)
     integer(iintegers), intent(in) :: ind
@@ -2366,9 +2366,9 @@ contains
     end if
   end subroutine
 
-  ! @brief: map indices in N-dimensions to a flattened array
-  ! This is something like numpy.ravel
-  ! offset could usually look like [1, size(arr, dim=1), size(arr, dim=1)*size(arr, dim=2), ...]
+! @brief: map indices in N-dimensions to a flattened array
+! This is something like numpy.ravel
+! offset could usually look like [1, size(arr, dim=1), size(arr, dim=1)*size(arr, dim=2), ...]
   pure function ind_nd_to_1d(offsets, nd_indices, cstyle) result(i1d)
     integer(iintegers), intent(in) :: offsets(:)
     integer(iintegers), intent(in) :: nd_indices(:)
