@@ -86,6 +86,7 @@ module m_pprts_base
     real(ireals), allocatable, dimension(:, :, :) :: a11, a12, a21, a22, a13, a23, a33
     real(ireals), allocatable, dimension(:, :, :) :: dz
     logical, allocatable, dimension(:) :: l1d
+    real(ireals) :: unconstrained_fraction ! fraction of 3D voxels
     real(ireals), allocatable, dimension(:, :) :: albedo
     real(ireals), allocatable, dimension(:, :) :: Btop, Bbot ! TOA layer planck emissions, special case memory for icollapse
     real(ireals), allocatable, dimension(:, :) :: Bsrfc      ! Srfc planck emissions
@@ -797,17 +798,18 @@ contains
   end function
 
   !> @brief: determine tolerances for solvers
-  subroutine determine_ksp_tolerances(C, l1d, rtol, atol, ksp)
+  subroutine determine_ksp_tolerances(C, unconstrained_fraction, rtol, atol, maxit, ksp)
     type(t_coord), intent(in) :: C
-    logical, intent(in) :: l1d(:)
+    real(ireals), intent(in) :: unconstrained_fraction
     real(ireals), intent(out) :: rtol, atol
+    integer(iintegers), intent(out) :: maxit
     type(tKSP), intent(in), allocatable, optional :: ksp
     real(ireals) :: rel_atol = 1e-4_ireals
-    real(ireals) :: unconstrained_fraction
     integer(mpiint) :: myid, ierr
-    integer(iintegers) :: maxit
     real(ireals) :: dtol
     logical, parameter :: ldebug = .false.
+
+    integer(iintegers), parameter :: maxiter = 1000
 
     if (present(ksp)) then
       if (allocated(ksp)) then
@@ -820,12 +822,9 @@ contains
       end if
     end if
 
+    maxit = maxiter
     rtol = 1e-5_ireals
-    unconstrained_fraction = real(count(.not. l1d), ireals) / real(size(l1d), ireals)
-    call imp_allreduce_min(C%comm, &
-      & rel_atol &
-      & * real(C%glob_xm * C%glob_ym * C%glob_zm, ireals) &
-      & * unconstrained_fraction, atol)
+    atol = rel_atol * real(C%glob_xm * C%glob_ym * C%glob_zm, ireals) * unconstrained_fraction
     atol = max(1e-8_ireals, atol)
 
     if (ldebug) then

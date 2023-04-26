@@ -73,16 +73,16 @@ contains
     type(tVec) :: v0, b, lb
 
     integer(iintegers), dimension(3) :: dx, dy ! start, end, increment for each dimension
-    integer(iintegers) :: iter, maxiter
+    integer(iintegers) :: iter, maxiter, maxit_ignore
 
     real(ireals), allocatable :: residual(:)
-    real(ireals) :: residual_mmm(3), rel_residual, atol, rtol
+    real(ireals) :: residual_mmm(3), rel_residual, atol, rtol, atol_default, rtol_default
 
     integer(iintegers), parameter :: default_max_it = 1000
     real(ireals) :: ignore_max_it! Ignore max iter setting if time is less
 
     logical :: lksp_view, lcomplete_initial_run
-    logical :: lsun_north, lsun_east, lpermute, lskip_residual, lmonitor_residual, lconverged, lflg, lflg2
+    logical :: lsun_north, lsun_east, lpermute, lskip_residual, lmonitor_residual, lconverged, lflg
     logical :: laccept_incomplete_solve, lconverged_reason
 
     integer(mpiint) :: ierr
@@ -109,11 +109,20 @@ contains
         lskip_residual = .false.
       end if
 
-      lcomplete_initial_run = .false.
+      call determine_ksp_tolerances(C, atm%unconstrained_fraction, &
+        & rtol_default, atol_default, maxit_ignore)
+      rtol = rtol_default
+      atol = atol_default
+      call get_petsc_opt(prefix, "-ksp_rtol", rtol, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt(prefix, "-ksp_atol", atol, lflg, ierr); call CHKERR(ierr)
+
+      lcomplete_initial_run = .true.
       call get_petsc_opt(prefix, "-ksp_complete_initial_run", lcomplete_initial_run, lflg, ierr); call CHKERR(ierr)
       if (lcomplete_initial_run .and. solution%dir_ksp_residual_history(1) .lt. 0) then
         maxiter = default_max_it + 2
         lskip_residual = .false.
+        rtol = min(rtol, rtol_default)
+        atol = min(atol, atol_default)
       end if
 
       allocate (residual(maxiter))
@@ -130,10 +139,6 @@ contains
       laccept_incomplete_solve = .false.
       call get_petsc_opt(PETSC_NULL_CHARACTER, "-accept_incomplete_solve", laccept_incomplete_solve, lflg, ierr); call CHKERR(ierr)
       call get_petsc_opt(prefix, "-accept_incomplete_solve", laccept_incomplete_solve, lflg, ierr); call CHKERR(ierr)
-
-      call determine_ksp_tolerances(C, atm%l1d, rtol, atol)
-      call get_petsc_opt(prefix, "-ksp_atol", atol, lflg, ierr); call CHKERR(ierr)
-      call get_petsc_opt(prefix, "-ksp_rtol", rtol, lflg2, ierr); call CHKERR(ierr)
 
       lsun_north = sun%yinc .eq. i0
       lsun_east = sun%xinc .eq. i0
@@ -437,16 +442,16 @@ contains
     real(ireals), pointer, dimension(:) :: x01d => null(), xg1d => null()
     type(tVec) :: lvb, v0
 
-    integer(iintegers) :: iter, isub, maxiter, sub_iter
+    integer(iintegers) :: iter, isub, maxiter, sub_iter, maxit_ignore
 
     real(ireals), allocatable :: residual(:)
-    real(ireals) :: residual_mmm(3), rel_residual, atol, rtol, omega
+    real(ireals) :: residual_mmm(3), rel_residual, atol, rtol, atol_default, rtol_default, omega
 
     integer(iintegers), parameter :: default_max_it = 10000
     real(ireals) :: ignore_max_it! Ignore max iter setting if time is less
 
     logical :: lksp_view, lcomplete_initial_run
-    logical :: lskip_residual, lmonitor_residual, lconverged, lflg, lflg2
+    logical :: lskip_residual, lmonitor_residual, lconverged, lflg
     logical :: laccept_incomplete_solve, lconverged_reason
 
     integer(mpiint) :: ierr
@@ -472,6 +477,13 @@ contains
         lskip_residual = .false.
       end if
 
+      call determine_ksp_tolerances(C, atm%unconstrained_fraction, &
+        & rtol_default, atol_default, maxit_ignore)
+      rtol = rtol_default
+      atol = atol_default
+      call get_petsc_opt(prefix, "-ksp_rtol", rtol, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt(prefix, "-ksp_atol", atol, lflg, ierr); call CHKERR(ierr)
+
       laccept_incomplete_solve = .false.
       call get_petsc_opt(PETSC_NULL_CHARACTER, "-accept_incomplete_solve", laccept_incomplete_solve, lflg, ierr); call CHKERR(ierr)
       call get_petsc_opt(prefix, "-accept_incomplete_solve", laccept_incomplete_solve, lflg, ierr); call CHKERR(ierr)
@@ -482,6 +494,8 @@ contains
         maxiter = default_max_it + 2
         lskip_residual = .false.
         laccept_incomplete_solve = .false.
+        rtol = min(rtol, rtol_default)
+        atol = min(atol, atol_default)
       end if
 
       allocate (residual(maxiter))
@@ -496,10 +510,6 @@ contains
 
       lconverged_reason = lmonitor_residual
       call get_petsc_opt(prefix, "-ksp_converged_reason", lconverged_reason, lflg, ierr); call CHKERR(ierr)
-
-      call determine_ksp_tolerances(C, atm%l1d, rtol, atol)
-      call get_petsc_opt(prefix, "-ksp_atol", atol, lflg, ierr); call CHKERR(ierr)
-      call get_petsc_opt(prefix, "-ksp_rtol", rtol, lflg2, ierr); call CHKERR(ierr)
 
       omega = 1
       call get_petsc_opt(prefix, "-pc_sor_omega", omega, lflg, ierr); call CHKERR(ierr)

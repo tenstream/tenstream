@@ -45,6 +45,7 @@ module m_pprts
     & imp_allreduce_max, &
     & imp_allreduce_mean, &
     & imp_allreduce_min, &
+    & imp_allreduce_sum, &
     & imp_bcast, &
     & imp_min_mean_max, &
     & inc, &
@@ -575,6 +576,7 @@ contains
       real(ireals) :: pprts_1d_height
       real(ireals) :: N1dlayers, N1dlayers_max
       logical :: lflg
+      integer(iintegers) :: count3d, countall
 
       if (.not. allocated(solver%atm%l1d)) then
         allocate (solver%atm%l1d(solver%C_one_atm%zs:solver%C_one_atm%ze))
@@ -647,6 +649,10 @@ contains
         end if
         solver%atm%l1d(solver%C_one_atm%zs:solver%C_one_atm%zs + N1dlayers_max - 1) = .true.
       end if
+
+      call imp_allreduce_sum(solver%comm, count(.not. solver%atm%l1d, kind=iintegers), count3d)
+      call imp_allreduce_sum(solver%comm, size(solver%atm%l1d, kind=iintegers), countall)
+      solver%atm%unconstrained_fraction = real(count3d, ireals) / real(countall, ireals)
 
     end subroutine
 
@@ -2504,6 +2510,7 @@ contains
     logical :: lflg, lskip_diffuse_solve
     logical :: lexplicit_dir, lexplicit_diff
     real(ireals) :: b_norm, rtol, atol
+    integer(iintegers) :: maxit
     integer(mpiint) :: ierr
 
     character(len=default_str_len) :: prefix
@@ -2539,9 +2546,9 @@ contains
     call setup_b(solver, solution, solver%b, opt_buildings)
 
     if (solution%lsolar_rad) then
-      call determine_ksp_tolerances(solver%C_diff, solver%atm%l1d, rtol, atol, solver%ksp_solar_diff)
+      call determine_ksp_tolerances(solver%C_diff, solver%atm%unconstrained_fraction, rtol, atol, maxit, solver%ksp_solar_diff)
     else
-      call determine_ksp_tolerances(solver%C_diff, solver%atm%l1d, rtol, atol, solver%ksp_thermal_diff)
+      call determine_ksp_tolerances(solver%C_diff, solver%atm%unconstrained_fraction, rtol, atol, maxit, solver%ksp_thermal_diff)
     end if
 
     ! ---------------------------- Ediff -------------------
@@ -2658,6 +2665,7 @@ contains
 
       call PetscLogEventBegin(solver%logs%solve_Mdir, ierr)
       call solve(solver, &
+                 solver%C_dir, &
                  solver%ksp_solar_dir, &
                  solver%incSolar, &
                  solution%edir, &
@@ -2752,11 +2760,11 @@ contains
       else ! without permutation (normal case)
 
         call setup_ksp(solver, ksp, solver%C_diff, A, prefix=prefix)
-
       end if
 
       call PetscLogEventBegin(solver%logs%solve_Mdiff, ierr)
       call solve(solver, &
+                 solver%C_diff, &
                  ksp, &
                  solver%b, &
                  solution%ediff, &
@@ -4268,8 +4276,9 @@ contains
   !> @details solve with ksp and save residual history of solver
   !> \n -- this may be handy later to decide next time if we have to calculate radiation again
   !> \n if we did not get convergence, we try again with standard GMRES and a resetted(zero) initial guess -- if that doesnt help, we got a problem!
-  subroutine solve(solver, ksp, b, x, uid, iter, ksp_residual_history)
+  subroutine solve(solver, C, ksp, b, x, uid, iter, ksp_residual_history)
     class(t_solver) :: solver
+    type(t_coord), intent(in) :: C
     type(tKSP) :: ksp
     type(tVec) :: b
     type(tVec) :: x
@@ -4279,11 +4288,16 @@ contains
 
     KSPConvergedReason :: reason
 
-    character(len=default_str_len) :: prefix
+    character(len=default_str_len) :: kspprefix
     KSPType :: old_ksp_type
 
-    logical :: lskip_ksp_solve, laccept_incomplete_solve, lflg
+    logical :: lskip_ksp_solve, laccept_incomplete_solve
     integer(mpiint) :: ierr
+
+    logical :: lcomplete_initial_run, lflg
+    integer(iintegers) :: maxit, maxit_default
+    real(ireals) :: rtol, atol, dtol
+    real(ireals) :: rtol_default, atol_default
 
     if (solver%myid .eq. 0 .and. ldebug) print *, 'Solving Matrix'
 
@@ -4297,6 +4311,26 @@ contains
     if (lskip_ksp_solve) then
       call VecCopy(b, x, ierr); call CHKERR(ierr)
       return
+    end if
+
+    if (present(ksp_residual_history)) then
+      lcomplete_initial_run = .true.
+      call KSPGetOptionsPrefix(ksp, kspprefix, ierr); call CHKERR(ierr)
+      call get_petsc_opt(solver%prefix, "-ksp_complete_initial_run", lcomplete_initial_run, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt(kspprefix, "-ksp_complete_initial_run", lcomplete_initial_run, lflg, ierr); call CHKERR(ierr)
+      call KSPGetTolerances(ksp, rtol, atol, dtol, maxit, ierr); call CHKERR(ierr)
+      if (lcomplete_initial_run .and. ksp_residual_history(1) .lt. 0) then
+        call determine_ksp_tolerances(C, solver%atm%unconstrained_fraction, rtol_default, atol_default, maxit_default)
+        rtol = min(rtol, rtol_default)
+        atol = min(atol, atol_default)
+        maxit = max(maxit, maxit_default)
+        call KSPSetTolerances(ksp, rtol, atol, dtol, maxit, ierr); call CHKERR(ierr)
+      else
+        call get_petsc_opt(kspprefix, "-ksp_rtol", rtol, lflg, ierr); call CHKERR(ierr)
+        call get_petsc_opt(kspprefix, "-ksp_atol", atol, lflg, ierr); call CHKERR(ierr)
+        call get_petsc_opt(kspprefix, "-ksp_max_it", maxit, lflg, ierr); call CHKERR(ierr)
+        call KSPSetTolerances(ksp, rtol, atol, dtol, maxit, ierr); call CHKERR(ierr)
+      end if
     end if
 
     call hegedus_trick(ksp, b, x)
@@ -4313,9 +4347,9 @@ contains
     if (laccept_incomplete_solve) return
 
     if (reason .le. 0) then
-      call KSPGetOptionsPrefix(ksp, prefix, ierr); call CHKERR(ierr)
+      call KSPGetOptionsPrefix(ksp, kspprefix, ierr); call CHKERR(ierr)
       if (solver%myid .eq. 0) &
-        & call CHKWARN(int(reason, mpiint), trim(prefix)//' :: Resetted initial guess to zero '// &
+        & call CHKWARN(int(reason, mpiint), trim(kspprefix)//' :: Resetted initial guess to zero '// &
         & 'and try again with gmres (uid='//toStr(uid)//')')
       call VecSet(x, zero, ierr); call CHKERR(ierr)
       call KSPGetType(ksp, old_ksp_type, ierr); call CHKERR(ierr)
@@ -4351,11 +4385,10 @@ contains
     type(tMat), intent(in) :: A
     character(len=*), intent(in), optional :: prefix
 
-    integer(iintegers), parameter :: maxiter = 1000
-
     integer(mpiint) :: myid, numnodes
 
-    real(ireals) :: rtol, atol
+    integer(iintegers) :: maxit_default
+    real(ireals) :: rtol_default, atol_default
 
     type(tPC) :: prec
     logical :: prec_is_set
@@ -4409,8 +4442,8 @@ contains
       end if
     end if
 
-    call determine_ksp_tolerances(C, solver%atm%l1d, rtol, atol)
-    call KSPSetTolerances(ksp, rtol, atol, PETSC_DEFAULT_REAL, maxiter, ierr); call CHKERR(ierr)
+    call determine_ksp_tolerances(C, solver%atm%unconstrained_fraction, rtol_default, atol_default, maxit_default)
+    call KSPSetTolerances(ksp, rtol_default, atol_default, PETSC_DEFAULT_REAL, maxit_default, ierr); call CHKERR(ierr)
 
     call KSPSetConvergenceTest(ksp, MyKSPConverged, 0, PETSC_NULL_FUNCTION, ierr); call CHKERR(ierr)
 
