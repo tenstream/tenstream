@@ -197,7 +197,7 @@ contains
     real(ireal_params) :: param_phi, param_theta, phi, theta
     real(ireal_dp), dimension(2) :: A, B, C
     real(ireal_dp) :: dz, sphere_radius
-    real(ireal_dp), allocatable :: vertices(:)
+    real(ireal_dp) :: vertices(18)
 
     A = [0._ireal_dp, 0._ireal_dp]
     B = [1._ireal_dp, 0._ireal_dp]
@@ -254,7 +254,7 @@ contains
     real(ireal_params) :: param_phi, param_theta, phi, theta, pphi, ptheta
     real(ireal_dp), dimension(2) :: A, B, C
     real(ireal_dp) :: dz, sphere_radius
-    real(ireal_dp), allocatable :: vertices(:)
+    real(ireal_dp) :: vertices(18)
     integer(iintegers), parameter :: Nphi = 200, Ntheta = 200
     integer(iintegers) :: iphi, itheta
     real(ireal_params), parameter :: eps = 1e-3_ireal_params, epsres = 1e-4_ireal_params
@@ -331,7 +331,7 @@ contains
     real(ireal_params) :: pphi2, ptheta2
     real(ireal_params), dimension(2) :: A, B, C
     real(ireal_dp) :: dz
-    real(ireal_dp), allocatable :: vertices(:)
+    real(ireal_dp) :: vertices(18)
     integer(iintegers), parameter :: Nphi = 200, Ntheta = 200
     integer(iintegers) :: iphi, itheta
     real(ireal_params), parameter :: eps = 1e-4_ireal_params

@@ -560,15 +560,4 @@ subroutine intersect_distance_wedge_18_8(bmc, vertices, p, max_dist)
   select type (bmc)
   end select
 end subroutine
-subroutine wedge_halfspaces_18_8(bmc, vertices, origins, normals)
-  class(t_boxmc_wedge_18_8) :: bmc
-  real(ireal_dp), intent(in) :: vertices(:)
-  real(ireal_dp), allocatable, intent(out) :: origins(:, :), normals(:, :)
-  if (.not. allocated(origins)) allocate (origins(3, 5))
-  if (.not. allocated(normals)) allocate (normals(3, 5))
-  call wedge_halfspaces(vertices, origins, normals)
-  select type (bmc)
-  end select
-end subroutine
 ! ******************* BOXMC wedge 18 8 ************************
-

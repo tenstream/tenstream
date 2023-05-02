@@ -2844,7 +2844,7 @@ contains
     integer(mpiint) :: ierr
 
     real(ireals), pointer :: xhhl(:, :, :, :) => null(), xhhl1d(:) => null()
-    real(ireals), allocatable :: vertices(:)
+    real(ireals) :: vertices(24)
     real(ireals) :: norm
     real(ireals), pointer :: c(:, :)
     logical :: lgeometric_coeffs, ltop_bottom_faces_planar, ltop_bottom_planes_parallel
@@ -2975,7 +2975,7 @@ contains
     integer(mpiint) :: ierr
 
     real(ireals), pointer :: xhhl(:, :, :, :) => null(), xhhl1d(:) => null()
-    real(ireals), allocatable :: vertices(:)
+    real(ireals) :: vertices(24)
     real(ireals) :: norm_diff, norm_dir, normref
     real(ireals) :: S_LUT_norm, T_LUT_norm, T_GOMTRC_norm
     real(ireals), pointer :: c(:, :), cdir2dir(:, :)
@@ -3150,7 +3150,7 @@ contains
     class(t_solver), intent(in) :: solver
     real(ireals), target, allocatable, intent(inout) :: coeffs(:, :, :, :)
     type(t_pprts_buildings), optional, intent(in) :: opt_buildings
-    real(ireals), allocatable :: vertices(:)
+    real(ireals) :: vertices(24)
     real(irealLUT), allocatable :: v(:)
     integer(iintegers) :: src, k, i, j
     integer(mpiint) :: ierr
@@ -3406,7 +3406,7 @@ contains
       integer(iintegers) :: i, j, k, l, iside, ak
       real(ireals) :: Ax, Ay, Az, fac
 
-      real(ireals), allocatable :: vertices(:)
+      real(ireals) :: vertices(24)
       real(ireals), pointer :: xhhl(:, :, :, :) => null(), xhhl1d(:) => null()
 
       call getVecPointer(solver%Cvert_one_atm1%da, solver%atm%vert_heights, xhhl1d, xhhl, readonly=.true.)

@@ -942,7 +942,7 @@ contains
     type(t_op_config), intent(in) :: config
     integer(iintegers), intent(in) :: index_1d
     logical, intent(in) :: dir
-    real(ireal_dp), intent(out), allocatable :: vertices(:)
+    real(ireal_dp), intent(out) :: vertices(:)
     real(irealLUT), intent(out) :: tauz, w0, g, phi, theta
     logical, intent(out) :: lvalid_entry
 
@@ -1197,7 +1197,7 @@ contains
     real(irealLUT), intent(out) :: S_diff(OPP%diff_streams), T_dir(OPP%dir_streams)
     real(irealLUT), intent(out) :: S_tol(OPP%diff_streams), T_tol(OPP%dir_streams)
 
-    real(ireal_dp), allocatable :: vertices(:)
+    real(ireal_dp) :: vertices(24)
     real(irealLUT) :: tauz, w0, g, phi, theta
     real(ireal_params) :: param_phi, param_theta
 

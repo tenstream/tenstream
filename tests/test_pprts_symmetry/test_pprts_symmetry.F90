@@ -98,7 +98,7 @@ contains
     subroutine test_east_west_symmetry(OPP)
       class(t_optprop_cube) :: OPP
       real(ireals), parameter :: tauz = 1, w0 = 1, g = 1
-      real(ireals), allocatable :: vertices(:)
+      real(ireals) :: vertices(24)
       real(ireals), parameter :: dx = 1, dy = 1, dz = 2
       real(irealLUT) :: angles(2)
       logical, parameter :: ldir = .false.
@@ -221,7 +221,7 @@ contains
     end subroutine
     subroutine test_north_south_symmetry(OPP)
       class(t_optprop_cube) :: OPP
-      real(ireals), allocatable :: vertices(:)
+      real(ireals) :: vertices(24)
       real(ireals), parameter :: tauz = 1, w0 = 1, g = 1
       real(ireals), parameter :: dx = 1, dy = 1, dz = 2
       real(irealLUT) :: angles(2)

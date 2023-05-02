@@ -123,10 +123,8 @@ contains
 
   pure subroutine setup_default_cube_geometry(A, B, C, D, dz, vertices)
     real(ireals), intent(in) :: A(2), B(2), C(2), D(2), dz
-    real(ireals), allocatable, intent(inout) :: vertices(:)
+    real(ireals), intent(out) :: vertices(24)
 
-    if (allocated(vertices)) deallocate (vertices)
-    allocate (vertices(2 * 4 * 3))
     vertices(1:2) = A
     vertices(4:5) = B
     vertices(7:8) = C
@@ -141,17 +139,8 @@ contains
   end subroutine
   pure subroutine setup_default_unit_cube_geometry_r32(dx, dy, dz, vertices)
     real(real32), intent(in) :: dx, dy, dz
-    real(real32), allocatable, intent(inout) :: vertices(:)
+    real(real32), intent(out) :: vertices(24)
     real(kind=kind(dx)), parameter :: zero = 0
-
-    if (allocated(vertices)) then
-      if (size(vertices) .ne. 2 * 4 * 3) then
-        deallocate (vertices)
-        allocate (vertices(2 * 4 * 3))
-      end if
-    else
-      allocate (vertices(2 * 4 * 3))
-    end if
 
     vertices(1:2) = [zero, zero]
     vertices(4:5) = [dx, zero]
@@ -167,17 +156,8 @@ contains
   end subroutine
   pure subroutine setup_default_unit_cube_geometry_r64(dx, dy, dz, vertices)
     real(real64), intent(in) :: dx, dy, dz
-    real(real64), allocatable, intent(inout) :: vertices(:)
+    real(real64), intent(out) :: vertices(24)
     real(kind=kind(dx)), parameter :: zero = 0
-
-    if (allocated(vertices)) then
-      if (size(vertices) .ne. 2 * 4 * 3) then
-        deallocate (vertices)
-        allocate (vertices(2 * 4 * 3))
-      end if
-    else
-      allocate (vertices(2 * 4 * 3))
-    end if
 
     vertices(1:2) = [zero, zero]
     vertices(4:5) = [dx, zero]
@@ -263,12 +243,10 @@ contains
 
   subroutine setup_default_wedge_geometry_r32(A, B, C, dz, vertices, sphere_radius)
     real(real32), intent(in) :: A(2), B(2), C(2), dz
-    real(real32), allocatable, intent(inout) :: vertices(:)
+    real(real32), intent(out) :: vertices(18)
     real(real32), intent(in), optional :: sphere_radius
     real(real32) :: s, center(3)
 
-    if (allocated(vertices)) deallocate (vertices)
-    allocate (vertices(2 * 3 * 3))
     vertices(1:2) = A
     vertices(4:5) = B
     vertices(7:8) = C
@@ -308,12 +286,10 @@ contains
   end subroutine
   subroutine setup_default_wedge_geometry_r64(A, B, C, dz, vertices, sphere_radius)
     real(real64), intent(in) :: A(2), B(2), C(2), dz
-    real(real64), allocatable, intent(inout) :: vertices(:)
+    real(real64), intent(out) :: vertices(18)
     real(real64), intent(in), optional :: sphere_radius
     real(real64) :: s, center(3)
 
-    if (allocated(vertices)) deallocate (vertices)
-    allocate (vertices(2 * 3 * 3))
     vertices(1:2) = A
     vertices(4:5) = B
     vertices(7:8) = C
@@ -352,11 +328,9 @@ contains
   end subroutine
   subroutine setup_default_unit_wedge_geometry(dx, dy, dz, vertices)
     real(ireal_dp), intent(in) :: dx, dy, dz
-    real(ireal_dp), allocatable, intent(inout) :: vertices(:)
+    real(ireal_dp), intent(out) :: vertices(18)
     real(ireal_dp), parameter :: zero = 0
 
-    if (allocated(vertices)) deallocate (vertices)
-    allocate (vertices(2 * 3 * 3))
     vertices(1:2) = [zero, zero]
     vertices(4:5) = [dx, zero]
     vertices(7:8) = [dx / 2, sqrt(dy**2 - (dx / 2)**2)]
@@ -680,12 +654,10 @@ contains
 
   subroutine box_halfspaces(vertices, origins, normals)
     real(ireal_dp), intent(in) :: vertices(:)
-    real(ireal_dp), allocatable, intent(out) :: origins(:, :), normals(:, :) ! size 3,6
+    real(ireal_dp), intent(out) :: origins(3, 6), normals(3, 6) ! size 3,6
 
     if (size(vertices) .ne. 2 * 4 * 3) call CHKERR(1_mpiint, 'did not expect that')
 
-    if (.not. allocated(origins)) allocate (origins(3, 6))
-    if (.not. allocated(normals)) allocate (normals(3, 6))
     associate ( &
       A => vertices(1:3), &
       B => vertices(4:6), &

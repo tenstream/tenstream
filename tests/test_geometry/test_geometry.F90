@@ -27,7 +27,7 @@ contains
   subroutine test_pnt_on_plane(this)
     class(MpiTestMethod), intent(inout) :: this
     real(ireal_dp), parameter :: dx = 100, dy = dx * 2, dz = dx * 3
-    real(ireal_dp), allocatable :: vertices(:)
+    real(ireal_dp) :: vertices(24)
     integer(iintegers) :: k
 
     call setup_default_unit_cube_geometry(dx, dy, dz, vertices)

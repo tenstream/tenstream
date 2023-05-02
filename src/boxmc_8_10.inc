@@ -423,13 +423,4 @@ subroutine intersect_distance_8_10(bmc, vertices, p, max_dist)
   end select
 
 end subroutine
-subroutine box_halfspaces_8_10(bmc, vertices, origins, normals)
-  class(t_boxmc_8_10) :: bmc
-  real(ireal_dp), intent(in) :: vertices(:)
-  real(ireal_dp), allocatable, intent(out) :: origins(:, :), normals(:, :)
-  call box_halfspaces(vertices, origins, normals)
-  select type (bmc)
-  end select
-end subroutine
 ! ******************* BOXMC 8 10 ************************
-

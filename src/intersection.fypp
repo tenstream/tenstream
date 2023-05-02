@@ -93,58 +93,53 @@ contains
 
   !> @brief determine if point is inside a cube, given the corner vertices
   #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    function pnt_in_cube_${dtype}$ (verts, p) result(pnt_in_cube)
-      real(${dtype}$), intent(in) :: verts(:) ! dim(3*8)
+    pure function pnt_in_cube_${dtype}$ (verts, p) result(pnt_in_cube)
+      real(${dtype}$), intent(in) :: verts(24) ! dim(3*8)
       real(${dtype}$), intent(in) :: p(:)
       logical :: pnt_in_cube
       real(${dtype}$), parameter :: eps = epsilon(eps)
 
       pnt_in_cube = .true.
-      if (size(verts) .eq. 2 * 4 * 3) then ! 3D coords
-        associate ( &
-          A => verts(1:3), &
-          B => verts(4:6), &
-          C => verts(7:9), &
-          D => verts(10:12), &
-          E => verts(13:15), &
-          F => verts(16:18), &
-          G => verts(19:21), &
-          H => verts(22:24))
-          if (p(1) + eps .lt. minval([A(1), C(1), E(1), G(1)])) then
-            pnt_in_cube = .false.
-            return
-          end if
-          if (p(1) - eps .gt. maxval([B(1), D(1), F(1), H(1)])) then
-            pnt_in_cube = .false.
-            return
-          end if
-          if (p(2) + eps .lt. minval([A(2), B(2), E(2), F(2)])) then
-            pnt_in_cube = .false.
-            return
-          end if
-          if (p(2) - eps .gt. maxval([C(2), D(2), G(2), H(2)])) then
-            pnt_in_cube = .false.
-            return
-          end if
-          if (p(3) + eps .lt. minval([A(3), B(3), C(3), D(3)])) then
-            pnt_in_cube = .false.
-            return
-          end if
-          if (p(3) - eps .gt. maxval([E(3), F(3), G(3), H(3)])) then
-            pnt_in_cube = .false.
-            return
-          end if
-        end associate
-      else
-        call CHKERR(1_mpiint, 'pnt_in_cube not implemented for cube with vertex arr size'//&
-          & toStr(size(verts)))
-      end if
+      associate ( &
+        A => verts(1:3), &
+        B => verts(4:6), &
+        C => verts(7:9), &
+        D => verts(10:12), &
+        E => verts(13:15), &
+        F => verts(16:18), &
+        G => verts(19:21), &
+        H => verts(22:24))
+        if (p(1) + eps .lt. minval([A(1), C(1), E(1), G(1)])) then
+          pnt_in_cube = .false.
+          return
+        end if
+        if (p(1) - eps .gt. maxval([B(1), D(1), F(1), H(1)])) then
+          pnt_in_cube = .false.
+          return
+        end if
+        if (p(2) + eps .lt. minval([A(2), B(2), E(2), F(2)])) then
+          pnt_in_cube = .false.
+          return
+        end if
+        if (p(2) - eps .gt. maxval([C(2), D(2), G(2), H(2)])) then
+          pnt_in_cube = .false.
+          return
+        end if
+        if (p(3) + eps .lt. minval([A(3), B(3), C(3), D(3)])) then
+          pnt_in_cube = .false.
+          return
+        end if
+        if (p(3) - eps .gt. maxval([E(3), F(3), G(3), H(3)])) then
+          pnt_in_cube = .false.
+          return
+        end if
+      end associate
     end function
   #:endfor
 
   !> @brief determine if point is inside a rectangle p1,p2,p3
   #:for dtype in ['REAL32', 'REAL64', 'REAL128']
-    function pnt_in_rectangle_${dtype}$ (p1, p2, p3, p) result(pnt_in_rectangle)
+    pure function pnt_in_rectangle_${dtype}$ (p1, p2, p3, p) result(pnt_in_rectangle)
       real(${dtype}$), intent(in), dimension(2) :: p1, p2, p3, p
       logical :: pnt_in_rectangle
       real(${dtype}$), parameter :: eps = epsilon(eps), eps2 = sqrt(eps)

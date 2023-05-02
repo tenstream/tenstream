@@ -40,7 +40,7 @@ contains
     real(ireals)       :: S_tol(size(ret_S_tol))
     real(ireals)       :: T_tol(size(ret_T_tol))
 
-    real(ireals), allocatable :: vertices(:)
+    real(ireals) :: vertices(24)
 
     call init_mpi_data_parameters(comm)
     call bmc%init(comm)
@@ -94,7 +94,7 @@ contains
     real(ireals)       :: S_tol(size(ret_S_tol))
     real(ireals)       :: T_tol(size(ret_T_tol))
 
-    real(ireals), allocatable :: vertices(:)
+    real(ireals) :: vertices(18)
 
     call init_mpi_data_parameters(comm)
     call bmc%init(comm)
@@ -148,7 +148,7 @@ contains
     real(ireals)       :: S_tol(size(ret_S_tol))
     real(ireals)       :: T_tol(size(ret_T_tol))
 
-    real(ireals), allocatable :: vertices(:)
+    real(ireals) :: vertices(24)
 
     call init_mpi_data_parameters(comm)
     call bmc%init(comm)

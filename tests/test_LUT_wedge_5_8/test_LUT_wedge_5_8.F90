@@ -85,7 +85,7 @@ contains
     real(irealLUT) :: pphi, ptheta
     real(ireal_params) :: param_phi, param_theta
     real(irealLUT) :: d2d1(5**2), d2d2(5**2)
-    real(ireal_dp), allocatable :: vertices(:)
+    real(ireal_dp) :: vertices(18)
     real(ireal_params), dimension(2) :: A, B, C
 
     tau = 1.00000001e-10_ireallut
@@ -165,7 +165,7 @@ contains
     real(irealLUT) :: tau, w0, g, aspect, phi, theta, Cx, Cy
 
     real(irealLUT) :: kabs, ksca, dz, err(2)
-    real(ireals), allocatable :: vertices(:)
+    real(ireals) :: vertices(18)
     real(irealLUT), parameter :: dx = 911
     real(irealLUT), allocatable :: g_dim(:)
 
@@ -261,7 +261,7 @@ contains
     real(irealLUT) :: tau, w0, g, aspect, phi, theta, Cx, Cy
 
     real(irealLUT) :: kabs, ksca, dz, err(2)
-    real(ireals), allocatable :: vertices(:)
+    real(ireals) :: vertices(18)
     real(irealLUT), parameter :: dx = 911
     real(irealLUT), allocatable :: g_dim(:)
 

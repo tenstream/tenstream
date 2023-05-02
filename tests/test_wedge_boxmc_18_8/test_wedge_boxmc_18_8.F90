@@ -14,7 +14,7 @@ module test_wedge_boxmc_18_8
   real(ireal_dp) :: bg(3), phi, theta, dx, dy, dz
   real(ireals) :: S(8), T(18), S_target(8), T_target(18)
   real(ireals) :: S_tol(8), T_tol(18)
-  real(ireal_dp), allocatable :: vertices(:)
+  real(ireal_dp) :: vertices(18)
 
   type(t_boxmc_wedge_18_8) :: bmc_wedge_18_8
 
@@ -277,7 +277,7 @@ contains
     class(MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: idx, idy
     real(ireal_dp), dimension(2) :: A, B, C
-    real(ireal_dp), allocatable :: vertices(:)
+    real(ireal_dp) :: vertices(18)
     real(ireal_dp), dimension(3) :: top_center, bot_center, side_center_base, side_center_left, side_center_right
     real(ireal_dp), dimension(3) :: pmAB, pmAC, pmBC, pmDE, pmDF, pmEF
     real(ireal_dp), dimension(3) :: pmAD, pmBE, pmCF

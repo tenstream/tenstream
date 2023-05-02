@@ -13,7 +13,7 @@ module test_wedge_boxmc
   real(ireal_dp) :: bg(3), phi, theta, dx, dy, dz
   real(ireals) :: S(5), T(5), S_target(5), T_target(5)
   real(ireals) :: S_tol(5), T_tol(5)
-  real(ireal_dp), allocatable :: vertices(:)
+  real(ireal_dp) :: vertices(18)
 
   type(t_boxmc_wedge_5_5) :: bmc_wedge_5_5
 

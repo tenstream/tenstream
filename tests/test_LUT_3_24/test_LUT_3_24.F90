@@ -20,7 +20,7 @@ module test_LUT_3_24
   real(irealLUT) :: S(Ndiff), T(Ndir)
   real(ireals) :: S_target(Ndiff), T_target(Ndir)
   real(ireals) :: S_tol(Ndiff), T_tol(Ndir)
-  real(ireals), allocatable :: vertices(:)
+  real(ireals) :: vertices(24)
 
   real(ireals), target :: BMC_diff2diff(Ndiff * Ndiff), BMC_dir2diff(Ndir * Ndiff), BMC_dir2dir(Ndir * Ndir)
   real(irealLUT), target :: LUT_diff2diff(Ndiff * Ndiff), LUT_dir2diff(Ndir * Ndiff), LUT_dir2dir(Ndir * Ndir)

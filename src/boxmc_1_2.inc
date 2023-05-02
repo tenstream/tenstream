@@ -83,6 +83,9 @@ subroutine init_dir_photon_1_2(bmc, p, src, ldirect, initial_dir, vertices, ierr
   real(ireal_dp), dimension(3) :: normal, U, V, cube_center, dir_p_to_cube_center
 
   call CHKERR(size(vertices) - 24, 'wrong size of vertices, expected 24 but found ', size(vertices))
+
+  p%dir = initial_dir
+
   associate ( &
     pA => vertices(1:3), &
     pB => vertices(4:6), &
@@ -93,6 +96,7 @@ subroutine init_dir_photon_1_2(bmc, p, src, ldirect, initial_dir, vertices, ierr
     pG => vertices(19:21), &
     pH => vertices(22:24) &
     )
+
     select case (src)
     case (1)
       if (p%dir(3) .le. 0) then
@@ -119,7 +123,6 @@ subroutine init_dir_photon_1_2(bmc, p, src, ldirect, initial_dir, vertices, ierr
   p%side = int(nil)
   p%src = src
   p%scattercnt = 0
-  p%dir = initial_dir
 
   select type (bmc)
   end select
@@ -247,7 +250,7 @@ subroutine intersect_distance_1_2(bmc, vertices, p, max_dist)
   type(t_photon), intent(inout) :: p
   real(ireal_dp), intent(out) :: max_dist
 
-  real(ireal_dp) :: hit(2)
+  real(ireal_dp) :: hit(2), normal(3), v1(3), v2(3)
   integer(iintegers) :: i
 
   associate ( &
@@ -262,9 +265,16 @@ subroutine intersect_distance_1_2(bmc, vertices, p, max_dist)
     )
     p%loc(1:2) = pA(1:2) ! horizontally move the photon back to the vicinity of the initial vertices (reduces numeric errors)
 
-    hit(1) = hit_plane(p%loc, p%dir, pE, cross_3d(pF - pE, pG - pE))
+    v1 = pF - pE
+    v2 = pG - pE
+    normal = cross_3d(v1, v2)
+    hit(1) = hit_plane(p%loc, p%dir, pE, normal)
     !hit(1) = hit_plane(p%loc, p%dir, pE+[0._ireal_dp, 0._ireal_dp, 1e-7_ireal_dp], cross_3d(pF - pE, pG - pE))
-    hit(2) = hit_plane(p%loc, p%dir, pA, cross_3d(pC - pA, pB - pA))
+
+    v1 = pC - pA
+    v2 = pB - pA
+    normal = cross_3d(v1, v2)
+    hit(2) = hit_plane(p%loc, p%dir, pA, normal)
 
     p%side = 0
     max_dist = huge(max_dist)
@@ -293,15 +303,6 @@ subroutine intersect_distance_1_2(bmc, vertices, p, max_dist)
       call CHKERR(1_mpiint, 'did not hit anything')
     end if
   end associate
-  select type (bmc)
-  end select
-end subroutine
-
-subroutine box_halfspaces_1_2(bmc, vertices, origins, normals)
-  class(t_boxmc_1_2) :: bmc
-  real(ireal_dp), intent(in) :: vertices(:)
-  real(ireal_dp), allocatable, intent(out) :: origins(:, :), normals(:, :)
-  call box_halfspaces(vertices, origins, normals)
   select type (bmc)
   end select
 end subroutine

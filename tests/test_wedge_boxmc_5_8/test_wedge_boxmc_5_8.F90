@@ -17,7 +17,7 @@ module test_wedge_boxmc_5_8
   real(ireal_dp) :: bg(3), phi, theta, dx, dy, dz
   real(ireals) :: S(8), T(5), S_target(8), T_target(5)
   real(ireals) :: S_tol(8), T_tol(5)
-  real(ireal_dp), allocatable :: vertices(:)
+  real(ireal_dp) :: vertices(18)
 
   type(t_boxmc_wedge_5_8) :: bmc_wedge_5_8
 
@@ -751,7 +751,6 @@ contains
 
     Atop = triangle_area_by_vertices(A, B, C)
     dz = LUT_wedge_dz(real(Atop, irealLUT), real(aspect_zx, irealLUT))
-    if (allocated(vertices)) deallocate (vertices)
     call setup_default_wedge_geometry( &
       A, B, C, &
       real(dz, ireal_dp), &
@@ -764,13 +763,10 @@ contains
     call bmc_wedge_5_8%get_coeff(comm, bg, src, .false., phi, theta, vertices, S, T, S_tol, T_tol, inp_atol=atol, inp_rtol=rtol)
     call check(S_target, T_target, S, T, msg='test_wedgemc_diffuse_src1_C01')
 
-    deallocate (vertices)
-
     C = [1.0_ireal_dp, 1.0_ireal_dp]
 
     Atop = triangle_area_by_vertices(A, B, C)
     dz = LUT_wedge_dz(real(Atop, irealLUT), real(aspect_zx, irealLUT))
-    if (allocated(vertices)) deallocate (vertices)
     call setup_default_wedge_geometry( &
       A, B, C, &
       real(dz, ireal_dp), &
@@ -782,8 +778,6 @@ contains
     S_target = [0.0000, 0.2114, 0.0000, 0.2828, 0.0000, 0.2114, 0.0000, 0.2945]
     call bmc_wedge_5_8%get_coeff(comm, bg, src, .false., phi, theta, vertices, S, T, S_tol, T_tol, inp_atol=atol, inp_rtol=rtol)
     call check(S_target, T_target, S, T, msg='test_wedgemc_diffuse_src1_C01')
-
-    deallocate (vertices)
   end subroutine
 
   @test(npes=[1])
@@ -804,7 +798,6 @@ contains
 
     Atop = triangle_area_by_vertices(A, B, C)
     dz = LUT_wedge_dz(real(Atop, irealLUT), real(aspect_zx, irealLUT))
-    if (allocated(vertices)) deallocate (vertices)
     call setup_default_wedge_geometry( &
       A, B, C, &
       real(dz, ireal_dp), &
@@ -821,7 +814,6 @@ contains
     print *, 'S', S
     call check(S_target, T_target, S, T, msg='test_wedgemc_diffuse_src1_C01')
 
-    deallocate (vertices)
   end subroutine
 
   subroutine check(S_target, T_target, S, T, msg)

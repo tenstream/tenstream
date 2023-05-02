@@ -14,7 +14,7 @@ module test_boxmc_3_24
   real(ireal_dp) :: bg(3), phi, theta, dx, dy, dz
   real(ireals), target :: S(24), T(3), S_target(24), T_target(3)
   real(ireals) :: S_tol(24), T_tol(3)
-  real(ireal_dp), allocatable :: vertices(:)
+  real(ireal_dp) :: vertices(24)
 
   type(t_boxmc_3_24) :: bmc
 

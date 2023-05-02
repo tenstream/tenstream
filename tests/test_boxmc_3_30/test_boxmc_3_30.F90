@@ -14,7 +14,7 @@ module test_boxmc_3_30
   real(ireal_dp) :: bg(3), phi, theta, dx, dy, dz
   real(ireals), target :: S(30), T(3), S_target(30), T_target(3)
   real(ireals) :: S_tol(30), T_tol(3)
-  real(ireal_dp), allocatable :: vertices(:)
+  real(ireal_dp) :: vertices(24)
 
   type(t_boxmc_3_30) :: bmc
 
@@ -69,7 +69,8 @@ contains
 
     bg = [0._ireal_dp, 0._ireal_dp, 1._ireal_dp]
 
-    theta = 0; phi = 0; 
+    theta = 0
+    phi = 0
     T_target = zero
 
     ! should send diffuse radiation from bot face towards north west directions
