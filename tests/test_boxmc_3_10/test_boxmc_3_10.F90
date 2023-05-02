@@ -246,7 +246,7 @@ contains
   subroutine test_boxmc_distorted_cube_dir45_east_west_distortion(this)
     class(MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: src
-    real(ireal_dp), allocatable :: verts(:)
+    real(ireal_dp) :: verts(24)
     real(ireal_dp), parameter :: dx = 1, dy = dx, dz = dx
 
     bg = [0e-0_ireal_dp / dz, 0._ireal_dp, 1._ireal_dp / 2]
@@ -307,7 +307,7 @@ contains
   subroutine test_boxmc_distorted_cube_dir45_north_south_distortion(this)
     class(MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: src
-    real(ireal_dp), allocatable :: verts(:)
+    real(ireal_dp) :: verts(24)
     real(ireal_dp), parameter :: dx = 1, dy = dx, dz = dx
 
     bg = [0e-0_ireal_dp / dz, 0._ireal_dp, 1._ireal_dp / 2]
@@ -368,7 +368,7 @@ contains
   subroutine test_boxmc_distorted_cube_diff2diff(this)
     class(MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: src
-    real(ireal_dp), allocatable :: verts(:), verts_symm(:)
+    real(ireal_dp) :: verts(24), verts_symm(24)
     real(ireal_dp), parameter :: dx = 1, dy = dx, dz = dx
     real(ireals) :: Ss_trgt(size(S_target), size(S_target))
 

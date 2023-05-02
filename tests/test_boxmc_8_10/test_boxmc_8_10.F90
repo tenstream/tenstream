@@ -6,6 +6,7 @@ module test_boxmc_8_10
     init_mpi_data_parameters
   use m_optprop_parameters, only: stddev_atol
   use m_boxmc_geometry, only: setup_default_unit_cube_geometry
+  use m_helper_functions, only: toStr
 
   use pfunit_mod
   implicit none
@@ -212,9 +213,9 @@ contains
       call check(S_target, T_target, S, T, msg='test_boxmc_select_cases_direct_srcsidefaces')
     end do
 
-    do iphi = 0, 360, 60
+    theta = 0
+    do iphi = 1, 180, 30
       phi = real(iphi, ireal_dp)
-      theta = 0
 
       tau = (bg(1) + bg(2)) * dz / 2
 
@@ -222,25 +223,69 @@ contains
       T_target = zero
       T_target([1, 3]) = real((sinh(tau) - cosh(tau) + 1) / tau / 2, ireals)
       call bmc_8_10%get_coeff(comm, bg, src, .true., phi, theta, vertices, S, T, S_tol, T_tol, inp_atol=atol, inp_rtol=rtol)
-      call check(S_target, T_target, S, T, msg='test_boxmc_select_cases_direct_srcsidefaces theta = 0 down along sidefaces')
+      call check(S_target, T_target, S, T, &
+        & msg='test_boxmc_select_cases_direct_srcsidefaces theta=0 down along side phi='//toStr(iphi)//' src='//toStr(src))
 
       src = 6
       T_target = zero
       T_target([1, 3]) = real((sinh(tau) - cosh(tau) + 1) / tau / 2 * exp(-tau), ireals)
       call bmc_8_10%get_coeff(comm, bg, src, .true., phi, theta, vertices, S, T, S_tol, T_tol, inp_atol=atol, inp_rtol=rtol)
-      call check(S_target, T_target, S, T, msg='test_boxmc_select_cases_direct_srcsidefaces theta = 0 down along sidefaces')
+      call check(S_target, T_target, S, T, &
+        & msg='test_boxmc_select_cases_direct_srcsidefaces theta=0 down along side phi='//toStr(iphi)//' src='//toStr(src))
+    end do
 
+    do iphi = 181, 360, 30
+      phi = real(iphi, ireal_dp)
+
+      tau = (bg(1) + bg(2)) * dz / 2
+
+      src = 5
+      T_target = zero
+      T_target([2, 4]) = real((sinh(tau) - cosh(tau) + 1) / tau / 2, ireals)
+      call bmc_8_10%get_coeff(comm, bg, src, .true., phi, theta, vertices, S, T, S_tol, T_tol, inp_atol=atol, inp_rtol=rtol)
+      call check(S_target, T_target, S, T, &
+        & msg='test_boxmc_select_cases_direct_srcsidefaces theta=0 down along side phi='//toStr(iphi)//' src='//toStr(src))
+
+      src = 6
+      T_target = zero
+      T_target([2, 4]) = real((sinh(tau) - cosh(tau) + 1) / tau / 2 * exp(-tau), ireals)
+      call bmc_8_10%get_coeff(comm, bg, src, .true., phi, theta, vertices, S, T, S_tol, T_tol, inp_atol=atol, inp_rtol=rtol)
+      call check(S_target, T_target, S, T, &
+        & msg='test_boxmc_select_cases_direct_srcsidefaces theta=0 down along side phi='//toStr(iphi)//' src='//toStr(src))
+    end do
+
+    do iphi = 91, 270, 30
+      phi = real(iphi, ireal_dp)
+      print *, 'phi/theta', phi, theta
+      src = 7
+      T_target = zero
+      T_target([3, 4]) = real((sinh(tau) - cosh(tau) + 1) / tau / 2, ireals)
+      call bmc_8_10%get_coeff(comm, bg, src, .true., phi, theta, vertices, S, T, S_tol, T_tol, inp_atol=atol, inp_rtol=rtol)
+      call check(S_target, T_target, S, T, &
+        & msg='test_boxmc_select_cases_direct_srcsidefaces theta=0 down along side phi='//toStr(iphi)//' src='//toStr(src))
+
+      src = 8
+      T_target = zero
+      T_target([3, 4]) = real((sinh(tau) - cosh(tau) + 1) / tau / 2 * exp(-tau), ireals)
+      call bmc_8_10%get_coeff(comm, bg, src, .true., phi, theta, vertices, S, T, S_tol, T_tol, inp_atol=atol, inp_rtol=rtol)
+      call check(S_target, T_target, S, T, &
+        & msg='test_boxmc_select_cases_direct_srcsidefaces theta=0 down along side phi='//toStr(iphi)//' src='//toStr(src))
+    end do
+    do iphi = 271, 360 + 90, 30
+      phi = real(iphi, ireal_dp)
       src = 7
       T_target = zero
       T_target([1, 2]) = real((sinh(tau) - cosh(tau) + 1) / tau / 2, ireals)
       call bmc_8_10%get_coeff(comm, bg, src, .true., phi, theta, vertices, S, T, S_tol, T_tol, inp_atol=atol, inp_rtol=rtol)
-      call check(S_target, T_target, S, T, msg='test_boxmc_select_cases_direct_srcsidefaces theta = 0 down along sidefaces')
+      call check(S_target, T_target, S, T, &
+        & msg='test_boxmc_select_cases_direct_srcsidefaces theta=0 down along side phi='//toStr(iphi)//' src='//toStr(src))
 
       src = 8
       T_target = zero
       T_target([1, 2]) = real((sinh(tau) - cosh(tau) + 1) / tau / 2 * exp(-tau), ireals)
       call bmc_8_10%get_coeff(comm, bg, src, .true., phi, theta, vertices, S, T, S_tol, T_tol, inp_atol=atol, inp_rtol=rtol)
-      call check(S_target, T_target, S, T, msg='test_boxmc_select_cases_direct_srcsidefaces theta = 0 down along sidefaces')
+      call check(S_target, T_target, S, T, &
+        & msg='test_boxmc_select_cases_direct_srcsidefaces theta=0 down along side phi='//toStr(iphi)//' src='//toStr(src))
     end do
   end subroutine
 
@@ -248,15 +293,13 @@ contains
   subroutine test_boxmc_select_cases_diff_srctopface(this)
     class(MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: src
-    real(ireal_dp) :: tau
 
     ! direct to diffuse tests
     bg = [1e-3_ireal_dp, 0._ireal_dp, 0._ireal_dp]
 
     ! outwards from face 2
-    phi = 0; theta = 0
-
-    tau = (bg(1) + bg(2)) * dz
+    phi = 0
+    theta = 0
 
     S_target = [0.0, 0.39, 0.1404, 0.1404, 0.0, 0.0, 0.1404, 0.1404, 0.0, 0.0]
 

@@ -166,12 +166,13 @@ contains
   subroutine test_boxmc_select_cases_diffuse_mid(this)
     class(MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: src
-    real(ireals), parameter :: c1 = 0.5873 ! straight
-    real(ireals), parameter :: c2 = 0.0516 ! side
+    real(ireals), parameter :: c1 = 0.4407 ! straight
+    real(ireals), parameter :: c2 = 0.0699 ! side
 
     bg = [0._ireal_dp, 0._ireal_dp, 1._ireal_dp]
 
-    theta = 0; phi = 0; 
+    theta = 0
+    phi = 0
     T_target = zero
 
     ! should send diffuse radiation into vertical angle stream and a bit to the sides

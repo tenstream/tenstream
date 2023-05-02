@@ -545,7 +545,7 @@ contains
     real(ireal_dp), parameter :: rng(2) = [0._ireal_dp, huge(rng)]
     logical :: l_in_triangle
     logical :: lhit(5)
-    real(ireal_dp) :: hit(5, 4)
+    real(ireal_dp) :: hit(4, 5)
     integer(iintegers) :: i, iface(5)
     ierr = 0
 
@@ -562,27 +562,27 @@ contains
       iface = [1, -1, -1, -1, 1]
       !crossing with bottom and top plane:
       if (pdir(3) .ge. zero) then
-        call triangle_intersection(ploc, pdir, At, Bt, Ct, rng, lhit(1), hit(1, :))
+        call triangle_intersection(ploc, pdir, At, Bt, Ct, rng, lhit(1), hit(:, 1))
         lhit(5) = .false.
       end if
       if (pdir(3) .le. zero) then
-        call triangle_intersection(ploc, pdir, Ab, Bb, Cb, rng, lhit(5), hit(5, :))
+        call triangle_intersection(ploc, pdir, Ab, Bb, Cb, rng, lhit(5), hit(:, 5))
         lhit(1) = .false.
       end if
 
       !crossing with side planes:
       ! plane 2, along y=0
-      call square_intersection(ploc, pdir, Ab, Bb, Bt, At, lhit(2), hit(2, :), iface(2))
-      call square_intersection(ploc, pdir, Ab, Cb, Ct, At, lhit(3), hit(3, :), iface(3))
-      call square_intersection(ploc, pdir, Bb, Cb, Ct, Bt, lhit(4), hit(4, :), iface(4))
+      call square_intersection(ploc, pdir, Ab, Bb, Bt, At, lhit(2), hit(:, 2), iface(2))
+      call square_intersection(ploc, pdir, Ab, Cb, Ct, At, lhit(3), hit(:, 3), iface(3))
+      call square_intersection(ploc, pdir, Bb, Cb, Ct, Bt, lhit(4), hit(:, 4), iface(4))
 
       pside = 0
       max_dist = huge(max_dist)
       do i = 1, 5
-        if (hit(i, 4) .lt. zero) cycle
+        if (hit(4, i) .lt. zero) cycle
         if (pscattercnt .eq. 0 .and. i .eq. psrc_side) cycle
-        if (hit(i, 4) .lt. max_dist) then
-          max_dist = hit(i, 4)
+        if (hit(4, i) .lt. max_dist) then
+          max_dist = hit(4, i)
           pside = i
           psubface = iface(i)
         end if
@@ -591,13 +591,13 @@ contains
       ! If we did not hit anything else, I assume that we point towards the src side.
       ! We collect it there but set energy to 0
       if (pscattercnt .eq. 0 .and. pside .eq. psrc_side .and. lhit(psrc_side)) then
-        max_dist = hit(psrc_side, 4)
+        max_dist = hit(4, psrc_side)
         pside = psrc_side
         pweight = zero ! we dont allow energy to hit the src face, at least not right after it started!
         psubface = iface(psrc_side)
       end if
 
-      !print *,pside,'hit',hit(pside,1:3)
+      !print *,pside,'hit',hit(1:3, pside)
 
       if (count(lhit) .eq. 0) then
         print *, 'should actually not be here at the end of crossings in intersect distance!'
@@ -611,20 +611,20 @@ contains
         print *, 'Bb', Bb
         print *, 'Cb', Cb
         print *, 'lhit', lhit
-        print *, 'hit1', hit(1, :)
-        print *, 'hit2', hit(2, :)
-        print *, 'hit3', hit(3, :)
-        print *, 'hit4', hit(4, :)
-        print *, 'hit5', hit(5, :)
+        print *, 'hit1', hit(:, 1)
+        print *, 'hit2', hit(:, 2)
+        print *, 'hit3', hit(:, 3)
+        print *, 'hit4', hit(:, 4)
+        print *, 'hit5', hit(:, 5)
         ierr = 1_mpiint
         !call CHKERR(1_mpiint, 'ERROR in Raytracer, didnt hit anything!')
       end if
 
       select case (pside)
       case (1)
-        l_in_triangle = pnt_in_triangle(At, Bt, Ct, hit(pside, 1:2))
+        l_in_triangle = pnt_in_triangle(At, Bt, Ct, hit(1:2, pside))
       case (5)
-        l_in_triangle = pnt_in_triangle(Ab, Bb, Cb, hit(pside, 1:2))
+        l_in_triangle = pnt_in_triangle(Ab, Bb, Cb, hit(1:2, pside))
       case default
         l_in_triangle = .true.
       end select
@@ -640,12 +640,12 @@ contains
         print *, 'Bb', Bb
         print *, 'Cb', Cb
         print *, 'lhit', lhit
-        print *, 'hit1', hit(1, :)
-        print *, 'hit2', hit(2, :)
-        print *, 'hit3', hit(3, :)
-        print *, 'hit4', hit(4, :)
-        print *, 'hit5', hit(5, :)
-        print *, 'target point not in triangle', hit, 'side', pside, 'dist', hit(pside, 4)
+        print *, 'hit1', hit(:, 1)
+        print *, 'hit2', hit(:, 2)
+        print *, 'hit3', hit(:, 3)
+        print *, 'hit4', hit(:, 4)
+        print *, 'hit5', hit(:, 5)
+        print *, 'target point not in triangle', hit, 'side', pside, 'dist', hit(4, pside)
         ierr = 2_mpiint
         !call CHKERR(1_mpiint, 'Photon not inside the triangle')
       end if
