@@ -687,7 +687,6 @@ contains
     real(ireal_dp), intent(in) :: vertices(:)
     real(ireal_dp), intent(out) :: origins(:, :), normals(:, :) ! size 3,5
 
-    if (size(vertices) .ne. 2 * 3 * 3) call CHKERR(1_mpiint, 'did not expect that')
     associate ( &
       A => vertices(1:3), &
       B => vertices(4:6), &
