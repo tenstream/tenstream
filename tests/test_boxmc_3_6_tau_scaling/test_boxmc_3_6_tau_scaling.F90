@@ -14,7 +14,7 @@ module test_boxmc_3_6_tau_scaling
   real(ireal_dp) :: bg(3), phi, theta, dx, dy, dz
   real(ireals) :: S(6), T(3), S_target(6), T_target(3)
   real(ireals) :: S_tol(6), T_tol(3)
-  real(ireal_dp), allocatable :: vertices(:)
+  real(ireal_dp) :: vertices(24)
 
   type(t_boxmc_3_6) :: bmc_3_6
 

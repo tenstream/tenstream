@@ -15,7 +15,7 @@ module test_boxmc_1_2
   real(ireal_dp) :: bg(3), phi, theta, dx, dy, dz
   real(ireals), target :: S(2), T(1), S_target(2), T_target(1)
   real(ireals) :: S_tol(2), T_tol(1)
-  real(ireal_dp), allocatable :: vertices(:)
+  real(ireal_dp) :: vertices(24)
 
   type(t_boxmc_1_2) :: bmc
 
@@ -69,7 +69,8 @@ contains
 
     bg = [0._ireal_dp, 0._ireal_dp, 1._ireal_dp]
 
-    theta = 0; phi = 0; 
+    theta = 0
+    phi = 0
     T_target = zero
 
     ! should send diffuse radiation from bot face towards top face

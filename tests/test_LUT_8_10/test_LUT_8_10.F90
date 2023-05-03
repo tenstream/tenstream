@@ -18,7 +18,7 @@ module test_LUT_8_10
   real(irealLUT) :: S(10), T(8)
   real(ireals) :: S_target(10), T_target(8)
   real(ireals) :: S_tol(10), T_tol(8)
-  real(ireals), allocatable :: vertices(:)
+  real(ireals) :: vertices(24)
 
   real(ireals) :: BMC_diff2diff(100), BMC_dir2diff(8 * 10), BMC_dir2dir(8 * 8)
   real(irealLUT) :: LUT_diff2diff(100), LUT_dir2diff(8 * 10), LUT_dir2dir(8 * 8)

@@ -21,7 +21,7 @@ module m_py_param_phi
     double precision, intent(out) :: pyphi, pytheta
     logical, intent(in), optional :: verbose
 
-    real(ireals), allocatable :: vertices(:)
+    real(ireals) :: vertices(18)
     real(ireal_params) :: phi, theta
     integer(mpiint) :: ierr
 

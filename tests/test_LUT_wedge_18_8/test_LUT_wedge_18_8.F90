@@ -124,7 +124,7 @@ contains
       integer(iintegers) :: rev_pti(size(sample_pts))
       integer(iintegers) :: kdim, ind1d
 
-      real(ireal_dp), allocatable :: vertices(:)
+      real(ireal_dp) :: vertices(18)
       real(irealLUT) :: tauz, w0, g, phi, theta
       logical, parameter :: dir = .true.
       logical :: lvalid_entry
@@ -218,7 +218,7 @@ contains
     real(irealLUT) :: tau, w0, g, aspect, param_phi, phi, theta, Cx, Cy
 
     real(irealLUT) :: kabs, ksca, dz, err(2)
-    real(ireals), allocatable :: vertices(:)
+    real(ireals) :: vertices(18)
     real(irealLUT), parameter :: dx = 911
     real(irealLUT), allocatable :: g_dim(:)
 

@@ -319,36 +319,47 @@ subroutine init_diff_photon_8_10(bmc, p, src, vertices, ierr)
     p%loc = (/L(dx), L(dy), L(dz)/)
     mu = 2 * mu2 - one
     phi = deg2rad(R() * 360)
-  case (1)
+    p%src_side = -1
+  case (1) ! eup
     p%loc = (/L(dx), L(dy), zero/)
     phi = deg2rad(R() * 360)
-  case (2)
+    p%src_side = 2
+  case (2) ! edn
     p%loc = (/L(dx), L(dy), dz/)
     phi = deg2rad(R() * 360)
+    p%src_side = 1
   case (3)
     p%loc = (/dx, L(dy), L(dz)/)
     phi = deg2rad(interv_R(-90._ireal_dp, 90._ireal_dp))
+    p%src_side = 4
   case (4)
     p%loc = (/zero, L(dy), L(dz)/)
     phi = deg2rad(interv_R(-90._ireal_dp, 90._ireal_dp))
+    p%src_side = 3
   case (5)
     p%loc = (/dx, L(dy), L(dz)/)
     phi = deg2rad(interv_R(-90._ireal_dp, 90._ireal_dp))
+    p%src_side = 4
   case (6)
     p%loc = (/zero, L(dy), L(dz)/)
     phi = deg2rad(interv_R(-90._ireal_dp, 90._ireal_dp))
+    p%src_side = 3
   case (7)
     p%loc = (/L(dx), dy, L(dz)/)
     phi = deg2rad(interv_R(-90._ireal_dp, 90._ireal_dp))
+    p%src_side = 6
   case (8)
     p%loc = (/L(dx), zero, L(dz)/)
     phi = deg2rad(interv_R(-90._ireal_dp, 90._ireal_dp))
+    p%src_side = 5
   case (9)
     p%loc = (/L(dx), dy, L(dz)/)
     phi = deg2rad(interv_R(-90._ireal_dp, 90._ireal_dp))
+    p%src_side = 6
   case (10)
     p%loc = (/L(dx), zero, L(dz)/)
     phi = deg2rad(interv_R(-90._ireal_dp, 90._ireal_dp))
+    p%src_side = 5
   case default
     print *, 'Dont know what to do with source spec:', src
     call exit
@@ -423,13 +434,4 @@ subroutine intersect_distance_8_10(bmc, vertices, p, max_dist)
   end select
 
 end subroutine
-subroutine box_halfspaces_8_10(bmc, vertices, origins, normals)
-  class(t_boxmc_8_10) :: bmc
-  real(ireal_dp), intent(in) :: vertices(:)
-  real(ireal_dp), allocatable, intent(out) :: origins(:, :), normals(:, :)
-  call box_halfspaces(vertices, origins, normals)
-  select type (bmc)
-  end select
-end subroutine
 ! ******************* BOXMC 8 10 ************************
-

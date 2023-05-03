@@ -14,7 +14,7 @@ module test_boxmc_8_18
   real(ireal_dp) :: bg(3), phi, theta, dx, dy, dz
   real(ireals) :: S(18), T(8), S_target(18), T_target(8)
   real(ireals) :: S_tol(18), T_tol(8)
-  real(ireal_dp), allocatable :: vertices(:)
+  real(ireal_dp) :: vertices(24)
 
   type(t_boxmc_8_18) :: bmc_8_18
 

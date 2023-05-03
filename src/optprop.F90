@@ -288,7 +288,7 @@ contains
   contains
     subroutine do_bmc_computation(Cbmc)
       real(irealLUT), intent(out) :: Cbmc(:)
-      real(ireals), allocatable :: vertices(:)
+      real(ireals) :: vertices(18)
       real(ireal_params) :: phi, theta
 
       call setup_default_wedge_geometry( &
@@ -562,7 +562,7 @@ contains
 
     logical, save :: compute_coeff_online = .false., lset = .false., bmc_default_unit_cube_reference = .false.
     logical :: lflg
-    real(ireals), allocatable :: vertices(:)
+    real(ireals) :: vertices(24)
     real(irealLUT), allocatable :: Clut(:), Cbmc(:), Cbmc2(:)
     real(irealLUT) :: save_aspect_zx
     ierr = 0

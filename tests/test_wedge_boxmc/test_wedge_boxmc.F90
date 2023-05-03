@@ -13,7 +13,7 @@ module test_wedge_boxmc
   real(ireal_dp) :: bg(3), phi, theta, dx, dy, dz
   real(ireals) :: S(5), T(5), S_target(5), T_target(5)
   real(ireals) :: S_tol(5), T_tol(5)
-  real(ireal_dp), allocatable :: vertices(:)
+  real(ireal_dp) :: vertices(18)
 
   type(t_boxmc_wedge_5_5) :: bmc_wedge_5_5
 
@@ -57,6 +57,10 @@ contains
   @after
   subroutine teardown(this)
     class(MpiTestMethod), intent(inout) :: this
+    logical :: lpetsc_is_initialized
+    integer(mpiint) :: ierr
+    call PetscInitialized(lpetsc_is_initialized, ierr)
+    if (lpetsc_is_initialized) call PetscFinalize(ierr)
     if (myid .eq. 0) print *, 'Finishing boxmc tests module'
   end subroutine teardown
 

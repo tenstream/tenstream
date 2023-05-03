@@ -744,7 +744,7 @@ contains
 
       real(ireal_dp) :: kabs, ksca, pathlen
       real(ireal_dp) :: Btop, Bbot, B1, B2, dz, tauabs, tm1
-      real(ireal_dp), allocatable :: vertices(:)
+      real(ireal_dp) :: vertices(24)
 
       associate (p => pqueues(ipq)%photons(iphoton)%p)
 
@@ -1091,7 +1091,7 @@ contains
     integer(mpiint) :: myid, ierr
     integer(iintegers) :: i, j
     integer(int64) :: ip, Nphotons_per_pixel, l
-    real(ireals), allocatable :: vertices(:)
+    real(ireals) :: vertices(24)
     real(ireals) :: initial_dir(3)
 
     call mpi_comm_rank(solver%comm, myid, ierr); call CHKERR(ierr)

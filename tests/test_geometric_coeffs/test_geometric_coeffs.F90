@@ -15,7 +15,7 @@ module test_geometric_coeffs
   real(ireals) :: phi, theta, dx, dy, dz, bg(3)
   real(ireals) :: S(10), T(3), S_target(10), T_target(3)
   real(ireals) :: S_tol(10), T_tol(3)
-  real(ireals), allocatable :: vertices(:)
+  real(ireals) :: vertices(24)
 
   type(t_boxmc_3_10) :: bmc_3_10
 
@@ -64,7 +64,7 @@ contains
   @test(npes=[1])
   subroutine test_geometric_coeffs_lambert_beer(this)
     class(MpitestMethod), intent(inout) :: this
-    real(ireals), allocatable :: verts(:)
+    real(ireals) :: verts(24)
     real(ireals) :: v(9), v_trgt(9), sundir(3), c_ext
     real(ireals), parameter :: dx = 1, dy = dx, dz = dx
 
@@ -102,7 +102,7 @@ contains
   subroutine test_geometric_coeffs_distorted_box_no_scatter(this)
     class(MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: src, i
-    real(ireals), allocatable :: verts(:)
+    real(ireals) :: verts(24)
     real(ireals) :: v(9), v_symmetry(9), v_mc(9), v_mc_225_40(20, 9)
     real(ireals) :: sundir(3), sundir_symmetry(3), verts_dtd(24), verts_dtd_symmetry(24), c_ext
     real(ireals), parameter :: dx = 1, dy = dx, dz = dx
@@ -299,7 +299,7 @@ contains
   @test(npes=[1])
   subroutine test_geometric_coeffs_regular_box_sundir_up_down(this)
     class(MpiTestMethod), intent(inout) :: this
-    real(ireals), allocatable :: verts(:)
+    real(ireals) :: verts(24)
     real(ireals) :: v(9), v_mc(9)
     real(ireals) :: sundir(3), verts_dtd(24), c_ext
     real(ireals), parameter :: dx = 1, dy = dx, dz = dx

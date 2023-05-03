@@ -86,12 +86,12 @@ subroutine init_dir_photon_wedge_5_8(bmc, p, src, ldirect, initial_dir, vertices
   ! always nudge the photon a little bit inside the volume
   dir_p_to_triangle_center = triangle_center - p%loc
 
-  p%loc = p%loc + sqrt(epsilon(pi64)) * dir_p_to_triangle_center
+  p%loc = p%loc + sqrt(epsilon(vertices)) * dir_p_to_triangle_center
 
   select type (bmc)
   end select
 
-  if (dot_product(p%dir, normal) .le. sqrt(epsilon(zero))) then
+  if (dot_product(p%dir, normal) .lt. zero) then
     ierr = 1000_mpiint + int(angle_between_two_vec(p%dir, normal), kind=mpiint)
     if (ldebug) then
       call CHKWARN(1_mpiint, 'initial direction of the photon is pointing outside of the wedge')
@@ -332,15 +332,4 @@ subroutine intersect_distance_wedge_5_8(bmc, vertices, p, max_dist)
   select type (bmc)
   end select
 end subroutine
-subroutine wedge_halfspaces_5_8(bmc, vertices, origins, normals)
-  class(t_boxmc_wedge_5_8) :: bmc
-  real(ireal_dp), intent(in) :: vertices(:)
-  real(ireal_dp), allocatable, intent(out) :: origins(:, :), normals(:, :)
-  if (.not. allocated(origins)) allocate (origins(3, 5))
-  if (.not. allocated(normals)) allocate (normals(3, 5))
-  call wedge_halfspaces(vertices, origins, normals)
-  select type (bmc)
-  end select
-end subroutine
 ! ******************* BOXMC wedge 5 8 ************************
-

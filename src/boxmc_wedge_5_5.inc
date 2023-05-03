@@ -42,46 +42,38 @@ subroutine init_dir_photon_wedge_5_5(bmc, p, src, ldirect, initial_dir, vertices
   real(ireal_dp), intent(in) :: initial_dir(:), vertices(:)
   integer(iintegers), intent(in) :: src
   logical, intent(in) :: ldirect
-  real(ireal_dp), dimension(2) :: A, B, C, PNT, nAB, nBC, nCA ! point PNT on triangle [A,B,C]
-  real(ireal_dp) :: r1, r2, normal(3), triangle_center(3), dir_p_to_triangle_center(3)
-  real(ireal_dp) :: lstart
-  real(ireal_dp), parameter :: edge_start_range = .999_ireal_dp
+  real(ireal_dp), dimension(3) :: normal, triangle_center, dir_p_to_triangle_center, U, V
   integer(mpiint), intent(out) :: ierr
-  real(ireal_dp) :: dx, dy, dz
 
-  call setup_wedge_coords_from_vertices(vertices, A, B, C, nAB, NBC, nCA, dx, dy, dz)
+  associate ( &
+    pA => vertices(1:3), &
+    pB => vertices(4:6), &
+    pC => vertices(7:9), &
+    pD => vertices(10:12), &
+    pE => vertices(13:15), &
+    pF => vertices(16:18))
 
-  lstart = (one - edge_start_range) / 2 + edge_start_range * R()
-  select case (src)
-  case (1)
-    r1 = R()
-    r2 = R()
-    PNT = (one - sqrt(r1)) * A + sqrt(r1) * (one - r2) * B + sqrt(r1) * r2 * C
-    p%loc = [PNT(1), PNT(2), dz]
-    normal = [zero, zero, -one]
-  case (2)
-    PNT = A + (lstart * (B - A))
-    p%loc = [PNT(1), PNT(2), L(dz)]
-    normal = [nAB(1), nAB(2), zero]
-  case (3)
-    PNT = A + (lstart * (C - A))
-    p%loc = [PNT(1), PNT(2), L(dz)]
-    normal = [nCA(1), nCA(2), zero]
-  case (4)
-    PNT = C + (lstart * (B - C))
-    p%loc = [PNT(1), PNT(2), L(dz)]
-    normal = [nBC(1), nBC(2), zero]
-  case (5)
-    r1 = R()
-    r2 = R()
-    PNT = (one - sqrt(r1)) * A + sqrt(r1) * (one - r2) * B + sqrt(r1) * r2 * C
-    p%loc = [PNT(1), PNT(2), zero]
-    normal = [zero, zero, one]
+    select case (src)
+    case (1)
+      call rand_pnt_on_triangle(pD, pF, pE, p%loc)
+      normal = compute_normal_3d(pD, pF, pE)
+    case (2)
+      call rand_pnt_on_plane(pA, pD, pE, pB, p%loc, normal, U, V)
+    case (3)
+      call rand_pnt_on_plane(pA, pC, pF, pD, p%loc, normal, U, V)
+    case (4)
+      call rand_pnt_on_plane(pB, pE, pF, pC, p%loc, normal, U, V)
+    case (5)
+      call rand_pnt_on_triangle(pA, pB, pC, p%loc)
+      normal = compute_normal_3d(pA, pB, pC)
+    case default
+      call CHKERR(1_mpiint, 'Dont know what to do with source spec: '//toStr(src))
+      call exit
+    end select
 
-  case default
-    print *, 'Dont know what to do with source spec:', src
-    call exit
-  end select
+    triangle_center = (pA + pB + pC + pD + pE + pF) / 6._ireal_dp
+
+  end associate
 
   p%src_side = src
 
@@ -94,34 +86,27 @@ subroutine init_dir_photon_wedge_5_5(bmc, p, src, ldirect, initial_dir, vertices
   p%dir = initial_dir
 
   ! always nudge the photon a little bit inside the volume
-  triangle_center(1:2) = (a + b + c) / 3
-  triangle_center(3) = dz / 2
   dir_p_to_triangle_center = triangle_center - p%loc
 
-  p%loc = p%loc + sqrt(epsilon(pi64)) * dir_p_to_triangle_center
+  p%loc = p%loc + sqrt(epsilon(vertices)) * dir_p_to_triangle_center
 
   select type (bmc)
   end select
 
-  if (.not. pnt_in_triangle(A, B, C, p%loc)) then
-    print *, 'UUPS, the initial location of the photon seems to be outside of the wedge triangle'// &
-      ' :: init_dir_photon_wedge_5_8'
-    call print_photon(p)
-    call CHKERR(1_mpiint, 'initial location outside of the wedge triangle')
-  end if
-
   if (dot_product(p%dir, normal) .lt. zero) then
     ierr = 1000_mpiint + int(angle_between_two_vec(p%dir, normal), kind=mpiint)
     if (ldebug) then
-      print *, 'UUPS, are we starting in a wrong direction? :: init_dir_photon_wedge_5_8', &
-        rad2deg(angle_between_two_vec(p%dir, normal))
+      call CHKWARN(1_mpiint, 'initial direction of the photon is pointing outside of the wedge')
+      print *, 'UUPS, are we starting in a wrong direction?'// &
+        & ' :: init_dir_photon_wedge_5_8', rad2deg(angle_between_two_vec(p%dir, normal))
+      print *, 'src', src, 'initial_dir', initial_dir
       print *, 'normal', normal, 'direction', p%dir
       call print_photon(p)
     end if
-    !stop 'initial direction of the wedge triangle'
     return
   end if
   ierr = 0
+
 end subroutine
 
 subroutine update_dir_stream_wedge_5_5(bmc, vertices, p, T)
@@ -232,7 +217,7 @@ subroutine init_diff_photon_wedge_5_5(bmc, p, src, vertices, ierr)
   p%side = int(nil)
   p%src = src
   p%scattercnt = 0
-  if (.not. approx(norm2(p%dir), one)) stop 'init_diff_photon_3_10 :: direction was not normed?!'
+  if (.not. approx(norm2(p%dir), one)) call CHKERR(1_mpiint, 'init_diff_photon_3_10 :: direction was not normed?!')
 
   select type (bmc)
   end select
@@ -266,15 +251,4 @@ subroutine intersect_distance_wedge_5_5(bmc, vertices, p, max_dist)
   end select
 
 end subroutine
-subroutine wedge_halfspaces_5_5(bmc, vertices, origins, normals)
-  class(t_boxmc_wedge_5_5) :: bmc
-  real(ireal_dp), intent(in) :: vertices(:)
-  real(ireal_dp), allocatable, intent(out) :: origins(:, :), normals(:, :)
-  if (.not. allocated(origins)) allocate (origins(3, 5))
-  if (.not. allocated(normals)) allocate (normals(3, 5))
-  call wedge_halfspaces(vertices, origins, normals)
-  select type (bmc)
-  end select
-end subroutine
 ! ******************* BOXMC wedge 5 5 ************************
-
