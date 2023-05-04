@@ -141,7 +141,7 @@ contains
     integer(int64) :: ip, kp
     integer(iintegers) :: iter, percent_printed, last_percent_printed
     integer(mpiint) :: started_request, killed_request, stat(mpi_status_size)
-    logical :: lcomm_finished, lflg, lfirst_print, lfinish_border_photons_first
+    logical :: lcomm_finished, lflg, lflg2, lfirst_print, lfinish_border_photons_first
     real(ireals) :: photon_weight
 
     class(t_boxmc), allocatable :: bmc
@@ -158,17 +158,22 @@ contains
 
     call mpi_comm_rank(solver%comm, myid, ierr); call CHKERR(ierr)
 
+    call get_petsc_opt("", "-mcdmda_full3d", lfull3d, lflg, ierr); call CHKERR(ierr)
     call get_petsc_opt(solver%prefix, "-mcdmda_full3d", lfull3d, lflg, ierr); call CHKERR(ierr)
 
     Nbatchsize = 10000
-    call get_petsc_opt(solver%prefix, "-mcdmda_batch_size", rNbatchsize, lflg, ierr); call CHKERR(ierr)
-    if (lflg) Nbatchsize = int(rNbatchsize, kind(Nbatchsize))
+    call get_petsc_opt("", "-mcdmda_batch_size", rNbatchsize, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt(solver%prefix, "-mcdmda_batch_size", rNbatchsize, lflg2, ierr); call CHKERR(ierr)
+    if (lflg .or. lflg2) Nbatchsize = int(rNbatchsize, kind(Nbatchsize))
+    Nbatchsize = min(Nbatchsize, Nphotons_local)
 
     Nqueuesize = int(Nphotons_local, int64)
-    call get_petsc_opt(solver%prefix, "-mcdmda_queue_size", rNqueuesize, lflg, ierr); call CHKERR(ierr)
-    if (lflg) Nqueuesize = int(rNqueuesize, kind(Nqueuesize))
+    call get_petsc_opt("", "-mcdmda_queue_size", rNqueuesize, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt(solver%prefix, "-mcdmda_queue_size", rNqueuesize, lflg2, ierr); call CHKERR(ierr)
+    if (lflg .or. lflg2) Nqueuesize = int(rNqueuesize, kind(Nqueuesize))
 
     lfinish_border_photons_first = .false.
+    call get_petsc_opt("", "-mcdmda_finish_border_photons_first", lfinish_border_photons_first, lflg, ierr)
     call get_petsc_opt(solver%prefix, "-mcdmda_finish_border_photons_first", lfinish_border_photons_first, lflg, ierr)
     call CHKERR(ierr)
 
@@ -240,7 +245,11 @@ contains
     ! Initialize the locally owned photons
     call prepare_locally_owned_photons(solver, bmc, solution%lsolar_rad, pqueues(PQ_SELF), Nphotons_local, weight=photon_weight)
 
+    started_photons = 0
+    locally_started_photons = 0
+    globally_started_photons = 0
     killed_photons = 0
+    globally_killed_photons = 0
     call mpi_iallreduce(killed_photons, globally_killed_photons, 1_mpiint, imp_int8, &
                         MPI_SUM, solver%comm, killed_request, ierr); call CHKERR(ierr)
 
@@ -268,8 +277,8 @@ contains
 
       locally_started_photons = locally_started_photons + ip
 
-      started_photons = ip; killed_photons = killed_photons + kp
-      if (ldebug) print *, 'SELF', 'started_photons', started_photons, 'killed_photons', killed_photons
+      killed_photons = killed_photons + kp
+      if (ldebug) print *, myid, 'SELF', 'locally_started_photons', locally_started_photons, 'killed_photons', killed_photons
 
       remote_photons: do ! Run remote photons until they are done, only then go on, this hopefully keeps the queue small
         started_photons = 0
@@ -550,7 +559,7 @@ contains
     integer(int64) :: mcdmda_photons_per_pixel ! has to be constant over all TOA faces
     real(ireals) :: rmcdmda_photons_per_pixel ! has to be constant over all TOA faces
     real(ireals) :: rN
-    logical :: lflg
+    logical :: lflg, lflg2
     integer(mpiint) :: numnodes
 
     ierr = 0
@@ -558,13 +567,16 @@ contains
     call mpi_comm_size(solver%comm, numnodes, ierr); call CHKERR(ierr)
 
     mcdmda_photons_per_pixel = 1000
-    call get_petsc_opt(solver%prefix, "-mcdmda_photons_per_px", &
+    call get_petsc_opt("", "-mcdmda_photons_per_px", &
                        rmcdmda_photons_per_pixel, lflg, ierr); call CHKERR(ierr)
-    if (lflg) mcdmda_photons_per_pixel = int(rmcdmda_photons_per_pixel, int64)
+    call get_petsc_opt(solver%prefix, "-mcdmda_photons_per_px", &
+                       rmcdmda_photons_per_pixel, lflg2, ierr); call CHKERR(ierr)
+    if (lflg .or. lflg2) mcdmda_photons_per_pixel = int(rmcdmda_photons_per_pixel, int64)
     if (ldebug) print *, 'mcdmda_photons_per_pixel', mcdmda_photons_per_pixel
 
-    call get_petsc_opt(solver%prefix, "-mcdmda_photons", rN, lflg, ierr); call CHKERR(ierr)
-    if (lflg) then
+    call get_petsc_opt("", "-mcdmda_photons", rN, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt(solver%prefix, "-mcdmda_photons", rN, lflg2, ierr); call CHKERR(ierr)
+    if (lflg .or. lflg2) then
       mcdmda_photons_per_pixel = 1_int64 + int((rN / solver%C_one_atm%glob_xm) / solver%C_one_atm%glob_ym, kind(Nphotons_local))
       if (ldebug) print *, 'override by -mcdmda_photons', rN, '-> mcdmda_photons_per_pixel ', mcdmda_photons_per_pixel
     end if
@@ -1134,7 +1146,7 @@ contains
           call pqueue_add_photon(pqueue, p, 0_mpiint, ip, ierr); call CHKERR(ierr)
           call pqueue%ready%add(ip)
 
-          if (ldebug) then
+          if (ldebug_tracing) then
             print *, 'Prepared Photon', i, j, ': iphoton', ip, Nphotons
             call print_photon(pqueue%photons(ip)%p)
           end if
@@ -1273,7 +1285,7 @@ contains
 
     associate (p => pqueue%photons(iphoton)%p)
 
-      if (ldebug) then
+      if (ldebug_tracing) then
         select case (pqueue%queue_index)
         case (PQ_SELF)
           call CHKERR(1_mpiint, 'should not happen that a photon is sent to ourselves?')
@@ -1312,7 +1324,7 @@ contains
       !call mpi_send(p, 1_mpiint, imp_t_photon, &
       !  pqueue%owner, tag, solver%comm, ierr); call CHKERR(ierr, 'mpi isend failed')
 
-      if (ldebug) then
+      if (ldebug_tracing) then
         print *, 'Sending the following photon to rank', pqueue%owner, ':tag', tag
         call print_photon(p)
       end if
@@ -1339,7 +1351,7 @@ contains
       if (lcomm_finished) then
         call pqueue%empty%add(iphoton)
         call pqueue%sending%del_node(node, ierr); call CHKERR(ierr)
-        if (ldebug) then
+        if (ldebug_tracing) then
           print *, 'Finalized Sending a photon:', iphoton
         end if
       end if
@@ -1396,7 +1408,7 @@ contains
         call pqueue%empty%add(iphoton)
         call pqueue%sending%del_node(node, ierr); call CHKERR(ierr)
         cnt_finished_msgs = cnt_finished_msgs + 1
-        if (ldebug) then
+        if (ldebug_tracing) then
           print *, 'Finalized Sending a photon:', iphoton
           call print_photon(pqueue%photons(iphoton)%p)
         end if
@@ -1450,7 +1462,7 @@ contains
 
         call pqueues(ipq)%ready%add(iphoton)
 
-        if (ldebug) then
+        if (ldebug_tracing) then
           print *, myid, 'Got Message from rank:', mpi_status(MPI_SOURCE), 'Receiving ipq ', id2name(ipq)
           call print_photon(pqueues(ipq)%photons(iphoton)%p)
         end if

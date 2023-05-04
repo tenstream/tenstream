@@ -6330,7 +6330,7 @@ contains
     type(t_pprts_buildings), optional, intent(in) :: opt_buildings
 
     class(t_solver), allocatable :: solver1d
-    character(len=default_str_len) :: prefix
+    character(len=default_str_len) :: prefix, current_solverstr
 
     integer(iintegers) :: k, idof
     integer(iintegers), parameter :: solution_uid = 0
@@ -6351,7 +6351,9 @@ contains
       prefix = 'initial_guess_'
     end if
 
-    call allocate_pprts_solver_from_commandline(solver1d, solver_to_str(solver), ierr, trim(prefix)); call CHKERR(ierr)
+    current_solverstr = solver_to_str(solver)
+    if (trim(current_solverstr) .eq. 'mcdmda') current_solverstr = '2str'
+    call allocate_pprts_solver_from_commandline(solver1d, current_solverstr, ierr, trim(prefix)); call CHKERR(ierr)
 
     allocate (dz(solver%C_one_atm%zs:solver%C_one_atm%ze))
     do k = solver%C_one_atm%zs, solver%C_one_atm%ze
