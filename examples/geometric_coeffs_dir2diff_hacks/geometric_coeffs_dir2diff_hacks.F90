@@ -30,7 +30,7 @@ contains
     real(ireals) :: verts_dtd(24), bg(3), phi, theta, sundir(3), &
                     c_scatter_gomtrc_reg(9), c_scatter_gomtrc_dst(9), c_gomtrc_dst(9)
     real(ireals), parameter :: dx = 1, dy = dx, dz = dx
-    real(ireals), allocatable :: verts(:)
+    real(ireals) :: verts(24)
     integer(iintegers), parameter :: imax = 5
     integer(iintegers) :: i, src, iscat, iabso
     real(ireals) :: S(10), T(3)

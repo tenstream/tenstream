@@ -61,7 +61,7 @@ contains
   subroutine test_boxmc_spherical_direct_src1(this)
     class(MpiTestMethod), intent(inout) :: this
     integer(iintegers), parameter :: src = 1
-    real(ireal_dp), allocatable :: sverts(:)
+    real(ireal_dp) :: sverts(18)
     real(ireal_dp) :: Atop, Abot
     real(ireal_dp), parameter :: R = 6374e1_ireal_dp
 
@@ -94,7 +94,7 @@ contains
   subroutine test_boxmc_spherical_direct_src5(this)
     class(MpiTestMethod), intent(inout) :: this
     integer(iintegers), parameter :: src = 5
-    real(ireal_dp), allocatable :: sverts(:)
+    real(ireal_dp) :: sverts(18)
     real(ireal_dp) :: Atop, Abot
     real(ireal_dp), parameter :: R = 6374e1_ireal_dp
 
@@ -127,7 +127,7 @@ contains
   subroutine test_boxmc_spherical_direct_src2(this)
     class(MpiTestMethod), intent(inout) :: this
     integer(iintegers), parameter :: src = 2
-    real(ireal_dp), allocatable :: sverts(:)
+    real(ireal_dp) :: sverts(18)
     real(ireal_dp), parameter :: R = 6374._ireal_dp
 
     call setup_default_wedge_geometry([-dx / 2, 0._ireal_dp], [dx / 2, 0._ireal_dp], [0._ireal_dp, sqrt(dy**2 - (dx / 2)**2)], &
@@ -158,7 +158,7 @@ contains
   subroutine test_boxmc_spherical_direct_src3(this)
     class(MpiTestMethod), intent(inout) :: this
     integer(iintegers), parameter :: src = 3
-    real(ireal_dp), allocatable :: sverts(:)
+    real(ireal_dp) :: sverts(18)
     real(ireal_dp), parameter :: R = 6374._ireal_dp
 
     call setup_default_wedge_geometry([-dx / 2, 0._ireal_dp], [dx / 2, 0._ireal_dp], [0._ireal_dp, sqrt(dy**2 - (dx / 2)**2)], &
@@ -189,7 +189,7 @@ contains
   subroutine test_boxmc_spherical_direct_src4(this)
     class(MpiTestMethod), intent(inout) :: this
     integer(iintegers), parameter :: src = 4
-    real(ireal_dp), allocatable :: sverts(:)
+    real(ireal_dp) :: sverts(18)
     real(ireal_dp), parameter :: R = 6374._ireal_dp
 
     call setup_default_wedge_geometry([-dx / 2, 0._ireal_dp], [dx / 2, 0._ireal_dp], [0._ireal_dp, sqrt(dy**2 - (dx / 2)**2)], &
@@ -220,7 +220,7 @@ contains
   subroutine test_boxmc_spherical_diffuse_src1(this)
     class(MpiTestMethod), intent(inout) :: this
     integer(iintegers), parameter :: src = 1
-    real(ireal_dp), allocatable :: sverts(:)
+    real(ireal_dp) :: sverts(18)
     real(ireal_dp), parameter :: R = 6374e1_ireal_dp
 
     call setup_default_wedge_geometry([0._ireal_dp, 0._ireal_dp], [dx, 0._ireal_dp], [dx / 2, sqrt(dy**2 - (dx / 2)**2)], &
@@ -255,7 +255,7 @@ contains
   subroutine test_boxmc_spherical_diffuse_src2(this)
     class(MpiTestMethod), intent(inout) :: this
     integer(iintegers), parameter :: src = 2
-    real(ireal_dp), allocatable :: sverts(:)
+    real(ireal_dp) :: sverts(18)
     real(ireal_dp), parameter :: R = 6374e1_ireal_dp
 
     call setup_default_wedge_geometry([-dx / 2, 0._ireal_dp], [dx / 2, 0._ireal_dp], [0._ireal_dp, sqrt(dy**2 - (dx / 2)**2)], &
@@ -290,7 +290,7 @@ contains
   subroutine test_boxmc_spherical_diffuse_src3(this)
     class(MpiTestMethod), intent(inout) :: this
     integer(iintegers), parameter :: src = 3
-    real(ireal_dp), allocatable :: sverts(:)
+    real(ireal_dp) :: sverts(18)
     real(ireal_dp), parameter :: R = 6374e1_ireal_dp
 
     call setup_default_wedge_geometry([-dx / 2, 0._ireal_dp], [dx / 2, 0._ireal_dp], [0._ireal_dp, sqrt(dy**2 - (dx / 2)**2)], &
@@ -325,7 +325,7 @@ contains
   subroutine test_boxmc_spherical_diffuse_src4(this)
     class(MpiTestMethod), intent(inout) :: this
     integer(iintegers), parameter :: src = 4
-    real(ireal_dp), allocatable :: sverts(:)
+    real(ireal_dp) :: sverts(18)
     real(ireal_dp), parameter :: R = 6374e1_ireal_dp
 
     call setup_default_wedge_geometry([-dx / 2, 0._ireal_dp], [dx / 2, 0._ireal_dp], [0._ireal_dp, sqrt(dy**2 - (dx / 2)**2)], &
@@ -360,7 +360,7 @@ contains
   subroutine test_boxmc_spherical_diffuse_src5(this)
     class(MpiTestMethod), intent(inout) :: this
     integer(iintegers), parameter :: src = 5
-    real(ireal_dp), allocatable :: sverts(:)
+    real(ireal_dp) :: sverts(18)
     real(ireal_dp), parameter :: R = 6374e1_ireal_dp
 
     call setup_default_wedge_geometry([-dx / 2, 0._ireal_dp], [dx / 2, 0._ireal_dp], [0._ireal_dp, sqrt(dy**2 - (dx / 2)**2)], &
@@ -395,7 +395,7 @@ contains
   subroutine test_boxmc_spherical_diffuse_src6(this)
     class(MpiTestMethod), intent(inout) :: this
     integer(iintegers), parameter :: src = 6
-    real(ireal_dp), allocatable :: sverts(:)
+    real(ireal_dp) :: sverts(18)
     real(ireal_dp), parameter :: R = 6374e1_ireal_dp
 
     call setup_default_wedge_geometry([-dx / 2, 0._ireal_dp], [dx / 2, 0._ireal_dp], [0._ireal_dp, sqrt(dy**2 - (dx / 2)**2)], &
@@ -430,7 +430,7 @@ contains
   subroutine test_boxmc_spherical_diffuse_src7(this)
     class(MpiTestMethod), intent(inout) :: this
     integer(iintegers), parameter :: src = 7
-    real(ireal_dp), allocatable :: sverts(:)
+    real(ireal_dp) :: sverts(18)
     real(ireal_dp), parameter :: R = 6374e1_ireal_dp
 
     call setup_default_wedge_geometry([-dx / 2, 0._ireal_dp], [dx / 2, 0._ireal_dp], [0._ireal_dp, sqrt(dy**2 - (dx / 2)**2)], &
@@ -465,7 +465,7 @@ contains
   subroutine test_boxmc_spherical_diffuse_src8(this)
     class(MpiTestMethod), intent(inout) :: this
     integer(iintegers), parameter :: src = 8
-    real(ireal_dp), allocatable :: sverts(:)
+    real(ireal_dp) :: sverts(18)
     real(ireal_dp), parameter :: R = 6374e1_ireal_dp
 
     call setup_default_wedge_geometry([0._ireal_dp, 0._ireal_dp], [dx, 0._ireal_dp], [dx / 2, sqrt(dy**2 - (dx / 2)**2)], &
