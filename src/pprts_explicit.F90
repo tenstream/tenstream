@@ -82,8 +82,8 @@ contains
     real(ireals) :: ignore_max_it! Ignore max iter setting if time is less
 
     logical :: lksp_view, lcomplete_initial_run
-    logical :: lsun_north, lsun_east, lpermute, lskip_residual, lmonitor_residual, lconverged, lflg
-    logical :: laccept_incomplete_solve, lconverged_reason
+    logical :: lsun_north, lsun_east, lpermute, lskip_residual, lmonitor_residual, lflg
+    logical :: laccept_incomplete_solve, lconverged_atol, lconverged_rtol, lconverged_reason
 
     integer(mpiint) :: ierr
 
@@ -209,10 +209,20 @@ contains
           end if
           solution%dir_ksp_residual_history(min(size(solution%dir_ksp_residual_history, kind=iintegers), iter)) = residual(iter)
 
-          lconverged = mpi_logical_and(solver%comm, residual(iter) .lt. atol .or. rel_residual .lt. rtol)
-          if (lconverged) then
-            if (solver%myid .eq. 0 .and. lconverged_reason) &
-              & print *, trim(prefix)//' solve converged after', iter, 'iterations'
+          lconverged_atol = mpi_logical_and(solver%comm, residual(iter) .lt. atol)
+          if (.not. lconverged_atol) then ! only reduce converged_RTOL if necessary
+            lconverged_rtol = mpi_logical_and(solver%comm, rel_residual .lt. rtol)
+          else
+            lconverged_rtol = .false.
+          end if
+          if (lconverged_atol .or. lconverged_rtol) then
+            if (solver%myid .eq. 0 .and. lconverged_reason) then
+              if (lconverged_atol) then
+                print *, trim(prefix)//' solve converged due to CONVERGED_ATOL iterations', iter
+              else
+                print *, trim(prefix)//' solve converged due to CONVERGED_RTOL iterations', iter
+              end if
+            end if
             exit
           end if
         else
@@ -451,7 +461,7 @@ contains
     real(ireals) :: ignore_max_it! Ignore max iter setting if time is less
 
     logical :: lksp_view, lcomplete_initial_run
-    logical :: lskip_residual, lmonitor_residual, lconverged, lflg
+    logical :: lskip_residual, lmonitor_residual, lconverged_atol, lconverged_rtol, lflg
     logical :: laccept_incomplete_solve, lconverged_reason
 
     integer(mpiint) :: ierr
@@ -610,10 +620,20 @@ contains
           end if
           solution%diff_ksp_residual_history(min(size(solution%diff_ksp_residual_history, kind=iintegers), iter)) = residual(iter)
 
-          lconverged = mpi_logical_and(solver%comm, residual(iter) .lt. atol .or. rel_residual .lt. rtol)
-          if (lconverged) then
-            if (solver%myid .eq. 0 .and. lconverged_reason) &
-              & print *, trim(prefix), ' solve converged after', iter, 'iterations'
+          lconverged_atol = mpi_logical_and(solver%comm, residual(iter) .lt. atol)
+          if (.not. lconverged_atol) then ! only reduce converged_RTOL if necessary
+            lconverged_rtol = mpi_logical_and(solver%comm, rel_residual .lt. rtol)
+          else
+            lconverged_rtol = .false.
+          end if
+          if (lconverged_atol .or. lconverged_rtol) then
+            if (solver%myid .eq. 0 .and. lconverged_reason) then
+              if (lconverged_atol) then
+                print *, trim(prefix)//' solve converged due to CONVERGED_ATOL iterations', iter
+              else
+                print *, trim(prefix)//' solve converged due to CONVERGED_RTOL iterations', iter
+              end if
+            end if
             exit
           end if
         else
