@@ -22,12 +22,12 @@ module m_adaptive_spectral_integration
   use m_pprts_base, only: t_state_container
   use m_data_parameters, only: iintegers, ireals, default_str_len, mpiint, zero, one, nil
   use m_tenstream_options, only: options_max_solution_err, options_max_solution_time
-  use m_helper_functions, only: approx, CHKERR
+  use m_helper_functions, only: approx, CHKERR, CHKWARN, toStr
 
   implicit none
 
   private
-  public need_new_solution
+  public need_new_solution, polyfit
 
   logical, parameter :: ldebug = .false.
 
@@ -180,79 +180,79 @@ contains
       write (out_unit, *) solution%uid, time
       close (out_unit)
     end if
-
-  contains
-    function polyfit(vx, vy, d, ierr) !Rosetta Code http://rosettacode.org/wiki/Polynomial_regression#Fortran
-      implicit none
-      integer(iintegers), intent(in) :: d
-      real(ireals), dimension(d + 1) :: polyfit
-      real(ireals), dimension(:), intent(in) :: vx, vy
-      integer(mpiint), intent(out) :: ierr
-
-      real(ireals), dimension(size(vx), d + 1) :: X
-      real(ireals), dimension(d + 1, size(vx)) :: XT
-      real(ireals), dimension(d + 1, d + 1) :: XTX
-
-      integer(iintegers) :: i, j
-
-      integer :: n, lda, lwork
-      integer :: info
-      integer, dimension(d + 1) :: ipiv
-      real(ireals), dimension(d + 1) :: work
-
-      ierr = 0
-
-      n = int(d + 1, kind(n))
-      lda = n
-      lwork = n
-
-      do i = 1, size(vx)
-        if (any(approx(vx(i), vx(i + 1:size(vx))))) then ! polyfit cannot cope with same x values --> matrix gets singular
-          if (ldebug .and. myid .eq. 0) print *, 'polyfit cannot cope with same x values --> matrix gets singular', vx, '::', vy
-          polyfit = 0
-          polyfit(1) = nil
-          ierr = 1
-          return
-        end if
-      end do
-
-      ! prepare the matrix
-      do i = 0, d
-        do j = 1, size(vx)
-          X(j, i + 1) = vx(j)**i
-        end do
-      end do
-
-      XT = transpose(X)
-      XTX = matmul(XT, X)
-
-      ! calls to LAPACK subs DGETRF and DGETRI
-      if (sizeof(one) .eq. 4) then !single precision
-        call SGETRF(n, n, XTX, lda, ipiv, info)
-      else if (sizeof(one) .eq. 8) then !double precision
-        call DGETRF(n, n, XTX, lda, ipiv, info)
-      else
-        print *, 'dont know which lapack routine to call for reals with sizeof==', sizeof(one)
-      end if
-      if (info /= 0) then
-        if (myid .eq. 0 .and. ldebug) print *, "problem with lapack lsqr :: 1 :: info", info
-        ierr = 2
-        return
-      end if
-      if (sizeof(one) .eq. 4) then !single precision
-        call SGETRI(n, XTX, lda, ipiv, work, lwork, info)
-      else if (sizeof(one) .eq. 8) then !double precision
-        call DGETRI(n, XTX, lda, ipiv, work, lwork, info)
-      else
-        print *, 'dont know which lapack routine to call for reals with sizeof==', sizeof(one)
-      end if
-      if (info /= 0) then
-        if (myid .eq. 0) print *, "problem with lapack lsqr :: 2 :: info", info
-        ierr = 3
-        return
-      end if
-
-      polyfit = matmul(matmul(XTX, XT), vy)
-    end function
   end function need_new_solution
+
+  function polyfit(vx, vy, d, ierr) !Rosetta Code http://rosettacode.org/wiki/Polynomial_regression#Fortran
+    implicit none
+    integer(iintegers), intent(in) :: d
+    real(ireals), dimension(d + 1) :: polyfit
+    real(ireals), dimension(:), intent(in) :: vx, vy
+    integer(mpiint), intent(out) :: ierr
+
+    real(ireals), dimension(size(vx), d + 1) :: X
+    real(ireals), dimension(d + 1, size(vx)) :: XT
+    real(ireals), dimension(d + 1, d + 1) :: XTX
+
+    integer(iintegers) :: i, j
+
+    integer :: n, lda, lwork
+    integer :: info
+    integer, dimension(d + 1) :: ipiv
+    real(ireals), dimension(d + 1) :: work
+
+    ierr = 0
+
+    n = int(d + 1, kind(n))
+    lda = n
+    lwork = n
+
+    do i = 1, size(vx)
+      if (any(approx(vx(i), vx(i + 1:size(vx))))) then ! polyfit cannot cope with same x values --> matrix gets singular
+        polyfit = 0
+        polyfit(1) = nil
+        ierr = 1
+        if(ldebug) &
+          & call CHKWARN(ierr, 'polyfit cannot cope with same x values --> matrix gets singular'//toStr(vx)//' :: '//toStr(vy))
+        return
+      end if
+    end do
+
+    ! prepare the matrix
+    do i = 0, d
+      do j = 1, size(vx)
+        X(j, i + 1) = vx(j)**i
+      end do
+    end do
+
+    XT = transpose(X)
+    XTX = matmul(XT, X)
+
+    ! calls to LAPACK subs DGETRF and DGETRI
+    if (sizeof(one) .eq. 4) then !single precision
+      call SGETRF(n, n, XTX, lda, ipiv, info)
+    else if (sizeof(one) .eq. 8) then !double precision
+      call DGETRF(n, n, XTX, lda, ipiv, info)
+    else
+      call CHKERR(1_mpiint, 'dont know which lapack routine to call for reals with sizeof=='//toStr(sizeof(one)))
+    end if
+    if (info /= 0) then
+      ierr = 2
+      if (ldebug) call CHKWARN(ierr, "problem with lapack lsqr :: 1 :: info"//toStr(info))
+      return
+    end if
+    if (sizeof(one) .eq. 4) then !single precision
+      call SGETRI(n, XTX, lda, ipiv, work, lwork, info)
+    else if (sizeof(one) .eq. 8) then !double precision
+      call DGETRI(n, XTX, lda, ipiv, work, lwork, info)
+    else
+      call CHKERR(1_mpiint, 'dont know which lapack routine to call for reals with sizeof=='//toStr(sizeof(one)))
+    end if
+    if (info /= 0) then
+      ierr = 3
+      call CHKWARN(ierr, "problem with lapack lsqr :: 2 :: info"//toStr(info))
+      return
+    end if
+
+    polyfit = matmul(matmul(XTX, XT), vy)
+  end function
 end module
