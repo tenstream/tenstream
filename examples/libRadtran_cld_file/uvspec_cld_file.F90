@@ -126,7 +126,7 @@ contains
       reliq = cshift(reliq, scene_shift_x, dim=2)
       lwc = cshift(lwc, scene_shift_y, dim=3)
       reliq = cshift(reliq, scene_shift_y, dim=3)
-      call run_rrtmg_lw_sw(&
+      call run_lw_sw(&
         & specint, &
         & pprts_solver, &
         & nxproc, nyproc, &
@@ -339,9 +339,9 @@ contains
     end if
   end subroutine
 
-  subroutine run_rrtmg_lw_sw(specint, pprts_solver, nxproc, nyproc, atm_filename, dx, dy, phi0, theta0, &
-                             plev, tlev, lwc, reliq, albedo_th, albedo_sol, lsolar, lthermal, &
-                             edir, edn, eup, abso)
+  subroutine run_lw_sw(specint, pprts_solver, nxproc, nyproc, atm_filename, dx, dy, phi0, theta0, &
+                       plev, tlev, lwc, reliq, albedo_th, albedo_sol, lsolar, lthermal, &
+                       edir, edn, eup, abso)
     character(len=*), intent(in) :: specint                  ! name of module to use for spectral integration
     class(t_solver) :: pprts_solver
     integer(iintegers), intent(in) :: nxproc(:), nyproc(:)
@@ -378,8 +378,7 @@ contains
     character(len=*), intent(in) :: atm_filename
 
     !------------ Local vars ------------------
-    integer(iintegers) :: k, nlev, iter
-    logical :: lflg
+    integer(iintegers) :: k, nlev
 
     ! reshape pointer to convert i,j vecs to column vecs
     real(ireals), pointer, dimension(:, :) :: pplev, ptlev, plwc, preliq
@@ -417,19 +416,14 @@ contains
 
     !if(myid.eq.0) call print_tenstr_atm(atm)
 
-    iter = 1
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-iter", iter, lflg, ierr)
-
-    do k = 1, iter
-      call specint_pprts(specint, comm, pprts_solver, atm, &
-                         size(plev, 2, kind=iintegers), &
-                         size(plev, 3, kind=iintegers), &
-                         dx, dy, sundir, &
-                         albedo_th, albedo_sol, &
-                         lthermal, lsolar, &
-                         edir, edn, eup, abso, &
-                         nxproc=nxproc, nyproc=nyproc, opt_time=real(k, ireals))
-    enddo
+    call specint_pprts(specint, comm, pprts_solver, atm, &
+                       size(plev, 2, kind=iintegers), &
+                       size(plev, 3, kind=iintegers), &
+                       dx, dy, sundir, &
+                       albedo_th, albedo_sol, &
+                       lthermal, lsolar, &
+                       edir, edn, eup, abso, &
+                       nxproc=nxproc, nyproc=nyproc, opt_time=zero)
 
     nlev = ubound(edn, 1)
     if (myid .eq. 0) then
