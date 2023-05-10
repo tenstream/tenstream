@@ -378,7 +378,8 @@ contains
     character(len=*), intent(in) :: atm_filename
 
     !------------ Local vars ------------------
-    integer(iintegers) :: k, nlev
+    integer(iintegers) :: k, nlev, iter
+    logical :: lflg
 
     ! reshape pointer to convert i,j vecs to column vecs
     real(ireals), pointer, dimension(:, :) :: pplev, ptlev, plwc, preliq
@@ -416,13 +417,19 @@ contains
 
     !if(myid.eq.0) call print_tenstr_atm(atm)
 
-    call specint_pprts(specint, comm, pprts_solver, atm, &
-                       size(plev, 2, kind=iintegers), size(plev, 3, kind=iintegers), &
-                       dx, dy, sundir, &
-                       albedo_th, albedo_sol, &
-                       lthermal, lsolar, &
-                       edir, edn, eup, abso, &
-                       nxproc=nxproc, nyproc=nyproc, opt_time=zero)
+    iter = 1
+    call get_petsc_opt(PETSC_NULL_CHARACTER, "-iter", iter, lflg, ierr)
+
+    do k = 1, iter
+      call specint_pprts(specint, comm, pprts_solver, atm, &
+                         size(plev, 2, kind=iintegers), &
+                         size(plev, 3, kind=iintegers), &
+                         dx, dy, sundir, &
+                         albedo_th, albedo_sol, &
+                         lthermal, lsolar, &
+                         edir, edn, eup, abso, &
+                         nxproc=nxproc, nyproc=nyproc, opt_time=real(k, ireals))
+    enddo
 
     nlev = ubound(edn, 1)
     if (myid .eq. 0) then
