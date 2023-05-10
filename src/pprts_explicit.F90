@@ -46,6 +46,8 @@ module m_pprts_explicit
   use m_petsc_helpers, only: &
     getVecPointer, restoreVecPointer
 
+  use m_adaptive_spectral_integration, only: polyfit
+
   implicit none
 
   private
@@ -455,7 +457,7 @@ contains
     integer(iintegers) :: iter, isub, maxiter, sub_iter, maxit_ignore
 
     real(ireals), allocatable :: residual(:)
-    real(ireals) :: residual_mmm(3), rel_residual, atol, rtol, atol_default, rtol_default, omega
+    real(ireals) :: residual_mmm(3), rel_residual, atol, rtol, atol_default, rtol_default
 
     integer(iintegers), parameter :: default_max_it = 10000
     real(ireals) :: ignore_max_it! Ignore max iter setting if time is less
@@ -463,6 +465,13 @@ contains
     logical :: lksp_view, lcomplete_initial_run
     logical :: lskip_residual, lmonitor_residual, lconverged_atol, lconverged_rtol, lflg
     logical :: laccept_incomplete_solve, lconverged_reason
+
+    logical :: lomega_set, ladaptive_omega
+    real(ireals) :: omega, omega_adaptive, omega_increment, omega_min, omega_max
+
+    integer(iintegers), parameter :: omega_pfN = 10
+    integer(iintegers) :: i
+    real(ireals) :: omega_pfx(omega_pfN), omega_pfy(omega_pfN), pf(2)
 
     integer(mpiint) :: ierr
 
@@ -498,6 +507,18 @@ contains
       call get_petsc_opt(PETSC_NULL_CHARACTER, "-accept_incomplete_solve", laccept_incomplete_solve, lflg, ierr); call CHKERR(ierr)
       call get_petsc_opt(prefix, "-accept_incomplete_solve", laccept_incomplete_solve, lflg, ierr); call CHKERR(ierr)
 
+      omega = 1
+      call get_petsc_opt(prefix, "-pc_sor_omega", omega, lomega_set, ierr); call CHKERR(ierr)
+      omega_adaptive = omega
+      ladaptive_omega = .false.
+      call get_petsc_opt(prefix, "-pc_sor_omega_adaptive", ladaptive_omega, lflg, ierr); call CHKERR(ierr)
+      omega_increment = .1_ireals
+      call get_petsc_opt(prefix, "-pc_sor_omega_increment", omega_increment, lflg, ierr); call CHKERR(ierr)
+      omega_min = 1._ireals
+      call get_petsc_opt(prefix, "-pc_sor_omega_min", omega_min, lflg, ierr); call CHKERR(ierr)
+      omega_max = 1.25_ireals
+      call get_petsc_opt(prefix, "-pc_sor_omega_max", omega_max, lflg, ierr); call CHKERR(ierr)
+
       lcomplete_initial_run = .true.
       call get_petsc_opt(prefix, "-ksp_complete_initial_run", lcomplete_initial_run, lflg, ierr); call CHKERR(ierr)
       if (lcomplete_initial_run .and. (solution%diff_ksp_residual_history(1) .lt. 0)) then
@@ -521,9 +542,6 @@ contains
       lconverged_reason = lmonitor_residual
       call get_petsc_opt(prefix, "-ksp_converged_reason", lconverged_reason, lflg, ierr); call CHKERR(ierr)
 
-      omega = 1
-      call get_petsc_opt(prefix, "-pc_sor_omega", omega, lflg, ierr); call CHKERR(ierr)
-
       lksp_view = .false.
       call get_petsc_opt(prefix, "-ksp_view", lksp_view, lflg, ierr); call CHKERR(ierr)
       if (solver%myid .eq. 0 .and. lksp_view) then
@@ -546,9 +564,8 @@ contains
       call DMGlobalToLocalEnd(C%da, vb, INSERT_VALUES, lvb, ierr); call CHKERR(ierr)
 
       do iter = 1, maxiter
-
         do isub = 1, sub_iter
-          if (approx(omega, 1._ireals)) then
+          if (approx(omega_adaptive, 1._ireals)) then
             if (modulo(iter + isub, 2) .eq. 0) then
               call explicit_ediff_forward_sweep(&
                 & solver, &
@@ -574,7 +591,7 @@ contains
                 & dx=[C%xs, C%xe, i1], &
                 & dy=[C%ys, C%ye, i1], &
                 & dz=[C%zs, C%ze - 1, i1], &
-                & omega=omega, &
+                & omega=omega_adaptive, &
                 & b=lvb, x=v0)
             else
               call explicit_ediff_sor_sweep(&
@@ -583,7 +600,7 @@ contains
                 & dx=[C%xe, C%xs, -i1], &
                 & dy=[C%ye, C%ys, -i1], &
                 & dz=[C%ze - 1, C%zs, -i1], &
-                & omega=omega, &
+                & omega=omega_adaptive, &
                 & b=lvb, x=v0)
             end if
           end if
@@ -616,7 +633,7 @@ contains
               rel_residual = residual(iter) / residual(1)
             end if
             print *, trim(prefix), ' iter ', toStr(iter), ' residual (min/mean/max)', residual_mmm, &
-              & 'rel res', rel_residual
+              & 'rel res', rel_residual, 'omega', omega_adaptive
           end if
           solution%diff_ksp_residual_history(min(size(solution%diff_ksp_residual_history, kind=iintegers), iter)) = residual(iter)
 
@@ -636,6 +653,31 @@ contains
             end if
             exit
           end if
+
+          if (ladaptive_omega) then
+            do i = 1, omega_pfN
+              omega_pfx(i) = real(i)
+              omega_pfy(i) = residual(max(i1, iter - omega_pfN + i)) / residual(1)
+            end do
+            pf(:) = polyfit(omega_pfx, omega_pfy, 1_iintegers, ierr)
+            !print *,'polyfit', omega_pfx, omega_pfy, '=>', pf
+            if (ierr .eq. 0) then
+              if (pf(2) .lt. -0.1_ireals) then ! converging very well
+                ! keep on as we have, we're doing fine
+              else if (pf(2) .lt. -0.001_ireals) then ! converging ok
+                omega_adaptive = omega_adaptive + omega_increment
+              else if (pf(2) .lt. 0._ireals) then ! converging slowly
+                omega_adaptive = 1._ireals
+              else if (pf(2) .gt. 1._ireals) then ! diverging extremely
+                omega_adaptive = 1._ireals
+              else if (pf(2) .gt. 0._ireals) then ! diverging slowly
+                omega_adaptive = omega_adaptive - omega_increment
+              end if
+            end if
+            omega_adaptive = min(max(omega_adaptive, omega_min), omega_max)
+            if (residual(iter) .lt. 10 * atol) omega_adaptive = 1._ireals ! nearly converged, use stable omega
+          end if
+
         else
           solution%diff_ksp_residual_history(min(size(solution%diff_ksp_residual_history, kind=iintegers), iter)) = zero
         end if
