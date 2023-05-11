@@ -211,7 +211,7 @@ contains
         polyfit = 0
         polyfit(1) = nil
         ierr = 1
-        if(ldebug) &
+        if (ldebug) &
           & call CHKWARN(ierr, 'polyfit cannot cope with same x values --> matrix gets singular'//toStr(vx)//' :: '//toStr(vy))
         return
       end if
