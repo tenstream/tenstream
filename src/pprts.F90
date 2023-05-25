@@ -2571,7 +2571,7 @@ contains
       end if
       if (len_trim(solver%prefix) .gt. 0) prefix = trim(solver%prefix)//prefix
 
-      lexplicit_diff = .true.
+      lexplicit_diff = .false.
       call get_petsc_opt(prefix, "-explicit", lexplicit_diff, lflg, ierr); call CHKERR(ierr)
       if (lexplicit_diff) then
         call explicit_ediff(solver, prefix, solver%b, solution, ierr); call CHKERR(ierr)
