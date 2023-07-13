@@ -287,11 +287,19 @@ contains
       dofstart = solver%dirtop%dof
       dofend = -1 + solver%dirtop%dof + solver%dirside%dof
       if (lsun_east) then
-        mpi_send_bfr_x = x0(dofstart:dofend, :, C%xs, C%ys:C%ye)
+        if (solver%lopen_bc .and. C%xs .eq. i0) then
+          mpi_send_bfr_x = 0
+        else
+          mpi_send_bfr_x = x0(dofstart:dofend, :, C%xs, C%ys:C%ye)
+        end if
         neigh_s = int(C%neighbors(10), mpiint) ! neigh west
         neigh_r = int(C%neighbors(16), mpiint) ! neigh east
       else
-        mpi_send_bfr_x = x0(dofstart:dofend, :, C%xe + 1, C%ys:C%ye)
+        if (solver%lopen_bc .and. C%xe + 1 .eq. C%glob_xm) then
+          mpi_send_bfr_x = 0
+        else
+          mpi_send_bfr_x = x0(dofstart:dofend, :, C%xe + 1, C%ys:C%ye)
+        end if
         neigh_s = int(C%neighbors(16), mpiint) ! neigh east
         neigh_r = int(C%neighbors(10), mpiint) ! neigh west
       end if
@@ -304,11 +312,19 @@ contains
       dofstart = solver%dirtop%dof + solver%dirside%dof
       dofend = -1 + solver%dirtop%dof + solver%dirside%dof * 2
       if (lsun_north) then
-        mpi_send_bfr_y = x0(dofstart:dofend, :, C%xs:C%xe, C%ys)
+        if (solver%lopen_bc .and. C%ys .eq. i0) then
+          mpi_send_bfr_y = 0
+        else
+          mpi_send_bfr_y = x0(dofstart:dofend, :, C%xs:C%xe, C%ys)
+        end if
         neigh_s = int(C%neighbors(4), mpiint) ! neigh south
         neigh_r = int(C%neighbors(22), mpiint) ! neigh north
       else
-        mpi_send_bfr_y = x0(dofstart:dofend, :, C%xs:C%xe, C%ye + 1)
+        if (solver%lopen_bc .and. C%ye + 1 .eq. C%glob_ym) then
+          mpi_send_bfr_y = 0
+        else
+          mpi_send_bfr_y = x0(dofstart:dofend, :, C%xs:C%xe, C%ye + 1)
+        end if
         neigh_s = int(C%neighbors(22), mpiint) ! neigh north
         neigh_r = int(C%neighbors(4), mpiint) ! neigh south
       end if
@@ -351,6 +367,7 @@ contains
     integer(iintegers) :: i, j, k
     integer(iintegers) :: idst, isrc, src, dst
     real(ireals), pointer :: v(:, :) ! dim(src, dst)
+    logical :: lsun_north, lsun_east
 
     associate ( &
         & atm => solver%atm, &
@@ -360,8 +377,27 @@ contains
 
       call getVecPointer(C%da, x, x01d, x0)
       call getVecPointer(C%da, b, xb1d, xb, readonly=.true.)
-      x0(0:solver%dirtop%dof - 1, C%zs, :, :) = xb(0:solver%dirtop%dof - 1, C%zs, :, :)
-      call restoreVecPointer(C%da, b, xb1d, xb, readonly=.true.)
+      x0(0:solver%dirtop%dof - 1, C%zs, C%xs:C%xe, C%ys:C%ye) = xb(0:solver%dirtop%dof - 1, C%zs, C%xs:C%xe, C%ys:C%ye)
+
+      if (solver%lopen_bc) then
+        lsun_north = yinc .eq. i0
+        lsun_east = xinc .eq. i0
+
+        if (lsun_north) then
+          x0(solver%dirtop%dof + solver%dirside%dof:C%dof - 1, :, C%xs:C%xe, C%ye + 1) = &
+            & xb(solver%dirtop%dof + solver%dirside%dof:C%dof - 1, :, C%xs:C%xe, C%ye + 1)
+        else
+          x0(solver%dirtop%dof + solver%dirside%dof:C%dof - 1, :, C%xs:C%xe, C%ys) = &
+            & xb(solver%dirtop%dof + solver%dirside%dof:C%dof - 1, :, C%xs:C%xe, C%ys)
+        end if
+        if (lsun_east) then
+          x0(solver%dirtop%dof:solver%dirtop%dof + solver%dirside%dof - 1, :, C%xe + 1, C%ys:C%ye) = &
+            & xb(solver%dirtop%dof:solver%dirtop%dof + solver%dirside%dof - 1, :, C%xe + 1, C%ys:C%ye)
+        else
+          x0(solver%dirtop%dof:solver%dirtop%dof + solver%dirside%dof - 1, :, C%xs, C%ys:C%ye) = &
+            & xb(solver%dirtop%dof:solver%dirtop%dof + solver%dirside%dof - 1, :, C%xs, C%ys:C%ye)
+        end if
+      end if
 
       ! forward sweep through x
       do k = C%zs, C%ze - 1
@@ -439,6 +475,7 @@ contains
           end do
         end if
       end do
+      call restoreVecPointer(C%da, b, xb1d, xb, readonly=.true.)
       call restoreVecPointer(C%da, x, x01d, x0)
     end associate
   end subroutine

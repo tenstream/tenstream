@@ -182,6 +182,7 @@ module m_pprts_base
     character(len=default_str_len) :: prefix = '' ! name to prefix options
     character(len=default_str_len) :: solvername = '' ! name to prefix e.g. log stages. If you create more than one solver, make sure that it has a unique name
     integer(mpiint) :: comm, myid, numnodes     ! mpi communicator, my rank and number of ranks in comm
+    logical :: lopen_bc = .false. ! switch if boundaries are cyclic or open
     type(t_coord), allocatable :: C_dir
     type(t_coord), allocatable :: C_diff
     type(t_coord), allocatable :: C_one
@@ -841,32 +842,287 @@ contains
   !> @brief set solar incoming radiation at Top_of_Atmosphere
   !> @details todo: in case we do not have periodic boundaries, we should shine light in from the side of the domain...
   subroutine setup_incSolar(solver, edirTOA, incSolar)
-    class(t_solver), intent(in) :: solver
+    class(t_solver), target, intent(in) :: solver
     real(ireals), intent(in) :: edirTOA
     type(tVec), intent(inout) :: incSolar
 
     real(ireals), pointer :: x1d(:) => null(), x4d(:, :, :, :) => null()
 
+    integer(mpiint) :: ierr
     real(ireals) :: fac
     integer(iintegers) :: i, j, src
     logical, parameter :: ldebug = .false.
 
-    fac = edirTOA * solver%atm%dx * solver%atm%dy / real(solver%dirtop%area_divider, ireals) * solver%sun%costheta
+    associate ( &
+        & atm => solver%atm, &
+        & sun => solver%sun, &
+        & C_dir => solver%C_dir)
 
-    call getVecPointer(solver%C_dir%da, incSolar, x1d, x4d)
+      fac = edirTOA * atm%dx * atm%dy / real(solver%dirtop%area_divider, ireals) * sun%costheta
 
-    do j = solver%C_dir%ys, solver%C_dir%ye
-      do i = solver%C_dir%xs, solver%C_dir%xe
-        do src = 0, solver%dirtop%dof - 1
-          x4d(src, solver%C_dir%zs, i, j) = fac
+      call VecSet(incSolar, 0._ireals, ierr); call CHKERR(ierr)
+      call getVecPointer(C_dir%da, incSolar, x1d, x4d)
+
+      do j = C_dir%ys, C_dir%ye
+        do i = C_dir%xs, C_dir%xe
+          do src = 0, solver%dirtop%dof - 1
+            x4d(src, C_dir%zs, i, j) = fac
+          end do
         end do
       end do
-    end do
 
-    call restoreVecPointer(solver%C_dir%da, incSolar, x1d, x4d)
+      !x4d = 0
+      !x4d(0, 0, 7, 7) = fac
+      call restoreVecPointer(C_dir%da, incSolar, x1d, x4d)
 
-    if (solver%myid .eq. 0 .and. ldebug) print *, solver%myid, 'Setup of IncSolar done', edirTOA, &
-      & '(', fac, ')'
+      if (solver%myid .eq. 0 .and. ldebug) print *, solver%myid, 'Setup of IncSolar done', edirTOA, &
+        & '(', fac, ')'
+    end associate
+
+    call set_open_bc()
+
+  contains
+
+    subroutine set_open_bc()
+      logical :: lsun_north, lsun_east
+      integer(mpiint) :: ierr
+      integer(iintegers) :: i, j, k, src, ioff
+      type(tMat) :: A
+      type(tVec) :: b, local_incSolar
+      type(tKSP) :: ksp
+      character(len=default_str_len) :: prefix
+      real(ireals), pointer :: xv_b(:)
+      real(ireals), pointer :: xg1d(:) => null(), xg4d(:, :, :, :) => null()
+
+      if (solver%lopen_bc) then ! need to update side fluxes somewhere in the domain
+
+        associate ( &
+            & atm => solver%atm, &
+            & sun => solver%sun, &
+            & C_dir => solver%C_dir)
+
+          call DMGetLocalVector(C_dir%da, local_incSolar, ierr); call CHKERR(ierr)
+          call VecSet(local_incSolar, 0._ireals, ierr); call CHKERR(ierr)
+          !call DMGlobalToLocalBegin(C_dir%da, incSolar, INSERT_VALUES, local_incSolar, ierr); call CHKERR(ierr)
+          !call DMGlobalToLocalEnd(C_dir%da, incSolar, INSERT_VALUES, local_incSolar, ierr); call CHKERR(ierr)
+
+          call getVecPointer(C_dir%da, local_incSolar, x1d, x4d)
+
+          ! note here we copy the local parts directly, otherwise, with GlobalToLocal we would create TOA incoming energy
+          ! at the domain edges which leads to double counting later when doing the communication with add values
+          call getVecPointer(C_dir%da, incSolar, xg1d, xg4d)
+          x4d(0:solver%dirtop%dof - 1, C_dir%zs, C_dir%xs:C_dir%xe, C_dir%ys:C_dir%ye) = &
+            & xg4d(0:solver%dirtop%dof - 1, C_dir%zs, C_dir%xs:C_dir%xe, C_dir%ys:C_dir%ye)
+          call restoreVecPointer(C_dir%da, incSolar, xg1d, xg4d)
+
+          lsun_north = sun%yinc .eq. i0
+          lsun_east = sun%xinc .eq. i0
+
+          if (C_dir%xs .eq. i0 .or. &
+            & C_dir%ys .eq. i0 .or. &
+            & C_dir%xe + 1 .eq. C_dir%glob_xm .or. &
+            & C_dir%ye + 1 .eq. C_dir%glob_ym) then ! have an outer domain boundary
+
+            call MatCreate(PETSC_COMM_SELF, A, ierr); call CHKERR(ierr)
+            call MatSetSizes(A, PETSC_DECIDE, PETSC_DECIDE,&
+              & C_dir%dof * C_dir%zm, C_dir%dof * C_dir%zm, ierr); call CHKERR(ierr)
+
+            if (len_trim(solver%solvername) .gt. 0) then
+              prefix = trim(solver%solvername)//'_open_bc_'
+            else
+              prefix = 'open_bc_'
+            end if
+            call MatSetOptionsPrefix(A, prefix, ierr); call CHKERR(ierr)
+
+            call MatSetFromOptions(A, ierr); call CHKERR(ierr)
+            call MatSeqAIJSetPreallocation(A, C_dir%dof + i1, PETSC_NULL_INTEGER, ierr); call CHKERR(ierr)
+
+            call MatSetUp(A, ierr); call CHKERR(ierr)
+
+            call MatCreateVecs(A, b, PETSC_NULL_VEC, ierr); call CHKERR(ierr)
+
+            call KSPCreate(PETSC_COMM_SELF, ksp, ierr); call CHKERR(ierr)
+
+            if (C_dir%ys .eq. i0 .or. C_dir%ye + 1 .eq. C_dir%glob_ym) then ! we have open boundary in north/south
+              if (lsun_north) then
+                j = C_dir%ye
+              else
+                j = C_dir%ys
+              end if
+              do i = C_dir%xs, C_dir%xe
+
+                call single_column_solve(C_dir, i, j, A, ksp, b)
+
+                call VecGetArrayReadF90(b, xv_b, ierr)
+                do k = C_dir%zs, C_dir%ze - 1
+                  do src = 0, solver%dirside%dof - 1
+                    ioff = solver%dirtop%dof + solver%dirside%dof + src
+                    x4d(ioff, k, i, j + 1 - sun%yinc) = fac * xv_b(i1 + k * C_dir%dof + ioff)
+                  end do
+                end do
+                call VecRestoreArrayReadF90(b, xv_b, ierr)
+              end do
+            end if
+
+            if (C_dir%xs .eq. i0 .or. C_dir%xe + 1 .eq. C_dir%glob_xm) then ! we have open boundary in east / west
+              if (lsun_east) then
+                i = C_dir%xe
+              else
+                i = C_dir%xs
+              end if
+              do j = C_dir%ys, C_dir%ye
+
+                call single_column_solve(C_dir, i, j, A, ksp, b)
+
+                call VecGetArrayReadF90(b, xv_b, ierr)
+                do k = C_dir%zs, C_dir%ze - 1
+                  do src = 0, solver%dirside%dof - 1
+                    ioff = solver%dirtop%dof + src
+                    x4d(ioff, k, i + 1 - sun%xinc, j) = fac * xv_b(i1 + k * C_dir%dof + ioff)
+                  end do
+                end do
+                call VecRestoreArrayReadF90(b, xv_b, ierr)
+              end do
+            end if
+
+            call restoreVecPointer(C_dir%da, local_incSolar, x1d, x4d)
+
+            call MatDestroy(A, ierr); call CHKERR(ierr)
+            call VecDestroy(b, ierr); call CHKERR(ierr)
+            call KSPDestroy(ksp, ierr); call CHKERR(ierr)
+          end if ! have an outer domain boundary
+
+          call VecSet(incSolar, 0._ireals, ierr); call CHKERR(ierr)
+          call DMLocalToGlobalBegin(C_dir%da, local_incSolar, ADD_VALUES, incSolar, ierr); call CHKERR(ierr)
+          call DMLocalToGlobalEnd(C_dir%da, local_incSolar, ADD_VALUES, incSolar, ierr); call CHKERR(ierr)
+          call DMRestoreLocalVector(C_dir%da, local_incSolar, ierr); call CHKERR(ierr)
+
+        end associate
+
+      end if
+    end subroutine
+
+    subroutine single_column_solve(C_dir, i, j, A, ksp, b)
+      type(t_coord), intent(in) :: C_dir
+      integer(iintegers), intent(in) :: i, j
+      type(tMat), intent(inout) :: A
+      type(tVec), intent(inout) :: b
+      type(tKSP), intent(inout) :: ksp
+
+      integer(mpiint) :: ierr
+      integer(iintegers) :: k, ak, src, dst, irow, icol, ioff, ioffsrc
+      real(ireals) :: dtau, v
+      real(ireals), pointer :: cdir2dir(:, :), xv_b(:)
+
+      call MatZeroEntries(A, ierr); call CHKERR(ierr)
+      do irow = 0, C_dir%dof * C_dir%zm - 1
+        call MatSetValues(A, i1, irow, i1, irow, -1._ireals, ADD_VALUES, ierr); call CHKERR(ierr)
+      end do
+
+      associate ( &
+          & atm => solver%atm, &
+          & sun => solver%sun)
+
+        call VecGetArrayF90(b, xv_b, ierr)
+        xv_b(:) = 0
+        do src = 1, solver%dirtop%dof
+          xv_b(src) = -1._ireals
+        end do
+        call VecRestoreArrayF90(b, xv_b, ierr)
+
+        do k = C_dir%zs, C_dir%ze - 1
+          ak = atmk(atm, k)
+
+          if (atm%l1d(atmk(atm, k))) then
+
+            do src = 0, solver%dirtop%dof - 1
+              irow = (k + 1) * C_dir%dof + src
+              icol = (k) * C_dir%dof + src
+
+              dtau = atm%kabs(ak, i, j) * atm%dz(ak, i, j) / sun%costheta
+              v = exp(-dtau)
+              call MatSetValues(A, i1, irow, i1, icol, v, ADD_VALUES, ierr); call CHKERR(ierr)
+            end do
+          else
+            cdir2dir(0:C_dir%dof - 1, 0:C_dir%dof - 1) => solver%dir2dir(:, k, i, j)
+            do src = 0, solver%dirtop%dof - 1
+              icol = k * C_dir%dof + src
+              do dst = 0, solver%dirtop%dof - 1 ! top2bot
+                v = cdir2dir(src, dst)
+                irow = (k + 1) * C_dir%dof + dst
+                call MatSetValues(A, i1, irow, i1, icol, v, ADD_VALUES, ierr); call CHKERR(ierr)
+              end do
+
+              do dst = 0, solver%dirside%dof - 1 ! top2x
+                ioff = solver%dirtop%dof + dst
+                v = cdir2dir(src, ioff)
+                irow = k * C_dir%dof + ioff
+                call MatSetValues(A, i1, irow, i1, icol, v, ADD_VALUES, ierr); call CHKERR(ierr)
+              end do
+              do dst = 0, solver%dirside%dof - 1 ! top2y
+                ioff = solver%dirtop%dof + solver%dirside%dof + dst
+                v = cdir2dir(src, ioff)
+                irow = k * C_dir%dof + ioff
+                call MatSetValues(A, i1, irow, i1, icol, v, ADD_VALUES, ierr); call CHKERR(ierr)
+              end do
+            end do
+
+            do src = 0, solver%dirside%dof - 1
+              ioffsrc = solver%dirtop%dof + src
+              icol = k * C_dir%dof + ioffsrc
+              do dst = 0, solver%dirtop%dof - 1 ! side2bot
+                v = cdir2dir(ioffsrc, dst)
+                irow = (k + 1) * C_dir%dof + dst
+                call MatSetValues(A, i1, irow, i1, icol, v, ADD_VALUES, ierr); call CHKERR(ierr)
+              end do
+
+              do dst = 0, solver%dirside%dof - 1 ! side2x
+                ioff = solver%dirtop%dof + dst
+                v = cdir2dir(ioffsrc, ioff)
+                irow = k * C_dir%dof + ioff
+                call MatSetValues(A, i1, irow, i1, icol, v, ADD_VALUES, ierr); call CHKERR(ierr)
+              end do
+              do dst = 0, solver%dirside%dof - 1 ! side2y
+                ioff = solver%dirtop%dof + solver%dirside%dof + dst
+                v = cdir2dir(ioffsrc, ioff)
+                irow = k * C_dir%dof + ioff
+                call MatSetValues(A, i1, irow, i1, icol, v, ADD_VALUES, ierr); call CHKERR(ierr)
+              end do
+            end do
+
+            do src = 0, solver%dirside%dof - 1
+              ioffsrc = solver%dirtop%dof + solver%dirside%dof + src
+              icol = k * C_dir%dof + ioffsrc
+              do dst = 0, solver%dirtop%dof - 1 ! side2bot
+                v = cdir2dir(ioffsrc, dst)
+                irow = (k + 1) * C_dir%dof + dst
+                call MatSetValues(A, i1, irow, i1, icol, v, ADD_VALUES, ierr); call CHKERR(ierr)
+              end do
+
+              do dst = 0, solver%dirside%dof - 1 ! side2x
+                ioff = solver%dirtop%dof + dst
+                v = cdir2dir(ioffsrc, ioff)
+                irow = k * C_dir%dof + ioff
+                call MatSetValues(A, i1, irow, i1, icol, v, ADD_VALUES, ierr); call CHKERR(ierr)
+              end do
+              do dst = 0, solver%dirside%dof - 1 ! side2y
+                ioff = solver%dirtop%dof + solver%dirside%dof + dst
+                v = cdir2dir(ioffsrc, ioff)
+                irow = k * C_dir%dof + ioff
+                call MatSetValues(A, i1, irow, i1, icol, v, ADD_VALUES, ierr); call CHKERR(ierr)
+              end do
+            end do
+
+          end if
+        end do
+        call MatAssemblyBegin(A, MAT_FINAL_ASSEMBLY, ierr); call CHKERR(ierr)
+        call MatAssemblyEnd(A, MAT_FINAL_ASSEMBLY, ierr); call CHKERR(ierr)
+
+        call KSPSetOperators(ksp, A, A, ierr); call CHKERR(ierr)
+        call KSPSolve(ksp, b, b, ierr); call CHKERR(ierr)
+      end associate
+
+    end subroutine
 
   end subroutine
 

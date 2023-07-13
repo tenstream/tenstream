@@ -7,9 +7,11 @@ bin="ex_pprts_hill"
 make -j $bin || exit 1
 baseopt="\
   -specint repwvl
+  -specint ecckd
   -dx 100 \
   -dy 100 \
   -atm_filename $SCRIPTDIR/atm.dat \
+  -atm share/tenstream_default.atm \
   -thermal no \
   -lwc .1 \
   -Ag_solar .2 \
@@ -22,8 +24,8 @@ baseopt="\
   -hill_dP 100 \
   -hill_shape 10 \
   -theta0 40 -phi0 180 \
-  -rrtmg_bands 60,60 \
-  -repwvl_bands 4,4 \
+  -XXrrtmg_bands 60,60 \
+  -XXrepwvl_bands 4,4 \
   $1"
 
 rayli_opt="\
@@ -188,15 +190,18 @@ function runex {
 }
 
 mpiexec="srun --time=08:00:00 -n 40 -N 1-8 --mpi=pmix -C x86-64-v4"
-rayexec="srun --time=08:00:00 -n 2 -N 2 -c 8 --mpi=pmix -C x86-64-v4"
+mpiexec="srun --time=08:00:00 -n 40 -N 1"
+rayexec="srun --time=08:00:00 -n 1 -N 1 -c 32"
 
-for SZA in 0 20 40 60
+for SZA in 40 #0 20 40 60
 do
   runex "$mpiexec" "res_${SZA}_1d.nc                  "  "-theta0 $SZA  -solver 2str"
   runex "$rayexec" "res_${SZA}_rayli_ac.nc            "  "-theta0 $SZA  -pprts_atm_correction $rayli_opt"
+  runex "$mpiexec" "res_${SZA}_mcdmda.nc              "  "-theta0 $SZA -solver mcdmda -pprts_atm_correction -mcdmda_queue_size 100000"
+  runex "$mpiexec" "res_${SZA}_mcdmda0.nc              "  "-theta0 $SZA -solver mcdmda -mcdmda_queue_size 100000"
   runex "$mpiexec" "res_${SZA}_3_10str.nc             "  "-theta0 $SZA "
   runex "$mpiexec" "res_${SZA}_3_10str_ac_gc.nc       "  "-theta0 $SZA  -pprts_atm_correction -pprts_geometric_coeffs -pprts_conserve_lut_atm_abso"
-  runex "$mpiexec" "res_${SZA}_3_10str_distorted_ac.nc"  "-theta0 $SZA  -pprts_atm_correction -bmc_online"
+  #runex "$mpiexec" "res_${SZA}_3_10str_distorted_ac.nc"  "-theta0 $SZA  -pprts_atm_correction -bmc_online"
   wait
 
   [ ! -e plot_srfc_${SZA}.pdf ] && python plot_distorted.py res_${SZA}_ --out plot_srfc_${SZA}.pdf

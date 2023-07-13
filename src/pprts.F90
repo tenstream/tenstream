@@ -176,7 +176,6 @@ module m_pprts
     & scale_flx
 
   logical, parameter :: ldebug = .false.
-  logical, parameter :: lcyclic_bc = .true.
   logical, parameter :: lprealloc = .true.
 
   integer(iintegers), parameter :: minimal_dimension = 3 ! this is the minimum number of gridpoints in x or y direction
@@ -432,6 +431,9 @@ contains
       if (.not. approx(dx, dy)) &
         call CHKERR(1_mpiint, 'dx and dy currently have to be the same '//toStr(dx)//' vs '//toStr(dy))
 
+      call get_petsc_opt("", "-pprts_open_bc", solver%lopen_bc, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt(solver%prefix, "-pprts_open_bc", solver%lopen_bc, lflg, ierr); call CHKERR(ierr)
+
       lview = ldebug
       call get_petsc_opt(solver%prefix, "-pprts_solver_view", lview, lflg, ierr); call CHKERR(ierr)
 
@@ -440,6 +442,7 @@ contains
         print *, 'Solver dirside:', solver%dirside%is_inward, ':', solver%dirside%dof, ':', solver%dirside%area_divider
         print *, 'Solver difftop:', solver%difftop%is_inward, ':', solver%difftop%dof, ':', solver%difftop%area_divider
         print *, 'Solver diffside:', solver%diffside%is_inward, ':', solver%diffside%dof, ':', solver%diffside%area_divider
+        print *, 'Solver open boundary conditions? ', solver%lopen_bc
       end if
 
       call PetscInitialized(lpetsc_is_initialized, ierr); call CHKERR(ierr)
@@ -764,19 +767,13 @@ contains
     integer(iintegers) :: Nz
     DMBoundaryType, parameter :: &
       & bp = DM_BOUNDARY_PERIODIC, &
-      & bn = DM_BOUNDARY_NONE,     &
-      & bm = DM_BOUNDARY_MIRROR!,   &
-    !& bg=DM_BOUNDARY_GHOSTED
+      & bn = DM_BOUNDARY_NONE
 
     DMBoundaryType :: boundaries(3)
     integer(iintegers), allocatable :: nxprocp1(:), nyprocp1(:) !< last entry one larger for vertices
     integer(mpiint) :: ierr
 
-    if (lcyclic_bc) then
-      boundaries = [bn, bp, bp]
-    else
-      boundaries = [bn, bm, bm]
-    end if
+    boundaries = [bn, bp, bp]
 
     Nz = Nz_in
     if (present(collapseindex)) then
@@ -2594,6 +2591,8 @@ contains
     subroutine edir(prefix)
       character(len=*), intent(in) :: prefix
       logical :: lmat_permute, lmat_permute_reuse, lshell
+
+      if (solver%lopen_bc) call CHKERR(1_mpiint, 'open boundaries currently not supported for this solver')
 
       call VecSet(solver%incSolar, zero, ierr); call CHKERR(ierr)
       call setup_incSolar(solver, edirTOA, solver%incSolar)
