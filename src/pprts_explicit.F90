@@ -242,8 +242,8 @@ contains
       call getVecPointer(C%da, vedir, xg1d, xg)
       call getVecPointer(C%da, v0, x01d, x0, readonly=.true.)
       xg = x0(:, :, C%xs:C%xe, C%ys:C%ye)
-      call restoreVecPointer(C%da, vedir, xg1d, xg)
       call restoreVecPointer(C%da, v0, x01d, x0, readonly=.true.)
+      call restoreVecPointer(C%da, vedir, xg1d, xg)
 
       call DMRestoreLocalVector(C%da, v0, ierr); call CHKERR(ierr)
       call DMRestoreLocalVector(C%da, lb, ierr); call CHKERR(ierr)
@@ -398,6 +398,7 @@ contains
             & xb(solver%dirtop%dof:solver%dirtop%dof + solver%dirside%dof - 1, :, C%xs, C%ys:C%ye)
         end if
       end if
+      call restoreVecPointer(C%da, b, xb1d, xb, readonly=.true.)
 
       ! forward sweep through x
       do k = C%zs, C%ze - 1
@@ -475,7 +476,6 @@ contains
           end do
         end if
       end do
-      call restoreVecPointer(C%da, b, xb1d, xb, readonly=.true.)
       call restoreVecPointer(C%da, x, x01d, x0)
     end associate
   end subroutine
@@ -653,8 +653,8 @@ contains
           residual(iter) = norm2(xg - x0(:, :, C%xs:C%xe, C%ys:C%ye))
           xg = x0(:, :, C%xs:C%xe, C%ys:C%ye)
 
-          call restoreVecPointer(C%da, vediff, xg1d, xg)
           call restoreVecPointer(C%da, v0, x01d, x0, readonly=.true.)
+          call restoreVecPointer(C%da, vediff, xg1d, xg)
 
           if (residual(1) .le. sqrt(tiny(residual))) then
             rel_residual = 0
@@ -732,8 +732,8 @@ contains
       ! update solution vec
       xg = x0(:, :, C%xs:C%xe, C%ys:C%ye)
 
-      call restoreVecPointer(C%da, vediff, xg1d, xg)
       call restoreVecPointer(C%da, v0, x01d, x0, readonly=.true.)
+      call restoreVecPointer(C%da, vediff, xg1d, xg)
 
       call DMRestoreLocalVector(C%da, v0, ierr); call CHKERR(ierr)
       call DMRestoreLocalVector(C%da, lvb, ierr); call CHKERR(ierr)
@@ -1020,8 +1020,8 @@ contains
         end do
       end if
 
-      call restoreVecPointer(C%da, x, x01d, x0)
       call restoreVecPointer(C%da, b, xb1d, xb, readonly=.true.)
+      call restoreVecPointer(C%da, x, x01d, x0)
     end associate
 
   contains

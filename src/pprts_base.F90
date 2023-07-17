@@ -871,8 +871,6 @@ contains
         end do
       end do
 
-      !x4d = 0
-      !x4d(0, 0, 7, 7) = fac
       call restoreVecPointer(C_dir%da, incSolar, x1d, x4d)
 
       if (solver%myid .eq. 0 .and. ldebug) print *, solver%myid, 'Setup of IncSolar done', edirTOA, &
@@ -910,10 +908,10 @@ contains
 
           ! note here we copy the local parts directly, otherwise, with GlobalToLocal we would create TOA incoming energy
           ! at the domain edges which leads to double counting later when doing the communication with add values
-          call getVecPointer(C_dir%da, incSolar, xg1d, xg4d)
+          call getVecPointer(C_dir%da, incSolar, xg1d, xg4d, readonly=.true.)
           x4d(0:solver%dirtop%dof - 1, C_dir%zs, C_dir%xs:C_dir%xe, C_dir%ys:C_dir%ye) = &
             & xg4d(0:solver%dirtop%dof - 1, C_dir%zs, C_dir%xs:C_dir%xe, C_dir%ys:C_dir%ye)
-          call restoreVecPointer(C_dir%da, incSolar, xg1d, xg4d)
+          call restoreVecPointer(C_dir%da, incSolar, xg1d, xg4d, readonly=.true.)
 
           lsun_north = sun%yinc .eq. i0
           lsun_east = sun%xinc .eq. i0
@@ -985,12 +983,12 @@ contains
               end do
             end if
 
-            call restoreVecPointer(C_dir%da, local_incSolar, x1d, x4d)
-
             call MatDestroy(A, ierr); call CHKERR(ierr)
             call VecDestroy(b, ierr); call CHKERR(ierr)
             call KSPDestroy(ksp, ierr); call CHKERR(ierr)
           end if ! have an outer domain boundary
+
+          call restoreVecPointer(C_dir%da, local_incSolar, x1d, x4d)
 
           call VecSet(incSolar, 0._ireals, ierr); call CHKERR(ierr)
           call DMLocalToGlobalBegin(C_dir%da, local_incSolar, ADD_VALUES, incSolar, ierr); call CHKERR(ierr)
