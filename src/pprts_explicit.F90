@@ -383,17 +383,19 @@ contains
         lsun_north = yinc .eq. i0
         lsun_east = xinc .eq. i0
 
-        if (lsun_north) then
+        if (lsun_north .and. C%ye + 1 .eq. C%glob_ym) then
           x0(solver%dirtop%dof + solver%dirside%dof:C%dof - 1, :, C%xs:C%xe, C%ye + 1) = &
             & xb(solver%dirtop%dof + solver%dirside%dof:C%dof - 1, :, C%xs:C%xe, C%ye + 1)
-        else
+        end if
+        if (.not. lsun_north .and. C%ys .eq. i0) then
           x0(solver%dirtop%dof + solver%dirside%dof:C%dof - 1, :, C%xs:C%xe, C%ys) = &
             & xb(solver%dirtop%dof + solver%dirside%dof:C%dof - 1, :, C%xs:C%xe, C%ys)
         end if
-        if (lsun_east) then
+        if (lsun_east .and. C%xe + 1 .eq. C%glob_xm) then
           x0(solver%dirtop%dof:solver%dirtop%dof + solver%dirside%dof - 1, :, C%xe + 1, C%ys:C%ye) = &
             & xb(solver%dirtop%dof:solver%dirtop%dof + solver%dirside%dof - 1, :, C%xe + 1, C%ys:C%ye)
-        else
+        end if
+        if (.not. lsun_east .and. C%xs .eq. i0) then
           x0(solver%dirtop%dof:solver%dirtop%dof + solver%dirside%dof - 1, :, C%xs, C%ys:C%ye) = &
             & xb(solver%dirtop%dof:solver%dirtop%dof + solver%dirside%dof - 1, :, C%xs, C%ys:C%ye)
         end if

@@ -3,7 +3,8 @@ set -euo pipefail
 
 make -j10 ex_pprts_box_cld
 rm -rf edir.h5 ediff.h5 abso.h5
-bin/ex_pprts_box_cld -show_edir hdf5:edir.h5 -show_ediff hdf5:ediff.h5 -show_abso hdf5:abso.h5 -solver 3_10 -pprts_solver_view -pprts_open_bc $@
+MPIEXEC=${MPIEXEC:-}
+$MPIEXEC bin/ex_pprts_box_cld -show_edir hdf5:edir.h5 -show_ediff hdf5:ediff.h5 -show_abso hdf5:abso.h5 -solver 3_10 -pprts_solver_view -pprts_open_bc $@
 
 ipython --pylab -c \
   'import h5py as H; \
