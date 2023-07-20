@@ -543,7 +543,6 @@ contains
           call MPI_Abort(icomm, 1 * ierr, ierr)
         end if
         solver%atm%dz = dz3d
-
       end if
       if (.not. present(dz1d) .and. .not. present(dz3d)) then
         print *, 'have to give either dz1d or dz3d in routine call....'
@@ -553,7 +552,7 @@ contains
       if (.not. allocated(solver%atm%hhl)) then
         allocate (solver%atm%hhl)
         call compute_vertical_height_levels(dz=solver%atm%dz, C_hhl=solver%C_one_atm1_box, vhhl=solver%atm%hhl, &
-          & prefix=solver%prefix)
+          & prefix=solver%prefix, lopen_bc=solver%lopen_bc)
       end if
 
       if (.not. allocated(solver%atm%hgrad)) then
@@ -979,11 +978,12 @@ contains
 
   !> @brief Determine height levels by summing up the atm%dz with the assumption that TOA is at a constant value
   !>        or a max_height is given in the option database
-  subroutine compute_vertical_height_levels(dz, C_hhl, vhhl, prefix)
+  subroutine compute_vertical_height_levels(dz, C_hhl, vhhl, prefix, lopen_bc)
     type(t_coord), intent(in) :: C_hhl
     real(ireals), intent(in) :: dz(:, :, :)
     type(tVec), intent(inout) :: vhhl
     character(len=*), intent(in) :: prefix
+    logical, intent(in) :: lopen_bc
 
     type(tVec) :: g_hhl
     real(ireals), pointer :: hhl(:, :, :, :) => null(), hhl1d(:) => null()
@@ -1028,6 +1028,23 @@ contains
     call DMGlobalToLocalBegin(C_hhl%da, g_hhl, INSERT_VALUES, vhhl, ierr); call CHKERR(ierr)
     call DMGlobalToLocalEnd(C_hhl%da, g_hhl, INSERT_VALUES, vhhl, ierr); call CHKERR(ierr)
     call DMRestoreGlobalVector(C_hhl%da, g_hhl, ierr); call CHKERR(ierr)
+
+    if (lopen_bc) then ! set heights on ghosts at the outer domain to be constant
+      call getVecPointer(C_hhl%da, vhhl, hhl1d, hhl)
+      if (C_hhl%xs .eq. 0) then
+        hhl(i0, :, C_hhl%xs - i1, C_hhl%ys:C_hhl%ye) = hhl(i0, :, C_hhl%xs, C_hhl%ys:C_hhl%ye)
+      end if
+      if (C_hhl%xe + i1 .eq. C_hhl%glob_xm) then
+        hhl(i0, :, C_hhl%xe + i1, C_hhl%ys:C_hhl%ye) = hhl(i0, :, C_hhl%xe, C_hhl%ys:C_hhl%ye)
+      end if
+      if (C_hhl%ys .eq. 0) then
+        hhl(i0, :, C_hhl%xs - i1:C_hhl%xe + i1, C_hhl%ys - i1) = hhl(i0, :, C_hhl%xs - i1:C_hhl%xe + 1, C_hhl%ys)
+      end if
+      if (C_hhl%ye + 1 .eq. C_hhl%glob_ym) then
+        hhl(i0, :, C_hhl%xs - i1:C_hhl%xe + i1, C_hhl%ye + 1) = hhl(i0, :, C_hhl%xs - i1:C_hhl%xe + 1, C_hhl%ye)
+      end if
+      call restoreVecPointer(C_hhl%da, vhhl, hhl1d, hhl)
+    end if
 
     call PetscObjectViewFromOptions(vhhl, C_hhl%da, "-pprts_show_hhl", ierr); call CHKERR(ierr)
   end subroutine
