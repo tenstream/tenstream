@@ -1710,7 +1710,8 @@ contains
     real(ireals) :: pprts_delta_scale_max_g
     integer(iintegers) :: k, i, j
     logical :: lpprts_delta_scale, lzdun, lflg
-    real(ireals) :: pprts_set_absorption, pprts_set_scatter, pprts_set_asymmetry, pprts_set_albedo, pprts_scale_optprop
+    real(ireals) :: pprts_set_absorption, pprts_set_scatter, pprts_set_asymmetry, pprts_set_albedo, pprts_set_planck
+    real(ireals) :: pprts_scale_optprop
     real(irealLUT) :: c1d_dir2dir(1), c1d_dir2diff(2), c1d_diff2diff(4)
     integer(mpiint) :: ierr
 
@@ -1742,6 +1743,12 @@ contains
         if (.not. allocated(atm%planck)) &
           allocate (atm%planck(C_one_atm1%zs:C_one_atm1%ze, C_one_atm1%xs:C_one_atm1%xe, C_one_atm1%ys:C_one_atm1%ye))
         atm%planck = planck
+
+        pprts_set_planck = -1
+        call get_petsc_opt(solver%prefix, "-pprts_set_planck", pprts_set_planck, lflg, ierr); call CHKERR(ierr)
+        if (lflg) then
+          atm%planck = pprts_set_planck
+        end if
       else
         if (allocated(atm%planck)) deallocate (atm%planck)
       end if
