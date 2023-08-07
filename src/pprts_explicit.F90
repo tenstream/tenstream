@@ -549,7 +549,7 @@ contains
       omega = 1
       call get_petsc_opt(prefix, "-pc_sor_omega", omega, lomega_set, ierr); call CHKERR(ierr)
       omega_adaptive = omega
-      ladaptive_omega = .true.
+      ladaptive_omega = .false.
       call get_petsc_opt(prefix, "-pc_sor_omega_adaptive", ladaptive_omega, lflg, ierr); call CHKERR(ierr)
       omega_increment = .1_ireals
       call get_petsc_opt(prefix, "-pc_sor_omega_increment", omega_increment, lflg, ierr); call CHKERR(ierr)
