@@ -1836,7 +1836,7 @@ contains
       lpprts_delta_scale = get_arg(.true., ldelta_scaling)
       call get_petsc_opt(solver%prefix, "-pprts_delta_scale", lpprts_delta_scale, lflg, ierr); call CHKERR(ierr)
 
-      lpprts_delta_scale_f2 = .True.
+      lpprts_delta_scale_f2 = .true.
       call get_petsc_opt(solver%prefix, "-pprts_delta_scale_f2", lpprts_delta_scale_f2, lflg, ierr); call CHKERR(ierr)
 
       pprts_delta_scale_max_g = .85_ireals - epsilon(pprts_delta_scale_max_g)
@@ -1847,7 +1847,7 @@ contains
           call delta_scale(atm%kabs, atm%ksca, atm%g)
         else
           call delta_scale(atm%kabs, atm%ksca, atm%g, max_g=pprts_delta_scale_max_g)
-        endif
+        end if
       else
         if (solver%myid .eq. 0 .and. lflg) print *, "Skipping Delta scaling of optprops"
         if (any(atm%g .ge. 0.85_ireals)) &
@@ -3299,43 +3299,43 @@ contains
                   if (solver%difftop%is_inward(src)) then ! incoming -> Edn
                     do dst = 1, solver%difftop%dof
                       if (solver%difftop%is_inward(dst)) then ! incoming -> Edn, i.e. transmission
-                        residual = c(src,dst) * enhance_diffusion
-                        do dst_side = 1, solver%diffside%dof/2
-                          idof = solver%difftop%dof+dst_side
+                        residual = c(src, dst) * enhance_diffusion
+                        do dst_side = 1, solver%diffside%dof / 2
+                          idof = solver%difftop%dof + dst_side
                           c(src, idof) = c(src, idof) + residual / solver%diffside%dof
                           !print *,'redistributing diffuse flux:',i,j,k, idof, residual, solver%diffside%dof
 
-                          idof = solver%difftop%dof+solver%diffside%dof+dst_side
+                          idof = solver%difftop%dof + solver%diffside%dof + dst_side
                           c(src, idof) = c(src, idof) + residual / solver%diffside%dof
                           !print *,'redistributing diffuse flux:',i,j,k, idof, residual, solver%diffside%dof
-                        enddo
-                        c(src,dst) = c(src,dst) - residual
-                      endif
+                        end do
+                        c(src, dst) = c(src, dst) - residual
+                      end if
                     end do
                   else ! outward -> Eup
                     do dst = 1, solver%difftop%dof
-                      if (.not.solver%difftop%is_inward(dst)) then ! outward -> Eup, i.e. transmission
-                        residual = c(src,dst) * enhance_diffusion
-                        do dst_side = solver%diffside%dof/2 +1, solver%diffside%dof
-                          idof = solver%difftop%dof+dst_side
+                      if (.not. solver%difftop%is_inward(dst)) then ! outward -> Eup, i.e. transmission
+                        residual = c(src, dst) * enhance_diffusion
+                        do dst_side = solver%diffside%dof / 2 + 1, solver%diffside%dof
+                          idof = solver%difftop%dof + dst_side
                           c(src, idof) = c(src, idof) + residual / solver%diffside%dof
                           !print *,'redistributing diffuse flux:',i,j,k, idof, residual, solver%diffside%dof
 
-                          idof = solver%difftop%dof+solver%diffside%dof+dst_side
+                          idof = solver%difftop%dof + solver%diffside%dof + dst_side
                           c(src, idof) = c(src, idof) + residual / solver%diffside%dof
                           !print *,'redistributing diffuse flux:',i,j,k, idof, residual, solver%diffside%dof
-                        enddo
-                        c(src,dst) = c(src,dst) - residual
-                      endif
+                        end do
+                        c(src, dst) = c(src, dst) - residual
+                      end if
                     end do
-                  endif
+                  end if
                   !print *,'norm after: src=', src, sum(c(src,:))
                 end do
               end do
             end do
           end do
         end associate
-      endif
+      end if
     end subroutine
 
     !> @brief   apply blocking of diffuse radiation from buildings and do lambertian reflections

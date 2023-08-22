@@ -431,9 +431,9 @@ contains
         & C => pprts_solver%C_one,      &
         & C1 => pprts_solver%C_one1)
 
-      if(allocated(edir)) then
+      if (allocated(edir)) then
         call gather_all_toZero(C1, edir, gedir)
-      endif
+      end if
 
       call gather_all_toZero(C1, edn, gedn)
       call gather_all_toZero(C1, eup, geup)
@@ -463,7 +463,7 @@ contains
           print *, 'surface :: direct flux', meanval(gedir(nlev, :, :))
         else
           print *, 'surface :: direct flux', 0._ireals
-        endif
+        end if
         print *, 'surface :: downw flux ', meanval(gedn(nlev, :, :))
         print *, 'surface :: upward fl  ', meanval(geup(nlev, :, :))
         print *, 'surface :: absorption ', meanval(gabso(nlev - 1, :, :))
@@ -472,7 +472,7 @@ contains
           print *, 'TOA :: direct flux', meanval(gedir(1, :, :))
         else
           print *, 'TOA :: direct flux', 0._ireals
-        endif
+        end if
         print *, 'TOA :: downw flux ', meanval(gedn(1, :, :))
         print *, 'TOA :: upward fl  ', meanval(geup(1, :, :))
         print *, 'TOA :: absorption ', meanval(gabso(1, :, :))
