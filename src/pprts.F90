@@ -1836,7 +1836,7 @@ contains
       lpprts_delta_scale = get_arg(.true., ldelta_scaling)
       call get_petsc_opt(solver%prefix, "-pprts_delta_scale", lpprts_delta_scale, lflg, ierr); call CHKERR(ierr)
 
-      lpprts_delta_scale_f2 = .False.
+      lpprts_delta_scale_f2 = .True.
       call get_petsc_opt(solver%prefix, "-pprts_delta_scale_f2", lpprts_delta_scale_f2, lflg, ierr); call CHKERR(ierr)
 
       pprts_delta_scale_max_g = .85_ireals - epsilon(pprts_delta_scale_max_g)
