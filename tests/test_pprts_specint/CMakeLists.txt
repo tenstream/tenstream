@@ -37,6 +37,11 @@ foreach(_options_file ${options_files})
 configure_file(${_options_file} ${TESTDIR}/ COPYONLY)
 endforeach()
 
+file(GLOB results_files "result.*.nc")
+foreach(_result_file ${results_files})
+configure_file(${_result_file} ${TESTDIR}/ COPYONLY)
+endforeach()
+
 set_source_files_properties(${_test_sources} PROPERTIES COMPILE_FLAGS "${EXTRA_TEST_COMPILE_FLAGS}")
 set_source_files_properties(${PFUNIT_DIR}/include/driver.F90 PROPERTIES
   GENERATED 1
