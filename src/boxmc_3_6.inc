@@ -192,35 +192,50 @@ subroutine init_diff_photon_3_6(bmc, p, src, vertices, ierr)
   integer(mpiint), intent(out) :: ierr
 
   real(ireal_dp) :: phi, mu
-  real(ireal_dp) :: dx, dy, dz
+  real(ireal_dp), dimension(3) :: normal, U, V, cube_center, dir_p_to_cube_center
+  real(ireal_dp) :: Mrot(3, 3)
 
-  !print *,'---------- new diffuse photon --------------'
+  call CHKERR(size(vertices) - 24, 'wrong size of vertices, expected 24 but found ', size(vertices))
+  associate ( &
+    pA => vertices(1:3), &
+    pB => vertices(4:6), &
+    pC => vertices(7:9), &
+    pD => vertices(10:12), &
+    pE => vertices(13:15), &
+    pF => vertices(16:18), &
+    pG => vertices(19:21), &
+    pH => vertices(22:24) &
+    )
+    select case (src)
+    case (-1) ! thermal emission
+      call CHKERR(-1_mpiint, 'thermal emission on distorted cubes currently not implemented')
+    case (1) ! eup
+      call rand_pnt_on_plane(pA, pB, pD, pC, p%loc, normal, U, V)
+      p%src_side = PPRTS_BOT_FACE
+    case (2) ! edn
+      call rand_pnt_on_plane(pE, pG, pH, pF, p%loc, normal, U, V)
+      p%src_side = PPRTS_TOP_FACE
+    case (3)
+      call rand_pnt_on_plane(pB, pF, pH, pD, p%loc, normal, U, V)
+      p%src_side = PPRTS_RIGHT_FACE
+    case (4)
+      call rand_pnt_on_plane(pA, pC, pG, pE, p%loc, normal, U, V)
+      p%src_side = PPRTS_LEFT_FACE
+    case (5)
+      call rand_pnt_on_plane(pG, pC, pD, pH, p%loc, normal, U, V)
+      p%src_side = PPRTS_FRONT_FACE
+    case (6)
+      call rand_pnt_on_plane(pE, pF, pB, pA, p%loc, normal, U, V)
+      p%src_side = PPRTS_REAR_FACE
+    case default
+      call CHKERR(1_mpiint, 'Dont know what to do with source spec: ', src)
+    end select
+    ! always nudge the photon a little bit inside the volume
+    cube_center = (pA + pB + pC + pD + pE + pF + pG + pH) / 8._ireal_dp
+    dir_p_to_cube_center = cube_center - p%loc
 
-  call setup_cube_coords_from_vertices(vertices, dx, dy, dz)
-
-  select case (src)
-  case (1) ! eup
-    p%loc = [R() * dx, R() * dy, zero]
-    p%src_side = PPRTS_BOT_FACE
-  case (2) ! edn
-    p%loc = [R() * dx, R() * dy, dz]
-    p%src_side = PPRTS_TOP_FACE
-  case (3) ! left
-    p%loc = [dx, R() * dy, R() * dz]
-    p%src_side = PPRTS_RIGHT_FACE
-  case (4) ! right
-    p%loc = [zero, R() * dy, R() * dz]
-    p%src_side = PPRTS_LEFT_FACE
-  case (5) ! backward
-    p%loc = [R() * dx, dy, R() * dz]
-    p%src_side = PPRTS_FRONT_FACE
-  case (6) ! forward
-    p%loc = [R() * dx, zero, R() * dz]
-    p%src_side = PPRTS_REAR_FACE
-  case default
-    print *, 'Dont know what to do with source spec:', src
-    call exit
-  end select
+    p%loc = p%loc + sqrt(epsilon(p%loc)) * dir_p_to_cube_center
+  end associate
 
   phi = deg2rad(R() * 360)
   mu = sqrt(R()) ! distribution between 0 and 90 degree with more towards 90 , i.e. mu=1 --> Lambertian
@@ -230,26 +245,23 @@ subroutine init_diff_photon_3_6(bmc, p, src, vertices, ierr)
 
   select case (src)
   case (1)
-    continue
-
+    Mrot = rotation_matrix_local_basis_to_world(U, V, normal)
+    p%dir = matmul(real(Mrot, ireal_dp), p%dir)
   case (2)
-    p%dir = rotate_angle_y(p%dir, 180 * one)
-
+    Mrot = rotation_matrix_local_basis_to_world(U, V, normal)
+    p%dir = matmul(real(Mrot, ireal_dp), p%dir)
   case (3)
-    p%dir = rotate_angle_y(p%dir, 90 * one)
-
+    p%dir = rotate_angle_z(p%dir, -90._ireal_dp)
+    p%dir = rotate_angle_y(p%dir, -90._ireal_dp)
+    p%dir(1) = -p%dir(1)
   case (4)
-    p%dir = rotate_angle_y(p%dir, 270 * one)
-
+    p%dir = rotate_angle_z(p%dir, -90._ireal_dp)
+    p%dir = rotate_angle_y(p%dir, -90._ireal_dp)
   case (5)
-    p%dir = rotate_angle_x(p%dir, 270 * one)
-
+    p%dir = rotate_angle_x(p%dir, -90._ireal_dp)
   case (6)
-    p%dir = rotate_angle_x(p%dir, 90 * one)
-
-  case default
-    print *, 'Dont know what to do with source spec:', src
-    call exit
+    p%dir = rotate_angle_x(p%dir, -90._ireal_dp)
+    p%dir(2) = -p%dir(2)
   end select
 
   p%weight = one
@@ -258,10 +270,23 @@ subroutine init_diff_photon_3_6(bmc, p, src, vertices, ierr)
   p%side = int(nil)
   p%src = src
   p%scattercnt = 0
-  if (.not. approx(norm2(p%dir), one)) stop 'init_diff_photon_3_10 :: direction was not normed?!'
+
+  if (.not. approx(norm2(p%dir), one)) stop 'init_diff_photon_3_6 :: direction was not normed?!'
 
   select type (bmc)
   end select
+
+  if (dot_product(p%dir, normal) .lt. zero) then
+    ierr = 1000_mpiint + int(angle_between_two_vec(p%dir, normal), kind=mpiint)
+    call CHKWARN(1_mpiint, 'initial direction of the photon is pointing outside of the cube')
+    print *, 'UUPS, are we starting in a wrong direction?'// &
+      & ' :: init_diff_photon_bmx_3_6', rad2deg(angle_between_two_vec(p%dir, normal))
+    print *, 'src', src
+    print *, 'normal', normal, 'direction', p%dir
+    call print_photon(p)
+    call CHKERR(ierr)
+    return
+  end if
 
   ierr = 0
 end subroutine
