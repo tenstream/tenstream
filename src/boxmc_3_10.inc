@@ -143,7 +143,7 @@ subroutine init_dir_photon_3_10(bmc, p, src, ldirect, initial_dir, vertices, ier
     ierr = 1000_mpiint + int(angle_between_two_vec(p%dir, normal), kind=mpiint)
     call CHKWARN(1_mpiint, 'initial direction of the photon is pointing outside of the cube')
     print *, 'UUPS, are we starting in a wrong direction?'// &
-      & ' :: init_dir_photon_wedge_5_8', rad2deg(angle_between_two_vec(p%dir, normal))
+      & ' :: init_dir_photon_boxmc_3_10', rad2deg(angle_between_two_vec(p%dir, normal))
     print *, 'src', src, 'initial_dir', initial_dir
     print *, 'normal', normal, 'direction', p%dir
     call print_photon(p)
@@ -207,7 +207,7 @@ subroutine init_diff_photon_3_10(bmc, p, src, vertices, ierr)
     )
     select case (src)
     case (-1) ! thermal emission
-      call CHKERR(-1_mpiint, 'thermal emission on distorted cubes currently not implemented')
+      call CHKWARN(-1_mpiint, 'thermal emission on distorted cubes currently not implemented')
       p%loc = (/L(dx), L(dy), L(dz)/)
       mu = 2 * mu2 - one
       p%src_side = -1
