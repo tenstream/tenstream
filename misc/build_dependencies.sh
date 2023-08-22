@@ -130,7 +130,7 @@ function install_netcdf() {
   echo "Installed NetCDF lib $FILE into $PREFIX -- CC $CC FC $FC CXX $CXX"
 }
 
-install_netcdf "netcdf-c/archive/refs/tags/v4.9.2.tar.gz"       "$PETSC_DIR/$PETSC_ARCH/" "--disable-dap --enable-parallel-tests"
+install_netcdf "netcdf-c/archive/refs/tags/v4.9.2.tar.gz"       "$PETSC_DIR/$PETSC_ARCH/" "--disable-dap --enable-parallel-tests  --disable-libxml2 --disable-byterange"
 install_netcdf "netcdf-fortran/archive/refs/tags/v4.6.1.tar.gz" "$PETSC_DIR/$PETSC_ARCH/" "--enable-parallel-tests"
 install_netcdf "netcdf-cxx4/archive/refs/tags/v4.3.1.tar.gz"    "$PETSC_DIR/$PETSC_ARCH/" "--enable-parallel-tests"
 
