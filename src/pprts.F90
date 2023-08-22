@@ -1709,7 +1709,7 @@ contains
 
     real(ireals) :: pprts_delta_scale_max_g
     integer(iintegers) :: k, i, j
-    logical :: lpprts_delta_scale, lzdun, lflg
+    logical :: lpprts_delta_scale, lpprts_delta_scale_f2, lzdun, lflg
     real(ireals) :: pprts_set_absorption, pprts_set_scatter, pprts_set_asymmetry, pprts_set_albedo, pprts_set_planck
     real(ireals) :: pprts_scale_optprop
     real(irealLUT) :: c1d_dir2dir(1), c1d_dir2diff(2), c1d_diff2diff(4)
@@ -1836,11 +1836,18 @@ contains
       lpprts_delta_scale = get_arg(.true., ldelta_scaling)
       call get_petsc_opt(solver%prefix, "-pprts_delta_scale", lpprts_delta_scale, lflg, ierr); call CHKERR(ierr)
 
+      lpprts_delta_scale_f2 = .False.
+      call get_petsc_opt(solver%prefix, "-pprts_delta_scale_f2", lpprts_delta_scale_f2, lflg, ierr); call CHKERR(ierr)
+
       pprts_delta_scale_max_g = .85_ireals - epsilon(pprts_delta_scale_max_g)
       call get_petsc_opt(solver%prefix, "-pprts_delta_scale_max_g", pprts_delta_scale_max_g, lflg, ierr); call CHKERR(ierr)
 
       if (lpprts_delta_scale) then
-        call delta_scale(atm%kabs, atm%ksca, atm%g, max_g=pprts_delta_scale_max_g)
+        if (lpprts_delta_scale_f2) then
+          call delta_scale(atm%kabs, atm%ksca, atm%g)
+        else
+          call delta_scale(atm%kabs, atm%ksca, atm%g, max_g=pprts_delta_scale_max_g)
+        endif
       else
         if (solver%myid .eq. 0 .and. lflg) print *, "Skipping Delta scaling of optprops"
         if (any(atm%g .ge. 0.85_ireals)) &
