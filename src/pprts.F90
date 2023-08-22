@@ -3239,7 +3239,18 @@ contains
                 & )
               coeffs(:, k, i, j) = real(v, ireals)
 
-              if (ldebug_optprop) then
+            end if
+          end do
+        end do
+      end do
+
+      call enhance_coeff_diffusion()
+
+      if (ldebug_optprop) then
+        do k = C_diff%zs, C_diff%ze - 1
+          if (.not. atm%l1d(atmk(atm, k))) then
+            do j = C_diff%ys, C_diff%ye
+              do i = C_diff%xs, C_diff%xe
                 c(1:C_diff%dof, 1:C_diff%dof) => coeffs(:, k, i, j) ! dim(src,dst)
                 do src = 1, C_diff%dof
                   norm = sum(c(src, :))
@@ -3252,11 +3263,12 @@ contains
                     c(src, :) = c(src, :) / norm
                   end if ! could renormalize
                 end do
-              end if
-            end if
-          end do
+              end do
+            end do
+          end if
         end do
-      end do
+      end if
+
       call restoreVecPointer(solver%Cvert_one_atm1%da, atm%vert_heights, xhhl1d, xhhl, readonly=.true.)
       call PetscLogEventEnd(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
     end associate
@@ -3265,6 +3277,66 @@ contains
       call set_buildings_coeff(coeffs)
     end if
   contains
+
+    subroutine enhance_coeff_diffusion()
+      logical :: lenhance_diffusion
+      real(ireals) :: enhance_diffusion, residual
+      integer(iintegers) :: src, dst, dst_side, k, i, j, idof
+
+      enhance_diffusion = 0
+      call get_petsc_opt("", "-pprts_enhance_diffusion", enhance_diffusion, lenhance_diffusion, ierr); call CHKERR(ierr)
+      call get_petsc_opt(solver%prefix, "-pprts_enhance_diffusion", enhance_diffusion, lenhance_diffusion, ierr); call CHKERR(ierr)
+      lenhance_diffusion = .not. approx(enhance_diffusion, 0._ireals)
+
+      if (lenhance_diffusion) then
+        associate (C_diff => solver%C_diff)
+          do j = C_diff%ys, C_diff%ye
+            do i = C_diff%xs, C_diff%xe
+              do k = C_diff%zs, C_diff%ze - 1
+                c(1:C_diff%dof, 1:C_diff%dof) => coeffs(:, k, i, j) ! dim(src,dst)
+                do src = 1, solver%difftop%dof
+                  !print *,'norm before: src=', src, sum(c(src,:))
+                  if (solver%difftop%is_inward(src)) then ! incoming -> Edn
+                    do dst = 1, solver%difftop%dof
+                      if (solver%difftop%is_inward(dst)) then ! incoming -> Edn, i.e. transmission
+                        residual = c(src,dst) * enhance_diffusion
+                        do dst_side = 1, solver%diffside%dof/2
+                          idof = solver%difftop%dof+dst_side
+                          c(src, idof) = c(src, idof) + residual / solver%diffside%dof
+                          !print *,'redistributing diffuse flux:',i,j,k, idof, residual, solver%diffside%dof
+
+                          idof = solver%difftop%dof+solver%diffside%dof+dst_side
+                          c(src, idof) = c(src, idof) + residual / solver%diffside%dof
+                          !print *,'redistributing diffuse flux:',i,j,k, idof, residual, solver%diffside%dof
+                        enddo
+                        c(src,dst) = c(src,dst) - residual
+                      endif
+                    end do
+                  else ! outward -> Eup
+                    do dst = 1, solver%difftop%dof
+                      if (.not.solver%difftop%is_inward(dst)) then ! outward -> Eup, i.e. transmission
+                        residual = c(src,dst) * enhance_diffusion
+                        do dst_side = solver%diffside%dof/2 +1, solver%diffside%dof
+                          idof = solver%difftop%dof+dst_side
+                          c(src, idof) = c(src, idof) + residual / solver%diffside%dof
+                          !print *,'redistributing diffuse flux:',i,j,k, idof, residual, solver%diffside%dof
+
+                          idof = solver%difftop%dof+solver%diffside%dof+dst_side
+                          c(src, idof) = c(src, idof) + residual / solver%diffside%dof
+                          !print *,'redistributing diffuse flux:',i,j,k, idof, residual, solver%diffside%dof
+                        enddo
+                        c(src,dst) = c(src,dst) - residual
+                      endif
+                    end do
+                  endif
+                  !print *,'norm after: src=', src, sum(c(src,:))
+                end do
+              end do
+            end do
+          end do
+        end associate
+      endif
+    end subroutine
 
     !> @brief   apply blocking of diffuse radiation from buildings and do lambertian reflections
     !> @details Goal: first set all src dof on a buildings face towards all dst dof to zero
@@ -4803,7 +4875,7 @@ contains
 
       real(ireals) :: Ax, Ay, Az, emis, b0, b1, btop, bbot, bfac, tauz
       integer(iintegers) :: k, i, j, src, iside, ak
-      real(ireals), pointer :: diff2diff(:, :) ! dim(dst, src)
+      real(ireals), pointer :: diff2diff(:, :) ! dim(src, dst)
 
       associate (atm => solver%atm, &
                  C_diff => solver%C_diff)
