@@ -24,6 +24,7 @@ module m_example_uvspec_cld_file
     & domain_decompose_2d_petsc, &
     & get_petsc_opt, &
     & imp_bcast, &
+    & meanval, &
     & resize_arr, &
     & reverse, &
     & spherical_2_cartesian
@@ -372,6 +373,7 @@ contains
     ! or:
     !   abso(ubound(abso,1)-nlay_dynamics+1 : ubound(abso,1) )
     real(ireals), allocatable, dimension(:, :, :) :: edir, edn, eup, abso ! [nlev_merged(-1), nxp, nyp]
+    real(ireals), allocatable, dimension(:, :, :) :: gedir, gedn, geup, gabso ! global arrays
 
     ! Filename of background atmosphere file. ASCII file with columns:
     ! z(km)  p(hPa)  T(K)  air(cm-3)  o3(cm-3) o2(cm-3) h2o(cm-3)  co2(cm-3) no2(cm-3)
@@ -425,31 +427,58 @@ contains
                        edir, edn, eup, abso, &
                        nxproc=nxproc, nyproc=nyproc, opt_time=zero)
 
-    nlev = ubound(edn, 1)
-    if (myid .eq. 0) then
-      if (ldebug) then
-        do k = 1, nlev
-          if (allocated(edir)) then
-            print *, k, 'edir', edir(k, 1, 1), 'edn', edn(k, 1, 1), 'eup', eup(k, 1, 1), abso(min(nlev - 1, k), 1, 1)
-          else
-            print *, k, 'edn', edn(k, 1, 1), 'eup', eup(k, 1, 1), abso(min(nlev - 1, k), 1, 1)
-          end if
-        end do
+    associate (&
+        & C => pprts_solver%C_one,      &
+        & C1 => pprts_solver%C_one1)
+
+      if (allocated(edir)) then
+        call gather_all_toZero(C1, edir, gedir)
       end if
 
-      if (allocated(edir)) &
-        print *, 'surface :: direct flux', edir(nlev, 1, 1)
-      print *, 'surface :: downw flux ', edn(nlev, 1, 1)
-      print *, 'surface :: upward fl  ', eup(nlev, 1, 1)
-      print *, 'surface :: absorption ', abso(nlev - 1, 1, 1)
+      call gather_all_toZero(C1, edn, gedn)
+      call gather_all_toZero(C1, eup, geup)
+      call gather_all_toZero(C, abso, gabso)
 
-      if (allocated(edir)) &
-        print *, 'TOA :: direct flux', edir(1, 1, 1)
-      print *, 'TOA :: downw flux ', edn(1, 1, 1)
-      print *, 'TOA :: upward fl  ', eup(1, 1, 1)
-      print *, 'TOA :: absorption ', abso(1, 1, 1)
+      nlev = ubound(gedn, 1)
+      if (myid .eq. 0) then
+        if (ldebug) then
+          do k = 1, nlev
+            if (allocated(gedir)) then
+              print *, k, &
+                & 'edir', meanval(gedir(k, :, :)), &
+                & 'edn', meanval(gedn(k, :, :)), &
+                & 'eup', meanval(geup(k, :, :)), &
+                & 'abso', meanval(gabso(min(nlev - 1, k), :, :))
+            else
+              print *, k, &
+                & 'edir', 0._ireals, &
+                & 'edn', meanval(gedn(k, :, :)), &
+                & 'eup', meanval(geup(k, :, :)), &
+                & 'abso', meanval(gabso(min(nlev - 1, k), :, :))
+            end if
+          end do
+        end if
 
-    end if
+        if (allocated(edir)) then
+          print *, 'surface :: direct flux', meanval(gedir(nlev, :, :))
+        else
+          print *, 'surface :: direct flux', 0._ireals
+        end if
+        print *, 'surface :: downw flux ', meanval(gedn(nlev, :, :))
+        print *, 'surface :: upward fl  ', meanval(geup(nlev, :, :))
+        print *, 'surface :: absorption ', meanval(gabso(nlev - 1, :, :))
+
+        if (allocated(edir)) then
+          print *, 'TOA :: direct flux', meanval(gedir(1, :, :))
+        else
+          print *, 'TOA :: direct flux', 0._ireals
+        end if
+        print *, 'TOA :: downw flux ', meanval(gedn(1, :, :))
+        print *, 'TOA :: upward fl  ', meanval(geup(1, :, :))
+        print *, 'TOA :: absorption ', meanval(gabso(1, :, :))
+
+      end if
+    end associate
 
     ! Tidy up
     call destroy_tenstr_atm(atm)

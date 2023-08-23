@@ -55,6 +55,7 @@ contains
     call allocate_pprts_solver_from_commandline(solver, '3_10', ierr); call CHKERR(ierr)
 
     dz1d = dz
+
     sundir = spherical_2_cartesian(phi0, theta0)
 
     call init_pprts(comm, nv, nxp, nyp, dx, dy, sundir, solver, dz1d)

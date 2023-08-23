@@ -143,7 +143,7 @@ subroutine init_dir_photon_3_10(bmc, p, src, ldirect, initial_dir, vertices, ier
     ierr = 1000_mpiint + int(angle_between_two_vec(p%dir, normal), kind=mpiint)
     call CHKWARN(1_mpiint, 'initial direction of the photon is pointing outside of the cube')
     print *, 'UUPS, are we starting in a wrong direction?'// &
-      & ' :: init_dir_photon_wedge_5_8', rad2deg(angle_between_two_vec(p%dir, normal))
+      & ' :: init_dir_photon_boxmc_3_10', rad2deg(angle_between_two_vec(p%dir, normal))
     print *, 'src', src, 'initial_dir', initial_dir
     print *, 'normal', normal, 'direction', p%dir
     call print_photon(p)
@@ -187,8 +187,6 @@ subroutine init_diff_photon_3_10(bmc, p, src, vertices, ierr)
   real(ireal_dp), dimension(3) :: normal, U, V, cube_center, dir_p_to_cube_center
   real(ireal_dp) :: Mrot(3, 3)
 
-  call setup_cube_coords_from_vertices(vertices, dx, dy, dz)
-
   mu1 = sqrt(R()) ! distribution between 0 and 90 degree with more towards 90 , i.e. mu=1 --> Lambertian
   mu2 = R() ! evenly distribution between 0 and 90 degree
 
@@ -207,7 +205,8 @@ subroutine init_diff_photon_3_10(bmc, p, src, vertices, ierr)
     )
     select case (src)
     case (-1) ! thermal emission
-      call CHKERR(-1_mpiint, 'thermal emission on distorted cubes currently not implemented')
+      call CHKWARN(-1_mpiint, 'thermal emission on distorted cubes currently not implemented')
+      call setup_cube_coords_from_vertices(vertices, dx, dy, dz)
       p%loc = (/L(dx), L(dy), L(dz)/)
       mu = 2 * mu2 - one
       p%src_side = -1
@@ -257,6 +256,8 @@ subroutine init_diff_photon_3_10(bmc, p, src, vertices, ierr)
   ! phi = 0 is y-axes
 
   select case (src)
+  case (-1) ! thermal emission
+    normal = p%dir
   case (1)
     Mrot = rotation_matrix_local_basis_to_world(U, V, normal)
     p%dir = matmul(real(Mrot, ireal_dp), p%dir)
@@ -325,9 +326,17 @@ subroutine update_diff_stream_3_10(bmc, vertices, p, S)
 
   select case (p%side)
   case (1)
-    S(1) = S(1) + p%weight
+    if (p%dir(3) .ge. zero) then
+      S(1) = S(1) + p%weight
+    else
+      call CHKERR(1_mpiint, 'expected photon traveling up when hitting side 1')
+    end if
   case (2)
-    S(2) = S(2) + p%weight
+    if (p%dir(3) .le. zero) then
+      S(2) = S(2) + p%weight
+    else
+      call CHKERR(1_mpiint, 'expected photon traveling dn when hitting side 2')
+    end if
   case (3)
     if (p%dir(3) .le. zero) then
       S(3) = S(3) + p%weight

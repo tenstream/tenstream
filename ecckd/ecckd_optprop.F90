@@ -144,7 +144,8 @@ contains
         & qext_cld_l, w0_cld_l, g_cld_l, ierr); call CHKERR(ierr)
       !print *, 'liq cld optprop single', qext_cld_l, w0_cld_l, g_cld_l
 
-      kg = (kg * ksca + g_cld_l * qext_cld_l * w0_cld_l) / (ksca + qext_cld_l * w0_cld_l)
+      kg = (kg * ksca + g_cld_l * qext_cld_l * w0_cld_l) / max(ksca + qext_cld_l * w0_cld_l, tiny(ksca))
+      kg = min(max(kg, 0._ireals), 1._ireals - 10 * tiny(kg))
       kabs = kabs + qext_cld_l * max(0._ireals, (1._ireals - w0_cld_l))
       ksca = ksca + qext_cld_l * w0_cld_l
 
@@ -164,7 +165,8 @@ contains
         & qext_cld_i, w0_cld_i, g_cld_i, ierr); call CHKERR(ierr)
       !print *, 'ice cld optprop single', qext_cld_i, w0_cld_i, g_cld_i
 
-      kg = (kg * ksca + g_cld_i * qext_cld_i * w0_cld_i) / (ksca + qext_cld_i * w0_cld_i)
+      kg = (kg * ksca + g_cld_i * qext_cld_i * w0_cld_i) / max(ksca + qext_cld_i * w0_cld_i, tiny(ksca))
+      kg = min(max(kg, 0._ireals), 1._ireals - 10 * tiny(kg))
       kabs = kabs + qext_cld_i * max(0._ireals, (1._ireals - w0_cld_i))
       ksca = ksca + qext_cld_i * w0_cld_i
 

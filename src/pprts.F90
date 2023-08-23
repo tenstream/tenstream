@@ -176,7 +176,6 @@ module m_pprts
     & scale_flx
 
   logical, parameter :: ldebug = .false.
-  logical, parameter :: lcyclic_bc = .true.
   logical, parameter :: lprealloc = .true.
 
   integer(iintegers), parameter :: minimal_dimension = 3 ! this is the minimum number of gridpoints in x or y direction
@@ -432,6 +431,9 @@ contains
       if (.not. approx(dx, dy)) &
         call CHKERR(1_mpiint, 'dx and dy currently have to be the same '//toStr(dx)//' vs '//toStr(dy))
 
+      call get_petsc_opt("", "-pprts_open_bc", solver%lopen_bc, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt(solver%prefix, "-pprts_open_bc", solver%lopen_bc, lflg, ierr); call CHKERR(ierr)
+
       lview = ldebug
       call get_petsc_opt(solver%prefix, "-pprts_solver_view", lview, lflg, ierr); call CHKERR(ierr)
 
@@ -440,6 +442,7 @@ contains
         print *, 'Solver dirside:', solver%dirside%is_inward, ':', solver%dirside%dof, ':', solver%dirside%area_divider
         print *, 'Solver difftop:', solver%difftop%is_inward, ':', solver%difftop%dof, ':', solver%difftop%area_divider
         print *, 'Solver diffside:', solver%diffside%is_inward, ':', solver%diffside%dof, ':', solver%diffside%area_divider
+        print *, 'Solver open boundary conditions? ', solver%lopen_bc
       end if
 
       call PetscInitialized(lpetsc_is_initialized, ierr); call CHKERR(ierr)
@@ -540,7 +543,6 @@ contains
           call MPI_Abort(icomm, 1 * ierr, ierr)
         end if
         solver%atm%dz = dz3d
-
       end if
       if (.not. present(dz1d) .and. .not. present(dz3d)) then
         print *, 'have to give either dz1d or dz3d in routine call....'
@@ -550,7 +552,7 @@ contains
       if (.not. allocated(solver%atm%hhl)) then
         allocate (solver%atm%hhl)
         call compute_vertical_height_levels(dz=solver%atm%dz, C_hhl=solver%C_one_atm1_box, vhhl=solver%atm%hhl, &
-          & prefix=solver%prefix)
+          & prefix=solver%prefix, lopen_bc=solver%lopen_bc)
       end if
 
       if (.not. allocated(solver%atm%hgrad)) then
@@ -764,19 +766,13 @@ contains
     integer(iintegers) :: Nz
     DMBoundaryType, parameter :: &
       & bp = DM_BOUNDARY_PERIODIC, &
-      & bn = DM_BOUNDARY_NONE,     &
-      & bm = DM_BOUNDARY_MIRROR!,   &
-    !& bg=DM_BOUNDARY_GHOSTED
+      & bn = DM_BOUNDARY_NONE
 
     DMBoundaryType :: boundaries(3)
     integer(iintegers), allocatable :: nxprocp1(:), nyprocp1(:) !< last entry one larger for vertices
     integer(mpiint) :: ierr
 
-    if (lcyclic_bc) then
-      boundaries = [bn, bp, bp]
-    else
-      boundaries = [bn, bm, bm]
-    end if
+    boundaries = [bn, bp, bp]
 
     Nz = Nz_in
     if (present(collapseindex)) then
@@ -982,11 +978,12 @@ contains
 
   !> @brief Determine height levels by summing up the atm%dz with the assumption that TOA is at a constant value
   !>        or a max_height is given in the option database
-  subroutine compute_vertical_height_levels(dz, C_hhl, vhhl, prefix)
+  subroutine compute_vertical_height_levels(dz, C_hhl, vhhl, prefix, lopen_bc)
     type(t_coord), intent(in) :: C_hhl
     real(ireals), intent(in) :: dz(:, :, :)
     type(tVec), intent(inout) :: vhhl
     character(len=*), intent(in) :: prefix
+    logical, intent(in) :: lopen_bc
 
     type(tVec) :: g_hhl
     real(ireals), pointer :: hhl(:, :, :, :) => null(), hhl1d(:) => null()
@@ -1031,6 +1028,23 @@ contains
     call DMGlobalToLocalBegin(C_hhl%da, g_hhl, INSERT_VALUES, vhhl, ierr); call CHKERR(ierr)
     call DMGlobalToLocalEnd(C_hhl%da, g_hhl, INSERT_VALUES, vhhl, ierr); call CHKERR(ierr)
     call DMRestoreGlobalVector(C_hhl%da, g_hhl, ierr); call CHKERR(ierr)
+
+    if (lopen_bc) then ! set heights on ghosts at the outer domain to be constant
+      call getVecPointer(C_hhl%da, vhhl, hhl1d, hhl)
+      if (C_hhl%xs .eq. 0) then
+        hhl(i0, :, C_hhl%xs - i1, C_hhl%ys:C_hhl%ye) = hhl(i0, :, C_hhl%xs, C_hhl%ys:C_hhl%ye)
+      end if
+      if (C_hhl%xe + i1 .eq. C_hhl%glob_xm) then
+        hhl(i0, :, C_hhl%xe + i1, C_hhl%ys:C_hhl%ye) = hhl(i0, :, C_hhl%xe, C_hhl%ys:C_hhl%ye)
+      end if
+      if (C_hhl%ys .eq. 0) then
+        hhl(i0, :, C_hhl%xs - i1:C_hhl%xe + i1, C_hhl%ys - i1) = hhl(i0, :, C_hhl%xs - i1:C_hhl%xe + 1, C_hhl%ys)
+      end if
+      if (C_hhl%ye + 1 .eq. C_hhl%glob_ym) then
+        hhl(i0, :, C_hhl%xs - i1:C_hhl%xe + i1, C_hhl%ye + 1) = hhl(i0, :, C_hhl%xs - i1:C_hhl%xe + 1, C_hhl%ye)
+      end if
+      call restoreVecPointer(C_hhl%da, vhhl, hhl1d, hhl)
+    end if
 
     call PetscObjectViewFromOptions(vhhl, C_hhl%da, "-pprts_show_hhl", ierr); call CHKERR(ierr)
   end subroutine
@@ -1695,8 +1709,9 @@ contains
 
     real(ireals) :: pprts_delta_scale_max_g
     integer(iintegers) :: k, i, j
-    logical :: lpprts_delta_scale, lzdun, lflg
-    real(ireals) :: pprts_set_absorption, pprts_set_scatter, pprts_set_asymmetry, pprts_set_albedo, pprts_scale_optprop
+    logical :: lpprts_delta_scale, lpprts_delta_scale_f2, lzdun, lflg
+    real(ireals) :: pprts_set_absorption, pprts_set_scatter, pprts_set_asymmetry, pprts_set_albedo, pprts_set_planck
+    real(ireals) :: pprts_scale_optprop
     real(irealLUT) :: c1d_dir2dir(1), c1d_dir2diff(2), c1d_diff2diff(4)
     integer(mpiint) :: ierr
 
@@ -1728,6 +1743,12 @@ contains
         if (.not. allocated(atm%planck)) &
           allocate (atm%planck(C_one_atm1%zs:C_one_atm1%ze, C_one_atm1%xs:C_one_atm1%xe, C_one_atm1%ys:C_one_atm1%ye))
         atm%planck = planck
+
+        pprts_set_planck = -1
+        call get_petsc_opt(solver%prefix, "-pprts_set_planck", pprts_set_planck, lflg, ierr); call CHKERR(ierr)
+        if (lflg) then
+          atm%planck = pprts_set_planck
+        end if
       else
         if (allocated(atm%planck)) deallocate (atm%planck)
       end if
@@ -1815,11 +1836,18 @@ contains
       lpprts_delta_scale = get_arg(.true., ldelta_scaling)
       call get_petsc_opt(solver%prefix, "-pprts_delta_scale", lpprts_delta_scale, lflg, ierr); call CHKERR(ierr)
 
+      lpprts_delta_scale_f2 = .true.
+      call get_petsc_opt(solver%prefix, "-pprts_delta_scale_f2", lpprts_delta_scale_f2, lflg, ierr); call CHKERR(ierr)
+
       pprts_delta_scale_max_g = .85_ireals - epsilon(pprts_delta_scale_max_g)
       call get_petsc_opt(solver%prefix, "-pprts_delta_scale_max_g", pprts_delta_scale_max_g, lflg, ierr); call CHKERR(ierr)
 
       if (lpprts_delta_scale) then
-        call delta_scale(atm%kabs, atm%ksca, atm%g, max_g=pprts_delta_scale_max_g)
+        if (lpprts_delta_scale_f2) then
+          call delta_scale(atm%kabs, atm%ksca, atm%g)
+        else
+          call delta_scale(atm%kabs, atm%ksca, atm%g, max_g=pprts_delta_scale_max_g)
+        end if
       else
         if (solver%myid .eq. 0 .and. lflg) print *, "Skipping Delta scaling of optprops"
         if (any(atm%g .ge. 0.85_ireals)) &
@@ -2595,6 +2623,8 @@ contains
       character(len=*), intent(in) :: prefix
       logical :: lmat_permute, lmat_permute_reuse, lshell
 
+      if (solver%lopen_bc) call CHKERR(1_mpiint, 'open boundaries currently not supported for this solver')
+
       call VecSet(solver%incSolar, zero, ierr); call CHKERR(ierr)
       call setup_incSolar(solver, edirTOA, solver%incSolar)
 
@@ -3209,7 +3239,18 @@ contains
                 & )
               coeffs(:, k, i, j) = real(v, ireals)
 
-              if (ldebug_optprop) then
+            end if
+          end do
+        end do
+      end do
+
+      call enhance_coeff_diffusion()
+
+      if (ldebug_optprop) then
+        do k = C_diff%zs, C_diff%ze - 1
+          if (.not. atm%l1d(atmk(atm, k))) then
+            do j = C_diff%ys, C_diff%ye
+              do i = C_diff%xs, C_diff%xe
                 c(1:C_diff%dof, 1:C_diff%dof) => coeffs(:, k, i, j) ! dim(src,dst)
                 do src = 1, C_diff%dof
                   norm = sum(c(src, :))
@@ -3222,11 +3263,12 @@ contains
                     c(src, :) = c(src, :) / norm
                   end if ! could renormalize
                 end do
-              end if
-            end if
-          end do
+              end do
+            end do
+          end if
         end do
-      end do
+      end if
+
       call restoreVecPointer(solver%Cvert_one_atm1%da, atm%vert_heights, xhhl1d, xhhl, readonly=.true.)
       call PetscLogEventEnd(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
     end associate
@@ -3235,6 +3277,66 @@ contains
       call set_buildings_coeff(coeffs)
     end if
   contains
+
+    subroutine enhance_coeff_diffusion()
+      logical :: lenhance_diffusion
+      real(ireals) :: enhance_diffusion, residual
+      integer(iintegers) :: src, dst, dst_side, k, i, j, idof
+
+      enhance_diffusion = 0
+      call get_petsc_opt("", "-pprts_enhance_diffusion", enhance_diffusion, lenhance_diffusion, ierr); call CHKERR(ierr)
+      call get_petsc_opt(solver%prefix, "-pprts_enhance_diffusion", enhance_diffusion, lenhance_diffusion, ierr); call CHKERR(ierr)
+      lenhance_diffusion = .not. approx(enhance_diffusion, 0._ireals)
+
+      if (lenhance_diffusion) then
+        associate (C_diff => solver%C_diff)
+          do j = C_diff%ys, C_diff%ye
+            do i = C_diff%xs, C_diff%xe
+              do k = C_diff%zs, C_diff%ze - 1
+                c(1:C_diff%dof, 1:C_diff%dof) => coeffs(:, k, i, j) ! dim(src,dst)
+                do src = 1, solver%difftop%dof
+                  !print *,'norm before: src=', src, sum(c(src,:))
+                  if (solver%difftop%is_inward(src)) then ! incoming -> Edn
+                    do dst = 1, solver%difftop%dof
+                      if (solver%difftop%is_inward(dst)) then ! incoming -> Edn, i.e. transmission
+                        residual = c(src, dst) * enhance_diffusion
+                        do dst_side = 1, solver%diffside%dof / 2
+                          idof = solver%difftop%dof + dst_side
+                          c(src, idof) = c(src, idof) + residual / solver%diffside%dof
+                          !print *,'redistributing diffuse flux:',i,j,k, idof, residual, solver%diffside%dof
+
+                          idof = solver%difftop%dof + solver%diffside%dof + dst_side
+                          c(src, idof) = c(src, idof) + residual / solver%diffside%dof
+                          !print *,'redistributing diffuse flux:',i,j,k, idof, residual, solver%diffside%dof
+                        end do
+                        c(src, dst) = c(src, dst) - residual
+                      end if
+                    end do
+                  else ! outward -> Eup
+                    do dst = 1, solver%difftop%dof
+                      if (.not. solver%difftop%is_inward(dst)) then ! outward -> Eup, i.e. transmission
+                        residual = c(src, dst) * enhance_diffusion
+                        do dst_side = solver%diffside%dof / 2 + 1, solver%diffside%dof
+                          idof = solver%difftop%dof + dst_side
+                          c(src, idof) = c(src, idof) + residual / solver%diffside%dof
+                          !print *,'redistributing diffuse flux:',i,j,k, idof, residual, solver%diffside%dof
+
+                          idof = solver%difftop%dof + solver%diffside%dof + dst_side
+                          c(src, idof) = c(src, idof) + residual / solver%diffside%dof
+                          !print *,'redistributing diffuse flux:',i,j,k, idof, residual, solver%diffside%dof
+                        end do
+                        c(src, dst) = c(src, dst) - residual
+                      end if
+                    end do
+                  end if
+                  !print *,'norm after: src=', src, sum(c(src,:))
+                end do
+              end do
+            end do
+          end do
+        end associate
+      end if
+    end subroutine
 
     !> @brief   apply blocking of diffuse radiation from buildings and do lambertian reflections
     !> @details Goal: first set all src dof on a buildings face towards all dst dof to zero
@@ -4773,7 +4875,7 @@ contains
 
       real(ireals) :: Ax, Ay, Az, emis, b0, b1, btop, bbot, bfac, tauz
       integer(iintegers) :: k, i, j, src, iside, ak
-      real(ireals), pointer :: diff2diff(:, :) ! dim(dst, src)
+      real(ireals), pointer :: diff2diff(:, :) ! dim(src, dst)
 
       associate (atm => solver%atm, &
                  C_diff => solver%C_diff)

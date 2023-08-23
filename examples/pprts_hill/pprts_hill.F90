@@ -31,7 +31,8 @@ contains
   real(ireals) function hill_pressure_deficiency(jglob, ny_glob, hill_dP, hill_shape) result(dP)
     integer(iintegers), intent(in) :: jglob, ny_glob
     real(ireals), intent(in) :: hill_dP, hill_shape
-    dP = hill_dP / (1._ireals + ((real(jglob, ireals) - (real(ny_glob, ireals) - 1._ireals) / 2._ireals) / hill_shape)**2)
+    !dP = hill_dP / (1._ireals + ((real(jglob, ireals) - (real(ny_glob, ireals) - 1._ireals) / 2._ireals) / hill_shape)**2)
+    dP = hill_dP / (1._ireals + ((real(jglob, ireals) - 1 * (real(ny_glob, ireals) - 1._ireals) / 1._ireals) / hill_shape)**2)
   end function
 
   subroutine example_pprts_rrtmg_hill(&

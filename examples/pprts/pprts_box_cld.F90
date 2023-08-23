@@ -7,7 +7,7 @@ module m_examples_pprts_box_cld
                      pprts_get_result
   use m_pprts_base, only: t_solver, allocate_pprts_solver_from_commandline, destroy_pprts
 
-  use m_helper_functions, only: CHKERR, get_mem_footprint, spherical_2_cartesian
+  use m_helper_functions, only: CHKERR, get_mem_footprint, spherical_2_cartesian, is_inrange, get_petsc_opt
 
   use m_tenstream_options, only: read_commandline_options
 
@@ -21,46 +21,70 @@ contains
   subroutine ex_pprts_box_cld()
     implicit none
 
-    integer(iintegers), parameter :: nxp = 16, nyp = 16, nv = 20
-    real(ireals), parameter :: dx = 500, dy = dx
-    real(ireals), parameter :: phi0 = 180, theta0 = 40
-    real(ireals), parameter :: albedo = .1, dz = 100
+    integer(iintegers), parameter :: nxp = 17, nyp = 33, nv = 20
+    real(ireals), parameter :: dx = 200, dy = dx
+    real(ireals), parameter :: dz = 100
+    real(ireals), parameter :: phi0 = 0, theta0 = 70
     real(ireals), parameter :: incSolar = 1364
-    integer(iintegers), parameter :: cld_width = 0
+    integer(iintegers), parameter :: cld_width = 5
     real(ireals) :: dz1d(nv)
 
-    real(ireals) :: sundir(3)
-    real(ireals), allocatable, dimension(:, :, :) :: kabs, ksca, g
+    real(ireals) :: sundir(3), albedo
+    real(ireals), allocatable, dimension(:, :, :) :: kabs, ksca, g, plck
     real(ireals), allocatable, dimension(:, :, :) :: fdir, fdn, fup, fdiv
+    integer(iintegers) :: xl, xu, yl, yu, i, j
 
     class(t_solver), allocatable :: solver
+    logical :: lthermal, lsolar, lflg
 
     ! Have to call init_mpi_data_parameters() to define datatypes
     call init_mpi_data_parameters(MPI_COMM_WORLD)
 
-    call allocate_pprts_solver_from_commandline(solver, '8_16', ierr); call CHKERR(ierr)
+    call allocate_pprts_solver_from_commandline(solver, '3_10', ierr); call CHKERR(ierr)
     dz1d = dz
 
     sundir = spherical_2_cartesian(phi0, theta0)
-    print *, 'sundir', sundir
 
     call init_pprts(MPI_COMM_WORLD, nv, nxp, nyp, dx, dy, sundir, solver, dz1d=dz1d)
     call mpi_comm_rank(MPI_COMM_WORLD, myid, ierr)
 
-    allocate (kabs(solver%C_one%zm, solver%C_one%xm, solver%C_one%ym))
-    allocate (ksca(solver%C_one%zm, solver%C_one%xm, solver%C_one%ym))
-    allocate (g(solver%C_one%zm, solver%C_one%xm, solver%C_one%ym))
+    allocate (kabs(solver%C_one_atm%zm, solver%C_one_atm%xm, solver%C_one_atm%ym))
+    allocate (ksca(solver%C_one_atm%zm, solver%C_one_atm%xm, solver%C_one_atm%ym))
+    allocate (g(solver%C_one_atm%zm, solver%C_one_atm%xm, solver%C_one_atm%ym))
+    allocate (plck(solver%C_one_atm1%zm, solver%C_one_atm1%xm, solver%C_one_atm1%ym))
 
-    kabs = .0001_ireals / (dz * nv)
+    kabs = .001_ireals / (dz * nv)
     ksca = .005_ireals / (dz * nv)
     g = zero
+    plck = 100._ireals / pi
 
-    kabs(nv / 2, nxp / 2 - cld_width:nxp / 2 + cld_width, nyp / 2 - cld_width:nyp / 2 + cld_width) = 1 / dz
-    ksca(nv / 2, nxp / 2 - cld_width:nxp / 2 + cld_width, nyp / 2 - cld_width:nyp / 2 + cld_width) = 1 / dz
-    g(nv / 2, nxp / 2 - cld_width:nxp / 2 + cld_width, nyp / 2 - cld_width:nyp / 2 + cld_width) = .9
+    xl = int((nxp + 1._ireals) / 2._ireals) - cld_width
+    xu = int((nxp + 1._ireals) / 2._ireals) + cld_width
+    yl = int((nyp + 1._ireals) / 2._ireals) - cld_width
+    yu = int((nyp + 1._ireals) / 2._ireals) + cld_width
+    if (myid .eq. 0) print *, 'cld between x:', xl, xu, 'y:', yl, yu
 
-    call set_optical_properties(solver, albedo, kabs, ksca, g)
-    call solve_pprts(solver, lthermal=.false., lsolar=.true., edirTOA=incSolar)
+    do j = 1_iintegers + solver%C_one%ys, solver%C_one%ye + 1
+      do i = 1_iintegers + solver%C_one%xs, solver%C_one%xe + 1
+        if (is_inrange(i, xl, xu) .and. is_inrange(j, yl, yu)) then
+          kabs(nv / 2, i - solver%C_one%xs, j - solver%C_one%ys) = 1.001 / (dz * nv)
+          ksca(nv / 2, i - solver%C_one%xs, j - solver%C_one%ys) = 10 / dz
+          g(nv / 2, i - solver%C_one%xs, j - solver%C_one%ys) = .9
+        end if
+      end do
+    end do
+
+    albedo = .1
+    call get_petsc_opt('', '-Ag', albedo, lflg, ierr); call CHKERR(ierr)
+
+    call set_optical_properties(solver, albedo, kabs, ksca, g, plck)
+
+    lsolar = .true.
+    lthermal = .true.
+    call get_petsc_opt('', '-solar', lsolar, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', '-thermal', lthermal, lflg, ierr); call CHKERR(ierr)
+
+    call solve_pprts(solver, lthermal=lthermal, lsolar=lsolar, edirTOA=incSolar)
 
     allocate (fdir(solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym))
     allocate (fdn(solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym))

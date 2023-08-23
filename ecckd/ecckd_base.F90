@@ -573,11 +573,21 @@ contains
     integer(iintegers) :: i, j
     ierr = 0
 
-    allocate (ecckd_data%log_pressure(size(ecckd_data%pressure)))
+    if (.not. allocated(ecckd_data%log_pressure)) then
+      allocate (ecckd_data%log_pressure(size(ecckd_data%pressure)))
+    else
+      call CHKERR(int(size(ecckd_data%pressure) - size(ecckd_data%log_pressure), mpiint), &
+        & 'wrong shape for ecckd_data%log_pressure')
+    end if
     ecckd_data%log_pressure = log(ecckd_data%pressure)
 
     call split(ecckd_data%constituent_id, gas_strings, ' ', ierr); call CHKERR(ierr)
-    allocate (ecckd_data%gases(size(gas_strings)))
+    if (.not. allocated(ecckd_data%gases)) then
+      allocate (ecckd_data%gases(size(gas_strings)))
+    else
+      call CHKERR(int(size(ecckd_data%gases) - size(gas_strings), mpiint), &
+        & 'wrong shape for ecckd_data%gases')
+    end if
 
     do i = 1, size(gas_strings)
       if (get_arg(.false., lverbose)) print *, 'gas string', i, trim(gas_strings(i))
@@ -606,7 +616,12 @@ contains
         case ('h2o')
           gas%conc_dependence_code = ecckd_data%h2o_conc_dependence_code
           gas%mole_fraction1 => ecckd_data%h2o_mole_fraction
-          allocate (gas%log_mole_fraction1(size(gas%mole_fraction1)))
+          if (.not. allocated(gas%log_mole_fraction1)) then
+            allocate (gas%log_mole_fraction1(size(gas%mole_fraction1)))
+          else
+            call CHKERR(int(size(gas%log_mole_fraction1) - size(gas%mole_fraction1), mpiint), &
+              & 'wrong shape for gas%log_mole_fraction1')
+          end if
           gas%log_mole_fraction1 = log(gas%mole_fraction1)
           gas%molar_absorption_coeff4 => ecckd_data%h2o_molar_absorption_coeff
           gas%vmr => atm%h2o_lay

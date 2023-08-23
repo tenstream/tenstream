@@ -1532,7 +1532,7 @@ contains
         call getVecPointer(C_dir%da, solution%edir, xv_dir1d, xv_dir)
         mu0 = real(solver%sun%costheta)
       else
-        mu0 = 0
+        mu0 = 1
         allocate (Blev(C_one_atm%zs:C_one_atm%ze))
       end if
 

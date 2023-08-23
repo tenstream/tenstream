@@ -11,9 +11,11 @@ module test_pprts_specint
     & share_dir, &
     & zero
 
-  use m_helper_functions, only: CHKERR, spherical_2_cartesian
+  use m_helper_functions, only: CHKERR, get_petsc_opt, spherical_2_cartesian, toStr
 
   use m_tenstream_options, only: read_commandline_options
+
+  use m_netcdfio, only: ncwrite, ncload
 
   ! main entry point for solver, and desctructor
   use m_specint_pprts, only: specint_pprts, specint_pprts_destroy
@@ -37,7 +39,7 @@ module test_pprts_specint
   real(ireals), parameter :: dx = 100, dy = dx              ! horizontal grid spacing in [m]
   real(ireals), parameter :: phi0 = 180, theta0 = 60        ! Sun's angles, azimuth phi(0=North, 90=East), zenith(0 high sun, 80=low sun)
   real(ireals), parameter :: albedo_th = .1, albedo_sol = .3 ! broadband ground albedo for solar and thermal spectrum
-  real(ireals), parameter :: atolerance = 1                  ! absolute tolerance when regression testing fluxes
+  real(ireals), parameter :: atolerance = .1                 ! absolute tolerance when regression testing fluxes
 
   integer(iintegers), allocatable :: nxproc(:), nyproc(:)
 
@@ -128,6 +130,39 @@ contains
     call destroy_tenstr_atm(atm)
   end subroutine teardown
 
+  !@ generated result files with:
+  !  PETSC_OPTIONS="-gen_test_results" mpirun -wd generated/test_pprts_specint/ $(pwd)/bin/pfunit_test_pprts_specint
+  subroutine assert_results(this, fname, edir, edn, eup, abso, lthermal, lsolar, ierr)
+    class(MpiTestMethod), intent(inout) :: this
+    character(len=*), intent(in) :: fname
+    real(ireals), allocatable, dimension(:, :, :), intent(in) :: edir, edn, eup, abso ! [nlev_merged(-1), nxp, nyp]
+    logical, intent(in) :: lthermal, lsolar
+    integer(mpiint), intent(out) :: ierr
+    logical :: lgen_test_results, lflg
+    character(len=default_str_len) :: groups(2)
+    real(ireals), allocatable, dimension(:, :, :) :: tedir, tedn, teup, tabso ! [nlev_merged(-1), nxp, nyp]
+    groups(1) = "result."//trim(fname)//".lw"//toStr(lthermal)//".sw"//toStr(lsolar)//".nc" ! test output data filename
+
+    lgen_test_results = .false.
+    call get_petsc_opt('', "-gen_test_results", lgen_test_results, lflg, ierr); call CHKERR(ierr)
+    if (lgen_test_results .and. (numnodes .eq. 1)) then
+      groups(2) = 'edir'; call ncwrite(groups, edir, ierr); call CHKERR(ierr)
+      groups(2) = 'edn'; call ncwrite(groups, edn, ierr); call CHKERR(ierr)
+      groups(2) = 'eup'; call ncwrite(groups, eup, ierr); call CHKERR(ierr)
+      groups(2) = 'abso'; call ncwrite(groups, abso, ierr); call CHKERR(ierr)
+    end if
+
+    groups(2) = 'edir'; call ncload(groups, tedir, ierr); call CHKERR(ierr)
+    groups(2) = 'edn'; call ncload(groups, tedn, ierr); call CHKERR(ierr)
+    groups(2) = 'eup'; call ncload(groups, teup, ierr); call CHKERR(ierr)
+    groups(2) = 'abso'; call ncload(groups, tabso, ierr); call CHKERR(ierr)
+
+    @mpiassertEqual(tedir, edir, atolerance, 'edir not as expected')
+    @mpiassertEqual(tedn, edn, atolerance, 'edn not as expected')
+    @mpiassertEqual(teup, eup, atolerance, 'eup not as expected')
+    @mpiassertEqual(tabso, abso, atolerance*1e-2, 'abso not as expected')
+  end subroutine
+
   @test(npes=[1,2])
   subroutine specint_rrtm_lw_sw(this)
     class(MpiTestMethod), intent(inout) :: this
@@ -167,21 +202,7 @@ contains
       end if
     end if
 
-    @mpiassertEqual(298.65, edir(nlev, 1, 1), atolerance, 'solar at surface :: direct flux not correct')
-    @mpiassertEqual(165.81, edn(nlev, 1, 1), atolerance, 'solar at surface :: downw flux not correct')
-    @mpiassertEqual(139.34, eup(nlev, 1, 1), atolerance, 'solar at surface :: upward fl  not correct')
-    @mpiassertEqual(1.425e-02, abso(nlev - 1, 1, 1), atolerance * 1e-2, 'solar at surface :: absorption not correct')
-
-    @mpiassertEqual(684.1109, edir(1, 1, 1), atolerance, 'solar at TOA :: direct flux not correct')
-    @mpiassertEqual(0, edn(1, 1, 1), atolerance, 'solar at TOA :: downw flux not correct')
-    @mpiassertEqual(213.85, eup(1, 1, 1), atolerance, 'solar at TOA :: upward fl  not correct')
-    @mpiassertEqual(7.552e-08, abso(1, 1, 1), atolerance * 1e-2, 'solar at TOA :: absorption not correct')
-
-    @mpiassertEqual(511.60, edir(nlev - icld, 1, 1), atolerance, 'solar at icloud :: direct flux not correct')
-    @mpiassertEqual(323.27, edir(nlev - icld + 1, 1, 1), atolerance, 'solar at icloud+1 :: direct flux not correct')
-    @mpiassertEqual(167.71, edn(nlev - icld + 1, 1, 1), atolerance, 'solar at icloud+1 :: downw flux not correct')
-    @mpiassertEqual(194.19, eup(nlev - icld, 1, 1), atolerance, 'solar at icloud :: upward fl  not correct')
-    @mpiassertEqual(0.0224, abso(nlev - icld, 1, 1), atolerance * 1e-2, 'solar at icloud :: absorption not correct')
+    call assert_results(this, 'rrtm', edir, edn, eup, abso, lthermal, lsolar, ierr); call CHKERR(ierr)
 
     if (myid .eq. 0 .and. ldebug) print *, 'Computing Thermal Radiation: '//trim(specint)
     lthermal = .true.; lsolar = .false.
@@ -204,17 +225,7 @@ contains
       end if
     end if
 
-    @mpiassertEqual(334.38, edn(nlev, 1, 1), atolerance, 'thermal at surface :: downw flux not correct')
-    @mpiassertEqual(384.50, eup(nlev, 1, 1), atolerance, 'thermal at surface :: upward fl  not correct')
-    @mpiassertEqual(-1.487e-02, abso(nlev - 1, 1, 1), atolerance * 1e-2, 'thermal at surface :: absorption not correct')
-
-    @mpiassertEqual(0.0, edn(1, 1, 1), atolerance, 'thermal at TOA :: downw flux not correct')
-    @mpiassertEqual(250.67, eup(1, 1, 1), atolerance, 'thermal at TOA :: upward fl  not correct')
-    @mpiassertEqual(-8.303e-07, abso(1, 1, 1), atolerance * 1e-2, 'thermal at TOA :: absorption not correct')
-
-    @mpiassertEqual(323.49, edn(nlev - icld + 1, 1, 1), atolerance, 'thermal at icloud :: downw flux not correct')
-    @mpiassertEqual(384.82, eup(nlev - icld, 1, 1), atolerance, 'thermal at icloud :: upward fl  not correct')
-    @mpiassertEqual(-0.199, abso(nlev - icld, 1, 1), atolerance * 1e-2, 'thermal at icloud :: absorption not correct')
+    call assert_results(this, 'rrtm', edir, edn, eup, abso, lthermal, lsolar, ierr); call CHKERR(ierr)
 
     if (myid .eq. 0 .and. ldebug) print *, 'Computing Solar AND Thermal Radiation: '//trim(specint)
     lthermal = .true.; lsolar = .true.
@@ -234,22 +245,7 @@ contains
       end if
     end if
 
-    @mpiassertEqual(298.65, edir(nlev, 1, 1), atolerance, 'solar at surface :: direct flux not correct')
-    @mpiassertEqual(165.81 + 334.38, edn(nlev, 1, 1), atolerance, 'solar+thermal at surface :: downw flux not correct')
-    @mpiassertEqual(139.34 + 384.50, eup(nlev, 1, 1), atolerance, 'solar+thermal at surface :: upward fl  not correct')
-    @mpiassertEqual(1.425E-02-1.487E-02, abso(nlev-1,1,1), atolerance*1e-2, 'solar+thermal at surface :: absorption not correct')
-
-    @mpiassertEqual(684.1109, edir(1, 1, 1), atolerance, 'solar+thermal at TOA :: direct flux not correct')
-    @mpiassertEqual(0, edn(1, 1, 1), atolerance, 'solar+thermal at TOA :: downw flux not correct')
-    @mpiassertEqual(213.85 + 250.67, eup(1, 1, 1), atolerance, 'solar+thermal at TOA :: upward fl  not correct')
-    @mpiassertEqual(7.552e-08 - 8.303e-07, abso(1, 1, 1), atolerance * 1e-2, 'solar+thermal at TOA :: absorption not correct')
-
-    @mpiassertEqual(511.60, edir(nlev - icld, 1, 1), atolerance, 'solar+thermal at icloud :: direct flux not correct')
-    @mpiassertEqual(323.27, edir(nlev - icld + 1, 1, 1), atolerance, 'solar+thermal at icloud+1 :: direct flux not correct')
-    @mpiassertEqual(168.64 + 323.49, edn(nlev - icld + 1, 1, 1), atolerance, 'solar+thermal at icloud :: downw flux not correct')
-    @mpiassertEqual(194.18 + 384.82, eup(nlev - icld, 1, 1), atolerance, 'solar+thermal at icloud :: upward fl  not correct')
-    @mpiassertEqual(0.0243 - 0.199, abso(nlev - icld, 1, 1), atolerance * 1e-2, 'solar+thermal at icloud :: absorption not correct')
-
+    call assert_results(this, 'rrtm', edir, edn, eup, abso, lthermal, lsolar, ierr); call CHKERR(ierr)
   end subroutine
 
   @test(npes=[1,2])
@@ -291,21 +287,7 @@ contains
       end if
     end if
 
-    @mpiassertEqual( 95.54, edir(nlev, 1, 1), atolerance, 'solar at surface :: direct flux not correct')
-    @mpiassertEqual(352.19, edn(nlev, 1, 1), atolerance, 'solar at surface :: downw flux not correct')
-    @mpiassertEqual(134.32, eup(nlev, 1, 1), atolerance, 'solar at surface :: upward fl  not correct')
-    @mpiassertEqual(1.392e-02, abso(nlev - 1, 1, 1), atolerance * 1e-2, 'solar at surface :: absorption not correct')
-
-    @mpiassertEqual(684.27, edir(1, 1, 1), atolerance, 'solar at TOA :: direct flux not correct')
-    @mpiassertEqual(0, edn(1, 1, 1), atolerance, 'solar at TOA :: downw flux not correct')
-    @mpiassertEqual(234.00, eup(1, 1, 1), atolerance, 'solar at TOA :: upward fl  not correct')
-    @mpiassertEqual(3.595e-10, abso(1, 1, 1), atolerance * 1e-2, 'solar at TOA :: absorption not correct')
-
-    @mpiassertEqual(516.44, edir(nlev - icld, 1, 1), atolerance, 'solar at icloud :: direct flux not correct')
-    @mpiassertEqual(102.94, edir(nlev - icld + 1, 1, 1), atolerance, 'solar at icloud+1 :: direct flux not correct')
-    @mpiassertEqual(368.65, edn(nlev - icld + 1, 1, 1), atolerance, 'solar at icloud+1 :: downw flux not correct')
-    @mpiassertEqual(216.10, eup(nlev - icld, 1, 1), atolerance, 'solar at icloud :: upward fl  not correct')
-    @mpiassertEqual(0.0201, abso(nlev - icld, 1, 1), atolerance * 1e-2, 'solar at icloud :: absorption not correct')
+    call assert_results(this, 'repwvl', edir, edn, eup, abso, lthermal, lsolar, ierr); call CHKERR(ierr)
 
     if (myid .eq. 0 .and. ldebug) print *, 'Computing Thermal Radiation: '//trim(specint)
     lthermal = .true.; lsolar = .false.
@@ -328,17 +310,7 @@ contains
       end if
     end if
 
-    @mpiassertEqual(335.19, edn(nlev, 1, 1), atolerance, 'thermal at surface :: downw flux not correct')
-    @mpiassertEqual(384.09, eup(nlev, 1, 1), atolerance, 'thermal at surface :: upward fl  not correct')
-    @mpiassertEqual(-1.432e-02, abso(nlev - 1, 1, 1), atolerance * 1e-2, 'thermal at surface :: absorption not correct')
-
-    @mpiassertEqual(0.0, edn(1, 1, 1), atolerance, 'thermal at TOA :: downw flux not correct')
-    @mpiassertEqual(248.66, eup(1, 1, 1), atolerance, 'thermal at TOA :: upward fl  not correct')
-    @mpiassertEqual(-1.656e-11, abso(1, 1, 1), atolerance * 1e-2, 'thermal at TOA :: absorption not correct')
-
-    @mpiassertEqual(324.00, edn(nlev - icld + 1, 1, 1), atolerance, 'thermal at icloud :: downw flux not correct')
-    @mpiassertEqual(381.12, eup(nlev - icld, 1, 1), atolerance, 'thermal at icloud :: upward fl  not correct')
-    @mpiassertEqual(-0.192, abso(nlev - icld, 1, 1), atolerance * 1e-2, 'thermal at icloud :: absorption not correct')
+    call assert_results(this, 'repwvl', edir, edn, eup, abso, lthermal, lsolar, ierr); call CHKERR(ierr)
 
     if (myid .eq. 0 .and. ldebug) print *, 'Computing Solar AND Thermal Radiation: '//trim(specint)
     lthermal = .true.; lsolar = .true.
@@ -358,22 +330,7 @@ contains
       end if
     end if
 
-    @mpiassertEqual( 95.54, edir(nlev, 1, 1), atolerance, 'solar at surface :: direct flux not correct')
-    @mpiassertEqual(352.19 + 335.19, edn(nlev, 1, 1), atolerance, 'solar+thermal at surface :: downw flux not correct')
-    @mpiassertEqual(134.32 + 384.09, eup(nlev, 1, 1), atolerance, 'solar+thermal at surface :: upward fl  not correct')
-    @mpiassertEqual(1.392e-02-1.432e-02, abso(nlev-1,1,1), atolerance*1e-2, 'solar+thermal at surface :: absorption not correct')
-
-    @mpiassertEqual(684.2709, edir(1, 1, 1), atolerance, 'solar+thermal at TOA :: direct flux not correct')
-    @mpiassertEqual(0, edn(1, 1, 1), atolerance, 'solar+thermal at TOA :: downw flux not correct')
-    @mpiassertEqual(234.00 + 248.66, eup(1, 1, 1), atolerance, 'solar+thermal at TOA :: upward fl  not correct')
-    @mpiassertEqual(3.595e-10 -1.656e-11, abso(1, 1, 1), atolerance * 1e-2, 'solar+thermal at TOA :: absorption not correct')
-
-    @mpiassertEqual(516.44, edir(nlev - icld, 1, 1), atolerance, 'solar+thermal at icloud :: direct flux not correct')
-    @mpiassertEqual(102.94, edir(nlev - icld + 1, 1, 1), atolerance, 'solar+thermal at icloud+1 :: direct flux not correct')
-    @mpiassertEqual(368.65 + 324.00, edn(nlev - icld + 1, 1, 1), atolerance, 'solar+thermal at icloud :: downw flux not correct')
-    @mpiassertEqual(216.10 + 381.12, eup(nlev - icld, 1, 1), atolerance, 'solar+thermal at icloud :: upward fl  not correct')
-    @mpiassertEqual(0.0201 - 0.192, abso(nlev - icld, 1, 1), atolerance * 1e-2, 'solar+thermal at icloud :: absorption not correct')
-
+    call assert_results(this, 'repwvl', edir, edn, eup, abso, lthermal, lsolar, ierr); call CHKERR(ierr)
   end subroutine
 
   @test(npes=[1,2])
@@ -415,21 +372,7 @@ contains
       end if
     end if
 
-    @mpiassertEqual( 93.13, edir(nlev, 1, 1), atolerance, 'solar at surface :: direct flux not correct')
-    @mpiassertEqual(344.54, edn(nlev, 1, 1), atolerance, 'solar at surface :: downw flux not correct')
-    @mpiassertEqual(131.30, eup(nlev, 1, 1), atolerance, 'solar at surface :: upward fl  not correct')
-    @mpiassertEqual(1.227e-02, abso(nlev - 1, 1, 1), atolerance * 1e-2, 'solar at surface :: absorption not correct')
-
-    @mpiassertEqual(680.50, edir(1, 1, 1), atolerance, 'solar at TOA :: direct flux not correct')
-    @mpiassertEqual(0, edn(1, 1, 1), atolerance, 'solar at TOA :: downw flux not correct')
-    @mpiassertEqual(227.62, eup(1, 1, 1), atolerance, 'solar at TOA :: upward fl  not correct')
-    @mpiassertEqual(3.174e-10, abso(1, 1, 1), atolerance * 1e-2, 'solar at TOA :: absorption not correct')
-
-    @mpiassertEqual(508.90, edir(nlev - icld, 1, 1), atolerance, 'solar at icloud :: direct flux not correct')
-    @mpiassertEqual(100.95, edir(nlev - icld + 1, 1, 1), atolerance, 'solar at icloud+1 :: direct flux not correct')
-    @mpiassertEqual(359.13, edn(nlev - icld + 1, 1, 1), atolerance, 'solar at icloud+1 :: downw flux not correct')
-    @mpiassertEqual(210.88, eup(nlev - icld, 1, 1), atolerance, 'solar at icloud :: upward fl  not correct')
-    @mpiassertEqual(0.0310, abso(nlev - icld, 1, 1), atolerance * 1e-2, 'solar at icloud :: absorption not correct')
+    call assert_results(this, 'ecckd', edir, edn, eup, abso, lthermal, lsolar, ierr); call CHKERR(ierr)
 
     if (myid .eq. 0 .and. ldebug) print *, 'Computing Thermal Radiation: '//trim(specint)
     lthermal = .true.; lsolar = .false.
@@ -452,17 +395,7 @@ contains
       end if
     end if
 
-    @mpiassertEqual(329.91, edn(nlev, 1, 1), atolerance, 'thermal at surface :: downw flux not correct')
-    @mpiassertEqual(384.06, eup(nlev, 1, 1), atolerance, 'thermal at surface :: upward fl  not correct')
-    @mpiassertEqual(-1.589e-02, abso(nlev - 1, 1, 1), atolerance * 1e-2, 'thermal at surface :: absorption not correct')
-
-    @mpiassertEqual(0.0, edn(1, 1, 1), atolerance, 'thermal at TOA :: downw flux not correct')
-    @mpiassertEqual(243.80, eup(1, 1, 1), atolerance, 'thermal at TOA :: upward fl  not correct')
-    @mpiassertEqual(-1.402e-08, abso(1, 1, 1), atolerance * 1e-2, 'thermal at TOA :: absorption not correct')
-
-    @mpiassertEqual(315.03, edn(nlev - icld + 1, 1, 1), atolerance, 'thermal at icloud :: downw flux not correct')
-    @mpiassertEqual(378.14, eup(nlev - icld, 1, 1), atolerance, 'thermal at icloud :: upward fl  not correct')
-    @mpiassertEqual(-0.173, abso(nlev - icld, 1, 1), atolerance * 1e-2, 'thermal at icloud :: absorption not correct')
+    call assert_results(this, 'ecckd', edir, edn, eup, abso, lthermal, lsolar, ierr); call CHKERR(ierr)
 
     if (myid .eq. 0 .and. ldebug) print *, 'Computing Solar AND Thermal Radiation: '//trim(specint)
     lthermal = .true.; lsolar = .true.
@@ -482,21 +415,6 @@ contains
       end if
     end if
 
-    @mpiassertEqual( 93.13, edir(nlev, 1, 1), atolerance, 'solar at surface :: direct flux not correct')
-    @mpiassertEqual(344.54 + 329.91, edn(nlev, 1, 1), atolerance, 'solar+thermal at surface :: downw flux not correct')
-    @mpiassertEqual(131.30 + 384.06, eup(nlev, 1, 1), atolerance, 'solar+thermal at surface :: upward fl  not correct')
-    @mpiassertEqual(1.227e-02-1.589e-02, abso(nlev-1,1,1), atolerance*1e-2, 'solar+thermal at surface :: absorption not correct')
-
-    @mpiassertEqual(680.50, edir(1, 1, 1), atolerance, 'solar+thermal at TOA :: direct flux not correct')
-    @mpiassertEqual(0, edn(1, 1, 1), atolerance, 'solar+thermal at TOA :: downw flux not correct')
-    @mpiassertEqual(227.62 + 243.80, eup(1, 1, 1), atolerance, 'solar+thermal at TOA :: upward fl  not correct')
-    @mpiassertEqual(3.174e-10 -1.402e-08, abso(1, 1, 1), atolerance * 1e-2, 'solar+thermal at TOA :: absorption not correct')
-
-    @mpiassertEqual(508.90, edir(nlev - icld, 1, 1), atolerance, 'solar+thermal at icloud :: direct flux not correct')
-    @mpiassertEqual(100.95, edir(nlev - icld + 1, 1, 1), atolerance, 'solar+thermal at icloud+1 :: direct flux not correct')
-    @mpiassertEqual(359.13 + 315.03, edn(nlev - icld + 1, 1, 1), atolerance, 'solar+thermal at icloud :: downw flux not correct')
-    @mpiassertEqual(210.88 + 378.14, eup(nlev - icld, 1, 1), atolerance, 'solar+thermal at icloud :: upward fl  not correct')
-    @mpiassertEqual(0.0310 - 0.173, abso(nlev - icld, 1, 1), atolerance * 1e-2, 'solar+thermal at icloud :: absorption not correct')
-
+    call assert_results(this, 'ecckd', edir, edn, eup, abso, lthermal, lsolar, ierr); call CHKERR(ierr)
   end subroutine
 end module
