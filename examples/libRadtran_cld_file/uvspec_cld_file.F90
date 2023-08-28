@@ -80,10 +80,15 @@ contains
     integer(iintegers) :: nxp, nyp, nzp ! local sizes of domain, nzp being number of layers
     integer(iintegers), allocatable :: nxproc(:), nyproc(:)
 
+    logical :: lflg
     integer(iintegers) :: k
 
     call mpi_comm_rank(comm, myid, ierr)
     call load_input(comm, cldfile, dx, dy, is, ie, js, je, hhl, lwc, reliq, ierr); call CHKERR(ierr)
+
+    call get_petsc_opt(PETSC_NULL_CHARACTER, '-dx', dx, lflg, ierr); call CHKERR(ierr)
+    if (lflg) dy = dx
+    call get_petsc_opt(PETSC_NULL_CHARACTER, '-dy', dy, lflg, ierr); call CHKERR(ierr)
 
     ! Determine Domain Decomposition
     call domain_decompose_2d_petsc(comm, &
