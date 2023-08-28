@@ -3336,6 +3336,28 @@ contains
           end do
         end associate
       end if
+
+      ! debug - disable sideward fluxes from top/bot faces
+      !associate (C_diff => solver%C_diff)
+      !  do j = C_diff%ys, C_diff%ye
+      !    do i = C_diff%xs, C_diff%xe
+      !      do k = C_diff%zs, C_diff%ze - 1
+      !        c(1:C_diff%dof, 1:C_diff%dof) => coeffs(:, k, i, j) ! dim(src,dst)
+      !        do src = 1, solver%difftop%dof
+      !          do dst_side = 1, solver%diffside%dof
+      !            idof = solver%difftop%dof + dst_side
+      !            c(src, idof) = 0
+      !            idof = solver%difftop%dof + solver%diffside%dof + dst_side
+      !            c(src, idof) = 0
+      !          enddo
+      !        end do
+      !        do src = solver%difftop%dof+1, C_diff%dof
+      !          c(src, :) = 0
+      !        enddo
+      !      end do
+      !    end do
+      !  end do
+      !end associate
     end subroutine
 
     !> @brief   apply blocking of diffuse radiation from buildings and do lambertian reflections
@@ -4907,7 +4929,8 @@ contains
                   bbot = atm%Bbot(i, j) * bfac
 
                 else
-                  emis = min(one, max(zero, one - atm%a11(ak, i, j) - atm%a12(ak, i, j)))
+                  emis = one - atm%a11(ak, i, j) - atm%a12(ak, i, j)
+                  emis = max(zero, min(one, emis))
 
                   call B_eff(b1, b0, tauz, btop)
                   call B_eff(b0, b1, tauz, bbot)
@@ -4936,6 +4959,7 @@ contains
                 bfac = pi * Az / real(solver%difftop%streams, ireals)
                 do iside = 1, solver%difftop%dof
                   emis = one - sum(diff2diff(src, :))
+                  emis = max(zero, min(one, emis))
                   if (solver%difftop%is_inward(iside) .eqv. .false.) then ! outgoing means Eup
                     xsrc(src, k, i, j) = xsrc(src, k, i, j) + btop * bfac * emis
                   else
@@ -4947,6 +4971,7 @@ contains
                 bfac = pi * Ax / real(solver%diffside%streams, ireals)
                 do iside = 1, solver%diffside%dof
                   emis = one - sum(diff2diff(src, :))
+                  emis = max(zero, min(one, emis))
                   if (iside .gt. solver%diffside%dof / 2) then ! upward streams
                     emis = btop * emis
                   else
@@ -4963,6 +4988,7 @@ contains
                 bfac = pi * Ay / real(solver%diffside%streams, ireals)
                 do iside = 1, solver%diffside%dof
                   emis = one - sum(diff2diff(src, :))
+                  emis = max(zero, min(one, emis))
                   if (iside .gt. solver%diffside%dof / 2) then ! upward streams
                     emis = btop * emis
                   else
@@ -4989,8 +5015,10 @@ contains
             do i = C_diff%xs, C_diff%xe
               do src = 0, solver%difftop%dof - 1
                 if (.not. solver%difftop%is_inward(i1 + src)) then !Eup
+                  emis = one - atm%albedo(i, j)
+                  emis = max(zero, min(one, emis))
                   xsrc(src, k, i, j) = xsrc(src, k, i, j) + atm%Bsrfc(i, j) &
-                                       * Az * (one - atm%albedo(i, j)) * pi / real(solver%difftop%streams, ireals)
+                                       * Az * emis * pi / real(solver%difftop%streams, ireals)
                 end if
               end do
             end do
