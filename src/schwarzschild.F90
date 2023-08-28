@@ -66,6 +66,18 @@ contains
     end function
   end subroutine
 
+  subroutine schwarzschild_radiance(tau, B_near, B_far, L)
+    real(ireals), intent(in) :: B_far, B_near, tau
+    real(ireals), intent(inout) :: L
+    real(ireals) :: tm1
+    if (tau .gt. 1e-3) then
+      tm1 = expm1(-tau)
+      L = L * (tm1 + 1) + (B_far - B_near) - (B_near - (B_far - B_near) / tau) * tm1
+    else
+      L = (B_near + B_far)*.5_ireals * tau + L * (1._ireals - tau)
+    end if
+  end subroutine
+
   subroutine schwarzschild(Nmu, dtau, albedo, Edn, Eup, planck, opt_srfc_emission)
     integer(iintegers), intent(in) :: Nmu
     real(ireals), intent(in), dimension(:) :: dtau
@@ -77,8 +89,7 @@ contains
 
     integer(iintegers) :: imu, k, ke, ke1
 
-    real(ireals) :: T(size(dtau)) ! Transmission coefficients
-    real(ireals) :: Lup, Ldn, B, Bsrfc
+    real(ireals) :: Lup, Ldn, Bsrfc
     real(ireals) :: dmu, mu
     real(ireals) :: legendre_wi(Nmu)
     real(ireals) :: legendre_pt(Nmu)
@@ -97,25 +108,25 @@ contains
       do imu = 1, size(legendre_pt)
         mu = legendre_pt(imu)
 
-        T = exp(-dtau / mu)
-
         ! zero incoming radiation at TOA
         Ldn = zero
-        Edn(1) = Edn(1) + Ldn * mu * legendre_wi(imu)
+        !Edn(1) = Edn(1) + Ldn * mu * legendre_wi(imu)
 
         do k = 1, ke
-          call B_eff(planck(k), planck(k + 1), dtau(k), B)
-          Ldn = Ldn * T(k) + B * (one - T(k))
+          call schwarzschild_radiance(dtau(k) / mu, planck(k), planck(k + 1), Ldn)
           Edn(k + 1) = Edn(k + 1) + Ldn * mu * legendre_wi(imu)
         end do
+      end do
+
+      do imu = 1, size(legendre_pt)
+        mu = legendre_pt(imu)
 
         ! Boundary conditions at surface
-        Lup = Bsrfc * (one - albedo) + albedo * Ldn
+        Lup = Bsrfc * (one - albedo) + albedo * Edn(ke1) * 2
         Eup(ke1) = Eup(ke1) + Lup * mu * legendre_wi(imu)
 
         do k = ke, 1, -1
-          call B_eff(planck(k + 1), planck(k), dtau(k), B)
-          Lup = Lup * T(k) + B * (one - T(k))
+          call schwarzschild_radiance(dtau(k) / mu, planck(k + 1), planck(k), Lup)
           Eup(k) = Eup(k) + Lup * mu * legendre_wi(imu)
         end do
       end do ! enddo mu
@@ -129,25 +140,26 @@ contains
       ! Transmission coefficients
       do imu = 1, Nmu
         mu = (real(imu, ireals) - .5_ireals) * dmu
-        T = exp(-dtau / mu)
 
         ! zero incoming radiation at TOA
         Ldn = zero
-        Edn(1) = Edn(1) + Ldn * mu
+        !Edn(1) = Edn(1) + Ldn * mu
 
         do k = 1, ke
-          call B_eff(planck(k), planck(k + 1), dtau(k), B)
-          Ldn = Ldn * T(k) + B * (one - T(k))
+          call schwarzschild_radiance(dtau(k) / mu, planck(k), planck(k + 1), Ldn)
           Edn(k + 1) = Edn(k + 1) + Ldn * mu
         end do
+      end do
+
+      do imu = 1, Nmu
+        mu = (real(imu, ireals) - .5_ireals) * dmu
 
         ! Boundary conditions at surface
-        Lup = Bsrfc * (one - albedo) + albedo * Ldn
+        Lup = Bsrfc * (one - albedo) + albedo * Edn(ke1) * 2 * dmu
         Eup(ke1) = Eup(ke1) + Lup * mu
 
         do k = ke, 1, -1
-          call B_eff(planck(k + 1), planck(k), dtau(k), B)
-          Lup = Lup * T(k) + B * (one - T(k))
+          call schwarzschild_radiance(dtau(k) / mu, planck(k + 1), planck(k), Lup)
           Eup(k) = Eup(k) + Lup * mu
         end do
 
