@@ -198,7 +198,18 @@ def setup_keras_model(inp, trgt, ident,
         activation=output_act,
         kernel_initializer=kernel_init ))
 
-    opt = getattr(tf.keras.optimizers, optimizer)(learning_rate=learning_rate)
+    opt_type = getattr(tf.keras.optimizers, optimizer)
+    opt_args = dict(learning_rate=learning_rate)
+
+    if 'momentum' in inspect.getargspec(opt_type).args:
+        opt_args ['momentum'] = .3
+
+    if 'nesterov' in inspect.getargspec(opt_type).args:
+        opt_args ['nesterov'] = True
+
+    print (f"Optimizer arguments: {optimizer} {opt_args}")
+
+    opt = opt_type(**opt_args)
 
     model.compile(loss=custom_loss, optimizer=opt, metrics=[loss_mae, loss_mse, loss_rmse, loss_bias] )
 
@@ -239,17 +250,18 @@ def train_keras_model(inp, trgt, model, train_split=.1, validation_split=.1, epo
             validation_data=(inp[valid_mask], trgt[valid_mask]),
             epochs=epochs,
             batch_size=batch_size,
-            callbacks=callbacks)
+            callbacks=callbacks,
+            shuffle=True)
 
-    import timeit
-    run_model = lambda: model.predict(inp)
-    dt = timeit.timeit(run_model, number=1)
-    print("Timing model performance: ", dt)
+    #import timeit
+    #run_model = lambda: model.predict(inp)
+    #dt = timeit.timeit(run_model, number=1)
+    #print("Timing model performance: ", dt)
 
     return model, history
 
 
-def tf2fornado(model, phys_input, outpath, verbose=True):
+def tf2fornado(model, phys_input, outpath, accuracy=None, verbose=True):
     import numpy as np
     import xarray as xr
 
@@ -267,6 +279,7 @@ def tf2fornado(model, phys_input, outpath, verbose=True):
     D.attrs['Nlayer'] = np.int32(len(layers))
     D.attrs['physical_input'] = np.int32(phys_input)
     D.attrs['keras_name'] = model.name
+    D.attrs['accuracy'] = accuracy
 
     for i, l in enumerate(layers):
         D["w{}".format(i)] = xr.DataArray(l.weights[0].numpy(), dims=("Ninp_{}".format(i), "Nout_{}".format(i)))
@@ -347,9 +360,13 @@ def _main():
     if args.load_model:
         import tensorflow as tf
         model = tf.keras.models.load_model(args.load_model, custom_objects=CUSTOM_OBJECTS)
+        from keras import backend as K
+        K.set_value(model.optimizer.lr, args.learn_rate)
+
     else:
+        ident = f"{args.varname}_phys{args.physical_axis}"
         model = setup_keras_model(inpvar, var,
-                ident=args.varname,
+                ident=ident,
                 n_hidden=args.Nlayers,
                 n_neurons=args.Nneurons,
                 optimizer=args.optimizer,
@@ -376,7 +393,8 @@ def _main():
     if args.export:
         import tensorflow as tf
         model = tf.keras.models.load_model(args.save_model, custom_objects=CUSTOM_OBJECTS)
-        tf2fornado(model, args.physical_axis, args.export)
+        accuracy = model.evaluate(inpvar, var)
+        tf2fornado(model, args.physical_axis, args.export, accuracy)
 
 
 if __name__ == "__main__":
