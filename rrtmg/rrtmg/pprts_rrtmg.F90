@@ -176,7 +176,7 @@ contains
 
       else
 
-        call find_iter_and_kernelwidth(Niter, kernel_width)
+        call find_iter_and_kernelwidth(solver, radius, Niter, kernel_width)
         do i = 1, Niter
           call dmda_convolve_ediff_srfc(solver%C_diff%da, kernel_width, edn(ubound(edn, 1):ubound(edn, 1), :, :))
           call dmda_convolve_ediff_srfc(solver%C_diff%da, kernel_width, eup(ubound(eup, 1):ubound(eup, 1), :, :))
@@ -184,50 +184,55 @@ contains
       end if
     end if
     call PetscLogEventEnd(log_events%smooth_surface_fluxes, ierr); call CHKERR(ierr)
-  contains
-    subroutine find_iter_and_kernelwidth(Niter, kernel_width)
-      integer(iintegers), intent(out) :: kernel_width, Niter
-      integer(iintegers), parameter :: test_Ni = 500
-      integer(iintegers), parameter :: Ni_limit = 250
-      integer(iintegers) :: i, min_iter
-      real(ireals) :: test_k(test_Ni), residuals(test_Ni)
-      real(ireals) :: radius_in_pixel
+  end subroutine
 
-      radius_in_pixel = radius / ((solver%atm%dx + solver%atm%dy) / 2)
-      ! Try a couple of number of iterations and determine optimal kernel_width
-      min_iter = 1
+  subroutine find_iter_and_kernelwidth(solver, radius, Niter, kernel_width)
+    class(t_solver), intent(in) :: solver                       ! solver type (e.g. t_solver_8_10)
+    real(ireals), intent(in) :: radius
+    integer(iintegers), intent(out) :: kernel_width, Niter
+    integer(iintegers), parameter :: test_Ni = 500
+    integer(iintegers), parameter :: Ni_limit = 250
+    integer(iintegers) :: i, min_iter
+    real(ireals) :: test_k(test_Ni), residuals(test_Ni)
+    real(ireals) :: radius_in_pixel
+    integer(mpiint) :: myid, ierr
+
+    call mpi_comm_rank(solver%comm, myid, ierr); call CHKERR(ierr)
+
+    radius_in_pixel = radius / ((solver%atm%dx + solver%atm%dy) / 2)
+    ! Try a couple of number of iterations and determine optimal kernel_width
+    min_iter = 1
+    do i = 1, test_Ni
+      test_k(i) = (sqrt((12 * radius_in_pixel**2 + real(i, ireals)) / real(i, ireals) + 1) - 1) / 2
+      if (nint(test_k(i)) .ge. min(solver%C_diff%xm, solver%C_diff%ym)) min_iter = i + 1
+    end do
+    if (min_iter .gt. Ni_limit) &
+      call CHKERR(int(min_iter, mpiint), 'the smoothing iteration count would be larger than '// &
+                  toStr(Ni_limit)//'... this could become expensive, you can set the value higher but I'// &
+                  'suspect that you are trying something weird')
+    ! We want it
+    ! as close as possible to an integer
+    ! and as big as possible
+    ! but not bigger than the local domain size
+    ! or a certain max value
+    residuals = abs(test_k - nint(test_k))
+
+    Niter = min_iter - 1 + minloc(residuals(min_iter:test_Ni), dim=1)
+    kernel_width = nint(test_k(Niter))
+
+    call imp_allreduce_max(solver%comm, Niter, i); Niter = i
+    call imp_allreduce_min(solver%comm, kernel_width, i); kernel_width = i
+
+    if (kernel_width .eq. 0) Niter = 0
+
+    if (ldebug .and. myid .eq. 0) then
       do i = 1, test_Ni
-        test_k(i) = (sqrt((12 * radius_in_pixel**2 + real(i, ireals)) / real(i, ireals) + 1) - 1) / 2
-        if (nint(test_k(i)) .ge. min(solver%C_diff%xm, solver%C_diff%ym)) min_iter = i + 1
+        print *, 'iter', i, 'test_k', test_k(i), residuals(i)
       end do
-      if (min_iter .gt. Ni_limit) &
-        call CHKERR(int(min_iter, mpiint), 'the smoothing iteration count would be larger than '// &
-                    toStr(Ni_limit)//'... this could become expensive, you can set the value higher but I'// &
-                    'suspect that you are trying something weird')
-      ! We want it
-      ! as close as possible to an integer
-      ! and as big as possible
-      ! but not bigger than the local domain size
-      ! or a certain max value
-      residuals = abs(test_k - nint(test_k))
+      print *, 'Smoothing diffuse srfc fluxes with radius', solver%atm%dx, radius, radius_in_pixel, &
+        'Niter', Niter, 'kwidth', kernel_width
+    end if
 
-      Niter = min_iter - 1 + minloc(residuals(min_iter:test_Ni), dim=1)
-      kernel_width = nint(test_k(Niter))
-
-      call imp_allreduce_max(solver%comm, Niter, i); Niter = i
-      call imp_allreduce_min(solver%comm, kernel_width, i); kernel_width = i
-
-      if (kernel_width .eq. 0) Niter = 0
-
-      if (ldebug .and. myid .eq. 0) then
-        do i = 1, test_Ni
-          print *, 'iter', i, 'test_k', test_k(i), residuals(i)
-        end do
-        print *, 'Smoothing diffuse srfc fluxes with radius', solver%atm%dx, radius, radius_in_pixel, &
-          'Niter', Niter, 'kwidth', kernel_width
-      end if
-
-    end subroutine
   end subroutine
 
   subroutine slope_correction_fluxes(solver, edir)
