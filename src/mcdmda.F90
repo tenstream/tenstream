@@ -150,6 +150,7 @@ contains
     real(ireal_dp), dimension(:, :, :, :), allocatable :: edir, ediff, abso
     integer(iintegers), dimension(:, :, :, :), allocatable :: Nediff, buildings_idx
 
+    real(ireals), parameter :: info_factor = 1000 ! report full percentages divided by this factor
     logical :: lmcdmda_info, lmcdmda_info_advance
 
     ierr = 0
@@ -381,15 +382,15 @@ contains
 
       if (lcomm_finished) then
         if (myid .eq. 0) then
-          percent_printed = int(100000 * real(globally_killed_photons) / real(Nphotons_global), kind(percent_printed))
+          percent_printed = int(100 * info_factor * real(globally_killed_photons) / real(Nphotons_global), kind(percent_printed))
           if (ldebug .or. lmcdmda_info .or. (percent_printed .ne. last_percent_printed)) then
             if (lmcdmda_info_advance) then
               print *, iter, 'Globally killed photons', globally_killed_photons, '/', Nphotons_global, &
-                '('//toStr(percent_printed)//' % )'
+                '('//toStr(percent_printed / info_factor)//' % )'
             else
               write (*, fmt="(A)", advance='no') repeat(c_backspace, 200)//'#it '//toStr(iter)// &
                 & ' Globally killed photons '//toStr(globally_killed_photons)//' / '//toStr(Nphotons_global)// &
-                & '( '//toStr(percent_printed / 100._ireals, '(F6.2)')//' % )'
+                & '( '//toStr(percent_printed / info_factor, '(F6.2)')//' % )'
               call flush (output_unit)
             end if
             last_percent_printed = percent_printed
