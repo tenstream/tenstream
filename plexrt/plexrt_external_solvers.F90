@@ -21,7 +21,7 @@ module m_plexrt_external_solvers
                          get_consecutive_vertical_cell_idx, &
                          TOAFACE, INNERSIDEFACE, dmplex_set_new_section
 
-  use m_schwarzschild, only: schwarzschild, B_eff
+  use m_schwarzschild, only: schwarzschild
   use m_twostream, only: delta_eddington_twostream
   use m_tenstr_disort, only: default_flx_computation
 

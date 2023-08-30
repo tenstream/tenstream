@@ -52,7 +52,7 @@ contains
     real(ireals), dimension(size(dtau)) :: a11, a12, a13, a23, a33
 
     integer(iintegers) :: i, j, k, ke, ke1, bi
-    real(ireals) :: R, T, emis, b0, b1
+    real(ireals) :: R, T, bup, bdn
     real(ireals), allocatable :: AB(:, :)
     real(ireals), allocatable :: B(:, :)
     integer(iintegers), allocatable :: IPIV(:)
@@ -102,11 +102,10 @@ contains
     ! Setup thermal src vector
     if (present(planck)) then
       do k = 1, ke
-        emis = max(zero, min(one, one - a11(k) - a12(k))) * pi
-        call B_eff(planck(k + 1), planck(k), dtau(k), b0)
-        call B_eff(planck(k), planck(k + 1), dtau(k), b1)
-        B(2 * k - 1, 1) = B(2 * k - 1, 1) + emis * b0
-        B(2 * k + 2, 1) = B(2 * k + 2, 1) + emis * b1
+        call B_eff(planck(k + 1), planck(k), dtau(k)*(one-w0(k)), bup)
+        call B_eff(planck(k), planck(k + 1), dtau(k)*(one-w0(k)), bdn)
+        B(2 * k - 1, 1) = B(2 * k - 1, 1) + bup
+        B(2 * k + 2, 1) = B(2 * k + 2, 1) + bdn
       end do
       if (present(planck_srfc)) then
         B(2 * ke1 - 1, 1) = B(2 * ke1 - 1, 1) + planck_srfc * (one - albedo) * pi
@@ -178,11 +177,12 @@ contains
 
   end subroutine
 
-  subroutine petsc_delta_eddington_twostream(dtau_in, w0_in, g_in, mu0, incSolar, albedo, S, Edn, Eup, planck)
+  subroutine petsc_delta_eddington_twostream(dtau_in, w0_in, g_in, mu0, incSolar, albedo, S, Edn, Eup, planck, planck_srfc)
     real(ireals), intent(in), dimension(:) :: dtau_in, w0_in, g_in
     real(ireals), intent(in) :: albedo, mu0, incSolar
     real(ireals), dimension(:), intent(out) :: S, Edn, Eup
     real(ireals), dimension(:), intent(in), optional :: planck
+    real(ireals), intent(in), optional :: planck_srfc
 
     character(len=*), parameter :: default_options = ''// &
                                    ' -twostream_ksp_type preonly'// &
@@ -197,7 +197,7 @@ contains
     real(ireals), dimension(size(dtau_in)) :: dtau, w0, g
     real(ireals), dimension(size(dtau_in)) :: a11, a12, a13, a23, a33
 
-    real(ireals) :: emis, b0, b1
+    real(ireals) :: bup, bdn
     integer(iintegers) :: i, j, k, ke, ke1, N
     integer(mpiint) :: ierr
 
@@ -272,15 +272,20 @@ contains
     ! Setup thermal src vector
     if (present(planck)) then
       do k = 1, ke
-        emis = max(zero, min(one, one - a11(k) - a12(k))) * pi
-        call B_eff(planck(k + 1), planck(k), dtau(k), b0)
-        call B_eff(planck(k), planck(k + 1), dtau(k), b1)
+        call B_eff(planck(k + 1), planck(k), dtau(k)*(one-w0(k)), bup)
+        call B_eff(planck(k), planck(k + 1), dtau(k)*(one-w0(k)), bdn)
         call VecSetValues(b, i2, &
                           [2 * k - 2, 2 * k + 1], &
-                          [emis * b0, emis * b1], &
+                          [bup, bdn], &
                           ADD_VALUES, ierr)
         call CHKERR(ierr)
       end do
+      if (present(planck_srfc)) then
+        call VecSetValue(b, 2 * ke1 - 2, planck_srfc*pi*(one-albedo), ADD_VALUES, ierr)
+      else
+        call VecSetValue(b, 2 * ke1 - 2, planck(ke1)*pi*(one-albedo), ADD_VALUES, ierr)
+      end if
+      call CHKERR(ierr)
     end if
 
     call VecAssemblyBegin(b, ierr); call CHKERR(ierr)

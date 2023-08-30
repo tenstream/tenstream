@@ -48,6 +48,7 @@ module m_boxmc
     & cross_3d, &
     & cstr, &
     & deg2rad, &
+    & expm1, &
     & get_arg, &
     & imp_reduce_sum, &
     & meanval, &
@@ -726,6 +727,7 @@ contains
     real(ireal_dp), intent(in) :: vertices(:), kabs, ksca, tau_scaling
     type(t_photon), intent(inout) :: p
     real(ireal_dp) :: dist, intersec_dist, travel_tau, wgt
+    real(ireal_dp) :: Btop, Bbot, B1, B2, dx, dy, dz, tauabs, tm1
 
     !call intersect_distance_convex_polytope(origins, normals, p, intersec_dist)
     call bmc%intersect_distance(vertices, p, intersec_dist)
@@ -743,13 +745,36 @@ contains
     p%tau_travel = travel_tau
     dist = distance(p%tau_travel, ksca)
 
-    if (intersec_dist .le. dist) then
-      p%alive = .false.
-      call update_photon_loc(p, intersec_dist, ksca)
-      call absorb_photon(p, intersec_dist, kabs)
+    if (p%src .lt. 0) then
+      Btop = 1
+      Bbot = 1
+      call setup_cube_coords_from_vertices(vertices, dx, dy, dz)
+      B1 = (Btop * p%loc(3) + Bbot * (dz - p%loc(3))) / dz ! planck at start of the ray
+      if (intersec_dist .le. dist) then
+        p%alive = .false.
+        call update_photon_loc(p, intersec_dist, ksca)
+        tauabs = kabs * intersec_dist
+      else
+        call update_photon_loc(p, dist, ksca)
+        tauabs = kabs * dist
+      end if
+
+      B2 = (Btop * p%loc(3) + Bbot * (dz - p%loc(3))) / dz ! planck at end of the ray
+      if (tauabs > 1e-10_ireal_dp) then
+        tm1 = expm1(-tauabs)
+        p%weight = p%weight * (tm1 + 1._ireal_dp) + (B2 - B1) - (B1 - (B2 - B1) / tauabs) * tm1
+      else
+        p%weight = p%weight * (1._ireal_dp - tauabs) + (B1 + B2)*.5_ireal_dp * tauabs
+      end if
     else
-      call update_photon_loc(p, dist, ksca)
-      call absorb_photon(p, dist, kabs)
+      if (intersec_dist .le. dist) then
+        p%alive = .false.
+        call update_photon_loc(p, intersec_dist, ksca)
+        call absorb_photon(p, intersec_dist, kabs)
+      else
+        call update_photon_loc(p, dist, ksca)
+        call absorb_photon(p, dist, kabs)
+      end if
     end if
 
     if (p%scattercnt .gt. 1e9_iintegers) then

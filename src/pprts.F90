@@ -4895,9 +4895,15 @@ contains
   contains
     subroutine set_thermal_source()
 
-      real(ireals) :: Ax, Ay, Az, emis, b0, b1, btop, bbot, bfac, tauz
-      integer(iintegers) :: k, i, j, src, iside, ak
+      real(ireals) :: Ax, Ay, Az, emis, b0, b1, btop, bbot, bside, bfac, tauz, transm
+      integer(iintegers) :: k, i, j, src, idof, ak
       real(ireals), pointer :: diff2diff(:, :) ! dim(src, dst)
+
+      logical :: lflg
+      real(ireals) :: side_emis_coeff
+
+      side_emis_coeff = 1.0_ireals
+      call get_petsc_opt(solver%prefix, '-pprts_side_emis_coeff', side_emis_coeff, lflg, ierr); call CHKERR(ierr)
 
       associate (atm => solver%atm, &
                  C_diff => solver%C_diff)
@@ -4922,20 +4928,16 @@ contains
 
               if (atm%l1d(ak)) then
 
-                bfac = pi * Az / real(solver%difftop%streams, ireals)
+                bfac = Az / real(solver%difftop%streams, ireals)
 
                 if (atm%lcollapse .and. k .eq. i0) then
                   btop = atm%Btop(i, j) * bfac
                   bbot = atm%Bbot(i, j) * bfac
-
                 else
-                  emis = one - atm%a11(ak, i, j) - atm%a12(ak, i, j)
-                  emis = max(zero, min(one, emis))
-
                   call B_eff(b1, b0, tauz, btop)
                   call B_eff(b0, b1, tauz, bbot)
-                  btop = btop * bfac * emis
-                  bbot = bbot * bfac * emis
+                  btop = btop * bfac
+                  bbot = bbot * bfac
                 end if
 
                 do src = 0, solver%difftop%dof - 1
@@ -4950,17 +4952,19 @@ contains
                 Ax = atm%dy * atm%dz(ak, i, j) / real(solver%diffside%area_divider, ireals)
                 Ay = atm%dx * atm%dz(ak, i, j) / real(solver%diffside%area_divider, ireals)
 
-                call B_eff(b1, b0, tauz, btop)
-                call B_eff(b0, b1, tauz, bbot)
+                transm = 1. !exp(-tauz * 1.66_ireals)
+                btop  = ((b0+b1)*.5_ireals*transm + b0 * (one-transm)) * pi
+                bbot  = ((b0+b1)*.5_ireals*transm + b1 * (one-transm)) * pi
+                bside = (b1+b0) * .5_ireals * pi * side_emis_coeff
 
                 diff2diff(0:C_diff%dof - 1, 0:C_diff%dof - 1) => solver%diff2diff(1:C_diff%dof**2, k, i, j)
 
                 src = 0
-                bfac = pi * Az / real(solver%difftop%streams, ireals)
-                do iside = 1, solver%difftop%dof
+                bfac = Az / real(solver%difftop%streams, ireals)
+                do idof = 1, solver%difftop%dof
                   emis = one - sum(diff2diff(src, :))
                   emis = max(zero, min(one, emis))
-                  if (solver%difftop%is_inward(iside) .eqv. .false.) then ! outgoing means Eup
+                  if (solver%difftop%is_inward(idof) .eqv. .false.) then ! outgoing means Eup
                     xsrc(src, k, i, j) = xsrc(src, k, i, j) + btop * bfac * emis
                   else
                     xsrc(src, k + 1, i, j) = xsrc(src, k + 1, i, j) + bbot * bfac * emis
@@ -4968,36 +4972,26 @@ contains
                   src = src + 1
                 end do
 
-                bfac = pi * Ax / real(solver%diffside%streams, ireals)
-                do iside = 1, solver%diffside%dof
+                bfac = Ax / real(solver%diffside%streams, ireals)
+                do idof = 1, solver%diffside%dof
                   emis = one - sum(diff2diff(src, :))
                   emis = max(zero, min(one, emis))
-                  if (iside .gt. solver%diffside%dof / 2) then ! upward streams
-                    emis = btop * emis
+                  if (solver%diffside%is_inward(idof) .eqv. .false.) then ! outgoing means towards +x
+                    xsrc(src, k, i, j) = xsrc(src, k, i, j) + bside * emis * bfac
                   else
-                    emis = bbot * emis
-                  end if
-                  if (solver%diffside%is_inward(iside) .eqv. .false.) then ! outgoing means towards +x
-                    xsrc(src, k, i, j) = xsrc(src, k, i, j) + emis * bfac
-                  else
-                    xsrc(src, k, i + 1, j) = xsrc(src, k, i + 1, j) + emis * bfac
+                    xsrc(src, k, i + 1, j) = xsrc(src, k, i + 1, j) + bside * emis * bfac
                   end if
                   src = src + 1
                 end do
 
-                bfac = pi * Ay / real(solver%diffside%streams, ireals)
-                do iside = 1, solver%diffside%dof
+                bfac = Ay / real(solver%diffside%streams, ireals)
+                do idof = 1, solver%diffside%dof
                   emis = one - sum(diff2diff(src, :))
                   emis = max(zero, min(one, emis))
-                  if (iside .gt. solver%diffside%dof / 2) then ! upward streams
-                    emis = btop * emis
+                  if (solver%diffside%is_inward(idof) .eqv. .false.) then ! outgoing means towards +y
+                    xsrc(src, k, i, j) = xsrc(src, k, i, j) + bside * emis * bfac
                   else
-                    emis = bbot * emis
-                  end if
-                  if (solver%diffside%is_inward(iside) .eqv. .false.) then ! outgoing means towards +y
-                    xsrc(src, k, i, j) = xsrc(src, k, i, j) + emis * bfac
-                  else
-                    xsrc(src, k, i, j + 1) = xsrc(src, k, i, j + 1) + emis * bfac
+                    xsrc(src, k, i, j + 1) = xsrc(src, k, i, j + 1) + bside * emis * bfac
                   end if
                   src = src + 1
                 end do
@@ -5854,12 +5848,12 @@ contains
         do src = 0, solver%difftop%dof - 1
           if (col(MatStencil_i, src) .eq. row(MatStencil_i, dst)) then ! for reflection, has to be the same k layers
 
-            if (src .ne. inv_dof(dst)) cycle ! in 1D has to be the inverse stream
+            if (src .ne. inv_dof(solver%difftop%is_inward, dst)) cycle ! in 1D has to be the inverse stream
             v(i1 + dst * solver%difftop%dof + src) = atm%a12(atmk(atm, k), i, j) ! TODO: should be using a21/a22 for upward streams?
             !print *,i,j,k,'setting r ',toStr(src)//' (k='//toStr(col(MatStencil_i,src))//') ->', &
             !  toStr(dst)//' (k='//toStr(row(MatStencil_i,dst))//')'// &
             !  ':', i1 + dst*solver%difftop%dof + src, v(i1 + dst*solver%difftop%dof + src), &
-            !  'invdof',src,dst,inv_dof(dst)
+            !  'invdof',src,dst,inv_dof(solver%difftop%is_inward, dst)
           else
 
             if (src .ne. dst) cycle ! in 1D has to be the same
@@ -5873,20 +5867,6 @@ contains
 
       call MatSetValuesStencil(A, solver%difftop%dof, row, solver%difftop%dof, col, -v, INSERT_VALUES, ierr); call CHKERR(ierr)
     end subroutine
-    pure function inv_dof(dof) ! returns the dof that is the same stream but the opposite direction
-      integer(iintegers), intent(in) :: dof
-      integer(iintegers) :: inv_dof, inc
-      if (solver%difftop%is_inward(1)) then ! starting with downward streams
-        inc = 1
-      else
-        inc = -1
-      end if
-      if (solver%difftop%is_inward(i1 + dof)) then ! downward stream
-        inv_dof = dof + inc
-      else
-        inv_dof = dof - inc
-      end if
-    end function
 
     !> @brief insert lower boundary condition, i.e. diffuse reflection of downward radiation
     subroutine set_albedo_coeff(solver, C, A)
@@ -5931,6 +5911,23 @@ contains
     end subroutine
 
   end subroutine
+
+  pure function inv_dof(is_inward, dof) ! returns the dof that is the same stream but the opposite direction
+    logical, intent(in) :: is_inward(:)
+    integer(iintegers), intent(in) :: dof
+    integer(iintegers) :: inv_dof, inc
+    if (is_inward(1)) then ! starting with downward streams
+      inc = 1
+    else
+      inc = -1
+    end if
+    if (is_inward(i1 + dof)) then ! downward stream
+      inv_dof = dof + inc
+    else
+      inv_dof = dof - inc
+    end if
+  end function
+
 
   subroutine pprts_get_result(solver, redn, reup, rabso, redir, opt_solution_uid, opt_buildings)
     class(t_solver) :: solver

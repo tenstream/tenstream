@@ -53,7 +53,7 @@ module m_pprts_external_solvers
 
   use m_schwarzschild, only: schwarzschild
 
-  use m_twostream, only: delta_eddington_twostream, adding_delta_eddington_twostream
+  use m_twostream, only: delta_eddington_twostream, adding_delta_eddington_twostream, petsc_delta_eddington_twostream
 
   use m_icon_plex_utils, only: create_2d_regular_plex, dmplex_2D_to_3D
 

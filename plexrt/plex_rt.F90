@@ -2121,6 +2121,7 @@ contains
         dz = geoms(i1 + geom_offset)
         tauz = xkabs(i1 + icell) * dz
 
+        call CHKERR(1_mpiint, 'TODO - this is not correct anymore')
         call B_eff(b1, b0, tauz, btop)
         call B_eff(b0, b1, tauz, bbot)
         bside = (btop + bbot) / 2

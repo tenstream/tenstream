@@ -25,7 +25,7 @@ module m_schwarzschild
 #endif
 
   use m_data_parameters, only: ireals, iintegers, zero, one, pi, EXP_MINVAL
-  use m_helper_functions, only: get_arg, expm1
+  use m_helper_functions, only: get_arg, expm1, CHKERR
   implicit none
 
   private
@@ -33,37 +33,24 @@ module m_schwarzschild
 
 contains
 
-  subroutine B_eff(B_far, B_near, tau, B)
-    real(ireals), intent(in) :: B_far, B_near, tau
+  subroutine B_eff(B_start, B_end, tau, B)
+    real(ireals), intent(in) :: B_start, B_end, tau
     real(ireals), intent(out) :: B
     integer(iintegers) :: imu
-    real(ireals) :: mu
+    real(ireals) :: mu, L
     integer(iintegers), parameter :: Nmu = 2
     real(ireals), save :: legendre_wi(Nmu) = -1._ireals
     real(ireals), save :: legendre_pt(Nmu) = -1._ireals
 
     if (legendre_wi(1) .lt. 0._ireals) call dgauss(size(legendre_wi), legendre_pt, legendre_wi)
-
     B = 0
     do imu = 1, size(legendre_pt)
       mu = legendre_pt(imu)
-      B = B + B_eff_mu(B_far, B_near, tau, mu) * mu * legendre_wi(imu)
+      L = 0
+      call schwarzschild_radiance(tau/mu, B_start, B_end, L)
+      B = B + L * mu * legendre_wi(imu)
     end do
-    B = B * 2
-
-  contains
-    real(ireals) function B_eff_mu(B_far, B_near, tau, mu)
-      real(ireals), intent(in) :: B_far, B_near, tau, mu
-      real(ireals) :: tm1, dtau
-      real(ireals), parameter :: eps = 1e-3_ireals
-      dtau = tau / mu
-      if (dtau .lt. eps) then
-        B_eff_mu = (B_far + B_near)*.5_ireals
-      else
-        tm1 = expm1(-dtau)
-        B_eff_mu = (-B_near + B_far * (tm1 + 1)) / (tm1) + ((B_far - B_near) * mu) / tau
-      end if
-    end function
+    B = B * 2 * pi
   end subroutine
 
   subroutine schwarzschild_radiance(tau, B_near, B_far, L)
@@ -74,7 +61,7 @@ contains
       tm1 = expm1(-tau)
       L = L * (tm1 + 1) + (B_far - B_near) - (B_near - (B_far - B_near) / tau) * tm1
     else
-      L = (B_near + B_far)*.5_ireals * tau + L * (1._ireals - tau)
+      L = L * (1._ireals - tau) + (B_near + B_far)*.5_ireals * tau
     end if
   end subroutine
 
@@ -91,9 +78,17 @@ contains
 
     real(ireals) :: Lup, Ldn, Bsrfc
     real(ireals) :: dmu, mu
-    real(ireals) :: legendre_wi(Nmu)
-    real(ireals) :: legendre_pt(Nmu)
+    integer, parameter :: Nmu_max = 128
+    integer, save :: Nmu_last = -1
+    real(ireals), save :: legendre_wi(Nmu_max) = -1._ireals
+    real(ireals), save :: legendre_pt(Nmu_max) = -1._ireals
     logical, parameter :: use_legendre = .true.
+
+    if (Nmu_last .ne. Nmu) then
+      if (Nmu.gt.Nmu_max) call CHKERR(Nmu, 'Increase Nmu_max and recompile... max Nmu setting is ', Nmu_max)
+      call dgauss(Nmu, legendre_pt(1:Nmu), legendre_wi(1:Nmu))
+      Nmu_last = Nmu
+    endif
 
     Edn = zero
     Eup = zero
