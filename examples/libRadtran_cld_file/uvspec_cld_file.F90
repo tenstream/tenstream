@@ -50,7 +50,7 @@ module m_example_uvspec_cld_file
 
 contains
   subroutine example_uvspec_cld_file_pprts(specint, comm, &
-                                           cldfile, atm_filename, outfile, &
+                                           wcfile, icfile, atm_filename, outfile, &
                                            albedo_th, albedo_sol, &
                                            lsolar, lthermal, &
                                            phi0, theta0, &
@@ -58,13 +58,14 @@ contains
 
     character(len=*), intent(in) :: specint                  ! name of module to use for spectral integration
     integer(mpiint), intent(in) :: comm
-    character(len=*), intent(in) :: cldfile, atm_filename, outfile
+    character(len=*), intent(in) :: wcfile, icfile, atm_filename, outfile
     real(ireals), intent(in) :: albedo_th, albedo_sol
     logical, intent(in) :: lsolar, lthermal
     real(ireals), intent(in) :: phi0, theta0 ! Sun's angles, azimuth phi(0=North, 90=East), zenith(0 high sun, 80=low sun)
     integer(iintegers), intent(in) :: scene_shift_x, scene_shift_y, scene_shift_it
 
     real(ireals), dimension(:, :, :), allocatable, target :: lwc, reliq ! will have global shape Nz, Nx, Ny
+    real(ireals), dimension(:, :, :), allocatable, target :: iwc, reice ! will have global shape Nz, Nx, Ny
     real(ireals), dimension(:, :, :), allocatable, target :: plev, tlev ! will have local shape nzp+1, nxp, nyp
     real(ireals), dimension(:), allocatable :: hhl ! dim Nz+1
     real(ireals), pointer :: z(:, :, :, :) => null(), z1d(:) => null() ! dim Nz+1
@@ -84,7 +85,17 @@ contains
     integer(iintegers) :: k
 
     call mpi_comm_rank(comm, myid, ierr)
-    call load_input(comm, cldfile, dx, dy, is, ie, js, je, hhl, lwc, reliq, ierr); call CHKERR(ierr)
+    call load_input(comm, wcfile, dx, dy, is, ie, js, je, hhl, lwc, reliq, ierr); call CHKERR(ierr)
+    call load_input(comm, icfile, dx, dy, is, ie, js, je, hhl, iwc, reice, ierr); call CHKERR(ierr)
+
+    if (.not. allocated(lwc)) then
+      allocate (lwc(lbound(iwc, 1):ubound(iwc, 1), lbound(iwc, 2):ubound(iwc, 2), lbound(iwc, 3):ubound(iwc, 3)), source=zero)
+      allocate (reliq(lbound(iwc, 1):ubound(iwc, 1), lbound(iwc, 2):ubound(iwc, 2), lbound(iwc, 3):ubound(iwc, 3)), source=zero)
+    end if
+    if (.not. allocated(iwc)) then
+      allocate (iwc(lbound(lwc, 1):ubound(lwc, 1), lbound(lwc, 2):ubound(lwc, 2), lbound(lwc, 3):ubound(lwc, 3)), source=zero)
+      allocate (reice(lbound(lwc, 1):ubound(lwc, 1), lbound(lwc, 2):ubound(lwc, 2), lbound(lwc, 3):ubound(lwc, 3)), source=zero)
+    end if
 
     call get_petsc_opt(PETSC_NULL_CHARACTER, '-dx', dx, lflg, ierr); call CHKERR(ierr)
     if (lflg) dy = dx
@@ -132,6 +143,10 @@ contains
       reliq = cshift(reliq, scene_shift_x, dim=2)
       lwc = cshift(lwc, scene_shift_y, dim=3)
       reliq = cshift(reliq, scene_shift_y, dim=3)
+      iwc = cshift(iwc, scene_shift_x, dim=2)
+      reice = cshift(reice, scene_shift_x, dim=2)
+      iwc = cshift(iwc, scene_shift_y, dim=3)
+      reice = cshift(reice, scene_shift_y, dim=3)
       call run_lw_sw(&
         & specint, &
         & pprts_solver, &
@@ -141,6 +156,8 @@ contains
         & plev, tlev, &
         & lwc(:, is:ie, js:je), &
         & reliq(:, is:ie, js:je), &
+        & iwc(:, is:ie, js:je), &
+        & reice(:, is:ie, js:je), &
         & albedo_th, albedo_sol, &
         & lsolar, lthermal, &
         & edir, edn, eup, abso)
@@ -283,15 +300,17 @@ contains
     character(len=*), intent(in) :: cldfile
     real(ireals), intent(out) :: dx, dy
     integer(iintegers), intent(out) :: is, ie, js, je
-    real(ireals), allocatable, intent(out) :: hhl(:)
-    real(ireals), allocatable, intent(out) :: lwc(:, :, :)
-    real(ireals), allocatable, intent(out) :: reliq(:, :, :)
+    real(ireals), allocatable, intent(inout) :: hhl(:)
+    real(ireals), allocatable, intent(inout) :: lwc(:, :, :)
+    real(ireals), allocatable, intent(inout) :: reliq(:, :, :)
     integer(mpiint), intent(out) :: ierr
 
     integer(mpiint) :: myid
     real(ireals), dimension(:, :, :), allocatable :: tmp ! used to resize input data
     character(len=default_str_len) :: groups(2)
     logical :: lflg
+
+    if (len_trim(cldfile) .eq. 0) return
 
     call mpi_comm_rank(comm, myid, ierr)
     ! Load LibRadtran Cloud File
@@ -346,7 +365,7 @@ contains
   end subroutine
 
   subroutine run_lw_sw(specint, pprts_solver, nxproc, nyproc, atm_filename, dx, dy, phi0, theta0, &
-                       plev, tlev, lwc, reliq, albedo_th, albedo_sol, lsolar, lthermal, &
+                       plev, tlev, lwc, reliq, iwc, reice, albedo_th, albedo_sol, lsolar, lthermal, &
                        edir, edn, eup, abso)
     character(len=*), intent(in) :: specint                  ! name of module to use for spectral integration
     class(t_solver) :: pprts_solver
@@ -354,6 +373,7 @@ contains
     real(ireals), intent(in) :: dx, dy       ! horizontal grid spacing in [m]
     real(ireals), intent(in) :: phi0, theta0 ! Sun's angles, azimuth phi(0=North, 90=East), zenith(0 high sun, 80=low sun)
     real(ireals), intent(in), dimension(:, :, :), contiguous, target :: lwc, reliq ! dim(Nz,Nx,Ny)
+    real(ireals), intent(in), dimension(:, :, :), contiguous, target :: iwc, reice ! dim(Nz,Nx,Ny)
     real(ireals), intent(in) :: albedo_th, albedo_sol ! broadband ground albedo for solar and thermal spectrum
     logical, intent(in) :: lsolar, lthermal ! switches if solar or thermal computations should be done
     real(ireals), dimension(:, :, :), contiguous, target, intent(in) :: plev ! pressure on layer interfaces [hPa]   dim=nzp+1,nxp,nyp
@@ -388,7 +408,7 @@ contains
     integer(iintegers) :: k, nlev
 
     ! reshape pointer to convert i,j vecs to column vecs
-    real(ireals), pointer, dimension(:, :) :: pplev, ptlev, plwc, preliq
+    real(ireals), pointer, dimension(:, :) :: pplev, ptlev, plwc, preliq, piwc, preice
     real(ireals) :: sundir(3)
 
     logical, parameter :: ldebug = .true.
@@ -414,12 +434,15 @@ contains
     ptlev(1:size(tlev, 1), 1:size(tlev, 2) * size(tlev, 3)) => tlev
     plwc(1:size(lwc, 1), 1:size(lwc, 2) * size(lwc, 3)) => lwc
     preliq(1:size(reliq, 1), 1:size(reliq, 2) * size(reliq, 3)) => reliq
+    piwc(1:size(iwc, 1), 1:size(iwc, 2) * size(iwc, 3)) => iwc
+    preice(1:size(reice, 1), 1:size(reice, 2) * size(reice, 3)) => reice
 
     sundir = spherical_2_cartesian(phi0, theta0)
 
     call setup_tenstr_atm(comm, .false., atm_filename, &
                           pplev, ptlev, atm, &
-                          d_lwc=plwc, d_reliq=preliq)
+                          d_lwc=plwc, d_reliq=preliq, &
+                          d_iwc=piwc, d_reice=preice)
 
     !if(myid.eq.0) call print_tenstr_atm(atm)
 
@@ -754,8 +777,8 @@ program main
   implicit none
 
   integer(mpiint) :: ierr, myid
-  logical :: lthermal, lsolar, lflg
-  character(len=10*default_str_len) :: cldfile, outfile
+  logical :: lthermal, lsolar, lflg, lflgwc, lflgic
+  character(len=10*default_str_len) :: wcfile, icfile, outfile
   real(ireals) :: Ag, phi0, theta0, Tsrfc, dTdz
   character(len=default_str_len) :: atm_filename, specint
   integer(iintegers) :: scene_shift_x, scene_shift_y, scene_shift_it
@@ -770,8 +793,15 @@ program main
   specint = 'no default set'
   call get_petsc_opt(PETSC_NULL_CHARACTER, '-specint', specint, lflg, ierr); call CHKERR(ierr)
 
-  call get_petsc_opt(PETSC_NULL_CHARACTER, '-cld', cldfile, lflg, ierr); call CHKERR(ierr)
-  if (.not. lflg) call CHKERR(1_mpiint, 'need to supply a cloud filename... please call with -cld <libRadtran_cloud_file.nc>')
+  wcfile = ''
+  call get_petsc_opt(PETSC_NULL_CHARACTER, '-wc', wcfile, lflgwc, ierr); call CHKERR(ierr)
+  icfile = ''
+  call get_petsc_opt(PETSC_NULL_CHARACTER, '-ic', icfile, lflgic, ierr); call CHKERR(ierr)
+
+  if ((.not. lflgwc) .and. (.not. lflgic)) then
+    call CHKERR(1_mpiint, 'need to supply a cloud filename... please call with: '// &
+      & ' -wc <water_cloud_file.nc> or -ic <ice_cloud_file.nc>')
+  end if
 
   call get_petsc_opt(PETSC_NULL_CHARACTER, '-out', outfile, lflg, ierr); call CHKERR(ierr)
   if (.not. lflg) call CHKERR(1_mpiint, 'need to supply a output filename... please call with -out <output.nc>')
@@ -814,13 +844,14 @@ program main
     call CHKERR(int(scene_shift_x, mpiint), 'not supported option')
     call CHKERR(int(scene_shift_y, mpiint), 'not supported option')
     call CHKERR(int(scene_shift_it - 1, mpiint), 'not supported option')
+    if (lflgic) call CHKERR(1_mpiint, 'ice cloud not supported for plexrt wrapper')
     call example_uvspec_cld_file_with_plexrt(&
-      & mpi_comm_world, cldfile, atm_filename, outfile, &
+      & mpi_comm_world, wcfile, atm_filename, outfile, &
       & zero, Ag, lsolar, lthermal, phi0, theta0, Tsrfc, dTdz)
   else
     call example_uvspec_cld_file_pprts(&
       & specint, &
-      & mpi_comm_world, cldfile, atm_filename, outfile, &
+      & mpi_comm_world, wcfile, icfile, atm_filename, outfile, &
       & zero, Ag, lsolar, lthermal, phi0, theta0, &
       & scene_shift_x, scene_shift_y, scene_shift_it)
   end if
