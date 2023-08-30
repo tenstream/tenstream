@@ -226,7 +226,7 @@ contains
             print *, k, 'edir', meanval(edir(k, :, :)), 'edn', meanval(edn(k, :, :)), 'eup', meanval(eup(k, :, :)), &
               & 'abso', meanval(abso(min(nlev - 1, k), :, :)), 'hr', meanval(hr(min(nlev - 1, k), :, :)) * 3600 * 24
           else
-            print *, k, 'edn', meanval(edn(k, :, :)), 'eup', meanval(eup(k, :, :)), &
+            print *, k, 'edir', 0, 'edn', meanval(edn(k, :, :)), 'eup', meanval(eup(k, :, :)), &
               & 'abso', meanval(abso(min(nlev - 1, k), :, :)), 'hr', meanval(hr(min(nlev - 1, k), :, :)) * 3600 * 24
           end if
         end do
