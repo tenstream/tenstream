@@ -117,7 +117,7 @@ module m_mcdmda
 
   real(ireal_dp), parameter :: loceps = 0 !sqrt(epsilon(loceps))
 
-  real(ireals), parameter :: blocking_waittime = 5 ! sec
+  real(ireals) :: blocking_waittime ! sec
 contains
 
   subroutine solve_mcdmda(solver, edirTOA, solution, ierr, opt_buildings)
@@ -150,6 +150,8 @@ contains
     real(ireal_dp), dimension(:, :, :, :), allocatable :: edir, ediff, abso
     integer(iintegers), dimension(:, :, :, :), allocatable :: Nediff, buildings_idx
 
+    logical :: lmcdmda_info, lmcdmda_info_advance
+
     ierr = 0
 
     call determine_Nphotons(solver, Nphotons_local, ierr); call CHKERR(ierr)
@@ -158,8 +160,20 @@ contains
 
     call mpi_comm_rank(solver%comm, myid, ierr); call CHKERR(ierr)
 
+    lmcdmda_info = .false.
+    call get_petsc_opt("", "-mcdmda_info", lmcdmda_info, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt(solver%prefix, "-mcdmda_info", lmcdmda_info, lflg, ierr); call CHKERR(ierr)
+
+    lmcdmda_info_advance = .false.
+    call get_petsc_opt("", "-mcdmda_info_advance", lmcdmda_info_advance, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt(solver%prefix, "-mcdmda_info_advance", lmcdmda_info_advance, lflg, ierr); call CHKERR(ierr)
+
     call get_petsc_opt("", "-mcdmda_full3d", lfull3d, lflg, ierr); call CHKERR(ierr)
     call get_petsc_opt(solver%prefix, "-mcdmda_full3d", lfull3d, lflg, ierr); call CHKERR(ierr)
+
+    blocking_waittime = 5
+    call get_petsc_opt("", "-mcdmda_queue_waittime", blocking_waittime, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt(solver%prefix, "-mcdmda_queue_waittime", blocking_waittime, lflg, ierr); call CHKERR(ierr)
 
     Nbatchsize = 10000
     call get_petsc_opt("", "-mcdmda_batch_size", rNbatchsize, lflg, ierr); call CHKERR(ierr)
@@ -167,10 +181,13 @@ contains
     if (lflg .or. lflg2) Nbatchsize = int(rNbatchsize, kind(Nbatchsize))
     Nbatchsize = min(Nbatchsize, Nphotons_local)
 
-    Nqueuesize = int(Nphotons_local, int64)
+    Nqueuesize = Nbatchsize
     call get_petsc_opt("", "-mcdmda_queue_size", rNqueuesize, lflg, ierr); call CHKERR(ierr)
     call get_petsc_opt(solver%prefix, "-mcdmda_queue_size", rNqueuesize, lflg2, ierr); call CHKERR(ierr)
     if (lflg .or. lflg2) Nqueuesize = int(rNqueuesize, kind(Nqueuesize))
+
+    if (lmcdmda_info .and. myid .eq. 0) print *, myid, 'Nphotons_local', Nphotons_local, 'Nphotons_global', Nphotons_global, &
+      & 'Batch_size', Nbatchsize, 'Nqueuesize', Nqueuesize, 'QueueWaittime', blocking_waittime
 
     lfinish_border_photons_first = .false.
     call get_petsc_opt("", "-mcdmda_finish_border_photons_first", lfinish_border_photons_first, lflg, ierr)
@@ -179,7 +196,7 @@ contains
 
     associate (C => solver%C_one_atm, C1 => solver%C_one_atm1, Cdir => solver%C_dir, Cdiff => solver%C_diff)
       if (ldebug) then
-        print *, myid, 'Edir TOA', edirTOA, ': Nphotons_local', Nphotons_local, 'Nphotons_global', Nphotons_global
+        print *, myid, 'Edir TOA', edirTOA, 'full3d', lfull3d
         print *, myid, 'Domain start:', C%zs, C%xs, C%ys
         print *, myid, 'Domain end  :', C%ze, C%xe, C%ye
         print *, myid, 'Domain Size :', C%zm, C%xm, C%ym
@@ -364,14 +381,17 @@ contains
 
       if (lcomm_finished) then
         if (myid .eq. 0) then
-          percent_printed = int(10000 * real(globally_killed_photons) / real(Nphotons_global), kind(percent_printed))
-          if (ldebug .or. (percent_printed .ne. last_percent_printed)) then
-            !print *, iter, 'Globally killed photons', globally_killed_photons, '/', Nphotons_global, &
-            !  '('//toStr(percent_printed)//' % )'
-            write (*, fmt="(A)", advance='no') repeat(c_backspace, 200)//'#it '//toStr(iter)// &
-              & ' Globally killed photons '//toStr(globally_killed_photons)//' / '//toStr(Nphotons_global)// &
-              & '( '//toStr(percent_printed / 100._ireals, '(F6.2)')//' % )'
-            call flush (output_unit)
+          percent_printed = int(100000 * real(globally_killed_photons) / real(Nphotons_global), kind(percent_printed))
+          if (ldebug .or. lmcdmda_info .or. (percent_printed .ne. last_percent_printed)) then
+            if (lmcdmda_info_advance) then
+              print *, iter, 'Globally killed photons', globally_killed_photons, '/', Nphotons_global, &
+                '('//toStr(percent_printed)//' % )'
+            else
+              write (*, fmt="(A)", advance='no') repeat(c_backspace, 200)//'#it '//toStr(iter)// &
+                & ' Globally killed photons '//toStr(globally_killed_photons)//' / '//toStr(Nphotons_global)// &
+                & '( '//toStr(percent_printed / 100._ireals, '(F6.2)')//' % )'
+              call flush (output_unit)
+            end if
             last_percent_printed = percent_printed
           end if
         end if
