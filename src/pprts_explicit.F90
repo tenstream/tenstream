@@ -32,7 +32,7 @@ module m_pprts_explicit
     & approx, &
     & CHKERR, &
     & get_petsc_opt, &
-    & imp_min_mean_max, &
+    & imp_allreduce_mean, &
     & mpi_logical_and, &
     & toStr
 
@@ -78,7 +78,7 @@ contains
     integer(iintegers) :: iter, maxiter, maxit_ignore
 
     real(ireals), allocatable :: residual(:)
-    real(ireals) :: residual_mmm(3), rel_residual, atol, rtol, atol_default, rtol_default
+    real(ireals) :: residual_mean, rel_residual, atol, rtol, atol_default, rtol_default
 
     integer(iintegers), parameter :: default_max_it = 1000
     real(ireals) :: ignore_max_it! Ignore max iter setting if time is less
@@ -193,30 +193,24 @@ contains
           xg = x0(:, :, C%xs:C%xe, C%ys:C%ye)
           call restoreVecPointer(C%da, vedir, xg1d, xg)
           call restoreVecPointer(C%da, v0, x01d, x0, readonly=.true.)
+
+          call imp_allreduce_mean(solver%comm, residual(iter), residual_mean)
+          residual(iter) = residual_mean
+
           if (residual(1) .le. sqrt(tiny(residual))) then
             rel_residual = 0
           else
             rel_residual = residual(iter) / residual(1)
           end if
+
           if (solver%myid .eq. 0 .and. lmonitor_residual) then
-            call imp_min_mean_max(solver%comm, residual(iter), residual_mmm)
-            residual(iter) = residual_mmm(2)
-            if (residual(1) .le. sqrt(tiny(residual))) then
-              rel_residual = 0
-            else
-              rel_residual = residual(iter) / residual(1)
-            end if
-            print *, trim(prefix)//" iter "//toStr(iter)//' residual (min/mean/max)', residual_mmm, &
-              & 'rel res', rel_residual
+            print *, trim(prefix)//" iter "//toStr(iter)//' residual', residual_mean, 'rel res', rel_residual
           end if
           solution%dir_ksp_residual_history(min(size(solution%dir_ksp_residual_history, kind=iintegers), iter)) = residual(iter)
 
-          lconverged_atol = mpi_logical_and(solver%comm, residual(iter) .lt. atol)
-          if (.not. lconverged_atol) then ! only reduce converged_RTOL if necessary
-            lconverged_rtol = mpi_logical_and(solver%comm, rel_residual .lt. rtol)
-          else
-            lconverged_rtol = .false.
-          end if
+          lconverged_atol = residual(iter) .lt. atol
+          lconverged_rtol = rel_residual .lt. rtol
+
           if (lconverged_atol .or. lconverged_rtol) then
             if (solver%myid .eq. 0 .and. lconverged_reason) then
               if (lconverged_atol) then
@@ -496,7 +490,7 @@ contains
     integer(iintegers) :: iter, isub, maxiter, sub_iter, maxit_ignore
 
     real(ireals), allocatable :: residual(:)
-    real(ireals) :: residual_mmm(3), rel_residual, atol, rtol, atol_default, rtol_default
+    real(ireals) :: residual_mean, rel_residual, atol, rtol, atol_default, rtol_default
 
     integer(iintegers), parameter :: default_max_it = 10000
     real(ireals) :: ignore_max_it! Ignore max iter setting if time is less
@@ -602,7 +596,7 @@ contains
       call DMGlobalToLocalBegin(C%da, vb, INSERT_VALUES, lvb, ierr); call CHKERR(ierr)
       call DMGlobalToLocalEnd(C%da, vb, INSERT_VALUES, lvb, ierr); call CHKERR(ierr)
 
-      do iter = 1, maxiter
+      sorloop: do iter = 1, maxiter
         do isub = 1, sub_iter
           if (approx(omega_adaptive, 1._ireals)) then
             if (modulo(iter + isub, 2) .eq. 0) then
@@ -658,30 +652,26 @@ contains
           call restoreVecPointer(C%da, v0, x01d, x0, readonly=.true.)
           call restoreVecPointer(C%da, vediff, xg1d, xg)
 
+          call imp_allreduce_mean(solver%comm, residual(iter), residual_mean)
+          residual(iter) = residual_mean
+
           if (residual(1) .le. sqrt(tiny(residual))) then
             rel_residual = 0
           else
             rel_residual = residual(iter) / residual(1)
           end if
+
           if (solver%myid .eq. 0 .and. lmonitor_residual) then
-            call imp_min_mean_max(solver%comm, residual(iter), residual_mmm)
-            residual(iter) = residual_mmm(2)
-            if (residual(1) .le. sqrt(tiny(residual))) then
-              rel_residual = 0
-            else
-              rel_residual = residual(iter) / residual(1)
-            end if
-            print *, trim(prefix), ' iter ', toStr(iter), ' residual (min/mean/max)', residual_mmm, &
-              & 'rel res', rel_residual, 'omega', omega_adaptive
+            print *, trim(prefix), ' iter ', toStr(iter), &
+              & ' residual', residual_mean, &
+              & 'rel res', rel_residual, &
+              & 'omega', omega_adaptive
           end if
           solution%diff_ksp_residual_history(min(size(solution%diff_ksp_residual_history, kind=iintegers), iter)) = residual(iter)
 
-          lconverged_atol = mpi_logical_and(solver%comm, residual(iter) .lt. atol)
-          if (.not. lconverged_atol) then ! only reduce converged_RTOL if necessary
-            lconverged_rtol = mpi_logical_and(solver%comm, rel_residual .lt. rtol)
-          else
-            lconverged_rtol = .false.
-          end if
+          lconverged_atol = residual(iter) .lt. atol
+          lconverged_rtol = rel_residual .lt. rtol
+
           if (lconverged_atol .or. lconverged_rtol) then
             if (solver%myid .eq. 0 .and. lconverged_reason) then
               if (lconverged_atol) then
@@ -690,7 +680,7 @@ contains
                 print *, trim(prefix)//' solve converged due to CONVERGED_RTOL iterations', iter
               end if
             end if
-            exit
+            exit sorloop
           end if
 
           if (ladaptive_omega) then
@@ -726,7 +716,7 @@ contains
             call CHKERR(int(iter, mpiint), trim(prefix)//" did not converge")
           end if
         end if
-      end do ! iter
+      end do sorloop
 
       call getVecPointer(C%da, vediff, xg1d, xg)
       call getVecPointer(C%da, v0, x01d, x0, readonly=.true.)
