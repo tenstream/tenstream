@@ -201,9 +201,9 @@ intel-icx:
     I_MPI_FC: ifx
     I_MPI_F90: ifx
     I_MPI_CXX: icpx
-    CC: mpiicx
-    FC: mpiifx
-    CXX: mpiicpx
+    CC: mpicc
+    FC: mpif90
+    CXX: mpicxx
 
 #intel:debug:
 #  stage: build_docker
