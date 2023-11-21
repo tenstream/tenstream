@@ -199,6 +199,7 @@ intel-icx:
     PETSC_64_INTEGERS: 1
     PETSC_DEBUGGING: 1
     BUILD_TYPE: RELEASE
+    CMAKE_OPTS: '-DSYST=intel'
     I_MPI_CC: icx
     I_MPI_FC: ifx
     I_MPI_F90: ifx
