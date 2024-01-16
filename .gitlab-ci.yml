@@ -7,7 +7,7 @@ check_fprettify:pre:
   stage: pre
   image: alpine
   tags:
-    - docker.meteo.physik.lmu.de
+    - docker.physik.lmu.de
   before_script:
     - apk update && apk add bash git python3
   script:
@@ -75,7 +75,7 @@ ubuntu-latest:
     - echo -e "\e[0Ksection_end:`date +%s`:apt_install\r\e[0K"
     - *template_build_PETSC
   tags:
-    - docker.meteo.physik.lmu.de
+    - docker.physik.lmu.de
   variables:
     CTEST_ARGS: "-E ${TEST_FILTER_WITHOUT_LUTS}"
     MPIRUN_FLAGS: "--allow-run-as-root;--oversubscribe"
@@ -98,7 +98,7 @@ ubuntu-rolling:
   after_script:
     -  bash <(curl -s https://codecov.io/bash) || echo 'Codecov failed to upload'
   tags:
-    - docker.meteo.physik.lmu.de
+    - docker.physik.lmu.de
   variables:
     CTEST_ARGS: "-E ${TEST_FILTER_WITHOUT_LUTS}"
     MPIRUN_FLAGS: "--allow-run-as-root;--oversubscribe"
@@ -123,7 +123,7 @@ ubuntu-rolling:
 #  after_script:
 #    -  bash <(curl -s https://codecov.io/bash) || echo 'Codecov failed to upload'
 #  tags:
-#    - docker.meteo.physik.lmu.de
+#    - docker.physik.lmu.de
 #  variables:
 #    CTEST_ARGS: "-E ${TEST_FILTER_WITHOUT_LUTS}"
 #    MPIRUN_FLAGS: "--allow-run-as-root;--oversubscribe"
@@ -146,7 +146,7 @@ debian-testing:
     - echo -e "\e[0Ksection_end:`date +%s`:apt_install\r\e[0K"
     - *template_build_PETSC
   tags:
-    - docker.meteo.physik.lmu.de
+    - docker.physik.lmu.de
   variables:
     CTEST_ARGS: "-E ${TEST_FILTER_WITHOUT_LUTS}"
     MPIRUN_FLAGS: "--allow-run-as-root;--oversubscribe"
@@ -169,7 +169,7 @@ debian-testing:
 #    - echo -e "\e[0Ksection_end:`date +%s`:apt_install\r\e[0K"
 #    - *template_build_PETSC
 #  tags:
-#    - docker.meteo.physik.lmu.de
+#    - docker.physik.lmu.de
 #  variables:
 #    CTEST_ARGS: "-E ${TEST_FILTER_WITHOUT_LUTS}"
 #    PETSC_PRECISION: single
@@ -192,7 +192,7 @@ intel-icx:
     - echo -e "\e[0Ksection_end:`date +%s`:apt_install\r\e[0K"
     - *template_build_PETSC
   tags:
-    - docker.meteo.physik.lmu.de
+    - docker.physik.lmu.de
   variables:
     CTEST_ARGS: "-E ${TEST_FILTER_WITHOUT_LUTS}"
     PETSC_PRECISION: double
@@ -221,7 +221,7 @@ intel-icx:
 #    - echo -e "\e[0Ksection_end:`date +%s`:apt_install\r\e[0K"
 #    - *template_build_PETSC
 #  tags:
-#    - docker.meteo.physik.lmu.de
+#    - docker.physik.lmu.de
 #  variables:
 #    CTEST_ARGS: "-E ${TEST_FILTER_WITHOUT_LUTS}"
 #    PETSC_PRECISION: double
