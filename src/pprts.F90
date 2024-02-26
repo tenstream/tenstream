@@ -143,7 +143,7 @@ module m_pprts
     & explicit_edir, &
     & explicit_ediff
 
-  use m_buildings, only: t_pprts_buildings
+  use m_buildings, only: t_pprts_buildings, buildingid2str
 
   use m_boxmc_geometry, only: &
     & PPRTS_TOP_FACE, &
@@ -6033,6 +6033,7 @@ contains
 
       if (present(opt_buildings)) then
         call fill_buildings()
+        call check_buildings_energy_balance()
       end if
 
       call dump_to_xdmf()
@@ -6322,7 +6323,53 @@ contains
 
         call restoreVecPointer(C%da, solution%ediff, x1d, x4d, readonly=.true.)
         call DMRestoreLocalVector(C%da, lediff, ierr); call CHKERR(ierr)
+
       end associate
+
+    end subroutine
+
+    subroutine check_buildings_energy_balance()
+      integer(mpiint) :: myid, errcnt
+      integer(iintegers) :: m, idx(4)
+      real(ireals) :: balance, balance_limit
+      logical :: lflg
+
+      balance_limit = -1
+      call get_petsc_opt(solver%prefix, '-pprts_check_buildings_energy_balance', balance_limit, lflg, ierr); call CHKERR(ierr)
+
+      if (balance_limit .ge. 0) then
+        if (solver%myid .eq. 0) then
+          print *, 'Checking buildings fluxes for energy balance'
+        end if
+
+        associate (                              &
+            & solution => solver%solutions(uid), &
+            & B => opt_buildings,                &
+            & C => solver%C_dir)
+
+          errcnt = 0
+          if (solution%lsolar_rad) then
+            do m = 1, size(B%iface)
+              balance = (B%edir(m) + B%incoming(m)) * B%albedo(m) - B%outgoing(m)
+              if (abs(balance) .ge. balance_limit) then
+                call ind_1d_to_nd(B%da_offsets, B%iface(m), idx)
+                idx(2:4) = idx(2:4) - 1 + [C%zs, C%xs, C%ys]
+                errcnt = errcnt + 1
+                print *, myid, 'Failed energy balance check', &
+                  & 'face nr.', m, 'faceidx', B%iface(m), 'cell_kij', idx(2:4), buildingid2str(idx(1)), &
+                  & 'edir', B%edir(m), &
+                  & 'ediff', B%incoming(m), &
+                  & 'albedo', B%albedo(m), &
+                  & 'outgoing', B%outgoing(m), &
+                  & 'balance', balance
+              end if
+
+            end do
+          else
+          end if
+          call CHKERR(errcnt, 'failed energy balance on buildings faces')
+        end associate
+      end if
 
     end subroutine
 
