@@ -261,6 +261,18 @@ if(NOT ${NETCDF_FOUND})
       ${NETCDF_STATIC_LDFLAGS}
       ${NETCDF_STATIC_LDFLAGS_OTHER})
     list (APPEND CMAKE_INSTALL_RPATH ${NETCDF_LIBRARY_DIRS})
+
+    # check if netcdf supports parallel calls
+    file(STRINGS "${NETCDF_netcdf_INCLUDEDIR}/netcdf_meta.h" _netcdf_lines REGEX "#define[ \t]+NC_HAS_PARALLEL[ \t]")
+    string(REGEX REPLACE ".*NC_HAS_PARALLEL[ \t]*([0-1]+).*" "\\1" _netcdf_has_parallel "${_netcdf_lines}")
+    if (_netcdf_has_parallel)
+      add_definitions(-D__HAVE_NC_PARALLEL__)
+      message(STATUS "Netcdf supports parallel ${_netcdf_has_parallel}")
+    else()
+      message(STATUS "Netcdf does NOT supports parallel ${_netcdf_has_parallel}")
+    endif()
+
+
   endif(${NETCDF_FOUND})
 endif(NOT ${NETCDF_FOUND})
 

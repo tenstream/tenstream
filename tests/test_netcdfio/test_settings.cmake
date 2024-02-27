@@ -1,1 +1,1 @@
-set(NUMPROC 2)
+set(NUMPROC 4)
