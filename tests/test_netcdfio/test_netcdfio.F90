@@ -311,4 +311,73 @@ contains
     call get_global_attribute(fname, 'str_test_attr', attr_str, ierr)
     @assertEqual('this is a test string', trim(attr_str))
   end subroutine
+
+  @test(npes=[4])
+  subroutine test_netcdf_write_par(this)
+    class(MpiTestMethod), intent(inout) :: this
+    integer(mpiint) :: numnodes, comm, myid, ierr
+    real(real32), allocatable :: a1d(:)
+    real(real32), allocatable :: a2d(:, :)
+    integer :: startp(2), countp(2)
+
+    integer(mpiint) :: i, N_local
+    character(len=default_str_len) :: groups(2)
+
+    comm = this%getMpiCommunicator()
+    numnodes = this%getNumProcesses()
+    myid = this%getProcessRank()
+
+    call init_mpi_data_parameters(comm)
+
+    N_local = 1 + myid
+
+    groups(1) = trim('pfunit_ncwrite_par_test.nc')
+    groups(2) = 'a1d'
+
+    allocate (a1d(N_local), source=real(myid, kind=real32))
+    startp = 1
+    countp = N_local
+    do i = 0, myid - 1
+      startp(1) = startp(1) + i + 1
+    end do
+    call ncwrite(comm, groups, a1d, ierr, &
+      & verbose=.true., &
+      & startp=startp, &
+      & countp=countp, &
+      & dimnames=[character(default_str_len) :: 'x'])
+    call CHKERR(ierr, 'Could not write 1d array to nc file')
+    ! Now everyone has written his stuff into the netcdf file
+    deallocate (a1d)
+    call ncload(comm, groups, a1d, ierr, ostart=startp, ocount=countp)
+    @assertEqual(myid+1, size(a1d))
+    @assertEqual(myid, a1d)
+
+    ! 2D
+    allocate (a2d(3, N_local), source=real(myid, kind(a2d)))
+    groups(1) = trim('pfunit_ncwrite_par_test.nc')
+    groups(2) = 'a2d'
+
+    startp = 1
+    countp(1) = 3
+    countp(2) = N_local
+    do i = 0, myid - 1
+      startp(2) = startp(2) + i + 1
+    end do
+    print *, myid, 'start', startp, 'count', countp
+    call ncwrite(comm, groups, a2d, ierr, &
+      & verbose=.true., &
+      & arr_shape=[3, 10], &
+      & startp=startp, &
+      & countp=countp, &
+      & dimnames=[character(default_str_len) :: 'z', 'x'])
+    call CHKERR(ierr, 'Could not write 1d array to nc file')
+    ! Now everyone has written his stuff into the netcdf file
+
+    deallocate (a2d)
+    call ncload(comm, groups, a2d, ierr, ostart=startp, ocount=countp)
+    print *, myid, 'a2d', a2d
+    @assertEqual(3, size(a2d,dim=1))
+    @assertEqual(myid+1, size(a2d,dim=2))
+    @assertEqual(myid, a2d)
+  end subroutine
 end module
