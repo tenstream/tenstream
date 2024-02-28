@@ -184,7 +184,7 @@ contains
       associate (C => pprts_solver%C_diff)
         if (allocated(edir)) then
           call ncwrite(&
-            & comm, &
+            & comm=comm, &
             & groups=[character(len=default_str_len) :: outfile, 'edir'], &
             & arr=edir, &
             & ierr=ierr, &
@@ -192,13 +192,15 @@ contains
             & dimnames=[character(len=default_str_len) :: 'z', 'x', 'y'], &
             & startp=[integer :: C%zs, C%xs, C%ys] + 1, &
             & countp=shape(edir), &
-            & verbose=.True., &
+            & verbose=.true., &
           & deflate_lvl=0)
           call CHKERR(ierr)
-          call set_attribute(outfile, 'edir', 'units', 'W/m2', ierr); call CHKERR(ierr)
+          if (myid .eq. 0_mpiint) then
+            call set_attribute(outfile, 'edir', 'units', 'W/m2', ierr); call CHKERR(ierr)
+          end if
         end if
         call ncwrite(&
-          & comm, &
+          & comm=comm, &
           & groups=[character(len=default_str_len) :: outfile, 'edn'], &
           & arr=edn, &
           & ierr=ierr, &
@@ -206,12 +208,14 @@ contains
           & dimnames=[character(len=default_str_len) :: 'z', 'x', 'y'], &
           & startp=[integer :: C%zs, C%xs, C%ys] + 1, &
           & countp=shape(edn), &
-          & verbose=.True., &
+          & verbose=.true., &
           & deflate_lvl=0)
         call CHKERR(ierr)
-        call set_attribute(outfile, 'edn', 'units', 'W/m2', ierr); call CHKERR(ierr)
+        if (myid .eq. 0_mpiint) then
+          call set_attribute(outfile, 'edn', 'units', 'W/m2', ierr); call CHKERR(ierr)
+        end if
         call ncwrite(&
-          & comm, &
+          & comm=comm, &
           & groups=[character(len=default_str_len) :: outfile, 'eup'], &
           & arr=eup, &
           & ierr=ierr, &
@@ -221,11 +225,13 @@ contains
           & countp=shape(eup), &
           & deflate_lvl=0)
         call CHKERR(ierr)
-        call set_attribute(outfile, 'eup', 'units', 'W/m2', ierr); call CHKERR(ierr)
+        if (myid .eq. 0_mpiint) then
+          call set_attribute(outfile, 'eup', 'units', 'W/m2', ierr); call CHKERR(ierr)
+        end if
       end associate
       associate (C => pprts_solver%C_one)
         call ncwrite(&
-          & comm, &
+          & comm=comm, &
           & groups=[character(len=default_str_len) :: outfile, 'abso'], &
           & arr=abso, &
           & ierr=ierr, &
@@ -234,9 +240,11 @@ contains
           & startp=[integer :: C%zs, C%xs, C%ys] + 1, &
           & countp=shape(abso))
         call CHKERR(ierr)
-        call set_attribute(outfile, 'abso', 'units', 'W/m3', ierr); call CHKERR(ierr)
+        if (myid .eq. 0_mpiint) then
+          call set_attribute(outfile, 'abso', 'units', 'W/m3', ierr); call CHKERR(ierr)
+        end if
         call ncwrite(&
-          & comm, &
+          & comm=comm, &
           & groups=[character(len=default_str_len) :: outfile, 'hr'], &
           & arr=hr*3600*24, &
           & ierr=ierr, &
@@ -245,7 +253,9 @@ contains
           & startp=[integer :: C%zs, C%xs, C%ys] + 1, &
           & countp=shape(hr))
         call CHKERR(ierr)
-        call set_attribute(outfile, 'hr', 'units', 'K/d', ierr); call CHKERR(ierr)
+        if (myid .eq. 0_mpiint) then
+          call set_attribute(outfile, 'hr', 'units', 'K/d', ierr); call CHKERR(ierr)
+        end if
       end associate
 
     end subroutine

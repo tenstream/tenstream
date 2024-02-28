@@ -267,7 +267,7 @@ contains
 
         if (allocated(atm%opt_tau)) then
           call ncwrite(&
-            & comm, &
+            & comm=comm, &
             & groups=[character(len=default_str_len) :: fname, 'atm.opt_tau'], &
             & arr=reshape(atm%opt_tau, [integer :: Nlay, ie, je, size(atm%opt_tau, dim=3)]), &
             & ierr=ierr, &
@@ -279,7 +279,7 @@ contains
         end if
         if (allocated(atm%opt_w0)) then
           call ncwrite(&
-            & comm, &
+            & comm=comm, &
             & groups=[character(len=default_str_len) :: fname, 'atm.opt_w0'], &
             & arr=reshape(atm%opt_w0, [integer :: Nlay, ie, je, size(atm%opt_w0, dim=3)]), &
             & ierr=ierr, &
@@ -291,7 +291,7 @@ contains
         end if
         if (allocated(atm%opt_g)) then
           call ncwrite(&
-            & comm, &
+            & comm=comm, &
             & groups=[character(len=default_str_len) :: fname, 'atm.opt_g'], &
             & arr=reshape(atm%opt_g, [integer :: Nlay, ie, je, size(atm%opt_g, dim=3)]), &
             & ierr=ierr, &
@@ -303,7 +303,7 @@ contains
         end if
         if (allocated(atm%tskin)) then
           call ncwrite(&
-            & comm, &
+            & comm=comm, &
             & groups=[character(len=default_str_len) :: fname, 'atm.tskin'], &
             & arr=reshape(atm%tskin, [integer :: ie, je]), &
             & ierr=ierr, &
@@ -316,7 +316,7 @@ contains
 
         if (present(solar_albedo_2d)) then
           call ncwrite(&
-            & comm, &
+            & comm=comm, &
             & groups=[character(len=default_str_len) :: fname, 'solar_albedo_2d'], &
             & arr=solar_albedo_2d, &
             & ierr=ierr, &
@@ -328,7 +328,7 @@ contains
         end if
         if (present(thermal_albedo_2d)) then
           call ncwrite(&
-            & comm, &
+            & comm=comm, &
             & groups=[character(len=default_str_len) :: fname, 'thermal_albedo_2d'], &
             & arr=thermal_albedo_2d, &
             & ierr=ierr, &
@@ -340,7 +340,7 @@ contains
         end if
         if (present(opt_tau_solar)) then
           call ncwrite(&
-            & comm, &
+            & comm=comm, &
             & groups=[character(len=default_str_len) :: fname, 'opt_tau_solar'], &
             & arr=opt_tau_solar, &
             & ierr=ierr, &
@@ -352,7 +352,7 @@ contains
         end if
         if (present(opt_w0_solar)) then
           call ncwrite(&
-            & comm, &
+            & comm=comm, &
             & groups=[character(len=default_str_len) :: fname, 'opt_w0_solar'], &
             & arr=opt_w0_solar, &
             & ierr=ierr, &
@@ -364,7 +364,7 @@ contains
         end if
         if (present(opt_g_solar)) then
           call ncwrite(&
-            & comm, &
+            & comm=comm, &
             & groups=[character(len=default_str_len) :: fname, 'opt_g_solar'], &
             & arr=opt_g_solar, &
             & ierr=ierr, &
@@ -376,7 +376,7 @@ contains
         end if
         if (present(opt_tau_thermal)) then
           call ncwrite(&
-            & comm, &
+            & comm=comm, &
             & groups=[character(len=default_str_len) :: fname, 'opt_tau_thermal'], &
             & arr=opt_tau_thermal, &
             & ierr=ierr, &
@@ -469,7 +469,7 @@ contains
     integer(mpiint) :: ierr
     if (allocated(arr)) then
       call ncwrite(&
-        & comm, &
+        & comm=comm, &
         & groups=[character(len=default_str_len) :: fname, varname], &
         & arr=reshape(arr, local_shape), &
         & ierr=ierr, &
@@ -636,12 +636,12 @@ contains
 
     ostart(1:2) = [integer :: xStart + 1, yStart + 1]
     ocount(1:2) = [integer :: Nx_local, Ny_local]
-    call ncload(comm, [character(default_str_len) :: inpfile, 'solar_albedo_2d'], solar_albedo_2d, ierr, &
-      & ostart=ostart, ocount=ocount)
+    call ncload([character(default_str_len) :: inpfile, 'solar_albedo_2d'], solar_albedo_2d, ierr, &
+      & comm=comm, ostart=ostart, ocount=ocount)
     print *, myid, 'have_solar_albedo_2d', allocated(solar_albedo_2d)
     if (allocated(solar_albedo_2d)) print *, myid, 'solar_albedo_2d', solar_albedo_2d
-    call ncload(comm, [character(default_str_len) :: inpfile, 'thermal_albedo_2d'], thermal_albedo_2d, ierr, &
-      & ostart=ostart, ocount=ocount)
+    call ncload([character(default_str_len) :: inpfile, 'thermal_albedo_2d'], thermal_albedo_2d, ierr, &
+      & comm=comm, ostart=ostart, ocount=ocount)
     print *, myid, 'have_thermal_albedo_2d', allocated(thermal_albedo_2d)
     if (allocated(thermal_albedo_2d)) print *, myid, 'thermal_albedo_2d', thermal_albedo_2d
 
@@ -702,7 +702,7 @@ contains
       integer(mpiint), intent(out) :: ierr
 
       real(ireals), allocatable :: arr3d(:, :, :)
-      call ncload(comm, [character(default_str_len) :: inpfile, varname], arr3d, ierr, ostart=ostart, ocount=ocount)
+      call ncload([character(default_str_len) :: inpfile, varname], arr3d, ierr, comm=comm, ostart=ostart, ocount=ocount)
       if (allocated(arr3d)) then
         allocate (arr(size(arr3d, dim=1), size(arr3d, dim=2) * size(arr3d, dim=3)))
         arr = reshape(arr3d, [size(arr3d, dim=1), size(arr3d, dim=2) * size(arr3d, dim=3)])

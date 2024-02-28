@@ -341,15 +341,17 @@ contains
     do i = 0, myid - 1
       startp(1) = startp(1) + i + 1
     end do
-    call ncwrite(comm, groups, a1d, ierr, &
+    call ncwrite(groups, a1d, ierr, &
+      & comm=comm, &
       & verbose=.true., &
+      & arr_shape=[10], &
       & startp=startp(1:1), &
       & countp=countp(1:1), &
       & dimnames=[character(default_str_len) :: 'x'])
     call CHKERR(ierr, 'Could not write 1d array to nc file')
     ! Now everyone has written his stuff into the netcdf file
     deallocate (a1d)
-    call ncload(comm, groups, a1d, ierr, ostart=startp, ocount=countp)
+    call ncload(groups, a1d, ierr, ostart=startp, ocount=countp, comm=comm)
     @assertEqual(myid+1, size(a1d))
     @assertEqual(myid, a1d)
 
@@ -365,7 +367,8 @@ contains
       startp(2) = startp(2) + i + 1
     end do
     print *, myid, 'start', startp, 'count', countp
-    call ncwrite(comm, groups, a2d, ierr, &
+    call ncwrite(groups, a2d, ierr, &
+      & comm=comm, &
       & verbose=.true., &
       & arr_shape=[3, 10], &
       & startp=startp, &
@@ -375,7 +378,7 @@ contains
     ! Now everyone has written his stuff into the netcdf file
 
     deallocate (a2d)
-    call ncload(comm, groups, a2d, ierr, ostart=startp, ocount=countp)
+    call ncload(groups, a2d, ierr, ostart=startp, ocount=countp, comm=comm)
     print *, myid, 'a2d', a2d
     @assertEqual(3, size(a2d,dim=1))
     @assertEqual(myid+1, size(a2d,dim=2))
