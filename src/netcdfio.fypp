@@ -56,7 +56,7 @@ module m_netcdfIO
 !  integer :: iwait
 !  character(default_str_len+10) :: lockfile
   logical, parameter :: ldebug = .false.
-!  logical,parameter :: ldebug=.True.
+!  logical, parameter :: ldebug = .true.
 
   interface ncwrite
     #:for method,dtype in [ &
@@ -66,7 +66,6 @@ module m_netcdfIO
       ('real'   , 'REAL64')]
       #:for RANK in range(1, 8)
         module procedure ncwrite_${method}$_${dtype}$_${RANK}$d
-        module procedure ncwrite_par_${method}$_${dtype}$_${RANK}$d
       #:endfor
     #:endfor
   end interface
@@ -80,7 +79,6 @@ module m_netcdfIO
       #:for RANK in range(1, 8)
         #:for modifier in ['allocatable', 'pointer']
           module procedure ncload_${method}$_${dtype}$_${RANK}$d_${modifier}$
-          module procedure ncload_par_${method}$_${dtype}$_${RANK}$d_${modifier}$
         #:endfor
       #:endfor
       module procedure ncload_${method}$_${dtype}$_scalar
@@ -208,7 +206,8 @@ contains
       subroutine ncwrite_${method}$_${dtype}$_${RANK}$d( &
         & groups, arr, ierr, arr_shape, &
         & startp, countp, stride, map, dimnames, &
-        & deflate_lvl, chunksizes, verbose)
+        & deflate_lvl, chunksizes, verbose, &
+        & comm)
 
         character(len=*), intent(in) :: groups(:)
         ${method}$${dKIND}$, intent(in) :: arr${ranksuffix(RANK)}$
@@ -216,6 +215,7 @@ contains
         character(len=*), intent(in), optional :: dimnames(:)
         integer, intent(in), optional :: deflate_lvl, chunksizes(:)
         logical, intent(in), optional :: verbose
+        integer, intent(in), optional :: comm
 
         character(len=default_str_len) :: fname, varname
         integer :: Ndims, ncid, i, varid
@@ -224,17 +224,16 @@ contains
         character(len=default_str_len) :: dimname
         integer :: dimsize
 
-        logical :: file_exists, var_exists, def_mode, lverbose
+        logical :: file_exists, var_exists, lverbose
 
         integer(mpiint), intent(out) :: ierr
-        integer(mpiint) :: ncerr, flock_unit
+        integer(mpiint) :: ncerr
+        integer(mpiint) :: commsize
 
         integer, allocatable :: chunks(:)
 
         lverbose = get_arg(ldebug, verbose)
         fname = trim(groups(1))
-
-        call acquire_file_lock(fname, flock_unit, ierr); call CHKERR(ierr, 'Could not obtain file lock')
 
         varname = trim(groups(2))
         do i = 3, size(groups)
@@ -278,17 +277,41 @@ contains
 
         ierr = 0
 
+        if (present(comm)) then
+          call mpi_comm_size(comm, commsize, ierr); call CHKERR(ierr)
+#ifndef __HAVE_NC_PARALLEL__
+          call CHKERR(commsize - 1_mpiint, "Trying to write in a parallel computation but dont have parallel netcdf support."// &
+            & "Rerun cmake and make sure to have a parallel netcdf available or run in serial.")
+#endif
+        end if
+
         if (.not. file_exists) then
-          ncerr = nf90_create(trim(fname), NF90_HDF5, ncid); call nccheck(ncerr); ierr = ierr + ncerr
-          if (lverbose) print *, 'opened file to append: ', trim(fname), ' ::', ncerr
+!          ncerr = nf90_create(trim(fname), NF90_NETCDF4, ncid); call nccheck(ncerr); ierr = ierr + ncerr
+          ncerr = nf90_create( &
+            & path=trim(fname), &
+            & cmode=ior(NF90_NOCLOBBER, ior(NF90_NETCDF4, NF90_MPIIO)), &
+            & comm=comm, &
+            & info=MPI_INFO_NULL, &
+            & ncid=ncid)
+          call nccheck(ncerr)
+          ierr = ierr + ncerr
+          if (lverbose) print *, 'create new file ', trim(fname), ' ::', ncerr
         else
-          ncerr = nf90_open(path=trim(fname), mode=NF90_WRITE, ncid=ncid); call nccheck(ncerr); ierr = ierr + ncerr
-          if (lverbose) print *, 'opened file to write: ', trim(fname), ' ::', ncerr
+!          ncerr = nf90_open(path=trim(fname), mode=NF90_WRITE, ncid=ncid); call nccheck(ncerr); ierr = ierr + ncerr
+          ncerr = nf90_open( &
+            & path=trim(fname), &
+            & mode=NF90_WRITE, &
+            & comm=comm, &
+            & info=MPI_INFO_NULL, &
+            & ncid=ncid)
+          call nccheck(ncerr)
+          ierr = ierr + ncerr
+          if (lverbose) print *, 'opened file  read/write: ', trim(fname), ' ::', ncerr
         end if
         if (ncerr .ne. NF90_NOERR) call CHKERR(int(ncerr, mpiint), 'stopping because we couldnt write to file')
         ierr = 0
 
-        ncerr = nf90_redef(ncid); call nccheck(ncerr); def_mode = .true.
+        ncerr = nf90_redef(ncid); call nccheck(ncerr)
         if (lverbose) print *, 'Set NetCDF File to def_mode', ncerr
 
         do i = 1, Ndims
@@ -343,221 +366,20 @@ contains
           call CHKWARN(ncerr, 'Could not create new variable '//trim(varname)//' varid: '//toStr(varid))
         end if
 
-        if (def_mode) then !if we created the file here, we need to leave define mode...
-          ncerr = nf90_enddef(ncid); call nccheck(ncerr)
-          if (lverbose) print *, 'Putting netcdf file in datamode', ncerr
-          call CHKWARN(ncerr, 'Could not put netcdf file in datamode')
+        if (present(comm)) then
+          ncerr = nf90_var_par_access(ncid, varid, NF90_COLLECTIVE)
+          call nccheck(ncerr); ierr = ierr + ncerr
         end if
+
+        ncerr = nf90_enddef(ncid); call nccheck(ncerr)
+        if (lverbose) print *, 'Putting netcdf file in datamode', ncerr
+        call CHKWARN(ncerr, 'Could not put netcdf file in datamode')
 
         if (lverbose) print *, 'writing data'
         ncerr = nf90_put_var(ncid, varid, values=arr, &
                              start=startp, count=countp, stride=stride, map=map)
+        call nccheck(ncerr); ierr = ierr + ncerr
         if (lverbose) print *, 'written data', ncerr
-
-        ncerr = nf90_close(ncid); call nccheck(ncerr); ierr = ierr + ncerr
-        if (lverbose) print *, 'closed file', ncerr
-
-        call release_file_lock(flock_unit, ncerr); call CHKERR(ncerr, 'Could not release filelock')
-      end subroutine
-    #:endfor
-  #:endfor
-
-! NCWRITE templates
-  #:for method,dtype,ncdtype in [ &
-    ('integer', 'INT32' , 'NF90_INT') , &
-    ('integer', 'INT64' , 'NF90_INT') , &
-    ('real'   , 'REAL32', 'NF90_FLOAT'), &
-    ('real'   , 'REAL64', 'NF90_DOUBLE')]
-    #:set dKIND = '' if method == 'logical' else '('+dtype+')'
-    #:for RANK in range(1, 8)
-      subroutine ncwrite_par_${method}$_${dtype}$_${RANK}$d( &
-        & comm, &
-        & groups, arr, ierr, arr_shape, &
-        & startp, countp, stride, map, dimnames, &
-        & deflate_lvl, chunksizes, verbose)
-
-        integer(mpiint), intent(in) :: comm
-        character(len=*), intent(in) :: groups(:)
-        ${method}$${dKIND}$, intent(in) :: arr${ranksuffix(RANK)}$
-        integer, intent(in), optional :: arr_shape(:), startp(:), countp(:), stride(:), map(:)
-        character(len=*), intent(in), optional :: dimnames(:)
-        integer, intent(in), optional :: deflate_lvl, chunksizes(:)
-        logical, intent(in), optional :: verbose
-
-        integer(mpiint) :: commsize, myid
-
-        character(len=default_str_len) :: fname, varname
-        integer :: Ndims, ncid, i, varid
-
-        integer, allocatable :: dims(:), dim_ids(:)
-        character(len=default_str_len) :: dimname
-        integer :: dimsize
-
-        logical :: file_exists, var_exists, def_mode, lverbose
-
-        integer(mpiint), intent(out) :: ierr
-        integer(mpiint) :: ncerr
-
-        integer, allocatable :: chunks(:)
-
-        call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
-        call mpi_comm_size(comm, commsize, ierr); call CHKERR(ierr)
-
-        lverbose = get_arg(ldebug, verbose)
-        fname = trim(groups(1))
-
-        varname = trim(groups(2))
-        do i = 3, size(groups)
-          varname = trim(varname)//'.'//trim(groups(i))
-        end do
-
-        if (lverbose) print *, myid, '*****************************************'
-        if (lverbose) print *, myid, 'writing to file: ', trim(fname)
-        if (lverbose) print *, myid, 'varname is: ', trim(varname)
-        if (lverbose) print *, myid, '*****************************************'
-
-        if (present(arr_shape)) then
-          Ndims = size(arr_shape)
-        else
-          Ndims = size(shape(arr))
-        end if
-        allocate (dims(Ndims))
-        allocate (chunks(Ndims))
-
-        if (present(arr_shape)) then
-          dims = arr_shape
-        else
-          do i = 1, Ndims
-            call imp_allreduce_sum(comm, size(arr, dim=i), dims(i))
-          end do
-        end if
-
-        if (present(chunksizes)) then
-          chunks = chunksizes
-        else
-          chunks = default_chunksize
-        end if
-
-        allocate (dim_ids(Ndims))
-
-        if (lverbose) print *, myid, 'Dimensions('//toStr(int(Ndims, iintegers))//') of array', dims
-        if (lverbose) then
-          ncerr = nf90_set_log_level(2); call nccheck(ncerr)
-        end if
-
-        inquire (file=fname, exist=file_exists)
-        if (lverbose) print *, myid, 'file '//trim(fname)//' exists :: ', file_exists
-
-        ierr = 0
-
-#ifndef __HAVE_NC_PARALLEL__
-        call CHKERR(commsize - 1_mpiint, "Trying to write in a parallel computation but dont have parallel netcdf support."// &
-          & "Rerun cmake and make sure to have a parallel netcdf available or run in serial.")
-#endif
-
-#ifdef __HAVE_NC_PARALLEL__
-        if (.not. file_exists) then
-          ncerr = nf90_create( &
-            & path=trim(fname), &
-            & cmode=ior(NF90_NOCLOBBER, ior(NF90_NETCDF4, NF90_MPIIO)), &
-            & comm=comm, &
-            & info=MPI_INFO_NULL, &
-            & ncid=ncid)
-          call nccheck(ncerr)
-          ierr = ierr + ncerr
-          if (lverbose) print *, myid, 'opened file to append: ', trim(fname), ' ::', ncerr
-        else
-          ncerr = nf90_open( &
-            & path=trim(fname), &
-            & mode=NF90_WRITE, &
-            & comm=comm, &
-            & info=MPI_INFO_NULL, &
-            & ncid=ncid)
-          call nccheck(ncerr)
-          ierr = ierr + ncerr
-          if (lverbose) print *, myid, 'opened file to write: ', trim(fname), ' ::', ncerr
-        end if
-#else
-        if (.not. file_exists) then
-          ncerr = nf90_create(trim(fname), NF90_HDF5, ncid); call nccheck(ncerr); ierr = ierr + ncerr
-          if (lverbose) print *, 'opened file to append: ', trim(fname), ' ::', ncerr
-        else
-          ncerr = nf90_open(path=trim(fname), mode=NF90_WRITE, ncid=ncid); call nccheck(ncerr); ierr = ierr + ncerr
-          if (lverbose) print *, 'opened file to write: ', trim(fname), ' ::', ncerr
-        end if
-#endif
-        if (ncerr .ne. NF90_NOERR) call CHKERR(int(ncerr, mpiint), 'stopping because we couldnt write to file')
-        ierr = 0
-
-        ncerr = nf90_redef(ncid); call nccheck(ncerr); def_mode = .true.
-        if (lverbose) print *, myid, 'Set NetCDF File to def_mode', ncerr
-
-        do i = 1, Ndims
-          if (present(dimnames)) then
-            dimname = trim(dimnames(i))
-          else
-            write (dimname, FMT='("dim",I0)') i
-            dimname = trim(varname)//'_'//trim(dimname)
-          end if
-
-          !See if we can find the dimension
-          ncerr = nf90_inq_dimid(ncid, trim(dimname), dim_ids(i)); call nccheck(ncerr)
-          if (lverbose) print *, 'Check if dimension '//trim(dimname)//' exists', ncerr, 'id ->', dim_ids(i)
-          if (ncerr .ne. NF90_NOERR) then !Otherwise create it
-            ncerr = nf90_def_dim(ncid, trim(dimname), dims(i), dim_ids(i)); call nccheck(ncerr)
-            if (lverbose) print *, myid, 'Create dimension :: ', i, dims(i), dim_ids(i), trim(dimname), ' :: ', ncerr
-          else ! if already exists, check it has the correct dimensions
-            ncerr = nf90_inquire_dimension(ncid, dim_ids(i), dimname, dimsize)
-            call nccheck(ncerr)
-            call CHKERR(dimsize - dims(i), "When writing variable <"//trim(varname)//">"// &
-              & " dimension "//trim(dimname)//"("//toStr(i)//") does not match in size"//new_line('')// &
-              & "  netcdf dimension size: "//toStr(dimsize)//new_line('')// &
-              & "  variable dimension size: "//toStr(dims(i)))
-          end if
-        end do
-
-        !Check if variable already exists
-        ncerr = nf90_inq_varid(ncid, varname, varid); call nccheck(ncerr)
-        var_exists = ncerr .eq. NF90_NOERR
-        if (lverbose) print *, myid, 'Check if variable', varid, ' exists', ncerr, '::', var_exists
-
-        if (.not. var_exists) then !Otherwise create it
-          if (lverbose) print *, &
-            & 'Create variable '//toStr(varid), '::', &
-            & 'ncid', ncid, &
-            & 'varname ', trim(varname), &
-            & 'netcdf data type', ${ncdtype}$, &
-            & 'dim_ids', dim_ids, &
-            & 'deflate_level', get_arg(default_deflate_lvl, deflate_lvl), &
-            & 'chunksizes', chunks
-
-          ncerr = nf90_def_var( &
-            & ncid, &
-            & varname, &
-            & ${ncdtype}$, &
-            & dim_ids, &
-            & varid, &
-            & deflate_level=get_arg(default_deflate_lvl, deflate_lvl), &
-            & chunksizes=chunks &
-            & ); call nccheck(ncerr)
-          ierr = ierr + ncerr
-          call CHKWARN(ncerr, 'Could not create new variable '//trim(varname)//' varid: '//toStr(varid))
-        end if
-
-        ncerr = nf90_var_par_access(ncid, varid, NF90_COLLECTIVE)
-        call nccheck(ncerr); ierr = ierr + ncerr
-
-        if (def_mode) then !if we created the file here, we need to leave define mode...
-          ncerr = nf90_enddef(ncid); call nccheck(ncerr)
-          if (lverbose) print *, myid, 'Putting netcdf file in datamode', ncerr
-          call CHKWARN(ncerr, 'Could not put netcdf file in datamode')
-        end if
-
-        if (lverbose) print *, myid, 'writing data', arr
-        ncerr = nf90_put_var(ncid, varid, values=arr, &
-                             start=startp, count=countp, stride=stride, map=map)
-        if (lverbose) print *, myid, 'written data', ncerr
-        call nccheck(ncerr); ierr = ierr + ncerr
 
         ncerr = nf90_close(ncid); call nccheck(ncerr); ierr = ierr + ncerr
         if (lverbose) print *, 'closed file', ncerr
@@ -574,12 +396,14 @@ contains
     #:for RANK in range(1, 8)
       #:for modifier in ['allocatable', 'pointer']
         subroutine ncload_${method}$_${dtype}$_${RANK}$d_${modifier}$ &
-            & (groups, arr, ierr, lverbose, ostart, ocount, ostride, omap)
+            & (groups, arr, ierr, lverbose, ostart, ocount, ostride, omap, comm)
 
           ${method}$${dKIND}$#{if modifier}#,${modifier}$#{endif}#, intent(inout) :: arr${ranksuffix(RANK)}$
+          integer(mpiint), intent(out) :: ierr
 
           logical, intent(in), optional :: lverbose
           integer, dimension(:), optional, intent(in) :: ostart, ocount, ostride, omap
+          integer(mpiint), intent(in), optional :: comm
 
           character(len=*) :: groups(:)
 
@@ -592,115 +416,7 @@ contains
           integer :: ncerr, ndims
           integer(int64) :: bytesize
           real(kind(arr)) :: bytesize_dummy
-          integer(mpiint), intent(out) :: ierr
-          ierr = 0
-
-          #:if modifier == 'allocatable'
-            !if (allocated(arr)) then
-            !  print *, 'Array which should have been read in is already allocated... I will not overwrite it...'
-            !  ierr = 100
-            !  return
-            !end if
-          #:else
-            if (associated(arr)) then
-              print *, 'Array which should have been read in is already allocated... I will not overwrite it...'
-              ierr = 100
-              return
-            end if
-          #:endif
-
-          fname = trim(groups(1))
-
-          inquire (file=trim(fname), exist=file_exists)
-          if (.not. file_exists) then
-            print *, ''
-            print *, 'ERROR! NetCDF File ', trim(fname), ' could not be found!'
-            print *, ''
-            ierr = 101
-            return
-          end if
-
-          varname = trim(groups(2))
-          do i = 3, size(groups)
-            varname = trim(varname)//'.'//trim(groups(i))
-          end do
-          if (ldebug .or. get_arg(.false., lverbose)) print *, 'reading from file: ', trim(fname)
-          if (ldebug .or. get_arg(.false., lverbose)) print *, 'variable: ', trim(varname), ' :: Ndims', size(shape(arr))
-
-          ncerr = nf90_open(trim(fname), NF90_NOWRITE, ncid); call nccheck(ncerr); ierr = ierr + ncerr
-          if (ncerr .ne. NF90_NOERR) goto 100
-          ncerr = nf90_inq_varid(ncid, trim(varname), varid); call nccheck(ncerr); ierr = ierr + ncerr
-          if (ncerr .ne. NF90_NOERR) goto 100
-
-          var_exists = ncerr .eq. NF90_NOERR
-          if (ldebug .or. get_arg(.false., lverbose)) &
-            & print *, 'Reading NetCDF :: varname: ', trim(varname), ' :: exists?', var_exists
-
-          bytesize = c_sizeof(bytesize_dummy)
-          if (var_exists) then ! How big are the data dimensions?
-            ncerr = nf90_inquire_variable(ncid, varid, ndims=ndims); call nccheck(ncerr); ierr = ierr + ncerr
-            if (ndims .ne. size(shape(arr))) then
-              print *, 'Input and NC variable have different number dimensions '//toStr(size(shape(arr)))//' vs '//toStr(ndims)
-              ierr = ierr + 100 * size(shape(arr)) + ndims
-              goto 100
-            end if
-
-            ncerr = nf90_inquire_variable(ncid, varid, dimids=dimIDs); call nccheck(ncerr); ierr = ierr + ncerr
-            do i = 1, size(shape(arr))
-              ncerr = nf90_inquire_dimension(ncid, dimIDs(i), len=dimsize(i)); call nccheck(ncerr); ierr = ierr + ncerr
-              bytesize = bytesize * dimsize(i)
-            end do
-          end if
-
-          if (ldebug .or. get_arg(.false., lverbose)) &
-            print *, 'Dimension of variable: '//trim(varname), dimsize, '( '//toStr(real(bytesize) / 1024.**3)//' Gb )'
-
-          #:if modifier == 'allocatable'
-            if (ierr .eq. 0 .and. .not. allocated(arr)) allocate (arr ${rankallocdims(RANK)}$)
-          #:elif modifier == 'pointer'
-            if (ierr .eq. 0) allocate (arr ${rankallocdims(RANK)}$)
-          #:endif
-
-          ncerr = nf90_get_var(ncid, varid, arr, &
-            & start=ostart, count=ocount, stride=ostride, map=omap)
-          call nccheck(ncerr); ierr = ierr + ncerr
-
-100       continue
-          ncerr = nf90_close(ncid); call nccheck(ncerr); ierr = ierr + ncerr
-          if (ldebug) print *, 'Reading Netcdf file returned with ierr: ', ierr
-
-          return
-
-        end subroutine
-      #:endfor
-    #:endfor
-
-    #:for RANK in range(1, 8)
-      #:for modifier in ['allocatable', 'pointer']
-        subroutine ncload_par_${method}$_${dtype}$_${RANK}$d_${modifier}$ &
-            & (comm, groups, arr, ierr, lverbose, ostart, ocount, ostride, omap)
-
-          integer(mpiint), intent(in) :: comm
-          ${method}$${dKIND}$#{if modifier}#,${modifier}$#{endif}#, intent(inout) :: arr${ranksuffix(RANK)}$
-
-          logical, intent(in), optional :: lverbose
-          integer, dimension(:), optional, intent(in) :: ostart, ocount, ostride, omap
-
-#ifndef __HAVE_NC_PARALLEL__
           integer(mpiint) :: commsize
-#endif
-          character(len=*) :: groups(:)
-
-          character(len=default_str_len) :: fname, varname
-          integer :: i, ncid, varid
-          integer, dimension(size(shape(arr))) :: dimIDs, dimsize
-
-          logical :: file_exists, var_exists
-
-          integer :: ncerr, ndims
-          integer(int64) :: bytesize
-          real(kind(arr)) :: bytesize_dummy
-          integer(mpiint), intent(out) :: ierr
           ierr = 0
 
           #:if modifier == 'allocatable'
@@ -735,17 +451,21 @@ contains
           if (ldebug .or. get_arg(.false., lverbose)) print *, 'reading from file: ', trim(fname)
           if (ldebug .or. get_arg(.false., lverbose)) print *, 'variable: ', trim(varname), ' :: Ndims', size(shape(arr))
 
+          if (present(comm)) then
+            call mpi_comm_size(comm, commsize, ierr); call CHKERR(ierr)
 #ifndef __HAVE_NC_PARALLEL__
-          call mpi_comm_size(comm, commsize, ierr); call CHKERR(ierr)
-          call CHKERR(commsize - 1_mpiint, "Trying to read in a parallel computation but dont have parallel netcdf support."// &
-            & "Rerun cmake and make sure to have a parallel netcdf available or run in serial.")
+            call CHKERR(commsize - 1_mpiint, "Trying to read in parallel but dont have parallel netcdf support."// &
+              & "Rerun cmake and make sure to have a parallel netcdf available or run in serial.")
 #endif
+          end if
 
-#ifdef __HAVE_NC_PARALLEL__
-          ncerr = nf90_open_par(trim(fname), NF90_NOWRITE, comm, MPI_INFO_NULL, ncid); call nccheck(ncerr); ierr = ierr + ncerr
-#else
-          ncerr = nf90_open(trim(fname), NF90_NOWRITE, ncid); call nccheck(ncerr); ierr = ierr + ncerr
-#endif
+          ncerr = nf90_open(&
+            & trim(fname), &
+            & NF90_NOWRITE, &
+            & ncid, &
+            & comm=comm, &
+            & info=MPI_INFO_NULL)
+          call nccheck(ncerr); ierr = ierr + ncerr
           if (ncerr .ne. NF90_NOERR) goto 100
 
           ncerr = nf90_inq_varid(ncid, trim(varname), varid); call nccheck(ncerr); ierr = ierr + ncerr
@@ -793,7 +513,6 @@ contains
           if (ldebug) print *, 'Reading Netcdf file returned with ierr: ', ierr
 
           return
-
         end subroutine
       #:endfor
     #:endfor
