@@ -51,6 +51,7 @@ module m_helper_functions
     & approx, &
     & assert_arr_is_monotonous, &
     & assertEqual, &
+    & atol, &
     & char_arr_to_str, &
     & char_to_lower, &
     & char_to_upper, &
@@ -878,6 +879,12 @@ contains
     character(len=*), intent(in) :: inp
     character(len=len_trim(inp)) :: res
     res = inp
+  end function
+
+  elemental function atol(a) result(res)
+    logical :: res
+    character(len=*), intent(in) :: a
+    res = trim(a) .eq. 'T'
   end function
 
   elemental function ltoa(l) result(res)
