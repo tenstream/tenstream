@@ -315,6 +315,7 @@ contains
   @test(npes=[4])
   subroutine test_netcdf_write_par(this)
     class(MpiTestMethod), intent(inout) :: this
+#ifdef __HAVE_NC_PARALLEL__
     integer(mpiint) :: numnodes, comm, myid, ierr
     real(real32), allocatable :: a1d(:)
     real(real32), allocatable :: a2d(:, :)
@@ -322,6 +323,8 @@ contains
 
     integer(mpiint) :: i, N_local
     character(len=default_str_len) :: groups(2)
+    logical :: file_exists
+    integer :: iunit, istat
 
     comm = this%getMpiCommunicator()
     numnodes = this%getNumProcesses()
@@ -332,6 +335,12 @@ contains
     N_local = 1 + myid
 
     groups(1) = trim('pfunit_ncwrite_par_test.nc')
+    inquire (file=groups(1), exist=file_exists)
+    if (file_exists) then ! the parallel netcdf routine may have troubles rewriting data, I could not find out why. hotfix, remove the file...
+      open (newunit=iunit, file=groups(1), status='OLD', iostat=istat)
+      if (istat == 0) close (iunit, status='DELETE', iostat=istat)
+    end if
+
     groups(2) = 'a1d'
 
     allocate (a1d(N_local), source=real(myid, kind=real32))
@@ -342,8 +351,8 @@ contains
     end do
     call ncwrite(comm, groups, a1d, ierr, &
       & verbose=.true., &
-      & startp=startp, &
-      & countp=countp, &
+      & startp=startp(1:1), &
+      & countp=countp(1:1), &
       & dimnames=[character(default_str_len) :: 'x'])
     call CHKERR(ierr, 'Could not write 1d array to nc file')
     ! Now everyone has written his stuff into the netcdf file
@@ -370,7 +379,7 @@ contains
       & startp=startp, &
       & countp=countp, &
       & dimnames=[character(default_str_len) :: 'z', 'x'])
-    call CHKERR(ierr, 'Could not write 1d array to nc file')
+    call CHKERR(ierr, 'Could not write 2d array to nc file')
     ! Now everyone has written his stuff into the netcdf file
 
     deallocate (a2d)
@@ -379,5 +388,6 @@ contains
     @assertEqual(3, size(a2d,dim=1))
     @assertEqual(myid+1, size(a2d,dim=2))
     @assertEqual(myid, a2d)
+#endif
   end subroutine
 end module

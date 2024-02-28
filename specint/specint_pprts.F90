@@ -25,9 +25,12 @@ module m_specint_pprts
   use mpi, only: mpi_barrier
 
   use m_helper_functions, only: &
+    & atol, &
     & CHKERR, &
+    & domain_decompose_2d_petsc, &
     & get_arg, &
     & get_petsc_opt, &
+    & imp_bcast, &
     & toStr
 
   use m_data_parameters, only: &
@@ -50,12 +53,17 @@ module m_specint_pprts
 
   use m_petsc_helpers, only: f90vectopetsc
 
-  use m_netcdfio, only: ncwrite, set_global_attribute
+  use m_netcdfio, only: &
+    & get_dim_info, &
+    & get_global_attribute, &
+    & ncload, &
+    & ncwrite, &
+    & set_global_attribute
 
   implicit none
 
   private
-  public :: specint_pprts, specint_pprts_destroy
+  public :: specint_pprts, specint_pprts_destroy, load_input_dump
 
 #ifdef __RELEASE_BUILD__
   logical, parameter :: ldebug = .false.
@@ -194,7 +202,7 @@ contains
     subroutine dump_input()
       logical :: lflg
       character(len=default_str_len) :: fname, groups(2), dimnames(3)
-      integer :: Nlev, Nlay, local_shape(3), global_shape(3)
+      integer :: Nlev, Nlay, local_shape(3), global_shape(3), startp(3)
       integer(mpiint) :: ierr
 
       call get_petsc_opt(solver%prefix, '-specint_dump_input', fname, lflg, ierr); call CHKERR(ierr)
@@ -213,6 +221,7 @@ contains
           call set_global_attribute(fname, 'lthermal', toStr(lthermal), ierr); call CHKERR(ierr)
           call set_global_attribute(fname, 'lsolar', toStr(lsolar), ierr); call CHKERR(ierr)
           groups(2) = "sundir"; call ncwrite(groups, sundir, ierr, dimnames=["xyz"]); call CHKERR(ierr)
+          call set_global_attribute(fname, 'atm.atm_ke', atm%atm_ke, ierr); call CHKERR(ierr)
           call set_global_attribute(fname, 'atm.d_ke', atm%d_ke, ierr); call CHKERR(ierr)
           call set_global_attribute(fname, 'atm.d_ke1', atm%d_ke1, ierr); call CHKERR(ierr)
 
@@ -229,28 +238,32 @@ contains
         Nlay = Nlev - 1
         dimnames(:) = [character(len=default_str_len) :: "zlev", "x", "y"]
         local_shape = [integer :: Nlev, ie, je]
-        global_shape = [integer :: Nlev, solver%C_one1%xm, solver%C_one1%ym]
-        call dump_input_atm_var(comm, fname, 'atm.plev', atm%plev, dimnames, local_shape, global_shape)
-        call dump_input_atm_var(comm, fname, 'atm.tlev', atm%tlev, dimnames, local_shape, global_shape)
-        call dump_input_atm_var(comm, fname, 'atm.zlev', atm%zt, dimnames, local_shape, global_shape)
+        global_shape = [integer :: Nlev, solver%C_one1%glob_xm, solver%C_one1%glob_ym]
+        startp = [integer :: 1, solver%C_one1%xs + 1, solver%C_one1%ys + 1]
+        print *, solver%myid, 'nxproc', nxproc, 'nyproc', nyproc
+        print *, solver%myid, 'local_shape', local_shape, 'global_shape', global_shape
+
+        call dump_input_atm_var(comm, fname, 'atm.plev', atm%plev, dimnames, local_shape, global_shape, startp)
+        call dump_input_atm_var(comm, fname, 'atm.tlev', atm%tlev, dimnames, local_shape, global_shape, startp)
+        call dump_input_atm_var(comm, fname, 'atm.zlev', atm%zt, dimnames, local_shape, global_shape, startp)
 
         dimnames(:) = [character(len=default_str_len) :: "zlay", "x", "y"]
         local_shape = [integer :: Nlay, ie, je]
-        global_shape = [integer :: Nlay, solver%C_one%xm, solver%C_one%ym]
-        call dump_input_atm_var(comm, fname, 'atm.zm', atm%zm, dimnames, local_shape, global_shape)
-        call dump_input_atm_var(comm, fname, 'atm.dz', atm%dz, dimnames, local_shape, global_shape)
-        call dump_input_atm_var(comm, fname, 'atm.tlay', atm%tlay, dimnames, local_shape, global_shape)
-        call dump_input_atm_var(comm, fname, 'atm.h2o_lay', atm%h2o_lay, dimnames, local_shape, global_shape)
-        call dump_input_atm_var(comm, fname, 'atm.o3_lay', atm%o3_lay, dimnames, local_shape, global_shape)
-        call dump_input_atm_var(comm, fname, 'atm.co2_lay', atm%co2_lay, dimnames, local_shape, global_shape)
-        call dump_input_atm_var(comm, fname, 'atm.ch4_lay', atm%ch4_lay, dimnames, local_shape, global_shape)
-        call dump_input_atm_var(comm, fname, 'atm.n2o_lay', atm%n2o_lay, dimnames, local_shape, global_shape)
-        call dump_input_atm_var(comm, fname, 'atm.o2_lay', atm%o2_lay, dimnames, local_shape, global_shape)
-        call dump_input_atm_var(comm, fname, 'atm.lwc', atm%lwc, dimnames, local_shape, global_shape)
-        call dump_input_atm_var(comm, fname, 'atm.reliq', atm%reliq, dimnames, local_shape, global_shape)
-        call dump_input_atm_var(comm, fname, 'atm.iwc', atm%iwc, dimnames, local_shape, global_shape)
-        call dump_input_atm_var(comm, fname, 'atm.reice', atm%reice, dimnames, local_shape, global_shape)
-        call dump_input_atm_var(comm, fname, 'atm.cfrac', atm%cfrac, dimnames, local_shape, global_shape)
+        global_shape = [integer :: Nlay, solver%C_one%glob_xm, solver%C_one%glob_ym]
+        call dump_input_atm_var(comm, fname, 'atm.zm', atm%zm, dimnames, local_shape, global_shape, startp)
+        call dump_input_atm_var(comm, fname, 'atm.dz', atm%dz, dimnames, local_shape, global_shape, startp)
+        call dump_input_atm_var(comm, fname, 'atm.tlay', atm%tlay, dimnames, local_shape, global_shape, startp)
+        call dump_input_atm_var(comm, fname, 'atm.h2o_lay', atm%h2o_lay, dimnames, local_shape, global_shape, startp)
+        call dump_input_atm_var(comm, fname, 'atm.o3_lay', atm%o3_lay, dimnames, local_shape, global_shape, startp)
+        call dump_input_atm_var(comm, fname, 'atm.co2_lay', atm%co2_lay, dimnames, local_shape, global_shape, startp)
+        call dump_input_atm_var(comm, fname, 'atm.ch4_lay', atm%ch4_lay, dimnames, local_shape, global_shape, startp)
+        call dump_input_atm_var(comm, fname, 'atm.n2o_lay', atm%n2o_lay, dimnames, local_shape, global_shape, startp)
+        call dump_input_atm_var(comm, fname, 'atm.o2_lay', atm%o2_lay, dimnames, local_shape, global_shape, startp)
+        call dump_input_atm_var(comm, fname, 'atm.lwc', atm%lwc, dimnames, local_shape, global_shape, startp)
+        call dump_input_atm_var(comm, fname, 'atm.reliq', atm%reliq, dimnames, local_shape, global_shape, startp)
+        call dump_input_atm_var(comm, fname, 'atm.iwc', atm%iwc, dimnames, local_shape, global_shape, startp)
+        call dump_input_atm_var(comm, fname, 'atm.reice', atm%reice, dimnames, local_shape, global_shape, startp)
+        call dump_input_atm_var(comm, fname, 'atm.cfrac', atm%cfrac, dimnames, local_shape, global_shape, startp)
 
         if (allocated(atm%opt_tau)) then
           call ncwrite(&
@@ -258,8 +271,10 @@ contains
             & groups=[character(len=default_str_len) :: fname, 'atm.opt_tau'], &
             & arr=reshape(atm%opt_tau, [integer :: Nlay, ie, je, size(atm%opt_tau, dim=3)]), &
             & ierr=ierr, &
-            & arr_shape=[integer :: Nlay, solver%C_one%xm, solver%C_one%ym, size(atm%opt_tau, dim=3)], &
-            & dimnames=[character(len=default_str_len) :: "zlay", "x", "y", "Nwvl"])
+            & arr_shape=[integer :: Nlay, solver%C_one%glob_xm, solver%C_one%glob_ym, size(atm%opt_tau, dim=3)], &
+            & dimnames=[character(len=default_str_len) :: "zlay", "x", "y", "Nwvl"], &
+            & startp=[integer :: 1, solver%C_one%xs + 1, solver%C_one%ys + 1, 1], &
+            & countp=[integer :: Nlay, ie, je, size(atm%opt_tau, dim=3)])
           call CHKERR(ierr)
         end if
         if (allocated(atm%opt_w0)) then
@@ -268,8 +283,10 @@ contains
             & groups=[character(len=default_str_len) :: fname, 'atm.opt_w0'], &
             & arr=reshape(atm%opt_w0, [integer :: Nlay, ie, je, size(atm%opt_w0, dim=3)]), &
             & ierr=ierr, &
-            & arr_shape=[integer :: Nlay, solver%C_one%xm, solver%C_one%ym, size(atm%opt_w0, dim=3)], &
-            & dimnames=[character(len=default_str_len) :: "zlay", "x", "y", "Nwvl"])
+            & arr_shape=[integer :: Nlay, solver%C_one%glob_xm, solver%C_one%glob_ym, size(atm%opt_w0, dim=3)], &
+            & dimnames=[character(len=default_str_len) :: "zlay", "x", "y", "Nwvl"], &
+            & startp=[integer :: 1, solver%C_one%xs + 1, solver%C_one%ys + 1, 1], &
+            & countp=[integer :: Nlay, ie, je, size(atm%opt_tau, dim=3)])
           call CHKERR(ierr)
         end if
         if (allocated(atm%opt_g)) then
@@ -278,8 +295,10 @@ contains
             & groups=[character(len=default_str_len) :: fname, 'atm.opt_g'], &
             & arr=reshape(atm%opt_g, [integer :: Nlay, ie, je, size(atm%opt_g, dim=3)]), &
             & ierr=ierr, &
-            & arr_shape=[integer :: Nlay, solver%C_one%xm, solver%C_one%ym, size(atm%opt_g, dim=3)], &
-            & dimnames=[character(len=default_str_len) :: "zlay", "x", "y", "Nwvl"])
+            & arr_shape=[integer :: Nlay, solver%C_one%glob_xm, solver%C_one%glob_ym, size(atm%opt_g, dim=3)], &
+            & dimnames=[character(len=default_str_len) :: "zlay", "x", "y", "Nwvl"], &
+            & startp=[integer :: 1, solver%C_one%xs + 1, solver%C_one%ys + 1, 1], &
+            & countp=[integer :: Nlay, ie, je, size(atm%opt_tau, dim=3)])
           call CHKERR(ierr)
         end if
         if (allocated(atm%tskin)) then
@@ -288,8 +307,10 @@ contains
             & groups=[character(len=default_str_len) :: fname, 'atm.tskin'], &
             & arr=reshape(atm%tskin, [integer :: ie, je]), &
             & ierr=ierr, &
-            & arr_shape=[integer :: solver%C_one%xm, solver%C_one%ym], &
-            & dimnames=[character(len=default_str_len) :: "x", "y"])
+            & arr_shape=[integer :: solver%C_one%glob_xm, solver%C_one%glob_ym], &
+            & dimnames=[character(len=default_str_len) :: "x", "y"], &
+            & startp=[integer :: solver%C_one%xs + 1, solver%C_one%ys + 1], &
+            & countp=[integer :: ie, je])
           call CHKERR(ierr)
         end if
 
@@ -300,7 +321,9 @@ contains
             & arr=solar_albedo_2d, &
             & ierr=ierr, &
             & arr_shape=global_shape(2:3), &
-            & dimnames=dimnames(2:3))
+            & dimnames=dimnames(2:3), &
+            & startp=[integer :: solver%C_one%xs + 1, solver%C_one%ys + 1], &
+            & countp=[integer :: ie, je])
           call CHKERR(ierr)
         end if
         if (present(thermal_albedo_2d)) then
@@ -310,7 +333,9 @@ contains
             & arr=thermal_albedo_2d, &
             & ierr=ierr, &
             & arr_shape=global_shape(2:3), &
-            & dimnames=dimnames(2:3))
+            & dimnames=dimnames(2:3), &
+            & startp=[integer :: solver%C_one%xs + 1, solver%C_one%ys + 1], &
+            & countp=[integer :: ie, je])
           call CHKERR(ierr)
         end if
         if (present(opt_tau_solar)) then
@@ -320,7 +345,9 @@ contains
             & arr=opt_tau_solar, &
             & ierr=ierr, &
             & arr_shape=global_shape, &
-            & dimnames=dimnames)
+            & dimnames=dimnames, &
+            & startp=[integer :: 1, solver%C_one%xs + 1, solver%C_one%ys + 1], &
+            & countp=shape(opt_tau_solar))
           call CHKERR(ierr)
         end if
         if (present(opt_w0_solar)) then
@@ -330,7 +357,9 @@ contains
             & arr=opt_w0_solar, &
             & ierr=ierr, &
             & arr_shape=global_shape, &
-            & dimnames=dimnames)
+            & dimnames=dimnames, &
+            & startp=[integer :: 1, solver%C_one%xs + 1, solver%C_one%ys + 1], &
+            & countp=shape(opt_w0_solar))
           call CHKERR(ierr)
         end if
         if (present(opt_g_solar)) then
@@ -340,7 +369,9 @@ contains
             & arr=opt_g_solar, &
             & ierr=ierr, &
             & arr_shape=global_shape, &
-            & dimnames=dimnames)
+            & dimnames=dimnames, &
+            & startp=[integer :: 1, solver%C_one%xs + 1, solver%C_one%ys + 1], &
+            & countp=shape(opt_g_solar))
           call CHKERR(ierr)
         end if
         if (present(opt_tau_thermal)) then
@@ -350,7 +381,9 @@ contains
             & arr=opt_tau_thermal, &
             & ierr=ierr, &
             & arr_shape=global_shape, &
-            & dimnames=dimnames)
+            & dimnames=dimnames, &
+            & startp=[integer :: 1, solver%C_one%xs + 1, solver%C_one%ys + 1], &
+            & countp=shape(opt_tau_thermal))
           call CHKERR(ierr)
         end if
 
@@ -428,11 +461,11 @@ contains
     end subroutine
   end subroutine
 
-  subroutine dump_input_atm_var(comm, fname, varname, arr, dimnames, local_shape, global_shape)
+  subroutine dump_input_atm_var(comm, fname, varname, arr, dimnames, local_shape, global_shape, startp)
     integer(mpiint), intent(in) :: comm
     character(len=*), intent(in) :: fname, varname, dimnames(:)
     real(ireals), allocatable, intent(in) :: arr(:, :)
-    integer, intent(in) :: local_shape(3), global_shape(3)
+    integer, intent(in) :: local_shape(3), global_shape(3), startp(3)
     integer(mpiint) :: ierr
     if (allocated(arr)) then
       call ncwrite(&
@@ -441,7 +474,9 @@ contains
         & arr=reshape(arr, local_shape), &
         & ierr=ierr, &
         & arr_shape=global_shape, &
-        & dimnames=dimnames)
+        & dimnames=dimnames, &
+        & startp=startp, &
+        & countp=local_shape)
       call CHKERR(ierr)
     end if
   end subroutine
@@ -494,5 +529,187 @@ contains
       ierr = 1
       call CHKERR(1_mpiint, 'invalid specint mode <'//trim(spec)//'>')
     end select
+  end subroutine
+
+  subroutine load_input_dump(&
+      & comm, &
+      & inpfile, &
+      & Nx_local, Ny_local, &
+      & nxproc, nyproc, &
+      & dx, dy, &
+      & sundir, &
+      & albedo_thermal, albedo_solar, &
+      & lsolar, lthermal, &
+      & atm, &
+      & opt_time, &
+      & solar_albedo_2d, thermal_albedo_2d, &
+      & opt_solar_constant, &
+      & ierr)
+    integer(mpiint), intent(in) :: comm
+    character(len=default_str_len) :: inpfile
+    integer(iintegers), intent(out) :: Nx_local, Ny_local
+    integer(iintegers), allocatable, intent(out) :: nxproc(:), nyproc(:)
+    real(ireals), intent(out) :: dx, dy
+    real(ireals), allocatable, intent(out) :: sundir(:)
+    real(ireals), intent(out) :: albedo_solar, albedo_thermal
+    logical, intent(out) :: lsolar, lthermal
+    type(t_tenstr_atm), intent(out) :: atm
+    real(ireals), allocatable, intent(out) :: opt_time, solar_albedo_2d(:, :), thermal_albedo_2d(:, :), opt_solar_constant
+    integer(mpiint), intent(out) :: ierr
+
+    integer(mpiint) :: myid
+    integer(iintegers) :: Nx_global, Ny_global, xStart, yStart
+    integer(iintegers) :: Nlev, Nlay
+    character(len=default_str_len) :: lthermal_str, lsolar_str
+    logical :: lhave_opt_time, lhave_opt_solar_constant
+
+    integer :: ostart(4), ocount(4)
+
+    call mpi_comm_rank(comm, myid, ierr)
+
+    if (myid .eq. 0) then
+      call get_dim_info(inpfile, 'x', ierr, dimsize=Nx_global); call CHKERR(ierr)
+      call get_dim_info(inpfile, 'y', ierr, dimsize=Ny_global); call CHKERR(ierr)
+    end if
+    call imp_bcast(comm, Nx_global, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, Ny_global, 0_mpiint, ierr); call CHKERR(ierr)
+
+    call domain_decompose_2d_petsc(comm, Nx_global, Ny_global, &
+      & Nx_local, Ny_local, &
+      & xStart, yStart, &
+      & nxproc, nyproc, ierr)
+    call CHKERR(ierr)
+
+    if (myid .eq. 0) print *, 'Domain Decomposition will be', nxproc, 'and', nyproc, 'xs', xStart, 'ys', yStart
+
+    if (myid .eq. 0) then
+      call get_global_attribute(inpfile, 'dx', dx, ierr); call CHKERR(ierr)
+      call get_global_attribute(inpfile, 'dy', dy, ierr); call CHKERR(ierr)
+      call get_global_attribute(inpfile, 'albedo_thermal', albedo_thermal, ierr); call CHKERR(ierr)
+      call get_global_attribute(inpfile, 'albedo_solar', albedo_solar, ierr); call CHKERR(ierr)
+      call get_global_attribute(inpfile, 'lthermal', lthermal_str, ierr); call CHKERR(ierr)
+      lthermal = atol(lthermal_str)
+      call get_global_attribute(inpfile, 'lsolar', lsolar_str, ierr); call CHKERR(ierr)
+      lsolar = atol(lsolar_str)
+
+      allocate (opt_solar_constant)
+      call get_global_attribute(inpfile, 'solar_constant', opt_solar_constant, ierr)
+      if (ierr .ne. 0_mpiint) deallocate (opt_solar_constant)
+      lhave_opt_solar_constant = allocated(opt_solar_constant)
+
+      allocate (opt_time)
+      call get_global_attribute(inpfile, 'time', opt_time, ierr)
+      if (ierr .ne. 0_mpiint) deallocate (opt_time)
+      lhave_opt_time = allocated(opt_time)
+
+      call ncload([character(default_str_len) :: inpfile, 'sundir'], sundir, ierr); call CHKERR(ierr)
+    end if
+    call imp_bcast(comm, dx, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, dy, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, albedo_thermal, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, albedo_solar, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, lthermal, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, lsolar, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, sundir, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, lhave_opt_solar_constant, 0_mpiint, ierr); call CHKERR(ierr)
+    if (lhave_opt_solar_constant) then
+      if (.not. allocated(opt_solar_constant)) allocate (opt_solar_constant)
+      call imp_bcast(comm, opt_solar_constant, 0_mpiint, ierr); call CHKERR(ierr)
+    end if
+    call imp_bcast(comm, lhave_opt_time, 0_mpiint, ierr); call CHKERR(ierr)
+    if (lhave_opt_time) then
+      if (.not. allocated(opt_time)) allocate (opt_time)
+      call imp_bcast(comm, opt_time, 0_mpiint, ierr); call CHKERR(ierr)
+    end if
+
+    print *, myid, 'dx', dx
+    print *, myid, 'dy', dy
+    print *, myid, 'albedo_thermal', albedo_thermal
+    print *, myid, 'albedo_solar', albedo_solar
+    print *, myid, 'lthermal', lthermal
+    print *, myid, 'lsolar', lsolar
+    print *, myid, 'sundir', sundir
+    print *, myid, 'have_opt_solar_constant', allocated(opt_solar_constant)
+    if (lhave_opt_solar_constant) print *, myid, 'opt_solar_constant', opt_solar_constant
+    print *, myid, 'have_opt_time', allocated(opt_time)
+    if (lhave_opt_time) print *, myid, 'opt_time', opt_time
+
+    ostart(1:2) = [integer :: xStart + 1, yStart + 1]
+    ocount(1:2) = [integer :: Nx_local, Ny_local]
+    call ncload(comm, [character(default_str_len) :: inpfile, 'solar_albedo_2d'], solar_albedo_2d, ierr, &
+      & ostart=ostart, ocount=ocount)
+    print *, myid, 'have_solar_albedo_2d', allocated(solar_albedo_2d)
+    if (allocated(solar_albedo_2d)) print *, myid, 'solar_albedo_2d', solar_albedo_2d
+    call ncload(comm, [character(default_str_len) :: inpfile, 'thermal_albedo_2d'], thermal_albedo_2d, ierr, &
+      & ostart=ostart, ocount=ocount)
+    print *, myid, 'have_thermal_albedo_2d', allocated(thermal_albedo_2d)
+    if (allocated(thermal_albedo_2d)) print *, myid, 'thermal_albedo_2d', thermal_albedo_2d
+
+    ! populate atm
+    allocate (atm%atm_ke)
+    if (myid .eq. 0) then
+      call get_global_attribute(inpfile, 'atm.atm_ke', atm%atm_ke, ierr); call CHKERR(ierr)
+      call get_global_attribute(inpfile, 'atm.d_ke', atm%d_ke, ierr); call CHKERR(ierr)
+      call get_global_attribute(inpfile, 'atm.d_ke1', atm%d_ke1, ierr); call CHKERR(ierr)
+      call get_dim_info(inpfile, 'zlev', ierr, dimsize=Nlev); call CHKERR(ierr)
+      call get_dim_info(inpfile, 'zlay', ierr, dimsize=Nlay); call CHKERR(ierr)
+    end if
+    call imp_bcast(comm, atm%atm_ke, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, atm%d_ke, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, atm%d_ke1, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, Nlev, 0_mpiint, ierr); call CHKERR(ierr)
+    call imp_bcast(comm, Nlay, 0_mpiint, ierr); call CHKERR(ierr)
+    print *, myid, 'Nlev', Nlev
+    print *, myid, 'Nlay', Nlay
+
+    ostart(1:3) = [integer :: 1, xStart + 1, yStart + 1]
+    ocount(1:3) = [integer :: Nlev, Nx_local, Ny_local]
+    call load_input_atm_var('atm.plev', atm%plev, ierr); call CHKERR(ierr)
+    call load_input_atm_var('atm.tlev', atm%tlev, ierr); call CHKERR(ierr)
+    call load_input_atm_var('atm.zlev', atm%zt, ierr); call CHKERR(ierr)
+
+    ocount(1:3) = [integer :: Nlay, Nx_local, Ny_local]
+    call load_input_atm_var('atm.zm', atm%zm, ierr)!; call CHKERR(ierr)
+    call load_input_atm_var('atm.dz', atm%dz, ierr); call CHKERR(ierr)
+    call load_input_atm_var('atm.tlay', atm%tlay, ierr); call CHKERR(ierr)
+    call load_input_atm_var('atm.h2o_lay', atm%h2o_lay, ierr); call CHKERR(ierr)
+    call load_input_atm_var('atm.o3_lay', atm%o3_lay, ierr); call CHKERR(ierr)
+    call load_input_atm_var('atm.co2_lay', atm%co2_lay, ierr); call CHKERR(ierr)
+    call load_input_atm_var('atm.ch4_lay', atm%ch4_lay, ierr); call CHKERR(ierr)
+    call load_input_atm_var('atm.n2o_lay', atm%n2o_lay, ierr); call CHKERR(ierr)
+    call load_input_atm_var('atm.o2_lay', atm%o2_lay, ierr); call CHKERR(ierr)
+    call load_input_atm_var('atm.lwc', atm%lwc, ierr)!; call CHKERR(ierr)
+    call load_input_atm_var('atm.reliq', atm%reliq, ierr)!; call CHKERR(ierr)
+    call load_input_atm_var('atm.iwc', atm%iwc, ierr)!; call CHKERR(ierr)
+    call load_input_atm_var('atm.reice', atm%reice, ierr)!; call CHKERR(ierr)
+    call load_input_atm_var('atm.cfrac', atm%cfrac, ierr)!; call CHKERR(ierr)
+
+    !TODO missing loading:
+    ! atm.opt_tau
+    ! atm.opt_w0
+    ! atm.opt_g
+    ! atm.opt_tskin
+    ! atm.opt_tau_solar
+    ! atm.opt_w0_solar
+    ! atm.opt_g_solar
+    ! atm.opt_tau_thermal
+
+    ierr = 0
+  contains
+    subroutine load_input_atm_var(varname, arr, ierr)
+      character(len=*), intent(in) :: varname
+      real(ireals), allocatable, intent(out) :: arr(:, :)
+      integer(mpiint), intent(out) :: ierr
+
+      real(ireals), allocatable :: arr3d(:, :, :)
+      call ncload(comm, [character(default_str_len) :: inpfile, varname], arr3d, ierr, ostart=ostart, ocount=ocount)
+      if (allocated(arr3d)) then
+        allocate (arr(size(arr3d, dim=1), size(arr3d, dim=2) * size(arr3d, dim=3)))
+        arr = reshape(arr3d, [size(arr3d, dim=1), size(arr3d, dim=2) * size(arr3d, dim=3)])
+        print *, 'read ', trim(varname)
+      else
+        print *, 'no input for ', trim(varname)
+      end if
+    end subroutine
   end subroutine
 end module
