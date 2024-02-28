@@ -457,9 +457,9 @@ contains
 
 #ifdef __HAVE_NC_PARALLEL__
         if (.not. file_exists) then
-          ncerr = nf90_create_par( &
+          ncerr = nf90_create( &
             & path=trim(fname), &
-            & cmode=NF90_HDF5, &
+            & cmode=ior(NF90_NOCLOBBER, ior(NF90_NETCDF4, NF90_MPIIO)), &
             & comm=comm, &
             & info=MPI_INFO_NULL, &
             & ncid=ncid)
@@ -467,9 +467,9 @@ contains
           ierr = ierr + ncerr
           if (lverbose) print *, myid, 'opened file to append: ', trim(fname), ' ::', ncerr
         else
-          ncerr = nf90_open_par( &
+          ncerr = nf90_open( &
             & path=trim(fname), &
-            & cmode=NF90_WRITE, &
+            & mode=NF90_WRITE, &
             & comm=comm, &
             & info=MPI_INFO_NULL, &
             & ncid=ncid)
@@ -543,6 +543,9 @@ contains
           ierr = ierr + ncerr
           call CHKWARN(ncerr, 'Could not create new variable '//trim(varname)//' varid: '//toStr(varid))
         end if
+
+        ncerr = nf90_var_par_access(ncid, varid, NF90_COLLECTIVE)
+        call nccheck(ncerr); ierr = ierr + ncerr
 
         if (def_mode) then !if we created the file here, we need to leave define mode...
           ncerr = nf90_enddef(ncid); call nccheck(ncerr)
