@@ -192,7 +192,6 @@ contains
             & dimnames=[character(len=default_str_len) :: 'z', 'x', 'y'], &
             & startp=[integer :: C%zs, C%xs, C%ys] + 1, &
             & countp=shape(edir), &
-            & verbose=.true., &
           & deflate_lvl=0)
           call CHKERR(ierr)
           if (myid .eq. 0_mpiint) then
@@ -208,7 +207,6 @@ contains
           & dimnames=[character(len=default_str_len) :: 'z', 'x', 'y'], &
           & startp=[integer :: C%zs, C%xs, C%ys] + 1, &
           & countp=shape(edn), &
-          & verbose=.true., &
           & deflate_lvl=0)
         call CHKERR(ierr)
         if (myid .eq. 0_mpiint) then
