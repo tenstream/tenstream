@@ -481,7 +481,14 @@ module m_helper_functions
     module procedure transposed_arr_3d_ireals
   end interface
   interface cumsum
-    module procedure cumsum_iintegers, cumsum_ireals
+    #:for intype,dtype in [ &
+      ('integer', 'INT32' ), &
+      ('integer', 'INT64' ), &
+      ('real'   , 'REAL32'), &
+      ('real'   , 'REAL64'), &
+      ('real'   , 'REAL128')]
+      module procedure cumsum_${dtype}$
+    #:endfor
   end interface
   interface cumprod
     module procedure cumprod_i32, cumprod_i64, cumprod_ireals
@@ -1618,24 +1625,22 @@ contains
     end subroutine
   #:endfor
 
-  function cumsum_ireals(arr) result(cumsum)
-    real(ireals), intent(in) :: arr(:)
-    real(ireals) :: cumsum(size(arr))
-    integer :: i
-    cumsum(1) = arr(1)
-    do i = 2, size(arr)
-      cumsum(i) = cumsum(i - 1) + arr(i)
-    end do
-  end function
-  function cumsum_iintegers(arr) result(cumsum)
-    integer(iintegers), intent(in) :: arr(:)
-    integer(iintegers) :: cumsum(size(arr))
-    integer :: i
-    cumsum(1) = arr(1)
-    do i = 2, size(arr)
-      cumsum(i) = cumsum(i - 1) + arr(i)
-    end do
-  end function
+  #:for intype,dtype in [ &
+    ('integer', 'INT32' ), &
+    ('integer', 'INT64' ), &
+    ('real'   , 'REAL32'), &
+    ('real'   , 'REAL64'), &
+    ('real'   , 'REAL128')]
+    function cumsum_${dtype}$ (arr) result(cumsum)
+      ${intype}$ (${dtype}$), intent(in) :: arr(:)
+      ${intype}$ (${dtype}$) :: cumsum(size(arr))
+      integer(iintegers) :: i
+      cumsum(1) = arr(1)
+      do i = 2, size(arr)
+        cumsum(i) = cumsum(i - 1) + arr(i)
+      end do
+    end function
+  #:endfor
 
 ! From Numerical Recipes: cumulative product on an array, with optional multiplicative seed.
   pure recursive function cumprod_ireals(arr, seed) result(ans)
