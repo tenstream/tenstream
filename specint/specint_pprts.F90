@@ -599,7 +599,7 @@ contains
         idx(3:4) = idx(3:4) + [xs, ys]
         idx(2) = Nlay - idx(2) + 1 ! count from bottom
         bldg_idx(:, m) = idx
-        print *, myid, bStart + m, 'bldg', bldg_idx(:, m)
+        !print *, myid, bStart + m, 'bldg', bldg_idx(:, m)
       end do
 
       groups = [character(len=default_str_len) :: fname, 'buildings', prefix, 'idx']
@@ -619,7 +619,6 @@ contains
 
       dimnames(1:1) = 'Nbldgs.'//trim(prefix)
       if (allocated(B%albedo)) then
-        print *, 'B%albedo', B%albedo
         groups(4) = 'albedo'
         call ncwrite(&
           & comm=comm, &
@@ -631,7 +630,7 @@ contains
           & startp=[integer :: int(bStart)], &
           & countp=shape(B%albedo), &
           & deflate_lvl=0, &
-          & verbose=.true.)
+          & verbose=.false.)
         call CHKERR(ierr)
       end if
 
