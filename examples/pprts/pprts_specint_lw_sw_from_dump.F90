@@ -48,6 +48,7 @@ contains
     logical :: lsolar, lthermal
     type(t_tenstr_atm) :: atm
     real(ireals), allocatable :: opt_time, solar_albedo_2d(:, :), thermal_albedo_2d(:, :), opt_solar_constant
+    real(ireals), allocatable, dimension(:, :, :) :: opt_tau_solar, opt_w0_solar, opt_g_solar, opt_tau_thermal
 
     type(t_pprts_buildings), allocatable :: opt_buildings_solar
     type(t_pprts_buildings), allocatable :: opt_buildings_thermal
@@ -73,6 +74,7 @@ contains
       & solar_albedo_2d, thermal_albedo_2d, &
       & opt_solar_constant, &
       & opt_buildings_solar, opt_buildings_thermal, &
+      & opt_tau_solar, opt_w0_solar, opt_g_solar, opt_tau_thermal, &
       & ierr)
     call CHKERR(ierr)
 
@@ -112,7 +114,11 @@ contains
                        thermal_albedo_2d=thermal_albedo_2d, &
                        opt_solar_constant=opt_solar_constant, &
                        opt_buildings_solar=opt_buildings_solar, &
-                       opt_buildings_thermal=opt_buildings_thermal)
+                       opt_buildings_thermal=opt_buildings_thermal, &
+                       opt_tau_solar=opt_tau_solar, &
+                       opt_w0_solar=opt_w0_solar, &
+                       opt_g_solar=opt_g_solar, &
+                       opt_tau_thermal=opt_tau_thermal)
 
     allocate (hr(size(abso, 1), size(abso, 2), size(abso, 3)))
     call abso2hr(atm, abso, hr, ierr); call CHKERR(ierr)

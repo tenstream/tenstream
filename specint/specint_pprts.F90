@@ -399,9 +399,9 @@ contains
       end if
 
       dimnames(:) = [character(len=default_str_len) :: "zlay_veg", "x", "y"]
-      call imp_allreduce_max(comm, size(opt_tau_solar, dim=1, kind=mpiint), Nveg)
-      global_shape = [integer :: int(Nveg), int(solver%C_one%glob_xm), int(solver%C_one%glob_ym)]
       if (present(opt_tau_solar)) then
+        call imp_allreduce_max(comm, size(opt_tau_solar, dim=1, kind=mpiint), Nveg)
+        global_shape = [integer :: int(Nveg), int(solver%C_one%glob_xm), int(solver%C_one%glob_ym)]
         call ncwrite(&
           & comm=comm, &
           & groups=[character(len=default_str_len) :: fname, 'opt_tau_solar'], &
@@ -415,6 +415,8 @@ contains
         call CHKERR(ierr)
       end if
       if (present(opt_w0_solar)) then
+        call imp_allreduce_max(comm, size(opt_w0_solar, dim=1, kind=mpiint), Nveg)
+        global_shape = [integer :: int(Nveg), int(solver%C_one%glob_xm), int(solver%C_one%glob_ym)]
         call ncwrite(&
           & comm=comm, &
           & groups=[character(len=default_str_len) :: fname, 'opt_w0_solar'], &
@@ -428,6 +430,8 @@ contains
         call CHKERR(ierr)
       end if
       if (present(opt_g_solar)) then
+        call imp_allreduce_max(comm, size(opt_g_solar, dim=1, kind=mpiint), Nveg)
+        global_shape = [integer :: int(Nveg), int(solver%C_one%glob_xm), int(solver%C_one%glob_ym)]
         call ncwrite(&
           & comm=comm, &
           & groups=[character(len=default_str_len) :: fname, 'opt_g_solar'], &
@@ -440,6 +444,8 @@ contains
         call CHKERR(ierr)
       end if
       if (present(opt_tau_thermal)) then
+        call imp_allreduce_max(comm, size(opt_tau_thermal, dim=1, kind=mpiint), Nveg)
+        global_shape = [integer :: int(Nveg), int(solver%C_one%glob_xm), int(solver%C_one%glob_ym)]
         call ncwrite(&
           & comm=comm, &
           & groups=[character(len=default_str_len) :: fname, 'opt_tau_thermal'], &
@@ -728,6 +734,7 @@ contains
       & solar_albedo_2d, thermal_albedo_2d, &
       & opt_solar_constant, &
       & opt_buildings_solar, opt_buildings_thermal, &
+      & opt_tau_solar, opt_w0_solar, opt_g_solar, opt_tau_thermal, &
       & ierr)
     integer(mpiint), intent(in) :: comm
     character(len=default_str_len) :: inpfile
@@ -740,11 +747,12 @@ contains
     type(t_tenstr_atm), intent(out) :: atm
     real(ireals), allocatable, intent(out) :: opt_time, solar_albedo_2d(:, :), thermal_albedo_2d(:, :), opt_solar_constant
     type(t_pprts_buildings), allocatable, intent(out) :: opt_buildings_solar, opt_buildings_thermal
+    real(ireals), allocatable, intent(out), dimension(:, :, :) :: opt_tau_solar, opt_w0_solar, opt_g_solar, opt_tau_thermal
     integer(mpiint), intent(out) :: ierr
 
     integer(mpiint) :: myid
     integer(iintegers) :: Nx_global, Ny_global, xStart, yStart
-    integer(iintegers) :: Nlev, Nlay
+    integer(iintegers) :: Nlev, Nlay, Nwvl, Nveg
     character(len=default_str_len) :: lthermal_str, lsolar_str
     logical :: lhave_opt_time, lhave_opt_solar_constant
 
@@ -851,6 +859,20 @@ contains
     call load_input_atm_var('atm.reice', atm%reice, ierr)!; call CHKERR(ierr)
     call load_input_atm_var('atm.cfrac', atm%cfrac, ierr)!; call CHKERR(ierr)
 
+    call get_dim_info(inpfile, 'Nwvl', ierr, dimsize=Nwvl)
+    if (ierr .eq. 0) then
+      ostart(1:4) = [integer :: 1, int(xStart) + 1, int(yStart) + 1, 1]
+      ocount(1:4) = [integer :: int(Nlev), int(Nx_local), int(Ny_local), int(Nwvl)]
+
+      call load_input_atm_var4d('atm.opt_tau', atm%opt_tau, ierr)!; call CHKERR(ierr)
+      call load_input_atm_var4d('atm.opt_w0', atm%opt_w0, ierr)!; call CHKERR(ierr)
+      call load_input_atm_var4d('atm.opt_g', atm%opt_g, ierr)!; call CHKERR(ierr)
+    end if
+
+    ostart(1:2) = [integer :: int(xStart) + 1, int(yStart) + 1]
+    ocount(1:2) = [integer :: int(Nx_local), int(Ny_local)]
+    call load_input_atm_var2d('atm.tksin', atm%tskin, ierr)!; call CHKERR(ierr)
+
     call load_buildings_info(&
       & comm, inpfile, 'solar', &
       & Nlev - 1, Nx_local, Ny_local, &
@@ -863,18 +885,39 @@ contains
       & nxproc, nyproc, &
       & opt_buildings_solar, ierr)
 
-    !TODO missing loading:
-    ! atm.opt_tau
-    ! atm.opt_w0
-    ! atm.opt_g
-    ! atm.opt_tskin
-    ! atm.opt_tau_solar
-    ! atm.opt_w0_solar
-    ! atm.opt_g_solar
-    ! atm.opt_tau_thermal
+    call get_dim_info(inpfile, 'zlay_veg', ierr, dimsize=Nveg)
+    if (ierr .eq. 0) then
+      ostart(1:3) = [integer :: 1, int(xStart) + 1, int(yStart) + 1]
+      ocount(1:3) = [integer :: int(Nveg), int(Nx_local), int(Ny_local)]
 
+      call ncload([character(default_str_len) :: inpfile, 'opt_tau_solar'], opt_tau_solar, ierr, &
+        & comm=comm, ostart=ostart, ocount=ocount)
+      call ncload([character(default_str_len) :: inpfile, 'opt_w0_solar'], opt_w0_solar, ierr, &
+        & comm=comm, ostart=ostart, ocount=ocount)
+      call ncload([character(default_str_len) :: inpfile, 'opt_g_solar'], opt_g_solar, ierr, &
+        & comm=comm, ostart=ostart, ocount=ocount)
+      call ncload([character(default_str_len) :: inpfile, 'opt_tau_thermal'], opt_tau_thermal, ierr, &
+        & comm=comm, ostart=ostart, ocount=ocount)
+    end if
     ierr = 0
+
   contains
+    subroutine load_input_atm_var4d(varname, arr, ierr)
+      character(len=*), intent(in) :: varname
+      real(ireals), allocatable, intent(out) :: arr(:, :, :)
+      integer(mpiint), intent(out) :: ierr
+
+      real(ireals), allocatable :: arr4d(:, :, :, :)
+      call ncload([character(default_str_len) :: inpfile, varname], arr4d, ierr, comm=comm, ostart=ostart, ocount=ocount)
+      if (allocated(arr4d)) then
+        allocate (arr(size(arr4d, dim=1), size(arr4d, dim=2) * size(arr4d, dim=3), size(arr4d, dim=4)))
+        arr = reshape(arr4d, [size(arr4d, dim=1), size(arr4d, dim=2) * size(arr4d, dim=3), size(arr4d, dim=4)])
+        if (myid .eq. 0) print *, 'read ', trim(varname)
+      else
+        if (myid .eq. 0) print *, 'no input for ', trim(varname)
+      end if
+    end subroutine
+
     subroutine load_input_atm_var(varname, arr, ierr)
       character(len=*), intent(in) :: varname
       real(ireals), allocatable, intent(out) :: arr(:, :)
@@ -885,6 +928,22 @@ contains
       if (allocated(arr3d)) then
         allocate (arr(size(arr3d, dim=1), size(arr3d, dim=2) * size(arr3d, dim=3)))
         arr = reshape(arr3d, [size(arr3d, dim=1), size(arr3d, dim=2) * size(arr3d, dim=3)])
+        if (myid .eq. 0) print *, 'read ', trim(varname)
+      else
+        if (myid .eq. 0) print *, 'no input for ', trim(varname)
+      end if
+    end subroutine
+
+    subroutine load_input_atm_var2d(varname, arr, ierr)
+      character(len=*), intent(in) :: varname
+      real(ireals), allocatable, intent(out) :: arr(:)
+      integer(mpiint), intent(out) :: ierr
+
+      real(ireals), allocatable :: arr2d(:, :)
+      call ncload([character(default_str_len) :: inpfile, varname], arr2d, ierr, comm=comm, ostart=ostart, ocount=ocount)
+      if (allocated(arr2d)) then
+        allocate (arr(size(arr2d, dim=1) * size(arr2d, dim=2)))
+        arr = reshape(arr2d, [size(arr2d, dim=1) * size(arr2d, dim=2)])
         if (myid .eq. 0) print *, 'read ', trim(varname)
       else
         if (myid .eq. 0) print *, 'no input for ', trim(varname)
