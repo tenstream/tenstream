@@ -234,7 +234,7 @@ contains
             in_time_range = .false.
             do i = 1, timerange_nargs - 1, 2
               if (timerange(i) .gt. timerange(i + 1)) &
-                & call CHKERR(i, 'time range arguments have to ascending but '// &
+                & call CHKERR(int(i, mpiint), 'time range arguments have to ascending but '// &
                 & 'arg nr #'//toStr(i)//' ('//toStr(timerange(i))//') is larger than '// &
                 & 'arg nr #'//toStr(i + 1)//' ('//toStr(timerange(i + 1))//')')
               if (opt_time .ge. timerange(i) .and.&
@@ -942,9 +942,10 @@ contains
       integer(iintegers), allocatable :: netcdf_idx_to_rank_sorted(:)
       integer(iintegers), allocatable :: nxproc_cum(:), nyproc_cum(:)
       integer(iintegers), allocatable :: ioff_per_rank(:)
-      integer(iintegers), allocatable :: send_cnts(:), displs(:)
+      integer(mpiint), allocatable :: send_cnts(:), displs(:)
+
       integer(iintegers) :: Nfaces, i, j, m, my_face_cnt!, fidx(4)
-      integer(mpiint) :: rank
+      integer(mpiint) :: rank, my_face_cnt
       logical :: lhave_building_data
 
       call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
@@ -1013,8 +1014,9 @@ contains
         send_cnts(:) = 0
         displs(:) = 0
       end if
-      call mpi_scatter(send_cnts, 1_mpiint, imp_iinteger, my_face_cnt, 1_mpiint, imp_iinteger, 0_mpiint, comm, ierr)
+      call mpi_scatter(send_cnts, 1_mpiint, imp_iinteger, Nfaces, 1_mpiint, imp_iinteger, 0_mpiint, comm, ierr)
       call CHKERR(ierr)
+      my_face_cnt = int(Nfaces, mpiint)
 
       call init_buildings(buildings, &
         & [integer(iintegers) :: 6, Nlay, Nx, Ny], &
@@ -1075,8 +1077,8 @@ contains
         & netcdf_idx_to_rank_sorted, send_cnts, displs, my_face_cnt, data_arr, ierr)
       integer(mpiint), intent(in) :: comm
       character(len=*), intent(in) :: inpfile, prefix, varname
-      integer(iintegers), intent(in) :: netcdf_idx_to_rank_sorted(:), send_cnts(0:), displs(0:)
-      integer(iintegers), intent(in) :: my_face_cnt
+      integer(iintegers), intent(in) :: netcdf_idx_to_rank_sorted(:)
+      integer(mpiint), intent(in) :: send_cnts(0:), displs(0:), my_face_cnt
       real(ireals), allocatable, intent(inout) :: data_arr(:)
       integer(mpiint), intent(out) :: ierr
 
@@ -1108,7 +1110,7 @@ contains
       if (.not. allocated(data_arr)) then
         allocate (data_arr(my_face_cnt))
       else
-        call CHKERR(int(size(data_arr) - my_face_cnt, kind=mpiint), 'wrong size of buildings variable'//varname)
+        call CHKERR(size(data_arr, kind=mpiint) - my_face_cnt, 'wrong size of buildings variable'//varname)
       end if
       call MPI_Scatterv(&
         & rank_sorted_arr, &
