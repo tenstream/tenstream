@@ -229,7 +229,7 @@ contains
           call get_petsc_opt(solver%prefix, '-specint_dump_input_time_range', &
             & timerange, timerange_nargs, lflg, ierr); call CHKERR(ierr)
           if (lflg) then
-            call CHKERR(modulo(timerange_nargs, 2_iintegers), "timerange number of arguments must be multiple of two, &
+            call CHKERR(int(modulo(timerange_nargs, 2_iintegers), mpiint), "timerange number of arguments must be multiple of two, &
               & i.e. pairs of start/end. Found "//toStr(timerange_nargs)//" arguments: "//toStr(timerange(1:timerange_nargs)))
             in_time_range = .false.
             do i = 1, timerange_nargs - 1, 2
@@ -292,17 +292,17 @@ contains
       Nlev = size(atm%plev, dim=1)
       Nlay = Nlev - 1
       dimnames(:) = [character(len=default_str_len) :: "zlev", "x", "y"]
-      local_shape = [integer :: Nlev, ie, je]
-      global_shape = [integer :: Nlev, solver%C_one1%glob_xm, solver%C_one1%glob_ym]
-      startp = [integer :: 1, solver%C_one1%xs + 1, solver%C_one1%ys + 1]
+      local_shape = [integer :: Nlev, int(ie), int(je)]
+      global_shape = [integer :: Nlev, int(solver%C_one1%glob_xm), int(solver%C_one1%glob_ym)]
+      startp = [integer :: 1, int(solver%C_one1%xs) + 1, int(solver%C_one1%ys) + 1]
 
       call dump_input_atm_var(comm, fname, 'atm.plev', atm%plev, dimnames, local_shape, global_shape, startp)
       call dump_input_atm_var(comm, fname, 'atm.tlev', atm%tlev, dimnames, local_shape, global_shape, startp)
       call dump_input_atm_var(comm, fname, 'atm.zlev', atm%zt, dimnames, local_shape, global_shape, startp)
 
       dimnames(:) = [character(len=default_str_len) :: "zlay", "x", "y"]
-      local_shape = [integer :: Nlay, ie, je]
-      global_shape = [integer :: Nlay, solver%C_one%glob_xm, solver%C_one%glob_ym]
+      local_shape = [integer :: Nlay, int(ie), int(je)]
+      global_shape = [integer :: Nlay, int(solver%C_one%glob_xm), int(solver%C_one%glob_ym)]
       call dump_input_atm_var(comm, fname, 'atm.zm', atm%zm, dimnames, local_shape, global_shape, startp)
       call dump_input_atm_var(comm, fname, 'atm.dz', atm%dz, dimnames, local_shape, global_shape, startp)
       call dump_input_atm_var(comm, fname, 'atm.tlay', atm%tlay, dimnames, local_shape, global_shape, startp)
@@ -322,12 +322,12 @@ contains
         call ncwrite(&
           & comm=comm, &
           & groups=[character(len=default_str_len) :: fname, 'atm.opt_tau'], &
-          & arr=reshape(atm%opt_tau, [integer :: Nlay, ie, je, size(atm%opt_tau, dim=3)]), &
+          & arr=reshape(atm%opt_tau, [integer :: Nlay, int(ie), int(je), size(atm%opt_tau, dim=3)]), &
           & ierr=ierr, &
-          & arr_shape=[integer :: Nlay, solver%C_one%glob_xm, solver%C_one%glob_ym, size(atm%opt_tau, dim=3)], &
+          & arr_shape=[integer :: Nlay, int(solver%C_one%glob_xm), int(solver%C_one%glob_ym), size(atm%opt_tau, dim=3)], &
           & dimnames=[character(len=default_str_len) :: "zlay", "x", "y", "Nwvl"], &
-          & startp=[integer :: 1, solver%C_one%xs + 1, solver%C_one%ys + 1, 1], &
-          & countp=[integer :: Nlay, ie, je, size(atm%opt_tau, dim=3)], &
+          & startp=[integer :: 1, int(solver%C_one%xs) + 1, int(solver%C_one%ys) + 1, 1], &
+          & countp=[integer :: Nlay, int(ie), int(je), size(atm%opt_tau, dim=3)], &
           & verbose=lverbose)
         call CHKERR(ierr)
       end if
@@ -335,12 +335,12 @@ contains
         call ncwrite(&
           & comm=comm, &
           & groups=[character(len=default_str_len) :: fname, 'atm.opt_w0'], &
-          & arr=reshape(atm%opt_w0, [integer :: Nlay, ie, je, size(atm%opt_w0, dim=3)]), &
+          & arr=reshape(atm%opt_w0, [integer :: Nlay, int(ie), int(je), size(atm%opt_w0, dim=3)]), &
           & ierr=ierr, &
-          & arr_shape=[integer :: Nlay, solver%C_one%glob_xm, solver%C_one%glob_ym, size(atm%opt_w0, dim=3)], &
+          & arr_shape=[integer :: Nlay, int(solver%C_one%glob_xm), int(solver%C_one%glob_ym), size(atm%opt_w0, dim=3)], &
           & dimnames=[character(len=default_str_len) :: "zlay", "x", "y", "Nwvl"], &
-          & startp=[integer :: 1, solver%C_one%xs + 1, solver%C_one%ys + 1, 1], &
-          & countp=[integer :: Nlay, ie, je, size(atm%opt_tau, dim=3)], &
+          & startp=[integer :: 1, int(solver%C_one%xs) + 1, int(solver%C_one%ys) + 1, 1], &
+          & countp=[integer :: Nlay, int(ie), int(je), size(atm%opt_w0, dim=3)], &
           & verbose=lverbose)
         call CHKERR(ierr)
       end if
@@ -348,12 +348,12 @@ contains
         call ncwrite(&
           & comm=comm, &
           & groups=[character(len=default_str_len) :: fname, 'atm.opt_g'], &
-          & arr=reshape(atm%opt_g, [integer :: Nlay, ie, je, size(atm%opt_g, dim=3)]), &
+          & arr=reshape(atm%opt_g, [integer :: Nlay, int(ie), int(je), size(atm%opt_g, dim=3)]), &
           & ierr=ierr, &
-          & arr_shape=[integer :: Nlay, solver%C_one%glob_xm, solver%C_one%glob_ym, size(atm%opt_g, dim=3)], &
+          & arr_shape=[integer :: Nlay, int(solver%C_one%glob_xm), int(solver%C_one%glob_ym), size(atm%opt_g, dim=3)], &
           & dimnames=[character(len=default_str_len) :: "zlay", "x", "y", "Nwvl"], &
-          & startp=[integer :: 1, solver%C_one%xs + 1, solver%C_one%ys + 1, 1], &
-          & countp=[integer :: Nlay, ie, je, size(atm%opt_tau, dim=3)], &
+          & startp=[integer :: 1, int(solver%C_one%xs) + 1, int(solver%C_one%ys) + 1, 1], &
+          & countp=[integer :: Nlay, int(ie), int(je), size(atm%opt_g, dim=3)], &
           & verbose=lverbose)
         call CHKERR(ierr)
       end if
@@ -361,12 +361,12 @@ contains
         call ncwrite(&
           & comm=comm, &
           & groups=[character(len=default_str_len) :: fname, 'atm.tskin'], &
-          & arr=reshape(atm%tskin, [integer :: ie, je]), &
+          & arr=reshape(atm%tskin, [integer :: int(ie), int(je)]), &
           & ierr=ierr, &
-          & arr_shape=[integer :: solver%C_one%glob_xm, solver%C_one%glob_ym], &
-          & dimnames=[character(len=default_str_len) :: "x", "y"], &
-          & startp=[integer :: solver%C_one%xs + 1, solver%C_one%ys + 1], &
-          & countp=[integer :: ie, je], &
+          & arr_shape=global_shape(2:3), &
+          & dimnames=dimnames(2:3), &
+          & startp=startp(2:3), &
+          & countp=local_shape(2:3), &
           & verbose=lverbose)
         call CHKERR(ierr)
       end if
@@ -379,8 +379,8 @@ contains
           & ierr=ierr, &
           & arr_shape=global_shape(2:3), &
           & dimnames=dimnames(2:3), &
-          & startp=[integer :: solver%C_one%xs + 1, solver%C_one%ys + 1], &
-          & countp=[integer :: ie, je], &
+          & startp=startp(2:3), &
+          & countp=local_shape(2:3), &
           & verbose=lverbose)
         call CHKERR(ierr)
       end if
@@ -392,15 +392,15 @@ contains
           & ierr=ierr, &
           & arr_shape=global_shape(2:3), &
           & dimnames=dimnames(2:3), &
-          & startp=[integer :: solver%C_one%xs + 1, solver%C_one%ys + 1], &
-          & countp=[integer :: ie, je], &
+          & startp=startp(2:3), &
+          & countp=local_shape(2:3), &
           & verbose=lverbose)
         call CHKERR(ierr)
       end if
 
       dimnames(:) = [character(len=default_str_len) :: "zlay_veg", "x", "y"]
-      call imp_allreduce_max(comm, size(opt_tau_solar, dim=1, kind=iintegers), Nveg)
-      global_shape = [integer :: Nveg, solver%C_one%glob_xm, solver%C_one%glob_ym]
+      call imp_allreduce_max(comm, size(opt_tau_solar, dim=1, kind=mpiint), Nveg)
+      global_shape = [integer :: int(Nveg), int(solver%C_one%glob_xm), int(solver%C_one%glob_ym)]
       if (present(opt_tau_solar)) then
         call ncwrite(&
           & comm=comm, &
@@ -409,7 +409,7 @@ contains
           & ierr=ierr, &
           & arr_shape=global_shape, &
           & dimnames=dimnames, &
-          & startp=[integer :: 1, solver%C_one%xs + 1, solver%C_one%ys + 1], &
+          & startp=startp, &
           & countp=shape(opt_tau_solar), &
           & verbose=lverbose)
         call CHKERR(ierr)
@@ -422,7 +422,7 @@ contains
           & ierr=ierr, &
           & arr_shape=global_shape, &
           & dimnames=dimnames, &
-          & startp=[integer :: 1, solver%C_one%xs + 1, solver%C_one%ys + 1], &
+          & startp=startp, &
           & countp=shape(opt_w0_solar), &
           & verbose=lverbose)
         call CHKERR(ierr)
@@ -435,7 +435,7 @@ contains
           & ierr=ierr, &
           & arr_shape=global_shape, &
           & dimnames=dimnames, &
-          & startp=[integer :: 1, solver%C_one%xs + 1, solver%C_one%ys + 1], &
+          & startp=startp, &
           & countp=shape(opt_g_solar))
         call CHKERR(ierr)
       end if
@@ -447,7 +447,7 @@ contains
           & ierr=ierr, &
           & arr_shape=global_shape, &
           & dimnames=dimnames, &
-          & startp=[integer :: 1, solver%C_one%xs + 1, solver%C_one%ys + 1], &
+          & startp=startp, &
           & countp=shape(opt_tau_thermal), &
           & verbose=lverbose)
         call CHKERR(ierr)
@@ -603,9 +603,9 @@ contains
         & groups=groups, &
         & arr=bldg_idx, &
         & ierr=ierr, &
-        & arr_shape=[integer :: size(bldg_idx, dim=1), Nglobal], &
+        & arr_shape=[integer :: size(bldg_idx, dim=1), int(Nglobal)], &
         & dimnames=dimnames, &
-        & startp=[integer :: 1, bStart], &
+        & startp=[integer :: 1, int(bStart)], &
         & countp=shape(bldg_idx), &
         & deflate_lvl=0, &
         & verbose=.false.)
@@ -620,9 +620,9 @@ contains
           & groups=groups, &
           & arr=B%albedo, &
           & ierr=ierr, &
-          & arr_shape=[integer :: Nglobal], &
+          & arr_shape=[integer :: int(Nglobal)], &
           & dimnames=dimnames, &
-          & startp=[integer :: bStart], &
+          & startp=[integer :: int(bStart)], &
           & countp=shape(B%albedo), &
           & deflate_lvl=0, &
           & verbose=.true.)
@@ -636,9 +636,9 @@ contains
           & groups=groups, &
           & arr=B%temp, &
           & ierr=ierr, &
-          & arr_shape=[integer :: Nglobal], &
+          & arr_shape=[integer :: int(Nglobal)], &
           & dimnames=dimnames, &
-          & startp=[integer :: bStart], &
+          & startp=[integer :: int(bStart)], &
           & countp=shape(B%temp), &
           & deflate_lvl=0, &
           & verbose=.false.)
@@ -652,9 +652,9 @@ contains
           & groups=groups, &
           & arr=B%planck, &
           & ierr=ierr, &
-          & arr_shape=[integer :: Nglobal], &
+          & arr_shape=[integer :: int(Nglobal)], &
           & dimnames=dimnames, &
-          & startp=[integer :: bStart], &
+          & startp=[integer :: int(bStart)], &
           & countp=shape(B%planck), &
           & deflate_lvl=0, &
           & verbose=.false.)
@@ -807,8 +807,8 @@ contains
       call imp_bcast(comm, opt_time, 0_mpiint, ierr); call CHKERR(ierr)
     end if
 
-    ostart(1:2) = [integer :: xStart + 1, yStart + 1]
-    ocount(1:2) = [integer :: Nx_local, Ny_local]
+    ostart(1:2) = [integer :: int(xStart) + 1, int(yStart) + 1]
+    ocount(1:2) = [integer :: int(Nx_local), int(Ny_local)]
     call ncload([character(default_str_len) :: inpfile, 'solar_albedo_2d'], solar_albedo_2d, ierr, &
       & comm=comm, ostart=ostart, ocount=ocount)
     call ncload([character(default_str_len) :: inpfile, 'thermal_albedo_2d'], thermal_albedo_2d, ierr, &
@@ -829,13 +829,13 @@ contains
     call imp_bcast(comm, Nlev, 0_mpiint, ierr); call CHKERR(ierr)
     call imp_bcast(comm, Nlay, 0_mpiint, ierr); call CHKERR(ierr)
 
-    ostart(1:3) = [integer :: 1, xStart + 1, yStart + 1]
-    ocount(1:3) = [integer :: Nlev, Nx_local, Ny_local]
+    ostart(1:3) = [integer :: 1, int(xStart) + 1, int(yStart) + 1]
+    ocount(1:3) = [integer :: int(Nlev), int(Nx_local), int(Ny_local)]
     call load_input_atm_var('atm.plev', atm%plev, ierr); call CHKERR(ierr)
     call load_input_atm_var('atm.tlev', atm%tlev, ierr); call CHKERR(ierr)
     call load_input_atm_var('atm.zlev', atm%zt, ierr); call CHKERR(ierr)
 
-    ocount(1:3) = [integer :: Nlay, Nx_local, Ny_local]
+    ocount(1:3) = [integer :: int(Nlay), int(Nx_local), int(Ny_local)]
     call load_input_atm_var('atm.zm', atm%zm, ierr)!; call CHKERR(ierr)
     call load_input_atm_var('atm.dz', atm%dz, ierr); call CHKERR(ierr)
     call load_input_atm_var('atm.tlay', atm%tlay, ierr); call CHKERR(ierr)
@@ -893,7 +893,8 @@ contains
 
     subroutine find_proc(nxproc_cum, nyproc_cum, glob_i, glob_j, rank, loc_i, loc_j, ierr)
       integer(iintegers), intent(in) :: nxproc_cum(:), nyproc_cum(:), glob_i, glob_j
-      integer(iintegers), intent(out) :: rank, loc_i, loc_j
+      integer(mpiint), intent(out) :: rank
+      integer(iintegers), intent(out) :: loc_i, loc_j
       integer(mpiint), intent(out) :: ierr
       integer(iintegers) :: rank_i, rank_j
 
@@ -903,7 +904,7 @@ contains
       do rank_j = 0, size(nyproc_cum) - 1
         if (nyproc_cum(rank_j + 1) .ge. glob_j) exit
       end do
-      rank = (rank_j) * size(nxproc_cum) + (rank_i)
+      rank = int(rank_j, mpiint) * size(nxproc_cum, kind=mpiint) + int(rank_i, mpiint)
 
       ierr = 0
       if (rank_i .ge. size(nxproc_cum)) ierr = ierr + 1
@@ -1020,9 +1021,9 @@ contains
 
       call init_buildings(buildings, &
         & [integer(iintegers) :: 6, Nlay, Nx, Ny], &
-        & my_face_cnt, ierr); call CHKERR(ierr)
+        & Nfaces, ierr); call CHKERR(ierr)
 
-      allocate (my_idx(4, my_face_cnt))
+      allocate (my_idx(4, Nfaces))
       call MPI_Scatterv(&
         & idx, &
         & send_cnts * 4, &
