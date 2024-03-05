@@ -23,6 +23,8 @@ module m_example_pprts_specint_lw_sw_from_dump
   use m_petsc_helpers, only: getvecpointer, restorevecpointer
   use m_netcdfio, only: ncwrite, set_attribute
 
+  use m_buildings, only: t_pprts_buildings
+
   implicit none
 
 contains
@@ -47,6 +49,9 @@ contains
     type(t_tenstr_atm) :: atm
     real(ireals), allocatable :: opt_time, solar_albedo_2d(:, :), thermal_albedo_2d(:, :), opt_solar_constant
 
+    type(t_pprts_buildings), allocatable :: opt_buildings_solar
+    type(t_pprts_buildings), allocatable :: opt_buildings_thermal
+
     integer(iintegers) :: icollapse, k, nlev
     logical :: lflg
 
@@ -67,6 +72,7 @@ contains
       & opt_time, &
       & solar_albedo_2d, thermal_albedo_2d, &
       & opt_solar_constant, &
+      & opt_buildings_solar, opt_buildings_thermal, &
       & ierr)
     call CHKERR(ierr)
 
@@ -75,6 +81,9 @@ contains
 !    sundir = spherical_2_cartesian(phi0, theta0)
 !
     call allocate_pprts_solver_from_commandline(pprts_solver, '3_10', ierr); call CHKERR(ierr)
+
+    call get_petsc_opt(PETSC_NULL_CHARACTER, '-solar', lsolar, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt(PETSC_NULL_CHARACTER, '-thermal', lthermal, lflg, ierr); call CHKERR(ierr)
 
     icollapse = 1
     call get_petsc_opt(PETSC_NULL_CHARACTER, "-icollapse", icollapse, lflg, ierr)
@@ -89,7 +98,6 @@ contains
     if (.not. allocated(thermal_albedo_2d)) then
       allocate (thermal_albedo_2d(Nx_local, Ny_local), source=albedo_thermal)
     end if
-    if (allocated(opt_solar_constant)) call CHKERR(1_mpiint, 'use of opt_solar_constant not implemented') ! Easy to add here by hand    but cumbersome to implement generically in Fortran
 
     call specint_pprts(specint, comm, pprts_solver, atm, &
                        Nx_local, Ny_local, &
@@ -101,7 +109,10 @@ contains
                        icollapse=icollapse, &
                        opt_time=opt_time, &
                        solar_albedo_2d=solar_albedo_2d, &
-                       thermal_albedo_2d=thermal_albedo_2d)
+                       thermal_albedo_2d=thermal_albedo_2d, &
+                       opt_solar_constant=opt_solar_constant, &
+                       opt_buildings_solar=opt_buildings_solar, &
+                       opt_buildings_thermal=opt_buildings_thermal)
 
     allocate (hr(size(abso, 1), size(abso, 2), size(abso, 3)))
     call abso2hr(atm, abso, hr, ierr); call CHKERR(ierr)

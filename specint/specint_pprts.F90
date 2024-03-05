@@ -22,27 +22,37 @@
 module m_specint_pprts
 #include "petsc/finclude/petsc.h"
   use petsc
-  use mpi, only: mpi_barrier
+  use mpi
 
   use m_helper_functions, only: &
     & atol, &
     & CHKERR, &
+    & cumsum, &
     & domain_decompose_2d_petsc, &
     & get_arg, &
     & get_petsc_opt, &
-    & imp_bcast, &
     & imp_allreduce_max, &
+    & imp_allreduce_sum, &
+    & imp_bcast, &
+    & imp_scan_sum, &
+    & ind_1d_to_nd, &
     & toStr
 
   use m_data_parameters, only: &
     & iintegers, ireals, mpiint, &
+    & imp_iinteger, &
+    & imp_ireals, &
     & default_str_len
 
   use m_pprts_base, only: t_solver
 
   use m_dyn_atm_to_rrtmg, only: t_tenstr_atm
 
-  use m_buildings, only: t_pprts_buildings
+  use m_buildings, only: &
+    & check_buildings_consistency, &
+    & faceidx_by_cell_plus_offset, &
+    & init_buildings, &
+    & t_pprts_buildings
 
   use m_pprts_rrtmg, only: pprts_rrtmg, destroy_pprts_rrtmg
   use m_repwvl_pprts, only: repwvl_pprts, repwvl_pprts_destroy
@@ -442,6 +452,18 @@ contains
           & verbose=lverbose)
         call CHKERR(ierr)
       end if
+
+      if (present(opt_buildings_solar)) then
+        call dump_input_buildings(comm, fname, opt_buildings_solar, 'solar', &
+          & solver%C_one%zm, solver%C_one%xs, solver%C_one%ys, &
+          & ierr); call CHKERR(ierr)
+      end if
+      if (present(opt_buildings_thermal)) then
+        call dump_input_buildings(comm, fname, opt_buildings_thermal, 'thermal', &
+          & solver%C_one%zm, solver%C_one%xs, solver%C_one%ys, &
+          & ierr); call CHKERR(ierr)
+      end if
+
     end subroutine
 
     subroutine dump_variable(var, dm, dumpstring, varname)
@@ -536,6 +558,112 @@ contains
     end if
   end subroutine
 
+  subroutine dump_input_buildings(comm, fname, buildings, prefix, Nlay, xs, ys, ierr)
+    integer(mpiint), intent(in) :: comm
+    character(len=*), intent(in) :: fname, prefix
+    type(t_pprts_buildings), intent(in) :: buildings
+    integer(iintegers), intent(in) :: Nlay, xs, ys
+    integer(mpiint), intent(out) :: ierr
+
+    integer(mpiint) :: myid
+    integer(iintegers) :: Nlocal, Nglobal, bStart
+    integer(iintegers) :: m, idx(4)
+    integer(iintegers), allocatable :: bldg_idx(:, :)
+    character(len=default_str_len) :: groups(4), dimnames(2)
+
+    call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+
+    associate (B => buildings)
+
+      if (.not. associated(B%iface)) call CHKERR(1_mpiint, 'buildings%iface not associated! ('//trim(prefix)//')')
+      Nlocal = size(B%iface)
+
+      !print *,myid,'have', Nlocal, 'building faces ('//trim(prefix)//')'
+      call imp_scan_sum(comm, Nlocal, bStart, ierr); call CHKERR(ierr)
+      bStart = 1 + bStart - Nlocal
+      !print *,myid,'my_startidx', bStart, 'building faces ('//trim(prefix)//')'
+
+      call imp_allreduce_sum(comm, Nlocal, Nglobal)
+      !print *,myid,'global', Nglobal, 'building faces ('//trim(prefix)//')'
+
+      ! convert from local to global indices
+      allocate (bldg_idx(4, Nlocal))
+      do m = 1, size(B%iface)
+        call ind_1d_to_nd(B%da_offsets, B%iface(m), idx)
+        idx(3:4) = idx(3:4) + [xs, ys]
+        idx(2) = Nlay - idx(2) + 1 ! count from bottom
+        bldg_idx(:, m) = idx
+        print *, myid, bStart + m, 'bldg', bldg_idx(:, m)
+      end do
+
+      groups = [character(len=default_str_len) :: fname, 'buildings', prefix, 'idx']
+      dimnames = [character(len=default_str_len) :: 'fkij', 'Nbldgs.'//prefix]
+      call ncwrite(&
+        & comm=comm, &
+        & groups=groups, &
+        & arr=bldg_idx, &
+        & ierr=ierr, &
+        & arr_shape=[integer :: size(bldg_idx, dim=1), Nglobal], &
+        & dimnames=dimnames, &
+        & startp=[integer :: 1, bStart], &
+        & countp=shape(bldg_idx), &
+        & deflate_lvl=0, &
+        & verbose=.false.)
+      call CHKERR(ierr)
+
+      dimnames(1:1) = 'Nbldgs.'//trim(prefix)
+      if (allocated(B%albedo)) then
+        print *, 'B%albedo', B%albedo
+        groups(4) = 'albedo'
+        call ncwrite(&
+          & comm=comm, &
+          & groups=groups, &
+          & arr=B%albedo, &
+          & ierr=ierr, &
+          & arr_shape=[integer :: Nglobal], &
+          & dimnames=dimnames, &
+          & startp=[integer :: bStart], &
+          & countp=shape(B%albedo), &
+          & deflate_lvl=0, &
+          & verbose=.true.)
+        call CHKERR(ierr)
+      end if
+
+      if (allocated(B%temp)) then
+        groups(4) = 'temp'
+        call ncwrite(&
+          & comm=comm, &
+          & groups=groups, &
+          & arr=B%temp, &
+          & ierr=ierr, &
+          & arr_shape=[integer :: Nglobal], &
+          & dimnames=dimnames, &
+          & startp=[integer :: bStart], &
+          & countp=shape(B%temp), &
+          & deflate_lvl=0, &
+          & verbose=.false.)
+        call CHKERR(ierr)
+      end if
+
+      if (allocated(B%planck)) then
+        groups(4) = 'planck'
+        call ncwrite(&
+          & comm=comm, &
+          & groups=groups, &
+          & arr=B%planck, &
+          & ierr=ierr, &
+          & arr_shape=[integer :: Nglobal], &
+          & dimnames=dimnames, &
+          & startp=[integer :: bStart], &
+          & countp=shape(B%planck), &
+          & deflate_lvl=0, &
+          & verbose=.false.)
+        call CHKERR(ierr)
+      end if
+
+    end associate
+  end subroutine
+
   subroutine select_specint(specint, spec, ierr)
     character(len=*), intent(in) :: specint
     character(len=default_str_len), intent(out) :: spec
@@ -599,6 +727,7 @@ contains
       & opt_time, &
       & solar_albedo_2d, thermal_albedo_2d, &
       & opt_solar_constant, &
+      & opt_buildings_solar, opt_buildings_thermal, &
       & ierr)
     integer(mpiint), intent(in) :: comm
     character(len=default_str_len) :: inpfile
@@ -610,6 +739,7 @@ contains
     logical, intent(out) :: lsolar, lthermal
     type(t_tenstr_atm), intent(out) :: atm
     real(ireals), allocatable, intent(out) :: opt_time, solar_albedo_2d(:, :), thermal_albedo_2d(:, :), opt_solar_constant
+    type(t_pprts_buildings), allocatable, intent(out) :: opt_buildings_solar, opt_buildings_thermal
     integer(mpiint), intent(out) :: ierr
 
     integer(mpiint) :: myid
@@ -677,28 +807,12 @@ contains
       call imp_bcast(comm, opt_time, 0_mpiint, ierr); call CHKERR(ierr)
     end if
 
-    print *, myid, 'dx', dx
-    print *, myid, 'dy', dy
-    print *, myid, 'albedo_thermal', albedo_thermal
-    print *, myid, 'albedo_solar', albedo_solar
-    print *, myid, 'lthermal', lthermal
-    print *, myid, 'lsolar', lsolar
-    print *, myid, 'sundir', sundir
-    print *, myid, 'have_opt_solar_constant', allocated(opt_solar_constant)
-    if (lhave_opt_solar_constant) print *, myid, 'opt_solar_constant', opt_solar_constant
-    print *, myid, 'have_opt_time', allocated(opt_time)
-    if (lhave_opt_time) print *, myid, 'opt_time', opt_time
-
     ostart(1:2) = [integer :: xStart + 1, yStart + 1]
     ocount(1:2) = [integer :: Nx_local, Ny_local]
     call ncload([character(default_str_len) :: inpfile, 'solar_albedo_2d'], solar_albedo_2d, ierr, &
       & comm=comm, ostart=ostart, ocount=ocount)
-    print *, myid, 'have_solar_albedo_2d', allocated(solar_albedo_2d)
-    if (allocated(solar_albedo_2d)) print *, myid, 'solar_albedo_2d', solar_albedo_2d
     call ncload([character(default_str_len) :: inpfile, 'thermal_albedo_2d'], thermal_albedo_2d, ierr, &
       & comm=comm, ostart=ostart, ocount=ocount)
-    print *, myid, 'have_thermal_albedo_2d', allocated(thermal_albedo_2d)
-    if (allocated(thermal_albedo_2d)) print *, myid, 'thermal_albedo_2d', thermal_albedo_2d
 
     ! populate atm
     allocate (atm%atm_ke)
@@ -714,8 +828,6 @@ contains
     call imp_bcast(comm, atm%d_ke1, 0_mpiint, ierr); call CHKERR(ierr)
     call imp_bcast(comm, Nlev, 0_mpiint, ierr); call CHKERR(ierr)
     call imp_bcast(comm, Nlay, 0_mpiint, ierr); call CHKERR(ierr)
-    print *, myid, 'Nlev', Nlev
-    print *, myid, 'Nlay', Nlay
 
     ostart(1:3) = [integer :: 1, xStart + 1, yStart + 1]
     ocount(1:3) = [integer :: Nlev, Nx_local, Ny_local]
@@ -739,6 +851,18 @@ contains
     call load_input_atm_var('atm.reice', atm%reice, ierr)!; call CHKERR(ierr)
     call load_input_atm_var('atm.cfrac', atm%cfrac, ierr)!; call CHKERR(ierr)
 
+    call load_buildings_info(&
+      & comm, inpfile, 'solar', &
+      & Nlev - 1, Nx_local, Ny_local, &
+      & nxproc, nyproc, &
+      & opt_buildings_solar, ierr)
+
+    call load_buildings_info(&
+      & comm, inpfile, 'thermal', &
+      & Nlev - 1, Nx_local, Ny_local, &
+      & nxproc, nyproc, &
+      & opt_buildings_solar, ierr)
+
     !TODO missing loading:
     ! atm.opt_tau
     ! atm.opt_w0
@@ -761,10 +885,244 @@ contains
       if (allocated(arr3d)) then
         allocate (arr(size(arr3d, dim=1), size(arr3d, dim=2) * size(arr3d, dim=3)))
         arr = reshape(arr3d, [size(arr3d, dim=1), size(arr3d, dim=2) * size(arr3d, dim=3)])
-        print *, 'read ', trim(varname)
+        if (myid .eq. 0) print *, 'read ', trim(varname)
       else
-        print *, 'no input for ', trim(varname)
+        if (myid .eq. 0) print *, 'no input for ', trim(varname)
       end if
     end subroutine
+
+    subroutine find_proc(nxproc_cum, nyproc_cum, glob_i, glob_j, rank, loc_i, loc_j, ierr)
+      integer(iintegers), intent(in) :: nxproc_cum(:), nyproc_cum(:), glob_i, glob_j
+      integer(iintegers), intent(out) :: rank, loc_i, loc_j
+      integer(mpiint), intent(out) :: ierr
+      integer(iintegers) :: rank_i, rank_j
+
+      do rank_i = 0, size(nxproc_cum) - 1
+        if (nxproc_cum(rank_i + 1) .ge. glob_i) exit
+      end do
+      do rank_j = 0, size(nyproc_cum) - 1
+        if (nyproc_cum(rank_j + 1) .ge. glob_j) exit
+      end do
+      rank = (rank_j) * size(nxproc_cum) + (rank_i)
+
+      ierr = 0
+      if (rank_i .ge. size(nxproc_cum)) ierr = ierr + 1
+      if (rank_j .ge. size(nyproc_cum)) ierr = ierr + 1
+      if (rank .gt. size(nyproc_cum) * size(nxproc_cum) - 1) ierr = ierr + 1
+      if (ierr .ne. 0) then
+        print *, 'glob_i, glob_j', glob_i, glob_j, 'lives on rank', rank_i, rank_j, "->", rank
+        call CHKERR(ierr)
+      end if
+
+      if (rank_i .gt. 0) then
+        loc_i = glob_i - nxproc_cum(rank_i)
+      else
+        loc_i = glob_i
+      end if
+      if (rank_j .gt. 0) then
+        loc_j = glob_j - nyproc_cum(rank_j)
+      else
+        loc_j = glob_j
+      end if
+      !print *, 'glob_i, glob_j', glob_i, glob_j, 'lives on rank', rank_i, rank_j, "->", rank, &
+      !  & 'loc_i', loc_i, 'loc_j', loc_j
+    end subroutine
+
+    subroutine load_buildings_info(comm, inpfile, prefix, Nlay, Nx, Ny, nxproc, nyproc, buildings, ierr)
+      integer(mpiint), intent(in) :: comm
+      character(len=*), intent(in) :: inpfile, prefix
+      integer(iintegers), intent(in) :: Nlay, Nx, Ny, nxproc(:), nyproc(:)
+      type(t_pprts_buildings), allocatable, intent(out) :: buildings
+      integer(mpiint), intent(out) :: ierr
+
+      integer(mpiint) :: myid, numnodes
+      integer(iintegers), allocatable :: orig_idx(:, :) ! from netcdf
+      integer(iintegers), allocatable :: idx(:, :) ! sorted by ranks
+      integer(iintegers), allocatable :: my_idx(:, :) ! local_values after send
+      integer(iintegers), allocatable :: netcdf_idx_to_rank_sorted(:)
+      integer(iintegers), allocatable :: nxproc_cum(:), nyproc_cum(:)
+      integer(iintegers), allocatable :: ioff_per_rank(:)
+      integer(iintegers), allocatable :: send_cnts(:), displs(:)
+      integer(iintegers) :: Nfaces, i, j, m, my_face_cnt!, fidx(4)
+      integer(mpiint) :: rank
+      logical :: lhave_building_data
+
+      call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+      call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
+
+      allocate (send_cnts(0:numnodes - 1))
+      allocate (displs(0:numnodes - 1))
+
+      if (myid .eq. 0) then
+        call ncload([character(len=default_str_len) :: inpfile, 'buildings', prefix, 'idx'], orig_idx, ierr)
+        lhave_building_data = ierr .eq. 0
+      end if
+      call imp_bcast(comm, lhave_building_data, 0_mpiint, ierr); call CHKERR(ierr)
+      if (.not. lhave_building_data) return
+
+      if (myid .eq. 0) then
+        Nfaces = size(orig_idx, dim=2)
+
+        ! cumulative sum of of local domain sizes:
+        allocate (nxproc_cum(size(nxproc)))
+        nxproc_cum = cumsum(nxproc)
+        allocate (nyproc_cum(size(nyproc)))
+        nyproc_cum = cumsum(nyproc)
+
+        send_cnts(:) = 0
+        do m = 1, Nfaces
+          call find_proc( &
+            & nxproc_cum, nyproc_cum, &
+            & orig_idx(3, m), orig_idx(4, m), &
+            & rank, i, j, ierr); call CHKERR(ierr)
+
+          send_cnts(rank) = send_cnts(rank) + 1
+        end do
+
+        displs(0) = 0
+        if (numnodes .gt. 1_mpiint) then
+          displs(1:numnodes - 1) = cumsum(send_cnts(0:numnodes - 2))
+        end if
+
+        allocate (ioff_per_rank(0:numnodes - 1))
+        ioff_per_rank = displs
+
+        !do m=0,numnodes-1
+        !  print *,'rank', m, 'facecnt', send_cnts(m), 'displs', displs(m), 'cum_facecnt_per_rank', cum_facecnt_per_rank(m)
+        !enddo
+
+        allocate (netcdf_idx_to_rank_sorted(Nfaces))
+        allocate (idx(4, Nfaces))
+        do m = 1, Nfaces
+          call find_proc( &
+            & nxproc_cum, nyproc_cum, &
+            & orig_idx(3, m), orig_idx(4, m), &
+            & rank, i, j, ierr); call CHKERR(ierr)
+
+          ioff_per_rank(rank) = ioff_per_rank(rank) + 1
+          netcdf_idx_to_rank_sorted(m) = ioff_per_rank(rank)
+          idx(:, netcdf_idx_to_rank_sorted(m)) = [orig_idx(1, m), orig_idx(2, m), i, j]
+        end do
+        !do m = 1, Nfaces
+        !  print *, m, netcdf_idx_to_rank_sorted(m), 'idx', idx(:, netcdf_idx_to_rank_sorted(m))
+        !end do
+        deallocate (orig_idx)
+      else
+        allocate (idx(4, 0))
+        allocate (netcdf_idx_to_rank_sorted(0))
+        send_cnts(:) = 0
+        displs(:) = 0
+      end if
+      call mpi_scatter(send_cnts, 1_mpiint, imp_iinteger, my_face_cnt, 1_mpiint, imp_iinteger, 0_mpiint, comm, ierr)
+      call CHKERR(ierr)
+
+      call init_buildings(buildings, &
+        & [integer(iintegers) :: 6, Nlay, Nx, Ny], &
+        & my_face_cnt, ierr); call CHKERR(ierr)
+
+      allocate (my_idx(4, my_face_cnt))
+      call MPI_Scatterv(&
+        & idx, &
+        & send_cnts * 4, &
+        & displs * 4, &
+        & imp_iinteger, &
+        & my_idx, &
+        & my_face_cnt * 4, &
+        & imp_iinteger, &
+        & 0_mpiint, &
+        & comm, &
+        & ierr)
+      call CHKERR(ierr)
+      deallocate (idx)
+
+      do m = 1, size(my_idx, dim=2)
+        associate (d => my_idx(1, m), k => Nlay - my_idx(2, m) + 1, i => my_idx(3, m), j => my_idx(4, m))
+          buildings%iface(m) = faceidx_by_cell_plus_offset(buildings%da_offsets, k, i, j, d)
+          !print *, myid, trim(prefix), 'now have building at ', my_idx(:, m), 'kij', k, i, j, 'iface', buildings%iface(m)
+        end associate
+      end do
+
+      call check_buildings_consistency(buildings, Nlay, Nx, Ny, ierr); call CHKERR(ierr)
+
+      call scatter_buildings_var(comm, inpfile, prefix, 'albedo', &
+        & netcdf_idx_to_rank_sorted, send_cnts, displs, my_face_cnt, &
+        & buildings%albedo, ierr); call CHKERR(ierr)
+
+      call scatter_buildings_var(comm, inpfile, prefix, 'temp', &
+        & netcdf_idx_to_rank_sorted, send_cnts, displs, my_face_cnt, &
+        & buildings%temp, ierr); call CHKERR(ierr)
+
+      call scatter_buildings_var(comm, inpfile, prefix, 'planck', &
+        & netcdf_idx_to_rank_sorted, send_cnts, displs, my_face_cnt, &
+        & buildings%planck, ierr); call CHKERR(ierr)
+
+      !do m = 1, size(buildings%iface)
+      !  call ind_1d_to_nd(buildings%da_offsets, buildings%iface(m), fidx)
+      !  associate (d => fidx(1), k => fidx(2), i => fidx(3), j => fidx(4))
+      !    if (allocated(buildings%temp)) then
+      !      print *, myid, 'now have building at ', my_idx(:, m), 'iface', buildings%iface(m), &
+      !        & 'Ag', buildings%albedo(m), 'temp', buildings%temp(m)
+      !    else
+      !      print *, myid, 'now have building at ', my_idx(:, m), 'iface', buildings%iface(m), &
+      !        & 'Ag', buildings%albedo(m), 'idx', d, k, i, j
+      !    end if
+      !  end associate
+      !end do
+
+    end subroutine
+
+    subroutine scatter_buildings_var(comm, inpfile, prefix, varname, &
+        & netcdf_idx_to_rank_sorted, send_cnts, displs, my_face_cnt, data_arr, ierr)
+      integer(mpiint), intent(in) :: comm
+      character(len=*), intent(in) :: inpfile, prefix, varname
+      integer(iintegers), intent(in) :: netcdf_idx_to_rank_sorted(:), send_cnts(0:), displs(0:)
+      integer(iintegers), intent(in) :: my_face_cnt
+      real(ireals), allocatable, intent(inout) :: data_arr(:)
+      integer(mpiint), intent(out) :: ierr
+
+      integer(iintegers) :: m
+      real(ireals), allocatable :: netcdf_arr(:)
+      real(ireals), allocatable :: rank_sorted_arr(:)
+      integer(mpiint) :: myid
+      logical :: lhave_building_data
+
+      call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+
+      if (myid .eq. 0) then
+        call ncload([character(len=default_str_len) :: inpfile, 'buildings', prefix, varname], netcdf_arr, ierr)
+        lhave_building_data = ierr .eq. 0
+      end if
+      call imp_bcast(comm, lhave_building_data, 0_mpiint, ierr); call CHKERR(ierr)
+      if (.not. lhave_building_data) return
+
+      if (myid .eq. 0) then
+        allocate (rank_sorted_arr(size(netcdf_arr)))
+        do m = 1, size(rank_sorted_arr)
+          rank_sorted_arr(netcdf_idx_to_rank_sorted(m)) = netcdf_arr(m)
+        end do
+        deallocate (netcdf_arr)
+      else
+        allocate (rank_sorted_arr(0))
+      end if
+
+      if (.not. allocated(data_arr)) then
+        allocate (data_arr(my_face_cnt))
+      else
+        call CHKERR(int(size(data_arr) - my_face_cnt, kind=mpiint), 'wrong size of buildings variable'//varname)
+      end if
+      call MPI_Scatterv(&
+        & rank_sorted_arr, &
+        & send_cnts, &
+        & displs, &
+        & imp_ireals, &
+        & data_arr, &
+        & my_face_cnt, &
+        & imp_ireals, &
+        & 0_mpiint, &
+        & comm, &
+        & ierr)
+      call CHKERR(ierr)
+    end subroutine
+
   end subroutine
 end module
