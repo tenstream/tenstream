@@ -89,6 +89,7 @@ module m_helper_functions
     & imp_min_mean_max, &
     & imp_reduce_mean, &
     & imp_reduce_sum, &
+    & imp_scan_sum, &
     & inc, &
     & ind_1d_to_nd, &
     & ind_nd_to_1d, &
@@ -368,9 +369,21 @@ module m_helper_functions
   interface imp_allreduce_max
     module procedure imp_allreduce_max_ireals, imp_allreduce_max_iintegers
   end interface
+
   interface imp_reduce_sum
     module procedure imp_reduce_sum_r32, imp_reduce_sum_r64, imp_reduce_sum_r128
   end interface
+
+  #:for method,dtype,mpitype in [ &
+    ('integer', 'INT32' , 'imp_int4'  ), &
+    ('integer', 'INT64' , 'imp_int8'  ), &
+    ('real'   , 'REAL32', 'imp_REAL32'), &
+    ('real'   , 'REAL64', 'imp_REAL64')]
+    interface imp_scan_sum
+      module procedure imp_scan_sum_inplace_${method}$_${dtype}$
+      module procedure imp_scan_sum_${method}$_${dtype}$
+    end interface
+  #:endfor
 
   interface imp_reduce_mean
     #:for method,dtype,mpitype,otype in [ &
@@ -1392,6 +1405,26 @@ contains
     call imp_reduce_sum(comm, r)
     v = real(r, kind(v))
   end subroutine
+
+  #:for method,dtype,mpitype in [ &
+    ('integer', 'INT32' , 'imp_int4'  ), &
+    ('integer', 'INT64' , 'imp_int8'  ), &
+    ('real'   , 'REAL32', 'imp_REAL32'), &
+    ('real'   , 'REAL64', 'imp_REAL64')]
+    subroutine imp_scan_sum_inplace_${method}$_${dtype}$ (comm, v, ierr)
+      ${method}$ (${dtype}$), intent(inout) :: v
+      integer(mpiint), intent(out) :: ierr
+      integer(mpiint), intent(in) :: comm
+      call mpi_scan(MPI_IN_PLACE, v, 1_mpiint, ${mpitype}$, MPI_SUM, comm, ierr); call CHKERR(ierr)
+    end subroutine
+    subroutine imp_scan_sum_${method}$_${dtype}$ (comm, v, o, ierr)
+      ${method}$ (${dtype}$), intent(in) :: v
+      ${method}$ (${dtype}$), intent(out) :: o
+      integer(mpiint), intent(out) :: ierr
+      integer(mpiint), intent(in) :: comm
+      call mpi_scan(v, o, 1_mpiint, ${mpitype}$, MPI_SUM, comm, ierr); call CHKERR(ierr)
+    end subroutine
+  #:endfor
 
   #:for method,dtype,mpitype,otype in [ &
     ('integer', 'INT32' , 'imp_int4'  , 'ireals'), &
