@@ -944,7 +944,7 @@ contains
       integer(iintegers), allocatable :: ioff_per_rank(:)
       integer(mpiint), allocatable :: send_cnts(:), displs(:)
 
-      integer(iintegers) :: Nfaces, i, j, m, my_face_cnt!, fidx(4)
+      integer(iintegers) :: Nfaces, i, j, m !, fidx(4)
       integer(mpiint) :: rank, my_face_cnt
       logical :: lhave_building_data
 
