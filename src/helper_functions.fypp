@@ -87,8 +87,12 @@ module m_helper_functions
     & imp_allreduce_sum, &
     & imp_bcast, &
     & imp_min_mean_max, &
+    & imp_reduce_max, &
     & imp_reduce_mean, &
+    & imp_reduce_min, &
     & imp_reduce_sum, &
+    & imp_scan_min, &
+    & imp_scan_max, &
     & imp_scan_sum, &
     & inc, &
     & ind_1d_to_nd, &
@@ -360,29 +364,42 @@ module m_helper_functions
       module procedure imp_allreduce_mean_${RANK}$d
     #:endfor
   end interface
-  interface imp_allreduce_sum
-    module procedure imp_allreduce_sum_ireals, imp_allreduce_sum_i32, imp_allreduce_sum_i64
-  end interface
-  interface imp_allreduce_min
-    module procedure imp_allreduce_min_ireals, imp_allreduce_min_iintegers
-  end interface
-  interface imp_allreduce_max
-    module procedure imp_allreduce_max_ireals, imp_allreduce_max_iintegers
-  end interface
 
-  interface imp_reduce_sum
-    module procedure imp_reduce_sum_r32, imp_reduce_sum_r64, imp_reduce_sum_r128
-  end interface
+  #:for REDUCTION in ['sum', 'min', 'max']
 
-  #:for method,dtype,mpitype in [ &
-    ('integer', 'INT32' , 'imp_int4'  ), &
-    ('integer', 'INT64' , 'imp_int8'  ), &
-    ('real'   , 'REAL32', 'imp_REAL32'), &
-    ('real'   , 'REAL64', 'imp_REAL64')]
-    interface imp_scan_sum
-      module procedure imp_scan_sum_inplace_${method}$_${dtype}$
-      module procedure imp_scan_sum_${method}$_${dtype}$
+    interface imp_allreduce_${REDUCTION}$
+      #:for method,dtype,mpitype in [ &
+        ('integer', 'INT32' , 'imp_int4'  ), &
+        ('integer', 'INT64' , 'imp_int8'  ), &
+        ('real'   , 'REAL32', 'imp_REAL32'), &
+        ('real'   , 'REAL64', 'imp_REAL64')]
+        module procedure imp_allreduce_${REDUCTION}$_${method}$_${dtype}$
+      #:endfor
     end interface
+
+    interface imp_reduce_${REDUCTION}$
+      !module procedure imp_reduce_sum_r128
+      #:for method,dtype,mpitype in [ &
+        ('integer', 'INT32' , 'imp_int4'  ), &
+        ('integer', 'INT64' , 'imp_int8'  ), &
+        ('real'   , 'REAL32', 'imp_REAL32'), &
+        ('real'   , 'REAL64', 'imp_REAL64')]
+        module procedure imp_reduce_${REDUCTION}$_${method}$_${dtype}$
+      #:endfor
+    end interface
+
+    interface imp_scan_${REDUCTION}$
+      #:for method,dtype,mpitype in [ &
+        ('integer', 'INT32' , 'imp_int4'  ), &
+        ('integer', 'INT64' , 'imp_int8'  ), &
+        ('real'   , 'REAL32', 'imp_REAL32'), &
+        ('real'   , 'REAL64', 'imp_REAL64')]
+        module procedure imp_scan_${REDUCTION}$_inplace_${method}$_${dtype}$
+        module procedure imp_scan_${REDUCTION}$_${method}$_${dtype}$
+      #:endfor
+    end interface
+
+    ! endfor REDUCTION
   #:endfor
 
   interface imp_reduce_mean
@@ -1287,56 +1304,6 @@ contains
     end if
   end function
 
-  subroutine imp_allreduce_min_iintegers(comm, v, r)
-    integer(mpiint), intent(in) :: comm
-    integer(iintegers), intent(in) :: v
-    integer(iintegers), intent(out) :: r
-    integer(mpiint) :: mpierr
-    call mpi_allreduce(v, r, 1_mpiint, imp_iinteger, MPI_MIN, comm, mpierr); call CHKERR(mpierr)
-  end subroutine
-  subroutine imp_allreduce_min_ireals(comm, v, r)
-    integer(mpiint), intent(in) :: comm
-    real(ireals), intent(in) :: v
-    real(ireals), intent(out) :: r
-    integer(mpiint) :: mpierr
-    call mpi_allreduce(v, r, 1_mpiint, imp_ireals, MPI_MIN, comm, mpierr); call CHKERR(mpierr)
-  end subroutine
-  subroutine imp_allreduce_max_iintegers(comm, v, r)
-    integer(mpiint), intent(in) :: comm
-    integer(iintegers), intent(in) :: v
-    integer(iintegers), intent(out) :: r
-    integer(mpiint) :: mpierr
-    call mpi_allreduce(v, r, 1_mpiint, imp_iinteger, MPI_MAX, comm, mpierr); call CHKERR(mpierr)
-  end subroutine
-  subroutine imp_allreduce_max_ireals(comm, v, r)
-    integer(mpiint), intent(in) :: comm
-    real(ireals), intent(in) :: v
-    real(ireals), intent(out) :: r
-    integer(mpiint) :: mpierr
-    call mpi_allreduce(v, r, 1_mpiint, imp_ireals, MPI_MAX, comm, mpierr); call CHKERR(mpierr)
-  end subroutine
-  subroutine imp_allreduce_sum_ireals(comm, v, r)
-    integer(mpiint), intent(in) :: comm
-    real(ireals), intent(in) :: v
-    real(ireals), intent(out) :: r
-    integer(mpiint) :: mpierr
-    call mpi_allreduce(v, r, 1_mpiint, imp_ireals, MPI_SUM, comm, mpierr); call CHKERR(mpierr)
-  end subroutine
-  subroutine imp_allreduce_sum_i32(comm, v, r)
-    integer(mpiint), intent(in) :: comm
-    integer(int32), intent(in) :: v
-    integer(int32), intent(out) :: r
-    integer(mpiint) :: mpierr
-    call mpi_allreduce(v, r, 1_mpiint, imp_int4, MPI_SUM, comm, mpierr); call CHKERR(mpierr)
-  end subroutine
-  subroutine imp_allreduce_sum_i64(comm, v, r)
-    integer(mpiint), intent(in) :: comm
-    integer(int64), intent(in) :: v
-    integer(int64), intent(out) :: r
-    integer(mpiint) :: mpierr
-    call mpi_allreduce(v, r, 1_mpiint, imp_int8, MPI_SUM, comm, mpierr); call CHKERR(mpierr)
-  end subroutine
-
   subroutine imp_allreduce_mean_0d(comm, v, r)
     integer(mpiint), intent(in) :: comm
     real(ireals), intent(in) :: v
@@ -1362,68 +1329,63 @@ contains
     end subroutine
   #:endfor
 
-  subroutine imp_reduce_sum_r32(comm, v)
-    real(real32), intent(inout) :: v
-    integer(mpiint), intent(in) :: comm
-    integer(mpiint) :: commsize, myid
-    integer(mpiint) :: mpierr
-    call MPI_Comm_size(comm, commsize, mpierr); call CHKERR(mpierr)
-    if (commsize .le. 1) return
-    call MPI_Comm_rank(comm, myid, mpierr); call CHKERR(mpierr)
+  #:for REDUCTION in ['sum', 'min', 'max']
+    #:for method,dtype,mpitype in [ &
+      ('integer', 'INT32' , 'imp_int4'  ), &
+      ('integer', 'INT64' , 'imp_int8'  ), &
+      ('real'   , 'REAL32', 'imp_REAL32'), &
+      ('real'   , 'REAL64', 'imp_REAL64')]
+      subroutine imp_reduce_${REDUCTION}$_${method}$_${dtype}$ (comm, v)
+        ${method}$ (${dtype}$), intent(inout) :: v
+        integer(mpiint), intent(in) :: comm
+        integer(mpiint) :: commsize, myid
+        integer(mpiint) :: mpierr
+        call MPI_Comm_size(comm, commsize, mpierr); call CHKERR(mpierr)
+        if (commsize .le. 1) return
+        call MPI_Comm_rank(comm, myid, mpierr); call CHKERR(mpierr)
 
-    if (myid .eq. 0) then
-      call mpi_reduce(MPI_IN_PLACE, v, 1_mpiint, imp_REAL32, MPI_SUM, 0_mpiint, comm, mpierr); call CHKERR(mpierr)
-    else
-      call mpi_reduce(v, MPI_IN_PLACE, 1_mpiint, imp_REAL32, MPI_SUM, 0_mpiint, comm, mpierr); call CHKERR(mpierr)
-    end if
-  end subroutine
-  subroutine imp_reduce_sum_r64(comm, v)
-    real(real64), intent(inout) :: v
-    integer(mpiint), intent(in) :: comm
-    integer(mpiint) :: commsize, myid
-    integer(mpiint) :: mpierr
-    call MPI_Comm_size(comm, commsize, mpierr); call CHKERR(mpierr)
-    if (commsize .le. 1) return
-    call MPI_Comm_rank(comm, myid, mpierr); call CHKERR(mpierr)
+        if (myid .eq. 0) then
+          call mpi_reduce(MPI_IN_PLACE, v, 1_mpiint, ${mpitype}$, MPI_${REDUCTION}$, 0_mpiint, comm, mpierr); call CHKERR(mpierr)
+        else
+          call mpi_reduce(v, MPI_IN_PLACE, 1_mpiint, ${mpitype}$, MPI_${REDUCTION}$, 0_mpiint, comm, mpierr); call CHKERR(mpierr)
+        end if
+      end subroutine
+    #:endfor
 
-    if (myid .eq. 0) then
-      call mpi_reduce(MPI_IN_PLACE, v, 1_mpiint, imp_REAL64, MPI_SUM, 0_mpiint, comm, mpierr); call CHKERR(mpierr)
-    else
-      call mpi_reduce(v, MPI_IN_PLACE, 1_mpiint, imp_REAL64, MPI_SUM, 0_mpiint, comm, mpierr); call CHKERR(mpierr)
-    end if
-  end subroutine
-  subroutine imp_reduce_sum_r128(comm, v)
-    ! sad hack for the moment because i have lots of problems with openmpi and quad prec reductions
-    real(real128), intent(inout) :: v
-    integer(mpiint), intent(in) :: comm
-    real(real64) :: r
-    integer(mpiint) :: ierr, commsize
-    call MPI_Comm_size(comm, commsize, ierr); call CHKERR(ierr)
-    if (commsize .le. 1) return
+    #:for method,dtype,mpitype in [ &
+      ('integer', 'INT32' , 'imp_int4'  ), &
+      ('integer', 'INT64' , 'imp_int8'  ), &
+      ('real'   , 'REAL32', 'imp_REAL32'), &
+      ('real'   , 'REAL64', 'imp_REAL64')]
+      subroutine imp_allreduce_${REDUCTION}$_${method}$_${dtype}$ (comm, v, r)
+        integer(mpiint), intent(in) :: comm
+        ${method}$ (${dtype}$), intent(in) :: v
+        ${method}$ (${dtype}$), intent(out) :: r
+        integer(mpiint) :: mpierr
+        call mpi_allreduce(v, r, 1_mpiint, ${mpitype}$, MPI_${REDUCTION}$, comm, mpierr); call CHKERR(mpierr)
+      end subroutine
+    #:endfor
 
-    r = real(v, kind(r))
-    call imp_reduce_sum(comm, r)
-    v = real(r, kind(v))
-  end subroutine
-
-  #:for method,dtype,mpitype in [ &
-    ('integer', 'INT32' , 'imp_int4'  ), &
-    ('integer', 'INT64' , 'imp_int8'  ), &
-    ('real'   , 'REAL32', 'imp_REAL32'), &
-    ('real'   , 'REAL64', 'imp_REAL64')]
-    subroutine imp_scan_sum_inplace_${method}$_${dtype}$ (comm, v, ierr)
-      ${method}$ (${dtype}$), intent(inout) :: v
-      integer(mpiint), intent(out) :: ierr
-      integer(mpiint), intent(in) :: comm
-      call mpi_scan(MPI_IN_PLACE, v, 1_mpiint, ${mpitype}$, MPI_SUM, comm, ierr); call CHKERR(ierr)
-    end subroutine
-    subroutine imp_scan_sum_${method}$_${dtype}$ (comm, v, o, ierr)
-      ${method}$ (${dtype}$), intent(in) :: v
-      ${method}$ (${dtype}$), intent(out) :: o
-      integer(mpiint), intent(out) :: ierr
-      integer(mpiint), intent(in) :: comm
-      call mpi_scan(v, o, 1_mpiint, ${mpitype}$, MPI_SUM, comm, ierr); call CHKERR(ierr)
-    end subroutine
+    #:for method,dtype,mpitype in [ &
+      ('integer', 'INT32' , 'imp_int4'  ), &
+      ('integer', 'INT64' , 'imp_int8'  ), &
+      ('real'   , 'REAL32', 'imp_REAL32'), &
+      ('real'   , 'REAL64', 'imp_REAL64')]
+      subroutine imp_scan_${REDUCTION}$_inplace_${method}$_${dtype}$ (comm, v, ierr)
+        ${method}$ (${dtype}$), intent(inout) :: v
+        integer(mpiint), intent(out) :: ierr
+        integer(mpiint), intent(in) :: comm
+        call mpi_scan(MPI_IN_PLACE, v, 1_mpiint, ${mpitype}$, MPI_${REDUCTION}$, comm, ierr); call CHKERR(ierr)
+      end subroutine
+      subroutine imp_scan_${REDUCTION}$_${method}$_${dtype}$ (comm, v, o, ierr)
+        ${method}$ (${dtype}$), intent(in) :: v
+        ${method}$ (${dtype}$), intent(out) :: o
+        integer(mpiint), intent(out) :: ierr
+        integer(mpiint), intent(in) :: comm
+        call mpi_scan(v, o, 1_mpiint, ${mpitype}$, MPI_${REDUCTION}$, comm, ierr); call CHKERR(ierr)
+      end subroutine
+    #:endfor
+    ! endfor REDUCTION
   #:endfor
 
   #:for method,dtype,mpitype,otype in [ &
