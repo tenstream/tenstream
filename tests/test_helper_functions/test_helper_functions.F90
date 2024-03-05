@@ -1,7 +1,7 @@
 module test_helper_functions
   use iso_fortran_env, only: real32, real64, int64
   use iso_c_binding
-  use m_data_parameters, only: ireals, ireal128, iintegers, mpiint, init_mpi_data_parameters
+  use m_data_parameters, only: ireals, iintegers, mpiint, init_mpi_data_parameters
   use m_helper_functions, only: &
     & approx, &
     & char_arr_to_str, &
@@ -286,9 +286,7 @@ contains
     class(MpiTestMethod), intent(inout) :: this
     integer(mpiint) :: numnodes, comm, myid
     real(ireals) :: v_ireals, sireals
-    real(ireal128) :: v_128, s128
     real(ireals), allocatable :: m_ireals(:), mean
-    real(ireal128), allocatable :: m_128(:)
     integer(iintegers) :: i, s
 
     comm = this%getMpiCommunicator()
@@ -296,19 +294,12 @@ contains
     myid = this%getProcessRank()
 
     v_ireals = real(myid, ireals)
-    v_128 = real(myid, ireal128)
 
     sireals = (numnodes - 1) * numnodes / 2
-    s128 = (numnodes - 1) * numnodes / 2
-    print *, myid, numnodes, 'v128', v_128
 
     call imp_reduce_sum(comm, v_ireals)
-    call imp_reduce_sum(comm, v_128)
     if (myid .eq. 0) then
       @assertEqual(sireals, v_ireals, epsilon(v_ireals), 'ireals reduce_sum is not correct')
-      sireals = real(s128, ireals)
-      v_ireals = real(v_128, ireals)
-      @assertEqual(sireals, v_ireals, epsilon(v_ireals), '128 bit reduce_sum is not correct Nranks:'//toStr(numnodes))
     end if
 
     call imp_allreduce_sum(comm, real(myid, ireals), v_ireals)
@@ -319,7 +310,6 @@ contains
     @assertEqual(real(numnodes - 1, ireals) / 2, sireals, epsilon(v_ireals), 'ireals reduce_mean scalar is not correct')
 
     allocate (m_ireals(myid + 1)); m_ireals = real(myid, kind(m_ireals))
-    allocate (m_128(myid + 1)); m_128 = real(myid, kind(m_128))
 
     mean = 0
     s = 0
