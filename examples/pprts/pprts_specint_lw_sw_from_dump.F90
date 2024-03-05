@@ -186,6 +186,7 @@ contains
     call destroy_tenstr_atm(atm)
   contains
     subroutine write_results_to_file()
+      integer(mpiint) :: global_shape(3), startp(3)
       if (len_trim(outfile) .gt. 0) then
         if (myid .eq. 0_mpiint) print *, 'Dumping results to out file: ', trim(outfile)
       else
@@ -193,15 +194,18 @@ contains
       end if
 
       associate (C => pprts_solver%C_diff)
+        global_shape = [integer(mpiint) :: int(C%glob_zm, mpiint), int(C%glob_xm, mpiint), int(C%glob_ym, mpiint)]
+        startp = [integer(mpiint) :: int(C%zs, mpiint), int(C%xs, mpiint), int(C%ys, mpiint)] + 1_mpiint
+
         if (allocated(edir)) then
           call ncwrite(&
             & comm=comm, &
             & groups=[character(len=default_str_len) :: outfile, 'edir'], &
             & arr=edir, &
             & ierr=ierr, &
-            & arr_shape=[integer :: C%glob_zm, C%glob_xm, C%glob_ym], &
+            & arr_shape=global_shape, &
             & dimnames=[character(len=default_str_len) :: 'z', 'x', 'y'], &
-            & startp=[integer :: C%zs, C%xs, C%ys] + 1, &
+            & startp=startp, &
             & countp=shape(edir), &
           & deflate_lvl=0)
           call CHKERR(ierr)
@@ -214,9 +218,9 @@ contains
           & groups=[character(len=default_str_len) :: outfile, 'edn'], &
           & arr=edn, &
           & ierr=ierr, &
-          & arr_shape=[integer :: C%glob_zm, C%glob_xm, C%glob_ym], &
+          & arr_shape=global_shape, &
           & dimnames=[character(len=default_str_len) :: 'z', 'x', 'y'], &
-          & startp=[integer :: C%zs, C%xs, C%ys] + 1, &
+          & startp=startp, &
           & countp=shape(edn), &
           & deflate_lvl=0)
         call CHKERR(ierr)
@@ -228,9 +232,9 @@ contains
           & groups=[character(len=default_str_len) :: outfile, 'eup'], &
           & arr=eup, &
           & ierr=ierr, &
-          & arr_shape=[integer :: C%glob_zm, C%glob_xm, C%glob_ym], &
+          & arr_shape=global_shape, &
           & dimnames=[character(len=default_str_len) :: 'z', 'x', 'y'], &
-          & startp=[integer :: C%zs, C%xs, C%ys] + 1, &
+          & startp=startp, &
           & countp=shape(eup), &
           & deflate_lvl=0)
         call CHKERR(ierr)
@@ -238,15 +242,19 @@ contains
           call set_attribute(outfile, 'eup', 'units', 'W/m2', ierr); call CHKERR(ierr)
         end if
       end associate
+
       associate (C => pprts_solver%C_one)
+        global_shape = [integer(mpiint) :: int(C%glob_zm, mpiint), int(C%glob_xm, mpiint), int(C%glob_ym, mpiint)]
+        startp = [integer(mpiint) :: int(C%zs, mpiint), int(C%xs, mpiint), int(C%ys, mpiint)] + 1_mpiint
+
         call ncwrite(&
           & comm=comm, &
           & groups=[character(len=default_str_len) :: outfile, 'abso'], &
           & arr=abso, &
           & ierr=ierr, &
-          & arr_shape=[integer :: C%glob_zm, C%glob_xm, C%glob_ym], &
+          & arr_shape=global_shape, &
           & dimnames=[character(len=default_str_len) :: 'zlay', 'x', 'y'], &
-          & startp=[integer :: C%zs, C%xs, C%ys] + 1, &
+          & startp=startp, &
           & countp=shape(abso))
         call CHKERR(ierr)
         if (myid .eq. 0_mpiint) then
@@ -257,9 +265,9 @@ contains
           & groups=[character(len=default_str_len) :: outfile, 'hr'], &
           & arr=hr*3600*24, &
           & ierr=ierr, &
-          & arr_shape=[integer :: C%glob_zm, C%glob_xm, C%glob_ym], &
+          & arr_shape=global_shape, &
           & dimnames=[character(len=default_str_len) :: 'zlay', 'x', 'y'], &
-          & startp=[integer :: C%zs, C%xs, C%ys] + 1, &
+          & startp=startp, &
           & countp=shape(hr))
         call CHKERR(ierr)
         if (myid .eq. 0_mpiint) then
