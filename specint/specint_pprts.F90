@@ -411,6 +411,7 @@ contains
           & dimnames=dimnames, &
           & startp=startp, &
           & countp=shape(opt_tau_solar), &
+          & fill_value=0._ireals, &
           & verbose=lverbose)
         call CHKERR(ierr)
       end if
@@ -426,6 +427,7 @@ contains
           & dimnames=dimnames, &
           & startp=startp, &
           & countp=shape(opt_w0_solar), &
+          & fill_value=0._ireals, &
           & verbose=lverbose)
         call CHKERR(ierr)
       end if
@@ -440,7 +442,9 @@ contains
           & arr_shape=global_shape, &
           & dimnames=dimnames, &
           & startp=startp, &
-          & countp=shape(opt_g_solar))
+          & countp=shape(opt_g_solar), &
+          & fill_value=0._ireals, &
+          & verbose=lverbose)
         call CHKERR(ierr)
       end if
       if (present(opt_tau_thermal)) then
@@ -455,6 +459,7 @@ contains
           & dimnames=dimnames, &
           & startp=startp, &
           & countp=shape(opt_tau_thermal), &
+          & fill_value=0._ireals, &
           & verbose=lverbose)
         call CHKERR(ierr)
       end if

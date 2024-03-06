@@ -206,7 +206,7 @@ contains
       subroutine ncwrite_${method}$_${dtype}$_${RANK}$d( &
         & groups, arr, ierr, arr_shape, &
         & startp, countp, stride, map, dimnames, &
-        & deflate_lvl, chunksizes, verbose, &
+        & deflate_lvl, chunksizes, fill_value, verbose, &
         & comm)
 
         character(len=*), intent(in) :: groups(:)
@@ -214,6 +214,7 @@ contains
         integer, intent(in), optional :: arr_shape(:), startp(:), countp(:), stride(:), map(:)
         character(len=*), intent(in), optional :: dimnames(:)
         integer, intent(in), optional :: deflate_lvl, chunksizes(:)
+        ${method}$${dKIND}$, intent(in), optional :: fill_value
         logical, intent(in), optional :: verbose
         integer, intent(in), optional :: comm
 
@@ -369,6 +370,10 @@ contains
         if (present(comm)) then
           ncerr = nf90_var_par_access(ncid, varid, NF90_COLLECTIVE)
           call nccheck(ncerr); ierr = ierr + ncerr
+        end if
+
+        if (present(fill_value)) then
+          ncerr = nf90_def_var_fill(ncid, varid, 0_mpiint, fill_value)
         end if
 
         ncerr = nf90_enddef(ncid); call nccheck(ncerr)
