@@ -887,7 +887,7 @@ contains
       & comm, inpfile, 'thermal', &
       & Nlev - 1, Nx_local, Ny_local, &
       & nxproc, nyproc, &
-      & opt_buildings_solar, ierr)
+      & opt_buildings_thermal, ierr)
 
     call get_dim_info(inpfile, 'zlay_veg', ierr, dimsize=Nveg)
     if (ierr .eq. 0) then
