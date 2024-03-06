@@ -78,7 +78,7 @@ contains
       & ierr)
     call CHKERR(ierr)
 
-    call print_tenstr_atm(atm)
+    if (myid .eq. 0) call print_tenstr_atm(atm)
 
 !    sundir = spherical_2_cartesian(phi0, theta0)
 !
