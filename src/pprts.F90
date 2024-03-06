@@ -6027,14 +6027,15 @@ contains
         end if
       end if
 
-      call getVecPointer(solver%C_one%da, solution%abso, x1d, x4d, readonly=.true.)
-      rabso = x4d(i0, :, :, :)
-      call restoreVecPointer(solver%C_one%da, solution%abso, x1d, x4d, readonly=.true.)
-
       if (present(opt_buildings)) then
         call fill_buildings()
         call check_buildings_energy_balance()
+        call set_abso_in_buildings()
       end if
+
+      call getVecPointer(solver%C_one%da, solution%abso, x1d, x4d, readonly=.true.)
+      rabso = x4d(i0, :, :, :)
+      call restoreVecPointer(solver%C_one%da, solution%abso, x1d, x4d, readonly=.true.)
 
       call dump_to_xdmf()
 
@@ -6325,7 +6326,6 @@ contains
         call DMRestoreLocalVector(C%da, lediff, ierr); call CHKERR(ierr)
 
       end associate
-
     end subroutine
 
     subroutine check_buildings_energy_balance()
@@ -6370,7 +6370,36 @@ contains
           call CHKERR(errcnt, 'failed energy balance on buildings faces')
         end associate
       end if
+    end subroutine
 
+    subroutine set_abso_in_buildings()
+      integer(mpiint) :: myid
+      integer(iintegers) :: m, idx(4)
+      real(ireals) :: val
+      logical :: lflg
+      real(ireals), pointer, dimension(:, :, :, :) :: xabso => null()
+      real(ireals), pointer, dimension(:) :: xabso1d => null()
+
+      val = 0
+      call get_petsc_opt(solver%prefix, '-pprts_set_abso_in_buildings', val, lflg, ierr); call CHKERR(ierr)
+
+      if (lflg) then
+        associate (                              &
+            & solution => solver%solutions(uid), &
+            & B => opt_buildings,                &
+            & C_one => solver%C_one)
+
+          call getVecPointer(C_one%da, solution%abso, xabso1d, xabso)
+          do m = 1, size(B%iface)
+            call ind_1d_to_nd(B%da_offsets, B%iface(m), idx)
+            idx(2:4) = idx(2:4) - 1 + [C_one%zs, C_one%xs, C_one%ys]
+            associate (k => idx(2), i => idx(3), j => idx(4))
+              xabso(i0, k, i, j) = val
+            end associate
+          end do
+          call restoreVecPointer(C_one%da, solution%abso, xabso1d, xabso)
+        end associate
+      end if
     end subroutine
 
     subroutine alloc_or_check_size(C, arr, varname)
