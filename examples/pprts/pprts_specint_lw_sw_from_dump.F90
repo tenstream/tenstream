@@ -7,9 +7,17 @@ module m_example_pprts_specint_lw_sw_from_dump
   ! Import datatype from the TenStream lib. Depending on how PETSC is
   ! compiled(single or double floats, or long ints), this will determine what
   ! the Tenstream uses.
-  use m_data_parameters, only: init_mpi_data_parameters, iintegers, ireals, mpiint, zero, one, default_str_len
+  use m_data_parameters, only: init_mpi_data_parameters, iintegers, ireals, mpiint, zero, one, default_str_len, pi
 
-  use m_helper_functions, only: linspace, CHKERR, spherical_2_cartesian, meanval, get_petsc_opt
+  use m_helper_functions, only: &
+    & CHKERR, &
+    & get_petsc_opt, &
+    & linspace, &
+    & meanval, &
+    & rotate_angle_x, &
+    & rotate_angle_z, &
+    & spherical_2_cartesian, &
+    & toStr
 
   ! Import specific solver type: 3_10 for example uses 3 streams direct, 10 streams for diffuse radiation
   use m_pprts_base, only: t_solver, allocate_pprts_solver_from_commandline
@@ -34,7 +42,8 @@ contains
     character(len=*), intent(in) :: inpfile
     character(len=*), intent(in) :: outfile
 
-    real(ireals), allocatable, dimension(:, :, :) :: edir, edn, eup, abso, hr ! [nlev_merged(-1), nxp, nyp]
+    real(ireals), allocatable, dimension(:, :, :) :: edir, edn, eup, abso ! [nlev_merged(-1), nxp, nyp]
+    real(ireals), allocatable, dimension(:, :, :), target :: hr ! [nlev_merged(-1), nxp, nyp]
 
     integer(mpiint) :: myid, ierr
 
@@ -53,7 +62,10 @@ contains
     type(t_pprts_buildings), allocatable :: opt_buildings_solar
     type(t_pprts_buildings), allocatable :: opt_buildings_thermal
 
-    integer(iintegers) :: icollapse, k, nlev
+    real(ireals) :: dt
+    real(ireals), pointer, dimension(:, :) :: phr
+
+    integer(iintegers) :: icollapse, k, nlev, Niter, kiter
     logical :: lflg
 
     call init_mpi_data_parameters(comm)
@@ -101,52 +113,72 @@ contains
       allocate (thermal_albedo_2d(Nx_local, Ny_local), source=albedo_thermal)
     end if
 
-    call specint_pprts(specint, comm, pprts_solver, atm, &
-                       Nx_local, Ny_local, &
-                       dx, dy, sundir, &
-                       albedo_thermal, albedo_solar, &
-                       lthermal, lsolar, &
-                       edir, edn, eup, abso, &
-                       nxproc=nxproc, nyproc=nyproc, &
-                       icollapse=icollapse, &
-                       opt_time=opt_time, &
-                       solar_albedo_2d=solar_albedo_2d, &
-                       thermal_albedo_2d=thermal_albedo_2d, &
-                       opt_solar_constant=opt_solar_constant, &
-                       opt_buildings_solar=opt_buildings_solar, &
-                       opt_buildings_thermal=opt_buildings_thermal, &
-                       opt_tau_solar=opt_tau_solar, &
-                       opt_w0_solar=opt_w0_solar, &
-                       opt_g_solar=opt_g_solar, &
-                       opt_tau_thermal=opt_tau_thermal)
+    Niter = 1
+    call get_petsc_opt(PETSC_NULL_CHARACTER, "-iter", Niter, lflg, ierr)
 
-    allocate (hr(size(abso, 1), size(abso, 2), size(abso, 3)))
-    call abso2hr(atm, abso, hr, ierr); call CHKERR(ierr)
+    dt = 60 ! sec
+    call get_petsc_opt(PETSC_NULL_CHARACTER, "-dt", dt, lflg, ierr)
 
-    nlev = ubound(edn, 1)
-    if (myid .eq. 0) then
-      do k = 1, nlev
-        if (allocated(edir)) then
-          print *, k, 'edir', meanval(edir(k, :, :)), 'edn', meanval(edn(k, :, :)), 'eup', meanval(eup(k, :, :)), &
-            & 'abso', meanval(abso(min(nlev - 1, k), :, :)), 'hr', meanval(hr(min(nlev - 1, k), :, :)) * 3600 * 24
-        else
-          print *, k, 'edir', 0, 'edn', meanval(edn(k, :, :)), 'eup', meanval(eup(k, :, :)), &
-            & 'abso', meanval(abso(min(nlev - 1, k), :, :)), 'hr', meanval(hr(min(nlev - 1, k), :, :)) * 3600 * 24
-        end if
-      end do
+    do kiter = 1, Niter
+      call specint_pprts( &
+        specint, comm, pprts_solver, atm, &
+        Nx_local, Ny_local, &
+        dx, dy, sundir, &
+        albedo_thermal, albedo_solar, &
+        lthermal, lsolar, &
+        edir, edn, eup, abso, &
+        nxproc=nxproc, nyproc=nyproc, &
+        icollapse=icollapse, &
+        opt_time=opt_time, &
+        solar_albedo_2d=solar_albedo_2d, &
+        thermal_albedo_2d=thermal_albedo_2d, &
+        opt_solar_constant=opt_solar_constant, &
+        opt_buildings_solar=opt_buildings_solar, &
+        opt_buildings_thermal=opt_buildings_thermal, &
+        opt_tau_solar=opt_tau_solar, &
+        opt_w0_solar=opt_w0_solar, &
+        opt_g_solar=opt_g_solar, &
+        opt_tau_thermal=opt_tau_thermal)
 
-      if (allocated(edir)) &
-        print *, 'surface :: direct flux', meanval(edir(nlev, :, :))
-      print *, 'surface :: downw flux ', meanval(edn(nlev, :, :))
-      print *, 'surface :: upward fl  ', meanval(eup(nlev, :, :))
-      print *, 'surface :: absorption ', meanval(abso(nlev - 1, :, :))
+      if (.not. allocated(hr)) allocate (hr(size(abso, 1), size(abso, 2), size(abso, 3)))
 
-      if (allocated(edir)) &
-        print *, 'TOA :: direct flux', meanval(edir(1, :, :))
-      print *, 'TOA :: downw flux ', meanval(edn(1, :, :))
-      print *, 'TOA :: upward fl  ', meanval(eup(1, :, :))
-      print *, 'TOA :: absorption ', meanval(abso(1, :, :))
-    end if
+      call abso2hr(atm, abso, hr, ierr); call CHKERR(ierr)
+      phr(1:size(hr, 1), 1:size(hr, 2) * size(hr, 3)) => hr
+      atm%tlay(:, :) = atm%tlay(:, :) + phr * dt
+      if (myid .eq. 0) call print_tenstr_atm(atm)
+      if (allocated(sundir)) then
+        sundir = rotate_angle_x(sundir, dt * 90._ireals / (12._ireals * 3600))
+        sundir = rotate_angle_z(sundir, dt * 180._ireals / (12._ireals * 3600))
+      end if
+      opt_time = opt_time + dt
+      if (myid .eq. 0) print *, 'iter ('//toStr(kiter)//'/'//toStr(Niter)//') ', opt_time, 'sundir after', sundir
+
+      nlev = ubound(edn, 1)
+      if (myid .eq. 0) then
+        do k = 1, nlev
+          if (allocated(edir)) then
+            print *, k, 'edir', meanval(edir(k, :, :)), 'edn', meanval(edn(k, :, :)), 'eup', meanval(eup(k, :, :)), &
+              & 'abso', meanval(abso(min(nlev - 1, k), :, :)), 'hr', meanval(hr(min(nlev - 1, k), :, :)) * 3600 * 24
+          else
+            print *, k, 'edir', 0, 'edn', meanval(edn(k, :, :)), 'eup', meanval(eup(k, :, :)), &
+              & 'abso', meanval(abso(min(nlev - 1, k), :, :)), 'hr', meanval(hr(min(nlev - 1, k), :, :)) * 3600 * 24
+          end if
+        end do
+
+        if (allocated(edir)) &
+          print *, 'surface :: direct flux', meanval(edir(nlev, :, :))
+        print *, 'surface :: downw flux ', meanval(edn(nlev, :, :))
+        print *, 'surface :: upward fl  ', meanval(eup(nlev, :, :))
+        print *, 'surface :: absorption ', meanval(abso(nlev - 1, :, :))
+
+        if (allocated(edir)) &
+          print *, 'TOA :: direct flux', meanval(edir(1, :, :))
+        print *, 'TOA :: downw flux ', meanval(edn(1, :, :))
+        print *, 'TOA :: upward fl  ', meanval(eup(1, :, :))
+        print *, 'TOA :: absorption ', meanval(abso(1, :, :))
+      end if
+
+    end do
 
     call write_results_to_file()
 
