@@ -590,7 +590,9 @@ contains
           & opt_solution_uid=ig,      &
           & opt_buildings=spec_buildings)
 
-        opt_buildings%edir = opt_buildings%edir + spec_buildings%edir * edirTOA
+        if (allocated(spec_buildings%edir)) then
+          opt_buildings%edir = opt_buildings%edir + spec_buildings%edir * edirTOA
+        end if
         opt_buildings%incoming = opt_buildings%incoming + spec_buildings%incoming * edirTOA
         opt_buildings%outgoing = opt_buildings%outgoing + spec_buildings%outgoing * edirTOA
 
