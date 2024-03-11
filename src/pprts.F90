@@ -4533,7 +4533,7 @@ contains
     end if
     call KSPGetOptionsPrefix(ksp, kspprefix, ierr); call CHKERR(ierr)
 
-    call KSPSetType(ksp, KSPBCGS, ierr); call CHKERR(ierr)
+    call KSPSetType(ksp, KSPFBCGS, ierr); call CHKERR(ierr)
     call KSPSetInitialGuessNonzero(ksp, PETSC_TRUE, ierr); call CHKERR(ierr)
 
     prec_is_set = .false.
@@ -4618,6 +4618,8 @@ contains
             call KSPSetType(asm_ksps(i), KSPPREONLY, ierr); call CHKERR(ierr)
             call KSPGetPC(asm_ksps(i), subpc, ierr); call CHKERR(ierr)
             call PCSetType(subpc, PCILU, ierr); call CHKERR(ierr)
+            call PCFactorSetLevels(subpc, 1_iintegers, ierr); call CHKERR(ierr)
+            call PCFactorSetFill(subpc, 2._ireals, ierr); call CHKERR(ierr)
             call KSPSetFromOptions(asm_ksps(i), ierr); call CHKERR(ierr)
           end do
 
