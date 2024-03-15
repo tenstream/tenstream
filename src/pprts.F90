@@ -4618,8 +4618,8 @@ contains
             call KSPSetType(asm_ksps(i), KSPPREONLY, ierr); call CHKERR(ierr)
             call KSPGetPC(asm_ksps(i), subpc, ierr); call CHKERR(ierr)
             call PCSetType(subpc, PCILU, ierr); call CHKERR(ierr)
-            call PCFactorSetLevels(subpc, 1_iintegers, ierr); call CHKERR(ierr)
-            call PCFactorSetFill(subpc, 2._ireals, ierr); call CHKERR(ierr)
+            call PCFactorSetLevels(subpc, 0_iintegers, ierr); call CHKERR(ierr)
+            call PCFactorSetFill(subpc, 1._ireals, ierr); call CHKERR(ierr)
             call KSPSetFromOptions(asm_ksps(i), ierr); call CHKERR(ierr)
           end do
 
