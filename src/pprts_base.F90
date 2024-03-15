@@ -1198,7 +1198,7 @@ contains
         coeff = coeff_cache(1:size(coeff))
         return
       end if
-    endif
+    end if
 
     aspect_zx = real(dz / dx, irealLUT)
     w0 = real(ksca / max(kabs + ksca, epsilon(kabs)), irealLUT)
@@ -1229,7 +1229,7 @@ contains
 
     if (lenable_cache) then
       coeff_cache(1:size(coeff)) = coeff
-    endif
+    end if
 
   contains
     subroutine check_cache(lcurrent)
