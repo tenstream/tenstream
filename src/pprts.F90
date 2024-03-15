@@ -57,7 +57,6 @@ module m_pprts
     & ndarray_offsets, &
     & normalize_vec, &
     & rad2deg, &
-    & rel_approx, &
     & rotation_matrix_world_to_local_basis, &
     & spherical_2_cartesian, &
     & toStr, &
@@ -102,6 +101,7 @@ module m_pprts
     & destroy_pprts, &
     & destroy_solution, &
     & determine_ksp_tolerances, &
+    & get_coeff, &
     & get_solution_uid, &
     & interpolate_cell_values_to_vertices, &
     & prepare_solution, &
@@ -5439,127 +5439,6 @@ contains
     end subroutine
 
   end subroutine setup_b
-
-  !> @brief retrieve transport coefficients from optprop module
-  !> @detail this may get the coeffs from a LUT or ANN or whatever and return diff2diff or dir2diff or dir2dir coeffs
-  subroutine get_coeff(OPP, kabs, ksca, g, dz, dx, ldir, coeff, &
-                       angles, lswitch_east, lswitch_north, opt_vertices)
-    class(t_optprop_cube), intent(in) :: OPP
-    real(ireals), intent(in) :: kabs, ksca, g, dz, dx
-    logical, intent(in) :: ldir
-    real(irealLUT), intent(out) :: coeff(:)
-
-    real(irealLUT), intent(in), optional :: angles(2)
-    logical, intent(in), optional :: lswitch_east, lswitch_north
-    real(ireals), intent(in), optional :: opt_vertices(:)
-
-    real(irealLUT), save :: coeff_cache(1000)
-    logical :: lcurrent
-
-    real(irealLUT) :: aspect_zx, tauz, w0
-    integer(mpiint) :: ierr
-
-    call check_cache(lcurrent)
-    if (lcurrent) then
-      coeff = coeff_cache(1:size(coeff))
-      return
-    end if
-
-    aspect_zx = real(dz / dx, irealLUT)
-    w0 = real(ksca / max(kabs + ksca, epsilon(kabs)), irealLUT)
-    tauz = real((kabs + ksca) * dz, irealLUT)
-
-    if (present(angles)) then
-      aspect_zx = max(OPP%dev%dirconfig%dims(3)%vrange(1), aspect_zx)
-      tauz = max(OPP%dev%dirconfig%dims(1)%vrange(1), &
-           & min(OPP%dev%dirconfig%dims(1)%vrange(2), tauz))
-      w0 = max(OPP%dev%dirconfig%dims(2)%vrange(1), &
-           & min(OPP%dev%dirconfig%dims(2)%vrange(2), w0))
-    else
-      aspect_zx = max(OPP%dev%diffconfig%dims(3)%vrange(1), aspect_zx)
-      tauz = max(OPP%dev%diffconfig%dims(1)%vrange(1), &
-           & min(OPP%dev%diffconfig%dims(1)%vrange(2), tauz))
-      w0 = max(OPP%dev%diffconfig%dims(2)%vrange(1), &
-           & min(OPP%dev%diffconfig%dims(2)%vrange(2), w0))
-    end if
-
-    call OPP%get_coeff(tauz, w0, real(g, irealLUT), aspect_zx, ldir, coeff, ierr, &
-                       angles, lswitch_east, lswitch_north, opt_vertices); call CHKERR(ierr)
-
-    coeff_cache(1:size(coeff)) = coeff
-
-  contains
-    subroutine check_cache(lcurrent)
-      logical, intent(out) :: lcurrent
-
-      logical, save :: lpresent_angles = .false.
-      logical, save :: c_ldir = .false., c_lswitch_east = .false., c_lswitch_north = .false.
-      real(ireals), save :: c_kabs = -1, c_ksca = -1, c_g = -1, c_dz = -1, c_vertices(24) = -1
-      real(irealLUT), save :: c_angles(2) = -1
-
-      real(ireals), parameter :: cache_limit = 1e-3 ! rel change cache limit
-      real(irealLUT), parameter :: cache_limit2 = cache_limit ! rel change cache limit
-
-      logical, parameter :: lenable_cache = .true.
-
-      if (.not. lenable_cache) then
-        lcurrent = .false.
-        return
-      end if
-
-      if (.not. rel_approx(c_kabs, kabs, cache_limit)) goto 99
-      if (.not. rel_approx(c_ksca, ksca, cache_limit)) goto 99
-      if (.not. rel_approx(c_g, g, cache_limit)) goto 99
-      if (.not. rel_approx(c_dz, dz, cache_limit)) goto 99
-      if (lpresent_angles .neqv. present(angles)) goto 99
-
-      if (present(opt_vertices)) then
-        if (any(.not. rel_approx(c_vertices, opt_vertices, cache_limit))) goto 99
-      end if
-
-      if (present(angles)) then
-        if (any(.not. rel_approx(c_angles, angles, cache_limit2))) goto 99
-      end if
-
-      if (c_ldir .neqv. ldir) goto 99
-      if (present(lswitch_east)) then
-        if (c_lswitch_east .neqv. lswitch_east) goto 99
-      end if
-      if (present(lswitch_north)) then
-        if (c_lswitch_north .neqv. lswitch_north) goto 99
-      end if
-      lcurrent = .true.
-      !print *,'hit cache'//new_line(''),  &
-      !  & 'kabs', c_kabs, kabs,new_line(''), &
-      !  & 'ksca', c_ksca, ksca,new_line(''), &
-      !  & 'g',    c_g   , g   ,new_line(''), &
-      !  & 'dz',   c_dz  , dz  ,new_line(''), &
-      !  & 'ldir', c_ldir, ldir
-      !call CHKERR(1_mpiint, 'DEBUG')
-      return
-
-99    continue ! update sample pts and go on to compute them
-      !print *,'missed cache'//new_line(''),  &
-      !  & 'kabs', c_kabs, kabs,new_line(''), &
-      !  & 'ksca', c_ksca, ksca,new_line(''), &
-      !  & 'g',    c_g   , g   ,new_line(''), &
-      !  & 'dz',   c_dz  , dz  ,new_line(''), &
-      !  & 'ldir', c_ldir, ldir
-
-      lcurrent = .false.
-      c_kabs = kabs
-      c_ksca = ksca
-      c_g = g
-      c_dz = dz
-      c_ldir = ldir
-      lpresent_angles = present(angles)
-      if (present(angles)) c_angles = angles
-      if (present(opt_vertices)) c_vertices = opt_vertices
-      if (present(lswitch_east)) c_lswitch_east = lswitch_east
-      if (present(lswitch_north)) c_lswitch_north = lswitch_north
-
-    end subroutine
-  end subroutine
 
   !> @brief nca wrapper to call NCA of Carolin Klinger
   !> @details This is supposed to work on a 1D solution which has to be calculated beforehand
