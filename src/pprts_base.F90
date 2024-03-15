@@ -3,7 +3,7 @@ module m_pprts_base
   use petsc
 
   use m_data_parameters, only: &
-    & ireals, iintegers, mpiint, &
+    & ireals, irealLUT, iintegers, mpiint, &
     & zero, one, pi, &
     & i0, i1, i2, &
     & default_str_len
@@ -16,6 +16,7 @@ module m_pprts_base
     & get_petsc_opt, &
     & imp_allreduce_min, &
     & is_inrange, &
+    & rel_approx, &
     & toStr
 
   use m_petsc_helpers, only: &
@@ -33,6 +34,7 @@ module m_pprts_base
     & destroy_pprts, &
     & destroy_solution, &
     & determine_ksp_tolerances, &
+    & get_coeff, &
     & get_solution_uid, &
     & interpolate_cell_values_to_vertices, &
     & prepare_solution, &
@@ -949,7 +951,7 @@ contains
               end if
               do i = C_dir%xs, C_dir%xe
 
-                call single_column_solve(C_dir, i, j, A, ksp, b)
+                call single_column_solve(solver%OPP, C_dir, i, j, A, ksp, b)
 
                 call VecGetArrayReadF90(b, xv_b, ierr)
                 do k = C_dir%zs, C_dir%ze - 1
@@ -970,7 +972,7 @@ contains
               end if
               do j = C_dir%ys, C_dir%ye
 
-                call single_column_solve(C_dir, i, j, A, ksp, b)
+                call single_column_solve(solver%OPP, C_dir, i, j, A, ksp, b)
 
                 call VecGetArrayReadF90(b, xv_b, ierr)
                 do k = C_dir%zs, C_dir%ze - 1
@@ -1000,7 +1002,8 @@ contains
       end if
     end subroutine
 
-    subroutine single_column_solve(C_dir, i, j, A, ksp, b)
+    subroutine single_column_solve(OPP, C_dir, i, j, A, ksp, b)
+      class(t_optprop_cube), intent(in) :: OPP
       type(t_coord), intent(in) :: C_dir
       integer(iintegers), intent(in) :: i, j
       type(tMat), intent(inout) :: A
@@ -1010,6 +1013,8 @@ contains
       integer(mpiint) :: ierr
       integer(iintegers) :: k, ak, src, dst, irow, icol, ioff, ioffsrc
       real(ireals) :: dtau, v
+      real(irealLUT) :: lutcoeff(C_dir%dof**2)
+      real(ireals), target :: coeff(C_dir%dof**2)
       real(ireals), pointer :: cdir2dir(:, :), xv_b(:)
 
       call MatZeroEntries(A, ierr); call CHKERR(ierr)
@@ -1042,7 +1047,24 @@ contains
               call MatSetValues(A, i1, irow, i1, icol, v, ADD_VALUES, ierr); call CHKERR(ierr)
             end do
           else
-            cdir2dir(0:C_dir%dof - 1, 0:C_dir%dof - 1) => solver%dir2dir(:, k, i, j)
+
+            call get_coeff( &
+              & OPP, &
+              & atm%kabs(ak, i, j), &
+              & atm%ksca(ak, i, j), &
+              & atm%g(ak, i, j), &
+              & atm%dz(ak, i, j), &
+              & atm%dx, &
+              & .true., &
+              & lutcoeff, &
+              & [real(sun%symmetry_phi, irealLUT), real(sun%theta, irealLUT)], &
+              & lswitch_east=sun%xinc .eq. 0, &
+              & lswitch_north=sun%yinc .eq. 0 &
+              & )
+            coeff = real(lutcoeff, ireals)
+            cdir2dir(0:C_dir%dof - 1, 0:C_dir%dof - 1) => coeff(:)
+            ! cdir2dir(0:C_dir%dof - 1, 0:C_dir%dof - 1) => solver%dir2dir(:, k, i, j)
+
             do src = 0, solver%dirtop%dof - 1
               icol = k * C_dir%dof + src
               do dst = 0, solver%dirtop%dof - 1 ! top2bot
@@ -1150,4 +1172,133 @@ contains
     end if
   end function
 
+  !> @brief retrieve transport coefficients from optprop module
+  !> @detail this may get the coeffs from a LUT or ANN or whatever and return diff2diff or dir2diff or dir2dir coeffs
+  subroutine get_coeff(OPP, kabs, ksca, g, dz, dx, ldir, coeff, &
+                       angles, lswitch_east, lswitch_north, opt_vertices)
+    class(t_optprop_cube), intent(in) :: OPP
+    real(ireals), intent(in) :: kabs, ksca, g, dz, dx
+    logical, intent(in) :: ldir
+    real(irealLUT), intent(out) :: coeff(:)
+
+    real(irealLUT), intent(in), optional :: angles(2)
+    logical, intent(in), optional :: lswitch_east, lswitch_north
+    real(ireals), intent(in), optional :: opt_vertices(:)
+
+    logical, parameter :: lenable_cache = .false.
+    real(irealLUT), save :: coeff_cache(1000)
+    logical :: lcurrent
+
+    real(irealLUT) :: aspect_zx, tauz, w0
+    integer(mpiint) :: ierr
+
+    if (lenable_cache) then
+      call check_cache(lcurrent)
+      if (lcurrent) then
+        coeff = coeff_cache(1:size(coeff))
+        return
+      end if
+    endif
+
+    aspect_zx = real(dz / dx, irealLUT)
+    w0 = real(ksca / max(kabs + ksca, epsilon(kabs)), irealLUT)
+    tauz = real((kabs + ksca) * dz, irealLUT)
+
+    if (present(angles)) then
+      aspect_zx = max(OPP%dev%dirconfig%dims(3)%vrange(1), aspect_zx)
+      tauz = max(OPP%dev%dirconfig%dims(1)%vrange(1), &
+           & min(OPP%dev%dirconfig%dims(1)%vrange(2), tauz))
+      w0 = max(OPP%dev%dirconfig%dims(2)%vrange(1), &
+           & min(OPP%dev%dirconfig%dims(2)%vrange(2), w0))
+    else
+      aspect_zx = max(OPP%dev%diffconfig%dims(3)%vrange(1), aspect_zx)
+      tauz = max(OPP%dev%diffconfig%dims(1)%vrange(1), &
+           & min(OPP%dev%diffconfig%dims(1)%vrange(2), tauz))
+      w0 = max(OPP%dev%diffconfig%dims(2)%vrange(1), &
+           & min(OPP%dev%diffconfig%dims(2)%vrange(2), w0))
+    end if
+    !print *,'hit cache'//new_line(''),  &
+    !  & 'kabs', kabs,new_line(''), &
+    !  & 'ksca', ksca,new_line(''), &
+    !  & 'g',    g   ,new_line(''), &
+    !  & 'dz',   dz  ,new_line(''), &
+    !  & 'ldir', ldir
+
+    call OPP%get_coeff(tauz, w0, real(g, irealLUT), aspect_zx, ldir, coeff, ierr, &
+                       angles, lswitch_east, lswitch_north, opt_vertices); call CHKERR(ierr)
+
+    if (lenable_cache) then
+      coeff_cache(1:size(coeff)) = coeff
+    endif
+
+  contains
+    subroutine check_cache(lcurrent)
+      logical, intent(out) :: lcurrent
+
+      logical, save :: lpresent_angles = .false.
+      logical, save :: c_ldir = .false., c_lswitch_east = .false., c_lswitch_north = .false.
+      real(ireals), save :: c_kabs = -1, c_ksca = -1, c_g = -1, c_dz = -1, c_vertices(24) = -1
+      real(irealLUT), save :: c_angles(2) = -1
+
+      real(ireals), parameter :: cache_limit = 1e-3 ! rel change cache limit
+      real(irealLUT), parameter :: cache_limit2 = cache_limit ! rel change cache limit
+
+      if (.not. lenable_cache) then
+        lcurrent = .false.
+        return
+      end if
+
+      if (.not. rel_approx(c_kabs, kabs, cache_limit)) goto 99
+      if (.not. rel_approx(c_ksca, ksca, cache_limit)) goto 99
+      if (.not. rel_approx(c_g, g, cache_limit)) goto 99
+      if (.not. rel_approx(c_dz, dz, cache_limit)) goto 99
+      if (lpresent_angles .neqv. present(angles)) goto 99
+
+      if (present(opt_vertices)) then
+        if (any(.not. rel_approx(c_vertices, opt_vertices, cache_limit))) goto 99
+      end if
+
+      if (present(angles)) then
+        if (any(.not. rel_approx(c_angles, angles, cache_limit2))) goto 99
+      end if
+
+      if (c_ldir .neqv. ldir) goto 99
+      if (present(lswitch_east)) then
+        if (c_lswitch_east .neqv. lswitch_east) goto 99
+      end if
+      if (present(lswitch_north)) then
+        if (c_lswitch_north .neqv. lswitch_north) goto 99
+      end if
+      lcurrent = .true.
+      !print *,'hit cache'//new_line(''),  &
+      !  & 'kabs', c_kabs, kabs,new_line(''), &
+      !  & 'ksca', c_ksca, ksca,new_line(''), &
+      !  & 'g',    c_g   , g   ,new_line(''), &
+      !  & 'dz',   c_dz  , dz  ,new_line(''), &
+      !  & 'ldir', c_ldir, ldir
+      !call CHKERR(1_mpiint, 'DEBUG')
+      return
+
+99    continue ! update sample pts and go on to compute them
+      !print *,'missed cache'//new_line(''),  &
+      !  & 'kabs', c_kabs, kabs,new_line(''), &
+      !  & 'ksca', c_ksca, ksca,new_line(''), &
+      !  & 'g',    c_g   , g   ,new_line(''), &
+      !  & 'dz',   c_dz  , dz  ,new_line(''), &
+      !  & 'ldir', c_ldir, ldir
+
+      lcurrent = .false.
+      c_kabs = kabs
+      c_ksca = ksca
+      c_g = g
+      c_dz = dz
+      c_ldir = ldir
+      lpresent_angles = present(angles)
+      if (present(angles)) c_angles = angles
+      if (present(opt_vertices)) c_vertices = opt_vertices
+      if (present(lswitch_east)) c_lswitch_east = lswitch_east
+      if (present(lswitch_north)) c_lswitch_north = lswitch_north
+
+    end subroutine
+  end subroutine
 end module
