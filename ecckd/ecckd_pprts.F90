@@ -590,7 +590,9 @@ contains
           & opt_solution_uid=ig,      &
           & opt_buildings=spec_buildings)
 
-        opt_buildings%edir = opt_buildings%edir + spec_buildings%edir * edirTOA
+        if (allocated(spec_buildings%edir)) then
+          opt_buildings%edir = opt_buildings%edir + spec_buildings%edir * edirTOA
+        end if
         opt_buildings%incoming = opt_buildings%incoming + spec_buildings%incoming * edirTOA
         opt_buildings%outgoing = opt_buildings%outgoing + spec_buildings%outgoing * edirTOA
 
@@ -689,12 +691,12 @@ contains
     if (myid .eq. 0 .and. ldebug) then
       iband = ecckd_data%band_number(ig) + i1
 
-      wvl_lo = 1e7_ireals / ecckd_data%wavenumber2_band(iband)
-      wvl_hi = 1e7_ireals / ecckd_data%wavenumber1_band(iband)
+      wvl_lo = 1e7_ireals / ecckd_data%wavenumber2_band(iband) * 1e-3_ireals
+      wvl_hi = 1e7_ireals / ecckd_data%wavenumber1_band(iband) * 1e-3_ireals
 
       print *, 'Computing wavelengths '//toStr(ig)//' / '//toStr(ecckd_data%n_g_pnt)//&
         & ' -- '//toStr(100._ireals * real(ig, ireals) / real(ecckd_data%n_g_pnt, ireals))//' %'// &
-        & ' ('//toStr(wvl_lo)//' nm  - '//toStr(wvl_hi)//' nm)'
+        & ' ('//toStr(wvl_lo)//' um  - '//toStr(wvl_hi)//' um)'
     end if
 
   end subroutine

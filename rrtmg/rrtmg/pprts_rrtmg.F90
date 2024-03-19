@@ -262,21 +262,6 @@ contains
 
       call getVecPointer(C_two1%da, atm%hgrad, grad_1d, grad)
 
-      if (lslope_correction) then
-        k = C_two1%ze
-        do j = C_two1%ys, C_two1%ye
-          do i = C_two1%xs, C_two1%xe
-
-            n = cross_3d([one, zero, grad(i0, k, i, j)], [zero, one, grad(i1, k, i, j)])
-            n = n / norm2(n)
-
-            fac = dot_product(solver%sun%sundir, n) / dot_product(solver%sun%sundir, [zero, zero, one])
-            edir(k - C_two1%zs + 1, i - C_two1%xs + 1, j - C_two1%ys + 1) = &
-              & edir(k - C_two1%zs + 1, i - C_two1%xs + 1, j - C_two1%ys + 1) * fac
-          end do
-        end do
-      end if
-
       if (latm_correction) then
         do j = C_two1%ys, C_two1%ye
           do i = C_two1%xs, C_two1%xe
@@ -289,6 +274,22 @@ contains
               edir(k - C_two1%zs + 1, i - C_two1%xs + 1, j - C_two1%ys + 1) = &
                 & edir(k - C_two1%zs + 1, i - C_two1%xs + 1, j - C_two1%ys + 1) * fac
             end do
+          end do
+        end do
+      end if
+
+      if (lslope_correction) then
+        k = C_two1%ze
+        do j = C_two1%ys, C_two1%ye
+          do i = C_two1%xs, C_two1%xe
+
+            n = cross_3d([one, zero, grad(i0, k, i, j)], [zero, one, grad(i1, k, i, j)])
+            n = n / norm2(n)
+
+            fac = dot_product(solver%sun%sundir, n) / dot_product(solver%sun%sundir, [zero, zero, one])
+            fac = max(0._ireals, fac)
+            edir(k - C_two1%zs + 1, i - C_two1%xs + 1, j - C_two1%ys + 1) = &
+              & edir(k - C_two1%zs + 1, i - C_two1%xs + 1, j - C_two1%ys + 1) * fac
           end do
         end do
       end if

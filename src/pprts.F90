@@ -57,7 +57,6 @@ module m_pprts
     & ndarray_offsets, &
     & normalize_vec, &
     & rad2deg, &
-    & rel_approx, &
     & rotation_matrix_world_to_local_basis, &
     & spherical_2_cartesian, &
     & toStr, &
@@ -102,6 +101,7 @@ module m_pprts
     & destroy_pprts, &
     & destroy_solution, &
     & determine_ksp_tolerances, &
+    & get_coeff, &
     & get_solution_uid, &
     & interpolate_cell_values_to_vertices, &
     & prepare_solution, &
@@ -143,7 +143,7 @@ module m_pprts
     & explicit_edir, &
     & explicit_ediff
 
-  use m_buildings, only: t_pprts_buildings
+  use m_buildings, only: t_pprts_buildings, buildingid2str
 
   use m_boxmc_geometry, only: &
     & PPRTS_TOP_FACE, &
@@ -4533,7 +4533,7 @@ contains
     end if
     call KSPGetOptionsPrefix(ksp, kspprefix, ierr); call CHKERR(ierr)
 
-    call KSPSetType(ksp, KSPBCGS, ierr); call CHKERR(ierr)
+    call KSPSetType(ksp, KSPFBCGS, ierr); call CHKERR(ierr)
     call KSPSetInitialGuessNonzero(ksp, PETSC_TRUE, ierr); call CHKERR(ierr)
 
     prec_is_set = .false.
@@ -4618,6 +4618,8 @@ contains
             call KSPSetType(asm_ksps(i), KSPPREONLY, ierr); call CHKERR(ierr)
             call KSPGetPC(asm_ksps(i), subpc, ierr); call CHKERR(ierr)
             call PCSetType(subpc, PCILU, ierr); call CHKERR(ierr)
+            call PCFactorSetLevels(subpc, 0_iintegers, ierr); call CHKERR(ierr)
+            call PCFactorSetFill(subpc, 1._ireals, ierr); call CHKERR(ierr)
             call KSPSetFromOptions(asm_ksps(i), ierr); call CHKERR(ierr)
           end do
 
@@ -5438,127 +5440,6 @@ contains
 
   end subroutine setup_b
 
-  !> @brief retrieve transport coefficients from optprop module
-  !> @detail this may get the coeffs from a LUT or ANN or whatever and return diff2diff or dir2diff or dir2dir coeffs
-  subroutine get_coeff(OPP, kabs, ksca, g, dz, dx, ldir, coeff, &
-                       angles, lswitch_east, lswitch_north, opt_vertices)
-    class(t_optprop_cube), intent(in) :: OPP
-    real(ireals), intent(in) :: kabs, ksca, g, dz, dx
-    logical, intent(in) :: ldir
-    real(irealLUT), intent(out) :: coeff(:)
-
-    real(irealLUT), intent(in), optional :: angles(2)
-    logical, intent(in), optional :: lswitch_east, lswitch_north
-    real(ireals), intent(in), optional :: opt_vertices(:)
-
-    real(irealLUT), save :: coeff_cache(1000)
-    logical :: lcurrent
-
-    real(irealLUT) :: aspect_zx, tauz, w0
-    integer(mpiint) :: ierr
-
-    call check_cache(lcurrent)
-    if (lcurrent) then
-      coeff = coeff_cache(1:size(coeff))
-      return
-    end if
-
-    aspect_zx = real(dz / dx, irealLUT)
-    w0 = real(ksca / max(kabs + ksca, epsilon(kabs)), irealLUT)
-    tauz = real((kabs + ksca) * dz, irealLUT)
-
-    if (present(angles)) then
-      aspect_zx = max(OPP%dev%dirconfig%dims(3)%vrange(1), aspect_zx)
-      tauz = max(OPP%dev%dirconfig%dims(1)%vrange(1), &
-           & min(OPP%dev%dirconfig%dims(1)%vrange(2), tauz))
-      w0 = max(OPP%dev%dirconfig%dims(2)%vrange(1), &
-           & min(OPP%dev%dirconfig%dims(2)%vrange(2), w0))
-    else
-      aspect_zx = max(OPP%dev%diffconfig%dims(3)%vrange(1), aspect_zx)
-      tauz = max(OPP%dev%diffconfig%dims(1)%vrange(1), &
-           & min(OPP%dev%diffconfig%dims(1)%vrange(2), tauz))
-      w0 = max(OPP%dev%diffconfig%dims(2)%vrange(1), &
-           & min(OPP%dev%diffconfig%dims(2)%vrange(2), w0))
-    end if
-
-    call OPP%get_coeff(tauz, w0, real(g, irealLUT), aspect_zx, ldir, coeff, ierr, &
-                       angles, lswitch_east, lswitch_north, opt_vertices); call CHKERR(ierr)
-
-    coeff_cache(1:size(coeff)) = coeff
-
-  contains
-    subroutine check_cache(lcurrent)
-      logical, intent(out) :: lcurrent
-
-      logical, save :: lpresent_angles = .false.
-      logical, save :: c_ldir = .false., c_lswitch_east = .false., c_lswitch_north = .false.
-      real(ireals), save :: c_kabs = -1, c_ksca = -1, c_g = -1, c_dz = -1, c_vertices(24) = -1
-      real(irealLUT), save :: c_angles(2) = -1
-
-      real(ireals), parameter :: cache_limit = 1e-3 ! rel change cache limit
-      real(irealLUT), parameter :: cache_limit2 = cache_limit ! rel change cache limit
-
-      logical, parameter :: lenable_cache = .true.
-
-      if (.not. lenable_cache) then
-        lcurrent = .false.
-        return
-      end if
-
-      if (.not. rel_approx(c_kabs, kabs, cache_limit)) goto 99
-      if (.not. rel_approx(c_ksca, ksca, cache_limit)) goto 99
-      if (.not. rel_approx(c_g, g, cache_limit)) goto 99
-      if (.not. rel_approx(c_dz, dz, cache_limit)) goto 99
-      if (lpresent_angles .neqv. present(angles)) goto 99
-
-      if (present(opt_vertices)) then
-        if (any(.not. rel_approx(c_vertices, opt_vertices, cache_limit))) goto 99
-      end if
-
-      if (present(angles)) then
-        if (any(.not. rel_approx(c_angles, angles, cache_limit2))) goto 99
-      end if
-
-      if (c_ldir .neqv. ldir) goto 99
-      if (present(lswitch_east)) then
-        if (c_lswitch_east .neqv. lswitch_east) goto 99
-      end if
-      if (present(lswitch_north)) then
-        if (c_lswitch_north .neqv. lswitch_north) goto 99
-      end if
-      lcurrent = .true.
-      !print *,'hit cache'//new_line(''),  &
-      !  & 'kabs', c_kabs, kabs,new_line(''), &
-      !  & 'ksca', c_ksca, ksca,new_line(''), &
-      !  & 'g',    c_g   , g   ,new_line(''), &
-      !  & 'dz',   c_dz  , dz  ,new_line(''), &
-      !  & 'ldir', c_ldir, ldir
-      !call CHKERR(1_mpiint, 'DEBUG')
-      return
-
-99    continue ! update sample pts and go on to compute them
-      !print *,'missed cache'//new_line(''),  &
-      !  & 'kabs', c_kabs, kabs,new_line(''), &
-      !  & 'ksca', c_ksca, ksca,new_line(''), &
-      !  & 'g',    c_g   , g   ,new_line(''), &
-      !  & 'dz',   c_dz  , dz  ,new_line(''), &
-      !  & 'ldir', c_ldir, ldir
-
-      lcurrent = .false.
-      c_kabs = kabs
-      c_ksca = ksca
-      c_g = g
-      c_dz = dz
-      c_ldir = ldir
-      lpresent_angles = present(angles)
-      if (present(angles)) c_angles = angles
-      if (present(opt_vertices)) c_vertices = opt_vertices
-      if (present(lswitch_east)) c_lswitch_east = lswitch_east
-      if (present(lswitch_north)) c_lswitch_north = lswitch_north
-
-    end subroutine
-  end subroutine
-
   !> @brief nca wrapper to call NCA of Carolin Klinger
   !> @details This is supposed to work on a 1D solution which has to be calculated beforehand
   !> \n the wrapper copies fluxes and optical properties on one halo and then gives that to NCA
@@ -6027,13 +5908,15 @@ contains
         end if
       end if
 
+      if (present(opt_buildings)) then
+        call fill_buildings()
+        call check_buildings_energy_balance()
+        call set_abso_in_buildings()
+      end if
+
       call getVecPointer(solver%C_one%da, solution%abso, x1d, x4d, readonly=.true.)
       rabso = x4d(i0, :, :, :)
       call restoreVecPointer(solver%C_one%da, solution%abso, x1d, x4d, readonly=.true.)
-
-      if (present(opt_buildings)) then
-        call fill_buildings()
-      end if
 
       call dump_to_xdmf()
 
@@ -6322,8 +6205,82 @@ contains
 
         call restoreVecPointer(C%da, solution%ediff, x1d, x4d, readonly=.true.)
         call DMRestoreLocalVector(C%da, lediff, ierr); call CHKERR(ierr)
-      end associate
 
+      end associate
+    end subroutine
+
+    subroutine check_buildings_energy_balance()
+      integer(mpiint) :: myid, errcnt
+      integer(iintegers) :: m, idx(4)
+      real(ireals) :: balance, balance_limit
+      logical :: lflg
+
+      balance_limit = -1
+      call get_petsc_opt(solver%prefix, '-pprts_check_buildings_energy_balance', balance_limit, lflg, ierr); call CHKERR(ierr)
+
+      if (balance_limit .ge. 0) then
+        if (solver%myid .eq. 0) then
+          print *, 'Checking buildings fluxes for energy balance'
+        end if
+
+        associate (                              &
+            & solution => solver%solutions(uid), &
+            & B => opt_buildings,                &
+            & C => solver%C_dir)
+
+          errcnt = 0
+          if (solution%lsolar_rad) then
+            do m = 1, size(B%iface)
+              balance = (B%edir(m) + B%incoming(m)) * B%albedo(m) - B%outgoing(m)
+              if (abs(balance) .ge. balance_limit) then
+                call ind_1d_to_nd(B%da_offsets, B%iface(m), idx)
+                idx(2:4) = idx(2:4) - 1 + [C%zs, C%xs, C%ys]
+                errcnt = errcnt + 1
+                print *, myid, 'Failed energy balance check', &
+                  & 'face nr.', m, 'faceidx', B%iface(m), 'cell_kij', idx(2:4), buildingid2str(idx(1)), &
+                  & 'edir', B%edir(m), &
+                  & 'ediff', B%incoming(m), &
+                  & 'albedo', B%albedo(m), &
+                  & 'outgoing', B%outgoing(m), &
+                  & 'balance', balance
+              end if
+
+            end do
+          else
+          end if
+          call CHKERR(errcnt, 'failed energy balance on buildings faces')
+        end associate
+      end if
+    end subroutine
+
+    subroutine set_abso_in_buildings()
+      integer(mpiint) :: myid
+      integer(iintegers) :: m, idx(4)
+      real(ireals) :: val
+      logical :: lflg
+      real(ireals), pointer, dimension(:, :, :, :) :: xabso => null()
+      real(ireals), pointer, dimension(:) :: xabso1d => null()
+
+      val = 0
+      call get_petsc_opt(solver%prefix, '-pprts_set_abso_in_buildings', val, lflg, ierr); call CHKERR(ierr)
+
+      if (lflg) then
+        associate (                              &
+            & solution => solver%solutions(uid), &
+            & B => opt_buildings,                &
+            & C_one => solver%C_one)
+
+          call getVecPointer(C_one%da, solution%abso, xabso1d, xabso)
+          do m = 1, size(B%iface)
+            call ind_1d_to_nd(B%da_offsets, B%iface(m), idx)
+            idx(2:4) = idx(2:4) - 1 + [C_one%zs, C_one%xs, C_one%ys]
+            associate (k => idx(2), i => idx(3), j => idx(4))
+              xabso(i0, k, i, j) = val
+            end associate
+          end do
+          call restoreVecPointer(C_one%da, solution%abso, xabso1d, xabso)
+        end associate
+      end if
     end subroutine
 
     subroutine alloc_or_check_size(C, arr, varname)

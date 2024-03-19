@@ -43,7 +43,7 @@ variables:
     - echo $CMD
     - $CMD &> >(tee $CI_PROJECT_DIR/test.log) || exit 3
     - echo -e "\e[0Ksection_end:`date +%s`:test\r\e[0K"
-  retry: 2
+  retry: 1
   variables:
     PETSC_DIR: petsc
     PETSC_ARCH: default
