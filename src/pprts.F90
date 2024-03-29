@@ -2462,7 +2462,10 @@ contains
         if (allocated(solution%ediff)) then
           call VecSet(solution%ediff, zero, ierr); call CHKERR(ierr)
         end if
-        solution%lchanged = .true.
+        if (allocated(solution%abso)) then
+          call VecSet(solution%abso, zero, ierr); call CHKERR(ierr)
+        end if
+        solution%lchanged = .false.
         goto 99 ! quick exit
       end if
 
