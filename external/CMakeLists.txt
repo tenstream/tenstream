@@ -166,12 +166,13 @@ if(BUILD_FORNADO)
   cmake_minimum_required(VERSION 3.11 FATAL_ERROR)
   include(FetchContent)
   set(FORNADO_DIR ${CMAKE_BINARY_DIR}/external/fornado CACHE INTERNAL "FORNADO install directory")
+  set(ENABLE_OPENMP OFF CACHE INTERNAL "Disable fornado openmp")
 
   FetchContent_Declare(fornado
     GIT_REPOSITORY ${BUILD_FORNADO_GIT_URL}
     SOURCE_DIR "${CMAKE_BINARY_DIR}/external/fornado-src"
     PREFIX ${FORNADO_DIR}
-    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${FORNADO_DIR} -DENABLE_PYTHON=OFF
+    CMAKE_ARGS "-DCMAKE_INSTALL_PREFIX=${FORNADO_DIR} -DENABLE_PYTHON=OFF -DENABLE_OPENMP=OFF"
     GIT_TAG ${BUILD_FORNADO_GIT_TAG}
     )
   FetchContent_GetProperties(fornado)
