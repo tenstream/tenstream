@@ -167,6 +167,7 @@ if(BUILD_FORNADO)
   include(FetchContent)
   set(FORNADO_DIR ${CMAKE_BINARY_DIR}/external/fornado CACHE INTERNAL "FORNADO install directory")
   set(ENABLE_OPENMP OFF CACHE INTERNAL "Disable fornado openmp")
+  set(ENABLE_PYTHON OFF CACHE INTERNAL "Disable fornado python wrappers")
 
   FetchContent_Declare(fornado
     GIT_REPOSITORY ${BUILD_FORNADO_GIT_URL}
