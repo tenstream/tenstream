@@ -53,6 +53,7 @@ module m_ecckd_base
   private
   public :: &
     & ecckd_init, &
+    & ecckd_populate_gas_info, &
     & ecckd_log_events, &
     & IConcDependenceLinear, &
     & IConcDependenceLUT, &
@@ -308,10 +309,10 @@ contains
     end if
   end subroutine
 
-  subroutine ecckd_init(comm, atm, general_mie_table, general_fu_ice_table, ecckd_data_solar, ecckd_data_thermal, ierr, &
+  subroutine ecckd_init(comm, general_mie_table, general_fu_ice_table, ecckd_data_solar, ecckd_data_thermal, ierr, &
       & fname_ecckd_solar, fname_ecckd_thermal, lverbose)
     integer(mpiint), intent(in) :: comm
-    type(t_tenstr_atm), intent(in), target :: atm
+    !type(t_tenstr_atm), intent(in), target :: atm
     type(t_mie_table), intent(in) :: general_mie_table
     type(t_fu_muskatel_ice_data), intent(in) :: general_fu_ice_table
     type(t_ecckd_data), allocatable, intent(inout) :: ecckd_data_solar, ecckd_data_thermal
@@ -378,9 +379,6 @@ contains
 
     call distribute_ecckd_table(comm, ecckd_data_thermal, ierr); call CHKERR(ierr)
     call distribute_ecckd_table(comm, ecckd_data_solar, ierr); call CHKERR(ierr)
-
-    call populate_gas_info(atm, ecckd_data_thermal, ierr, lverbose=lverbose); call CHKERR(ierr)
-    call populate_gas_info(atm, ecckd_data_solar, ierr, lverbose=lverbose); call CHKERR(ierr)
 
     call init_mie_table(general_mie_table, ecckd_data_thermal, ierr); call CHKERR(ierr)
     call init_mie_table(general_mie_table, ecckd_data_solar, ierr); call CHKERR(ierr)
@@ -564,7 +562,7 @@ contains
 
   end subroutine
 
-  subroutine populate_gas_info(atm, ecckd_data, ierr, lverbose)
+  subroutine ecckd_populate_gas_info(atm, ecckd_data, ierr, lverbose)
     type(t_tenstr_atm), target, intent(in) :: atm
     type(t_ecckd_data), target, intent(inout) :: ecckd_data
     integer(mpiint), intent(out) :: ierr

@@ -58,7 +58,12 @@ module m_ecckd_pprts
     & destroy_buildings, &
     & t_pprts_buildings
 
-  use m_ecckd_base, only: ecckd_init, t_ecckd_data, ecckd_log_events
+  use m_ecckd_base, only: &
+    & ecckd_init, &
+    & ecckd_log_events, &
+    & ecckd_populate_gas_info, &
+    & t_ecckd_data
+
   use m_ecckd_optprop, only: ecckd_optprop, ecckd_planck
   use m_mie_tables, only: mie_tables_init, t_mie_table, destroy_mie_table
   use m_fu_ice, only: fu_ice_init, fu_muskatel_ice_data
@@ -187,7 +192,6 @@ contains
 
       call ecckd_init(        &
         & comm,               &
-        & atm,                &
         & ecckd_general_mie_table, &
         & fu_muskatel_ice_data, &
         & ecckd_data_solar,   &
@@ -201,6 +205,9 @@ contains
                             ie, je, ke, &
                             nxproc, nyproc, pprts_icollapse)
     end if
+
+    call ecckd_populate_gas_info(atm, ecckd_data_thermal, ierr, lverbose=.false.); call CHKERR(ierr)
+    call ecckd_populate_gas_info(atm, ecckd_data_solar, ierr, lverbose=.false.); call CHKERR(ierr)
 
     ! Allocate space for results -- for integrated values...
     if (.not. allocated(edn)) allocate (edn(solver%C_one1%zm, solver%C_one1%xm, solver%C_one1%ym))
