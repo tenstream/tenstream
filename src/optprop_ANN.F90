@@ -24,8 +24,9 @@ module m_optprop_ANN
     & print_op_config, check_if_samplepts_in_bounds
   use m_netcdfio, only: get_attribute, ncload
   use mpi
-  use m_helper_functions, only: imp_bcast, CHKERR, CHKWARN, toStr, char_to_upper
+  use m_helper_functions, only: imp_bcast, CHKERR, CHKWARN, toStr, char_to_upper, expm1
   use m_search, only: find_real_location
+  use m_eddington, only: eddington_coeff_ec
 
   use m_boxmc, only: t_boxmc, t_boxmc_3_10
 
@@ -66,7 +67,7 @@ module m_optprop_ANN
   type, extends(t_optprop_ANN) :: t_optprop_ANN_3_10
   end type
 
-  logical, parameter :: lrenormalize = .true.
+  logical, parameter :: lrenormalize = .false.
   real(irealLUT), parameter :: renorm_eps = 1e-5_ireallut
 
 #ifdef HAVE_FORNADO
@@ -323,15 +324,55 @@ contains
     real(irealLUT), intent(in) :: sample_pts(:)
     real(irealLUT), target, intent(out) :: C(:) ! dimension(ANN%diff_streams**2)
 
-    real(irealLUT) :: pti_buffer(size(sample_pts)), maxtrans
+    real(irealLUT) :: pti_buffer(13), tauz, w0, dz, g, maxtrans
+    real(irealLUT), parameter :: theta = 0, phi = 0, mu = cos(theta)
+    real(irealLUT), target :: Cp(110)
+    real(ireals) :: t, r, rdir, sdir, tdir
+
     integer(iintegers) :: src, kdim
     real(irealLUT), pointer :: pC(:, :) ! dim(src, dst)
+    real(irealLUT), pointer :: pCp(:, :) ! dim(dst, src)
     integer(mpiint) :: ierr
 
     if (OPP%ann_diff2diff%lphysical_input) then
-      pti_buffer = sample_pts
+      !pti_buffer = sample_pts
       !pti_buffer(1) = exp(-pti_buffer(1))
-      call ANN_predict(OPP%ann_diff2diff%fann, pti_buffer, C, ierr); call CHKERR(ierr)
+
+      tauz = sample_pts(1)
+      w0 = sample_pts(2)
+      dz = sample_pts(3)
+      g = sample_pts(4)
+
+      call eddington_coeff_ec(real(tauz, ireals), real(w0, ireals), real(g, ireals), real(mu, ireals), t, r, rdir, sdir, tdir)
+
+      pti_buffer(:) = [real(irealLUT) :: &
+        & (tauz / dz) * (1.-w0),  & ! kabs
+        & (tauz / dz) * w0,       & ! ksca
+        & -expm1(-tauz * (1.-w0)), &
+        & -expm1(-tauz * w0),      &
+        & g,                      &
+        & dz,                     &
+        & phi,                    &
+        & theta,                  &
+        & real(t, irealLUT),   &
+        & real(r, irealLUT),   &
+        & real(rdir, irealLUT),   &
+        & real(sdir, irealLUT),   &
+        & real(tdir, irealLUT)]
+      !print *, 'inp ANN', sample_pts
+      !print *, 'pti ANN', pti_buffer
+      call ANN_predict(OPP%ann_diff2diff%fann, pti_buffer, Cp, ierr); call CHKERR(ierr)
+      !print *,'coeff ANN', Cp
+      pCp(1:OPP%diff_streams, 1:OPP%diff_streams + 1) => Cp
+      pC(1:OPP%diff_streams, 1:OPP%diff_streams) => C(:)
+      !do src = 1, OPP%diff_streams+1
+      !  print *, 'src', src, pCp(:,src), 'norm', sum(pCp(:, src))
+      !enddo
+      do src = 1, OPP%diff_streams
+        pC(src, :) = max(0._ireallut, min(1._ireallut, pCp(:, src)))
+        pC(src, :) = pC(src, :) / sum(pC(src, :)) * max(0._ireallut, min(1._ireallut, pCp(src, OPP%diff_streams + 1)))
+        !print *, 'src', src, pC(src,:), 'norm', sum(pC(src,:))
+      end do
     else
 
       if (ldebug_optprop) then
@@ -354,7 +395,7 @@ contains
       !Check for energy conservation:
       ierr = 0
       pC(1:OPP%diff_streams, 1:OPP%diff_streams) => C(:)
-      pC = min(1._ireallut, max(0._ireallut, pC))
+      !pC = min(1._ireallut, max(0._ireallut, pC))
       maxtrans = 0
       do src = 1, OPP%diff_streams
         maxtrans = max(maxtrans, sum(pC(src, :)))
