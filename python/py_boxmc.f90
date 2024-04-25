@@ -8,7 +8,7 @@ module m_py_boxmc
   implicit none
 
   private
-  public :: py_get_coeff_3_10, py_get_coeff_8_10, py_get_coeff_wedge_5_8
+  public :: py_get_coeff_3_10, py_get_coeff_8_10, py_get_coeff_3_10_verts, py_get_coeff_wedge_5_8
 
 contains
 
@@ -49,16 +49,74 @@ contains
       real(dx, ireals), real(dy, ireals), real(dz,ireals), &
       vertices)
 
+    print *,'verts', vertices
     call bmc%get_coeff(comm,      &
-      real(op_bg, kind=ireals),   &
+      real(op_bg, kind=ireal_dp),   &
       int(src,kind=iintegers),    &
       ldir,                       &
-      real(phi0, kind=ireals),    &
-      real(theta0, kind=ireals),  &
-      real(vertices, kind=ireals), &
+      real(phi0, kind=ireal_dp),    &
+      real(theta0, kind=ireal_dp),  &
+      real(vertices, kind=ireal_dp), &
       S, T, S_tol, T_tol,         &
-      real(inp_atol, kind=ireals),&
-      real(inp_rtol, kind=ireals))
+      real(inp_atol, kind=ireal_dp),&
+      real(inp_rtol, kind=ireal_dp))
+
+    ret_S = S
+    ret_T = T
+    ret_S_tol = S_tol
+    ret_T_tol = T_tol
+  end subroutine
+
+  subroutine py_get_coeff_3_10_verts( &
+      comm, dx, dy, dz,      &
+      vertices,              &
+      op_bg, src,            &
+      ldir, phi0, theta0,    &
+      ret_S, ret_T,          &
+      ret_S_tol,ret_T_tol,   &
+      inp_atol, inp_rtol     )
+    double precision,intent(in)  :: dx, dy, dz   !< @param[in] size of cube
+    double precision,intent(in)  :: vertices(24) !< @param[in] vertex coordinates, dim(3*8)
+    double precision,intent(in)  :: op_bg(3)     !< @param[in] op_bg optical properties have to be given as [kabs,ksca,g]
+    double precision,intent(in)  :: phi0         !< @param[in] phi0 solar azimuth angle
+    double precision,intent(in)  :: theta0       !< @param[in] theta0 solar zenith angle
+    integer,intent(in)           :: src                         !< @param[in] src stream from which to start photons - see init_photon routines
+    integer(mpiint),intent(in)   :: comm         !< @param[in] comm MPI Communicator
+    logical,intent(in)           :: ldir         !< @param[in] ldir determines if photons should be started with a fixed incidence angle
+    double precision,intent(out) :: ret_S(10)    !< @param[out] S_out diffuse streams transfer coefficients
+    double precision,intent(out) :: ret_T(3)     !< @param[out] T_out direct streams transfer coefficients
+    double precision,intent(out) :: ret_S_tol(10)!< @param[out] absolute tolerances of results
+    double precision,intent(out) :: ret_T_tol(3) !< @param[out] absolute tolerances of results
+    double precision,intent(in)  :: inp_atol     !< @param[in] inp_atol if given, determines targeted absolute stddeviation
+    double precision,intent(in)  :: inp_rtol     !< @param[in] inp_rtol if given, determines targeted relative stddeviation
+
+    type(t_boxmc_3_10) :: bmc
+
+    real(ireals)       :: S(size(ret_S))
+    real(ireals)       :: T(size(ret_T))
+    real(ireals)       :: S_tol(size(ret_S_tol))
+    real(ireals)       :: T_tol(size(ret_T_tol))
+
+
+    call init_mpi_data_parameters(comm)
+    call bmc%init(comm)
+
+    !print*,'atol/rtol', inp_atol, inp_rtol
+    !print *,'verts A', vertices(1:3)  , 'verts B', vertices(4:6)
+    !print *,'verts C', vertices(7:9)  , 'verts D', vertices(10:12)
+    !print *,'verts E', vertices(13:15), 'verts F', vertices(16:18)
+    !print *,'verts G', vertices(19:21), 'verts H', vertices(22:24)
+
+    call bmc%get_coeff(comm,      &
+      real(op_bg, kind=ireal_dp),   &
+      int(src,kind=iintegers),    &
+      ldir,                       &
+      real(phi0, kind=ireal_dp),    &
+      real(theta0, kind=ireal_dp),  &
+      real(vertices, kind=ireal_dp), &
+      S, T, S_tol, T_tol,         &
+      real(inp_atol, kind=ireal_dp),&
+      real(inp_rtol, kind=ireal_dp))
 
     ret_S = S
     ret_T = T
@@ -94,25 +152,25 @@ contains
     real(ireals)       :: S_tol(size(ret_S_tol))
     real(ireals)       :: T_tol(size(ret_T_tol))
 
-    real(ireals) :: vertices(18)
+    real(ireal_dp) :: vertices(18)
 
     call init_mpi_data_parameters(comm)
     call bmc%init(comm)
 
     call setup_default_unit_wedge_geometry( &
-      real(dx, ireals), real(dy, ireals), real(dz,ireals), &
+      real(dx, ireal_dp), real(dy, ireal_dp), real(dz,ireal_dp), &
       vertices)
 
-    call bmc%get_coeff(comm,      &
-      real(op_bg, kind=ireals),   &
-      int(src,kind=iintegers),    &
-      ldir,                       &
-      real(phi0, kind=ireals),    &
-      real(theta0, kind=ireals),  &
-      real(vertices, kind=ireals), &
-      S, T, S_tol, T_tol,         &
-      real(inp_atol, kind=ireals),&
-      real(inp_rtol, kind=ireals))
+    call bmc%get_coeff(comm,         &
+      real(op_bg, kind=ireal_dp),    &
+      int(src,kind=iintegers),       &
+      ldir,                          &
+      real(phi0, kind=ireal_dp),     &
+      real(theta0, kind=ireal_dp),   &
+      real(vertices, kind=ireal_dp), &
+      S, T, S_tol, T_tol,            &
+      real(inp_atol, kind=ireal_dp), &
+      real(inp_rtol, kind=ireal_dp))
 
     ret_S = S
     ret_T = T
@@ -157,16 +215,16 @@ contains
       real(dx, ireals), real(dy, ireals), real(dz,ireals), &
       vertices)
 
-    call bmc%get_coeff(comm,      &
-      real(op_bg, kind=ireals),   &
-      int(src,kind=iintegers),    &
-      ldir,                       &
-      real(phi0, kind=ireals),    &
-      real(theta0, kind=ireals),  &
-      real(vertices, kind=ireals), &
-      S, T, S_tol, T_tol,         &
-      real(inp_atol, kind=ireals),&
-      real(inp_rtol, kind=ireals))
+    call bmc%get_coeff(comm,        &
+      real(op_bg, kind=ireal_dp),   &
+      int(src,kind=iintegers),      &
+      ldir,                         &
+      real(phi0, kind=ireal_dp),    &
+      real(theta0, kind=ireal_dp),  &
+      real(vertices, kind=ireal_dp),&
+      S, T, S_tol, T_tol,           &
+      real(inp_atol, kind=ireal_dp),&
+      real(inp_rtol, kind=ireal_dp))
 
     ret_S = S
     ret_T = T

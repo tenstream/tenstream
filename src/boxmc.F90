@@ -291,6 +291,7 @@ module m_boxmc
 
   type stddev
     real(irealbmc), allocatable, dimension(:) :: inc, delta, mean, mean2, var, relvar
+    integer(iintegers), allocatable :: events(:)
     logical :: converged = .false.
     real(irealbmc) :: atol = zero, rtol = zero
     logical :: active ! are we checking for convergence at all?
@@ -467,6 +468,12 @@ contains
     ! tolerances that we achieved and report them back
     T_tol = std_Sdir%var
     S_tol = std_Sdiff%var
+    where (std_Sdir%events .eq. 0_iintegers)
+      T_tol = 1._irealbmc / real(Nphotons, irealbmc)
+    end where
+    where (std_Sdiff%events .eq. 0_iintegers)
+      S_tol = 1._irealbmc / real(Nphotons, irealbmc)
+    end where
 
     if (numnodes .gt. 1) then ! average reduce results from all ranks
       call reduce_output(Nphotons, comm, S_out, T_out, S_tol, T_tol)
@@ -570,10 +577,7 @@ contains
     ! and phi = 90, beam going towards east
     initial_dir = spherical_2_cartesian(phi0, theta)*[-one, -one, one]
 
-    mincnt = int(1._ireal_dp / std_Sdir%rtol &
-                 + 1._ireal_dp / std_Sdir%atol &
-                 + 1._ireal_dp / std_Sdiff%rtol &
-                 + 1._ireal_dp / std_Sdiff%atol, iintegers)
+    mincnt = int(.5_ireal_dp / std_Sdir%atol**1 + .5_ireal_dp / std_Sdiff%atol**1, iintegers)
     mycnt = int(1e9_ireal_dp / numnodes, iintegers)
     mycnt = min(max(mincnt, mycnt), huge(k) - 1)
     do k = 1, mycnt
@@ -932,12 +936,14 @@ contains
     if (allocated(std%mean2)) deallocate (std%mean2)
     if (allocated(std%var)) deallocate (std%var)
     if (allocated(std%relvar)) deallocate (std%relvar)
+    if (allocated(std%events)) deallocate (std%events)
     allocate (std%inc(N)); std%inc = 0
     allocate (std%delta(N)); std%delta = 0
     allocate (std%mean(N)); std%mean = 0
     allocate (std%mean2(N)); std%mean2 = 0
     allocate (std%var(N)); std%var = 0
     allocate (std%relvar(N)); std%relvar = 0
+    allocate (std%events(N)); std%events = 0
     std%atol = real(atol, kind(std%atol))
     std%rtol = real(rtol, kind(std%rtol))
     std%converged = .true.
@@ -955,6 +961,7 @@ contains
     if (.not. std%active) return
 
     do i = 1, size(std%mean)
+      if (std%inc(i).gt.0._irealbmc) std%events(i) = std%events(i) + 1
       std%delta(i) = std%inc(i) - std%mean(i)
       std%mean(i) = std%mean(i) + std%delta(i) / N
       std%mean2(i) = std%mean2(i) + std%delta(i) * (std%inc(i) - std%mean(i))
