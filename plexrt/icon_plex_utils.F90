@@ -1568,10 +1568,10 @@ contains
                   'Default section of the DM does not fit with the local input array size'// &
                   ' Section ( '//toStr(section_size)//' ) vs arr ( '//toStr(localsize)//' )')
 
-      call DMGetVecType(dm, vectype, ierr); call CHKERR(ierr)
-      if (vectype .ne. VECSTANDARD) &
-        call CHKERR(1_mpiint, 'this routine is currently only capable '// &
-                    'to create VECSTANDARD vectypes but this DM is of a different vectype')
+      !call DMGetVecType(dm, vectype, ierr); call CHKERR(ierr)
+      !if (vectype .ne. VECSTANDARD) &
+      !  call CHKERR(1_mpiint, 'this routine is currently only capable '// &
+      !              'to create VECSTANDARD vectypes but this DM is of a different vectype')
     end if
 
     call PetscObjectViewFromOptions(pVec, PETSC_NULL_VEC, "-dmplex_gVec_from_f90_array_show_vec", ierr); call CHKERR(ierr)
