@@ -913,7 +913,7 @@ contains
     end if
 
     if (present(prefix)) then
-      call PetscObjectSetOptionsPrefix(C%da, prefix, ierr); call CHKERR(ierr)
+      call DMSetOptionsPrefix(C%da, prefix, ierr); call CHKERR(ierr)
     end if
     ! need this first setfromoptions call because of a bug which happens with intel compilers
     call DMSetFromOptions(C%da, ierr); call CHKERR(ierr)
@@ -1214,7 +1214,7 @@ contains
 
     allocate (A)
     call DMCreateMatrix(C%da, A, ierr); call CHKERR(ierr)
-    call PetscObjectSetOptionsPrefix(A, trim(solver%prefix), ierr); call CHKERR(ierr)
+    call MatSetOptionsPrefix(A, trim(solver%prefix), ierr); call CHKERR(ierr)
 
     call mpi_comm_size(C%comm, numnodes, ierr); call CHKERR(ierr)
 
