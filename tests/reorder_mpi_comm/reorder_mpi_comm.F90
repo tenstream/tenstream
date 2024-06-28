@@ -85,7 +85,7 @@ subroutine test_tenstream_ex1(this)
 
   if (any(orig_id .eq. [0, 4, 8])) &
     @assertEqual(neighbors_orig, neighbors_reorder, 'neighbors have to stay the same in the middle and for the corners')
-  if (orig_id .eq. 1) then
+    if(orig_id .eq. 1) then
     @assertEqual([0, 7, 2, 4], neighbors_orig)
     @assertEqual([5, 0, 4, 6], neighbors_reorder)
   end if
