@@ -10,7 +10,7 @@ def load_data(ncfile, f_input, f_feature):
     with xr.load_dataset(ncfile) as D:
         return f_input(D), f_feature(D)
 
-def annotate(inpfile, var='C', lsolar=False, renormalization=True, shuffle=True, test_fraction=0, verbose=False, **kwargs):
+def annotate(inpfile, var='C', lsolar=False, renormalization=True, shuffle=None, test_fraction=0, verbose=False, **kwargs):
     if verbose: print(f" ... loading data for {var}")
     inp, out = load_data(inpfile,
             lambda D: D.inp,
@@ -68,7 +68,9 @@ def annotate(inpfile, var='C', lsolar=False, renormalization=True, shuffle=True,
     norm   = np.maximum(1e-40, out[var].sum(dim_dst))
     stddev = out[f"{var}tol"]
     # never trust any coefficient more than the stddev exit condition of the montecarlo solver
-    stddev = np.maximum(1e-4, stddev)
+    #stddev = np.maximum(1e-4, stddev)
+    stddev = np.maximum(1e-8, stddev)
+    stddev = np.where(coeffs <= 0, 1e-7, stddev)
 
     if renormalization:
         if verbose: print(" ... renormalization")
@@ -77,8 +79,12 @@ def annotate(inpfile, var='C', lsolar=False, renormalization=True, shuffle=True,
     Y = np.hstack([
         coeffs.data.reshape(inp.N.size,-1),
         norm.data,
-        stddev.data.reshape(inp.N.size,-1),
+        stddev.reshape(inp.N.size,-1),
         ])
+
+    if shuffle is not None:
+        print(f"Shuffling data")
+        X, Y = X[shuffle], Y[shuffle]
 
     split = int(inp.N.size * test_fraction)
     sl_test = slice(None, split)
@@ -95,9 +101,9 @@ def annotate(inpfile, var='C', lsolar=False, renormalization=True, shuffle=True,
         attrs={
             f"Nsrc_{var}"    : out.dims[dim_src],
             f"Ndst_{var}"    : out.dims[dim_dst],
-            f"Ncoeff_{var}"   : coeffs.data.reshape(inp.N.size,-1).shape[-1],
+            f"Ncoeff_{var}"  : coeffs.data.reshape(inp.N.size,-1).shape[-1],
             f"Nnorm_{var}"   : norm.data.shape[-1],
-            f"Nstddev_{var}" : stddev.data.reshape(inp.N.size,-1).shape[-1],
+            f"Nstddev_{var}" : stddev.reshape(inp.N.size,-1).shape[-1],
             },
     )
 
@@ -126,16 +132,18 @@ def _main():
     if os.path.exists(args.out):
         raise ValueError(f"Output file already exists... will not overwrite!")
 
+    if args.shuffle: # shuffling with permutation
+        if args.verbose: print(" ... shuffling")
+        with xr.open_dataset(args.input) as D:
+            perm = np.arange(D.N.size)
+        np.random.shuffle(perm)
+        args.shuffle = perm
+        #D = D.isel(N=perm)
+
     D_C = annotate(args.input, 'C', **vars(args))
     D_S = annotate(args.input, 'S', lsolar=True, **vars(args))
     D_T = annotate(args.input, 'T', lsolar=True, **vars(args))
     D = xr.merge([D_C, D_S, D_T], combine_attrs='no_conflicts')
-
-    if args.shuffle: # shuffling with permutation
-        if args.verbose: print(" ... shuffling")
-        perm = np.arange(D.N.size)
-        np.random.shuffle(perm)
-        D = D.isel(N=perm)
 
 
     if args.verbose: print(D)

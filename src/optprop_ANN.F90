@@ -24,7 +24,7 @@ module m_optprop_ANN
     & print_op_config, check_if_samplepts_in_bounds
   use m_netcdfio, only: get_attribute, ncload
   use mpi
-  use m_helper_functions, only: imp_bcast, CHKERR, CHKWARN, toStr, char_to_upper, expm1
+  use m_helper_functions, only: imp_bcast, CHKERR, CHKWARN, toStr, char_to_upper, expm1, get_petsc_opt
   use m_search, only: find_real_location
   use m_eddington, only: eddington_coeff_ec
 
@@ -79,6 +79,7 @@ contains
     integer(mpiint), intent(in) :: comm
     integer(mpiint), intent(out) :: ierr
     integer(mpiint) :: myid
+    logical :: lflg
 
     if (ANN%initialized) return
 
@@ -98,6 +99,8 @@ contains
     ANN%basename = &
       & trim(lut_basename)!//&
     !& trim(gen_ann_basename("_ANN_", ANN%dirconfig))
+
+    call get_petsc_opt('', "-ann_basename", ANN%basename, lflg, ierr); call CHKERR(ierr)
 
     print *, 'Init ANN for basename: ', trim(ANN%basename)
     print *, 'ANN dirconfig'
@@ -227,7 +230,7 @@ contains
     real(irealLUT), target, intent(out) :: C(:) ! dimension(ANN%dir_streams**2)
 
     integer(iintegers) :: src, kdim
-    real(irealLUT) :: pti_buffer(size(sample_pts)), maxtrans
+    real(irealLUT) :: pti_buffer(size(sample_pts)+2), maxtrans
     real(irealLUT), pointer :: pC(:, :) ! dim(src, dst)
     integer(mpiint) :: ierr
 
@@ -324,7 +327,7 @@ contains
     real(irealLUT), intent(in) :: sample_pts(:)
     real(irealLUT), target, intent(out) :: C(:) ! dimension(ANN%diff_streams**2)
 
-    real(irealLUT) :: pti_buffer(13), tauz, w0, dz, g, maxtrans
+    real(irealLUT) :: pti_buffer(15), tauz, w0, dz, g, tanx, tany, maxtrans
     real(irealLUT), parameter :: theta = 0, phi = 0, mu = cos(theta)
     real(irealLUT), target :: Cp(110)
     real(ireals) :: t, r, rdir, sdir, tdir
@@ -342,6 +345,8 @@ contains
       w0 = sample_pts(2)
       dz = sample_pts(3)
       g = sample_pts(4)
+      tanx = 0
+      tany = 0
 
       call eddington_coeff_ec(real(tauz, ireals), real(w0, ireals), real(g, ireals), real(mu, ireals), t, r, rdir, sdir, tdir)
 
@@ -354,6 +359,8 @@ contains
         & dz,                     &
         & phi,                    &
         & theta,                  &
+        & tanx,                   &
+        & tany,                   &
         & real(t, irealLUT),   &
         & real(r, irealLUT),   &
         & real(rdir, irealLUT),   &

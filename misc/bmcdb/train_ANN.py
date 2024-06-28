@@ -8,6 +8,8 @@ np.set_printoptions(linewidth=np.inf)
 import os
 import sys
 import xarray as xr
+import tensorflow as tf
+import tensorflow.math as M
 
 def loss_diff(y_true, y_predict):
     import tensorflow as tf
@@ -36,8 +38,6 @@ def loss_mse(y_true, y_predict, **kwargs):
     return M.reduce_mean( M.square(diff) )
 
 def loss_bias(y_true, y_predict, **kwargs):
-    import tensorflow as tf
-    import tensorflow.math as M
     diff, bias, std = loss_diff(y_true, y_predict, **kwargs)
     #tf.print('bias variance:', bias_variance, summarize=-1)
     #return M.reduce_mean( M.square(bias) / (2*M.square(tf.reduce_mean(std, axis=-1)) ) )
@@ -72,6 +72,17 @@ def custom_loss(y_true, y_predict, **kwargs):
 
     return lrmse(y_true, y_predict, **kwargs) + lbias(y_true, y_predict, **kwargs)
 
+CUSTOM_OBJECTS = {
+        "custom_loss" : custom_loss,
+        "loss_diff" : loss_diff,
+        "loss_mse" : loss_mse,
+        "loss_rmse" : loss_rmse,
+        "loss_bias" : loss_bias,
+        "loss_diff" : loss_diff,
+        "lrmse": lrmse,
+        "lbias": lbias,
+        }
+
 def build_model(inpsize, outsize,
         denselayers=(-64,)*2,
         optimizer="Adam",
@@ -79,9 +90,9 @@ def build_model(inpsize, outsize,
         dropout_inp=0.0,
         dropout_hidden=0.0,
         acti="swish",
-        acti_out="linear"):
+        acti_out="sigmoid"):
     model = K.models.Sequential()
-    model.add(K.Input(shape=inpsize))
+    model.add(K.Input(shape=(inpsize,)))
 
     if dropout_inp > 0:
         model.add(K.layers.Dropout(rate=dropout_inp))
@@ -173,7 +184,7 @@ def tuner_find_best(X, Y, name, verbose=1, force=False):
 
     return mymodel
 
-def tf2fornado(model, phys_input, outpath, accuracy=None, verbose=True):
+def tf2fornado(model, phys_input, outpath, accuracy=None, verbose=True, inpvars=None):
 
     if model is None:
         D = xr.Dataset()
@@ -190,6 +201,7 @@ def tf2fornado(model, phys_input, outpath, accuracy=None, verbose=True):
     D.attrs['physical_input'] = np.int32(phys_input)
     D.attrs['keras_name'] = model.name
     D.attrs['accuracy'] = json.dumps(accuracy)
+    D.attrs['inpvars'] = inpvars
 
     for i, l in enumerate(layers):
         D["w{}".format(i)] = xr.DataArray(l.weights[0].numpy(), dims=("Ninp_{}".format(i), "Nout_{}".format(i)))
@@ -201,7 +213,10 @@ def tf2fornado(model, phys_input, outpath, accuracy=None, verbose=True):
 
 var = 'C'
 
-with xr.open_dataset('../bmcdb/bmc.nc') as D:
+inpdata='../bmcdb/bmc.nc'
+inpdata='../bmcdb/bmcdb_ex_ey.annotated.nc'
+with xr.open_dataset(inpdata) as D:
+    inpvars = ','.join(D['inpvars'].data)
     Nsrc = int(D.attrs[f'Nsrc_{var}'])
     Ndst = int(D.attrs[f'Ndst_{var}'])
     X = D[f'{var}_X'].load().data
@@ -209,12 +224,34 @@ with xr.open_dataset('../bmcdb/bmc.nc') as D:
     X_test = D[f'{var}_X_test'].load().data
     Y_test = D[f'{var}_Y_test'].load().data
 
+
+class CustomLearningRateScheduler(K.callbacks.Callback):
+    def __init__(self, schedule):
+        super().__init__()
+        self.schedule = schedule
+
+    def on_epoch_begin(self, epoch, logs=None):
+        lr = self.model.optimizer.learning_rate
+        scheduled_lr = self.schedule(epoch, lr)
+        self.model.optimizer.learning_rate = scheduled_lr
+        #print(f"\nEpoch {epoch}: Learning rate is {float(np.array(scheduled_lr))}.")
+
+
+
 if True:
-    outname = f'./S.{depth}.{width}.nc'
-    print(f"Writing to {outname}")
-    if os.path.exists(outname):
-        raise FileExistsError(f'network output file already exists {outname}')
-    t = int(X.shape[0]*.95)
+    import argparse
+    parser = argparse.ArgumentParser(description='Input parameters for Neural Network Generator')
+    parser.add_argument('-N', '--Nneurons', default=-100, type=int, help='Number of Neurons in each hidden layer')
+    parser.add_argument('-M', '--Nlayers', default=4, type=int, help='Number of hidden layers')
+    parser.add_argument('-a', '--activation', default='swish', type=str, help='hidden activation functions')
+    args = parser.parse_args()
+
+    width, depth, acti = args.Nlayers, args.Nneurons, args.activation
+
+    outname = f'./S.{acti}.{depth}.{width}.nc'
+
+    print(f"Model path {outname}")
+    t = int(X.shape[0]*.75)
     X_train, Y_train, X_val, Y_val = X[:t], Y[:t], X[t:], Y[t:]
 
     print(f"Shape X_train {X_train.shape}")
@@ -223,34 +260,52 @@ if True:
     print(f"Shape Y_val   {Y_val.shape}")
 
     print(f"Input Data size: {X.shape} -> {Y.shape}, Y_predict: {(Nsrc+1)*Ndst}")
+
+    if os.path.exists(f'{outname}.keras'):
+        print(f"Loading existing model from {outname}.keras")
+        model = K.models.load_model(f'{outname}.keras', custom_objects=CUSTOM_OBJECTS)
+        initial_value_threshold = M.reduce_mean(custom_loss(Y_val, model.predict(X_val, batch_size=int(1e5)))).numpy()
+        print(f"{initial_value_threshold=}")
+    else:
+        model = build_model(X_train.shape[-1], (Nsrc+1)*Ndst, denselayers=(depth,)*width, lr=1., acti=acti)
+        initial_value_threshold = None
+
+    Nparam = model.count_params()
+    initial_lr = 1e-4 #Nparam * 1e-8 / (Nsrc*Ndst)
+    print(f"Have {Nparam} parameters -> lr {initial_lr}")
+
+    def lr_schedule(epoch, lr):
+        if epoch < 1:
+            return initial_lr
+        if (epoch % 50) == 0:
+            new_lr = 10 * lr
+            print(f"increasing learning rate from {lr} to {new_lr}")
+            return new_lr
+        return lr
+
     my_callbacks = [
-        K.callbacks.EarlyStopping(patience=10, verbose=1, restore_best_weights=True),
-        # K.callbacks.ModelCheckpoint(filepath=modelname, save_best_only=True, verbose=0),
-        K.callbacks.ReduceLROnPlateau(factor=0.5, patience=3, verbose=1, min_lr=1e-6),
+        K.callbacks.EarlyStopping(patience=20, verbose=1, restore_best_weights=True),
+        K.callbacks.ReduceLROnPlateau(factor=0.5, patience=3, verbose=1, min_lr=1e-7),
+        CustomLearningRateScheduler(lr_schedule),
+        K.callbacks.ModelCheckpoint(f'{outname}.keras', monitor='val_loss', save_best_only=True, verbose=True, initial_value_threshold=initial_value_threshold)
     ]
     fit = dict(
             callbacks=my_callbacks,
             validation_data=(X_val, Y_val),
-            epochs=500,
+            epochs=10000,
             shuffle=True,
             )
 
-    width=6
-    depth=-150
-    model = build_model(X_train.shape[-1], (Nsrc+1)*Ndst, denselayers=(depth,)*width, lr=1.)
-    Nparam = model.count_params()
-    lr = Nparam * 1e-6 / (Nsrc*Ndst)
-    print(f"Have {Nparam} parameters -> lr {lr}")
-    model = build_model(X_train.shape[-1], (Nsrc+1)*Ndst, denselayers=(depth,)*width, lr=lr)
+
     model.summary()
 
-    model.fit(X_train, Y_train, batch_size=int(32000), **fit)
+    model.fit(X_train, Y_train, batch_size=int(128), **fit)
 
     for jl in range(3):
-        for bs in (64, 1e2, 1e3, 1e4, 1e5):
+        for bs in (128,):
             print(f"Iteration {jl} :: batchsize {bs}")
-            K.backend.set_value(model.optimizer.learning_rate, lr)
-            model.fit(X_train, Y_train, batch_size=int(bs), **fit)
+            #K.backend.set_value(model.optimizer.learning_rate, lr)
+            #model.fit(X_train, Y_train, batch_size=int(bs), **fit)
 
     k = int(X.shape[0]) -5
     print("X         ",  X[k:k+1])
@@ -266,7 +321,7 @@ if True:
     print("Y_predict      \n", Y_predict)#[k])
 
     accuracy = list(zip(model.metrics_names, model.evaluate(X_test, Y_test)))
-    tf2fornado(model, True, outname, accuracy)
+    tf2fornado(model, True, outname, accuracy, inpvars=inpvars)
 
 else:
     tuner_find_best(X, Y, f'C')

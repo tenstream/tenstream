@@ -14,4 +14,4 @@
 lpm local
 py local
 
-/home/f/Fabian.Jakub/tenstream/misc/bmcdb/client.py -N 100 -v -a 1e-3 -r 1e-2 --Ndir 3
+/home/f/Fabian.Jakub/tenstream/misc/bmcdb/client.py -N 100 -v -a 1e-4 -r 1e-2 --Ndir 3

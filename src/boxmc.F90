@@ -617,10 +617,10 @@ contains
 
     call cpu_time(time(2))
 
-    !if(Nphotons.gt.1)then ! .and. rand().gt..99_ireal_dp) then
-    !  write(*,FMT='("src ",I0,") sun(",I0,",",I0,") N_phot ",I0 ,"=>",ES12.3,"phot/sec/node took",ES12.3,"sec", I0, ES12.3)') &
-    !    src,int(phi0),int(theta0),Nphotons, Nphotons/max(tiny(time),time(2)-time(1))/numnodes,time(2)-time(1), numnodes, tau_scaling
-    !endif
+    if(Nphotons.gt.1)then ! .and. rand().gt..99_ireal_dp) then
+      write(*,FMT='("src ",I0,") sun(",I0,",",I0,") N_phot ",I0 ,"=>",ES12.3,"phot/sec/node took",ES12.3,"sec", I0, ES12.3)') &
+        src,int(phi0),int(theta0),Nphotons, Nphotons/max(tiny(time),time(2)-time(1))/numnodes,time(2)-time(1), numnodes, tau_scaling
+    endif
   end subroutine
 
   !> @brief take weighted average over mpi processes
