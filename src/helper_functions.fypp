@@ -2798,7 +2798,8 @@ contains
       & DMDA_STENCIL_STAR, &
       & Nx_global, Ny_global, &
       & PETSC_DECIDE, PETSC_DECIDE, &
-      & i1, i1, PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, dm, ierr); call CHKERR(ierr)
+      & i1, i1, PETSC_NULL_INTEGER_ARRAY, PETSC_NULL_INTEGER_ARRAY, &
+      & dm, ierr); call CHKERR(ierr)
     call DMSetup(dm, ierr); call CHKERR(ierr)
 
     call DMDAGetInfo(dm, PETSC_NULL_INTEGER, &

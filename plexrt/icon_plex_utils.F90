@@ -1546,7 +1546,7 @@ contains
     integer(mpiint) :: numnodes, ierr
     integer(iintegers) :: localsize, section_size, bs
     type(tPetscSection) :: lsection
-    VecType :: vectype
+    !VecType :: vectype
     real(ireals), pointer :: parr(:)
 
     call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)

@@ -2664,7 +2664,7 @@ contains
         call PetscSectionGetDof(sec, iface, numDst, ierr); call CHKERR(ierr)
         call PetscSectionGetOffset(sec, iface, irow, ierr); call CHKERR(ierr)
         do idst = 0, numDst - 1
-          call MatSetValuesLocal(A, i1, irow + idst, i1, irow + idst, [one], INSERT_VALUES, ierr); call CHKERR(ierr)
+          call MatSetValueLocal(A, irow + idst, irow + idst, one, INSERT_VALUES, ierr); call CHKERR(ierr)
         end do
       end do
     end subroutine
@@ -2787,7 +2787,7 @@ contains
                   !  'src_offset   ('//toStr(dof_src_offset)//') '// &
                   !  'dst_offset   ('//toStr(dof_dst_offset)//') '// &
                   !  'col -> row    '//toStr(icol)//' -> '//toStr(irow)//'   = ', c
-                  call MatSetValuesLocal(A, i1, irow, i1, icol, c, INSERT_VALUES, ierr); call CHKERR(ierr)
+                  call MatSetValueLocal(A, irow, icol, c, INSERT_VALUES, ierr); call CHKERR(ierr)
                 end do
               end do
             end do
@@ -2818,7 +2818,7 @@ contains
         ! src is always top face, dst is botface
         call PetscSectionGetOffset(sec, topface, icol, ierr); call CHKERR(ierr)
         call PetscSectionGetOffset(sec, botface, irow, ierr); call CHKERR(ierr)
-        call MatSetValuesLocal(A, i1, irow, i1, icol, -c33, INSERT_VALUES, ierr); call CHKERR(ierr)
+        call MatSetValueLocal(A, irow, icol, -c33, INSERT_VALUES, ierr); call CHKERR(ierr)
       end do
     end subroutine
 
@@ -2946,7 +2946,7 @@ contains
                 if (c .ge. zero) cycle
 
                 if (ldebug) sumcoeff = sumcoeff + dir2dir(bmcsrcdof, bmcdstdof)
-                call MatSetValuesLocal(A, i1, irow, i1, icol, c, INSERT_VALUES, ierr); call CHKERR(ierr)
+                call MatSetValueLocal(A, irow, icol, c, INSERT_VALUES, ierr); call CHKERR(ierr)
 
               end do
             end do
@@ -3159,9 +3159,9 @@ contains
               call PetscSectionGetFieldOffset(ediffSection, iface, istream - i1, offset_Ein, ierr); call CHKERR(ierr)
               offset_Eout = offset_Ein + i1
 
-              call MatSetValuesLocal(A, &
-                & i1, offset_Ein, &
-                & i1, offset_Eout, &
+              call MatSetValueLocal(A, &
+                & offset_Ein, &
+                & offset_Eout, &
                 & -xalbedo(i1 + offset_srfc), &
                 & INSERT_VALUES, ierr); call CHKERR(ierr)
             end if
@@ -3188,9 +3188,9 @@ contains
               call PetscSectionGetFieldOffset(ediffSection, iface, istream, offset_Ein, ierr); call CHKERR(ierr)
               offset_Eout = offset_Ein + i1
 
-              call MatSetValuesLocal(A, &
-                & i1, offset_Ein, &
-                & i1, offset_Eout, &
+              call MatSetValueLocal(A, &
+                & offset_Ein, &
+                & offset_Eout, &
                 & sideward_bc_coeff, &
                 & INSERT_VALUES, ierr); !call CHKERR(ierr)
 
@@ -3212,7 +3212,7 @@ contains
       integer(iintegers) :: irow, is, ie
       call PetscSectionGetOffsetRange(ediffSection, is, ie, ierr); call CHKERR(ierr)
       do irow = is, ie - 1
-        call MatSetValuesLocal(A, i1, irow, i1, irow, one, INSERT_VALUES, ierr); call CHKERR(ierr)
+        call MatSetValueLocal(A, irow, irow, one, INSERT_VALUES, ierr); call CHKERR(ierr)
       end do
     end subroutine
     subroutine set_1d_coeffs()
