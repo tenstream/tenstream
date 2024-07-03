@@ -2790,6 +2790,8 @@ contains
     integer(mpiint), intent(out) :: ierr
 
     type(tDM) :: dm
+    DMBoundaryType :: b_x, b_y, b_z
+    DMDAStencilType :: stenciltype
     integer(iintegers) :: Nranksx, Nranksy
     integer(iintegers) :: z, p
 
@@ -2806,8 +2808,7 @@ contains
       & PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, &
       & Nranksx, Nranksy, PETSC_NULL_INTEGER, &
       & PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, &
-      & PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, &
-      & PETSC_NULL_INTEGER, ierr); call CHKERR(ierr)
+      & b_x, b_y, b_z, stenciltype, ierr); call CHKERR(ierr)
 
     call DMDAGetCorners(dm, xStart, yStart, z, Nx_local, Ny_local, p, ierr); call CHKERR(ierr)
 
