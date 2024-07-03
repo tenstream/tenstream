@@ -857,9 +857,8 @@ contains
 
     call DMSetBasicAdjacency(dm, PETSC_TRUE, PETSC_FALSE, ierr); call CHKERR(ierr)
 
-    dmdist = PETSC_NULL_DM
     call DMPlexDistribute(dm, i0, migration_sf, dmdist, ierr); call CHKERR(ierr)
-    if (dmdist .ne. PETSC_NULL_DM) then
+    if (.not. PetscObjectIsNull(dmdist)) then
       call PetscObjectViewFromOptions(migration_sf, PETSC_NULL_SF, &
                                       '-show_migration_sf', ierr); call CHKERR(ierr)
 
@@ -1115,10 +1114,9 @@ contains
 
     call DMSetBasicAdjacency(dm, PETSC_TRUE, PETSC_FALSE, ierr); call CHKERR(ierr)
 
-    dmdist = PETSC_NULL_DM
     call DMPlexDistribute(dm, i0, migration_sf, dmdist, ierr); call CHKERR(ierr)
 
-    if (dmdist .ne. PETSC_NULL_DM) then
+    if (.not. PetscObjectIsNull(dmdist)) then
       call PetscObjectViewFromOptions(migration_sf, PETSC_NULL_SF, &
                                       '-show_migration_sf', ierr); call CHKERR(ierr)
 
@@ -1443,7 +1441,7 @@ contains
 
     call DMPlexDistribute(dm, i0, migration_sf, dmdist, ierr); call CHKERR(ierr)
 
-    if (dmdist .ne. PETSC_NULL_DM) then
+    if (.not. PetscObjectIsNull(dmdist)) then
       call PetscObjectViewFromOptions(migration_sf, PETSC_NULL_SF, &
                                       '-show_migration_sf', ierr); call CHKERR(ierr)
     else
@@ -1654,7 +1652,7 @@ contains
     call PetscSectionCreate(comm, parSection, ierr); call CHKERR(ierr)
     call VecCreate(PETSC_COMM_SELF, parVec, ierr); call CHKERR(ierr)
 
-    if (migration_sf .ne. PETSC_NULL_SF) then
+    if (.not. PetscObjectIsNull(migration_sf)) then
       call DMPlexDistributeField(dm2d_serial, migration_sf, &
                                  rank0section, rank0vec, parSection, parVec, ierr); call CHKERR(ierr)
     else
@@ -1690,7 +1688,7 @@ contains
       return
     end if
 
-    if (migration_sf .eq. PETSC_NULL_SF) &
+    if (PetscObjectIsNull(migration_sf)) &
       call CHKERR(1_mpiint, 'you provided an empty migration_sf... '// &
                   'this does only make sense if this is a serial job?')
 
@@ -1772,7 +1770,7 @@ contains
     integer(mpiint) :: ierr
 
     if (.not. allocated(plex%cell1_dm)) call CHKERR(1_mpiint, 'plex%cell1_dm has to be allocated')
-    if (vec .eq. PETSC_NULL_VEC) call CHKERR(1_mpiint, 'input/output vec has to be an initialized Petsc Vec')
+    if (PetscObjectIsNull(vec)) call CHKERR(1_mpiint, 'input/output vec has to be an initialized Petsc Vec')
 
     call DMGetStratumIS(plex%cell1_dm, 'DomainBoundary', TOAFACE, toa_ids, ierr); call CHKERR(ierr)
     call ISGetSize(toa_ids, Ncol, ierr); call CHKERR(ierr)
@@ -1812,7 +1810,7 @@ contains
     integer(mpiint) :: ierr
 
     if (.not. allocated(plex%horizface1_dm)) call CHKERR(1_mpiint, 'plex%horizface1_dm has to be allocated')
-    if (vec .eq. PETSC_NULL_VEC) call CHKERR(1_mpiint, 'input/output vec has to be an initialized Petsc Vec')
+    if (PetscObjectIsNull(vec)) call CHKERR(1_mpiint, 'input/output vec has to be an initialized Petsc Vec')
 
     call DMGetStratumIS(plex%horizface1_dm, 'DomainBoundary', TOAFACE, toa_ids, ierr); call CHKERR(ierr)
     call ISGetSize(toa_ids, Ncol, ierr); call CHKERR(ierr)
