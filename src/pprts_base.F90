@@ -935,7 +935,7 @@ contains
             call MatSetOptionsPrefix(A, prefix, ierr); call CHKERR(ierr)
 
             call MatSetFromOptions(A, ierr); call CHKERR(ierr)
-            call MatSeqAIJSetPreallocation(A, C_dir%dof + i1, PETSC_NULL_INTEGER, ierr); call CHKERR(ierr)
+            call MatSeqAIJSetPreallocation(A, C_dir%dof + i1, PETSC_NULL_INTEGER_ARRAY, ierr); call CHKERR(ierr)
 
             call MatSetUp(A, ierr); call CHKERR(ierr)
 
@@ -1019,7 +1019,7 @@ contains
 
       call MatZeroEntries(A, ierr); call CHKERR(ierr)
       do irow = 0, C_dir%dof * C_dir%zm - 1
-        call MatSetValues(A, i1, irow, i1, irow, -1._ireals, ADD_VALUES, ierr); call CHKERR(ierr)
+        call MatSetValue(A, irow, irow, -1._ireals, ADD_VALUES, ierr); call CHKERR(ierr)
       end do
 
       associate ( &
@@ -1044,7 +1044,7 @@ contains
 
               dtau = atm%kabs(ak, i, j) * atm%dz(ak, i, j) / sun%costheta
               v = exp(-dtau)
-              call MatSetValues(A, i1, irow, i1, icol, v, ADD_VALUES, ierr); call CHKERR(ierr)
+              call MatSetValue(A, irow, icol, v, ADD_VALUES, ierr); call CHKERR(ierr)
             end do
           else
 
@@ -1070,20 +1070,20 @@ contains
               do dst = 0, solver%dirtop%dof - 1 ! top2bot
                 v = cdir2dir(src, dst)
                 irow = (k + 1) * C_dir%dof + dst
-                call MatSetValues(A, i1, irow, i1, icol, v, ADD_VALUES, ierr); call CHKERR(ierr)
+                call MatSetValue(A, irow, icol, v, ADD_VALUES, ierr); call CHKERR(ierr)
               end do
 
               do dst = 0, solver%dirside%dof - 1 ! top2x
                 ioff = solver%dirtop%dof + dst
                 v = cdir2dir(src, ioff)
                 irow = k * C_dir%dof + ioff
-                call MatSetValues(A, i1, irow, i1, icol, v, ADD_VALUES, ierr); call CHKERR(ierr)
+                call MatSetValue(A, irow, icol, v, ADD_VALUES, ierr); call CHKERR(ierr)
               end do
               do dst = 0, solver%dirside%dof - 1 ! top2y
                 ioff = solver%dirtop%dof + solver%dirside%dof + dst
                 v = cdir2dir(src, ioff)
                 irow = k * C_dir%dof + ioff
-                call MatSetValues(A, i1, irow, i1, icol, v, ADD_VALUES, ierr); call CHKERR(ierr)
+                call MatSetValue(A, irow, icol, v, ADD_VALUES, ierr); call CHKERR(ierr)
               end do
             end do
 
@@ -1093,20 +1093,20 @@ contains
               do dst = 0, solver%dirtop%dof - 1 ! side2bot
                 v = cdir2dir(ioffsrc, dst)
                 irow = (k + 1) * C_dir%dof + dst
-                call MatSetValues(A, i1, irow, i1, icol, v, ADD_VALUES, ierr); call CHKERR(ierr)
+                call MatSetValue(A, irow, icol, v, ADD_VALUES, ierr); call CHKERR(ierr)
               end do
 
               do dst = 0, solver%dirside%dof - 1 ! side2x
                 ioff = solver%dirtop%dof + dst
                 v = cdir2dir(ioffsrc, ioff)
                 irow = k * C_dir%dof + ioff
-                call MatSetValues(A, i1, irow, i1, icol, v, ADD_VALUES, ierr); call CHKERR(ierr)
+                call MatSetValue(A, irow, icol, v, ADD_VALUES, ierr); call CHKERR(ierr)
               end do
               do dst = 0, solver%dirside%dof - 1 ! side2y
                 ioff = solver%dirtop%dof + solver%dirside%dof + dst
                 v = cdir2dir(ioffsrc, ioff)
                 irow = k * C_dir%dof + ioff
-                call MatSetValues(A, i1, irow, i1, icol, v, ADD_VALUES, ierr); call CHKERR(ierr)
+                call MatSetValue(A, irow, icol, v, ADD_VALUES, ierr); call CHKERR(ierr)
               end do
             end do
 
@@ -1116,20 +1116,20 @@ contains
               do dst = 0, solver%dirtop%dof - 1 ! side2bot
                 v = cdir2dir(ioffsrc, dst)
                 irow = (k + 1) * C_dir%dof + dst
-                call MatSetValues(A, i1, irow, i1, icol, v, ADD_VALUES, ierr); call CHKERR(ierr)
+                call MatSetValue(A, irow, icol, v, ADD_VALUES, ierr); call CHKERR(ierr)
               end do
 
               do dst = 0, solver%dirside%dof - 1 ! side2x
                 ioff = solver%dirtop%dof + dst
                 v = cdir2dir(ioffsrc, ioff)
                 irow = k * C_dir%dof + ioff
-                call MatSetValues(A, i1, irow, i1, icol, v, ADD_VALUES, ierr); call CHKERR(ierr)
+                call MatSetValue(A, irow, icol, v, ADD_VALUES, ierr); call CHKERR(ierr)
               end do
               do dst = 0, solver%dirside%dof - 1 ! side2y
                 ioff = solver%dirtop%dof + solver%dirside%dof + dst
                 v = cdir2dir(ioffsrc, ioff)
                 irow = k * C_dir%dof + ioff
-                call MatSetValues(A, i1, irow, i1, icol, v, ADD_VALUES, ierr); call CHKERR(ierr)
+                call MatSetValue(A, irow, icol, v, ADD_VALUES, ierr); call CHKERR(ierr)
               end do
             end do
 

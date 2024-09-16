@@ -236,7 +236,7 @@ contains
 
     if (.not. allocated(A)) then
       allocate (A)
-      call MatCreateSeqAIJ(PETSC_COMM_SELF, N, N, 5_iintegers, PETSC_NULL_INTEGER, A, ierr); call CHKERR(ierr)
+      call MatCreateSeqAIJ(PETSC_COMM_SELF, N, N, 5_iintegers, PETSC_NULL_INTEGER_ARRAY, A, ierr); call CHKERR(ierr)
       call PetscObjectSetName(A, 'Twostream Mat', ierr); call CHKERR(ierr)
     end if
     if (.not. allocated(b)) then
@@ -291,19 +291,19 @@ contains
     ! Set diagonal
     do i = 0, N - 1
       j = i
-      call MatSetValues(A, i1, i, i1, j, one, INSERT_VALUES, ierr); call CHKERR(ierr)
+      call MatSetValue(A, i, j, one, INSERT_VALUES, ierr); call CHKERR(ierr)
     end do
     do k = 1, ke
       ! setting Eup coeffs
       i = 2 * k - 2
-      call MatSetValues(A, i1, i, i2, [i + 2, i + 1], [-a11(k), -a12(k)], INSERT_VALUES, ierr); call CHKERR(ierr)
+      call MatSetValues(A, i1, [i], i2, [i + 2, i + 1], [-a11(k), -a12(k)], INSERT_VALUES, ierr); call CHKERR(ierr)
 
       ! setting Edn coeffs
       i = 2 * (k + 1) - 1
-      call MatSetValues(A, i1, i, i2, [i - 2, i - 1], [-a11(k), -a12(k)], INSERT_VALUES, ierr); call CHKERR(ierr)
+      call MatSetValues(A, i1, [i], i2, [i - 2, i - 1], [-a11(k), -a12(k)], INSERT_VALUES, ierr); call CHKERR(ierr)
     end do
     i = 2 * ke1 - 2
-    call MatSetValues(A, i1, i, i1, [i + 1], [-albedo], INSERT_VALUES, ierr); call CHKERR(ierr)
+    call MatSetValue(A, i, i + 1, -albedo, INSERT_VALUES, ierr); call CHKERR(ierr)
 
     call MatAssemblyBegin(A, MAT_FINAL_ASSEMBLY, ierr); call CHKERR(ierr)
     call MatAssemblyEnd(A, MAT_FINAL_ASSEMBLY, ierr); call CHKERR(ierr)

@@ -170,8 +170,9 @@ contains
 
     integer(iintegers) :: dmdim, dof, glob_xm, glob_ym, glob_zm
     integer(iintegers) :: nprocz, nprocx, nprocy
-    integer(iintegers) :: stencil_width, stencil_type
-    integer(iintegers) :: boundary_z, boundary_x, boundary_y
+    integer(iintegers) :: stencil_width
+    DMBoundaryType :: boundary_z, boundary_x, boundary_y
+    DMDAStencilType :: stencil_type
 
     if (allocated(arr)) stop 'You shall not call petscVecToF90 with an already allocated array!'
 
@@ -234,8 +235,9 @@ contains
 
     integer(iintegers) :: dmdim, dof, glob_xm, glob_ym, glob_zm
     integer(iintegers) :: nprocz, nprocx, nprocy
-    integer(iintegers) :: stencil_width, stencil_type
-    integer(iintegers) :: boundary_z, boundary_x, boundary_y
+    integer(iintegers) :: stencil_width
+    DMBoundaryType :: boundary_z, boundary_x, boundary_y
+    DMDAStencilType :: stencil_type
 
     l_only_on_rank0 = get_arg(.false., only_on_rank0)
 
@@ -299,8 +301,9 @@ contains
 
     integer(iintegers) :: dmdim, dof, glob_xm, glob_ym, glob_zm
     integer(iintegers) :: nprocz, nprocx, nprocy
-    integer(iintegers) :: stencil_width, stencil_type
-    integer(iintegers) :: boundary_z, boundary_x, boundary_y
+    integer(iintegers) :: stencil_width
+    DMBoundaryType :: boundary_z, boundary_x, boundary_y
+    DMDAStencilType :: stencil_type
 
     l_only_on_rank0 = get_arg(.false., only_on_rank0)
 
@@ -419,8 +422,9 @@ contains
 
     integer(iintegers) :: dmdim, dof, glob_xm, glob_ym, glob_zm
     integer(iintegers) :: nprocz, nprocx, nprocy
-    integer(iintegers) :: stencil_width, stencil_type
-    integer(iintegers) :: boundary_z, boundary_x, boundary_y
+    integer(iintegers) :: stencil_width
+    DMBoundaryType :: boundary_z, boundary_x, boundary_y
+    DMDAStencilType :: stencil_type
 
     integer(iintegers) :: N
     integer(iintegers) :: zs, ze, xs, xe, ys, ye, zm, xm, ym
@@ -532,8 +536,9 @@ contains
 
     integer(iintegers) :: dmdim, dof, glob_xm, glob_ym, glob_zm
     integer(iintegers) :: nprocz, nprocx, nprocy
-    integer(iintegers) :: stencil_width, stencil_type
-    integer(iintegers) :: boundary_z, boundary_x, boundary_y
+    integer(iintegers) :: stencil_width
+    DMBoundaryType :: boundary_z, boundary_x, boundary_y
+    DMDAStencilType :: stencil_type
 
     integer(mpiint) :: comm, myid, ierr
     logical :: lghosted
@@ -644,8 +649,9 @@ contains
 
     integer(iintegers) :: dmdim, dof, glob_xm, glob_ym, glob_zm
     integer(iintegers) :: nprocz, nprocx, nprocy
-    integer(iintegers) :: stencil_width, stencil_type
-    integer(iintegers) :: boundary_z, boundary_x, boundary_y
+    integer(iintegers) :: stencil_width
+    DMBoundaryType :: boundary_z, boundary_x, boundary_y
+    DMDAStencilType :: stencil_type
 
     integer(iintegers), allocatable, dimension(:) :: Nxperproc, Nyperproc
     integer(iintegers) :: Ndof, idof

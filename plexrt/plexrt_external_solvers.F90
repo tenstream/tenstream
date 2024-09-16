@@ -63,7 +63,7 @@ contains
     associate (plex => solver%plex)
 
       call DMGetStratumIS(plex%ediff_dm, 'DomainBoundary', TOAFACE, boundary_ids, ierr); call CHKERR(ierr)
-      if (boundary_ids .eq. PETSC_NULL_IS) then ! dont have TOA boundary faces
+      if (PetscObjectIsNull(boundary_ids)) then ! dont have TOA boundary faces
       else
         allocate (dtau(plex%Nlay))
         allocate (Blev(plex%Nlay + 1))
@@ -190,7 +190,7 @@ contains
     end if
 
     call DMGetStratumIS(plex%edir_dm, 'DomainBoundary', TOAFACE, boundary_ids, ierr); call CHKERR(ierr)
-    if (boundary_ids .eq. PETSC_NULL_IS) then ! dont have TOA boundary faces
+    if (PetscObjectIsNull(boundary_ids)) then ! dont have TOA boundary faces
     else
       allocate (vdtau(plex%Nlay))
       allocate (vw0(plex%Nlay))
@@ -392,7 +392,7 @@ contains
     lthermal = .not. solution%lsolar_rad
 
     call DMGetStratumIS(plex%edir_dm, 'DomainBoundary', TOAFACE, boundary_ids, ierr); call CHKERR(ierr)
-    if (boundary_ids .eq. PETSC_NULL_IS) then ! dont have TOA boundary faces
+    if (PetscObjectIsNull(boundary_ids)) then ! dont have TOA boundary faces
     else
       allocate (vdtau(plex%Nlay))
       allocate (vw0(plex%Nlay))
@@ -777,7 +777,7 @@ contains
       call VecGetArrayF90(lnca, xnca, ierr); call CHKERR(ierr)
 
       call DMGetStratumIS(solver%plex%nca_dm, 'DomainBoundary', INNERSIDEFACE, boundary_ids, ierr); call CHKERR(ierr)
-      if (boundary_ids .ne. PETSC_NULL_IS) then
+      if (.not. PetscObjectIsNull(boundary_ids)) then
         call ISGetIndicesF90(boundary_ids, xbndry_iface, ierr); call CHKERR(ierr)
         do i = 1, size(xbndry_iface)
           iface = xbndry_iface(i)
@@ -818,7 +818,7 @@ contains
       !integer(iintegers), allocatable :: zindex(:)
 
       if (.not. allocated(plex%dm)) call CHKERR(1_mpiint, 'parent dm not allocated')
-      if (plex%dm .eq. PETSC_NULL_DM) call CHKERR(1_mpiint, 'parent dm is null_dm')
+      if (PetscObjectIsNull(plex%dm)) call CHKERR(1_mpiint, 'parent dm is null_dm')
       if (allocated(plex%nca_dm)) call CHKERR(1_mpiint, 'nca_dm already allocated')
 
       allocate (plex%nca_dm)

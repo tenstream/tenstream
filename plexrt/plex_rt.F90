@@ -1460,7 +1460,7 @@ contains
 
     call DMGetStratumIS(plex%edir_dm, 'DomainBoundary', TOAFACE, boundary_ids, ierr); call CHKERR(ierr)
 
-    if (boundary_ids .eq. PETSC_NULL_IS) then ! dont have TOA boundary faces
+    if (PetscObjectIsNull(boundary_ids)) then ! dont have TOA boundary faces
       Ncol = 0
     else
       call ISGetIndicesF90(boundary_ids, xitoa, ierr); call CHKERR(ierr)
@@ -1500,7 +1500,7 @@ contains
       end do
     end do
 
-    if (boundary_ids .ne. PETSC_NULL_IS) then
+    if (.not. PetscObjectIsNull(boundary_ids)) then
       call ISRestoreIndicesF90(boundary_ids, xitoa, ierr); call CHKERR(ierr)
     end if
     call VecRestoreArrayReadF90(wedge_orientation, xorient, ierr); call CHKERR(ierr)
@@ -1596,7 +1596,7 @@ contains
     call VecGetArrayF90(localVec, xv, ierr); call CHKERR(ierr)
 
     call DMGetStratumIS(edirdm, 'DomainBoundary', TOAFACE, boundary_ids, ierr); call CHKERR(ierr)
-    if (boundary_ids .eq. PETSC_NULL_IS) then ! dont have TOA boundary faces
+    if (PetscObjectIsNull(boundary_ids)) then ! dont have TOA boundary faces
     else
       call ISGetIndicesF90(boundary_ids, xx_v, ierr); call CHKERR(ierr)
 
@@ -1657,7 +1657,7 @@ contains
       call DMGetGlobalVector(edirdm, vedir, ierr); call CHKERR(ierr)
 
       call DMGetStratumIS(edirdm, 'DomainBoundary', SIDEFACE, IS_side_faces, ierr); call CHKERR(ierr)
-      if (IS_side_faces .eq. PETSC_NULL_IS) then ! dont have side boundary faces
+      if (PetscObjectIsNull(IS_side_faces)) then ! dont have side boundary faces
       else
 
         call VecGetArrayReadF90(kabs, xkabs, ierr); call CHKERR(ierr)
@@ -2011,7 +2011,7 @@ contains
       call VecGetArrayReadF90(albedo, xalbedo, ierr); call CHKERR(ierr)
 
       call DMGetStratumIS(plex%geom_dm, 'DomainBoundary', BOTFACE, srfc_ids, ierr); call CHKERR(ierr)
-      if (srfc_ids .eq. PETSC_NULL_IS) then ! dont have surface points
+      if (PetscObjectIsNull(srfc_ids)) then ! dont have surface points
       else
         call ISGetIndicesF90(srfc_ids, xi, ierr); call CHKERR(ierr)
         do i = 1, size(xi)
@@ -2165,7 +2165,7 @@ contains
       call VecGetArrayReadF90(plckVec, xplanck, ierr); call CHKERR(ierr)
       call VecGetArrayReadF90(albedo, xalbedo, ierr); call CHKERR(ierr)
       call DMGetStratumIS(plex%geom_dm, 'DomainBoundary', BOTFACE, srfc_ids, ierr); call CHKERR(ierr)
-      if (srfc_ids .eq. PETSC_NULL_IS) then ! dont have surface points
+      if (PetscObjectIsNull(srfc_ids)) then ! dont have surface points
       else
         call ISGetIndicesF90(srfc_ids, xi, ierr); call CHKERR(ierr)
         do i = 1, size(xi)
@@ -2664,7 +2664,7 @@ contains
         call PetscSectionGetDof(sec, iface, numDst, ierr); call CHKERR(ierr)
         call PetscSectionGetOffset(sec, iface, irow, ierr); call CHKERR(ierr)
         do idst = 0, numDst - 1
-          call MatSetValuesLocal(A, i1, irow + idst, i1, irow + idst, [one], INSERT_VALUES, ierr); call CHKERR(ierr)
+          call MatSetValueLocal(A, irow + idst, irow + idst, one, INSERT_VALUES, ierr); call CHKERR(ierr)
         end do
       end do
     end subroutine
@@ -2689,7 +2689,7 @@ contains
       integer(iintegers) :: icol, idst, idst_side, in_dof, irow, isrc, isrc_side, out_dof
 
       call DMGetStratumIS(plex%edir_dm, 'DomainBoundary', SIDEFACE, IS_side_faces, ierr); call CHKERR(ierr)
-      if (IS_side_faces .eq. PETSC_NULL_IS) return ! dont have side boundary faces
+      if (PetscObjectIsNull(IS_side_faces)) return ! dont have side boundary faces
       call ISGetIndicesF90(IS_side_faces, iside_faces, ierr); call CHKERR(ierr)
 
       do o = 1, size(iside_faces)
@@ -2787,7 +2787,7 @@ contains
                   !  'src_offset   ('//toStr(dof_src_offset)//') '// &
                   !  'dst_offset   ('//toStr(dof_dst_offset)//') '// &
                   !  'col -> row    '//toStr(icol)//' -> '//toStr(irow)//'   = ', c
-                  call MatSetValuesLocal(A, i1, irow, i1, icol, c, INSERT_VALUES, ierr); call CHKERR(ierr)
+                  call MatSetValueLocal(A, irow, icol, c, INSERT_VALUES, ierr); call CHKERR(ierr)
                 end do
               end do
             end do
@@ -2818,7 +2818,7 @@ contains
         ! src is always top face, dst is botface
         call PetscSectionGetOffset(sec, topface, icol, ierr); call CHKERR(ierr)
         call PetscSectionGetOffset(sec, botface, irow, ierr); call CHKERR(ierr)
-        call MatSetValuesLocal(A, i1, irow, i1, icol, -c33, INSERT_VALUES, ierr); call CHKERR(ierr)
+        call MatSetValueLocal(A, irow, icol, -c33, INSERT_VALUES, ierr); call CHKERR(ierr)
       end do
     end subroutine
 
@@ -2946,7 +2946,7 @@ contains
                 if (c .ge. zero) cycle
 
                 if (ldebug) sumcoeff = sumcoeff + dir2dir(bmcsrcdof, bmcdstdof)
-                call MatSetValuesLocal(A, i1, irow, i1, icol, c, INSERT_VALUES, ierr); call CHKERR(ierr)
+                call MatSetValueLocal(A, irow, icol, c, INSERT_VALUES, ierr); call CHKERR(ierr)
 
               end do
             end do
@@ -3142,7 +3142,7 @@ contains
       call PetscSectionGetNumFields(ediffSection, num_fields, ierr); call CHKERR(ierr)
 
       call DMGetStratumIS(plex%geom_dm, 'DomainBoundary', BOTFACE, bc_ids, ierr); call CHKERR(ierr)
-      if (bc_ids .eq. PETSC_NULL_IS) then ! dont have surface points
+      if (PetscObjectIsNull(bc_ids)) then ! dont have surface points
       else
         call DMGetSection(plex%srfc_boundary_dm, srfcSection, ierr); call CHKERR(ierr)
         call VecGetArrayReadF90(albedo, xalbedo, ierr); call CHKERR(ierr)
@@ -3159,9 +3159,9 @@ contains
               call PetscSectionGetFieldOffset(ediffSection, iface, istream - i1, offset_Ein, ierr); call CHKERR(ierr)
               offset_Eout = offset_Ein + i1
 
-              call MatSetValuesLocal(A, &
-                & i1, offset_Ein, &
-                & i1, offset_Eout, &
+              call MatSetValueLocal(A, &
+                & offset_Ein, &
+                & offset_Eout, &
                 & -xalbedo(i1 + offset_srfc), &
                 & INSERT_VALUES, ierr); call CHKERR(ierr)
             end if
@@ -3175,7 +3175,7 @@ contains
       call get_petsc_opt(PETSC_NULL_CHARACTER, "-sideward_bc_coeff", sideward_bc_coeff, lflg, ierr); call CHKERR(ierr)
 
       call DMGetStratumIS(plex%geom_dm, 'DomainBoundary', SIDEFACE, bc_ids, ierr); call CHKERR(ierr)
-      if (bc_ids .eq. PETSC_NULL_IS .or. approx(sideward_bc_coeff, zero)) then ! dont have surface points
+      if (PetscObjectIsNull(bc_ids) .or. approx(sideward_bc_coeff, zero)) then ! dont have surface points
       else
         call ISGetIndicesF90(bc_ids, xi, ierr); call CHKERR(ierr)
         do i = 1, size(xi)
@@ -3188,9 +3188,9 @@ contains
               call PetscSectionGetFieldOffset(ediffSection, iface, istream, offset_Ein, ierr); call CHKERR(ierr)
               offset_Eout = offset_Ein + i1
 
-              call MatSetValuesLocal(A, &
-                & i1, offset_Ein, &
-                & i1, offset_Eout, &
+              call MatSetValueLocal(A, &
+                & offset_Ein, &
+                & offset_Eout, &
                 & sideward_bc_coeff, &
                 & INSERT_VALUES, ierr); !call CHKERR(ierr)
 
@@ -3212,7 +3212,7 @@ contains
       integer(iintegers) :: irow, is, ie
       call PetscSectionGetOffsetRange(ediffSection, is, ie, ierr); call CHKERR(ierr)
       do irow = is, ie - 1
-        call MatSetValuesLocal(A, i1, irow, i1, irow, one, INSERT_VALUES, ierr); call CHKERR(ierr)
+        call MatSetValueLocal(A, irow, irow, one, INSERT_VALUES, ierr); call CHKERR(ierr)
       end do
     end subroutine
     subroutine set_1d_coeffs()
@@ -4198,7 +4198,7 @@ contains
     ke1 = solver%plex%Nlay + 1
 
     call DMGetStratumIS(solver%plex%ediff_dm, 'DomainBoundary', TOAFACE, toa_ids, ierr); call CHKERR(ierr)
-    if (toa_ids .ne. PETSC_NULL_IS) then
+    if (.not. PetscObjectIsNull(toa_ids)) then
       call ISGetSize(toa_ids, Ncol, ierr); call CHKERR(ierr)
     else
       Ncol = 0
@@ -4237,7 +4237,7 @@ contains
       call VecGetArrayF90(solution%ediff, xediff, ierr); call CHKERR(ierr)
       call VecGetArrayF90(solution%abso, xabso, ierr); call CHKERR(ierr)
 
-      if (toa_ids .ne. PETSC_NULL_IS) then
+      if (.not. PetscObjectIsNull(toa_ids)) then
         call ISGetIndicesF90(toa_ids, xtoa_faces, ierr); call CHKERR(ierr)
         do i = 1, size(xtoa_faces)
           iface = xtoa_faces(i)
@@ -4354,7 +4354,7 @@ contains
     end if
 
     call DMGetStratumIS(dm, 'DomainBoundary', SIDEFACE, IS_side_faces, ierr); call CHKERR(ierr)
-    if (IS_side_faces .eq. PETSC_NULL_IS) then ! dont have side boundary faces
+    if (PetscObjectIsNull(IS_side_faces)) then ! dont have side boundary faces
     else
       call VecGetArrayF90(kabs, xkabs, ierr); call CHKERR(ierr)
       call VecGetArrayF90(ksca, xksca, ierr); call CHKERR(ierr)

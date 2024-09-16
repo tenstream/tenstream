@@ -908,12 +908,12 @@ contains
                         i1 * Nz, Nx, Ny, &
                         i1, PETSC_DECIDE, PETSC_DECIDE, &
                         C%dof, stencil_size, &
-                        [Nz], PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, &
+                        [Nz], PETSC_NULL_INTEGER_ARRAY, PETSC_NULL_INTEGER_ARRAY, &
                         C%da, ierr); call CHKERR(ierr)
     end if
 
     if (present(prefix)) then
-      call PetscObjectSetOptionsPrefix(C%da, prefix, ierr); call CHKERR(ierr)
+      call DMSetOptionsPrefix(C%da, prefix, ierr); call CHKERR(ierr)
     end if
     ! need this first setfromoptions call because of a bug which happens with intel compilers
     call DMSetFromOptions(C%da, ierr); call CHKERR(ierr)
@@ -1214,7 +1214,7 @@ contains
 
     allocate (A)
     call DMCreateMatrix(C%da, A, ierr); call CHKERR(ierr)
-    call PetscObjectSetOptionsPrefix(A, trim(solver%prefix), ierr); call CHKERR(ierr)
+    call MatSetOptionsPrefix(A, trim(solver%prefix), ierr); call CHKERR(ierr)
 
     call mpi_comm_size(C%comm, numnodes, ierr); call CHKERR(ierr)
 
@@ -1224,10 +1224,11 @@ contains
         call MatMPIAIJSetPreallocation(A, C%dof + 1, d_nnz, C%dof, o_nnz, ierr); call CHKERR(ierr)
       else ! poor mans perallocation uses way more memory...
         call CHKERR(1_mpiint, 'init_Matrix::setPreallocation : poor mans preallocation should really not be used...')
-        call MatMPIAIJSetPreallocation(A, C%dof + 1, PETSC_NULL_INTEGER, C%dof, PETSC_NULL_INTEGER, ierr); call CHKERR(ierr)
+        call MatMPIAIJSetPreallocation(A, C%dof + 1, PETSC_NULL_INTEGER_ARRAY, &
+          & C%dof, PETSC_NULL_INTEGER_ARRAY, ierr); call CHKERR(ierr)
       end if
     else
-      call MatSeqAIJSetPreallocation(A, C%dof + i1, PETSC_NULL_INTEGER, ierr); call CHKERR(ierr)
+      call MatSeqAIJSetPreallocation(A, C%dof + i1, PETSC_NULL_INTEGER_ARRAY, ierr); call CHKERR(ierr)
     end if
 
     ! If matrix is resetted, keep nonzero pattern and allow to non-zero allocations -- those should not be many
@@ -6257,7 +6258,6 @@ contains
     end subroutine
 
     subroutine set_abso_in_buildings()
-      integer(mpiint) :: myid
       integer(iintegers) :: m, idx(4)
       real(ireals) :: val
       logical :: lflg
