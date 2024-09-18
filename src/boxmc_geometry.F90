@@ -201,7 +201,7 @@ contains
     real(ireal_dp), dimension(:), intent(out) :: nAB, nBC, nCA ! normals on triangle [A,B,C], pointing towards center
     real(ireal_dp), intent(out) :: dx, dy, dz
 
-    real(ireal_dp), dimension(size(A)) :: D, E, F ! points on triangle above [A,B,C]
+    real(ireal_dp), dimension(2) :: D, E, F ! points on triangle above [A,B,C]
     integer :: i
 
     if (size(A) .ne. 2 .or. size(B) .ne. 2 .or. size(C) .ne. 2) call CHKERR(1_mpiint, 'Coordinates have to be 2D coordinates')
@@ -710,10 +710,10 @@ contains
 
   ! Distribute Photons on triangles: https://doi.org/10.1145/571647.571648
   subroutine rand_pnt_on_triangle(A, B, C, pnt, eps)
-    real(ireal_dp), dimension(:), intent(in) :: A, B, C
-    real(ireal_dp), dimension(:), intent(out) :: pnt
+    real(ireal_dp), dimension(3), intent(in) :: A, B, C
+    real(ireal_dp), dimension(3), intent(out) :: pnt
     real(ireal_dp) :: r1, r2
-    real(ireal_dp), dimension(size(A)) :: center, cA, cB, cC
+    real(ireal_dp), dimension(3) :: center, cA, cB, cC
     real(ireal_dp), intent(in), optional :: eps ! move all points a wee bit towards the center
 
     call random_number(r1)
