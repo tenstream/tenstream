@@ -230,7 +230,7 @@ contains
     real(irealLUT), target, intent(out) :: C(:) ! dimension(ANN%dir_streams**2)
 
     integer(iintegers) :: src, kdim
-    real(irealLUT) :: pti_buffer(size(sample_pts)+2), maxtrans
+    real(irealLUT) :: pti_buffer(size(sample_pts) + 2), maxtrans
     real(irealLUT), pointer :: pC(:, :) ! dim(src, dst)
     integer(mpiint) :: ierr
 
