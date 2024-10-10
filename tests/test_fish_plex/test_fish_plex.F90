@@ -130,10 +130,12 @@ contains
     type(tDM), intent(in) :: dm
     integer(iintegers), intent(in) :: icell, target_closure(:)
     integer(iintegers) :: i
+    PetscCount :: transclosure_size
     integer(iintegers), pointer :: transclosure(:)
 
     call DMPlexGetTransitiveClosure(dm, icell, PETSC_TRUE, transclosure, ierr); call CHKERR(ierr)
-    call PetscSortInt(size(transclosure(1:size(transclosure):2), kind=iintegers), &
+    transclosure_size = size(transclosure(1:size(transclosure):2))
+    call PetscSortInt(transclosure_size, &
                       transclosure(1:size(transclosure):2), ierr); call CHKERR(ierr)
 
     if (size(transclosure) .ne. size(target_closure)) then

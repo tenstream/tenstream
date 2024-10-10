@@ -4422,6 +4422,7 @@ contains
     logical :: lskip_ksp_solve, laccept_incomplete_solve
     integer(mpiint) :: ierr
 
+    PetscCount :: ksp_residual_history_size
     logical :: lcomplete_initial_run, lflg
     integer(iintegers) :: maxit, maxit_default
     real(ireals) :: rtol, atol, dtol
@@ -4430,8 +4431,9 @@ contains
     if (solver%myid .eq. 0 .and. ldebug) print *, 'Solving Matrix'
 
     if (present(ksp_residual_history)) then
+      ksp_residual_history_size = size(ksp_residual_history)
       call KSPSetResidualHistory(ksp, ksp_residual_history, &
-        & size(ksp_residual_history, kind=iintegers), PETSC_TRUE, ierr); call CHKERR(ierr)
+        & ksp_residual_history_size, PETSC_TRUE, ierr); call CHKERR(ierr)
     end if
 
     lskip_ksp_solve = .false.
