@@ -26,7 +26,8 @@ contains
   @Test(npes=[1])
   subroutine petsc_sort_int_arrays(this)
     class(MpiTestMethod), intent(inout) :: this
-    integer(iintegers), parameter :: N = 3, a = -1, b = 2, c = 5
+    PetscCount, parameter :: N = 3
+    integer(iintegers), parameter :: a = -1, b = 2, c = 5
     integer(iintegers) :: x(N), x2(N)
     integer(iintegers), parameter :: t(N) = [a, b, c]
     integer(mpiint) :: ierr
@@ -45,7 +46,8 @@ contains
   @Test(npes=[1])
   subroutine petsc_sort_int_array_with_type(this)
     class(MpiTestMethod), intent(inout) :: this
-    integer(iintegers), parameter :: N = 3, a = -1, b = 2, c = 5
+    PetscCount, parameter :: N = 3
+    integer(iintegers), parameter :: a = -1, b = 2, c = 5
     integer(mpiint) :: ierr
     integer(iintegers), parameter :: t(N) = [a, b, c]
     type t_test

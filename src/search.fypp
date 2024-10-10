@@ -1,4 +1,7 @@
 module m_search
+#include "petsc/finclude/petsc.h"
+  use petsc
+
   use iso_fortran_env, only: real32, real64
   use m_data_parameters, only: iintegers, mpiint, ireals, ireal_dp
   use m_helper_functions, only: CHKERR, approx
@@ -234,7 +237,8 @@ contains
     real(ireals), intent(in) :: val
     real(ireals) :: loc
     real(ireals) :: residual
-    integer(iintegers) :: lb, N
+    integer(iintegers) :: lb
+    PetscCount :: N
     real(ireals), parameter :: eps = epsilon(eps)
     integer(mpiint) :: ierr
 
