@@ -178,6 +178,7 @@ def _main():
     parser.add_argument("--nproc", "-j", type=int, default=None, help="number of processes to use")
     parser.add_argument("--parallel", "-p", default=False, action="store_true", help="if running in parallel")
     parser.add_argument("--dry", "-d", default=False, action="store_true", help="dry run, dont run compute loop")
+    parser.add_argument("--nodb", "-D", default=False, action="store_true", help="run as normally  but dont store into database")
     parser.add_argument("--out", "-o", default=None, type=str, help="output filename to dump data from postgres to xarray file")
     parser.add_argument("--verbose", "-v", default=False, action="store_true", help="verbose output")
     parser.add_argument("--atol", "-a", default=1e-4, type=float, help="absolute tolerance for montecarlo")
@@ -209,15 +210,22 @@ def _main():
             parallel = Parallel(n_jobs=numproc, return_as="generator")
             output_generator = parallel(delayed(sample)(i, **sample_args) for i in range(args.iter))
             for ret in output_generator:
-                print(f"Adding results for {ret}")
-                Entry(**{k: v.tobytes() for k, v in ret.items()}).save()
-                DB.close()
+                if args.nodb:
+                    print(f"Skipping results for {ret}")
+                else:
+                    print(f"Adding results for {ret}")
+                    Entry(**{k: v.tobytes() for k, v in ret.items()}).save()
+                    DB.close()
         else:
             i = 0
             while i < args.iter:
-                ret = sample(**sample_args)
-                Entry(**{k: v.tobytes() for k, v in ret.items()}).save()
-                DB.close()
+                if args.nodb:
+                    ret = sample(g=0, kabs=1e-3, ksca=1e-3, dz=1, phi=0, theta=60, tanx=0, tany=0, **sample_args)
+                    print(f"Skipping results for {ret}")
+                else:
+                    ret = sample(**sample_args)
+                    Entry(**{k: v.tobytes() for k, v in ret.items()}).save()
+                    DB.close()
                 i += 1
 
     print(f"Have {Entry.select().count()} entries in db")

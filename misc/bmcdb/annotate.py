@@ -10,7 +10,17 @@ def load_data(ncfile, f_input, f_feature):
     with xr.load_dataset(ncfile) as D:
         return f_input(D), f_feature(D)
 
-def annotate(inpfile, var='C', lsolar=False, renormalization=True, shuffle=None, test_fraction=0, verbose=False, **kwargs):
+def normalize_func(inp):
+    mean = inp.mean()
+    var  = inp.var()
+    print('norm func', inp.min(), inp.max(), mean, var)
+    if var == 0:
+        var = 1
+    return (inp - mean) / np.sqrt(var), mean, var
+
+denormalize_func = lambda inp_normed, mean, var: (inp_normed * np.sqrt(var)) + mean
+
+def annotate(inpfile, var='C', lsolar=False, normalization=False, renormalization=True, shuffle=None, test_fraction=0, verbose=False, **kwargs):
     if verbose: print(f" ... loading data for {var}")
     inp, out = load_data(inpfile,
             lambda D: D.inp,
@@ -69,8 +79,16 @@ def annotate(inpfile, var='C', lsolar=False, renormalization=True, shuffle=None,
     stddev = out[f"{var}tol"]
     # never trust any coefficient more than the stddev exit condition of the montecarlo solver
     #stddev = np.maximum(1e-4, stddev)
-    stddev = np.maximum(1e-8, stddev)
+    stddev = np.maximum(1e-6, stddev)
     stddev = np.where(coeffs <= 0, 1e-7, stddev)
+
+    if normalization:
+        #X[:,0] = np.log10(np.maximum(1e-40, X[:,0]))
+        #X[:,1] = np.log10(np.maximum(1e-40, X[:,1]))
+        X_normalization = np.empty((2, X.shape[-1]))
+        for i in range(X.shape[-1]):
+            X[:,i], X_normalization[0,i], X_normalization[1,i] = normalize_func(X[:,i])
+            print(f"{i:3} {X_descr[i]:30s} min {float(X[:,i].min()):12.4g} max {float(X[:,i].max()):12.4g}")
 
     if renormalization:
         if verbose: print(" ... renormalization")
@@ -113,6 +131,9 @@ def annotate(inpfile, var='C', lsolar=False, renormalization=True, shuffle=None,
         D[f"{var}_X_test"] = (("Ntest", f"inpvars"), X[sl_test])
         D[f"{var}_Y_test"] = (("Ntest", f"{var}_outvars"), Y[sl_test])
 
+    if normalization:
+        D[f"{var}_normalization"] = (('mean_var', f"inpvars"), X_normalization)
+
     return D
 
 def _main():
@@ -124,6 +145,7 @@ def _main():
     parser.add_argument('-v', '--verbose', action="store_true", help='more verbose output')
     parser.add_argument('-s', '--shuffle', action="store_true", help='shuffle training part of dataset')
     parser.add_argument('-r', '--renormalization', action="store_true", help='apply renormalization to the coefficients')
+    parser.add_argument('-n', '--normalization', action="store_true", help='apply normalization to the inputs')
     args = parser.parse_args()
 
     if args.verbose:
