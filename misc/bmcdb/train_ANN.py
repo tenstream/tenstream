@@ -90,6 +90,7 @@ def build_model(inpsize, outsize,
         dropout_inp=0.0,
         dropout_hidden=0.0,
         acti="swish",
+        acti_inp="sigmoid",
         acti_out="sigmoid"):
     model = K.models.Sequential()
     model.add(K.Input(shape=(inpsize,)))
@@ -113,7 +114,10 @@ def build_model(inpsize, outsize,
             #Nn = int(N0 * (1. - i/nlyr) + outsize)
             print(f"{i=} {N=} {mid=} {nlyr=} -> {Nn=}")
 
-        model.add(K.layers.Dense(Nn, activation=acti, use_bias=True))
+        if i == 0:
+            model.add(K.layers.Dense(Nn, activation=acti_inp, use_bias=True))
+        else:
+            model.add(K.layers.Dense(Nn, activation=acti, use_bias=True))
         if dropout_hidden > 0:
             model.add(K.layers.Dropout(rate=dropout_hidden))
     model.add(K.layers.Dense(outsize, activation=acti_out))
@@ -244,11 +248,16 @@ if True:
     parser.add_argument('-N', '--Nneurons', default=-100, type=int, help='Number of Neurons in each hidden layer')
     parser.add_argument('-M', '--Nlayers', default=4, type=int, help='Number of hidden layers')
     parser.add_argument('-a', '--activation', default='swish', type=str, help='hidden activation functions')
+    parser.add_argument('-ai', '--activation_input', default=None, type=str, help='input activation functions')
+    parser.add_argument('-ao', '--activation_output', default='sigmoid', type=str, help='output activation functions')
     args = parser.parse_args()
 
-    width, depth, acti = args.Nlayers, args.Nneurons, args.activation
+    width, depth, acti, acti_inp, acti_out = args.Nlayers, args.Nneurons, args.activation, args.activation_input, args.activation_output
 
-    outname = f'./S.{acti}.{depth}.{width}.nc'
+    if acti_inp is None:
+        acti_inp = acti
+
+    outname = f'./S.{acti}.{acti_inp}.{acti_out}.{depth}.{width}.nc'
 
     print(f"Model path {outname}")
     t = int(X.shape[0]*.75)
@@ -267,7 +276,7 @@ if True:
         initial_value_threshold = M.reduce_mean(custom_loss(Y_val, model.predict(X_val, batch_size=int(1e5)))).numpy()
         print(f"{initial_value_threshold=}")
     else:
-        model = build_model(X_train.shape[-1], (Nsrc+1)*Ndst, denselayers=(depth,)*width, lr=1., acti=acti)
+        model = build_model(X_train.shape[-1], (Nsrc+1)*Ndst, denselayers=(depth,)*width, lr=1., acti=acti, acti_inp=acti_inp, acti_out=acti_out)
         initial_value_threshold = None
 
     Nparam = model.count_params()
