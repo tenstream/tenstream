@@ -475,6 +475,11 @@ contains
       S_tol = 1._irealbmc / real(Nphotons, irealbmc)
     end where
 
+    ! e.g. in case we start outside of an element, we return without really tracing, hence we dont get any events and should not
+    ! expect sensible stddevs
+    if (sum(std_Sdir%events) .eq. 0_iintegers) T_tol = 0
+    if (sum(std_Sdiff%events) .eq. 0_iintegers) S_tol = 0
+
     if (numnodes .gt. 1) then ! average reduce results from all ranks
       call reduce_output(Nphotons, comm, S_out, T_out, S_tol, T_tol)
     end if
@@ -505,14 +510,17 @@ contains
     end do
     ret_S_out = real(S_out, kind=ireals)
     ret_S_tol = real(S_tol, kind=ireals)
-    if (ldebug) print *, 'S out', ret_S_out, 'T_out', ret_T_out
-    if ((maxval(ret_S_tol) .gt. atol + 100 * epsilon(ret_S_tol)) .or. (maxval(ret_T_tol) .gt. atol + 100 * epsilon(ret_T_tol))) then
+    if (ldebug) print *, 'S out', ret_S_out, 'T_out', ret_T_out, 'Nphotons', Nphotons
+    if ((maxval(ret_S_tol) .gt. atol + 100 * epsilon(ret_S_tol)) .or. &
+      & (maxval(ret_T_tol) .gt. atol + 100 * epsilon(ret_T_tol))) then
       print *, 'Input:', op_bg, '::', phi0, theta0, src, ldir, '::', vertices
       print *, 'T_out', ret_T_out
       print *, 'S out', ret_S_out
       print *, 'Tolerances:', atol, rtol, ':', std_Sdiff%atol, std_Sdir%atol
       print *, 'T_tol', ret_T_tol
       print *, 'S tol', ret_S_tol
+      print *, 'direvents', std_Sdir%events
+      print *, 'difevents', std_Sdiff%events
       call CHKERR(1_mpiint, 'BOXMC violates stddev constraints!')
     end if
     if (any(ret_S_out .lt. 0)) call CHKERR(1_mpiint, 'Have a negative coeff in S(:) '//toStr(ret_S_out))
@@ -617,8 +625,8 @@ contains
 
     call cpu_time(time(2))
 
-    if (Nphotons .gt. 1) then ! .and. rand().gt..99_ireal_dp) then
-      write (*, FMT='("src ",I0,") sun(",I0,",",I0,") N_phot ",I0 ,"=>",ES12.3,"phot/sec/node took",ES12.3,"sec", I0, ES12.3)') &
+    if (ldebug .and. Nphotons .gt. 1) then ! .and. rand().gt..99_ireal_dp) then
+      write (*, FMT='("src ",I0,") sun(",I0,",",I0,") N_phot ",I0 ," =>",ES12.3,"phot/sec/node took",ES12.3,"sec", I0, ES12.3)') &
         & src, &
         & int(phi0), int(theta0), &
         & Nphotons, Nphotons / max(tiny(time), &
