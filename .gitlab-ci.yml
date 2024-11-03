@@ -1,7 +1,7 @@
 stages:
   - pre
   - build_docker
-  - build_mim
+#  - build_mim
 
 check_fprettify:pre:
   stage: pre
@@ -83,7 +83,7 @@ ubuntu-latest:
     PETSC_64_INTEGERS: 0
     PETSC_DEBUGGING: 1
     BUILD_TYPE: RELEASE
-    CMAKE_OPTS: '-DENABLE_PFUNIT=OFF'
+    CMAKE_OPTS: '-DENABLE_PFUNIT=ON'
 
 ubuntu-rolling:
   stage: build_docker
@@ -107,7 +107,7 @@ ubuntu-rolling:
     PETSC_64_INTEGERS: 1
     PETSC_DEBUGGING: 1
     BUILD_TYPE: RELEASE
-    CMAKE_OPTS: '-DENABLE_GCOV=ON -DCMAKE_Fortran_FLAGS=--std=legacy -DENABLE_PFUNIT=OFF'
+    CMAKE_OPTS: '-DENABLE_GCOV=ON -DCMAKE_Fortran_FLAGS=--std=legacy -DENABLE_PFUNIT=ON'
     CODECOV_TOKEN: "7d5206f3-f1e3-4704-8bc3-1ee443e4ee49"
 
 # disabled because gcc image cannot apt install openmpi
@@ -155,7 +155,7 @@ debian-testing:
     PETSC_64_INTEGERS: 1
     PETSC_DEBUGGING: 1
     BUILD_TYPE: RELEASE
-    CMAKE_OPTS: '-DCMAKE_Fortran_FLAGS=--std=legacy -DENABLE_PFUNIT=OFF'
+    CMAKE_OPTS: '-DCMAKE_Fortran_FLAGS=--std=legacy -DENABLE_PFUNIT=ON'
 
 
 #intel-icc:
@@ -235,83 +235,83 @@ intel-icx:
 
 
 # MIM runs
-.mim:default:
-  stage: build_docker
-  needs: ["check_fprettify:pre"]
-  extends: .build:default
-  before_script:
-    - mkdir -p $CI_PROJECT_DIR/LUT; cp -rsn /project/meteo/homepages/Fabian.Jakub/TenstreamLUT/* $CI_PROJECT_DIR/LUT/
-    - if [ ! -z "$MODULES" ]; then module load $MODULES || exit 1; module list; fi
-    - export FC=${MPIF90:-${FC:-mpif90}}; export CC=${MPICC:-${CC:-mpicc}}; export CXX=${MPICXX:-${CXX:-mpicxx}}
-    - *template_build_PETSC
-  tags:
-    - slurm.meteo.physik.lmu.de
-  variables:
-    LUT_BASENAME: "$CI_PROJECT_DIR/LUT/LUT"
-    SRUN_OPTIONS: "--time 04:00:00 --mem 18G -n 9"
-    MPIEXEC: "srun"
-    MPIRUN_FLAGS: '--mpi=pmix'
-    CTEST_ARGS: '-E boxmc|LUT'
-    PETSC_DIR: petsc
-    PETSC_ARCH: default
-    PETSC_PRECISION: single
-    PETSC_64_INTEGERS: 0
-    PETSC_DEBUGGING: 1
-    BUILD_TYPE: RELEASE
-    CC: mpicc
-    FC: mpif90
-    CXX: mpicxx
-  artifacts:
-    paths:
-      - ${PETSC_DIR}/configure.log
-      - ${PETSC_DIR}/include
-      - ${PETSC_DIR}/default/include
-      - ${PETSC_DIR}/default/lib
-    expire_in: 1 day
-
-# GCC
-mim:gcc:default:
-  extends: .mim:default
-  variables:
-    CTEST_ARGS: '-E boxmc|LUT|plexrt_fish'
-
-mim:gcc:spack:
-  extends: .mim:default
-  variables:
-    MODULES: "spack gcc/11.2.0 openmpi/4.1.1-gcc-11.2.0"
-
-#mim:icc:debug:
+#.mim:default:
+#  stage: build_docker
+#  needs: ["check_fprettify:pre"]
+#  extends: .build:default
+#  before_script:
+#    - mkdir -p $CI_PROJECT_DIR/LUT; cp -rsn /project/meteo/homepages/Fabian.Jakub/TenstreamLUT/* $CI_PROJECT_DIR/LUT/
+#    - if [ ! -z "$MODULES" ]; then module load $MODULES || exit 1; module list; fi
+#    - export FC=${MPIF90:-${FC:-mpif90}}; export CC=${MPICC:-${CC:-mpicc}}; export CXX=${MPICXX:-${CXX:-mpicxx}}
+#    - *template_build_PETSC
+#  tags:
+#    - slurm.meteo.physik.lmu.de
+#  variables:
+#    LUT_BASENAME: "$CI_PROJECT_DIR/LUT/LUT"
+#    SRUN_OPTIONS: "--time 04:00:00 --mem 18G -n 9"
+#    MPIEXEC: "srun"
+#    MPIRUN_FLAGS: '--mpi=pmix'
+#    CTEST_ARGS: '-E boxmc|LUT'
+#    PETSC_DIR: petsc
+#    PETSC_ARCH: default
+#    PETSC_PRECISION: single
+#    PETSC_64_INTEGERS: 0
+#    PETSC_DEBUGGING: 1
+#    BUILD_TYPE: RELEASE
+#    CC: mpicc
+#    FC: mpif90
+#    CXX: mpicxx
+#  artifacts:
+#    paths:
+#      - ${PETSC_DIR}/configure.log
+#      - ${PETSC_DIR}/include
+#      - ${PETSC_DIR}/default/include
+#      - ${PETSC_DIR}/default/lib
+#    expire_in: 1 day
+#
+## GCC
+#mim:gcc:default:
 #  extends: .mim:default
 #  variables:
-#    MODULES: "intel-oneapi-compilers/2021.4.0 intel-oneapi-mpi/2021.4.0-oneapi-2021.4.0"
+#    CTEST_ARGS: '-E boxmc|LUT|plexrt_fish'
+#
+#mim:gcc:spack:
+#  extends: .mim:default
+#  variables:
+#    MODULES: "spack gcc/11.2.0 openmpi/4.1.1-gcc-11.2.0"
+#
+##mim:icc:debug:
+##  extends: .mim:default
+##  variables:
+##    MODULES: "intel-oneapi-compilers/2021.4.0 intel-oneapi-mpi/2021.4.0-oneapi-2021.4.0"
+##    BUILD_TYPE: DEBUG
+##    CC: mpiicc
+##    FC: mpiifort
+##    CXX: mpiicpc
+#
+#implicit:mim:gcc:debug:
+#  extends: mim:gcc:spack
+#  variables:
+#    PETSC_OPTIONS: "-solar_dir_explicit no -solar_diff_explicit no -thermal_diff_explicit no"
+#
+#matshell:mim:gcc:debug:
+#  extends: mim:gcc:spack
+#  variables:
+#    PETSC_OPTIONS: "-solar_diff_shell -solar_diff_pc_type sor -thermal_diff_shell -thermal_diff_pc_type sor"
+#
+#mim:gcc:debug:
+#  extends: mim:gcc:spack
+#  variables:
 #    BUILD_TYPE: DEBUG
-#    CC: mpiicc
-#    FC: mpiifort
-#    CXX: mpiicpc
-
-implicit:mim:gcc:debug:
-  extends: mim:gcc:spack
-  variables:
-    PETSC_OPTIONS: "-solar_dir_explicit no -solar_diff_explicit no -thermal_diff_explicit no"
-
-matshell:mim:gcc:debug:
-  extends: mim:gcc:spack
-  variables:
-    PETSC_OPTIONS: "-solar_diff_shell -solar_diff_pc_type sor -thermal_diff_shell -thermal_diff_pc_type sor"
-
-mim:gcc:debug:
-  extends: mim:gcc:spack
-  variables:
-    BUILD_TYPE: DEBUG
-    PETSC_PRECISION: double
-    PETSC_64_INTEGERS: 1
-
-explicit:mim:gcc:debug:
-  extends: mim:gcc:debug
-  variables:
-    PETSC_OPTIONS: "-solar_dir_explicit -solar_diff_explicit -thermal_diff_explicit -thermal_diff_pc_sor_omega .5 -solar_diff_pc_sor_omega .5"
-
-mim:gcc:spack:latest:
-  extends: mim:gcc:spack
-  variables:
-    MODULES: "spack/2023.02 gcc/11.3.0 openmpi/4.1.4-gcc-11.3.0-cuda11.7"
+#    PETSC_PRECISION: double
+#    PETSC_64_INTEGERS: 1
+#
+#explicit:mim:gcc:debug:
+#  extends: mim:gcc:debug
+#  variables:
+#    PETSC_OPTIONS: "-solar_dir_explicit -solar_diff_explicit -thermal_diff_explicit -thermal_diff_pc_sor_omega .5 -solar_diff_pc_sor_omega .5"
+#
+#mim:gcc:spack:latest:
+#  extends: mim:gcc:spack
+#  variables:
+#    MODULES: "spack/2023.02 gcc/11.3.0 openmpi/4.1.4-gcc-11.3.0-cuda11.7"

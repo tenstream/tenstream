@@ -2239,6 +2239,7 @@ contains
     logical :: prec_is_set
     type(tPC) :: prec
 
+    PetscCount :: ksp_residual_history_size
     integer(iintegers) :: Nrows_global
 
     integer(mpiint) :: comm, myid, numnodes, ierr
@@ -2273,8 +2274,9 @@ contains
     call KSPSetOperators(ksp, A, A, ierr); call CHKERR(ierr)
 
     if (present(ksp_residual_history)) then
+      ksp_residual_history_size = size(ksp_residual_history)
       call KSPSetResidualHistory(ksp, ksp_residual_history, &
-        & size(ksp_residual_history, kind=iintegers), PETSC_TRUE, ierr); call CHKERR(ierr)
+        & ksp_residual_history_size, PETSC_TRUE, ierr); call CHKERR(ierr)
     end if
 
     call KSPSetType(ksp, KSPFGMRES, ierr); call CHKERR(ierr)

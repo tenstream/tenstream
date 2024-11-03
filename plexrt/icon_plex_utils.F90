@@ -185,6 +185,7 @@ contains
       integer(iintegers) :: nroots2d   ! number of root vertices on the current process (possible targets for leaves)
       integer(iintegers) :: nleaves2d  ! number of leaf vertices on the current process, references roots on any process
       integer(iintegers) :: nroots3d, nleaves3d
+      PetscCount :: nleaves2d_petsccnt
       integer(iintegers), allocatable :: ilocal_elements(:)
       type(PetscSFNode), allocatable :: iremote_elements(:)
       PetscCopyMode, parameter :: localmode = PETSC_COPY_VALUES, remotemode = PETSC_COPY_VALUES
@@ -208,7 +209,8 @@ contains
         allocate (remote(nleaves2d), source=premote)
       end if
       pmyidx => null(); premote => null()
-      call PetscSortIntWithArrayPair(nleaves2d, myidx, remote(:)%rank, remote(:)%index, ierr); call CHKERR(ierr)
+      nleaves2d_petsccnt = nleaves2d
+      call PetscSortIntWithArrayPair(nleaves2d_petsccnt, myidx, remote(:)%rank, remote(:)%index, ierr); call CHKERR(ierr)
 
       call dmplex_set_new_section(dmsf2d, 'plex_2d_to_3d_sf_graph_info', i1, &
                                   [i0], [ke1 + ke], [ke1 + ke], [ke1 + ke])
@@ -231,7 +233,7 @@ contains
       ! Distribute Info for 2D faces, i.e. horizontal faces and cells
       call VecGetArrayF90(lVec, xv, ierr); call CHKERR(ierr)
       do i = f2dStart, f2dEnd - 1
-        call PetscFindInt(i, nleaves2d, myidx, voff, ierr); call CHKERR(ierr)
+        call PetscFindInt(i, nleaves2d_petsccnt, myidx, voff, ierr); call CHKERR(ierr)
         if (voff .lt. i0) then ! only add my local idx number if it belongs to me
           call PetscSectionGetOffset(section_2d_to_3d, i, voff, ierr); call CHKERR(ierr)
           do k = 0, ke1 - 1
@@ -244,7 +246,7 @@ contains
       end do
       ! Distribute Info for 2D edges, i.e. horizontal edges and vertical faces
       do i = e2dStart, e2dEnd - 1
-        call PetscFindInt(i, nleaves2d, myidx, voff, ierr); call CHKERR(ierr)
+        call PetscFindInt(i, nleaves2d_petsccnt, myidx, voff, ierr); call CHKERR(ierr)
         if (voff .lt. i0) then
           call PetscSectionGetOffset(section_2d_to_3d, i, voff, ierr); call CHKERR(ierr)
           do k = 0, ke1 - 1
@@ -257,7 +259,7 @@ contains
       end do
       ! Distribute Info for vertices, i.e. vertices and vertical edges
       do i = v2dStart, v2dEnd - 1
-        call PetscFindInt(i, nleaves2d, myidx, voff, ierr); call CHKERR(ierr)
+        call PetscFindInt(i, nleaves2d_petsccnt, myidx, voff, ierr); call CHKERR(ierr)
         if (voff .lt. i0) then
           call PetscSectionGetOffset(section_2d_to_3d, i, voff, ierr); call CHKERR(ierr)
           do k = 0, ke1 - 1
@@ -284,7 +286,7 @@ contains
       ileaf = 1
       call VecGetArrayF90(lVec, xv, ierr); call CHKERR(ierr)
       do i = f2dStart, f2dEnd - 1
-        call PetscFindInt(i, nleaves2d, myidx, voff, ierr); call CHKERR(ierr)
+        call PetscFindInt(i, nleaves2d_petsccnt, myidx, voff, ierr); call CHKERR(ierr)
         if (voff .ge. i0) then ! this face is owned by someone else
           owner = remote(i1 + voff)%rank
           call PetscSectionGetOffset(section_2d_to_3d, i, voff, ierr); call CHKERR(ierr)
@@ -307,7 +309,7 @@ contains
         end if
       end do
       do i = e2dStart, e2dEnd - 1
-        call PetscFindInt(i, nleaves2d, myidx, voff, ierr); call CHKERR(ierr)
+        call PetscFindInt(i, nleaves2d_petsccnt, myidx, voff, ierr); call CHKERR(ierr)
         if (voff .ge. i0) then ! this is owned by someone else
           owner = remote(i1 + voff)%rank
           call PetscSectionGetOffset(section_2d_to_3d, i, voff, ierr); call CHKERR(ierr)
@@ -330,7 +332,7 @@ contains
         end if
       end do
       do i = v2dStart, v2dEnd - 1
-        call PetscFindInt(i, nleaves2d, myidx, voff, ierr); call CHKERR(ierr)
+        call PetscFindInt(i, nleaves2d_petsccnt, myidx, voff, ierr); call CHKERR(ierr)
         if (voff .ge. i0) then ! this is owned by someone else
           owner = remote(i1 + voff)%rank
           call PetscSectionGetOffset(section_2d_to_3d, i, voff, ierr); call CHKERR(ierr)
@@ -681,6 +683,7 @@ contains
 
     type(tPetscSF) :: sf
     integer(iintegers) :: nroots, nleaves
+    PetscCount :: nleaves_petsccnt
     integer(iintegers), pointer :: pmyidx(:) ! list of my indices that we do not own
     type(PetscSFNode), pointer :: premote(:) ! rank and remote idx of those points
 
@@ -721,7 +724,8 @@ contains
     allocate (remote(nleaves), source=premote)
     pmyidx => null()
     premote => null()
-    call PetscSortIntWithArrayPair(nleaves, myidx, remote(:)%rank, remote(:)%index, ierr); call CHKERR(ierr)
+    nleaves_petsccnt = nleaves
+    call PetscSortIntWithArrayPair(nleaves_petsccnt, myidx, remote(:)%rank, remote(:)%index, ierr); call CHKERR(ierr)
 
     call DMPlexGetDepth(owner_dm, depth, ierr); call CHKERR(ierr)
     select case (depth)
@@ -738,7 +742,7 @@ contains
 
     call DMPlexGetDepthStratum(owner_dm, depth, cStart, cEnd, ierr); call CHKERR(ierr) ! cells
     do icell = cStart, cEnd - 1
-      call PetscFindInt(icell, nleaves, myidx, idx, ierr); call CHKERR(ierr)
+      call PetscFindInt(icell, nleaves_petsccnt, myidx, idx, ierr); call CHKERR(ierr)
       if (idx .ge. i0) print *, myid, 'cell', icell, 'is not local'
     end do
 
@@ -756,13 +760,13 @@ contains
     call VecGetArrayF90(gVec, xv, ierr); call CHKERR(ierr)
     xv(:) = zero
     do icell = cStart, cEnd - 1
-      call PetscFindInt(icell, nleaves, myidx, idx, ierr); call CHKERR(ierr)
+      call PetscFindInt(icell, nleaves_petsccnt, myidx, idx, ierr); call CHKERR(ierr)
       if (idx .ge. i0) cycle ! not a local element
 
       call PetscSectionGetOffset(sec, icell, voff, ierr); call CHKERR(ierr)
       call DMPlexGetCone(owner_dm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
       do i = 1, size(faces_of_cell)
-        call PetscFindInt(faces_of_cell(i), nleaves, myidx, idx, ierr); call CHKERR(ierr)
+        call PetscFindInt(faces_of_cell(i), nleaves_petsccnt, myidx, idx, ierr); call CHKERR(ierr)
         if (idx .ge. i0) then ! not a local element
           xv(i1 + voff) = xv(i1 + voff) + i1
         end if
