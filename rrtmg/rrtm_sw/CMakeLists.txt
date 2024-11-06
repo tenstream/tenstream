@@ -6,12 +6,11 @@ install(DIRECTORY ./ DESTINATION include/ FILES_MATCHING PATTERN "*.h")
 file( GLOB files *.f* )
 
 # Dont use Werror for files that are not ours
-string(COMPARE EQUAL ${CMAKE_Fortran_COMPILER_ID} "Intel" _is_Intel)
-if(${_is_Intel})
+if (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
   set(WNOERRORFLG "-warn noerrors -warn nounused")
 else()
   set(WNOERRORFLG "-w -Wno-error -Wno-pedantic")
-endif(${_is_Intel})
+endif()
 file(GLOB rrtm_files *.f*)
 
 foreach(rrtm_file ${rrtm_files})
