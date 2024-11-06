@@ -40,7 +40,7 @@ contains
     real(ireals), parameter :: small = tiny(extinction_coeff)
 
     if (extinction_coeff .lt. small) &
-      & call CHKERR(1_mpiint, 'Extinction coeff too small: '//toStr(extinction_coeff)//' < min = '//toStr(small))
+      & call CHKERR(1_mpiint, 'Extinction coeff too small: ', extinction_coeff, ' < min = ', small)
 
     associate ( &
       a => vertices(1:3), &
@@ -165,7 +165,7 @@ contains
       s = norm2(hit_plane(f1, sundir, f5, compute_normal_3d(f1, f2, f3)) * sundir) ! |f1 - f1rp|
       normal = compute_normal_3d(f1, f2, f5)
       sin_theta = max(sin(abs(atan(sundir(other_slice(1)) / &
-                                   sqrt(sundir(other_slice(2))**2 + sundir(other_slice(3))**2)))), tiny(sin_theta))
+                                   sqrt(sundir(other_slice(2))**2 + sundir(other_slice(3))**2)))), 10 * tiny(sin_theta))
       cos_src_trgt = cos(acos(dot_product(f1 - f2, f1 - f4) / (norm2(f1 - f2) * norm2(f1 - f4))) - Pi / 2)
 
       if (norm2(v1 - f1) .gt. small) then
@@ -282,7 +282,7 @@ contains
       real(ireals), intent(in) :: beta_s
       real(ireals) :: x
 
-      x = max(beta_s, tiny(x))
+      x = max(beta_s, 10 * tiny(x))
       ext = expm1(-x) / (-x)
     end function
   end subroutine
