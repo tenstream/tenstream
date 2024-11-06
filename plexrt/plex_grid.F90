@@ -1468,6 +1468,7 @@ contains
 
     zenith = angle_between_two_vec(sundir, face_normals(:, upper_face))
     proj_sundir = vec_proj_on_plane(sundir, face_normals(:, upper_face))
+    if (norm2(proj_sundir) .lt. 1.7e-3_ireals) proj_sundir(:) = 0._ireals ! ignore zenith angles smaller than ~.1 deg
     call normalize_vec(proj_sundir, ierr) !; call CHKERR(ierr, 'bad proj_sundir'//toStr(proj_sundir))
 
     do iface = 1, size(side_faces)

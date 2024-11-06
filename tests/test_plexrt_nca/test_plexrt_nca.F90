@@ -187,7 +187,7 @@ contains
       hhl(k) = hhl(k - 1) - dz
     end do
 
-    call dmplex_2D_to_3D(dm2d, Nz, hhl, [zero, zero, -huge(zero)], dm3d, zindex)
+    call dmplex_2D_to_3D(dm2d, Nz, hhl, [zero, zero, -huge(zero) * 1e-1_ireals], dm3d, zindex)
     call dump_ownership(dm3d, '-dump_ownership', '-show_plex')
 
     call setup_plexgrid(dm2d, dm3d, Nz - 1, zindex, plex, hhl)
