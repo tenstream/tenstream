@@ -1023,6 +1023,7 @@ contains
     end select
   contains
     subroutine prep_pprts()
+      real(irealLUT) :: tanx, tany
       call setup_default_unit_cube_geometry(1._ireal_dp, &
                                             real(aspect_zx / aspect_zy, ireal_dp), real(aspect_zx, ireal_dp), &
                                             vertices)
@@ -1031,6 +1032,43 @@ contains
         call CHKERR(ierr, 'phi has to be present for direct calculations')
         call get_sample_pnt_by_name_and_index(config, 'theta', index_1d, theta, ierr)
         call CHKERR(ierr, 'theta has to be present for direct calculations')
+      end if
+
+      call get_sample_pnt_by_name_and_index(config, 'tanx', index_1d, tanx, ierr)
+      if (ierr .eq. 0_mpiint) then
+        !print *,'Found tanx dimension... calling for tanx=', tanx
+        associate ( &
+          B => vertices(4:6), &
+          D => vertices(10:12), &
+          F => vertices(16:18), &
+          H => vertices(22:24))
+          B(3) = B(3) + tanx
+          D(3) = D(3) + tanx
+          F(3) = F(3) + tanx
+          H(3) = H(3) + tanx
+        end associate
+      end if
+      call get_sample_pnt_by_name_and_index(config, 'tany', index_1d, tany, ierr)
+      if (ierr .eq. 0_mpiint) then
+        !print *,'Found tany dimension... calling for tany=', tany
+        associate ( &
+          C => vertices(7:9), &
+          D => vertices(10:12), &
+          G => vertices(19:21), &
+          H => vertices(22:24))
+          C(3) = C(3) + tany
+          D(3) = D(3) + tany
+          G(3) = G(3) + tany
+          H(3) = H(3) + tany
+          !print *,'A', A
+          !print *,'B', B
+          !print *,'C', C
+          !print *,'D', D
+          !print *,'E', E
+          !print *,'F', F
+          !print *,'G', G
+          !print *,'H', H
+        end associate
       end if
     end subroutine
     subroutine prep_plexrt(sphere_radius)

@@ -200,14 +200,14 @@ intel-icx:
     PETSC_64_INTEGERS: 1
     PETSC_DEBUGGING: 1
     BUILD_TYPE: RELEASE
-    CMAKE_OPTS: '-DENABLE_PFUNIT=OFF'
+    CMAKE_OPTS: '-DENABLE_PFUNIT=ON'
     I_MPI_CC: icx
     I_MPI_FC: ifx
     I_MPI_F90: ifx
     I_MPI_CXX: icpx
-    CC: mpiicc
-    FC: mpiifort
-    CXX: mpiicpc
+    CC: mpiicx
+    FC: mpiifx
+    CXX: mpiicpx
 
 #intel:debug:
 #  stage: build_docker

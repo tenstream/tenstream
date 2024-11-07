@@ -4,8 +4,7 @@ if(ENABLE_PFUNIT)
 
   set(PFUNIT_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} ${PFUNIT_Fortran_FLAGS} -DUSE_MPI")
 
-  string(COMPARE EQUAL ${CMAKE_Fortran_COMPILER_ID} "Intel" _is_Intel)
-  if(${_is_Intel})
+  if (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
     # Find out if the compiler is Intel and if so add compile flag for parameter tests
     set(EXTRA_TESTDRIVER_COMPILE_FLAGS
       "${PFUNIT_Fortran_FLAGS} -warn noerrors -warn nounused"
@@ -35,7 +34,7 @@ if(ENABLE_PFUNIT)
       -Wno-unused-parameter \
       -Wno-unused-variable \
     ")
-  endif(${_is_Intel})
+  endif()
 
   message(STATUS "Using PFUNIT_Fortran_FLAGS: ${PFUNIT_Fortran_FLAGS}")
 

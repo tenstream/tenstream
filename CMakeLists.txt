@@ -2,7 +2,7 @@
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/")
 
 message(STATUS "CMake Version ${CMAKE_VERSION}")
-cmake_minimum_required (VERSION 3.6.0)
+cmake_minimum_required (VERSION 3.6.0...3.26.5)
 
 # make sure that the default is a RELEASE
 if (NOT CMAKE_BUILD_TYPE)
@@ -25,6 +25,8 @@ endif()
 if ($ENV{FC} MATCHES "gfortran|mpif90")
   set (SYST gcc CACHE STRING "Location specific settings from config/<SYST>.cmake files")
 elseif ($ENV{FC} MATCHES "ifort|mpiifort")
+  set (SYST intel CACHE STRING "Location specific settings from config/<SYST>.cmake files")
+elseif ($ENV{FC} MATCHES "ifx|mpiifx")
   set (SYST intel CACHE STRING "Location specific settings from config/<SYST>.cmake files")
 endif()
 
@@ -96,10 +98,10 @@ set_property(CACHE ENABLE_PGO PROPERTY STRINGS OFF GENERATE USE)
 
 if(NOT ENABLE_PGO STREQUAL "OFF")
   enable_testing()
-  if ("${CMAKE_Fortran_COMPILER_ID}" STREQUAL "GNU")
+  if (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
     set(PGO_GEN_FLAGS "-fprofile-generate=${CMAKE_BINARY_DIR}/pgo")
     set(PGO_USE_FLAGS "-fprofile-use=${CMAKE_BINARY_DIR}/pgo")
-  elseif ("${CMAKE_Fortran_COMPILER_ID}" STREQUAL "Intel")
+  elseif (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
     set(PGO_GEN_FLAGS "-prof-gen -prof-dir=${CMAKE_BINARY_DIR}/pgo")
     set(PGO_USE_FLAGS "-prof-use -prof-dir=${CMAKE_BINARY_DIR}/pgo")
   else()
@@ -362,9 +364,9 @@ if(${_is_XLF})
 endif(${_is_XLF})
 
 # Set preprocessor Flag if Compiler is out of GNU Family
-if ("${CMAKE_Fortran_COMPILER_ID}" STREQUAL "GNU")
+if (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
   add_definitions(-D_GNU)
-elseif ("${CMAKE_Fortran_COMPILER_ID}" STREQUAL "Intel")
+elseif (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
   add_definitions(-D_INTEL)
 endif()
 

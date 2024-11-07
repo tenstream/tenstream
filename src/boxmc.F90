@@ -291,6 +291,7 @@ module m_boxmc
 
   type stddev
     real(irealbmc), allocatable, dimension(:) :: inc, delta, mean, mean2, var, relvar
+    integer(iintegers), allocatable :: events(:)
     logical :: converged = .false.
     real(irealbmc) :: atol = zero, rtol = zero
     logical :: active ! are we checking for convergence at all?
@@ -467,6 +468,17 @@ contains
     ! tolerances that we achieved and report them back
     T_tol = std_Sdir%var
     S_tol = std_Sdiff%var
+    where (std_Sdir%events .eq. 0_iintegers)
+      T_tol = 1._irealbmc / real(Nphotons, irealbmc)
+    end where
+    where (std_Sdiff%events .eq. 0_iintegers)
+      S_tol = 1._irealbmc / real(Nphotons, irealbmc)
+    end where
+
+    ! e.g. in case we start outside of an element, we return without really tracing, hence we dont get any events and should not
+    ! expect sensible stddevs
+    if (sum(std_Sdir%events) .eq. 0_iintegers) T_tol = 0
+    if (sum(std_Sdiff%events) .eq. 0_iintegers) S_tol = 0
 
     if (numnodes .gt. 1) then ! average reduce results from all ranks
       call reduce_output(Nphotons, comm, S_out, T_out, S_tol, T_tol)
@@ -498,14 +510,17 @@ contains
     end do
     ret_S_out = real(S_out, kind=ireals)
     ret_S_tol = real(S_tol, kind=ireals)
-    if (ldebug) print *, 'S out', ret_S_out, 'T_out', ret_T_out
-    if ((maxval(ret_S_tol) .gt. atol + 100 * epsilon(ret_S_tol)) .or. (maxval(ret_T_tol) .gt. atol + 100 * epsilon(ret_T_tol))) then
+    if (ldebug) print *, 'S out', ret_S_out, 'T_out', ret_T_out, 'Nphotons', Nphotons
+    if ((maxval(ret_S_tol) .gt. atol + 100 * epsilon(ret_S_tol)) .or. &
+      & (maxval(ret_T_tol) .gt. atol + 100 * epsilon(ret_T_tol))) then
       print *, 'Input:', op_bg, '::', phi0, theta0, src, ldir, '::', vertices
       print *, 'T_out', ret_T_out
       print *, 'S out', ret_S_out
       print *, 'Tolerances:', atol, rtol, ':', std_Sdiff%atol, std_Sdir%atol
       print *, 'T_tol', ret_T_tol
       print *, 'S tol', ret_S_tol
+      print *, 'direvents', std_Sdir%events
+      print *, 'difevents', std_Sdiff%events
       call CHKERR(1_mpiint, 'BOXMC violates stddev constraints!')
     end if
     if (any(ret_S_out .lt. 0)) call CHKERR(1_mpiint, 'Have a negative coeff in S(:) '//toStr(ret_S_out))
@@ -570,10 +585,7 @@ contains
     ! and phi = 90, beam going towards east
     initial_dir = spherical_2_cartesian(phi0, theta)*[-one, -one, one]
 
-    mincnt = int(1._ireal_dp / std_Sdir%rtol &
-                 + 1._ireal_dp / std_Sdir%atol &
-                 + 1._ireal_dp / std_Sdiff%rtol &
-                 + 1._ireal_dp / std_Sdiff%atol, iintegers)
+    mincnt = int(.5_ireal_dp / std_Sdir%atol**1 + .5_ireal_dp / std_Sdiff%atol**1, iintegers)
     mycnt = int(1e9_ireal_dp / numnodes, iintegers)
     mycnt = min(max(mincnt, mycnt), huge(k) - 1)
     do k = 1, mycnt
@@ -613,10 +625,14 @@ contains
 
     call cpu_time(time(2))
 
-    !if(Nphotons.gt.1)then ! .and. rand().gt..99_ireal_dp) then
-    !  write(*,FMT='("src ",I0,") sun(",I0,",",I0,") N_phot ",I0 ,"=>",ES12.3,"phot/sec/node took",ES12.3,"sec", I0, ES12.3)') &
-    !    src,int(phi0),int(theta0),Nphotons, Nphotons/max(tiny(time),time(2)-time(1))/numnodes,time(2)-time(1), numnodes, tau_scaling
-    !endif
+    if (ldebug .and. Nphotons .gt. 1) then ! .and. rand().gt..99_ireal_dp) then
+      write (*, FMT='("src ",I0,") sun(",I0,",",I0,") N_phot ",I0 ," =>",ES12.3,"phot/sec/node took",ES12.3,"sec", I0, ES12.3)') &
+        & src, &
+        & int(phi0), int(theta0), &
+        & Nphotons, Nphotons / max(tiny(time), &
+        & time(2) - time(1)) / numnodes, time(2) - time(1), &
+        & numnodes, tau_scaling
+    end if
   end subroutine
 
   !> @brief take weighted average over mpi processes
@@ -932,12 +948,14 @@ contains
     if (allocated(std%mean2)) deallocate (std%mean2)
     if (allocated(std%var)) deallocate (std%var)
     if (allocated(std%relvar)) deallocate (std%relvar)
+    if (allocated(std%events)) deallocate (std%events)
     allocate (std%inc(N)); std%inc = 0
     allocate (std%delta(N)); std%delta = 0
     allocate (std%mean(N)); std%mean = 0
     allocate (std%mean2(N)); std%mean2 = 0
     allocate (std%var(N)); std%var = 0
     allocate (std%relvar(N)); std%relvar = 0
+    allocate (std%events(N)); std%events = 0
     std%atol = real(atol, kind(std%atol))
     std%rtol = real(rtol, kind(std%rtol))
     std%converged = .true.
@@ -955,6 +973,7 @@ contains
     if (.not. std%active) return
 
     do i = 1, size(std%mean)
+      if (std%inc(i) .gt. 0._irealbmc) std%events(i) = std%events(i) + 1
       std%delta(i) = std%inc(i) - std%mean(i)
       std%mean(i) = std%mean(i) + std%delta(i) / N
       std%mean2(i) = std%mean2(i) + std%delta(i) * (std%inc(i) - std%mean(i))

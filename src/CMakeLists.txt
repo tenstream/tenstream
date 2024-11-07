@@ -4,12 +4,11 @@
 include_directories (${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(${INCLUDE_DIRS})
 
-string(COMPARE EQUAL ${CMAKE_Fortran_COMPILER_ID} "Intel" _is_Intel)
-if(${_is_Intel})
+if (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
   SET_SOURCE_FILES_PROPERTIES(ranlux.F90 PROPERTIES COMPILE_FLAGS -nowarn)
 else()
   SET_SOURCE_FILES_PROPERTIES(ranlux.F90 PROPERTIES COMPILE_FLAGS -Wno-error)
-endif(${_is_Intel})
+endif()
 SET_SOURCE_FILES_PROPERTIES(c_syscall_constants.c PROPERTIES COMPILE_FLAGS "-D_BSD_SOURCE")
 
 

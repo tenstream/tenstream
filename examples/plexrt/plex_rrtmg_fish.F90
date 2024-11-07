@@ -143,7 +143,7 @@ contains
                           d_lwc=col_lwc, d_reliq=col_reff)
 
     Nlev = size(atm%plev, 1, kind=iintegers)
-    call dmplex_2D_to_3D(dm2d_dist, Nlev, reverse(atm%zt(:, i1)), [zero, zero, -huge(zero)], dm3d, zindex)
+    call dmplex_2D_to_3D(dm2d_dist, Nlev, reverse(atm%zt(:, i1)), [zero, zero, -huge(zero) * 1e-1_ireals], dm3d, zindex)
 
     call setup_plexgrid(dm2d_dist, dm3d, Nlev - 1, zindex, plex, hhl=reverse(atm%zt(:, i1)))
 
