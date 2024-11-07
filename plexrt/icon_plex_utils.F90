@@ -590,8 +590,12 @@ contains
         call PetscSectionGetOffset(coordSection2d, i, voff2d, ierr); call CHKERR(ierr)
 
         direction = coords2d(voff2d + i1:voff2d + i3) - opt_proj_origin
+        print *, 'direction', direction, 'origin', opt_proj_origin
         call normalize_vec(direction, ierr)
-        call CHKERR(ierr, "failed to norm extrude direction: "//toStr(direction)//" origin: "//toStr(opt_proj_origin))
+        if (ierr .ne. 0_mpiint) then
+          print *, 'direction', direction, 'origin', opt_proj_origin
+          call CHKERR(ierr, "failed to norm extrude direction: "//toStr(direction)//" origin: "//toStr(opt_proj_origin))
+        end if
 
         do k = 0, ke1 - 1
           ivertex = ivertex_icon_2_plex(i, k)

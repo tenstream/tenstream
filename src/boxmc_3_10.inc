@@ -89,7 +89,8 @@ subroutine init_dir_photon_3_10(bmc, p, src, ldirect, initial_dir, vertices, ier
     )
     select case (src)
     case (1)
-      if (p%dir(3) .le. 0) then
+      normal = compute_normal_3d(pE, pF, pG) ! outward normal at top face
+      if (dot_product(p%dir, normal) .le. 0._ireal_dp) then ! valid to start at top face
         !p%loc = [R()*dx, R()*dy, dz*(one-e)]
         call rand_pnt_on_plane(pE, pG, pH, pF, p%loc, normal, U, V)
         p%src_side = 1
@@ -313,6 +314,7 @@ subroutine update_diff_stream_3_10(bmc, vertices, p, S)
   real(ireal_dp), intent(in) :: vertices(:)
   type(t_photon), intent(in) :: p
   real(irealbmc), intent(inout) :: S(:)
+  real(ireal_dp) :: normal(3)
 
   ! dst numbering
   !         _______1_______
@@ -324,51 +326,88 @@ subroutine update_diff_stream_3_10(bmc, vertices, p, S)
   !      3 |_______________| 4
   !                2
 
-  select case (p%side)
-  case (1)
-    if (p%dir(3) .ge. zero) then
-      S(1) = S(1) + p%weight
-    else
-      call CHKERR(1_mpiint, 'expected photon traveling up when hitting side 1')
-    end if
-  case (2)
-    if (p%dir(3) .le. zero) then
-      S(2) = S(2) + p%weight
-    else
-      call CHKERR(1_mpiint, 'expected photon traveling dn when hitting side 2')
-    end if
-  case (3)
-    if (p%dir(3) .le. zero) then
-      S(3) = S(3) + p%weight
-    else
-      S(5) = S(5) + p%weight
-    end if
+  associate ( &
+    pA => vertices(1:3), &
+    pB => vertices(4:6), &
+    pC => vertices(7:9), &
+    pD => vertices(10:12), &
+    pE => vertices(13:15), &
+    pF => vertices(16:18), &
+    pG => vertices(19:21), &
+    pH => vertices(22:24) &
+    )
 
-  case (4)
-    if (p%dir(3) .le. zero) then
-      S(4) = S(4) + p%weight
-    else
-      S(6) = S(6) + p%weight
-    end if
+    select case (p%side)
+    case (PPRTS_TOP_FACE)
+      !if (p%dir(3) .ge. zero) then
+      !  S(1) = S(1) + p%weight
+      !end if
 
-  case (5)
-    if (p%dir(3) .le. zero) then
-      S(7) = S(7) + p%weight
-    else
-      S(9) = S(9) + p%weight
-    end if
+      normal = compute_normal_3d(pE, pF, pG)
 
-  case (6)
-    if (p%dir(3) .le. zero) then
-      S(8) = S(8) + p%weight
-    else
-      S(10) = S(10) + p%weight
-    end if
-  case default
-    call print_photon(p)
-    call CHKERR(1_mpiint, 'Couldnt find a stream on to which I can put the photon weight on?!')
-    print *, 'remove unused compiler warning', vertices
-  end select
+      if (dot_product(p%dir, normal) .ge. 0._ireal_dp) then
+        S(1) = S(1) + p%weight
+      else
+        print *, 'E', pE
+        print *, 'F', pF
+        print *, 'G', pG
+        print *, 'normal', normal
+        print *, 'p%dir', p%dir
+        print *, 'dot', dot_product(p%dir, normal)
+        call CHKERR(1_mpiint, 'expected photon to hit top face from beneath')
+      end if
+    case (PPRTS_BOT_FACE)
+      normal = compute_normal_3d(pB, pA, pC)
+
+      if (dot_product(p%dir, normal) .ge. 0._ireal_dp) then
+        S(2) = S(2) + p%weight
+      else
+        print *, 'A', pA
+        print *, 'B', pB
+        print *, 'C', pC
+        print *, 'normal', normal
+        print *, 'p%dir', p%dir
+        print *, 'dot', dot_product(p%dir, normal)
+        call CHKERR(1_mpiint, 'expected photon to hit bot face from atop')
+      end if
+      !if (p%dir(3) .le. zero) then
+      !  S(2) = S(2) + p%weight
+      !else
+      !  call CHKERR(1_mpiint, 'expected photon traveling dn when hitting side 2')
+      !end if
+    case (PPRTS_LEFT_FACE)
+      if (p%dir(3) .le. zero) then
+        S(3) = S(3) + p%weight
+      else
+        S(5) = S(5) + p%weight
+      end if
+
+    case (PPRTS_RIGHT_FACE)
+      if (p%dir(3) .le. zero) then
+        S(4) = S(4) + p%weight
+      else
+        S(6) = S(6) + p%weight
+      end if
+
+    case (PPRTS_REAR_FACE)
+      if (p%dir(3) .le. zero) then
+        S(7) = S(7) + p%weight
+      else
+        S(9) = S(9) + p%weight
+      end if
+
+    case (PPRTS_FRONT_FACE)
+      if (p%dir(3) .le. zero) then
+        S(8) = S(8) + p%weight
+      else
+        S(10) = S(10) + p%weight
+      end if
+    case default
+      call print_photon(p)
+      call CHKERR(1_mpiint, 'Couldnt find a stream on to which I can put the photon weight on?!')
+      print *, 'remove unused compiler warning', vertices
+    end select
+  end associate
 
   select type (bmc)
   end select

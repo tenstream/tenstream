@@ -36,8 +36,7 @@ add_test(disort_tests
   ${MPIEXEC} ${CTEST_MPIRUN_FLAGS} ${MPIEXEC_NUMPROC_FLAG} 1 ${PROJECT_BINARY_DIR}/bin/disort_tests)
 
 # Ignore Warnings for disort files
-string(COMPARE EQUAL ${CMAKE_Fortran_COMPILER_ID} "Intel" _is_Intel)
-if(${_is_Intel})
+if (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
   SET_SOURCE_FILES_PROPERTIES(${disort_sources} ${disort_test_sources}
     PROPERTIES COMPILE_FLAGS -nowarn)
 else()
@@ -46,4 +45,4 @@ else()
   string(REGEX REPLACE "-ffpe-trap=[a-z]+" "" CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}")
   string(REGEX REPLACE "-ffpe-trap=[a-z]+" "" CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS_RELEASE}")
   string(REGEX REPLACE "-ffpe-trap=[a-z]+" "" CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG}")
-endif(${_is_Intel})
+endif()

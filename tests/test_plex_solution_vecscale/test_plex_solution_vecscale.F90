@@ -68,7 +68,7 @@ contains
       hhl(k) = hhl(k - 1) - dz
     end do
 
-    call dmplex_2D_to_3D(dm2d, Nz, hhl, [zero, zero, -huge(one)], dm3d, zindex)
+    call dmplex_2D_to_3D(dm2d, Nz, hhl, [zero, zero, -huge(one) * 1e-1_ireals], dm3d, zindex)
 
     call setup_plexgrid(dm2d, dm3d, Nz - 1, zindex, plex, hhl)
     deallocate (zindex)

@@ -683,7 +683,7 @@ contains
           call VecGetArrayReadF90(hhl, xhhl1d, ierr); call CHKERR(ierr)
           xhhl(i1:i1, i1:Cv%glob_zm, i1:Cv%glob_xm, i1:Cv%glob_ym) => xhhl1d
 
-          call dmplex_2D_to_3D(dm2d, Ca1%glob_zm, xhhl(i1, :, i1, i1), [zero, zero, -huge(zero) / 100], dm3d, zindex)
+          call dmplex_2D_to_3D(dm2d, Ca1%glob_zm, xhhl(i1, :, i1, i1), [zero, zero, -huge(zero) * 1e-1_ireals], dm3d, zindex)
 
           !set height lvls on vertices
           call DMGetCoordinateSection(dm3d, coord_section, ierr); call CHKERR(ierr)

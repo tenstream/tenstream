@@ -1,0 +1,17 @@
+#!/bin/bash
+#SBATCH -e /dev/null
+#SBATCH -o /dev/null
+#SBATCH -J bmcdb_client
+#SBATCH --mail-type=fail
+#SBATCH --mail-user=Fabian.Jakub@physik.uni-muenchen.de
+#SBATCH --time=04:00:00
+#SBATCH -p met-ws
+#SBATCH --mem=200M
+#SBATCH -n 1 -c 1
+#SBATCH --array=0001-1000
+
+. /home/f/Fabian.Jakub/.profile
+lpm local
+py local
+
+/home/f/Fabian.Jakub/tenstream/misc/bmcdb/client.py -N 100 -v -a 1e-4 -r 1e-2 --Ndir 3
