@@ -70,9 +70,9 @@ contains
         allocate (Edn(plex%Nlay + 1))
         allocate (Eup(plex%Nlay + 1))
 
-        call DMGetSection(plex%ediff_dm, ediff_section, ierr); call CHKERR(ierr)
-        call DMGetSection(plex%horizface1_dm, plck_section, ierr); call CHKERR(ierr)
-        call DMGetSection(plex%geom_dm, geom_section, ierr); call CHKERR(ierr)
+        call DMGetLocalSection(plex%ediff_dm, ediff_section, ierr); call CHKERR(ierr)
+        call DMGetLocalSection(plex%horizface1_dm, plck_section, ierr); call CHKERR(ierr)
+        call DMGetLocalSection(plex%geom_dm, geom_section, ierr); call CHKERR(ierr)
         call VecGetArrayReadF90(plex%geomVec, xgeoms, ierr); call CHKERR(ierr)
 
         call VecGetArrayReadF90(solver%kabs, xkabs, ierr); call CHKERR(ierr)
@@ -80,7 +80,7 @@ contains
         call VecGetArrayReadF90(solver%plck, xplck, ierr); call CHKERR(ierr)
         call VecGetArrayF90(solution%ediff, xediff, ierr); call CHKERR(ierr)
 
-        call DMGetSection(plex%abso_dm, abso_section, ierr); call CHKERR(ierr)
+        call DMGetLocalSection(plex%abso_dm, abso_section, ierr); call CHKERR(ierr)
         call VecGetArrayF90(solution%abso, xabso, ierr); call CHKERR(ierr)
 
         call ISGetIndicesF90(boundary_ids, xitoa, ierr); call CHKERR(ierr)
@@ -199,9 +199,9 @@ contains
       allocate (Edn(plex%Nlay + 1))
       allocate (Eup(plex%Nlay + 1))
 
-      call DMGetSection(plex%ediff_dm, ediff_section, ierr); call CHKERR(ierr)
-      call DMGetSection(plex%horizface1_dm, plck_section, ierr); call CHKERR(ierr)
-      call DMGetSection(plex%geom_dm, geom_section, ierr); call CHKERR(ierr)
+      call DMGetLocalSection(plex%ediff_dm, ediff_section, ierr); call CHKERR(ierr)
+      call DMGetLocalSection(plex%horizface1_dm, plck_section, ierr); call CHKERR(ierr)
+      call DMGetLocalSection(plex%geom_dm, geom_section, ierr); call CHKERR(ierr)
 
       call VecGetArrayReadF90(kabs, xkabs, ierr); call CHKERR(ierr)
       call VecGetArrayReadF90(ksca, xksca, ierr); call CHKERR(ierr)
@@ -209,7 +209,7 @@ contains
       call VecGetArrayReadF90(albedo, xalbedo, ierr); call CHKERR(ierr)
       call VecGetArrayReadF90(plex%geomVec, xgeoms, ierr); call CHKERR(ierr)
 
-      call DMGetSection(plex%abso_dm, abso_section, ierr); call CHKERR(ierr)
+      call DMGetLocalSection(plex%abso_dm, abso_section, ierr); call CHKERR(ierr)
       call VecGetArrayF90(solution%abso, xabso, ierr); call CHKERR(ierr)
 
       if (lthermal) then
@@ -220,7 +220,7 @@ contains
       call VecSet(solution%ediff, zero, ierr); call CHKERR(ierr)
       call VecGetArrayF90(solution%ediff, xediff, ierr); call CHKERR(ierr)
       if (lsolar) then
-        call DMGetSection(plex%edir_dm, edir_section, ierr); call CHKERR(ierr)
+        call DMGetLocalSection(plex%edir_dm, edir_section, ierr); call CHKERR(ierr)
         call VecSet(solution%edir, zero, ierr); call CHKERR(ierr)
         call VecGetArrayF90(solution%edir, xedir, ierr); call CHKERR(ierr)
       end if
@@ -410,9 +410,9 @@ contains
       col_Bfrac = 1
       col_tskin = 0
 
-      call DMGetSection(plex%ediff_dm, ediff_section, ierr); call CHKERR(ierr)
-      call DMGetSection(plex%horizface1_dm, plck_section, ierr); call CHKERR(ierr)
-      call DMGetSection(plex%geom_dm, geom_section, ierr); call CHKERR(ierr)
+      call DMGetLocalSection(plex%ediff_dm, ediff_section, ierr); call CHKERR(ierr)
+      call DMGetLocalSection(plex%horizface1_dm, plck_section, ierr); call CHKERR(ierr)
+      call DMGetLocalSection(plex%geom_dm, geom_section, ierr); call CHKERR(ierr)
 
       call VecGetArrayReadF90(kabs, xkabs, ierr); call CHKERR(ierr)
       call VecGetArrayReadF90(ksca, xksca, ierr); call CHKERR(ierr)
@@ -420,12 +420,12 @@ contains
       call VecGetArrayReadF90(albedo, xalbedo, ierr); call CHKERR(ierr)
       call VecGetArrayReadF90(plex%geomVec, xgeoms, ierr); call CHKERR(ierr)
 
-      call DMGetSection(plex%abso_dm, abso_section, ierr); call CHKERR(ierr)
+      call DMGetLocalSection(plex%abso_dm, abso_section, ierr); call CHKERR(ierr)
       call VecGetArrayF90(solution%abso, xabso, ierr); call CHKERR(ierr)
 
       call VecGetArrayF90(solution%ediff, xediff, ierr); call CHKERR(ierr)
       if (lsolar) then
-        call DMGetSection(plex%edir_dm, edir_section, ierr); call CHKERR(ierr)
+        call DMGetLocalSection(plex%edir_dm, edir_section, ierr); call CHKERR(ierr)
         call VecGetArrayF90(solution%edir, xedir, ierr); call CHKERR(ierr)
       end if
 
@@ -577,11 +577,11 @@ contains
     if (.not. allocated(solver%plex%nca_dm)) call generate_NCA_dm(solver%plex)
     call DMGetLocalVector(solver%plex%nca_dm, lnca, ierr); call CHKERR(ierr)
 
-    call DMGetSection(solver%plex%ediff_dm, ediff_section, ierr); call CHKERR(ierr)
-    call DMGetSection(solver%plex%horizface1_dm, plck_section, ierr); call CHKERR(ierr)
-    call DMGetSection(solver%plex%geom_dm, geom_section, ierr); call CHKERR(ierr)
-    call DMGetSection(solver%plex%abso_dm, abso_section, ierr); call CHKERR(ierr)
-    call DMGetSection(solver%plex%nca_dm, nca_section, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(solver%plex%ediff_dm, ediff_section, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(solver%plex%horizface1_dm, plck_section, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(solver%plex%geom_dm, geom_section, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(solver%plex%abso_dm, abso_section, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(solver%plex%nca_dm, nca_section, ierr); call CHKERR(ierr)
 
     call VecGetArrayReadF90(solver%kabs, xkabs, ierr); call CHKERR(ierr)
     call VecGetArrayReadF90(solver%plck, xplck, ierr); call CHKERR(ierr)

@@ -215,7 +215,7 @@ contains
       call dmplex_set_new_section(dmsf2d, 'plex_2d_to_3d_sf_graph_info', i1, &
                                   [i0], [ke1 + ke], [ke1 + ke], [ke1 + ke])
 
-      call DMGetSection(dmsf2d, section_2d_to_3d, ierr); call CHKERR(ierr)
+      call DMGetLocalSection(dmsf2d, section_2d_to_3d, ierr); call CHKERR(ierr)
       call PetscObjectViewFromOptions(section_2d_to_3d, PETSC_NULL_SECTION, &
                                       '-show_dm2d_section_2d_to_3d', ierr); call CHKERR(ierr)
 
@@ -742,7 +742,7 @@ contains
     case default
       call CHKERR(1_mpiint, 'cannot handle dm with depth: '//toStr(depth))
     end select
-    call DMGetSection(owner_dm, sec, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(owner_dm, sec, ierr); call CHKERR(ierr)
 
     call DMPlexGetDepthStratum(owner_dm, depth, cStart, cEnd, ierr); call CHKERR(ierr) ! cells
     do icell = cStart, cEnd - 1
@@ -1568,7 +1568,7 @@ contains
     end if
 
     if (present(dm)) then
-      call DMGetSection(dm, lsection, ierr); call CHKERR(ierr)
+      call DMGetLocalSection(dm, lsection, ierr); call CHKERR(ierr)
       call PetscSectionGetStorageSize(lsection, section_size, ierr); call CHKERR(ierr)
       call CHKERR(int(localsize - section_size, mpiint), &
                   'Default section of the DM does not fit with the local input array size'// &
@@ -1613,7 +1613,7 @@ contains
 
     call DMClone(dm2d_serial, dm2d_serial_clone, ierr); call CHKERR(ierr)
     call dmplex_set_new_section(dm2d_serial_clone, 'face_section', i1, [i0], [ke], [i0], [i0])
-    call DMGetSection(dm2d_serial_clone, rank0section, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(dm2d_serial_clone, rank0section, ierr); call CHKERR(ierr)
 
     call DMGetGlobalVector(dm2d_serial_clone, rank0vec, ierr); call CHKERR(ierr)
     call Vecset(rank0vec, 0._ireals, ierr); call CHKERR(ierr)
@@ -1788,7 +1788,7 @@ contains
     call CHKERR(int(ke - (plex%Nlay), mpiint), &
                 'vertical vec sizes do not match '//toStr(ke)//' vs '//toStr(plex%Nlay)//' => '//toStr(ke - (plex%Nlay)))
 
-    call DMGetSection(plex%cell1_dm, sec, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(plex%cell1_dm, sec, ierr); call CHKERR(ierr)
 
     call VecGetArrayF90(vec, xv, ierr); call CHKERR(ierr)
 
@@ -1828,7 +1828,7 @@ contains
     call CHKERR(int(N - (plex%Nlay + 1), mpiint), &
                 'vertical vec sizes do not match '//toStr(N)//' vs '//toStr(plex%Nlay + 1)//' => '//toStr(N - (plex%Nlay + 1)))
 
-    call DMGetSection(plex%horizface1_dm, sec, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(plex%horizface1_dm, sec, ierr); call CHKERR(ierr)
 
     call VecGetArrayF90(vec, xv, ierr); call CHKERR(ierr)
 
@@ -1876,7 +1876,7 @@ contains
       end if
     end if
 
-    call DMGetSection(plex%cell1_dm, sec, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(plex%cell1_dm, sec, ierr); call CHKERR(ierr)
 
     call VecGetArrayReadF90(vec, xv, ierr); call CHKERR(ierr)
 

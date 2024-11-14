@@ -307,7 +307,7 @@ contains
       call get_petsc_opt(PETSC_NULL_CHARACTER, "-check_height_for_consistency", ldocheck, lflg, ierr); call CHKERR(ierr)
       if (.not. ldocheck) return
 
-      call DMGetSection(plex%geom_dm, geom_section, ierr); call CHKERR(ierr)
+      call DMGetLocalSection(plex%geom_dm, geom_section, ierr); call CHKERR(ierr)
       call VecGetArrayReadF90(plex%geomVec, xgeoms, ierr); call CHKERR(ierr)
 
       do icell = plex%cStart, plex%cEnd - 1
@@ -403,7 +403,7 @@ contains
     call DMClone(dm, facedm, ierr); call CHKERR(ierr)
 
     call dmplex_set_new_section(facedm, 'Face_Section', i1, [i0], [i1], [i0], [i0])  ! Contains 1 dof on each side
-    call DMGetSection(facedm, facesection, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(facedm, facesection, ierr); call CHKERR(ierr)
 
     call DMGetGlobalVector(facedm, gVec, ierr); call CHKERR(ierr)
     call VecSet(gVec, zero, ierr); call CHKERR(ierr)
@@ -501,7 +501,7 @@ contains
 
     call DMClone(faceVec_dm, celldm, ierr); ; call CHKERR(ierr)
 
-    call DMGetSection(faceVec_dm, faceVecSection, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(faceVec_dm, faceVecSection, ierr); call CHKERR(ierr)
 
     call DMGetLocalVector(faceVec_dm, faceVec, ierr); call CHKERR(ierr)
     call DMGlobalToLocalBegin(faceVec_dm, global_faceVec, INSERT_VALUES, faceVec, ierr); call CHKERR(ierr)
@@ -533,7 +533,7 @@ contains
 
     call dmplex_set_new_section(celldm, 'Faces_to_Cells_Section', i1, [max_num_dof], [i0], [i0], [i0])
 
-    call DMGetSection(celldm, cellSection, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(celldm, cellSection, ierr); call CHKERR(ierr)
     call DMGetLocalVector(celldm, cellVec, ierr); call CHKERR(ierr)
     call VecSet(cellVec, zero, ierr); call CHKERR(ierr)
 
@@ -625,7 +625,7 @@ contains
                                 [i3, i3, i1, i0], &
                                 [i0, i0, i1, i0], &
                                 [i0, i0, i0, i0])
-    call DMGetSection(dm, geomSection, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(dm, geomSection, ierr); call CHKERR(ierr)
     call PetscObjectViewFromOptions(geomSection, PETSC_NULL_SECTION, "-show_dm_geom_section", ierr); call CHKERR(ierr)
 
     call DMGetCoordinatesLocal(dm, coordinates, ierr); call CHKERR(ierr)
@@ -972,7 +972,7 @@ contains
 
     max_constrained_k = -1
 
-    call DMGetSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
     call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
     do icell = plex%cStart, plex%cEnd - 1
@@ -1110,7 +1110,7 @@ contains
 
     call gen_section(section, Ndof=i1)
 
-    call DMSetSection(dm, section, ierr); call CHKERR(ierr)
+    call DMSetLocalSection(dm, section, ierr); call CHKERR(ierr)
     call PetscSectionDestroy(section, ierr); call CHKERR(ierr)
   contains
     subroutine gen_section(section, Ndof)
@@ -1161,7 +1161,7 @@ contains
     call PetscObjectGetComm(ediffdm, comm, ierr); call CHKERR(ierr)
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
-    call DMGetSection(ediffdm, section, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(ediffdm, section, ierr); call CHKERR(ierr)
     call PetscSectionGetNumFields(section, num_fields, ierr); call CHKERR(ierr)
 
     call DMPlexGetCone(ediffdm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
@@ -1263,7 +1263,7 @@ contains
 
     call DMPlexGetDepthStratum(plex%dm, i2, fStart, fEnd, ierr); call CHKERR(ierr) ! cells
 
-    call DMGetSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
     call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
     do iface = fStart, fEnd - 1
@@ -1345,7 +1345,7 @@ contains
                                   [i0, i0, i0, i0], &
                                   [i0, i0, i0, i0])
     end if
-    call DMGetSection(wedge_orientation_dm, wedgeSection, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(wedge_orientation_dm, wedgeSection, ierr); call CHKERR(ierr)
     call PetscObjectViewFromOptions(wedgeSection, PETSC_NULL_SECTION, '-show_WedgeSection', ierr); call CHKERR(ierr)
 
     if (.not. allocated(wedge_orientation)) then
@@ -1353,7 +1353,7 @@ contains
       call DMCreateGlobalVector(wedge_orientation_dm, wedge_orientation, ierr); call CHKERR(ierr)
       call PetscObjectSetName(wedge_orientation, 'WedgeOrient', ierr); call CHKERR(ierr)
     end if
-    call DMGetSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
 
     call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
@@ -2356,7 +2356,7 @@ contains
 
     if (myid .eq. 0) then
       if (.not. allocated(plex%geom_dm)) stop 'get_normal_of_first_TOA_face::needs allocated geom_dm first'
-      call DMGetSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
+      call DMGetLocalSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
       call DMGetStratumIS(plex%geom_dm, 'DomainBoundary', TOAFACE, toa_ids, ierr); call CHKERR(ierr)
 
       if (toa_ids .eq. PETSC_NULL_IS) then ! dont have TOA points
@@ -2427,7 +2427,7 @@ contains
     call DMClone(dm3d, facedm, ierr); call CHKERR(ierr)
     call gen_face_section(facedm, i1, i0, i1, face_section)
 
-    call DMSetSection(facedm, face_section, ierr); call CHKERR(ierr)
+    call DMSetLocalSection(facedm, face_section, ierr); call CHKERR(ierr)
 
     call DMClone(dm3d, vertdm, ierr); call CHKERR(ierr)
     call dmplex_set_new_section(vertdm, 'vert_section', i1, [i0], [i0], [i0], [i1])
@@ -2521,8 +2521,8 @@ contains
     !call PetscObjectGetComm(facedm, comm, ierr); call CHKERR(ierr)
     !call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
-    call DMGetSection(facedm, face_section, ierr); call CHKERR(ierr)
-    call DMGetSection(vertdm, vert_section, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(facedm, face_section, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(vertdm, vert_section, ierr); call CHKERR(ierr)
 
     if (.not. allocated(vertvec)) then
       allocate (vertvec)
@@ -2661,7 +2661,7 @@ contains
           & top_area(plex%Nlay, 0), &
           & bot_area(plex%Nlay, 0))
       else
-        call DMGetSection(geom_dm, geom_section, ierr); call CHKERR(ierr)
+        call DMGetLocalSection(geom_dm, geom_section, ierr); call CHKERR(ierr)
         call VecGetArrayReadF90(plex%geomVec, xgeoms, ierr); call CHKERR(ierr)
         call ISGetIndicesF90(boundary_ids, xitoa, ierr); call CHKERR(ierr)
 

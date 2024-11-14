@@ -462,9 +462,9 @@ contains
         ! need absorption as W, not W/m3 to handle collapsed area correctly
         associate (plex => rayli_info%plex)
           call VecCopy(plex_solution%abso, abso_in_W, ierr); call CHKERR(ierr)
-          call DMGetSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
+          call DMGetLocalSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
           call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
-          call DMGetSection(plex%abso_dm, abso_section, ierr); call CHKERR(ierr)
+          call DMGetLocalSection(plex%abso_dm, abso_section, ierr); call CHKERR(ierr)
           call VecGetArrayF90(abso_in_W, xabso, ierr); call CHKERR(ierr)
           call DMPlexGetHeightStratum(plex%abso_dm, i0, cStart, cEnd, ierr); call CHKERR(ierr) ! cells
           do icell = cStart, cEnd - 1
@@ -866,7 +866,7 @@ contains
             & Cdir%glob_ym], &
             & pprts_offsets)
 
-          call DMGetSection(ri%plex%edir_dm, edirsection, ierr); call CHKERR(ierr)
+          call DMGetLocalSection(ri%plex%edir_dm, edirsection, ierr); call CHKERR(ierr)
 
           l = 0
           do j = 0, Cdir%glob_ym - 1
@@ -997,7 +997,7 @@ contains
             & Cdiff%glob_ym], &
             & pprts_offsets)
 
-          call DMGetSection(ri%plex%ediff_dm, ediffsection, ierr); call CHKERR(ierr)
+          call DMGetLocalSection(ri%plex%ediff_dm, ediffsection, ierr); call CHKERR(ierr)
 
           l = 0
           do j = 0, Cdiff%glob_ym - 1
@@ -1201,7 +1201,7 @@ contains
             & pprts_offsets)
 
           if (.not. allocated(ri%plex%cell1_dm)) call CHKERR(1_mpiint, 'ri%plex%cell1_dm not allocated but needed')
-          call DMGetSection(ri%plex%cell1_dm, cellSection, ierr); call CHKERR(ierr)
+          call DMGetLocalSection(ri%plex%cell1_dm, cellSection, ierr); call CHKERR(ierr)
 
           l = 0
           do j = 0, C1%glob_ym - 1
