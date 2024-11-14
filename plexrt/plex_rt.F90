@@ -357,7 +357,7 @@ contains
       call VecGetArrayReadF90(viwc, xiwc, ierr); call CHKERR(ierr)
     end if
 
-    call DMGetSection(solver%plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(solver%plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
     call VecGetArrayReadF90(solver%plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
     call VecGetArrayF90(solver%kabs, xkabs, ierr); call CHKERR(ierr)
@@ -476,7 +476,7 @@ contains
     if (.not. allocated(plex)) call CHKERR(1_mpiint, 'plex has to be allocated')
 
     call PetscObjectGetComm(ediffdm, comm, ierr); call CHKERR(ierr)
-    call DMGetSection(ediffdm, ediffSection, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(ediffdm, ediffSection, ierr); call CHKERR(ierr)
 
     ! Compute maximum number of dof per cell
     max_num_dof = 0
@@ -1009,8 +1009,8 @@ contains
     call VecGetArrayReadF90(ksca, xksca, ierr); call CHKERR(ierr)
     call VecGetArrayReadF90(g, xg, ierr); call CHKERR(ierr)
 
-    call DMGetSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
-    call DMGetSection(plex%wedge_orientation_dm, wedgeSection, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(plex%wedge_orientation_dm, wedgeSection, ierr); call CHKERR(ierr)
 
     call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
     call VecGetArrayReadF90(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
@@ -1125,8 +1125,8 @@ contains
     call VecGetArrayReadF90(ksca, xksca, ierr); call CHKERR(ierr)
     call VecGetArrayReadF90(g, xg, ierr); call CHKERR(ierr)
 
-    call DMGetSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
-    call DMGetSection(plex%wedge_orientation_dm, wedgeSection, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(plex%wedge_orientation_dm, wedgeSection, ierr); call CHKERR(ierr)
 
     call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
     call VecGetArrayReadF90(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
@@ -1233,8 +1233,8 @@ contains
     call VecGetArrayReadF90(ksca, xksca, ierr); call CHKERR(ierr)
     call VecGetArrayReadF90(g, xg, ierr); call CHKERR(ierr)
 
-    call DMGetSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
-    call DMGetSection(plex%wedge_orientation_dm, wedgeSection, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(plex%wedge_orientation_dm, wedgeSection, ierr); call CHKERR(ierr)
 
     call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
     call VecGetArrayReadF90(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
@@ -1455,7 +1455,7 @@ contains
     call PetscObjectGetComm(wedge_orientation_dm, comm, ierr); call CHKERR(ierr)
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
-    call DMGetSection(wedge_orientation_dm, wedgeSection, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(wedge_orientation_dm, wedgeSection, ierr); call CHKERR(ierr)
     call VecGetArrayReadF90(wedge_orientation, xorient, ierr); call CHKERR(ierr)
 
     call DMGetStratumIS(plex%edir_dm, 'DomainBoundary', TOAFACE, boundary_ids, ierr); call CHKERR(ierr)
@@ -1576,10 +1576,10 @@ contains
 
     if (.not. allocated(plex%geom_dm)) call CHKERR(myid + 1, 'get_normal_of_first_TOA_face::needs allocated geom_dm first')
 
-    call DMGetSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
     call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
-    call DMGetSection(edirdm, edirsection, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(edirdm, edirsection, ierr); call CHKERR(ierr)
     call PetscObjectViewFromOptions(edirsection, PETSC_NULL_SECTION, '-show_src_section', ierr); call CHKERR(ierr)
 
     ! Now lets get vectors!
@@ -1831,11 +1831,11 @@ contains
       call DMCreateGlobalVector(ediffdm, srcVec, ierr); call CHKERR(ierr)
       call PetscObjectSetName(srcVec, 'DiffSrcVec', ierr); call CHKERR(ierr)
     end if
-    call DMGetSection(ediffdm, ediffSection, ierr); call CHKERR(ierr)
-    call DMGetSection(plckdm, plckSection, ierr); call CHKERR(ierr)
-    call DMGetSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
-    call DMGetSection(plex%wedge_orientation_dm, wedgeSection, ierr); call CHKERR(ierr)
-    call DMGetSection(plex%srfc_boundary_dm, srfcSection, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(ediffdm, ediffSection, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(plckdm, plckSection, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(plex%wedge_orientation_dm, wedgeSection, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(plex%srfc_boundary_dm, srfcSection, ierr); call CHKERR(ierr)
 
     call VecGetArrayReadF90(kabs, xkabs, ierr); call CHKERR(ierr)
     call VecGetArrayReadF90(ksca, xksca, ierr); call CHKERR(ierr)
@@ -1897,7 +1897,7 @@ contains
           .not. all([present(edirdm), present(edirVec)])) &
         call CHKERR(1_mpiint, 'either provide all vars for direct radiation or none')
 
-      call DMGetSection(edirdm, edirSection, ierr); call CHKERR(ierr)
+      call DMGetLocalSection(edirdm, edirSection, ierr); call CHKERR(ierr)
       call DMGetLocalVector(edirdm, ledirVec, ierr); call CHKERR(ierr)
 
       call DMGlobalToLocalBegin(edirdm, edirVec, INSERT_VALUES, ledirVec, ierr); call CHKERR(ierr)
@@ -2343,7 +2343,7 @@ contains
       call KSPGetPC(ksp, pc, ierr); call CHKERR(ierr)
       call MatGetLocalToGlobalMapping(A, rmapping, cmapping, ierr); call CHKERR(ierr)
       call MatGetOwnershipRange(A, mStart, mEnd, ierr); call CHKERR(ierr)
-      call DMGetSection(dm, psection, ierr); call CHKERR(ierr)
+      call DMGetLocalSection(dm, psection, ierr); call CHKERR(ierr)
       call PetscSectionGetNumFields(psection, numfields, ierr); call CHKERR(ierr)
       call DMPlexGetDepthStratum(dm, i3, cStart, cEnd, ierr); call CHKERR(ierr)
 
@@ -2531,10 +2531,10 @@ contains
     !if(ldebug) print *,'plex_rt::scale_facevec...'
     call mpi_comm_rank(plex%comm, myid, ierr); call CHKERR(ierr)
 
-    call DMGetSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
     call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
-    call DMGetSection(face_dm, faceSection, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(face_dm, faceSection, ierr); call CHKERR(ierr)
 
     call DMGetLocalVector(face_dm, faceVec, ierr); call CHKERR(ierr)
 
@@ -2607,8 +2607,8 @@ contains
     if (.not. allocated(plex%wedge_orientation_dm)) &
       call CHKERR(1_mpiint, 'wedge_orientation_dm has to allocated in order to create an Edir Matrix')
 
-    call DMGetSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
-    call DMGetSection(plex%wedge_orientation_dm, wedgeSection, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(plex%wedge_orientation_dm, wedgeSection, ierr); call CHKERR(ierr)
 
     call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
     call VecGetArrayReadF90(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
@@ -2617,7 +2617,7 @@ contains
     call VecGetArrayReadF90(ksca, xksca, ierr); call CHKERR(ierr)
     call VecGetArrayReadF90(g, xg, ierr); call CHKERR(ierr)
 
-    call DMGetSection(plex%edir_dm, sec, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(plex%edir_dm, sec, ierr); call CHKERR(ierr)
     call PetscObjectViewFromOptions(sec, PETSC_NULL_SECTION, '-show_edir_loc_section', ierr); call CHKERR(ierr)
 
     if (allocated(A)) then
@@ -3074,17 +3074,17 @@ contains
     if (.not. allocated(g)) call CHKERR(1_mpiint, 'g      has to be allocated')
     if (.not. allocated(albedo)) call CHKERR(1_mpiint, 'albedo has to be allocated')
 
-    call DMGetSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
     call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
-    call DMGetSection(plex%wedge_orientation_dm, wedgeSection, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(plex%wedge_orientation_dm, wedgeSection, ierr); call CHKERR(ierr)
     call VecGetArrayReadF90(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
 
     call VecGetArrayReadF90(kabs, xkabs, ierr); call CHKERR(ierr)
     call VecGetArrayReadF90(ksca, xksca, ierr); call CHKERR(ierr)
     call VecGetArrayReadF90(g, xg, ierr); call CHKERR(ierr)
 
-    call DMGetSection(plex%ediff_dm, ediffSection, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(plex%ediff_dm, ediffSection, ierr); call CHKERR(ierr)
 
     if (allocated(A)) then
       ldestroy_mat = .false.
@@ -3146,7 +3146,7 @@ contains
       call DMGetStratumIS(plex%geom_dm, 'DomainBoundary', BOTFACE, bc_ids, ierr); call CHKERR(ierr)
       if (PetscObjectIsNull(bc_ids)) then ! dont have surface points
       else
-        call DMGetSection(plex%srfc_boundary_dm, srfcSection, ierr); call CHKERR(ierr)
+        call DMGetLocalSection(plex%srfc_boundary_dm, srfcSection, ierr); call CHKERR(ierr)
         call VecGetArrayReadF90(albedo, xalbedo, ierr); call CHKERR(ierr)
         call ISGetIndicesF90(bc_ids, xi, ierr); call CHKERR(ierr)
         do i = 1, size(xi)
@@ -3650,11 +3650,11 @@ contains
 
     !if(ldebug) print *,'plex_rt::compute_edir_absorption....'
 
-    call DMGetSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
     call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
-    call DMGetSection(plex%edir_dm, edir_section, ierr); call CHKERR(ierr)
-    call DMGetSection(plex%abso_dm, abso_section, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(plex%edir_dm, edir_section, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(plex%abso_dm, abso_section, ierr); call CHKERR(ierr)
 
     call DMPlexGetHeightStratum(plex%abso_dm, i0, cStart, cEnd, ierr); call CHKERR(ierr) ! cells
 
@@ -3669,7 +3669,7 @@ contains
 
     if (.not. allocated(plex%wedge_orientation_dm)) &
       call CHKERR(myid + 1, 'called compute_edir_absorption with a dm which is not allocated: plex%wedge_orientation_dm?')
-    call DMGetSection(plex%wedge_orientation_dm, wedgeSection, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(plex%wedge_orientation_dm, wedgeSection, ierr); call CHKERR(ierr)
     call VecGetArrayReadF90(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
 
     do icell = cStart, cEnd - 1
@@ -3754,11 +3754,11 @@ contains
 
       !if(ldebug) print *,'plex_rt::compute_edir_absorption....'
 
-      call DMGetSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
+      call DMGetLocalSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
       call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
-      call DMGetSection(plex%edir_dm, edir_section, ierr); call CHKERR(ierr)
-      call DMGetSection(plex%abso_dm, abso_section, ierr); call CHKERR(ierr)
+      call DMGetLocalSection(plex%edir_dm, edir_section, ierr); call CHKERR(ierr)
+      call DMGetLocalSection(plex%abso_dm, abso_section, ierr); call CHKERR(ierr)
 
       call VecGetArrayReadF90(solver%kabs, xkabs, ierr); call CHKERR(ierr)
       call VecGetArrayReadF90(solver%ksca, xksca, ierr); call CHKERR(ierr)
@@ -3777,7 +3777,7 @@ contains
 
       if (.not. allocated(plex%wedge_orientation_dm)) &
         call CHKERR(myid + 1, 'called compute_edir_absorption with a dm which is not allocated: plex%wedge_orientation_dm?')
-      call DMGetSection(plex%wedge_orientation_dm, wedgeSection, ierr); call CHKERR(ierr)
+      call DMGetLocalSection(plex%wedge_orientation_dm, wedgeSection, ierr); call CHKERR(ierr)
       call VecGetArrayReadF90(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
 
       do icell = cStart, cEnd - 1
@@ -3890,11 +3890,11 @@ contains
 
     !if(ldebug) print *,'plex_rt::compute_ediff_absorption....'
 
-    call DMGetSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
     call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
-    call DMGetSection(plex%ediff_dm, ediff_section, ierr); call CHKERR(ierr)
-    call DMGetSection(plex%abso_dm, abso_section, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(plex%ediff_dm, ediff_section, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(plex%abso_dm, abso_section, ierr); call CHKERR(ierr)
 
     call DMPlexGetHeightStratum(plex%abso_dm, i0, cStart, cEnd, ierr); call CHKERR(ierr) ! cells
 
@@ -4000,18 +4000,18 @@ contains
 
     !if(ldebug) print *,'plex_rt::compute_ediff_absorption....'
 
-    call DMGetSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
     call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
-    call DMGetSection(plex%wedge_orientation_dm, wedgeSection, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(plex%wedge_orientation_dm, wedgeSection, ierr); call CHKERR(ierr)
     call VecGetArrayReadF90(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
 
     call VecGetArrayReadF90(solver%kabs, xkabs, ierr); call CHKERR(ierr)
     call VecGetArrayReadF90(solver%ksca, xksca, ierr); call CHKERR(ierr)
     call VecGetArrayReadF90(solver%g, xg, ierr); call CHKERR(ierr)
 
-    call DMGetSection(plex%ediff_dm, ediff_section, ierr); call CHKERR(ierr)
-    call DMGetSection(plex%abso_dm, abso_section, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(plex%ediff_dm, ediff_section, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(plex%abso_dm, abso_section, ierr); call CHKERR(ierr)
 
     call DMPlexGetHeightStratum(plex%abso_dm, i0, cStart, cEnd, ierr); call CHKERR(ierr) ! cells
 
@@ -4228,10 +4228,10 @@ contains
                      solution, lWm2=.true., logevent=solver%logs%scale_flx)
 
       if (present(redir) .and. solution%lsolar_rad) then
-        call DMGetSection(solver%plex%edir_dm, edir_section, ierr); call CHKERR(ierr)
+        call DMGetLocalSection(solver%plex%edir_dm, edir_section, ierr); call CHKERR(ierr)
       end if
-      call DMGetSection(solver%plex%ediff_dm, ediff_section, ierr); call CHKERR(ierr)
-      call DMGetSection(solver%plex%abso_dm, abso_section, ierr); call CHKERR(ierr)
+      call DMGetLocalSection(solver%plex%ediff_dm, ediff_section, ierr); call CHKERR(ierr)
+      call DMGetLocalSection(solver%plex%abso_dm, abso_section, ierr); call CHKERR(ierr)
 
       if (present(redir) .and. solution%lsolar_rad) then
         call VecGetArrayF90(solution%edir, xedir, ierr); call CHKERR(ierr)

@@ -86,7 +86,7 @@ contains
     call DMPlexGetDepthStratum(plex%dm, 3_iintegers, cStart, cEnd, ierr); call CHKERR(ierr) ! cells
     call DMPlexGetDepthStratum(plex%dm, 2_iintegers, fStart, fEnd, ierr); call CHKERR(ierr) ! faces
 
-    call DMGetSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
     call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
     associate (Ca => solver%C_one_atm, P => pprts_buildings, T => plex_buildings)
@@ -130,7 +130,7 @@ contains
 
     iface = -1
 
-    call DMGetSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
     call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
     call DMPlexGetCone(plex%dm, icell, faces_of_cell, ierr); call CHKERR(ierr)

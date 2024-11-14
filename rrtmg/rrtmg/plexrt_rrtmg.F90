@@ -648,7 +648,7 @@ contains
       return
     end if
 
-    call DMGetSection(solver%plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(solver%plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
     call VecGetArrayReadF90(solver%plex%geomVec, geoms, ierr); call CHKERR(ierr)
     call DMGetStratumIS(solver%plex%geom_dm, 'DomainBoundary', TOAFACE, toa_ids, ierr); call CHKERR(ierr)
     call ISGetIndicesF90(toa_ids, xitoa_faces, ierr); call CHKERR(ierr)

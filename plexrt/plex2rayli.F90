@@ -497,13 +497,13 @@ contains
     type(tPetscSection) :: edir_section, ediff_section, abso_section, geomSection
     integer(mpiint) :: ierr
 
-    call DMGetSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
     call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
     ! --------------------------- Direct Radiation ------------------
     call DMPlexGetDepthStratum(plex%dm, i2, fStart, fEnd, ierr); call CHKERR(ierr)
     if (solution%lsolar_rad) then
-      call DMGetSection(plex%edir_dm, edir_section, ierr); call CHKERR(ierr)
+      call DMGetLocalSection(plex%edir_dm, edir_section, ierr); call CHKERR(ierr)
       call VecGetArrayF90(solution%edir, xedir, ierr); call CHKERR(ierr)
       do iface = fStart, fEnd - 1
 
@@ -517,7 +517,7 @@ contains
     end if
 
     ! --------------------------- Diffuse Radiation -----------------
-    call DMGetSection(plex%ediff_dm, ediff_section, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(plex%ediff_dm, ediff_section, ierr); call CHKERR(ierr)
     call VecGetArrayF90(solution%ediff, xediff, ierr); call CHKERR(ierr)
 
     call DMGetStratumIS(plex%geom_dm, 'DomainBoundary', &
@@ -560,7 +560,7 @@ contains
     call VecRestoreArrayF90(solution%ediff, xediff, ierr); call CHKERR(ierr)
 
     ! --------------------------- Absorption ------------------------
-    call DMGetSection(plex%abso_dm, abso_section, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(plex%abso_dm, abso_section, ierr); call CHKERR(ierr)
     call VecGetArrayF90(solution%abso, xabso, ierr); call CHKERR(ierr)
     call DMPlexGetHeightStratum(plex%abso_dm, i0, cStart, cEnd, ierr); call CHKERR(ierr) ! cells
     do icell = cStart, cEnd - 1
@@ -624,7 +624,7 @@ contains
     call DMGetStratumIS(plex%geom_dm, 'DomainBoundary', TOAFACE, toa_ids, ierr); call CHKERR(ierr)
     call ISGetIndicesF90(toa_ids, xtoa_faces, ierr); call CHKERR(ierr)
     call DMPlexGetDepthStratum(plex%horizface1_dm, i2, fStart, fEnd, ierr); call CHKERR(ierr) ! faces
-    call DMGetSection(plex%horizface1_dm, horizface1Section, ierr); call CHKERR(ierr)
+    call DMGetLocalSection(plex%horizface1_dm, horizface1Section, ierr); call CHKERR(ierr)
 
     ! set Planck on surface
     call VecGetArrayReadF90(plck, xplanck, ierr); call CHKERR(ierr)
