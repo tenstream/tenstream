@@ -2200,6 +2200,7 @@ contains
 
     ierr = 0
 
+    fname = ''
     call get_petsc_opt(solver%prefix, '-pprts_dump_optprop', fname, lflg, ierr); call CHKERR(ierr)
     if (lflg) then
       if (len_trim(fname) .eq. 0) then

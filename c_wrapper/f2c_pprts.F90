@@ -379,6 +379,7 @@ contains
       if (ldebug) print *, 'pprts_f2c_get_result result_edn  first column', res_edn(:, 1, 1)
       if (ldebug) print *, 'pprts_f2c_get_result result_eup  first column', res_eup(:, 1, 1)
       if (ldebug) print *, 'pprts_f2c_get_result rabso first column', res_abso(:, 1, 1)
+      dump_fname(1) = ''
       call get_petsc_opt(PETSC_NULL_CHARACTER, "-f2c_dump_result", dump_fname(1), lflg, ierr); call CHKERR(ierr)
       if (lflg) then
         dump_fname(2) = "edir"; call ncwrite(dump_fname, res_edir, ierr); call CHKERR(ierr)
