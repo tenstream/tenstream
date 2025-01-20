@@ -324,7 +324,7 @@ contains
       call OPP%loadLUT_diff(comm, lskip_load_LUT_diff)
     end if
 
-    call OPP%scatter_LUTtables(comm, lskip_load_LUT_dir, lskip_load_LUT_diff)
+    call OPP%scatter_LUTtables(comm)
 
     OPP%initialized = .true.
 
@@ -1276,6 +1276,17 @@ contains
     !  T_dir, ':(', T_tol, ') //', S_diff, ':(', S_tol, ')'
   end subroutine
 
+!function lin_index_to_param(idx,rng,N)
+!    real(irealLUT) :: lin_index_to_param
+!    real(irealLUT),intent(in) :: idx,rng(2)
+!    integer(iintegers),intent(in) :: N
+!    if(N.gt.i1) then
+!      lin_index_to_param = rng(1) + (idx-1) * ( rng(2)-rng(1) ) / real(N-1, irealLUT)
+!    else
+!      lin_index_to_param = rng(1)
+!    endif
+!end function
+
   subroutine set_parameter_space(OPP)
     class(t_optprop_lut) :: OPP
     integer(mpiint) :: ierr
@@ -1328,9 +1339,8 @@ contains
     end select
   end subroutine
 
-  subroutine scatter_LUTtables(OPP, comm, lskip_load_LUT_dir, lskip_load_LUT_diff)
+  subroutine scatter_LUTtables(OPP, comm)
     integer(mpiint), intent(in) :: comm
-    logical, intent(in) :: lskip_load_LUT_dir, lskip_load_LUT_diff
     class(t_optprop_LUT) :: OPP
 
     integer(mpiint) :: myid, ierr
@@ -1339,72 +1349,57 @@ contains
     call MPI_Comm_rank(comm, myid, mpierr); call CHKERR(mpierr)
 
     if (luse_memory_map) then
-      if (.not. lskip_load_LUT_diff) then
-        mmap_ptr => null()
-        if (associated(OPP%Sdiff%c)) then
-          call arr_to_mmap(comm, trim(OPP%Sdiff%table_name_c(1))//'.Sdiff.mmap', mmap_ptr, ierr, OPP%Sdiff%c)
-          deallocate (OPP%Sdiff%c)
-        else
-          call arr_to_mmap(comm, trim(OPP%Sdiff%table_name_c(1))//'.Sdiff.mmap', mmap_ptr, ierr)
-        end if
-        OPP%Sdiff%c => mmap_ptr
-        call explain_missing_mmap_file(trim(OPP%Sdiff%base_table_name_c(1))//'.Sdiff.mmap', ierr)
+      mmap_ptr => null()
+      if (associated(OPP%Sdiff%c)) then
+        call arr_to_mmap(comm, trim(OPP%Sdiff%table_name_c(1))//'.Sdiff.mmap', mmap_ptr, ierr, OPP%Sdiff%c)
+        deallocate (OPP%Sdiff%c)
+      else
+        call arr_to_mmap(comm, trim(OPP%Sdiff%table_name_c(1))//'.Sdiff.mmap', mmap_ptr, ierr)
       end if
+      OPP%Sdiff%c => mmap_ptr
+      call explain_missing_mmap_file(trim(OPP%Sdiff%base_table_name_c(1))//'.Sdiff.mmap', ierr)
 
-      if (.not. lskip_load_LUT_dir) then
-        mmap_ptr => null()
-        if (associated(OPP%Sdir%c)) then
-          call arr_to_mmap(comm, trim(OPP%Sdir%table_name_c(1))//'.Sdir.mmap', mmap_ptr, ierr, OPP%Sdir%c)
-          deallocate (OPP%Sdir%c)
-        else
-          call arr_to_mmap(comm, trim(OPP%Sdir%table_name_c(1))//'.Sdir.mmap', mmap_ptr, ierr)
-        end if
-        OPP%Sdir%c => mmap_ptr
-        call explain_missing_mmap_file(trim(OPP%Sdir%base_table_name_c(1))//'.Sdir.mmap', ierr)
-
-        mmap_ptr => null()
-        if (associated(OPP%Tdir%c)) then
-          call arr_to_mmap(comm, trim(OPP%Tdir%table_name_c(1))//'.Tdir.mmap', mmap_ptr, ierr, OPP%Tdir%c)
-          deallocate (OPP%Tdir%c)
-        else
-          call arr_to_mmap(comm, trim(OPP%Tdir%table_name_c(1))//'.Tdir.mmap', mmap_ptr, ierr)
-        end if
-        OPP%Tdir%c => mmap_ptr
-        call explain_missing_mmap_file(trim(OPP%Sdir%base_table_name_c(1))//'.Tdir.mmap', ierr)
+      mmap_ptr => null()
+      if (associated(OPP%Sdir%c)) then
+        call arr_to_mmap(comm, trim(OPP%Sdir%table_name_c(1))//'.Sdir.mmap', mmap_ptr, ierr, OPP%Sdir%c)
+        deallocate (OPP%Sdir%c)
+      else
+        call arr_to_mmap(comm, trim(OPP%Sdir%table_name_c(1))//'.Sdir.mmap', mmap_ptr, ierr)
       end if
+      OPP%Sdir%c => mmap_ptr
+      call explain_missing_mmap_file(trim(OPP%Sdir%base_table_name_c(1))//'.Sdir.mmap', ierr)
+
+      mmap_ptr => null()
+      if (associated(OPP%Tdir%c)) then
+        call arr_to_mmap(comm, trim(OPP%Tdir%table_name_c(1))//'.Tdir.mmap', mmap_ptr, ierr, OPP%Tdir%c)
+        deallocate (OPP%Tdir%c)
+      else
+        call arr_to_mmap(comm, trim(OPP%Tdir%table_name_c(1))//'.Tdir.mmap', mmap_ptr, ierr)
+      end if
+      OPP%Tdir%c => mmap_ptr
+      call explain_missing_mmap_file(trim(OPP%Sdir%base_table_name_c(1))//'.Tdir.mmap', ierr)
 
     else
-      if (.not. lskip_load_LUT_dir) then
-        if (myid .eq. 0) then
-          if ((.not. associated(OPP%Sdir%c)) .or. (.not. associated(OPP%Tdir%c))) then
-            call CHKERR(1_mpiint, 'LUT data is not loaded. '//new_line('')// &
-                        '  Somehow we ended up in a situation where we would like to distribute'//new_line('')// &
-                        '  the LUT`s via MPI but rank 0 does not have the info. '//new_line('')// &
-                        '  Did you use the option: -skip_load_LUT ? '//new_line('')// &
-                        '  Maybe try to set it to -skip_load_LUT no')
-          end if
-        end if
-
-        if (mpi_logical_or(comm,.not. associated(OPP%Sdir%c))) then
-          call imp_bcast(comm, OPP%Sdir%c, 0_mpiint, ierr); call CHKERR(ierr)  ! DIRECT 2 DIRECT
-        end if
-
-        if (mpi_logical_or(comm,.not. associated(OPP%Tdir%c))) then
-          call imp_bcast(comm, OPP%Tdir%c, 0_mpiint, ierr); call CHKERR(ierr)  ! DIRECT 2 DIFFUSE
-        end if
-      end if
-
-      if (.not. lskip_load_LUT_diff) then
-        if (.not. associated(OPP%Sdiff%c)) then
+      if (myid .eq. 0) then
+        if (.not. associated(OPP%Sdir%c)) then
           call CHKERR(1_mpiint, 'LUT data is not loaded. '//new_line('')// &
                       '  Somehow we ended up in a situation where we would like to distribute'//new_line('')// &
                       '  the LUT`s via MPI but rank 0 does not have the info. '//new_line('')// &
                       '  Did you use the option: -skip_load_LUT ? '//new_line('')// &
                       '  Maybe try to set it to -skip_load_LUT no')
         end if
-        if (mpi_logical_or(comm,.not. associated(OPP%Sdiff%c))) then
-          call imp_bcast(comm, OPP%Sdiff%c, 0_mpiint, ierr); call CHKERR(ierr)
-        end if
+      end if
+
+      if (mpi_logical_or(comm,.not. associated(OPP%Sdir%c))) then
+        call imp_bcast(comm, OPP%Sdir%c, 0_mpiint, ierr); call CHKERR(ierr)  ! DIRECT 2 DIRECT
+      end if
+
+      if (mpi_logical_or(comm,.not. associated(OPP%Tdir%c))) then
+        call imp_bcast(comm, OPP%Tdir%c, 0_mpiint, ierr); call CHKERR(ierr)  ! DIRECT 2 DIFFUSE
+      end if
+
+      if (mpi_logical_or(comm,.not. associated(OPP%Sdiff%c))) then
+        call imp_bcast(comm, OPP%Sdiff%c, 0_mpiint, ierr); call CHKERR(ierr)
       end if
 
     end if
