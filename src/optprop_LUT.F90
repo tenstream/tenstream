@@ -132,7 +132,8 @@ module m_optprop_LUT
 
   type, abstract, extends(t_optprop_base) :: t_optprop_LUT
     type(t_table), allocatable :: Sdiff, Sdir, Tdir
-    logical :: initialized = .false., optprop_LUT_debug = ldebug_optprop
+    logical :: initialized = .false.
+    logical :: optprop_LUT_debug = ldebug_optprop
     character(default_str_len) :: lutbasename
 
   contains
@@ -220,13 +221,13 @@ contains
         OPP%lutbasename = trim(lut_basename)
         allocate (t_boxmc_3_6 :: OPP%bmc)
 
-      class is (t_optprop_LUT_3_10_for_ANN)
+      class is (t_optprop_LUT_3_10)
         OPP%dir_streams = 3
         OPP%diff_streams = 10
         OPP%lutbasename = trim(lut_basename)
         allocate (t_boxmc_3_10 :: OPP%bmc)
 
-      class is (t_optprop_LUT_3_10)
+      class is (t_optprop_LUT_3_10_for_ANN)
         OPP%dir_streams = 3
         OPP%diff_streams = 10
         OPP%lutbasename = trim(lut_basename)
@@ -757,7 +758,7 @@ contains
 
             call system_clock(clock_count, clock_count_rate)
             now = clock_count / clock_count_rate
-            if ((now - lastsavetime) .gt. LUT_dump_interval .or. (now - starttime) .gt. LUT_max_create_jobtime) then !every 30 minutes wall clock time, dump the LUT.
+            if (((now - lastsavetime) .gt. LUT_dump_interval) .or. ((now - starttime) .gt. LUT_max_create_jobtime)) then !every 30 minutes wall clock time, dump the LUT.
               print *, 'Dumping LUT after ', (now - lastsavetime) / 60, 'minutes'
               if (present(T)) then
                 print *, 'Writing table to file... ', char_arr_to_str(T%table_name_c)
