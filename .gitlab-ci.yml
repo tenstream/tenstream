@@ -38,10 +38,13 @@ variables:
     - echo -e "\e[0Ksection_start:`date +%s`:make[collapsed=true]\r\e[0KRun make"
     - make all -j || make all || exit 2
     - echo -e "\e[0Ksection_end:`date +%s`:make\r\e[0K"
+    - echo -e "\e[0Ksection_start:`date +%s`:dlLUT[collapsed=true]\r\e[0KDownloading LUTs"
+    - if [ ! -z "$LUT_TARGET" ]; then make $LUT_TARGET || exit 3; fi
+    - echo -e "\e[0Ksection_end:`date +%s`:dlLUT\r\e[0K"
     - echo -e "\e[0Ksection_start:`date +%s`:test[collapsed=true]\r\e[0KRun ctest"
     - CMD="ctest --output-on-failure $CTEST_ARGS"
     - echo $CMD
-    - $CMD &> >(tee $CI_PROJECT_DIR/test.log) || exit 3
+    - $CMD &> >(tee $CI_PROJECT_DIR/test.log) || exit 4
     - echo -e "\e[0Ksection_end:`date +%s`:test\r\e[0K"
   retry: 1
   variables:
@@ -149,13 +152,13 @@ debian-testing:
   tags:
     - docker.physik.lmu.de
   variables:
-    CTEST_ARGS: "-E ${TEST_FILTER_WITHOUT_LUTS}"
     MPIRUN_FLAGS: "--allow-run-as-root;--oversubscribe"
     PETSC_PRECISION: double
     PETSC_64_INTEGERS: 1
     PETSC_DEBUGGING: 1
     BUILD_TYPE: RELEASE
     CMAKE_OPTS: '-DCMAKE_Fortran_FLAGS=--std=legacy -DENABLE_PFUNIT=ON'
+    LUT_TARGET: 'download_common_luts'
 
 
 #intel-icc:
