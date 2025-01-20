@@ -18,7 +18,7 @@
 !-------------------------------------------------------------------------
 
 module m_optprop_parameters
-  use m_data_parameters, only: irealLUT, iintegers, default_str_len
+  use m_data_parameters, only: irealLUT, iintegers, default_str_len, share_dir
   implicit none
 
   !> \page optprop_parameters Parameters concerning the transport coefficients
@@ -33,13 +33,9 @@ module m_optprop_parameters
   !> Define the path to the Lookuptables
       !!
       !!  This has to be a reachable path for rank 0,
-      !!  At MIM in Munich please set to
-      !!  '/home/opt/cosmo_tica_lib/tenstream/optpropLUT/LUT'
-      !!  At ZMAW in Hamburg please set to
-      !!  '/scratch/mpi/mpiaes/m300362/tenstream_LUT/LUT'
   !-----------------------------------------
 
-  character(default_str_len) :: lut_basename = './LUT'
+  character(default_str_len) :: lut_basename = share_dir//'LUT'
 
   logical, parameter :: luse_memory_map = .true.
 
