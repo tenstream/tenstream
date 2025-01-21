@@ -218,6 +218,7 @@ contains
       integer(iintegers) :: i, timerange_nargs
       real(ireals), allocatable :: timerange(:)
 
+      fname = ''
       call get_petsc_opt(solver%prefix, '-specint_dump_input', &
         & fname, lflg, ierr); call CHKERR(ierr)
       if (lflg) then
