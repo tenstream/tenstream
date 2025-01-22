@@ -162,6 +162,20 @@ debian-testing:
     CMAKE_OPTS: '-DCMAKE_Fortran_FLAGS=--std=legacy -DENABLE_PFUNIT=ON'
     LUT_TARGET: 'download_common_luts'
 
+implicit:debian-testing:
+  extends: debian-testing
+  variables:
+    PETSC_OPTIONS: "-solar_dir_explicit no -solar_diff_explicit no -thermal_diff_explicit no"
+
+explicit:debian-testing:
+  extends: debian-testing
+  variables:
+    PETSC_OPTIONS: "-solar_dir_explicit -solar_diff_explicit -thermal_diff_explicit -thermal_diff_pc_sor_omega .5 -solar_diff_pc_sor_omega .5"
+
+matshell:debian-testing:
+  extends: debian-testing
+  variables:
+    PETSC_OPTIONS: "-solar_diff_shell -solar_diff_pc_type sor -thermal_diff_shell -thermal_diff_pc_type sor"
 
 #intel-icc:
 #  stage: build_docker
