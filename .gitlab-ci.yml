@@ -24,6 +24,7 @@ check_fprettify:pre:
 
 variables:
   DEBIAN_FRONTEND: noninteractive
+  TEST_FILTER_WITH_COMMON_LUTS: 'boxmc|LUT|test_pprts_symmetry|test_plexrt_fish|test_plexrt_rayli|test_plexrt_rrtmg_lw_sw'
   TEST_FILTER_WITHOUT_LUTS: 'boxmc|LUT|test_pprts_symmetry|test_rrtm_lw_Bsrfc|test_rrtm_lw_sw|test_pprts_specint|test_plexrt_fish|test_plexrt_rrtmg_lw_sw|test_pprts_absorption_by_coeff_divergence|test_plexrt_rayli'
 
 # Build Stage
@@ -152,6 +153,7 @@ debian-testing:
   tags:
     - docker.physik.lmu.de
   variables:
+    CTEST_ARGS: "-E ${TEST_FILTER_WITH_COMMON_LUTS}"
     MPIRUN_FLAGS: "--allow-run-as-root;--oversubscribe"
     PETSC_PRECISION: double
     PETSC_64_INTEGERS: 1
