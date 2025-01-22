@@ -554,22 +554,6 @@ add_custom_target(download_common_luts
   COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/misc/download_LUT.sh _diffuse_10.tau31.w020.aspect_zx23.g6.ds1000.nc.Sdiff.mmap4 ${TENSTREAM_SHARE_DIR}
   COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/misc/download_LUT.sh _direct_3_10.tau31.w020.aspect_zx23.g6.phi19.theta19.ds1000.nc.Sdir.mmap ${TENSTREAM_SHARE_DIR}
   COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/misc/download_LUT.sh _direct_3_10.tau31.w020.aspect_zx23.g6.phi19.theta19.ds1000.nc.Tdir.mmap ${TENSTREAM_SHARE_DIR}
-  COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/misc/download_LUT.sh _direct_8_10.tau31.w020.aspect_zx23.g6.phi19.theta19.ds1000.nc.Sdir.mmap ${TENSTREAM_SHARE_DIR}
-  COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/misc/download_LUT.sh _direct_8_10.tau31.w020.aspect_zx23.g6.phi19.theta19.ds1000.nc.Tdir.mmap ${TENSTREAM_SHARE_DIR}
-  COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/misc/download_LUT.sh _diffuse_16.tau31.w020.aspect_zx23.g6.ds1000.nc.Sdiff.mmap4 ${TENSTREAM_SHARE_DIR}
-  COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/misc/download_LUT.sh _direct_3_16.tau31.w020.aspect_zx23.g6.phi19.theta19.ds1000.nc.Sdir.mmap ${TENSTREAM_SHARE_DIR}
-  COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/misc/download_LUT.sh _direct_3_16.tau31.w020.aspect_zx23.g6.phi19.theta19.ds1000.nc.Tdir.mmap ${TENSTREAM_SHARE_DIR}
-  COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/misc/download_LUT.sh _direct_8_16.tau31.w020.aspect_zx23.g6.phi19.theta19.ds1000.nc.Sdir.mmap ${TENSTREAM_SHARE_DIR}
-  COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/misc/download_LUT.sh _direct_8_16.tau31.w020.aspect_zx23.g6.phi19.theta19.ds1000.nc.Tdir.mmap ${TENSTREAM_SHARE_DIR}
-  COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/misc/download_LUT.sh _diffuse_24.tau31.w020.aspect_zx23.g6.ds1000.nc.Sdiff.mmap ${TENSTREAM_SHARE_DIR}
-  COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/misc/download_LUT.sh _direct_3_24.tau31.w020.aspect_zx23.g6.phi19.theta19.ds1000.nc.Sdir.mmap ${TENSTREAM_SHARE_DIR}
-  COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/misc/download_LUT.sh _direct_3_24.tau31.w020.aspect_zx23.g6.phi19.theta19.ds1000.nc.Tdir.mmap ${TENSTREAM_SHARE_DIR}
-  COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/misc/download_LUT.sh _diffuse_8.tau31.w021.aspect_zx23.g6.wedge_coord_Cx7.wedge_coord_Cy7.ds1000.nc.Sdiff.mmap ${TENSTREAM_SHARE_DIR}
-  COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/misc/download_LUT.sh _diffuse_8.tau31.w021.aspect_zx23.g6.wedge_coord_Cx3.wedge_coord_Cy2.ds1000.nc.Sdiff.mmap ${TENSTREAM_SHARE_DIR}
-  COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/misc/download_LUT.sh _direct_5_8.tau15.w010.aspect_zx18.g6.wedge_coord_Cx7.wedge_coord_Cy7.param_phi19.param_theta13.ds1000.nc.Sdir.mmap ${TENSTREAM_SHARE_DIR}
-  COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/misc/download_LUT.sh _direct_5_8.tau15.w010.aspect_zx18.g6.wedge_coord_Cx7.wedge_coord_Cy7.param_phi19.param_theta13.ds1000.nc.Tdir.mmap ${TENSTREAM_SHARE_DIR}
-  COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/misc/download_LUT.sh _direct_5_8.tau31.w021.aspect_zx18.g6.wedge_coord_Cx3.wedge_coord_Cy2.param_phi19.param_theta13.ds1000.nc.Sdir.mmap ${TENSTREAM_SHARE_DIR}
-  COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/misc/download_LUT.sh _direct_5_8.tau31.w021.aspect_zx18.g6.wedge_coord_Cx3.wedge_coord_Cy2.param_phi19.param_theta13.ds1000.nc.Tdir.mmap ${TENSTREAM_SHARE_DIR}
   COMMENT "Download most common lookuptables" VERBATIM
   )
 add_custom_target(download_all_luts
