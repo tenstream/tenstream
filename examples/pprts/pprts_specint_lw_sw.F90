@@ -213,6 +213,19 @@ contains
                          nxproc=nxproc, nyproc=nyproc, &
                          icollapse=icollapse, &
                          opt_time=real(k, ireals))
+      sundir = spherical_2_cartesian(phi0 + .1 * k, theta0 - .1 * k)
+      if (allocated(edir)) then
+        print *, 'surface :: ', meanval(edir(nlev, :, :)), &
+          & meanval(edn(nlev, :, :)), meanval(eup(nlev, :, :)), meanval(abso(nlev - 1, :, :))
+      else
+        print *, 'surface :: ', meanval(edn(nlev, :, :)), meanval(eup(nlev, :, :)), meanval(abso(nlev - 1, :, :))
+      end if
+
+      if (allocated(edir)) then
+        print *, 'TOA :: ', meanval(edir(1, :, :)), meanval(edn(1, :, :)), meanval(eup(1, :, :)), meanval(abso(1, :, :))
+      else
+        print *, 'TOA :: ', meanval(edn(1, :, :)), meanval(eup(1, :, :)), meanval(abso(1, :, :))
+      end if
     end do
 
     allocate (hr(size(abso, 1), size(abso, 2), size(abso, 3)))
