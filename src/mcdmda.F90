@@ -209,7 +209,7 @@ contains
 
       if (solution%lsolar_rad) then
         allocate (edir(0:Cdir%dof - 1, C1%zs:C1%ze, C%gxs:C%gxe, C%gys:C%gye), source=0._ireal_dp)
-        photon_weight = edirTOA * real(solver%sun%costheta, ireals) &
+        photon_weight = edirTOA  &
                        & * solver%C_one_atm%xm * solver%C_one_atm%ym / real(Nphotons_local, ireals)
       else
         photon_weight = 0
