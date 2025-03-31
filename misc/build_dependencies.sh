@@ -50,7 +50,7 @@ printf "Using:\n\
   \n"
 
 PETSC_URL=https://gitlab.com/petsc/petsc.git
-PETSC_BRANCH=main
+PETSC_BRANCH=${PETSC_BRANCH:-main}
 
 if [ -e "$PETSC_DIR" ]
 then
