@@ -139,6 +139,30 @@ ubuntu-rolling:
 #    CMAKE_OPTS: '-DCMAKE_Fortran_FLAGS=--std=legacy -DENABLE_GCOV=ON'
 #    CODECOV_TOKEN: "7d5206f3-f1e3-4704-8bc3-1ee443e4ee49"
 
+debian-stable:
+  stage: build_docker
+  extends: .build:default
+  needs: ["check_fprettify:pre"]
+  image: debian:stable
+  before_script:
+    - echo -e "\e[0Ksection_start:`date +%s`:apt_install[collapsed=true]\r\e[0KInstall APT packages"
+    - apt-get -qq update
+    - apt-get -qq install -fy build-essential cmake gfortran git python3 openmpi-bin libopenmpi-dev libopenblas-dev curl pkg-config
+    - echo -e "\e[0Ksection_end:`date +%s`:apt_install\r\e[0K"
+    - *template_build_PETSC
+  tags:
+    - docker.physik.lmu.de
+  variables:
+    CTEST_ARGS: "-E ${TEST_FILTER_WITH_COMMON_LUTS}"
+    MPIRUN_FLAGS: "--allow-run-as-root;--oversubscribe"
+    PETSC_BRANCH: release
+    PETSC_PRECISION: double
+    PETSC_64_INTEGERS: 1
+    PETSC_DEBUGGING: 1
+    BUILD_TYPE: RELEASE
+    CMAKE_OPTS: '-DCMAKE_Fortran_FLAGS=--std=legacy -DENABLE_PFUNIT=ON'
+    LUT_TARGET: 'download_common_luts'
+
 debian-testing:
   stage: build_docker
   extends: .build:default
