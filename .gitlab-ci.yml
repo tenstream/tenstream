@@ -24,7 +24,9 @@ check_fprettify:pre:
 
 variables:
   DEBIAN_FRONTEND: noninteractive
+  TEST_FILTER_WITH_COMMON_LUTS: 'boxmc|LUT|test_pprts_symmetry|test_plexrt_fish|test_plexrt_rayli|test_plexrt_rrtmg_lw_sw'
   TEST_FILTER_WITHOUT_LUTS: 'boxmc|LUT|test_pprts_symmetry|test_rrtm_lw_Bsrfc|test_rrtm_lw_sw|test_pprts_specint|test_plexrt_fish|test_plexrt_rrtmg_lw_sw|test_pprts_absorption_by_coeff_divergence|test_plexrt_rayli'
+  PETSC_BRANCH: v3.22.3
 
 # Build Stage
 .build:default:
@@ -38,10 +40,13 @@ variables:
     - echo -e "\e[0Ksection_start:`date +%s`:make[collapsed=true]\r\e[0KRun make"
     - make all -j || make all || exit 2
     - echo -e "\e[0Ksection_end:`date +%s`:make\r\e[0K"
+    - echo -e "\e[0Ksection_start:`date +%s`:dlLUT[collapsed=true]\r\e[0KDownloading LUTs"
+    - if [ ! -z "$LUT_TARGET" ]; then make $LUT_TARGET || exit 3; fi
+    - echo -e "\e[0Ksection_end:`date +%s`:dlLUT\r\e[0K"
     - echo -e "\e[0Ksection_start:`date +%s`:test[collapsed=true]\r\e[0KRun ctest"
     - CMD="ctest --output-on-failure $CTEST_ARGS"
     - echo $CMD
-    - $CMD &> >(tee $CI_PROJECT_DIR/test.log) || exit 3
+    - $CMD &> >(tee $CI_PROJECT_DIR/test.log) || exit 4
     - echo -e "\e[0Ksection_end:`date +%s`:test\r\e[0K"
   retry: 1
   variables:
@@ -135,6 +140,29 @@ ubuntu-rolling:
 #    CMAKE_OPTS: '-DCMAKE_Fortran_FLAGS=--std=legacy -DENABLE_GCOV=ON'
 #    CODECOV_TOKEN: "7d5206f3-f1e3-4704-8bc3-1ee443e4ee49"
 
+debian-stable:
+  stage: build_docker
+  extends: .build:default
+  needs: ["check_fprettify:pre"]
+  image: debian:stable
+  before_script:
+    - echo -e "\e[0Ksection_start:`date +%s`:apt_install[collapsed=true]\r\e[0KInstall APT packages"
+    - apt-get -qq update
+    - apt-get -qq install -fy build-essential cmake gfortran git python3 openmpi-bin libopenmpi-dev libopenblas-dev curl pkg-config
+    - echo -e "\e[0Ksection_end:`date +%s`:apt_install\r\e[0K"
+    - *template_build_PETSC
+  tags:
+    - docker.physik.lmu.de
+  variables:
+    CTEST_ARGS: "-E ${TEST_FILTER_WITH_COMMON_LUTS}"
+    MPIRUN_FLAGS: "--allow-run-as-root;--oversubscribe"
+    PETSC_PRECISION: double
+    PETSC_64_INTEGERS: 1
+    PETSC_DEBUGGING: 1
+    BUILD_TYPE: RELEASE
+    CMAKE_OPTS: '-DCMAKE_Fortran_FLAGS=--std=legacy -DENABLE_PFUNIT=ON'
+    LUT_TARGET: 'download_common_luts'
+
 debian-testing:
   stage: build_docker
   extends: .build:default
@@ -149,14 +177,29 @@ debian-testing:
   tags:
     - docker.physik.lmu.de
   variables:
-    CTEST_ARGS: "-E ${TEST_FILTER_WITHOUT_LUTS}"
+    CTEST_ARGS: "-E ${TEST_FILTER_WITH_COMMON_LUTS}"
     MPIRUN_FLAGS: "--allow-run-as-root;--oversubscribe"
     PETSC_PRECISION: double
     PETSC_64_INTEGERS: 1
     PETSC_DEBUGGING: 1
     BUILD_TYPE: RELEASE
     CMAKE_OPTS: '-DCMAKE_Fortran_FLAGS=--std=legacy -DENABLE_PFUNIT=ON'
+    LUT_TARGET: 'download_common_luts'
 
+implicit:debian-testing:
+  extends: debian-testing
+  variables:
+    PETSC_OPTIONS: "-solar_dir_explicit no -solar_diff_explicit no -thermal_diff_explicit no"
+
+explicit:debian-testing:
+  extends: debian-testing
+  variables:
+    PETSC_OPTIONS: "-solar_dir_explicit -solar_diff_explicit -thermal_diff_explicit -thermal_diff_pc_sor_omega .5 -solar_diff_pc_sor_omega .5"
+
+matshell:debian-testing:
+  extends: debian-testing
+  variables:
+    PETSC_OPTIONS: "-solar_diff_shell -solar_diff_pc_type sor -thermal_diff_shell -thermal_diff_pc_type sor"
 
 #intel-icc:
 #  stage: build_docker

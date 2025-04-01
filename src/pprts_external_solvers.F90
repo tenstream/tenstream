@@ -143,7 +143,7 @@ contains
     if (all([lcall_solver, lcall_snap] .eqv. .false.)) return
 
     sundir = spherical_2_cartesian(solver%sun%phi, solver%sun%theta) &
-            & * edirTOA
+            & * edirTOA / solver%sun%mu
 
     call init_pprts_rayli_wrapper(solver, solution, rayli_info, opt_buildings=opt_buildings)
 
@@ -1320,11 +1320,12 @@ contains
 
       if (solution%lsolar_rad) then
         call getVecPointer(C_dir%da, solution%edir, xv_dir1d, xv_dir)
-        mu0 = real(solver%sun%costheta)
+        mu0 = solver%sun%mu
+        incSolar = edirTOA
       else
         mu0 = 0
+        incSolar = 0
       end if
-      incSolar = edirTOA * mu0
 
       call getVecPointer(C_diff%da, solution%ediff, xv_diff1d, xv_diff)
       call getVecPointer(C_one%da, solution%abso, xv_abso1d, xv_abso)
@@ -1530,7 +1531,7 @@ contains
 
       if (solution%lsolar_rad) then
         call getVecPointer(C_dir%da, solution%edir, xv_dir1d, xv_dir)
-        mu0 = real(solver%sun%costheta)
+        mu0 = real(solver%sun%mu)
       else
         mu0 = 1
         allocate (Blev(C_one_atm%zs:C_one_atm%ze))
@@ -1564,7 +1565,7 @@ contains
 
           call default_flx_computation(       &
             & mu0,                            &
-            & real(max(0._ireals, edirTOA)),  &
+            & real(max(0._ireals, edirTOA / solver%sun%mu)),  &
             & Ag,                             &
             & 300.,                           & ! tskin (ignored because we provide planck values directly)
             & .not. solution%lsolar_rad,      & ! lthermal

@@ -550,6 +550,21 @@ endif(ENABLE_PYTHON)
 
 GET_DIRECTORY_PROPERTY(output INCLUDE_DIRECTORIES)
 
+add_custom_target(download_common_luts
+  COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/misc/download_LUT.sh _diffuse_10.tau31.w020.aspect_zx23.g6.ds1000.nc.Sdiff.mmap4 ${TENSTREAM_SHARE_DIR}
+  COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/misc/download_LUT.sh _direct_3_10.tau31.w020.aspect_zx23.g6.phi19.theta19.ds1000.nc.Sdir.mmap ${TENSTREAM_SHARE_DIR}
+  COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/misc/download_LUT.sh _direct_3_10.tau31.w020.aspect_zx23.g6.phi19.theta19.ds1000.nc.Tdir.mmap ${TENSTREAM_SHARE_DIR}
+  COMMENT "Download most common lookuptables" VERBATIM
+  )
+add_custom_target(download_all_luts
+  COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/misc/download_LUT.sh mmap4 ${TENSTREAM_SHARE_DIR}
+  COMMENT "Download all lookuptables" VERBATIM
+  )
+add_custom_target(download_all_nc_luts
+  COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/misc/download_LUT.sh nc ${TENSTREAM_SHARE_DIR}
+  COMMENT "Download all lookuptables, including netcdf info" VERBATIM
+  )
+
 # Like a distclean
 add_custom_target(distclean_clean
   COMMAND make clean

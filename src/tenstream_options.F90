@@ -71,7 +71,7 @@ contains
     logical :: file_exists
 
     integer(mpiint) :: myid, numnodes
-    character(len=default_str_len) :: env_lut_basename
+    character(default_str_len) :: lut_basename_env
 
     call init_mpi_data_parameters(comm)
 
@@ -110,11 +110,9 @@ contains
     call get_petsc_opt(PETSC_NULL_CHARACTER, "-pert_yshift", pert_yshift, lflg, ierr); call CHKERR(ierr)
     if (lflg .eqv. PETSC_FALSE) pert_yshift = 0
 
-    call get_environment_variable("LUT_BASENAME", env_lut_basename, status=ierr)
-    if (ierr .eq. 0) lut_basename = trim(env_lut_basename)
-
-    call get_petsc_opt(PETSC_NULL_CHARACTER, '-lut_basename', &
-                       lut_basename, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', '-lut_basename', lut_basename, lflg, ierr); call CHKERR(ierr)
+    call get_environment_variable("LUT_BASENAME", lut_basename_env, status=ierr)
+    if (ierr .eq. 0) lut_basename = trim(lut_basename_env)
 
     lLUT_mockup = .false.
     call get_petsc_opt(PETSC_NULL_CHARACTER, "-LUT_mockup", &

@@ -42,6 +42,7 @@ module m_pprts
     & delta_scale, &
     & get_arg, &
     & get_petsc_opt, &
+    & expm1, &
     & imp_allreduce_max, &
     & imp_allreduce_mean, &
     & imp_allreduce_min, &
@@ -1089,11 +1090,25 @@ contains
     type(t_suninfo), intent(inout) :: sun
 
     logical :: lflg
+    real(ireals) :: round_sun_angles, round_sun_theta, round_sun_phi
     integer(mpiint) :: ierr
 
     if (.not. allocated(solver%atm%hgrad)) call CHKERR(1_mpiint, 'atm%hgrad not initialized!')
 
     call cartesian_2_spherical(sundir, sun%phi, sun%theta, ierr)
+    sun%mu = max(cos(deg2rad(sun%theta)), zero)
+
+    round_sun_angles = -1
+    call get_petsc_opt('', "-pprts_round_sun_angles", round_sun_angles, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt(solver%prefix, "-pprts_round_sun_angles", round_sun_angles, lflg, ierr); call CHKERR(ierr)
+    round_sun_theta = round_sun_angles
+    round_sun_phi = round_sun_angles
+    call get_petsc_opt('', "-pprts_round_sun_theta", round_sun_theta, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt(solver%prefix, "-pprts_round_sun_theta", round_sun_theta, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', "-pprts_round_sun_phi", round_sun_phi, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt(solver%prefix, "-pprts_round_sun_phi", round_sun_phi, lflg, ierr); call CHKERR(ierr)
+    if (round_sun_theta .gt. 0) sun%theta = nint(sun%theta / round_sun_theta) * round_sun_theta
+    if (round_sun_phi .gt. 0) sun%phi = nint(sun%phi / round_sun_phi) * round_sun_phi
 
     call get_petsc_opt(solver%prefix, "-pprts_force_zenith", sun%theta, lflg, ierr); call CHKERR(ierr)
     call get_petsc_opt(solver%prefix, "-pprts_force_azimuth", sun%phi, lflg, ierr); call CHKERR(ierr)
@@ -1103,7 +1118,6 @@ contains
     if (sun%theta .ge. 90._ireals) sun%theta = -one
 
     sun%costheta = max(cos(deg2rad(sun%theta)), zero)
-    sun%sintheta = max(sin(deg2rad(sun%theta)), zero)
 
     ! use symmetry for direct beam: always use azimuth [0,90] an just reverse the order where we insert the coeffs
     sun%symmetry_phi = sym_rot_phi(sun%phi)
@@ -1942,9 +1956,9 @@ contains
       else
         do k = C_one_atm%zs, C_one_atm%ze
           if (atm%l1d(k)) then
-            do j = C_one_atm%ys, C_one_atm%ye
-              do i = C_one_atm%xs, C_one_atm%xe
-                if (is_inrange(sun%theta, zero, 90._ireals)) then
+            if (is_inrange(sun%theta, zero, 90._ireals)) then
+              do j = C_one_atm%ys, C_one_atm%ye
+                do i = C_one_atm%xs, C_one_atm%xe
                   call get_coeff( &
                     & solver%OPP1d, &
                     & atm%kabs(atmk(atm, k), i, j), &
@@ -1973,8 +1987,12 @@ contains
                     & )
                   atm%a13(k, i, j) = real(c1d_dir2diff(1), ireals)
                   atm%a23(k, i, j) = real(c1d_dir2diff(2), ireals)
-                end if
+                end do !i
+              end do !j
+            end if
 
+            do j = C_one_atm%ys, C_one_atm%ye
+              do i = C_one_atm%xs, C_one_atm%xe
                 call get_coeff( &
                   & solver%OPP1d, &
                   & atm%kabs(atmk(atm, k), i, j), &
@@ -2200,6 +2218,7 @@ contains
 
     ierr = 0
 
+    fname = ''
     call get_petsc_opt(solver%prefix, '-pprts_dump_optprop', fname, lflg, ierr); call CHKERR(ierr)
     if (lflg) then
       if (len_trim(fname) .eq. 0) then
@@ -3868,7 +3887,7 @@ contains
                 if (atm%l1d(atmk(atm, k))) then ! one dimensional i.e. twostream
                   do isrc = 0, solver%dirtop%dof - 1
                     dtau = atm%kabs(ak, i, j) * atm%dz(ak, i, j) / sun%costheta
-                    xabso(i0, k, i, j) = xabso(i0, k, i, j) + xedir(isrc, k, i, j) * (one - exp(-dtau))
+                    xabso(i0, k, i, j) = xabso(i0, k, i, j) + xedir(isrc, k, i, j) * (-expm1(-dtau))
                   end do
 
                 else ! 3D-radiation
@@ -5898,6 +5917,17 @@ contains
       end do
       call restoreVecPointer(solver%C_diff%da, solution%ediff, x1d, x4d)
 
+      call getVecPointer(solver%C_one%da, solution%abso, x1d, x4d, readonly=.true.)
+      rabso = x4d(i0, :, :, :)
+      call restoreVecPointer(solver%C_one%da, solution%abso, x1d, x4d, readonly=.true.)
+
+      if (solution%lsolar_rad) then ! scale because of TOA incSolar tilt
+        redir = redir * solver%sun%mu
+        redn = redn * solver%sun%mu
+        reup = reup * solver%sun%mu
+        rabso = rabso * solver%sun%mu
+      end if
+
       if (solver%myid .eq. 0 .and. ldebug .and. present(redir)) &
         print *, 'mean surface Edir', meanval(redir(ubound(redir, 1), :, :))
       if (solver%myid .eq. 0 .and. ldebug) print *, 'mean surface Edn', meanval(redn(ubound(redn, 1), :, :))
@@ -5919,10 +5949,6 @@ contains
         call check_buildings_energy_balance()
         call set_abso_in_buildings()
       end if
-
-      call getVecPointer(solver%C_one%da, solution%abso, x1d, x4d, readonly=.true.)
-      rabso = x4d(i0, :, :, :)
-      call restoreVecPointer(solver%C_one%da, solution%abso, x1d, x4d, readonly=.true.)
 
       call dump_to_xdmf()
 
@@ -5977,6 +6003,9 @@ contains
           call VecSet(ledir, zero, ierr); call CHKERR(ierr)
           call DMGlobalToLocalBegin(C%da, solution%edir, ADD_VALUES, ledir, ierr); call CHKERR(ierr)
           call DMGlobalToLocalEnd(C%da, solution%edir, ADD_VALUES, ledir, ierr); call CHKERR(ierr)
+          if (solution%lsolar_rad) then ! scale for TOA incSolar inclination
+            call VecScale(ledir, solver%sun%mu, ierr); call CHKERR(ierr)
+          end if
 
           call getVecPointer(C%da, ledir, x1d, x4d, readonly=.true.)
           ! average of direct radiation of all fluxes through top faces
@@ -6074,6 +6103,9 @@ contains
         call VecSet(lediff, zero, ierr); call CHKERR(ierr)
         call DMGlobalToLocalBegin(C%da, solution%ediff, ADD_VALUES, lediff, ierr); call CHKERR(ierr)
         call DMGlobalToLocalEnd(C%da, solution%ediff, ADD_VALUES, lediff, ierr); call CHKERR(ierr)
+        if (solution%lsolar_rad) then ! scale for TOA incSolar inclination
+          call VecScale(lediff, solver%sun%mu, ierr); call CHKERR(ierr)
+        end if
         call getVecPointer(C%da, lediff, x1d, x4d, readonly=.true.)
 
         do m = 1, size(B%iface)

@@ -103,8 +103,8 @@ module m_pprts_base
   type t_suninfo
     !type(t_sunangles),allocatable :: angles(:,:,:) ! defined on DMDA grid
     real(ireals) :: sundir(3)
-    real(ireals) :: &
-      symmetry_phi, theta, phi, costheta, sintheta
+    real(ireals) :: symmetry_phi, theta, phi, costheta ! note that phi/theta may be rounded or overwritten
+    real(ireals) :: mu ! original cos(theta) used for normalization of incoming solar
     integer(iintegers) :: xinc, yinc
     logical :: luse_topography = .false.
   end type
@@ -860,7 +860,7 @@ contains
         & sun => solver%sun, &
         & C_dir => solver%C_dir)
 
-      fac = edirTOA * atm%dx * atm%dy / real(solver%dirtop%area_divider, ireals) * sun%costheta
+      fac = edirTOA * atm%dx * atm%dy / real(solver%dirtop%area_divider, ireals)
 
       call VecSet(incSolar, 0._ireals, ierr); call CHKERR(ierr)
       call getVecPointer(C_dir%da, incSolar, x1d, x4d)

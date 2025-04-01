@@ -6,10 +6,10 @@ PROJECT_ROOT="$(readlink -f $SCRIPTDIR/../)"
 
 export PETSC_DIR=${PETSC_DIR:-${1:-$PROJECT_ROOT/external/petsc}}
 export PETSC_ARCH=${PETSC_ARCH:-${2:-default}}
-PETSC_PRECISION=${3:-single}
-PETSC_DEBUGGING=${4:-0}
-PETSC_64_INTEGERS=${5:-0}
-PETSC_OPTS=${@:6}
+PETSC_PRECISION=${PETSC_PRECISION:-${3:-single}}
+PETSC_DEBUGGING=${PETSC_DEBUGGING:-${4:-0}}
+PETSC_64_INTEGERS=${PETSC_64_INTEGERS:-${5:-0}}
+PETSC_OPTS=${PETSC_OPTS:-${@:6}}
 
 if [[ "x$PETSC_ARCH" == x"debug"* ]]; then
   PETSC_DEBUGGING=1
@@ -36,7 +36,12 @@ if [[ -z ${CXX:-} ]]; then
   exit 3
 fi
 
+PETSC_URL=https://gitlab.com/petsc/petsc.git
+PETSC_BRANCH=${PETSC_BRANCH:-main}
+
 printf "Using:\n\
+  PETSC_URL:          $PETSC_URL \n\
+  PETSC_BRANCH:       $PETSC_BRANCH \n\
   PETSC_DIR:          $PETSC_DIR \n\
   PETSC_ARCH          $PETSC_ARCH \n\
   PETSC_PRECISION     $PETSC_PRECISION \n\
@@ -49,9 +54,6 @@ printf "Using:\n\
   C++ Compiler: ${CXX} ($(which ${CXX}))\n\
   \n"
 
-PETSC_URL=https://gitlab.com/petsc/petsc.git
-PETSC_BRANCH=main
-
 if [ -e "$PETSC_DIR" ]
 then
   echo "Using PETSC_DIR: $PETSC_DIR"
@@ -59,16 +61,17 @@ else
   git clone $PETSC_URL -b $PETSC_BRANCH $PETSC_DIR
 fi
 
+
 PETSC_OPTIONS="\
   --with-cc=${CC} \
   --with-cxx=${CXX} \
   --with-fc=${FC} \
-  --CFLAGS= \
-  --CXXFLAGS= \
-  --FFLAGS= \
-  --COPTFLAGS=-O3 \
-  --CXXOPTFLAGS=-O3 \
-  --FOPTFLAGS=-O3 \
+  ${PETSC_CFLAGS:+--CFLAGS=${PETSC_CFLAGS:-}} \
+  ${PETSC_CXXLAGS:+--CXXFLAGS=${PETSC_CXXFLAGS:-}} \
+  ${PETSC_FFLAGS:+--FFLAGS=${PETSC_FFLAGS:-}} \
+  ${PETSC_COPTFLAGS:+--COPTFLAGS=${PETSC_COPTFLAGS:--O3}} \
+  ${PETSC_CXXOPTFLAGS:+--CXXOPTFLAGS=${PETSC_CXXOPTFLAGS:--O3}} \
+  ${PETSC_FOPTFLAGS:+--FOPTFLAGS=${PETSC_FOPTFLAGS:--O3}} \
   --with-debugging=$PETSC_DEBUGGING \
   --with-precision=$PETSC_PRECISION \
   --with-64-bit-indices=$PETSC_64_INTEGERS \
