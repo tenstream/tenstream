@@ -42,6 +42,7 @@ module m_pprts
     & delta_scale, &
     & get_arg, &
     & get_petsc_opt, &
+    & expm1, &
     & imp_allreduce_max, &
     & imp_allreduce_mean, &
     & imp_allreduce_min, &
@@ -1955,9 +1956,9 @@ contains
       else
         do k = C_one_atm%zs, C_one_atm%ze
           if (atm%l1d(k)) then
-            do j = C_one_atm%ys, C_one_atm%ye
-              do i = C_one_atm%xs, C_one_atm%xe
-                if (is_inrange(sun%theta, zero, 90._ireals)) then
+            if (is_inrange(sun%theta, zero, 90._ireals)) then
+              do j = C_one_atm%ys, C_one_atm%ye
+                do i = C_one_atm%xs, C_one_atm%xe
                   call get_coeff( &
                     & solver%OPP1d, &
                     & atm%kabs(atmk(atm, k), i, j), &
@@ -1986,8 +1987,12 @@ contains
                     & )
                   atm%a13(k, i, j) = real(c1d_dir2diff(1), ireals)
                   atm%a23(k, i, j) = real(c1d_dir2diff(2), ireals)
-                end if
+                end do !i
+              end do !j
+            end if
 
+            do j = C_one_atm%ys, C_one_atm%ye
+              do i = C_one_atm%xs, C_one_atm%xe
                 call get_coeff( &
                   & solver%OPP1d, &
                   & atm%kabs(atmk(atm, k), i, j), &
@@ -3882,7 +3887,7 @@ contains
                 if (atm%l1d(atmk(atm, k))) then ! one dimensional i.e. twostream
                   do isrc = 0, solver%dirtop%dof - 1
                     dtau = atm%kabs(ak, i, j) * atm%dz(ak, i, j) / sun%costheta
-                    xabso(i0, k, i, j) = xabso(i0, k, i, j) + xedir(isrc, k, i, j) * (one - exp(-dtau))
+                    xabso(i0, k, i, j) = xabso(i0, k, i, j) + xedir(isrc, k, i, j) * (-expm1(-dtau))
                   end do
 
                 else ! 3D-radiation
