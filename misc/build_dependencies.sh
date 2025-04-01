@@ -59,16 +59,17 @@ else
   git clone $PETSC_URL -b $PETSC_BRANCH $PETSC_DIR
 fi
 
+
 PETSC_OPTIONS="\
   --with-cc=${CC} \
   --with-cxx=${CXX} \
   --with-fc=${FC} \
-  --CFLAGS= \
-  --CXXFLAGS= \
-  --FFLAGS= \
-  --COPTFLAGS=-O3 \
-  --CXXOPTFLAGS=-O3 \
-  --FOPTFLAGS=-O3 \
+  ${PETSC_CFLAGS:+--CFLAGS=${PETSC_CFLAGS:-}} \
+  ${PETSC_CXXLAGS:+--CXXFLAGS=${PETSC_CXXFLAGS:-}} \
+  ${PETSC_FFLAGS:+--FFLAGS=${PETSC_FFLAGS:-}} \
+  ${PETSC_COPTFLAGS:+--COPTFLAGS=${PETSC_COPTFLAGS:--O3}} \
+  ${PETSC_CXXOPTFLAGS:+--CXXOPTFLAGS=${PETSC_CXXOPTFLAGS:--O3}} \
+  ${PETSC_FOPTFLAGS:+--FOPTFLAGS=${PETSC_FOPTFLAGS:--O3}} \
   --with-debugging=$PETSC_DEBUGGING \
   --with-precision=$PETSC_PRECISION \
   --with-64-bit-indices=$PETSC_64_INTEGERS \
