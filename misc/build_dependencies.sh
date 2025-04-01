@@ -36,7 +36,12 @@ if [[ -z ${CXX:-} ]]; then
   exit 3
 fi
 
+PETSC_URL=https://gitlab.com/petsc/petsc.git
+PETSC_BRANCH=${PETSC_BRANCH:-main}
+
 printf "Using:\n\
+  PETSC_URL:          $PETSC_URL \n\
+  PETSC_BRANCH:       $PETSC_BRANCH \n\
   PETSC_DIR:          $PETSC_DIR \n\
   PETSC_ARCH          $PETSC_ARCH \n\
   PETSC_PRECISION     $PETSC_PRECISION \n\
@@ -48,9 +53,6 @@ printf "Using:\n\
   F-Compiler:   ${FC}  ($(which ${FC} ))\n\
   C++ Compiler: ${CXX} ($(which ${CXX}))\n\
   \n"
-
-PETSC_URL=https://gitlab.com/petsc/petsc.git
-PETSC_BRANCH=${PETSC_BRANCH:-main}
 
 if [ -e "$PETSC_DIR" ]
 then
