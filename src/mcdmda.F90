@@ -494,7 +494,8 @@ contains
           call DMRestoreLocalVector(C_dir%da, edir_local, ierr); call CHKERR(ierr)
 
           call PetscObjectSetName(solution%edir, 'edir', ierr); call CHKERR(ierr)
-          call PetscObjectViewFromOptions(solution%edir, PETSC_NULL_VEC, '-mcdmda_show_edir', ierr); call CHKERR(ierr)
+          call PetscObjectViewFromOptions(PetscObjectCast(solution%edir), PETSC_NULL_OBJECT, '-mcdmda_show_edir', ierr)
+          call CHKERR(ierr)
         end if
 
         ! handle normalization of ediff
@@ -524,7 +525,8 @@ contains
         call DMRestoreLocalVector(C_diff%da, ediff_local, ierr); call CHKERR(ierr)
 
         call PetscObjectSetName(solution%ediff, 'ediff', ierr); call CHKERR(ierr)
-        call PetscObjectViewFromOptions(solution%ediff, PETSC_NULL_VEC, '-mcdmda_show_ediff', ierr); call CHKERR(ierr)
+        call PetscObjectViewFromOptions(PetscObjectCast(solution%ediff), PETSC_NULL_OBJECT, '-mcdmda_show_ediff', ierr)
+        call CHKERR(ierr)
 
         ! absorption
         call VecSet(solution%abso, 0._ireals, ierr); call CHKERR(ierr)
@@ -547,7 +549,8 @@ contains
         call restoreVecPointer(C_one%da, solution%abso, xv_abso1d, xv_abso)
       end associate
 
-      call PetscObjectViewFromOptions(solution%abso, PETSC_NULL_VEC, '-mcdmda_show_abso', ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(PetscObjectCast(solution%abso), PETSC_NULL_OBJECT, '-mcdmda_show_abso', ierr)
+      call CHKERR(ierr)
 
       !Rayli solver returns fluxes as [W]
       solution%lWm2_dir = .true.

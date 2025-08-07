@@ -138,7 +138,7 @@ contains
 
     call icon_ncvec_to_plex(dm2d, dm2d_dist, migration_sf, icondatafile, qnc_data_string, par_cell_Section, qncvec)
     call icon_ncvec_to_plex(dm2d, dm2d_dist, migration_sf, icondatafile, lwc_data_string, par_cell_Section, lwcvec)
-    call PetscObjectViewFromOptions(lwcvec, PETSC_NULL_VEC, '-show_lwc', ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(PetscObjectCast(lwcvec), PETSC_NULL_OBJECT, '-show_lwc', ierr); call CHKERR(ierr)
 
     call dm2d_vec_to_Nz_Ncol(par_cell_Section, lwcvec, col_lwc); col_lwc = col_lwc * 1e3
     call VecDestroy(lwcvec, ierr); call CHKERR(ierr)
@@ -151,7 +151,7 @@ contains
 
     call icon_ncvec_to_plex(dm2d, dm2d_dist, migration_sf, icondatafile, qni_data_string, par_cell_Section, qnivec)
     call icon_ncvec_to_plex(dm2d, dm2d_dist, migration_sf, icondatafile, iwc_data_string, par_cell_Section, iwcvec)
-    call PetscObjectViewFromOptions(iwcvec, PETSC_NULL_VEC, '-show_iwc', ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(PetscObjectCast(iwcvec), PETSC_NULL_OBJECT, '-show_iwc', ierr); call CHKERR(ierr)
 
     call dm2d_vec_to_Nz_Ncol(par_cell_Section, iwcvec, col_iwc); col_iwc = col_iwc * 1e3
     call VecDestroy(iwcvec, ierr); call CHKERR(ierr)

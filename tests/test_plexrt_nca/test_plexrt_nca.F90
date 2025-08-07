@@ -197,12 +197,12 @@ contains
     call init_plex_rt_solver(plex, solver)
     call set_plex_rt_optprop(solver, vert_integrated_kabs=0._ireals, vert_integrated_ksca=0._ireals)
 
-    call VecGetArrayF90(solver%kabs, xv, ierr); call CHKERR(ierr)
+    call VecGetArray(solver%kabs, xv, ierr); call CHKERR(ierr)
     xxv(1:Nz - 1, 1:Ncol) => xv
     xxv(Nz / 2, :) = 100
 
     nullify (xxv)
-    call VecRestoreArrayF90(solver%kabs, xv, ierr); call CHKERR(ierr)
+    call VecRestoreArray(solver%kabs, xv, ierr); call CHKERR(ierr)
 
     if (.not. allocated(solver%albedo)) then
       allocate (solver%albedo)

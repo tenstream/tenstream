@@ -272,7 +272,7 @@ contains
           call Nz_Ncol_vec_to_celldm1(solver%plex, inp, vec)
         end if
         call PetscObjectSetName(vec, 'dump_vec'//trim(vecshow_string), ierr); call CHKERR(ierr)
-        call PetscObjectViewFromOptions(vec, PETSC_NULL_VEC, trim(vecshow_string), ierr); call CHKERR(ierr)
+        call PetscObjectViewFromOptions(PetscObjectCast(vec), PETSC_NULL_OBJECT, trim(vecshow_string), ierr); call CHKERR(ierr)
         call DMRestoreGlobalVector(solver%plex%cell1_dm, vec, ierr); call CHKERR(ierr)
       end if
     end subroutine
@@ -466,9 +466,9 @@ contains
     call VecSet(solver%g, zero, ierr); call CHKERR(ierr)
 
     if (present(thermal_albedo_2d)) then
-      call VecGetArrayF90(solver%albedo, xalbedo, ierr); call CHKERR(ierr)
+      call VecGetArray(solver%albedo, xalbedo, ierr); call CHKERR(ierr)
       xalbedo = thermal_albedo_2d
-      call VecRestoreArrayF90(solver%albedo, xalbedo, ierr); call CHKERR(ierr)
+      call VecRestoreArray(solver%albedo, xalbedo, ierr); call CHKERR(ierr)
     else
       call VecSet(solver%albedo, albedo, ierr); call CHKERR(ierr)
     end if
@@ -649,9 +649,9 @@ contains
     end if
 
     call DMGetLocalSection(solver%plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
-    call VecGetArrayReadF90(solver%plex%geomVec, geoms, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(solver%plex%geomVec, geoms, ierr); call CHKERR(ierr)
     call DMGetStratumIS(solver%plex%geom_dm, 'DomainBoundary', TOAFACE, toa_ids, ierr); call CHKERR(ierr)
-    call ISGetIndicesF90(toa_ids, xitoa_faces, ierr); call CHKERR(ierr)
+    call ISGetIndices(toa_ids, xitoa_faces, ierr); call CHKERR(ierr)
 
     ! Compute optical properties with RRTMG
     allocate (tau(ke, Ncol, ngptsw))
@@ -788,16 +788,16 @@ contains
       if (myid .eq. 0) print *, 'DEBUG theta0', theta0, 'deg; 2d albedo?', present(solar_albedo_2d)
     end if
     w0 = min(one, max(zero, w0))
-    call ISRestoreIndicesF90(toa_ids, xitoa_faces, ierr); call CHKERR(ierr)
-    call VecRestoreArrayReadF90(solver%plex%geomVec, geoms, ierr); call CHKERR(ierr)
+    call ISRestoreIndices(toa_ids, xitoa_faces, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(solver%plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
-    call VecGetArrayF90(solver%albedo, xalbedo, ierr); call CHKERR(ierr)
+    call VecGetArray(solver%albedo, xalbedo, ierr); call CHKERR(ierr)
     if (present(solar_albedo_2d)) then
       xalbedo = solar_albedo_2d
     else
       xalbedo = albedo
     end if
-    call VecRestoreArrayF90(solver%albedo, xalbedo, ierr); call CHKERR(ierr)
+    call VecRestoreArray(solver%albedo, xalbedo, ierr); call CHKERR(ierr)
 
     allocate (tmp(ke, Ncol))
 
@@ -865,8 +865,8 @@ contains
         col_Bfrac = 1
         col_albedo = albedo
 
-        call VecGetArrayReadF90(solver%plex%geomVec, geoms, ierr); call CHKERR(ierr)
-        call ISGetIndicesF90(toa_ids, xitoa_faces, ierr); call CHKERR(ierr)
+        call VecGetArrayRead(solver%plex%geomVec, geoms, ierr); call CHKERR(ierr)
+        call ISGetIndices(toa_ids, xitoa_faces, ierr); call CHKERR(ierr)
         do icol = 1, Ncol
           iface = xitoa_faces(icol)
           call DMPlexGetSupport(solver%plex%geom_dm, iface, cell_support, ierr); call CHKERR(ierr)
@@ -918,8 +918,8 @@ contains
                 + edn(1:ke, :) - edn(2:ke + 1, :) &
                 - eup(1:ke, :) + eup(2:ke + 1, :)) / reverse(atm%dz)
 
-        call ISRestoreIndicesF90(toa_ids, xitoa_faces, ierr); call CHKERR(ierr)
-        call VecRestoreArrayReadF90(solver%plex%geomVec, geoms, ierr); call CHKERR(ierr)
+        call ISRestoreIndices(toa_ids, xitoa_faces, ierr); call CHKERR(ierr)
+        call VecRestoreArrayRead(solver%plex%geomVec, geoms, ierr); call CHKERR(ierr)
       end if
 
     end function

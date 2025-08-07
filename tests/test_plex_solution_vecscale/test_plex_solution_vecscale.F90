@@ -84,7 +84,8 @@ contains
     print *, 'Testing Scalevec Diffuse'
     call init_and_scalevecs(solution, one, solution%ediff, solution%lWm2_diff)
 
-    call PetscObjectViewFromOptions(solution%edir, PETSC_NULL_VEC, '-show_solution_edir_vec1', ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(PetscObjectCast(solution%edir), PETSC_NULL_OBJECT, '-show_solution_edir_vec1', ierr)
+    call CHKERR(ierr)
 
   contains
     subroutine init_and_scalevecs(solution, initialvar, solution_vec, solution_lWm2)
@@ -108,21 +109,21 @@ contains
                      diff_scalevec_Wm2_to_W, diff_scalevec_W_to_Wm2, &
                      solution, lWm2=.true.)
 
-      call VecGetArrayReadF90(solution_vec, xa, ierr); call CHKERR(ierr)
-      call VecGetArrayReadF90(tmp_vec, xb, ierr); call CHKERR(ierr)
+      call VecGetArrayRead(solution_vec, xa, ierr); call CHKERR(ierr)
+      call VecGetArrayRead(tmp_vec, xb, ierr); call CHKERR(ierr)
       do i = 1, size(xa)
         @assertEqual(xa(i), xb(i), eps, 'Vec should not have changed after scaling from Wm-2 to Wm-2')
       end do
-      call VecRestoreArrayReadF90(tmp_vec, xb, ierr); call CHKERR(ierr)
-      call VecRestoreArrayReadF90(solution_vec, xa, ierr); call CHKERR(ierr)
+      call VecRestoreArrayRead(tmp_vec, xb, ierr); call CHKERR(ierr)
+      call VecRestoreArrayRead(solution_vec, xa, ierr); call CHKERR(ierr)
 
       call scale_flx(solver, solver%plex, &
                      dir_scalevec_Wm2_to_W, dir_scalevec_W_to_Wm2, &
                      diff_scalevec_Wm2_to_W, diff_scalevec_W_to_Wm2, &
                      solution, lWm2=.false.)
 
-      call VecGetArrayReadF90(solution_vec, xa, ierr); call CHKERR(ierr)
-      call VecGetArrayReadF90(tmp_vec, xb, ierr); call CHKERR(ierr)
+      call VecGetArrayRead(solution_vec, xa, ierr); call CHKERR(ierr)
+      call VecGetArrayRead(tmp_vec, xb, ierr); call CHKERR(ierr)
       do i = 1, size(xa)
         @assertFalse(approx(xa(i), xb(i), eps), 'Vec should have changed after scaling from Wm-2 to W')
       end do
@@ -143,21 +144,21 @@ contains
         end do
       end if
 
-      call VecRestoreArrayReadF90(tmp_vec, xb, ierr); call CHKERR(ierr)
-      call VecRestoreArrayReadF90(solution_vec, xa, ierr); call CHKERR(ierr)
+      call VecRestoreArrayRead(tmp_vec, xb, ierr); call CHKERR(ierr)
+      call VecRestoreArrayRead(solution_vec, xa, ierr); call CHKERR(ierr)
 
       call scale_flx(solver, solver%plex, &
                      dir_scalevec_Wm2_to_W, dir_scalevec_W_to_Wm2, &
                      diff_scalevec_Wm2_to_W, diff_scalevec_W_to_Wm2, &
                      solution, lWm2=.true.)
 
-      call VecGetArrayReadF90(solution_vec, xa, ierr); call CHKERR(ierr)
-      call VecGetArrayReadF90(tmp_vec, xb, ierr); call CHKERR(ierr)
+      call VecGetArrayRead(solution_vec, xa, ierr); call CHKERR(ierr)
+      call VecGetArrayRead(tmp_vec, xb, ierr); call CHKERR(ierr)
       do i = 1, size(xa)
         @assertEqual(xa(i), xb(i), eps, 'Vec should not have changed after scaling back and forth from Wm-2 to Wm-2')
       end do
-      call VecRestoreArrayReadF90(tmp_vec, xb, ierr); call CHKERR(ierr)
-      call VecRestoreArrayReadF90(solution_vec, xa, ierr); call CHKERR(ierr)
+      call VecRestoreArrayRead(tmp_vec, xb, ierr); call CHKERR(ierr)
+      call VecRestoreArrayRead(solution_vec, xa, ierr); call CHKERR(ierr)
     end subroutine
   end subroutine
 

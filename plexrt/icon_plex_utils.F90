@@ -141,8 +141,8 @@ contains
 
     call DMSetFromOptions(dm3d, ierr); call CHKERR(ierr)
 
-    call PetscObjectViewFromOptions(dm2d, PETSC_NULL_DM, "-show_iconplex_2d", ierr); call CHKERR(ierr)
-    call PetscObjectViewFromOptions(dm3d, PETSC_NULL_DM, "-show_iconplex_3d", ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(PetscObjectCast(dm2d), PETSC_NULL_OBJECT, "-show_iconplex_2d", ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(PetscObjectCast(dm3d), PETSC_NULL_OBJECT, "-show_iconplex_3d", ierr); call CHKERR(ierr)
 
     if (ldebug) then
       call gen_test_mat(dm3d)
@@ -160,7 +160,8 @@ contains
       call dmplex_set_new_section(ldm, 'face_test_section', i1, [i0], [i1], [i0], [i0])
 
       call DMCreateMatrix(ldm, A, ierr); call CHKERR(ierr)
-      call PetscObjectViewFromOptions(A, PETSC_NULL_MAT, "-show_dmplex_2D_to_3D_test_mat", ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(PetscObjectCast(A), PETSC_NULL_OBJECT, "-show_dmplex_2D_to_3D_test_mat", ierr)
+      call CHKERR(ierr)
       call MatDestroy(A, ierr); call CHKERR(ierr)
       call DMDestroy(ldm, ierr); call CHKERR(ierr)
     end subroutine
@@ -179,15 +180,15 @@ contains
       real(ireals), pointer :: xv(:)
 
       integer(iintegers), pointer :: pmyidx(:) ! list of my indices that we do not own
-      type(PetscSFNode), pointer :: premote(:) ! rank and remote idx of those points
+      PetscSFNode, pointer :: premote(:) ! rank and remote idx of those points
       integer(iintegers), allocatable :: myidx(:)
-      type(PetscSFNode), allocatable :: remote(:)
+      PetscSFNode, allocatable :: remote(:)
       integer(iintegers) :: nroots2d   ! number of root vertices on the current process (possible targets for leaves)
       integer(iintegers) :: nleaves2d  ! number of leaf vertices on the current process, references roots on any process
       integer(iintegers) :: nroots3d, nleaves3d
       PetscCount :: nleaves2d_petsccnt
       integer(iintegers), allocatable :: ilocal_elements(:)
-      type(PetscSFNode), allocatable :: iremote_elements(:)
+      PetscSFNode, allocatable :: iremote_elements(:)
       PetscCopyMode, parameter :: localmode = PETSC_COPY_VALUES, remotemode = PETSC_COPY_VALUES
 
       integer(iintegers) :: i, k, voff, ileaf, owner
@@ -197,7 +198,7 @@ contains
       call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
       call DMGetPointSF(dmsf2d, sf2d, ierr); call CHKERR(ierr)
-      call PetscObjectViewFromOptions(sf2d, PETSC_NULL_SF, "-show_plex_sf2d", ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(PetscObjectCast(sf2d), PETSC_NULL_OBJECT, "-show_plex_sf2d", ierr); call CHKERR(ierr)
 
       call PetscSFGetGraph(sf2d, nroots2d, nleaves2d, pmyidx, premote, ierr); call CHKERR(ierr)
       if (nroots2d .eq. -i1) then
@@ -216,7 +217,7 @@ contains
                                   [i0], [ke1 + ke], [ke1 + ke], [ke1 + ke])
 
       call DMGetLocalSection(dmsf2d, section_2d_to_3d, ierr); call CHKERR(ierr)
-      call PetscObjectViewFromOptions(section_2d_to_3d, PETSC_NULL_SECTION, &
+      call PetscObjectViewFromOptions(PetscObjectCast(section_2d_to_3d), PETSC_NULL_OBJECT, &
                                       '-show_dm2d_section_2d_to_3d', ierr); call CHKERR(ierr)
 
       call DMGetLocalVector(dmsf2d, lVec, ierr); call CHKERR(ierr)
@@ -231,7 +232,7 @@ contains
       end if
 
       ! Distribute Info for 2D faces, i.e. horizontal faces and cells
-      call VecGetArrayF90(lVec, xv, ierr); call CHKERR(ierr)
+      call VecGetArray(lVec, xv, ierr); call CHKERR(ierr)
       do i = f2dStart, f2dEnd - 1
         call PetscFindInt(i, nleaves2d_petsccnt, myidx, voff, ierr); call CHKERR(ierr)
         if (voff .lt. i0) then ! only add my local idx number if it belongs to me
@@ -270,7 +271,7 @@ contains
           end do
         end if
       end do
-      call VecRestoreArrayF90(lVec, xv, ierr); call CHKERR(ierr)
+      call VecRestoreArray(lVec, xv, ierr); call CHKERR(ierr)
 
       call VecSet(gVec, zero, ierr); call CHKERR(ierr)
       call DMLocalToGlobalBegin(dmsf2d, lVec, ADD_VALUES, gVec, ierr); call CHKERR(ierr)
@@ -284,7 +285,7 @@ contains
       allocate (iremote_elements(nleaves3d))
 
       ileaf = 1
-      call VecGetArrayF90(lVec, xv, ierr); call CHKERR(ierr)
+      call VecGetArray(lVec, xv, ierr); call CHKERR(ierr)
       do i = f2dStart, f2dEnd - 1
         call PetscFindInt(i, nleaves2d_petsccnt, myidx, voff, ierr); call CHKERR(ierr)
         if (voff .ge. i0) then ! this face is owned by someone else
@@ -354,10 +355,10 @@ contains
           end do
         end if
       end do
-      call VecRestoreArrayF90(lVec, xv, ierr); call CHKERR(ierr)
+      call VecRestoreArray(lVec, xv, ierr); call CHKERR(ierr)
       if (ldebug) call CHKERR(int(ileaf - 1 - nleaves3d, mpiint), 'Does not add up... something is wrong')
 
-      call PetscObjectViewFromOptions(lVec, PETSC_NULL_VEC, "-show_dm2d_sf_vec", ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(PetscObjectCast(lVec), PETSC_NULL_OBJECT, "-show_dm2d_sf_vec", ierr); call CHKERR(ierr)
       call DMRestoreLocalVector(dmsf2d, lVec, ierr); call CHKERR(ierr)
       call DMRestoreGlobalVector(dmsf2d, gVec, ierr); call CHKERR(ierr)
       call DMDestroy(dmsf2d, ierr); call CHKERR(ierr)
@@ -366,7 +367,7 @@ contains
       call PetscSFSetGraph(sf3d, nroots3d, nleaves3d, ilocal_elements, localmode, &
                            iremote_elements, remotemode, ierr); call CHKERR(ierr)
       call PetscSFSetUp(sf3d, ierr); call CHKERR(ierr)
-      call PetscObjectViewFromOptions(sf3d, PETSC_NULL_SF, "-show_plex_sf3d", ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(PetscObjectCast(sf3d), PETSC_NULL_OBJECT, "-show_plex_sf3d", ierr); call CHKERR(ierr)
     end subroutine
 
     subroutine set_connectivity(dm2d, dm3d)
@@ -579,12 +580,12 @@ contains
       call PetscObjectSetName(vec_coord3d, "coordinates", ierr); call CHKERR(ierr)
 
       ! Fill 3D Coord Vec
-      call VecGetArrayF90(vec_coord3d, coords3d, ierr); call CHKERR(ierr)
+      call VecGetArray(vec_coord3d, coords3d, ierr); call CHKERR(ierr)
 
       ! Get Coordinates from 2D DMPLEX
       call DMGetCoordinateSection(dm2d, coordSection2d, ierr); call CHKERR(ierr)
       call DMGetCoordinatesLocal(dm2d, vec_coord2d, ierr); call CHKERR(ierr)
-      call VecGetArrayReadF90(vec_coord2d, coords2d, ierr); call CHKERR(ierr)
+      call VecGetArrayRead(vec_coord2d, coords2d, ierr); call CHKERR(ierr)
 
       do i = v2dStart, v2dEnd - 1
         call PetscSectionGetOffset(coordSection2d, i, voff2d, ierr); call CHKERR(ierr)
@@ -612,12 +613,14 @@ contains
         end do
       end do
 
-      call VecRestoreArrayReadF90(vec_coord2d, coords2d, ierr); call CHKERR(ierr)
-      call VecRestoreArrayF90(vec_coord3d, coords3d, ierr); call CHKERR(ierr)
+      call VecRestoreArrayRead(vec_coord2d, coords2d, ierr); call CHKERR(ierr)
+      call VecRestoreArray(vec_coord3d, coords3d, ierr); call CHKERR(ierr)
 
       call DMSetCoordinatesLocal(dm3d, vec_coord3d, ierr); call CHKERR(ierr)
-      call PetscObjectViewFromOptions(vec_coord2d, PETSC_NULL_VEC, "-show_plex_coordinates2d", ierr); call CHKERR(ierr)
-      call PetscObjectViewFromOptions(vec_coord3d, PETSC_NULL_VEC, "-show_plex_coordinates3d", ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(PetscObjectCast(vec_coord2d), PETSC_NULL_OBJECT, "-show_plex_coordinates2d", ierr)
+      call CHKERR(ierr)
+      call PetscObjectViewFromOptions(PetscObjectCast(vec_coord3d), PETSC_NULL_OBJECT, "-show_plex_coordinates3d", ierr)
+      call CHKERR(ierr)
       call VecDestroy(vec_coord3d, ierr); call CHKERR(ierr)
     end subroutine
 
@@ -689,7 +692,7 @@ contains
     integer(iintegers) :: nroots, nleaves
     PetscCount :: nleaves_petsccnt
     integer(iintegers), pointer :: pmyidx(:) ! list of my indices that we do not own
-    type(PetscSFNode), pointer :: premote(:) ! rank and remote idx of those points
+    PetscSFNode, pointer :: premote(:) ! rank and remote idx of those points
 
     type(tDM) :: owner_dm
     type(tPetscSection) :: sec
@@ -700,13 +703,13 @@ contains
     integer(iintegers) :: cStart, cEnd, depth
     integer(iintegers) :: i, icell, idx, voff
     integer(iintegers), allocatable :: myidx(:)
-    type(PetscSFNode), allocatable :: remote(:)
+    PetscSFNode, allocatable :: remote(:)
 
     integer(mpiint) :: comm, numnodes, myid, ierr
 
     ! Dump Plex itself
     if (present(cmd_string_dump_plex)) then
-      call PetscObjectViewFromOptions(dm, PETSC_NULL_DM, trim(cmd_string_dump_plex), ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(PetscObjectCast(dm), PETSC_NULL_OBJECT, trim(cmd_string_dump_plex), ierr); call CHKERR(ierr)
     end if
 
     call PetscObjectGetComm(dm, comm, ierr); call CHKERR(ierr)
@@ -754,14 +757,15 @@ contains
 
     ! Dump Cell Ownership
     call PetscObjectSetName(gVec, 'ownership_cells', ierr); call CHKERR(ierr)
-    call VecGetArrayF90(gVec, xv, ierr); call CHKERR(ierr)
+    call VecGetArray(gVec, xv, ierr); call CHKERR(ierr)
     xv(:) = real(myid, ireals)
-    call VecRestoreArrayF90(gVec, xv, ierr); call CHKERR(ierr)
-    call PetscObjectViewFromOptions(gVec, PETSC_NULL_VEC, trim(cmd_string_dump_ownership), ierr); call CHKERR(ierr)
+    call VecRestoreArray(gVec, xv, ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(PetscObjectCast(gVec), PETSC_NULL_OBJECT, trim(cmd_string_dump_ownership), ierr)
+    call CHKERR(ierr)
 
     ! Dump Face Ownership
     call PetscObjectSetName(gVec, 'ownership_non_local_faces', ierr); call CHKERR(ierr)
-    call VecGetArrayF90(gVec, xv, ierr); call CHKERR(ierr)
+    call VecGetArray(gVec, xv, ierr); call CHKERR(ierr)
     xv(:) = zero
     do icell = cStart, cEnd - 1
       call PetscFindInt(icell, nleaves_petsccnt, myidx, idx, ierr); call CHKERR(ierr)
@@ -776,16 +780,18 @@ contains
         end if
       end do
     end do
-    call VecRestoreArrayF90(gVec, xv, ierr); call CHKERR(ierr)
-    call PetscObjectViewFromOptions(gVec, PETSC_NULL_VEC, trim(cmd_string_dump_ownership), ierr); call CHKERR(ierr)
+    call VecRestoreArray(gVec, xv, ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(PetscObjectCast(gVec), PETSC_NULL_OBJECT, trim(cmd_string_dump_ownership), ierr)
+    call CHKERR(ierr)
 
     ! Dump Sum of cell Ownership
     call PetscObjectSetName(gVec, 'ownership_sum_cells', ierr); call CHKERR(ierr)
     call DMPlexGetHeightStratum(owner_dm, i0, cStart, cEnd, ierr); call CHKERR(ierr) ! cells
-    call VecGetArrayF90(gVec, xv, ierr); call CHKERR(ierr)
+    call VecGetArray(gVec, xv, ierr); call CHKERR(ierr)
     xv(:) = real(cEnd - cStart - i1, ireals)
-    call VecRestoreArrayF90(gVec, xv, ierr); call CHKERR(ierr)
-    call PetscObjectViewFromOptions(gVec, PETSC_NULL_VEC, trim(cmd_string_dump_ownership), ierr); call CHKERR(ierr)
+    call VecRestoreArray(gVec, xv, ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(PetscObjectCast(gVec), PETSC_NULL_OBJECT, trim(cmd_string_dump_ownership), ierr)
+    call CHKERR(ierr)
 
     call DMRestoreGlobalVector(owner_dm, gVec, ierr); call CHKERR(ierr)
     call DMDestroy(owner_dm, ierr); call CHKERR(ierr)
@@ -849,7 +855,7 @@ contains
 
     call set_coords_serial(dm, Nx)
 
-    call PetscObjectViewFromOptions(dm, PETSC_NULL_DM, "-show_2d_fish", ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(PetscObjectCast(dm), PETSC_NULL_OBJECT, "-show_2d_fish", ierr); call CHKERR(ierr)
 
     call DMPlexGetChart(dm, pStart, pEnd, ierr); call CHKERR(ierr)
     call DMPlexGetHeightStratum(dm, i0, fStart, fEnd, ierr); call CHKERR(ierr) ! faces
@@ -867,7 +873,7 @@ contains
 
     call DMPlexDistribute(dm, i0, migration_sf, dmdist, ierr); call CHKERR(ierr)
     if (.not. PetscObjectIsNull(dmdist)) then
-      call PetscObjectViewFromOptions(migration_sf, PETSC_NULL_SF, &
+      call PetscObjectViewFromOptions(PetscObjectCast(migration_sf), PETSC_NULL_OBJECT, &
                                       '-show_migration_sf', ierr); call CHKERR(ierr)
 
       call DMPlexGetChart(dmdist, pStart, pEnd, ierr); call CHKERR(ierr)
@@ -882,7 +888,7 @@ contains
         print *, myid, 'vStart,End distributed:: ', vStart, vEnd
       end if
 
-      call PetscObjectViewFromOptions(dmdist, PETSC_NULL_DM, &
+      call PetscObjectViewFromOptions(PetscObjectCast(dmdist), PETSC_NULL_OBJECT, &
                                       '-show_migrated_dm', ierr); call CHKERR(ierr)
 
     else
@@ -1015,7 +1021,7 @@ contains
 
       call PetscObjectSetName(coordinates, "coordinates", ierr); call CHKERR(ierr)
 
-      call VecGetArrayF90(coordinates, coords, ierr); call CHKERR(ierr)
+      call VecGetArray(coordinates, coords, ierr); call CHKERR(ierr)
 
       do iv = vStart, vEnd - 1
         j = (iv - vStart) / vert_per_row
@@ -1029,9 +1035,10 @@ contains
         coords(voff + 1:voff + 3) = [x, y, z]
       end do
 
-      call VecRestoreArrayF90(coordinates, coords, ierr); call CHKERR(ierr)
+      call VecRestoreArray(coordinates, coords, ierr); call CHKERR(ierr)
       call DMSetCoordinatesLocal(dm, coordinates, ierr); call CHKERR(ierr)
-      call PetscObjectViewFromOptions(coordinates, PETSC_NULL_VEC, "-show_plex_coordinates", ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(PetscObjectCast(coordinates), PETSC_NULL_OBJECT, "-show_plex_coordinates", ierr)
+      call CHKERR(ierr)
       call VecDestroy(coordinates, ierr); call CHKERR(ierr)
       if (ldebug) call mpi_barrier(comm, ierr)
     end subroutine
@@ -1101,7 +1108,7 @@ contains
 
     call set_coords_serial(dm, Nx)
 
-    call PetscObjectViewFromOptions(dm, PETSC_NULL_DM, "-show_2d_fish", ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(PetscObjectCast(dm), PETSC_NULL_OBJECT, "-show_2d_fish", ierr); call CHKERR(ierr)
 
     call DMPlexGetChart(dm, pStart, pEnd, ierr); call CHKERR(ierr)
     call DMPlexGetHeightStratum(dm, i0, fStart, fEnd, ierr); call CHKERR(ierr) ! faces
@@ -1125,7 +1132,7 @@ contains
     call DMPlexDistribute(dm, i0, migration_sf, dmdist, ierr); call CHKERR(ierr)
 
     if (.not. PetscObjectIsNull(dmdist)) then
-      call PetscObjectViewFromOptions(migration_sf, PETSC_NULL_SF, &
+      call PetscObjectViewFromOptions(PetscObjectCast(migration_sf), PETSC_NULL_OBJECT, &
                                       '-show_migration_sf', ierr); call CHKERR(ierr)
 
       call DMPlexGetChart(dmdist, pStart, pEnd, ierr); call CHKERR(ierr)
@@ -1145,7 +1152,7 @@ contains
         end do
       end if
 
-      call PetscObjectViewFromOptions(dmdist, PETSC_NULL_DM, &
+      call PetscObjectViewFromOptions(PetscObjectCast(dmdist), PETSC_NULL_OBJECT, &
                                       '-show_migrated_dm', ierr); call CHKERR(ierr)
 
     else
@@ -1311,7 +1318,7 @@ contains
 
       call PetscObjectSetName(coordinates, "coordinates", ierr); call CHKERR(ierr)
 
-      call VecGetArrayF90(coordinates, coords, ierr); call CHKERR(ierr)
+      call VecGetArray(coordinates, coords, ierr); call CHKERR(ierr)
 
       do iv = vStart, vEnd - 1
         j = (iv - vStart) / vert_per_row
@@ -1325,9 +1332,10 @@ contains
         coords(voff + 1:voff + 3) = [x, y, z]
       end do
 
-      call VecRestoreArrayF90(coordinates, coords, ierr); call CHKERR(ierr)
+      call VecRestoreArray(coordinates, coords, ierr); call CHKERR(ierr)
       call DMSetCoordinatesLocal(dm, coordinates, ierr); call CHKERR(ierr)
-      call PetscObjectViewFromOptions(coordinates, PETSC_NULL_VEC, "-show_plex_coordinates", ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(PetscObjectCast(coordinates), PETSC_NULL_OBJECT, "-show_plex_coordinates", ierr)
+      call CHKERR(ierr)
       call VecDestroy(coordinates, ierr); call CHKERR(ierr)
       if (ldebug) call mpi_barrier(comm, ierr)
     end subroutine
@@ -1450,7 +1458,7 @@ contains
     call DMPlexDistribute(dm, i0, migration_sf, dmdist, ierr); call CHKERR(ierr)
 
     if (.not. PetscObjectIsNull(dmdist)) then
-      call PetscObjectViewFromOptions(migration_sf, PETSC_NULL_SF, &
+      call PetscObjectViewFromOptions(PetscObjectCast(migration_sf), PETSC_NULL_OBJECT, &
                                       '-show_migration_sf', ierr); call CHKERR(ierr)
     else
       migration_sf = PETSC_NULL_SF
@@ -1493,7 +1501,7 @@ contains
 
       call PetscObjectSetName(coordinates, "coordinates", ierr); call CHKERR(ierr)
 
-      call VecGetArrayF90(coordinates, coords, ierr); call CHKERR(ierr)
+      call VecGetArray(coordinates, coords, ierr); call CHKERR(ierr)
 
       lcoord_displacement = .false.
       call get_petsc_opt(PETSC_NULL_CHARACTER, "-move_scene_2_origin", lcoord_displacement, lflg, ierr); call CHKERR(ierr)
@@ -1530,17 +1538,18 @@ contains
         coords(voff + i1:voff + i3) = real(cart_coord * (sphere_radius + vert_elevation) - vertices_centroid, ireals)
       end do
 
-      call VecRestoreArrayF90(coordinates, coords, ierr); call CHKERR(ierr)
+      call VecRestoreArray(coordinates, coords, ierr); call CHKERR(ierr)
 
       call DMSetCoordinateSection(dm, i3, coordSection, ierr); call CHKERR(ierr)
       call DMSetCoordinatesLocal(dm, coordinates, ierr); call CHKERR(ierr)
-      call PetscObjectViewFromOptions(coordinates, PETSC_NULL_VEC, "-show_plex_coordinates", ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(PetscObjectCast(coordinates), PETSC_NULL_OBJECT, "-show_plex_coordinates", ierr)
+      call CHKERR(ierr)
       call VecDestroy(coordinates, ierr); call CHKERR(ierr)
     end subroutine
   end subroutine
 
-  ! Creates a global dmplex vec from an F90 array
-  ! the space for the values is borrowed from the F90 array
+  ! Creates a global dmplex vec from an  array
+  ! the space for the values is borrowed from the  array
   ! and while the petsc vec lives, you should not deallocate the memory
   subroutine dmplex_gVec_from_f90_array_2d(comm, arr, pVec, dm, blocksize)
     integer(mpiint), intent(in) :: comm
@@ -1560,10 +1569,10 @@ contains
 
     bs = get_arg(i1, blocksize)
 
+    parr(1:size(arr)) => arr(:, :)
     if (numnodes .gt. 1) then
-      call VecCreateMPIWithArray(comm, bs, localsize, PETSC_DECIDE, arr, pVec, ierr); call CHKERR(ierr)
+      call VecCreateMPIWithArray(comm, bs, localsize, PETSC_DETERMINE, parr, pVec, ierr); call CHKERR(ierr)
     else
-      parr(1:size(arr)) => arr(:, :)
       call VecCreateSeqWithArray(comm, bs, localsize, parr, pVec, ierr); call CHKERR(ierr)
     end if
 
@@ -1580,7 +1589,8 @@ contains
       !              'to create VECSTANDARD vectypes but this DM is of a different vectype')
     end if
 
-    call PetscObjectViewFromOptions(pVec, PETSC_NULL_VEC, "-dmplex_gVec_from_f90_array_show_vec", ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(PetscObjectCast(pVec), PETSC_NULL_OBJECT, "-dmplex_gVec_from_f90_array_show_vec", ierr)
+    call CHKERR(ierr)
   end subroutine
 
   subroutine rank0_f90vec_to_plex(dm2d_serial, dm2d_parallel, migration_sf, &
@@ -1619,7 +1629,7 @@ contains
     call Vecset(rank0vec, 0._ireals, ierr); call CHKERR(ierr)
 
     if (myid .eq. 0) then
-      call VecGetArrayF90(rank0Vec, xloc, ierr); call CHKERR(ierr)
+      call VecGetArray(rank0Vec, xloc, ierr); call CHKERR(ierr)
 
       call CHKERR(int(size(xloc) - size(arr), mpiint), 'Global array sizes do not match, expected input size ('// &
                   toStr(shape(arr))//') to be the size of the plexrt mesh vec: ('//toStr(shape(xloc))//')')
@@ -1631,7 +1641,7 @@ contains
         end do
       end do
 
-      call VecRestoreArrayF90(rank0Vec, xloc, ierr); call CHKERR(ierr)
+      call VecRestoreArray(rank0Vec, xloc, ierr); call CHKERR(ierr)
     end if ! rank 0
 
     call rank0_vec_to_plex(dm2d_serial_clone, dm2d_parallel, migration_sf, &
@@ -1670,7 +1680,8 @@ contains
       call VecCopy(rank0vec, parVec, ierr); call CHKERR(ierr)
     end if
 
-    call PetscObjectViewFromOptions(parSection, PETSC_NULL_SECTION, "-show_icon_ncvec_to_plex_section", ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(PetscObjectCast(parSection), PETSC_NULL_OBJECT, "-show_icon_ncvec_to_plex_section", ierr)
+    call CHKERR(ierr)
   end subroutine
 
   subroutine plex_gVec_toZero(dm, migration_SF, &
@@ -1703,12 +1714,17 @@ contains
     call PetscSFCreateInverseSF(migration_SF, sf_to_0, ierr); call CHKERR(ierr)
     call PetscObjectSetName(sf_to_0, "Inverse Migration SF", ierr); call CHKERR(ierr)
 
-    call PetscObjectViewFromOptions(migration_SF, PETSC_NULL_SF, "-plex_gVec_toZero_show_sf", ierr); call CHKERR(ierr)
-    call PetscObjectViewFromOptions(dm, PETSC_NULL_DM, "-plex_gVec_toZero_show_dm", ierr); call CHKERR(ierr)
-    call PetscObjectViewFromOptions(sf_to_0, PETSC_NULL_SF, "-plex_gVec_toZero_show_sf", ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(PetscObjectCast(migration_SF), PETSC_NULL_OBJECT, "-plex_gVec_toZero_show_sf", ierr)
+    call CHKERR(ierr)
+    call PetscObjectViewFromOptions(PetscObjectCast(dm), PETSC_NULL_OBJECT, "-plex_gVec_toZero_show_dm", ierr)
+    call CHKERR(ierr)
+    call PetscObjectViewFromOptions(PetscObjectCast(sf_to_0), PETSC_NULL_OBJECT, "-plex_gVec_toZero_show_sf", ierr)
+    call CHKERR(ierr)
 
-    call PetscObjectViewFromOptions(gSection, PETSC_NULL_SECTION, "-plex_gVec_toZero_show_vec", ierr); call CHKERR(ierr)
-    call PetscObjectViewFromOptions(gVec, PETSC_NULL_Vec, "-plex_gVec_toZero_show_vec", ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(PetscObjectCast(gSection), PETSC_NULL_OBJECT, "-plex_gVec_toZero_show_vec", ierr)
+    call CHKERR(ierr)
+    call PetscObjectViewFromOptions(PetscObjectCast(gVec), PETSC_NULL_OBJECT, "-plex_gVec_toZero_show_vec", ierr)
+    call CHKERR(ierr)
 
     call PetscSectionCreate(comm, r0Section, ierr); call CHKERR(ierr)
     call VecCreate(PETSC_COMM_SELF, r0Vec, ierr); call CHKERR(ierr)
@@ -1790,9 +1806,9 @@ contains
 
     call DMGetLocalSection(plex%cell1_dm, sec, ierr); call CHKERR(ierr)
 
-    call VecGetArrayF90(vec, xv, ierr); call CHKERR(ierr)
+    call VecGetArray(vec, xv, ierr); call CHKERR(ierr)
 
-    call ISGetIndicesF90(toa_ids, xitoa_faces, ierr); call CHKERR(ierr)
+    call ISGetIndices(toa_ids, xitoa_faces, ierr); call CHKERR(ierr)
     do i = 1, size(xitoa_faces)
       iface = xitoa_faces(i)
       call DMPlexGetSupport(plex%cell1_dm, iface, cell_support, ierr); call CHKERR(ierr) ! support of face is cell
@@ -1800,9 +1816,9 @@ contains
       xv(i1 + voff:voff + ke) = inp(:, i)
       call DMPlexRestoreSupport(plex%cell1_dm, iface, cell_support, ierr); call CHKERR(ierr) ! support of face is cell
     end do
-    call ISRestoreIndicesF90(toa_ids, xitoa_faces, ierr); call CHKERR(ierr)
+    call ISRestoreIndices(toa_ids, xitoa_faces, ierr); call CHKERR(ierr)
 
-    call VecRestoreArrayF90(vec, xv, ierr); call CHKERR(ierr)
+    call VecRestoreArray(vec, xv, ierr); call CHKERR(ierr)
   end subroutine
 
   subroutine Nz_Ncol_vec_to_horizface1_dm(plex, inp, vec)
@@ -1830,9 +1846,9 @@ contains
 
     call DMGetLocalSection(plex%horizface1_dm, sec, ierr); call CHKERR(ierr)
 
-    call VecGetArrayF90(vec, xv, ierr); call CHKERR(ierr)
+    call VecGetArray(vec, xv, ierr); call CHKERR(ierr)
 
-    call ISGetIndicesF90(toa_ids, xitoa_faces, ierr); call CHKERR(ierr)
+    call ISGetIndices(toa_ids, xitoa_faces, ierr); call CHKERR(ierr)
     do i = 1, size(xitoa_faces)
       iface = xitoa_faces(i)
       do k = 1, N
@@ -1840,9 +1856,9 @@ contains
         xv(i1 + voff) = inp(k, i)
       end do
     end do
-    call ISRestoreIndicesF90(toa_ids, xitoa_faces, ierr); call CHKERR(ierr)
+    call ISRestoreIndices(toa_ids, xitoa_faces, ierr); call CHKERR(ierr)
 
-    call VecRestoreArrayF90(vec, xv, ierr); call CHKERR(ierr)
+    call VecRestoreArray(vec, xv, ierr); call CHKERR(ierr)
   end subroutine
 
   subroutine celldm1_vec_to_Nz_Ncol(plex, vec, arr)
@@ -1878,9 +1894,9 @@ contains
 
     call DMGetLocalSection(plex%cell1_dm, sec, ierr); call CHKERR(ierr)
 
-    call VecGetArrayReadF90(vec, xv, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(vec, xv, ierr); call CHKERR(ierr)
 
-    call ISGetIndicesF90(toa_ids, xitoa_faces, ierr); call CHKERR(ierr)
+    call ISGetIndices(toa_ids, xitoa_faces, ierr); call CHKERR(ierr)
     do i = 1, size(xitoa_faces)
       iface = xitoa_faces(i)
       call DMPlexGetSupport(plex%cell1_dm, iface, cell_support, ierr); call CHKERR(ierr) ! support of face is cell
@@ -1888,9 +1904,9 @@ contains
       arr(i1:ke, i) = xv(i1 + voff:voff + ke)
       call DMPlexRestoreSupport(plex%cell1_dm, iface, cell_support, ierr); call CHKERR(ierr) ! support of face is cell
     end do
-    call ISRestoreIndicesF90(toa_ids, xitoa_faces, ierr); call CHKERR(ierr)
+    call ISRestoreIndices(toa_ids, xitoa_faces, ierr); call CHKERR(ierr)
 
-    call VecRestoreArrayReadF90(vec, xv, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(vec, xv, ierr); call CHKERR(ierr)
   end subroutine
 
   subroutine dm2d_vec_to_Nz_Ncol(section, vec, arr)
@@ -1921,14 +1937,14 @@ contains
       end if
     end if
 
-    call VecGetArrayReadF90(vec, xv, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(vec, xv, ierr); call CHKERR(ierr)
 
     do iface = fStart, fEnd - 1
       call PetscSectionGetOffset(section, iface, voff, ierr); call CHKERR(ierr)
       arr(i1:ke, i1 + iface - fStart) = xv(i1 + voff:voff + ke)
     end do
 
-    call VecRestoreArrayReadF90(vec, xv, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(vec, xv, ierr); call CHKERR(ierr)
   end subroutine
 
   subroutine celldm_veccopy(vin, vout)

@@ -165,11 +165,11 @@ contains
         kside = kside + 1
 
         ! lets immediately setup the vertices of the new edge
-        call DMPlexGetTransitiveClosure(dm, i, PETSC_TRUE, transclosure, ierr); call CHKERR(ierr)
+        call DMPlexGetTransitiveClosure(dm, i, PETSC_TRUE, PETSC_NULL_INTEGER, transclosure, ierr); call CHKERR(ierr)
         verts = transclosure([11, 17]) - vStart + vxStart
         call DMPlexSetCone(dmrayli, new_side_edge + Nsidefaces, verts, ierr); call CHKERR(ierr)
         if (ldebug) print *, 'new edge', new_side_edge + Nsidefaces, 'verts', verts
-        call DMPlexRestoreTransitiveClosure(dm, i, PETSC_TRUE, transclosure, ierr); call CHKERR(ierr)
+        call DMPlexRestoreTransitiveClosure(dm, i, PETSC_TRUE, PETSC_NULL_INTEGER, transclosure, ierr); call CHKERR(ierr)
 
       end if
 
@@ -222,15 +222,15 @@ contains
       call PetscObjectSetName(vec_coord_rayli, "coordinates", ierr); call CHKERR(ierr)
 
       ! Fill rayli Coord Vec
-      call VecGetArrayF90(vec_coord_rayli, coords_rayli, ierr); call CHKERR(ierr)
+      call VecGetArray(vec_coord_rayli, coords_rayli, ierr); call CHKERR(ierr)
 
       call DMGetCoordinatesLocal(dm, vec_coord_dm, ierr); call CHKERR(ierr)
-      call VecGetArrayReadF90(vec_coord_dm, coords_dm, ierr); call CHKERR(ierr)
+      call VecGetArrayRead(vec_coord_dm, coords_dm, ierr); call CHKERR(ierr)
 
       coords_rayli(:) = coords_dm(:)
 
-      call VecRestoreArrayReadF90(vec_coord_dm, coords_dm, ierr); call CHKERR(ierr)
-      call VecRestoreArrayF90(vec_coord_rayli, coords_rayli, ierr); call CHKERR(ierr)
+      call VecRestoreArrayRead(vec_coord_dm, coords_dm, ierr); call CHKERR(ierr)
+      call VecRestoreArray(vec_coord_rayli, coords_rayli, ierr); call CHKERR(ierr)
 
       call DMSetCoordinatesLocal(dmrayli, vec_coord_rayli, ierr); call CHKERR(ierr)
       call VecDestroy(vec_coord_rayli, ierr); call CHKERR(ierr)
@@ -378,7 +378,7 @@ contains
     end do
 
     do iface = fStart, fEnd - 1
-      call DMPlexGetTransitiveClosure(plex%dm, iface, PETSC_TRUE, trans_closure, ierr); call CHKERR(ierr)
+      call DMPlexGetTransitiveClosure(plex%dm, iface, PETSC_TRUE, PETSC_NULL_INTEGER, trans_closure, ierr); call CHKERR(ierr)
       select case (size(trans_closure))
       case (14) ! 3 edges
         verts_of_face(1:3, iface - fStart + 1) = trans_closure(9:size(trans_closure):2) - vStart
@@ -386,31 +386,31 @@ contains
       case (18) ! 4 edges
         verts_of_face(:, iface - fStart + 1) = trans_closure(11:size(trans_closure):2) - vStart
       end select
-      call DMPlexRestoreTransitiveClosure(plex%dm, iface, PETSC_TRUE, trans_closure, ierr); call CHKERR(ierr)
+      call DMPlexRestoreTransitiveClosure(plex%dm, iface, PETSC_TRUE, PETSC_NULL_INTEGER, trans_closure, ierr); call CHKERR(ierr)
     end do
 
     call DMGetCoordinateSection(plex%dm, coord_section, ierr); call CHKERR(ierr)
     call DMGetCoordinatesLocal(plex%dm, coordinates, ierr); call CHKERR(ierr)
-    call VecGetArrayF90(coordinates, coords, ierr); call CHKERR(ierr)
+    call VecGetArray(coordinates, coords, ierr); call CHKERR(ierr)
 
     do ivert = vStart, vEnd - 1
       call PetscSectionGetOffset(coord_section, ivert, voff, ierr); call CHKERR(ierr)
       vert_coords(:, ivert - vStart + 1) = real(coords(voff + 1:voff + 3), kind=kind(vert_coords))
     end do
-    call VecRestoreArrayF90(coordinates, coords, ierr); call CHKERR(ierr)
+    call VecRestoreArray(coordinates, coords, ierr); call CHKERR(ierr)
 
-    call VecGetArrayReadF90(kabs, xkabs, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(kabs, xkabs, ierr); call CHKERR(ierr)
     rkabs(:) = real(xkabs, kind(rkabs))
-    call VecRestoreArrayReadF90(kabs, xkabs, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(kabs, xkabs, ierr); call CHKERR(ierr)
 
-    call VecGetArrayReadF90(ksca, xksca, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(ksca, xksca, ierr); call CHKERR(ierr)
     rksca(:) = real(xksca, kind(rksca))
-    call VecRestoreArrayReadF90(ksca, xksca, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(ksca, xksca, ierr); call CHKERR(ierr)
 
-    call VecGetArrayReadF90(g, xg, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(g, xg, ierr); call CHKERR(ierr)
     rg(:) = real(xg, kind(rg))
     !call delta_scale(rkabs, rksca, rg, max_g=0._c_double)
-    call VecRestoreArrayReadF90(g, xg, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(g, xg, ierr); call CHKERR(ierr)
 
     if (solution%lthermal_rad) then
       call fill_planck(plex, plck, rB_on_faces, rB_on_surfaces, opt_buildings=opt_buildings, plck_srfc=plck_srfc)
@@ -498,13 +498,13 @@ contains
     integer(mpiint) :: ierr
 
     call DMGetLocalSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
-    call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
     ! --------------------------- Direct Radiation ------------------
     call DMPlexGetDepthStratum(plex%dm, i2, fStart, fEnd, ierr); call CHKERR(ierr)
     if (solution%lsolar_rad) then
       call DMGetLocalSection(plex%edir_dm, edir_section, ierr); call CHKERR(ierr)
-      call VecGetArrayF90(solution%edir, xedir, ierr); call CHKERR(ierr)
+      call VecGetArray(solution%edir, xedir, ierr); call CHKERR(ierr)
       do iface = fStart, fEnd - 1
 
         call PetscSectionGetOffset(edir_section, iface, voff, ierr); call CHKERR(ierr)
@@ -513,12 +513,12 @@ contains
           xedir(voff + idof) = real(flx_through_faces_edir(iface - fStart + 1), ireals)
         end do
       end do
-      call VecRestoreArrayF90(solution%edir, xedir, ierr); call CHKERR(ierr)
+      call VecRestoreArray(solution%edir, xedir, ierr); call CHKERR(ierr)
     end if
 
     ! --------------------------- Diffuse Radiation -----------------
     call DMGetLocalSection(plex%ediff_dm, ediff_section, ierr); call CHKERR(ierr)
-    call VecGetArrayF90(solution%ediff, xediff, ierr); call CHKERR(ierr)
+    call VecGetArray(solution%ediff, xediff, ierr); call CHKERR(ierr)
 
     call DMGetStratumIS(plex%geom_dm, 'DomainBoundary', &
                         TOAFACE, toa_ids, ierr); call CHKERR(ierr)
@@ -557,19 +557,19 @@ contains
         end if
       end do ! fields
     end do
-    call VecRestoreArrayF90(solution%ediff, xediff, ierr); call CHKERR(ierr)
+    call VecRestoreArray(solution%ediff, xediff, ierr); call CHKERR(ierr)
 
     ! --------------------------- Absorption ------------------------
     call DMGetLocalSection(plex%abso_dm, abso_section, ierr); call CHKERR(ierr)
-    call VecGetArrayF90(solution%abso, xabso, ierr); call CHKERR(ierr)
+    call VecGetArray(solution%abso, xabso, ierr); call CHKERR(ierr)
     call DMPlexGetHeightStratum(plex%abso_dm, i0, cStart, cEnd, ierr); call CHKERR(ierr) ! cells
     do icell = cStart, cEnd - 1
       call PetscSectionGetFieldOffset(geomSection, icell, i2, geom_offset, ierr); call CHKERR(ierr) ! cell volume
       call PetscSectionGetOffset(abso_section, icell, voff, ierr); call CHKERR(ierr)
       xabso(i1 + voff) = real(abso_in_cells(i1 + icell - cStart), ireals) / geoms(i1 + geom_offset)
     end do
-    call VecRestoreArrayF90(solution%abso, xabso, ierr); call CHKERR(ierr)
-    call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+    call VecRestoreArray(solution%abso, xabso, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(plex%geomVec, geoms, ierr); call CHKERR(ierr)
   end subroutine
 
   subroutine fill_albedo(plex, albedo, ralbedo_on_faces, opt_buildings)
@@ -585,10 +585,10 @@ contains
     integer(mpiint) :: ierr
 
     call DMGetStratumIS(plex%geom_dm, 'DomainBoundary', TOAFACE, toa_ids, ierr); call CHKERR(ierr)
-    call ISGetIndicesF90(toa_ids, xtoa_faces, ierr); call CHKERR(ierr)
+    call ISGetIndices(toa_ids, xtoa_faces, ierr); call CHKERR(ierr)
     call DMPlexGetDepthStratum(plex%dm, i2, fStart, fEnd, ierr); call CHKERR(ierr) ! faces
 
-    call VecGetArrayReadF90(albedo, xalbedo, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(albedo, xalbedo, ierr); call CHKERR(ierr)
 
     ralbedo_on_faces(:) = -one
     do i = 1, size(xtoa_faces)
@@ -596,7 +596,7 @@ contains
       ralbedo_on_faces(srfc_face - fStart + 1) = real(xalbedo(i), kind(ralbedo_on_faces))
     end do
 
-    call VecRestoreArrayReadF90(albedo, xalbedo, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(albedo, xalbedo, ierr); call CHKERR(ierr)
     if (present(opt_buildings)) then
       associate (b => opt_buildings)
         do i = 1, size(b%iface)
@@ -622,34 +622,34 @@ contains
     integer(mpiint) :: ierr
 
     call DMGetStratumIS(plex%geom_dm, 'DomainBoundary', TOAFACE, toa_ids, ierr); call CHKERR(ierr)
-    call ISGetIndicesF90(toa_ids, xtoa_faces, ierr); call CHKERR(ierr)
+    call ISGetIndices(toa_ids, xtoa_faces, ierr); call CHKERR(ierr)
     call DMPlexGetDepthStratum(plex%horizface1_dm, i2, fStart, fEnd, ierr); call CHKERR(ierr) ! faces
     call DMGetLocalSection(plex%horizface1_dm, horizface1Section, ierr); call CHKERR(ierr)
 
     ! set Planck on surface
-    call VecGetArrayReadF90(plck, xplanck, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(plck, xplanck, ierr); call CHKERR(ierr)
     do i = 1, size(xtoa_faces)
       j = xtoa_faces(i) + plex%Nlay
       call PetscSectionGetOffset(horizface1Section, j, voff, ierr); call CHKERR(ierr)
       rB_on_surfaces(j - fStart + 1) = real(xplanck(voff + 1), kind(rB_on_surfaces))
     end do
-    call VecRestoreArrayReadF90(plck, xplanck, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(plck, xplanck, ierr); call CHKERR(ierr)
 
     ! from Bsrfc if we have it
     if (present(plck_srfc)) then
       if (allocated(plck_srfc)) then
 
-        call VecGetArrayReadF90(plck_srfc, xplanck_srfc, ierr); call CHKERR(ierr)
+        call VecGetArrayRead(plck_srfc, xplanck_srfc, ierr); call CHKERR(ierr)
         do i = 1, size(xtoa_faces)
           j = xtoa_faces(i) + plex%Nlay
           rB_on_surfaces(j - fStart + 1) = real(xplanck_srfc(i), kind(rB_on_surfaces))
         end do
-        call VecRestoreArrayReadF90(plck_srfc, xplanck_srfc, ierr); call CHKERR(ierr)
+        call VecRestoreArrayRead(plck_srfc, xplanck_srfc, ierr); call CHKERR(ierr)
       end if
     end if
 
     ! Planck in Atmosphere
-    call VecGetArrayReadF90(plck, xplanck, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(plck, xplanck, ierr); call CHKERR(ierr)
     do i = fStart, fEnd - 1
       call PetscSectionGetOffset(horizface1Section, i, voff, ierr); call CHKERR(ierr)
       call PetscSectionGetDof(horizface1Section, i, num_dof, ierr); call CHKERR(ierr)
@@ -657,7 +657,7 @@ contains
         rB_on_faces(i - fStart + 1) = real(xplanck(voff + j), kind(rB_on_faces))
       end do
     end do
-    call VecRestoreArrayReadF90(plck, xplanck, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(plck, xplanck, ierr); call CHKERR(ierr)
 
     ! Planck on buildings
     if (present(opt_buildings)) then

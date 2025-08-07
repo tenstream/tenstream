@@ -101,7 +101,7 @@ contains
     call DMDestroy(dm2d, ierr); call CHKERR(ierr)
     call DMDestroy(dm2d_dist, ierr); call CHKERR(ierr)
 
-    call PetscObjectViewFromOptions(plex%dm, PETSC_NULL_DM, "-show_plex", ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(PetscObjectCast(plex%dm), PETSC_NULL_OBJECT, "-show_plex", ierr); call CHKERR(ierr)
 
     if (lregular_mesh) then
       call allocate_plexrt_solver_from_commandline(solver, 'rectilinear_5_8')

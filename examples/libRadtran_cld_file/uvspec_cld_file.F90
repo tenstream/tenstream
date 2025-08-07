@@ -653,8 +653,8 @@ contains
     nullify (col_lwc)
     nullify (col_reff)
 
-    call VecGetArrayReadF90(vlwc, xlwc, ierr); call CHKERR(ierr)
-    call VecGetArrayReadF90(vreff, xreff, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(vlwc, xlwc, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(vreff, xreff, ierr); call CHKERR(ierr)
 
     col_lwc(1:Nz, fstart:fEnd - 1) => xlwc
     col_reff(1:Nz, fstart:fEnd - 1) => xreff
@@ -665,8 +665,8 @@ contains
 
     nullify (col_lwc)
     nullify (col_reff)
-    call VecRestoreArrayReadF90(vlwc, xlwc, ierr); call CHKERR(ierr)
-    call VecRestoreArrayReadF90(vreff, xreff, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(vlwc, xlwc, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(vreff, xreff, ierr); call CHKERR(ierr)
 
     ! Finished preparing input, lets do the computations
 
@@ -731,7 +731,7 @@ contains
       call plex_gVec_toZero(dm2d_dist, migration_sf, flxSection, v_var, &
                             r0flxSection, r0var)
 
-      call VecGetArrayF90(r0var, xarr, ierr); call CHKERR(ierr)
+      call VecGetArray(r0var, xarr, ierr); call CHKERR(ierr)
       if (myid .eq. 0) then
         xxarr(1:size(var, dim=1), 1:Nx_global * Ny_global * 2) => xarr
 
@@ -744,7 +744,7 @@ contains
 
         nullify (xxarr)
       end if
-      call VecRestoreArrayF90(r0var, xarr, ierr); call CHKERR(ierr)
+      call VecRestoreArray(r0var, xarr, ierr); call CHKERR(ierr)
 
       call VecDestroy(v_var, ierr); call CHKERR(ierr)
       call VecDestroy(r0var, ierr); call CHKERR(ierr)
