@@ -137,9 +137,9 @@ contains
       Nglobal = C%glob_zm * C%glob_xm * C%glob_ym * C%dof
       call MatCreateShell(solver%comm, Nlocal, Nlocal, Nglobal, Nglobal, solver%shell_ctx, A, ierr); call CHKERR(ierr)
       call MatShellSetContext(A, solver%shell_ctx, ierr); call CHKERR(ierr)
-      !call MatShellSetOperation(A, MATOP_MULT, mat_mult_subroutine, ierr); call CHKERR(ierr)
-      !call MatShellSetOperation(A, MATOP_SOR, mat_sor_subroutine, ierr); call CHKERR(ierr)
-      !call MatShellSetOperation(A, MATOP_GET_DIAGONAL, mat_getdiagonal_subroutine, ierr); call CHKERR(ierr)
+      call MatShellSetOperation(A, MATOP_MULT, mat_mult_subroutine, ierr); call CHKERR(ierr)
+      call MatShellSetOperation(A, MATOP_SOR, mat_sor_subroutine, ierr); call CHKERR(ierr)
+      call MatShellSetOperation(A, MATOP_GET_DIAGONAL, mat_getdiagonal_subroutine, ierr); call CHKERR(ierr)
     end if
   end subroutine
 
