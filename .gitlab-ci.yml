@@ -201,11 +201,6 @@ matshell:debian-testing:
   variables:
     PETSC_OPTIONS: "-solar_diff_shell -solar_diff_pc_type sor -thermal_diff_shell -thermal_diff_pc_type sor"
 
-ubuntu-rolling-petsc-v3.22.3:
-  extends: ubuntu-rolling
-  variables:
-    PETSC_BRANCH: v3.22.3
-
 #intel-icc:
 #  stage: build_docker
 #  extends: .build:default
