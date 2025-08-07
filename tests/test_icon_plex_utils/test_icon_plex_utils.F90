@@ -162,24 +162,24 @@ contains
     call rank0_f90vec_to_plex(dm2d, dm2d_dist, migration_sf, &
                               arr, parSection, gVec)
 
-    call VecGetArrayF90(gVec, xarr, ierr); call CHKERR(ierr)
+    call VecGetArray(gVec, xarr, ierr); call CHKERR(ierr)
     xxarr(1:Nz, fStart:fEnd - 1) => xarr
     print *, myid, 'xxarr', xxarr(:, :)
     ! check that all are the same
     @assertEqual(xxarr(1, fStart), xxarr, sqrt(epsilon(xxarr)))
     nullify (xxarr)
-    call VecRestoreArrayF90(gVec, xarr, ierr); call CHKERR(ierr)
+    call VecRestoreArray(gVec, xarr, ierr); call CHKERR(ierr)
 
     call plex_gVec_toZero(dm2d_dist, migration_sf, parSection, gVec, &
                           r0Section, r0Vec)
 
     if (myid .eq. 0) then
-      call VecGetArrayF90(r0Vec, xarr, ierr); call CHKERR(ierr)
+      call VecGetArray(r0Vec, xarr, ierr); call CHKERR(ierr)
       xxarr(1:Nz, 1:Nx_global * Ny_global * 2) => xarr
       print *, myid, 'xxarr', xxarr(:, :)
       @assertEqual(arr, xxarr, sqrt(epsilon(xxarr)))
       nullify (xxarr)
-      call VecRestoreArrayF90(r0Vec, xarr, ierr); call CHKERR(ierr)
+      call VecRestoreArray(r0Vec, xarr, ierr); call CHKERR(ierr)
 
     end if
   end subroutine
@@ -222,12 +222,12 @@ contains
 
     call dmplex_gVec_from_f90_array(comm, arr, gVec)
 
-    call VecGetArrayF90(gVec, xarr, ierr); call CHKERR(ierr)
+    call VecGetArray(gVec, xarr, ierr); call CHKERR(ierr)
     xxarr(1:Nz, 1:size(arr, dim=2)) => xarr
     print *, myid, 'xxarr', xxarr(:, :)
     @assertEqual(arr, xxarr, epsilon(xxarr))
     nullify (xxarr)
-    call VecRestoreArrayF90(gVec, xarr, ierr); call CHKERR(ierr)
+    call VecRestoreArray(gVec, xarr, ierr); call CHKERR(ierr)
 
     call VecDestroy(gvec, ierr); call CHKERR(ierr)
     deallocate (arr)
@@ -242,12 +242,12 @@ contains
 
     call dmplex_gVec_from_f90_array(comm, arr, gVec)
 
-    call VecGetArrayF90(gVec, xarr, ierr); call CHKERR(ierr)
+    call VecGetArray(gVec, xarr, ierr); call CHKERR(ierr)
     xxarr(1:Nz, fStart:fEnd - 1) => xarr
     print *, myid, 'xxarr', xxarr(:, :)
     @assertEqual(arr, xxarr, epsilon(xxarr))
     nullify (xxarr)
-    call VecRestoreArrayF90(gVec, xarr, ierr); call CHKERR(ierr)
+    call VecRestoreArray(gVec, xarr, ierr); call CHKERR(ierr)
 
     ! Test if we can do scatters with this vec
     call create_plex_section(dm2d_dist, 'face_section', i1, &
@@ -259,7 +259,7 @@ contains
     deallocate (arr)
 
     if (myid .eq. 0) then
-      call VecGetArrayF90(r0Vec, xarr, ierr); call CHKERR(ierr)
+      call VecGetArray(r0Vec, xarr, ierr); call CHKERR(ierr)
       xxarr(1:Nz, 1:Nx_global * Ny_global * 2) => xarr
       print *, myid, 'xxarr', xxarr(:, :)
       do i = 1, size(xxarr, dim=2)
@@ -271,7 +271,7 @@ contains
         end do
       end do
       nullify (xxarr)
-      call VecRestoreArrayF90(r0Vec, xarr, ierr); call CHKERR(ierr)
+      call VecRestoreArray(r0Vec, xarr, ierr); call CHKERR(ierr)
     end if
 
   end subroutine

@@ -496,7 +496,7 @@ contains
         call PetscObjectSetName(dumpvec, trim(vname), ierr); call CHKERR(ierr)
         call f90VecToPetsc(var, dm, dumpvec)
 
-        call PetscObjectViewFromOptions(dumpvec, PETSC_NULL_VEC, &
+        call PetscObjectViewFromOptions(PetscObjectCast(dumpvec), PETSC_NULL_OBJECT, &
                                         trim(dumpstring), ierr); call CHKERR(ierr)
         call DMRestoreGlobalVector(dm, dumpvec, ierr); call CHKERR(ierr)
       end if

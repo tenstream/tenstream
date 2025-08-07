@@ -351,18 +351,18 @@ contains
     end if
 
     if (present(vlwc)) then
-      call VecGetArrayReadF90(vlwc, xlwc, ierr); call CHKERR(ierr)
+      call VecGetArrayRead(vlwc, xlwc, ierr); call CHKERR(ierr)
     end if
     if (present(viwc)) then
-      call VecGetArrayReadF90(viwc, xiwc, ierr); call CHKERR(ierr)
+      call VecGetArrayRead(viwc, xiwc, ierr); call CHKERR(ierr)
     end if
 
     call DMGetLocalSection(solver%plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
-    call VecGetArrayReadF90(solver%plex%geomVec, geoms, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(solver%plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
-    call VecGetArrayF90(solver%kabs, xkabs, ierr); call CHKERR(ierr)
-    call VecGetArrayF90(solver%ksca, xksca, ierr); call CHKERR(ierr)
-    call VecGetArrayF90(solver%g, xg, ierr); call CHKERR(ierr)
+    call VecGetArray(solver%kabs, xkabs, ierr); call CHKERR(ierr)
+    call VecGetArray(solver%ksca, xksca, ierr); call CHKERR(ierr)
+    call VecGetArray(solver%g, xg, ierr); call CHKERR(ierr)
     do i = cStart, cEnd - 1
       call PetscSectionGetFieldOffset(geomSection, i, i3, geom_offset, ierr); call CHKERR(ierr)
       dz = geoms(i1 + geom_offset)
@@ -407,10 +407,10 @@ contains
     end do
 
     if (present(vlwc)) then
-      call VecRestoreArrayReadF90(vlwc, xlwc, ierr); call CHKERR(ierr)
+      call VecRestoreArrayRead(vlwc, xlwc, ierr); call CHKERR(ierr)
     end if
     if (present(viwc)) then
-      call VecRestoreArrayReadF90(viwc, xiwc, ierr); call CHKERR(ierr)
+      call VecRestoreArrayRead(viwc, xiwc, ierr); call CHKERR(ierr)
     end if
 
     if (present(asymmetry_param)) then
@@ -423,9 +423,9 @@ contains
       print *, 'Min/Max of g   ', minval(xg), maxval(xg)
     end if
 
-    call VecRestoreArrayF90(solver%kabs, xkabs, ierr); call CHKERR(ierr)
-    call VecRestoreArrayF90(solver%ksca, xksca, ierr); call CHKERR(ierr)
-    call VecRestoreArrayF90(solver%g, xg, ierr); call CHKERR(ierr)
+    call VecRestoreArray(solver%kabs, xkabs, ierr); call CHKERR(ierr)
+    call VecRestoreArray(solver%ksca, xksca, ierr); call CHKERR(ierr)
+    call VecRestoreArray(solver%g, xg, ierr); call CHKERR(ierr)
   end subroutine
 
   subroutine get_in_out_dof_offsets(IS_diff_in_out_dof, icell, incoming_offsets, outgoing_offsets, opt_xv)
@@ -439,9 +439,9 @@ contains
     if (present(opt_xv)) then
       call with_is_vec(opt_xv)
     else
-      call ISGetIndicesF90(IS_diff_in_out_dof, xv, ierr); call CHKERR(ierr)
+      call ISGetIndices(IS_diff_in_out_dof, xv, ierr); call CHKERR(ierr)
       call with_is_vec(xv)
-      call ISRestoreIndicesF90(IS_diff_in_out_dof, xv, ierr); call CHKERR(ierr)
+      call ISRestoreIndices(IS_diff_in_out_dof, xv, ierr); call CHKERR(ierr)
     end if
   contains
     subroutine with_is_vec(xis)
@@ -827,7 +827,7 @@ contains
         & ksp_iter=solution%Niter_dir)
       call PetscLogEventEnd(solver%logs%solve_Mdir, ierr)
       call PetscObjectSetName(solution%edir, 'edir', ierr); call CHKERR(ierr)
-      call PetscObjectViewFromOptions(solution%edir, PETSC_NULL_VEC, &
+      call PetscObjectViewFromOptions(PetscObjectCast(solution%edir), PETSC_NULL_OBJECT, &
                                       '-show_edir_vec_global', ierr); call CHKERR(ierr)
       solution%lWm2_dir = .false.
       solution%lchanged = .true.
@@ -889,7 +889,7 @@ contains
       & solver%g,      &
       & solver%albedo, &
       & solver%Mdiff)
-    call PetscObjectViewFromOptions(solver%Mdiff, PETSC_NULL_MAT, &
+    call PetscObjectViewFromOptions(PetscObjectCast(solver%Mdiff), PETSC_NULL_OBJECT, &
                                     '-show_Mediff_'//toStr(solution%uid), ierr); call CHKERR(ierr)
 
     if (solution%lsolar_rad) then
@@ -934,7 +934,7 @@ contains
     end if
     call PetscLogEventEnd(solver%logs%solve_Mdiff, ierr)
     call PetscObjectSetName(solution%ediff, 'ediff', ierr); call CHKERR(ierr)
-    call PetscObjectViewFromOptions(solution%ediff, PETSC_NULL_VEC, &
+    call PetscObjectViewFromOptions(PetscObjectCast(solution%ediff), PETSC_NULL_OBJECT, &
                                     '-show_ediff_vec_global', ierr); call CHKERR(ierr)
     solution%lWm2_diff = .false.
     solution%lchanged = .true.
@@ -1005,15 +1005,15 @@ contains
 
     call PetscLogEventBegin(solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
 
-    call VecGetArrayReadF90(kabs, xkabs, ierr); call CHKERR(ierr)
-    call VecGetArrayReadF90(ksca, xksca, ierr); call CHKERR(ierr)
-    call VecGetArrayReadF90(g, xg, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(kabs, xkabs, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(ksca, xksca, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(g, xg, ierr); call CHKERR(ierr)
 
     call DMGetLocalSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
     call DMGetLocalSection(plex%wedge_orientation_dm, wedgeSection, ierr); call CHKERR(ierr)
 
-    call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
-    call VecGetArrayReadF90(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
 
     do icell = plex%cStart, plex%cEnd - 1
       if (plex%l1d(icell)) then
@@ -1076,12 +1076,12 @@ contains
       end if
     end do
 
-    call VecRestoreArrayReadF90(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
-    call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
-    call VecRestoreArrayReadF90(kabs, xkabs, ierr); call CHKERR(ierr)
-    call VecRestoreArrayReadF90(ksca, xksca, ierr); call CHKERR(ierr)
-    call VecRestoreArrayReadF90(g, xg, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(kabs, xkabs, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(ksca, xksca, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(g, xg, ierr); call CHKERR(ierr)
 
     call PetscLogEventEnd(solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
   end subroutine
@@ -1121,15 +1121,15 @@ contains
 
     call PetscLogEventBegin(solver%logs%get_coeff_dir2diff, ierr); call CHKERR(ierr)
 
-    call VecGetArrayReadF90(kabs, xkabs, ierr); call CHKERR(ierr)
-    call VecGetArrayReadF90(ksca, xksca, ierr); call CHKERR(ierr)
-    call VecGetArrayReadF90(g, xg, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(kabs, xkabs, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(ksca, xksca, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(g, xg, ierr); call CHKERR(ierr)
 
     call DMGetLocalSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
     call DMGetLocalSection(plex%wedge_orientation_dm, wedgeSection, ierr); call CHKERR(ierr)
 
-    call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
-    call VecGetArrayReadF90(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
 
     do icell = plex%cStart, plex%cEnd - 1
       call PetscSectionGetFieldOffset(geomSection, icell, i3, geom_offset, ierr); call CHKERR(ierr)
@@ -1187,12 +1187,12 @@ contains
       end if
     end do
 
-    call VecRestoreArrayReadF90(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
-    call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
-    call VecRestoreArrayReadF90(kabs, xkabs, ierr); call CHKERR(ierr)
-    call VecRestoreArrayReadF90(ksca, xksca, ierr); call CHKERR(ierr)
-    call VecRestoreArrayReadF90(g, xg, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(kabs, xkabs, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(ksca, xksca, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(g, xg, ierr); call CHKERR(ierr)
 
     call PetscLogEventEnd(solver%logs%get_coeff_dir2diff, ierr); call CHKERR(ierr)
   end subroutine
@@ -1229,15 +1229,15 @@ contains
 
     call PetscLogEventBegin(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
 
-    call VecGetArrayReadF90(kabs, xkabs, ierr); call CHKERR(ierr)
-    call VecGetArrayReadF90(ksca, xksca, ierr); call CHKERR(ierr)
-    call VecGetArrayReadF90(g, xg, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(kabs, xkabs, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(ksca, xksca, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(g, xg, ierr); call CHKERR(ierr)
 
     call DMGetLocalSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
     call DMGetLocalSection(plex%wedge_orientation_dm, wedgeSection, ierr); call CHKERR(ierr)
 
-    call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
-    call VecGetArrayReadF90(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
 
     do icell = plex%cStart, plex%cEnd - 1
       call PetscSectionGetFieldOffset(geomSection, icell, i3, geom_offset, ierr); call CHKERR(ierr)
@@ -1300,12 +1300,12 @@ contains
       end if
     end do
 
-    call VecRestoreArrayReadF90(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
-    call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
-    call VecRestoreArrayReadF90(kabs, xkabs, ierr); call CHKERR(ierr)
-    call VecRestoreArrayReadF90(ksca, xksca, ierr); call CHKERR(ierr)
-    call VecRestoreArrayReadF90(g, xg, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(kabs, xkabs, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(ksca, xksca, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(g, xg, ierr); call CHKERR(ierr)
 
     call PetscLogEventEnd(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
   end subroutine
@@ -1327,7 +1327,8 @@ contains
       if (.not. allocated(var)) return
       !call PetscObjectGetName(var, oldname, ierr); call CHKERR(ierr)
       call PetscObjectSetName(var, trim(varname)//trim(postfix), ierr); call CHKERR(ierr)
-      call PetscObjectViewFromOptions(var, PETSC_NULL_VEC, '-dump_optprop_'//trim(varname), ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(PetscObjectCast(var), PETSC_NULL_OBJECT, '-dump_optprop_'//trim(varname), ierr)
+      call CHKERR(ierr)
       !call PetscObjectSetName(var, trim(oldname), ierr); call CHKERR(ierr)
     end subroutine
   end subroutine
@@ -1413,7 +1414,7 @@ contains
                     'Local vector size '//toStr(vecsize)//new_line('')// &
                     'expected number of columns/strides '//toStr(Ncol)//' would result in '//toStr(Ncol * N)//'entries')
 
-        call VecGetArrayF90(vec, xv, ierr); call CHKERR(ierr)
+        call VecGetArray(vec, xv, ierr); call CHKERR(ierr)
         xxv(1:N, 1:Ncol) => xv(:)
       else
         nullify (xxv)
@@ -1425,7 +1426,7 @@ contains
       type(tVec), allocatable, intent(in) :: vec
       real(ireals), intent(inout), pointer :: xv(:), xxv(:, :)
       if (associated(xxv)) nullify (xxv)
-      if (allocated(vec)) call VecRestoreArrayF90(vec, xv, ierr); call CHKERR(ierr)
+      if (allocated(vec)) call VecRestoreArray(vec, xv, ierr); call CHKERR(ierr)
     end subroutine
   end subroutine
 
@@ -1456,14 +1457,14 @@ contains
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
     call DMGetLocalSection(wedge_orientation_dm, wedgeSection, ierr); call CHKERR(ierr)
-    call VecGetArrayReadF90(wedge_orientation, xorient, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(wedge_orientation, xorient, ierr); call CHKERR(ierr)
 
     call DMGetStratumIS(plex%edir_dm, 'DomainBoundary', TOAFACE, boundary_ids, ierr); call CHKERR(ierr)
 
     if (PetscObjectIsNull(boundary_ids)) then ! dont have TOA boundary faces
       Ncol = 0
     else
-      call ISGetIndicesF90(boundary_ids, xitoa, ierr); call CHKERR(ierr)
+      call ISGetIndices(boundary_ids, xitoa, ierr); call CHKERR(ierr)
       Ncol = size(xitoa)
     end if
 
@@ -1501,9 +1502,9 @@ contains
     end do
 
     if (.not. PetscObjectIsNull(boundary_ids)) then
-      call ISRestoreIndicesF90(boundary_ids, xitoa, ierr); call CHKERR(ierr)
+      call ISRestoreIndices(boundary_ids, xitoa, ierr); call CHKERR(ierr)
     end if
-    call VecRestoreArrayReadF90(wedge_orientation, xorient, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(wedge_orientation, xorient, ierr); call CHKERR(ierr)
 
     if (myid .eq. 0) print *, '*        k  '// &
       '                '//cstr('Cx    (min/mean/max)', 'blue')//'                '// &
@@ -1577,10 +1578,10 @@ contains
     if (.not. allocated(plex%geom_dm)) call CHKERR(myid + 1, 'get_normal_of_first_TOA_face::needs allocated geom_dm first')
 
     call DMGetLocalSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
-    call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
     call DMGetLocalSection(edirdm, edirsection, ierr); call CHKERR(ierr)
-    call PetscObjectViewFromOptions(edirsection, PETSC_NULL_SECTION, '-show_src_section', ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(PetscObjectCast(edirsection), PETSC_NULL_OBJECT, '-show_src_section', ierr); call CHKERR(ierr)
 
     ! Now lets get vectors!
     if (.not. allocated(srcVec)) then
@@ -1593,12 +1594,12 @@ contains
     call DMGetLocalVector(edirdm, localVec, ierr); call CHKERR(ierr)
     call VecSet(localVec, zero, ierr); call CHKERR(ierr)
 
-    call VecGetArrayF90(localVec, xv, ierr); call CHKERR(ierr)
+    call VecGetArray(localVec, xv, ierr); call CHKERR(ierr)
 
     call DMGetStratumIS(edirdm, 'DomainBoundary', TOAFACE, boundary_ids, ierr); call CHKERR(ierr)
     if (PetscObjectIsNull(boundary_ids)) then ! dont have TOA boundary faces
     else
-      call ISGetIndicesF90(boundary_ids, xx_v, ierr); call CHKERR(ierr)
+      call ISGetIndices(boundary_ids, xx_v, ierr); call CHKERR(ierr)
 
       ! First set the TOA boundary fluxes on faces
       do i = 1, size(xx_v)
@@ -1621,10 +1622,10 @@ contains
           end do
         end if
       end do
-      call ISRestoreIndicesF90(boundary_ids, xx_v, ierr); call CHKERR(ierr)
+      call ISRestoreIndices(boundary_ids, xx_v, ierr); call CHKERR(ierr)
     end if ! TOA boundary ids
 
-    call VecRestoreArrayF90(localVec, xv, ierr); call CHKERR(ierr)
+    call VecRestoreArray(localVec, xv, ierr); call CHKERR(ierr)
 
     !if(.False.) &
     call set_sidewards_direct_fluxes()
@@ -1633,10 +1634,10 @@ contains
     call DMLocalToGlobalEnd(edirdm, localVec, INSERT_VALUES, srcVec, ierr); call CHKERR(ierr)
     call PetscObjectSetName(srcVec, 'srcVec', ierr); call CHKERR(ierr)
 
-    call PetscObjectViewFromOptions(srcVec, PETSC_NULL_VEC, '-show_src_vec_global', ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(PetscObjectCast(srcVec), PETSC_NULL_OBJECT, '-show_src_vec_global', ierr); call CHKERR(ierr)
 
     call DMRestoreLocalVector(edirdm, localVec, ierr); call CHKERR(ierr)
-    call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
     !call print_vec_min_mean_max(srcVec, 'srcVec')
 
@@ -1660,15 +1661,15 @@ contains
       if (PetscObjectIsNull(IS_side_faces)) then ! dont have side boundary faces
       else
 
-        call VecGetArrayReadF90(kabs, xkabs, ierr); call CHKERR(ierr)
-        call VecGetArrayReadF90(ksca, xksca, ierr); call CHKERR(ierr)
-        call VecGetArrayReadF90(g, xg, ierr); call CHKERR(ierr)
+        call VecGetArrayRead(kabs, xkabs, ierr); call CHKERR(ierr)
+        call VecGetArrayRead(ksca, xksca, ierr); call CHKERR(ierr)
+        call VecGetArrayRead(g, xg, ierr); call CHKERR(ierr)
 
         ! First we compute the edir vec on all columns that are on the domain side and the sun is shining on it
         call VecSet(vedir, -one, ierr); call CHKERR(ierr)
-        call VecGetArrayF90(vedir, xedir, ierr); call CHKERR(ierr)
+        call VecGetArray(vedir, xedir, ierr); call CHKERR(ierr)
 
-        call ISGetIndicesF90(IS_side_faces, iside_faces, ierr); call CHKERR(ierr)
+        call ISGetIndices(IS_side_faces, iside_faces, ierr); call CHKERR(ierr)
 
         do o = 1, size(iside_faces)
           iface_side = iside_faces(o)
@@ -1725,7 +1726,7 @@ contains
 
         ! Now we go ahead and try to estimate the fluxes along the side boundary
 
-        call VecGetArrayF90(localVec, xv, ierr); call CHKERR(ierr)
+        call VecGetArray(localVec, xv, ierr); call CHKERR(ierr)
 
         do o = 1, size(iside_faces)
           iface_side = iside_faces(o)
@@ -1769,15 +1770,15 @@ contains
           !print *,icell,'edir top', xedir(i1+topoffset), 'sidesrc', xv(i1+voff)
         end do
 
-        call VecRestoreArrayF90(localVec, xv, ierr); call CHKERR(ierr)
+        call VecRestoreArray(localVec, xv, ierr); call CHKERR(ierr)
 
-        call ISRestoreIndicesF90(IS_side_faces, iside_faces, ierr); call CHKERR(ierr)
+        call ISRestoreIndices(IS_side_faces, iside_faces, ierr); call CHKERR(ierr)
 
-        call VecRestoreArrayF90(vedir, xedir, ierr); call CHKERR(ierr)
+        call VecRestoreArray(vedir, xedir, ierr); call CHKERR(ierr)
 
-        call VecRestoreArrayReadF90(kabs, xkabs, ierr); call CHKERR(ierr)
-        call VecRestoreArrayReadF90(ksca, xksca, ierr); call CHKERR(ierr)
-        call VecRestoreArrayReadF90(g, xg, ierr); call CHKERR(ierr)
+        call VecRestoreArrayRead(kabs, xkabs, ierr); call CHKERR(ierr)
+        call VecRestoreArrayRead(ksca, xksca, ierr); call CHKERR(ierr)
+        call VecRestoreArrayRead(g, xg, ierr); call CHKERR(ierr)
       end if ! TOA boundary ids
       call DMRestoreGlobalVector(edirdm, vedir, ierr); call CHKERR(ierr)
     end subroutine
@@ -1837,34 +1838,34 @@ contains
     call DMGetLocalSection(plex%wedge_orientation_dm, wedgeSection, ierr); call CHKERR(ierr)
     call DMGetLocalSection(plex%srfc_boundary_dm, srfcSection, ierr); call CHKERR(ierr)
 
-    call VecGetArrayReadF90(kabs, xkabs, ierr); call CHKERR(ierr)
-    call VecGetArrayReadF90(ksca, xksca, ierr); call CHKERR(ierr)
-    call VecGetArrayReadF90(g, xg, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(kabs, xkabs, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(ksca, xksca, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(g, xg, ierr); call CHKERR(ierr)
 
-    call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
-    call VecGetArrayReadF90(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
 
     call DMGetLocalVector(ediffdm, lsrcVec, ierr); call CHKERR(ierr)
     call VecSet(lsrcVec, zero, ierr); call CHKERR(ierr)
-    call VecGetArrayF90(lsrcVec, xb, ierr); call CHKERR(ierr)
+    call VecGetArray(lsrcVec, xb, ierr); call CHKERR(ierr)
 
     if (lsolar) call set_solar_source()
     if (lthermal) call set_thermal_source()
 
-    call VecRestoreArrayF90(lsrcVec, xb, ierr); call CHKERR(ierr)
-    call VecRestoreArrayReadF90(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
-    call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+    call VecRestoreArray(lsrcVec, xb, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
-    call VecRestoreArrayReadF90(kabs, xkabs, ierr); call CHKERR(ierr)
-    call VecRestoreArrayReadF90(ksca, xksca, ierr); call CHKERR(ierr)
-    call VecRestoreArrayReadF90(g, xg, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(kabs, xkabs, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(ksca, xksca, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(g, xg, ierr); call CHKERR(ierr)
 
     call VecSet(srcVec, zero, ierr); call CHKERR(ierr)
     call DMLocalToGlobalBegin(ediffdm, lsrcVec, ADD_VALUES, srcVec, ierr); call CHKERR(ierr)
     call DMLocalToGlobalEnd(ediffdm, lsrcVec, ADD_VALUES, srcVec, ierr); call CHKERR(ierr)
     call DMRestoreLocalVector(ediffdm, lsrcVec, ierr); call CHKERR(ierr)
 
-    call PetscObjectViewFromOptions(srcVec, PETSC_NULL_VEC, '-show_diff_src_vec', ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(PetscObjectCast(srcVec), PETSC_NULL_OBJECT, '-show_diff_src_vec', ierr); call CHKERR(ierr)
 
   contains
     subroutine set_solar_source()
@@ -1903,8 +1904,8 @@ contains
       call DMGlobalToLocalBegin(edirdm, edirVec, INSERT_VALUES, ledirVec, ierr); call CHKERR(ierr)
       call DMGlobalToLocalEnd(edirdm, edirVec, INSERT_VALUES, ledirVec, ierr); call CHKERR(ierr)
 
-      call ISGetIndicesF90(solver%IS_diff_in_out_dof, xinoutdof, ierr); call CHKERR(ierr)
-      call VecGetArrayReadF90(ledirVec, xedir, ierr); call CHKERR(ierr)
+      call ISGetIndices(solver%IS_diff_in_out_dof, xinoutdof, ierr); call CHKERR(ierr)
+      call VecGetArrayRead(ledirVec, xedir, ierr); call CHKERR(ierr)
 
       do icell = plex%cStart, plex%cEnd - 1
         call DMPlexGetCone(ediffdm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
@@ -1995,8 +1996,8 @@ contains
       call set_Edir_srfc_reflection(edirSection, xedir)
       !TODO: develop set_outside_incoming_src()
 
-      call VecRestoreArrayReadF90(ledirVec, xedir, ierr); call CHKERR(ierr)
-      call ISRestoreIndicesF90(solver%IS_diff_in_out_dof, xinoutdof, ierr); call CHKERR(ierr)
+      call VecRestoreArrayRead(ledirVec, xedir, ierr); call CHKERR(ierr)
+      call ISRestoreIndices(solver%IS_diff_in_out_dof, xinoutdof, ierr); call CHKERR(ierr)
       call DMRestoreLocalVector(edirdm, ledirVec, ierr); call CHKERR(ierr)
     end subroutine
 
@@ -2008,12 +2009,12 @@ contains
       integer(iintegers) :: i, iface, offset_Eup, offset_Edir, offset_srfc
       real(ireals), pointer :: xalbedo(:)
 
-      call VecGetArrayReadF90(albedo, xalbedo, ierr); call CHKERR(ierr)
+      call VecGetArrayRead(albedo, xalbedo, ierr); call CHKERR(ierr)
 
       call DMGetStratumIS(plex%geom_dm, 'DomainBoundary', BOTFACE, srfc_ids, ierr); call CHKERR(ierr)
       if (PetscObjectIsNull(srfc_ids)) then ! dont have surface points
       else
-        call ISGetIndicesF90(srfc_ids, xi, ierr); call CHKERR(ierr)
+        call ISGetIndices(srfc_ids, xi, ierr); call CHKERR(ierr)
         do i = 1, size(xi)
           iface = xi(i)
           ! field offset for field 0 gives Eup because field 0 is flux from lower cell id to higher cell id
@@ -2035,9 +2036,9 @@ contains
 
           xb(i1 + offset_Eup) = xb(i1 + offset_Eup) + xedir(i1 + offset_Edir) * xalbedo(i1 + offset_srfc)
         end do
-        call ISRestoreIndicesF90(srfc_ids, xi, ierr); call CHKERR(ierr)
+        call ISRestoreIndices(srfc_ids, xi, ierr); call CHKERR(ierr)
       end if
-      call VecRestoreArrayReadF90(albedo, xalbedo, ierr); call CHKERR(ierr)
+      call VecRestoreArrayRead(albedo, xalbedo, ierr); call CHKERR(ierr)
 
     end subroutine
 
@@ -2055,7 +2056,7 @@ contains
 
       call DMGetLocalVector(ediffdm, thermal_src_vec, ierr); call CHKERR(ierr)
       call VecSet(thermal_src_vec, zero, ierr); call CHKERR(ierr)
-      call VecGetArrayF90(thermal_src_vec, xsrc, ierr); call CHKERR(ierr)
+      call VecGetArray(thermal_src_vec, xsrc, ierr); call CHKERR(ierr)
 
       call set_cell_emissions(xsrc)
       call thermal_srfc_emission(xsrc)
@@ -2076,7 +2077,7 @@ contains
 
       xb = xb + xsrc
 
-      call VecRestoreArrayF90(thermal_src_vec, xsrc, ierr); call CHKERR(ierr)
+      call VecRestoreArray(thermal_src_vec, xsrc, ierr); call CHKERR(ierr)
       call DMRestoreLocalVector(ediffdm, thermal_src_vec, ierr); call CHKERR(ierr)
     end subroutine
     subroutine set_cell_emissions(xsrc)
@@ -2095,8 +2096,8 @@ contains
       real(ireals), pointer :: xplanck(:)
       real(ireals) :: emissivity, b0, b1, btop, bbot, bside, Beff, dz, tauz
 
-      call ISGetIndicesF90(solver%IS_diff_in_out_dof, xinoutdof, ierr); call CHKERR(ierr)
-      call VecGetArrayReadF90(plckVec, xplanck, ierr); call CHKERR(ierr)
+      call ISGetIndices(solver%IS_diff_in_out_dof, xinoutdof, ierr); call CHKERR(ierr)
+      call VecGetArrayRead(plckVec, xplanck, ierr); call CHKERR(ierr)
 
       do icell = plex%cStart, plex%cEnd - 1
 
@@ -2151,8 +2152,8 @@ contains
         end do
         call DMPlexRestoreCone(plex%ediff_dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
       end do ! icell
-      call VecRestoreArrayReadF90(plckVec, xplanck, ierr); call CHKERR(ierr)
-      call ISRestoreIndicesF90(solver%IS_diff_in_out_dof, xinoutdof, ierr); call CHKERR(ierr)
+      call VecRestoreArrayRead(plckVec, xplanck, ierr); call CHKERR(ierr)
+      call ISRestoreIndices(solver%IS_diff_in_out_dof, xinoutdof, ierr); call CHKERR(ierr)
     end subroutine
 
     subroutine thermal_srfc_emission(xsrc)
@@ -2162,12 +2163,12 @@ contains
       integer(iintegers), pointer :: xi(:)
       integer(iintegers) :: i, iface, offset_Eup, offset_srfc, plck_offset
 
-      call VecGetArrayReadF90(plckVec, xplanck, ierr); call CHKERR(ierr)
-      call VecGetArrayReadF90(albedo, xalbedo, ierr); call CHKERR(ierr)
+      call VecGetArrayRead(plckVec, xplanck, ierr); call CHKERR(ierr)
+      call VecGetArrayRead(albedo, xalbedo, ierr); call CHKERR(ierr)
       call DMGetStratumIS(plex%geom_dm, 'DomainBoundary', BOTFACE, srfc_ids, ierr); call CHKERR(ierr)
       if (PetscObjectIsNull(srfc_ids)) then ! dont have surface points
       else
-        call ISGetIndicesF90(srfc_ids, xi, ierr); call CHKERR(ierr)
+        call ISGetIndices(srfc_ids, xi, ierr); call CHKERR(ierr)
         do i = 1, size(xi)
           iface = xi(i)
           ! field offset for field 0 gives Eup because field 0 is flux from lower cell id to higher cell id
@@ -2179,11 +2180,11 @@ contains
           call PetscSectionGetFieldOffset(plckSection, iface, i0, plck_offset, ierr); call CHKERR(ierr)
           xsrc(i1 + offset_Eup) = xplanck(i1 + plck_offset) * (one - xalbedo(i1 + offset_srfc)) * pi
         end do
-        call ISRestoreIndicesF90(srfc_ids, xi, ierr); call CHKERR(ierr)
+        call ISRestoreIndices(srfc_ids, xi, ierr); call CHKERR(ierr)
       end if
 
-      call VecRestoreArrayReadF90(albedo, xalbedo, ierr); call CHKERR(ierr)
-      call VecRestoreArrayReadF90(plckVec, xplanck, ierr); call CHKERR(ierr)
+      call VecRestoreArrayRead(albedo, xalbedo, ierr); call CHKERR(ierr)
+      call VecRestoreArrayRead(plckVec, xplanck, ierr); call CHKERR(ierr)
     end subroutine
   end subroutine
 
@@ -2302,15 +2303,15 @@ contains
       default_preconditioner_settings: block
         integer(iintegers) :: i, asm_N, asm_iter
         integer(iintegers) :: first_local
-        type(tKSP), allocatable :: asm_ksps(:)
+        type(tKSP), pointer :: asm_ksps(:)
         type(tPC) :: subpc
         logical :: lflg
 
         asm_iter = 2
         call get_petsc_opt(PETSC_NULL_CHARACTER, "-ts_ksp_iter", asm_iter, lflg, ierr); call CHKERR(ierr)
 
-        call PCASMGetSubKSP(prec, asm_N, first_local, PETSC_NULL_KSP, ierr); call CHKERR(ierr)
-        allocate (asm_ksps(asm_N))
+        call PCASMGetSubKSP(prec, asm_N, first_local, PETSC_NULL_KSP_POINTER, ierr); call CHKERR(ierr)
+        !allocate (asm_ksps(asm_N))
         call PCASMGetSubKSP(prec, asm_N, first_local, asm_ksps, ierr); call CHKERR(ierr)
         do i = 1, asm_N
           call KSPSetType(asm_ksps(i), KSPRICHARDSON, ierr); call CHKERR(ierr)
@@ -2385,19 +2386,19 @@ contains
       call ISLocalToGlobalMappingApplyIS(cmapping, IS_1D, isg_1D, ierr); call CHKERR(ierr)
       call ISDestroy(is_1D, ierr); call CHKERR(ierr)
 
-      call PetscObjectViewFromOptions(ISg_1D, ksp, '-show_fs_1D', ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(PetscObjectCast(ISg_1D), PetscObjectCast(ksp), '-show_fs_1D', ierr); call CHKERR(ierr)
       call PCFieldSplitSetIS(pc, '1D', isg_1D, ierr); call CHKERR(ierr)
 
       call ISComplement(isg_1D, mStart, mEnd, isg_3D, ierr); call CHKERR(ierr)
       call ISDestroy(isg_1D, ierr); call CHKERR(ierr)
 
-      call PetscObjectViewFromOptions(ISg_3D, ksp, '-show_fs_3D', ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(PetscObjectCast(ISg_3D), PetscObjectCast(ksp), '-show_fs_3D', ierr); call CHKERR(ierr)
       call PCFieldSplitSetIS(pc, '3D', isg_3D, ierr); call CHKERR(ierr)
       call ISDestroy(isg_3D, ierr); call CHKERR(ierr)
 
       if (.false.) then
         call ISCreateStride(comm, mEnd - mStart, mStart, i1, isg_all, ierr); call CHKERR(ierr)
-        call PetscObjectViewFromOptions(isg_all, ksp, '-show_fs_all', ierr); call CHKERR(ierr)
+        call PetscObjectViewFromOptions(PetscObjectCast(isg_all), PetscObjectCast(ksp), '-show_fs_all', ierr); call CHKERR(ierr)
         call PCFieldSplitSetIS(pc, 'all', isg_all, ierr); call CHKERR(ierr)
         call ISDestroy(isg_all, ierr); call CHKERR(ierr)
       end if
@@ -2461,11 +2462,11 @@ contains
       call KSPGetConvergedReason(ksp, reason, ierr); call CHKERR(ierr)
 
       call KSPGetOperators(ksp, A, Pmat, ierr); call CHKERR(ierr)
-      if (reason .le. 0) then
-        call PetscObjectViewFromOptions(b, PETSC_NULL_VEC, '-show_diverged_b', ierr); call CHKERR(ierr)
-        call PetscObjectViewFromOptions(x, PETSC_NULL_VEC, '-show_diverged_x', ierr); call CHKERR(ierr)
-        call PetscObjectViewFromOptions(A, PETSC_NULL_MAT, '-show_diverged_A', ierr); call CHKERR(ierr)
-        call PetscObjectViewFromOptions(ksp, PETSC_NULL_KSP, '-show_diverged_ksp', ierr); call CHKERR(ierr)
+      if (reason%v .le. 0) then
+        call PetscObjectViewFromOptions(PetscObjectCast(b), PETSC_NULL_OBJECT, '-show_diverged_b', ierr); call CHKERR(ierr)
+        call PetscObjectViewFromOptions(PetscObjectCast(x), PETSC_NULL_OBJECT, '-show_diverged_x', ierr); call CHKERR(ierr)
+        call PetscObjectViewFromOptions(PetscObjectCast(A), PETSC_NULL_OBJECT, '-show_diverged_A', ierr); call CHKERR(ierr)
+        call PetscObjectViewFromOptions(PetscObjectCast(ksp), PETSC_NULL_OBJECT, '-show_diverged_ksp', ierr); call CHKERR(ierr)
       end if
 
       lhandle_diverged = .false.
@@ -2473,7 +2474,7 @@ contains
       call CHKERR(ierr)
       if (.not. lhandle_diverged) return
 
-      if (reason .le. 0) then
+      if (reason%v .le. 0) then
         call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
         if (myid .eq. 0 .and. ldebug) &
           print *, myid, 'Resetted initial guess to zero and try again with gmres:'
@@ -2500,11 +2501,11 @@ contains
         call KSPSetFromOptions(ksp, ierr); call CHKERR(ierr)
         call KSPSetUp(ksp, ierr); call CHKERR(ierr)
         if (myid .eq. 0 .and. ldebug) &
-          print *, myid, 'Solver took ', iter, ' iterations and converged', reason .gt. 0, 'because', reason
+          print *, myid, 'Solver took ', iter, ' iterations and converged', reason%v .gt. 0, 'because', reason
       end if
 
-      if (reason .le. 0) then
-        call CHKERR(1_mpiint, '***** SOLVER did NOT converge :( ********'//toStr(reason))
+      if (reason%v .le. 0) then
+        call CHKERR(1_mpiint, '***** SOLVER did NOT converge :( ********'//toStr(reason%v))
       end if
     end subroutine
 
@@ -2532,7 +2533,7 @@ contains
     call mpi_comm_rank(plex%comm, myid, ierr); call CHKERR(ierr)
 
     call DMGetLocalSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
-    call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
     call DMGetLocalSection(face_dm, faceSection, ierr); call CHKERR(ierr)
 
@@ -2541,7 +2542,7 @@ contains
     call DMGlobalToLocalBegin(face_dm, globalfaceVec, INSERT_VALUES, faceVec, ierr); call CHKERR(ierr)
     call DMGlobalToLocalEnd(face_dm, globalfaceVec, INSERT_VALUES, faceVec, ierr); call CHKERR(ierr)
 
-    call VecGetArrayF90(faceVec, xv, ierr); call CHKERR(ierr)
+    call VecGetArray(faceVec, xv, ierr); call CHKERR(ierr)
 
     call DMPlexGetDepthStratum(face_dm, i2, fStart, fEnd, ierr); call CHKERR(ierr)
     do iface = fStart, fEnd - 1
@@ -2566,8 +2567,8 @@ contains
       end if
     end do
 
-    call VecRestoreArrayF90(faceVec, xv, ierr); call CHKERR(ierr)
-    call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+    call VecRestoreArray(faceVec, xv, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
     call DMLocalToGlobalBegin(face_dm, faceVec, INSERT_VALUES, globalfaceVec, ierr); call CHKERR(ierr)
     call DMLocalToGlobalEnd(face_dm, faceVec, INSERT_VALUES, globalfaceVec, ierr); call CHKERR(ierr)
@@ -2610,15 +2611,15 @@ contains
     call DMGetLocalSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
     call DMGetLocalSection(plex%wedge_orientation_dm, wedgeSection, ierr); call CHKERR(ierr)
 
-    call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
-    call VecGetArrayReadF90(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
 
-    call VecGetArrayReadF90(kabs, xkabs, ierr); call CHKERR(ierr)
-    call VecGetArrayReadF90(ksca, xksca, ierr); call CHKERR(ierr)
-    call VecGetArrayReadF90(g, xg, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(kabs, xkabs, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(ksca, xksca, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(g, xg, ierr); call CHKERR(ierr)
 
     call DMGetLocalSection(plex%edir_dm, sec, ierr); call CHKERR(ierr)
-    call PetscObjectViewFromOptions(sec, PETSC_NULL_SECTION, '-show_edir_loc_section', ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(PetscObjectCast(sec), PETSC_NULL_OBJECT, '-show_edir_loc_section', ierr); call CHKERR(ierr)
 
     if (allocated(A)) then
       ldestroy_mat = .false.
@@ -2648,14 +2649,14 @@ contains
 
     call MatAssemblyBegin(A, MAT_FINAL_ASSEMBLY, ierr); call CHKERR(ierr)
     call MatAssemblyEnd(A, MAT_FINAL_ASSEMBLY, ierr); call CHKERR(ierr)
-    call PetscObjectViewFromOptions(A, PETSC_NULL_MAT, '-show_Mdir', ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(PetscObjectCast(A), PETSC_NULL_OBJECT, '-show_Mdir', ierr); call CHKERR(ierr)
 
-    call VecRestoreArrayReadF90(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
-    call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
-    call VecRestoreArrayReadF90(kabs, xkabs, ierr); call CHKERR(ierr)
-    call VecRestoreArrayReadF90(ksca, xksca, ierr); call CHKERR(ierr)
-    call VecRestoreArrayReadF90(g, xg, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(kabs, xkabs, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(ksca, xksca, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(g, xg, ierr); call CHKERR(ierr)
 
   contains
     subroutine set_diagonal_entries()
@@ -2692,7 +2693,7 @@ contains
 
       call DMGetStratumIS(plex%edir_dm, 'DomainBoundary', SIDEFACE, IS_side_faces, ierr); call CHKERR(ierr)
       if (PetscObjectIsNull(IS_side_faces)) return ! dont have side boundary faces
-      call ISGetIndicesF90(IS_side_faces, iside_faces, ierr); call CHKERR(ierr)
+      call ISGetIndices(IS_side_faces, iside_faces, ierr); call CHKERR(ierr)
 
       do o = 1, size(iside_faces)
         iface_side = iside_faces(o)
@@ -3075,14 +3076,14 @@ contains
     if (.not. allocated(albedo)) call CHKERR(1_mpiint, 'albedo has to be allocated')
 
     call DMGetLocalSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
-    call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
     call DMGetLocalSection(plex%wedge_orientation_dm, wedgeSection, ierr); call CHKERR(ierr)
-    call VecGetArrayReadF90(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
 
-    call VecGetArrayReadF90(kabs, xkabs, ierr); call CHKERR(ierr)
-    call VecGetArrayReadF90(ksca, xksca, ierr); call CHKERR(ierr)
-    call VecGetArrayReadF90(g, xg, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(kabs, xkabs, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(ksca, xksca, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(g, xg, ierr); call CHKERR(ierr)
 
     call DMGetLocalSection(plex%ediff_dm, ediffSection, ierr); call CHKERR(ierr)
 
@@ -3119,14 +3120,14 @@ contains
 
     call MatAssemblyBegin(A, MAT_FINAL_ASSEMBLY, ierr); call CHKERR(ierr)
     call MatAssemblyEnd(A, MAT_FINAL_ASSEMBLY, ierr); call CHKERR(ierr)
-    call PetscObjectViewFromOptions(A, PETSC_NULL_MAT, '-show_Mediff', ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(PetscObjectCast(A), PETSC_NULL_OBJECT, '-show_Mediff', ierr); call CHKERR(ierr)
 
-    call VecRestoreArrayReadF90(kabs, xkabs, ierr); call CHKERR(ierr)
-    call VecRestoreArrayReadF90(ksca, xksca, ierr); call CHKERR(ierr)
-    call VecRestoreArrayReadF90(g, xg, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(kabs, xkabs, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(ksca, xksca, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(g, xg, ierr); call CHKERR(ierr)
 
-    call VecRestoreArrayReadF90(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
-    call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
     if (myid .eq. 0 .and. ldebug) print *, 'Creating Diffuse Matrix... done'
   contains
@@ -3147,8 +3148,8 @@ contains
       if (PetscObjectIsNull(bc_ids)) then ! dont have surface points
       else
         call DMGetLocalSection(plex%srfc_boundary_dm, srfcSection, ierr); call CHKERR(ierr)
-        call VecGetArrayReadF90(albedo, xalbedo, ierr); call CHKERR(ierr)
-        call ISGetIndicesF90(bc_ids, xi, ierr); call CHKERR(ierr)
+        call VecGetArrayRead(albedo, xalbedo, ierr); call CHKERR(ierr)
+        call ISGetIndices(bc_ids, xi, ierr); call CHKERR(ierr)
         do i = 1, size(xi)
           iface = xi(i)
           call PetscSectionGetOffset(srfcSection, iface, offset_srfc, ierr); call CHKERR(ierr)
@@ -3169,8 +3170,8 @@ contains
             end if
           end do
         end do
-        call ISRestoreIndicesF90(bc_ids, xi, ierr); call CHKERR(ierr)
-        call VecRestoreArrayReadF90(albedo, xalbedo, ierr); call CHKERR(ierr)
+        call ISRestoreIndices(bc_ids, xi, ierr); call CHKERR(ierr)
+        call VecRestoreArrayRead(albedo, xalbedo, ierr); call CHKERR(ierr)
       end if
 
       sideward_bc_coeff = -one
@@ -3179,7 +3180,7 @@ contains
       call DMGetStratumIS(plex%geom_dm, 'DomainBoundary', SIDEFACE, bc_ids, ierr); call CHKERR(ierr)
       if (PetscObjectIsNull(bc_ids) .or. approx(sideward_bc_coeff, zero)) then ! dont have surface points
       else
-        call ISGetIndicesF90(bc_ids, xi, ierr); call CHKERR(ierr)
+        call ISGetIndices(bc_ids, xi, ierr); call CHKERR(ierr)
         do i = 1, size(xi)
           iface = xi(i)
           do istream = 0, num_fields - 1
@@ -3207,7 +3208,7 @@ contains
             end if
           end do
         end do
-        call ISRestoreIndicesF90(bc_ids, xi, ierr); call CHKERR(ierr)
+        call ISRestoreIndices(bc_ids, xi, ierr); call CHKERR(ierr)
       end if
     end subroutine
     subroutine set_diagonal_entries()
@@ -3228,7 +3229,7 @@ contains
       integer(iintegers), allocatable :: incoming_offsets(:), outgoing_offsets(:)
       integer(iintegers), pointer :: xinoutdof(:)
 
-      call ISGetIndicesF90(solver%IS_diff_in_out_dof, xinoutdof, ierr); call CHKERR(ierr)
+      call ISGetIndices(solver%IS_diff_in_out_dof, xinoutdof, ierr); call CHKERR(ierr)
 
       do icell = plex%cStart, plex%cEnd - 1
         if (.not. plex%l1d(icell)) cycle
@@ -3259,7 +3260,7 @@ contains
         call get_in_out_dof_offsets(solver%IS_diff_in_out_dof, icell, incoming_offsets, outgoing_offsets, xinoutdof)
         call MatSetValuesLocal(A, i2, outgoing_offsets, i2, incoming_offsets, -c, INSERT_VALUES, ierr); call CHKERR(ierr)
       end do
-      call ISRestoreIndicesF90(solver%IS_diff_in_out_dof, xinoutdof, ierr); call CHKERR(ierr)
+      call ISRestoreIndices(solver%IS_diff_in_out_dof, xinoutdof, ierr); call CHKERR(ierr)
     end subroutine
     subroutine set_3d_coeffs()
       integer(iintegers), pointer :: faces_of_cell(:)
@@ -3282,7 +3283,7 @@ contains
 
       real(ireals), parameter :: coeff_norm_err_tolerance = one + 100 * sqrt(epsilon(one))
 
-      call ISGetIndicesF90(solver%IS_diff_in_out_dof, xinoutdof, ierr); call CHKERR(ierr)
+      call ISGetIndices(solver%IS_diff_in_out_dof, xinoutdof, ierr); call CHKERR(ierr)
       call get_in_out_dof_offsets(solver%IS_diff_in_out_dof, plex%cStart, incoming_offsets, outgoing_offsets, xinoutdof)
 
       allocate (irows(size(outgoing_offsets)))
@@ -3347,7 +3348,7 @@ contains
         end if
         call DMPlexRestoreCone(plex%ediff_dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
       end do
-      call ISRestoreIndicesF90(solver%IS_diff_in_out_dof, xinoutdof, ierr); call CHKERR(ierr)
+      call ISRestoreIndices(solver%IS_diff_in_out_dof, xinoutdof, ierr); call CHKERR(ierr)
     end subroutine
   end subroutine
 
@@ -3588,7 +3589,8 @@ contains
 
         call PetscLogEventBegin(solver%logs%debug_output, ierr)
         call PetscObjectSetName(solution%abso, 'abso_direct_'//toStr(solution%uid), ierr); call CHKERR(ierr)
-        call PetscObjectViewFromOptions(solution%abso, PETSC_NULL_VEC, '-show_abso_direct', ierr); call CHKERR(ierr)
+        call PetscObjectViewFromOptions(PetscObjectCast(solution%abso), PETSC_NULL_OBJECT, '-show_abso_direct', ierr)
+        call CHKERR(ierr)
         call PetscLogEventEnd(solver%logs%debug_output, ierr)
       end if
 
@@ -3613,7 +3615,7 @@ contains
 
     call PetscLogEventBegin(solver%logs%debug_output, ierr)
     call PetscObjectSetName(solution%abso, 'abso_'//toStr(solution%uid), ierr); call CHKERR(ierr)
-    call PetscObjectViewFromOptions(solution%abso, PETSC_NULL_VEC, '-show_abso', ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(PetscObjectCast(solution%abso), PETSC_NULL_OBJECT, '-show_abso', ierr); call CHKERR(ierr)
     call PetscLogEventEnd(solver%logs%debug_output, ierr)
   end subroutine
 
@@ -3651,7 +3653,7 @@ contains
     !if(ldebug) print *,'plex_rt::compute_edir_absorption....'
 
     call DMGetLocalSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
-    call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
     call DMGetLocalSection(plex%edir_dm, edir_section, ierr); call CHKERR(ierr)
     call DMGetLocalSection(plex%abso_dm, abso_section, ierr); call CHKERR(ierr)
@@ -3664,13 +3666,13 @@ contains
     call DMGlobalToLocalBegin(plex%edir_dm, edir, INSERT_VALUES, local_edir, ierr); call CHKERR(ierr)
     call DMGlobalToLocalEnd(plex%edir_dm, edir, INSERT_VALUES, local_edir, ierr); call CHKERR(ierr)
 
-    call VecGetArrayReadF90(local_edir, xedir, ierr); call CHKERR(ierr)
-    call VecGetArrayF90(abso, xabso, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(local_edir, xedir, ierr); call CHKERR(ierr)
+    call VecGetArray(abso, xabso, ierr); call CHKERR(ierr)
 
     if (.not. allocated(plex%wedge_orientation_dm)) &
       call CHKERR(myid + 1, 'called compute_edir_absorption with a dm which is not allocated: plex%wedge_orientation_dm?')
     call DMGetLocalSection(plex%wedge_orientation_dm, wedgeSection, ierr); call CHKERR(ierr)
-    call VecGetArrayReadF90(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
 
     do icell = cStart, cEnd - 1
 
@@ -3702,11 +3704,11 @@ contains
       call DMPlexRestoreCone(plex%edir_dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
     end do
 
-    call VecRestoreArrayReadF90(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
 
-    call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
-    call VecRestoreArrayReadF90(local_edir, xedir, ierr); call CHKERR(ierr)
-    call VecRestoreArrayF90(abso, xabso, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(local_edir, xedir, ierr); call CHKERR(ierr)
+    call VecRestoreArray(abso, xabso, ierr); call CHKERR(ierr)
 
     call DMRestoreLocalVector(plex%edir_dm, local_edir, ierr); call CHKERR(ierr)
     !if(ldebug) print *,'plex_rt::compute_edir_absorption....finished'
@@ -3755,14 +3757,14 @@ contains
       !if(ldebug) print *,'plex_rt::compute_edir_absorption....'
 
       call DMGetLocalSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
-      call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+      call VecGetArrayRead(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
       call DMGetLocalSection(plex%edir_dm, edir_section, ierr); call CHKERR(ierr)
       call DMGetLocalSection(plex%abso_dm, abso_section, ierr); call CHKERR(ierr)
 
-      call VecGetArrayReadF90(solver%kabs, xkabs, ierr); call CHKERR(ierr)
-      call VecGetArrayReadF90(solver%ksca, xksca, ierr); call CHKERR(ierr)
-      call VecGetArrayReadF90(solver%g, xg, ierr); call CHKERR(ierr)
+      call VecGetArrayRead(solver%kabs, xkabs, ierr); call CHKERR(ierr)
+      call VecGetArrayRead(solver%ksca, xksca, ierr); call CHKERR(ierr)
+      call VecGetArrayRead(solver%g, xg, ierr); call CHKERR(ierr)
 
       call DMPlexGetHeightStratum(plex%abso_dm, i0, cStart, cEnd, ierr); call CHKERR(ierr) ! cells
 
@@ -3772,13 +3774,13 @@ contains
       call DMGlobalToLocalBegin(plex%edir_dm, edir, INSERT_VALUES, local_edir, ierr); call CHKERR(ierr)
       call DMGlobalToLocalEnd(plex%edir_dm, edir, INSERT_VALUES, local_edir, ierr); call CHKERR(ierr)
 
-      call VecGetArrayReadF90(local_edir, xedir, ierr); call CHKERR(ierr)
-      call VecGetArrayF90(abso, xabso, ierr); call CHKERR(ierr)
+      call VecGetArrayRead(local_edir, xedir, ierr); call CHKERR(ierr)
+      call VecGetArray(abso, xabso, ierr); call CHKERR(ierr)
 
       if (.not. allocated(plex%wedge_orientation_dm)) &
         call CHKERR(myid + 1, 'called compute_edir_absorption with a dm which is not allocated: plex%wedge_orientation_dm?')
       call DMGetLocalSection(plex%wedge_orientation_dm, wedgeSection, ierr); call CHKERR(ierr)
-      call VecGetArrayReadF90(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
+      call VecGetArrayRead(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
 
       do icell = cStart, cEnd - 1
         call PetscSectionGetFieldOffset(wedgeSection, icell, i1, wedge_offset2, ierr); call CHKERR(ierr)
@@ -3834,15 +3836,15 @@ contains
         call DMPlexRestoreCone(plex%edir_dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
       end do
 
-      call VecRestoreArrayReadF90(solver%kabs, xkabs, ierr); call CHKERR(ierr)
-      call VecRestoreArrayReadF90(solver%ksca, xksca, ierr); call CHKERR(ierr)
-      call VecRestoreArrayReadF90(solver%g, xg, ierr); call CHKERR(ierr)
+      call VecRestoreArrayRead(solver%kabs, xkabs, ierr); call CHKERR(ierr)
+      call VecRestoreArrayRead(solver%ksca, xksca, ierr); call CHKERR(ierr)
+      call VecRestoreArrayRead(solver%g, xg, ierr); call CHKERR(ierr)
 
-      call VecRestoreArrayReadF90(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
+      call VecRestoreArrayRead(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
 
-      call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
-      call VecRestoreArrayReadF90(local_edir, xedir, ierr); call CHKERR(ierr)
-      call VecRestoreArrayF90(abso, xabso, ierr); call CHKERR(ierr)
+      call VecRestoreArrayRead(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+      call VecRestoreArrayRead(local_edir, xedir, ierr); call CHKERR(ierr)
+      call VecRestoreArray(abso, xabso, ierr); call CHKERR(ierr)
 
       call DMRestoreLocalVector(plex%edir_dm, local_edir, ierr); call CHKERR(ierr)
       !if(ldebug) print *,'plex_rt::compute_edir_absorption....finished'
@@ -3891,7 +3893,7 @@ contains
     !if(ldebug) print *,'plex_rt::compute_ediff_absorption....'
 
     call DMGetLocalSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
-    call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
     call DMGetLocalSection(plex%ediff_dm, ediff_section, ierr); call CHKERR(ierr)
     call DMGetLocalSection(plex%abso_dm, abso_section, ierr); call CHKERR(ierr)
@@ -3903,10 +3905,10 @@ contains
     call DMGlobalToLocalBegin(plex%ediff_dm, ediff, INSERT_VALUES, local_ediff, ierr); call CHKERR(ierr)
     call DMGlobalToLocalEnd(plex%ediff_dm, ediff, INSERT_VALUES, local_ediff, ierr); call CHKERR(ierr)
 
-    call VecGetArrayReadF90(local_ediff, xediff, ierr); call CHKERR(ierr)
-    call VecGetArrayF90(abso, xabso, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(local_ediff, xediff, ierr); call CHKERR(ierr)
+    call VecGetArray(abso, xabso, ierr); call CHKERR(ierr)
 
-    call ISGetIndicesF90(IS_diff_in_out_dof, xinoutdof, ierr); call CHKERR(ierr)
+    call ISGetIndices(IS_diff_in_out_dof, xinoutdof, ierr); call CHKERR(ierr)
     do icell = cStart, cEnd - 1
 
       call get_in_out_dof_offsets(IS_diff_in_out_dof, icell, incoming_offsets, outgoing_offsets, xinoutdof)
@@ -3939,11 +3941,11 @@ contains
       call PetscSectionGetOffset(abso_section, icell, abso_offset, ierr); call CHKERR(ierr)
       xabso(i1 + abso_offset) = xabso(i1 + abso_offset) + cell_abso * inv_volume
     end do
-    call ISRestoreIndicesF90(IS_diff_in_out_dof, xinoutdof, ierr); call CHKERR(ierr)
+    call ISRestoreIndices(IS_diff_in_out_dof, xinoutdof, ierr); call CHKERR(ierr)
 
-    call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
-    call VecRestoreArrayReadF90(local_ediff, xediff, ierr); call CHKERR(ierr)
-    call VecRestoreArrayF90(abso, xabso, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(local_ediff, xediff, ierr); call CHKERR(ierr)
+    call VecRestoreArray(abso, xabso, ierr); call CHKERR(ierr)
 
     call DMRestoreLocalVector(plex%ediff_dm, local_ediff, ierr); call CHKERR(ierr)
     !if(ldebug) print *,'plex_rt::compute_ediff_absorption....finished'
@@ -4001,14 +4003,14 @@ contains
     !if(ldebug) print *,'plex_rt::compute_ediff_absorption....'
 
     call DMGetLocalSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
-    call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
     call DMGetLocalSection(plex%wedge_orientation_dm, wedgeSection, ierr); call CHKERR(ierr)
-    call VecGetArrayReadF90(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
 
-    call VecGetArrayReadF90(solver%kabs, xkabs, ierr); call CHKERR(ierr)
-    call VecGetArrayReadF90(solver%ksca, xksca, ierr); call CHKERR(ierr)
-    call VecGetArrayReadF90(solver%g, xg, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(solver%kabs, xkabs, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(solver%ksca, xksca, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(solver%g, xg, ierr); call CHKERR(ierr)
 
     call DMGetLocalSection(plex%ediff_dm, ediff_section, ierr); call CHKERR(ierr)
     call DMGetLocalSection(plex%abso_dm, abso_section, ierr); call CHKERR(ierr)
@@ -4024,11 +4026,11 @@ contains
     call DMGlobalToLocalBegin(plex%ediff_dm, srcVec, INSERT_VALUES, local_srcVec, ierr); call CHKERR(ierr)
     call DMGlobalToLocalEnd(plex%ediff_dm, srcVec, INSERT_VALUES, local_srcVec, ierr); call CHKERR(ierr)
 
-    call VecGetArrayReadF90(local_ediff, xediff, ierr); call CHKERR(ierr)
-    call VecGetArrayReadF90(local_srcVec, xsrc, ierr); call CHKERR(ierr)
-    call VecGetArrayF90(abso, xabso, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(local_ediff, xediff, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(local_srcVec, xsrc, ierr); call CHKERR(ierr)
+    call VecGetArray(abso, xabso, ierr); call CHKERR(ierr)
 
-    call ISGetIndicesF90(solver%IS_diff_in_out_dof, xinoutdof, ierr); call CHKERR(ierr)
+    call ISGetIndices(solver%IS_diff_in_out_dof, xinoutdof, ierr); call CHKERR(ierr)
     do icell = cStart, cEnd - 1
       call DMPlexGetCone(plex%ediff_dm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
       call get_in_out_dof_offsets(solver%IS_diff_in_out_dof, icell, incoming_offsets, outgoing_offsets, xinoutdof)
@@ -4074,20 +4076,20 @@ contains
       call PetscSectionGetOffset(abso_section, icell, abso_offset, ierr); call CHKERR(ierr)
       xabso(i1 + abso_offset) = xabso(i1 + abso_offset) + cell_abso * inv_volume
     end do
-    call ISRestoreIndicesF90(solver%IS_diff_in_out_dof, xinoutdof, ierr); call CHKERR(ierr)
+    call ISRestoreIndices(solver%IS_diff_in_out_dof, xinoutdof, ierr); call CHKERR(ierr)
 
-    call VecRestoreArrayReadF90(local_ediff, xediff, ierr); call CHKERR(ierr)
-    call VecRestoreArrayReadF90(local_srcVec, xsrc, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(local_ediff, xediff, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(local_srcVec, xsrc, ierr); call CHKERR(ierr)
     call DMRestoreLocalVector(plex%ediff_dm, local_ediff, ierr); call CHKERR(ierr)
 
-    call VecRestoreArrayF90(abso, xabso, ierr); call CHKERR(ierr)
+    call VecRestoreArray(abso, xabso, ierr); call CHKERR(ierr)
 
-    call VecRestoreArrayReadF90(solver%kabs, xkabs, ierr); call CHKERR(ierr)
-    call VecRestoreArrayReadF90(solver%ksca, xksca, ierr); call CHKERR(ierr)
-    call VecRestoreArrayReadF90(solver%g, xg, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(solver%kabs, xkabs, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(solver%ksca, xksca, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(solver%g, xg, ierr); call CHKERR(ierr)
 
-    call VecRestoreArrayReadF90(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
-    call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
     !if(ldebug) print *,'plex_rt::compute_ediff_absorption....finished'
   end subroutine
@@ -4234,13 +4236,13 @@ contains
       call DMGetLocalSection(solver%plex%abso_dm, abso_section, ierr); call CHKERR(ierr)
 
       if (present(redir) .and. solution%lsolar_rad) then
-        call VecGetArrayF90(solution%edir, xedir, ierr); call CHKERR(ierr)
+        call VecGetArray(solution%edir, xedir, ierr); call CHKERR(ierr)
       end if
-      call VecGetArrayF90(solution%ediff, xediff, ierr); call CHKERR(ierr)
-      call VecGetArrayF90(solution%abso, xabso, ierr); call CHKERR(ierr)
+      call VecGetArray(solution%ediff, xediff, ierr); call CHKERR(ierr)
+      call VecGetArray(solution%abso, xabso, ierr); call CHKERR(ierr)
 
       if (.not. PetscObjectIsNull(toa_ids)) then
-        call ISGetIndicesF90(toa_ids, xtoa_faces, ierr); call CHKERR(ierr)
+        call ISGetIndices(toa_ids, xtoa_faces, ierr); call CHKERR(ierr)
         do i = 1, size(xtoa_faces)
           iface = xtoa_faces(i)
           do k = 0, ke1 - 2
@@ -4284,14 +4286,14 @@ contains
             end if
           end if
         end do
-        call ISRestoreIndicesF90(toa_ids, xtoa_faces, ierr); call CHKERR(ierr)
+        call ISRestoreIndices(toa_ids, xtoa_faces, ierr); call CHKERR(ierr)
       end if
 
       if (present(redir) .and. solution%lsolar_rad) then
-        call VecRestoreArrayF90(solution%edir, xedir, ierr); call CHKERR(ierr)
+        call VecRestoreArray(solution%edir, xedir, ierr); call CHKERR(ierr)
       end if
-      call VecRestoreArrayF90(solution%ediff, xediff, ierr); call CHKERR(ierr)
-      call VecRestoreArrayF90(solution%abso, xabso, ierr); call CHKERR(ierr)
+      call VecRestoreArray(solution%ediff, xediff, ierr); call CHKERR(ierr)
+      call VecRestoreArray(solution%abso, xabso, ierr); call CHKERR(ierr)
 
       if (ldebug) then
         call mpi_comm_rank(solver%plex%comm, myid, ierr); call CHKERR(ierr)
@@ -4358,11 +4360,11 @@ contains
     call DMGetStratumIS(dm, 'DomainBoundary', SIDEFACE, IS_side_faces, ierr); call CHKERR(ierr)
     if (PetscObjectIsNull(IS_side_faces)) then ! dont have side boundary faces
     else
-      call VecGetArrayF90(kabs, xkabs, ierr); call CHKERR(ierr)
-      call VecGetArrayF90(ksca, xksca, ierr); call CHKERR(ierr)
-      call VecGetArrayF90(g, xg, ierr); call CHKERR(ierr)
+      call VecGetArray(kabs, xkabs, ierr); call CHKERR(ierr)
+      call VecGetArray(ksca, xksca, ierr); call CHKERR(ierr)
+      call VecGetArray(g, xg, ierr); call CHKERR(ierr)
 
-      call ISGetIndicesF90(IS_side_faces, iside_faces, ierr); call CHKERR(ierr)
+      call ISGetIndices(IS_side_faces, iside_faces, ierr); call CHKERR(ierr)
       do o = 1, size(iside_faces)
         iface_side = iside_faces(o)
 
@@ -4372,9 +4374,9 @@ contains
         xg(i1 + cell_support(1)) = fill_g
         call DMPlexRestoreSupport(dm, iface_side, cell_support, ierr); call CHKERR(ierr)
       end do
-      call VecRestoreArrayF90(kabs, xkabs, ierr); call CHKERR(ierr)
-      call VecRestoreArrayF90(ksca, xksca, ierr); call CHKERR(ierr)
-      call VecRestoreArrayF90(g, xg, ierr); call CHKERR(ierr)
+      call VecRestoreArray(kabs, xkabs, ierr); call CHKERR(ierr)
+      call VecRestoreArray(ksca, xksca, ierr); call CHKERR(ierr)
+      call VecRestoreArray(g, xg, ierr); call CHKERR(ierr)
     end if
   end subroutine
 end module

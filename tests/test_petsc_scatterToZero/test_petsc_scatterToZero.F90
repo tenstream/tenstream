@@ -83,14 +83,14 @@ contains
 
       ! Debug Output
       call PetscObjectSetName(gvec, 'VecGlobal', ierr); call CHKERR(ierr)
-      call PetscObjectViewFromOptions(gvec, PETSC_NULL_VEC, '-show_gvec', ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(PetscObjectCast(gvec), PETSC_NULL_OBJECT, '-show_gvec', ierr); call CHKERR(ierr)
 
       ! copy global vec to rank 0, lVec(full size)
       call petscGlobalVecToZero(gVec, C%da, lVec)
 
       ! Debug Output
       call PetscObjectSetName(lvec, 'VecLocal', ierr); call CHKERR(ierr)
-      call PetscObjectViewFromOptions(lvec, PETSC_NULL_VEC, '-show_lvec', ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(PetscObjectCast(lvec), PETSC_NULL_OBJECT, '-show_lvec', ierr); call CHKERR(ierr)
 
       ! Put data from petsc vec into fortran array
       if (myid .eq. 0) then

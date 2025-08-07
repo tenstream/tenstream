@@ -237,14 +237,20 @@ contains
           call VecScatterBegin(ri%ctx_planck, glob_B, ri%planck, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
           call VecScatterEnd(ri%ctx_planck, glob_B, ri%planck, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
           call DMRestoreGlobalVector(Ca1%da, glob_B, ierr); call CHKERR(ierr)
-          call PetscObjectViewFromOptions(ri%planck, PETSC_NULL_VEC, '-show_rayli_planck', ierr); call CHKERR(ierr)
-          call PetscObjectViewFromOptions(ri%planck_srfc, PETSC_NULL_VEC, '-show_rayli_planck_srfc', ierr); call CHKERR(ierr)
+          call PetscObjectViewFromOptions(PetscObjectCast(ri%planck), PETSC_NULL_OBJECT, '-show_rayli_planck', ierr)
+          call CHKERR(ierr)
+          call PetscObjectViewFromOptions(PetscObjectCast(ri%planck_srfc), PETSC_NULL_OBJECT, '-show_rayli_planck_srfc', ierr)
+          call CHKERR(ierr)
         end if
 
-        call PetscObjectViewFromOptions(ri%kabs, PETSC_NULL_VEC, '-show_rayli_kabs', ierr); call CHKERR(ierr)
-        call PetscObjectViewFromOptions(ri%ksca, PETSC_NULL_VEC, '-show_rayli_ksca', ierr); call CHKERR(ierr)
-        call PetscObjectViewFromOptions(ri%g, PETSC_NULL_VEC, '-show_rayli_g', ierr); call CHKERR(ierr)
-        call PetscObjectViewFromOptions(ri%albedo, PETSC_NULL_VEC, '-show_rayli_albedo', ierr); call CHKERR(ierr)
+        call PetscObjectViewFromOptions(PetscObjectCast(ri%kabs), PETSC_NULL_OBJECT, '-show_rayli_kabs', ierr)
+        call CHKERR(ierr)
+        call PetscObjectViewFromOptions(PetscObjectCast(ri%ksca), PETSC_NULL_OBJECT, '-show_rayli_ksca', ierr)
+        call CHKERR(ierr)
+        call PetscObjectViewFromOptions(PetscObjectCast(ri%g), PETSC_NULL_OBJECT, '-show_rayli_g', ierr)
+        call CHKERR(ierr)
+        call PetscObjectViewFromOptions(PetscObjectCast(ri%albedo), PETSC_NULL_OBJECT, '-show_rayli_albedo', ierr)
+        call CHKERR(ierr)
       end associate
       call PetscLogEventEnd(log_event, ierr); call CHKERR(ierr)
     end subroutine
@@ -279,7 +285,8 @@ contains
         call VecScatterBegin(B_info%ctx_albedo, vlocal, vsub, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
         call VecScatterEnd(B_info%ctx_albedo, vlocal, vsub, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
 
-        call PetscObjectViewFromOptions(vsub, PETSC_NULL_VEC, '-show_rayli_buildings_albedo', ierr); call CHKERR(ierr)
+        call PetscObjectViewFromOptions(PetscObjectCast(vsub), PETSC_NULL_OBJECT, '-show_rayli_buildings_albedo', ierr)
+        call CHKERR(ierr)
         call VecDestroy(vlocal, ierr); call CHKERR(ierr)
         call VecDestroy(vsub, ierr); call CHKERR(ierr)
 
@@ -292,7 +299,8 @@ contains
           call VecScatterBegin(B_info%ctx_albedo, vlocal, vsub, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
           call VecScatterEnd(B_info%ctx_albedo, vlocal, vsub, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
 
-          call PetscObjectViewFromOptions(vsub, PETSC_NULL_VEC, '-show_rayli_buildings_planck', ierr); call CHKERR(ierr)
+          call PetscObjectViewFromOptions(PetscObjectCast(vsub), PETSC_NULL_OBJECT, '-show_rayli_buildings_planck', ierr)
+          call CHKERR(ierr)
           call VecDestroy(vlocal, ierr); call CHKERR(ierr)
           call VecDestroy(vsub, ierr); call CHKERR(ierr)
         end if
@@ -321,7 +329,8 @@ contains
         call VecScatterEnd(B_info%ctx_albedo, vlocal, vsub, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
         subB%iface(:) = int(sub_idx(:), kind=iintegers)
 
-        call PetscObjectViewFromOptions(vsub, PETSC_NULL_VEC, '-show_rayli_buildings_iface', ierr); call CHKERR(ierr)
+        call PetscObjectViewFromOptions(PetscObjectCast(vsub), PETSC_NULL_OBJECT, '-show_rayli_buildings_iface', ierr)
+        call CHKERR(ierr)
         call VecDestroy(vlocal, ierr); call CHKERR(ierr)
         call VecDestroy(vsub, ierr); call CHKERR(ierr)
 
@@ -390,11 +399,14 @@ contains
                 & nr_photons=Nphotons_r, petsc_log=solver%logs%rayli_tracing)
             end if
 
-            call PetscObjectViewFromOptions(plex_solution%edir, PETSC_NULL_VEC, '-show_plex_rayli_edir', ierr); call CHKERR(ierr)
+            call PetscObjectViewFromOptions(PetscObjectCast(plex_solution%edir), PETSC_NULL_OBJECT, '-show_plex_rayli_edir', ierr)
+            call CHKERR(ierr)
           end if
 
-          call PetscObjectViewFromOptions(plex_solution%ediff, PETSC_NULL_VEC, '-show_plex_rayli_ediff', ierr); call CHKERR(ierr)
-          call PetscObjectViewFromOptions(plex_solution%abso, PETSC_NULL_VEC, '-show_plex_rayli_abso', ierr); call CHKERR(ierr)
+          call PetscObjectViewFromOptions(PetscObjectCast(plex_solution%ediff), PETSC_NULL_OBJECT, '-show_plex_rayli_ediff', ierr)
+          call CHKERR(ierr)
+          call PetscObjectViewFromOptions(PetscObjectCast(plex_solution%abso), PETSC_NULL_OBJECT, '-show_plex_rayli_abso', ierr)
+          call CHKERR(ierr)
 
           do isub = 0, subnumnodes - 1 ! send finalize msg to all others to stop waiting
             if (isub .ne. run_rank) then
@@ -463,17 +475,17 @@ contains
         associate (plex => rayli_info%plex)
           call VecCopy(plex_solution%abso, abso_in_W, ierr); call CHKERR(ierr)
           call DMGetLocalSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
-          call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+          call VecGetArrayRead(plex%geomVec, geoms, ierr); call CHKERR(ierr)
           call DMGetLocalSection(plex%abso_dm, abso_section, ierr); call CHKERR(ierr)
-          call VecGetArrayF90(abso_in_W, xabso, ierr); call CHKERR(ierr)
+          call VecGetArray(abso_in_W, xabso, ierr); call CHKERR(ierr)
           call DMPlexGetHeightStratum(plex%abso_dm, i0, cStart, cEnd, ierr); call CHKERR(ierr) ! cells
           do icell = cStart, cEnd - 1
             call PetscSectionGetFieldOffset(geomSection, icell, i3, geom_offset, ierr); call CHKERR(ierr) ! cell dz
             call PetscSectionGetOffset(abso_section, icell, voff, ierr); call CHKERR(ierr)
             xabso(i1 + voff) = xabso(i1 + voff) * geoms(i1 + geom_offset)
           end do
-          call VecRestoreArrayF90(abso_in_W, xabso, ierr); call CHKERR(ierr)
-          call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+          call VecRestoreArray(abso_in_W, xabso, ierr); call CHKERR(ierr)
+          call VecRestoreArrayRead(plex%geomVec, geoms, ierr); call CHKERR(ierr)
         end associate
       end if
 
@@ -503,10 +515,13 @@ contains
       call restoreVecPointer(solver%C_one%da, solution%abso, x1d, x)
 
       if (allocated(solution%edir)) then
-        call PetscObjectViewFromOptions(solution%edir, PETSC_NULL_VEC, '-show_rayli_edir', ierr); call CHKERR(ierr)
+        call PetscObjectViewFromOptions(PetscObjectCast(solution%edir), PETSC_NULL_OBJECT, '-show_rayli_edir', ierr)
+        call CHKERR(ierr)
       end if
-      call PetscObjectViewFromOptions(solution%ediff, PETSC_NULL_VEC, '-show_rayli_ediff', ierr); call CHKERR(ierr)
-      call PetscObjectViewFromOptions(solution%abso, PETSC_NULL_VEC, '-show_rayli_abso', ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(PetscObjectCast(solution%ediff), PETSC_NULL_OBJECT, '-show_rayli_ediff', ierr)
+      call CHKERR(ierr)
+      call PetscObjectViewFromOptions(PetscObjectCast(solution%abso), PETSC_NULL_OBJECT, '-show_rayli_abso', ierr)
+      call CHKERR(ierr)
 
       !Rayli solver returns fluxes as [W]
       solution%lWm2_dir = .true.
@@ -646,7 +661,8 @@ contains
         & solver%C_one_atm1_box, solver%atm%hhl, &
         & solver%Cvert_one_atm1, vertex_hhl)
 
-      call PetscObjectViewFromOptions(vertex_hhl, PETSC_NULL_VEC, '-show_rayli_hhl', ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(PetscObjectCast(vertex_hhl), PETSC_NULL_OBJECT, '-show_rayli_hhl', ierr)
+      call CHKERR(ierr)
 
       if (submyid .eq. 0) then
         call VecGetSize(vertex_hhl, Nhhl, ierr); call CHKERR(ierr)
@@ -667,7 +683,8 @@ contains
       call VecScatterEnd(rayli_info%ctx_hhl, vertex_hhl, hhl, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
 
       call DMRestoreGlobalVector(solver%Cvert_one_atm1%da, vertex_hhl, ierr); call CHKERR(ierr)
-      call PetscObjectViewFromOptions(hhl, PETSC_NULL_VEC, '-show_rayli_hhl', ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(PetscObjectCast(hhl), PETSC_NULL_OBJECT, '-show_rayli_hhl', ierr)
+      call CHKERR(ierr)
 
       ! Setup Plex
       associate ( &
@@ -680,7 +697,7 @@ contains
           call create_2d_regular_plex(PETSC_COMM_SELF, Ca%glob_xm + 1, Ca%glob_ym + 1, &
             & dm2d, dm2d_dist, opt_dx=atm%dx, opt_dy=atm%dy, lverbose=.true.)
 
-          call VecGetArrayReadF90(hhl, xhhl1d, ierr); call CHKERR(ierr)
+          call VecGetArrayRead(hhl, xhhl1d, ierr); call CHKERR(ierr)
           xhhl(i1:i1, i1:Cv%glob_zm, i1:Cv%glob_xm, i1:Cv%glob_ym) => xhhl1d
 
           call dmplex_2D_to_3D(dm2d, Ca1%glob_zm, xhhl(i1, :, i1, i1), [zero, zero, -huge(zero) * 1e-1_ireals], dm3d, zindex)
@@ -689,20 +706,20 @@ contains
           call DMGetCoordinateSection(dm3d, coord_section, ierr); call CHKERR(ierr)
           call DMGetCoordinatesLocal(dm3d, coordinates, ierr); call CHKERR(ierr)
           call DMPlexGetDepthStratum(dm3d, i0, vStart, vEnd, ierr); call CHKERR(ierr) ! vertices
-          call VecGetArrayF90(coordinates, coords, ierr); call CHKERR(ierr)
+          call VecGetArray(coordinates, coords, ierr); call CHKERR(ierr)
 
           do i = 1, size(xhhl1d)
             ivert = vStart + i - i1
             call PetscSectionGetOffset(coord_section, ivert, coord_offset, ierr); call CHKERR(ierr)
             coords(i1 + coord_offset + i2) = xhhl1d(i)
           end do
-          call VecRestoreArrayF90(coordinates, coords, ierr); call CHKERR(ierr)
+          call VecRestoreArray(coordinates, coords, ierr); call CHKERR(ierr)
 
           call setup_plexgrid(dm2d, dm3d, Ca%glob_zm, zindex, rayli_info%plex)
 
-          call PetscObjectViewFromOptions(dm3d, PETSC_NULL_DM, '-show_rayli_dm3d', ierr); call CHKERR(ierr)
+          call PetscObjectViewFromOptions(PetscObjectCast(dm3d), PETSC_NULL_OBJECT, '-show_rayli_dm3d', ierr); call CHKERR(ierr)
           nullify (xhhl)
-          call VecRestoreArrayReadF90(hhl, xhhl1d, ierr); call CHKERR(ierr)
+          call VecRestoreArrayRead(hhl, xhhl1d, ierr); call CHKERR(ierr)
 
           call setup_edir_dmplex(rayli_info%plex, rayli_info%plex%dm, i1, i0, i1, rayli_info%plex%horizface1_dm)
           call setup_edir_dmplex(rayli_info%plex, rayli_info%plex%dm, solver%dirtop%dof, i1, i1, rayli_info%plex%edir_dm)
@@ -743,7 +760,7 @@ contains
         call VecCreateMPIWithArray(solver%comm, i1, nlocal, PETSC_DECIDE, B%albedo, &
           & loc_albedo, ierr); call CHKERR(ierr)
         call VecGetOwnershipRange(loc_albedo, iStart, PETSC_NULL_INTEGER, ierr); call CHKERR(ierr)
-        call PetscObjectViewFromOptions(loc_albedo, PETSC_NULL_VEC, &
+        call PetscObjectViewFromOptions(PetscObjectCast(loc_albedo), PETSC_NULL_OBJECT, &
           & '-show_rayli_buildings_loc_vec', ierr); call CHKERR(ierr)
 
         if (submyid .eq. 0) then
@@ -954,8 +971,10 @@ contains
         call PetscObjectSetName(is_in, "rayli_dir_iss_pprts_idx", ierr); call CHKERR(ierr)
         call PetscObjectSetName(is_out, "rayli_dir_iss_plex_idx", ierr); call CHKERR(ierr)
 
-        call PetscObjectViewFromOptions(is_in, PETSC_NULL_IS, '-show_rayli_dir_iss', ierr); call CHKERR(ierr)
-        call PetscObjectViewFromOptions(is_out, PETSC_NULL_IS, '-show_rayli_dir_iss', ierr); call CHKERR(ierr)
+        call PetscObjectViewFromOptions(PetscObjectCast(is_in), PETSC_NULL_OBJECT, '-show_rayli_dir_iss', ierr)
+        call CHKERR(ierr)
+        call PetscObjectViewFromOptions(PetscObjectCast(is_out), PETSC_NULL_OBJECT, '-show_rayli_dir_iss', ierr)
+        call CHKERR(ierr)
 
         call gen_shared_scatter_ctx(solution%edir, rayli_info%plex_solution%edir, rayli_info%ctx_edir, ierr, &
           & is_in, is_out); call CHKERR(ierr)
@@ -1114,8 +1133,10 @@ contains
         call PetscObjectSetName(is_in, "rayli_diff_iss_pprts_idx", ierr); call CHKERR(ierr)
         call PetscObjectSetName(is_out, "rayli_diff_iss_plex_idx", ierr); call CHKERR(ierr)
 
-        call PetscObjectViewFromOptions(is_in, PETSC_NULL_IS, '-show_rayli_diff_iss', ierr); call CHKERR(ierr)
-        call PetscObjectViewFromOptions(is_out, PETSC_NULL_IS, '-show_rayli_diff_iss', ierr); call CHKERR(ierr)
+        call PetscObjectViewFromOptions(PetscObjectCast(is_in), PETSC_NULL_OBJECT, '-show_rayli_diff_iss', ierr)
+        call CHKERR(ierr)
+        call PetscObjectViewFromOptions(PetscObjectCast(is_out), PETSC_NULL_OBJECT, '-show_rayli_diff_iss', ierr)
+        call CHKERR(ierr)
         call gen_shared_scatter_ctx(solution%ediff, rayli_info%plex_solution%ediff, rayli_info%ctx_ediff, ierr, &
           & is_in, is_out); call CHKERR(ierr)
         call ISDestroy(is_out, ierr); call CHKERR(ierr)
@@ -1243,8 +1264,10 @@ contains
 
         call PetscObjectSetName(is_in, "rayli_abso_iss_pprts_idx", ierr); call CHKERR(ierr)
         call PetscObjectSetName(is_out, "rayli_abso_iss_plex_idx", ierr); call CHKERR(ierr)
-        call PetscObjectViewFromOptions(is_in, PETSC_NULL_IS, '-show_rayli_abso_iss', ierr); call CHKERR(ierr)
-        call PetscObjectViewFromOptions(is_out, PETSC_NULL_IS, '-show_rayli_abso_iss', ierr); call CHKERR(ierr)
+        call PetscObjectViewFromOptions(PetscObjectCast(is_in), PETSC_NULL_OBJECT, '-show_rayli_abso_iss', ierr)
+        call CHKERR(ierr)
+        call PetscObjectViewFromOptions(PetscObjectCast(is_out), PETSC_NULL_OBJECT, '-show_rayli_abso_iss', ierr)
+        call CHKERR(ierr)
 
         call gen_shared_scatter_ctx(solution%abso, rayli_info%plex_solution%abso, rayli_info%ctx_abso, ierr, &
           & is_in, is_out); call CHKERR(ierr)

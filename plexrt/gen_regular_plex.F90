@@ -45,11 +45,13 @@ contains
     call create_2d_regular_plex(PETSC_COMM_WORLD, Nx, Ny, dm2d, dm2d_dist)
     call dmplex_2D_to_3D(dm2d_dist, size(hhl, kind=iintegers), hhl, [zero, zero, -huge(zero) * 1e-1_ireals], dm3d, zindex)
 
-    call PetscObjectViewFromOptions(dm2d_dist, PETSC_NULL_DM, "-default_option_show_plex", ierr); call CHKERR(ierr)
-    call PetscObjectViewFromOptions(dm2d_dist, PETSC_NULL_DM, "-show_plex", ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(PetscObjectCast(dm2d_dist), PETSC_NULL_OBJECT, "-default_option_show_plex", ierr)
+    call CHKERR(ierr)
+    call PetscObjectViewFromOptions(PetscObjectCast(dm2d_dist), PETSC_NULL_OBJECT, "-show_plex", ierr); call CHKERR(ierr)
 
-    call PetscObjectViewFromOptions(dm3d, PETSC_NULL_DM, "-default_option_show_plex3d", ierr); call CHKERR(ierr)
-    call PetscObjectViewFromOptions(dm3d, PETSC_NULL_DM, "-show_plex3d", ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(PetscObjectCast(dm3d), PETSC_NULL_OBJECT, "-default_option_show_plex3d", ierr)
+    call CHKERR(ierr)
+    call PetscObjectViewFromOptions(PetscObjectCast(dm3d), PETSC_NULL_OBJECT, "-show_plex3d", ierr); call CHKERR(ierr)
 
     call dump_ownership(dm3d, '-show_plex3d_ownership')
 

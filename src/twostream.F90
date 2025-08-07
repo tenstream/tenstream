@@ -286,7 +286,7 @@ contains
     call VecAssemblyBegin(b, ierr); call CHKERR(ierr)
     call VecAssemblyEnd(b, ierr); call CHKERR(ierr)
 
-    call PetscObjectViewFromOptions(b, PETSC_NULL_VEC, '-twostream_show_b', ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(b, PETSC_NULL_OBJECT, '-twostream_show_b', ierr); call CHKERR(ierr)
 
     ! Set diagonal
     do i = 0, N - 1
@@ -313,7 +313,7 @@ contains
 
     call KSPSolve(ksp, b, x, ierr); call CHKERR(ierr)
 
-    call PetscObjectViewFromOptions(x, PETSC_NULL_VEC, '-twostream_show_x', ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(x, PETSC_NULL_OBJECT, '-twostream_show_x', ierr); call CHKERR(ierr)
 
     call VecCreateSeqWithArray(PETSC_COMM_SELF, i1, ke1, Eup, vEup, ierr); call CHKERR(ierr)
     call VecCreateSeqWithArray(PETSC_COMM_SELF, i1, ke1, Edn, vEdn, ierr); call CHKERR(ierr)

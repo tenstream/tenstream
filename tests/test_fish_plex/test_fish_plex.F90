@@ -133,7 +133,7 @@ contains
     PetscCount :: transclosure_size
     integer(iintegers), pointer :: transclosure(:)
 
-    call DMPlexGetTransitiveClosure(dm, icell, PETSC_TRUE, transclosure, ierr); call CHKERR(ierr)
+    call DMPlexGetTransitiveClosure(dm, icell, PETSC_TRUE, PETSC_NULL_INTEGER, transclosure, ierr); call CHKERR(ierr)
     transclosure_size = size(transclosure(1:size(transclosure):2))
     call PetscSortInt(transclosure_size, &
                       transclosure(1:size(transclosure):2), ierr); call CHKERR(ierr)
@@ -149,6 +149,6 @@ contains
     do i = 1, size(transclosure)
       @assertEqual(target_closure(i), transclosure(i))
     end do
-    call DMPlexRestoreTransitiveClosure(dm, i1, PETSC_TRUE, transclosure, ierr); call CHKERR(ierr)
+    call DMPlexRestoreTransitiveClosure(dm, i1, PETSC_TRUE, PETSC_NULL_INTEGER, transclosure, ierr); call CHKERR(ierr)
   end subroutine
 end module

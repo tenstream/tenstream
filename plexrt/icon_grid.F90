@@ -394,7 +394,7 @@ contains
 
     AO, intent(out) :: cell_ao
 
-    integer(iintegers) :: i, icell, j, ivertex, offset
+    integer(iintegers) :: i, icell, j, ivertex, offset, j_(1)
 
     integer(iintegers) :: ncells_local, istartcell
     integer(iintegers), allocatable :: ii(:), jj(:)
@@ -444,7 +444,7 @@ contains
     ii(ncells_local) = offset
 
     call MatCreateMPIAdj(comm, ncells_local, icongrid%Nvertices, &
-                         ii, jj, PETSC_NULL_INTEGER, mesh, ierr); call CHKERR(ierr)
+                         ii, jj, PETSC_NULL_INTEGER_POINTER, mesh, ierr); call CHKERR(ierr)
 
     call MatMeshToCellGraph(mesh, i2, dual, ierr); call CHKERR(ierr)
     call MatPartitioningCreate(MPI_COMM_WORLD, part, ierr); call CHKERR(ierr)
@@ -454,22 +454,23 @@ contains
     call MatPartitioningApply(part, is, ierr); call CHKERR(ierr)
     call ISPartitioningToNumbering(is, isg, ierr); call CHKERR(ierr)
 
-    call PetscObjectViewFromOptions(is, PETSC_NULL_IS, "-show_is", ierr); call CHKERR(ierr)
-    call PetscObjectViewFromOptions(isg, PETSC_NULL_IS, "-show_isg", ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(PetscObjectCast(is), PETSC_NULL_OBJECT, "-show_is", ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(PetscObjectCast(isg), PETSC_NULL_OBJECT, "-show_isg", ierr); call CHKERR(ierr)
 
     call ISPartitioningCount(is, int(numnodes, kind=iintegers), cells_per_proc, ierr); call CHKERR(ierr)
     cum_cells_per_proc = cumsum(cells_per_proc)
 
     call ISInvertPermutation(isg, cells_per_proc(myid), is_my_icon_cells, ierr); call CHKERR(ierr)
 
-    call PetscObjectViewFromOptions(is_my_icon_cells, PETSC_NULL_IS, "-show_is_my_icon_cells", ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(PetscObjectCast(is_my_icon_cells), PETSC_NULL_OBJECT, "-show_is_my_icon_cells", ierr)
+    call CHKERR(ierr)
 
     call AOCreateBasicIS(is_my_icon_cells, PETSC_NULL_IS, cell_ao, ierr); call CHKERR(ierr)
 
     do i = 1, icongrid%Nfaces
-      j = i - 1
-      call AOPetscToApplication(cell_ao, i1, j, ierr); call CHKERR(ierr)
-      cellowner(j + 1) = count(cum_cells_per_proc / i .eq. 0)
+      j_ = i - 1
+      call AOPetscToApplication(cell_ao, i1, j_, ierr); call CHKERR(ierr)
+      cellowner(j_(1) + 1) = count(cum_cells_per_proc / i .eq. 0)
       !print *,'Owner of cell:',i,'->',j,'@',count(cum_cells_per_proc/i.eq.0)
     end do
 

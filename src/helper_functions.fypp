@@ -2794,6 +2794,7 @@ contains
     DMDAStencilType :: stenciltype
     integer(iintegers) :: Nranksx, Nranksy
     integer(iintegers) :: z, p
+    PetscInt, pointer :: lx(:), ly(:)
 
     call DMDACreate2d(comm, &
       & DM_BOUNDARY_PERIODIC, DM_BOUNDARY_PERIODIC,&
@@ -2814,7 +2815,9 @@ contains
 
     allocate (nxproc(Nranksx))
     allocate (nyproc(Nranksy))
-    call DMDAGetOwnershipRanges(dm, nxproc, nyproc, PETSC_NULL_INTEGER, ierr); call CHKERR(ierr)
+    call DMDAGetOwnershipRanges(dm, lx, ly, PETSC_NULL_INTEGER_POINTER, ierr); call CHKERR(ierr)
+    nxproc = lx
+    nyproc = ly
     call DMDestroy(dm, ierr); call CHKERR(ierr)
   end subroutine
 

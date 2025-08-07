@@ -87,7 +87,7 @@ contains
     call DMPlexGetDepthStratum(plex%dm, 2_iintegers, fStart, fEnd, ierr); call CHKERR(ierr) ! faces
 
     call DMGetLocalSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
-    call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
     associate (Ca => solver%C_one_atm, P => pprts_buildings, T => plex_buildings)
       l = 0
@@ -113,7 +113,7 @@ contains
       end do
       call CHKERR(int(nr_plex_faces - l, mpiint), 'did we forget a face?')
     end associate
-    call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(plex%geomVec, geoms, ierr); call CHKERR(ierr)
   end subroutine
 
   !> @brief: find a plex face index with a given plex cell and a pprts_face_id (only for rectangular_plex_grids)
@@ -131,7 +131,7 @@ contains
     iface = -1
 
     call DMGetLocalSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
-    call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
     call DMPlexGetCone(plex%dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
 
@@ -172,7 +172,7 @@ contains
     !print *,'looking for', fidx, 'in cell', icell, 'faces', faces_of_cell, '=>', iface
 
     call DMPlexRestoreCone(plex%dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
-    call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(plex%geomVec, geoms, ierr); call CHKERR(ierr)
   end function
 
   !> @brief: find plex cell_ids that correspond to a pprts cell (only for rectangular_plex_grids)
