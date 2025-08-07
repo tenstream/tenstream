@@ -889,7 +889,7 @@ contains
       opt_stencil_type = stencil_type
     else
       opt_stencil_type = DMDA_STENCIL_STAR
-    endif
+    end if
 
     allocate (C)
 

@@ -93,7 +93,7 @@ module m_pprts_shell
   end interface
   abstract interface
     subroutine mat_sor_sub(A, b, omega, sortype, shift, its, lits, x, ierr)
-      USE petsc
+      use petsc
       import ireals, iintegers, mpiint
       type(tMat), intent(in) :: A
       type(tVec), intent(in) :: b
