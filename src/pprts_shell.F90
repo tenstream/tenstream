@@ -82,7 +82,7 @@ module m_pprts_shell
       integer(mpiint) :: ierr
     end subroutine
   end interface
-  interface
+  abstract interface
     subroutine mat_mult_sub(A, x, b, ierr)
       import tMat, tVec, mpiint
       type(tMat), intent(in) :: A
@@ -91,13 +91,14 @@ module m_pprts_shell
       integer(mpiint), intent(out) :: ierr
     end subroutine
   end interface
-  interface
+  abstract interface
     subroutine mat_sor_sub(A, b, omega, sortype, shift, its, lits, x, ierr)
-      import tMat, tVec, ireals, iintegers, mpiint
+      use petsc
+      import ireals, iintegers, mpiint
       type(tMat), intent(in) :: A
       type(tVec), intent(in) :: b
       real(ireals), intent(in) :: omega
-      integer, intent(in) :: sortype
+      MatSORType, intent(in) :: sortype
       real(ireals), intent(in) :: shift
       integer(iintegers), intent(in) :: its
       integer(iintegers), intent(in) :: lits
@@ -105,7 +106,7 @@ module m_pprts_shell
       integer(mpiint), intent(out) :: ierr
     end subroutine
   end interface
-  interface
+  abstract interface
     subroutine mat_getdiagonal_sub(A, d, ierr)
       import tMat, tVec, mpiint
       type(tMat), intent(in) :: A
@@ -165,8 +166,8 @@ contains
     solver => ctx_ptr%solver
     if (.not. associated(solver)) call CHKERR(1_mpiint, 'mat shell context has not been set!')
 
-    call PetscObjectViewFromOptions(x, PETSC_NULL_VEC, "-show_shell_x", ierr); call CHKERR(ierr)
-    call PetscObjectViewFromOptions(b, PETSC_NULL_VEC, "-show_shell_b", ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(PetscObjectCast(x), PETSC_NULL_OBJECT, "-show_shell_x", ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(PetscObjectCast(b), PETSC_NULL_OBJECT, "-show_shell_b", ierr); call CHKERR(ierr)
 
     associate (sun => solver%sun, &
                atm => solver%atm, &
@@ -267,7 +268,7 @@ contains
 
       call DMRestoreLocalVector(C%da, lb, ierr); call CHKERR(ierr)
     end associate
-    call PetscObjectViewFromOptions(b, PETSC_NULL_VEC, "-show_shell_rb", ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(PetscObjectCast(b), PETSC_NULL_OBJECT, "-show_shell_rb", ierr); call CHKERR(ierr)
 
     ierr = 0
   end subroutine
@@ -309,13 +310,13 @@ contains
     if (.not. approx(shift, zero)) call CHKERR(1_mpiint, 'Shift has to be zero')
     if (.not. approx(omega, one)) call CHKERR(1_mpiint, 'Omega has to be one')
 
-    lsweep_symmetric = iand(sortype, SOR_LOCAL_SYMMETRIC_SWEEP) .eq. SOR_LOCAL_SYMMETRIC_SWEEP .or. &
-      & iand(sortype, SOR_SYMMETRIC_SWEEP) .eq. SOR_SYMMETRIC_SWEEP
-    lsweep_backward = iand(sortype, SOR_LOCAL_BACKWARD_SWEEP) .eq. SOR_LOCAL_BACKWARD_SWEEP .or. &
-      & iand(sortype, SOR_BACKWARD_SWEEP) .eq. SOR_BACKWARD_SWEEP
-    lsweep_forward = iand(sortype, SOR_LOCAL_FORWARD_SWEEP) .eq. SOR_LOCAL_FORWARD_SWEEP .or. &
-      & iand(sortype, SOR_FORWARD_SWEEP) .eq. SOR_FORWARD_SWEEP
-    lzero_initial_guess = iand(sortype, SOR_ZERO_INITIAL_GUESS) .eq. SOR_ZERO_INITIAL_GUESS
+    lsweep_symmetric = iand(sortype%v, SOR_LOCAL_SYMMETRIC_SWEEP%v) .eq. SOR_LOCAL_SYMMETRIC_SWEEP%v .or. &
+      & iand(sortype%v, SOR_SYMMETRIC_SWEEP%v) .eq. SOR_SYMMETRIC_SWEEP%v
+    lsweep_backward = iand(sortype%v, SOR_LOCAL_BACKWARD_SWEEP%v) .eq. SOR_LOCAL_BACKWARD_SWEEP%v .or. &
+      & iand(sortype%v, SOR_BACKWARD_SWEEP%v) .eq. SOR_BACKWARD_SWEEP%v
+    lsweep_forward = iand(sortype%v, SOR_LOCAL_FORWARD_SWEEP%v) .eq. SOR_LOCAL_FORWARD_SWEEP%v .or. &
+      & iand(sortype%v, SOR_FORWARD_SWEEP%v) .eq. SOR_FORWARD_SWEEP%v
+    lzero_initial_guess = iand(sortype%v, SOR_ZERO_INITIAL_GUESS%v) .eq. SOR_ZERO_INITIAL_GUESS%v
 
     associate ( &
         & sun => solver%sun, &
@@ -400,8 +401,8 @@ contains
     solver => ctx_ptr%solver
     if (.not. associated(solver)) call CHKERR(1_mpiint, 'mat shell context has not been set!')
 
-    call PetscObjectViewFromOptions(x, PETSC_NULL_VEC, "-show_shell_x", ierr); call CHKERR(ierr)
-    call PetscObjectViewFromOptions(b, PETSC_NULL_VEC, "-show_shell_b", ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(PetscObjectCast(x), PETSC_NULL_OBJECT, "-show_shell_x", ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(PetscObjectCast(b), PETSC_NULL_OBJECT, "-show_shell_b", ierr); call CHKERR(ierr)
 
     associate (atm => solver%atm, &
                C => solver%C_diff)
@@ -528,7 +529,7 @@ contains
 
       call DMRestoreLocalVector(C%da, lb, ierr); call CHKERR(ierr)
     end associate
-    call PetscObjectViewFromOptions(b, PETSC_NULL_VEC, "-show_shell_rb", ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(PetscObjectCast(b), PETSC_NULL_OBJECT, "-show_shell_rb", ierr); call CHKERR(ierr)
 
     ierr = 0
   contains
@@ -580,13 +581,13 @@ contains
     if (.not. approx(shift, zero)) call CHKERR(1_mpiint, 'Shift has to be zero')
     if (.not. approx(omega, one)) call CHKERR(1_mpiint, 'Omega has to be one')
 
-    lsweep_symmetric = iand(sortype, SOR_LOCAL_SYMMETRIC_SWEEP) .eq. SOR_LOCAL_SYMMETRIC_SWEEP .or. &
-      & iand(sortype, SOR_SYMMETRIC_SWEEP) .eq. SOR_SYMMETRIC_SWEEP
-    lsweep_backward = iand(sortype, SOR_LOCAL_BACKWARD_SWEEP) .eq. SOR_LOCAL_BACKWARD_SWEEP .or. &
-      & iand(sortype, SOR_BACKWARD_SWEEP) .eq. SOR_BACKWARD_SWEEP
-    lsweep_forward = iand(sortype, SOR_LOCAL_FORWARD_SWEEP) .eq. SOR_LOCAL_FORWARD_SWEEP .or. &
-      & iand(sortype, SOR_FORWARD_SWEEP) .eq. SOR_FORWARD_SWEEP
-    lzero_initial_guess = iand(sortype, SOR_ZERO_INITIAL_GUESS) .eq. SOR_ZERO_INITIAL_GUESS
+    lsweep_symmetric = iand(sortype%v, SOR_LOCAL_SYMMETRIC_SWEEP%v) .eq. SOR_LOCAL_SYMMETRIC_SWEEP%v .or. &
+      & iand(sortype%v, SOR_SYMMETRIC_SWEEP%v) .eq. SOR_SYMMETRIC_SWEEP%v
+    lsweep_backward = iand(sortype%v, SOR_LOCAL_BACKWARD_SWEEP%v) .eq. SOR_LOCAL_BACKWARD_SWEEP%v .or. &
+      & iand(sortype%v, SOR_BACKWARD_SWEEP%v) .eq. SOR_BACKWARD_SWEEP%v
+    lsweep_forward = iand(sortype%v, SOR_LOCAL_FORWARD_SWEEP%v) .eq. SOR_LOCAL_FORWARD_SWEEP%v .or. &
+      & iand(sortype%v, SOR_FORWARD_SWEEP%v) .eq. SOR_FORWARD_SWEEP%v
+    lzero_initial_guess = iand(sortype%v, SOR_ZERO_INITIAL_GUESS%v) .eq. SOR_ZERO_INITIAL_GUESS%v
 
     associate ( &
         & C => solver%C_diff)

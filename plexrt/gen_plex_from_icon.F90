@@ -63,7 +63,7 @@ contains
     call setup_plexgrid(dm2d_dist, dm3d, Nlev - 1, zindex, plex, icon_hdcp2_default_hhl)
 
     call ncvar2d_to_globalvec(plex, datafile, 'clw', clw, cell_ao_2d=cell_ao_2d)
-    call PetscObjectViewFromOptions(clw, PETSC_NULL_VEC, '-show_clw', ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(PetscObjectCast(clw), PETSC_NULL_OBJECT, '-show_clw', ierr); call CHKERR(ierr)
 
     call DMDestroy(dm2d, ierr); call CHKERR(ierr)
     call DMDestroy(dm2d_dist, ierr); call CHKERR(ierr)

@@ -111,7 +111,7 @@ contains
       call getVecPointer(C%da, gvec, x1d, xv)
       x1d(:) = 100._ireals + real(myid, ireals)
       call restoreVecPointer(C%da, gvec, x1d, xv)
-      call PetscObjectViewFromOptions(gvec, PETSC_NULL_VEC, '-show_gvec', ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(PetscObjectCast(gvec), PETSC_NULL_OBJECT, '-show_gvec', ierr); call CHKERR(ierr)
 
       if (submyid .eq. 0) then
         call VecGetSize(gvec, N, ierr); call CHKERR(ierr)
@@ -129,7 +129,7 @@ contains
 
       do k = 0, numnodes - 1
         if (k .eq. myid) then
-          call PetscObjectViewFromOptions(svec, PETSC_NULL_VEC, '-show_svec', ierr); call CHKERR(ierr)
+          call PetscObjectViewFromOptions(PetscObjectCast(svec), PETSC_NULL_OBJECT, '-show_svec', ierr); call CHKERR(ierr)
         end if
         call mpi_barrier(comm, ierr); call CHKERR(ierr)
       end do
@@ -151,7 +151,7 @@ contains
       call imp_allreduce_sum(comm, k, num_shared_masters)
       call VecScale(gvec, one / real(num_shared_masters, ireals), ierr); call CHKERR(ierr)
 
-      call PetscObjectViewFromOptions(gvec, PETSC_NULL_VEC, '-show_gvec', ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(PetscObjectCast(gvec), PETSC_NULL_OBJECT, '-show_gvec', ierr); call CHKERR(ierr)
 
       call VecAXPY(gvec, -one, gvec_target, ierr); call CHKERR(ierr)
       call VecNorm(gvec, NORM_1, diff, ierr); call CHKERR(ierr)

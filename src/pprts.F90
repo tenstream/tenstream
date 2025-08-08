@@ -885,7 +885,11 @@ contains
     if (ldebug .and. present(nxproc) .and. present(nyproc)) &
       & print *, myid, 'setup_dmda nxproc', nxproc, 'nyproc', nyproc
 
-    opt_stencil_type = get_arg(DMDA_STENCIL_STAR, stencil_type)
+    if (present(stencil_type)) then
+      opt_stencil_type = stencil_type
+    else
+      opt_stencil_type = DMDA_STENCIL_STAR
+    end if
 
     allocate (C)
 
@@ -933,6 +937,7 @@ contains
       DMDAStencilType :: st
       integer(iintegers) :: stencil_width, nproc_x, nproc_y, nproc_z, Ndof
       integer(mpiint) :: numnodes
+      PetscMPIInt, pointer :: pneighbors(:)
 
       call DMDAGetInfo(C%da, C%dim, &
                        C%glob_zm, C%glob_xm, C%glob_ym, &
@@ -950,7 +955,8 @@ contains
       C%gze = C%gzs + C%gzm - 1
 
       allocate (C%neighbors(0:3**C%dim - 1))
-      call DMDAGetNeighbors(C%da, C%neighbors, ierr); call CHKERR(ierr)
+      call DMDAGetNeighbors(C%da, pneighbors, ierr); call CHKERR(ierr)
+      C%neighbors(:) = pneighbors(:)
       call mpi_comm_size(icomm, numnodes, ierr); call CHKERR(ierr)
       if (numnodes .gt. i1) then
         if (ldebug .and. (C%dim .eq. 3)) print *, 'PETSC id', myid, C%dim, 'Neighbors are', C%neighbors(10), &
@@ -1047,7 +1053,8 @@ contains
       call restoreVecPointer(C_hhl%da, vhhl, hhl1d, hhl)
     end if
 
-    call PetscObjectViewFromOptions(vhhl, C_hhl%da, "-pprts_show_hhl", ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(PetscObjectCast(vhhl), PetscObjectCast(C_hhl%da), "-pprts_show_hhl", ierr)
+    call CHKERR(ierr)
   end subroutine
 
   !> @brief initialize basic memory structs like PETSc vectors and matrices
@@ -1286,7 +1293,7 @@ contains
 
     logical :: llocal_src, llocal_dst
     integer(mpiint) :: myid, ierr
-    MatStencil :: row(4, C%dof), col(4, C%dof)
+    MatStencil :: row(C%dof), col(C%dof)
 
     call mpi_comm_rank(solver%comm, myid, ierr); call CHKERR(ierr)
 
@@ -1315,50 +1322,50 @@ contains
 
             do idst = 1, solver%dirtop%dof
               dst = idst
-              row(MatStencil_j, dst) = i
-              row(MatStencil_k, dst) = j
-              row(MatStencil_i, dst) = k + 1
-              row(MatStencil_c, dst) = dst - i1 ! Define transmission towards the lower/upper lid
+              row(dst)%j = i
+              row(dst)%k = j
+              row(dst)%i = k + 1
+              row(dst)%c = dst - i1 ! Define transmission towards the lower/upper lid
             end do
 
             do idst = 1, solver%dirside%dof
               dst = idst + solver%dirtop%dof
-              row(MatStencil_j, dst) = i + xinc
-              row(MatStencil_k, dst) = j
-              row(MatStencil_i, dst) = k
-              row(MatStencil_c, dst) = dst - i1 ! Define transmission towards the left/right lid
+              row(dst)%j = i + xinc
+              row(dst)%k = j
+              row(dst)%i = k
+              row(dst)%c = dst - i1 ! Define transmission towards the left/right lid
             end do
 
             do idst = 1, solver%dirside%dof
               dst = idst + solver%dirtop%dof + solver%dirside%dof
-              row(MatStencil_j, dst) = i
-              row(MatStencil_k, dst) = j + yinc
-              row(MatStencil_i, dst) = k
-              row(MatStencil_c, dst) = dst - i1 ! Define transmission towards the front/back lid
+              row(dst)%j = i
+              row(dst)%k = j + yinc
+              row(dst)%i = k
+              row(dst)%c = dst - i1 ! Define transmission towards the front/back lid
             end do
 
             do isrc = 1, solver%dirtop%dof
               src = isrc
-              col(MatStencil_j, src) = i
-              col(MatStencil_k, src) = j
-              col(MatStencil_i, src) = k
-              col(MatStencil_c, src) = src - i1 ! Define transmission towards the lower/upper lid
+              col(src)%j = i
+              col(src)%k = j
+              col(src)%i = k
+              col(src)%c = src - i1 ! Define transmission towards the lower/upper lid
             end do
 
             do isrc = 1, solver%dirside%dof
               src = isrc + solver%dirtop%dof
-              col(MatStencil_j, src) = i + 1 - xinc
-              col(MatStencil_k, src) = j
-              col(MatStencil_i, src) = k
-              col(MatStencil_c, src) = src - i1 ! Define transmission towards the left/right lid
+              col(src)%j = i + 1 - xinc
+              col(src)%k = j
+              col(src)%i = k
+              col(src)%c = src - i1 ! Define transmission towards the left/right lid
             end do
 
             do isrc = 1, solver%dirside%dof
               src = isrc + solver%dirtop%dof + solver%dirside%dof
-              col(MatStencil_j, src) = i
-              col(MatStencil_k, src) = j + 1 - yinc
-              col(MatStencil_i, src) = k
-              col(MatStencil_c, src) = src - i1 ! Define transmission towards the front/back lid
+              col(src)%j = i
+              col(src)%k = j + 1 - yinc
+              col(src)%i = k
+              col(src)%c = src - i1 ! Define transmission towards the front/back lid
             end do
 
             do idst = 1, C%dof
@@ -1366,19 +1373,19 @@ contains
               llocal_dst = .true.
               if (C%neighbors(10) .ne. myid &
                 & .and. C%neighbors(10) .ge. i0 &
-                & .and. row(MatStencil_j, idst) .lt. C%xs) &
+                & .and. row(idst)%j .lt. C%xs) &
                 & llocal_dst = .false. ! have real neighbor west  and is not local entry
               if (C%neighbors(16) .ne. myid &
                 & .and. C%neighbors(16) .ge. i0 &
-                & .and. row(MatStencil_j, idst) .gt. C%xe) &
+                & .and. row(idst)%j .gt. C%xe) &
                 & llocal_dst = .false. ! have real neighbor east  and is not local entry
               if (C%neighbors(4) .ne. myid &
                 & .and. C%neighbors(4) .ge. i0 &
-                & .and. row(MatStencil_k, idst) .lt. C%ys) &
+                & .and. row(idst)%k .lt. C%ys) &
                 & llocal_dst = .false. ! have real neighbor south and is not local entry
               if (C%neighbors(22) .ne. myid &
                 & .and. C%neighbors(22) .ge. i0 &
-                & .and. row(MatStencil_k, idst) .gt. C%ye) &
+                & .and. row(idst)%k .gt. C%ye) &
                 & llocal_dst = .false. ! have real neighbor north and is not local entry
 
               do isrc = 1, C%dof
@@ -1386,26 +1393,26 @@ contains
 
                 if (C%neighbors(10) .ne. myid &
                   & .and. C%neighbors(10) .ge. i0 &
-                  & .and. col(MatStencil_j, isrc) .lt. C%xs) &
+                  & .and. col(isrc)%j .lt. C%xs) &
                   & llocal_src = .false. ! have real neighbor west  and is not local entry
                 if (C%neighbors(16) .ne. myid &
                   & .and. C%neighbors(16) .ge. i0 &
-                  & .and. col(MatStencil_j, isrc) .gt. C%xe) &
+                  & .and. col(isrc)%j .gt. C%xe) &
                   & llocal_src = .false. ! have real neighbor east  and is not local entry
                 if (C%neighbors(4) .ne. myid &
                   & .and. C%neighbors(4) .ge. i0 &
-                  & .and. col(MatStencil_k, isrc) .lt. C%ys) &
+                  & .and. col(isrc)%k .lt. C%ys) &
                   & llocal_src = .false. ! have real neighbor south and is not local entry
                 if (C%neighbors(22) .ne. myid &
                   & .and. C%neighbors(22) .ge. i0 &
-                  & .and. col(MatStencil_k, isrc) .gt. C%ye) &
+                  & .and. col(isrc)%k .gt. C%ye) &
                   & llocal_src = .false. ! have real neighbor north and is not local entry
 
                 !if(myid.eq.0) print *,myid,icnt,k,i,j,'::',idst,isrc,'::',llocal_dst,llocal_src
                 if (llocal_dst .and. llocal_src) then
-                  call inc(xd(row(4, idst), row(3, idst), row(2, idst), row(1, idst)), one)
+                  call inc(xd(row(idst)%c, row(idst)%i, row(idst)%j, row(idst)%k), one)
                 else
-                  call inc(xo(row(4, idst), row(3, idst), row(2, idst), row(1, idst)), one)
+                  call inc(xo(row(idst)%c, row(idst)%i, row(idst)%j, row(idst)%k), one)
                 end if
               end do
             end do
@@ -1464,7 +1471,7 @@ contains
     integer(iintegers) :: vsize, i, j, k, isrc, idst, src, dst, icnt
     integer(iintegers) :: dst_id, src_id, idof
     integer(mpiint) :: myid, ierr
-    MatStencil :: row(4, 0:C%dof - 1), col(4, 0:C%dof - 1)
+    MatStencil :: row(0:C%dof - 1), col(0:C%dof - 1)
 
     call mpi_comm_rank(solver%comm, myid, ierr); call CHKERR(ierr)
 
@@ -1497,90 +1504,90 @@ contains
             do idof = 1, solver%difftop%dof
               src = idof - 1
               if (solver%difftop%is_inward(idof)) then
-                col(MatStencil_j, src) = i
-                col(MatStencil_k, src) = j
-                col(MatStencil_i, src) = k
-                col(MatStencil_c, src) = src
+                col(src)%j = i
+                col(src)%k = j
+                col(src)%i = k
+                col(src)%c = src
               else
-                col(MatStencil_j, src) = i
-                col(MatStencil_k, src) = j
-                col(MatStencil_i, src) = k + 1
-                col(MatStencil_c, src) = src
+                col(src)%j = i
+                col(src)%k = j
+                col(src)%i = k + 1
+                col(src)%c = src
               end if
             end do
 
             do idof = 1, solver%diffside%dof
               src = solver%difftop%dof + idof - 1
               if (solver%diffside%is_inward(idof)) then
-                col(MatStencil_j, src) = i
-                col(MatStencil_k, src) = j
-                col(MatStencil_i, src) = k
-                col(MatStencil_c, src) = src
+                col(src)%j = i
+                col(src)%k = j
+                col(src)%i = k
+                col(src)%c = src
               else
-                col(MatStencil_j, src) = i + 1
-                col(MatStencil_k, src) = j
-                col(MatStencil_i, src) = k
-                col(MatStencil_c, src) = src
+                col(src)%j = i + 1
+                col(src)%k = j
+                col(src)%i = k
+                col(src)%c = src
               end if
             end do
 
             do idof = 1, solver%diffside%dof
               src = solver%difftop%dof + solver%diffside%dof + idof - 1
               if (solver%diffside%is_inward(idof)) then
-                col(MatStencil_j, src) = i
-                col(MatStencil_k, src) = j
-                col(MatStencil_i, src) = k
-                col(MatStencil_c, src) = src
+                col(src)%j = i
+                col(src)%k = j
+                col(src)%i = k
+                col(src)%c = src
               else
-                col(MatStencil_j, src) = i
-                col(MatStencil_k, src) = j + 1
-                col(MatStencil_i, src) = k
-                col(MatStencil_c, src) = src
+                col(src)%j = i
+                col(src)%k = j + 1
+                col(src)%i = k
+                col(src)%c = src
               end if
             end do
 
             do idof = 1, solver%difftop%dof
               dst = idof - 1
               if (solver%difftop%is_inward(idof)) then
-                row(MatStencil_j, dst) = i
-                row(MatStencil_k, dst) = j
-                row(MatStencil_i, dst) = k + 1
-                row(MatStencil_c, dst) = dst
+                row(dst)%j = i
+                row(dst)%k = j
+                row(dst)%i = k + 1
+                row(dst)%c = dst
               else
-                row(MatStencil_j, dst) = i
-                row(MatStencil_k, dst) = j
-                row(MatStencil_i, dst) = k
-                row(MatStencil_c, dst) = dst
+                row(dst)%j = i
+                row(dst)%k = j
+                row(dst)%i = k
+                row(dst)%c = dst
               end if
             end do
 
             do idof = 1, solver%diffside%dof
               dst = solver%difftop%dof + idof - 1
               if (solver%diffside%is_inward(idof)) then
-                row(MatStencil_j, dst) = i + 1
-                row(MatStencil_k, dst) = j
-                row(MatStencil_i, dst) = k
-                row(MatStencil_c, dst) = dst
+                row(dst)%j = i + 1
+                row(dst)%k = j
+                row(dst)%i = k
+                row(dst)%c = dst
               else
-                row(MatStencil_j, dst) = i
-                row(MatStencil_k, dst) = j
-                row(MatStencil_i, dst) = k
-                row(MatStencil_c, dst) = dst
+                row(dst)%j = i
+                row(dst)%k = j
+                row(dst)%i = k
+                row(dst)%c = dst
               end if
             end do
 
             do idof = 1, solver%diffside%dof
               dst = solver%difftop%dof + solver%diffside%dof + idof - 1
               if (solver%diffside%is_inward(idof)) then
-                row(MatStencil_j, dst) = i
-                row(MatStencil_k, dst) = j + 1
-                row(MatStencil_i, dst) = k
-                row(MatStencil_c, dst) = dst
+                row(dst)%j = i
+                row(dst)%k = j + 1
+                row(dst)%i = k
+                row(dst)%c = dst
               else
-                row(MatStencil_j, dst) = i
-                row(MatStencil_k, dst) = j
-                row(MatStencil_i, dst) = k
-                row(MatStencil_c, dst) = dst
+                row(dst)%j = i
+                row(dst)%k = j
+                row(dst)%i = k
+                row(dst)%c = dst
               end if
             end do
             ! Diffuse Coefficients Code End
@@ -1590,19 +1597,19 @@ contains
               dst_id = myid
               if (C%neighbors(10) .ne. myid &
                 & .and. C%neighbors(10) .ge. i0 &
-                & .and. row(MatStencil_j, idst) .lt. C%xs) &
+                & .and. row(idst)%j .lt. C%xs) &
                 & dst_id = C%neighbors(10) ! have real neighbor west  and is not local entry
               if (C%neighbors(16) .ne. myid &
                 & .and. C%neighbors(16) .ge. i0 &
-                & .and. row(MatStencil_j, idst) .gt. C%xe) &
+                & .and. row(idst)%j .gt. C%xe) &
                 & dst_id = C%neighbors(16) ! have real neighbor east  and is not local entry
               if (C%neighbors(4) .ne. myid &
                 & .and. C%neighbors(4) .ge. i0 &
-                & .and. row(MatStencil_k, idst) .lt. C%ys) &
+                & .and. row(idst)%k .lt. C%ys) &
                 & dst_id = C%neighbors(4) ! have real neighbor south and is not local entry
               if (C%neighbors(22) .ne. myid &
                 & .and. C%neighbors(22) .ge. i0 &
-                & .and. row(MatStencil_k, idst) .gt. C%ye) &
+                & .and. row(idst)%k .gt. C%ye) &
                 & dst_id = C%neighbors(22) ! have real neighbor north and is not local entry
 
               do isrc = 0, C%dof - 1
@@ -1610,25 +1617,25 @@ contains
 
                 if (C%neighbors(10) .ne. myid &
                   & .and. C%neighbors(10) .ge. i0 &
-                  & .and. col(MatStencil_j, isrc) .lt. C%xs) &
+                  & .and. col(isrc)%j .lt. C%xs) &
                   & src_id = C%neighbors(10) ! have real neighbor west  and is not local entry
                 if (C%neighbors(16) .ne. myid &
                   & .and. C%neighbors(16) .ge. i0 &
-                  & .and. col(MatStencil_j, isrc) .gt. C%xe) &
+                  & .and. col(isrc)%j .gt. C%xe) &
                   & src_id = C%neighbors(16) ! have real neighbor east  and is not local entry
                 if (C%neighbors(4) .ne. myid &
                   & .and. C%neighbors(4) .ge. i0 &
-                  & .and. col(MatStencil_k, isrc) .lt. C%ys) &
+                  & .and. col(isrc)%k .lt. C%ys) &
                   & src_id = C%neighbors(4) ! have real neighbor south and is not local entry
                 if (C%neighbors(22) .ne. myid &
                   & .and. C%neighbors(22) .ge. i0 &
-                  & .and. col(MatStencil_k, isrc) .gt. C%ye) &
+                  & .and. col(isrc)%k .gt. C%ye) &
                   & src_id = C%neighbors(22) ! have real neighbor north and is not local entry
 
                 if (src_id .eq. dst_id) then
-                  call inc(xd(row(4, idst), row(3, idst), row(2, idst), row(1, idst)), one)
+                  call inc(xd(row(idst)%c, row(idst)%i, row(idst)%j, row(idst)%k), one)
                 else
-                  call inc(xo(row(4, idst), row(3, idst), row(2, idst), row(1, idst)), one)
+                  call inc(xo(row(idst)%c, row(idst)%i, row(idst)%j, row(idst)%k), one)
                 end if
 
               end do
@@ -1689,7 +1696,7 @@ contains
   subroutine mat_info(comm, A)
     MPI_Comm, intent(in) :: comm
     type(tMat) :: A
-    double precision :: info(MAT_INFO_SIZE)
+    MatInfo :: info
     double precision :: mal, nz_allocated, nz_used, nz_unneeded
     integer(iintegers) :: m, n
     integer(mpiint) :: myid, ierr
@@ -1697,10 +1704,10 @@ contains
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
     call MatGetInfo(A, MAT_LOCAL, info, ierr); call CHKWARN(ierr)
-    mal = info(MAT_INFO_MALLOCS)
-    nz_allocated = info(MAT_INFO_NZ_ALLOCATED)
-    nz_used = info(MAT_INFO_NZ_USED)
-    nz_unneeded = info(MAT_INFO_NZ_UNNEEDED)
+    mal = info%MALLOCS
+    nz_allocated = info%NZ_ALLOCATED
+    nz_used = info%NZ_USED
+    nz_unneeded = info%NZ_UNNEEDED
 
     call MatGetOwnershipRange(A, m, n, ierr)
 
@@ -2194,7 +2201,8 @@ contains
 
         call DMGetGlobalVector(solver%Csrfc_one%da, valbedo, ierr); call CHKERR(ierr)
         call f90VecToPetsc(atm%albedo, solver%Csrfc_one%da, valbedo)
-        call PetscObjectViewFromOptions(valbedo, solver%Csrfc_one%da, "-pprts_view_albedo", ierr); call CHKERR(ierr)
+        call PetscObjectViewFromOptions(PetscObjectCast(valbedo), PetscObjectCast(solver%Csrfc_one%da), "-pprts_view_albedo", ierr)
+        call CHKERR(ierr)
         call DMRestoreGlobalVector(solver%Csrfc_one%da, valbedo, ierr); call CHKERR(ierr)
       end if
 
@@ -2737,7 +2745,8 @@ contains
       solution%lchanged = .true.
       solution%lWm2_dir = .false.
       call PetscObjectSetName(solution%edir, 'debug_edir', ierr); call CHKERR(ierr)
-      call PetscObjectViewFromOptions(solution%edir, PETSC_NULL_VEC, "-show_debug_edir", ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(PetscObjectCast(solution%edir), PetscObjectCast(PETSC_NULL_VEC), "-show_debug_edir", ierr)
+      call CHKERR(ierr)
     end subroutine
 
     subroutine ediff(A, Aperm, ksp, prefix)
@@ -3755,31 +3764,36 @@ contains
     if (allocated(solution%edir)) then
       write (vecname, FMT='("edir",I0)') solution%uid
       call PetscObjectSetName(solution%edir, vecname, ierr); call CHKERR(ierr)
-      call PetscObjectViewFromOptions(solution%edir, PETSC_NULL_VEC, "-show_edir", ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(PetscObjectCast(solution%edir), PETSC_NULL_OBJECT, "-show_edir", ierr)
+      call CHKERR(ierr)
     end if
 
     if (allocated(solution%ediff)) then
       write (vecname, FMT='("ediff",I0)') solution%uid
       call PetscObjectSetName(solution%ediff, vecname, ierr); call CHKERR(ierr)
-      call PetscObjectViewFromOptions(solution%ediff, PETSC_NULL_VEC, "-show_ediff", ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(PetscObjectCast(solution%ediff), PETSC_NULL_OBJECT, "-show_ediff", ierr)
+      call CHKERR(ierr)
     end if
 
     if (allocated(solution%abso)) then
       write (vecname, FMT='("abso",I0)') solution%uid
       call PetscObjectSetName(solution%abso, vecname, ierr); call CHKERR(ierr)
-      call PetscObjectViewFromOptions(solution%abso, PETSC_NULL_VEC, "-show_abso", ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(PetscObjectCast(solution%abso), PETSC_NULL_OBJECT, "-show_abso", ierr)
+      call CHKERR(ierr)
     end if
 
     if (allocated(solver%b)) then
       write (vecname, FMT='("b",I0)') solution%uid
       call PetscObjectSetName(solver%b, vecname, ierr); call CHKERR(ierr)
-      call PetscObjectViewFromOptions(solver%b, PETSC_NULL_VEC, "-show_b", ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(PetscObjectCast(solver%b), PETSC_NULL_OBJECT, "-show_b", ierr)
+      call CHKERR(ierr)
     end if
 
     if (allocated(solver%incSolar)) then
       write (vecname, FMT='("incSolar",I0)') solution%uid
       call PetscObjectSetName(solver%incSolar, vecname, ierr); call CHKERR(ierr)
-      call PetscObjectViewFromOptions(solver%incSolar, PETSC_NULL_VEC, "-show_incSolar", ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(PetscObjectCast(solver%incSolar), PETSC_NULL_OBJECT, "-show_incSolar", ierr)
+      call CHKERR(ierr)
     end if
   end subroutine
 
@@ -3804,9 +3818,11 @@ contains
     if (solver%myid .eq. 0 .and. ldebug) print *, 'Calculating flux divergence solar?', solution%lsolar_rad, 'NCA?', lcalc_nca
 
     if (allocated(solution%edir)) then
-      call PetscObjectViewFromOptions(solution%edir, PETSC_NULL_VEC, "-show_flxdiv_edir", ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(PetscObjectCast(solution%edir), PETSC_NULL_OBJECT, "-show_flxdiv_edir", ierr)
+      call CHKERR(ierr)
     end if
-    call PetscObjectViewFromOptions(solution%ediff, PETSC_NULL_VEC, "-show_flxdiv_ediff", ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(PetscObjectCast(solution%ediff), PETSC_NULL_OBJECT, "-show_flxdiv_ediff", ierr)
+    call CHKERR(ierr)
 
     if ((solution%lsolar_rad .eqv. .false.) .and. lcalc_nca) then ! if we should calculate NCA (Klinger), we can just return afterwards
       call scale_flx(solver, solution, lWm2=.true.)
@@ -4495,10 +4511,10 @@ contains
     call get_petsc_opt(solver%prefix, "-accept_incomplete_solve", laccept_incomplete_solve, lflg, ierr); call CHKERR(ierr)
     if (laccept_incomplete_solve) return
 
-    if (reason .le. 0) then
+    if (reason%v .le. 0) then
       call KSPGetOptionsPrefix(ksp, kspprefix, ierr); call CHKERR(ierr)
       if (solver%myid .eq. 0) &
-        & call CHKWARN(int(reason, mpiint), trim(kspprefix)//' :: Resetted initial guess to zero '// &
+        & call CHKWARN(int(reason%v, mpiint), trim(kspprefix)//' :: Resetted initial guess to zero '// &
         & 'and try again with gmres (uid='//toStr(uid)//')')
       call VecSet(x, zero, ierr); call CHKERR(ierr)
       call KSPGetType(ksp, old_ksp_type, ierr); call CHKERR(ierr)
@@ -4513,11 +4529,11 @@ contains
       call KSPSetFromOptions(ksp, ierr); call CHKERR(ierr)
       call KSPSetUp(ksp, ierr); call CHKERR(ierr)
       if (solver%myid .eq. 0 .and. ldebug) &
-        & print *, solver%myid, 'Solver took', iter, 'iterations and converged', reason .gt. 0, 'because', reason, 'uid', uid
+        & print *, solver%myid, 'Solver took', iter, 'iterations and converged', reason%v .gt. 0, 'because', reason, 'uid', uid
     end if
 
-    if (reason .le. 0) then
-      call CHKERR(int(reason, mpiint), &
+    if (reason%v .le. 0) then
+      call CHKERR(int(reason%v, mpiint), &
         & '***** SOLVER did NOT converge :( -- (uid='//toStr(uid)//')'// &
         & 'if you know what you are doing, you can use the option -accept_incomplete_solve to continue')
     end if
@@ -4608,7 +4624,7 @@ contains
       default_preconditioner_settings: block
         integer(iintegers) :: i, asm_N, asm_iter
         integer(iintegers) :: first_local
-        type(tKSP), allocatable :: asm_ksps(:)
+        type(tKSP), pointer :: asm_ksps(:)
         type(tPC) :: subpc
         PCType :: pctype
         logical :: lflg
@@ -4619,8 +4635,6 @@ contains
           asm_iter = 1
           call get_petsc_opt(solver%prefix, "-ts_ksp_iter", asm_iter, lflg, ierr); call CHKERR(ierr)
 
-          call PCASMGetSubKSP(prec, asm_N, first_local, PETSC_NULL_KSP, ierr); call CHKERR(ierr)
-          allocate (asm_ksps(asm_N))
           call PCASMGetSubKSP(prec, asm_N, first_local, asm_ksps, ierr); call CHKERR(ierr)
           do i = 1, asm_N
             call KSPSetType(asm_ksps(i), KSPRICHARDSON, ierr); call CHKERR(ierr)
@@ -4636,8 +4650,6 @@ contains
 
         else if (pctype .eq. PCBJACOBI) then
 
-          call PCBJacobiGetSubKSP(prec, asm_N, first_local, PETSC_NULL_KSP, ierr); call CHKERR(ierr)
-          allocate (asm_ksps(asm_N))
           call PCBjacobiGetSubKSP(prec, asm_N, first_local, asm_ksps, ierr); call CHKERR(ierr)
           do i = 1, asm_N
             call KSPSetType(asm_ksps(i), KSPPREONLY, ierr); call CHKERR(ierr)
@@ -4674,34 +4686,34 @@ contains
 
     call KSPGetTolerances(ksp, rtol, atol, dtol, maxits, ierr)
 
-    flag = 0
+    flag%v = 0
     if (n .eq. 0) then
       initial_rnorm = max(tiny(rnorm), rnorm)
       return
     end if
 
     if (rnorm / initial_rnorm .le. rtol) then
-      flag = 2
+      flag%v = 2
       return
     end if
 
     if (rnorm .le. atol) then
-      flag = 3
+      flag%v = 3
       return
     end if
 
     if (n .gt. maxits) then
-      flag = -3
+      flag%v = -3
       return
     end if
 
     if (rnorm / initial_rnorm .ge. dtol) then
-      flag = -4
+      flag%v = -4
       return
     end if
 
     if (isnan(rnorm)) then
-      flag = -9
+      flag%v = -9
       return
     end if
     if (.false.) dummy = dummy + 1 ! stupid statement to remove unused variable warning
@@ -4743,7 +4755,8 @@ contains
     call MatAssemblyBegin(A, MAT_FINAL_ASSEMBLY, ierr); call CHKERR(ierr)
     call MatAssemblyEnd(A, MAT_FINAL_ASSEMBLY, ierr); call CHKERR(ierr)
 
-    call PetscObjectViewFromOptions(A, PETSC_NULL_MAT, "-show_Mdir", ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(PetscObjectCast(A), PETSC_NULL_OBJECT, "-show_Mdir", ierr)
+    call CHKERR(ierr)
   contains
 
     subroutine set_pprts_coeff(solver, C, A, k, i, j)
@@ -4752,7 +4765,7 @@ contains
       type(tMat), intent(inout) :: A
       integer(iintegers), intent(in) :: i, j, k
 
-      MatStencil :: row(4, C%dof), col(4, C%dof)
+      MatStencil :: row(C%dof), col(C%dof)
       real(ireals) :: norm
 
       integer(iintegers) :: dst, src, xinc, yinc, isrc, idst
@@ -4762,50 +4775,50 @@ contains
 
       do idst = 1, solver%dirtop%dof
         dst = idst
-        row(MatStencil_j, dst) = i
-        row(MatStencil_k, dst) = j
-        row(MatStencil_i, dst) = k + 1
-        row(MatStencil_c, dst) = dst - i1 ! Define transmission towards the lower/upper lid
+        row(dst)%j = i
+        row(dst)%k = j
+        row(dst)%i = k + 1
+        row(dst)%c = dst - i1 ! Define transmission towards the lower/upper lid
       end do
 
       do idst = 1, solver%dirside%dof
         dst = idst + solver%dirtop%dof
-        row(MatStencil_j, dst) = i + xinc
-        row(MatStencil_k, dst) = j
-        row(MatStencil_i, dst) = k
-        row(MatStencil_c, dst) = dst - i1 ! Define transmission towards the left/right lid
+        row(dst)%j = i + xinc
+        row(dst)%k = j
+        row(dst)%i = k
+        row(dst)%c = dst - i1 ! Define transmission towards the left/right lid
       end do
 
       do idst = 1, solver%dirside%dof
         dst = idst + solver%dirtop%dof + solver%dirside%dof
-        row(MatStencil_j, dst) = i
-        row(MatStencil_k, dst) = j + yinc
-        row(MatStencil_i, dst) = k
-        row(MatStencil_c, dst) = dst - i1 ! Define transmission towards the front/back lid
+        row(dst)%j = i
+        row(dst)%k = j + yinc
+        row(dst)%i = k
+        row(dst)%c = dst - i1 ! Define transmission towards the front/back lid
       end do
 
       do isrc = 1, solver%dirtop%dof
         src = isrc
-        col(MatStencil_j, src) = i
-        col(MatStencil_k, src) = j
-        col(MatStencil_i, src) = k
-        col(MatStencil_c, src) = src - i1 ! Define transmission towards the lower/upper lid
+        col(src)%j = i
+        col(src)%k = j
+        col(src)%i = k
+        col(src)%c = src - i1 ! Define transmission towards the lower/upper lid
       end do
 
       do isrc = 1, solver%dirside%dof
         src = isrc + solver%dirtop%dof
-        col(MatStencil_j, src) = i + 1 - xinc
-        col(MatStencil_k, src) = j
-        col(MatStencil_i, src) = k
-        col(MatStencil_c, src) = src - i1 ! Define transmission towards the left/right lid
+        col(src)%j = i + 1 - xinc
+        col(src)%k = j
+        col(src)%i = k
+        col(src)%c = src - i1 ! Define transmission towards the left/right lid
       end do
 
       do isrc = 1, solver%dirside%dof
         src = isrc + solver%dirtop%dof + solver%dirside%dof
-        col(MatStencil_j, src) = i
-        col(MatStencil_k, src) = j + 1 - yinc
-        col(MatStencil_i, src) = k
-        col(MatStencil_c, src) = src - i1 ! Define transmission towards the front/back lid
+        col(src)%j = i
+        col(src)%k = j + 1 - yinc
+        col(src)%i = k
+        col(src)%c = src - i1 ! Define transmission towards the front/back lid
       end do
 
       call MatSetValuesStencil(A, C%dof, row, C%dof, col, &
@@ -4830,18 +4843,18 @@ contains
       type(tMat), intent(inout) :: A
       integer(iintegers), intent(in) :: i, j, k
 
-      MatStencil :: row(4, 1), col(4, 1)
+      MatStencil :: row(1), col(1)
       real(ireals) :: v(1)
       integer(iintegers) :: src
 
       v = atm%a33(atmk(atm, k), i, j)
 
-      col(MatStencil_j, i1) = i; col(MatStencil_k, i1) = j; col(MatStencil_i, i1) = k
-      row(MatStencil_j, i1) = i; row(MatStencil_k, i1) = j; row(MatStencil_i, i1) = k + 1
+      col(i1)%j = i; col(i1)%k = j; col(i1)%i = k
+      row(i1)%j = i; row(i1)%k = j; row(i1)%i = k + 1
 
       do src = i1, solver%dirtop%dof
-        col(MatStencil_c, i1) = src - i1 ! Source may be the upper/lower lid:
-        row(MatStencil_c, i1) = src - i1 ! Define transmission towards the lower/upper lid
+        col(i1)%c = src - i1 ! Source may be the upper/lower lid:
+        row(i1)%c = src - i1 ! Define transmission towards the lower/upper lid
         call MatSetValuesStencil(A, i1, row, i1, col, -v, INSERT_VALUES, ierr); call CHKERR(ierr)
       end do
     end subroutine
@@ -5584,7 +5597,7 @@ contains
     call MatAssemblyBegin(A, MAT_FINAL_ASSEMBLY, ierr); call CHKERR(ierr)
     call MatAssemblyEnd(A, MAT_FINAL_ASSEMBLY, ierr); call CHKERR(ierr)
 
-    call PetscObjectViewFromOptions(A, PETSC_NULL_MAT, "-show_Mdiff", ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(PetscObjectCast(A), PETSC_NULL_OBJECT, "-show_Mdiff", ierr); call CHKERR(ierr)
   contains
     subroutine set_pprts_coeff(solver, C, A, k, i, j, ierr)
       class(t_solver) :: solver
@@ -5593,7 +5606,7 @@ contains
       integer(iintegers), intent(in) :: k, i, j
       integer(mpiint), intent(out) :: ierr
 
-      MatStencil :: row(4, 0:C%dof - 1), col(4, 0:C%dof - 1)
+      MatStencil :: row(0:C%dof - 1), col(0:C%dof - 1)
       real(ireals) :: norm
 
       integer(iintegers) :: dst, src, idof
@@ -5601,45 +5614,45 @@ contains
       src = 0
       do idof = 1, solver%difftop%dof
         if (solver%difftop%is_inward(idof)) then
-          col(MatStencil_j, src) = i
-          col(MatStencil_k, src) = j
-          col(MatStencil_i, src) = k
-          col(MatStencil_c, src) = src
+          col(src)%j = i
+          col(src)%k = j
+          col(src)%i = k
+          col(src)%c = src
         else
-          col(MatStencil_j, src) = i
-          col(MatStencil_k, src) = j
-          col(MatStencil_i, src) = k + 1
-          col(MatStencil_c, src) = src
+          col(src)%j = i
+          col(src)%k = j
+          col(src)%i = k + 1
+          col(src)%c = src
         end if
         src = src + 1
       end do
 
       do idof = 1, solver%diffside%dof
         if (solver%diffside%is_inward(idof)) then
-          col(MatStencil_j, src) = i
-          col(MatStencil_k, src) = j
-          col(MatStencil_i, src) = k
-          col(MatStencil_c, src) = src
+          col(src)%j = i
+          col(src)%k = j
+          col(src)%i = k
+          col(src)%c = src
         else
-          col(MatStencil_j, src) = i + 1
-          col(MatStencil_k, src) = j
-          col(MatStencil_i, src) = k
-          col(MatStencil_c, src) = src
+          col(src)%j = i + 1
+          col(src)%k = j
+          col(src)%i = k
+          col(src)%c = src
         end if
         src = src + 1
       end do
 
       do idof = 1, solver%diffside%dof
         if (solver%diffside%is_inward(idof)) then
-          col(MatStencil_j, src) = i
-          col(MatStencil_k, src) = j
-          col(MatStencil_i, src) = k
-          col(MatStencil_c, src) = src
+          col(src)%j = i
+          col(src)%k = j
+          col(src)%i = k
+          col(src)%c = src
         else
-          col(MatStencil_j, src) = i
-          col(MatStencil_k, src) = j + 1
-          col(MatStencil_i, src) = k
-          col(MatStencil_c, src) = src
+          col(src)%j = i
+          col(src)%k = j + 1
+          col(src)%i = k
+          col(src)%c = src
         end if
         src = src + 1
       end do
@@ -5647,45 +5660,45 @@ contains
       dst = 0
       do idof = 1, solver%difftop%dof
         if (solver%difftop%is_inward(idof)) then
-          row(MatStencil_j, dst) = i
-          row(MatStencil_k, dst) = j
-          row(MatStencil_i, dst) = k + 1
-          row(MatStencil_c, dst) = dst
+          row(dst)%j = i
+          row(dst)%k = j
+          row(dst)%i = k + 1
+          row(dst)%c = dst
         else
-          row(MatStencil_j, dst) = i
-          row(MatStencil_k, dst) = j
-          row(MatStencil_i, dst) = k
-          row(MatStencil_c, dst) = dst
+          row(dst)%j = i
+          row(dst)%k = j
+          row(dst)%i = k
+          row(dst)%c = dst
         end if
         dst = dst + 1
       end do
 
       do idof = 1, solver%diffside%dof
         if (solver%diffside%is_inward(idof)) then
-          row(MatStencil_j, dst) = i + 1
-          row(MatStencil_k, dst) = j
-          row(MatStencil_i, dst) = k
-          row(MatStencil_c, dst) = dst
+          row(dst)%j = i + 1
+          row(dst)%k = j
+          row(dst)%i = k
+          row(dst)%c = dst
         else
-          row(MatStencil_j, dst) = i
-          row(MatStencil_k, dst) = j
-          row(MatStencil_i, dst) = k
-          row(MatStencil_c, dst) = dst
+          row(dst)%j = i
+          row(dst)%k = j
+          row(dst)%i = k
+          row(dst)%c = dst
         end if
         dst = dst + 1
       end do
 
       do idof = 1, solver%diffside%dof
         if (solver%diffside%is_inward(idof)) then
-          row(MatStencil_j, dst) = i
-          row(MatStencil_k, dst) = j + 1
-          row(MatStencil_i, dst) = k
-          row(MatStencil_c, dst) = dst
+          row(dst)%j = i
+          row(dst)%k = j + 1
+          row(dst)%i = k
+          row(dst)%c = dst
         else
-          row(MatStencil_j, dst) = i
-          row(MatStencil_k, dst) = j
-          row(MatStencil_i, dst) = k
-          row(MatStencil_c, dst) = dst
+          row(dst)%j = i
+          row(dst)%k = j
+          row(dst)%i = k
+          row(dst)%c = dst
         end if
         dst = dst + 1
       end do
@@ -5721,36 +5734,36 @@ contains
       integer(iintegers), intent(in) :: k, i, j
       integer(iintegers) :: src, dst, idof
 
-      MatStencil :: row(4, 0:solver%difftop%dof - 1), col(4, 0:solver%difftop%dof - 1)
+      MatStencil :: row(0:solver%difftop%dof - 1), col(0:solver%difftop%dof - 1)
       real(ireals) :: v(solver%difftop%dof**2)
 
       do idof = 1, solver%difftop%dof
         src = idof - 1
         if (solver%difftop%is_inward(idof)) then
-          col(MatStencil_j, src) = i
-          col(MatStencil_k, src) = j
-          col(MatStencil_i, src) = k
-          col(MatStencil_c, src) = src
+          col(src)%j = i
+          col(src)%k = j
+          col(src)%i = k
+          col(src)%c = src
         else
-          col(MatStencil_j, src) = i
-          col(MatStencil_k, src) = j
-          col(MatStencil_i, src) = k + 1
-          col(MatStencil_c, src) = src
+          col(src)%j = i
+          col(src)%k = j
+          col(src)%i = k + 1
+          col(src)%c = src
         end if
       end do
 
       do idof = 1, solver%difftop%dof
         dst = idof - 1
         if (solver%difftop%is_inward(idof)) then
-          row(MatStencil_j, dst) = i
-          row(MatStencil_k, dst) = j
-          row(MatStencil_i, dst) = k + 1
-          row(MatStencil_c, dst) = dst
+          row(dst)%j = i
+          row(dst)%k = j
+          row(dst)%i = k + 1
+          row(dst)%c = dst
         else
-          row(MatStencil_j, dst) = i
-          row(MatStencil_k, dst) = j
-          row(MatStencil_i, dst) = k
-          row(MatStencil_c, dst) = dst
+          row(dst)%j = i
+          row(dst)%k = j
+          row(dst)%i = k
+          row(dst)%c = dst
         end if
       end do
 
@@ -5758,7 +5771,7 @@ contains
       v(:) = zero
       do dst = 0, solver%difftop%dof - 1
         do src = 0, solver%difftop%dof - 1
-          if (col(MatStencil_i, src) .eq. row(MatStencil_i, dst)) then ! for reflection, has to be the same k layers
+          if (col(src)%i .eq. row(dst)%i) then ! for reflection, has to be the same k layers
 
             if (src .ne. inv_dof(dst)) cycle ! in 1D has to be the inverse stream
             v(i1 + dst * solver%difftop%dof + src) = atm%a12(atmk(atm, k), i, j) ! TODO: should be using a21/a22 for upward streams?
@@ -5800,27 +5813,27 @@ contains
       type(t_coord), intent(in) :: C
       type(tMat), intent(inout) :: A
 
-      MatStencil :: row(4, 1), col(4, 1)
+      MatStencil :: row(1), col(1)
       integer(iintegers) :: i, j, src, dst
 
       ! Set surface albedo values
-      col(MatStencil_i, i1) = C%ze
-      row(MatStencil_i, i1) = C%ze
+      col(i1)%i = C%ze
+      row(i1)%i = C%ze
 
       do j = C%ys, C%ye
-        row(MatStencil_k, i1) = j
-        col(MatStencil_k, i1) = j
+        row(i1)%k = j
+        col(i1)%k = j
 
         do i = C%xs, C%xe
-          row(MatStencil_j, i1) = i
-          col(MatStencil_j, i1) = i
+          row(i1)%j = i
+          col(i1)%j = i
 
           do dst = 1, solver%difftop%dof
             if (.not. solver%difftop%is_inward(dst)) then
               do src = 1, solver%difftop%dof
                 if (solver%difftop%is_inward(src)) then
-                  col(MatStencil_c, i1) = src - 1
-                  row(MatStencil_c, i1) = dst - 1
+                  col(i1)%c = src - 1
+                  row(i1)%c = dst - 1
                   !print *,solver%myid, 'i '//toStr(i)//' j '//toStr(j), &
                   !  & ' Setting albedo for dst '//toStr(row)//' src '//toStr(col), &
                   !  & ':', -solver%atm%albedo(i,j) / real(solver%difftop%streams, ireals)
@@ -5853,10 +5866,13 @@ contains
 
     associate (solution => solver%solutions(uid))
       if (solution%lsolar_rad) then
-        call PetscObjectViewFromOptions(solution%edir, PETSC_NULL_VEC, "-pprts_show_edir", ierr); call CHKERR(ierr)
+        call PetscObjectViewFromOptions(PetscObjectCast(solution%edir), PETSC_NULL_OBJECT, "-pprts_show_edir", ierr)
+        call CHKERR(ierr)
       end if
-      call PetscObjectViewFromOptions(solution%ediff, PETSC_NULL_VEC, "-pprts_show_ediff", ierr); call CHKERR(ierr)
-      call PetscObjectViewFromOptions(solution%abso, PETSC_NULL_VEC, "-pprts_show_abso", ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(PetscObjectCast(solution%ediff), PETSC_NULL_OBJECT, "-pprts_show_ediff", ierr)
+      call CHKERR(ierr)
+      call PetscObjectViewFromOptions(PetscObjectCast(solution%abso), PETSC_NULL_OBJECT, "-pprts_show_abso", ierr)
+      call CHKERR(ierr)
 
       if (ldebug .and. solver%myid .eq. 0) print *, 'calling pprts_get_result', present(redir), 'for uid', uid
 

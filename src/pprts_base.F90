@@ -272,20 +272,23 @@ contains
       call DMCreateGlobalVector(edir_dm, solution%edir, ierr); call CHKERR(ierr)
       call PetscObjectSetName(solution%edir, 'initialized_edir_vec uid='//toStr(solution%uid), ierr); call CHKERR(ierr)
       call VecSet(solution%edir, zero, ierr); call CHKERR(ierr)
-      call PetscObjectViewFromOptions(solution%edir, edir_dm, "-show_init_edir", ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(PetscObjectCast(solution%edir), PetscObjectCast(edir_dm), "-show_init_edir", ierr)
+      call CHKERR(ierr)
     end if
 
     allocate (solution%ediff)
     call DMCreateGlobalVector(ediff_dm, solution%ediff, ierr); call CHKERR(ierr)
     call PetscObjectSetName(solution%ediff, 'initialized_ediff_vec uid='//toStr(solution%uid), ierr); call CHKERR(ierr)
     call VecSet(solution%ediff, zero, ierr); call CHKERR(ierr)
-    call PetscObjectViewFromOptions(solution%ediff, ediff_dm, "-show_init_ediff", ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(PetscObjectCast(solution%ediff), PetscObjectCast(ediff_dm), "-show_init_ediff", ierr)
+    call CHKERR(ierr)
 
     allocate (solution%abso)
     call DMCreateGlobalVector(abso_dm, solution%abso, ierr); call CHKERR(ierr)
     call PetscObjectSetName(solution%abso, 'initialized_abso_vec uid='//toStr(solution%uid), ierr); call CHKERR(ierr)
     call VecSet(solution%abso, zero, ierr); call CHKERR(ierr)
-    call PetscObjectViewFromOptions(solution%abso, abso_dm, "-show_init_abso", ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(PetscObjectCast(solution%abso), PetscObjectCast(abso_dm), "-show_init_abso", ierr)
+    call CHKERR(ierr)
 
     solution%lset = .true.
   end subroutine
@@ -662,7 +665,7 @@ contains
     call DMDAGetGhostCorners(coordDA, zs, xs, ys, zm, xm, ym, ierr); call CHKERR(ierr)
 
     call DMGetCoordinatesLocal(da, coordinates, ierr); call CHKERR(ierr)
-    call VecGetArrayF90(coordinates, xv1d, ierr); call CHKERR(ierr)
+    call VecGetArray(coordinates, xv1d, ierr); call CHKERR(ierr)
     xv(0:2, zs:zs + zm - 1, xs:xs + xm - 1, ys:ys + ym - 1) => xv1d
 
     call getVecPointer(solver%C_one_atm1_box%da, atm%hhl, hhl1d, hhl, readonly=.true.)
@@ -677,9 +680,10 @@ contains
     end do
     nullify (xv)
     call restoreVecPointer(solver%C_one_atm1_box%da, atm%hhl, hhl1d, hhl, readonly=.true.)
-    call VecRestoreArrayF90(coordinates, xv1d, ierr); call CHKERR(ierr)
+    call VecRestoreArray(coordinates, xv1d, ierr); call CHKERR(ierr)
 
-    call PetscObjectViewFromOptions(coordinates, da, "-pprts_show_coordinates", ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(PetscObjectCast(coordinates), PetscObjectCast(da), "-pprts_show_coordinates", ierr)
+    call CHKERR(ierr)
   end subroutine
 
   !> @brief compute horizontal gradient from dz3d
@@ -733,7 +737,7 @@ contains
 
     call restoreVecPointer(C_grad%da, vgrad, grad_1d, grad)
 
-    call PetscObjectViewFromOptions(vgrad, C_hhl%da, "-pprts_show_grad", ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(PetscObjectCast(vgrad), PetscObjectCast(C_hhl%da), "-pprts_show_grad", ierr); call CHKERR(ierr)
   end subroutine
 
   !> @brief horizontally interpolate/average cell values onto vertices
@@ -953,14 +957,14 @@ contains
 
                 call single_column_solve(solver%OPP, C_dir, i, j, A, ksp, b)
 
-                call VecGetArrayReadF90(b, xv_b, ierr)
+                call VecGetArrayRead(b, xv_b, ierr)
                 do k = C_dir%zs, C_dir%ze - 1
                   do src = 0, solver%dirside%dof - 1
                     ioff = solver%dirtop%dof + solver%dirside%dof + src
                     x4d(ioff, k, i, j + 1 - sun%yinc) = fac * xv_b(i1 + k * C_dir%dof + ioff)
                   end do
                 end do
-                call VecRestoreArrayReadF90(b, xv_b, ierr)
+                call VecRestoreArrayRead(b, xv_b, ierr)
               end do
             end if
 
@@ -974,14 +978,14 @@ contains
 
                 call single_column_solve(solver%OPP, C_dir, i, j, A, ksp, b)
 
-                call VecGetArrayReadF90(b, xv_b, ierr)
+                call VecGetArrayRead(b, xv_b, ierr)
                 do k = C_dir%zs, C_dir%ze - 1
                   do src = 0, solver%dirside%dof - 1
                     ioff = solver%dirtop%dof + src
                     x4d(ioff, k, i + 1 - sun%xinc, j) = fac * xv_b(i1 + k * C_dir%dof + ioff)
                   end do
                 end do
-                call VecRestoreArrayReadF90(b, xv_b, ierr)
+                call VecRestoreArrayRead(b, xv_b, ierr)
               end do
             end if
 
@@ -1026,12 +1030,12 @@ contains
           & atm => solver%atm, &
           & sun => solver%sun)
 
-        call VecGetArrayF90(b, xv_b, ierr)
+        call VecGetArray(b, xv_b, ierr)
         xv_b(:) = 0
         do src = 1, solver%dirtop%dof
           xv_b(src) = -1._ireals
         end do
-        call VecRestoreArrayF90(b, xv_b, ierr)
+        call VecRestoreArray(b, xv_b, ierr)
 
         do k = C_dir%zs, C_dir%ze - 1
           ak = atmk(atm, k)

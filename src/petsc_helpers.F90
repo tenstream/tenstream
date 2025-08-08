@@ -130,9 +130,9 @@ contains
     if (myid .eq. 0) then
       if (.not. allocated(arr)) stop 'Cannot call scatterZerotoPetscGlobal with unallocated input array'
       if (ldebug) print *, myid, 'scatterZerotoDM :: Copy data from Fortran array to Local Petsc Vec'
-      call VecGetArrayF90(local, xloc, ierr); call CHKERR(ierr)
+      call VecGetArray(local, xloc, ierr); call CHKERR(ierr)
       xloc = reshape(arr, [size(arr)])
-      call VecRestoreArrayF90(local, xloc, ierr); call CHKERR(ierr)
+      call VecRestoreArray(local, xloc, ierr); call CHKERR(ierr)
     end if
 
     if (ldebug .and. myid .eq. 0) print *, myid, 'scatterZerotoDM :: scatter reverse....'
@@ -213,9 +213,9 @@ contains
       arr = x4d
       call restoreVecPointer(dm, vec, x1d, x4d)
     else
-      call VecGetArrayF90(vec, x1d, ierr); call CHKERR(ierr)
+      call VecGetArray(vec, x1d, ierr); call CHKERR(ierr)
       arr = reshape(x1d, dims)
-      call VecRestoreArrayF90(vec, x1d, ierr); call CHKERR(ierr)
+      call VecRestoreArray(vec, x1d, ierr); call CHKERR(ierr)
     end if
   end subroutine
   subroutine petscVecToF90_3d(vec, dm, arr, only_on_rank0)
@@ -279,9 +279,9 @@ contains
       arr = x4d(i0, :, :, :)
       call restoreVecPointer(dm, vec, x1d, x4d)
     else
-      call VecGetArrayF90(vec, x1d, ierr); call CHKERR(ierr)
+      call VecGetArray(vec, x1d, ierr); call CHKERR(ierr)
       arr = reshape(x1d, dims)
-      call VecRestoreArrayF90(vec, x1d, ierr); call CHKERR(ierr)
+      call VecRestoreArray(vec, x1d, ierr); call CHKERR(ierr)
     end if
   end subroutine
   subroutine petscVecToF90_2d(vec, dm, arr, only_on_rank0)
@@ -345,9 +345,9 @@ contains
       arr = x4d(i0, i0, :, :)
       call restoreVecPointer(dm, vec, x1d, x4d)
     else
-      call VecGetArrayF90(vec, x1d, ierr); call CHKERR(ierr)
+      call VecGetArray(vec, x1d, ierr); call CHKERR(ierr)
       arr = reshape(x1d, dims)
-      call VecRestoreArrayF90(vec, x1d, ierr); call CHKERR(ierr)
+      call VecRestoreArray(vec, x1d, ierr); call CHKERR(ierr)
     end if
   end subroutine
 
@@ -439,14 +439,14 @@ contains
 
     if (lgetVecPointer_use_petsc_func) then
       if (get_arg(.false., readonly)) then
-        call DMDAVecGetArrayReadF90(dm, vec, x4d, ierr); call CHKERR(ierr)
-        call VecGetArrayReadF90(vec, x1d, ierr); call CHKERR(ierr)
+        call DMDAVecGetArrayRead(dm, vec, x4d, ierr); call CHKERR(ierr)
+        call VecGetArrayRead(vec, x1d, ierr); call CHKERR(ierr)
       else
-        call DMDAVecGetArrayF90(dm, vec, x4d, ierr); call CHKERR(ierr)
-        call VecGetArrayF90(vec, x1d, ierr); call CHKERR(ierr)
+        call DMDAVecGetArray(dm, vec, x4d, ierr); call CHKERR(ierr)
+        call VecGetArray(vec, x1d, ierr); call CHKERR(ierr)
       end if
     else
-      call PetscObjectViewFromOptions(dm, PETSC_NULL_DM, '-show_getvecpointerdm', ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(dm, PETSC_NULL_OBJECT, '-show_getvecpointerdm', ierr); call CHKERR(ierr)
 
       call DMDAGetInfo(dm, dmdim,             &
         & glob_zm, glob_xm, glob_ym,          &
@@ -479,9 +479,9 @@ contains
       end if
 
       if (get_arg(.false., readonly)) then
-        call VecGetArrayReadF90(vec, x1d, ierr); call CHKERR(ierr)
+        call VecGetArrayRead(vec, x1d, ierr); call CHKERR(ierr)
       else
-        call VecGetArrayF90(vec, x1d, ierr); call CHKERR(ierr)
+        call VecGetArray(vec, x1d, ierr); call CHKERR(ierr)
       end if
 
       if (lghosted) then
@@ -508,18 +508,18 @@ contains
 
     if (lgetVecPointer_use_petsc_func) then
       if (get_arg(.false., readonly)) then
-        call DMDAVecRestoreArrayReadF90(dm, vec, x4d, ierr); call CHKERR(ierr)
-        call VecRestoreArrayReadF90(vec, x1d, ierr); call CHKERR(ierr)
+        call DMDAVecRestoreArrayRead(dm, vec, x4d, ierr); call CHKERR(ierr)
+        call VecRestoreArrayRead(vec, x1d, ierr); call CHKERR(ierr)
       else
-        call DMDAVecRestoreArrayF90(dm, vec, x4d, ierr); call CHKERR(ierr)
-        call VecRestoreArrayF90(vec, x1d, ierr); call CHKERR(ierr)
+        call DMDAVecRestoreArray(dm, vec, x4d, ierr); call CHKERR(ierr)
+        call VecRestoreArray(vec, x1d, ierr); call CHKERR(ierr)
       end if
     else
       x4d => null()
       if (get_arg(.false., readonly)) then
-        call VecRestoreArrayReadF90(vec, x1d, ierr); call CHKERR(ierr)
+        call VecRestoreArrayRead(vec, x1d, ierr); call CHKERR(ierr)
       else
-        call VecRestoreArrayF90(vec, x1d, ierr); call CHKERR(ierr)
+        call VecRestoreArray(vec, x1d, ierr); call CHKERR(ierr)
       end if
     end if
   end subroutine
@@ -550,15 +550,15 @@ contains
 
     if (lgetVecPointer_use_petsc_func) then
       if (get_arg(.false., readonly)) then
-        call DMDAVecGetArrayReadF90(dm, vec, x3d, ierr); call CHKERR(ierr)
-        call VecGetArrayReadF90(vec, x1d, ierr); call CHKERR(ierr)
+        call DMDAVecGetArrayRead(dm, vec, x3d, ierr); call CHKERR(ierr)
+        call VecGetArrayRead(vec, x1d, ierr); call CHKERR(ierr)
       else
-        call DMDAVecGetArrayF90(dm, vec, x3d, ierr); call CHKERR(ierr)
-        call VecGetArrayF90(vec, x1d, ierr); call CHKERR(ierr)
+        call DMDAVecGetArray(dm, vec, x3d, ierr); call CHKERR(ierr)
+        call VecGetArray(vec, x1d, ierr); call CHKERR(ierr)
       end if
     else
 
-      call PetscObjectViewFromOptions(dm, PETSC_NULL_DM, '-show_getvecpointerdm', ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(dm, PETSC_NULL_OBJECT, '-show_getvecpointerdm', ierr); call CHKERR(ierr)
       call DMDAGetInfo(dm, dmdim,             &
         & glob_xm, glob_ym, glob_zm,          &
         & nprocx, nprocy, nprocz,             &
@@ -588,9 +588,9 @@ contains
       end if
 
       if (get_arg(.false., readonly)) then
-        call VecGetArrayReadF90(vec, x1d, ierr); call CHKERR(ierr)
+        call VecGetArrayRead(vec, x1d, ierr); call CHKERR(ierr)
       else
-        call VecGetArrayF90(vec, x1d, ierr); call CHKERR(ierr)
+        call VecGetArray(vec, x1d, ierr); call CHKERR(ierr)
       end if
       if (lghosted) then
         x3d(0:dof - 1, gxs:gxe, gys:gye) => x1d
@@ -616,20 +616,20 @@ contains
     if (lgetVecPointer_use_petsc_func) then
 
       if (get_arg(.false., readonly)) then
-        call DMDAVecRestoreArrayReadF90(dm, vec, x3d, ierr); call CHKERR(ierr)
-        call VecRestoreArrayReadF90(vec, x1d, ierr); call CHKERR(ierr)
+        call DMDAVecRestoreArrayRead(dm, vec, x3d, ierr); call CHKERR(ierr)
+        call VecRestoreArrayRead(vec, x1d, ierr); call CHKERR(ierr)
       else
-        call DMDAVecRestoreArrayF90(dm, vec, x3d, ierr); call CHKERR(ierr)
-        call VecRestoreArrayF90(vec, x1d, ierr); call CHKERR(ierr)
+        call DMDAVecRestoreArray(dm, vec, x3d, ierr); call CHKERR(ierr)
+        call VecRestoreArray(vec, x1d, ierr); call CHKERR(ierr)
       end if
 
     else
 
       x3d => null()
       if (get_arg(.false., readonly)) then
-        call VecRestoreArrayReadF90(vec, x1d, ierr); call CHKERR(ierr)
+        call VecRestoreArrayRead(vec, x1d, ierr); call CHKERR(ierr)
       else
-        call VecRestoreArrayF90(vec, x1d, ierr); call CHKERR(ierr)
+        call VecRestoreArray(vec, x1d, ierr); call CHKERR(ierr)
       end if
     end if
   end subroutine
@@ -653,7 +653,7 @@ contains
     DMBoundaryType :: boundary_z, boundary_x, boundary_y
     DMDAStencilType :: stencil_type
 
-    integer(iintegers), allocatable, dimension(:) :: Nxperproc, Nyperproc
+    integer(iintegers), pointer :: Nxperproc(:), Nyperproc(:)
     integer(iintegers) :: Ndof, idof
     integer(mpiint) :: comm, myid, numnodes, ierr
 
@@ -670,9 +670,7 @@ contains
       & boundary_z, boundary_x, boundary_y, &
       & stencil_type, ierr); call CHKERR(ierr)
 
-    allocate (Nxperproc(nprocx), Nyperproc(nprocy))
-
-    call DMDAGetOwnershipRanges(dm3d, PETSC_NULL_INTEGER, Nxperproc, Nyperproc, ierr); call CHKERR(ierr)
+    call DMDAGetOwnershipRanges(dm3d, PETSC_NULL_INTEGER_POINTER, Nxperproc, Nyperproc, ierr); call CHKERR(ierr)
 
     if (kernel_width .gt. int(min(size(arr, dim=2), size(arr, dim=3)), iintegers)) then
       call CHKERR(int(kernel_width, mpiint), 'smoothing kernel size is bigger than local domains...'// &
@@ -1017,7 +1015,7 @@ contains
     real(ireals) :: mmm(3)
     character(len=default_str_len) :: vecname
 
-    call VecGetArrayReadF90(v, xv, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(v, xv, ierr); call CHKERR(ierr)
     call PetscObjectGetComm(v, comm, ierr); call CHKERR(ierr)
     call imp_min_mean_max(comm, xv, mmm)
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)

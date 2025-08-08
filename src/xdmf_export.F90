@@ -101,7 +101,7 @@ contains
         call set_dmda_cell_coordinates(solver, solver%atm, C%da, ierr)
         call DMGetCoordinatesLocal(C%da, coordinates, ierr); call CHKERR(ierr)
       end if
-      call VecGetArrayF90(coordinates, xv1d, ierr); call CHKERR(ierr)
+      call VecGetArray(coordinates, xv1d, ierr); call CHKERR(ierr)
       xv(0:2, zs:zs + zm - 1, xs:xs + xm - 1, ys:ys + ym - 1) => xv1d
     end associate
 
@@ -335,7 +335,7 @@ contains
         call set_dmda_cell_coordinates(solver, solver%atm, C%da, ierr)
         call DMGetCoordinatesLocal(C%da, coordinates, ierr); call CHKERR(ierr)
       end if
-      call VecGetArrayF90(coordinates, xv1d, ierr); call CHKERR(ierr)
+      call VecGetArray(coordinates, xv1d, ierr); call CHKERR(ierr)
       xv(0:2, zs:zs + zm - 1, xs:xs + xm - 1, ys:ys + ym - 1) => xv1d
     end associate
 

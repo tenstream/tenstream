@@ -244,7 +244,7 @@ contains
       call DMRestoreGlobalVector(C%da, b, ierr); call CHKERR(ierr)
 
       call PetscObjectSetName(vedir, 'debug_edir', ierr); call CHKERR(ierr)
-      call PetscObjectViewFromOptions(vedir, PETSC_NULL_VEC, "-show_debug_edir", ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(PetscObjectCast(vedir), PETSC_NULL_OBJECT, "-show_debug_edir", ierr); call CHKERR(ierr)
     end associate
 
     solution%lchanged = .true.
@@ -731,7 +731,7 @@ contains
       call DMRestoreLocalVector(C%da, lvb, ierr); call CHKERR(ierr)
 
       call PetscObjectSetName(vediff, 'debug_ediff', ierr); call CHKERR(ierr)
-      call PetscObjectViewFromOptions(vediff, PETSC_NULL_VEC, "-show_debug_ediff", ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(PetscObjectCast(vediff), PETSC_NULL_OBJECT, "-show_debug_ediff", ierr); call CHKERR(ierr)
     end associate
 
     solution%lchanged = .true.

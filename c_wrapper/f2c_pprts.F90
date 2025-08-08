@@ -421,13 +421,13 @@ contains
 
       call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
       if (myid .eq. 0) then
-        call VecGetArrayF90(r0var, xv, ierr); call CHKERR(ierr)
+        call VecGetArray(r0var, xv, ierr); call CHKERR(ierr)
         call CHKERR(int(size(xv) / 2 - size(var0), mpiint), 'Global array sizes do not match, expected input size ('// &
                     toStr(shape(var0))//') to be half the size of the plexrt mesh result: ('//toStr(shape(xv))//')')
         xxv(1:size(var, dim=1), 1:2 * Nx, 1:Ny) => xv
         var0 = real(xxv(:, 1:size(xxv, 2):2, :) + xxv(:, 2:size(xxv, 2):2, :), c_float) / 2
         nullify (xxv)
-        call VecRestoreArrayF90(r0var, xv, ierr); call CHKERR(ierr)
+        call VecRestoreArray(r0var, xv, ierr); call CHKERR(ierr)
       end if
       call PetscSectionDestroy(flxSection, ierr); call CHKERR(ierr)
       call PetscSectionDestroy(r0flxSection, ierr); call CHKERR(ierr)

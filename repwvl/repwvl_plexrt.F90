@@ -301,13 +301,13 @@ contains
       end if
       call PetscLogEventEnd(repwvl_log_events%repwvl_optprop, ierr); call CHKERR(ierr)
 
-      call VecGetArrayF90(solver%albedo, xalbedo, ierr); call CHKERR(ierr)
+      call VecGetArray(solver%albedo, xalbedo, ierr); call CHKERR(ierr)
       if (present(thermal_albedo_2d)) then
         xalbedo = thermal_albedo_2d
       else
         xalbedo = albedo
       end if
-      call VecRestoreArrayF90(solver%albedo, xalbedo, ierr); call CHKERR(ierr)
+      call VecRestoreArray(solver%albedo, xalbedo, ierr); call CHKERR(ierr)
 
       call Nz_Ncol_vec_to_horizface1_dm(solver%plex, Blev, solver%plck)
       call Nz_Ncol_vec_to_celldm1(solver%plex, kabs, solver%kabs)
@@ -412,13 +412,13 @@ contains
       end do
       call PetscLogEventEnd(repwvl_log_events%repwvl_optprop, ierr); call CHKERR(ierr)
 
-      call VecGetArrayF90(solver%albedo, xalbedo, ierr); call CHKERR(ierr)
+      call VecGetArray(solver%albedo, xalbedo, ierr); call CHKERR(ierr)
       if (present(solar_albedo_2d)) then
         xalbedo = solar_albedo_2d
       else
         xalbedo = albedo
       end if
-      call VecRestoreArrayF90(solver%albedo, xalbedo, ierr); call CHKERR(ierr)
+      call VecRestoreArray(solver%albedo, xalbedo, ierr); call CHKERR(ierr)
 
       call Nz_Ncol_vec_to_celldm1(solver%plex, kabs, solver%kabs)
       call Nz_Ncol_vec_to_celldm1(solver%plex, ksca, solver%ksca)
