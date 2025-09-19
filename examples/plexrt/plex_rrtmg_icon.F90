@@ -217,6 +217,7 @@ contains
       use m_helper_functions, only: cross_3d, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world, &
                                     rotate_angle_x, rotation_matrix_around_axis_vec
       logical :: lflg
+      PetscBool :: lflg_p
       real(ireals) :: first_normal(3)
       integer(mpiint) :: myid, ierr
       integer(iintegers) :: nargs
@@ -228,8 +229,8 @@ contains
       if (ldebug .and. myid .eq. 0) print *, myid, 'determine initial sundirection ...'
       nargs = i3
       call PetscOptionsGetRealArray(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-                                    "-sundir", sundir, nargs, lflg, ierr); call CHKERR(ierr)
-      if (lflg) then
+                                    "-sundir", sundir, nargs, lflg_p, ierr); call CHKERR(ierr)
+      if (lflg_p) then
         call CHKERR(int(nargs - i3, mpiint), 'must provide exactly 3 values for -sundir. '// &
                     'Need to be given comma separated without spaces')
       else

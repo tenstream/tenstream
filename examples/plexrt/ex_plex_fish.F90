@@ -103,8 +103,7 @@ contains
 
     if (lverbose .and. myid .eq. 0) print *, myid, 'determine initial sundirection ...'
     nargs = i3
-    call PetscOptionsGetRealArray(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-                                  "-sundir", sundir, nargs, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt(PETSC_NULL_CHARACTER, "-sundir", sundir, nargs, lflg, ierr); call CHKERR(ierr)
     if (lflg) then
       call CHKERR(int(nargs - i3, mpiint), 'must provide exactly 3 values for -sundir. '// &
                   'Need to be given comma separated without spaces')

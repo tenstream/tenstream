@@ -708,6 +708,7 @@ contains
     call mpi_comm_rank(mpi_comm_world, worldid, ierr); call CHKERR(ierr)
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
+    snap_path = ""
     call get_petsc_opt(PETSC_NULL_CHARACTER, "-rayli_snapshot", snap_path, lflg, ierr); call CHKERR(ierr)
     if (len_trim(snap_path) .eq. 0) snap_path = 'rayli_snaphots.nc'
     if (myid .eq. 0) print *, 'Capturing scene to file: '//trim(snap_path), len_trim(snap_path)

@@ -64,10 +64,11 @@ contains
   end subroutine
   subroutine read_commandline_options(comm)
     integer(mpiint), intent(in) :: comm
-    logical :: lflg = .false.
+    logical :: lflg
+    PetscBool :: lflg_p
     integer(mpiint) :: ierr
-    logical :: lshow_options = .false.
-    logical :: ltenstr_view = .false.
+    logical :: lshow_options
+    logical :: ltenstr_view
     logical :: file_exists
 
     integer(mpiint) :: myid, numnodes
@@ -83,6 +84,7 @@ contains
       call PetscOptionsInsertFile(comm, PETSC_NULL_OPTIONS, 'tenstream.options', PETSC_FALSE, ierr); call CHKERR(ierr)
     end if
 
+    lshow_options = .false.
     call get_petsc_opt(PETSC_NULL_CHARACTER, "-show_options", lshow_options, lflg, ierr); call CHKERR(ierr)
     if (lflg .eqv. PETSC_FALSE) then
       if (lshow_options) then
@@ -135,12 +137,13 @@ contains
     call get_petsc_opt(PETSC_NULL_CHARACTER, "-schwarzschild", &
                        lschwarzschild, lflg, ierr); call CHKERR(ierr)
 
+    ltenstr_view = .false.
     call get_petsc_opt(PETSC_NULL_CHARACTER, "-tenstr_view", &
                        ltenstr_view, lflg, ierr); call CHKERR(ierr)
 
     call PetscOptionsHasName(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-                             "-twostr_only", lflg, ierr); call CHKERR(ierr)
-    if (lflg) call CHKERR(1_mpiint, 'Option -twostr_only is deprecated in favor of a distinct solver option, e.g. -solver 2str')
+                             "-twostr_only", lflg_p, ierr); call CHKERR(ierr)
+    if (lflg_p) call CHKERR(1_mpiint, 'Option -twostr_only is deprecated in favor of a distinct solver option, e.g. -solver 2str')
 
     if (myid .eq. 0 .and. ltenstr_view) then
       print *, '********************************************************************'

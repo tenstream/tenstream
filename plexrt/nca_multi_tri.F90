@@ -28,6 +28,7 @@ contains
     integer(mpiint), intent(in) :: comm
     integer(mpiint) :: myid, ierr
     logical :: lflg
+    PetscBool :: lflg_p
 
     character(len=default_str_len) :: lut_dir
 
@@ -57,8 +58,8 @@ contains
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
     lut_dir = '.'
-    call PetscInitialized(lflg, ierr)
-    if (lflg) then
+    call PetscInitialized(lflg_p, ierr)
+    if (lflg_p) then
       call get_petsc_opt(PETSC_NULL_CHARACTER, '-nca_lut_dir', lut_dir, lflg, ierr); call CHKERR(ierr)
     end if
 

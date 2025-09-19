@@ -75,8 +75,7 @@ program main
 
   cld_layer_idx = [Nlay / 2 + 1, Nlay / 2 + 1]
   Ncld_idx = 2
-  call PetscOptionsGetIntArray(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-cld_idx", &
-    & cld_layer_idx, Ncld_idx, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt(PETSC_NULL_CHARACTER, "-cld_idx", cld_layer_idx, Ncld_idx, lflg, ierr); call CHKERR(ierr)
 
   dtau_cloud = 1; w0_cloud = .99; g_cloud = .9
   call get_petsc_opt(PETSC_NULL_CHARACTER, "-dtau_cld", dtau_cloud, lflg, ierr); call CHKERR(ierr)
