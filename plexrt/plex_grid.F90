@@ -485,7 +485,7 @@ contains
 
     integer(mpiint) :: myid, comm, ierr
     character(len=default_str_len) :: faceVecname, cellVecname
-    logical :: option_is_set
+    PetscBool :: option_is_set
 
     call PetscObjectGetComm(faceVec_dm, comm, ierr); call CHKERR(ierr)
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
@@ -745,7 +745,7 @@ contains
     type(tPetscSection) :: section
     integer(mpiint) :: ierr
     integer(iintegers) :: ifield
-    logical :: luseCone, luseClosure
+    PetscBool :: luseCone, luseClosure
 
     call DMGetBasicAdjacency(dm, luseCone, luseClosure, ierr); call CHKERR(ierr)
     call create_plex_section(dm, sectionname, numfields, cdof, fdof, edof, vdof, section, fieldnames)
@@ -2600,7 +2600,7 @@ contains
 
     type(tDMLabel) :: depthlabel
     integer(iintegers) :: i, j, numfaces, numSupport
-    logical :: lcontains
+    PetscBool :: lcontains
     integer(iintegers), pointer :: transclosure(:)
     integer(mpiint) :: ierr
 

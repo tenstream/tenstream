@@ -27,7 +27,7 @@ contains
     integer(iintegers), allocatable :: zindex(:)
     integer(mpiint) :: myid, numnodes
     integer(iintegers) :: Nx, Ny
-    PetscBool :: lflg
+    logical :: lflg
 
     call PetscInitialize(PETSC_NULL_CHARACTER, ierr); call CHKERR(ierr)
     call PetscOptionsInsertString(PETSC_NULL_OPTIONS, default_options, ierr); call CHKERR(ierr)

@@ -37,7 +37,7 @@ contains
   @after
   subroutine teardown(this)
     class(MpiTestMethod), intent(inout) :: this
-    logical :: lpetsc_is_initialized
+    PetscBool :: lpetsc_is_initialized
     call PetscInitialized(lpetsc_is_initialized, ierr)
     if (lpetsc_is_initialized) call PetscFinalize(ierr)
     if (myid .eq. 0) print *, 'Finishing icon_plex_utils tests module'

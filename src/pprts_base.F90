@@ -543,7 +543,8 @@ contains
   subroutine destroy_pprts(solver, lfinalizepetsc)
     class(t_solver) :: solver
     logical, optional :: lfinalizepetsc
-    logical :: lfinalize, lpetsc_is_initialized
+    logical :: lfinalize
+    PetscBool :: lpetsc_is_initialized
     integer(iintegers) :: uid
     integer(mpiint) :: ierr
 

@@ -314,6 +314,7 @@ module m_helper_functions
   interface toStr
     module procedure toStr_character
     module procedure ltoa
+    module procedure lptoa
     #:for basetype,dtype in [&
       ('integer', 'INT32'  ), &
       ('integer', 'INT64'  ), &
@@ -454,6 +455,7 @@ module m_helper_functions
       ('real'     , 'ireals'   , 'PetscOptionsGetReal'), &
       ('character', 'len=*'    , 'PetscOptionsGetString'), &
       ('logical'  , None       , 'PetscOptionsGetBool'), &
+      ('PetscBool', None       , 'PetscOptionsGetBool'), &
       ]
       module procedure get_petsc_opt_${basetype}$
     #:endfor
@@ -927,6 +929,16 @@ contains
   elemental function ltoa(l) result(res)
     character(len=1) :: res
     logical, intent(in) :: l
+    if (l) then
+      res = 'T'
+    else
+      res = 'F'
+    end if
+  end function
+
+  elemental function lptoa(l) result(res)
+    character(len=1) :: res
+    PetscBool, intent(in) :: l
     if (l) then
       res = 'T'
     else
@@ -3015,6 +3027,7 @@ contains
     ('real'     , 'ireals'   , 'PetscOptionsGetReal'  ), &
     ('character', 'len=*'    , 'PetscOptionsGetString'), &
     ('logical'  , None       , 'PetscOptionsGetBool'  ), &
+    ('PetscBool', None       , 'PetscOptionsGetBool'  ), &
     ]
     #:set dKIND = '' if dtype == None else '('+dtype+')'
 
@@ -3027,7 +3040,10 @@ contains
       character(len=default_str_len) :: full_opt_name, color
       character(len=default_str_len), save :: last_options_call
       integer(mpiint) :: myid
-      logical :: lshow, lflg
+      PetscBool :: lshow, lflg, lset_petsc
+      #:if (basetype == 'logical')
+        PetscBool :: optval_petsc
+      #:endif
 
       if (option_name(1:1) == '-' .and. len_trim(option_name) > 1) then
         full_opt_name = '-'//trim(prefix)//trim(option_name(2:))
@@ -3042,14 +3058,29 @@ contains
         call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-ts_options_view", lshow, lflg, ierr); call CHKERR(ierr)
       end if
 
-      call ${petscfunc}$ (&
-        & PETSC_NULL_OPTIONS, &
-        & trim(prefix), &
-        & trim(option_name), &
-        & optval, &
-        & lset, &
-        & ierr)
-      call CHKERR(ierr)
+      #:if (basetype == 'logical')
+        optval_petsc = optval
+        call ${petscfunc}$ (&
+          & PETSC_NULL_OPTIONS, &
+          & trim(prefix), &
+          & trim(option_name), &
+          & optval_petsc, &
+          & lset_petsc, &
+          & ierr)
+        call CHKERR(ierr)
+        optval = optval_petsc
+      #:else
+        call ${petscfunc}$ (&
+          & PETSC_NULL_OPTIONS, &
+          & trim(prefix), &
+          & trim(option_name), &
+          & optval, &
+          & lset_petsc, &
+          & ierr)
+        call CHKERR(ierr)
+      #:endif
+
+      lset = lset_petsc
 
       last_options_call = full_opt_name
 
@@ -3083,7 +3114,7 @@ contains
       character(len=default_str_len) :: full_opt_name, color
       integer(iintegers) :: argcnt
       integer(mpiint) :: myid
-      logical :: lshow, lflg
+      PetscBool :: lshow, lflg, lset_petsc
 
       lshow = .false.
       call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-ts_options_view", lshow, lflg, ierr); call CHKERR(ierr)
@@ -3096,9 +3127,10 @@ contains
         & trim(option_name), &
         & optval, &
         & argcnt, &
-        & lset, &
+        & lset_petsc, &
         & ierr)
       call CHKERR(ierr)
+      lset = lset_petsc
 
       if (lshow) then
         if (lset) then

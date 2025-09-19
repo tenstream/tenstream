@@ -28,7 +28,7 @@ contains
   @after
   subroutine teardown(this)
     class(MpiTestMethod), intent(inout) :: this
-    logical :: lpetsc_is_initialized
+    PetscBool :: lpetsc_is_initialized
     integer(mpiint) :: mpierr
     call PetscInitialized(lpetsc_is_initialized, mpierr)
     if (lpetsc_is_initialized) call PetscFinalize(mpierr)

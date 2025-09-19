@@ -83,7 +83,7 @@ contains
     integer(iintegers) :: Nfaces2d, Nedges2d, Nverts2d
     integer(iintegers) :: Ncells, Nfaces, Nedges, Nverts
     integer(mpiint) :: comm, ierr
-    logical :: luseCone, luseClosure
+    PetscBool :: luseCone, luseClosure
 
     ke = ke1 - 1
 
@@ -726,7 +726,7 @@ contains
     call DMGetPointSF(owner_dm, sf, ierr); call CHKERR(ierr)
     call PetscSFGetGraph(sf, nroots, nleaves, pmyidx, premote, ierr); call CHKERR(ierr)
     if (nleaves .ge. 0) call CHKERR(int(nleaves - size(pmyidx), mpiint), 'wrong size of array nleaves: '//toStr(nleaves))
-    if (nleaves .ge. 0) call CHKERR(int(nleaves - size(premote), mpiint), 'wrong size of array nleaves: '//toStr(nleaves))
+    if (nleaves .gt. 0) call CHKERR(int(nleaves - size(premote), mpiint), 'wrong size of array nleaves: '//toStr(nleaves))
     allocate (myidx(nleaves), source=pmyidx)
     allocate (remote(nleaves), source=premote)
     pmyidx => null()
