@@ -205,7 +205,8 @@ contains
     character(len=*), optional, intent(in) :: solvername     !< @param[in] primarily for logging purposes, name will be prefix to logging stages
 
     integer(iintegers) :: k, i, j
-    logical :: lpetsc_is_initialized, lview, luse_ann, lflg
+    logical :: lview, luse_ann, lflg
+    PetscBool :: lpetsc_is_initialized
 
     integer(mpiint) :: ierr
 
@@ -2402,6 +2403,7 @@ contains
 
     integer(iintegers) :: uid, last_uid
     logical :: derived_lsolar, luse_rayli, lrayli_snapshot
+    PetscBool :: lrayli_snapshot_p
     logical :: linitial_guess_from_last_uid, linitial_guess_from_2str, linitial_guess_from_sc, lflg
     integer(mpiint) :: ierr
 
@@ -2512,9 +2514,10 @@ contains
         luse_rayli = .true.
       end select
 
-      lrayli_snapshot = .false.
+      lrayli_snapshot_p = .false.
       call PetscOptionsHasName(PETSC_NULL_OPTIONS, solver%prefix, &
-                               "-rayli_snapshot", lrayli_snapshot, ierr); call CHKERR(ierr)
+                               "-rayli_snapshot", lrayli_snapshot_p, ierr); call CHKERR(ierr)
+      lrayli_snapshot = lrayli_snapshot_p
 
       if (luse_rayli .or. lrayli_snapshot) then
         call PetscLogEventBegin(solver%logs%solve_mcrts, ierr); call CHKERR(ierr)
@@ -2864,6 +2867,7 @@ contains
 
     ltop_bottom_planes_parallel = lgeometric_coeffs
     call get_petsc_opt(prefix, "-pprts_top_bottom_planes_parallel", ltop_bottom_planes_parallel, lflg, ierr); call CHKERR(ierr)
+
   end subroutine
 
   subroutine init_vertices( &
@@ -4556,7 +4560,7 @@ contains
     real(ireals) :: rtol_default, atol_default
 
     type(tPC) :: prec
-    logical :: prec_is_set
+    PetscBool :: prec_is_set
     integer(mpiint) :: ierr
     character(len=default_str_len) :: kspprefix
 

@@ -532,6 +532,7 @@ contains
 
     real(ireals), save :: last_sundir(3) = [zero, zero, zero]
     logical :: lrayli_snap, luse_rayli, lvacuum_domain_boundary, lflg
+    PetscBool :: lrayli_snap_p
 
     call check_input_arguments()
 
@@ -646,9 +647,10 @@ contains
         luse_rayli = .true.
       end select
 
-      lrayli_snap = .false.
+      lrayli_snap_p = .false.
       call PetscOptionsHasName(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-                               "-rayli_snapshot", lrayli_snap, ierr); call CHKERR(ierr)
+                               "-rayli_snapshot", lrayli_snap_p, ierr); call CHKERR(ierr)
+      lrayli_snap = lrayli_snap_p
 
       call PetscLogEventBegin(solver%logs%solve_rayli, ierr)
       if (lsolar) then
@@ -2237,7 +2239,7 @@ contains
     real(ireals) :: atol
 
     character(len=default_str_len) :: kspprefix
-    logical :: prec_is_set
+    PetscBool :: prec_is_set
     type(tPC) :: prec
 
     PetscCount :: ksp_residual_history_size

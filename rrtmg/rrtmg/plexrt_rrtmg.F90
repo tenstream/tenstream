@@ -257,7 +257,8 @@ contains
       character(len=*), intent(in) :: vecshow_string
       logical, intent(in), optional :: lreverse
       type(tVec) :: vec
-      logical :: lflg, lrev
+      logical :: lrev
+      PetscBool :: lflg
 
       lrev = get_arg(.false., lreverse)
 

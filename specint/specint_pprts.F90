@@ -483,7 +483,7 @@ contains
       type(tDM), intent(in) :: dm
       character(len=*), intent(in) :: dumpstring, varname
       character(len=default_str_len) :: vname
-      logical :: lflg
+      PetscBool :: lflg
       type(tVec) :: dumpvec
 
       call PetscOptionsHasName(PETSC_NULL_OPTIONS, solver%prefix, &
