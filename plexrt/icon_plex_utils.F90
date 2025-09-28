@@ -1794,7 +1794,8 @@ contains
     integer(mpiint) :: ierr
 
     if (.not. allocated(plex%cell1_dm)) call CHKERR(1_mpiint, 'plex%cell1_dm has to be allocated')
-    if (PetscObjectIsNull(vec)) call CHKERR(1_mpiint, 'input/output vec has to be an initialized Petsc Vec')
+    if (PetscObjectIsNull(vec)) &
+      & call CHKERR(1_mpiint, 'input/output vec has to be an initialized Petsc Vec')
 
     call DMGetStratumIS(plex%cell1_dm, 'DomainBoundary', TOAFACE, toa_ids, ierr); call CHKERR(ierr)
     call ISGetSize(toa_ids, Ncol, ierr); call CHKERR(ierr)
@@ -1834,7 +1835,8 @@ contains
     integer(mpiint) :: ierr
 
     if (.not. allocated(plex%horizface1_dm)) call CHKERR(1_mpiint, 'plex%horizface1_dm has to be allocated')
-    if (PetscObjectIsNull(vec)) call CHKERR(1_mpiint, 'input/output vec has to be an initialized Petsc Vec')
+    if (PetscObjectIsNull(vec)) &
+      & call CHKERR(1_mpiint, 'input/output vec has to be an initialized Petsc Vec')
 
     call DMGetStratumIS(plex%horizface1_dm, 'DomainBoundary', TOAFACE, toa_ids, ierr); call CHKERR(ierr)
     call ISGetSize(toa_ids, Ncol, ierr); call CHKERR(ierr)
