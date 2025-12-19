@@ -128,7 +128,8 @@ module m_plex_grid
     logical, allocatable :: ltopfacepos(:)                ! TOP_BOT_FACE or SIDE_FACE of faces and edges, fStart..eEnd-1
     integer(iintegers), allocatable :: zindex(:)          ! vertical layer / level of cells/faces/edges/vertices , pStart..pEnd-1
     integer(iintegers), allocatable :: localiconindex(:)  ! local index of face, edge, vertex on icongrid, pStart, pEnd-1, i.e. on each rank from 1..Ncell, 1..Nedges etc..
-    integer(iintegers), allocatable :: globaliconindex(:) ! global index of face, edge, vertex on icongrid, pStart, pEnd-1, i.e. for each rank has the indices of the global icon grid as it is read from nc
+    ! global index of face, edge, vertex on icongrid, pStart, pEnd-1, i.e. for each rank has the indices of the global icon grid as it is read from nc
+    integer(iintegers), allocatable :: globaliconindex(:)
 
     type(tDMLabel), allocatable :: boundarylabel        ! 1 if boundary of local mesh
     type(tDMLabel), allocatable :: domainboundarylabel  ! TOAFACE if top, SIDEFACE if side face, BOTFACE if bot face, -1 otherwise
@@ -250,7 +251,8 @@ contains
     type(tDM), intent(in) :: dm2d, dm3d
     integer(iintegers), intent(in) :: Nlay, zindex(:)
     type(t_plexgrid), allocatable, intent(inout) :: plex
-    real(ireals), optional :: hhl(:) ! only used for a consistency check. If dz should be same everywhere, i.e. if there is no topography, provide this and we check that the mesh adheres to that.
+    ! only used for a consistency check. If dz should be same everywhere, i.e. if there is no topography, provide this and we check that the mesh adheres to that.
+    real(ireals), optional :: hhl(:)
     real(ireals), intent(in), optional :: constraint_height ! max z-component height [m] above which cells are treated 1D, meaningful for regular wedge meshes
     real(ireals), intent(in), optional :: constraint_radius ! max radius from origin [m] above which cells are treated 1D, meaningful for extruded wedge meshes, e.g. ICON runs
 

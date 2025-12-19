@@ -935,8 +935,10 @@ contains
         ! determine edges of a face
         if (modulo(i + modulo(j, i2), i2) .eq. 0) then ! this has a bot edge
           cone3(1) = Nfaces + j * edge_per_row + i / 2           ! Nfaces offset + number of edges of full height + number of edges of half heights + i offset
-          cone3(2) = Nfaces + j * edge_per_row + base_edges_per_row + i      ! left edge  ! Nfaces offset + number of edges of full height + number of edges of half heights + Nedges full heigths on this row + i offset
-          cone3(3) = Nfaces + j * edge_per_row + base_edges_per_row + i + 1   ! right edge ! Nfaces offset + number of edges of full height + number of edges of half heights + Nedges full heigths on this row + i offset
+          ! left edge  ! Nfaces offset + number of edges of full height + number of edges of half heights + Nedges full heigths on this row + i offset
+          cone3(2) = Nfaces + j * edge_per_row + base_edges_per_row + i
+          ! right edge ! Nfaces offset + number of edges of full height + number of edges of half heights + Nedges full heigths on this row + i offset
+          cone3(3) = Nfaces + j * edge_per_row + base_edges_per_row + i + 1
           !if(ldebug) print *,'upward edge of face', ioff, ':', cone3
         else
           cone3(1) = Nfaces + (j + 1) * edge_per_row + i / 2

@@ -199,8 +199,10 @@ contains
     class(t_solver), intent(inout) :: solver         !< @param[inout] solver
     real(ireals), optional, intent(in) :: dz1d(:)        !< @param[in]    dz1d    if given, dz1d is used everywhere on the rank
     real(ireals), optional, intent(in) :: dz3d(:, :, :)    !< @param[in]    dz3d    if given, dz3d has to be local domain size, cannot have global shape
-    integer(iintegers), optional, intent(in) :: nxproc(:)      !< @param[in]    nxproc  if given, Nx has to be the local size, dimension of nxproc is number of ranks along x-axis, and entries in nxproc are the size of local Nx
-    integer(iintegers), optional, intent(in) :: nyproc(:)      !< @param[in]    nyproc  if given, Ny has to be the local size, dimension of nyproc is number of ranks along y-axis, and entries in nyproc are the number of local Ny
+    !< @param[in]    nxproc  if given, Nx has to be the local size, dimension of nxproc is number of ranks along x-axis, and entries in nxproc are the size of local Nx
+    integer(iintegers), optional, intent(in) :: nxproc(:)
+    !< @param[in]    nyproc  if given, Ny has to be the local size, dimension of nyproc is number of ranks along y-axis, and entries in nyproc are the number of local Ny
+    integer(iintegers), optional, intent(in) :: nyproc(:)
     integer(iintegers), optional, intent(in) :: collapseindex  !< @param[in]    collapseindex if given, the upper n layers will be reduce to 1d and no individual output will be given for them
     character(len=*), optional, intent(in) :: solvername     !< @param[in] primarily for logging purposes, name will be prefix to logging stages
 
@@ -763,7 +765,8 @@ contains
     class(t_solver), intent(inout) :: solver
     integer(iintegers), intent(in) :: Nz_in, Nx, Ny                  !< @param[in] local number of grid boxes -- in the vertical we have Nz boxes and Nz+1 levels
     integer(iintegers), intent(in), optional :: nxproc(:), nyproc(:) !< @param[in] size of local domains on each node
-    integer(iintegers), optional, intent(in) :: collapseindex        !< @param[in] collapseindex if given, the upper n layers will be reduce to 1d and no individual output will be given for them
+    !< @param[in] collapseindex if given, the upper n layers will be reduce to 1d and no individual output will be given for them
+    integer(iintegers), optional, intent(in) :: collapseindex
 
     integer(iintegers) :: Nz
     DMBoundaryType, parameter :: &

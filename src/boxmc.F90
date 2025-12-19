@@ -388,8 +388,10 @@ contains
 
   !> @brief Calculate Transfer Coefficients using MonteCarlo integration
   !> @details All MPI Nodes start photons from src stream and ray trace it including scattering events through the box until it leaves the box through one of the exit streams.\n
-  !> Scattering Absorption is accounted for by carrying on a photon weight and succinctly lower it by lambert Beers Law \f$ \omega_{abso}^{'} = \omega_{abso} \cdot e^{- \rm{d}s \cdot {\rm k}_{sca}   }   \f$ \n
-  !> New Photons are started until we reach a stdvariance which is lower than the given stddev in function call init_stddev. Once this precision is reached, we exit the photon loop and build the average with all the other MPI Nodes.
+  !> Scattering Absorption is accounted for by carrying on a photon weight and succinctly lower it by lambert Beers Law
+  !> \f$ \omega_{abso}^{'} = \omega_{abso} \cdot e^{- \rm{d}s \cdot {\rm k}_{sca}} \f $ \n
+  !> New Photons are started until we reach a stdvariance which is lower than the given stddev in function call init_stddev.
+  !> Once this precision is reached, we exit the photon loop and build the average with all the other MPI Nodes.
   subroutine get_coeff(bmc, comm, op_bg, src, ldir, &
                        phi0, theta0, vertices, &
                        ret_S_out, ret_T_out, &
@@ -410,7 +412,8 @@ contains
     real(ireals), intent(out) :: ret_T_tol(:)    !< @param[out] absolute tolerances of results
     real(ireal_dp), intent(in), optional :: inp_atol     !< @param[in] inp_atol if given, determines targeted absolute stddeviation
     real(ireal_dp), intent(in), optional :: inp_rtol     !< @param[in] inp_rtol if given, determines targeted relative stddeviation
-    real(ireal_dp), intent(in), optional :: inp_tau_scaling !< @param[in] inp_tau_scaling if given, determines a roulette factor which may be used to enhance unlikely paths, e.g. to force diffuse radiation computations for low optical thicknesses
+    !< @param[in] inp_tau_scaling if given, determines a roulette factor which may be used to enhance unlikely paths, e.g. to force diffuse radiation computations for low optical thicknesses
+    real(ireal_dp), intent(in), optional :: inp_tau_scaling
     logical, intent(in), optional :: inp_check_tol_dir, inp_check_tol_diff ! default: True, adhere to the tolerance checks for direct or diffuse tolerances
 
     real(irealbmc) :: S_out(bmc%diff_streams)
