@@ -188,23 +188,23 @@ contains
   !> \n Nx, Ny Nz are either global domain size or have to be local sizes if present(nxproc,nyproc)
   !> \n where nxproc and nyproc then are the number of pixel per rank for all ranks -- i.e. sum(nxproc) != Nx_global
   subroutine init_pprts(icomm, Nz, Nx, Ny, dx, dy, sundir, solver, dz1d, dz3d, nxproc, nyproc, collapseindex, solvername)
-    MPI_Comm, intent(in) :: icomm         !< @param MPI_Communicator for this solver
-    integer(iintegers), intent(in) :: Nz            !< @param[in] Nz     Nz is the number of layers and Nz+1 would be the number of levels
-    integer(iintegers), intent(in) :: Nx            !< @param[in] Nx     number of boxes in x-direction
-    integer(iintegers), intent(in) :: Ny            !< @param[in] Ny     number of boxes in y-direction
+    integer(mpiint), intent(in) :: icomm      !< @param MPI_Communicator for this solver
+    integer(iintegers), intent(in) :: Nz      !< @param[in] Nz     Nz is the number of layers and Nz+1 would be the number of levels
+    integer(iintegers), intent(in) :: Nx      !< @param[in] Nx     number of boxes in x-direction
+    integer(iintegers), intent(in) :: Ny      !< @param[in] Ny     number of boxes in y-direction
     real(ireals), intent(in) :: dx            !< @param[in] dx     physical size of grid in [m]
     real(ireals), intent(in) :: dy            !< @param[in] dy     physical size of grid in [m]
     real(ireals), intent(in) :: sundir(:)     !< @param[in] cartesian sun direction (pointing away from the sun), dim(3)
 
-    class(t_solver), intent(inout) :: solver         !< @param[inout] solver
-    real(ireals), optional, intent(in) :: dz1d(:)        !< @param[in]    dz1d    if given, dz1d is used everywhere on the rank
-    real(ireals), optional, intent(in) :: dz3d(:, :, :)    !< @param[in]    dz3d    if given, dz3d has to be local domain size, cannot have global shape
+    class(t_solver), intent(inout) :: solver            !< @param[inout] solver
+    real(ireals), optional, intent(in) :: dz1d(:)       !< @param[in]    dz1d    if given, dz1d is used everywhere on the rank
+    real(ireals), optional, intent(in) :: dz3d(:, :, :) !< @param[in]    dz3d    if given, dz3d has to be local domain size, cannot have global shape
     !< @param[in]    nxproc  if given, Nx has to be the local size, dimension of nxproc is number of ranks along x-axis, and entries in nxproc are the size of local Nx
     integer(iintegers), optional, intent(in) :: nxproc(:)
     !< @param[in]    nyproc  if given, Ny has to be the local size, dimension of nyproc is number of ranks along y-axis, and entries in nyproc are the number of local Ny
     integer(iintegers), optional, intent(in) :: nyproc(:)
-    integer(iintegers), optional, intent(in) :: collapseindex  !< @param[in]    collapseindex if given, the upper n layers will be reduce to 1d and no individual output will be given for them
-    character(len=*), optional, intent(in) :: solvername     !< @param[in] primarily for logging purposes, name will be prefix to logging stages
+    integer(iintegers), optional, intent(in) :: collapseindex !< @param[in]    collapseindex if given, the upper n layers will be reduce to 1d and no individual output will be given for them
+    character(len=*), optional, intent(in) :: solvername      !< @param[in] primarily for logging purposes, name will be prefix to logging stages
 
     integer(iintegers) :: k, i, j
     logical :: lview, luse_ann, lflg
@@ -1698,7 +1698,7 @@ contains
   end subroutine
 
   subroutine mat_info(comm, A)
-    MPI_Comm, intent(in) :: comm
+    integer(mpiint), intent(in) :: comm
     type(tMat) :: A
     MatInfo :: info
     double precision :: mal, nz_allocated, nz_used, nz_unneeded

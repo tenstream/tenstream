@@ -353,7 +353,7 @@ contains
   end subroutine
 
   subroutine bcast_icongrid(comm, icongrid)
-    MPI_Comm, intent(in) :: comm
+    integer(mpiint), intent(in) :: comm
     type(t_icongrid), allocatable, intent(inout) :: icongrid
 
     integer(mpiint) :: myid, numnodes, ierr
@@ -385,7 +385,7 @@ contains
   end subroutine
 
   subroutine decompose_icon_grid_parmetis(comm, icongrid, cellowner, edgeowner, vertexowner, cell_ao)
-    MPI_Comm, intent(in) :: comm
+    integer(mpiint), intent(in) :: comm
     type(t_icongrid), intent(in) :: icongrid
 
     integer(iintegers), allocatable, intent(out) :: cellowner(:)   ! dim=(icongrid%Nfaces)
