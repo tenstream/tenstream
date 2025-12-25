@@ -31,7 +31,7 @@ subroutine test_tenstream_ex1(this)
 
   class(t_solver), allocatable :: solver
 
-  MPI_Comm :: comm, reorder_comm
+  integer(mpiint) :: comm, reorder_comm
 
   dz1d = dz
 
