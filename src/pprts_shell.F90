@@ -57,31 +57,6 @@ module m_pprts_shell
     & op_mat_sor_edir, &
     & setup_matshell
 
-  interface matcreateshell
-    subroutine matcreateshell(comm, mloc, nloc, m, n, ctx, mat, ierr)
-      import iintegers, mpiint, t_pprts_shell_ctx, tMat
-      integer(mpiint) :: comm, ierr
-      integer(iintegers) :: mloc, nloc, m, n
-      type(t_pprts_shell_ctx) :: ctx
-      type(tMat) :: mat
-    end subroutine
-  end interface
-  interface matshellgetcontext
-    subroutine matshellgetcontext(mat, ctx_ptr, ierr)
-      import mpiint, t_pprts_shell_ctx, tMat
-      type(tMat) :: mat
-      type(t_pprts_shell_ctx), pointer :: ctx_ptr
-      integer(mpiint) :: ierr
-    end subroutine
-  end interface
-  interface matshellsetcontext
-    subroutine matshellsetcontext(mat, ctx, ierr)
-      import mpiint, t_pprts_shell_ctx, tMat
-      type(tMat) :: mat
-      type(t_pprts_shell_ctx) :: ctx
-      integer(mpiint) :: ierr
-    end subroutine
-  end interface
   abstract interface
     subroutine mat_mult_sub(A, x, b, ierr)
       import tMat, tVec, mpiint
@@ -160,7 +135,7 @@ contains
     type(tVec) :: lb, lx
 
     nullify (ctx_ptr)
-    call matshellgetcontext(A, ctx_ptr, ierr); call CHKERR(ierr)
+    call MatShellGetContext(A, ctx_ptr, ierr); call CHKERR(ierr)
 
     nullify (solver)
     solver => ctx_ptr%solver
@@ -301,7 +276,7 @@ contains
     call CHKERR(1_mpiint, 'Not yet implemented') ! well this seems implemented but its wrong.... explicit version should be better anyway
 
     nullify (ctx_ptr)
-    call matshellgetcontext(A, ctx_ptr, ierr); call CHKERR(ierr)
+    call MatShellGetContext(A, ctx_ptr, ierr); call CHKERR(ierr)
 
     nullify (solver)
     solver => ctx_ptr%solver
@@ -395,7 +370,7 @@ contains
     type(tVec) :: lb, lx
 
     nullify (ctx_ptr)
-    call matshellgetcontext(A, ctx_ptr, ierr); call CHKERR(ierr)
+    call MatShellGetContext(A, ctx_ptr, ierr); call CHKERR(ierr)
 
     nullify (solver)
     solver => ctx_ptr%solver
@@ -572,7 +547,7 @@ contains
     logical :: lsweep_forward, lsweep_backward, lsweep_symmetric, lzero_initial_guess
 
     nullify (ctx_ptr)
-    call matshellgetcontext(A, ctx_ptr, ierr); call CHKERR(ierr)
+    call MatShellGetContext(A, ctx_ptr, ierr); call CHKERR(ierr)
 
     nullify (solver)
     solver => ctx_ptr%solver
