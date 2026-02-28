@@ -2273,7 +2273,7 @@ contains
     call KSPSetInitialGuessNonzero(ksp, PETSC_TRUE, ierr); call CHKERR(ierr)
     call KSPSetTolerances(ksp, rtol, atol, PETSC_DEFAULT_REAL, maxiter, ierr); call CHKERR(ierr)
     call KSPSetDM(ksp, dm, ierr); call CHKERR(ierr)
-    call KSPSetDMActive(ksp, PETSC_FALSE, ierr); call CHKERR(ierr)
+    call KSPSetDMActive(ksp, KSP_DMACTIVE_ALL, PETSC_FALSE, ierr); call CHKERR(ierr)
     call KSPSetOperators(ksp, A, A, ierr); call CHKERR(ierr)
 
     if (present(ksp_residual_history)) then
