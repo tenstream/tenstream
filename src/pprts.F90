@@ -4622,7 +4622,7 @@ contains
     call KSPSetOperators(ksp, A, A, ierr); call CHKERR(ierr)
 
     call KSPSetDM(ksp, C%da, ierr); call CHKERR(ierr)
-    call KSPSetDMActive(ksp, PETSC_FALSE, ierr); call CHKERR(ierr)
+    call KSPSetDMActive(ksp, KSP_DMACTIVE_ALL, PETSC_FALSE, ierr); call CHKERR(ierr)
 
     call KSPSetFromOptions(ksp, ierr); call CHKERR(ierr)
     call KSPSetUp(ksp, ierr); call CHKERR(ierr)
