@@ -26,11 +26,11 @@ variables:
   DEBIAN_FRONTEND: noninteractive
   TEST_FILTER_WITH_COMMON_LUTS: 'boxmc|LUT|test_pprts_symmetry|test_plexrt_fish|test_plexrt_rayli|test_plexrt_rrtmg_lw_sw'
   TEST_FILTER_WITHOUT_LUTS: 'boxmc|LUT|test_pprts_symmetry|test_rrtm_lw_Bsrfc|test_rrtm_lw_sw|test_pprts_specint|test_plexrt_fish|test_plexrt_rrtmg_lw_sw|test_pprts_absorption_by_coeff_divergence|test_plexrt_rayli'
-  PETSC_BRANCH: main
 
 # Build Stage
 .build:default:
   script:
+    - if [ "$CI_COMMIT_REF_NAME" = "master" ]; then export PETSC_BRANCH=release; else export PETSC_BRANCH=main; fi
     - export PETSC_DIR=$(readlink -f $PETSC_DIR)
     - if [ ! -z "$MODULES" ]; then module load $MODULES || exit 1; module list; fi
     - echo -e "\e[0Ksection_start:`date +%s`:cmake[collapsed=true]\r\e[0KRun cmake"
