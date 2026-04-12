@@ -70,8 +70,8 @@ contains
     real(ireals), intent(in) :: edirTOA
     type(t_state_container), intent(inout) :: solution
 
-    real(ireals), pointer, dimension(:, :, :, :) :: x0 => null(), xg => null()
-    real(ireals), pointer, dimension(:) :: x01d => null(), xg1d => null()
+    real(ireals), pointer, dimension(:, :, :, :) :: x0, xg
+    real(ireals), pointer, dimension(:) :: x01d, xg1d
     type(tVec) :: v0, b, lb
 
     integer(iintegers), dimension(3) :: dx, dy ! start, end, increment for each dimension
@@ -88,6 +88,11 @@ contains
     logical :: laccept_incomplete_solve, lconverged_atol, lconverged_rtol, lconverged_reason
 
     integer(mpiint) :: ierr
+
+    x0 => null()
+    x01d => null()
+    xg => null()
+    xg1d => null()
 
     ierr = 0
 
@@ -259,7 +264,7 @@ contains
     type(tVec), intent(inout) :: x
     integer(mpiint), intent(out) :: ierr
 
-    real(ireals), pointer :: x0(:, :, :, :) => null(), x01d(:) => null()
+    real(ireals), pointer :: x0(:, :, :, :), x01d(:)
 
     integer(mpiint), parameter :: tag_x = 1, tag_y = 2
     integer(mpiint) :: neigh_s, neigh_r, requests(4), statuses(mpi_status_size, 4)
@@ -267,6 +272,9 @@ contains
 
     real(ireals), allocatable :: mpi_send_bfr_x(:, :, :), mpi_send_bfr_y(:, :, :)
     real(ireals), allocatable :: mpi_recv_bfr_x(:, :, :), mpi_recv_bfr_y(:, :, :)
+
+    x0 => null()
+    x01d => null()
 
     associate ( &
         & C => solver%C_dir)
@@ -355,13 +363,18 @@ contains
     integer(iintegers), dimension(3), intent(in) :: dx, dy ! start, end, increment for each dimension
     type(tVec), intent(in) :: b, x
 
-    real(ireals), pointer :: x0(:, :, :, :) => null(), x01d(:) => null()
-    real(ireals), pointer :: xb(:, :, :, :) => null(), xb1d(:) => null()
+    real(ireals), pointer :: x0(:, :, :, :), x01d(:)
+    real(ireals), pointer :: xb(:, :, :, :), xb1d(:)
 
     integer(iintegers) :: i, j, k
     integer(iintegers) :: idst, isrc, src, dst
     real(ireals), pointer :: v(:, :) ! dim(src, dst)
     logical :: lsun_north, lsun_east
+
+    x0 => null()
+    x01d => null()
+    xb => null()
+    xb1d => null()
 
     associate ( &
         & atm => solver%atm, &
@@ -483,8 +496,8 @@ contains
     type(tVec), intent(in) :: vb
     type(t_state_container), intent(inout) :: solution
 
-    real(ireals), pointer, dimension(:, :, :, :) :: x0 => null(), xg => null()
-    real(ireals), pointer, dimension(:) :: x01d => null(), xg1d => null()
+    real(ireals), pointer, dimension(:, :, :, :) :: x0, xg
+    real(ireals), pointer, dimension(:) :: x01d, xg1d
     type(tVec) :: lvb, v0
 
     integer(iintegers) :: iter, isub, maxiter, sub_iter, maxit_ignore
@@ -507,6 +520,11 @@ contains
     real(ireals) :: omega_pfx(omega_pfN), omega_pfy(omega_pfN), pf(2)
 
     integer(mpiint) :: ierr
+
+    x0 => null()
+    x01d => null()
+    xg => null()
+    xg1d => null()
 
     ierr = 0
 
@@ -749,12 +767,15 @@ contains
     integer(mpiint) :: requests(8), statuses(mpi_status_size, 8)
     integer(iintegers) :: k, i, j, d1, d2, dof, idof
 
-    real(ireals), pointer :: x0(:, :, :, :) => null(), x01d(:) => null()
+    real(ireals), pointer :: x0(:, :, :, :), x01d(:)
 
     real(ireals), allocatable :: mpi_send_bfr_e(:, :, :), mpi_send_bfr_n(:, :, :)
     real(ireals), allocatable :: mpi_send_bfr_w(:, :, :), mpi_send_bfr_s(:, :, :)
     real(ireals), allocatable :: mpi_recv_bfr_e(:, :, :), mpi_recv_bfr_n(:, :, :)
     real(ireals), allocatable :: mpi_recv_bfr_w(:, :, :), mpi_recv_bfr_s(:, :, :)
+
+    x0 => null()
+    x01d => null()
 
     associate ( &
         & C => solver%C_diff)
@@ -876,12 +897,17 @@ contains
     integer(iintegers), dimension(3), intent(in) :: dx, dy, dz ! start, end, increment for each dimension
     type(tVec), intent(in) :: b, x
 
-    real(ireals), pointer, dimension(:, :, :, :) :: x0 => null(), xb => null()
-    real(ireals), pointer, dimension(:) :: x01d => null(), xb1d => null()
+    real(ireals), pointer, dimension(:, :, :, :) :: x0, xb
+    real(ireals), pointer, dimension(:) :: x01d, xb1d
     integer(iintegers) :: k, i, j
     integer(iintegers) :: idst, isrc, src, dst
     real(ireals), pointer :: v(:, :) ! dim(src, dst)
     integer(iintegers) :: msrc, mdst
+
+    x0 => null()
+    x01d => null()
+    xb => null()
+    xb1d => null()
 
     associate ( &
         & atm => solver%atm, &
@@ -1041,8 +1067,8 @@ contains
     real(ireals), intent(in) :: omega
     type(tVec), intent(in) :: b, x
 
-    real(ireals), pointer, dimension(:, :, :, :) :: x0 => null(), xb => null()
-    real(ireals), pointer, dimension(:) :: x01d => null(), xb1d => null()
+    real(ireals), pointer, dimension(:, :, :, :) :: x0, xb
+    real(ireals), pointer, dimension(:) :: x01d, xb1d
     integer(iintegers) :: k, i, j
     integer(iintegers) :: idst, isrc, src, dst
     real(ireals), pointer :: v(:, :) ! dim(src, dst)
@@ -1050,6 +1076,11 @@ contains
 
     real(ireals), parameter :: diag = 1
     real(ireals) :: sigma
+
+    x0 => null()
+    x01d => null()
+    xb => null()
+    xb1d => null()
 
     associate ( &
         & atm => solver%atm, &

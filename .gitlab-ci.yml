@@ -26,11 +26,11 @@ variables:
   DEBIAN_FRONTEND: noninteractive
   TEST_FILTER_WITH_COMMON_LUTS: 'boxmc|LUT|test_pprts_symmetry|test_plexrt_fish|test_plexrt_rayli|test_plexrt_rrtmg_lw_sw'
   TEST_FILTER_WITHOUT_LUTS: 'boxmc|LUT|test_pprts_symmetry|test_rrtm_lw_Bsrfc|test_rrtm_lw_sw|test_pprts_specint|test_plexrt_fish|test_plexrt_rrtmg_lw_sw|test_pprts_absorption_by_coeff_divergence|test_plexrt_rayli'
-  PETSC_BRANCH: release
 
 # Build Stage
 .build:default:
   script:
+    - if [ "$CI_COMMIT_REF_NAME" = "master" ]; then export PETSC_BRANCH=release; else export PETSC_BRANCH=main; fi
     - export PETSC_DIR=$(readlink -f $PETSC_DIR)
     - if [ ! -z "$MODULES" ]; then module load $MODULES || exit 1; module list; fi
     - echo -e "\e[0Ksection_start:`date +%s`:cmake[collapsed=true]\r\e[0KRun cmake"
@@ -163,16 +163,17 @@ debian-stable:
     CMAKE_OPTS: '-DCMAKE_Fortran_FLAGS=--std=legacy -DENABLE_PFUNIT=ON'
     LUT_TARGET: 'download_common_luts'
 
-debian-testing:
+alma-latest:
   stage: build_docker
   extends: .build:default
   needs: ["check_fprettify:pre"]
-  image: debian:testing
+  image: almalinux:latest
   before_script:
-    - echo -e "\e[0Ksection_start:`date +%s`:apt_install[collapsed=true]\r\e[0KInstall APT packages"
-    - apt-get -qq update
-    - apt-get -qq install -fy build-essential cmake gfortran git python3 openmpi-bin libopenmpi-dev libopenblas-dev curl pkg-config
-    - echo -e "\e[0Ksection_end:`date +%s`:apt_install\r\e[0K"
+    - echo -e "\e[0Ksection_start:`date +%s`:dnf_install[collapsed=true]\r\e[0KInstall DNF packages"
+    - dnf -y install epel-release
+    - export PATH=/usr/lib64/openmpi/bin:$PATH
+    - dnf -y install gcc gcc-c++ gcc-gfortran make cmake git python3 openmpi openmpi-devel openblas-devel curl pkgconf-pkg-config which diffutils m4
+    - echo -e "\e[0Ksection_end:`date +%s`:dnf_install\r\e[0K"
     - *template_build_PETSC
   tags:
     - docker.physik.lmu.de
@@ -186,18 +187,18 @@ debian-testing:
     CMAKE_OPTS: '-DCMAKE_Fortran_FLAGS=--std=legacy -DENABLE_PFUNIT=ON'
     LUT_TARGET: 'download_common_luts'
 
-implicit:debian-testing:
-  extends: debian-testing
+implicit:alma-latest:
+  extends: alma-latest
   variables:
     PETSC_OPTIONS: "-solar_dir_explicit no -solar_diff_explicit no -thermal_diff_explicit no"
 
-explicit:debian-testing:
-  extends: debian-testing
+explicit:alma-latest:
+  extends: alma-latest
   variables:
     PETSC_OPTIONS: "-solar_dir_explicit -solar_diff_explicit -thermal_diff_explicit -thermal_diff_pc_sor_omega .5 -solar_diff_pc_sor_omega .5"
 
-matshell:debian-testing:
-  extends: debian-testing
+matshell:alma-latest:
+  extends: alma-latest
   variables:
     PETSC_OPTIONS: "-solar_diff_shell -solar_diff_pc_type sor -thermal_diff_shell -thermal_diff_pc_type sor"
 

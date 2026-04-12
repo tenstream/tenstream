@@ -462,9 +462,16 @@ contains
 
     subroutine get_result()
       type(tVec) :: ediff_local, edir_local
-      real(ireals), pointer, dimension(:, :, :, :) :: xv_dir => null(), xv_diff => null(), xv_abso => null()
-      real(ireals), pointer, dimension(:) :: xv_dir1d => null(), xv_diff1d => null(), xv_abso1d => null()
+      real(ireals), pointer, dimension(:, :, :, :) :: xv_dir, xv_diff, xv_abso
+      real(ireals), pointer, dimension(:) :: xv_dir1d, xv_diff1d, xv_abso1d
       integer(iintegers) :: Nundersampled
+
+      xv_dir => null()
+      xv_dir1d => null()
+      xv_diff => null()
+      xv_diff1d => null()
+      xv_abso => null()
+      xv_abso1d => null()
 
       associate (&
           & atm => solver%atm,&
