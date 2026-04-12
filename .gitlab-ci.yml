@@ -163,17 +163,15 @@ debian-stable:
     CMAKE_OPTS: '-DCMAKE_Fortran_FLAGS=--std=legacy -DENABLE_PFUNIT=ON'
     LUT_TARGET: 'download_common_luts'
 
-alma10:
+alma-latest:
   stage: build_docker
   extends: .build:default
   needs: ["check_fprettify:pre"]
-  image: almalinux:10
+  image: almalinux:latest
   before_script:
     - echo -e "\e[0Ksection_start:`date +%s`:dnf_install[collapsed=true]\r\e[0KInstall DNF packages"
     - dnf -y install epel-release
-    - dnf -y install gcc gcc-c++ gcc-gfortran make cmake git python3 openmpi openmpi-devel openblas-devel curl pkgconf-pkg-config
-    - export PATH=/usr/lib64/openmpi/bin:$PATH
-    - export LD_LIBRARY_PATH=/usr/lib64/openmpi/lib:${LD_LIBRARY_PATH}
+    - dnf -y install gcc gcc-c++ gcc-gfortran make cmake git python3 openmpi openmpi-devel openblas-devel curl pkgconf-pkg-config which diffutils m4
     - echo -e "\e[0Ksection_end:`date +%s`:dnf_install\r\e[0K"
     - *template_build_PETSC
   tags:
@@ -188,18 +186,18 @@ alma10:
     CMAKE_OPTS: '-DCMAKE_Fortran_FLAGS=--std=legacy -DENABLE_PFUNIT=ON'
     LUT_TARGET: 'download_common_luts'
 
-implicit:alma10:
-  extends: alma10
+implicit:alma-latest:
+  extends: alma-latest
   variables:
     PETSC_OPTIONS: "-solar_dir_explicit no -solar_diff_explicit no -thermal_diff_explicit no"
 
-explicit:alma10:
-  extends: alma10
+explicit:alma-latest:
+  extends: alma-latest
   variables:
     PETSC_OPTIONS: "-solar_dir_explicit -solar_diff_explicit -thermal_diff_explicit -thermal_diff_pc_sor_omega .5 -solar_diff_pc_sor_omega .5"
 
-matshell:alma10:
-  extends: alma10
+matshell:alma-latest:
+  extends: alma-latest
   variables:
     PETSC_OPTIONS: "-solar_diff_shell -solar_diff_pc_type sor -thermal_diff_shell -thermal_diff_pc_type sor"
 
