@@ -84,11 +84,14 @@ contains
 
     class(t_solver), allocatable :: solver
     type(tVec) :: gvec, svec, gvec_target
-    real(ireals), pointer :: x1d(:) => null(), xv(:, :, :, :) => null()
+    real(ireals), pointer :: x1d(:), xv(:, :, :, :)
 
     integer(iintegers) :: N, k, num_shared_masters
     type(tVecScatter) :: ctx
     real(ireals) :: diff
+
+    x1d => null()
+    xv => null()
 
     dz1d = dz
 

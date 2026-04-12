@@ -578,11 +578,14 @@ contains
     end subroutine
 
     subroutine determine_1d_layers()
-      real(ireals), pointer :: hhl(:, :, :, :) => null(), hhl1d(:) => null()
+      real(ireals), pointer :: hhl(:, :, :, :), hhl1d(:)
       real(ireals) :: pprts_1d_height
       real(ireals) :: N1dlayers, N1dlayers_max
       logical :: lflg
       integer(iintegers) :: count3d, countall
+
+      hhl => null()
+      hhl1d => null()
 
       if (.not. allocated(solver%atm%l1d)) then
         allocate (solver%atm%l1d(solver%C_one_atm%zs:solver%C_one_atm%ze))
@@ -698,7 +701,10 @@ contains
     real(ireals), dimension(3) :: mdz, mhhl
     integer(mpiint) :: myid, numnodes, ierr
     integer(iintegers) :: k
-    real(ireals), pointer :: hhl(:, :, :, :) => null(), hhl1d(:) => null()
+    real(ireals), pointer :: hhl(:, :, :, :), hhl1d(:)
+
+    hhl => null()
+    hhl1d => null()
 
     lview = get_arg(.false., opt_lview)
     call get_petsc_opt(solver%prefix, "-pprts_view_geometry", lview, lflg, ierr); call CHKERR(ierr)
@@ -997,7 +1003,7 @@ contains
     logical, intent(in) :: lopen_bc
 
     type(tVec) :: g_hhl
-    real(ireals), pointer :: hhl(:, :, :, :) => null(), hhl1d(:) => null()
+    real(ireals), pointer :: hhl(:, :, :, :), hhl1d(:)
     real(ireals) :: max_height, global_max_height
 
     integer(mpiint) :: comm, ierr
@@ -1006,6 +1012,9 @@ contains
     logical :: lflg
 
     max_height = zero
+
+    hhl => null()
+    hhl1d => null()
 
     call DMGetGlobalVector(C_hhl%da, g_hhl, ierr); call CHKERR(ierr)
     call VecSet(g_hhl, zero, ierr); call CHKERR(ierr)
@@ -1290,14 +1299,19 @@ contains
     integer(iintegers), allocatable :: o_nnz(:)
     type(tVec) :: v_o_nnz, v_d_nnz
     type(tVec) :: g_o_nnz, g_d_nnz
-    real(ireals), pointer :: xo(:, :, :, :) => null(), xd(:, :, :, :) => null()
-    real(ireals), pointer :: xo1d(:) => null(), xd1d(:) => null()
+    real(ireals), pointer :: xo(:, :, :, :), xd(:, :, :, :)
+    real(ireals), pointer :: xo1d(:), xd1d(:)
 
     integer(iintegers) :: vsize, i, j, k, isrc, idst, xinc, yinc, src, dst, icnt
 
     logical :: llocal_src, llocal_dst
     integer(mpiint) :: myid, ierr
     MatStencil :: row(C%dof), col(C%dof)
+
+    xo => null()
+    xd => null()
+    xo1d => null()
+    xd1d => null()
 
     call mpi_comm_rank(solver%comm, myid, ierr); call CHKERR(ierr)
 
@@ -1469,13 +1483,18 @@ contains
     integer(iintegers), allocatable :: o_nnz(:)
     type(tVec) :: v_o_nnz, v_d_nnz
     type(tVec) :: g_o_nnz, g_d_nnz
-    real(ireals), pointer :: xo(:, :, :, :) => null(), xd(:, :, :, :) => null()
-    real(ireals), pointer :: xo1d(:) => null(), xd1d(:) => null()
+    real(ireals), pointer :: xo(:, :, :, :), xd(:, :, :, :)
+    real(ireals), pointer :: xo1d(:), xd1d(:)
 
     integer(iintegers) :: vsize, i, j, k, isrc, idst, src, dst, icnt
     integer(iintegers) :: dst_id, src_id, idof
     integer(mpiint) :: myid, ierr
     MatStencil :: row(0:C%dof - 1), col(0:C%dof - 1)
+
+    xo => null()
+    xd => null()
+    xo1d => null()
+    xd1d => null()
 
     call mpi_comm_rank(solver%comm, myid, ierr); call CHKERR(ierr)
 
@@ -2912,12 +2931,15 @@ contains
     integer(iintegers) :: src, k, i, j
     integer(mpiint) :: ierr
 
-    real(ireals), pointer :: xhhl(:, :, :, :) => null(), xhhl1d(:) => null()
+    real(ireals), pointer :: xhhl(:, :, :, :), xhhl1d(:)
     real(ireals) :: vertices(24)
     real(ireals) :: norm
     real(ireals), pointer :: c(:, :)
     logical :: lgeometric_coeffs, ltop_bottom_faces_planar, ltop_bottom_planes_parallel
     real(ireals), parameter :: eps = one + sqrt(sqrt(epsilon(eps)))
+
+    xhhl => null()
+    xhhl1d => null()
 
     associate ( &
         & atm => solver%atm, &
@@ -3043,7 +3065,7 @@ contains
     integer(iintegers) :: src, k, i, j
     integer(mpiint) :: ierr
 
-    real(ireals), pointer :: xhhl(:, :, :, :) => null(), xhhl1d(:) => null()
+    real(ireals), pointer :: xhhl(:, :, :, :), xhhl1d(:)
     real(ireals) :: vertices(24)
     real(ireals) :: norm_diff, norm_dir, normref
     real(ireals) :: S_LUT_norm, T_LUT_norm, T_GOMTRC_norm
@@ -3058,6 +3080,9 @@ contains
       & lgeometric_coeffs,           &
       & ltop_bottom_faces_planar,    &
       & ltop_bottom_planes_parallel
+
+    xhhl => null()
+    xhhl1d => null()
 
     associate ( &
         & atm => solver%atm, &
@@ -3227,9 +3252,12 @@ contains
     real(ireals) :: norm
     real(ireals), parameter :: eps = one + sqrt(sqrt(epsilon(eps)))
     real(ireals), pointer :: c(:, :)
-    real(ireals), pointer :: xhhl(:, :, :, :) => null(), xhhl1d(:) => null()
+    real(ireals), pointer :: xhhl(:, :, :, :), xhhl1d(:)
 
     logical :: lgeometric_coeffs, ltop_bottom_faces_planar, ltop_bottom_planes_parallel
+
+    xhhl => null()
+    xhhl1d => null()
 
     associate ( &
         & atm => solver%atm, &
@@ -3564,13 +3592,18 @@ contains
       class(t_solver) :: solver
       type(tVec) :: v
       type(t_coord) :: coord
-      real(ireals), pointer :: xv(:, :, :, :) => null()
-      real(ireals), pointer :: xv1d(:) => null()
+      real(ireals), pointer :: xv(:, :, :, :)
+      real(ireals), pointer :: xv1d(:)
       integer(iintegers) :: i, j, k, l, iside, ak
       real(ireals) :: Ax, Ay, Az, fac
 
       real(ireals) :: vertices(24)
-      real(ireals), pointer :: xhhl(:, :, :, :) => null(), xhhl1d(:) => null()
+      real(ireals), pointer :: xhhl(:, :, :, :), xhhl1d(:)
+
+      xv => null()
+      xv1d => null()
+      xhhl => null()
+      xhhl1d => null()
 
       call getVecPointer(solver%Cvert_one_atm1%da, solver%atm%vert_heights, xhhl1d, xhhl, readonly=.true.)
       call setup_default_unit_cube_geometry(solver%atm%dx, solver%atm%dy, one, vertices)
@@ -3652,11 +3685,14 @@ contains
       class(t_solver) :: solver
       type(tVec) :: v
       type(t_coord) :: C
-      real(ireals), pointer :: xv(:, :, :, :) => null()
-      real(ireals), pointer :: xv1d(:) => null()
+      real(ireals), pointer :: xv(:, :, :, :)
+      real(ireals), pointer :: xv1d(:)
 
       integer(iintegers) :: iside, src, i, j, k, ak
       real(ireals) :: Az, Ax, Ay, fac
+
+      xv => null()
+      xv1d => null()
 
       if (solver%myid .eq. 0 .and. ldebug) print *, 'rescaling fluxes', C%zm, C%xm, C%ym
       call getVecPointer(C%da, v, xv1d, xv)
@@ -3811,8 +3847,8 @@ contains
     class(t_solver), target :: solver
     type(t_state_container) :: solution
 
-    real(ireals), pointer, dimension(:, :, :, :) :: xediff => null(), xedir => null(), xabso => null()
-    real(ireals), pointer, dimension(:) :: xediff1d => null(), xedir1d => null(), xabso1d => null()
+    real(ireals), pointer, dimension(:, :, :, :) :: xediff, xedir, xabso
+    real(ireals), pointer, dimension(:) :: xediff1d, xedir1d, xabso1d
 
     integer(iintegers) :: isrc, src
     integer(iintegers) :: i, j, k, xinc, yinc
@@ -3821,6 +3857,13 @@ contains
 
     logical :: by_coeff_divergence, ldirect_absorption_only, lflg
     integer(mpiint) :: ierr
+
+    xediff => null()
+    xediff1d => null()
+    xedir => null()
+    xedir1d => null()
+    xabso => null()
+    xabso1d => null()
 
     if (solver%myid .eq. 0 .and. ldebug) print *, 'Calculating flux divergence solar?', solution%lsolar_rad, 'NCA?', lcalc_nca
 
@@ -4009,10 +4052,13 @@ contains
       real(ireals), pointer :: diff2diff(:, :) ! dim(src, dst)
 
       type(tVec) :: local_b
-      real(ireals), pointer, dimension(:, :, :, :) :: xsrc => null()
-      real(ireals), pointer, dimension(:) :: xsrc1d => null()
+      real(ireals), pointer, dimension(:, :, :, :) :: xsrc
+      real(ireals), pointer, dimension(:) :: xsrc1d
 
       integer(iintegers) :: idof, msrc
+
+      xsrc => null()
+      xsrc1d => null()
 
       call getVecPointer(solver%C_one%da, solution%abso, xabso1d, xabso)
 
@@ -4884,9 +4930,12 @@ contains
     type(tVec) :: local_b
     type(tVec) :: local_edir
 
-    real(ireals), pointer, dimension(:, :, :, :) :: xsrc => null()
-    real(ireals), pointer, dimension(:) :: xsrc1d => null()
+    real(ireals), pointer, dimension(:, :, :, :) :: xsrc
+    real(ireals), pointer, dimension(:) :: xsrc1d
     integer(mpiint) :: ierr
+
+    xsrc => null()
+    xsrc1d => null()
 
     associate (atm => solver%atm, &
                C_dir => solver%C_dir, &
@@ -5095,8 +5144,11 @@ contains
       integer(iintegers) :: idof, idofdst, idiff
       integer(iintegers) :: k, i, j, src, dst
 
-      real(ireals), pointer, dimension(:, :, :, :) :: xedir => null()
-      real(ireals), pointer, dimension(:) :: xedir1d => null()
+      real(ireals), pointer, dimension(:, :, :, :) :: xedir
+      real(ireals), pointer, dimension(:) :: xedir1d
+
+      xedir => null()
+      xedir1d => null()
 
       associate (atm => solver%atm, &
                  C_dir => solver%C_dir, &
@@ -5283,10 +5335,13 @@ contains
       type(tVec), intent(in) :: local_edir
       type(t_pprts_buildings), intent(in) :: buildings
 
-      real(ireals), pointer, dimension(:, :, :, :) :: xedir => null()
-      real(ireals), pointer, dimension(:) :: xedir1d => null()
+      real(ireals), pointer, dimension(:, :, :, :) :: xedir
+      real(ireals), pointer, dimension(:) :: xedir1d
 
       integer(iintegers) :: m, idx(4), isrc, idiff, dof_offset
+
+      xedir => null()
+      xedir1d => null()
 
       associate (                           &
           & B => buildings,                &
@@ -5496,16 +5551,25 @@ contains
     type(tVec) :: gnca ! global nca vector
     type(tVec) :: lnca ! local nca vector with ghost values -- in dimension 0 and 1 are fluxes followed by dz,planck,kabs
 
-    real(ireals), pointer, dimension(:, :, :, :) :: xv => null()
-    real(ireals), pointer, dimension(:) :: xv1d => null()
-    real(ireals), pointer, dimension(:, :, :, :) :: xvlnca => null(), xvgnca => null()
-    real(ireals), pointer, dimension(:) :: xvlnca1d => null(), xvgnca1d => null()
-    real(ireals), pointer, dimension(:, :, :, :) :: xhr => null()
-    real(ireals), pointer, dimension(:) :: xhr1d => null()
+    real(ireals), pointer, dimension(:, :, :, :) :: xv
+    real(ireals), pointer, dimension(:) :: xv1d
+    real(ireals), pointer, dimension(:, :, :, :) :: xvlnca, xvgnca
+    real(ireals), pointer, dimension(:) :: xvlnca1d, xvgnca1d
+    real(ireals), pointer, dimension(:, :, :, :) :: xhr
+    real(ireals), pointer, dimension(:) :: xhr1d
     integer(iintegers) :: k
 
     integer(iintegers), parameter :: E_up = i0, E_dn = i1, idz = i2, iplanck = i3, ikabs = i4, ihr = i5
     integer(mpiint) :: ierr
+
+    xv => null()
+    xv1d => null()
+    xvlnca => null()
+    xvgnca => null()
+    xvlnca1d => null()
+    xvgnca1d => null()
+    xhr => null()
+    xhr1d => null()
 
     associate (atm => solver%atm, &
                C_one => solver%C_one, &
@@ -5866,8 +5930,11 @@ contains
     type(t_pprts_buildings), optional, intent(inout) :: opt_buildings
 
     integer(iintegers) :: uid, iside
-    real(ireals), pointer :: x1d(:) => null(), x4d(:, :, :, :) => null()
+    real(ireals), pointer :: x1d(:), x4d(:, :, :, :)
     integer(mpiint) :: ierr
+
+    x1d => null()
+    x4d => null()
 
     uid = get_solution_uid(solver%solutions, opt_solution_uid)
 
@@ -6318,8 +6385,11 @@ contains
       integer(iintegers) :: m, idx(4)
       real(ireals) :: val
       logical :: lflg
-      real(ireals), pointer, dimension(:, :, :, :) :: xabso => null()
-      real(ireals), pointer, dimension(:) :: xabso1d => null()
+      real(ireals), pointer, dimension(:, :, :, :) :: xabso
+      real(ireals), pointer, dimension(:) :: xabso1d
+
+      xabso => null()
+      xabso1d => null()
 
       val = 0
       call get_petsc_opt(solver%prefix, '-pprts_set_abso_in_buildings', val, lflg, ierr); call CHKERR(ierr)
@@ -6486,8 +6556,13 @@ contains
     real(ireals), allocatable, dimension(:, :) :: planck_srfc
     real(ireals), allocatable, dimension(:) :: dz
 
-    real(ireals), pointer :: x1d(:) => null(), x4d(:, :, :, :) => null()
-    real(ireals), pointer :: y1d(:) => null(), y4d(:, :, :, :) => null()
+    real(ireals), pointer :: x1d(:), x4d(:, :, :, :)
+    real(ireals), pointer :: y1d(:), y4d(:, :, :, :)
+
+    x1d => null()
+    x4d => null()
+    y1d => null()
+    y4d => null()
 
     ierr = 0
     if (solver%C_one%glob_xm .le. 5_iintegers .and. solver%C_one%glob_ym .le. 5_iintegers) return ! if domains are really small we dont do single column initializations

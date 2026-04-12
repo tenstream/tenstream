@@ -145,7 +145,7 @@ contains
     real(ireals), allocatable :: bcast_5d_arr(:, :, :, :, :)
     real(ireals) :: bcast_real_scalar
 
-    real(ireals), pointer :: bcast_2d_arr_ptr(:, :) => null()
+    real(ireals), pointer :: bcast_2d_arr_ptr(:, :)
 
     logical :: l_all_true, l_all_false, l_even_true
 
@@ -153,6 +153,8 @@ contains
     integer(iintegers) :: rep
 
     integer(c_size_t) :: large_size_t_int
+
+    bcast_2d_arr_ptr => null()
 
     comm = this%getMpiCommunicator()
     numnodes = this%getNumProcesses()

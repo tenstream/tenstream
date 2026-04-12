@@ -75,7 +75,7 @@ contains
     integer(iintegers) :: k, nlev, icld, iter, icollapse
     integer(iintegers), allocatable :: nxproc(:), nyproc(:)
     character(len=default_str_len) :: groups(2), dimnames(3)
-    real(ireals), pointer :: z(:, :, :, :) => null(), z1d(:) => null() ! dim Nz+1
+    real(ireals), pointer :: z(:, :, :, :), z1d(:) ! dim Nz+1
 
     ! reshape pointer to convert i,j vecs to column vecs
     real(ireals), pointer, dimension(:, :) :: pplev, ptlev, plwc, preliq, piwc, preice
@@ -87,6 +87,9 @@ contains
 
     class(t_solver), allocatable :: pprts_solver
     type(t_tenstr_atm) :: atm
+
+    z => null()
+    z1d => null()
 
     call MPI_COMM_SIZE(comm, numnodes, ierr)
     call MPI_COMM_RANK(comm, myid, ierr)

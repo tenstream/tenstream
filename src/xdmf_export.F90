@@ -51,8 +51,8 @@ contains
 
     type(tDM) :: coordDA
     type(tVec) :: coordinates
-    real(ireals), pointer, dimension(:, :, :, :) :: xv => null()
-    real(ireals), pointer, dimension(:) :: xv1d => null()
+    real(ireals), pointer, dimension(:, :, :, :) :: xv
+    real(ireals), pointer, dimension(:) :: xv1d
     integer(iintegers) :: zs, zm, xs, xm, ys, ym
 
     integer(iintegers) :: m, idx(4), l, n
@@ -63,6 +63,9 @@ contains
     logical :: file_exists
     integer(mpiint) :: irank, numnodes
     integer(mpiint) :: iter
+
+    xv => null()
+    xv1d => null()
 
     ierr = 0
 
@@ -288,8 +291,8 @@ contains
 
     type(tDM) :: coordDA
     type(tVec) :: coordinates
-    real(ireals), pointer, dimension(:, :, :, :) :: xv => null()
-    real(ireals), pointer, dimension(:) :: xv1d => null()
+    real(ireals), pointer, dimension(:, :, :, :) :: xv
+    real(ireals), pointer, dimension(:) :: xv1d
     integer(iintegers) :: zs, zm, xs, xm, ys, ym
 
     character(len=default_str_len) :: fname
@@ -297,6 +300,9 @@ contains
     logical :: file_exists
     integer(mpiint) :: irank, numnodes
     integer(mpiint) :: iter
+
+    xv => null()
+    xv1d => null()
 
     ierr = 0
 

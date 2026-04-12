@@ -61,7 +61,7 @@ contains
     real(ireals), allocatable, dimension(:, :, :) :: edir, edn, eup, abso ! nlyr(+1), global_nx, global_ny
     !real(ireals),allocatable, dimension(:,:,:) :: gedir, gedn, geup, gabso ! global arrays which we will dump to netcdf
     real(ireals), pointer, dimension(:, :, :) :: patm
-    real(ireals), pointer :: hhl(:, :, :, :) => null(), hhl1d(:) => null()
+    real(ireals), pointer :: hhl(:, :, :, :), hhl1d(:)
 
     character(len=default_str_len) :: nc_path(2) ! [ filename, varname ]
 
@@ -71,6 +71,9 @@ contains
 
     logical, parameter :: lthermal = .false., lsolar = .true.
     logical, parameter :: ldebug = .true.
+
+    hhl => null()
+    hhl1d => null()
 
     call init_mpi_data_parameters(comm)
     call mpi_comm_size(comm, numnodes, ierr)

@@ -99,7 +99,10 @@ contains
     real(ireals) :: cld_bot, cld_top
     logical :: lflg
     character(len=default_str_len) :: outpath(2)
-    real(ireals), pointer :: hhl(:, :, :, :) => null(), hhl1d(:) => null()
+    real(ireals), pointer :: hhl(:, :, :, :), hhl1d(:)
+
+    hhl => null()
+    hhl1d => null()
 
     call MPI_COMM_SIZE(comm, numnodes, ierr)
     call MPI_COMM_RANK(comm, myid, ierr)

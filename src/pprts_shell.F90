@@ -127,12 +127,17 @@ contains
 
     type(t_pprts_shell_ctx), pointer :: ctx_ptr
     class(t_solver), pointer :: solver
-    real(ireals), pointer, dimension(:, :, :, :) :: xx => null(), xb => null()
-    real(ireals), pointer, dimension(:) :: xx1d => null(), xb1d => null()
+    real(ireals), pointer, dimension(:, :, :, :) :: xx, xb
+    real(ireals), pointer, dimension(:) :: xx1d, xb1d
     real(ireals), pointer :: v(:, :) ! dim(src, dst)
     integer(iintegers) :: k, i, j
     integer(iintegers) :: idst, isrc, src, dst, xinc, yinc
     type(tVec) :: lb, lx
+
+    xx => null()
+    xx1d => null()
+    xb => null()
+    xb1d => null()
 
     nullify (ctx_ptr)
     call MatShellGetContext(A, ctx_ptr, ierr); call CHKERR(ierr)
@@ -264,14 +269,21 @@ contains
     class(t_solver), pointer :: solver
     type(tVec) :: lx, lb
 
-    real(ireals), pointer :: xx(:, :, :, :) => null(), xx1d(:) => null()
-    real(ireals), pointer :: xg(:, :, :, :) => null(), xg1d(:) => null()
-    real(ireals), pointer :: xb(:, :, :, :) => null(), xb1d(:) => null()
+    real(ireals), pointer :: xx(:, :, :, :), xx1d(:)
+    real(ireals), pointer :: xg(:, :, :, :), xg1d(:)
+    real(ireals), pointer :: xb(:, :, :, :), xb1d(:)
 
     integer(iintegers), dimension(3) :: dx, dy ! start, end, increment for each dimension
     integer(iintegers) :: i_its, i_lits
     logical :: lsweep_forward, lsweep_backward, lsweep_symmetric, lzero_initial_guess
     logical :: lsun_north, lsun_east
+
+    xx => null()
+    xx1d => null()
+    xg => null()
+    xg1d => null()
+    xb => null()
+    xb1d => null()
 
     call CHKERR(1_mpiint, 'Not yet implemented') ! well this seems implemented but its wrong.... explicit version should be better anyway
 
@@ -360,14 +372,19 @@ contains
 
     type(t_pprts_shell_ctx), pointer :: ctx_ptr
     class(t_solver), pointer :: solver
-    real(ireals), pointer, dimension(:, :, :, :) :: xx => null(), xb => null()
-    real(ireals), pointer, dimension(:) :: xx1d => null(), xb1d => null()
+    real(ireals), pointer, dimension(:, :, :, :) :: xx, xb
+    real(ireals), pointer, dimension(:) :: xx1d, xb1d
     real(ireals), pointer :: v(:, :) ! dim(src,dst)
     integer(iintegers) :: k, i, j
     integer(iintegers) :: idst, isrc, dst, src
     integer(iintegers) :: mdst, msrc
     integer(iintegers), allocatable :: row(:, :), col(:, :)
     type(tVec) :: lb, lx
+
+    xx => null()
+    xx1d => null()
+    xb => null()
+    xb1d => null()
 
     nullify (ctx_ptr)
     call MatShellGetContext(A, ctx_ptr, ierr); call CHKERR(ierr)
@@ -540,11 +557,16 @@ contains
     class(t_solver), pointer :: solver
     type(tVec) :: lb, lx
 
-    real(ireals), pointer, dimension(:, :, :, :) :: xx => null(), xg => null()
-    real(ireals), pointer, dimension(:) :: xx1d => null(), xg1d => null()
+    real(ireals), pointer, dimension(:, :, :, :) :: xx, xg
+    real(ireals), pointer, dimension(:) :: xx1d, xg1d
 
     integer(iintegers) :: i_its, i_lits
     logical :: lsweep_forward, lsweep_backward, lsweep_symmetric, lzero_initial_guess
+
+    xx => null()
+    xx1d => null()
+    xg => null()
+    xg1d => null()
 
     nullify (ctx_ptr)
     call MatShellGetContext(A, ctx_ptr, ierr); call CHKERR(ierr)

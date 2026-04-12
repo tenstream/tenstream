@@ -68,7 +68,7 @@ contains
     real(ireals), dimension(:, :, :), allocatable, target :: iwc, reice ! will have global shape Nz, Nx, Ny
     real(ireals), dimension(:, :, :), allocatable, target :: plev, tlev ! will have local shape nzp+1, nxp, nyp
     real(ireals), dimension(:), allocatable :: hhl ! dim Nz+1
-    real(ireals), pointer :: z(:, :, :, :) => null(), z1d(:) => null() ! dim Nz+1
+    real(ireals), pointer :: z(:, :, :, :), z1d(:) ! dim Nz+1
 
     real(ireals), allocatable, dimension(:, :, :) :: edir, edn, eup, abso ! [nlev_merged(-1), nxp, nyp]
     type(t_bg_atm), allocatable :: bg_atm
@@ -83,6 +83,9 @@ contains
 
     logical :: lflg
     integer(iintegers) :: k
+
+    z => null()
+    z1d => null()
 
     call mpi_comm_rank(comm, myid, ierr)
     call load_input(comm, wcfile, dx, dy, is, ie, js, je, hhl, lwc, reliq, ierr); call CHKERR(ierr)

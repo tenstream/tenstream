@@ -241,10 +241,13 @@ contains
     logical :: lslope_correction, latm_correction, lflg
     integer(mpiint) :: myid, ierr
 
-    real(ireals), pointer :: grad(:, :, :, :) => null()
-    real(ireals), pointer :: grad_1d(:) => null()
+    real(ireals), pointer :: grad(:, :, :, :)
+    real(ireals), pointer :: grad_1d(:)
     real(ireals) :: fac, n(3)
     integer(iintegers) :: i, j, k
+
+    grad => null()
+    grad_1d => null()
 
     call mpi_comm_rank(solver%comm, myid, ierr); call CHKERR(ierr)
 

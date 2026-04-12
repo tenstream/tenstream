@@ -433,7 +433,7 @@ contains
       type(t_state_container), intent(in) :: plex_solution
       type(t_state_container), intent(inout) :: solution
 
-      real(ireals), pointer :: x(:, :, :, :) => null(), x1d(:) => null()
+      real(ireals), pointer :: x(:, :, :, :), x1d(:)
       real(ireals) :: fac
 
       type(tVec) :: abso_in_W
@@ -445,6 +445,9 @@ contains
       character(len=*), parameter :: log_event_name = "pprts_rayli_transfer_result"
       PetscClassId :: cid
       PetscLogEvent :: log_event
+
+      x => null()
+      x1d => null()
 
       call PetscClassIdRegister("pprts_rayli", cid, ierr); call CHKERR(ierr)
       call PetscLogEventRegister(log_event_name, cid, log_event, ierr); call CHKERR(ierr)
@@ -643,7 +646,7 @@ contains
     subroutine setup_mesh()
       integer(iintegers) :: Nhhl
       type(tVec) :: vertex_hhl, hhl
-      real(ireals), pointer :: xhhl(:, :, :, :) => null(), xhhl1d(:) => null()
+      real(ireals), pointer :: xhhl(:, :, :, :), xhhl1d(:)
       type(tPetscSection) :: coord_section
       type(tVec) :: coordinates
       real(ireals), pointer :: coords(:)
@@ -654,6 +657,9 @@ contains
 
       type(tDM) :: dm2d, dm2d_dist, dm3d
       integer(iintegers), allocatable :: zindex(:)
+
+      xhhl => null()
+      xhhl1d => null()
 
       call DMGetGlobalVector(solver%Cvert_one_atm1%da, vertex_hhl, ierr); call CHKERR(ierr)
 
@@ -1286,8 +1292,8 @@ contains
     type(t_state_container) :: solution
     type(t_pprts_buildings), optional, intent(in) :: opt_buildings
 
-    real(ireals), pointer, dimension(:, :, :, :) :: xv_dir => null(), xv_diff => null(), xv_abso => null()
-    real(ireals), pointer, dimension(:) :: xv_dir1d => null(), xv_diff1d => null(), xv_abso1d => null()
+    real(ireals), pointer, dimension(:, :, :, :) :: xv_dir, xv_diff, xv_abso
+    real(ireals), pointer, dimension(:) :: xv_dir1d, xv_diff1d, xv_abso1d
     integer(iintegers) :: i, j, k, src
 
     real(ireals), allocatable :: dtau(:), kext(:), w0(:), g(:), S(:), Edn(:), Eup(:)
@@ -1297,6 +1303,13 @@ contains
     integer(iintegers), allocatable :: buildings_mink(:, :)
     integer(iintegers), allocatable :: buildings_face(:, :)
     integer(iintegers) :: m, bk, idx(4)
+
+    xv_dir => null()
+    xv_dir1d => null()
+    xv_diff => null()
+    xv_diff1d => null()
+    xv_abso => null()
+    xv_abso1d => null()
 
     associate (atm => solver%atm, &
                C_diff => solver%C_diff, &
@@ -1500,8 +1513,8 @@ contains
     type(t_state_container) :: solution
     type(t_pprts_buildings), optional, intent(in) :: opt_buildings
 
-    real(ireals), pointer, dimension(:, :, :, :) :: xv_dir => null(), xv_diff => null(), xv_abso => null()
-    real(ireals), pointer, dimension(:) :: xv_dir1d => null(), xv_diff1d => null(), xv_abso1d => null()
+    real(ireals), pointer, dimension(:, :, :, :) :: xv_dir, xv_diff, xv_abso
+    real(ireals), pointer, dimension(:) :: xv_dir1d, xv_diff1d, xv_abso1d
     integer(iintegers) :: i, j, k, src, nstreams
 
     real, allocatable :: &
@@ -1521,6 +1534,13 @@ contains
     real(ireals) :: fac
     integer(mpiint) :: ierr
     logical :: lflg
+
+    xv_dir => null()
+    xv_dir1d => null()
+    xv_diff => null()
+    xv_diff1d => null()
+    xv_abso => null()
+    xv_abso1d => null()
 
     if (present(opt_buildings)) call CHKERR(1_mpiint, "buildings not implemented for pprts_disort")
 
@@ -1663,8 +1683,8 @@ contains
     type(t_state_container) :: solution
     type(t_pprts_buildings), optional, intent(in) :: opt_buildings
 
-    real(ireals), pointer, dimension(:, :, :, :) :: xv_diff => null(), xv_abso => null()
-    real(ireals), pointer, dimension(:) :: xv_diff1d => null(), xv_abso1d => null()
+    real(ireals), pointer, dimension(:, :, :, :) :: xv_diff, xv_abso
+    real(ireals), pointer, dimension(:) :: xv_diff1d, xv_abso1d
     integer(iintegers) :: i, j, k, idof
     integer(iintegers) :: Nmu, ak
     logical :: lflg
@@ -1676,6 +1696,11 @@ contains
     integer(iintegers), allocatable :: buildings_mink(:, :)
     integer(iintegers), allocatable :: buildings_face(:, :)
     integer(iintegers) :: m, bk, idx(4)
+
+    xv_diff => null()
+    xv_diff1d => null()
+    xv_abso => null()
+    xv_abso1d => null()
 
     associate ( &
       atm => solver%atm, &

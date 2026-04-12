@@ -114,8 +114,10 @@ contains
 
     type(tVecScatter) :: scatter_context
     type(tVec) :: natural, local
-    real(ireals), pointer :: xloc(:) => null()
+    real(ireals), pointer :: xloc(:)
     integer(mpiint) :: comm, myid, ierr
+
+    xloc => null()
 
     call PetscObjectGetComm(dm, comm, ierr); call CHKERR(ierr)
 
@@ -162,7 +164,7 @@ contains
 
     integer(iintegers) :: vecsize
     VecType :: vtype
-    real(ireals), pointer :: x1d(:) => null(), x4d(:, :, :, :) => null()
+    real(ireals), pointer :: x1d(:), x4d(:, :, :, :)
 
     integer(mpiint) :: comm, myid, ierr
     integer(iintegers) :: zs, xs, ys, zm, xm, ym
@@ -173,6 +175,9 @@ contains
     integer(iintegers) :: stencil_width
     DMBoundaryType :: boundary_z, boundary_x, boundary_y
     DMDAStencilType :: stencil_type
+
+    x1d => null()
+    x4d => null()
 
     if (allocated(arr)) stop 'You shall not call petscVecToF90 with an already allocated array!'
 
@@ -227,7 +232,7 @@ contains
 
     VecType :: vtype
     integer(iintegers) :: vecsize
-    real(ireals), pointer :: x1d(:) => null(), x4d(:, :, :, :) => null()
+    real(ireals), pointer :: x1d(:), x4d(:, :, :, :)
 
     integer(mpiint) :: comm, myid, ierr
     integer(iintegers) :: zs, xs, ys, zm, xm, ym
@@ -238,6 +243,9 @@ contains
     integer(iintegers) :: stencil_width
     DMBoundaryType :: boundary_z, boundary_x, boundary_y
     DMDAStencilType :: stencil_type
+
+    x1d => null()
+    x4d => null()
 
     l_only_on_rank0 = get_arg(.false., only_on_rank0)
 
@@ -293,7 +301,7 @@ contains
 
     VecType :: vtype
     integer(iintegers) :: vecsize
-    real(ireals), pointer :: x1d(:) => null(), x4d(:, :, :, :) => null()
+    real(ireals), pointer :: x1d(:), x4d(:, :, :, :)
 
     integer(mpiint) :: comm, myid, ierr
     integer(iintegers) :: zs, xs, ys, zm, xm, ym
@@ -304,6 +312,9 @@ contains
     integer(iintegers) :: stencil_width
     DMBoundaryType :: boundary_z, boundary_x, boundary_y
     DMDAStencilType :: stencil_type
+
+    x1d => null()
+    x4d => null()
 
     l_only_on_rank0 = get_arg(.false., only_on_rank0)
 
@@ -358,9 +369,12 @@ contains
     type(tVec), intent(inout) :: vec
 
     integer(iintegers) :: vecsize
-    real(ireals), pointer :: x1d(:) => null(), x4d(:, :, :, :) => null()
+    real(ireals), pointer :: x1d(:), x4d(:, :, :, :)
 
     integer(mpiint) :: ierr
+
+    x1d => null()
+    x4d => null()
 
     call getVecPointer(dm, vec, x1d, x4d)
     x4d = arr
@@ -378,9 +392,12 @@ contains
     type(tVec), intent(inout) :: vec
 
     integer(iintegers) :: vecsize
-    real(ireals), pointer :: x1d(:) => null(), x4d(:, :, :, :) => null()
+    real(ireals), pointer :: x1d(:), x4d(:, :, :, :)
 
     integer(mpiint) :: ierr
+
+    x1d => null()
+    x4d => null()
 
     call getVecPointer(dm, vec, x1d, x4d)
     x4d(i0, :, :, :) = arr
@@ -398,9 +415,12 @@ contains
     type(tVec), intent(inout) :: vec
 
     integer(iintegers) :: vecsize
-    real(ireals), pointer :: x1d(:) => null(), x4d(:, :, :, :) => null()
+    real(ireals), pointer :: x1d(:), x4d(:, :, :, :)
 
     integer(mpiint) :: ierr
+
+    x1d => null()
+    x4d => null()
 
     call getVecPointer(dm, vec, x1d, x4d)
     x4d(i0, i0, :, :) = arr
@@ -522,6 +542,8 @@ contains
         call VecRestoreArray(vec, x1d, ierr); call CHKERR(ierr)
       end if
     end if
+    nullify (x1d)
+    nullify (x4d)
   end subroutine
 
   subroutine getVecPointer_2d(dm, vec, x1d, x3d, readonly)
@@ -632,6 +654,8 @@ contains
         call VecRestoreArray(vec, x1d, ierr); call CHKERR(ierr)
       end if
     end if
+    nullify (x1d)
+    nullify (x3d)
   end subroutine
 
   subroutine dmda_convolve_ediff_srfc(dm3d, kernel_width, arr)
@@ -642,10 +666,10 @@ contains
     type(tVec) :: gvec, lvec
     type(tDM) :: dm2d
 
-    real(ireals), pointer, dimension(:, :, :) :: x3d => null()
-    real(ireals), pointer, dimension(:) :: x1d => null()
-    real(ireals), pointer, dimension(:, :, :) :: g3d => null()
-    real(ireals), pointer, dimension(:) :: g1d => null()
+    real(ireals), pointer, dimension(:, :, :) :: x3d
+    real(ireals), pointer, dimension(:) :: x1d
+    real(ireals), pointer, dimension(:, :, :) :: g3d
+    real(ireals), pointer, dimension(:) :: g1d
 
     integer(iintegers) :: dmdim, dof, glob_xm, glob_ym, glob_zm
     integer(iintegers) :: nprocz, nprocx, nprocy
@@ -656,6 +680,11 @@ contains
     integer(iintegers), pointer :: Nxperproc(:), Nyperproc(:)
     integer(iintegers) :: Ndof, idof
     integer(mpiint) :: comm, myid, numnodes, ierr
+
+    g1d => null()
+    g3d => null()
+    x1d => null()
+    x3d => null()
 
     Ndof = size(arr, dim=1, kind=iintegers)
 

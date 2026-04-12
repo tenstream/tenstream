@@ -293,7 +293,7 @@ contains
     real(ireals), intent(in) :: phi0, theta0 ! Sun's angles, azimuth phi(0=North, 90=East), zenith(0 high sun, 80=low sun)
     integer(iintegers), intent(in) :: tstart, tend, tinc
 
-    real(ireals), pointer :: z(:, :, :, :) => null(), z1d(:) => null() ! dim Nz+1
+    real(ireals), pointer :: z(:, :, :, :), z1d(:) ! dim Nz+1
     character(len=default_str_len) :: groups(3), dimnames(3)
 
     real(ireals), allocatable, dimension(:, :, :) :: edir, edn, eup, abso ! [nlev_merged(-1), nxp, nyp]
@@ -313,6 +313,9 @@ contains
     real(ireals), allocatable, dimension(:, :, :, :) :: plev, tlev, qv, ql, reliq ! dim(Nz(+1),Nx,Ny)
 
     integer(iintegers) :: it
+
+    z => null()
+    z1d => null()
 
     call mpi_comm_rank(comm, myid, ierr)
 

@@ -1837,12 +1837,14 @@ contains
     type(tDM) :: celldm
     type(tVec) :: rank0Vec
     type(tVecScatter) :: scatter_context
-    real(ireals), pointer :: xloc(:) => null()
+    real(ireals), pointer :: xloc(:)
     integer(mpiint) :: myid, ierr
     integer(iintegers) :: ic, icell, icell_global(1), k
     real(ireals), allocatable :: arr(:, :)
     real(ireals), allocatable :: arr3d(:, :, :)
     character(len=default_str_len) :: ncgroups(2)
+
+    xloc => null()
 
     if (.not. (present(cell_ao_2d) .or. present(cell_ao_3d))) call CHKERR(1_mpiint, 'have to provide one of cell AO`s')
     if (present(cell_ao_2d) .and. present(cell_ao_3d)) call CHKERR(1_mpiint, 'please provide only one cell AO')

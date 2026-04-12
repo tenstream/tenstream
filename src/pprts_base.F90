@@ -644,13 +644,18 @@ contains
     integer(mpiint), intent(out) :: ierr
 
     type(tVec) :: coordinates
-    real(ireals), pointer, dimension(:, :, :, :) :: xv => null()
-    real(ireals), pointer, dimension(:) :: xv1d => null()
+    real(ireals), pointer, dimension(:, :, :, :) :: xv
+    real(ireals), pointer, dimension(:) :: xv1d
 
     type(tDM) :: coordDA
     integer(iintegers) :: zs, zm, xs, xm, ys, ym, k, i, j
 
-    real(ireals), pointer :: hhl(:, :, :, :) => null(), hhl1d(:) => null()
+    real(ireals), pointer :: hhl(:, :, :, :), hhl1d(:)
+
+    xv => null()
+    xv1d => null()
+    hhl => null()
+    hhl1d => null()
 
     call DMGetCoordinatesLocal(da, coordinates, ierr); call CHKERR(ierr)
     if (coordinates .ne. PETSC_NULL_VEC) return
@@ -696,13 +701,18 @@ contains
     type(t_coord), intent(in) :: C_hhl, C_grad
     type(tVec), allocatable :: vgrad
 
-    real(ireals), pointer :: hhl(:, :, :, :) => null(), hhl1d(:) => null()
-    real(ireals), pointer :: grad(:, :, :, :) => null(), grad_1d(:) => null()
+    real(ireals), pointer :: hhl(:, :, :, :), hhl1d(:)
+    real(ireals), pointer :: grad(:, :, :, :), grad_1d(:)
 
     integer(iintegers) :: i, j, k
 
     real(ireals) :: zm(4)
     integer(mpiint) :: myid, ierr
+
+    hhl => null()
+    hhl1d => null()
+    grad => null()
+    grad_1d => null()
 
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
     if (.not. allocated(atm%dz)) &
@@ -753,11 +763,16 @@ contains
     type(tVec), intent(inout) :: vert_vals
 
     type(tVec) :: vcells
-    real(ireals), pointer :: xc(:, :, :, :) => null(), xc1d(:) => null()
-    real(ireals), pointer :: xv(:, :, :, :) => null(), xv1d(:) => null()
+    real(ireals), pointer :: xc(:, :, :, :), xc1d(:)
+    real(ireals), pointer :: xv(:, :, :, :), xv1d(:)
     integer(iintegers) :: k, i, j
     logical :: is_local
     integer(mpiint) :: ierr
+
+    xc => null()
+    xc1d => null()
+    xv => null()
+    xv1d => null()
 
     call CHKERR(int(C_cells%glob_xm - C_verts%glob_xm + i1, mpiint), &
       & 'nonconforming size: cells/verts %xe ', C_cells%glob_xm, C_verts%glob_xm)
@@ -853,12 +868,15 @@ contains
     real(ireals), intent(in) :: edirTOA
     type(tVec), intent(inout) :: incSolar
 
-    real(ireals), pointer :: x1d(:) => null(), x4d(:, :, :, :) => null()
+    real(ireals), pointer :: x1d(:), x4d(:, :, :, :)
 
     integer(mpiint) :: ierr
     real(ireals) :: fac
     integer(iintegers) :: i, j, src
     logical, parameter :: ldebug = .false.
+
+    x1d => null()
+    x4d => null()
 
     associate ( &
         & atm => solver%atm, &
@@ -897,7 +915,10 @@ contains
       type(tKSP) :: ksp
       character(len=default_str_len) :: prefix
       real(ireals), pointer :: xv_b(:)
-      real(ireals), pointer :: xg1d(:) => null(), xg4d(:, :, :, :) => null()
+      real(ireals), pointer :: xg1d(:), xg4d(:, :, :, :)
+
+      xg1d => null()
+      xg4d => null()
 
       if (solver%lopen_bc) then ! need to update side fluxes somewhere in the domain
 
