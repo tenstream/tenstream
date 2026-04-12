@@ -163,16 +163,18 @@ debian-stable:
     CMAKE_OPTS: '-DCMAKE_Fortran_FLAGS=--std=legacy -DENABLE_PFUNIT=ON'
     LUT_TARGET: 'download_common_luts'
 
-debian-testing:
+alma10:
   stage: build_docker
   extends: .build:default
   needs: ["check_fprettify:pre"]
-  image: debian:testing
+  image: almalinux:10
   before_script:
-    - echo -e "\e[0Ksection_start:`date +%s`:apt_install[collapsed=true]\r\e[0KInstall APT packages"
-    - apt-get -qq update
-    - apt-get -qq install -fy build-essential cmake gfortran git python3 openmpi-bin libopenmpi-dev libopenblas-dev curl pkg-config
-    - echo -e "\e[0Ksection_end:`date +%s`:apt_install\r\e[0K"
+    - echo -e "\e[0Ksection_start:`date +%s`:dnf_install[collapsed=true]\r\e[0KInstall DNF packages"
+    - dnf -y install epel-release
+    - dnf -y install gcc gcc-c++ gcc-gfortran make cmake git python3 openmpi openmpi-devel openblas-devel curl pkgconf-pkg-config
+    - export PATH=/usr/lib64/openmpi/bin:$PATH
+    - export LD_LIBRARY_PATH=/usr/lib64/openmpi/lib:${LD_LIBRARY_PATH}
+    - echo -e "\e[0Ksection_end:`date +%s`:dnf_install\r\e[0K"
     - *template_build_PETSC
   tags:
     - docker.physik.lmu.de
@@ -186,18 +188,18 @@ debian-testing:
     CMAKE_OPTS: '-DCMAKE_Fortran_FLAGS=--std=legacy -DENABLE_PFUNIT=ON'
     LUT_TARGET: 'download_common_luts'
 
-implicit:debian-testing:
-  extends: debian-testing
+implicit:alma10:
+  extends: alma10
   variables:
     PETSC_OPTIONS: "-solar_dir_explicit no -solar_diff_explicit no -thermal_diff_explicit no"
 
-explicit:debian-testing:
-  extends: debian-testing
+explicit:alma10:
+  extends: alma10
   variables:
     PETSC_OPTIONS: "-solar_dir_explicit -solar_diff_explicit -thermal_diff_explicit -thermal_diff_pc_sor_omega .5 -solar_diff_pc_sor_omega .5"
 
-matshell:debian-testing:
-  extends: debian-testing
+matshell:alma10:
+  extends: alma10
   variables:
     PETSC_OPTIONS: "-solar_diff_shell -solar_diff_pc_type sor -thermal_diff_shell -thermal_diff_pc_type sor"
 
