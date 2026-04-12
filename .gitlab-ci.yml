@@ -171,6 +171,7 @@ alma-latest:
   before_script:
     - echo -e "\e[0Ksection_start:`date +%s`:dnf_install[collapsed=true]\r\e[0KInstall DNF packages"
     - dnf -y install epel-release
+    - export PATH=/usr/lib64/openmpi/bin:$PATH
     - dnf -y install gcc gcc-c++ gcc-gfortran make cmake git python3 openmpi openmpi-devel openblas-devel curl pkgconf-pkg-config which diffutils m4
     - echo -e "\e[0Ksection_end:`date +%s`:dnf_install\r\e[0K"
     - *template_build_PETSC
