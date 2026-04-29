@@ -1440,9 +1440,10 @@ contains
 
     call MPI_Comm_rank(MPI_COMM_WORLD, myid, ierr); call CHKERR(ierr)
     if (myid .eq. 0) then
-      print *, 'Diffuse LUT config:'
+      print *, 'Diffuse LUT config: '//trim(gen_lut_basename('_diffuse_'//toStr(OPP%diff_streams), OPP%diffconfig))
       call print_op_config(OPP%diffconfig)
-      print *, 'Direct LUT config:'
+      print *, 'Direct LUT config: '//&
+              & trim(gen_lut_basename('_direct_'//toStr(OPP%dir_streams)//'_'//toStr(OPP%diff_streams), OPP%dirconfig))
       call print_op_config(OPP%dirconfig)
       print *, '----------------------'
     end if
