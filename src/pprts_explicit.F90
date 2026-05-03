@@ -46,8 +46,6 @@ module m_pprts_explicit
   use m_petsc_helpers, only: &
     getVecPointer, restoreVecPointer
 
-  use m_adaptive_spectral_integration, only: polyfit
-
   implicit none
 
   private
@@ -514,10 +512,7 @@ contains
 
     logical :: lomega_set, ladaptive_omega
     real(ireals) :: omega, omega_adaptive, omega_increment, omega_min, omega_max
-
-    integer(iintegers), parameter :: omega_pfN = 10
-    integer(iintegers) :: i
-    real(ireals) :: omega_pfx(omega_pfN), omega_pfy(omega_pfN), pf(2)
+    real(ireals) :: omega_dir, omega_step, omega_save, log_rate, log_rate_prev
 
     integer(mpiint) :: ierr
 
@@ -569,6 +564,13 @@ contains
       call get_petsc_opt(prefix, "-pc_sor_omega_min", omega_min, lflg, ierr); call CHKERR(ierr)
       omega_max = 1.25_ireals
       call get_petsc_opt(prefix, "-pc_sor_omega_max", omega_max, lflg, ierr); call CHKERR(ierr)
+      omega_dir = 1._ireals
+      omega_step = omega_increment * 0.5_ireals
+      log_rate_prev = 0._ireals
+      if (ladaptive_omega .and. solution%diff_sor_omega .gt. zero) then
+        omega_adaptive = solution%diff_sor_omega  ! warm-start from previous solve for this g-point
+      end if
+      omega_save = omega_adaptive
 
       lcomplete_initial_run = .true.
       call get_petsc_opt(prefix, "-ksp_complete_initial_run", lcomplete_initial_run, lflg, ierr); call CHKERR(ierr)
@@ -701,27 +703,22 @@ contains
             exit sorloop
           end if
 
-          if (ladaptive_omega) then
-            do i = 1, omega_pfN
-              omega_pfx(i) = real(i)
-              omega_pfy(i) = residual(max(i1, iter - omega_pfN + i)) / residual(1)
-            end do
-            pf(:) = polyfit(omega_pfx, omega_pfy, 1_iintegers, ierr)
-            !print *,'polyfit', omega_pfx, omega_pfy, '=>', pf
-            if (ierr .eq. 0) then
-              if (pf(2) .lt. -0.1_ireals) then ! converging very well
-                ! keep on as we have, we're doing fine
-              else if (pf(2) .lt. -0.001_ireals) then ! converging ok
-                omega_adaptive = omega_adaptive + omega_increment
-              else if (pf(2) .lt. 0._ireals) then ! converging slowly
-                omega_adaptive = 1._ireals
-              else if (pf(2) .gt. 1._ireals) then ! diverging extremely
-                omega_adaptive = 1._ireals
-              else if (pf(2) .gt. 0._ireals) then ! diverging slowly
-                omega_adaptive = omega_adaptive - omega_increment
-              end if
+          if (ladaptive_omega .and. iter .ge. 3 &
+              & .and. residual(iter) .gt. zero .and. residual(iter - 2) .gt. zero) then
+            ! Mean per-step log-reduction rate over the last 2 sweeps (negative = converging).
+            ! Using a 2-step window averages over the alternating forward/backward sweep directions.
+            log_rate = 0.5_ireals * log(residual(iter) / residual(iter - 2))
+            if (log_rate .lt. log_rate_prev) then
+              ! Convergence accelerating: continue direction, grow step modestly
+              omega_step = min(omega_step * 1.3_ireals, omega_max - omega_min)
+            else
+              ! Convergence decelerating: reverse direction, shrink step
+              omega_dir = -omega_dir
+              omega_step = max(omega_step * 0.5_ireals, 0.01_ireals)
             end if
-            omega_adaptive = min(max(omega_adaptive, omega_min), omega_max)
+            log_rate_prev = log_rate
+            omega_adaptive = min(max(omega_adaptive + omega_dir * omega_step, omega_min), omega_max)
+            omega_save = omega_adaptive  ! snapshot before near-converge override
             if (residual(iter) .lt. 10 * atol) omega_adaptive = 1._ireals ! nearly converged, use stable omega
           end if
 
@@ -735,6 +732,8 @@ contains
           end if
         end if
       end do sorloop
+
+      if (ladaptive_omega) solution%diff_sor_omega = omega_save
 
       call getVecPointer(C%da, vediff, xg1d, xg)
       call getVecPointer(C%da, v0, x01d, x0, readonly=.true.)
