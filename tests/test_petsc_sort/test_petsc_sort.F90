@@ -2,8 +2,7 @@ module test_petsc_sort
 
 #include "petsc/finclude/petsc.h"
   use petsc
-  use m_data_parameters, only: iintegers, ireals, mpiint, zero, one
-  use m_helper_functions, only: CHKERR
+  use m_data_parameters, only: iintegers, mpiint
 
   use pfunit_mod
 

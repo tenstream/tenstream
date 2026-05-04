@@ -3,7 +3,7 @@ module test_twostr
 #include "petsc/finclude/petsc.h"
   use petsc
 
-  use m_data_parameters, only: init_mpi_data_parameters, iintegers, ireals, zero, one, pi, mpiint
+  use m_data_parameters, only: init_mpi_data_parameters, iintegers, ireals, zero, one, mpiint
 
   use m_tenstream_options, only: read_commandline_options
 

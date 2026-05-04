@@ -1,8 +1,5 @@
 module test_geometry
-  use m_data_parameters, only: &
-    mpiint, iintegers, ireals, ireal_dp, &
-    one, zero, i1, i2, i3, default_str_len, &
-    init_mpi_data_parameters
+  use m_data_parameters, only: iintegers, ireal_dp, i1, i2, i3, init_mpi_data_parameters
   use m_boxmc_geometry, only: &
     & setup_default_unit_cube_geometry, &
     & rand_pnt_on_plane

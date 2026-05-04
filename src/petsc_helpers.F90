@@ -2,8 +2,7 @@ module m_petsc_helpers
 #include "petsc/finclude/petsc.h"
   use petsc
 
-  use m_data_parameters, only: ireals, iintegers, mpiint, &
-                               zero, i0, i1, i2, i3, default_str_len, init_mpi_data_parameters
+  use m_data_parameters, only: ireals, iintegers, mpiint, zero, i0, i1, default_str_len, init_mpi_data_parameters
 
   use m_helper_functions, only: &
     & char_to_upper, &

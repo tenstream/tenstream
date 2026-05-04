@@ -9,7 +9,7 @@ module test_pprts_absorption_by_coeff_divergence
     & pi
 
   use pfunit_mod
-  use m_helper_functions, only: deg2rad, imp_allreduce_mean, CHKERR
+  use m_helper_functions, only: CHKERR
   use m_pprts_external_solvers, only: destroy_rayli_info
   use m_examples_pprts_ex1, only: pprts_ex1
 

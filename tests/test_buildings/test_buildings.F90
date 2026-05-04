@@ -1,12 +1,7 @@
 module test_buildings
 #include "petsc/finclude/petsc.h"
   use petsc
-  use iso_fortran_env, only: real32, real64
-  use m_data_parameters, only: &
-    init_mpi_data_parameters, &
-    finalize_mpi, &
-    iintegers, ireals, mpiint, &
-    zero, one, pi, default_str_len
+  use m_data_parameters, only: init_mpi_data_parameters, finalize_mpi, iintegers, ireals, mpiint, zero, one, pi
 
   use m_helper_functions, only: &
     & CHKERR, &

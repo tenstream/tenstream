@@ -26,7 +26,7 @@ module m_pprts
     & init_mpi_data_parameters, mpiint,                      &
     & imp_ireals,                                            &
     & zero, one, nan, pi,                                    &
-    & nil, i0, i1, i2, i3, i4, i5, i6, i7, i8, i10, pi,      &
+    & nil, i0, i1, i2, i3, i4, i5, i6, i8,                 &
     & default_str_len
 
   use m_helper_functions, only: &

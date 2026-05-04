@@ -17,8 +17,6 @@ module test_pprts_slope_correction
   use petsc
   use pfunit_mod
 
-  use m_tenstream_options, only: read_commandline_options
-
   use m_helper_functions, only: &
     & CHKERR, &
     & cross_3d, &

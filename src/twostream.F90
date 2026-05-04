@@ -32,7 +32,7 @@ module m_twostream
   use m_data_parameters, only: ireals, iintegers, mpiint, zero, one, pi, i0, i1, i2
   use m_schwarzschild, only: B_eff
   use m_eddington, only: eddington_coeff_ec
-  use m_helper_functions, only: delta_scale_optprop, CHKERR, itoa, ftoa, approx
+  use m_helper_functions, only: CHKERR, itoa, ftoa, approx
   implicit none
 
   private

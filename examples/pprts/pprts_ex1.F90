@@ -1,9 +1,8 @@
 module m_examples_pprts_ex1
-  use m_data_parameters, only: init_mpi_data_parameters, iintegers, ireals, mpiint, zero, pi
+  use m_data_parameters, only: init_mpi_data_parameters, iintegers, ireals, mpiint
   use m_helper_functions, only: CHKERR, spherical_2_cartesian, get_arg, cstr, toStr
   use m_pprts, only: init_pprts, set_optical_properties, solve_pprts, pprts_get_result, set_angles
   use m_pprts_base, only: t_solver, allocate_pprts_solver_from_commandline, destroy_pprts
-  use m_tenstream_options, only: read_commandline_options
 
   implicit none
 

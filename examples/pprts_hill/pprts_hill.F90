@@ -7,9 +7,9 @@ module m_example_pprts_rrtmg_hill
   ! Import datatype from the TenStream lib. Depending on how PETSC is
   ! compiled(single or double floats, or long ints), this will determine what
   ! the Tenstream uses.
-  use m_data_parameters, only: init_mpi_data_parameters, iintegers, ireals, mpiint, zero, one, i1, default_str_len
+  use m_data_parameters, only: init_mpi_data_parameters, iintegers, ireals, mpiint, i1, default_str_len
 
-  use m_helper_functions, only: reverse, linspace, CHKERR, meanval, itoa, spherical_2_cartesian, get_petsc_opt
+  use m_helper_functions, only: reverse, linspace, CHKERR, meanval, spherical_2_cartesian, get_petsc_opt
 
   use m_search, only: search_sorted_bisection
 

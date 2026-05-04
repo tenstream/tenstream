@@ -1,6 +1,6 @@
 module test_search
   use iso_c_binding
-  use m_data_parameters, only: ireals, ireal_dp, iintegers, mpiint, init_mpi_data_parameters
+  use m_data_parameters, only: ireals, ireal_dp, iintegers
   use m_search, only: search_sorted_bisection, find_real_location_petsc, find_real_location_linear, &
                       find_real_location
 

@@ -25,7 +25,7 @@ module m_repwvl_plexrt
 
   use m_data_parameters, only: &
     & iintegers, ireals, mpiint, &
-    & zero, one, default_str_len
+    & zero, one
 
   use m_helper_functions, only: &
     & CHKERR, &
@@ -34,8 +34,6 @@ module m_repwvl_plexrt
     & is_inrange, &
     & toStr
 
-  use m_tenstream_options, only: read_commandline_options
-
   use m_dyn_atm_to_rrtmg, only: &
     & planck, &
     & print_tenstr_atm, &
@@ -43,7 +41,7 @@ module m_repwvl_plexrt
 
   use m_repwvl_base, only: repwvl_init, t_repwvl_data, repwvl_log_events
   use m_repwvl_optprop, only: repwvl_optprop, check_fu_table_consistency
-  use m_mie_tables, only: mie_tables_init, t_mie_table, destroy_mie_table
+  use m_mie_tables, only: mie_tables_init, t_mie_table
   use m_fu_ice, only: fu_ice_init
 
   use m_plex_grid, only: TOAFACE

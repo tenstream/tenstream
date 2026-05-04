@@ -1,5 +1,5 @@
 module test_ranlux
-  use m_data_parameters, only: ireals, mpiint, iintegers, init_mpi_data_parameters
+  use m_data_parameters, only: mpiint, iintegers, init_mpi_data_parameters
   use m_ranlux, only: ranlux, rluxgo
 
   use pfunit_mod

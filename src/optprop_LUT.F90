@@ -31,14 +31,9 @@ module m_optprop_LUT
     & get_arg,                   &
     & get_petsc_opt,             &
     & imp_bcast,                 &
-    & ind_1d_to_nd,              &
     & ind_nd_to_1d,              &
-    & linspace,                  &
-    & mpi_logical_and,           &
     & mpi_logical_or,            &
-    & ndarray_offsets,           &
     & rad2deg, deg2rad,          &
-    & rel_approx,                &
     & toStr,                     &
     & triangle_area_by_vertices
 
@@ -46,8 +41,8 @@ module m_optprop_LUT
 
   use m_data_parameters, only: iintegers, mpiint, &
                                ireals, ireal_dp, irealLUT, ireal_params, &
-                               one, zero, i0, i1, i2, i3, i10, nil, inil, &
-                               imp_iinteger, imp_ireals, imp_irealLUT, imp_logical, &
+                               one, zero, i1, &
+                               imp_iinteger, imp_irealLUT, imp_logical, &
                                default_str_len
 
   use m_optprop_parameters, only: &
@@ -57,10 +52,10 @@ module m_optprop_LUT
     LUT_max_create_jobtime, &
     LUT_MAX_DIM, &
     delta_scale_truncate, &
-    stddev_atol, stddev_rtol, &
+    stddev_atol, &
     wedge_sphere_radius
 
-  use m_boxmc, only: t_boxmc, &
+  use m_boxmc, only: &
     & t_boxmc_1_2, &
     & t_boxmc_3_6, &
     & t_boxmc_3_10, &
@@ -74,7 +69,7 @@ module m_optprop_LUT
     & t_boxmc_wedge_5_8, &
     & t_boxmc_wedge_18_8
 
-  use m_tenstream_interpolation, only: interp_4d, interp_vec_simplex_nd
+  use m_tenstream_interpolation, only: interp_vec_simplex_nd
   use m_netcdfio
 
   use m_mmap, only: arr_to_mmap, munmap_mmap_ptr

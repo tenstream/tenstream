@@ -1,6 +1,6 @@
 module test_pprts_symmetry
 
-  use m_data_parameters, only: init_mpi_data_parameters, iintegers, ireals, irealLUT, zero, one, pi, mpiint
+  use m_data_parameters, only: init_mpi_data_parameters, iintegers, ireals, irealLUT, zero, one, mpiint
 
 #include "petsc/finclude/petsc.h"
   use petsc

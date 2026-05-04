@@ -37,7 +37,6 @@ module m_ecckd_optprop
     & toStr
 
   use m_dyn_atm_to_rrtmg, only: t_tenstr_atm
-  use m_fu_ice, only: fu_ice_optprop, fu_ice_data_solar, fu_ice_data_thermal
   use m_rayleigh, only: rayleigh
 
   use m_ecckd_base, only: &

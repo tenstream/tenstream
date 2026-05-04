@@ -23,7 +23,7 @@
 !----------------------------------------------------------------------------
 
 module m_ts_nca
-  use m_data_parameters, only: ireals, iintegers, zero
+  use m_data_parameters, only: ireals
   implicit none
 
   private

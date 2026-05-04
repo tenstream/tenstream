@@ -1,7 +1,7 @@
 @test(npes=[1])
 subroutine test_eddington(this)
 
-  use m_eddington, only: eddington_coeff_zdun, eddington_coeff_bm, eddington_coeff_ec
+  use m_eddington, only: eddington_coeff_zdun, eddington_coeff_ec
   use m_data_parameters, only: ireals, zero, one
 
   use pfunit_mod

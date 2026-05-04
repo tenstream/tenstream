@@ -7,7 +7,7 @@ module test_convolution
   use m_pprts_base, only: t_solver_3_10, destroy_pprts
   use m_pprts, only: init_pprts
   use m_petsc_helpers, only: dmda_convolve_ediff_srfc
-  use m_helper_functions, only: CHKERR, spherical_2_cartesian
+  use m_helper_functions, only: spherical_2_cartesian
 
   use pfunit_mod
 

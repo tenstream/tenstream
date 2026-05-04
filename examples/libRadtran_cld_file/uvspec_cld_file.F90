@@ -14,8 +14,7 @@ module m_example_uvspec_cld_file
   ! main entry point for solver, and desctructor
   use m_specint_pprts, only: specint_pprts, specint_pprts_destroy
 
-  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, destroy_tenstr_atm, &
-                                hydrostat_dp, load_atmfile, t_bg_atm, print_tenstr_atm
+  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, destroy_tenstr_atm, hydrostat_dp, load_atmfile, t_bg_atm
 
   use m_tenstream_options, only: read_commandline_options
   use m_helper_functions, only: &

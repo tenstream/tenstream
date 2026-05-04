@@ -1,21 +1,12 @@
 module test_wedge_param_phi
-  use m_boxmc, only: t_boxmc_wedge_18_8
-  use m_data_parameters, only: mpiint, iintegers, &
-                               ireals, irealLUT, ireal_dp, ireal_params, &
-                               init_mpi_data_parameters, default_str_len, &
-                               i1, i2, i3, i4, i5, pi_ireal_params
+  use m_data_parameters, only: mpiint, iintegers, ireal_dp, ireal_params, init_mpi_data_parameters, pi_ireal_params
   use m_LUT_param_phi, only: param_phi_from_azimuth, azimuth_from_param_phi, &
                              phi_crit, theta_crit, &
                              iterative_phi_theta_from_param_phi_and_param_theta, &
                              param_phi_param_theta_from_phi_and_theta_withcoords, &
                              param_phi_param_theta_from_phi_and_theta_withnormals
 
-  use m_optprop, only: t_optprop_wedge_18_8
-  use m_tenstream_options, only: read_commandline_options
-  use m_helper_functions, only: rmse, CHKERR, get_arg, itoa, &
-                                ind_nd_to_1d, ind_1d_to_nd, rad2deg, deg2rad, &
-                                angle_between_two_vec, linspace, normalize_vec
-  use m_search, only: find_real_location
+  use m_helper_functions, only: rad2deg, deg2rad, angle_between_two_vec, linspace, normalize_vec
   use m_boxmc_geometry, only: setup_default_wedge_geometry
 
 #include "petsc/finclude/petsc.h"

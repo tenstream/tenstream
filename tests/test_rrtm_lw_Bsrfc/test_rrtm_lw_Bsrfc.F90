@@ -1,5 +1,4 @@
 module test_rrtm_lw_Bsrfc
-  use iso_fortran_env, only: real32, real64
   use m_data_parameters, only: &
     init_mpi_data_parameters, &
     iintegers, ireals, mpiint, &

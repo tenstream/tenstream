@@ -12,7 +12,7 @@ module m_xdmf_export
     & CHKERR, &
     & CHKWARN, &
     & toStr, &
-    & ind_1d_to_nd, ind_nd_to_1d, ndarray_offsets, &
+    & ind_1d_to_nd, &
     & get_arg
 
   use m_pprts_base, only: &

@@ -3,9 +3,9 @@ module test_plexrt_rrtmg_lw_sw
   use m_data_parameters, only: &
     & init_mpi_data_parameters, &
     & finalize_mpi, &
-    & ireals, iintegers, mpiint, default_str_len
+    & ireals, iintegers, mpiint
 
-  use m_helper_functions, only: chkerr, spherical_2_cartesian, meanval
+  use m_helper_functions, only: spherical_2_cartesian, meanval
 
   use m_examples_plex_rrtmg_fish, only: ex_plex_rrtmg_fish
 

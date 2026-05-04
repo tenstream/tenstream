@@ -33,7 +33,7 @@ module m_ecckd_pprts
 
   use m_data_parameters, only: &
     & iintegers, ireals, mpiint, &
-    & zero, one, default_str_len, &
+    & zero, one, &
     & i1, &
     & share_dir
 

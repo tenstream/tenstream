@@ -41,14 +41,11 @@ module m_pprts_rrtmg
   use mpi, only: mpi_comm_rank
   use m_tenstr_parkind_sw, only: im => kind_im, rb => kind_rb
   use m_tenstream_options, only: read_commandline_options
-  use m_data_parameters, only: init_mpi_data_parameters, &
-                               iintegers, ireals, zero, one, i0, i1, i2, i9, &
-                               mpiint, pi, default_str_len
+  use m_data_parameters, only: iintegers, ireals, zero, one, i0, i1, mpiint, default_str_len
 
   use m_pprts_base, only: t_solver, destroy_pprts, atmk
 
-  use m_pprts, only: init_pprts, set_angles, set_optical_properties, solve_pprts, &
-                     pprts_get_result, pprts_get_result_toZero
+  use m_pprts, only: init_pprts, set_angles, set_optical_properties, solve_pprts, pprts_get_result
 
   use m_xdmf_export, only: &
     & xdmf_pprts_buildings, &
@@ -70,11 +67,8 @@ module m_pprts_rrtmg
     & reverse, &
     & toStr
 
-  use m_search, only: find_real_location
   use m_petsc_helpers, only: dmda_convolve_ediff_srfc, &
                              getvecpointer, restorevecpointer, f90vectopetsc
-
-  use m_netcdfIO, only: ncwrite
 
   use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, plkint, print_tenstr_atm, vert_integral_coeff
 

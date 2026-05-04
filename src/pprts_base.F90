@@ -4,7 +4,7 @@ module m_pprts_base
 
   use m_data_parameters, only: &
     & ireals, irealLUT, iintegers, mpiint, &
-    & zero, one, pi, &
+    & zero, one, &
     & i0, i1, i2, &
     & default_str_len
 
@@ -14,7 +14,6 @@ module m_pprts_base
     & deallocate_allocatable, &
     & get_arg, &
     & get_petsc_opt, &
-    & imp_allreduce_min, &
     & is_inrange, &
     & rel_approx, &
     & toStr

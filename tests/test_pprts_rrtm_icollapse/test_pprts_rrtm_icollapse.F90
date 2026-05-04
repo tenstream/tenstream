@@ -1,9 +1,5 @@
 module test_pprts_rrtm_icollapse
-  use iso_fortran_env, only: real32, real64
-  use m_data_parameters, only: &
-    init_mpi_data_parameters, &
-    iintegers, ireals, mpiint, &
-    i1, zero, one, default_str_len
+  use m_data_parameters, only: init_mpi_data_parameters, iintegers, ireals, mpiint, i1, zero, default_str_len
   use m_helper_functions, only: linspace, itoa, spherical_2_cartesian
 
   ! main entry point for solver, and desctructor

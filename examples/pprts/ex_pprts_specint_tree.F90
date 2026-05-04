@@ -13,7 +13,7 @@ program main
     & share_dir
 
   use m_examples_pprts_specint_tree, only: ex_pprts_specint_tree
-  use m_helper_functions, only: CHKERR, toStr, get_petsc_opt
+  use m_helper_functions, only: CHKERR, get_petsc_opt
   use m_netcdfio, only: ncwrite
   use m_tenstream_options, only: read_commandline_options
 

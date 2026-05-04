@@ -1,7 +1,7 @@
 @test(npes=[1])
 subroutine test_eddington(this)
 
-  use m_schwarzschild, only: schwarzschild, B_eff
+  use m_schwarzschild, only: B_eff
   use m_data_parameters, only: ireals, iintegers, pi
   use m_helper_functions, only: is_between, toStr
 

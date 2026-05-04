@@ -1,5 +1,4 @@
 module test_pprts_specint
-  use iso_fortran_env, only: real32, real64
 
   use m_data_parameters, only: &
     & default_str_len, &

@@ -33,7 +33,7 @@ module m_repwvl_pprts
 
   use m_data_parameters, only: &
     & iintegers, ireals, mpiint, &
-    & zero, one, default_str_len, &
+    & zero, &
     & i1
 
   use m_tenstream_options, only: read_commandline_options

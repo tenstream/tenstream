@@ -6,7 +6,6 @@ program main
   use m_data_parameters, only: iintegers, mpiint, ireals, default_str_len, share_dir
   use m_example_pprts_specint_lw_sw, only: ex_pprts_specint_lw_sw
   use m_helper_functions, only: CHKERR, get_petsc_opt, deallocate_allocatable
-  use m_netcdfIO, only: ncwrite
 
   implicit none
 

@@ -1,8 +1,6 @@
 module test_LUT_3_24
-  use m_boxmc, only: t_boxmc, t_boxmc_3_24
-  use m_data_parameters, only: mpiint, iintegers, &
-                               ireals, irealLUT, ireal_dp, &
-                               init_mpi_data_parameters, i1, default_str_len
+  use m_boxmc, only: t_boxmc_3_24
+  use m_data_parameters, only: mpiint, iintegers, ireals, irealLUT, ireal_dp, init_mpi_data_parameters, default_str_len
   use m_optprop_LUT, only: t_optprop_LUT_3_24
   use m_tenstream_options, only: read_commandline_options
   use m_helper_functions, only: rmse

@@ -1,5 +1,5 @@
 module test_netcdfio
-  use m_data_parameters, only: ireals, iintegers, mpiint, init_mpi_data_parameters, default_str_len
+  use m_data_parameters, only: ireals, mpiint, init_mpi_data_parameters, default_str_len
   use iso_fortran_env, only: int32, int64, real32, real64
 
   use m_helper_functions, only: CHKERR, itoa, char_arr_to_str

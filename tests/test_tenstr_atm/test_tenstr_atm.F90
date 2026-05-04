@@ -1,5 +1,4 @@
 module test_tenstr_atm
-  use iso_fortran_env, only: real32, real64
   use m_data_parameters, only: &
     init_mpi_data_parameters, &
     iintegers, ireals, mpiint, &

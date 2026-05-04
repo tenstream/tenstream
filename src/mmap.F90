@@ -7,8 +7,8 @@ module m_mmap
   use m_netcdfIO, only: acquire_file_lock, release_file_lock
 
   use m_c_syscall_wrappers, only: c_sysconf, c_mmap, c_munmap, &
-                                  c_open, c_close, c_lockf, &
-                                  MAP_NORESERVE, MAP_PRIVATE, PROT_READ, SC_PAGESIZE, O_RDONLY
+    & c_open, c_close, &
+    & MAP_NORESERVE, MAP_PRIVATE, PROT_READ, SC_PAGESIZE, O_RDONLY
 
   implicit none
 

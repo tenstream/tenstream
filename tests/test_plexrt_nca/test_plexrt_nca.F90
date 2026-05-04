@@ -3,9 +3,7 @@ module test_plexrt_nca
   use petsc
 
   use m_tenstream_options, only: read_commandline_options
-  use m_data_parameters, only: init_mpi_data_parameters, &
-                               iintegers, ireals, mpiint, default_str_len, &
-                               i0, zero, pi
+  use m_data_parameters, only: init_mpi_data_parameters, iintegers, ireals, mpiint, i0, zero, pi
   use m_helper_functions, only: triangle_area_by_edgelengths, chkerr, itoa, &
                                 approx, meanval, imp_allreduce_mean
 

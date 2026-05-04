@@ -39,7 +39,7 @@ module m_optprop
     & rmse, &
     & swap, &
     & toStr
-  use m_data_parameters, only: ireals, ireal_dp, irealLUT, ireal_params, iintegers, one, zero, i0, i1, inil, mpiint
+  use m_data_parameters, only: ireals, ireal_dp, irealLUT, ireal_params, iintegers, one, zero, mpiint
   use m_optprop_base, only: t_optprop_base, t_op_config, find_op_dim_by_name
   use m_optprop_LUT, only: &
     & t_optprop_LUT, &

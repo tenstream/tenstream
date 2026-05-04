@@ -7,7 +7,7 @@ module m_plexrt_external_solvers
   use m_helper_functions, only: &
     & angle_between_two_vec, &
     & approx, &
-    & CHKERR, CHKWARN, &
+    & CHKERR, &
     & cstr, &
     & delta_scale, &
     & get_petsc_opt, &
@@ -21,12 +21,11 @@ module m_plexrt_external_solvers
                          get_consecutive_vertical_cell_idx, &
                          TOAFACE, INNERSIDEFACE, dmplex_set_new_section
 
-  use m_schwarzschild, only: schwarzschild, B_eff
+  use m_schwarzschild, only: schwarzschild
   use m_twostream, only: delta_eddington_twostream
   use m_tenstr_disort, only: default_flx_computation
 
   use m_plexrt_nca, only: plexrt_nca_init, plexrt_nca
-  use m_icon_plex_utils, only: dump_ownership, dmplex_2d_to_3d
 
   implicit none
 

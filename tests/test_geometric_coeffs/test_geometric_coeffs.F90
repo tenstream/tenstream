@@ -1,10 +1,6 @@
 module test_geometric_coeffs
-  use m_boxmc, only: t_boxmc, t_boxmc_3_10
-  use m_data_parameters, only: &
-    mpiint, iintegers, ireals, irealLUT, ireal_dp, &
-    one, zero, i1, default_str_len, &
-    init_mpi_data_parameters
-  use m_optprop_parameters, only: stddev_atol
+  use m_boxmc, only: t_boxmc_3_10
+  use m_data_parameters, only: mpiint, iintegers, ireals, ireal_dp, one, zero, init_mpi_data_parameters
   use m_boxmc_geometry, only: setup_default_unit_cube_geometry
   use m_geometric_coeffs, only: dir2dir3_geometric_coeffs
   use m_helper_functions, only: spherical_2_cartesian, cstr, toStr

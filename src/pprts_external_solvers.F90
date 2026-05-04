@@ -22,10 +22,10 @@ module m_pprts_external_solvers
   use petsc
 
   use m_data_parameters, only: ireals, iintegers, mpiint, imp_iinteger, &
-    & i0, i1, i2, i3, i4, zero, one
+    & i0, i1, i2, i3, zero, one
 
   use m_helper_functions, only: &
-    & CHKERR, CHKWARN, &
+    & CHKERR, &
     & get_petsc_opt, &
     & imp_allreduce_sum, &
     & ind_1d_to_nd, &
