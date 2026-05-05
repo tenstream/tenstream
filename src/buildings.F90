@@ -1,7 +1,4 @@
 module m_buildings
-#include "petsc/finclude/petsc.h"
-  use petsc
-
   use m_data_parameters, only: &
     & iintegers, &
     & ireals, &

@@ -19,9 +19,8 @@
 
 module m_optprop_LUT
   use iso_fortran_env, only: int64
-
-#include "petsc/finclude/petsc.h"
-  use petsc
+  use iso_c_binding, only: c_sizeof
+  use mpi
 
   use m_helper_functions, only: &
     & approx,                    &
@@ -297,15 +296,15 @@ contains
     call OPP%set_parameter_space()
 
     load_diffuse_LUT_first = .false.
-    call get_petsc_opt(PETSC_NULL_CHARACTER, '-load_diffuse_LUT_first', load_diffuse_LUT_first, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', '-load_diffuse_LUT_first', load_diffuse_LUT_first, lflg, ierr); call CHKERR(ierr)
 
     lskip_load_LUT = get_arg(.true., skip_load_LUT)
-    call get_petsc_opt(PETSC_NULL_CHARACTER, '-skip_load_LUT', lskip_load_LUT, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', '-skip_load_LUT', lskip_load_LUT, lflg, ierr); call CHKERR(ierr)
 
     lskip_load_LUT_dir = lskip_load_LUT
     lskip_load_LUT_diff = lskip_load_LUT
-    call get_petsc_opt(PETSC_NULL_CHARACTER, '-skip_load_LUT_dir', lskip_load_LUT_dir, lflg, ierr); call CHKERR(ierr)
-    call get_petsc_opt(PETSC_NULL_CHARACTER, '-skip_load_LUT_diff', lskip_load_LUT_diff, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', '-skip_load_LUT_dir', lskip_load_LUT_dir, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', '-skip_load_LUT_diff', lskip_load_LUT_diff, lflg, ierr); call CHKERR(ierr)
 
     if ((.not. lskip_load_LUT_dir .or. .not. lskip_load_LUT_diff) .and. myid .eq. 0) &
       & print *, 'loading and checking LUT`s from netCDF', &
@@ -326,7 +325,7 @@ contains
     if (ldebug .and. myid .eq. 0) print *, 'Initializing LUT`s... finished'
 
     lshow_LUT = ldebug
-    call get_petsc_opt(PETSC_NULL_CHARACTER, '-LUT_view', lshow_LUT, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', '-LUT_view', lshow_LUT, lflg, ierr); call CHKERR(ierr)
     if (lshow_LUT .and. myid .eq. 0) call print_configs(OPP)
   end subroutine
 

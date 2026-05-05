@@ -1,7 +1,4 @@
 module m_search
-#include "petsc/finclude/petsc.h"
-  use petsc
-
   use iso_fortran_env, only: real32, real64
   use m_data_parameters, only: iintegers, mpiint, ireals, ireal_dp
   use m_helper_functions, only: CHKERR, approx
@@ -231,8 +228,11 @@ contains
     end function
   #:endfor
 
+#ifdef HAVE_PETSC
   ! return index+residual i where val is between arr(i) and arr(i+1)
   function find_real_location_petsc(arr, val) result(loc)
+#include "petsc/finclude/petsc.h"
+    use petsc
     real(ireals), intent(in) :: arr(:)
     real(ireals), intent(in) :: val
     real(ireals) :: loc
@@ -259,5 +259,6 @@ contains
       loc = real(lb + 1) ! PetscFind returns the c-notation index
     end if
   end function
+#endif
 
 end module

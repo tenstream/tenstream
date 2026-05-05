@@ -38,9 +38,11 @@ module m_helper_functions
                                imp_int4, imp_int8, imp_iinteger, imp_character
   use m_options_database, only: opts_has, opts_get_raw, opts_get_logical, opts_get_string
 
+  use mpi
+#ifdef HAVE_PETSC
 #include "petsc/finclude/petsc.h"
   use petsc
-  use mpi
+#endif
 
   implicit none
 
@@ -315,7 +317,9 @@ module m_helper_functions
   interface toStr
     module procedure toStr_character
     module procedure ltoa
+#ifdef HAVE_PETSC
     module procedure lptoa
+#endif
     #:for basetype,dtype in [&
       ('integer', 'INT32'  ), &
       ('integer', 'INT64'  ), &
@@ -456,10 +460,12 @@ module m_helper_functions
       ('real'     , 'ireals'   , 'PetscOptionsGetReal'), &
       ('character', 'len=*'    , 'PetscOptionsGetString'), &
       ('logical'  , None       , 'PetscOptionsGetBool'), &
-      ('PetscBool', None       , 'PetscOptionsGetBool'), &
       ]
       module procedure get_petsc_opt_${basetype}$
     #:endfor
+#ifdef HAVE_PETSC
+    module procedure get_petsc_opt_PetscBool
+#endif
     #:for basetype,dtype,petscfunc in [   &
       ('integer'  , 'iintegers', 'PetscOptionsGetInt' ), &
       ('real'     , 'ireals'   , 'PetscOptionsGetReal'), &
@@ -679,12 +685,17 @@ module m_helper_functions
   end interface
 
   interface deallocate_allocatable
+#ifdef HAVE_PETSC
     #:for basetype,dtype,destructor in [ &
       ('type'      , 'tVec'   , 'call VecDestroy(obj, ierr); call CHKERR(ierr);'), &
       ('type'      , 'tDM'    , 'call DMDestroy (obj, ierr); call CHKERR(ierr);'), &
       ('type'      , 'tKSP'   , 'call KSPDestroy(obj, ierr); call CHKERR(ierr);'), &
       ('type'      , 'tMat'   , 'call MatDestroy(obj, ierr); call CHKERR(ierr);'), &
-      ('type'      , 'tIS'    , 'call ISDestroy (obj, ierr); call CHKERR(ierr);'), &
+      ('type'      , 'tIS'    , 'call ISDestroy (obj, ierr); call CHKERR(ierr);')]
+      module procedure deallocate_allocatable_${basetype}$_${dtype}$_0d
+    #:endfor
+#endif
+    #:for basetype,dtype,destructor in [ &
       ('logical'   , None     , None                                            ), &
       ('integer'   , 'INT32'  , None                                            ), &
       ('integer'   , 'INT64'  , None                                            ), &
@@ -692,9 +703,7 @@ module m_helper_functions
       ('real'      , 'REAL64' , None                                            )]
       #:set dKIND = '' if dtype == None else '('+dtype+')'
       #:for RANK in range(0, 8)
-        #:if not ((destructor is not None) and (RANK>0))
-          module procedure deallocate_allocatable_${basetype}$_${dtype}$_${RANK}$d
-        #:endif
+        module procedure deallocate_allocatable_${basetype}$_${dtype}$_${RANK}$d
       #:endfor
     #:endfor
   end interface
@@ -937,6 +946,7 @@ contains
     end if
   end function
 
+#ifdef HAVE_PETSC
   elemental function lptoa(l) result(res)
     character(len=1) :: res
     PetscBool, intent(in) :: l
@@ -946,6 +956,7 @@ contains
       res = 'F'
     end if
   end function
+#endif
 
   #:for basetype, dtype, fmt in [&
     ('integer', 'INT32'  , "'(I0)'"), &
@@ -2410,20 +2421,22 @@ contains
   end subroutine
 
   function get_mem_footprint(comm)
+#ifdef HAVE_PETSC
 #include "petsc/finclude/petscsys.h"
     use petsc
+#endif
     integer(mpiint), intent(in) :: comm
     real(ireals) :: get_mem_footprint
-    PetscLogDouble :: memory_footprint
     integer(mpiint) :: ierr
+#ifdef HAVE_PETSC
+    PetscLogDouble :: memory_footprint
+#endif
     get_mem_footprint = zero
-
     call mpi_barrier(comm, ierr)
+#ifdef HAVE_PETSC
     call PetscMemoryGetCurrentUsage(memory_footprint, ierr); call CHKERR(ierr)
-
     get_mem_footprint = real(memory_footprint / 1024./1024./1024., ireals)
-
-    !  if(ldebug) print *,myid,'Memory Footprint',memory_footprint, 'B', get_mem_footprint, 'G'
+#endif
   end function
 
   function reverse_1d_real32(inp) result(rev)
@@ -2795,13 +2808,17 @@ contains
       & Nx_local, Ny_local, &
       & xStart, yStart, &
       & nxproc, nyproc, ierr)
+#ifdef HAVE_PETSC
+#include "petsc/finclude/petsc.h"
+    use petsc
+#endif
     integer(mpiint), intent(in) :: comm
     integer(iintegers), intent(in) :: Nx_global, Ny_global
     integer(iintegers), intent(out) :: Nx_local, Ny_local
     integer(iintegers), intent(out) :: xStart, yStart
     integer(iintegers), allocatable, intent(inout) :: nxproc(:), nyproc(:)
     integer(mpiint), intent(out) :: ierr
-
+#ifdef HAVE_PETSC
     type(tDM) :: dm
     DMBoundaryType :: b_x, b_y, b_z
     DMDAStencilType :: stenciltype
@@ -2832,14 +2849,30 @@ contains
     nxproc = lx
     nyproc = ly
     call DMDestroy(dm, ierr); call CHKERR(ierr)
+#else
+    ierr = 1_mpiint
+    call CHKERR(ierr, 'domain_decompose_2d_petsc requires a PETSc build (WITH_PETSC=ON)')
+#endif
   end subroutine
 
+#ifdef HAVE_PETSC
   #:for basetype,dtype,destructor,optdef in [ &
     ('type'      , 'tVec'   , 'call VecDestroy(obj, ierr)   ; call CHKERR(ierr);', 'integer(mpiint) :: ierr'), &
     ('type'      , 'tDM'    , 'call DMDestroy (obj, ierr)   ; call CHKERR(ierr);', 'integer(mpiint) :: ierr'), &
     ('type'      , 'tKSP'   , 'call KSPDestroy(obj, ierr)   ; call CHKERR(ierr);', 'integer(mpiint) :: ierr'), &
     ('type'      , 'tMat'   , 'call MatDestroy(obj, ierr)   ; call CHKERR(ierr);', 'integer(mpiint) :: ierr'), &
-    ('type'      , 'tIS'    , 'call ISDestroy (obj, ierr)   ; call CHKERR(ierr);', 'integer(mpiint) :: ierr'), &
+    ('type'      , 'tIS'    , 'call ISDestroy (obj, ierr)   ; call CHKERR(ierr);', 'integer(mpiint) :: ierr')]
+    subroutine deallocate_allocatable_${basetype}$_${dtype}$_0d(obj)
+      ${basetype}$ (${dtype}$), allocatable, intent(inout) :: obj
+      ${optdef}$
+      if (allocated(obj)) then
+        ${destructor}$
+        deallocate (obj)
+      end if
+    end subroutine
+  #:endfor
+#endif
+  #:for basetype,dtype,destructor,optdef in [ &
     ('logical'   , None     , None                                            , None), &
     ('integer'   , 'INT32'  , None                                            , None), &
     ('integer'   , 'INT64'  , None                                            , None), &
@@ -2847,16 +2880,10 @@ contains
     ('real'      , 'REAL64' , None                                            , None)]
     #:set dKIND = '' if dtype == None else '('+dtype+')'
     #:for RANK in range(0, 8)
-      #:if not (destructor is not None and (RANK>0))
-        subroutine deallocate_allocatable_${basetype}$_${dtype}$_${RANK}$d(obj)
-          ${basetype}$${dKIND}$, allocatable, intent(inout) :: obj${ranksuffix(RANK)}$
-          ${optdef}$
-          if (allocated(obj)) then
-            ${destructor}$
-            deallocate (obj)
-          end if
-        end subroutine
-      #:endif
+      subroutine deallocate_allocatable_${basetype}$_${dtype}$_${RANK}$d(obj)
+        ${basetype}$${dKIND}$, allocatable, intent(inout) :: obj${ranksuffix(RANK)}$
+        if (allocated(obj)) deallocate (obj)
+      end subroutine
     #:endfor
   #:endfor
 
@@ -3031,6 +3058,9 @@ contains
     ('PetscBool', None       , 'PetscOptionsGetBool'  ), &
     ]
     #:set dKIND = '' if dtype == None else '('+dtype+')'
+    #:if (basetype == 'PetscBool')
+#ifdef HAVE_PETSC
+    #:endif
 
     subroutine get_petsc_opt_${basetype}$ (prefix, option_name, optval, lset, ierr)
       character(len=*), intent(in) :: prefix, option_name
@@ -3079,12 +3109,16 @@ contains
         else
           color = 'dark grey'
         end if
-        call mpi_comm_rank(petsc_comm_world, myid, ierr); call CHKERR(ierr)
+        call mpi_comm_rank(MPI_COMM_WORLD, myid, ierr); call CHKERR(ierr)
         if (myid .eq. 0) print *, 'Tenstream option'//' '//cstr(trim(full_opt_name), color)//' '// &
           & cstr('(opt <'//trim(option_name)//'> prefix <'//trim(prefix)//'> set? '//toStr(lset)//' )', 'dark grey')// &
           & ' => '//cstr(trim(toStr(optval)), color)
       end if
     end subroutine
+
+    #:if (basetype == 'PetscBool')
+#endif
+    #:endif
   #:endfor
 
   #:for basetype,dtype,petscfunc in [   &
@@ -3138,7 +3172,7 @@ contains
         else
           full_opt_name = '-'//trim(prefix)//trim(option_name)
         end if
-        call mpi_comm_rank(petsc_comm_world, myid, ierr); call CHKERR(ierr)
+        call mpi_comm_rank(MPI_COMM_WORLD, myid, ierr); call CHKERR(ierr)
         if (myid .eq. 0) print *, 'Tenstream option'//' '//cstr(trim(full_opt_name), color)//' '// &
           & cstr('( '// &
             & 'opt <'//trim(option_name)//'> '// &

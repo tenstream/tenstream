@@ -190,6 +190,8 @@ endif()
 set(MPIEXEC_NUMPROC_FLAG -n CACHE STRING "options to set number of MPI tasks/nodes")
 MESSAGE(STATUS "Using MPIEXEC: ${MPIEXEC}")
 
+option(WITH_PETSC "Enable PETSc solver backend (required for pprts, optional for optprop-only builds)" ON)
+
 # Petsc
 if(NOT PETSC_INSTALL)
   if(NOT DEFINED ENV{PETSC_DIR})
@@ -223,6 +225,12 @@ message(STATUS "PETSC_LINK_LIBRARIES : ${PETSC_LINK_LIBRARIES}")
 message(STATUS "PETSC_LDFLAGS        : ${PETSC_LDFLAGS}       ")
 list (APPEND EXTLIB ${PETSC_LINK_LIBRARIES} ${PETSC_LDFLAGS})
 list (APPEND CMAKE_INSTALL_RPATH ${PETSC_LIBDIR})
+if(WITH_PETSC)
+  add_compile_definitions(HAVE_PETSC)
+  message(STATUS "WITH_PETSC=ON: PETSc solver backend enabled (-DHAVE_PETSC)")
+else()
+  message(STATUS "WITH_PETSC=OFF: PETSc headers still needed to compile solver, but init/finalize are skipped")
+endif()
 
 # the cmake dependency scanner gets trapped in an infinite loop when we add petsc headers as includedirs.
 # instead we provide them as compiler flags
