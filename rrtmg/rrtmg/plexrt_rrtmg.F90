@@ -53,6 +53,8 @@ module m_plexrt_rrtmg
       & get_arg, &
       & delta_scale_optprop, &
       & is_inrange
+
+  use m_options_database, only: opts_has
   use m_search, only: find_real_location
   use m_tenstream_interpolation, only: interp_1d
 
@@ -258,12 +260,11 @@ contains
       logical, intent(in), optional :: lreverse
       type(tVec) :: vec
       logical :: lrev
-      PetscBool :: lflg
+      logical :: lflg
 
       lrev = get_arg(.false., lreverse)
 
-      lflg = .false.
-      call PetscOptionsHasName(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, vecshow_string, lflg, ierr); call CHKERR(ierr)
+      call opts_has('', vecshow_string, lflg)
       if (lflg) then
         if (.not. allocated(solver%plex%cell1_dm)) return
         call DMGetGlobalVector(solver%plex%cell1_dm, vec, ierr); call CHKERR(ierr)

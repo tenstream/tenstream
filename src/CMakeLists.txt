@@ -51,6 +51,7 @@ set( general_sources
   "c_syscall_constants.c"
   "c_syscall_wrappers.F90"
   "data_parameters.F90"
+  "options_database.F90"
   "eddington.F90"
   "interpolation.F90"
   "mcdmda.F90"

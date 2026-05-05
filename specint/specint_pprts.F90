@@ -38,6 +38,8 @@ module m_specint_pprts
     & ind_1d_to_nd, &
     & toStr
 
+  use m_options_database, only: opts_has
+
   use m_data_parameters, only: &
     & iintegers, ireals, mpiint, &
     & imp_iinteger, &
@@ -483,11 +485,10 @@ contains
       type(tDM), intent(in) :: dm
       character(len=*), intent(in) :: dumpstring, varname
       character(len=default_str_len) :: vname
-      PetscBool :: lflg
+      logical :: lflg
       type(tVec) :: dumpvec
 
-      call PetscOptionsHasName(PETSC_NULL_OPTIONS, solver%prefix, &
-                               trim(dumpstring), lflg, ierr); call CHKERR(ierr)
+      call opts_has(trim(solver%prefix), trim(dumpstring), lflg)
       if (lflg) then
         vname = trim(varname)
         if (present(opt_time)) vname = trim(vname)//'.t'//trim(adjustl(toStr(opt_time)))

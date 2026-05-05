@@ -4,6 +4,7 @@ module m_plex_rt
   use petsc
 
   use m_tenstream_options, only: read_commandline_options, lschwarzschild, lcalc_nca
+  use m_options_database, only: opts_has
 
   use m_helper_functions, only: &
     & angle_between_two_vec, &
@@ -532,7 +533,6 @@ contains
 
     real(ireals), save :: last_sundir(3) = [zero, zero, zero]
     logical :: lrayli_snap, luse_rayli, lvacuum_domain_boundary, lflg
-    PetscBool :: lrayli_snap_p
 
     call check_input_arguments()
 
@@ -647,10 +647,8 @@ contains
         luse_rayli = .true.
       end select
 
-      lrayli_snap_p = .false.
-      call PetscOptionsHasName(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-                               "-rayli_snapshot", lrayli_snap_p, ierr); call CHKERR(ierr)
-      lrayli_snap = lrayli_snap_p
+      lrayli_snap = .false.
+      call opts_has('', '-rayli_snapshot', lrayli_snap)
 
       call PetscLogEventBegin(solver%logs%solve_rayli, ierr)
       if (lsolar) then
@@ -2239,7 +2237,7 @@ contains
     real(ireals) :: atol
 
     character(len=default_str_len) :: kspprefix
-    PetscBool :: prec_is_set
+    logical :: prec_is_set
     type(tPC) :: prec
 
     PetscCount :: ksp_residual_history_size
@@ -2284,8 +2282,7 @@ contains
 
     call KSPSetType(ksp, KSPFGMRES, ierr); call CHKERR(ierr)
 
-    prec_is_set = .false.
-    call PetscOptionsHasName(PETSC_NULL_OPTIONS, trim(kspprefix), '-pc_type', prec_is_set, ierr); call CHKERR(ierr)
+    call opts_has(trim(kspprefix), '-pc_type', prec_is_set)
 
     if (.not. prec_is_set) then
       call KSPGetPC(ksp, prec, ierr); call CHKERR(ierr)

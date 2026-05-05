@@ -67,6 +67,8 @@ module m_pprts_rrtmg
     & reverse, &
     & toStr
 
+  use m_options_database, only: opts_has
+
   use m_petsc_helpers, only: dmda_convolve_ediff_srfc, &
                              getvecpointer, restorevecpointer, f90vectopetsc
 
@@ -508,11 +510,10 @@ contains
       type(tDM), intent(in) :: dm
       character(len=*), intent(in) :: dumpstring, varname
       character(len=default_str_len) :: vname
-      PetscBool :: lflg
+      logical :: lflg
       type(tVec) :: dumpvec
 
-      call PetscOptionsHasName(PETSC_NULL_OPTIONS, solver%prefix, &
-                               trim(dumpstring), lflg, ierr); call CHKERR(ierr)
+      call opts_has(trim(solver%prefix), trim(dumpstring), lflg)
       if (lflg) then
         vname = trim(varname)
         if (present(opt_time)) vname = trim(vname)//'.t'//trim(adjustl(toStr(opt_time)))

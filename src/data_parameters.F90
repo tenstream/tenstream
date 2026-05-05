@@ -22,6 +22,7 @@ module m_data_parameters
   use petsc
 
   use iso_fortran_env, only: int32, int64, real32, real64, real128
+  use m_options_database, only: opts_init
   use ieee_arithmetic, only: ieee_support_nan, ieee_quiet_nan, ieee_value, &
     & ieee_support_inf, ieee_positive_inf, ieee_negative_inf
   implicit none
@@ -152,7 +153,6 @@ contains
     integer(mpiint) :: dtsize, ierr, myid, numnodes, mpierr
     logical :: lmpi_is_initialized, lallsame
     PetscBool :: lpetsc_is_initialized
-    logical :: file_exists
 
     call mpi_initialized(lmpi_is_initialized, mpierr)
     if (mpierr .ne. 0) call mpi_abort(comm, mpierr, ierr)
@@ -249,11 +249,7 @@ contains
     if (.not. lpetsc_is_initialized) then
       call PetscInitialize(PETSC_NULL_CHARACTER, mpierr)
 
-      inquire (file='tenstream.options', exist=file_exists)
-      if (file_exists) then
-        call PetscOptionsInsertFile(comm, PETSC_NULL_OPTIONS, 'tenstream.options', PETSC_TRUE, mpierr)
-        if (mpierr .ne. 0) call mpi_abort(comm, mpierr, ierr)
-      end if
+      call opts_init()
       if (mpierr .ne. 0) call mpi_abort(comm, mpierr, ierr)
     end if
   end subroutine

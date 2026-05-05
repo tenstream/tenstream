@@ -36,6 +36,7 @@ module m_helper_functions
                                imp_REAL32, imp_REAL64, &
                                default_str_len, &
                                imp_int4, imp_int8, imp_iinteger, imp_character
+  use m_options_database, only: opts_has, opts_get_raw, opts_get_logical, opts_get_string
 
 #include "petsc/finclude/petsc.h"
   use petsc
@@ -3037,12 +3038,12 @@ contains
       logical, intent(out) :: lset
       integer(mpiint), intent(out) :: ierr
 
-      character(len=default_str_len) :: full_opt_name, color
+      character(len=default_str_len) :: full_opt_name, color, raw_
       character(len=default_str_len), save :: last_options_call
       integer(mpiint) :: myid
-      PetscBool :: lshow, lflg, lset_petsc
-      #:if (basetype == 'logical')
-        PetscBool :: optval_petsc
+      logical :: lshow
+      #:if (basetype == 'PetscBool')
+        logical :: optval_l_
       #:endif
 
       if (option_name(1:1) == '-' .and. len_trim(option_name) > 1) then
@@ -3051,36 +3052,24 @@ contains
         full_opt_name = '-'//trim(prefix)//trim(option_name)
       end if
 
-      if (last_options_call .eq. full_opt_name) then
-        lshow = .false.
-      else
-        lshow = .false.
-        call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-ts_options_view", lshow, lflg, ierr); call CHKERR(ierr)
-      end if
+      lshow = .false.
+      if (last_options_call .ne. full_opt_name) &
+        call opts_has('', '-ts_options_view', lshow)
 
-      #:if (basetype == 'logical')
-        optval_petsc = optval
-        call ${petscfunc}$ (&
-          & PETSC_NULL_OPTIONS, &
-          & trim(prefix), &
-          & trim(option_name), &
-          & optval_petsc, &
-          & lset_petsc, &
-          & ierr)
-        call CHKERR(ierr)
-        optval = optval_petsc
+      #:if (basetype == 'PetscBool')
+        optval_l_ = logical(optval)
+        call opts_get_logical(trim(prefix), trim(option_name), optval_l_, lset)
+        if (lset) optval = optval_l_
+      #:elif (basetype == 'logical')
+        call opts_get_logical(trim(prefix), trim(option_name), optval, lset)
+      #:elif (basetype == 'character')
+        call opts_get_string(trim(prefix), trim(option_name), optval, lset)
       #:else
-        call ${petscfunc}$ (&
-          & PETSC_NULL_OPTIONS, &
-          & trim(prefix), &
-          & trim(option_name), &
-          & optval, &
-          & lset_petsc, &
-          & ierr)
-        call CHKERR(ierr)
+        raw_ = ''
+        call opts_get_raw(trim(prefix), trim(option_name), raw_, lset)
+        if (lset) read (raw_, *) optval
       #:endif
-
-      lset = lset_petsc
+      ierr = 0
 
       last_options_call = full_opt_name
 
@@ -3111,26 +3100,32 @@ contains
       logical, intent(out) :: lset
       integer(mpiint), intent(out) :: ierr
 
-      character(len=default_str_len) :: full_opt_name, color
-      integer(iintegers) :: argcnt
+      character(len=default_str_len) :: full_opt_name, color, raw_
       integer(mpiint) :: myid
-      PetscBool :: lshow, lflg, lset_petsc
+      logical :: lshow
+      integer :: p_, prev_, ios_
+      ${basetype}$${dKIND}$::tmp_
 
-      lshow = .false.
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-ts_options_view", lshow, lflg, ierr); call CHKERR(ierr)
+      call opts_has('', '-ts_options_view', lshow)
 
-      argcnt = nmax
-
-      call ${petscfunc}$Array(&
-        & PETSC_NULL_OPTIONS, &
-        & trim(prefix), &
-        & trim(option_name), &
-        & optval, &
-        & argcnt, &
-        & lset_petsc, &
-        & ierr)
-      call CHKERR(ierr)
-      lset = lset_petsc
+      raw_ = ''
+      call opts_get_raw(trim(prefix), trim(option_name), raw_, lset)
+      if (lset) then
+        raw_ = trim(raw_)//','
+        nmax = 0
+        prev_ = 1
+        do p_ = 1, len_trim(raw_)
+          if (raw_(p_:p_) == ',') then
+            read (raw_(prev_:p_ - 1), *, iostat=ios_) tmp_
+            if (ios_ == 0 .and. nmax < size(optval, kind=iintegers)) then
+              nmax = nmax + 1
+              optval(nmax) = tmp_
+            end if
+            prev_ = p_ + 1
+          end if
+        end do
+      end if
+      ierr = 0
 
       if (lshow) then
         if (lset) then
@@ -3151,9 +3146,8 @@ contains
             & 'set? '//toStr(lset)//' '// &
             & 'nmax '//toStr(nmax)//' '// &
           & ')', 'dark grey')// &
-          & ' => '//cstr(trim(toStr(optval))//' (cnt='//toStr(argcnt)//')', color)
+          & ' => '//cstr(trim(toStr(optval))//' (cnt='//toStr(nmax)//')', color)
       end if
-      nmax = argcnt
     end subroutine
   #:endfor
 

@@ -42,6 +42,7 @@ module m_plex_grid
   use m_LUT_param_phi, only: param_phi_param_theta_from_phi_and_theta_withnormals, &
                              LUT_wedge_aspect_zx
   use m_optprop_parameters, only: param_eps
+  use m_options_database, only: opts_has
 
   implicit none
 
@@ -487,7 +488,7 @@ contains
 
     integer(mpiint) :: myid, comm, ierr
     character(len=default_str_len) :: faceVecname, cellVecname
-    PetscBool :: option_is_set
+    logical :: option_is_set
 
     call PetscObjectGetComm(faceVec_dm, comm, ierr); call CHKERR(ierr)
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
@@ -495,8 +496,7 @@ contains
     call PetscObjectGetName(global_faceVec, faceVecname, ierr); call CHKERR(ierr)
     cellVecname = 'fV2cV_'//trim(faceVecname)
 
-    call PetscOptionsHasName(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-show_'//trim(cellVecname), &
-                             option_is_set, ierr); call CHKERR(ierr)
+    call opts_has('', '-show_'//trim(cellVecname), option_is_set)
     if (.not. option_is_set) return
 
     if (ldebug .and. myid .eq. 0) print *, 'facevec2cellvec :: starting..'//trim(faceVecname)

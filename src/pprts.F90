@@ -28,6 +28,7 @@ module m_pprts
     & zero, one, nan, pi,                                    &
     & nil, i0, i1, i2, i3, i4, i5, i6, i8,                 &
     & default_str_len
+  use m_options_database, only: opts_has
 
   use m_helper_functions, only: &
     & angle_between_two_normed_vec, &
@@ -2425,7 +2426,6 @@ contains
 
     integer(iintegers) :: uid, last_uid
     logical :: derived_lsolar, luse_rayli, lrayli_snapshot
-    PetscBool :: lrayli_snapshot_p
     logical :: linitial_guess_from_last_uid, linitial_guess_from_2str, linitial_guess_from_sc, lflg
     integer(mpiint) :: ierr
 
@@ -2536,10 +2536,8 @@ contains
         luse_rayli = .true.
       end select
 
-      lrayli_snapshot_p = .false.
-      call PetscOptionsHasName(PETSC_NULL_OPTIONS, solver%prefix, &
-                               "-rayli_snapshot", lrayli_snapshot_p, ierr); call CHKERR(ierr)
-      lrayli_snapshot = lrayli_snapshot_p
+      lrayli_snapshot = .false.
+      call opts_has(trim(solver%prefix), '-rayli_snapshot', lrayli_snapshot)
 
       if (luse_rayli .or. lrayli_snapshot) then
         call PetscLogEventBegin(solver%logs%solve_mcrts, ierr); call CHKERR(ierr)
@@ -4609,7 +4607,7 @@ contains
     real(ireals) :: rtol_default, atol_default
 
     type(tPC) :: prec
-    PetscBool :: prec_is_set
+    logical :: prec_is_set
     integer(mpiint) :: ierr
     character(len=default_str_len) :: kspprefix
 
@@ -4630,8 +4628,7 @@ contains
     call KSPSetType(ksp, KSPFBCGS, ierr); call CHKERR(ierr)
     call KSPSetInitialGuessNonzero(ksp, PETSC_TRUE, ierr); call CHKERR(ierr)
 
-    prec_is_set = .false.
-    call PetscOptionsHasName(PETSC_NULL_OPTIONS, trim(kspprefix), '-pc_type', prec_is_set, ierr); call CHKERR(ierr)
+    call opts_has(trim(kspprefix), '-pc_type', prec_is_set)
 
     if (.not. prec_is_set) then
       !call CHKWARN(1_mpiint, 'no preconditioner setting found, applying defaults')

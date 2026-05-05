@@ -24,6 +24,7 @@ module m_tenstream_options
     & zero, one, i0, default_str_len
   use m_optprop_parameters, only: lut_basename, stddev_atol, stddev_rtol
   use m_helper_functions, only: CHKERR, CHKWARN, get_petsc_opt
+  use m_options_database, only: opts_has
 
 #include "petsc/finclude/petsc.h"
   use petsc
@@ -65,11 +66,10 @@ contains
   subroutine read_commandline_options(comm)
     integer(mpiint), intent(in) :: comm
     logical :: lflg
-    PetscBool :: lflg_p
+    logical :: lflg_l
     integer(mpiint) :: ierr
     logical :: lshow_options
     logical :: ltenstr_view
-    logical :: file_exists
 
     integer(mpiint) :: myid, numnodes
     character(default_str_len) :: lut_basename_env
@@ -78,11 +78,6 @@ contains
 
     call MPI_COMM_RANK(comm, myid, ierr); call CHKERR(ierr)
     call MPI_Comm_size(comm, numnodes, ierr); call CHKERR(ierr)
-
-    inquire (file='tenstream.options', exist=file_exists)
-    if (file_exists) then
-      call PetscOptionsInsertFile(comm, PETSC_NULL_OPTIONS, 'tenstream.options', PETSC_FALSE, ierr); call CHKERR(ierr)
-    end if
 
     lshow_options = .false.
     call get_petsc_opt(PETSC_NULL_CHARACTER, "-show_options", lshow_options, lflg, ierr); call CHKERR(ierr)
@@ -141,9 +136,8 @@ contains
     call get_petsc_opt(PETSC_NULL_CHARACTER, "-tenstr_view", &
                        ltenstr_view, lflg, ierr); call CHKERR(ierr)
 
-    call PetscOptionsHasName(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-                             "-twostr_only", lflg_p, ierr); call CHKERR(ierr)
-    if (lflg_p) call CHKERR(1_mpiint, 'Option -twostr_only is deprecated in favor of a distinct solver option, e.g. -solver 2str')
+    call opts_has('', '-twostr_only', lflg_l)
+    if (lflg_l) call CHKERR(1_mpiint, 'Option -twostr_only is deprecated in favor of a distinct solver option, e.g. -solver 2str')
 
     if (myid .eq. 0 .and. ltenstr_view) then
       print *, '********************************************************************'
