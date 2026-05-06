@@ -1,6 +1,8 @@
 program main
+#ifdef HAVE_PETSC
 #include "petsc/finclude/petsc.h"
   use petsc
+#endif
   use mpi
   use m_tenstream_options, only: read_commandline_options
   use m_data_parameters, only: mpiint, default_str_len
@@ -17,7 +19,9 @@ program main
   call mpi_init(ierr)
   call mpi_comm_rank(comm, myid, ierr)
 
+#ifdef HAVE_PETSC
   call PetscInitialize('', ierr)
+#endif
 
   call read_commandline_options(comm)
 

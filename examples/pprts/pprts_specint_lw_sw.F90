@@ -1,5 +1,5 @@
 module m_example_pprts_specint_lw_sw
-
+#ifdef HAVE_PETSC
 #include "petsc/finclude/petsc.h"
   use petsc
   use mpi
@@ -304,4 +304,28 @@ contains
     call destroy_tenstr_atm(atm)
   end subroutine
 
+#else /* HAVE_PETSC */
+  use m_data_parameters, only: iintegers, ireals, mpiint, default_str_len
+  use m_helper_functions, only: CHKERR
+  implicit none
+  private
+  public :: ex_pprts_specint_lw_sw
+contains
+  subroutine ex_pprts_specint_lw_sw(specint, comm, nxp, nyp, nzp, dx, dy, &
+      & phi0, theta0, albedo_th, albedo_sol, &
+      & lthermal, lsolar, atm_filename, &
+      & gedir, gedn, geup, gabso, &
+      & vlwc, viwc, vreff, vreice, outfile)
+    character(len=*), intent(in) :: specint
+    integer(mpiint), intent(in) :: comm
+    integer(iintegers), intent(in) :: nxp, nyp, nzp
+    real(ireals), intent(in) :: dx, dy, phi0, theta0, albedo_th, albedo_sol
+    logical, intent(in) :: lthermal, lsolar
+    character(len=*), intent(in) :: atm_filename
+    real(ireals), allocatable, dimension(:, :, :), intent(out) :: gedir, gedn, geup, gabso
+    real(ireals), intent(in), optional :: vlwc, viwc, vreff, vreice
+    character(len=*), intent(in), optional :: outfile
+    call CHKERR(1_mpiint, 'ex_pprts_specint_lw_sw requires PETSc -- rebuild with -DWITH_PETSC=ON')
+  end subroutine
+#endif /* HAVE_PETSC */
 end module

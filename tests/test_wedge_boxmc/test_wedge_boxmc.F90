@@ -55,8 +55,10 @@ contains
     class(MpiTestMethod), intent(inout) :: this
     logical :: lpetsc_is_initialized
     integer(mpiint) :: ierr
+#ifdef HAVE_PETSC
     call PetscInitialized(lpetsc_is_initialized, ierr)
     if (lpetsc_is_initialized) call PetscFinalize(ierr)
+#endif
     if (myid .eq. 0) print *, 'Finishing boxmc tests module'
   end subroutine teardown
 

@@ -58,7 +58,9 @@ contains
     class(MpiTestMethod), intent(inout) :: this
     integer(mpiint) :: ierr
     myid = this%getProcessRank()
+#ifdef HAVE_PETSC
     call PetscFinalize(ierr)
+#endif
     if (myid .eq. 0) print *, 'Finishing boxmc tests module'
   end subroutine teardown
 

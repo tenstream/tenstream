@@ -434,5 +434,33 @@ contains
       write (funit, *) '</Grid>'
     end subroutine
   end subroutine xdmf_pprts_srfc_flux
+#else
+  use m_data_parameters, only: mpiint, ireals
+  use m_helper_functions, only: CHKERR
+  use m_pprts_base, only: t_solver
+  use m_buildings, only: t_pprts_buildings
+  implicit none
+  private
+  public :: xdmf_pprts_buildings, xdmf_pprts_srfc_flux
+contains
+  subroutine xdmf_pprts_buildings(solver, buildings, fbasename, ierr, verbose)
+    class(t_solver), intent(in) :: solver
+    type(t_pprts_buildings), intent(in) :: buildings
+    character(len=*), intent(in) :: fbasename
+    integer(mpiint), intent(out) :: ierr
+    logical, intent(in), optional :: verbose
+    ierr = 0
+    call CHKERR(1_mpiint, 'xdmf_pprts_buildings requires PETSc -- rebuild with -DWITH_PETSC=ON')
+  end subroutine
+  subroutine xdmf_pprts_srfc_flux(solver, fbasename, edn, eup, ierr, edir, verbose)
+    class(t_solver), intent(in) :: solver
+    character(len=*), intent(in) :: fbasename
+    real(ireals), intent(in) :: edn(:, :, :), eup(:, :, :)
+    integer(mpiint), intent(out) :: ierr
+    real(ireals), intent(in), optional :: edir(:, :, :)
+    logical, intent(in), optional :: verbose
+    ierr = 0
+    call CHKERR(1_mpiint, 'xdmf_pprts_srfc_flux requires PETSc -- rebuild with -DWITH_PETSC=ON')
+  end subroutine
 #endif
 end module

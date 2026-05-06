@@ -26,7 +26,9 @@ contains
     ! Tidy up
     class(MpiTestMethod), intent(inout) :: this
     integer(mpiint) :: ierr
+#ifdef HAVE_PETSC
     call PetscFinalize(ierr)
+#endif
   end subroutine teardown
 
   @test(npes=[1, 2])

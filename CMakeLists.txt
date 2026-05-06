@@ -462,12 +462,10 @@ endif(ENABLE_PLEXRT)
 
 set(TENSTR_LIBS
   pprts_base
+  pprts
   tenstr_disort
   f2c_rayli
   )
-if(WITH_PETSC)
-  list(APPEND TENSTR_LIBS pprts)
-endif()
 if(ENABLE_C_WRAPPER)
   list(APPEND TENSTR_LIBS f2c_pprts f2c_pprts_rrtm)
 endif()

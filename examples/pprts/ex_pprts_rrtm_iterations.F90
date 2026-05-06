@@ -1,6 +1,8 @@
 program main
+#ifdef HAVE_PETSC
 #include "petsc/finclude/petsc.h"
   use petsc
+#endif
   use mpi
   use m_data_parameters, only: iintegers, mpiint, ireals
   use m_example_pprts_rrtm_iterations, only: example_rrtm_lw_sw
@@ -16,7 +18,9 @@ program main
   call mpi_init(ierr)
   call mpi_comm_rank(mpi_comm_world, myid, ierr)
 
+#ifdef HAVE_PETSC
   call PetscInitialize('', ierr)
+#endif
 
   Nx = 3; Ny = 3; Nz = 5
   call get_petsc_opt('', "-Nx", Nx, lflg, ierr)

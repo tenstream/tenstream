@@ -57,8 +57,10 @@ contains
     class(MpiTestMethod), intent(inout) :: this
     logical :: lpetsc_is_initialized
     integer(mpiint) :: ierr
+#ifdef HAVE_PETSC
     call PetscInitialized(lpetsc_is_initialized, ierr)
     if (lpetsc_is_initialized) call PetscFinalize(ierr)
+#endif
   end subroutine teardown
   @test(npes=[1, 2, 3])
   subroutine test_mpi_char_bcast(this)
