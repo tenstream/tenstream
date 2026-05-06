@@ -2656,7 +2656,17 @@ contains
       lexplicit_diff = .false.
       call get_petsc_opt(prefix, "-explicit", lexplicit_diff, lflg, ierr); call CHKERR(ierr)
       if (lexplicit_diff) then
+#ifdef HAVE_PETSC
+        block
+          real(ireals), pointer :: b_1d(:), b_4d(:, :, :, :)
+          b_1d => null(); b_4d => null()
+          call getVecPointer(solver%C_diff%da, solver%b, b_1d, b_4d, readonly=.true.)
+          call explicit_ediff(solver, prefix, b_4d, solution, ierr); call CHKERR(ierr)
+          call restoreVecPointer(solver%C_diff%da, solver%b, b_1d, b_4d, readonly=.true.)
+        end block
+#else
         call explicit_ediff(solver, prefix, solver%b, solution, ierr); call CHKERR(ierr)
+#endif
       else
         if (solution%lsolar_rad) then
           call ediff(solver%Mdiff, solver%Mdiff_perm, solver%ksp_solar_diff, prefix)
