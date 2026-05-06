@@ -20,6 +20,7 @@
 !> \page Routines to call tenstream with optical properties from different spectral integration approaches
 
 module m_specint_pprts
+#ifdef HAVE_PETSC
 #include "petsc/finclude/petsc.h"
   use petsc
   use mpi
@@ -1193,4 +1194,67 @@ contains
     end subroutine
 
   end subroutine
+
+#else /* HAVE_PETSC */
+  use m_data_parameters, only: iintegers, ireals, mpiint, default_str_len
+  use m_helper_functions, only: CHKERR
+  use m_pprts_base, only: t_solver
+  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm
+  use m_buildings, only: t_pprts_buildings
+  implicit none
+  private
+  public :: specint_pprts, specint_pprts_destroy, load_input_dump
+contains
+  subroutine specint_pprts(specint, comm, solver, atm, ie, je, dx, dy, sundir, &
+      & albedo_thermal, albedo_solar, lthermal, lsolar, edir, edn, eup, abso, &
+      & nxproc, nyproc, icollapse, opt_time, solar_albedo_2d, thermal_albedo_2d, &
+      & opt_solar_constant, opt_buildings_solar, opt_buildings_thermal, &
+      & opt_tau_solar, opt_w0_solar, opt_g_solar, opt_tau_thermal, lonly_initialize)
+    character(len=*), intent(in) :: specint
+    integer(mpiint), intent(in) :: comm
+    class(t_solver), intent(inout) :: solver
+    type(t_tenstr_atm), intent(in) :: atm
+    integer(iintegers), intent(in) :: ie, je
+    real(ireals), intent(in) :: dx, dy, sundir(:), albedo_solar, albedo_thermal
+    logical, intent(in) :: lsolar, lthermal
+    real(ireals), allocatable, dimension(:, :, :), intent(inout) :: edir, edn, eup, abso
+    integer(iintegers), intent(in), optional :: nxproc(:), nyproc(:), icollapse
+    real(ireals), optional, intent(in) :: opt_time, solar_albedo_2d(:, :), thermal_albedo_2d(:, :), opt_solar_constant
+    type(t_pprts_buildings), intent(inout), optional :: opt_buildings_solar, opt_buildings_thermal
+    real(ireals), intent(in), optional, dimension(:, :, :) :: opt_tau_solar, opt_w0_solar, opt_g_solar, opt_tau_thermal
+    logical, intent(in), optional :: lonly_initialize
+    call CHKERR(1_mpiint, 'specint_pprts requires PETSc -- rebuild with -DWITH_PETSC=ON')
+  end subroutine
+
+  subroutine specint_pprts_destroy(specint, solver, lfinalizepetsc, ierr)
+    character(len=*), intent(in) :: specint
+    class(t_solver) :: solver
+    logical, intent(in) :: lfinalizepetsc
+    integer(mpiint), intent(out) :: ierr
+    ierr = 0
+    call CHKERR(1_mpiint, 'specint_pprts_destroy requires PETSc -- rebuild with -DWITH_PETSC=ON')
+  end subroutine
+
+  subroutine load_input_dump(comm, inpfile, Nx_local, Ny_local, nxproc, nyproc, &
+      & dx, dy, sundir, albedo_thermal, albedo_solar, lsolar, lthermal, atm, &
+      & opt_time, solar_albedo_2d, thermal_albedo_2d, opt_solar_constant, &
+      & opt_buildings_solar, opt_buildings_thermal, &
+      & opt_tau_solar, opt_w0_solar, opt_g_solar, opt_tau_thermal, ierr)
+    integer(mpiint), intent(in) :: comm
+    character(len=default_str_len) :: inpfile
+    integer(iintegers), intent(out) :: Nx_local, Ny_local
+    integer(iintegers), allocatable, intent(out) :: nxproc(:), nyproc(:)
+    real(ireals), intent(out) :: dx, dy
+    real(ireals), allocatable, intent(out) :: sundir(:)
+    real(ireals), intent(out) :: albedo_solar, albedo_thermal
+    logical, intent(out) :: lsolar, lthermal
+    type(t_tenstr_atm), intent(out) :: atm
+    real(ireals), allocatable, intent(out) :: opt_time, solar_albedo_2d(:, :), thermal_albedo_2d(:, :), opt_solar_constant
+    type(t_pprts_buildings), allocatable, intent(out) :: opt_buildings_solar, opt_buildings_thermal
+    real(ireals), allocatable, intent(out), dimension(:, :, :) :: opt_tau_solar, opt_w0_solar, opt_g_solar, opt_tau_thermal
+    integer(mpiint), intent(out) :: ierr
+    ierr = 0
+    call CHKERR(1_mpiint, 'load_input_dump requires PETSc -- rebuild with -DWITH_PETSC=ON')
+  end subroutine
+#endif
 end module

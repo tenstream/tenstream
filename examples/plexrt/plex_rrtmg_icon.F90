@@ -201,17 +201,17 @@ contains
     subroutine init_data_strings()
       logical :: lflg
       lwc_data_string = 'clw'
-      call get_petsc_opt(PETSC_NULL_CHARACTER, '-lwc_data_string', lwc_data_string, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt('', '-lwc_data_string', lwc_data_string, lflg, ierr); call CHKERR(ierr)
       iwc_data_string = 'cli'
-      call get_petsc_opt(PETSC_NULL_CHARACTER, '-iwc_data_string', iwc_data_string, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt('', '-iwc_data_string', iwc_data_string, lflg, ierr); call CHKERR(ierr)
       qnc_data_string = 'qnc'
-      call get_petsc_opt(PETSC_NULL_CHARACTER, '-qnc_data_string', qnc_data_string, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt('', '-qnc_data_string', qnc_data_string, lflg, ierr); call CHKERR(ierr)
       qni_data_string = 'qni'
-      call get_petsc_opt(PETSC_NULL_CHARACTER, '-qni_data_string', qni_data_string, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt('', '-qni_data_string', qni_data_string, lflg, ierr); call CHKERR(ierr)
       qv_data_string = 'qv'
-      call get_petsc_opt(PETSC_NULL_CHARACTER, '-qv_data_string', qv_data_string, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt('', '-qv_data_string', qv_data_string, lflg, ierr); call CHKERR(ierr)
       atm_filename = 'atm.dat'
-      call get_petsc_opt(PETSC_NULL_CHARACTER, '-atm', atm_filename, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt('', '-atm', atm_filename, lflg, ierr); call CHKERR(ierr)
     end subroutine
     subroutine init_sundir()
       use m_helper_functions, only: cross_3d, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world, &
@@ -227,7 +227,7 @@ contains
 
       if (ldebug .and. myid .eq. 0) print *, myid, 'determine initial sundirection ...'
       nargs = i3
-      call get_petsc_opt(PETSC_NULL_CHARACTER, '-sundir', sundir, nargs, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt('', '-sundir', sundir, nargs, lflg, ierr); call CHKERR(ierr)
       if (lflg) then
         call CHKERR(int(nargs - i3, mpiint), 'must provide exactly 3 values for -sundir. '// &
                     'Need to be given comma separated without spaces')
@@ -246,7 +246,7 @@ contains
                  & ': sza', rad2deg(angle_between_two_vec(sundir, first_normal)), 'deg'
 
       rot_angle = zero
-      call get_petsc_opt(PETSC_NULL_CHARACTER, "-sundir_rot_phi", rot_angle, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt('', "-sundir_rot_phi", rot_angle, lflg, ierr); call CHKERR(ierr)
       if (lflg) then
         U = [first_normal(2), -first_normal(1), zero]
         U = U / norm2(U)
@@ -265,7 +265,7 @@ contains
       end if
 
       rot_angle = zero
-      call get_petsc_opt(PETSC_NULL_CHARACTER, "-sundir_rot_theta", rot_angle, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt('', "-sundir_rot_theta", rot_angle, lflg, ierr); call CHKERR(ierr)
       if (lflg) then
         if (dot_product(first_normal, sundir) .gt. one - epsilon(U)) then
           first_normal(1) = first_normal(1) + epsilon(first_normal)

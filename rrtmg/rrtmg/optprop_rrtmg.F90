@@ -23,8 +23,12 @@
 !! or may also use the rrtmg solver to compute radiative fluxes
 
 module m_optprop_rrtmg
+#ifdef HAVE_PETSC
 #include "petsc/finclude/petsc.h"
   use petsc
+#else
+#define PetscLogEvent integer
+#endif
   use m_tenstr_parkind_sw, only: im => kind_im, rb => kind_rb
   use m_tenstr_rrtmg_lw_init, only: rrtmg_lw_ini
   use m_tenstr_parrrtm, only: nbndlw
@@ -87,9 +91,11 @@ contains
     integer(kind=im) :: idrv = 0         ! Flag for calculation of dFdT
     integer(mpiint) :: ierr
 
+#ifdef HAVE_PETSC
     if (present(log_event)) then
       call PetscLogEventBegin(log_event, ierr); call CHKERR(ierr)
     end if
+#endif
 
     ! copy from TenStream to RRTM precision:
     ncol = int(ncol_in, kind=im)
@@ -163,9 +169,11 @@ contains
          tau, Bfrac, loptprop_only=.true., tenstr_tau_f=opt_tau_f)
     end if
 
+#ifdef HAVE_PETSC
     if (present(log_event)) then
       call PetscLogEventEnd(log_event, ierr); call CHKERR(ierr)
     end if
+#endif
   end subroutine
 
   subroutine optprop_rrtm_sw(ncol_in, nlay_in, &
@@ -217,9 +225,11 @@ contains
     logical, save :: linit_rrtmg = .false.
     integer(mpiint) :: ierr
 
+#ifdef HAVE_PETSC
     if (present(log_event)) then
       call PetscLogEventBegin(log_event, ierr); call CHKERR(ierr)
     end if
+#endif
 
     if (present(opt_solar_constant)) then
       solar_const = opt_solar_constant
@@ -323,9 +333,11 @@ contains
          tenstr_tau_f=opt_tau_f, tenstr_w_f=opt_w0_f, tenstr_g_f=opt_g_f)
     end if
 
+#ifdef HAVE_PETSC
     if (present(log_event)) then
       call PetscLogEventEnd(log_event, ierr); call CHKERR(ierr)
     end if
+#endif
   end subroutine
 
   ! Compute direct radiation from lambert beers law.
@@ -368,7 +380,7 @@ contains
     argcnt = 2
     spectral_bands = [min_band, max_band]
 
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-rrtmg_bands", spectral_bands, argcnt, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', "-rrtmg_bands", spectral_bands, argcnt, lflg, ierr); call CHKERR(ierr)
     if (lflg) call CHKERR(int(argcnt - 2_iintegers, mpiint), "must provide 2 values for rrtmg_bands, comma separated, no spaces")
     if (spectral_bands(1) .gt. spectral_bands(2)) &
       & call CHKERR(1_mpiint, 'first value of rrtmg_bands('// &

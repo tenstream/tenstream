@@ -24,8 +24,13 @@
 !!
 
 module m_dyn_atm_to_rrtmg
+#ifdef HAVE_PETSC
 #include "petsc/finclude/petsc.h"
   use petsc
+#else
+#define PetscLogEvent integer
+#define PetscClassId integer
+#endif
 
   use iso_fortran_env, only: real32, real64
   use m_tenstr_parkind_sw, only: im => kind_im, rb => kind_rb
@@ -182,15 +187,17 @@ contains
     end if
 
     call init_mpi_data_parameters(comm)
+#ifdef HAVE_PETSC
     if (.not. allocated(logs)) then
       allocate (logs)
       call PetscLogEventRegister('setup_tenstr_atm', cid, logs%setup_tenstr_atm, ierr); call CHKERR(ierr)
     end if
 
     call PetscLogEventBegin(logs%setup_tenstr_atm, ierr); call CHKERR(ierr)
+#endif
 
     lignore_bad_input = .false.
-    call get_petsc_opt(PETSC_NULL_CHARACTER, '-pprts_rrtmg_ignore_bad_input', lignore_bad_input, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', '-pprts_rrtmg_ignore_bad_input', lignore_bad_input, lflg, ierr); call CHKERR(ierr)
     if (present(prefix)) then
       call get_petsc_opt(prefix, '-pprts_rrtmg_ignore_bad_input', lignore_bad_input, lflg, ierr); call CHKERR(ierr)
     end if
@@ -201,11 +208,11 @@ contains
       if (lignore_bad_input) then
         call CHKWARN(ierr, 'bad input in bg_atmosphere file.'//new_line('')// &
           & 'If you know what you are doing, you can skip the check with '// &
-          & '-'//trim(get_arg(PETSC_NULL_CHARACTER, prefix))//'pprts_rrtmg_ignore_bad_input')
+          & '-'//trim(get_arg('', prefix))//'pprts_rrtmg_ignore_bad_input')
       else
         call CHKERR(ierr, 'bad input in bg_atmosphere file.'//new_line('')// &
           & 'If you know what you are doing, you can skip the check with '// &
-          & '-'//trim(get_arg(PETSC_NULL_CHARACTER, prefix))//'pprts_rrtmg_ignore_bad_input')
+          & '-'//trim(get_arg('', prefix))//'pprts_rrtmg_ignore_bad_input')
       end if
     end if
 
@@ -233,11 +240,11 @@ contains
       if (lignore_bad_input) then
         call CHKWARN(ierr, 'bad input from dynamics grid, column: '//toStr(icol)//new_line('')// &
           & 'If you know what you are doing, you can skip the check with '// &
-          & '-'//trim(get_arg(PETSC_NULL_CHARACTER, prefix))//'pprts_rrtmg_ignore_bad_input')
+          & '-'//trim(get_arg('', prefix))//'pprts_rrtmg_ignore_bad_input')
       else
         call CHKERR(ierr, 'bad input from dynamics grid, column: '//toStr(icol)//new_line('')// &
           & 'If you know what you are doing, you can skip the check with '// &
-          & '-'//trim(get_arg(PETSC_NULL_CHARACTER, prefix))//'pprts_rrtmg_ignore_bad_input')
+          & '-'//trim(get_arg('', prefix))//'pprts_rrtmg_ignore_bad_input')
       end if
     end do
 
@@ -268,7 +275,9 @@ contains
       atm%tskin = d_skin_temperature
     end if
 
+#ifdef HAVE_PETSC
     call PetscLogEventEnd(logs%setup_tenstr_atm, ierr); call CHKERR(ierr)
+#endif
   contains
     subroutine check_shape_1d(d_arr, ncol)
       real(ireals), intent(in), optional :: d_arr(:)

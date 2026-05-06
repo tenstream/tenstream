@@ -11,14 +11,24 @@ set( files
   )
 
 add_library( tenstr_rrtmg_objs OBJECT ${files} )
-add_dependencies(tenstr_rrtmg_objs
-  pprts_rrtm_lw
-  pprts_rrtm_sw
-  plexrt
-  pprts
-  pprts_base
-  tenstr_disort
-  )
+if(ENABLE_PLEXRT)
+  add_dependencies(tenstr_rrtmg_objs
+    pprts_rrtm_lw
+    pprts_rrtm_sw
+    plexrt
+    pprts
+    pprts_base
+    tenstr_disort
+    )
+else()
+  add_dependencies(tenstr_rrtmg_objs
+    pprts_rrtm_lw
+    pprts_rrtm_sw
+    pprts
+    pprts_base
+    tenstr_disort
+    )
+endif()
 
 
 # PPRTS
@@ -34,12 +44,14 @@ TARGET_LINK_LIBRARIES( pprts_rrtmg
 
 
 # PlexRT
-add_library( plexrt_rrtmg "plexrt_rrtmg.F90" $<TARGET_OBJECTS:tenstr_rrtmg_objs> )
+if(ENABLE_PLEXRT)
+  add_library( plexrt_rrtmg "plexrt_rrtmg.F90" $<TARGET_OBJECTS:tenstr_rrtmg_objs> )
 
-TARGET_LINK_LIBRARIES( plexrt_rrtmg
-  pprts_rrtm_lw
-  pprts_rrtm_sw
-  plexrt
-  pprts_base
-  tenstr_disort
-  ${EXTLIB} ${USERLIB} ${LIBS})
+  TARGET_LINK_LIBRARIES( plexrt_rrtmg
+    pprts_rrtm_lw
+    pprts_rrtm_sw
+    plexrt
+    pprts_base
+    tenstr_disort
+    ${EXTLIB} ${USERLIB} ${LIBS})
+endif()

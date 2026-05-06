@@ -94,11 +94,11 @@ contains
 !
     call allocate_pprts_solver_from_commandline(pprts_solver, '3_10', ierr); call CHKERR(ierr)
 
-    call get_petsc_opt(PETSC_NULL_CHARACTER, '-solar', lsolar, lflg, ierr); call CHKERR(ierr)
-    call get_petsc_opt(PETSC_NULL_CHARACTER, '-thermal', lthermal, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', '-solar', lsolar, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', '-thermal', lthermal, lflg, ierr); call CHKERR(ierr)
 
     icollapse = 1
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-icollapse", icollapse, lflg, ierr)
+    call get_petsc_opt('', "-icollapse", icollapse, lflg, ierr)
 
     if (.not. allocated(opt_time)) then
       allocate (opt_time)
@@ -112,10 +112,10 @@ contains
     end if
 
     Niter = 1
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-iter", Niter, lflg, ierr)
+    call get_petsc_opt('', "-iter", Niter, lflg, ierr)
 
     dt = 60 ! sec
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-dt", dt, lflg, ierr)
+    call get_petsc_opt('', "-dt", dt, lflg, ierr)
 
     do kiter = 1, Niter
       call specint_pprts( &

@@ -175,7 +175,7 @@ contains
     call allocate_optprop_vec(solver%plex%srfc_boundary_dm, solver%albedo)
 
     lskip_thermal = .false.
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-skip_thermal", lskip_thermal, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', "-skip_thermal", lskip_thermal, lflg, ierr); call CHKERR(ierr)
     if (lthermal .and. .not. lskip_thermal) then
       call allocate_optprop_vec(solver%plex%horizface1_dm, solver%plck)
 
@@ -198,7 +198,7 @@ contains
     if (lsolar) then
 
       lskip_solar = .false.
-      call get_petsc_opt(PETSC_NULL_CHARACTER, "-skip_solar", lskip_solar, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt('', "-skip_solar", lskip_solar, lflg, ierr); call CHKERR(ierr)
       if (.not. lskip_solar) then
         call PetscLogStagePush(repwvl_log_events%stage_repwvl_solar, ierr); call CHKERR(ierr)
         call compute_solar(comm, solver, &
@@ -262,7 +262,7 @@ contains
 
     spectral_bands = [integer(iintegers) :: 1, size(repwvl_data%wvls)]
     argcnt = size(spectral_bands)
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-repwvl_bands", spectral_bands, argcnt, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', "-repwvl_bands", spectral_bands, argcnt, lflg, ierr); call CHKERR(ierr)
     if (lflg) call CHKERR(int(argcnt - 2_iintegers, mpiint), "must provide 2 values for repwvl_bands, comma separated, no spaces")
     spectral_bands = min(max(spectral_bands, 1), size(repwvl_data%wvls))
 
@@ -379,7 +379,7 @@ contains
 
     spectral_bands = [integer(iintegers) :: 1, size(repwvl_data%wvls)]
     argcnt = size(spectral_bands)
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-repwvl_bands", spectral_bands, argcnt, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', "-repwvl_bands", spectral_bands, argcnt, lflg, ierr); call CHKERR(ierr)
     if (lflg) call CHKERR(int(argcnt - 2_iintegers, mpiint), "must provide 2 values for repwvl_bands, comma separated, no spaces")
     spectral_bands = min(max(spectral_bands, 1), size(repwvl_data%wvls))
 

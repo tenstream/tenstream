@@ -119,27 +119,27 @@ contains
     ! gases to the TenStream solver... this will then be interpolated from the
     ! background profile (read from `atm_filename`)
     h2ovmr = .007
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-h2o", vmr, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', "-h2o", vmr, lflg, ierr); call CHKERR(ierr)
     if (lflg) h2ovmr = vmr
 
     o3vmr = 3e-8
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-o3", vmr, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', "-o3", vmr, lflg, ierr); call CHKERR(ierr)
     if (lflg) o3vmr = vmr
 
     co2vmr = 400e-6
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-co2", vmr, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', "-co2", vmr, lflg, ierr); call CHKERR(ierr)
     if (lflg) co2vmr = vmr
 
     ch4vmr = 1.7e-6
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-ch4", vmr, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', "-ch4", vmr, lflg, ierr); call CHKERR(ierr)
     if (lflg) ch4vmr = vmr
 
     n2ovmr = 3.2e-7
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-n2o", vmr, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', "-n2o", vmr, lflg, ierr); call CHKERR(ierr)
     if (lflg) n2ovmr = vmr
 
     o2vmr = .2
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-o2", vmr, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', "-o2", vmr, lflg, ierr); call CHKERR(ierr)
     if (lflg) o2vmr = vmr
 
     ! define a cloud, with liquid water content and effective radius 10 micron
@@ -202,10 +202,10 @@ contains
     call allocate_pprts_solver_from_commandline(pprts_solver, '3_10', ierr); call CHKERR(ierr)
 
     icollapse = 1
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-icollapse", icollapse, lflg, ierr)
+    call get_petsc_opt('', "-icollapse", icollapse, lflg, ierr)
 
     iter = 1
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-iter", iter, lflg, ierr)
+    call get_petsc_opt('', "-iter", iter, lflg, ierr)
 
     do k = 1, iter
       call specint_pprts(specint, comm, pprts_solver, atm, nxp, nyp, &

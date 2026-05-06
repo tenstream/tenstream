@@ -18,8 +18,6 @@
 !-------------------------------------------------------------------------
 
 module m_mie_tables
-#include "petsc/finclude/petsc.h"
-  use petsc
   use mpi
 
   use m_data_parameters, only: &

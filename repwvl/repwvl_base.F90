@@ -20,8 +20,13 @@
 !> \page Routines to call tenstream with optical properties from a representative wavelength approach
 
 module m_repwvl_base
+#ifdef HAVE_PETSC
 #include "petsc/finclude/petsc.h"
   use petsc
+#else
+#define PetscLogStage integer
+#define PetscLogEvent integer
+#endif
 
   use m_data_parameters, only: &
     & default_str_len, &
@@ -69,13 +74,13 @@ module m_repwvl_base
   end type
 
   type t_repwvl_log_events
-    PetscLogStage :: stage_repwvl_solar
-    PetscLogStage :: stage_repwvl_thermal
-    PetscLogEvent :: repwvl_optprop
-    PetscLogEvent :: repwvl_optprop_dtau
-    PetscLogEvent :: repwvl_optprop_rayleigh
-    PetscLogEvent :: repwvl_optprop_mie
-    PetscLogEvent :: repwvl_optprop_fu_ice
+    PetscLogStage :: stage_repwvl_solar = 0
+    PetscLogStage :: stage_repwvl_thermal = 0
+    PetscLogEvent :: repwvl_optprop = 0
+    PetscLogEvent :: repwvl_optprop_dtau = 0
+    PetscLogEvent :: repwvl_optprop_rayleigh = 0
+    PetscLogEvent :: repwvl_optprop_mie = 0
+    PetscLogEvent :: repwvl_optprop_fu_ice = 0
   end type
   type(t_repwvl_log_events) :: repwvl_log_events
 
@@ -234,10 +239,13 @@ contains
     type(t_repwvl_log_events), intent(inout) :: logs
     character(len=*), optional :: solvername
     character(len=default_str_len) :: s
+#ifdef HAVE_PETSC
     PetscClassId :: cid
+#endif
     integer(mpiint) :: ierr
 
     s = get_arg('tenstr_repwvl.', solvername)
+#ifdef HAVE_PETSC
     call PetscClassIdRegister(trim(s), cid, ierr); call CHKERR(ierr)
 
     call setup_stage(trim(s)//'repwvl_solar', logs%stage_repwvl_solar)
@@ -248,15 +256,18 @@ contains
     call PetscLogEventRegister(trim(s)//'repwvl_optprop_rayleigh', cid, logs%repwvl_optprop_rayleigh, ierr); call CHKERR(ierr)
     call PetscLogEventRegister(trim(s)//'repwvl_optprop_mie', cid, logs%repwvl_optprop_mie, ierr); call CHKERR(ierr)
     call PetscLogEventRegister(trim(s)//'repwvl_optprop_fu_ice', cid, logs%repwvl_optprop_fu_ice, ierr); call CHKERR(ierr)
+#endif
 
   contains
     subroutine setup_stage(stagename, logstage)
       character(len=*), intent(in) :: stagename
       PetscLogStage, intent(inout) :: logstage
+#ifdef HAVE_PETSC
       call PetscLogStageGetId(stagename, logstage, ierr); call CHKERR(ierr)
       if (logstage .lt. 0_iintegers) then
         call PetscLogStageRegister(stagename, logstage, ierr); call CHKERR(ierr)
       end if
+#endif
     end subroutine
   end subroutine
 end module

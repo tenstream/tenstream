@@ -33,6 +33,7 @@
 !!
 
 module m_pprts_rrtmg
+#ifdef HAVE_PETSC
   use, intrinsic :: iso_c_binding
 
 #include "petsc/finclude/petsc.h"
@@ -93,7 +94,18 @@ module m_pprts_rrtmg
 
 !  logical,parameter :: ldebug=.True.
   logical, parameter :: ldebug = .false.
+#else
+  use m_data_parameters, only: iintegers, ireals, mpiint
+  use m_helper_functions, only: CHKERR
+  use m_pprts_base, only: t_solver
+  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm
+  use m_buildings, only: t_pprts_buildings
+  implicit none
+  private
+  public :: pprts_rrtmg, destroy_pprts_rrtmg, smooth_surface_fluxes, slope_correction_fluxes
+#endif
 
+#ifdef HAVE_PETSC
   type(t_rrtmg_log_events) :: log_events
 contains
 
@@ -1378,4 +1390,44 @@ contains
       end do
     end subroutine
   end subroutine
+#else
+contains
+  subroutine pprts_rrtmg(comm, solver, atm, ie, je, dx, dy, sundir, &
+      & albedo_thermal, albedo_solar, lthermal, lsolar, edir, edn, eup, abso, &
+      & nxproc, nyproc, icollapse, opt_time, solar_albedo_2d, thermal_albedo_2d, &
+      & opt_solar_constant, opt_buildings_solar, opt_buildings_thermal, &
+      & opt_tau_solar, opt_w0_solar, opt_g_solar, opt_tau_thermal, lonly_initialize)
+    integer(mpiint), intent(in) :: comm
+    class(t_solver), intent(inout) :: solver
+    type(t_tenstr_atm), intent(in) :: atm
+    integer(iintegers), intent(in) :: ie, je
+    real(ireals), intent(in) :: dx, dy, sundir(:), albedo_solar, albedo_thermal
+    logical, intent(in) :: lsolar, lthermal
+    real(ireals), allocatable, dimension(:, :, :), intent(inout) :: edir, edn, eup, abso
+    integer(iintegers), intent(in), optional :: nxproc(:), nyproc(:), icollapse
+    real(ireals), optional, intent(in) :: opt_time, solar_albedo_2d(:, :), thermal_albedo_2d(:, :), opt_solar_constant
+    type(t_pprts_buildings), intent(inout), optional :: opt_buildings_solar, opt_buildings_thermal
+    real(ireals), intent(in), optional, dimension(:, :, :) :: opt_tau_solar, opt_w0_solar, opt_g_solar, opt_tau_thermal
+    logical, intent(in), optional :: lonly_initialize
+    call CHKERR(1_mpiint, 'pprts_rrtmg requires PETSc -- rebuild with -DWITH_PETSC=ON')
+  end subroutine
+
+  subroutine destroy_pprts_rrtmg(solver, lfinalizepetsc)
+    class(t_solver) :: solver
+    logical, intent(in) :: lfinalizepetsc
+    call CHKERR(1_mpiint, 'destroy_pprts_rrtmg requires PETSc -- rebuild with -DWITH_PETSC=ON')
+  end subroutine
+
+  subroutine smooth_surface_fluxes(solver, edn, eup)
+    class(t_solver), intent(inout) :: solver
+    real(ireals), allocatable, dimension(:, :, :), intent(inout) :: edn, eup
+    call CHKERR(1_mpiint, 'smooth_surface_fluxes requires PETSc -- rebuild with -DWITH_PETSC=ON')
+  end subroutine
+
+  subroutine slope_correction_fluxes(solver, edir)
+    class(t_solver), intent(inout) :: solver
+    real(ireals), allocatable, dimension(:, :, :), intent(inout) :: edir
+    call CHKERR(1_mpiint, 'slope_correction_fluxes requires PETSc -- rebuild with -DWITH_PETSC=ON')
+  end subroutine
+#endif
 end module

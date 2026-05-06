@@ -7,34 +7,41 @@ set( files
   "repwvl_base.F90"
   "repwvl_optprop.F90"
   "repwvl_pprts.F90"
-  "repwvl_plexrt.F90"
   )
+if(ENABLE_PLEXRT)
+  list(APPEND files "repwvl_plexrt.F90")
+endif()
 
 add_library( tenstr_repwvl_objs OBJECT ${files} )
 add_dependencies(tenstr_repwvl_objs
-  plexrt
-  pprts
   pprts_base
   pprts_rrtmg
   )
+if(ENABLE_PLEXRT)
+  add_dependencies(tenstr_repwvl_objs
+    plexrt
+    pprts
+    )
+endif()
 
 # PPRTS
 add_library( repwvl_pprts "repwvl_pprts.F90" $<TARGET_OBJECTS:tenstr_repwvl_objs> )
 
 TARGET_LINK_LIBRARIES( repwvl_pprts
-  pprts
   pprts_base
   tenstr_disort
   pprts_rrtmg
   ${EXTLIB} ${USERLIB} ${LIBS})
 
-# PlexRT
-add_library( repwvl_plexrt "repwvl_plexrt.F90" $<TARGET_OBJECTS:tenstr_repwvl_objs> )
+if(ENABLE_PLEXRT)
+  # PlexRT
+  add_library( repwvl_plexrt "repwvl_plexrt.F90" $<TARGET_OBJECTS:tenstr_repwvl_objs> )
 
-TARGET_LINK_LIBRARIES( repwvl_plexrt
-  plexrt
-  plexrt_rrtmg
-  ${EXTLIB} ${USERLIB} ${LIBS})
+  TARGET_LINK_LIBRARIES( repwvl_plexrt
+    plexrt
+    plexrt_rrtmg
+    ${EXTLIB} ${USERLIB} ${LIBS})
+endif()
 
 add_executable(compute_repwvl_training_data "compute_repwvl_training_data.F90" )
 target_link_libraries( compute_repwvl_training_data ${TENSTR_SINGLE_LIB} ${EXTLIB})

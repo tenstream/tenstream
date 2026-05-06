@@ -8,9 +8,6 @@ module m_examples_pprts_specint_tree
   !   - with a straight column of 'bark'
   !   - and a cubic radial canopy of 'leaf'
 
-#include "petsc/finclude/petsc.h"
-  use petsc
-
   use m_data_parameters, only: &
     & init_mpi_data_parameters, &
     & iintegers, ireals, mpiint, &

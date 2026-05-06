@@ -295,29 +295,29 @@ program main
   call init_mpi_data_parameters(MPI_COMM_WORLD)
 
   input_filename = 'input.nc'
-  call get_petsc_opt(PETSC_NULL_CHARACTER, '-inp', &
+  call get_petsc_opt('', '-inp', &
                      input_filename, lflg, ierr); call CHKERR(ierr)
 
   output_filename = 'output.nc'
-  call get_petsc_opt(PETSC_NULL_CHARACTER, '-out', &
+  call get_petsc_opt('', '-out', &
                      output_filename, lflg, ierr); call CHKERR(ierr)
 
   atm_filename = 'afglus_100m.dat'
-  call get_petsc_opt(PETSC_NULL_CHARACTER, '-atm', &
+  call get_petsc_opt('', '-atm', &
                      atm_filename, lflg, ierr); call CHKERR(ierr)
 
   phi0 = 180
   theta0 = 40
-  call get_petsc_opt(PETSC_NULL_CHARACTER, '-phi', &
+  call get_petsc_opt('', '-phi', &
     & phi0, lflg, ierr); call CHKERR(ierr)
-  call get_petsc_opt(PETSC_NULL_CHARACTER, '-theta', &
+  call get_petsc_opt('', '-theta', &
     & theta0, lflg, ierr); call CHKERR(ierr)
 
   albedo_sol = 0.2
   albedo_th = 0.05
-  call get_petsc_opt(PETSC_NULL_CHARACTER, '-albedo_sol', &
+  call get_petsc_opt('', '-albedo_sol', &
     & albedo_sol, lflg, ierr); call CHKERR(ierr)
-  call get_petsc_opt(PETSC_NULL_CHARACTER, '-albedo_th', &
+  call get_petsc_opt('', '-albedo_th', &
     & albedo_th, lflg, ierr); call CHKERR(ierr)
 
   call ex_wetterstein( &

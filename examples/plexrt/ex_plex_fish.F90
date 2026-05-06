@@ -12,45 +12,45 @@ program main
   logical :: lverbose, lregular_mesh, lthermal, lsolar
   real(ireals), allocatable, dimension(:, :) :: edir, edn, eup, abso
 
-  call PetscInitialize(PETSC_NULL_CHARACTER, ierr); call CHKERR(ierr)
+  call PetscInitialize('', ierr); call CHKERR(ierr)
   comm = PETSC_COMM_WORLD
 
   call init_mpi_data_parameters(comm)
   call read_commandline_options(comm)
 
   Nx = 2
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-Nx", Nx, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-Nx", Nx, lflg, ierr); call CHKERR(ierr)
   Ny = 3
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-Ny", Ny, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-Ny", Ny, lflg, ierr); call CHKERR(ierr)
   Nz = 2
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-Nz", Nz, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-Nz", Nz, lflg, ierr); call CHKERR(ierr)
   dz = one / real(Nz, ireals)
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-dz", dz, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-dz", dz, lflg, ierr); call CHKERR(ierr)
   Ag = .1_ireals
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-Ag", Ag, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-Ag", Ag, lflg, ierr); call CHKERR(ierr)
   dtau = one
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-tau", dtau, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-tau", dtau, lflg, ierr); call CHKERR(ierr)
   w0 = zero
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-w0", w0, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-w0", w0, lflg, ierr); call CHKERR(ierr)
   g = zero
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-g", g, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-g", g, lflg, ierr); call CHKERR(ierr)
   B0 = 100
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-B0", B0, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-B0", B0, lflg, ierr); call CHKERR(ierr)
 
-  call get_petsc_opt(PETSC_NULL_CHARACTER, '-out', outfile, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', '-out', outfile, lflg, ierr); call CHKERR(ierr)
   if (.not. lflg) stop 'need to supply a output filename... please call with -out <fname_of_output_file.h5>'
 
   lverbose = .true.
-  call get_petsc_opt(PETSC_NULL_CHARACTER, '-verbose', lverbose, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', '-verbose', lverbose, lflg, ierr); call CHKERR(ierr)
 
   lregular_mesh = .false.
-  call get_petsc_opt(PETSC_NULL_CHARACTER, '-use_regular_mesh', lregular_mesh, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', '-use_regular_mesh', lregular_mesh, lflg, ierr); call CHKERR(ierr)
 
   lthermal = .true.
-  call get_petsc_opt(PETSC_NULL_CHARACTER, '-thermal', lthermal, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', '-thermal', lthermal, lflg, ierr); call CHKERR(ierr)
 
   lsolar = .true.
-  call get_petsc_opt(PETSC_NULL_CHARACTER, '-solar', lsolar, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', '-solar', lsolar, lflg, ierr); call CHKERR(ierr)
 
   call init_sundir()
 
@@ -103,7 +103,7 @@ contains
 
     if (lverbose .and. myid .eq. 0) print *, myid, 'determine initial sundirection ...'
     nargs = i3
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-sundir", sundir, nargs, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', "-sundir", sundir, nargs, lflg, ierr); call CHKERR(ierr)
     if (lflg) then
       call CHKERR(int(nargs - i3, mpiint), 'must provide exactly 3 values for -sundir. '// &
                   'Need to be given comma separated without spaces')
@@ -113,7 +113,7 @@ contains
     sundir = sundir / norm2(sundir)
 
     rot_angle = zero
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-sundir_rot_phi", rot_angle, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', "-sundir_rot_phi", rot_angle, lflg, ierr); call CHKERR(ierr)
     if (lflg) then
       Mrot = rotation_matrix_around_axis_vec(deg2rad(rot_angle), first_normal)
       rot_sundir = matmul(Mrot, sundir)
@@ -125,7 +125,7 @@ contains
     end if
 
     rot_angle = zero
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-sundir_rot_theta", rot_angle, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', "-sundir_rot_theta", rot_angle, lflg, ierr); call CHKERR(ierr)
     if (lflg) then
       U = cross_3d(first_normal, sundir)
       Mrot = rotation_matrix_around_axis_vec(deg2rad(rot_angle), U)

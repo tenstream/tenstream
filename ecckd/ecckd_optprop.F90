@@ -92,7 +92,9 @@ contains
 
     ! ecckd molecular absorption cross section
     if (lprofile) then
+#ifdef HAVE_PETSC
       call PetscLogEventBegin(ecckd_log_events%ecckd_optprop_dtau, ierr); call CHKERR(ierr)
+#endif
     end if
 
     call ecckd_dtau(&
@@ -107,7 +109,9 @@ contains
 
     kabs = dtau / atm%dz(k, icol)
     if (lprofile) then
+#ifdef HAVE_PETSC
       call PetscLogEventEnd(ecckd_log_events%ecckd_optprop_dtau, ierr); call CHKERR(ierr)
+#endif
     end if
     if (ldebug) then
       if (kabs .lt. 0) call CHKERR(1_mpiint, 'kabs from ecckd negative!'//toStr(kabs))
@@ -115,7 +119,9 @@ contains
 
     ! ecckd molecular scattering cross section
     if (lprofile) then
+#ifdef HAVE_PETSC
       call PetscLogEventBegin(ecckd_log_events%ecckd_optprop_rayleigh, ierr); call CHKERR(ierr)
+#endif
     end if
 
     ksca = 0
@@ -130,12 +136,16 @@ contains
     kg = 0                                             ! rayleigh has symmetric asymmetry parameter
 
     if (lprofile) then
+#ifdef HAVE_PETSC
       call PetscLogEventEnd(ecckd_log_events%ecckd_optprop_rayleigh, ierr); call CHKERR(ierr)
+#endif
     end if
 
     if (atm%lwc(k, icol) > 0) then
       if (lprofile) then
+#ifdef HAVE_PETSC
         call PetscLogEventBegin(ecckd_log_events%ecckd_optprop_mie, ierr); call CHKERR(ierr)
+#endif
       end if
 
       call get_liq_cld_optprop(ecckd_data, lsolar, igpt, &
@@ -149,14 +159,18 @@ contains
       ksca = ksca + qext_cld_l * w0_cld_l
 
       if (lprofile) then
+#ifdef HAVE_PETSC
         call PetscLogEventEnd(ecckd_log_events%ecckd_optprop_mie, ierr); call CHKERR(ierr)
+#endif
       end if
     end if
 
     ! ecckd ice cloud
     if (atm%iwc(k, icol) > 0) then
       if (lprofile) then
+#ifdef HAVE_PETSC
         call PetscLogEventBegin(ecckd_log_events%ecckd_optprop_fu_ice, ierr); call CHKERR(ierr)
+#endif
       end if
 
       call get_ice_cld_optprop(ecckd_data, lsolar, igpt, &
@@ -170,7 +184,9 @@ contains
       ksca = ksca + qext_cld_i * w0_cld_i
 
       if (lprofile) then
+#ifdef HAVE_PETSC
         call PetscLogEventEnd(ecckd_log_events%ecckd_optprop_fu_ice, ierr); call CHKERR(ierr)
+#endif
       end if
     end if
 

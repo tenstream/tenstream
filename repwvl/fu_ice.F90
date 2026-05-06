@@ -18,8 +18,6 @@
 !-------------------------------------------------------------------------
 
 module m_fu_ice
-#include "petsc/finclude/petsc.h"
-  use petsc
   use mpi
 
   use m_data_parameters, only: &

@@ -1,8 +1,5 @@
 module m_examples_pprts_specint_buildings
 
-#include "petsc/finclude/petsc.h"
-  use petsc
-
   use m_data_parameters, only: &
     & init_mpi_data_parameters, &
     & iintegers, ireals, mpiint, &

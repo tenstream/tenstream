@@ -113,8 +113,10 @@ if(WITH_PETSC)
   add_library( pprts $<TARGET_OBJECTS:pprts_objs> )
   target_link_libraries( pprts    pprts_base plexrt   ${EXTLIB})
 else()
-  add_library( pprts INTERFACE )
-  target_link_libraries( pprts INTERFACE pprts_base )
+  add_library( pprts_stub_objs OBJECT pprts_stub.F90 )
+  add_dependencies( pprts_stub_objs pprts_base )
+  add_library( pprts $<TARGET_OBJECTS:pprts_stub_objs> )
+  target_link_libraries( pprts pprts_base ${EXTLIB} )
 endif()
 
 # CreateLUT binaries

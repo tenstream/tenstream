@@ -113,9 +113,9 @@ contains
     ! Start with a dynamics grid ranging from 1000 hPa up to 250 hPa and a
     ! Temperature difference of 60K
     hill_dP = 100 ! [hPa]
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-hill_dP", hill_dP, lflg, ierr)
+    call get_petsc_opt('', "-hill_dP", hill_dP, lflg, ierr)
     hill_shape = 10
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-hill_shape", hill_shape, lflg, ierr) ! the bigger the flatter
+    call get_petsc_opt('', "-hill_shape", hill_shape, lflg, ierr) ! the bigger the flatter
 
     do j = yStart, yStart + nyp - 1
       dp = hill_pressure_deficiency(j, sum(nyproc), hill_dP, hill_shape) &
@@ -134,13 +134,13 @@ contains
 
     icld = -1
     cld_lwc = 0e-2
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-lwc", cld_lwc, lflg, ierr)
+    call get_petsc_opt('', "-lwc", cld_lwc, lflg, ierr)
     cld_width = 5
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-cld_width", cld_width, lflg, ierr)
+    call get_petsc_opt('', "-cld_width", cld_width, lflg, ierr)
     cld_bot = 750._ireals
     cld_top = 700._ireals
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-cld_bot", cld_bot, lflg, ierr)
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-cld_top", cld_top, lflg, ierr)
+    call get_petsc_opt('', "-cld_bot", cld_bot, lflg, ierr)
+    call get_petsc_opt('', "-cld_top", cld_top, lflg, ierr)
 
     do j = yStart, yStart + nyp - 1
       if (abs(j - int(real(sum(nyproc) - 1, ireals) / 2, iintegers)) .le. cld_width) then
@@ -158,18 +158,18 @@ contains
     preliq(1:size(reliq, 1), 1:size(reliq, 2) * size(reliq, 3)) => reliq
 
     atm_filename = 'share/atm.dat'
-    call get_petsc_opt(PETSC_NULL_CHARACTER, '-atm', &
+    call get_petsc_opt('', '-atm', &
                        atm_filename, lflg, ierr); call CHKERR(ierr)
 
     phi0 = 180
     theta0 = 20
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-phi0", phi0, lflg, ierr); call CHKERR(ierr)
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-theta0", theta0, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', "-phi0", phi0, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', "-theta0", theta0, lflg, ierr); call CHKERR(ierr)
 
     lsolar = .true.
     lthermal = .true.
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-solar", lsolar, lflg, ierr); call CHKERR(ierr)
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-thermal", lthermal, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', "-solar", lsolar, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', "-thermal", lthermal, lflg, ierr); call CHKERR(ierr)
 
     call allocate_pprts_solver_from_commandline(pprts_solver, '3_10', ierr); call CHKERR(ierr)
 
@@ -228,7 +228,7 @@ contains
     end if
 
     outpath(1) = 'out_pprts_hill.nc'
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-out", outpath(1), lflg, ierr)
+    call get_petsc_opt('', "-out", outpath(1), lflg, ierr)
 
     associate (&
         & C => pprts_solver%C_one,     &
@@ -368,26 +368,26 @@ program main
   call mpi_init(ierr)
   call mpi_comm_rank(mpi_comm_world, myid, ierr)
 
-  call PetscInitialize(PETSC_NULL_CHARACTER, ierr); call CHKERR(ierr)
+  call PetscInitialize('', ierr); call CHKERR(ierr)
 
   specint = 'no_default_set'
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-specint", specint, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-specint", specint, lflg, ierr); call CHKERR(ierr)
 
   Nx = 3; Ny = 32; Nz = 10
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-Nx", Nx, lflg, ierr); call CHKERR(ierr)
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-Ny", Ny, lflg, ierr); call CHKERR(ierr)
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-Nz", Nz, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-Nx", Nx, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-Ny", Ny, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-Nz", Nz, lflg, ierr); call CHKERR(ierr)
 
   dx = 500
   dy = dx
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-dx", dx, lflg, ierr); call CHKERR(ierr)
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-dy", dy, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-dx", dx, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-dy", dy, lflg, ierr); call CHKERR(ierr)
 
   Ag_solar = 0.12
   Ag_thermal = 0
-  call get_petsc_opt(PETSC_NULL_CHARACTER, &
+  call get_petsc_opt('', &
     & "-Ag_thermal", Ag_thermal, lflg, ierr); call CHKERR(ierr)
-  call get_petsc_opt(PETSC_NULL_CHARACTER, &
+  call get_petsc_opt('', &
     & "-Ag_solar", Ag_solar, lflg, ierr); call CHKERR(ierr)
 
   call domain_decompose_2d_petsc(mpi_comm_world, Nx, Ny, &

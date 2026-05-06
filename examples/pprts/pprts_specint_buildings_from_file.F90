@@ -1,8 +1,5 @@
 module m_examples_pprts_specint_buildings_from_file
 
-#include "petsc/finclude/petsc.h"
-  use petsc
-
   use m_data_parameters, only: &
     & init_mpi_data_parameters, &
     & iintegers, ireals, mpiint, &
@@ -291,7 +288,7 @@ contains
           end do
         end do
 
-        call get_petsc_opt(PETSC_NULL_CHARACTER, "-override_buildings_albedo", v, lflg, ierr); call CHKERR(ierr)
+        call get_petsc_opt('', "-override_buildings_albedo", v, lflg, ierr); call CHKERR(ierr)
         if (lflg) buildings_solar%albedo(:) = v
 
         call clone_buildings(&
@@ -314,7 +311,7 @@ contains
             end do
           end do
         end do
-        call get_petsc_opt(PETSC_NULL_CHARACTER, "-override_buildings_temperature", v, lflg, ierr); call CHKERR(ierr)
+        call get_petsc_opt('', "-override_buildings_temperature", v, lflg, ierr); call CHKERR(ierr)
         if (lflg) buildings_thermal%temp(:) = v
 
         call check_buildings_consistency(buildings_solar, C1%zm, C1%xm, C1%ym, ierr); call CHKERR(ierr)

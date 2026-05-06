@@ -1,7 +1,5 @@
 module m_example_pprts_rrtm_lw_sw
 
-#include "petsc/finclude/petsc.h"
-  use petsc
   use mpi
 
   ! Import datatype from the TenStream lib. Depending on how PETSC is
@@ -151,7 +149,7 @@ contains
     call allocate_pprts_solver_from_commandline(pprts_solver, '3_10', ierr); call CHKERR(ierr)
 
     iter = 1
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-iter", iter, lflg, ierr)
+    call get_petsc_opt('', "-iter", iter, lflg, ierr)
 
     do k = 1, iter
       call pprts_rrtmg(comm, pprts_solver, atm, nxp, nyp, &

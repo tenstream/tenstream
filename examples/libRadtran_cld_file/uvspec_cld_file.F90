@@ -99,9 +99,9 @@ contains
       allocate (reice(lbound(lwc, 1):ubound(lwc, 1), lbound(lwc, 2):ubound(lwc, 2), lbound(lwc, 3):ubound(lwc, 3)), source=zero)
     end if
 
-    call get_petsc_opt(PETSC_NULL_CHARACTER, '-dx', dx, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', '-dx', dx, lflg, ierr); call CHKERR(ierr)
     if (lflg) dy = dx
-    call get_petsc_opt(PETSC_NULL_CHARACTER, '-dy', dy, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', '-dy', dy, lflg, ierr); call CHKERR(ierr)
 
     ! Determine Domain Decomposition
     call domain_decompose_2d_petsc(comm, &
@@ -238,7 +238,7 @@ contains
         end if
 
         lspectral_output = .false.
-        call get_petsc_opt(PETSC_NULL_CHARACTER, '-spectral_output', lspectral_output, lflg, ierr); call CHKERR(ierr)
+        call get_petsc_opt('', '-spectral_output', lspectral_output, lflg, ierr); call CHKERR(ierr)
 
         if (lspectral_output) then
           Nspectral = count(pprts_solver%solutions(:)%lset)
@@ -326,10 +326,10 @@ contains
 
       is = lbound(lwc, dim=2); ie = ubound(lwc, dim=2)
       js = lbound(lwc, dim=3); je = ubound(lwc, dim=3)
-      call get_petsc_opt(PETSC_NULL_CHARACTER, '-xs', is, lflg, ierr); call CHKERR(ierr)
-      call get_petsc_opt(PETSC_NULL_CHARACTER, '-xe', ie, lflg, ierr); call CHKERR(ierr)
-      call get_petsc_opt(PETSC_NULL_CHARACTER, '-ys', js, lflg, ierr); call CHKERR(ierr)
-      call get_petsc_opt(PETSC_NULL_CHARACTER, '-ye', je, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt('', '-xs', is, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt('', '-xe', ie, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt('', '-ys', js, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt('', '-ye', je, lflg, ierr); call CHKERR(ierr)
       allocate (tmp(size(lwc, dim=1), size(lwc, dim=2), size(lwc, dim=3)))
       tmp = lwc
       deallocate (lwc)
@@ -793,54 +793,54 @@ program main
   call mpi_comm_rank(mpi_comm_world, myid, ierr)
 
   specint = 'no default set'
-  call get_petsc_opt(PETSC_NULL_CHARACTER, '-specint', specint, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', '-specint', specint, lflg, ierr); call CHKERR(ierr)
 
   wcfile = ''
-  call get_petsc_opt(PETSC_NULL_CHARACTER, '-wc', wcfile, lflgwc, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', '-wc', wcfile, lflgwc, ierr); call CHKERR(ierr)
   icfile = ''
-  call get_petsc_opt(PETSC_NULL_CHARACTER, '-ic', icfile, lflgic, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', '-ic', icfile, lflgic, ierr); call CHKERR(ierr)
 
   if ((.not. lflgwc) .and. (.not. lflgic)) then
     call CHKERR(1_mpiint, 'need to supply a cloud filename... please call with: '// &
       & ' -wc <water_cloud_file.nc> or -ic <ice_cloud_file.nc>')
   end if
 
-  call get_petsc_opt(PETSC_NULL_CHARACTER, '-out', outfile, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', '-out', outfile, lflg, ierr); call CHKERR(ierr)
   if (.not. lflg) call CHKERR(1_mpiint, 'need to supply a output filename... please call with -out <output.nc>')
 
   atm_filename = share_dir//'tenstream_default.atm'
-  call get_petsc_opt(PETSC_NULL_CHARACTER, '-atm', atm_filename, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', '-atm', atm_filename, lflg, ierr); call CHKERR(ierr)
 
   Ag = .1
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-Ag", Ag, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-Ag", Ag, lflg, ierr); call CHKERR(ierr)
 
   lsolar = .true.
   lthermal = .true.
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-solar", lsolar, lflg, ierr); call CHKERR(ierr)
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-thermal", lthermal, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-solar", lsolar, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-thermal", lthermal, lflg, ierr); call CHKERR(ierr)
 
   scene_shift_x = 0
   scene_shift_y = 0
   scene_shift_it = 1
-  call get_petsc_opt(PETSC_NULL_CHARACTER, &
+  call get_petsc_opt('', &
     & '-scene_shift_x', scene_shift_x, lflg, ierr); call CHKERR(ierr)
-  call get_petsc_opt(PETSC_NULL_CHARACTER, &
+  call get_petsc_opt('', &
     & '-scene_shift_y', scene_shift_y, lflg, ierr); call CHKERR(ierr)
-  call get_petsc_opt(PETSC_NULL_CHARACTER, &
+  call get_petsc_opt('', &
     & '-scene_shift_it', scene_shift_it, lflg, ierr); call CHKERR(ierr)
 
   phi0 = 270
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-phi", phi0, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-phi", phi0, lflg, ierr); call CHKERR(ierr)
   theta0 = 60
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-theta", theta0, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-theta", theta0, lflg, ierr); call CHKERR(ierr)
 
   Tsrfc = 288
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-Tsrfc", Tsrfc, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-Tsrfc", Tsrfc, lflg, ierr); call CHKERR(ierr)
   dTdz = -6.5_ireals * 1e-3_ireals
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-dTdz", dTdz, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-dTdz", dTdz, lflg, ierr); call CHKERR(ierr)
 
   luse_plexrt = .false.
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-use_plexrt", luse_plexrt, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-use_plexrt", luse_plexrt, lflg, ierr); call CHKERR(ierr)
 
   if (luse_plexrt) then
     call CHKERR(int(scene_shift_x, mpiint), 'not supported option')

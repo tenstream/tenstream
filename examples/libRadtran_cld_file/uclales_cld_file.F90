@@ -98,8 +98,8 @@ contains
       Ny = size(dimy)
       dx = dimx(2) - dimx(1)
       dy = dimy(2) - dimy(1)
-      call get_petsc_opt(PETSC_NULL_CHARACTER, "-dx", dx, lflg, ierr); call CHKERR(ierr)
-      call get_petsc_opt(PETSC_NULL_CHARACTER, "-dy", dy, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt('', "-dx", dx, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt('', "-dy", dy, lflg, ierr); call CHKERR(ierr)
       print *, 'Timesteps: ', size(time), 'Nx', size(dimx), 'Ny', size(dimy), 'Nz', size(zlev), 'dx', dx, 'dy', dy
     end if
     call imp_bcast(comm, time, 0_mpiint, ierr); call CHKERR(ierr)
@@ -223,7 +223,7 @@ contains
     sundir = spherical_2_cartesian(phi0, theta0)
 
     tod_offset = 0
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-tod_offset", tod_offset, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', "-tod_offset", tod_offset, lflg, ierr); call CHKERR(ierr)
 
     if (lflg) then
       timeofday = modulo(time / 86400._ireals + tod_offset, 1._ireals)
@@ -461,41 +461,41 @@ program main
   call mpi_comm_rank(mpi_comm_world, myid, ierr)
 
   specint = 'no default set'
-  call get_petsc_opt(PETSC_NULL_CHARACTER, '-specint', specint, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', '-specint', specint, lflg, ierr); call CHKERR(ierr)
 
-  call get_petsc_opt(PETSC_NULL_CHARACTER, '-cld', cldfile, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', '-cld', cldfile, lflg, ierr); call CHKERR(ierr)
   if (.not. lflg) call CHKERR(1_mpiint, 'need to supply a cloud filename... please call with -cld <libRadtran_cloud_file.nc>')
 
   outfile = ''
-  call get_petsc_opt(PETSC_NULL_CHARACTER, '-out', outfile, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', '-out', outfile, lflg, ierr); call CHKERR(ierr)
 
   atm_filename = share_dir//'tenstream_default.atm'
-  call get_petsc_opt(PETSC_NULL_CHARACTER, '-atm', atm_filename, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', '-atm', atm_filename, lflg, ierr); call CHKERR(ierr)
 
   Ag = .1
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-Ag", Ag, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-Ag", Ag, lflg, ierr); call CHKERR(ierr)
 
   lsolar = .true.
   lthermal = .true.
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-solar", lsolar, lflg, ierr); call CHKERR(ierr)
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-thermal", lthermal, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-solar", lsolar, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-thermal", lthermal, lflg, ierr); call CHKERR(ierr)
 
   phi0 = 270
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-phi", phi0, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-phi", phi0, lflg, ierr); call CHKERR(ierr)
   theta0 = 60
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-theta", theta0, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-theta", theta0, lflg, ierr); call CHKERR(ierr)
 
   Tsrfc = 288
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-Tsrfc", Tsrfc, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-Tsrfc", Tsrfc, lflg, ierr); call CHKERR(ierr)
   dTdz = -6.5_ireals * 1e-3_ireals
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-dTdz", dTdz, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-dTdz", dTdz, lflg, ierr); call CHKERR(ierr)
 
   tstart = 800
   tend = 900
   tinc = 1
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-tstart", tstart, lflg, ierr); call CHKERR(ierr)
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-tend", tend, lflg, ierr); call CHKERR(ierr)
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-tinc", tinc, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-tstart", tstart, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-tend", tend, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-tinc", tinc, lflg, ierr); call CHKERR(ierr)
 
   call example_uclales_cld_file_pprts(&
     & specint, &

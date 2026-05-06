@@ -118,7 +118,7 @@ program main
   call mpi_init(ierr)
   call mpi_comm_rank(mpi_comm_world, myid, ierr)
 
-  call PetscInitialize(PETSC_NULL_CHARACTER, ierr); call CHKERR(ierr)
+  call PetscInitialize('', ierr); call CHKERR(ierr)
 
   call ex_geometric_coeffs_num_intervals(mpi_comm_world)
 

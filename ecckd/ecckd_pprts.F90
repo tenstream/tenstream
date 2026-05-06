@@ -20,6 +20,7 @@
 !> \page Routines to call tenstream with optical properties from a ecrad
 
 module m_ecckd_pprts
+#ifdef HAVE_PETSC
 #include "petsc/finclude/petsc.h"
   use petsc
 
@@ -170,7 +171,7 @@ contains
     if (.not. solver%linitialized) call read_commandline_options(comm) ! so that tenstream.options file are read in
 
     pprts_icollapse = get_arg(i1, icollapse)
-    call get_petsc_opt(PETSC_NULL_CHARACTER, &
+    call get_petsc_opt('', &
                        "-pprts_collapse", pprts_icollapse, lflg, ierr); call CHKERR(ierr)
     if (pprts_icollapse .eq. -1) then
       if (ldebug .and. myid .eq. 0) print *, 'Collapsing background atmosphere', atm%atm_ke
@@ -218,7 +219,7 @@ contains
     abso = 0
 
     lprint_atm = ldebug
-    call get_petsc_opt(PETSC_NULL_CHARACTER, &
+    call get_petsc_opt('', &
                        "-ecckd_pprts_atm_view", lprint_atm, lflg, ierr); call CHKERR(ierr)
     if (lprint_atm .and. myid .eq. 0) then
       call print_tenstr_atm(atm)
@@ -227,10 +228,12 @@ contains
     if (get_arg(.false., lonly_initialize)) return
 
     lskip_thermal = .false.
-    call get_petsc_opt(PETSC_NULL_CHARACTER, &
+    call get_petsc_opt('', &
                        "-skip_thermal", lskip_thermal, lflg, ierr); call CHKERR(ierr)
     if (lthermal .and. .not. lskip_thermal) then
+#ifdef HAVE_PETSC
       call PetscLogStagePush(ecckd_log_events%stage_ecckd_thermal, ierr); call CHKERR(ierr)
+#endif
       call compute_thermal(                    &
         & comm,                                &
         & ecckd_data_thermal,                  &
@@ -244,7 +247,9 @@ contains
         & opt_buildings=opt_buildings_thermal, &
         & opt_tau=opt_tau_thermal              &
         & )
+#ifdef HAVE_PETSC
       call PetscLogStagePop(ierr); call CHKERR(ierr) ! pop log_events%stage_ecckd_thermal
+#endif
     end if
 
     if (lsolar .and. .not. allocated(edir)) allocate (edir(solver%C_one1%zm, solver%C_one1%xm, solver%C_one1%ym))
@@ -252,10 +257,12 @@ contains
 
     if (lsolar) then
       lskip_solar = .false.
-      call get_petsc_opt(PETSC_NULL_CHARACTER, &
+      call get_petsc_opt('', &
                          "-skip_solar", lskip_solar, lflg, ierr); call CHKERR(ierr)
       if (.not. lskip_solar) then
+#ifdef HAVE_PETSC
         call PetscLogStagePush(ecckd_log_events%stage_ecckd_solar, ierr); call CHKERR(ierr)
+#endif
         call compute_solar(                          &
           & comm,                                    &
           & ecckd_data_solar,                        &
@@ -272,7 +279,9 @@ contains
           & opt_w0=opt_w0_solar,        &
           & opt_g=opt_g_solar          &
           & )
+#ifdef HAVE_PETSC
         call PetscLogStagePop(ierr); call CHKERR(ierr) ! pop log_events%stage_ecckd_solar
+#endif
       end if
     end if
 
@@ -355,13 +364,15 @@ contains
 
     spectral_gpts = [integer(iintegers) :: 1, ecckd_data_thermal%n_g_pnt]
     argcnt = size(spectral_gpts)
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-ecckd_bands", spectral_gpts, argcnt, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', "-ecckd_bands", spectral_gpts, argcnt, lflg, ierr); call CHKERR(ierr)
     if (lflg) call CHKERR(int(argcnt - 2_iintegers, mpiint), "must provide 2 values for ecckd_bands, comma separated, no spaces")
     spectral_gpts = min(max(spectral_gpts, 1), ecckd_data_thermal%n_g_pnt)
 
     do ig = spectral_gpts(1), spectral_gpts(2)
       call spectral_integration_progress_report(comm, ecckd_data_thermal, ig, ierr); call CHKERR(ierr)
+#ifdef HAVE_PETSC
       call PetscLogEventBegin(ecckd_log_events%ecckd_optprop, ierr); call CHKERR(ierr)
+#endif
 
       do j = 1, solver%C_one%ym
         do i = 1, solver%C_one%xm
@@ -412,7 +423,9 @@ contains
 
       call add_optional_optprop(solver%atm%dz, kabs=kabs, opt_tau=opt_tau)
 
+#ifdef HAVE_PETSC
       call PetscLogEventEnd(ecckd_log_events%ecckd_optprop, ierr); call CHKERR(ierr)
+#endif
 
       call set_optical_properties( &
         & solver,                  &
@@ -538,13 +551,15 @@ contains
 
     spectral_gpts = [integer(iintegers) :: 1, ecckd_data_solar%n_g_pnt]
     argcnt = size(spectral_gpts)
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-ecckd_bands", spectral_gpts, argcnt, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', "-ecckd_bands", spectral_gpts, argcnt, lflg, ierr); call CHKERR(ierr)
     if (lflg) call CHKERR(int(argcnt - 2_iintegers, mpiint), "must provide 2 values for ecckd_bands, comma separated, no spaces")
     spectral_gpts = min(max(spectral_gpts, 1), ecckd_data_solar%n_g_pnt)
 
     do ig = spectral_gpts(1), spectral_gpts(2)
       call spectral_integration_progress_report(comm, ecckd_data_solar, ig, ierr); call CHKERR(ierr)
+#ifdef HAVE_PETSC
       call PetscLogEventBegin(ecckd_log_events%ecckd_optprop, ierr); call CHKERR(ierr)
+#endif
 
       do j = 1, solver%C_one%ym
         do i = 1, solver%C_one%xm
@@ -563,7 +578,9 @@ contains
       end do
 
       call add_optional_optprop(solver%atm%dz, kabs, ksca, kg, opt_tau, opt_w0, opt_g)
+#ifdef HAVE_PETSC
       call PetscLogEventEnd(ecckd_log_events%ecckd_optprop, ierr); call CHKERR(ierr)
+#endif
 
       edirTOA = ecckd_data_solar%solar_irradiance(ig)
       if (present(opt_solar_constant)) then
@@ -801,4 +818,43 @@ contains
       end do
     end subroutine
   end subroutine
+
+#else /* HAVE_PETSC */
+  use m_data_parameters, only: iintegers, ireals, mpiint
+  use m_helper_functions, only: CHKERR
+  use m_pprts_base, only: t_solver
+  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm
+  use m_buildings, only: t_pprts_buildings
+  implicit none
+  private
+  public :: ecckd_pprts, ecckd_pprts_destroy
+contains
+  subroutine ecckd_pprts(comm, solver, atm, ie, je, dx, dy, sundir, &
+      & albedo_thermal, albedo_solar, lthermal, lsolar, edir, edn, eup, abso, &
+      & nxproc, nyproc, icollapse, opt_time, solar_albedo_2d, thermal_albedo_2d, &
+      & opt_solar_constant, opt_buildings_solar, opt_buildings_thermal, &
+      & opt_tau_solar, opt_w0_solar, opt_g_solar, opt_tau_thermal, lonly_initialize)
+    integer(mpiint), intent(in) :: comm
+    class(t_solver), intent(inout) :: solver
+    type(t_tenstr_atm), intent(in) :: atm
+    integer(iintegers), intent(in) :: ie, je
+    real(ireals), intent(in) :: dx, dy, sundir(:), albedo_solar, albedo_thermal
+    logical, intent(in) :: lsolar, lthermal
+    real(ireals), allocatable, dimension(:, :, :), intent(inout) :: edir, edn, eup, abso
+    integer(iintegers), intent(in), optional :: nxproc(:), nyproc(:), icollapse
+    real(ireals), optional, intent(in) :: opt_time, solar_albedo_2d(:, :), thermal_albedo_2d(:, :), opt_solar_constant
+    type(t_pprts_buildings), intent(inout), optional :: opt_buildings_solar, opt_buildings_thermal
+    real(ireals), intent(in), optional, dimension(:, :, :) :: opt_tau_solar, opt_w0_solar, opt_g_solar, opt_tau_thermal
+    logical, intent(in), optional :: lonly_initialize
+    call CHKERR(1_mpiint, 'ecckd_pprts requires PETSc -- rebuild with -DWITH_PETSC=ON')
+  end subroutine
+
+  subroutine ecckd_pprts_destroy(solver, lfinalizepetsc, ierr)
+    class(t_solver) :: solver
+    logical, intent(in) :: lfinalizepetsc
+    integer(mpiint), intent(out) :: ierr
+    ierr = 0
+    call CHKERR(1_mpiint, 'ecckd_pprts_destroy requires PETSc -- rebuild with -DWITH_PETSC=ON')
+  end subroutine
+#endif
 end module

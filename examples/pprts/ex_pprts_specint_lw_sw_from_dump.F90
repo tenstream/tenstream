@@ -17,18 +17,18 @@ program main
   call mpi_init(ierr)
   call mpi_comm_rank(comm, myid, ierr)
 
-  call PetscInitialize(PETSC_NULL_CHARACTER, ierr)
+  call PetscInitialize('', ierr)
 
   call read_commandline_options(comm)
 
   specint = 'no_default_set'
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-specint", specint, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-specint", specint, lflg, ierr); call CHKERR(ierr)
 
-  call get_petsc_opt(PETSC_NULL_CHARACTER, '-inp', inpfile, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', '-inp', inpfile, lflg, ierr); call CHKERR(ierr)
   if (.not. lflg) call CHKERR(1_mpiint, 'need to supply a input filename... please call with -inp <input.nc>')
 
   outfile = ''
-  call get_petsc_opt(PETSC_NULL_CHARACTER, '-out', outfile, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', '-out', outfile, lflg, ierr); call CHKERR(ierr)
 
   call ex_pprts_specint_lw_sw_from_dump(specint, comm, inpfile, outfile)
 
