@@ -1,8 +1,5 @@
 module m_xdmf_export
 #ifdef HAVE_PETSC
-#include "petsc/finclude/petsc.h"
-  use petsc
-
   use m_data_parameters, only: &
     & iintegers, &
     & ireals, &
@@ -44,6 +41,8 @@ contains
   !> @details: basename of the file will be expanded by .xmf postfix
   !> \n        if you are wondering, we use duplicates of vertices because it is easy
   subroutine xdmf_pprts_buildings(solver, buildings, fbasename, ierr, verbose)
+#include "petsc/finclude/petsc.h"
+    use petsc
     class(t_solver), intent(in) :: solver
     type(t_pprts_buildings), intent(inout) :: buildings
     character(len=*), intent(in) :: fbasename
@@ -283,6 +282,8 @@ contains
   !> @brief: dump the surface flux information as xdmf
   !> @details: basename of the file will be expanded by .xmf postfix
   subroutine xdmf_pprts_srfc_flux(solver, fbasename, edn, eup, ierr, edir, verbose)
+#include "petsc/finclude/petsc.h"
+    use petsc
     class(t_solver), intent(in) :: solver
     character(len=*), intent(in) :: fbasename
     real(ireals), allocatable, dimension(:, :, :), intent(in) :: edn, eup

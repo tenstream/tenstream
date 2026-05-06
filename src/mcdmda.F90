@@ -21,9 +21,7 @@ module m_mcdmda
 #ifdef HAVE_PETSC
   use iso_fortran_env, only: int64, output_unit
   use iso_c_binding, only: c_backspace
-
-#include "petsc/finclude/petsc.h"
-  use petsc
+  use mpi
 
   use m_data_parameters, only: ireals, iintegers, ireal_dp, &
                                mpiint, imp_iinteger, imp_int8, &
@@ -64,8 +62,6 @@ module m_mcdmda
     & t_solver_3_6, &
     & t_solver_mcdmda, &
     & t_state_container
-
-  use m_petsc_helpers, only: getVecPointer, restoreVecPointer
 
   use m_buildings, only: t_pprts_buildings
 
@@ -122,6 +118,9 @@ module m_mcdmda
 contains
 
   subroutine solve_mcdmda(solver, edirTOA, solution, ierr, opt_buildings)
+#include "petsc/finclude/petsc.h"
+    use petsc
+    use m_petsc_helpers, only: getVecPointer, restoreVecPointer
     class(t_solver), intent(in) :: solver
     real(ireals), intent(in) :: edirTOA
     type(t_state_container) :: solution

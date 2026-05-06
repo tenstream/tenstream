@@ -228,37 +228,11 @@ contains
     end function
   #:endfor
 
-#ifdef HAVE_PETSC
-  ! return index+residual i where val is between arr(i) and arr(i+1)
   function find_real_location_petsc(arr, val) result(loc)
-#include "petsc/finclude/petsc.h"
-    use petsc
     real(ireals), intent(in) :: arr(:)
     real(ireals), intent(in) :: val
     real(ireals) :: loc
-    real(ireals) :: residual
-    integer(iintegers) :: lb
-    PetscCount :: N
-    real(ireals), parameter :: eps = epsilon(eps)
-    integer(mpiint) :: ierr
-
-    N = size(arr, kind=iintegers)
-    call PetscFindReal(val, N, arr, eps, lb, ierr); call CHKERR(ierr)
-    if (lb .eq. -1_iintegers) then
-      loc = 1
-      return
-    else if (lb .eq. -N - 1) then
-      loc = real(N, ireals)
-      return
-    else if (lb .lt. -1._iintegers) then ! we have not hit the real value exactly, lets add the offset
-      lb = -lb - 1
-      residual = (val - arr(lb)) / (arr(lb + 1) - arr(lb))
-      loc = real(lb, ireals) + residual
-      return
-    else
-      loc = real(lb + 1) ! PetscFind returns the c-notation index
-    end if
+    loc = search_sorted_bisection(arr, val)
   end function
-#endif
 
 end module

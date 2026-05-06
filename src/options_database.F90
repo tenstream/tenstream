@@ -44,14 +44,14 @@ module m_options_database
   public :: opts_get_integer_array
   public :: opts_get_real_array
 
-  integer, parameter :: KEY_LEN  = 256
-  integer, parameter :: VAL_LEN  = 4096
+  integer, parameter :: KEY_LEN = 256
+  integer, parameter :: VAL_LEN = 4096
   integer, parameter :: MAX_OPTS = 2048
 
-  integer           :: nopt = 0
+  integer :: nopt = 0
   character(KEY_LEN) :: db_keys(MAX_OPTS)
   character(VAL_LEN) :: db_vals(MAX_OPTS)
-  logical           :: db_initialized = .false.
+  logical :: db_initialized = .false.
 
 contains
 
@@ -82,7 +82,7 @@ contains
       i = i + 1
     end do
 
-    inquire(file='tenstream.options', exist=file_exists)
+    inquire (file='tenstream.options', exist=file_exists)
     if (file_exists) call opts_insert_file('tenstream.options')
   end subroutine
 
@@ -93,10 +93,10 @@ contains
     character(VAL_LEN) :: line
     integer :: u, ios, cpos, sp
 
-    open(newunit=u, file=trim(filename), status='old', action='read', iostat=ios)
+    open (newunit=u, file=trim(filename), status='old', action='read', iostat=ios)
     if (ios /= 0) return
     do
-      read(u, '(A)', iostat=ios) line
+      read (u, '(A)', iostat=ios) line
       if (ios /= 0) exit
       cpos = scan(line, '#!')
       if (cpos > 0) line = line(:cpos - 1)
@@ -111,7 +111,7 @@ contains
         call store_opt(trim(line(:sp - 1)), trim(adjustl(line(sp + 1:))))
       end if
     end do
-    close(u)
+    close (u)
   end subroutine
 
   !> True if option exists. Tries prefix+name first, then bare name as fallback.
@@ -125,7 +125,7 @@ contains
 
   !> Raw string lookup. val is unchanged if option not found.
   subroutine opts_get_raw(prefix, name, val, found)
-    character(len=*), intent(in)    :: prefix, name
+    character(len=*), intent(in) :: prefix, name
     character(len=*), intent(inout) :: val
     logical, intent(out) :: found
     integer :: idx
@@ -159,7 +159,7 @@ contains
     character(VAL_LEN) :: raw
     raw = ''
     call opts_get_raw(prefix, name, raw, found)
-    if (found) read(raw, *) val
+    if (found) read (raw, *) val
   end subroutine
 
   !> Real(real64) option. val unchanged if not found.
@@ -170,7 +170,7 @@ contains
     character(VAL_LEN) :: raw
     raw = ''
     call opts_get_raw(prefix, name, raw, found)
-    if (found) read(raw, *) val
+    if (found) read (raw, *) val
   end subroutine
 
   !> String option. val unchanged if not found.
@@ -202,7 +202,7 @@ contains
     prev = 1
     do p = 1, len_trim(raw)
       if (raw(p:p) == ',') then
-        read(raw(prev:p - 1), *, iostat=ios) tmp
+        read (raw(prev:p - 1), *, iostat=ios) tmp
         if (ios == 0 .and. n < int(size(arr), int32)) then
           n = n + 1
           arr(n) = tmp
@@ -230,7 +230,7 @@ contains
     prev = 1
     do p = 1, len_trim(raw)
       if (raw(p:p) == ',') then
-        read(raw(prev:p - 1), *, iostat=ios) tmp
+        read (raw(prev:p - 1), *, iostat=ios) tmp
         if (ios == 0 .and. n < int(size(arr), int32)) then
           n = n + 1
           arr(n) = tmp
@@ -277,7 +277,7 @@ contains
     idx = find_opt(k)
     if (idx == 0) then
       if (nopt >= MAX_OPTS) then
-        write(error_unit, '(A)') 'opts_db: database full, ignoring -'//trim(k)
+        write (error_unit, '(A)') 'opts_db: database full, ignoring -'//trim(k)
         return
       end if
       nopt = nopt + 1

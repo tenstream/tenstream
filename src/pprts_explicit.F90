@@ -19,14 +19,7 @@
 
 module m_pprts_explicit
 
-#ifdef HAVE_PETSC
-#include "petsc/finclude/petsc.h"
-  use petsc
-  use m_petsc_helpers, only: &
-    & getVecPointer, restoreVecPointer
-#else
   use mpi
-#endif
 
   use m_data_parameters, only: &
     & i0, i1, &
@@ -67,6 +60,11 @@ contains
 
   !> @brief explicit loop to compute direct radiation — thin wrapper handles Vec/array conversion
   subroutine explicit_edir(solver, prefix, edirTOA, solution, ierr)
+#ifdef HAVE_PETSC
+#include "petsc/finclude/petsc.h"
+    use petsc
+    use m_petsc_helpers, only: getVecPointer, restoreVecPointer
+#endif
     class(t_solver), target, intent(in) :: solver
     character(len=*), intent(in) :: prefix
     real(ireals), intent(in) :: edirTOA
@@ -525,6 +523,11 @@ contains
   !> @brief explicit loop to compute diffuse radiation
   !> @brief explicit diffuse solver — thin wrapper handles Vec/array conversion
   subroutine explicit_ediff(solver, prefix, vb, solution, ierr)
+#ifdef HAVE_PETSC
+#include "petsc/finclude/petsc.h"
+    use petsc
+    use m_petsc_helpers, only: getVecPointer, restoreVecPointer
+#endif
     class(t_solver), intent(inout) :: solver
     character(len=*), intent(in) :: prefix
     real(ireals), target, intent(in) :: vb(:, :, :, :)

@@ -20,10 +20,6 @@
 module m_data_parameters
   use iso_fortran_env, only: int32, int64, real32, real64, real128
   use mpi
-#ifdef HAVE_PETSC
-#include <petsc/finclude/petsc.h>
-  use petsc
-#endif
   use m_options_database, only: opts_init
   use ieee_arithmetic, only: ieee_support_nan, ieee_quiet_nan, ieee_value, &
     & ieee_support_inf, ieee_positive_inf, ieee_negative_inf
@@ -76,16 +72,12 @@ module m_data_parameters
     share_dir
 
   integer :: mpiint_dummy
-#ifdef HAVE_PETSC
-  PetscInt :: petscint_dummy
-  PetscReal :: petscreal_dummy
-#endif
 
   integer, parameter :: &
     default_str_len = 512, &
 #ifdef HAVE_PETSC
-    iintegers = kind(petscint_dummy), &
-    ireals = kind(petscreal_dummy), &
+    iintegers = PETSC_IINTEGERS_KIND, &
+    ireals = PETSC_IREALS_KIND, &
 #else
     iintegers = int32, &
     ireals = real64, &
@@ -167,6 +159,8 @@ contains
     logical :: lmpi_is_initialized, lallsame
 #ifdef HAVE_PETSC
     PetscBool :: lpetsc_is_initialized
+    PetscInt :: petsc_iint_check
+    PetscReal :: petsc_ireal_check
 #endif
 
     call mpi_initialized(lmpi_is_initialized, mpierr)
@@ -252,6 +246,15 @@ contains
     end select
 
 #ifdef HAVE_PETSC
+    if (kind(petsc_iint_check) /= iintegers) then
+      print *, 'FATAL: iintegers kind mismatch with PetscInt — check PETSc build configuration'
+      call mpi_abort(comm, 1_mpiint, ierr)
+    end if
+    if (kind(petsc_ireal_check) /= ireals) then
+      print *, 'FATAL: ireals kind mismatch with PetscReal — check PETSc build configuration'
+      call mpi_abort(comm, 1_mpiint, ierr)
+    end if
+
     call PetscInitialized(lpetsc_is_initialized, mpierr)
     if (mpierr .ne. 0) call mpi_abort(comm, mpierr, ierr)
 
