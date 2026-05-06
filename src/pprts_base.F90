@@ -40,6 +40,7 @@ module m_pprts_base
     & get_solution_uid, &
     & prepare_solution, &
     & print_solution, &
+    & setup_coord_native, &
     & setup_incSolar, &
     & setup_log_events, &
     & solver_to_str, &
@@ -577,6 +578,109 @@ contains
         call CHKERR(1_mpiint, 'could not determine description str for solver')
       end select
     end function
+
+    !> @brief Fill a t_coord without PETSc using MPI Cartesian topology.
+    !> @details Replaces DMDACreate3d+setup_coords for non-PETSc builds.
+    !>   Domain layout mirrors DMDA: z is never decomposed (each rank owns full column).
+    !>   Ghost stencil width is 1 in x and y.  neighbors() uses the same index
+    !>   formula as DMDAGetNeighbors: idx = (1+diz) + (1+dix)*3 + (1+diy)*9.
+    subroutine setup_coord_native(icomm, Nz, Nx, Ny, dof, C, nxproc, nyproc)
+      use mpi, only: MPI_PROC_NULL, MPI_Dims_create, MPI_Cart_create, MPI_Cart_get, MPI_Cart_shift, MPI_Comm_free
+      integer(mpiint), intent(in) :: icomm
+      integer(iintegers), intent(in) :: Nz, Nx, Ny, dof
+      type(t_coord), allocatable, intent(inout) :: C
+      integer(iintegers), optional, intent(in) :: nxproc(:), nyproc(:)
+
+      integer(mpiint) :: cart_comm, ierr, myid, nproc
+      integer(mpiint) :: dims(2), coords(2)
+      logical :: periods(2)
+      integer(mpiint) :: rank_west, rank_east, rank_south, rank_north
+      integer(iintegers) :: nxp, nyp, xi, yi
+
+      if (allocated(C)) deallocate (C)
+      allocate (C)
+
+      C%comm = icomm
+      C%dof = dof
+      C%dim = 3
+      C%glob_zm = Nz
+      C%glob_xm = Nx
+      C%glob_ym = Ny
+
+      call mpi_comm_rank(icomm, myid, ierr); call CHKERR(ierr)
+
+      if (present(nxproc) .and. present(nyproc)) then
+        nxp = size(nxproc, kind=iintegers)
+        nyp = size(nyproc, kind=iintegers)
+        dims = int([nxp, nyp], mpiint)
+      else
+        call mpi_comm_size(icomm, nproc, ierr); call CHKERR(ierr)
+        dims = 0_mpiint
+        call MPI_Dims_create(nproc, 2_mpiint, dims, ierr); call CHKERR(ierr)
+        nxp = int(dims(1), iintegers)
+        nyp = int(dims(2), iintegers)
+      end if
+
+      periods = .false.
+      call MPI_Cart_create(icomm, 2_mpiint, dims, periods, .false., cart_comm, ierr); call CHKERR(ierr)
+      call MPI_Cart_get(cart_comm, 2_mpiint, dims, periods, coords, ierr); call CHKERR(ierr)
+
+      xi = int(coords(1), iintegers)
+      yi = int(coords(2), iintegers)
+
+      ! z: never decomposed — full column on every rank
+      C%zs = i0
+      C%zm = Nz
+      C%ze = Nz - i1
+      C%gzs = i0
+      C%gzm = Nz
+      C%gze = Nz - i1
+
+      ! x: use provided distribution or even split
+      if (present(nxproc)) then
+        C%xs = int(sum(nxproc(1:xi)), iintegers)
+        C%xm = nxproc(xi + i1)
+      else
+        C%xs = (xi * Nx) / nxp
+        C%xm = ((xi + i1) * Nx) / nxp - C%xs
+      end if
+      C%xe = C%xs + C%xm - i1
+
+      ! y: use provided distribution or even split
+      if (present(nyproc)) then
+        C%ys = int(sum(nyproc(1:yi)), iintegers)
+        C%ym = nyproc(yi + i1)
+      else
+        C%ys = (yi * Ny) / nyp
+        C%ym = ((yi + i1) * Ny) / nyp - C%ys
+      end if
+      C%ye = C%ys + C%ym - i1
+
+      ! ghost bounds: 1-cell stencil in x and y
+      C%gxs = C%xs - i1
+      C%gxe = C%xe + i1
+      C%gxm = C%gxe - C%gxs + i1
+      C%gys = C%ys - i1
+      C%gye = C%ye + i1
+      C%gym = C%gye - C%gys + i1
+
+      ! neighbors(0:26): DMDA-compatible layout
+      !   idx = (1+diz)*1 + (1+dix)*3 + (1+diy)*9
+      !   self=13, west=10, east=16, south=4, north=22
+      allocate (C%neighbors(0:3**C%dim - 1))
+      C%neighbors = int(MPI_PROC_NULL, iintegers)
+      C%neighbors(13) = int(myid, iintegers)
+
+      call MPI_Cart_shift(cart_comm, 0_mpiint, 1_mpiint, rank_west, rank_east, ierr); call CHKERR(ierr)
+      call MPI_Cart_shift(cart_comm, 1_mpiint, 1_mpiint, rank_south, rank_north, ierr); call CHKERR(ierr)
+
+      C%neighbors(10) = int(rank_west, iintegers)
+      C%neighbors(16) = int(rank_east, iintegers)
+      C%neighbors(4) = int(rank_south, iintegers)
+      C%neighbors(22) = int(rank_north, iintegers)
+
+      call MPI_Comm_free(cart_comm, ierr); call CHKERR(ierr)
+    end subroutine
 
     subroutine destroy_coord(C)
       type(t_coord), allocatable, intent(inout) :: C
