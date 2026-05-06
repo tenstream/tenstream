@@ -24,8 +24,10 @@ module m_twostream
 #define isnan ieee_is_nan
 #endif
 
+#ifdef HAVE_PETSC
 #include "petsc/finclude/petsc.h"
   use petsc
+#endif
 
   use iso_fortran_env, only: real32, real64
 
@@ -36,7 +38,10 @@ module m_twostream
   implicit none
 
   private
-  public delta_eddington_twostream, petsc_delta_eddington_twostream, adding_delta_eddington_twostream
+  public delta_eddington_twostream, adding_delta_eddington_twostream
+#ifdef HAVE_PETSC
+  public petsc_delta_eddington_twostream
+#endif
 
   logical, parameter :: ldebug = .false.
 
@@ -178,6 +183,7 @@ contains
 
   end subroutine
 
+#ifdef HAVE_PETSC
   subroutine petsc_delta_eddington_twostream(dtau_in, w0_in, g_in, mu0, incSolar, albedo, S, Edn, Eup, planck)
     real(ireals), intent(in), dimension(:) :: dtau_in, w0_in, g_in
     real(ireals), intent(in) :: albedo, mu0, incSolar
@@ -324,6 +330,7 @@ contains
     call VecDestroy(vEdn, ierr); call CHKERR(ierr)
     call VecDestroy(vEup, ierr); call CHKERR(ierr)
   end subroutine
+#endif
 
   subroutine adding_delta_eddington_twostream(dtau, omega0, g, mu0, S0, Ag, Edir, Edn, Eup)
     real(ireals), intent(in), dimension(:) :: dtau, omega0, g

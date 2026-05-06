@@ -229,7 +229,17 @@ if(WITH_PETSC)
   add_compile_definitions(HAVE_PETSC)
   message(STATUS "WITH_PETSC=ON: PETSc solver backend enabled (-DHAVE_PETSC)")
 else()
-  message(STATUS "WITH_PETSC=OFF: PETSc headers still needed to compile solver, but init/finalize are skipped")
+  message(STATUS "WITH_PETSC=OFF: PETSc-dependent modules (plexrt, pprts solver, gas optics) disabled")
+  set(ENABLE_PLEXRT    OFF CACHE BOOL "PLEXRT requires PETSc"    FORCE)
+  set(ENABLE_RRTM      OFF CACHE BOOL "RRTM requires PETSc"      FORCE)
+  set(ENABLE_SPECINT   OFF CACHE BOOL "SPECINT requires PETSc"   FORCE)
+  set(ENABLE_REPWVL    OFF CACHE BOOL "REPWVL requires PETSc"    FORCE)
+  set(ENABLE_ECCKD     OFF CACHE BOOL "ECCKD requires PETSc"     FORCE)
+  set(ENABLE_C_WRAPPER OFF CACHE BOOL "C_WRAPPER requires PETSc" FORCE)
+  set(ENABLE_EXAMPLES  OFF CACHE BOOL "Examples require PETSc"   FORCE)
+  set(ENABLE_PFUNIT    OFF CACHE BOOL "Most tests require PETSc"  FORCE)
+  # stub targets so submodule CMakeLists.txt can still reference them
+  add_library(pprts_objs INTERFACE)
 endif()
 
 # the cmake dependency scanner gets trapped in an infinite loop when we add petsc headers as includedirs.
@@ -430,14 +440,18 @@ add_subdirectory(misc)
 
 if(ENABLE_PLEXRT)
   add_subdirectory (plexrt)
+else()
+  add_library(plexrt INTERFACE)
 endif(ENABLE_PLEXRT)
 
 set(TENSTR_LIBS
   pprts_base
-  pprts
   tenstr_disort
   f2c_rayli
   )
+if(WITH_PETSC)
+  list(APPEND TENSTR_LIBS pprts)
+endif()
 if(ENABLE_C_WRAPPER)
   list(APPEND TENSTR_LIBS f2c_pprts f2c_pprts_rrtm)
 endif()

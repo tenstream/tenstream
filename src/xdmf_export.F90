@@ -1,4 +1,5 @@
 module m_xdmf_export
+#ifdef HAVE_PETSC
 #include "petsc/finclude/petsc.h"
   use petsc
 
@@ -432,4 +433,5 @@ contains
       write (funit, *) '</Grid>'
     end subroutine
   end subroutine xdmf_pprts_srfc_flux
+#endif
 end module

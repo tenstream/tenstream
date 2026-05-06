@@ -18,6 +18,7 @@
 !-------------------------------------------------------------------------
 
 module m_mcdmda
+#ifdef HAVE_PETSC
   use iso_fortran_env, only: int64, output_unit
   use iso_c_binding, only: c_backspace
 
@@ -1547,4 +1548,5 @@ contains
     if (p%j .lt. C%ys .or. p%j .gt. C%ye) &
       call CHKERR(1_mpiint, 'Wrong index(dim3) '//toStr(p%j)//' not in ('//toStr(C%ys)//'/'//toStr(C%ye)//')')
   end subroutine
+#endif
 end module

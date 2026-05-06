@@ -1,13 +1,18 @@
 module test_twostr
 
+#ifdef HAVE_PETSC
 #include "petsc/finclude/petsc.h"
   use petsc
+#endif
 
   use m_data_parameters, only: init_mpi_data_parameters, iintegers, ireals, zero, one, mpiint
 
   use m_tenstream_options, only: read_commandline_options
 
-  use m_twostream, only: delta_eddington_twostream, petsc_delta_eddington_twostream, adding_delta_eddington_twostream
+  use m_twostream, only: delta_eddington_twostream, adding_delta_eddington_twostream
+#ifdef HAVE_PETSC
+  use m_twostream, only: petsc_delta_eddington_twostream
+#endif
 
   use pfunit_mod
 
@@ -53,12 +58,9 @@ contains
 
     @assertEqual((S(ke1) + Edn(ke1)) * albedo, Eup(ke1), sqrt(epsilon(S)))
 
-    PETSC_COMM_WORLD = comm
-    call PetscInitialize(PETSC_NULL_CHARACTER, ierr)
     call init_mpi_data_parameters(comm)
-
     call read_commandline_options(comm)
-
+#ifdef HAVE_PETSC
     call petsc_delta_eddington_twostream(dtau, w0, g, mu0, incSolar, albedo, pS, pEdn, pEup)
 
     do k = 1, size(S)
@@ -66,7 +68,7 @@ contains
       @assertEqual(Edn(k), pEdn(k), sqrt(epsilon(one)))
       @assertEqual(Eup(k), pEup(k), sqrt(epsilon(one)))
     end do
-    call PetscFinalize(ierr)
+#endif
 
     call cpu_time(starttime)
     do k = 1, iter

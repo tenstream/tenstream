@@ -106,11 +106,16 @@ endif()
 add_library( pprts_base $<TARGET_OBJECTS:pprts_base_objs> )
 target_link_libraries( pprts_base ${FORNADO_LIBS} ${EXTLIB})
 
-# pprts libs
-add_library( pprts_objs OBJECT ${solver_sources} )
-add_dependencies( pprts_objs pprts_base plexrt )
-add_library( pprts $<TARGET_OBJECTS:pprts_objs> )
-target_link_libraries( pprts    pprts_base plexrt   ${EXTLIB})
+# pprts libs (require PETSc + plexrt)
+if(WITH_PETSC)
+  add_library( pprts_objs OBJECT ${solver_sources} )
+  add_dependencies( pprts_objs pprts_base plexrt )
+  add_library( pprts $<TARGET_OBJECTS:pprts_objs> )
+  target_link_libraries( pprts    pprts_base plexrt   ${EXTLIB})
+else()
+  add_library( pprts INTERFACE )
+  target_link_libraries( pprts INTERFACE pprts_base )
+endif()
 
 # CreateLUT binaries
 file( GLOB streams createLUT*.[fF]90 )
