@@ -59,6 +59,7 @@ set( general_sources
   "nca.F90"
   "petsc_helpers.F90"
   "pprts_base.F90"
+  "pprts_explicit.F90"
   "ranlux.F90"
   "schwarzschild.F90"
   "search.F90"
@@ -82,7 +83,6 @@ set( optprop_sources
 set( solver_sources
   "pprts.F90"
   "pprts_shell.F90"
-  "pprts_explicit.F90"
   "pprts_external_solvers.F90"
   )
 
