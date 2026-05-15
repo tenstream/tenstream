@@ -54,19 +54,24 @@ set( general_sources
   "options_database.F90"
   "eddington.F90"
   "interpolation.F90"
-  "mcdmda.F90"
   "mmap.F90"
   "nca.F90"
-  "petsc_helpers.F90"
   "pprts_base.F90"
   "pprts_explicit.F90"
   "ranlux.F90"
   "schwarzschild.F90"
   "search.F90"
   "tenstream_options.F90"
-  "twostream.F90"
-  "xdmf_export.F90"
   )
+
+if(WITH_PETSC)
+  list(APPEND general_sources
+    "mcdmda.F90"
+    "petsc_helpers.F90"
+    "twostream.F90"
+    "xdmf_export.F90"
+    )
+endif()
 
 set( optprop_sources
   "boxmc_geometry.F90"
@@ -82,20 +87,27 @@ set( optprop_sources
 
 set( solver_sources
   "pprts.F90"
-  "pprts_shell.F90"
-  "pprts_external_solvers.F90"
   )
+
+if(WITH_PETSC)
+  list(APPEND solver_sources
+    "pprts_shell.F90"
+    "pprts_external_solvers.F90"
+    )
+endif()
 
 if(BUILD_FORNADO)
   SET_SOURCE_FILES_PROPERTIES(optprop_ANN.F90
     PROPERTIES COMPILE_DEFINITIONS HAVE_FORNADO)
 endif()
 
-include(CheckSymbolExists)
-check_symbol_exists(OMPI_MPI_H "mpi.h" HAVE_OMPI)
-if(HAVE_OMPI)
-  SET_SOURCE_FILES_PROPERTIES(petsc_helpers.F90
-    PROPERTIES COMPILE_DEFINITIONS HAVE_OMPI)
+if(WITH_PETSC)
+  include(CheckSymbolExists)
+  check_symbol_exists(OMPI_MPI_H "mpi.h" HAVE_OMPI)
+  if(HAVE_OMPI)
+    SET_SOURCE_FILES_PROPERTIES(petsc_helpers.F90
+      PROPERTIES COMPILE_DEFINITIONS HAVE_OMPI)
+  endif()
 endif()
 
 # pprts_base libs
@@ -106,17 +118,17 @@ endif()
 add_library( pprts_base $<TARGET_OBJECTS:pprts_base_objs> )
 target_link_libraries( pprts_base ${FORNADO_LIBS} ${EXTLIB})
 
-# pprts libs (require PETSc + plexrt)
+# pprts solver lib
+add_library( pprts_objs OBJECT ${solver_sources} )
+add_dependencies( pprts_objs pprts_base )
 if(WITH_PETSC)
-  add_library( pprts_objs OBJECT ${solver_sources} )
-  add_dependencies( pprts_objs pprts_base plexrt )
-  add_library( pprts $<TARGET_OBJECTS:pprts_objs> )
-  target_link_libraries( pprts    pprts_base plexrt   ${EXTLIB})
+  add_dependencies( pprts_objs plexrt )
+endif()
+add_library( pprts $<TARGET_OBJECTS:pprts_objs> )
+if(WITH_PETSC)
+  target_link_libraries( pprts pprts_base plexrt ${EXTLIB})
 else()
-  add_library( pprts_stub_objs OBJECT pprts_stub.F90 )
-  add_dependencies( pprts_stub_objs pprts_base )
-  add_library( pprts $<TARGET_OBJECTS:pprts_stub_objs> )
-  target_link_libraries( pprts pprts_base ${EXTLIB} )
+  target_link_libraries( pprts pprts_base ${EXTLIB})
 endif()
 
 # CreateLUT binaries

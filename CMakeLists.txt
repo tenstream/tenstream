@@ -272,8 +272,6 @@ else()
   # PLEXRT and C_WRAPPER are compile-time PETSc-only (they use tDM/tVec types in their public API)
   set(ENABLE_PLEXRT    OFF CACHE BOOL "PLEXRT requires PETSc"    FORCE)
   set(ENABLE_C_WRAPPER OFF CACHE BOOL "C_WRAPPER requires PETSc" FORCE)
-  # stub target so submodule CMakeLists.txt can still reference pprts_objs
-  add_library(pprts_objs INTERFACE)
 endif()
 
 # NetCDF
@@ -447,9 +445,6 @@ endif(ENABLE_ALL)
 # Add Source Directories
 add_subdirectory(external)
 add_subdirectory(src)
-if(NOT WITH_PETSC)
-  add_dependencies(pprts_objs pprts_base)
-endif()
 add_subdirectory(disort)
 add_subdirectory(rayli_wrapper)
 add_subdirectory(misc)
