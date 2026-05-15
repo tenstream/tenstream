@@ -14,8 +14,10 @@ module m_examples_pprts_buildings
 
   use m_pprts, only: init_pprts, &
     & set_optical_properties, solve_pprts, &
-    & pprts_get_result, set_angles, &
-    & gather_all_toZero
+    & pprts_get_result, set_angles
+#ifdef HAVE_PETSC
+  use m_pprts, only: gather_all_toZero
+#endif
 
   use m_pprts_base, only: t_solver, &
     & allocate_pprts_solver_from_commandline, destroy_pprts, &
@@ -38,8 +40,10 @@ module m_examples_pprts_buildings
     & PPRTS_REAR_FACE, &
     & PPRTS_RIGHT_FACE
 
+#ifdef HAVE_PETSC
   use m_xdmf_export, only: &
     & xdmf_pprts_buildings
+#endif
 
   use m_netcdfio, only: ncwrite
 
@@ -192,12 +196,19 @@ contains
 
       call pprts_get_result(solver, fdn, fup, fdiv, fdir, opt_buildings=buildings)
 
+#ifdef HAVE_PETSC
       if (lsolar) then
         call gather_all_toZero(solver%C_one1, fdir, gedir)
       end if
       call gather_all_toZero(solver%C_one1, fdn, gedn)
       call gather_all_toZero(solver%C_one1, fup, geup)
       call gather_all_toZero(solver%C_one, fdiv, gabso)
+#else
+      if (lsolar .and. allocated(fdir)) gedir = fdir
+      gedn = fdn
+      geup = fup
+      gabso = fdiv
+#endif
 
       if (myid .eq. 0_mpiint .and. present(outfile)) then
         groups(1) = trim(outfile)

@@ -1,7 +1,4 @@
 module m_example_pprts_specint_lw_sw_from_dump
-#ifdef HAVE_PETSC
-#include "petsc/finclude/petsc.h"
-  use petsc
   use mpi
 
   ! Import datatype from the TenStream lib. Depending on how PETSC is
@@ -314,17 +311,4 @@ contains
     end subroutine
   end subroutine
 
-#else /* HAVE_PETSC */
-  use m_data_parameters, only: iintegers, ireals, mpiint
-  use m_helper_functions, only: CHKERR
-  implicit none
-  private
-  public :: ex_pprts_specint_lw_sw_from_dump
-contains
-  subroutine ex_pprts_specint_lw_sw_from_dump(specint, comm, inpfile, outfile)
-    character(len=*), intent(in) :: specint, inpfile, outfile
-    integer(mpiint), intent(in) :: comm
-    call CHKERR(1_mpiint, 'ex_pprts_specint_lw_sw_from_dump requires PETSc -- rebuild with -DWITH_PETSC=ON')
-  end subroutine
-#endif /* HAVE_PETSC */
 end module

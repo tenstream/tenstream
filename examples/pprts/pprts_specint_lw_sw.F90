@@ -2,6 +2,8 @@ module m_example_pprts_specint_lw_sw
 #ifdef HAVE_PETSC
 #include "petsc/finclude/petsc.h"
   use petsc
+  use m_petsc_helpers, only: getvecpointer, restorevecpointer
+#endif
   use mpi
 
   ! Import datatype from the TenStream lib. Depending on how PETSC is
@@ -13,14 +15,15 @@ module m_example_pprts_specint_lw_sw
 
   ! Import specific solver type: 3_10 for example uses 3 streams direct, 10 streams for diffuse radiation
   use m_pprts_base, only: t_solver, allocate_pprts_solver_from_commandline
+#ifdef HAVE_PETSC
   use m_pprts, only: gather_all_toZero
+#endif
 
   ! main entry point for solver, and desctructor
   use m_specint_pprts, only: specint_pprts, specint_pprts_destroy
 
   use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, destroy_tenstr_atm, abso2hr
 
-  use m_petsc_helpers, only: getvecpointer, restorevecpointer
   use m_netcdfio, only: ncwrite
 
   implicit none
@@ -261,11 +264,18 @@ contains
       print *, 'TOA :: absorption ', meanval(abso(1, :, :))
     end if
 
+#ifdef HAVE_PETSC
     if (allocated(edir)) &
       & call gather_all_toZero(pprts_solver%C_one1, edir, gedir)
     call gather_all_toZero(pprts_solver%C_one1, edn, gedn)
     call gather_all_toZero(pprts_solver%C_one1, eup, geup)
     call gather_all_toZero(pprts_solver%C_one, abso, gabso)
+#else
+    if (allocated(edir)) gedir = edir
+    gedn = edn
+    geup = eup
+    gabso = abso
+#endif
 
     if (myid .eq. 0_mpiint .and. present(outfile)) then
       dimnames(1) = 'zlev'
@@ -281,6 +291,7 @@ contains
       groups(2) = 'abso'; call ncwrite(groups, gabso, ierr, dimnames=dimnames); call CHKERR(ierr)
 
       print *, 'dumping z coords'
+#ifdef HAVE_PETSC
       associate (Ca1 => pprts_solver%C_one_atm1_box)
         call getVecPointer(Ca1%da, pprts_solver%atm%hhl, z1d, z)
         dimnames(1) = 'nlev'
@@ -297,6 +308,7 @@ contains
         call CHKERR(ierr)
         call restoreVecPointer(Ca1%da, pprts_solver%atm%hhl, z1d, z)
       end associate
+#endif
     end if
 
     ! Tidy up
@@ -304,28 +316,4 @@ contains
     call destroy_tenstr_atm(atm)
   end subroutine
 
-#else /* HAVE_PETSC */
-  use m_data_parameters, only: iintegers, ireals, mpiint, default_str_len
-  use m_helper_functions, only: CHKERR
-  implicit none
-  private
-  public :: ex_pprts_specint_lw_sw
-contains
-  subroutine ex_pprts_specint_lw_sw(specint, comm, nxp, nyp, nzp, dx, dy, &
-      & phi0, theta0, albedo_th, albedo_sol, &
-      & lthermal, lsolar, atm_filename, &
-      & gedir, gedn, geup, gabso, &
-      & vlwc, viwc, vreff, vreice, outfile)
-    character(len=*), intent(in) :: specint
-    integer(mpiint), intent(in) :: comm
-    integer(iintegers), intent(in) :: nxp, nyp, nzp
-    real(ireals), intent(in) :: dx, dy, phi0, theta0, albedo_th, albedo_sol
-    logical, intent(in) :: lthermal, lsolar
-    character(len=*), intent(in) :: atm_filename
-    real(ireals), allocatable, dimension(:, :, :), intent(out) :: gedir, gedn, geup, gabso
-    real(ireals), intent(in), optional :: vlwc, viwc, vreff, vreice
-    character(len=*), intent(in), optional :: outfile
-    call CHKERR(1_mpiint, 'ex_pprts_specint_lw_sw requires PETSc -- rebuild with -DWITH_PETSC=ON')
-  end subroutine
-#endif /* HAVE_PETSC */
 end module
