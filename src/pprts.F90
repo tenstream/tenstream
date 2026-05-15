@@ -6416,6 +6416,7 @@ contains
     subroutine set_thermal_source_arr()
       real(ireals) :: Ax, Ay, Az, emis, b0, b1, btop, bbot, bfac, tauz
       integer(iintegers) :: k, i, j, src, iside, ak
+      real(ireals), pointer :: diff2diff(:, :)
 
       associate (atm => solver%atm, &
                  C_diff => solver%C_diff, &
@@ -6425,59 +6426,131 @@ contains
           call CHKERR(1_mpiint, 'thermal_source_arr: atm%%planck not allocated')
         end if
 
+        Az = atm%dx * atm%dy / real(solver%difftop%area_divider, ireals)
+
         do j = C_diff%ys, C_diff%ye
           do i = C_diff%xs, C_diff%xe
-            Az = atm%dx * atm%dy
             do k = C_diff%zs, C_diff%ze - 1
               ak = atmk(atm, k)
               b0 = atm%planck(ak, i, j)
               b1 = atm%planck(ak + 1, i, j)
               tauz = atm%kabs(ak, i, j) * atm%dz(ak, i, j)
-              call B_eff(b1, b0, tauz, btop); btop = btop * pi
-              call B_eff(b0, b1, tauz, bbot); bbot = bbot * pi
-              bfac = (btop + bbot) * 0.5_ireals
 
-              do src = 0, solver%difftop%dof - 1
-                if (solver%difftop%is_inward(src + 1)) then
-                  xsrc(src, k + 1, i, j) = xsrc(src, k + 1, i, j) + Az * btop / real(solver%difftop%streams, ireals)
+              if (atm%l1d(ak)) then
+
+                bfac = pi * Az / real(solver%difftop%streams, ireals)
+
+                if (atm%lcollapse .and. k .eq. i0) then
+                  btop = atm%Btop(i, j) * bfac
+                  bbot = atm%Bbot(i, j) * bfac
                 else
-                  xsrc(src, k, i, j) = xsrc(src, k, i, j) + Az * bbot / real(solver%difftop%streams, ireals)
+                  emis = one - atm%a11(ak, i, j) - atm%a12(ak, i, j)
+                  emis = max(zero, min(one, emis))
+                  call B_eff(b1, b0, tauz, btop)
+                  call B_eff(b0, b1, tauz, bbot)
+                  btop = btop * bfac * emis
+                  bbot = bbot * bfac * emis
                 end if
-              end do
 
-              Ax = atm%dy * atm%dz(ak, i, j)
-              Ay = atm%dx * atm%dz(ak, i, j)
-              do iside = 0, solver%diffside%dof - 1
-                src = solver%difftop%dof + iside
-                if (solver%diffside%is_inward(iside + 1)) then
-                  xsrc(src, k, i + 1, j) = xsrc(src, k, i + 1, j) + Ax * bfac / real(solver%diffside%streams, ireals)
-                else
-                  xsrc(src, k, i, j) = xsrc(src, k, i, j) + Ax * bfac / real(solver%diffside%streams, ireals)
-                end if
-              end do
+                do src = 0, solver%difftop%dof - 1
+                  if (solver%difftop%is_inward(i1 + src)) then
+                    xsrc(src, k + 1, i, j) = xsrc(src, k + 1, i, j) + bbot
+                  else
+                    xsrc(src, k, i, j) = xsrc(src, k, i, j) + btop
+                  end if
+                end do
 
-              do iside = 0, solver%diffside%dof - 1
-                src = solver%difftop%dof + solver%diffside%dof + iside
-                if (solver%diffside%is_inward(iside + 1)) then
-                  xsrc(src, k, i, j + 1) = xsrc(src, k, i, j + 1) + Ay * bfac / real(solver%diffside%streams, ireals)
-                else
-                  xsrc(src, k, i, j) = xsrc(src, k, i, j) + Ay * bfac / real(solver%diffside%streams, ireals)
-                end if
-              end do
-            end do
+              else ! Tenstream source terms
 
-            ! surface emission
-            k = C_diff%ze
-            Az = atm%dx * atm%dy
-            emis = one - atm%albedo(i, j)
-            b0 = atm%planck(atmk(atm, k - 1), i, j)
-            do src = 0, solver%difftop%dof - 1
-              if (.not. solver%difftop%is_inward(src + 1)) then
-                xsrc(src, k, i, j) = xsrc(src, k, i, j) + Az * emis * b0 / real(solver%difftop%streams, ireals)
-              end if
-            end do
+                Ax = atm%dy * atm%dz(ak, i, j) / real(solver%diffside%area_divider, ireals)
+                Ay = atm%dx * atm%dz(ak, i, j) / real(solver%diffside%area_divider, ireals)
+
+                call B_eff(b1, b0, tauz, btop)
+                call B_eff(b0, b1, tauz, bbot)
+
+                diff2diff(0:C_diff%dof - 1, 0:C_diff%dof - 1) => solver%diff2diff(1:C_diff%dof**2, k, i, j)
+
+                src = 0
+                bfac = pi * Az / real(solver%difftop%streams, ireals)
+                do iside = 1, solver%difftop%dof
+                  emis = one - sum(diff2diff(src, :))
+                  emis = max(zero, min(one, emis))
+                  if (solver%difftop%is_inward(iside) .eqv. .false.) then
+                    xsrc(src, k, i, j) = xsrc(src, k, i, j) + btop * bfac * emis
+                  else
+                    xsrc(src, k + 1, i, j) = xsrc(src, k + 1, i, j) + bbot * bfac * emis
+                  end if
+                  src = src + 1
+                end do
+
+                bfac = pi * Ax / real(solver%diffside%streams, ireals)
+                do iside = 1, solver%diffside%dof
+                  emis = one - sum(diff2diff(src, :))
+                  emis = max(zero, min(one, emis))
+                  if (iside .gt. solver%diffside%dof / 2) then
+                    emis = btop * emis
+                  else
+                    emis = bbot * emis
+                  end if
+                  if (solver%diffside%is_inward(iside) .eqv. .false.) then
+                    xsrc(src, k, i, j) = xsrc(src, k, i, j) + emis * bfac
+                  else
+                    xsrc(src, k, i + 1, j) = xsrc(src, k, i + 1, j) + emis * bfac
+                  end if
+                  src = src + 1
+                end do
+
+                bfac = pi * Ay / real(solver%diffside%streams, ireals)
+                do iside = 1, solver%diffside%dof
+                  emis = one - sum(diff2diff(src, :))
+                  emis = max(zero, min(one, emis))
+                  if (iside .gt. solver%diffside%dof / 2) then
+                    emis = btop * emis
+                  else
+                    emis = bbot * emis
+                  end if
+                  if (solver%diffside%is_inward(iside) .eqv. .false.) then
+                    xsrc(src, k, i, j) = xsrc(src, k, i, j) + emis * bfac
+                  else
+                    xsrc(src, k, i, j + 1) = xsrc(src, k, i, j + 1) + emis * bfac
+                  end if
+                  src = src + 1
+                end do
+
+              end if ! 1D or Tenstream?
+
+            end do ! k
           end do
         end do
+
+        ! Thermal emission at surface
+        k = C_diff%ze
+        if (allocated(atm%Bsrfc)) then
+          do j = C_diff%ys, C_diff%ye
+            do i = C_diff%xs, C_diff%xe
+              do src = 0, solver%difftop%dof - 1
+                if (.not. solver%difftop%is_inward(i1 + src)) then
+                  emis = one - atm%albedo(i, j)
+                  emis = max(zero, min(one, emis))
+                  xsrc(src, k, i, j) = xsrc(src, k, i, j) + atm%Bsrfc(i, j) &
+                                       * Az * emis * pi / real(solver%difftop%streams, ireals)
+                end if
+              end do
+            end do
+          end do
+        else
+          ak = atmk(atm, k)
+          do j = C_diff%ys, C_diff%ye
+            do i = C_diff%xs, C_diff%xe
+              do src = 0, solver%difftop%dof - 1
+                if (.not. solver%difftop%is_inward(i1 + src)) then
+                  xsrc(src, k, i, j) = xsrc(src, k, i, j) + atm%planck(ak, i, j) &
+                                       * Az * (one - atm%albedo(i, j)) * pi / real(solver%difftop%streams, ireals)
+                end if
+              end do
+            end do
+          end do
+        end if
       end associate
     end subroutine
 
