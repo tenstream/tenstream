@@ -841,6 +841,8 @@ contains
         & mpi_recv_bfr_n(solver%diffside%dof / 2, C%zs:C%ze, C%xs:C%xe), &
         & mpi_recv_bfr_s(solver%diffside%dof / 2, C%zs:C%ze, C%xs:C%xe) &
         & )
+      mpi_recv_bfr_e = zero; mpi_recv_bfr_w = zero
+      mpi_recv_bfr_n = zero; mpi_recv_bfr_s = zero
 
       x0(0:C%dof - 1, C%zs:C%ze, C%gxs:C%gxe, C%gys:C%gye) => v0
 

@@ -627,7 +627,7 @@ contains
         nyp = int(dims(2), iintegers)
       end if
 
-      periods = .false.
+      periods = .true.  ! match PETSc DM_BOUNDARY_PERIODIC in x and y
       call MPI_Cart_create(icomm, 2_mpiint, dims, periods, .false., cart_comm, ierr); call CHKERR(ierr)
       call MPI_Cart_get(cart_comm, 2_mpiint, dims, periods, coords, ierr); call CHKERR(ierr)
 
