@@ -55,14 +55,30 @@ module m_options_database
 
 contains
 
-  !> Parse argv and auto-load tenstream.options. Idempotent.
+  !> Parse argv and auto-load options files. Idempotent.
+  !> Load order (later entries override earlier):
+  !>   1. $HOME/.petscrc
+  !>   2. .petscrc (current directory)
+  !>   3. tenstream.options (current directory)
+  !>   4. command-line arguments
   subroutine opts_init()
-    integer :: i, argc
-    character(VAL_LEN) :: arg, nxt
+    integer :: i, argc, home_status
+    character(VAL_LEN) :: arg, nxt, home_dir
     logical :: file_exists
 
     if (db_initialized) return
     db_initialized = .true.
+
+    call get_environment_variable('HOME', home_dir, status=home_status)
+    if (home_status == 0 .and. len_trim(home_dir) > 0) then
+      call opts_insert_file(trim(home_dir)//'/.petscrc')
+    end if
+
+    inquire (file='.petscrc', exist=file_exists)
+    if (file_exists) call opts_insert_file('.petscrc')
+
+    inquire (file='tenstream.options', exist=file_exists)
+    if (file_exists) call opts_insert_file('tenstream.options')
 
     argc = command_argument_count()
     i = 1
@@ -81,9 +97,6 @@ contains
       end if
       i = i + 1
     end do
-
-    inquire (file='tenstream.options', exist=file_exists)
-    if (file_exists) call opts_insert_file('tenstream.options')
   end subroutine
 
   !> Load options from file; silently skips missing files.

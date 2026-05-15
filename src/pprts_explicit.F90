@@ -123,9 +123,9 @@ contains
     class(t_solver), target, intent(in) :: solver
     character(len=*), intent(in) :: prefix
     real(ireals), intent(in) :: edirTOA
-    real(ireals), target, intent(inout) :: vedir(:, :, :, :) ! (0:dof-1, zs:ze, xs:xe, ys:ye)
-    real(ireals), target, intent(in) :: lb(:, :, :, :) ! incSolar, ghost-extended
-    real(ireals), target, intent(inout) :: v0(:, :, :, :) ! working copy, ghost-extended
+    real(ireals), target, contiguous, intent(inout) :: vedir(:, :, :, :) ! (0:dof-1, zs:ze, xs:xe, ys:ye)
+    real(ireals), target, contiguous, intent(in) :: lb(:, :, :, :) ! incSolar, ghost-extended
+    real(ireals), target, contiguous, intent(inout) :: v0(:, :, :, :) ! working copy, ghost-extended
     type(t_state_container), target, intent(inout) :: solution
     integer(mpiint), intent(out) :: ierr
 
@@ -235,8 +235,8 @@ contains
 
         ! Residual computations
         if (.not. lskip_residual) then
-          xg => vedir
-          x0 => v0
+          xg(0:C%dof - 1, C%zs:C%ze, C%xs:C%xe, C%ys:C%ye) => vedir
+          x0(0:C%dof - 1, C%zs:C%ze, C%gxs:C%gxe, C%gys:C%gye) => v0
           residual(iter) = max(tiny(one), norm2(xg - x0(:, :, C%xs:C%xe, C%ys:C%ye)))
           xg = x0(:, :, C%xs:C%xe, C%ys:C%ye)
           nullify (xg, x0)
@@ -280,8 +280,8 @@ contains
       end do ! iter
 
       ! update solution vec
-      xg => vedir
-      x0 => v0
+      xg(0:C%dof - 1, C%zs:C%ze, C%xs:C%xe, C%ys:C%ye) => vedir
+      x0(0:C%dof - 1, C%zs:C%ze, C%gxs:C%gxe, C%gys:C%gye) => v0
       xg = x0(:, :, C%xs:C%xe, C%ys:C%ye)
       nullify (xg, x0)
     end associate
@@ -294,7 +294,7 @@ contains
   subroutine exchange_direct_boundary(solver, lsun_north, lsun_east, x, ierr)
     class(t_solver), intent(in) :: solver
     logical, intent(in) :: lsun_north, lsun_east
-    real(ireals), target, intent(inout) :: x(:, :, :, :)
+    real(ireals), target, contiguous, intent(inout) :: x(:, :, :, :)
     integer(mpiint), intent(out) :: ierr
 
     real(ireals), pointer :: x0(:, :, :, :)
@@ -314,7 +314,7 @@ contains
       allocate (mpi_send_bfr_x(solver%dirside%dof, C%zm, C%ys:C%ye), mpi_recv_bfr_x(solver%dirside%dof, C%zm, C%ys:C%ye))
       allocate (mpi_send_bfr_y(solver%dirside%dof, C%zm, C%xs:C%xe), mpi_recv_bfr_y(solver%dirside%dof, C%zm, C%xs:C%xe))
 
-      x0 => x
+      x0(0:C%dof - 1, C%zs:C%ze, C%gxs:C%gxe, C%gys:C%gye) => x
 
       ! Boundary exchanges
       ! x direction scatters
@@ -393,8 +393,8 @@ contains
     class(t_solver), intent(in) :: solver
     real(ireals), target, intent(in) :: coeffs(:, :, :, :)
     integer(iintegers), dimension(3), intent(in) :: dx, dy ! start, end, increment for each dimension
-    real(ireals), target, intent(in) :: b(:, :, :, :)
-    real(ireals), target, intent(inout) :: x(:, :, :, :)
+    real(ireals), target, contiguous, intent(in) :: b(:, :, :, :)
+    real(ireals), target, contiguous, intent(inout) :: x(:, :, :, :)
 
     real(ireals), pointer :: x0(:, :, :, :), xb(:, :, :, :)
 
@@ -412,8 +412,8 @@ contains
         & xinc => solver%sun%xinc, &
         & yinc => solver%sun%yinc)
 
-      x0 => x
-      xb => b
+      x0(0:C%dof - 1, C%zs:C%ze, C%gxs:C%gxe, C%gys:C%gye) => x
+      xb(0:C%dof - 1, C%zs:C%ze, C%gxs:C%gxe, C%gys:C%gye) => b
 
       x0(0:solver%dirtop%dof - 1, C%zs, C%xs:C%xe, C%ys:C%ye) = xb(0:solver%dirtop%dof - 1, C%zs, C%xs:C%xe, C%ys:C%ye)
 
@@ -560,7 +560,7 @@ contains
     class(t_solver), intent(inout) :: solver
     character(len=*), intent(in) :: prefix
     real(ireals), target, intent(in) :: vb(:, :, :, :)
-    real(ireals), target, intent(inout) :: vediff(:, :, :, :) ! (0:dof-1, zs:ze, xs:xe, ys:ye)
+    real(ireals), target, contiguous, intent(inout) :: vediff(:, :, :, :) ! (0:dof-1, zs:ze, xs:xe, ys:ye)
     type(t_state_container), target, intent(inout) :: solution
     integer(mpiint), intent(out) :: ierr
 
@@ -727,8 +727,8 @@ contains
 
         ! Residual computations
         if (.not. lskip_residual) then
-          xg => vediff
-          x0 => v0
+          xg(0:C%dof - 1, C%zs:C%ze, C%xs:C%xe, C%ys:C%ye) => vediff
+          x0(0:C%dof - 1, C%zs:C%ze, C%gxs:C%gxe, C%gys:C%gye) => v0
 
           residual(iter) = norm2(xg - x0(:, :, C%xs:C%xe, C%ys:C%ye))
           xg = x0(:, :, C%xs:C%xe, C%ys:C%ye)
@@ -766,19 +766,20 @@ contains
             exit sorloop
           end if
 
-          if (ladaptive_omega .and. iter .ge. 3 &
-              & .and. residual(iter) .gt. zero .and. residual(iter - 2) .gt. zero) then
-            log_rate = 0.5_ireals * log(residual(iter) / residual(iter - 2))
-            if (log_rate .lt. log_rate_prev) then
-              omega_step = min(omega_step * 1.3_ireals, omega_max - omega_min)
-            else
-              omega_dir = -omega_dir
-              omega_step = max(omega_step * 0.5_ireals, 0.01_ireals)
+          if (ladaptive_omega .and. iter .ge. 3) then
+            if (residual(iter) .gt. zero .and. residual(iter - 2) .gt. zero) then
+              log_rate = 0.5_ireals * log(residual(iter) / residual(iter - 2))
+              if (log_rate .lt. log_rate_prev) then
+                omega_step = min(omega_step * 1.3_ireals, omega_max - omega_min)
+              else
+                omega_dir = -omega_dir
+                omega_step = max(omega_step * 0.5_ireals, 0.01_ireals)
+              end if
+              log_rate_prev = log_rate
+              omega_adaptive = min(max(omega_adaptive + omega_dir * omega_step, omega_min), omega_max)
+              omega_save = omega_adaptive
+              if (residual(iter) .lt. 10 * atol) omega_adaptive = 1._ireals
             end if
-            log_rate_prev = log_rate
-            omega_adaptive = min(max(omega_adaptive + omega_dir * omega_step, omega_min), omega_max)
-            omega_save = omega_adaptive
-            if (residual(iter) .lt. 10 * atol) omega_adaptive = 1._ireals
           end if
 
         else
@@ -794,8 +795,8 @@ contains
 
       if (ladaptive_omega) solution%diff_sor_omega = omega_save
 
-      xg => vediff
-      x0 => v0
+      xg(0:C%dof - 1, C%zs:C%ze, C%xs:C%xe, C%ys:C%ye) => vediff
+      x0(0:C%dof - 1, C%zs:C%ze, C%gxs:C%gxe, C%gys:C%gye) => v0
 
       ! update solution vec
       xg = x0(:, :, C%xs:C%xe, C%ys:C%ye)
@@ -810,7 +811,7 @@ contains
 
   subroutine exchange_diffuse_boundary(solver, v0, ierr)
     class(t_solver), intent(in) :: solver
-    real(ireals), target, intent(inout) :: v0(:, :, :, :)
+    real(ireals), target, contiguous, intent(inout) :: v0(:, :, :, :)
     integer(mpiint), intent(out) :: ierr
 
     integer(mpiint), parameter :: tag_e = 1, tag_w = 2, tag_n = 3, tag_s = 4
@@ -841,7 +842,7 @@ contains
         & mpi_recv_bfr_s(solver%diffside%dof / 2, C%zs:C%ze, C%xs:C%xe) &
         & )
 
-      x0 => v0
+      x0(0:C%dof - 1, C%zs:C%ze, C%gxs:C%gxe, C%gys:C%gye) => v0
 
       neigh_s = int(C%neighbors(4), mpiint)
       neigh_w = int(C%neighbors(10), mpiint)
@@ -945,8 +946,8 @@ contains
     class(t_solver), intent(inout) :: solver
     real(ireals), target, intent(in) :: coeffs(:, :, :, :)
     integer(iintegers), dimension(3), intent(in) :: dx, dy, dz ! start, end, increment for each dimension
-    real(ireals), target, intent(in) :: b(:, :, :, :)
-    real(ireals), target, intent(inout) :: x(:, :, :, :)
+    real(ireals), target, contiguous, intent(in) :: b(:, :, :, :)
+    real(ireals), target, contiguous, intent(inout) :: x(:, :, :, :)
 
     real(ireals), pointer, dimension(:, :, :, :) :: x0, xb
     integer(iintegers) :: k, i, j
@@ -961,8 +962,8 @@ contains
         & atm => solver%atm, &
         & C => solver%C_diff)
 
-      x0 => x
-      xb => b
+      x0(0:C%dof - 1, C%zs:C%ze, C%gxs:C%gxe, C%gys:C%gye) => x
+      xb(0:C%dof - 1, C%zs:C%ze, C%gxs:C%gxe, C%gys:C%gye) => b
 
       if (dz(3) .lt. 0) then ! if going from bottom to top, we do it here at the beginning
         do j = dy(1), dy(2), dy(3)
@@ -1112,8 +1113,8 @@ contains
     real(ireals), target, intent(in) :: coeffs(:, :, :, :)
     integer(iintegers), dimension(3), intent(in) :: dx, dy, dz ! start, end, increment for each dimension
     real(ireals), intent(in) :: omega
-    real(ireals), target, intent(in) :: b(:, :, :, :)
-    real(ireals), target, intent(inout) :: x(:, :, :, :)
+    real(ireals), target, contiguous, intent(in) :: b(:, :, :, :)
+    real(ireals), target, contiguous, intent(inout) :: x(:, :, :, :)
 
     real(ireals), pointer, dimension(:, :, :, :) :: x0, xb
     integer(iintegers) :: k, i, j
@@ -1131,8 +1132,8 @@ contains
         & atm => solver%atm, &
         & C => solver%C_diff)
 
-      x0 => x
-      xb => b
+      x0(0:C%dof - 1, C%zs:C%ze, C%gxs:C%gxe, C%gys:C%gye) => x
+      xb(0:C%dof - 1, C%zs:C%ze, C%gxs:C%gxe, C%gys:C%gye) => b
 
       if (dz(3) .lt. 0) then ! if going from bottom to top, we do it here at the beginning
         do j = dy(1), dy(2), dy(3)

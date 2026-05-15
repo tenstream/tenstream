@@ -6,6 +6,7 @@ module m_pprts_base
 
   use m_data_parameters, only: &
     & ireals, irealLUT, iintegers, mpiint, &
+    & imp_ireals, &
     & zero, one, &
     & i0, i1, i2, &
     & default_str_len
@@ -38,6 +39,8 @@ module m_pprts_base
     & determine_ksp_tolerances, &
     & get_coeff, &
     & get_solution_uid, &
+    & halo_fill_5pt, &
+    & halo_reduce_5pt, &
     & prepare_solution, &
     & print_solution, &
     & setup_coord_native, &
@@ -314,11 +317,14 @@ contains
 
 #ifdef HAVE_PETSC
       if (solution%lsolar_rad) then
+        allocate (solution%edir)
         call DMCreateGlobalVector(edir_dm, solution%edir, ierr); call CHKERR(ierr)
         call VecSet(solution%edir, zero, ierr); call CHKERR(ierr)
       end if
+      allocate (solution%ediff)
       call DMCreateGlobalVector(ediff_dm, solution%ediff, ierr); call CHKERR(ierr)
       call VecSet(solution%ediff, zero, ierr); call CHKERR(ierr)
+      allocate (solution%abso)
       call DMCreateGlobalVector(abso_dm, solution%abso, ierr); call CHKERR(ierr)
       call VecSet(solution%abso, zero, ierr); call CHKERR(ierr)
 #else
@@ -1105,7 +1111,7 @@ contains
 #ifdef HAVE_PETSC
         type(tVec), intent(inout) :: incSolar
 #else
-        real(ireals), intent(inout) :: incSolar(:, :, :, :)
+        real(ireals), target, contiguous, intent(inout) :: incSolar(:, :, :, :)
 #endif
 
         integer(mpiint) :: ierr
@@ -1114,6 +1120,8 @@ contains
         logical, parameter :: ldebug = .false.
 #ifdef HAVE_PETSC
         real(ireals), pointer :: x1d(:), x4d(:, :, :, :)
+#else
+        real(ireals), pointer :: x4d(:, :, :, :)
 #endif
 
         associate ( &
@@ -1140,14 +1148,17 @@ contains
           call restoreVecPointer(C_dir%da, incSolar, x1d, x4d)
 #else
           incSolar = zero
+          x4d => null()
+          x4d(0:C_dir%dof - 1, C_dir%zs:C_dir%ze, C_dir%xs:C_dir%xe, C_dir%ys:C_dir%ye) => incSolar
 
           do j = C_dir%ys, C_dir%ye
             do i = C_dir%xs, C_dir%xe
               do src = 0, solver%dirtop%dof - 1
-                incSolar(src, C_dir%zs, i, j) = fac
+                x4d(src, C_dir%zs, i, j) = fac
               end do
             end do
           end do
+          nullify (x4d)
 #endif
 
           if (solver%myid .eq. 0 .and. ldebug) print *, solver%myid, 'Setup of IncSolar done', edirTOA, &
@@ -1589,4 +1600,119 @@ contains
 
         end subroutine
       end subroutine
+
+      !> Forward halo fill (interior → ghost). Mirrors DMGlobalToLocal.
+      !> v is (1:dof, 1:zm, 1:gxm, 1:gym) in assumed-shape (1-based).
+      !> Interior: 2..gxm-1 (x), 2..gym-1 (y). Ghosts: 1 and gxm (x), 1 and gym (y).
+      subroutine halo_fill_5pt(comm, C, v, ierr)
+        use mpi
+        integer(mpiint), intent(in) :: comm
+        type(t_coord), intent(in) :: C
+        real(ireals), intent(inout) :: v(:, :, :, :)
+        integer(mpiint), intent(out) :: ierr
+
+        real(ireals), allocatable :: se(:, :, :), sw(:, :, :), sn(:, :, :), ss(:, :, :)
+        real(ireals), allocatable :: re(:, :, :), rw(:, :, :), rn(:, :, :), rs(:, :, :)
+        integer(mpiint) :: rqs(8), sts(MPI_STATUS_SIZE, 8)
+        integer(mpiint) :: nw, ne, ns, nn
+        integer(iintegers) :: gxm, gym
+
+        nw = int(C%neighbors(10), mpiint)
+        ne = int(C%neighbors(16), mpiint)
+        ns = int(C%neighbors(4), mpiint)
+        nn = int(C%neighbors(22), mpiint)
+
+        gxm = size(v, 3, kind=iintegers)
+        gym = size(v, 4, kind=iintegers)
+
+        allocate (se(size(v, 1), size(v, 2), size(v, 4))); se = zero
+        allocate (sw(size(v, 1), size(v, 2), size(v, 4))); sw = zero
+        allocate (re(size(v, 1), size(v, 2), size(v, 4))); re = zero
+        allocate (rw(size(v, 1), size(v, 2), size(v, 4))); rw = zero
+        allocate (sn(size(v, 1), size(v, 2), size(v, 3) - 2)); sn = zero
+        allocate (ss(size(v, 1), size(v, 2), size(v, 3) - 2)); ss = zero
+        allocate (rn(size(v, 1), size(v, 2), size(v, 3) - 2)); rn = zero
+        allocate (rs(size(v, 1), size(v, 2), size(v, 3) - 2)); rs = zero
+
+        se = v(:, :, gxm - 1, :)
+        sw = v(:, :, 2, :)
+        sn = v(:, :, 2:gxm - 1, gym - 1)
+        ss = v(:, :, 2:gxm - 1, 2)
+
+        call MPI_Irecv(rw, size(rw, kind=mpiint), imp_ireals, nw, 16, comm, rqs(1), ierr)
+        call MPI_Irecv(re, size(re, kind=mpiint), imp_ireals, ne, 10, comm, rqs(2), ierr)
+        call MPI_Irecv(rs, size(rs, kind=mpiint), imp_ireals, ns, 22, comm, rqs(3), ierr)
+        call MPI_Irecv(rn, size(rn, kind=mpiint), imp_ireals, nn, 4, comm, rqs(4), ierr)
+        call MPI_Isend(se, size(se, kind=mpiint), imp_ireals, ne, 16, comm, rqs(5), ierr)
+        call MPI_Isend(sw, size(sw, kind=mpiint), imp_ireals, nw, 10, comm, rqs(6), ierr)
+        call MPI_Isend(sn, size(sn, kind=mpiint), imp_ireals, nn, 22, comm, rqs(7), ierr)
+        call MPI_Isend(ss, size(ss, kind=mpiint), imp_ireals, ns, 4, comm, rqs(8), ierr)
+        call MPI_Waitall(8_mpiint, rqs, sts, ierr)
+
+        v(:, :, 1, :) = rw
+        v(:, :, gxm, :) = re
+        v(:, :, 2:gxm - 1, 1) = rs
+        v(:, :, 2:gxm - 1, gym) = rn
+      end subroutine
+
+      !> Reverse halo reduce (ghost → interior, ADD_VALUES). Mirrors DMLocalToGlobal(ADD_VALUES).
+      !> Sends ghost cell values to neighbors who add them onto their interior boundary cells,
+      !> then zeros own ghost cells.
+      subroutine halo_reduce_5pt(comm, C, v, ierr)
+        use mpi
+        integer(mpiint), intent(in) :: comm
+        type(t_coord), intent(in) :: C
+        real(ireals), intent(inout) :: v(:, :, :, :)
+        integer(mpiint), intent(out) :: ierr
+
+        real(ireals), allocatable :: se(:, :, :), sw(:, :, :), sn(:, :, :), ss(:, :, :)
+        real(ireals), allocatable :: re(:, :, :), rw(:, :, :), rn(:, :, :), rs(:, :, :)
+        integer(mpiint) :: rqs(8), sts(MPI_STATUS_SIZE, 8)
+        integer(mpiint) :: nw, ne, ns, nn
+        integer(iintegers) :: gxm, gym
+
+        nw = int(C%neighbors(10), mpiint)
+        ne = int(C%neighbors(16), mpiint)
+        ns = int(C%neighbors(4), mpiint)
+        nn = int(C%neighbors(22), mpiint)
+
+        gxm = size(v, 3, kind=iintegers)
+        gym = size(v, 4, kind=iintegers)
+
+        allocate (se(size(v, 1), size(v, 2), size(v, 4))); se = zero
+        allocate (sw(size(v, 1), size(v, 2), size(v, 4))); sw = zero
+        allocate (re(size(v, 1), size(v, 2), size(v, 4))); re = zero
+        allocate (rw(size(v, 1), size(v, 2), size(v, 4))); rw = zero
+        allocate (sn(size(v, 1), size(v, 2), size(v, 3) - 2)); sn = zero
+        allocate (ss(size(v, 1), size(v, 2), size(v, 3) - 2)); ss = zero
+        allocate (rn(size(v, 1), size(v, 2), size(v, 3) - 2)); rn = zero
+        allocate (rs(size(v, 1), size(v, 2), size(v, 3) - 2)); rs = zero
+
+        ! Send ghost cells to owners; use same tag scheme as halo_fill_5pt.
+        se = v(:, :, gxm, :)
+        sw = v(:, :, 1, :)
+        sn = v(:, :, 2:gxm - 1, gym)
+        ss = v(:, :, 2:gxm - 1, 1)
+
+        call MPI_Irecv(rw, size(rw, kind=mpiint), imp_ireals, nw, 16, comm, rqs(1), ierr)
+        call MPI_Irecv(re, size(re, kind=mpiint), imp_ireals, ne, 10, comm, rqs(2), ierr)
+        call MPI_Irecv(rs, size(rs, kind=mpiint), imp_ireals, ns, 22, comm, rqs(3), ierr)
+        call MPI_Irecv(rn, size(rn, kind=mpiint), imp_ireals, nn, 4, comm, rqs(4), ierr)
+        call MPI_Isend(se, size(se, kind=mpiint), imp_ireals, ne, 16, comm, rqs(5), ierr)
+        call MPI_Isend(sw, size(sw, kind=mpiint), imp_ireals, nw, 10, comm, rqs(6), ierr)
+        call MPI_Isend(sn, size(sn, kind=mpiint), imp_ireals, nn, 22, comm, rqs(7), ierr)
+        call MPI_Isend(ss, size(ss, kind=mpiint), imp_ireals, ns, 4, comm, rqs(8), ierr)
+        call MPI_Waitall(8_mpiint, rqs, sts, ierr)
+
+        v(:, :, 2, :) = v(:, :, 2, :) + rw
+        v(:, :, gxm - 1, :) = v(:, :, gxm - 1, :) + re
+        v(:, :, 2:gxm - 1, 2) = v(:, :, 2:gxm - 1, 2) + rs
+        v(:, :, 2:gxm - 1, gym - 1) = v(:, :, 2:gxm - 1, gym - 1) + rn
+
+        v(:, :, 1, :) = zero
+        v(:, :, gxm, :) = zero
+        v(:, :, 2:gxm - 1, 1) = zero
+        v(:, :, 2:gxm - 1, gym) = zero
+      end subroutine
+
       end module
