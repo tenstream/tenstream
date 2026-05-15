@@ -1421,13 +1421,11 @@ contains
   subroutine smooth_surface_fluxes(solver, edn, eup)
     class(t_solver), intent(inout) :: solver
     real(ireals), allocatable, dimension(:, :, :), intent(inout) :: edn, eup
-    call CHKERR(1_mpiint, 'smooth_surface_fluxes requires PETSc -- rebuild with -DWITH_PETSC=ON')
   end subroutine
 
   subroutine slope_correction_fluxes(solver, edir)
     class(t_solver), intent(inout) :: solver
     real(ireals), allocatable, dimension(:, :, :), intent(inout) :: edir
-    call CHKERR(1_mpiint, 'slope_correction_fluxes requires PETSc -- rebuild with -DWITH_PETSC=ON')
   end subroutine
 #endif
 end module

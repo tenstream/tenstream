@@ -23,6 +23,7 @@ module m_ecckd_pprts
 #ifdef HAVE_PETSC
 #include "petsc/finclude/petsc.h"
   use petsc
+#endif
 
   use m_helper_functions, only: &
     & CHKERR, &
@@ -44,10 +45,12 @@ module m_ecckd_pprts
   use m_pprts, only: &
     & init_pprts, &
     & pprts_get_result, &
-    & pprts_get_result_toZero, &
     & set_angles, &
     & set_optical_properties, &
     & solve_pprts
+#ifdef HAVE_PETSC
+  use m_pprts, only: pprts_get_result_toZero
+#endif
 
   use m_dyn_atm_to_rrtmg, only: &
     & planck, &
@@ -819,42 +822,4 @@ contains
     end subroutine
   end subroutine
 
-#else /* HAVE_PETSC */
-  use m_data_parameters, only: iintegers, ireals, mpiint
-  use m_helper_functions, only: CHKERR
-  use m_pprts_base, only: t_solver
-  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm
-  use m_buildings, only: t_pprts_buildings
-  implicit none
-  private
-  public :: ecckd_pprts, ecckd_pprts_destroy
-contains
-  subroutine ecckd_pprts(comm, solver, atm, ie, je, dx, dy, sundir, &
-      & albedo_thermal, albedo_solar, lthermal, lsolar, edir, edn, eup, abso, &
-      & nxproc, nyproc, icollapse, opt_time, solar_albedo_2d, thermal_albedo_2d, &
-      & opt_solar_constant, opt_buildings_solar, opt_buildings_thermal, &
-      & opt_tau_solar, opt_w0_solar, opt_g_solar, opt_tau_thermal, lonly_initialize)
-    integer(mpiint), intent(in) :: comm
-    class(t_solver), intent(inout) :: solver
-    type(t_tenstr_atm), intent(in) :: atm
-    integer(iintegers), intent(in) :: ie, je
-    real(ireals), intent(in) :: dx, dy, sundir(:), albedo_solar, albedo_thermal
-    logical, intent(in) :: lsolar, lthermal
-    real(ireals), allocatable, dimension(:, :, :), intent(inout) :: edir, edn, eup, abso
-    integer(iintegers), intent(in), optional :: nxproc(:), nyproc(:), icollapse
-    real(ireals), optional, intent(in) :: opt_time, solar_albedo_2d(:, :), thermal_albedo_2d(:, :), opt_solar_constant
-    type(t_pprts_buildings), intent(inout), optional :: opt_buildings_solar, opt_buildings_thermal
-    real(ireals), intent(in), optional, dimension(:, :, :) :: opt_tau_solar, opt_w0_solar, opt_g_solar, opt_tau_thermal
-    logical, intent(in), optional :: lonly_initialize
-    call CHKERR(1_mpiint, 'ecckd_pprts requires PETSc -- rebuild with -DWITH_PETSC=ON')
-  end subroutine
-
-  subroutine ecckd_pprts_destroy(solver, lfinalizepetsc, ierr)
-    class(t_solver) :: solver
-    logical, intent(in) :: lfinalizepetsc
-    integer(mpiint), intent(out) :: ierr
-    ierr = 0
-    call CHKERR(1_mpiint, 'ecckd_pprts_destroy requires PETSc -- rebuild with -DWITH_PETSC=ON')
-  end subroutine
-#endif
 end module
