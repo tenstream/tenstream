@@ -36,7 +36,7 @@ module m_helper_functions
                                imp_REAL32, imp_REAL64, &
                                default_str_len, &
                                imp_int4, imp_int8, imp_iinteger, imp_character
-  use m_options_database, only: opts_has, opts_get_raw, opts_get_logical, opts_get_string
+  use m_options_database, only: opts_has, opts_get_raw, opts_get_logical, opts_get_string, opts_insert_string
 
   use mpi
 #ifdef HAVE_PETSC
@@ -82,6 +82,7 @@ module m_helper_functions
     & get_arg, &
     & get_mem_footprint, &
     & get_petsc_opt, &
+    & insert_petsc_opt, &
     & gradient, &
     & imp_allgather_int_inplace, &
     & imp_allreduce_max, &
@@ -719,6 +720,21 @@ module m_helper_functions
   integer(iintegers), parameter :: npar_cumprod = 8
 
 contains
+
+  !> Insert a string of options "-key1 val1 -key2 val2" into the options database.
+  !> Mirrors PetscOptionsInsertString; works without PETSc via opts_insert_string.
+  subroutine insert_petsc_opt(str, ierr)
+    character(len=*), intent(in) :: str
+    integer(mpiint), intent(out), optional :: ierr
+#ifdef HAVE_PETSC
+    integer(mpiint) :: ierr_
+    call PetscOptionsInsertString(PETSC_NULL_OPTIONS, trim(str), ierr_)
+    if (present(ierr)) ierr = ierr_
+#else
+    call opts_insert_string(trim(str))
+    if (present(ierr)) ierr = 0
+#endif
+  end subroutine insert_petsc_opt
 
   #:for basetype,dtype in [&
     ('integer', 'INT32'  ), &

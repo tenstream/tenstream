@@ -35,6 +35,7 @@ module m_options_database
 
   public :: opts_init
   public :: opts_insert_file
+  public :: opts_insert_string
   public :: opts_has
   public :: opts_get_raw
   public :: opts_get_logical
@@ -125,6 +126,46 @@ contains
       end if
     end do
     close (u)
+  end subroutine
+
+  !> Parse and insert options from a string like "-key1 val1 -key2 val2".
+  !> Mirrors PetscOptionsInsertString. Overwrites existing keys.
+  subroutine opts_insert_string(str)
+    character(len=*), intent(in) :: str
+    integer :: i, argc, sp
+    character(VAL_LEN) :: tokens(256)
+    character(VAL_LEN) :: work, tok
+
+    work = adjustl(str)
+    argc = 0
+    do while (len_trim(work) > 0)
+      sp = scan(trim(work), ' '//char(9))
+      if (sp == 0) then
+        tok = trim(work)
+        work = ''
+      else
+        tok = work(:sp - 1)
+        work = adjustl(work(sp + 1:))
+      end if
+      if (len_trim(tok) == 0) cycle
+      argc = argc + 1
+      tokens(argc) = tok
+    end do
+
+    i = 1
+    do while (i <= argc)
+      if (is_key(tokens(i))) then
+        if (i < argc .and. .not. is_key(tokens(i + 1))) then
+          call store_opt(trim(tokens(i) (2:)), trim(tokens(i + 1)))
+          i = i + 2
+        else
+          call store_opt(trim(tokens(i) (2:)), '')
+          i = i + 1
+        end if
+      else
+        i = i + 1
+      end if
+    end do
   end subroutine
 
   !> True if option exists. Tries prefix+name first, then bare name as fallback.

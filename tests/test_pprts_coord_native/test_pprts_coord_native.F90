@@ -56,13 +56,12 @@ contains
     ! self-neighbor
     @assertEqual(int(myid, iintegers), C%neighbors(13))
 
-    ! all four cardinal neighbors must be MPI_PROC_NULL on a 1-rank run
-    null_rank = int(MPI_PROC_NULL, iintegers)
+    ! with periodic topology, 1-rank wraps to itself on all 4 sides
     ! west=10, east=16, south=4, north=22
-    @assertEqual(null_rank, C%neighbors(10))
-    @assertEqual(null_rank, C%neighbors(16))
-    @assertEqual(null_rank, C%neighbors(4))
-    @assertEqual(null_rank, C%neighbors(22))
+    @assertEqual(int(myid, iintegers), C%neighbors(10))
+    @assertEqual(int(myid, iintegers), C%neighbors(16))
+    @assertEqual(int(myid, iintegers), C%neighbors(4))
+    @assertEqual(int(myid, iintegers), C%neighbors(22))
 
     @assertEqual(dof, C%dof)
     @assertEqual(3_iintegers, C%dim)

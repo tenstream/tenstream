@@ -13,8 +13,10 @@ module test_pprts_slope_correction
     & pi64, &
     & zero
 
+#ifdef HAVE_PETSC
 #include "petsc/finclude/petsc.h"
   use petsc
+#endif
   use pfunit_mod
 
   use m_helper_functions, only: &
@@ -104,9 +106,9 @@ contains
     call init_mpi_data_parameters(comm)
 
     hill_dP = 100 ! [hPa]
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-hill_dP", hill_dP, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', "-hill_dP", hill_dP, lflg, ierr); call CHKERR(ierr)
     hill_shape = 3
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-hill_shape", hill_shape, lflg, ierr); call CHKERR(ierr) ! the bigger the flatter
+    call get_petsc_opt('', "-hill_shape", hill_shape, lflg, ierr); call CHKERR(ierr) ! the bigger the flatter
 
     do j = 1, nyp
       jglob = j + nyp * myid

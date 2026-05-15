@@ -338,19 +338,19 @@ contains
       deallocate (OPP%bmc)
     end if
     if (allocated(OPP%Tdir)) then
-      if (luse_memory_map) then
+      if (luse_memory_map .and. associated(OPP%Tdir%c)) then
         call munmap_mmap_ptr(OPP%Tdir%c, ierr); call CHKERR(ierr)
       end if
       deallocate (OPP%Tdir)
     end if
     if (allocated(OPP%Sdir)) then
-      if (luse_memory_map) then
+      if (luse_memory_map .and. associated(OPP%Sdir%c)) then
         call munmap_mmap_ptr(OPP%Sdir%c, ierr); call CHKERR(ierr)
       end if
       deallocate (OPP%Sdir)
     end if
     if (allocated(OPP%Sdiff)) then
-      if (luse_memory_map) then
+      if (luse_memory_map .and. associated(OPP%Sdiff%c)) then
         call munmap_mmap_ptr(OPP%Sdiff%c, ierr); call CHKERR(ierr)
       end if
       deallocate (OPP%Sdiff)
@@ -1347,31 +1347,37 @@ contains
       if (associated(OPP%Sdiff%c)) then
         call arr_to_mmap(comm, trim(OPP%Sdiff%table_name_c(1))//'.Sdiff.mmap', mmap_ptr, ierr, OPP%Sdiff%c)
         deallocate (OPP%Sdiff%c)
+        call explain_missing_mmap_file(trim(OPP%Sdiff%base_table_name_c(1))//'.Sdiff.mmap', ierr)
       else
         call arr_to_mmap(comm, trim(OPP%Sdiff%table_name_c(1))//'.Sdiff.mmap', mmap_ptr, ierr)
+        if (ierr .ne. 0) mmap_ptr => null()
+        ierr = 0
       end if
       OPP%Sdiff%c => mmap_ptr
-      call explain_missing_mmap_file(trim(OPP%Sdiff%base_table_name_c(1))//'.Sdiff.mmap', ierr)
 
       mmap_ptr => null()
       if (associated(OPP%Sdir%c)) then
         call arr_to_mmap(comm, trim(OPP%Sdir%table_name_c(1))//'.Sdir.mmap', mmap_ptr, ierr, OPP%Sdir%c)
         deallocate (OPP%Sdir%c)
+        call explain_missing_mmap_file(trim(OPP%Sdir%base_table_name_c(1))//'.Sdir.mmap', ierr)
       else
         call arr_to_mmap(comm, trim(OPP%Sdir%table_name_c(1))//'.Sdir.mmap', mmap_ptr, ierr)
+        if (ierr .ne. 0) mmap_ptr => null()
+        ierr = 0
       end if
       OPP%Sdir%c => mmap_ptr
-      call explain_missing_mmap_file(trim(OPP%Sdir%base_table_name_c(1))//'.Sdir.mmap', ierr)
 
       mmap_ptr => null()
       if (associated(OPP%Tdir%c)) then
         call arr_to_mmap(comm, trim(OPP%Tdir%table_name_c(1))//'.Tdir.mmap', mmap_ptr, ierr, OPP%Tdir%c)
         deallocate (OPP%Tdir%c)
+        call explain_missing_mmap_file(trim(OPP%Sdir%base_table_name_c(1))//'.Tdir.mmap', ierr)
       else
         call arr_to_mmap(comm, trim(OPP%Tdir%table_name_c(1))//'.Tdir.mmap', mmap_ptr, ierr)
+        if (ierr .ne. 0) mmap_ptr => null()
+        ierr = 0
       end if
       OPP%Tdir%c => mmap_ptr
-      call explain_missing_mmap_file(trim(OPP%Sdir%base_table_name_c(1))//'.Tdir.mmap', ierr)
 
     else
       if (myid .eq. 0) then
@@ -1465,6 +1471,9 @@ contains
       pti_buffer(kdim) = find_real_location(OPP%dirconfig%dims(kdim)%v, sample_pts(kdim))
     end do
 
+    if (.not. associated(OPP%Tdir%c)) &
+      call CHKERR(1_mpiint, 'LUT Tdir data not loaded — mmap4 file missing at init. Download or generate the LUT first.')
+
     select case (interp_mode)
     case (1)
       ! Nearest neighbour
@@ -1517,6 +1526,9 @@ contains
       pti_buffer(kdim) = find_real_location(OPP%dirconfig%dims(kdim)%v, sample_pts(kdim))
     end do
 
+    if (.not. associated(OPP%Sdir%c)) &
+      call CHKERR(1_mpiint, 'LUT Sdir data not loaded — mmap4 file missing at init. Download or generate the LUT first.')
+
     select case (interp_mode)
     case (1)
       ! Nearest neighbour
@@ -1568,6 +1580,9 @@ contains
     end do
     !print *,'LUT_get_diff2diff sample', sample_pts, 'idx', pti_buffer(1:size(sample_pts)), &
     !  & 'i1d', ind_nd_to_1d(OPP%diffconfig%offsets, nint(pti_buffer(1:size(sample_pts)), kind=iintegers))
+
+    if (.not. associated(OPP%Sdiff%c)) &
+      call CHKERR(1_mpiint, 'LUT Sdiff data not loaded — mmap4 file missing at init. Download or generate the LUT first.')
 
     select case (interp_mode)
     case (1)

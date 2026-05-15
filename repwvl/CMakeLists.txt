@@ -43,8 +43,10 @@ if(ENABLE_PLEXRT)
     ${EXTLIB} ${USERLIB} ${LIBS})
 endif()
 
-add_executable(compute_repwvl_training_data "compute_repwvl_training_data.F90" )
-target_link_libraries( compute_repwvl_training_data ${TENSTR_SINGLE_LIB} ${EXTLIB})
+if(WITH_PETSC)
+  add_executable(compute_repwvl_training_data "compute_repwvl_training_data.F90" )
+  target_link_libraries( compute_repwvl_training_data ${TENSTR_SINGLE_LIB} ${EXTLIB})
+endif()
 
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/data/fu.ice.general.nc" ${TENSTREAM_SHARE_DIR}/fu.ice.general.nc   COPYONLY)
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/data/mie.wc.table.nc"   ${TENSTREAM_SHARE_DIR}/mie.wc.table.nc     COPYONLY)

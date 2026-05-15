@@ -9,8 +9,10 @@ module test_wedge_param_phi
   use m_helper_functions, only: rad2deg, deg2rad, angle_between_two_vec, linspace, normalize_vec
   use m_boxmc_geometry, only: setup_default_wedge_geometry
 
+#ifdef HAVE_PETSC
 #include "petsc/finclude/petsc.h"
   use petsc
+#endif
 
   use pfunit_mod
   implicit none
@@ -28,8 +30,10 @@ contains
     numnodes = this%getNumProcesses()
     myid = this%getProcessRank()
 
+#ifdef HAVE_PETSC
     PETSC_COMM_WORLD = comm
     call PetscInitialize(PETSC_NULL_CHARACTER, ierr)
+#endif
 
     call init_mpi_data_parameters(comm)
   end subroutine setup
@@ -37,7 +41,9 @@ contains
   @after
   subroutine teardown(this)
     class(MpiTestMethod), intent(inout) :: this
+#ifdef HAVE_PETSC
     call PetscFinalize(ierr)
+#endif
   end subroutine teardown
 
   @test(npes=[1])

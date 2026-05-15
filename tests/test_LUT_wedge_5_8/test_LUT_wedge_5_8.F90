@@ -12,8 +12,10 @@ module test_LUT_wedge_5_8
   use m_helper_functions, only: rmse, CHKERR, get_arg, itoa, deg2rad
   use m_boxmc_geometry, only: setup_default_wedge_geometry
 
+#ifdef HAVE_PETSC
 #include "petsc/finclude/petsc.h"
   use petsc
+#endif
 
   use pfunit_mod
   implicit none
@@ -55,8 +57,10 @@ contains
     if (myid .eq. 0) print *, 'Testing LUT coefficients against BOXMC with tolerances atol/rtol :: ', atol, rtol,&
       & ' :: on ', numnodes, 'ranks'
 
+#ifdef HAVE_PETSC
     PETSC_COMM_WORLD = comm
     call PetscInitialize(PETSC_NULL_CHARACTER, ierr)
+#endif
 
     call init_mpi_data_parameters(comm)
     call read_commandline_options(comm)
@@ -75,7 +79,9 @@ contains
   subroutine teardown(this)
     class(MpiTestMethod), intent(inout) :: this
     !call OPPLUT%destroy()
+#ifdef HAVE_PETSC
     call PetscFinalize(ierr)
+#endif
   end subroutine teardown
 
   @test(npes=[1])

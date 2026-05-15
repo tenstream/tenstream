@@ -2939,7 +2939,11 @@ contains
       end if
       if (len_trim(solver%prefix) .gt. 0) prefix = trim(solver%prefix)//prefix
 
+#ifdef HAVE_PETSC
       lexplicit_diff = .false.
+#else
+      lexplicit_diff = .true.
+#endif
       call get_petsc_opt(prefix, "-explicit", lexplicit_diff, lflg, ierr); call CHKERR(ierr)
       if (lexplicit_diff) then
 #ifdef HAVE_PETSC

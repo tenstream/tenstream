@@ -92,6 +92,13 @@ contains
     header(4) = size(arr, dim=1)
     header(5) = size(arr, dim=2)
 
+    ! Skip writing if the file already exists — avoids acquiring a lock in read-only dirs.
+    inquire (file=trim(fname), exist=lexists)
+    if (lexists) then
+      ierr = 0
+      return
+    end if
+
     call acquire_file_lock(fname, flock_unit, ierr); call CHKERR(ierr)
     ierr = 0
     inquire (file=trim(fname), exist=lexists)

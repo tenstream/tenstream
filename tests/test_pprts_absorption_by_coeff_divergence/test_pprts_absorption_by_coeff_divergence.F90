@@ -1,6 +1,8 @@
 module test_pprts_absorption_by_coeff_divergence
+#ifdef HAVE_PETSC
 #include "petsc/finclude/petsc.h"
   use petsc
+#endif
 
   use m_data_parameters, only: &
     & init_mpi_data_parameters, &
@@ -9,8 +11,10 @@ module test_pprts_absorption_by_coeff_divergence
     & pi
 
   use pfunit_mod
-  use m_helper_functions, only: CHKERR
+  use m_helper_functions, only: CHKERR, insert_petsc_opt
+#ifdef HAVE_PETSC
   use m_pprts_external_solvers, only: destroy_rayli_info
+#endif
   use m_examples_pprts_ex1, only: pprts_ex1
 
   implicit none
@@ -25,7 +29,9 @@ contains
   @after
   subroutine teardown(this)
     class(MpiTestMethod), intent(inout) :: this
+#ifdef HAVE_PETSC
     call destroy_rayli_info()
+#endif
     call finalize_mpi(&
       & this%getMpiCommunicator(), &
       & lfinalize_mpi=.false., &
@@ -59,7 +65,7 @@ contains
     numnodes = this%getNumProcesses()
     myid = this%getProcessRank()
 
-    call PetscOptionsInsertString(PETSC_NULL_OPTIONS, '-absorption_by_coeff_divergence no', ierr); call CHKERR(ierr)
+    call insert_petsc_opt('-absorption_by_coeff_divergence no', ierr); call CHKERR(ierr)
     call pprts_ex1( &
         & comm, &
         & lthermal, &
@@ -77,7 +83,7 @@ contains
         & fdir, fdn, fup, fdiv, &
         & lverbose)
 
-    call PetscOptionsInsertString(PETSC_NULL_OPTIONS, '-absorption_by_coeff_divergence yes', ierr); call CHKERR(ierr)
+    call insert_petsc_opt('-absorption_by_coeff_divergence yes', ierr); call CHKERR(ierr)
     call pprts_ex1( &
       & comm, &
       & lthermal, &
@@ -128,7 +134,7 @@ contains
     numnodes = this%getNumProcesses()
     myid = this%getProcessRank()
 
-    call PetscOptionsInsertString(PETSC_NULL_OPTIONS, '-absorption_by_coeff_divergence no', ierr); call CHKERR(ierr)
+    call insert_petsc_opt('-absorption_by_coeff_divergence no', ierr); call CHKERR(ierr)
     call pprts_ex1( &
         & comm, &
         & lthermal, &
@@ -146,7 +152,7 @@ contains
         & fdir, fdn, fup, fdiv, &
         & lverbose)
 
-    call PetscOptionsInsertString(PETSC_NULL_OPTIONS, '-absorption_by_coeff_divergence yes', ierr); call CHKERR(ierr)
+    call insert_petsc_opt('-absorption_by_coeff_divergence yes', ierr); call CHKERR(ierr)
     call pprts_ex1( &
       & comm, &
       & lthermal, &

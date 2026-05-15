@@ -6,8 +6,10 @@ module test_LUT_3_10
   use m_helper_functions, only: rmse
   use m_boxmc_geometry, only: setup_default_unit_cube_geometry
 
+#ifdef HAVE_PETSC
 #include "petsc/finclude/petsc.h"
   use petsc
+#endif
 
   use pfunit_mod
   implicit none
@@ -144,8 +146,10 @@ contains
 
     !if(myid.eq.0) print *,'Testing LUT coefficients against BOXMC with tolerances atol/rtol :: ',atol,rtol,' :: on ',numnodes,'ranks'
 
+#ifdef HAVE_PETSC
     PETSC_COMM_WORLD = comm
     call PetscInitialize(PETSC_NULL_CHARACTER, ierr)
+#endif
 
     call init_mpi_data_parameters(comm)
     call read_commandline_options(comm)
@@ -169,7 +173,9 @@ contains
   subroutine teardown(this)
     class(parameterized_test), intent(inout) :: this
     !call OPP%destroy()
+#ifdef HAVE_PETSC
     call PetscFinalize(ierr)
+#endif
   end subroutine teardown
 
   @test(npes=[2, 1], testParameters={getParameters() })
