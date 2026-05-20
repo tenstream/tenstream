@@ -38,6 +38,7 @@ module m_repwvl_optprop
   use m_mie_tables, only: t_mie_table, mie_optprop
   use m_rayleigh, only: rayleigh
   use m_repwvl_base, only: t_repwvl_data, repwvl_log_events
+  use m_tenstream_log, only: ts_log_begin, ts_log_end
   use m_search, only: find_real_location
 
   implicit none
@@ -82,9 +83,7 @@ contains
 
     ! Repwvl molecular absorption cross section
     if (lprofile) then
-#ifdef HAVE_PETSC
-      call PetscLogEventBegin(repwvl_log_events%repwvl_optprop_dtau, ierr); call CHKERR(ierr)
-#endif
+      call ts_log_begin(repwvl_log_events%repwvl_optprop_dtau, ierr); call CHKERR(ierr)
     end if
     VMRS(:) = [ &
       & atm%h2o_lay(k, icol), &
@@ -110,9 +109,7 @@ contains
 
     tabs = dtau / atm%dz(k, icol)
     if (lprofile) then
-#ifdef HAVE_PETSC
-      call PetscLogEventEnd(repwvl_log_events%repwvl_optprop_dtau, ierr); call CHKERR(ierr)
-#endif
+      call ts_log_end(repwvl_log_events%repwvl_optprop_dtau, ierr); call CHKERR(ierr)
     end if
     if (ldebug) then
       if (tabs .lt. 0) call CHKERR(1_mpiint, 'kabs from repwvl negative!'//toStr(tabs))
@@ -120,9 +117,7 @@ contains
 
     ! Repwvl molecular scattering cross section
     if (lprofile) then
-#ifdef HAVE_PETSC
-      call PetscLogEventBegin(repwvl_log_events%repwvl_optprop_rayleigh, ierr); call CHKERR(ierr)
-#endif
+      call ts_log_begin(repwvl_log_events%repwvl_optprop_rayleigh, ierr); call CHKERR(ierr)
     end if
     call rayleigh(&
       & repwvl_data%wvls(iwvl) * 1e-3_ireals, &
@@ -141,17 +136,13 @@ contains
     g = 0                                             ! rayleigh has symmetric asymmetry parameter
 
     if (lprofile) then
-#ifdef HAVE_PETSC
-      call PetscLogEventEnd(repwvl_log_events%repwvl_optprop_rayleigh, ierr); call CHKERR(ierr)
-#endif
+      call ts_log_end(repwvl_log_events%repwvl_optprop_rayleigh, ierr); call CHKERR(ierr)
     end if
 
     ! Repwvl water cloud
     if (atm%lwc(k, icol) > 0) then
       if (lprofile) then
-#ifdef HAVE_PETSC
-        call PetscLogEventBegin(repwvl_log_events%repwvl_optprop_mie, ierr); call CHKERR(ierr)
-#endif
+        call ts_log_begin(repwvl_log_events%repwvl_optprop_mie, ierr); call CHKERR(ierr)
       end if
       call mie_optprop(&
         & mie_table, &
@@ -166,18 +157,14 @@ contains
       tabs = tabs + qext_cld * max(0._ireals, (1._ireals - w0_cld))
       tsca = tsca + qext_cld * w0_cld
       if (lprofile) then
-#ifdef HAVE_PETSC
-        call PetscLogEventEnd(repwvl_log_events%repwvl_optprop_mie, ierr); call CHKERR(ierr)
-#endif
+        call ts_log_end(repwvl_log_events%repwvl_optprop_mie, ierr); call CHKERR(ierr)
       end if
     end if
 
     ! Repwvl ice cloud
     if (atm%iwc(k, icol) > 0) then
       if (lprofile) then
-#ifdef HAVE_PETSC
-        call PetscLogEventBegin(repwvl_log_events%repwvl_optprop_fu_ice, ierr); call CHKERR(ierr)
-#endif
+        call ts_log_begin(repwvl_log_events%repwvl_optprop_fu_ice, ierr); call CHKERR(ierr)
       end if
 
       call get_fu_ice_optprop()
@@ -188,9 +175,7 @@ contains
       tabs = tabs + qext_cld * max(0._ireals, (1._ireals - w0_cld))
       tsca = tsca + qext_cld * w0_cld
       if (lprofile) then
-#ifdef HAVE_PETSC
-        call PetscLogEventEnd(repwvl_log_events%repwvl_optprop_fu_ice, ierr); call CHKERR(ierr)
-#endif
+        call ts_log_end(repwvl_log_events%repwvl_optprop_fu_ice, ierr); call CHKERR(ierr)
       end if
     end if
 
