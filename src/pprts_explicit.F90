@@ -38,7 +38,6 @@ module m_pprts_explicit
   use m_pprts_base, only: &
     & atmk, &
     & determine_ksp_tolerances, &
-    & setup_incSolar, &
     & t_coord, &
     & t_solver, &
     & t_state_container
@@ -58,68 +57,7 @@ module m_pprts_explicit
 
 contains
 
-  !> @brief explicit loop to compute direct radiation — thin wrapper handles Vec/array conversion
-  subroutine explicit_edir(solver, prefix, edirTOA, solution, ierr)
-#ifdef HAVE_PETSC
-#include "petsc/finclude/petsc.h"
-    use petsc
-    use m_petsc_helpers, only: getVecPointer, restoreVecPointer
-#endif
-    class(t_solver), target, intent(in) :: solver
-    character(len=*), intent(in) :: prefix
-    real(ireals), intent(in) :: edirTOA
-    type(t_state_container), target, intent(inout) :: solution
-    integer(mpiint), intent(out) :: ierr
-
-#ifdef HAVE_PETSC
-    real(ireals), pointer :: vedir_1d(:), vedir_4d(:, :, :, :)
-    real(ireals), pointer :: lb_1d(:), lb_4d(:, :, :, :)
-    real(ireals), pointer :: v0_1d(:), v0_4d(:, :, :, :)
-    type(tVec) :: b_gvec, lb_vec, v0_vec
-#else
-    real(ireals), allocatable, target :: b_arr(:, :, :, :), lb_arr(:, :, :, :), v0_arr(:, :, :, :)
-#endif
-
-    ierr = 0
-    associate (C => solver%C_dir)
-
-#ifdef HAVE_PETSC
-      vedir_1d => null(); vedir_4d => null()
-      lb_1d => null(); lb_4d => null()
-      v0_1d => null(); v0_4d => null()
-      call DMGetGlobalVector(C%da, b_gvec, ierr); call CHKERR(ierr)
-      call setup_incSolar(solver, edirTOA, b_gvec)
-      call DMGetLocalVector(C%da, lb_vec, ierr); call CHKERR(ierr)
-      call DMGlobalToLocal(C%da, b_gvec, INSERT_VALUES, lb_vec, ierr); call CHKERR(ierr)
-      call DMRestoreGlobalVector(C%da, b_gvec, ierr); call CHKERR(ierr)
-      call getVecPointer(C%da, lb_vec, lb_1d, lb_4d)
-      call DMGetLocalVector(C%da, v0_vec, ierr); call CHKERR(ierr)
-      call DMGlobalToLocal(C%da, solution%edir, INSERT_VALUES, v0_vec, ierr); call CHKERR(ierr)
-      call getVecPointer(C%da, v0_vec, v0_1d, v0_4d)
-      call getVecPointer(C%da, solution%edir, vedir_1d, vedir_4d)
-      call explicit_edir_impl(solver, prefix, edirTOA, vedir_4d, lb_4d, v0_4d, solution, ierr)
-      call restoreVecPointer(C%da, solution%edir, vedir_1d, vedir_4d)
-      call restoreVecPointer(C%da, v0_vec, v0_1d, v0_4d)
-      call restoreVecPointer(C%da, lb_vec, lb_1d, lb_4d)
-      call DMRestoreLocalVector(C%da, v0_vec, ierr); call CHKERR(ierr)
-      call DMRestoreLocalVector(C%da, lb_vec, ierr); call CHKERR(ierr)
-#else
-      allocate (b_arr(0:C%dof - 1, C%zs:C%ze, C%xs:C%xe, C%ys:C%ye)); b_arr = zero
-      call setup_incSolar(solver, edirTOA, b_arr)
-      allocate (lb_arr(0:C%dof - 1, C%zs:C%ze, C%gxs:C%gxe, C%gys:C%gye)); lb_arr = zero
-      lb_arr(:, :, C%xs:C%xe, C%ys:C%ye) = b_arr
-      deallocate (b_arr)
-      allocate (v0_arr(0:C%dof - 1, C%zs:C%ze, C%gxs:C%gxe, C%gys:C%gye)); v0_arr = zero
-      v0_arr(:, :, C%xs:C%xe, C%ys:C%ye) = solution%edir
-      call explicit_edir_impl(solver, prefix, edirTOA, solution%edir, lb_arr, v0_arr, solution, ierr)
-      deallocate (lb_arr, v0_arr)
-#endif
-
-    end associate
-  end subroutine
-
-  !> @brief algorithm kernel for explicit direct sweep — pure Fortran, no PETSc
-  subroutine explicit_edir_impl(solver, prefix, edirTOA, vedir, lb, v0, solution, ierr)
+  subroutine explicit_edir(solver, prefix, edirTOA, vedir, lb, v0, solution, ierr)
     class(t_solver), target, intent(in) :: solver
     character(len=*), intent(in) :: prefix
     real(ireals), intent(in) :: edirTOA
@@ -520,43 +458,7 @@ contains
     end associate
   end subroutine
 
-  !> @brief explicit loop to compute diffuse radiation
-  !> @brief explicit diffuse solver — thin wrapper handles Vec/array conversion
-  subroutine explicit_ediff(solver, prefix, vb, solution, ierr)
-#ifdef HAVE_PETSC
-#include "petsc/finclude/petsc.h"
-    use petsc
-    use m_petsc_helpers, only: getVecPointer, restoreVecPointer
-#endif
-    class(t_solver), intent(inout) :: solver
-    character(len=*), intent(in) :: prefix
-    real(ireals), target, intent(in) :: vb(:, :, :, :)
-    type(t_state_container), target, intent(inout) :: solution
-    integer(mpiint), intent(out) :: ierr
-
-#ifdef HAVE_PETSC
-    real(ireals), pointer :: vediff_1d(:), vediff_4d(:, :, :, :)
-#else
-    ! non-PETSc: solution%ediff is already a plain array
-#endif
-
-    ierr = 0
-    associate (C => solver%C_diff)
-
-#ifdef HAVE_PETSC
-      vediff_1d => null(); vediff_4d => null()
-      call getVecPointer(C%da, solution%ediff, vediff_1d, vediff_4d)
-      call explicit_ediff_impl(solver, prefix, vb, vediff_4d, solution, ierr)
-      call restoreVecPointer(C%da, solution%ediff, vediff_1d, vediff_4d)
-#else
-      call explicit_ediff_impl(solver, prefix, vb, solution%ediff, solution, ierr)
-#endif
-
-    end associate
-  end subroutine
-
-  !> @brief algorithm kernel for explicit diffuse sweep — pure Fortran, no PETSc
-  subroutine explicit_ediff_impl(solver, prefix, vb, vediff, solution, ierr)
+  subroutine explicit_ediff(solver, prefix, vb, vediff, solution, ierr)
     class(t_solver), intent(inout) :: solver
     character(len=*), intent(in) :: prefix
     real(ireals), target, intent(in) :: vb(:, :, :, :)
