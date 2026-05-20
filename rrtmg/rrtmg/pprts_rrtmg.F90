@@ -58,7 +58,7 @@ module m_pprts_rrtmg
   use m_optprop_rrtmg, only: optprop_rrtm_lw, optprop_rrtm_sw, get_spectral_bands
   use m_tenstr_disort, only: default_flx_computation
   use m_tenstr_rrtmg_base, only: t_rrtmg_log_events, setup_log_events
-  use m_tenstream_log, only: ts_log_begin, ts_log_end, ts_log_stage_push, ts_log_stage_pop
+  use m_tenstream_log, only: ts_log_begin, ts_log_end, ts_log_stage_push, ts_log_stage_pop, ts_log_event_register
   use m_buildings, only: t_pprts_buildings, clone_buildings, destroy_buildings
   use m_boxmc_geometry, only: PPRTS_BOT_FACE
   use m_tenstr_rrtmg_lw_init, only: rrtmg_lw_ini
@@ -140,6 +140,10 @@ contains
     logical :: lflg
     integer(mpiint) :: myid, ierr
 
+    if (log_events%smooth_surface_fluxes%ts_id < 0) then
+      call ts_log_event_register('pprts_smooth_surface_fluxes', log_events%smooth_surface_fluxes, ierr)
+      call CHKERR(ierr)
+    end if
     call ts_log_begin(log_events%smooth_surface_fluxes, ierr); call CHKERR(ierr)
     call mpi_comm_rank(solver%comm, myid, ierr); call CHKERR(ierr)
 
