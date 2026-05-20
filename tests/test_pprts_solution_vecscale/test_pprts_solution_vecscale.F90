@@ -71,22 +71,16 @@ contains
       call init_pprts(comm, nv, nxp, nyp, dx, dy, sundir, solver, dz1d)
 
       associate (S => solver%solutions(uid))
-#ifdef HAVE_PETSC
-        call prepare_solution(solver%C_dir%da, solver%C_diff%da, solver%C_one%da, &
-                              lsolar=.true., lthermal=.false., solution=S, uid=uid)
-        call VecSet(S%edir, one, ierr); call CHKERR(ierr)
-        S%lWm2_dir = .true.
-        call VecSet(S%ediff, one, ierr); call CHKERR(ierr)
-        S%lWm2_diff = .true.
-        call VecNorm(S%edir, NORM_2, target_dirnorm, ierr); call CHKERR(ierr)
-        call VecNorm(S%ediff, NORM_2, target_diffnorm, ierr); call CHKERR(ierr)
-#else
         call prepare_solution(solver%C_dir, solver%C_diff, solver%C_one, &
                               lsolar=.true., lthermal=.false., solution=S, uid=uid)
         S%edir = one
         S%lWm2_dir = .true.
         S%ediff = one
         S%lWm2_diff = .true.
+#ifdef HAVE_PETSC
+        call VecNorm(S%edir_petsc, NORM_2, target_dirnorm, ierr); call CHKERR(ierr)
+        call VecNorm(S%ediff_petsc, NORM_2, target_diffnorm, ierr); call CHKERR(ierr)
+#else
         target_dirnorm = norm2(S%edir)
         target_diffnorm = norm2(S%ediff)
 #endif
@@ -102,8 +96,8 @@ contains
         call print_solution(S)
 
 #ifdef HAVE_PETSC
-        call VecNorm(S%edir, NORM_2, dirnorm, ierr); call CHKERR(ierr)
-        call VecNorm(S%ediff, NORM_2, diffnorm, ierr); call CHKERR(ierr)
+        call VecNorm(S%edir_petsc, NORM_2, dirnorm, ierr); call CHKERR(ierr)
+        call VecNorm(S%ediff_petsc, NORM_2, diffnorm, ierr); call CHKERR(ierr)
 #else
         dirnorm = norm2(S%edir)
         diffnorm = norm2(S%ediff)

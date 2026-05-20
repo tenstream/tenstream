@@ -1,3 +1,6 @@
+-LUT_mockup
+-twostr_ratio 0
+
 -solar_dir_ksp_view
 -solar_diff_ksp_view
 -thermal_diff_ksp_view

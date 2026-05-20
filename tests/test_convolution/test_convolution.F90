@@ -1,12 +1,16 @@
 module test_convolution
 
+#ifdef HAVE_PETSC
 #include "petsc/finclude/petsc.h"
   use petsc
+#endif
   use m_data_parameters, only: init_mpi_data_parameters, iintegers, ireals, mpiint, zero, one, i1, i2
   use m_tenstream_options, only: read_commandline_options
-  use m_pprts_base, only: t_solver_3_10, destroy_pprts
+  use m_pprts_base, only: t_solver_3_10, destroy_pprts, convolve_ediff_srfc
   use m_pprts, only: init_pprts
+#ifdef HAVE_PETSC
   use m_petsc_helpers, only: dmda_convolve_ediff_srfc
+#endif
   use m_helper_functions, only: spherical_2_cartesian
 
   use pfunit_mod
@@ -14,7 +18,9 @@ module test_convolution
   implicit none
 
   type(t_solver_3_10) :: solver
+#ifdef HAVE_PETSC
   type(tVec) :: gvec, lvec
+#endif
 
 contains
 
@@ -47,8 +53,8 @@ contains
     real(ireals), parameter :: eps = sqrt(epsilon(eps))
 
     real(ireals), allocatable, dimension(:, :, :, :) :: local_arr
-    real(ireals) :: targt
 
+    real(ireals) :: targt
     integer(iintegers) :: j, k
 
     dz1d = dz
@@ -64,7 +70,7 @@ contains
       allocate (local_arr(C%dof, C%zm, C%xm, C%ym))
       local_arr = modulo(myid, 2)
 
-      call dmda_convolve_ediff_srfc(C%da, i1, local_arr(:, C%zs + 1, :, :))
+      call convolve_ediff_srfc(comm, C, i1, local_arr(:, C%zs + 1, :, :))
       do k = 0, numnodes - 1
         if (myid .eq. k) then
           do j = 1, C%ym
@@ -82,7 +88,7 @@ contains
       @mpiassertEqual(targt, local_arr(1, C%zs + 1, 1, 1), eps)
 
       local_arr = modulo(myid, 2)
-      call dmda_convolve_ediff_srfc(C%da, i2, local_arr(:, C%zm, :, :))
+      call convolve_ediff_srfc(comm, C, i2, local_arr(:, C%zm, :, :))
       do k = 0, numnodes - 1
         if (myid .eq. k) then
           do j = 1, C%ym
@@ -105,8 +111,8 @@ contains
       @mpiassertEqual(targt, local_arr(1, C%zm, 1, 2), eps)
 
       local_arr = modulo(myid, 2)
-      call dmda_convolve_ediff_srfc(C%da, i1, local_arr(:, C%zm, :, :))
-      call dmda_convolve_ediff_srfc(C%da, i1, local_arr(:, C%zm, :, :))
+      call convolve_ediff_srfc(comm, C, i1, local_arr(:, C%zm, :, :))
+      call convolve_ediff_srfc(comm, C, i1, local_arr(:, C%zm, :, :))
       do k = 0, numnodes - 1
         if (myid .eq. k) then
           do j = 1, C%ym
@@ -163,7 +169,7 @@ contains
       local_arr(i1, :, 3, 3) = one
       local_arr(i2, :, 3, 3) = one * 10
 
-      call dmda_convolve_ediff_srfc(C%da, i1, local_arr(:, C%zs + 1, :, :))
+      call convolve_ediff_srfc(comm, C, i1, local_arr(:, C%zs + 1, :, :))
       do k = 0, numnodes - 1
         if (myid .eq. k) then
           do j = 1, C%ym
@@ -175,7 +181,7 @@ contains
       @assertEqual(one / 9._ireals, local_arr(1, C%zs + 1, 3, 3), eps)
       @assertEqual(10 * one / 9._ireals, local_arr(2, C%zs + 1, 3, 3), eps)
 
-      call dmda_convolve_ediff_srfc(C%da, i2, local_arr(:, C%zm, :, :))
+      call convolve_ediff_srfc(comm, C, i2, local_arr(:, C%zm, :, :))
       do k = 0, numnodes - 1
         if (myid .eq. k) then
           do j = 1, C%ym

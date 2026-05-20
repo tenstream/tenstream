@@ -11,8 +11,10 @@ subroutine test_tenstream_ex1(this)
   use m_helper_functions, only: reorder_mpi_comm, chkerr
   use m_tenstream_options, only: read_commandline_options
   use pfunit_mod
+#ifdef HAVE_PETSC
 #include "petsc/finclude/petsc.h"
   use petsc
+#endif
 
   implicit none
 
@@ -41,7 +43,7 @@ subroutine test_tenstream_ex1(this)
   call mpi_comm_rank(comm, orig_id, mpierr)
 
   call init_mpi_data_parameters(comm)
-  call allocate_pprts_solver_from_commandline(solver, '2str', mpierr); call CHKERR(mpierr)
+  call allocate_pprts_solver_from_commandline(solver, '3_10', mpierr); call CHKERR(mpierr)
 
   call init_pprts(comm, nv, nxp, nyp, dx, dy, sundir, solver, dz1d=dz1d)
   call mpi_comm_rank(comm, myid, mpierr)
@@ -66,7 +68,7 @@ subroutine test_tenstream_ex1(this)
   call destroy_pprts(solver, .true.)
 
   ! Now check if the neighbors fit:
-  ! if we write it down, it should look like
+  ! if we write it down, it should look like (PETSc DMDA column-major numbering):
   !
   ! original:
   !
@@ -80,11 +82,11 @@ subroutine test_tenstream_ex1(this)
   ! 3  4  5
   ! 0  1  2
   !
-  ! And the ordering of petsc numbering is clockwise, starting at the bottom for original neighbors
-  ! and anti-clockwise starting with left neighbor on the reordered grid
-
+  ! Corner and center ranks (0,4,8) always keep the same relative neighbors.
   if (any(orig_id .eq. [0, 4, 8])) &
     @assertEqual(neighbors_orig, neighbors_reorder, 'neighbors have to stay the same in the middle and for the corners')
+#ifdef HAVE_PETSC
+    ! PETSc DMDA uses column-major rank numbering — these values are DMDA-specific.
     if(orig_id .eq. 1) then
     @assertEqual([0, 7, 2, 4], neighbors_orig)
     @assertEqual([5, 0, 4, 6], neighbors_reorder)
@@ -99,5 +101,6 @@ subroutine test_tenstream_ex1(this)
     @assertEqual([5, 0, 4, 6], neighbors_orig)
     @assertEqual([0, 7, 2, 4], neighbors_reorder)
   end if
+#endif
 
 end subroutine

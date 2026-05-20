@@ -12,21 +12,12 @@ macro(subdirlist result curdir)
   set(${result} ${dirlist})
 endmacro()
 
-# Tests that use PETSc DMDA/PLEX types directly in their source files,
-# or depend on pprts_rrtmg which requires PETSc (Plan Phase 4b pending).
+# Tests that use PETSc DMDA/PLEX types directly in their source files.
 set(PETSC_ONLY_TESTS
-  reorder_mpi_comm
-  test_buildings
-  test_convolution
   test_petsc_dm_global_to_shared_mem
   test_petsc_scatterToZero
   test_petsc_sort
   test_pprts_rayli
-  test_pprts_rrtm_icollapse
-  test_pprts_slope_correction
-  test_pprts_specint
-  test_rrtm_lw_Bsrfc
-  test_twostr
 )
 
 # Tests that require PETSc PLEX / unstructured grid solver.

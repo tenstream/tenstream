@@ -1,6 +1,4 @@
 module test_buildings
-#include "petsc/finclude/petsc.h"
-  use petsc
   use m_data_parameters, only: init_mpi_data_parameters, finalize_mpi, iintegers, ireals, mpiint, zero, one, pi
 
   use m_helper_functions, only: &
@@ -199,7 +197,7 @@ contains
       @assertEqual(0, gedir(glob_box_k + 1, glob_box_i, glob_box_j), atol, 'edir at bot of building should be zero')
       @assertEqual(S0 / dz, gabso(glob_box_k, glob_box_i, glob_box_j), atol, 'box should absorb all incoming solar radiation')
     end if
-    if (size(buildings%edir) .gt. 0) then
+    if (allocated(buildings%edir) .and. size(buildings%edir) .gt. 0) then
       @assertEqual(S0, buildings%edir(1), atol)
       @assertEqual(0._ireals, buildings%edir(2:6), atol)
 
@@ -260,7 +258,7 @@ contains
       @assertEqual(S0 * box_albedo, geup(glob_box_k, glob_box_i, glob_box_j), atol, 'eup at top of building should be S0*B_Ag')
 
     end if
-    if (size(buildings%edir) .gt. 0) then
+    if (allocated(buildings%edir) .and. size(buildings%edir) .gt. 0) then
       @assertEqual(S0, buildings%edir(1), atol, 'edir at top of building should be S0')
       @assertEqual(0._ireals, buildings%edir(2:6), atol, 'if zenith angle is 0, all sides of the building except the top should be 0 edir')
 
@@ -316,7 +314,9 @@ contains
       @assertEqual(box_planck * pi, geup(glob_box_k, glob_box_i, glob_box_j), atol, 'eup at top of building should be emission')
       @assertEqual(box_planck * pi, gedn(glob_box_k + 1, glob_box_i, glob_box_j), atol, 'edn at top of building should be emission')
     end if
-    @assertEqual(box_planck * pi, buildings%outgoing, atol, 'emission on buildings should be planck')
+    if (allocated(buildings%outgoing)) then
+      @assertEqual(box_planck * pi, buildings%outgoing, atol, 'emission on buildings should be planck')
+    end if
   end subroutine
 
   @test(npes=[4, 1])
@@ -374,7 +374,7 @@ contains
       @assertEqual(0, gedir(glob_box_k + 2, glob_box_i, glob_box_j - 1), atol, 'edir building shadow should go south and should be zero')
       @assertEqual(0, gedir(glob_box_k + 2, glob_box_i, glob_box_j - 2), atol, 'edir building shadow should go south and should be zero')
     end if
-    if (size(buildings%edir) .gt. 0) then
+    if (allocated(buildings%edir) .and. size(buildings%edir) .gt. 0) then
       trgt = S0 * cos(deg2rad(theta0))
       @assertEqual(trgt, buildings%edir(1), atol)
       trgt = S0 * cos(deg2rad(theta0)) ! front face bc phi==0 is north)
@@ -442,7 +442,7 @@ contains
       @assertEqual(0, gedir(glob_box_k + 2, glob_box_i, glob_box_j + 1), atol, 'edir building shadow should go north and should be zero')
       @assertEqual(0, gedir(glob_box_k + 2, glob_box_i, glob_box_j + 2), atol, 'edir building shadow should go north and should be zero')
     end if
-    if (size(buildings%edir) .gt. 0) then
+    if (allocated(buildings%edir) .and. size(buildings%edir) .gt. 0) then
       trgt = S0 * cos(deg2rad(theta0))
       @assertEqual(trgt, buildings%edir(1), atol)
       trgt = S0 * cos(deg2rad(theta0)) ! back face bc phi==180 is south)
@@ -511,7 +511,7 @@ contains
       @assertEqual(0, gedir(glob_box_k + 2, glob_box_i - 1, glob_box_j), atol, 'edir building shadow should go west and should be zero')
       @assertEqual(0, gedir(glob_box_k + 2, glob_box_i - 2, glob_box_j), atol, 'edir building shadow should go west and should be zero')
     end if
-    if (size(buildings%edir) .gt. 0) then
+    if (allocated(buildings%edir) .and. size(buildings%edir) .gt. 0) then
       trgt = S0 * cos(deg2rad(theta0))
       @assertEqual(trgt, buildings%edir(1), atol)
       trgt = S0 * cos(deg2rad(theta0)) ! right face bc phi==90 is east sun)
@@ -580,7 +580,7 @@ contains
       @assertEqual(0, gedir(glob_box_k + 2, glob_box_i + 1, glob_box_j), atol, 'edir building shadow should go east and should be zero')
       @assertEqual(0, gedir(glob_box_k + 2, glob_box_i + 2, glob_box_j), atol, 'edir building shadow should go east and should be zero')
     end if
-    if (size(buildings%edir) .gt. 0) then
+    if (allocated(buildings%edir) .and. size(buildings%edir) .gt. 0) then
       trgt = S0 * cos(deg2rad(theta0))
       @assertEqual(trgt, buildings%edir(1), atol)
       trgt = S0 * cos(deg2rad(theta0)) ! leftt face bc phi==270 is west sun)

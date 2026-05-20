@@ -10,10 +10,8 @@ module test_pprts_symmetry
   use m_boxmc_geometry, only: setup_default_unit_cube_geometry
   use m_pprts_base, only: t_solver, t_solver_3_10, t_solver_8_10, destroy_pprts
   use m_pprts, only: init_pprts, set_optical_properties, &
-                     solve_pprts, set_angles, pprts_get_result
-#ifdef HAVE_PETSC
-  use m_pprts, only: pprts_get_result_toZero
-#endif
+                     solve_pprts, set_angles, &
+                     pprts_get_result, pprts_get_result_toZero
   use m_tenstream_options, only: read_commandline_options
   use m_helper_functions, only: &
     & CHKERR, &
@@ -463,13 +461,8 @@ contains
         & edirTOA=incSolar, &
         & opt_solution_uid=190_iintegers)
 
-#ifdef HAVE_PETSC
       call pprts_get_result_toZero(solver, fdn0, fup0, fdiv0, fdir0, opt_solution_uid=10_iintegers)
       call pprts_get_result_toZero(solver, fdn1, fup1, fdiv1, fdir1, opt_solution_uid=190_iintegers)
-#else
-      call pprts_get_result(solver, fdn0, fup0, fdiv0, fdir0, opt_solution_uid=10_iintegers)
-      call pprts_get_result(solver, fdn1, fup1, fdiv1, fdir1, opt_solution_uid=190_iintegers)
-#endif
 
       call set_angles(solver, spherical_2_cartesian(100._ireals, theta0))
       call solve_pprts(solver, &
@@ -485,13 +478,8 @@ contains
         & edirTOA=incSolar, &
         & opt_solution_uid=280_iintegers)
 
-#ifdef HAVE_PETSC
       call pprts_get_result_toZero(solver, fdn2, fup2, fdiv2, fdir2, opt_solution_uid=100_iintegers)
       call pprts_get_result_toZero(solver, fdn3, fup3, fdiv3, fdir3, opt_solution_uid=280_iintegers)
-#else
-      call pprts_get_result(solver, fdn2, fup2, fdiv2, fdir2, opt_solution_uid=100_iintegers)
-      call pprts_get_result(solver, fdn3, fup3, fdiv3, fdir3, opt_solution_uid=280_iintegers)
-#endif
 
       if (myid .eq. 0) then
         do j = lbound(fdir0, 3), ubound(fdir0, 3)
