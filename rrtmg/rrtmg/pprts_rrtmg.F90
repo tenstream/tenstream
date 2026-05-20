@@ -33,27 +33,13 @@
 !!
 
 module m_pprts_rrtmg
-#ifdef HAVE_PETSC
-  use, intrinsic :: iso_c_binding
-
-#include "petsc/finclude/petsc.h"
-  use petsc
-
   use mpi, only: mpi_comm_rank
   use m_tenstr_parkind_sw, only: im => kind_im, rb => kind_rb
   use m_tenstream_options, only: read_commandline_options
   use m_data_parameters, only: iintegers, ireals, zero, one, i0, i1, mpiint, default_str_len
-
   use m_pprts_base, only: t_solver, destroy_pprts, atmk
-
   use m_pprts, only: init_pprts, set_angles, set_optical_properties, solve_pprts, pprts_get_result
-
-  use m_xdmf_export, only: &
-    & xdmf_pprts_buildings, &
-    & xdmf_pprts_srfc_flux
-
   use m_adaptive_spectral_integration, only: need_new_solution
-
   use m_helper_functions, only: &
     & CHKERR, &
     & cross_3d, &
@@ -67,46 +53,33 @@ module m_pprts_rrtmg
     & mpi_logical_all_same, &
     & reverse, &
     & toStr
-
   use m_options_database, only: opts_has
-
-  use m_petsc_helpers, only: dmda_convolve_ediff_srfc, &
-                             getvecpointer, restorevecpointer, f90vectopetsc
-
   use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, plkint, print_tenstr_atm, vert_integral_coeff
-
   use m_optprop_rrtmg, only: optprop_rrtm_lw, optprop_rrtm_sw, get_spectral_bands
-
   use m_tenstr_disort, only: default_flx_computation
   use m_tenstr_rrtmg_base, only: t_rrtmg_log_events, setup_log_events
+  use m_tenstream_log, only: ts_log_begin, ts_log_end, ts_log_stage_push, ts_log_stage_pop
   use m_buildings, only: t_pprts_buildings, clone_buildings, destroy_buildings
   use m_boxmc_geometry, only: PPRTS_BOT_FACE
-
-  use m_pprts_external_solvers, only: destroy_rayli_info
-
   use m_tenstr_rrtmg_lw_init, only: rrtmg_lw_ini
   use m_tenstr_rrtmg_sw_init, only: rrtmg_sw_ini
-
-  implicit none
-
-  private
-  public :: pprts_rrtmg, destroy_pprts_rrtmg, smooth_surface_fluxes, slope_correction_fluxes
-
-!  logical,parameter :: ldebug=.True.
-  logical, parameter :: ldebug = .false.
-#else
-  use m_data_parameters, only: iintegers, ireals, mpiint
-  use m_helper_functions, only: CHKERR
-  use m_pprts_base, only: t_solver
-  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm
-  use m_buildings, only: t_pprts_buildings
-  implicit none
-  private
-  public :: pprts_rrtmg, destroy_pprts_rrtmg, smooth_surface_fluxes, slope_correction_fluxes
+#ifdef HAVE_PETSC
+  use, intrinsic :: iso_c_binding
+#include "petsc/finclude/petsc.h"
+  use petsc
+  use m_xdmf_export, only: xdmf_pprts_buildings, xdmf_pprts_srfc_flux
+  use m_petsc_helpers, only: dmda_convolve_ediff_srfc, getvecpointer, restorevecpointer, f90vectopetsc
+  use m_pprts_external_solvers, only: destroy_rayli_info
 #endif
 
-#ifdef HAVE_PETSC
+  implicit none
+
+  private
+  public :: pprts_rrtmg, destroy_pprts_rrtmg, smooth_surface_fluxes, slope_correction_fluxes
+
+  logical, parameter :: ldebug = .false.
   type(t_rrtmg_log_events) :: log_events
+
 contains
 
   subroutine init_pprts_rrtmg(comm, solver, dx, dy, dz, &
@@ -160,14 +133,15 @@ contains
   end subroutine
 
   subroutine smooth_surface_fluxes(solver, edn, eup)
-    class(t_solver), intent(inout) :: solver                       ! solver type (e.g. t_solver_8_10)
-    real(ireals), allocatable, dimension(:, :, :), intent(inout) :: edn, eup  ! [nlyr+1, local_nx, local_ny ]
+    class(t_solver), intent(inout) :: solver
+    real(ireals), allocatable, dimension(:, :, :), intent(inout) :: edn, eup
+#ifdef HAVE_PETSC
     integer(iintegers) :: i, kernel_width, Niter
     real(ireals) :: radius, mflx_up, mflx_dn
     logical :: lflg
     integer(mpiint) :: myid, ierr
 
-    call PetscLogEventBegin(log_events%smooth_surface_fluxes, ierr); call CHKERR(ierr)
+    call ts_log_begin(log_events%smooth_surface_fluxes, ierr); call CHKERR(ierr)
     call mpi_comm_rank(solver%comm, myid, ierr); call CHKERR(ierr)
 
     radius = 0
@@ -191,7 +165,8 @@ contains
         end do
       end if
     end if
-    call PetscLogEventEnd(log_events%smooth_surface_fluxes, ierr); call CHKERR(ierr)
+    call ts_log_end(log_events%smooth_surface_fluxes, ierr); call CHKERR(ierr)
+#endif
   end subroutine
 
   subroutine find_iter_and_kernelwidth(solver, radius, Niter, kernel_width)
@@ -244,18 +219,16 @@ contains
   end subroutine
 
   subroutine slope_correction_fluxes(solver, edir)
-    class(t_solver), intent(inout) :: solver                         ! solver type (e.g. t_solver_8_10)
-    real(ireals), allocatable, dimension(:, :, :), intent(inout) :: edir ! [nlyr+1, local_nx, local_ny ]
+    class(t_solver), intent(inout) :: solver
+    real(ireals), allocatable, dimension(:, :, :), intent(inout) :: edir
     logical :: lslope_correction, latm_correction, lflg
     integer(mpiint) :: myid, ierr
 
     real(ireals), pointer :: grad(:, :, :, :)
-    real(ireals), pointer :: grad_1d(:)
     real(ireals) :: fac, n(3)
     integer(iintegers) :: i, j, k
 
     grad => null()
-    grad_1d => null()
 
     call mpi_comm_rank(solver%comm, myid, ierr); call CHKERR(ierr)
 
@@ -265,13 +238,15 @@ contains
     latm_correction = .false.
     call get_petsc_opt(solver%prefix, "-pprts_atm_correction", latm_correction, lflg, ierr); call CHKERR(ierr)
 
+    if (.not. lslope_correction .and. .not. latm_correction) return
+
     associate ( &
       atm => solver%atm, &
       sun => solver%sun, &
       C_dir => solver%C_dir, &
       C_two1 => solver%C_two1)
 
-      call getVecPointer(C_two1%da, atm%hgrad, grad_1d, grad)
+      grad => atm%hgrad
 
       if (latm_correction) then
         do j = C_two1%ys, C_two1%ye
@@ -305,7 +280,7 @@ contains
         end do
       end if
 
-      call restoreVecPointer(C_two1%da, atm%hgrad, grad_1d, grad)
+      nullify (grad)
     end associate
   end subroutine
 
@@ -447,7 +422,7 @@ contains
     lskip_thermal = .false.
     call get_petsc_opt(solver%prefix, "-skip_thermal", lskip_thermal, lflg, ierr); call CHKERR(ierr)
     if (lthermal .and. .not. lskip_thermal) then
-      call PetscLogStagePush(log_events%stage_rrtmg_thermal, ierr); call CHKERR(ierr)
+      call ts_log_stage_push(log_events%stage_rrtmg_thermal, ierr); call CHKERR(ierr)
       call compute_thermal(                           &
         & solver,                                     &
         & atm,                                        &
@@ -460,7 +435,7 @@ contains
         & opt_buildings=opt_buildings_thermal,  &
         & opt_tau=opt_tau_thermal         &
         & )
-      call PetscLogStagePop(ierr); call CHKERR(ierr) ! pop solver%logs%stage_rrtmg_thermal
+      call ts_log_stage_pop(ierr); call CHKERR(ierr) ! pop solver%logs%stage_rrtmg_thermal
     end if
 
     if (lsolar .and. .not. allocated(edir)) allocate (edir(solver%C_one1%zm, solver%C_one1%xm, solver%C_one1%ym))
@@ -470,7 +445,7 @@ contains
       lskip_solar = .false.
       call get_petsc_opt(solver%prefix, "-skip_solar", lskip_solar, lflg, ierr); call CHKERR(ierr)
       if (.not. lskip_solar) then
-        call PetscLogStagePush(log_events%stage_rrtmg_solar, ierr); call CHKERR(ierr)
+        call ts_log_stage_push(log_events%stage_rrtmg_solar, ierr); call CHKERR(ierr)
         call compute_solar(                          &
           & solver,                                  &
           & atm,                                     &
@@ -486,14 +461,16 @@ contains
           & opt_w0=opt_w0_solar,        &
           & opt_g=opt_g_solar          &
           & )
-        call PetscLogStagePop(ierr); call CHKERR(ierr) ! pop solver%logs%stage_rrtmg_solar
+        call ts_log_stage_pop(ierr); call CHKERR(ierr) ! pop solver%logs%stage_rrtmg_solar
       end if
     end if
 
     call smooth_surface_fluxes(solver, edn, eup)
     if (lsolar) call slope_correction_fluxes(solver, edir)
 
+#ifdef HAVE_PETSC
     call dump_results()
+#endif
 
     !if(myid.eq.0 .and. ldebug) then
     !  if(present(opt_time)) then
@@ -517,6 +494,7 @@ contains
     !endif
   contains
 
+#ifdef HAVE_PETSC
     subroutine dump_variable(var, dm, dumpstring, varname)
       real(ireals), intent(in) :: var(:, :, :)
       type(tDM), intent(in) :: dm
@@ -582,6 +560,7 @@ contains
         end if
       end if
     end subroutine
+#endif
   end subroutine
 
   subroutine compute_thermal( &
@@ -1294,11 +1273,13 @@ contains
   subroutine destroy_pprts_rrtmg(solver, lfinalizepetsc)
     class(t_solver) :: solver
     logical, intent(in) :: lfinalizepetsc
+#ifdef HAVE_PETSC
     !TODO this should need to happen here. the reason we need this is in case that someone destroys petsc
     !     and then initializes tenstream again, this is not valid anymore. Anyway, it should really reside in the pprts_solver object but
     !     this currently would infer some serious refactoring to avoid cyclic dependencies because the part in pprt2plex2rayli brings in
     !     the plexrt deps. For now, live with it but one day, we need to sort this out.
     call destroy_rayli_info()
+#endif
 
     ! Tidy up the solver
     call destroy_pprts(solver, lfinalizepetsc=lfinalizepetsc)
@@ -1390,42 +1371,4 @@ contains
       end do
     end subroutine
   end subroutine
-#else
-contains
-  subroutine pprts_rrtmg(comm, solver, atm, ie, je, dx, dy, sundir, &
-      & albedo_thermal, albedo_solar, lthermal, lsolar, edir, edn, eup, abso, &
-      & nxproc, nyproc, icollapse, opt_time, solar_albedo_2d, thermal_albedo_2d, &
-      & opt_solar_constant, opt_buildings_solar, opt_buildings_thermal, &
-      & opt_tau_solar, opt_w0_solar, opt_g_solar, opt_tau_thermal, lonly_initialize)
-    integer(mpiint), intent(in) :: comm
-    class(t_solver), intent(inout) :: solver
-    type(t_tenstr_atm), intent(in) :: atm
-    integer(iintegers), intent(in) :: ie, je
-    real(ireals), intent(in) :: dx, dy, sundir(:), albedo_solar, albedo_thermal
-    logical, intent(in) :: lsolar, lthermal
-    real(ireals), allocatable, dimension(:, :, :), intent(inout) :: edir, edn, eup, abso
-    integer(iintegers), intent(in), optional :: nxproc(:), nyproc(:), icollapse
-    real(ireals), optional, intent(in) :: opt_time, solar_albedo_2d(:, :), thermal_albedo_2d(:, :), opt_solar_constant
-    type(t_pprts_buildings), intent(inout), optional :: opt_buildings_solar, opt_buildings_thermal
-    real(ireals), intent(in), optional, dimension(:, :, :) :: opt_tau_solar, opt_w0_solar, opt_g_solar, opt_tau_thermal
-    logical, intent(in), optional :: lonly_initialize
-    call CHKERR(1_mpiint, 'pprts_rrtmg requires PETSc -- rebuild with -DWITH_PETSC=ON')
-  end subroutine
-
-  subroutine destroy_pprts_rrtmg(solver, lfinalizepetsc)
-    class(t_solver) :: solver
-    logical, intent(in) :: lfinalizepetsc
-    call CHKERR(1_mpiint, 'destroy_pprts_rrtmg requires PETSc -- rebuild with -DWITH_PETSC=ON')
-  end subroutine
-
-  subroutine smooth_surface_fluxes(solver, edn, eup)
-    class(t_solver), intent(inout) :: solver
-    real(ireals), allocatable, dimension(:, :, :), intent(inout) :: edn, eup
-  end subroutine
-
-  subroutine slope_correction_fluxes(solver, edir)
-    class(t_solver), intent(inout) :: solver
-    real(ireals), allocatable, dimension(:, :, :), intent(inout) :: edir
-  end subroutine
-#endif
 end module

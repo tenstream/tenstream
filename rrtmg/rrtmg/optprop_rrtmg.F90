@@ -26,9 +26,10 @@ module m_optprop_rrtmg
 #ifdef HAVE_PETSC
 #include "petsc/finclude/petsc.h"
   use petsc
-#else
-#define PetscLogEvent integer
 #endif
+
+  use m_tenstream_log, only: t_ts_log_event, ts_log_begin, ts_log_end
+
   use m_tenstr_parkind_sw, only: im => kind_im, rb => kind_rb
   use m_tenstr_rrtmg_lw_init, only: rrtmg_lw_ini
   use m_tenstr_parrrtm, only: nbndlw
@@ -70,7 +71,7 @@ contains
     real(ireals), dimension(:, :, :), intent(out), optional :: opt_tau_f ! [nlay, ncol, ngptlw]
     real(ireals), dimension(:, :), intent(out), optional :: opt_lwuflx, opt_lwdflx, opt_lwhr ! [nlay+1, ncol]
     real(ireals), dimension(:, :), intent(in), optional :: opt_cldfr ! [ncol, nlay]
-    PetscLogEvent, intent(in), optional :: log_event
+    type(t_ts_log_event), intent(in), optional :: log_event
 
     real(rb), dimension(ncol_in, nlay_in) :: play, cldfr
 
@@ -91,11 +92,9 @@ contains
     integer(kind=im) :: idrv = 0         ! Flag for calculation of dFdT
     integer(mpiint) :: ierr
 
-#ifdef HAVE_PETSC
     if (present(log_event)) then
-      call PetscLogEventBegin(log_event, ierr); call CHKERR(ierr)
+      call ts_log_begin(log_event, ierr); call CHKERR(ierr)
     end if
-#endif
 
     ! copy from TenStream to RRTM precision:
     ncol = int(ncol_in, kind=im)
@@ -169,11 +168,9 @@ contains
          tau, Bfrac, loptprop_only=.true., tenstr_tau_f=opt_tau_f)
     end if
 
-#ifdef HAVE_PETSC
     if (present(log_event)) then
-      call PetscLogEventEnd(log_event, ierr); call CHKERR(ierr)
+      call ts_log_end(log_event, ierr); call CHKERR(ierr)
     end if
-#endif
   end subroutine
 
   subroutine optprop_rrtm_sw(ncol_in, nlay_in, &
@@ -201,7 +198,7 @@ contains
     real(ireals), dimension(:, :), intent(out), optional :: opt_swdirflx, opt_swuflx, opt_swdflx ! [nlay+1, ncol]
     real(ireals), dimension(:, :), intent(out), optional :: opt_swhr ! [nlay, ncol]
     real(ireals), dimension(:, :, :), intent(out), optional :: opt_tau_f, opt_w0_f, opt_g_f ! [nlay, ncol, ngptsw]
-    PetscLogEvent, intent(in), optional :: log_event
+    type(t_ts_log_event), intent(in), optional :: log_event
 
     real(rb), dimension(ncol_in, nlay_in) :: play, cldfr
 
@@ -225,11 +222,9 @@ contains
     logical, save :: linit_rrtmg = .false.
     integer(mpiint) :: ierr
 
-#ifdef HAVE_PETSC
     if (present(log_event)) then
-      call PetscLogEventBegin(log_event, ierr); call CHKERR(ierr)
+      call ts_log_begin(log_event, ierr); call CHKERR(ierr)
     end if
-#endif
 
     if (present(opt_solar_constant)) then
       solar_const = opt_solar_constant
@@ -333,11 +328,9 @@ contains
          tenstr_tau_f=opt_tau_f, tenstr_w_f=opt_w0_f, tenstr_g_f=opt_g_f)
     end if
 
-#ifdef HAVE_PETSC
     if (present(log_event)) then
-      call PetscLogEventEnd(log_event, ierr); call CHKERR(ierr)
+      call ts_log_end(log_event, ierr); call CHKERR(ierr)
     end if
-#endif
   end subroutine
 
   ! Compute direct radiation from lambert beers law.

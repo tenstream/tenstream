@@ -71,6 +71,7 @@ module m_plexrt_rrtmg
 
   use m_tenstr_disort, only: default_flx_computation
   use m_tenstr_rrtmg_base, only: t_rrtmg_log_events, setup_log_events
+  use m_tenstream_log, only: ts_log_stage_push, ts_log_stage_pop
 
   implicit none
 
@@ -178,7 +179,7 @@ contains
     if (lthermal .and. .not. lskip_thermal) then
       call allocate_optprop_vec(solver%plex%horizface1_dm, solver%plck)
 
-      call PetscLogStagePush(log_events%stage_rrtmg_thermal, ierr); call CHKERR(ierr)
+      call ts_log_stage_push(log_events%stage_rrtmg_thermal, ierr); call CHKERR(ierr)
       call compute_thermal(comm, solver, atm, &
                            Ncol, ke1, &
                            sundir, albedo_thermal, &
@@ -186,7 +187,7 @@ contains
                            opt_time=opt_time, &
                            thermal_albedo_2d=thermal_albedo_2d, &
                            lrrtmg_only=lrrtmg_only)
-      call PetscLogStagePop(ierr); call CHKERR(ierr) ! pop solver%logs%stage_rrtmg_thermal
+      call ts_log_stage_pop(ierr); call CHKERR(ierr) ! pop solver%logs%stage_rrtmg_thermal
 
       call dump_vec(edn(1:ke, :), '-plexrt_dump_thermal_Edn_1_ke')
       call dump_vec(edn(2:ke1, :), '-plexrt_dump_thermal_Edn_2_ke1')
@@ -203,7 +204,7 @@ contains
       lskip_solar = .false.
       call get_petsc_opt('', "-skip_solar", lskip_solar, lflg, ierr); call CHKERR(ierr)
       if (.not. lskip_solar) then
-        call PetscLogStagePush(log_events%stage_rrtmg_solar, ierr); call CHKERR(ierr)
+        call ts_log_stage_push(log_events%stage_rrtmg_solar, ierr); call CHKERR(ierr)
         call compute_solar(comm, solver, atm, &
                            Ncol, ke1, &
                            sundir, albedo_solar, &
@@ -212,7 +213,7 @@ contains
                            solar_albedo_2d=solar_albedo_2d, &
                            lrrtmg_only=lrrtmg_only, &
                            opt_solar_constant=opt_solar_constant)
-        call PetscLogStagePop(ierr); call CHKERR(ierr) ! pop solver%logs%stage_rrtmg_solar
+        call ts_log_stage_pop(ierr); call CHKERR(ierr) ! pop solver%logs%stage_rrtmg_solar
       end if
 
       call dump_vec(edir(1:ke, :), '-plexrt_dump_Edir_1_ke')

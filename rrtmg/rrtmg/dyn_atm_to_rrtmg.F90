@@ -27,10 +27,9 @@ module m_dyn_atm_to_rrtmg
 #ifdef HAVE_PETSC
 #include "petsc/finclude/petsc.h"
   use petsc
-#else
-#define PetscLogEvent integer
-#define PetscClassId integer
 #endif
+
+  use m_tenstream_log, only: t_ts_log_event, ts_log_event_register, ts_log_begin, ts_log_end
 
   use iso_fortran_env, only: real32, real64
   use m_tenstr_parkind_sw, only: im => kind_im, rb => kind_rb
@@ -137,7 +136,7 @@ module m_dyn_atm_to_rrtmg
   end type
 
   type t_rrtmg_dyn_atm_log_events
-    PetscLogEvent :: setup_tenstr_atm
+    type(t_ts_log_event) :: setup_tenstr_atm
   end type
   type(t_rrtmg_dyn_atm_log_events), allocatable :: logs
 contains
@@ -177,7 +176,9 @@ contains
     character(len=*), intent(in), optional :: prefix
 
     integer(iintegers) :: icol
-    PetscClassId, parameter :: cid = 0
+#ifdef HAVE_PETSC
+    PetscClassId :: cid
+#endif
     integer(mpiint) :: ierr
     logical :: lignore_bad_input, lflg
 
@@ -187,14 +188,16 @@ contains
     end if
 
     call init_mpi_data_parameters(comm)
-#ifdef HAVE_PETSC
     if (.not. allocated(logs)) then
       allocate (logs)
-      call PetscLogEventRegister('setup_tenstr_atm', cid, logs%setup_tenstr_atm, ierr); call CHKERR(ierr)
+      call ts_log_event_register('setup_tenstr_atm', logs%setup_tenstr_atm, ierr); call CHKERR(ierr)
+#ifdef HAVE_PETSC
+      call PetscClassIdRegister('dyn_atm_to_rrtmg', cid, ierr); call CHKERR(ierr)
+      call PetscLogEventRegister('setup_tenstr_atm', cid, logs%setup_tenstr_atm%petsc_id, ierr); call CHKERR(ierr)
+#endif
     end if
 
-    call PetscLogEventBegin(logs%setup_tenstr_atm, ierr); call CHKERR(ierr)
-#endif
+    call ts_log_begin(logs%setup_tenstr_atm, ierr); call CHKERR(ierr)
 
     lignore_bad_input = .false.
     call get_petsc_opt('', '-pprts_rrtmg_ignore_bad_input', lignore_bad_input, lflg, ierr); call CHKERR(ierr)
@@ -275,9 +278,7 @@ contains
       atm%tskin = d_skin_temperature
     end if
 
-#ifdef HAVE_PETSC
-    call PetscLogEventEnd(logs%setup_tenstr_atm, ierr); call CHKERR(ierr)
-#endif
+    call ts_log_end(logs%setup_tenstr_atm, ierr); call CHKERR(ierr)
   contains
     subroutine check_shape_1d(d_arr, ncol)
       real(ireals), intent(in), optional :: d_arr(:)
