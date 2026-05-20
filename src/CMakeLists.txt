@@ -59,6 +59,7 @@ set( general_sources
   "nca.F90"
   "pprts_base.F90"
   "pprts_explicit.F90"
+  "pprts_postprocess.F90"
   "ranlux.F90"
   "schwarzschild.F90"
   "search.F90"

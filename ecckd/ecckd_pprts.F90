@@ -74,7 +74,7 @@ module m_ecckd_pprts
   use m_mie_tables, only: mie_tables_init, t_mie_table, destroy_mie_table
   use m_fu_ice, only: fu_ice_init, fu_muskatel_ice_data
 
-  use m_pprts_rrtmg, only: smooth_surface_fluxes, slope_correction_fluxes
+  use m_pprts_postprocess, only: smooth_surface_fluxes, slope_correction_fluxes
 
   implicit none
 

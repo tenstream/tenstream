@@ -20,7 +20,6 @@ module m_tenstr_rrtmg_base
     type(t_ts_log_event) :: setup_tenstr_atm
     type(t_ts_log_event) :: rrtmg_optprop_lw
     type(t_ts_log_event) :: rrtmg_optprop_sw
-    type(t_ts_log_event) :: smooth_surface_fluxes
   end type
 
   private
@@ -47,8 +46,6 @@ contains
     call reg(trim(s)//'setup_tenstr_atm', logs%setup_tenstr_atm)
     call reg(trim(s)//'rrtmg_optprop_lw', logs%rrtmg_optprop_lw)
     call reg(trim(s)//'rrtmg_optprop_sw', logs%rrtmg_optprop_sw)
-    call reg(trim(s)//'smooth_surface_fluxes', logs%smooth_surface_fluxes)
-
   contains
     subroutine reg(name, event)
       character(len=*), intent(in) :: name
