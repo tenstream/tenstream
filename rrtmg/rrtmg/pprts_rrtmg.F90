@@ -37,7 +37,7 @@ module m_pprts_rrtmg
   use m_tenstr_parkind_sw, only: im => kind_im, rb => kind_rb
   use m_tenstream_options, only: read_commandline_options
   use m_data_parameters, only: iintegers, ireals, zero, one, i0, i1, mpiint, default_str_len
-  use m_pprts_base, only: t_solver, destroy_pprts, atmk
+  use m_pprts_base, only: t_solver, destroy_pprts, atmk, convolve_ediff_srfc
   use m_pprts, only: init_pprts, set_angles, set_optical_properties, solve_pprts, pprts_get_result
   use m_adaptive_spectral_integration, only: need_new_solution
   use m_helper_functions, only: &
@@ -68,7 +68,7 @@ module m_pprts_rrtmg
 #include "petsc/finclude/petsc.h"
   use petsc
   use m_xdmf_export, only: xdmf_pprts_buildings, xdmf_pprts_srfc_flux
-  use m_petsc_helpers, only: dmda_convolve_ediff_srfc, getvecpointer, restorevecpointer, f90vectopetsc
+  use m_petsc_helpers, only: getvecpointer, restorevecpointer, f90vectopetsc
   use m_pprts_external_solvers, only: destroy_rayli_info
 #endif
 
@@ -135,7 +135,6 @@ contains
   subroutine smooth_surface_fluxes(solver, edn, eup)
     class(t_solver), intent(inout) :: solver
     real(ireals), allocatable, dimension(:, :, :), intent(inout) :: edn, eup
-#ifdef HAVE_PETSC
     integer(iintegers) :: i, kernel_width, Niter
     real(ireals) :: radius, mflx_up, mflx_dn
     logical :: lflg
@@ -160,13 +159,12 @@ contains
 
         call find_iter_and_kernelwidth(solver, radius, Niter, kernel_width)
         do i = 1, Niter
-          call dmda_convolve_ediff_srfc(solver%C_diff%da, kernel_width, edn(ubound(edn, 1):ubound(edn, 1), :, :))
-          call dmda_convolve_ediff_srfc(solver%C_diff%da, kernel_width, eup(ubound(eup, 1):ubound(eup, 1), :, :))
+          call convolve_ediff_srfc(solver%comm, solver%C_diff, kernel_width, edn(ubound(edn, 1):ubound(edn, 1), :, :))
+          call convolve_ediff_srfc(solver%comm, solver%C_diff, kernel_width, eup(ubound(eup, 1):ubound(eup, 1), :, :))
         end do
       end if
     end if
     call ts_log_end(log_events%smooth_surface_fluxes, ierr); call CHKERR(ierr)
-#endif
   end subroutine
 
   subroutine find_iter_and_kernelwidth(solver, radius, Niter, kernel_width)
