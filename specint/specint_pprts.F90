@@ -63,11 +63,9 @@ module m_specint_pprts
   use m_repwvl_pprts, only: repwvl_pprts, repwvl_pprts_destroy
   use m_ecckd_pprts, only: ecckd_pprts, ecckd_pprts_destroy
 
-#ifdef HAVE_PETSC
   use m_xdmf_export, only: &
     & xdmf_pprts_buildings, &
     & xdmf_pprts_srfc_flux
-#endif
 
   use m_netcdfio, only: &
     & get_dim_info, &
@@ -524,7 +522,6 @@ contains
       call dump_variable(abso, solver%C_one%da, "-specint_dump_abso", "abso")
 #endif
 
-#ifdef HAVE_PETSC
       fname = ''
       if (lsolar .and. present(opt_buildings_solar)) then
         call get_petsc_opt(solver%prefix, '-specint_xdmf_buildings_solar', fname, lflg, ierr); call CHKERR(ierr)
@@ -554,7 +551,6 @@ contains
           call xdmf_pprts_srfc_flux(solver, fname, edn, eup, ierr, verbose=.true.); call CHKERR(ierr)
         end if
       end if
-#endif
     end subroutine
   end subroutine
 
