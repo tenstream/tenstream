@@ -1,10 +1,10 @@
 module m_xdmf_export
-#ifdef HAVE_PETSC
   use m_data_parameters, only: &
     & iintegers, &
     & ireals, &
     & mpiint, &
-    & default_str_len
+    & default_str_len, &
+    & i0, i1, i2
 
   use m_helper_functions, only: &
     & CHKERR, &
@@ -14,7 +14,7 @@ module m_xdmf_export
     & get_arg
 
   use m_pprts_base, only: &
-    & set_dmda_cell_coordinates, &
+    & atmk, &
     & t_solver
 
   use m_buildings, only: &
@@ -41,19 +41,15 @@ contains
   !> @details: basename of the file will be expanded by .xmf postfix
   !> \n        if you are wondering, we use duplicates of vertices because it is easy
   subroutine xdmf_pprts_buildings(solver, buildings, fbasename, ierr, verbose)
-#include "petsc/finclude/petsc.h"
-    use petsc
     class(t_solver), intent(in) :: solver
     type(t_pprts_buildings), intent(inout) :: buildings
     character(len=*), intent(in) :: fbasename
     integer(mpiint), intent(out) :: ierr
     logical, optional, intent(in) :: verbose
 
-    type(tDM) :: coordDA
-    type(tVec) :: coordinates
-    real(ireals), pointer, dimension(:, :, :, :) :: xv
-    real(ireals), pointer, dimension(:) :: xv1d
+    real(ireals), allocatable :: xv(:, :, :, :)
     integer(iintegers) :: zs, zm, xs, xm, ys, ym
+    integer(iintegers) :: k, i, j
 
     integer(iintegers) :: m, idx(4), l, n
     real(ireals) :: verts(3, 4)
@@ -63,9 +59,6 @@ contains
     logical :: file_exists
     integer(mpiint) :: irank, numnodes
     integer(mpiint) :: iter
-
-    xv => null()
-    xv1d => null()
 
     ierr = 0
 
@@ -95,17 +88,19 @@ contains
 
     call mpi_comm_size(solver%comm, numnodes, ierr); call CHKERR(ierr)
 
-    associate (C => solver%C_diff)
-      call DMGetCoordinateDM(C%da, coordDA, ierr); call CHKERR(ierr)
-      call DMDAGetGhostCorners(coordDA, zs, xs, ys, zm, xm, ym, ierr); call CHKERR(ierr)
-
-      call DMGetCoordinatesLocal(C%da, coordinates, ierr); call CHKERR(ierr)
-      if (coordinates .eq. PETSC_NULL_VEC) then
-        call set_dmda_cell_coordinates(solver, solver%atm, C%da, ierr)
-        call DMGetCoordinatesLocal(C%da, coordinates, ierr); call CHKERR(ierr)
-      end if
-      call VecGetArray(coordinates, xv1d, ierr); call CHKERR(ierr)
-      xv(0:2, zs:zs + zm - 1, xs:xs + xm - 1, ys:ys + ym - 1) => xv1d
+    associate (C => solver%C_diff, atm => solver%atm)
+      allocate (xv(i0:i2, C%zs:C%ze, C%gxs:C%gxe, C%gys:C%gye))
+      do j = C%gys, C%gye
+        do i = C%gxs, C%gxe
+          do k = C%zs, C%ze
+            xv(i0, k, i, j) = atm%hhl(i0, atmk(atm, k), i, j)
+            xv(i1, k, i, j) = (real(i, ireals) + 0.5_ireals) * atm%dx
+            xv(i2, k, i, j) = (real(j, ireals) + 0.5_ireals) * atm%dy
+          end do
+        end do
+      end do
+      zs = lbound(xv, 2); xs = lbound(xv, 3); ys = lbound(xv, 4)
+      zm = size(xv, 2); xm = size(xv, 3); ym = size(xv, 4)
     end associate
 
     do irank = 0, numnodes - 1
@@ -282,8 +277,6 @@ contains
   !> @brief: dump the surface flux information as xdmf
   !> @details: basename of the file will be expanded by .xmf postfix
   subroutine xdmf_pprts_srfc_flux(solver, fbasename, edn, eup, ierr, edir, verbose)
-#include "petsc/finclude/petsc.h"
-    use petsc
     class(t_solver), intent(in) :: solver
     character(len=*), intent(in) :: fbasename
     real(ireals), allocatable, dimension(:, :, :), intent(in) :: edn, eup
@@ -291,20 +284,15 @@ contains
     real(ireals), allocatable, dimension(:, :, :), intent(in), optional :: edir
     logical, optional, intent(in) :: verbose
 
-    type(tDM) :: coordDA
-    type(tVec) :: coordinates
-    real(ireals), pointer, dimension(:, :, :, :) :: xv
-    real(ireals), pointer, dimension(:) :: xv1d
+    real(ireals), allocatable :: xv(:, :, :, :)
     integer(iintegers) :: zs, zm, xs, xm, ys, ym
+    integer(iintegers) :: k, i, j
 
     character(len=default_str_len) :: fname
     integer :: funit
     logical :: file_exists
     integer(mpiint) :: irank, numnodes
     integer(mpiint) :: iter
-
-    xv => null()
-    xv1d => null()
 
     ierr = 0
 
@@ -334,17 +322,19 @@ contains
 
     call mpi_comm_size(solver%comm, numnodes, ierr); call CHKERR(ierr)
 
-    associate (C => solver%C_diff)
-      call DMGetCoordinateDM(C%da, coordDA, ierr); call CHKERR(ierr)
-      call DMDAGetGhostCorners(coordDA, zs, xs, ys, zm, xm, ym, ierr); call CHKERR(ierr)
-
-      call DMGetCoordinatesLocal(C%da, coordinates, ierr); call CHKERR(ierr)
-      if (coordinates .eq. PETSC_NULL_VEC) then
-        call set_dmda_cell_coordinates(solver, solver%atm, C%da, ierr)
-        call DMGetCoordinatesLocal(C%da, coordinates, ierr); call CHKERR(ierr)
-      end if
-      call VecGetArray(coordinates, xv1d, ierr); call CHKERR(ierr)
-      xv(0:2, zs:zs + zm - 1, xs:xs + xm - 1, ys:ys + ym - 1) => xv1d
+    associate (C => solver%C_diff, atm => solver%atm)
+      allocate (xv(i0:i2, C%zs:C%ze, C%gxs:C%gxe, C%gys:C%gye))
+      do j = C%gys, C%gye
+        do i = C%gxs, C%gxe
+          do k = C%zs, C%ze
+            xv(i0, k, i, j) = atm%hhl(i0, atmk(atm, k), i, j)
+            xv(i1, k, i, j) = (real(i, ireals) + 0.5_ireals) * atm%dx
+            xv(i2, k, i, j) = (real(j, ireals) + 0.5_ireals) * atm%dy
+          end do
+        end do
+      end do
+      zs = lbound(xv, 2); xs = lbound(xv, 3); ys = lbound(xv, 4)
+      zm = size(xv, 2); xm = size(xv, 3); ym = size(xv, 4)
     end associate
 
     do irank = 0, numnodes - 1
@@ -434,33 +424,4 @@ contains
       write (funit, *) '</Grid>'
     end subroutine
   end subroutine xdmf_pprts_srfc_flux
-#else
-  use m_data_parameters, only: mpiint, ireals
-  use m_helper_functions, only: CHKERR
-  use m_pprts_base, only: t_solver
-  use m_buildings, only: t_pprts_buildings
-  implicit none
-  private
-  public :: xdmf_pprts_buildings, xdmf_pprts_srfc_flux
-contains
-  subroutine xdmf_pprts_buildings(solver, buildings, fbasename, ierr, verbose)
-    class(t_solver), intent(in) :: solver
-    type(t_pprts_buildings), intent(in) :: buildings
-    character(len=*), intent(in) :: fbasename
-    integer(mpiint), intent(out) :: ierr
-    logical, intent(in), optional :: verbose
-    ierr = 0
-    call CHKERR(1_mpiint, 'xdmf_pprts_buildings requires PETSc -- rebuild with -DWITH_PETSC=ON')
-  end subroutine
-  subroutine xdmf_pprts_srfc_flux(solver, fbasename, edn, eup, ierr, edir, verbose)
-    class(t_solver), intent(in) :: solver
-    character(len=*), intent(in) :: fbasename
-    real(ireals), intent(in) :: edn(:, :, :), eup(:, :, :)
-    integer(mpiint), intent(out) :: ierr
-    real(ireals), intent(in), optional :: edir(:, :, :)
-    logical, intent(in), optional :: verbose
-    ierr = 0
-    call CHKERR(1_mpiint, 'xdmf_pprts_srfc_flux requires PETSc -- rebuild with -DWITH_PETSC=ON')
-  end subroutine
-#endif
 end module

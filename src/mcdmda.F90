@@ -495,13 +495,13 @@ contains
 
           call restoreVecPointer(C_dir%da, edir_local, xv_dir1d, xv_dir)
 
-          call VecSet(solution%edir, 0._ireals, ierr); call CHKERR(ierr)
-          call DMLocalToGlobalBegin(C_dir%da, edir_local, ADD_VALUES, solution%edir, ierr); call CHKERR(ierr)
-          call DMLocalToGlobalEnd(C_dir%da, edir_local, ADD_VALUES, solution%edir, ierr); call CHKERR(ierr)
+          call VecSet(solution%edir_petsc, 0._ireals, ierr); call CHKERR(ierr)
+          call DMLocalToGlobalBegin(C_dir%da, edir_local, ADD_VALUES, solution%edir_petsc, ierr); call CHKERR(ierr)
+          call DMLocalToGlobalEnd(C_dir%da, edir_local, ADD_VALUES, solution%edir_petsc, ierr); call CHKERR(ierr)
           call DMRestoreLocalVector(C_dir%da, edir_local, ierr); call CHKERR(ierr)
 
-          call PetscObjectSetName(solution%edir, 'edir', ierr); call CHKERR(ierr)
-          call PetscObjectViewFromOptions(PetscObjectCast(solution%edir), PETSC_NULL_OBJECT, '-mcdmda_show_edir', ierr)
+          call PetscObjectSetName(solution%edir_petsc, 'edir', ierr); call CHKERR(ierr)
+          call PetscObjectViewFromOptions(PetscObjectCast(solution%edir_petsc), PETSC_NULL_OBJECT, '-mcdmda_show_edir', ierr)
           call CHKERR(ierr)
         end if
 
@@ -526,18 +526,18 @@ contains
 
         call restoreVecPointer(C_diff%da, ediff_local, xv_diff1d, xv_diff)
 
-        call VecSet(solution%ediff, 0._ireals, ierr); call CHKERR(ierr)
-        call DMLocalToGlobalBegin(C_diff%da, ediff_local, ADD_VALUES, solution%ediff, ierr); call CHKERR(ierr)
-        call DMLocalToGlobalEnd(C_diff%da, ediff_local, ADD_VALUES, solution%ediff, ierr); call CHKERR(ierr)
+        call VecSet(solution%ediff_petsc, 0._ireals, ierr); call CHKERR(ierr)
+        call DMLocalToGlobalBegin(C_diff%da, ediff_local, ADD_VALUES, solution%ediff_petsc, ierr); call CHKERR(ierr)
+        call DMLocalToGlobalEnd(C_diff%da, ediff_local, ADD_VALUES, solution%ediff_petsc, ierr); call CHKERR(ierr)
         call DMRestoreLocalVector(C_diff%da, ediff_local, ierr); call CHKERR(ierr)
 
-        call PetscObjectSetName(solution%ediff, 'ediff', ierr); call CHKERR(ierr)
-        call PetscObjectViewFromOptions(PetscObjectCast(solution%ediff), PETSC_NULL_OBJECT, '-mcdmda_show_ediff', ierr)
+        call PetscObjectSetName(solution%ediff_petsc, 'ediff', ierr); call CHKERR(ierr)
+        call PetscObjectViewFromOptions(PetscObjectCast(solution%ediff_petsc), PETSC_NULL_OBJECT, '-mcdmda_show_ediff', ierr)
         call CHKERR(ierr)
 
         ! absorption
-        call VecSet(solution%abso, 0._ireals, ierr); call CHKERR(ierr)
-        call getVecPointer(C_one%da, solution%abso, xv_abso1d, xv_abso)
+        call VecSet(solution%abso_petsc, 0._ireals, ierr); call CHKERR(ierr)
+        call getVecPointer(C_one%da, solution%abso_petsc, xv_abso1d, xv_abso)
 
         if (.not. solution%lsolar_rad) then
           abso = abso * pi * C_one%glob_xm * C_one%glob_ym / Nphotons_global
@@ -553,10 +553,10 @@ contains
           & sum(abso(i0, :atmk(atm, C_one_atm%zs), :, :), dim=1) &
           & / sum(atm%dz(:atmk(atm, C_one_atm%zs), :, :), dim=1), kind(xv_abso))
 
-        call restoreVecPointer(C_one%da, solution%abso, xv_abso1d, xv_abso)
+        call restoreVecPointer(C_one%da, solution%abso_petsc, xv_abso1d, xv_abso)
       end associate
 
-      call PetscObjectViewFromOptions(PetscObjectCast(solution%abso), PETSC_NULL_OBJECT, '-mcdmda_show_abso', ierr)
+      call PetscObjectViewFromOptions(PetscObjectCast(solution%abso_petsc), PETSC_NULL_OBJECT, '-mcdmda_show_abso', ierr)
       call CHKERR(ierr)
 
       !Rayli solver returns fluxes as [W]

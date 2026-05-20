@@ -2866,8 +2866,47 @@ contains
     nyproc = ly
     call DMDestroy(dm, ierr); call CHKERR(ierr)
 #else
-    ierr = 1_mpiint
-    call CHKERR(ierr, 'domain_decompose_2d_petsc requires a PETSc build (WITH_PETSC=ON)')
+    integer(mpiint) :: cart_comm, myid, nproc, nproc_x, nproc_y, xi, yi
+    integer(mpiint) :: dims(2), coords(2)
+    logical :: periods(2)
+    integer(iintegers) :: xi_loc, yi_loc, nx_loc, ny_loc
+
+    ierr = 0
+    call mpi_comm_size(comm, nproc, ierr); call CHKERR(ierr)
+    call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+
+    dims = 0_mpiint
+    call MPI_Dims_create(nproc, 2_mpiint, dims, ierr); call CHKERR(ierr)
+    nproc_x = dims(1)
+    nproc_y = dims(2)
+
+    periods = .true.
+    call MPI_Cart_create(comm, 2_mpiint, dims, periods, .false., cart_comm, ierr); call CHKERR(ierr)
+    call MPI_Cart_get(cart_comm, 2_mpiint, dims, periods, coords, ierr); call CHKERR(ierr)
+
+    xi = coords(1)
+    yi = coords(2)
+
+    ! Even-split decomposition matching setup_coord_native
+    xStart = int(int(xi, iintegers) * Nx_global / int(nproc_x, iintegers), iintegers)
+    Nx_local = int((int(xi, iintegers) + 1_iintegers) * Nx_global / int(nproc_x, iintegers), iintegers) - xStart
+    yStart = int(int(yi, iintegers) * Ny_global / int(nproc_y, iintegers), iintegers)
+    Ny_local = int((int(yi, iintegers) + 1_iintegers) * Ny_global / int(nproc_y, iintegers), iintegers) - yStart
+
+    allocate (nxproc(nproc_x))
+    allocate (nyproc(nproc_y))
+    do xi_loc = 0_iintegers, int(nproc_x, iintegers) - 1_iintegers
+      nx_loc = int(xi_loc + 1_iintegers, iintegers) * Nx_global / int(nproc_x, iintegers) - &
+               int(xi_loc, iintegers) * Nx_global / int(nproc_x, iintegers)
+      nxproc(xi_loc + 1_iintegers) = nx_loc
+    end do
+    do yi_loc = 0_iintegers, int(nproc_y, iintegers) - 1_iintegers
+      ny_loc = int(yi_loc + 1_iintegers, iintegers) * Ny_global / int(nproc_y, iintegers) - &
+               int(yi_loc, iintegers) * Ny_global / int(nproc_y, iintegers)
+      nyproc(yi_loc + 1_iintegers) = ny_loc
+    end do
+
+    call MPI_Comm_free(cart_comm, ierr); call CHKERR(ierr)
 #endif
   end subroutine
 
