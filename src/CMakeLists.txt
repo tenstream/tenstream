@@ -51,6 +51,7 @@ set( general_sources
   "c_syscall_constants.c"
   "c_syscall_wrappers.F90"
   "data_parameters.F90"
+  "tenstream_log.F90"
   "options_database.F90"
   "eddington.F90"
   "interpolation.F90"
@@ -62,14 +63,14 @@ set( general_sources
   "schwarzschild.F90"
   "search.F90"
   "tenstream_options.F90"
+  "twostream.F90"
+  "xdmf_export.F90"
   )
 
 if(WITH_PETSC)
   list(APPEND general_sources
     "mcdmda.F90"
     "petsc_helpers.F90"
-    "twostream.F90"
-    "xdmf_export.F90"
     )
 endif()
 
@@ -87,6 +88,7 @@ set( optprop_sources
 
 set( solver_sources
   "pprts.F90"
+  "pprts_1D_solvers.F90"
   )
 
 if(WITH_PETSC)
@@ -120,7 +122,7 @@ target_link_libraries( pprts_base ${FORNADO_LIBS} ${EXTLIB})
 
 # pprts solver lib
 add_library( pprts_objs OBJECT ${solver_sources} )
-add_dependencies( pprts_objs pprts_base )
+add_dependencies( pprts_objs pprts_base tenstr_disort )
 if(WITH_PETSC)
   add_dependencies( pprts_objs plexrt )
 endif()
