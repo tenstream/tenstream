@@ -19,8 +19,8 @@
 
 module m_pprts_postprocess
   use mpi, only: mpi_comm_rank
-  use m_data_parameters, only: iintegers, ireals, zero, one, i0, i1, mpiint
-  use m_pprts_base, only: t_solver, convolve_ediff_srfc
+  use m_data_parameters, only: iintegers, ireals, zero, one, i0, i1, i2, i3, i4, i5, i6, mpiint
+  use m_pprts_base, only: t_solver, convolve_ediff_srfc, halo_fill_5pt
   use m_helper_functions, only: &
     & CHKERR, &
     & cross_3d, &
@@ -34,7 +34,7 @@ module m_pprts_postprocess
   implicit none
 
   private
-  public :: smooth_surface_fluxes, slope_correction_fluxes, ts_nca
+  public :: smooth_surface_fluxes, slope_correction_fluxes, ts_nca, nca_wrapper
 
   logical, parameter :: ldebug = .false.
   type(t_ts_log_event), save :: log_smooth = t_ts_log_event(ts_id=-1)
@@ -194,6 +194,56 @@ contains
       nullify (grad)
     end associate
   end subroutine
+
+  !> @brief Pack fluxes + atmosphere into a ghost-extended buffer and call ts_nca.
+  !> @details ediff and abso are local arrays with no ghost cells (interior only).
+  !> The wrapper allocates a 1-cell ghost halo, fills it with halo_fill_5pt,
+  !> calls ts_nca, and writes heating-rate / dz back into abso.
+  subroutine nca_wrapper(solver, ediff, abso)
+    class(t_solver), intent(inout) :: solver
+    real(ireals), intent(in) :: ediff(0:, :, :, :)    ! (0:dof-1, zs:ze, xs:xe, ys:ye) interior only
+    real(ireals), intent(inout) :: abso(0:, :, :, :)  ! (0:0, zs:ze, xs:xe, ys:ye) interior only
+
+    integer(iintegers), parameter :: E_up = i0, E_dn = i1, idz = i2, iplanck = i3, ikabs = i4, ihr = i5
+    integer(iintegers) :: k
+    integer(mpiint) :: ierr
+    real(ireals), allocatable :: lnca(:, :, :, :)
+
+    associate ( &
+      atm => solver%atm, &
+      C_diff => solver%C_diff, &
+      C_one => solver%C_one)
+
+      if (C_diff%dof < i6) &
+        call CHKERR(1_mpiint, 'For NCA, need a solver with at least 6 diffuse streams to copy over some data')
+
+      ! ghost-extended buffer: (0:5, zm, gxm=xm+2, gym=ym+2)
+      allocate (lnca(0:5, C_diff%zs:C_diff%ze, &
+                     C_diff%xs - 1:C_diff%xe + 1, &
+                     C_diff%ys - 1:C_diff%ye + 1), source=zero)
+
+      lnca(idz, C_diff%zs:C_diff%ze - 1, C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye) = atm%dz
+      lnca(iplanck, C_diff%zs:C_diff%ze, C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye) = atm%planck
+      lnca(ikabs, C_diff%zs:C_diff%ze - 1, C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye) = atm%kabs
+      lnca(E_up, :, C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye) = ediff(E_up, :, :, :)
+      lnca(E_dn, :, C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye) = ediff(E_dn, :, :, :)
+
+      call halo_fill_5pt(solver%comm, C_diff, lnca, ierr); call CHKERR(ierr)
+
+      call ts_nca(atm%dx, atm%dy, &
+                  lnca(idz, :, :, :), &
+                  lnca(iplanck, :, :, :), &
+                  lnca(ikabs, :, :, :), &
+                  lnca(E_dn, :, :, :), &
+                  lnca(E_up, :, :, :), &
+                  lnca(ihr, :, :, :))
+
+      do k = C_one%zs, C_one%ze
+        abso(i0, k, :, :) = lnca(ihr, k, C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye) / &
+                             lnca(idz, k, C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye)
+      end do
+    end associate
+  end subroutine nca_wrapper
 
   ! Neighbouring Column Approximation
   ! RTE Solver for the thermal spectral range, calculation of heating rates.

@@ -161,6 +161,8 @@ module m_pprts
     & explicit_edir, &
     & explicit_ediff
 
+  use m_pprts_postprocess, only: nca_wrapper
+
   use m_buildings, only: t_pprts_buildings, buildingid2str
 
   use m_boxmc_geometry, only: &
@@ -5150,6 +5152,12 @@ contains
     real(ireals) :: cdiv, Volume, Az, dtau
     logical :: by_coeff_divergence, ldirect_absorption_only, lflg
     integer(mpiint) :: ierr
+#ifdef HAVE_PETSC
+    real(ireals), pointer :: xediff_nca(:, :, :, :) => null()
+    real(ireals), pointer :: xediff_nca1d(:) => null()
+    real(ireals), pointer :: xabso_nca(:, :, :, :) => null()
+    real(ireals), pointer :: xabso_nca1d(:) => null()
+#endif
 
     dir2dir => null()
     dir2diff => null()
@@ -5169,13 +5177,19 @@ contains
       end if
       call dump_arr4d(solver, C_diff, solution%ediff, '-show_flxdiv_ediff', 'ediff', ierr); call CHKERR(ierr)
 
-#ifdef HAVE_PETSC
       if ((solution%lsolar_rad .eqv. .false.) .and. lcalc_nca) then
         call scale_flx(solver, solution, lWm2=.true.)
-        call nca_wrapper(solver, solution%ediff_petsc, solution%abso_petsc)
+#ifdef HAVE_PETSC
+        call getVecPointer(C_diff%da, solution%ediff_petsc, xediff_nca1d, xediff_nca)
+        call getVecPointer(C_one%da, solution%abso_petsc, xabso_nca1d, xabso_nca)
+        call nca_wrapper(solver, xediff_nca, xabso_nca)
+        call restoreVecPointer(C_diff%da, solution%ediff_petsc, xediff_nca1d, xediff_nca)
+        call restoreVecPointer(C_one%da, solution%abso_petsc, xabso_nca1d, xabso_nca)
+#else
+        call nca_wrapper(solver, solution%ediff, solution%abso)
+#endif
         return
       end if
-#endif
 
       call ts_log_begin(solver%logs%compute_absorption, ierr); call CHKERR(ierr)
 
@@ -5487,99 +5501,6 @@ contains
   end subroutine calc_flx_div
 
   !> @brief nca wrapper to call NCA of Carolin Klinger
-  !> @details This is supposed to work on a 1D solution which has to be calculated beforehand
-  !> \n the wrapper copies fluxes and optical properties on one halo and then gives that to NCA
-  !> \n the result is the 3D approximation of the absorption, considering neighbouring information
-#ifdef HAVE_PETSC
-  subroutine nca_wrapper(solver, ediff, abso)
-    use m_pprts_postprocess, only: ts_nca
-    class(t_solver) :: solver
-    type(tVec) :: ediff, abso
-    type(tVec) :: gnca ! global nca vector
-    type(tVec) :: lnca ! local nca vector with ghost values -- in dimension 0 and 1 are fluxes followed by dz,planck,kabs
-
-    real(ireals), pointer, dimension(:, :, :, :) :: xv
-    real(ireals), pointer, dimension(:) :: xv1d
-    real(ireals), pointer, dimension(:, :, :, :) :: xvlnca, xvgnca
-    real(ireals), pointer, dimension(:) :: xvlnca1d, xvgnca1d
-    real(ireals), pointer, dimension(:, :, :, :) :: xhr
-    real(ireals), pointer, dimension(:) :: xhr1d
-    integer(iintegers) :: k
-
-    integer(iintegers), parameter :: E_up = i0, E_dn = i1, idz = i2, iplanck = i3, ikabs = i4, ihr = i5
-    integer(mpiint) :: ierr
-
-    xv => null()
-    xv1d => null()
-    xvlnca => null()
-    xvgnca => null()
-    xvlnca1d => null()
-    xvgnca1d => null()
-    xhr => null()
-    xhr1d => null()
-
-    associate (atm => solver%atm, &
-               C_one => solver%C_one, &
-               C_diff => solver%C_diff)
-
-      !call CHKERR(1_mpiint, 'nca_wrapper not implemented')
-      !print *, 'DEBUG: Stupid print statement to prevent unused compiler warnings', ediff, abso
-      if (C_diff%dof .lt. i6) call CHKERR(1_mpiint, 'For NCA, need a solver with at least 6 diffuse streams to copy over some data')
-
-      ! put additional values into a local ediff vec .. TODO: this is a rather dirty hack but is straightforward
-
-      ! get ghost values for dz, planck, kabs and fluxes, ready to give it to NCA
-      call DMGetGlobalVector(solver%C_diff%da, gnca, ierr); call CHKERR(ierr)
-
-      call getVecPointer(solver%C_diff%da, gnca, xvgnca1d, xvgnca)
-      xvgnca(idz, C_diff%zs:C_diff%ze - 1, C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye) = atm%dz
-      xvgnca(iplanck, C_diff%zs:C_diff%ze, C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye) = atm%planck
-      xvgnca(ikabs, C_diff%zs:C_diff%ze - 1, C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye) = atm%kabs
-
-      ! Copy Edn and Eup to local convenience vector
-      call getVecPointer(C_diff%da, ediff, xv1d, xv)
-      xvgnca(E_up, :, C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye) = xv(E_up, :, :, :)
-      xvgnca(E_dn, :, C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye) = xv(E_dn, :, :, :)
-      call restoreVecPointer(C_diff%da, ediff, xv1d, xv)
-
-      call restoreVecPointer(C_diff%da, gnca, xvgnca1d, xvgnca)
-
-      ! retrieve ghost values into l(ocal) nca vec
-      call DMGetLocalVector(C_diff%da, lnca, ierr); call CHKERR(ierr)
-      call VecSet(lnca, zero, ierr); call CHKERR(ierr)
-
-      call DMGlobalToLocalBegin(C_diff%da, gnca, ADD_VALUES, lnca, ierr); call CHKERR(ierr)
-      call DMGlobalToLocalEnd(C_diff%da, gnca, ADD_VALUES, lnca, ierr); call CHKERR(ierr)
-
-      call DMRestoreGlobalVector(C_diff%da, gnca, ierr); call CHKERR(ierr)
-
-      ! call NCA
-      call getVecPointer(C_diff%da, lnca, xvlnca1d, xvlnca)
-
-      call ts_nca(atm%dx, atm%dy, &
-                  xvlnca(idz, :, :, :), &
-                  xvlnca(iplanck, :, :, :), &
-                  xvlnca(ikabs, :, :, :), &
-                  xvlnca(E_dn, :, :, :), &
-                  xvlnca(E_up, :, :, :), &
-                  xvlnca(ihr, :, :, :))
-
-      ! return absorption
-      call getVecPointer(C_one%da, abso, xhr1d, xhr)
-
-      do k = C_one%zs, C_one%ze
-        xhr(i0, k, :, :) = xvlnca(ihr, k, C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye) / &
-                           xvlnca(idz, k, C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye)
-      end do
-      call restoreVecPointer(C_one%da, abso, xhr1d, xhr)
-
-      !return convenience vector that holds optical properties
-      call restoreVecPointer(C_diff%da, lnca, xvlnca1d, xvlnca)
-      call DMRestoreLocalVector(C_diff%da, lnca, ierr); call CHKERR(ierr)
-    end associate
-  end subroutine
-#endif
-
   !> @brief build diffuse radiation matrix
   !> @details will get the transfer coefficients for 1D and 3D Tenstream layers and input those into the matrix
   !>   \n get_coeff should provide coefficients in dst_order so that we can set  coeffs for a full block(i.e. all coeffs of one box)
