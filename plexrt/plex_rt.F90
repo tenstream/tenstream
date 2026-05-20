@@ -69,7 +69,7 @@ module m_plex_rt
   use m_pprts_base, only: &
     & destroy_solution, &
     & get_solution_uid, &
-    & prepare_solution, &
+    & prepare_solution_dm, &
     & setup_log_events, &
     & t_solver_log_events, &
     & t_state_container
@@ -84,6 +84,7 @@ module m_plex_rt
     t_plex_solver_rayli, &
     t_dof
 
+  use m_tenstream_log, only: t_ts_log_event, ts_log_begin, ts_log_end
   use m_plexrt_external_solvers, only: plexrt_schwarz, plexrt_twostream, plexrt_disort, plexrt_NCA_wrapper
   use m_plex2rayli, only: rayli_wrapper
   use m_schwarzschild, only: B_eff
@@ -548,8 +549,8 @@ contains
     suid = get_solution_uid(solver%solutions, opt_solution_uid)
 
     if (.not. solver%solutions(suid)%lset) then
-      call prepare_solution(solver%plex%edir_dm, solver%plex%ediff_dm, solver%plex%abso_dm, &
-                            lsolar=lsolar, lthermal=lthermal, solution=solver%solutions(suid), uid=suid)
+      call prepare_solution_dm(solver%plex%edir_dm, solver%plex%ediff_dm, solver%plex%abso_dm, &
+                               lsolar=lsolar, lthermal=lthermal, solution=solver%solutions(suid), uid=suid)
     end if
 
     lvacuum_domain_boundary = .false.
@@ -588,17 +589,17 @@ contains
       if (.not. all(approx(last_sundir, sundir / norm2(sundir), sqrt(epsilon(sundir)))) .or. &  ! update wedge orientations if sundir has changed
           .not. allocated(solver%plex%wedge_orientation_dm)) then ! or if we lost the info somehow... e.g. happens after destroy_solver
         if (ldebug .and. myid .eq. 0) print *, 'Updating sun info for sundir:', sundir
-        call PetscLogEventBegin(solver%logs%orient_face_normals, ierr)
+        call ts_log_begin(solver%logs%orient_face_normals, ierr)
         call orient_face_normals_along_sundir(solver%plex, sundir)
-        call PetscLogEventEnd(solver%logs%orient_face_normals, ierr)
+        call ts_log_end(solver%logs%orient_face_normals, ierr)
 
-        call PetscLogEventBegin(solver%logs%compute_orientation, ierr)
+        call ts_log_begin(solver%logs%compute_orientation, ierr)
         call compute_wedge_orientation(&
           & solver%plex, &
           & sundir, &
           & solver%plex%wedge_orientation_dm, &
           & solver%plex%wedge_orientation)
-        call PetscLogEventEnd(solver%logs%compute_orientation, ierr)
+        call ts_log_end(solver%logs%compute_orientation, ierr)
 
         call print_wedge_orientation_summary(&
           & solver%plex, &
@@ -613,26 +614,26 @@ contains
       select type (solver)
       class is (t_plex_solver_2str)
         if ((lsolar .eqv. .false.) .and. lschwarzschild) then
-          call PetscLogEventBegin(solver%logs%solve_schwarzschild, ierr)
+          call ts_log_begin(solver%logs%solve_schwarzschild, ierr)
           call plexrt_schwarz(solver, solution)
-          call PetscLogEventEnd(solver%logs%solve_schwarzschild, ierr)
+          call ts_log_end(solver%logs%solve_schwarzschild, ierr)
         else
-          call PetscLogEventBegin(solver%logs%solve_twostream, ierr)
+          call ts_log_begin(solver%logs%solve_twostream, ierr)
           call plexrt_twostream(solver, solver%plex, &
                                 lthermal, lsolar, &
                                 solver%kabs, solver%ksca, solver%g, &
                                 solver%albedo, sundir, solution, plck=solver%plck)
-          call PetscLogEventEnd(solver%logs%solve_twostream, ierr)
+          call ts_log_end(solver%logs%solve_twostream, ierr)
         end if
 
         if (ldebug) print *, '1D calculation done', suid, ':', solution%lsolar_rad, lschwarzschild
         goto 99
 
       class is (t_plex_solver_disort)
-        call PetscLogEventBegin(solver%logs%solve_twostream, ierr)
+        call ts_log_begin(solver%logs%solve_twostream, ierr)
         call plexrt_disort(solver, solver%plex, solver%kabs, solver%ksca, solver%g, &
                            solver%albedo, sundir, solution, plck=solver%plck)
-        call PetscLogEventEnd(solver%logs%solve_twostream, ierr)
+        call ts_log_end(solver%logs%solve_twostream, ierr)
 
         if (ldebug) print *, '1D disort calculation done', suid
         goto 99
@@ -650,7 +651,7 @@ contains
       lrayli_snap = .false.
       call opts_has('', '-rayli_snapshot', lrayli_snap)
 
-      call PetscLogEventBegin(solver%logs%solve_rayli, ierr)
+      call ts_log_begin(solver%logs%solve_rayli, ierr)
       if (lsolar) then
         call rayli_wrapper(luse_rayli, lrayli_snap, &
                            solver%plex, solver%kabs, solver%ksca, solver%g, &
@@ -660,7 +661,7 @@ contains
                            solver%plex, solver%kabs, solver%ksca, solver%g, &
                            solver%albedo, solution, plck=solver%plck)
       end if
-      call PetscLogEventEnd(solver%logs%solve_rayli, ierr)
+      call ts_log_end(solver%logs%solve_rayli, ierr)
       if (luse_rayli) goto 99
 
       call plexrt(solver, lthermal, lsolar, sundir, solution)
@@ -754,7 +755,7 @@ contains
     integer(mpiint) :: ierr
 
     if (solution%lsolar_rad) then
-      call PetscLogEventBegin(solver%logs%compute_Edir, ierr)
+      call ts_log_begin(solver%logs%compute_Edir, ierr)
 
       call compute_dir2dir_coeff(&
         & solver,        &
@@ -778,11 +779,11 @@ contains
         & ierr); call CHKERR(ierr)
 
       ! Setup direct source term
-      call PetscLogEventBegin(solver%logs%setup_dir_src, ierr)
+      call ts_log_begin(solver%logs%setup_dir_src, ierr)
       call create_edir_src_vec(solver, solver%plex, solver%plex%edir_dm, norm2(sundir), &
                                solver%kabs, solver%ksca, solver%g, &
                                sundir / norm2(sundir), solver%dirsrc)
-      call PetscLogEventEnd(solver%logs%setup_dir_src, ierr)
+      call ts_log_end(solver%logs%setup_dir_src, ierr)
 
       ! Output of srcVec
       if (ldebug) then
@@ -798,7 +799,7 @@ contains
       end if
 
       ! Create Direct Matrix & KSP
-      call PetscLogEventBegin(solver%logs%setup_Mdir, ierr)
+      call ts_log_begin(solver%logs%setup_Mdir, ierr)
       call create_edir_mat(solver, solver%plex, solver%OPP, solver%kabs, solver%ksca, solver%g, &
                            sundir / norm2(sundir), solver%Mdir)
 
@@ -809,7 +810,7 @@ contains
         & solver%ksp_solar_dir, &
         & ksp_residual_history=solution%dir_ksp_residual_history, &
         & prefix='solar_dir_')
-      call PetscLogEventEnd(solver%logs%setup_Mdir, ierr)
+      call ts_log_end(solver%logs%setup_Mdir, ierr)
 
       ! Make sure it is in W to be suitable as a non-zero guess
       call scale_flx(solver, solver%plex, &
@@ -818,16 +819,16 @@ contains
                      solution, lWm2=.false., logevent=solver%logs%scale_flx)
 
       ! Solve Direct Matrix
-      call PetscLogEventBegin(solver%logs%solve_Mdir, ierr)
+      call ts_log_begin(solver%logs%solve_Mdir, ierr)
       call solve_plex_rt(&
         & solver%plex%edir_dm, &
         & solver%dirsrc, &
         & solver%ksp_solar_dir, &
-        & solution%edir, &
+        & solution%edir_petsc, &
         & ksp_iter=solution%Niter_dir)
-      call PetscLogEventEnd(solver%logs%solve_Mdir, ierr)
-      call PetscObjectSetName(solution%edir, 'edir', ierr); call CHKERR(ierr)
-      call PetscObjectViewFromOptions(PetscObjectCast(solution%edir), PETSC_NULL_OBJECT, &
+      call ts_log_end(solver%logs%solve_Mdir, ierr)
+      call PetscObjectSetName(solution%edir_petsc, 'edir', ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(PetscObjectCast(solution%edir_petsc), PETSC_NULL_OBJECT, &
                                       '-show_edir_vec_global', ierr); call CHKERR(ierr)
       solution%lWm2_dir = .false.
       solution%lchanged = .true.
@@ -838,14 +839,14 @@ contains
                        solver%dir_scalevec_Wm2_to_W, solver%dir_scalevec_W_to_Wm2, &
                        solver%diff_scalevec_Wm2_to_W, solver%diff_scalevec_W_to_Wm2, &
                        solution, lWm2=.true., logevent=solver%logs%scale_flx)
-        call debug_dump_vec(solver%plex%edir_dm, solution%edir, solver%dir_scalevec_W_to_Wm2)
+        call debug_dump_vec(solver%plex%edir_dm, solution%edir_petsc, solver%dir_scalevec_W_to_Wm2)
         call scale_flx(solver, solver%plex, &
                        solver%dir_scalevec_Wm2_to_W, solver%dir_scalevec_W_to_Wm2, &
                        solver%diff_scalevec_Wm2_to_W, solver%diff_scalevec_W_to_Wm2, &
                        solution, lWm2=.false., logevent=solver%logs%scale_flx)
       end if
 
-      call PetscLogEventEnd(solver%logs%compute_Edir, ierr)
+      call ts_log_end(solver%logs%compute_Edir, ierr)
     end if
 
     call compute_diff2diff_coeff(&
@@ -859,20 +860,20 @@ contains
       & ierr); call CHKERR(ierr)
 
     ! Create Diffuse Src
-    call PetscLogEventBegin(solver%logs%compute_Ediff, ierr)
+    call ts_log_begin(solver%logs%compute_Ediff, ierr)
 
     call scale_flx(solver, solver%plex, &
                    solver%dir_scalevec_Wm2_to_W, solver%dir_scalevec_W_to_Wm2, &
                    solver%diff_scalevec_Wm2_to_W, solver%diff_scalevec_W_to_Wm2, &
                    solution, lWm2=.false., logevent=solver%logs%scale_flx)
 
-    call PetscLogEventBegin(solver%logs%setup_diff_src, ierr)
+    call ts_log_begin(solver%logs%setup_diff_src, ierr)
     call create_ediff_src_vec(solver, solver%plex, solver%plex%ediff_dm, &
                               solver%kabs, solver%ksca, solver%g, solver%albedo, &
                               lthermal, lsolar, solver%diffsrc, &
                               solver%plex%horizface1_dm, solver%plck, &
-                              solver%plex%edir_dm, solution%edir)
-    call PetscLogEventEnd(solver%logs%setup_diff_src, ierr)
+                              solver%plex%edir_dm, solution%edir_petsc)
+    call ts_log_end(solver%logs%setup_diff_src, ierr)
 
     ! Output of Diffuse Src Vec
     if (ldebug) then
@@ -880,7 +881,7 @@ contains
     end if
 
     ! Create Diffuse Matrix & KSP
-    call PetscLogEventBegin(solver%logs%setup_Mdiff, ierr)
+    call ts_log_begin(solver%logs%setup_Mdiff, ierr)
     call create_ediff_mat(&
       & solver,        &
       & solver%plex,   &
@@ -909,7 +910,7 @@ contains
         & ksp_residual_history=solution%diff_ksp_residual_history, &
         & prefix='thermal_diff_')
     end if
-    call PetscLogEventEnd(solver%logs%setup_Mdiff, ierr)
+    call ts_log_end(solver%logs%setup_Mdiff, ierr)
 
     ! Make sure it is in W to be suitable as a non-zero guess
     call scale_flx(solver, solver%plex, &
@@ -918,32 +919,32 @@ contains
                    solution, lWm2=.false., logevent=solver%logs%scale_flx)
 
     ! Solve Diffuse Matrix
-    call PetscLogEventBegin(solver%logs%solve_Mdiff, ierr)
+    call ts_log_begin(solver%logs%solve_Mdiff, ierr)
     if (solution%lsolar_rad) then
       call solve_plex_rt(solver%plex%ediff_dm, &
                          solver%diffsrc, &
                          solver%ksp_solar_diff, &
-                         solution%ediff, &
+                         solution%ediff_petsc, &
                          ksp_iter=solution%Niter_diff)
     else
       call solve_plex_rt(solver%plex%ediff_dm, &
                          solver%diffsrc, &
                          solver%ksp_thermal_diff, &
-                         solution%ediff, &
+                         solution%ediff_petsc, &
                          ksp_iter=solution%Niter_diff)
     end if
-    call PetscLogEventEnd(solver%logs%solve_Mdiff, ierr)
-    call PetscObjectSetName(solution%ediff, 'ediff', ierr); call CHKERR(ierr)
-    call PetscObjectViewFromOptions(PetscObjectCast(solution%ediff), PETSC_NULL_OBJECT, &
+    call ts_log_end(solver%logs%solve_Mdiff, ierr)
+    call PetscObjectSetName(solution%ediff_petsc, 'ediff', ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(PetscObjectCast(solution%ediff_petsc), PETSC_NULL_OBJECT, &
                                     '-show_ediff_vec_global', ierr); call CHKERR(ierr)
     solution%lWm2_diff = .false.
     solution%lchanged = .true.
 
-    call PetscLogEventEnd(solver%logs%compute_Ediff, ierr)
+    call ts_log_end(solver%logs%compute_Ediff, ierr)
 
     ! Output of Diffuse Vec
     if (ldebug) &
-      call debug_dump_vec(solver%plex%ediff_dm, solution%ediff, solver%diff_scalevec_W_to_Wm2)
+      call debug_dump_vec(solver%plex%ediff_dm, solution%ediff_petsc, solver%diff_scalevec_W_to_Wm2)
 
   contains
 
@@ -953,7 +954,7 @@ contains
       type(tVec), intent(in), optional :: scalevec
       type(tVec) :: cpy
       character(len=default_str_len) :: vecname
-      call PetscLogEventBegin(solver%logs%debug_output, ierr)
+      call ts_log_begin(solver%logs%debug_output, ierr)
       call VecDuplicate(vec, cpy, ierr); call CHKERR(ierr)
       call PetscObjectGetName(vec, vecname, ierr); call CHKERR(ierr)
       call PetscObjectSetName(cpy, trim(vecname), ierr); call CHKERR(ierr)
@@ -966,7 +967,7 @@ contains
 
       call facevec2cellvec(dm, cpy)
       call VecDestroy(cpy, ierr); call CHKERR(ierr)
-      call PetscLogEventEnd(solver%logs%debug_output, ierr)
+      call ts_log_end(solver%logs%debug_output, ierr)
     end subroutine
   end subroutine
 
@@ -1003,7 +1004,7 @@ contains
       allocate (dir2dir(0:solver%dirdof**2 - 1, plex%cStart:plex%cEnd - 1))
     end if
 
-    call PetscLogEventBegin(solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
+    call ts_log_begin(solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
 
     call VecGetArrayRead(kabs, xkabs, ierr); call CHKERR(ierr)
     call VecGetArrayRead(ksca, xksca, ierr); call CHKERR(ierr)
@@ -1083,7 +1084,7 @@ contains
     call VecRestoreArrayRead(ksca, xksca, ierr); call CHKERR(ierr)
     call VecRestoreArrayRead(g, xg, ierr); call CHKERR(ierr)
 
-    call PetscLogEventEnd(solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
+    call ts_log_end(solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
   end subroutine
 
   subroutine compute_dir2diff_coeff(solver, plex, OPP, kabs, ksca, g, sundir, dir2diff, ierr)
@@ -1119,7 +1120,7 @@ contains
       allocate (dir2diff(0:solver%dirdof * solver%diffdof / 2 - 1, plex%cStart:plex%cEnd - 1))
     end if
 
-    call PetscLogEventBegin(solver%logs%get_coeff_dir2diff, ierr); call CHKERR(ierr)
+    call ts_log_begin(solver%logs%get_coeff_dir2diff, ierr); call CHKERR(ierr)
 
     call VecGetArrayRead(kabs, xkabs, ierr); call CHKERR(ierr)
     call VecGetArrayRead(ksca, xksca, ierr); call CHKERR(ierr)
@@ -1194,7 +1195,7 @@ contains
     call VecRestoreArrayRead(ksca, xksca, ierr); call CHKERR(ierr)
     call VecRestoreArrayRead(g, xg, ierr); call CHKERR(ierr)
 
-    call PetscLogEventEnd(solver%logs%get_coeff_dir2diff, ierr); call CHKERR(ierr)
+    call ts_log_end(solver%logs%get_coeff_dir2diff, ierr); call CHKERR(ierr)
   end subroutine
 
   subroutine compute_diff2diff_coeff(solver, plex, OPP, kabs, ksca, g, diff2diff, ierr)
@@ -1227,7 +1228,7 @@ contains
       allocate (diff2diff(0:(solver%diffdof / 2)**2 - 1, plex%cStart:plex%cEnd - 1))
     end if
 
-    call PetscLogEventBegin(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
+    call ts_log_begin(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
 
     call VecGetArrayRead(kabs, xkabs, ierr); call CHKERR(ierr)
     call VecGetArrayRead(ksca, xksca, ierr); call CHKERR(ierr)
@@ -1307,7 +1308,7 @@ contains
     call VecRestoreArrayRead(ksca, xksca, ierr); call CHKERR(ierr)
     call VecRestoreArrayRead(g, xg, ierr); call CHKERR(ierr)
 
-    call PetscLogEventEnd(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
+    call ts_log_end(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
   end subroutine
 
   subroutine dump_optical_properties(kabs, ksca, g, albedo, plck, postfix)
@@ -3503,7 +3504,7 @@ contains
 
     if (present(time) .and. solver%lenable_solutions_err_estimates) then ! Create working vec to determine difference between old and new absorption vec
       call DMGetGlobalVector(solver%plex%abso_dm, abso_old, ierr); call CHKERR(ierr)
-      call VecCopy(solution%abso, abso_old, ierr); call CHKERR(ierr)
+      call VecCopy(solution%abso_petsc, abso_old, ierr); call CHKERR(ierr)
     end if
 
     call compute_absorption(solver, solution)
@@ -3520,7 +3521,7 @@ contains
       real(ireals) :: norm3
       integer(mpiint) :: myid, comm, ierr
       if (present(time) .and. solver%lenable_solutions_err_estimates) then ! Compute norm between old absorption and new one
-        call VecAXPY(abso_old, -one, solution%abso, ierr); call CHKERR(ierr) ! overwrite abso_old with difference to new one
+        call VecAXPY(abso_old, -one, solution%abso_petsc, ierr); call CHKERR(ierr) ! overwrite abso_old with difference to new one
         call VecNorm(abso_old, NORM_INFINITY, norm3, ierr); call CHKERR(ierr)
 
         call DMRestoreGlobalVector(solver%plex%abso_dm, abso_old, ierr); call CHKERR(ierr)
@@ -3554,9 +3555,9 @@ contains
 
     if (.not. solution%lset) call CHKERR(1_mpiint, 'compute_absorption needs to get an initialized solution obj')
 
-    if (.not. allocated(solution%abso)) then
-      allocate (solution%abso)
-      call DMCreateGlobalVector(solver%plex%abso_dm, solution%abso, ierr); call CHKERR(ierr)
+    if (.not. allocated(solution%abso_petsc)) then
+      allocate (solution%abso_petsc)
+      call DMCreateGlobalVector(solver%plex%abso_dm, solution%abso_petsc, ierr); call CHKERR(ierr)
     end if
 
     if (solution%lchanged) then
@@ -3565,9 +3566,9 @@ contains
       call get_petsc_opt(PETSC_NULL_CHARACTER, "-absorption_by_coeff_divergence", by_coeff_divergence, lflg, ierr)
       call CHKERR(ierr)
 
-      if (solution%lsolar_rad .and. .not. allocated(solution%edir)) &
+      if (solution%lsolar_rad .and. .not. allocated(solution%edir_petsc)) &
         call CHKERR(1_mpiint, 'solution%lsolar_rad true but edir not allocated')
-      if (.not. allocated(solution%ediff)) call CHKERR(1_mpiint, 'ediff vec not allocated')
+      if (.not. allocated(solution%ediff_petsc)) call CHKERR(1_mpiint, 'ediff vec not allocated')
 
       ! Make sure we have the radiation vecs in plain energy units
       call scale_flx(solver, solver%plex, &
@@ -3575,47 +3576,47 @@ contains
                      solver%diff_scalevec_Wm2_to_W, solver%diff_scalevec_W_to_Wm2, &
                      solution, lWm2=.false., logevent=solver%logs%scale_flx)
 
-      call VecSet(solution%abso, zero, ierr); call CHKERR(ierr)
+      call VecSet(solution%abso_petsc, zero, ierr); call CHKERR(ierr)
 
       if (solution%lsolar_rad) then
-        call PetscLogEventBegin(solver%logs%compute_absorption, ierr)
+        call ts_log_begin(solver%logs%compute_absorption, ierr)
         if (by_coeff_divergence) then
-          call compute_edir_absorption_by_coeff_divergence(solver, solution%edir, solution%abso)
+          call compute_edir_absorption_by_coeff_divergence(solver, solution%edir_petsc, solution%abso_petsc)
         else
-          call compute_edir_absorption_by_flx_divergence(solver%plex, solution%edir, solution%abso)
+          call compute_edir_absorption_by_flx_divergence(solver%plex, solution%edir_petsc, solution%abso_petsc)
         end if
-        call PetscLogEventEnd(solver%logs%compute_absorption, ierr)
+        call ts_log_end(solver%logs%compute_absorption, ierr)
 
-        call PetscLogEventBegin(solver%logs%debug_output, ierr)
-        call PetscObjectSetName(solution%abso, 'abso_direct_'//toStr(solution%uid), ierr); call CHKERR(ierr)
-        call PetscObjectViewFromOptions(PetscObjectCast(solution%abso), PETSC_NULL_OBJECT, '-show_abso_direct', ierr)
+        call ts_log_begin(solver%logs%debug_output, ierr)
+        call PetscObjectSetName(solution%abso_petsc, 'abso_direct_'//toStr(solution%uid), ierr); call CHKERR(ierr)
+        call PetscObjectViewFromOptions(PetscObjectCast(solution%abso_petsc), PETSC_NULL_OBJECT, '-show_abso_direct', ierr)
         call CHKERR(ierr)
-        call PetscLogEventEnd(solver%logs%debug_output, ierr)
+        call ts_log_end(solver%logs%debug_output, ierr)
       end if
 
-      call PetscLogEventBegin(solver%logs%compute_absorption, ierr)
+      call ts_log_begin(solver%logs%compute_absorption, ierr)
       if (by_coeff_divergence) then
         call compute_ediff_absorption_by_coeff_divergence(&
           & solver, &
           & solver%plex, &
           & .not. solution%lsolar_rad, &
-          & solution%ediff, &
+          & solution%ediff_petsc, &
           & solver%diffsrc, &
-          & solution%abso)
+          & solution%abso_petsc)
       else
         call compute_ediff_absorption(&
           & solver%plex, &
           & solver%IS_diff_in_out_dof, &
-          & solution%ediff, &
-          & solution%abso)
+          & solution%ediff_petsc, &
+          & solution%abso_petsc)
       end if
-      call PetscLogEventEnd(solver%logs%compute_absorption, ierr)
+      call ts_log_end(solver%logs%compute_absorption, ierr)
     end if
 
-    call PetscLogEventBegin(solver%logs%debug_output, ierr)
-    call PetscObjectSetName(solution%abso, 'abso_'//toStr(solution%uid), ierr); call CHKERR(ierr)
-    call PetscObjectViewFromOptions(PetscObjectCast(solution%abso), PETSC_NULL_OBJECT, '-show_abso', ierr); call CHKERR(ierr)
-    call PetscLogEventEnd(solver%logs%debug_output, ierr)
+    call ts_log_begin(solver%logs%debug_output, ierr)
+    call PetscObjectSetName(solution%abso_petsc, 'abso_'//toStr(solution%uid), ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(PetscObjectCast(solution%abso_petsc), PETSC_NULL_OBJECT, '-show_abso', ierr); call CHKERR(ierr)
+    call ts_log_end(solver%logs%debug_output, ierr)
   end subroutine
 
   subroutine compute_edir_absorption_by_flx_divergence(plex, edir, abso)
@@ -4104,21 +4105,21 @@ contains
     type(tVec), allocatable, intent(inout) :: diff_scalevec_Wm2_to_W, diff_scalevec_W_to_Wm2
     type(t_state_container), intent(inout) :: solution  !< @param solution container with computed fluxes
     logical, intent(in) :: lWm2      !< @param determines direction of scaling, if true, scale to W/m**2
-    PetscLogEvent, intent(in), optional :: logevent
+    type(t_ts_log_event), intent(in), optional :: logevent
     integer(mpiint) :: ierr
 
     call gen_scale_vecs()
 
     if (present(logevent)) then
-      call PetscLogEventBegin(logevent, ierr); call CHKERR(ierr)
+      call ts_log_begin(logevent, ierr); call CHKERR(ierr)
     end if
 
     if (solution%lsolar_rad) then
       if (solution%lWm2_dir .neqv. lWm2) then
         if (lWm2) then
-          call VecPointwiseMult(solution%edir, solution%edir, dir_scalevec_W_to_Wm2, ierr); call CHKERR(ierr)
+          call VecPointwiseMult(solution%edir_petsc, solution%edir_petsc, dir_scalevec_W_to_Wm2, ierr); call CHKERR(ierr)
         else
-          call VecPointwiseMult(solution%edir, solution%edir, dir_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
+          call VecPointwiseMult(solution%edir_petsc, solution%edir_petsc, dir_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
         end if
         solution%lWm2_dir = lWm2
       end if
@@ -4126,14 +4127,14 @@ contains
 
     if (solution%lWm2_diff .neqv. lWm2) then
       if (lWm2) then
-        call VecPointwiseMult(solution%ediff, solution%ediff, diff_scalevec_W_to_Wm2, ierr); call CHKERR(ierr)
+        call VecPointwiseMult(solution%ediff_petsc, solution%ediff_petsc, diff_scalevec_W_to_Wm2, ierr); call CHKERR(ierr)
       else
-        call VecPointwiseMult(solution%ediff, solution%ediff, diff_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
+        call VecPointwiseMult(solution%ediff_petsc, solution%ediff_petsc, diff_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
       end if
       solution%lWm2_diff = lWm2
     end if
     if (present(logevent)) then
-      call PetscLogEventEnd(logevent, ierr); call CHKERR(ierr)
+      call ts_log_end(logevent, ierr); call CHKERR(ierr)
     end if
 
   contains
@@ -4141,7 +4142,7 @@ contains
       if (solution%lsolar_rad) then
         if (.not. allocated(dir_scalevec_Wm2_to_W)) then
           allocate (dir_scalevec_Wm2_to_W)
-          call VecDuplicate(solution%edir, dir_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
+          call VecDuplicate(solution%edir_petsc, dir_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
           call VecSet(dir_scalevec_Wm2_to_W, one, ierr); call CHKERR(ierr)
           call scale_facevec(plex, plex%edir_dm, solver%dirtop, solver%dirside, &
                              dir_scalevec_Wm2_to_W, lW_to_Wm2=.false.)
@@ -4159,7 +4160,7 @@ contains
 
       if (.not. allocated(diff_scalevec_Wm2_to_W)) then
         allocate (diff_scalevec_Wm2_to_W)
-        call VecDuplicate(solution%ediff, diff_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
+        call VecDuplicate(solution%ediff_petsc, diff_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
         call VecSet(diff_scalevec_Wm2_to_W, one, ierr); call CHKERR(ierr)
         call scale_facevec(plex, plex%ediff_dm, solver%difftop, solver%diffside, &
                            diff_scalevec_Wm2_to_W, lW_to_Wm2=.false.)
@@ -4191,7 +4192,7 @@ contains
 
     integer(mpiint) :: myid, ierr
 
-    call PetscLogEventBegin(solver%logs%get_result, ierr)
+    call ts_log_begin(solver%logs%get_result, ierr)
 
     uid = get_solution_uid(solver%solutions, opt_solution_uid)
 
@@ -4214,8 +4215,8 @@ contains
 
     associate (solution => solver%solutions(uid))
 
-      if (.not. allocated(solution%ediff)) call CHKERR(1_mpiint, 'ediff vec not allocated')
-      if (.not. allocated(solution%abso)) call CHKERR(1_mpiint, 'abso vec not allocated')
+      if (.not. allocated(solution%ediff_petsc)) call CHKERR(1_mpiint, 'ediff vec not allocated')
+      if (.not. allocated(solution%abso_petsc)) call CHKERR(1_mpiint, 'abso vec not allocated')
       if (solution%lchanged) call CHKERR(1_mpiint, 'tried to get results from unrestored solution -- call restore_solution first')
 
       if (present(redir) .and. .not. solution%lsolar_rad) then
@@ -4235,10 +4236,10 @@ contains
       call DMGetLocalSection(solver%plex%abso_dm, abso_section, ierr); call CHKERR(ierr)
 
       if (present(redir) .and. solution%lsolar_rad) then
-        call VecGetArray(solution%edir, xedir, ierr); call CHKERR(ierr)
+        call VecGetArray(solution%edir_petsc, xedir, ierr); call CHKERR(ierr)
       end if
-      call VecGetArray(solution%ediff, xediff, ierr); call CHKERR(ierr)
-      call VecGetArray(solution%abso, xabso, ierr); call CHKERR(ierr)
+      call VecGetArray(solution%ediff_petsc, xediff, ierr); call CHKERR(ierr)
+      call VecGetArray(solution%abso_petsc, xabso, ierr); call CHKERR(ierr)
 
       if (.not. PetscObjectIsNull(toa_ids)) then
         call ISGetIndices(toa_ids, xtoa_faces, ierr); call CHKERR(ierr)
@@ -4289,10 +4290,10 @@ contains
       end if
 
       if (present(redir) .and. solution%lsolar_rad) then
-        call VecRestoreArray(solution%edir, xedir, ierr); call CHKERR(ierr)
+        call VecRestoreArray(solution%edir_petsc, xedir, ierr); call CHKERR(ierr)
       end if
-      call VecRestoreArray(solution%ediff, xediff, ierr); call CHKERR(ierr)
-      call VecRestoreArray(solution%abso, xabso, ierr); call CHKERR(ierr)
+      call VecRestoreArray(solution%ediff_petsc, xediff, ierr); call CHKERR(ierr)
+      call VecRestoreArray(solution%abso_petsc, xabso, ierr); call CHKERR(ierr)
 
       if (ldebug) then
         call mpi_comm_rank(solver%plex%comm, myid, ierr); call CHKERR(ierr)
@@ -4316,7 +4317,7 @@ contains
       end if
 
     end associate
-    call PetscLogEventEnd(solver%logs%get_result, ierr)
+    call ts_log_end(solver%logs%get_result, ierr)
 
   contains
     subroutine check_size_or_allocate(arr, expected_shape)
