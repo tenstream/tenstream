@@ -18,9 +18,7 @@ module m_examples_pprts_specint_buildings
   ! Import specific solver type: 3_10 for example uses 3 streams direct, 10 streams for diffuse radiation
   use m_pprts_base, only: t_solver, allocate_pprts_solver_from_commandline
 
-#ifdef HAVE_PETSC
   use m_pprts, only: gather_all_to_all
-#endif
 
   ! main entry point for solver, and desctructor
   use m_specint_pprts, only: specint_pprts, specint_pprts_destroy
@@ -212,18 +210,11 @@ contains
         & nyproc=nyproc)
     end if
 
-#ifdef HAVE_PETSC
     if (allocated(edir)) &
       & call gather_all_to_all(solver%C_one1, edir, gedir)
     call gather_all_to_all(solver%C_one1, edn, gedn)
     call gather_all_to_all(solver%C_one1, eup, geup)
     call gather_all_to_all(solver%C_one, abso, gabso)
-#else
-    if (allocated(edir)) gedir = edir
-    gedn = edn
-    geup = eup
-    gabso = abso
-#endif
 
     ! Tidy up
     call specint_pprts_destroy(specint, solver, lfinalizepetsc=.true., ierr=ierr); call CHKERR(ierr)

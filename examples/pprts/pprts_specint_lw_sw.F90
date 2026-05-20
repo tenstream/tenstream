@@ -2,7 +2,6 @@ module m_example_pprts_specint_lw_sw
 #ifdef HAVE_PETSC
 #include "petsc/finclude/petsc.h"
   use petsc
-  use m_petsc_helpers, only: getvecpointer, restorevecpointer
 #endif
   use mpi
 
@@ -15,9 +14,7 @@ module m_example_pprts_specint_lw_sw
 
   ! Import specific solver type: 3_10 for example uses 3 streams direct, 10 streams for diffuse radiation
   use m_pprts_base, only: t_solver, allocate_pprts_solver_from_commandline
-#ifdef HAVE_PETSC
   use m_pprts, only: gather_all_toZero
-#endif
 
   ! main entry point for solver, and desctructor
   use m_specint_pprts, only: specint_pprts, specint_pprts_destroy
@@ -264,18 +261,11 @@ contains
       print *, 'TOA :: absorption ', meanval(abso(1, :, :))
     end if
 
-#ifdef HAVE_PETSC
     if (allocated(edir)) &
       & call gather_all_toZero(pprts_solver%C_one1, edir, gedir)
     call gather_all_toZero(pprts_solver%C_one1, edn, gedn)
     call gather_all_toZero(pprts_solver%C_one1, eup, geup)
     call gather_all_toZero(pprts_solver%C_one, abso, gabso)
-#else
-    if (allocated(edir)) gedir = edir
-    gedn = edn
-    geup = eup
-    gabso = abso
-#endif
 
     if (myid .eq. 0_mpiint .and. present(outfile)) then
       dimnames(1) = 'zlev'
@@ -292,22 +282,22 @@ contains
 
       print *, 'dumping z coords'
 #ifdef HAVE_PETSC
-      associate (Ca1 => pprts_solver%C_one_atm1_box)
-        call getVecPointer(Ca1%da, pprts_solver%atm%hhl, z1d, z)
-        dimnames(1) = 'nlev'
-        groups(2) = 'zlev'
-        call ncwrite(groups, z(0, Ca1%zs:Ca1%ze, Ca1%xs, Ca1%ys), ierr, dimnames=dimnames(1:1))
-        call CHKERR(ierr)
-        dimnames(1) = 'nlay'
-        groups(2) = 'zlay'
-        call ncwrite(groups, &
-                     & (z(0, Ca1%zs:Ca1%ze - 1, Ca1%xs, Ca1%ys) &
-                     & + z(0, Ca1%zs + 1:Ca1%ze, Ca1%xs, Ca1%ys) &
-                     & )*.5_ireals, &
-                     & ierr, dimnames=dimnames(1:1))
-        call CHKERR(ierr)
-        call restoreVecPointer(Ca1%da, pprts_solver%atm%hhl, z1d, z)
-      end associate
+      if (allocated(pprts_solver%atm%hhl)) then
+        associate (Ca1 => pprts_solver%C_one_atm1_box, hhl => pprts_solver%atm%hhl)
+          dimnames(1) = 'nlev'
+          groups(2) = 'zlev'
+          call ncwrite(groups, hhl(0, Ca1%zs:Ca1%ze, Ca1%xs, Ca1%ys), ierr, dimnames=dimnames(1:1))
+          call CHKERR(ierr)
+          dimnames(1) = 'nlay'
+          groups(2) = 'zlay'
+          call ncwrite(groups, &
+                       & (hhl(0, Ca1%zs:Ca1%ze - 1, Ca1%xs, Ca1%ys) &
+                       & + hhl(0, Ca1%zs + 1:Ca1%ze, Ca1%xs, Ca1%ys) &
+                       & )*.5_ireals, &
+                       & ierr, dimnames=dimnames(1:1))
+          call CHKERR(ierr)
+        end associate
+      end if
 #endif
     end if
 

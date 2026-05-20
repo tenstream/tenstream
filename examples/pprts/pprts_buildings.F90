@@ -14,10 +14,8 @@ module m_examples_pprts_buildings
 
   use m_pprts, only: init_pprts, &
     & set_optical_properties, solve_pprts, &
-    & pprts_get_result, set_angles
-#ifdef HAVE_PETSC
-  use m_pprts, only: gather_all_toZero
-#endif
+    & pprts_get_result, set_angles, &
+    & gather_all_toZero
 
   use m_pprts_base, only: t_solver, &
     & allocate_pprts_solver_from_commandline, destroy_pprts, &
@@ -39,11 +37,6 @@ module m_examples_pprts_buildings
     & PPRTS_LEFT_FACE, &
     & PPRTS_REAR_FACE, &
     & PPRTS_RIGHT_FACE
-
-#ifdef HAVE_PETSC
-  use m_xdmf_export, only: &
-    & xdmf_pprts_buildings
-#endif
 
   use m_netcdfio, only: ncwrite
 
@@ -77,7 +70,7 @@ contains
     real(ireals), intent(in) :: phi0, theta0       ! sun azimuth(phi) and zenith(theta) angle
     real(ireals), intent(in) :: albedo, dtau, w0   ! surface albedo, vertically integrated optical depth and constant single scattering albedo
     real(ireals), allocatable, dimension(:, :, :), intent(out) :: gedir, gedn, geup, gabso ! global arrays on rank 0
-    type(t_pprts_buildings), allocatable, intent(inout) :: buildings
+    type(t_pprts_buildings), allocatable, intent(out) :: buildings
     character(len=*), intent(in), optional :: outfile ! output file to dump flux results
 
     real(ireals) :: dz1d(Nlay)
@@ -196,19 +189,12 @@ contains
 
       call pprts_get_result(solver, fdn, fup, fdiv, fdir, opt_buildings=buildings)
 
-#ifdef HAVE_PETSC
       if (lsolar) then
         call gather_all_toZero(solver%C_one1, fdir, gedir)
       end if
       call gather_all_toZero(solver%C_one1, fdn, gedn)
       call gather_all_toZero(solver%C_one1, fup, geup)
       call gather_all_toZero(solver%C_one, fdiv, gabso)
-#else
-      if (lsolar .and. allocated(fdir)) gedir = fdir
-      gedn = fdn
-      geup = fup
-      gabso = fdiv
-#endif
 
       if (myid .eq. 0_mpiint .and. present(outfile)) then
         groups(1) = trim(outfile)

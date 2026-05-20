@@ -1,7 +1,9 @@
 module m_example_pprts_rrtmg_hill
 
+#ifdef HAVE_PETSC
 #include "petsc/finclude/petsc.h"
   use petsc
+#endif
   use mpi
 
   ! Import datatype from the TenStream lib. Depending on how PETSC is
@@ -14,9 +16,12 @@ module m_example_pprts_rrtmg_hill
   use m_search, only: search_sorted_bisection
 
   ! Import specific solver type: 3_10 for example uses 3 streams direct, 10 streams for diffuse radiation
-  use m_pprts_base, only: t_solver, allocate_pprts_solver_from_commandline
+  use m_pprts_base, only: t_solver, t_coord, allocate_pprts_solver_from_commandline
   use m_netcdfIO, only: ncwrite, set_global_attribute
+#ifdef HAVE_PETSC
   use m_petsc_helpers, only: getvecpointer, restorevecpointer, petscGlobalVecToZero, petscVecToF90, f90VecToPetsc
+#endif
+  use m_pprts, only: gather_all_toZero
 
   ! main entry point for solver, and desctructor
   use m_specint_pprts, only: specint_pprts, specint_pprts_destroy
@@ -99,10 +104,12 @@ contains
     real(ireals) :: cld_bot, cld_top
     logical :: lflg
     character(len=default_str_len) :: outpath(2)
+#ifdef HAVE_PETSC
     real(ireals), pointer :: hhl(:, :, :, :), hhl1d(:)
 
     hhl => null()
     hhl1d => null()
+#endif
 
     call MPI_COMM_SIZE(comm, numnodes, ierr)
     call MPI_COMM_RANK(comm, myid, ierr)
@@ -237,50 +244,53 @@ contains
         & Ca1 => pprts_solver%C_one_atm1_box, &
         & Cs => pprts_solver%Csrfc_one)
 
-      call dump_vec(Ca%da, pprts_solver%atm%dz, 'dz', [character(len=default_str_len) :: 'ke', 'nx', 'ny'])
+      call dump_field(Ca, reshape(pprts_solver%atm%dz, [Ca%zm, Ca%xm, Ca%ym]), &
+        & 'dz', [character(len=default_str_len) :: 'ke', 'nx', 'ny'])
 
       patm(Ca1%zs:Ca1%ze, Ca1%xs:Ca1%xe, Ca1%ys:Ca1%ye) => atm%plev
-      call dump_vec(Ca1%da, reverse(patm), 'p_lev', [character(len=default_str_len) :: 'ke1', 'nx', 'ny'])
+      call dump_field(Ca1, reverse(patm), 'p_lev', [character(len=default_str_len) :: 'ke1', 'nx', 'ny'])
 
       patm(Ca1%zs:Ca1%ze, Ca1%xs:Ca1%xe, Ca1%ys:Ca1%ye) => atm%tlev
-      call dump_vec(Ca1%da, reverse(patm), 't_lev', [character(len=default_str_len) :: 'ke1', 'nx', 'ny'])
+      call dump_field(Ca1, reverse(patm), 't_lev', [character(len=default_str_len) :: 'ke1', 'nx', 'ny'])
 
       patm(Ca%zs:Ca%ze, Ca%xs:Ca%xe, Ca%ys:Ca%ye) => atm%tlay
-      call dump_vec(Ca%da, reverse(patm), 't_lay', [character(len=default_str_len) :: 'ke', 'nx', 'ny'])
+      call dump_field(Ca, reverse(patm), 't_lay', [character(len=default_str_len) :: 'ke', 'nx', 'ny'])
 
       patm(Ca%zs:Ca%ze, Ca%xs:Ca%xe, Ca%ys:Ca%ye) => atm%o3_lay
-      call dump_vec(Ca%da, reverse(patm), 'o3_lay', [character(len=default_str_len) :: 'ke', 'nx', 'ny'])
+      call dump_field(Ca, reverse(patm), 'o3_lay', [character(len=default_str_len) :: 'ke', 'nx', 'ny'])
 
       patm(Ca%zs:Ca%ze, Ca%xs:Ca%xe, Ca%ys:Ca%ye) => atm%o2_lay
-      call dump_vec(Ca%da, reverse(patm), 'o2_lay', [character(len=default_str_len) :: 'ke', 'nx', 'ny'])
+      call dump_field(Ca, reverse(patm), 'o2_lay', [character(len=default_str_len) :: 'ke', 'nx', 'ny'])
 
       patm(Ca%zs:Ca%ze, Ca%xs:Ca%xe, Ca%ys:Ca%ye) => atm%h2o_lay
-      call dump_vec(Ca%da, reverse(patm), 'h2o_lay', [character(len=default_str_len) :: 'ke', 'nx', 'ny'])
+      call dump_field(Ca, reverse(patm), 'h2o_lay', [character(len=default_str_len) :: 'ke', 'nx', 'ny'])
 
       patm(Ca%zs:Ca%ze, Ca%xs:Ca%xe, Ca%ys:Ca%ye) => atm%co2_lay
-      call dump_vec(Ca%da, reverse(patm), 'co2_lay', [character(len=default_str_len) :: 'ke', 'nx', 'ny'])
+      call dump_field(Ca, reverse(patm), 'co2_lay', [character(len=default_str_len) :: 'ke', 'nx', 'ny'])
 
       patm(Ca%zs:Ca%ze, Ca%xs:Ca%xe, Ca%ys:Ca%ye) => atm%n2o_lay
-      call dump_vec(Ca%da, reverse(patm), 'no2_lay', [character(len=default_str_len) :: 'ke', 'nx', 'ny'])
+      call dump_field(Ca, reverse(patm), 'no2_lay', [character(len=default_str_len) :: 'ke', 'nx', 'ny'])
 
       patm(Ca%zs:Ca%ze, Ca%xs:Ca%xe, Ca%ys:Ca%ye) => atm%lwc
-      call dump_vec(Ca%da, reverse(patm), 'lwc', [character(len=default_str_len) :: 'ke', 'nx', 'ny'])
+      call dump_field(Ca, reverse(patm), 'lwc', [character(len=default_str_len) :: 'ke', 'nx', 'ny'])
 
       patm(Ca%zs:Ca%ze, Ca%xs:Ca%xe, Ca%ys:Ca%ye) => atm%reliq
-      call dump_vec(Ca%da, reverse(patm), 'reliq', [character(len=default_str_len) :: 'ke', 'nx', 'ny'])
+      call dump_field(Ca, reverse(patm), 'reliq', [character(len=default_str_len) :: 'ke', 'nx', 'ny'])
 
       if (allocated(edir)) &
-        & call dump_vec(C1%da, edir, 'edir', [character(len=default_str_len) :: 'ke1', 'nx', 'ny'])
-      call dump_vec(C1%da, edn, 'edn', [character(len=default_str_len) :: 'ke1', 'nx', 'ny'])
-      call dump_vec(C1%da, eup, 'eup', [character(len=default_str_len) :: 'ke1', 'nx', 'ny'])
-      call dump_vec(C%da, abso, 'abso', [character(len=default_str_len) :: 'ke', 'nx', 'ny'])
+        & call dump_field(C1, edir, 'edir', [character(len=default_str_len) :: 'ke1', 'nx', 'ny'])
+      call dump_field(C1, edn, 'edn', [character(len=default_str_len) :: 'ke1', 'nx', 'ny'])
+      call dump_field(C1, eup, 'eup', [character(len=default_str_len) :: 'ke1', 'nx', 'ny'])
+      call dump_field(C, abso, 'abso', [character(len=default_str_len) :: 'ke', 'nx', 'ny'])
 
+#ifdef HAVE_PETSC
       call getVecPointer(Ca1%da, pprts_solver%atm%hhl, hhl1d, hhl)
-      call dump_vec(Ca1%da, hhl(0, Ca1%zs:Ca1%ze, Ca1%xs:Ca1%xe, Ca1%ys:Ca1%ye), 'hhl', &
+      call dump_field(Ca1, hhl(0, Ca1%zs:Ca1%ze, Ca1%xs:Ca1%xe, Ca1%ys:Ca1%ye), 'hhl', &
         & [character(len=default_str_len) :: 'ke1', 'nx', 'ny'])
       call dump_vec_2d(Cs%da, hhl(0, Ca1%ze, Ca1%xs:Ca1%xe, Ca1%ys:Ca1%ye), 'hsurf', &
         & [character(len=default_str_len) :: 'nx', 'ny'])
       call restoreVecPointer(Ca1%da, pprts_solver%atm%hhl, hhl1d, hhl)
+#endif
 
       if (myid .eq. 0) then
         call set_global_attribute(outpath(1), 'Nx', C%glob_xm, ierr); call CHKERR(ierr)
@@ -299,6 +309,23 @@ contains
     call specint_pprts_destroy(specint, pprts_solver, lfinalizepetsc=.true., ierr=ierr); call CHKERR(ierr)
     call destroy_tenstr_atm(atm)
   contains
+    subroutine dump_field(C, arr, varname, dimnames)
+      type(t_coord), intent(in) :: C
+      real(ireals), intent(in) :: arr(:, :, :)
+      character(len=*), intent(in) :: varname
+      character(len=*), intent(in) :: dimnames(:)
+
+      real(ireals), allocatable :: larr(:, :, :)
+      integer(mpiint) :: ierr_local
+
+      call gather_all_toZero(C, arr, larr)
+      if (myid .eq. 0) then
+        outpath(2) = trim(varname)
+        call ncwrite(outpath, larr, ierr_local, dimnames=dimnames); call CHKERR(ierr_local)
+      end if
+    end subroutine
+
+#ifdef HAVE_PETSC
     subroutine dump_vec_2d(dm, arr, varname, dimnames)
       type(tDM), intent(in) :: dm
       real(ireals), intent(in) :: arr(:, :)
@@ -322,35 +349,15 @@ contains
 
       call DMRestoreGlobalVector(dm, gvec, ierr); call CHKERR(ierr)
     end subroutine
-    subroutine dump_vec(dm, arr, varname, dimnames)
-      type(tDM), intent(in) :: dm
-      real(ireals), intent(in) :: arr(:, :, :)
-      character(len=*), intent(in) :: varname
-      character(len=*), intent(in) :: dimnames(:)
-
-      type(tVec) :: gvec, lVec
-      real(ireals), allocatable :: larr(:, :, :)
-      integer(mpiint) :: ierr
-
-      call DMGetGlobalVector(dm, gvec, ierr); call CHKERR(ierr)
-      call f90VecToPetsc(arr, dm, gvec)
-      call petscGlobalVecToZero(gvec, dm, lVec)
-      if (myid .eq. 0) then
-        call petscVecToF90(lVec, dm, larr, only_on_rank0=.true.)
-
-        outpath(2) = trim(varname)
-        call ncwrite(outpath, larr, ierr, dimnames=dimnames); call CHKERR(ierr)
-      end if
-      call VecDestroy(lVec, ierr); call CHKERR(ierr)
-
-      call DMRestoreGlobalVector(dm, gvec, ierr); call CHKERR(ierr)
-    end subroutine
+#endif
   end subroutine
 end module
 
 program main
+#ifdef HAVE_PETSC
 #include "petsc/finclude/petsc.h"
   use petsc
+#endif
   use mpi
   use m_data_parameters, only: iintegers, mpiint, ireals, default_str_len
   use m_helper_functions, only: domain_decompose_2d_petsc, CHKERR, get_petsc_opt
@@ -368,7 +375,9 @@ program main
   call mpi_init(ierr)
   call mpi_comm_rank(mpi_comm_world, myid, ierr)
 
+#ifdef HAVE_PETSC
   call PetscInitialize('', ierr); call CHKERR(ierr)
+#endif
 
   specint = 'no_default_set'
   call get_petsc_opt('', "-specint", specint, lflg, ierr); call CHKERR(ierr)

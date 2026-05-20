@@ -16,7 +16,6 @@ set(PETSC_ONLY_EXAMPLES
   geometric_coeffs_num_intervals
   libRadtran_cld_file
   plexrt
-  pprts_hill
   wetterstein_ts
 )
 
