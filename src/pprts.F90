@@ -5492,7 +5492,7 @@ contains
   !> \n the result is the 3D approximation of the absorption, considering neighbouring information
 #ifdef HAVE_PETSC
   subroutine nca_wrapper(solver, ediff, abso)
-    use m_ts_nca, only: ts_nca
+    use m_pprts_postprocess, only: ts_nca
     class(t_solver) :: solver
     type(tVec) :: ediff, abso
     type(tVec) :: gnca ! global nca vector

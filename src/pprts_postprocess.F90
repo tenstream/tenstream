@@ -34,7 +34,7 @@ module m_pprts_postprocess
   implicit none
 
   private
-  public :: smooth_surface_fluxes, slope_correction_fluxes
+  public :: smooth_surface_fluxes, slope_correction_fluxes, ts_nca
 
   logical, parameter :: ldebug = .false.
   type(t_ts_log_event), save :: log_smooth = t_ts_log_event(ts_id=-1)
@@ -194,5 +194,20 @@ contains
       nullify (grad)
     end associate
   end subroutine
+
+  ! Neighbouring Column Approximation
+  ! RTE Solver for the thermal spectral range, calculation of heating rates.
+  ! Klinger and Mayer (2015), doi:10.1016/j.jqsrt.2015.04.002
+  ! Contact Carolin Klinger for an implementation.
+  subroutine ts_nca(dx, dy, dz, B, kabs_3d, Edn, Eup, hr)
+    real(ireals), intent(in) :: dx, dy
+    real(ireals), intent(in), dimension(:, :, :) :: dz, kabs_3d  ! (Nlevel,Nx,Ny) including ghosts
+    real(ireals), intent(in), dimension(:, :, :) :: B, Edn, Eup  ! (Nlevel,Nx,Ny) including ghosts
+    real(ireals), intent(out), dimension(:, :, :) :: hr           ! (Nlevel,Nx,Ny) including ghosts
+
+    hr = dz + kabs_3d + B + Edn + Eup * (dx + dy) ! suppress unused-variable warnings
+    hr = -9999999._ireals
+    stop 'NCA not freely available.... please consult Carolin Klinger for an implementation.'
+  end subroutine ts_nca
 
 end module m_pprts_postprocess

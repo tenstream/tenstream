@@ -56,7 +56,6 @@ set( general_sources
   "eddington.F90"
   "interpolation.F90"
   "mmap.F90"
-  "nca.F90"
   "pprts_base.F90"
   "pprts_explicit.F90"
   "pprts_postprocess.F90"
