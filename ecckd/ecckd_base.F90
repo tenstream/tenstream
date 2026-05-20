@@ -23,10 +23,13 @@ module m_ecckd_base
 #ifdef HAVE_PETSC
 #include "petsc/finclude/petsc.h"
   use petsc
-#else
-#define PetscLogStage integer
-#define PetscLogEvent integer
 #endif
+
+  use m_tenstream_log, only: &
+    & t_ts_log_event, &
+    & t_ts_log_stage, &
+    & ts_log_event_register, &
+    & ts_log_stage_register
 
   use m_data_parameters, only: &
     & default_str_len, &
@@ -162,13 +165,13 @@ module m_ecckd_base
   end type
 
   type t_ecckd_log_events
-    PetscLogStage :: stage_ecckd_solar = 0
-    PetscLogStage :: stage_ecckd_thermal = 0
-    PetscLogEvent :: ecckd_optprop = 0
-    PetscLogEvent :: ecckd_optprop_dtau = 0
-    PetscLogEvent :: ecckd_optprop_rayleigh = 0
-    PetscLogEvent :: ecckd_optprop_mie = 0
-    PetscLogEvent :: ecckd_optprop_fu_ice = 0
+    type(t_ts_log_stage) :: stage_ecckd_solar
+    type(t_ts_log_stage) :: stage_ecckd_thermal
+    type(t_ts_log_event) :: ecckd_optprop
+    type(t_ts_log_event) :: ecckd_optprop_dtau
+    type(t_ts_log_event) :: ecckd_optprop_rayleigh
+    type(t_ts_log_event) :: ecckd_optprop_mie
+    type(t_ts_log_event) :: ecckd_optprop_fu_ice
   end type
   type(t_ecckd_log_events) :: ecckd_log_events
 
@@ -689,25 +692,35 @@ contains
     s = get_arg('tenstr_ecckd.', solvername)
 #ifdef HAVE_PETSC
     call PetscClassIdRegister(trim(s), cid, ierr); call CHKERR(ierr)
+#endif
 
     call setup_stage(trim(s)//'ecckd_solar', logs%stage_ecckd_solar)
     call setup_stage(trim(s)//'ecckd_thermal', logs%stage_ecckd_thermal)
 
-    call PetscLogEventRegister(trim(s)//'ecckd_optprop', cid, logs%ecckd_optprop, ierr); call CHKERR(ierr)
-    call PetscLogEventRegister(trim(s)//'ecckd_optprop_dtau', cid, logs%ecckd_optprop_dtau, ierr); call CHKERR(ierr)
-    call PetscLogEventRegister(trim(s)//'ecckd_optprop_rayleigh', cid, logs%ecckd_optprop_rayleigh, ierr); call CHKERR(ierr)
-    call PetscLogEventRegister(trim(s)//'ecckd_optprop_mie', cid, logs%ecckd_optprop_mie, ierr); call CHKERR(ierr)
-    call PetscLogEventRegister(trim(s)//'ecckd_optprop_fu_ice', cid, logs%ecckd_optprop_fu_ice, ierr); call CHKERR(ierr)
-#endif
+    call reg(trim(s)//'ecckd_optprop', logs%ecckd_optprop)
+    call reg(trim(s)//'ecckd_optprop_dtau', logs%ecckd_optprop_dtau)
+    call reg(trim(s)//'ecckd_optprop_rayleigh', logs%ecckd_optprop_rayleigh)
+    call reg(trim(s)//'ecckd_optprop_mie', logs%ecckd_optprop_mie)
+    call reg(trim(s)//'ecckd_optprop_fu_ice', logs%ecckd_optprop_fu_ice)
 
   contains
+    subroutine reg(name, event)
+      character(len=*), intent(in) :: name
+      type(t_ts_log_event), intent(inout) :: event
+      call ts_log_event_register(name, event, ierr); call CHKERR(ierr)
+#ifdef HAVE_PETSC
+      call PetscLogEventRegister(name, cid, event%petsc_id, ierr); call CHKERR(ierr)
+#endif
+    end subroutine
+
     subroutine setup_stage(stagename, logstage)
       character(len=*), intent(in) :: stagename
-      PetscLogStage, intent(inout) :: logstage
+      type(t_ts_log_stage), intent(inout) :: logstage
+      call ts_log_stage_register(stagename, logstage, ierr); call CHKERR(ierr)
 #ifdef HAVE_PETSC
-      call PetscLogStageGetId(stagename, logstage, ierr); call CHKERR(ierr)
-      if (logstage .lt. 0_iintegers) then
-        call PetscLogStageRegister(stagename, logstage, ierr); call CHKERR(ierr)
+      call PetscLogStageGetId(stagename, logstage%petsc_id, ierr); call CHKERR(ierr)
+      if (logstage%petsc_id .lt. 0_iintegers) then
+        call PetscLogStageRegister(stagename, logstage%petsc_id, ierr); call CHKERR(ierr)
       end if
 #endif
     end subroutine
