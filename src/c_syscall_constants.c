@@ -6,22 +6,41 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
-alignas(8) const int cF_ULOCK = F_ULOCK;
-alignas(8) const int cF_LOCK = F_LOCK;
+/* Storage is provided by Fortran bind(C) module variables in c_syscall_wrappers.F90.
+ * This constructor initialises them from system headers before any Fortran code runs. */
+extern int c_SC_PAGESIZE;
+extern int cF_ULOCK;
+extern int cF_LOCK;
+extern int cPROT_READ;
+extern int cMAP_PRIVATE;
+extern int cMAP_NORESERVE;
+extern int cO_RDONLY;
+extern int cO_CREAT;
+extern int cO_RDWR;
+extern int cO_WRONLY;
+extern int cO_APPEND;
+extern int cS_IRWXU;
+extern int cS_IRUSR;
+extern int cS_IWUSR;
+extern int cS_IROTH;
+extern int default_user_wrmode;
 
-alignas(8) const int c_SC_PAGESIZE = _SC_PAGESIZE;
-
-alignas(8) const int cPROT_READ      = PROT_READ;
-alignas(8) const int cMAP_PRIVATE    = MAP_PRIVATE;
-alignas(8) const int cMAP_NORESERVE  = MAP_NORESERVE;
-alignas(8) const int cO_RDONLY       = O_RDONLY;
-alignas(8) const int cO_CREAT        = O_CREAT;
-alignas(8) const int cO_RDWR         = O_RDWR;
-alignas(8) const int cO_WRONLY       = O_WRONLY;
-alignas(8) const int cO_APPEND       = O_APPEND;
-alignas(8) const int cS_IRWXU        = S_IRWXU;
-alignas(8) const int cS_IRUSR        = S_IRUSR;
-alignas(8) const int cS_IWUSR        = S_IWUSR;
-alignas(8) const int cS_IROTH        = S_IROTH;
-
-alignas(8) const mode_t default_user_wrmode = S_IRUSR|S_IWUSR;
+__attribute__((constructor))
+static void init_c_syscall_constants(void) {
+  c_SC_PAGESIZE    = (int)_SC_PAGESIZE;
+  cF_ULOCK         = (int)F_ULOCK;
+  cF_LOCK          = (int)F_LOCK;
+  cPROT_READ       = (int)PROT_READ;
+  cMAP_PRIVATE     = (int)MAP_PRIVATE;
+  cMAP_NORESERVE   = (int)MAP_NORESERVE;
+  cO_RDONLY        = (int)O_RDONLY;
+  cO_CREAT         = (int)O_CREAT;
+  cO_RDWR          = (int)O_RDWR;
+  cO_WRONLY        = (int)O_WRONLY;
+  cO_APPEND        = (int)O_APPEND;
+  cS_IRWXU         = (int)S_IRWXU;
+  cS_IRUSR         = (int)S_IRUSR;
+  cS_IWUSR         = (int)S_IWUSR;
+  cS_IROTH         = (int)S_IROTH;
+  default_user_wrmode = (int)(S_IRUSR | S_IWUSR);
+}
