@@ -293,7 +293,6 @@ contains
     real(ireals), intent(in) :: phi0, theta0 ! Sun's angles, azimuth phi(0=North, 90=East), zenith(0 high sun, 80=low sun)
     integer(iintegers), intent(in) :: tstart, tend, tinc
 
-    real(ireals), pointer :: z(:, :, :, :), z1d(:) ! dim Nz+1
     character(len=default_str_len) :: groups(3), dimnames(3)
 
     real(ireals), allocatable, dimension(:, :, :) :: edir, edn, eup, abso ! [nlev_merged(-1), nxp, nyp]
@@ -313,9 +312,6 @@ contains
     real(ireals), allocatable, dimension(:, :, :, :) :: plev, tlev, qv, ql, reliq ! dim(Nz(+1),Nx,Ny)
 
     integer(iintegers) :: it
-
-    z => null()
-    z1d => null()
 
     call mpi_comm_rank(comm, myid, ierr)
 
@@ -417,16 +413,16 @@ contains
             groups(2) = 'abso'; call ncwrite(groups, gabso, ierr, dimnames=dimnames); call CHKERR(ierr)
 
             print *, 'dumping z coords'
-            call getVecPointer(Ca1%da, pprts_solver%atm%hhl, z1d, z)
             dimnames(1) = 'nlev'
-            groups(2) = 'zlev'; call ncwrite(groups, z(0, Ca1%zs:Ca1%ze, Ca1%xs, Ca1%ys), ierr, dimnames=dimnames(1:1))
+            groups(2) = 'zlev'; call ncwrite(groups, pprts_solver%atm%hhl(0, Ca1%zs:Ca1%ze, Ca1%xs, Ca1%ys), &
+ & ierr, dimnames=dimnames(1:1))
             call CHKERR(ierr)
             dimnames(1) = 'nlay'
             groups(2) = 'zlay'; call ncwrite(groups, &
- & (z(0, Ca1%zs:Ca1%ze - 1, Ca1%xs, Ca1%ys) + z(0, Ca1%zs + 1:Ca1%ze, Ca1%xs, Ca1%ys))*.5_ireals, &
+ & (pprts_solver%atm%hhl(0, Ca1%zs:Ca1%ze - 1, Ca1%xs, Ca1%ys) + &
+ &  pprts_solver%atm%hhl(0, Ca1%zs + 1:Ca1%ze, Ca1%xs, Ca1%ys))*.5_ireals, &
  & ierr, dimnames=dimnames(1:1))
             call CHKERR(ierr)
-            call restoreVecPointer(Ca1%da, pprts_solver%atm%hhl, z1d, z)
           end if
 
         end associate

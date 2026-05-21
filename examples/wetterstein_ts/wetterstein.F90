@@ -58,7 +58,6 @@ contains
     real(ireals), allocatable, dimension(:, :, :) :: edir, edn, eup, abso ! nlyr(+1), global_nx, global_ny
     !real(ireals),allocatable, dimension(:,:,:) :: gedir, gedn, geup, gabso ! global arrays which we will dump to netcdf
     real(ireals), pointer, dimension(:, :, :) :: patm
-    real(ireals), pointer :: hhl(:, :, :, :), hhl1d(:)
 
     character(len=default_str_len) :: nc_path(2) ! [ filename, varname ]
 
@@ -68,9 +67,6 @@ contains
 
     logical, parameter :: lthermal = .false., lsolar = .true.
     logical, parameter :: ldebug = .true.
-
-    hhl => null()
-    hhl1d => null()
 
     call init_mpi_data_parameters(comm)
     call mpi_comm_size(comm, numnodes, ierr)
@@ -196,10 +192,8 @@ contains
       call dump_vec(C1%da, eup, 'eup')
       call dump_vec(C%da, abso, 'abso')
 
-      call getVecPointer(Ca1%da, solver%atm%hhl, hhl1d, hhl)
-      call dump_vec(Ca1%da, hhl(0, Ca1%zs:Ca1%ze, Ca1%xs:Ca1%xe, Ca1%ys:Ca1%ye), 'hhl')
-      call dump_vec_2d(Cs%da, hhl(0, Ca1%ze, Ca1%xs:Ca1%xe, Ca1%ys:Ca1%ye), 'h_srfc')
-      call restoreVecPointer(Ca1%da, solver%atm%hhl, hhl1d, hhl)
+      call dump_vec(Ca1%da, solver%atm%hhl(0, Ca1%zs:Ca1%ze, Ca1%xs:Ca1%xe, Ca1%ys:Ca1%ye), 'hhl')
+      call dump_vec_2d(Cs%da, solver%atm%hhl(0, Ca1%ze, Ca1%xs:Ca1%xe, Ca1%ys:Ca1%ye), 'h_srfc')
 
       call dump_vec_2d(Cs%da, edir(size(edir, 1), :, :), 'edir_srfc')
       call dump_vec_2d(Cs%da, edn(size(edn, 1), :, :), 'edn_srfc')

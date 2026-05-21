@@ -104,13 +104,6 @@ contains
     real(ireals) :: cld_bot, cld_top
     logical :: lflg
     character(len=default_str_len) :: outpath(2)
-#ifdef HAVE_PETSC
-    real(ireals), pointer :: hhl(:, :, :, :), hhl1d(:)
-
-    hhl => null()
-    hhl1d => null()
-#endif
-
     call MPI_COMM_SIZE(comm, numnodes, ierr)
     call MPI_COMM_RANK(comm, myid, ierr)
 
@@ -283,14 +276,10 @@ contains
       call dump_field(C1, eup, 'eup', [character(len=default_str_len) :: 'ke1', 'nx', 'ny'])
       call dump_field(C, abso, 'abso', [character(len=default_str_len) :: 'ke', 'nx', 'ny'])
 
-#ifdef HAVE_PETSC
-      call getVecPointer(Ca1%da, pprts_solver%atm%hhl, hhl1d, hhl)
-      call dump_field(Ca1, hhl(0, Ca1%zs:Ca1%ze, Ca1%xs:Ca1%xe, Ca1%ys:Ca1%ye), 'hhl', &
+      call dump_field(Ca1, pprts_solver%atm%hhl(0, Ca1%zs:Ca1%ze, Ca1%xs:Ca1%xe, Ca1%ys:Ca1%ye), 'hhl', &
         & [character(len=default_str_len) :: 'ke1', 'nx', 'ny'])
-      call dump_vec_2d(Cs%da, hhl(0, Ca1%ze, Ca1%xs:Ca1%xe, Ca1%ys:Ca1%ye), 'hsurf', &
+      call dump_vec_2d(Cs%da, pprts_solver%atm%hhl(0, Ca1%ze, Ca1%xs:Ca1%xe, Ca1%ys:Ca1%ye), 'hsurf', &
         & [character(len=default_str_len) :: 'nx', 'ny'])
-      call restoreVecPointer(Ca1%da, pprts_solver%atm%hhl, hhl1d, hhl)
-#endif
 
       if (myid .eq. 0) then
         call set_global_attribute(outpath(1), 'Nx', C%glob_xm, ierr); call CHKERR(ierr)

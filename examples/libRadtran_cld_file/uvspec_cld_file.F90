@@ -67,7 +67,6 @@ contains
     real(ireals), dimension(:, :, :), allocatable, target :: iwc, reice ! will have global shape Nz, Nx, Ny
     real(ireals), dimension(:, :, :), allocatable, target :: plev, tlev ! will have local shape nzp+1, nxp, nyp
     real(ireals), dimension(:), allocatable :: hhl ! dim Nz+1
-    real(ireals), pointer :: z(:, :, :, :), z1d(:) ! dim Nz+1
 
     real(ireals), allocatable, dimension(:, :, :) :: edir, edn, eup, abso ! [nlev_merged(-1), nxp, nyp]
     type(t_bg_atm), allocatable :: bg_atm
@@ -82,9 +81,6 @@ contains
 
     logical :: lflg
     integer(iintegers) :: k
-
-    z => null()
-    z1d => null()
 
     call mpi_comm_rank(comm, myid, ierr)
     call load_input(comm, wcfile, dx, dy, is, ie, js, je, hhl, lwc, reliq, ierr); call CHKERR(ierr)
@@ -223,18 +219,18 @@ contains
           call set_attribute(groups(1), 'abso', 'units', 'W/m3', ierr); call CHKERR(ierr)
 
           print *, 'dumping z coords'
-          call getVecPointer(Ca1%da, pprts_solver%atm%hhl, z1d, z)
           dimnames(1) = 'nlev'
-          groups(2) = 'zlev'; call ncwrite(groups, z(0, Ca1%zs:Ca1%ze, Ca1%xs, Ca1%ys), ierr, dimnames=dimnames(1:1))
+          groups(2) = 'zlev'; call ncwrite(groups, pprts_solver%atm%hhl(0, Ca1%zs:Ca1%ze, Ca1%xs, Ca1%ys), &
+ & ierr, dimnames=dimnames(1:1))
           call CHKERR(ierr)
           call set_attribute(groups(1), 'zlev', 'units', 'm', ierr); call CHKERR(ierr)
           dimnames(1) = 'nlay'
           groups(2) = 'zlay'; call ncwrite(groups, &
- & (z(0, Ca1%zs:Ca1%ze - 1, Ca1%xs, Ca1%ys) + z(0, Ca1%zs + 1:Ca1%ze, Ca1%xs, Ca1%ys))*.5_ireals, &
+ & (pprts_solver%atm%hhl(0, Ca1%zs:Ca1%ze - 1, Ca1%xs, Ca1%ys) + &
+ &  pprts_solver%atm%hhl(0, Ca1%zs + 1:Ca1%ze, Ca1%xs, Ca1%ys))*.5_ireals, &
  & ierr, dimnames=dimnames(1:1))
           call CHKERR(ierr)
           call set_attribute(groups(1), 'zlay', 'units', 'm', ierr); call CHKERR(ierr)
-          call restoreVecPointer(Ca1%da, pprts_solver%atm%hhl, z1d, z)
         end if
 
         lspectral_output = .false.
