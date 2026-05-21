@@ -1,9 +1,5 @@
 module m_example_pprts_rrtmg_hill
 
-#ifdef HAVE_PETSC
-#include "petsc/finclude/petsc.h"
-  use petsc
-#endif
   use mpi
 
   ! Import datatype from the TenStream lib. Depending on how PETSC is
@@ -18,9 +14,6 @@ module m_example_pprts_rrtmg_hill
   ! Import specific solver type: 3_10 for example uses 3 streams direct, 10 streams for diffuse radiation
   use m_pprts_base, only: t_solver, t_coord, allocate_pprts_solver_from_commandline
   use m_netcdfIO, only: ncwrite, set_global_attribute
-#ifdef HAVE_PETSC
-  use m_petsc_helpers, only: getvecpointer, restorevecpointer, petscGlobalVecToZero, petscVecToF90, f90VecToPetsc
-#endif
   use m_pprts, only: gather_all_toZero
 
   ! main entry point for solver, and desctructor
@@ -278,10 +271,8 @@ contains
 
       call dump_field(Ca1, pprts_solver%atm%hhl(0, Ca1%zs:Ca1%ze, Ca1%xs:Ca1%xe, Ca1%ys:Ca1%ye), 'hhl', &
         & [character(len=default_str_len) :: 'ke1', 'nx', 'ny'])
-#ifdef HAVE_PETSC
-      call dump_vec_2d(Cs%da, pprts_solver%atm%hhl(0, Ca1%ze, Ca1%xs:Ca1%xe, Ca1%ys:Ca1%ye), 'hsurf', &
+      call dump_vec_2d(Cs, pprts_solver%atm%hhl(0, Ca1%ze, Ca1%xs:Ca1%xe, Ca1%ys:Ca1%ye), 'hsurf', &
         & [character(len=default_str_len) :: 'nx', 'ny'])
-#endif
 
       if (myid .eq. 0) then
         call set_global_attribute(outpath(1), 'Nx', C%glob_xm, ierr); call CHKERR(ierr)
@@ -316,39 +307,25 @@ contains
       end if
     end subroutine
 
-#ifdef HAVE_PETSC
-    subroutine dump_vec_2d(dm, arr, varname, dimnames)
-      type(tDM), intent(in) :: dm
+    subroutine dump_vec_2d(C, arr, varname, dimnames)
+      type(t_coord), intent(in) :: C
       real(ireals), intent(in) :: arr(:, :)
       character(len=*), intent(in) :: varname
       character(len=*), intent(in) :: dimnames(:)
 
-      type(tVec) :: gvec, lVec
-      real(ireals), allocatable :: larr(:, :)
-      integer(mpiint) :: ierr
+      real(ireals), allocatable :: larr3d(:, :, :)
+      integer(mpiint) :: ierr_local
 
-      call DMGetGlobalVector(dm, gvec, ierr); call CHKERR(ierr)
-      call f90VecToPetsc(arr, dm, gvec)
-      call petscGlobalVecToZero(gvec, dm, lVec)
+      call gather_all_toZero(C, reshape(arr, [1, size(arr, 1), size(arr, 2)]), larr3d)
       if (myid .eq. 0) then
-        call petscVecToF90(lVec, dm, larr, only_on_rank0=.true.)
-
         outpath(2) = trim(varname)
-        call ncwrite(outpath, larr, ierr, dimnames=dimnames); call CHKERR(ierr)
+        call ncwrite(outpath, larr3d(1, :, :), ierr_local, dimnames=dimnames); call CHKERR(ierr_local)
       end if
-      call VecDestroy(lVec, ierr); call CHKERR(ierr)
-
-      call DMRestoreGlobalVector(dm, gvec, ierr); call CHKERR(ierr)
     end subroutine
-#endif
   end subroutine
 end module
 
 program main
-#ifdef HAVE_PETSC
-#include "petsc/finclude/petsc.h"
-  use petsc
-#endif
   use mpi
   use m_data_parameters, only: iintegers, mpiint, ireals, default_str_len
   use m_helper_functions, only: domain_decompose_2d_petsc, CHKERR, get_petsc_opt
@@ -365,10 +342,6 @@ program main
 
   call mpi_init(ierr)
   call mpi_comm_rank(mpi_comm_world, myid, ierr)
-
-#ifdef HAVE_PETSC
-  call PetscInitialize('', ierr); call CHKERR(ierr)
-#endif
 
   specint = 'no_default_set'
   call get_petsc_opt('', "-specint", specint, lflg, ierr); call CHKERR(ierr)
