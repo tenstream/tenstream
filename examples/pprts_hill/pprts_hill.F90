@@ -278,8 +278,10 @@ contains
 
       call dump_field(Ca1, pprts_solver%atm%hhl(0, Ca1%zs:Ca1%ze, Ca1%xs:Ca1%xe, Ca1%ys:Ca1%ye), 'hhl', &
         & [character(len=default_str_len) :: 'ke1', 'nx', 'ny'])
+#ifdef HAVE_PETSC
       call dump_vec_2d(Cs%da, pprts_solver%atm%hhl(0, Ca1%ze, Ca1%xs:Ca1%xe, Ca1%ys:Ca1%ye), 'hsurf', &
         & [character(len=default_str_len) :: 'nx', 'ny'])
+#endif
 
       if (myid .eq. 0) then
         call set_global_attribute(outpath(1), 'Nx', C%glob_xm, ierr); call CHKERR(ierr)
