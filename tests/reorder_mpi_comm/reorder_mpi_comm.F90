@@ -9,7 +9,6 @@ subroutine test_tenstream_ex1(this)
     & t_solver
   use m_pprts, only: init_pprts
   use m_helper_functions, only: reorder_mpi_comm, chkerr
-  use m_tenstream_options, only: read_commandline_options
   use pfunit_mod
 #ifdef HAVE_PETSC
 #include "petsc/finclude/petsc.h"

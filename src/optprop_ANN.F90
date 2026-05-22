@@ -18,7 +18,7 @@
 !-------------------------------------------------------------------------
 
 module m_optprop_ANN
-  use m_data_parameters, only: ireals, irealLUT, iintegers, i1, mpiint, default_str_len
+  use m_data_parameters, only: ireals, irealLUT, iintegers, mpiint, default_str_len
   use m_optprop_parameters, only: ldebug_optprop, lut_basename
   use m_optprop_base, only: t_optprop_base, t_op_config, set_op_param_space, &
     & print_op_config, check_if_samplepts_in_bounds
@@ -27,8 +27,6 @@ module m_optprop_ANN
   use m_helper_functions, only: imp_bcast, CHKERR, CHKWARN, toStr, char_to_upper, expm1, get_petsc_opt
   use m_search, only: find_real_location
   use m_eddington, only: eddington_coeff_ec
-
-  use m_boxmc, only: t_boxmc, t_boxmc_3_10
 
 #ifdef HAVE_FORNADO
   use m_fornado_base, only: fr, fi, ferr, func_name_to_id, ANN_view

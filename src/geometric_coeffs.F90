@@ -20,8 +20,8 @@
 module m_geometric_coeffs
 
   use m_data_parameters, only: ireals, mpiint, iintegers, zero, one, Pi
-  use m_helper_functions, only: pentagon_area_by_vertices, quadrangle_area_by_vertices, &
-                                triangle_area_by_vertices, compute_normal_3d, cross_3d, cstr, CHKERR, toStr, expm1
+  use m_helper_functions, only: quadrangle_area_by_vertices, &
+                                compute_normal_3d, cstr, CHKERR, expm1
   use m_intersection, only: hit_plane, line_intersection_3d
 
   implicit none

@@ -10,7 +10,7 @@ module m_tenstr_rrtmg_base
     & ts_log_event_register, &
     & ts_log_stage_register
 
-  use m_data_parameters, only: iintegers, ireals, mpiint, default_str_len, i0
+  use m_data_parameters, only: mpiint, default_str_len, i0
   use m_helper_functions, only: CHKERR, get_arg
   implicit none
 

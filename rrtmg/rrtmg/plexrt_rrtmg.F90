@@ -38,9 +38,8 @@ module m_plexrt_rrtmg
   use petsc
 
   use mpi, only: mpi_comm_rank
-  use m_tenstr_parkind_sw, only: im => kind_im, rb => kind_rb
-  use m_data_parameters, only: iintegers, ireals, zero, one, i0, i1, i2, i9, &
-                               mpiint, pi, default_str_len
+  use m_data_parameters, only: iintegers, ireals, zero, one, i1, &
+                               mpiint
   use m_adaptive_spectral_integration, only: need_new_solution
   use m_helper_functions, only: &
       & CHKERR, CHKWARN, &
@@ -55,10 +54,7 @@ module m_plexrt_rrtmg
       & is_inrange
 
   use m_options_database, only: opts_has
-  use m_search, only: find_real_location
-  use m_tenstream_interpolation, only: interp_1d
-
-  use m_plex_grid, only: TOAFACE, get_inward_face_normal, compute_face_geometry
+  use m_plex_grid, only: TOAFACE, get_inward_face_normal
   use m_plex_rt_base, only: t_plex_solver
   use m_plex_rt, only: run_plex_rt_solver, &
                        destroy_plexrt_solver, plexrt_get_result
@@ -66,8 +62,6 @@ module m_plexrt_rrtmg
   use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, plkint, print_tenstr_atm, vert_integral_coeff
   use m_optprop_rrtmg, only: optprop_rrtm_lw, optprop_rrtm_sw, get_spectral_bands
   use m_icon_plex_utils, only: Nz_Ncol_vec_to_celldm1, Nz_Ncol_vec_to_horizface1_dm
-
-  use m_netcdfIO, only: ncwrite
 
   use m_tenstr_disort, only: default_flx_computation
   use m_tenstr_rrtmg_base, only: t_rrtmg_log_events, setup_log_events

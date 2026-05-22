@@ -1,5 +1,5 @@
 module m_mmap
-  use iso_fortran_env, only: real32, int8, int16, int32, int64
+  use iso_fortran_env, only: real32, int8, int16, int32
   use iso_c_binding
 
   use m_data_parameters, only: iintegers, irealLUT, mpiint

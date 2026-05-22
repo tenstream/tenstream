@@ -3,7 +3,6 @@ module test_ANN
   use m_data_parameters, only: init_mpi_data_parameters, &
     & ireals, irealLUT, iintegers, mpiint, default_str_len
   use m_helper_functions, only: CHKERR, colored_str_by_range
-  use m_netcdfio, only: ncwrite
   use m_optprop, only: t_optprop_3_10, t_optprop_3_10_ann
 
 #ifdef HAVE_PETSC

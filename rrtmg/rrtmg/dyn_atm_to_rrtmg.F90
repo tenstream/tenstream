@@ -32,7 +32,7 @@ module m_dyn_atm_to_rrtmg
   use m_tenstream_log, only: t_ts_log_event, ts_log_event_register, ts_log_begin, ts_log_end
 
   use iso_fortran_env, only: real32, real64
-  use m_tenstr_parkind_sw, only: im => kind_im, rb => kind_rb
+  use m_tenstr_parkind_sw, only: im => kind_im
 
   use m_data_parameters, only: &
     & CLIGHT, &

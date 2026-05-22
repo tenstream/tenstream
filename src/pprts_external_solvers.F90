@@ -51,9 +51,6 @@ module m_pprts_external_solvers
     & t_solver, &
     & t_state_container
 
-  use m_schwarzschild, only: schwarzschild
-
-  use m_twostream, only: delta_eddington_twostream, adding_delta_eddington_twostream
 
   use m_icon_plex_utils, only: create_2d_regular_plex, dmplex_2D_to_3D
 
@@ -72,7 +69,6 @@ module m_pprts_external_solvers
 
   use m_pprts2plex, only: pprts_buildings_to_plex, find_face_idx_by_orientation, pprts_cell_to_plex_cell_idx
 
-  use m_tenstr_disort, only: default_flx_computation
 
   use m_buildings, only: &
     & t_pprts_buildings, t_plex_buildings, &

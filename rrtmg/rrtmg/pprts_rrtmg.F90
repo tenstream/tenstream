@@ -34,9 +34,9 @@
 
 module m_pprts_rrtmg
   use mpi, only: mpi_comm_rank
-  use m_tenstr_parkind_sw, only: im => kind_im, rb => kind_rb
+  use m_tenstr_parkind_sw, only: rb => kind_rb
   use m_tenstream_options, only: read_commandline_options
-  use m_data_parameters, only: iintegers, ireals, zero, one, i0, i1, mpiint, default_str_len
+  use m_data_parameters, only: iintegers, ireals, zero, one, i1, mpiint, default_str_len
   use m_pprts_base, only: t_solver, destroy_pprts, atmk
   use m_pprts, only: init_pprts, set_angles, set_optical_properties, solve_pprts, pprts_get_result
   use m_adaptive_spectral_integration, only: need_new_solution
@@ -54,7 +54,7 @@ module m_pprts_rrtmg
   use m_optprop_rrtmg, only: optprop_rrtm_lw, optprop_rrtm_sw, get_spectral_bands
   use m_tenstr_disort, only: default_flx_computation
   use m_tenstr_rrtmg_base, only: t_rrtmg_log_events, setup_log_events
-  use m_tenstream_log, only: ts_log_begin, ts_log_end, ts_log_stage_push, ts_log_stage_pop
+  use m_tenstream_log, only: ts_log_stage_push, ts_log_stage_pop
   use m_pprts_postprocess, only: smooth_surface_fluxes, slope_correction_fluxes
   use m_buildings, only: t_pprts_buildings, clone_buildings, destroy_buildings
   use m_boxmc_geometry, only: PPRTS_BOT_FACE
@@ -65,7 +65,7 @@ module m_pprts_rrtmg
 #include "petsc/finclude/petsc.h"
   use petsc
   use m_xdmf_export, only: xdmf_pprts_buildings, xdmf_pprts_srfc_flux
-  use m_petsc_helpers, only: getvecpointer, restorevecpointer, f90vectopetsc
+  use m_petsc_helpers, only: f90vectopetsc
   use m_pprts_external_solvers, only: destroy_rayli_info
 #endif
 

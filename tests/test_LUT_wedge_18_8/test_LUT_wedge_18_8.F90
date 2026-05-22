@@ -3,7 +3,7 @@ module test_LUT_wedge_18_8
   use m_data_parameters, only: ireals, irealLUT, ireal_params, ireal_dp, &
                                iintegers, mpiint, &
                                init_mpi_data_parameters, default_str_len, &
-                               i1, i2, i3, i4, i5
+                               i1
   use m_optprop_base, only: find_op_dim_by_name
   use m_optprop_LUT, only: t_optprop_LUT_wedge_18_8, &
                            azimuth_from_param_phi, param_phi_from_azimuth

@@ -48,10 +48,6 @@ module m_ecckd_pprts
     & set_angles, &
     & set_optical_properties, &
     & solve_pprts
-#ifdef HAVE_PETSC
-  use m_pprts, only: pprts_get_result_toZero
-#endif
-
   use m_dyn_atm_to_rrtmg, only: &
     & planck, &
     & print_tenstr_atm, &
