@@ -497,13 +497,25 @@ contains
 
     select case (solver_str)
     case ('2str')
+#ifdef HAVE_PETSC
       allocate (t_solver_2str :: pprts_solver)
+#else
+      call CHKERR(1_mpiint, '2str solver requires a PETSc build (cmake -DWITH_PETSC=ON)')
+#endif
 
     case ('disort')
+#ifdef HAVE_PETSC
       allocate (t_solver_disort :: pprts_solver)
+#else
+      call CHKERR(1_mpiint, 'disort solver requires a PETSc build (cmake -DWITH_PETSC=ON)')
+#endif
 
     case ('rayli')
+#ifdef HAVE_PETSC
       allocate (t_solver_rayli :: pprts_solver)
+#else
+      call CHKERR(1_mpiint, 'rayli solver requires a PETSc build (cmake -DWITH_PETSC=ON)')
+#endif
 
     case ('mcdmda')
       allocate (t_solver_mcdmda :: pprts_solver)

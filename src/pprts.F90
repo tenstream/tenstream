@@ -94,11 +94,8 @@ module m_pprts
                                  lcalc_nca, lskip_thermal, lschwarzschild, ltopography
 
 #ifdef HAVE_PETSC
-  use m_petsc_helpers, only: petscGlobalVecToZero, scatterZerotoPetscGlobal, &
-                             petscGlobalVecToAll, &
-                             petscVecToF90, f90VecToPetsc, getVecPointer, restoreVecPointer, hegedus_trick
-
-  use m_mcdmda, only: solve_mcdmda
+  use m_petsc_helpers, only: scatterZerotoPetscGlobal, &
+                             petscVecToF90, getVecPointer, restoreVecPointer, hegedus_trick
 #endif
 
   use m_pprts_base, only: &
@@ -2475,6 +2472,7 @@ contains
   end subroutine
 
   recursive subroutine solve_pprts(solver, lthermal, lsolar, edirTOA, opt_solution_uid, opt_solution_time, opt_buildings)
+    use m_mcdmda, only: solve_mcdmda
     class(t_solver), intent(inout) :: solver
     logical, intent(in) :: lthermal, lsolar
     real(ireals), intent(in) :: edirTOA
@@ -2621,13 +2619,11 @@ contains
         call ts_log_end(solver%logs%solve_disort, ierr); call CHKERR(ierr)
         goto 99
 
-#ifdef HAVE_PETSC
       class is (t_solver_mcdmda)
         call ts_log_begin(solver%logs%solve_mcrts, ierr); call CHKERR(ierr)
         call solve_mcdmda(solver, edirTOA, solution, ierr, opt_buildings); call CHKERR(ierr)
         call ts_log_end(solver%logs%solve_mcrts, ierr); call CHKERR(ierr)
         goto 99
-#endif
 
       end select
 

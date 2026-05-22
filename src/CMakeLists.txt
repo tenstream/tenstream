@@ -62,6 +62,7 @@ set( general_sources
   "ranlux.F90"
   "schwarzschild.F90"
   "search.F90"
+  "mcdmda.F90"
   "tenstream_options.F90"
   "twostream.F90"
   "xdmf_export.F90"
@@ -69,7 +70,6 @@ set( general_sources
 
 if(WITH_PETSC)
   list(APPEND general_sources
-    "mcdmda.F90"
     "petsc_helpers.F90"
     )
 endif()
