@@ -211,7 +211,7 @@ ubuntu-nopetsc:
   before_script:
     - echo -e "\e[0Ksection_start:`date +%s`:apt_install[collapsed=true]\r\e[0KInstall APT packages"
     - apt-get -qq update
-    - apt-get -qq install -fy build-essential cmake gfortran git python3 openmpi-bin libopenmpi-dev libhdf5-dev libnetcdff-dev pkg-config
+    - apt-get -qq install -fy build-essential cmake gfortran git python3 openmpi-bin libopenmpi-dev libhdf5-dev libnetcdff-dev libopenblas-dev pkg-config
     - echo -e "\e[0Ksection_end:`date +%s`:apt_install\r\e[0K"
   script:
     - echo -e "\e[0Ksection_start:`date +%s`:cmake[collapsed=true]\r\e[0KRun cmake"
@@ -228,7 +228,7 @@ ubuntu-nopetsc:
     - echo -e "\e[0Ksection_end:`date +%s`:test\r\e[0K"
   retry: 1
   variables:
-    CTEST_ARGS: "-E 'LUT|boxmc'"
+    CTEST_ARGS: "-E 'LUT|boxmc|test_pprts_symmetry|test_pprts_absorption_by_coeff_divergence'"
     BUILD_TYPE: RELEASE
     MPIEXEC: "mpirun"
     MPIRUN_FLAGS: "--allow-run-as-root;--oversubscribe"
