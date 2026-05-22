@@ -2683,7 +2683,7 @@ contains
           associate (C => solver%C_dir)
             allocate (b_arr(0:C%dof - 1, C%zs:C%ze, C%xs:C%xe, C%ys:C%ye)); b_arr = zero
             call setup_incSolar(solver, edirTOA, b_arr)
-            call VecCreateMPIWithArray(C%comm, i1, int(size(b_arr), mpiint), PETSC_DETERMINE, b_arr, b_gvec, ierr); call CHKERR(ierr)
+            call VecCreateMPIWithArray(C%comm, i1, int(size(b_arr), iintegers), PETSC_DETERMINE, b_arr, b_gvec, ierr); call CHKERR(ierr)
             call VecSetDM(b_gvec, C%da, ierr); call CHKERR(ierr)
             call DMGetLocalVector(C%da, lb_vec, ierr); call CHKERR(ierr)
             call DMGlobalToLocal(C%da, b_gvec, INSERT_VALUES, lb_vec, ierr); call CHKERR(ierr)
@@ -2796,15 +2796,15 @@ contains
       character(len=*), intent(in) :: prefix
       logical :: lmat_permute, lmat_permute_reuse, lshell
       type(tVec) :: incSolar_petsc
-      integer(mpiint) :: isz
+      integer(iintegers) :: isz
 
       if (solver%lopen_bc) call CHKERR(1_mpiint, 'open boundaries currently not supported for this solver')
 
       solver%incSolar = zero
       call setup_incSolar(solver, edirTOA, solver%incSolar)
 
-      isz = int(size(solver%incSolar), mpiint)
-      call VecCreateMPIWithArray(solver%comm, 1_mpiint, isz, PETSC_DETERMINE, solver%incSolar, incSolar_petsc, ierr); call CHKERR(ierr)
+      isz = int(size(solver%incSolar), iintegers)
+      call VecCreateMPIWithArray(solver%comm, i1, isz, PETSC_DETERMINE, solver%incSolar, incSolar_petsc, ierr); call CHKERR(ierr)
       call VecSetDM(incSolar_petsc, solver%C_dir%da, ierr); call CHKERR(ierr)
 
       lshell = .false.
@@ -2911,10 +2911,10 @@ contains
 
       logical :: lmat_permute, lmat_permute_reuse, lshell
       type(tVec) :: b_petsc
-      integer(mpiint) :: bsz
+      integer(iintegers) :: bsz
 
-      bsz = int(size(solver%b), mpiint)
-      call VecCreateMPIWithArray(solver%comm, 1_mpiint, bsz, PETSC_DETERMINE, solver%b, b_petsc, ierr); call CHKERR(ierr)
+      bsz = int(size(solver%b), iintegers)
+      call VecCreateMPIWithArray(solver%comm, i1, bsz, PETSC_DETERMINE, solver%b, b_petsc, ierr); call CHKERR(ierr)
       call VecSetDM(b_petsc, solver%C_diff%da, ierr); call CHKERR(ierr)
 
       lshell = .false.

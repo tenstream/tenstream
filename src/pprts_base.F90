@@ -315,16 +315,16 @@ contains
 #ifdef HAVE_PETSC
     if (solution%lsolar_rad) then
       allocate (solution%edir_petsc)
-      call VecCreateMPIWithArray(C_dir%comm, i1, int(size(solution%edir), mpiint), PETSC_DETERMINE, &
+      call VecCreateMPIWithArray(C_dir%comm, i1, int(size(solution%edir), iintegers), PETSC_DETERMINE, &
         & solution%edir, solution%edir_petsc, ierr); call CHKERR(ierr)
       call VecSetDM(solution%edir_petsc, C_dir%da, ierr); call CHKERR(ierr)
     end if
     allocate (solution%ediff_petsc)
-    call VecCreateMPIWithArray(C_diff%comm, i1, int(size(solution%ediff), mpiint), PETSC_DETERMINE, &
+    call VecCreateMPIWithArray(C_diff%comm, i1, int(size(solution%ediff), iintegers), PETSC_DETERMINE, &
       & solution%ediff, solution%ediff_petsc, ierr); call CHKERR(ierr)
     call VecSetDM(solution%ediff_petsc, C_diff%da, ierr); call CHKERR(ierr)
     allocate (solution%abso_petsc)
-    call VecCreateMPIWithArray(C_one%comm, i1, int(size(solution%abso), mpiint), PETSC_DETERMINE, &
+    call VecCreateMPIWithArray(C_one%comm, i1, int(size(solution%abso), iintegers), PETSC_DETERMINE, &
       & solution%abso, solution%abso_petsc, ierr); call CHKERR(ierr)
     call VecSetDM(solution%abso_petsc, C_one%da, ierr); call CHKERR(ierr)
 #endif
@@ -712,16 +712,16 @@ contains
     !   idx = (1+diz)*1 + (1+dix)*3 + (1+diy)*9
     !   self=13, west=10, east=16, south=4, north=22
     allocate (C%neighbors(0:3**C%dim - 1))
-    C%neighbors = int(MPI_PROC_NULL, iintegers)
-    C%neighbors(13) = int(myid, iintegers)
+    C%neighbors = int(MPI_PROC_NULL, mpiint)
+    C%neighbors(13) = int(myid, mpiint)
 
     call MPI_Cart_shift(cart_comm, 0_mpiint, 1_mpiint, rank_west, rank_east, ierr); call CHKERR(ierr)
     call MPI_Cart_shift(cart_comm, 1_mpiint, 1_mpiint, rank_south, rank_north, ierr); call CHKERR(ierr)
 
-    C%neighbors(10) = int(rank_west, iintegers)
-    C%neighbors(16) = int(rank_east, iintegers)
-    C%neighbors(4) = int(rank_south, iintegers)
-    C%neighbors(22) = int(rank_north, iintegers)
+    C%neighbors(10) = int(rank_west, mpiint)
+    C%neighbors(16) = int(rank_east, mpiint)
+    C%neighbors(4) = int(rank_south, mpiint)
+    C%neighbors(22) = int(rank_north, mpiint)
 
     call MPI_Comm_free(cart_comm, ierr); call CHKERR(ierr)
   end subroutine
