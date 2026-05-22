@@ -240,7 +240,7 @@ contains
 
       do k = C_one%zs, C_one%ze
         abso(i0, k, :, :) = lnca(ihr, k, C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye) / &
-                             lnca(idz, k, C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye)
+                            lnca(idz, k, C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye)
       end do
     end associate
   end subroutine nca_wrapper

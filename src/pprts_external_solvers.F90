@@ -51,7 +51,6 @@ module m_pprts_external_solvers
     & t_solver, &
     & t_state_container
 
-
   use m_icon_plex_utils, only: create_2d_regular_plex, dmplex_2D_to_3D
 
   use m_plex_grid, only: &
@@ -68,7 +67,6 @@ module m_pprts_external_solvers
   use m_tenstream_log, only: t_ts_log_event, ts_log_event_register, ts_log_begin, ts_log_end
 
   use m_pprts2plex, only: pprts_buildings_to_plex, find_face_idx_by_orientation, pprts_cell_to_plex_cell_idx
-
 
   use m_buildings, only: &
     & t_pprts_buildings, t_plex_buildings, &

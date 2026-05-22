@@ -596,9 +596,9 @@ contains
 
             solution%edir = 0
             solution%edir(:, C_dir%zs + 1:, :, :) = real(edir(:, atmk(atm, C_one_atm1%zs + 1):C_one_atm1%ze, &
-              C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye), ireals)
+                                                              C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye), ireals)
             solution%edir(:, C_dir%zs, :, :) = real(edir(:, C_one_atm1%zs, &
-              C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye), ireals)
+                                                         C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye), ireals)
           end if
 
           ! --- ediff ghost reduce ---
@@ -651,9 +651,9 @@ contains
 
           solution%ediff = 0
           solution%ediff(:, C_diff%zs + 1:, :, :) = real(ediff(:, atmk(atm, C_one_atm1%zs + 1):C_one_atm1%ze, &
-            C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye), ireals)
+                                                               C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye), ireals)
           solution%ediff(:, C_diff%zs, :, :) = real(ediff(:, C_one_atm1%zs, &
-            C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye), ireals)
+                                                          C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye), ireals)
 
           ! --- abso: no ghost cells, direct copy ---
           solution%abso = 0
