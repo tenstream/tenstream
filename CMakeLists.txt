@@ -305,11 +305,17 @@ if(NOT ${NETCDF_FOUND})
     #include_directories(${NETCDF_netcdf-fortran_INCLUDEDIR}  ${NETCDF_netcdf_INCLUDEDIR})
     set(CMAKE_C_FLAGS        "${INCLUDE_FLAG}${NETCDF_netcdf_INCLUDEDIR} ${CMAKE_C_FLAGS}" )
     set(CMAKE_Fortran_FLAGS  "${INCLUDE_FLAG}${NETCDF_netcdf-fortran_INCLUDEDIR} ${CMAKE_Fortran_FLAGS}" )
-    list (APPEND EXTLIB
+    # NetCDF pkg-config on some systems (Ubuntu 25 / netcdf 4.9.3) embeds CMake
+    # imported-target names like -lHDF5::HDF5 in its LDFLAGS.  CMake 4.x rejects
+    # those as unknown targets.  Filter them out; the real libraries are already
+    # pulled in via find_package(HDF5) and find_package(CURL) below.
+    set(_netcdf_all_flags
       ${NETCDF_LDFLAGS}
       ${NETCDF_LDFLAGS_OTHER}
       ${NETCDF_STATIC_LDFLAGS}
       ${NETCDF_STATIC_LDFLAGS_OTHER})
+    list(FILTER _netcdf_all_flags EXCLUDE REGEX "::")
+    list(APPEND EXTLIB ${_netcdf_all_flags})
     list (APPEND CMAKE_INSTALL_RPATH ${NETCDF_LIBRARY_DIRS})
 
     # check if netcdf supports parallel calls
@@ -340,7 +346,7 @@ if(${HDF5_FOUND})
   set(CMAKE_C_FLAGS        "${INCLUDE_FLAG}${HDF5_INCLUDE_DIR} ${CMAKE_C_FLAGS}" )
   set(CMAKE_Fortran_FLAGS  "${INCLUDE_FLAG}${HDF5_INCLUDE_DIR} ${CMAKE_Fortran_FLAGS}" )
   link_directories("${HDF5_BUILD_DIR}/lib")
-  list (APPEND ${EXTLIB} ${HDF5_C_LIBRARY} ${HDF5_LIBRARIES})
+  list (APPEND EXTLIB ${HDF5_C_LIBRARY} ${HDF5_LIBRARIES})
   list (APPEND CMAKE_INSTALL_RPATH ${HDF5_BUILD_DIR}/lib ${HDF5_LIBRARY_DIRS})
 else(${HDF5_FOUND})
   message(WARNING "CMake could not find your HDF5 install, you may need to add the hdf5 libraries in config/<loc>.cmake by hand." )
