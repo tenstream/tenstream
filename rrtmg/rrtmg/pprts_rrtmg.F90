@@ -50,7 +50,7 @@ module m_pprts_rrtmg
     & reverse, &
     & toStr
   use m_options_database, only: opts_has
-  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, plkint, print_tenstr_atm, vert_integral_coeff
+  use m_tenstr_atm, only: t_tenstr_atm, print_tenstr_atm, vert_integral_coeff
   use m_optprop_rrtmg, only: optprop_rrtm_lw, optprop_rrtm_sw, get_spectral_bands
   use m_tenstr_disort, only: default_flx_computation
   use m_tenstr_rrtmg_base, only: t_rrtmg_log_events, setup_log_events
@@ -70,6 +70,12 @@ module m_pprts_rrtmg
 #endif
 
   implicit none
+
+  interface
+    real function plkint(WVLLO, WVLHI, T)
+      real :: WVLLO, WVLHI, T
+    end function
+  end interface
 
   private
   public :: pprts_rrtmg, destroy_pprts_rrtmg

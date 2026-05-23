@@ -32,8 +32,16 @@ endif()
 
 
 # PPRTS
-add_library( pprts_rrtmg "pprts_rrtmg.F90" $<TARGET_OBJECTS:tenstr_rrtmg_objs> )
+add_library( pprts_rrtmg_objs OBJECT "pprts_rrtmg.F90" )
+add_dependencies( pprts_rrtmg_objs
+  tenstr_rrtmg_objs
+  pprts_rrtm_lw
+  pprts_rrtm_sw
+  pprts
+  pprts_base
+  tenstr_disort )
 
+add_library( pprts_rrtmg $<TARGET_OBJECTS:pprts_rrtmg_objs> $<TARGET_OBJECTS:tenstr_rrtmg_objs> )
 TARGET_LINK_LIBRARIES( pprts_rrtmg
   pprts_rrtm_lw
   pprts_rrtm_sw
@@ -45,8 +53,16 @@ TARGET_LINK_LIBRARIES( pprts_rrtmg
 
 # PlexRT
 if(ENABLE_PLEXRT)
-  add_library( plexrt_rrtmg "plexrt_rrtmg.F90" $<TARGET_OBJECTS:tenstr_rrtmg_objs> )
+  add_library( plexrt_rrtmg_objs OBJECT "plexrt_rrtmg.F90" )
+  add_dependencies( plexrt_rrtmg_objs
+    tenstr_rrtmg_objs
+    pprts_rrtm_lw
+    pprts_rrtm_sw
+    plexrt
+    pprts_base
+    tenstr_disort )
 
+  add_library( plexrt_rrtmg $<TARGET_OBJECTS:plexrt_rrtmg_objs> $<TARGET_OBJECTS:tenstr_rrtmg_objs> )
   TARGET_LINK_LIBRARIES( plexrt_rrtmg
     pprts_rrtm_lw
     pprts_rrtm_sw

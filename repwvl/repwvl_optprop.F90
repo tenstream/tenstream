@@ -33,7 +33,7 @@ module m_repwvl_optprop
     & CHKERR, &
     & toStr
 
-  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm
+  use m_tenstr_atm, only: t_tenstr_atm
   use m_fu_ice, only: fu_ice_optprop, fu_ice_data_solar, fu_ice_data_thermal
   use m_mie_tables, only: t_mie_table, mie_optprop
   use m_rayleigh, only: rayleigh

@@ -48,6 +48,7 @@ set( general_sources
   ${preprocessed_files}
   "adaptive_spectral_integration.F90"
   "buildings.F90"
+  "tenstr_atm.F90"
   "c_syscall_constants.c"
   "c_syscall_wrappers.F90"
   "data_parameters.F90"

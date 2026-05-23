@@ -49,7 +49,7 @@ module m_repwvl_pprts
     & set_optical_properties, &
     & solve_pprts
 
-  use m_dyn_atm_to_rrtmg, only: &
+  use m_tenstr_atm, only: &
     & planck, &
     & print_tenstr_atm, &
     & t_tenstr_atm

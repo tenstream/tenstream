@@ -26,12 +26,12 @@ target_link_libraries(plexrt
   f2c_rayli
   ${EXTLIB})
 
-# example executables to generate meshes
-add_executable( gen_plex_from_icon gen_plex_from_icon.F90 )
+# example executables to generate meshes (excluded from default build to avoid PETSc header dep-scan hang)
+add_executable( gen_plex_from_icon EXCLUDE_FROM_ALL gen_plex_from_icon.F90 )
 target_link_libraries( gen_plex_from_icon plexrt ${EXTLIB})
 
-add_executable( gen_fish_plex gen_fish_plex.F90 )
+add_executable( gen_fish_plex EXCLUDE_FROM_ALL gen_fish_plex.F90 )
 target_link_libraries( gen_fish_plex plexrt ${EXTLIB})
 
-add_executable( gen_regular_plex gen_regular_plex.F90 )
+add_executable( gen_regular_plex EXCLUDE_FROM_ALL gen_regular_plex.F90 )
 target_link_libraries( gen_regular_plex plexrt ${EXTLIB})

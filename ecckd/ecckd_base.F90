@@ -48,7 +48,7 @@ module m_ecckd_base
     & split, &
     & toStr
 
-  use m_dyn_atm_to_rrtmg, only: &
+  use m_tenstr_atm, only: &
     & t_tenstr_atm
 
   use m_netcdfIO, only: ncload, get_global_attribute

@@ -1,18 +1,14 @@
 include_directories ("${CMAKE_CURRENT_SOURCE_DIR}")
 
-set( files
+set( base_files
   "mie_tables.F90"
   "fu_ice.F90"
   "rayleigh.F90"
   "repwvl_base.F90"
   "repwvl_optprop.F90"
-  "repwvl_pprts.F90"
   )
-if(ENABLE_PLEXRT)
-  list(APPEND files "repwvl_plexrt.F90")
-endif()
 
-add_library( tenstr_repwvl_objs OBJECT ${files} )
+add_library( tenstr_repwvl_objs OBJECT ${base_files} )
 add_dependencies(tenstr_repwvl_objs
   pprts_base
   pprts_rrtmg
@@ -25,8 +21,10 @@ if(ENABLE_PLEXRT)
 endif()
 
 # PPRTS
-add_library( repwvl_pprts "repwvl_pprts.F90" $<TARGET_OBJECTS:tenstr_repwvl_objs> )
+add_library( repwvl_pprts_objs OBJECT "repwvl_pprts.F90" )
+add_dependencies( repwvl_pprts_objs tenstr_repwvl_objs pprts_base pprts_rrtmg )
 
+add_library( repwvl_pprts $<TARGET_OBJECTS:repwvl_pprts_objs> $<TARGET_OBJECTS:tenstr_repwvl_objs> )
 TARGET_LINK_LIBRARIES( repwvl_pprts
   pprts_base
   tenstr_disort
@@ -35,8 +33,10 @@ TARGET_LINK_LIBRARIES( repwvl_pprts
 
 if(ENABLE_PLEXRT)
   # PlexRT
-  add_library( repwvl_plexrt "repwvl_plexrt.F90" $<TARGET_OBJECTS:tenstr_repwvl_objs> )
+  add_library( repwvl_plexrt_objs OBJECT "repwvl_plexrt.F90" )
+  add_dependencies( repwvl_plexrt_objs tenstr_repwvl_objs plexrt plexrt_rrtmg )
 
+  add_library( repwvl_plexrt $<TARGET_OBJECTS:repwvl_plexrt_objs> $<TARGET_OBJECTS:tenstr_repwvl_objs> )
   TARGET_LINK_LIBRARIES( repwvl_plexrt
     plexrt
     plexrt_rrtmg

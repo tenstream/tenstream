@@ -36,7 +36,7 @@ module m_ecckd_optprop
     & delta_scale_optprop, &
     & toStr
 
-  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm
+  use m_tenstr_atm, only: t_tenstr_atm
   use m_rayleigh, only: rayleigh
 
   use m_ecckd_base, only: &

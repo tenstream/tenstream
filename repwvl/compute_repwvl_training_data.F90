@@ -46,7 +46,7 @@ module m_compute_repwvl_training_data
 
   use m_search, only: find_real_location
   use m_netcdfIO, only: ncload, ncwrite, get_global_attribute, list_global_attributes
-  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, print_tenstr_atm, planck
+  use m_tenstr_atm, only: t_tenstr_atm, setup_tenstr_atm, print_tenstr_atm, planck
   use m_pprts_base, only: t_coord, t_solver, allocate_pprts_solver_from_commandline
   use m_pprts, only: init_pprts, set_optical_properties, solve_pprts, pprts_get_result, set_angles
 #ifdef HAVE_PETSC

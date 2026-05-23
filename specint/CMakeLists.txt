@@ -23,8 +23,7 @@ if(ENABLE_PLEXRT)
     )
 endif()
 
-add_library( specint ${files} $<TARGET_OBJECTS:tenstr_specint_objs> )
-
+add_library( specint $<TARGET_OBJECTS:tenstr_specint_objs> )
 if(ENABLE_PLEXRT)
   TARGET_LINK_LIBRARIES( specint
     pprts

@@ -22,7 +22,7 @@ module m_example_pprts_specint_lw_sw_from_dump
   ! main entry point for solver, and desctructor
   use m_specint_pprts, only: specint_pprts, specint_pprts_destroy, load_input_dump
 
-  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, destroy_tenstr_atm, abso2hr, print_tenstr_atm
+  use m_tenstr_atm, only: t_tenstr_atm, destroy_tenstr_atm, abso2hr, print_tenstr_atm
 
   use m_netcdfio, only: ncwrite, set_attribute
 

@@ -34,7 +34,7 @@ module m_repwvl_plexrt
     & is_inrange, &
     & toStr
 
-  use m_dyn_atm_to_rrtmg, only: &
+  use m_tenstr_atm, only: &
     & planck, &
     & print_tenstr_atm, &
     & t_tenstr_atm

@@ -16,7 +16,7 @@ module m_example_pprts_repwvl_lw_sw
   ! main entry point for solver, and desctructor
   use m_repwvl_pprts, only: repwvl_pprts, repwvl_pprts_destroy
 
-  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, destroy_tenstr_atm
+  use m_tenstr_atm, only: t_tenstr_atm, setup_tenstr_atm, destroy_tenstr_atm
 
   implicit none
 

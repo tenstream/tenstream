@@ -6,7 +6,7 @@ module test_tenstr_atm
 
   use m_helper_functions, only: linspace
 
-  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, reff_from_lwc_and_N
+  use m_tenstr_atm, only: t_tenstr_atm, setup_tenstr_atm, reff_from_lwc_and_N
   use m_search, only: search_sorted_bisection
 
   use pfunit_mod

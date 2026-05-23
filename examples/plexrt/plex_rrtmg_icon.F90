@@ -36,8 +36,8 @@ module m_examples_plex_ex_rrtmg_icon
 
   use m_plex_rt, only: compute_face_geometry, init_plex_rt_solver
 
-  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, print_tenstr_atm, &
-                                reff_from_lwc_and_N, hydrostat_plev
+  use m_tenstr_atm, only: t_tenstr_atm, setup_tenstr_atm, print_tenstr_atm, &
+                          reff_from_lwc_and_N, hydrostat_plev
 
   use m_plexrt_rrtmg, only: plexrt_rrtmg, destroy_plexrt_rrtmg
 

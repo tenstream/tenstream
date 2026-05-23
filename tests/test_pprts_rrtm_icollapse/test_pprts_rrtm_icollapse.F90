@@ -5,7 +5,7 @@ module test_pprts_rrtm_icollapse
   ! main entry point for solver, and desctructor
   use m_pprts_rrtmg, only: pprts_rrtmg, destroy_pprts_rrtmg
 
-  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, destroy_tenstr_atm
+  use m_tenstr_atm, only: t_tenstr_atm, setup_tenstr_atm, destroy_tenstr_atm
 
   use m_pprts_base, only: t_solver_3_10
 

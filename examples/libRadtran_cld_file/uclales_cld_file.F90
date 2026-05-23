@@ -15,7 +15,7 @@ module m_example_uclales_cld_file
   ! main entry point for solver, and desctructor
   use m_specint_pprts, only: specint_pprts, specint_pprts_destroy
 
-  use m_dyn_atm_to_rrtmg, only: &
+  use m_tenstr_atm, only: &
     & destroy_tenstr_atm, &
     & print_tenstr_atm, &
     & reff_from_lwc_and_N, &

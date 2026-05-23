@@ -23,7 +23,7 @@ module m_wetterstein
 
   use m_pprts_rrtmg, only: pprts_rrtmg, destroy_pprts_rrtmg
   use m_pprts_base, only: t_solver, allocate_pprts_solver_from_commandline
-  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm
+  use m_tenstr_atm, only: t_tenstr_atm, setup_tenstr_atm
 
   implicit none
 

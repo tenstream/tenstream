@@ -51,7 +51,7 @@ module m_specint_pprts
 
   use m_pprts_base, only: t_solver
 
-  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm
+  use m_tenstr_atm, only: t_tenstr_atm
 
   use m_buildings, only: &
     & check_buildings_consistency, &

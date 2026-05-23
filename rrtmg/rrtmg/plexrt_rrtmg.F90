@@ -59,7 +59,7 @@ module m_plexrt_rrtmg
   use m_plex_rt, only: run_plex_rt_solver, &
                        destroy_plexrt_solver, plexrt_get_result
 
-  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, plkint, print_tenstr_atm, vert_integral_coeff
+  use m_tenstr_atm, only: t_tenstr_atm, print_tenstr_atm, vert_integral_coeff
   use m_optprop_rrtmg, only: optprop_rrtm_lw, optprop_rrtm_sw, get_spectral_bands
   use m_icon_plex_utils, only: Nz_Ncol_vec_to_celldm1, Nz_Ncol_vec_to_horizface1_dm
 
@@ -68,6 +68,12 @@ module m_plexrt_rrtmg
   use m_tenstream_log, only: ts_log_stage_push, ts_log_stage_pop
 
   implicit none
+
+  interface
+    real function plkint(WVLLO, WVLHI, T)
+      real :: WVLLO, WVLHI, T
+    end function
+  end interface
 
   private
   public :: plexrt_rrtmg, destroy_plexrt_rrtmg

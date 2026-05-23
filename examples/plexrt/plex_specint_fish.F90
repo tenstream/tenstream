@@ -25,7 +25,7 @@ module m_examples_plex_specint_fish
 
   use m_specint_plexrt, only: specint_plexrt, specint_plexrt_destroy
 
-  use m_dyn_atm_to_rrtmg, only: &
+  use m_tenstr_atm, only: &
     & t_tenstr_atm, t_bg_atm, &
     & load_atmfile, &
     & setup_tenstr_atm

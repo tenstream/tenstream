@@ -37,7 +37,7 @@ module m_specint_plexrt
 
   use m_plex_rt_base, only: t_plex_solver
 
-  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm
+  use m_tenstr_atm, only: t_tenstr_atm
 
   use m_repwvl_plexrt, only: repwvl_plexrt, repwvl_plexrt_destroy
 
