@@ -622,7 +622,7 @@ contains
   !>   Ghost stencil width is 1 in x and y.  neighbors() uses the same index
   !>   formula as DMDAGetNeighbors: idx = (1+diz) + (1+dix)*3 + (1+diy)*9.
   subroutine setup_coord_native(icomm, Nz, Nx, Ny, dof, C, nxproc, nyproc)
-    use mpi, only: MPI_PROC_NULL, MPI_Dims_create, MPI_Cart_create, MPI_Cart_get, MPI_Cart_shift, MPI_Comm_free
+    use mpi
     integer(mpiint), intent(in) :: icomm
     integer(iintegers), intent(in) :: Nz, Nx, Ny, dof
     type(t_coord), allocatable, intent(inout) :: C

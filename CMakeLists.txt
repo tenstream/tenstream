@@ -56,7 +56,7 @@ set(PythonCompat_FIND_VERSION 3)
 find_package(PythonCompat REQUIRED)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-if(CMAKE_Fortran_COMPILER_VERSION VERSION_GREATER 10)
+if(CMAKE_Fortran_COMPILER_ID STREQUAL "GNU" AND CMAKE_Fortran_COMPILER_VERSION VERSION_GREATER 10)
   set(CMAKE_Fortran_FLAGS  "${CMAKE_Fortran_FLAGS} -fallow-argument-mismatch -std=legacy")
 endif()
 
