@@ -48,6 +48,10 @@ project (tenstream
   VERSION 1.0 )
 enable_testing()
 
+# Restrict dep scanner to project files -- prevents OOM when PETSc headers are
+# transitively scanned in parallel (they are passed via CMAKE_Fortran_FLAGS).
+set(CMAKE_DEPENDS_IN_PROJECT_ONLY ON)
+
 set(CTEST_CMAKE_GENERATOR "Unix Makefiles")
 set(CMAKE_C_STANDARD 99)
 
