@@ -279,13 +279,13 @@ contains
         call KSPDestroy(solver%ksp_solar_dir, ierr); call CHKERR(ierr)
         deallocate (solver%ksp_solar_dir)
       end if
-      if (allocated(solver%ksp_solar_dir)) then
-        call KSPDestroy(solver%ksp_solar_dir, ierr); call CHKERR(ierr)
-        deallocate (solver%ksp_solar_dir)
-      end if
       if (allocated(solver%ksp_solar_diff)) then
         call KSPDestroy(solver%ksp_solar_diff, ierr); call CHKERR(ierr)
         deallocate (solver%ksp_solar_diff)
+      end if
+      if (allocated(solver%ksp_thermal_diff)) then
+        call KSPDestroy(solver%ksp_thermal_diff, ierr); call CHKERR(ierr)
+        deallocate (solver%ksp_thermal_diff)
       end if
 
       if (allocated(solver%solutions)) then
