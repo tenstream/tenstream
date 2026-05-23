@@ -221,6 +221,9 @@ ubuntu-nopetsc:
     - echo -e "\e[0Ksection_start:`date +%s`:make[collapsed=true]\r\e[0KRun make"
     - make all || exit 2
     - echo -e "\e[0Ksection_end:`date +%s`:make\r\e[0K"
+    - echo -e "\e[0Ksection_start:`date +%s`:dlLUT[collapsed=true]\r\e[0KDownloading LUTs"
+    - if [ ! -z "$LUT_TARGET" ]; then make $LUT_TARGET || exit 3; fi
+    - echo -e "\e[0Ksection_end:`date +%s`:dlLUT\r\e[0K"
     - echo -e "\e[0Ksection_start:`date +%s`:test[collapsed=true]\r\e[0KRun ctest"
     - CMD="ctest --output-on-failure $CTEST_ARGS"
     - echo $CMD
@@ -228,7 +231,7 @@ ubuntu-nopetsc:
     - echo -e "\e[0Ksection_end:`date +%s`:test\r\e[0K"
   retry: 1
   variables:
-    CTEST_ARGS: "-E 'LUT|boxmc|test_pprts_symmetry|test_pprts_absorption_by_coeff_divergence'"
+    CTEST_ARGS: "-E ${TEST_FILTER_WITH_COMMON_LUTS}"
     BUILD_TYPE: RELEASE
     MPIEXEC: "mpirun"
     MPIRUN_FLAGS: "--allow-run-as-root;--oversubscribe"
@@ -236,6 +239,7 @@ ubuntu-nopetsc:
     CC: mpicc
     FC: mpif90
     CXX: mpicxx
+    LUT_TARGET: 'download_common_luts'
   artifacts:
     paths:
       - test.log
