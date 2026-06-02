@@ -13,7 +13,7 @@ file(GLOB src_files "${CMAKE_CURRENT_SOURCE_DIR}/*.[fF]90")
 list(REMOVE_ITEM src_files ${exe_files})
 
 add_library(plexrt_examples_objs OBJECT ${src_files})
-add_dependencies(plexrt_examples_objs plexrt pprts_base)
+add_dependencies(plexrt_examples_objs plexrt pprts_base plexrt_rrtmg specint)
 
 add_library(plexrt_examples $<TARGET_OBJECTS:plexrt_examples_objs>)
 target_link_libraries(plexrt_examples ${TENSTR_SINGLE_LIB} ${EXTLIB})

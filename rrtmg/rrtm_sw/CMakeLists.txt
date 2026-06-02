@@ -18,7 +18,11 @@ foreach(rrtm_file ${rrtm_files})
 endforeach()
 
 SET_SOURCE_FILES_PROPERTIES(rrtmg_sw_k_g.f90 PROPERTIES COMPILE_FLAGS "-O0 ${WNOERRORFLG}")
-SET_SOURCE_FILES_PROPERTIES(mcica_random_numbers.f90 PROPERTIES COMPILE_FLAGS "-fno-range-check ${WNOERRORFLG}")
+if(CMAKE_Fortran_COMPILER_ID STREQUAL "GNU")
+  SET_SOURCE_FILES_PROPERTIES(mcica_random_numbers.f90 PROPERTIES COMPILE_FLAGS "-fno-range-check ${WNOERRORFLG}")
+else()
+  SET_SOURCE_FILES_PROPERTIES(mcica_random_numbers.f90 PROPERTIES COMPILE_FLAGS "${WNOERRORFLG}")
+endif()
 
 add_library( pprts_rrtm_sw ${files} )
 add_dependencies( pprts_rrtm_sw pprts )

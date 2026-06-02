@@ -1,6 +1,6 @@
 module test_pprts_coord_native
 
-  use mpi, only: MPI_PROC_NULL, MPI_INTEGER, MPI_SUM, MPI_Sendrecv, MPI_STATUS_SIZE
+  use mpi
   use m_data_parameters, only: iintegers, mpiint, i0, i1
   use m_pprts_base, only: t_coord, setup_coord_native
 
