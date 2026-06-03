@@ -327,7 +327,7 @@ end module
 
 program main
   use mpi
-  use m_data_parameters, only: iintegers, mpiint, ireals, default_str_len
+  use m_data_parameters, only: init_mpi_data_parameters, iintegers, mpiint, ireals, default_str_len
   use m_helper_functions, only: domain_decompose_2d_petsc, CHKERR, get_petsc_opt
   use m_example_pprts_rrtmg_hill, only: example_pprts_rrtmg_hill
 
@@ -342,6 +342,7 @@ program main
 
   call mpi_init(ierr)
   call mpi_comm_rank(mpi_comm_world, myid, ierr)
+  call init_mpi_data_parameters(mpi_comm_world)
 
   specint = 'no_default_set'
   call get_petsc_opt('', "-specint", specint, lflg, ierr); call CHKERR(ierr)
