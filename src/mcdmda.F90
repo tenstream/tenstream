@@ -1349,9 +1349,6 @@ contains
     integer(int64), intent(out) :: emptyid
     integer(mpiint), intent(out) :: ierr
     call pqueue%send_empty%pop(emptyid, ierr)
-    if (ierr .ne. 0) then
-      call print_pqueue(pqueue)
-    end if
   end subroutine
 
   subroutine print_pqueue(pq, list_queue)
