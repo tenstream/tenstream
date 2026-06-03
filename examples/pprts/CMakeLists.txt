@@ -9,7 +9,7 @@ file(GLOB src_files "${CMAKE_CURRENT_SOURCE_DIR}/*.[fF]90")
 list(REMOVE_ITEM src_files ${exe_files})
 
 add_library(pprts_examples_objs OBJECT ${src_files})
-add_dependencies(pprts_examples_objs pprts pprts_base)
+add_dependencies(pprts_examples_objs ${TENSTR_LIBS})
 
 add_library(pprts_examples $<TARGET_OBJECTS:pprts_examples_objs>)
 target_link_libraries(pprts_examples ${TENSTR_SINGLE_LIB} ${EXTLIB})
