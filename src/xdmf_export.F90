@@ -391,9 +391,9 @@ contains
       ! Surface is at ze (k=ze, hhl=0); zs is the top of the local domain
       ! Use C%xs/C%ys (non-ghost) — ghost cells have uninitialized hhl
       z0 = xv(i0, zs + zm - 1, solver%C_diff%xs, solver%C_diff%ys)
-      ! Node origin: left/bottom edge of first local cell
-      x0 = real(solver%C_diff%xs, ireals) * solver%atm%dx
-      y0 = real(solver%C_diff%ys, ireals) * solver%atm%dy
+      ! Building vertices use (i-0.5)*dx convention (cell centre - dx); match that
+      x0 = (real(solver%C_diff%xs, ireals) - 0.5_ireals) * solver%atm%dx
+      y0 = (real(solver%C_diff%ys, ireals) - 0.5_ireals) * solver%atm%dy
 
       write (funit, *) '<Grid Name="GroundSubMesh'//toStr(solver%myid)//'">'
       ! 2DSMesh with explicit XYZ nodes — unambiguous in both VisIt and ParaView
