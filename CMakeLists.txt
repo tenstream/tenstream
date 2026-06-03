@@ -272,7 +272,7 @@ if(WITH_PETSC)
     add_definitions(-DPETSC_DMPlexDistributeSetDefault)
   endif()
 else()
-  message(STATUS "WITH_PETSC=OFF: PETSc DMDA/PLEX solver disabled")
+  message(STATUS "WITH_PETSC=OFF: PETSc DMDA/PLEX solver disabled; examples/gas-optics compile but error at runtime if solver is invoked")
   # PLEXRT and C_WRAPPER are compile-time PETSc-only (they use tDM/tVec types in their public API)
   set(ENABLE_PLEXRT    OFF CACHE BOOL "PLEXRT requires PETSc"    FORCE)
   set(ENABLE_C_WRAPPER OFF CACHE BOOL "C_WRAPPER requires PETSc" FORCE)
@@ -297,64 +297,41 @@ endif(${NETCDF_FOUND})
 
 # if netcdf not found through find_package, try pkg-config
 if(NOT ${NETCDF_FOUND})
+  message(STATUS "Looking for NETCDF via pkg-config modules: netcdf netcdf-fortran")
   include(FindPkgConfig)
-  # Prefer MPI-enabled netcdf when available (provides parallel I/O).
-  # On Ubuntu: libnetcdf-mpi-dev installs a separate netcdf-mpi.pc and
-  # libnetcdf_mpi.so built against HDF5/openmpi.  Its netcdf_meta.h
-  # (NC_HAS_PARALLEL=1) lives at the package prefix, not in /usr/include.
-  pkg_check_modules(_NETCDF_MPI_PROBE QUIET netcdf-mpi)
-  if(_NETCDF_MPI_PROBE_FOUND)
-    message(STATUS "Looking for NETCDF via pkg-config modules: netcdf-mpi netcdf-fortran")
-    pkg_check_modules(NETCDF QUIET netcdf-mpi netcdf-fortran)
-    # NC_HAS_PARALLEL depends on what libnetcdff.so was built against, which is
-    # the C netcdf from netcdf-fortran's include dir (not the netcdf-mpi prefix).
-    # On Ubuntu, libnetcdff.so links libnetcdf.so (serial) even if netcdf-mpi is
-    # installed; the parallel check must reflect what the Fortran code actually calls.
-    set(_netcdf_meta_dir "${NETCDF_netcdf-fortran_INCLUDEDIR}")
-  endif()
-  # Fall back to serial netcdf if MPI variant is absent or incomplete
-  if(NOT NETCDF_FOUND)
-    message(STATUS "Looking for NETCDF via pkg-config modules: netcdf netcdf-fortran")
-    pkg_check_modules(NETCDF REQUIRED netcdf netcdf-fortran)
-    set(_netcdf_meta_dir "${NETCDF_netcdf_INCLUDEDIR}")
-  endif()
+  pkg_check_modules(NETCDF REQUIRED netcdf netcdf-fortran)
   if(${NETCDF_FOUND})
-    message(STATUS "NetCDF  Includes: ${NETCDF_INCLUDE_DIRS}" )
+    message(STATUS "NetCDF  Includes: ${NETCDF_netcdf_INCLUDEDIR}" )
+    message(STATUS "NetCDFF Includes: ${NETCDF_netcdf-fortran_INCLUDEDIR}" )
     message(STATUS "NetCDF  LDFLAGS : ${NETCDF_LDFLAGS} ${NETCDF_LDFLAGS_OTHER} ${NETCDF_STATIC_LDFLAGS} ${NETCDF_STATIC_LDFLAGS_OTHER}")
     message(STATUS "NetCDF  LibDir  : ${NETCDF_LIBRARY_DIRS}")
 
-    foreach(_inc ${NETCDF_INCLUDE_DIRS})
-      set(CMAKE_C_FLAGS       "${INCLUDE_FLAG}${_inc} ${CMAKE_C_FLAGS}")
-      set(CMAKE_Fortran_FLAGS "${INCLUDE_FLAG}${_inc} ${CMAKE_Fortran_FLAGS}")
-    endforeach()
+    #include_directories(${NETCDF_netcdf-fortran_INCLUDEDIR}  ${NETCDF_netcdf_INCLUDEDIR})
+    set(CMAKE_C_FLAGS        "${INCLUDE_FLAG}${NETCDF_netcdf_INCLUDEDIR} ${CMAKE_C_FLAGS}" )
+    set(CMAKE_Fortran_FLAGS  "${INCLUDE_FLAG}${NETCDF_netcdf-fortran_INCLUDEDIR} ${CMAKE_Fortran_FLAGS}" )
     # NetCDF pkg-config on some systems (Ubuntu 25 / netcdf 4.9.3) embeds CMake
     # imported-target names like -lHDF5::HDF5 in its LDFLAGS.  CMake 4.x rejects
     # those as unknown targets.  Filter them out; the real libraries are already
     # pulled in via find_package(HDF5) and find_package(CURL) below.
-    if(_NETCDF_MPI_PROBE_FOUND)
-      # netcdf-mpi Libs.private may include optional deps (blosc, bz2) that are
-      # not installed everywhere; dynamic linking does not need them.
-      set(_netcdf_all_flags ${NETCDF_LDFLAGS} ${NETCDF_LDFLAGS_OTHER})
-    else()
-      set(_netcdf_all_flags
-        ${NETCDF_LDFLAGS}
-        ${NETCDF_LDFLAGS_OTHER}
-        ${NETCDF_STATIC_LDFLAGS}
-        ${NETCDF_STATIC_LDFLAGS_OTHER})
-    endif()
+    set(_netcdf_all_flags
+      ${NETCDF_LDFLAGS}
+      ${NETCDF_LDFLAGS_OTHER}
+      ${NETCDF_STATIC_LDFLAGS}
+      ${NETCDF_STATIC_LDFLAGS_OTHER})
     list(FILTER _netcdf_all_flags EXCLUDE REGEX "::")
     list(APPEND EXTLIB ${_netcdf_all_flags})
-    list(APPEND CMAKE_INSTALL_RPATH ${NETCDF_LIBRARY_DIRS})
+    list (APPEND CMAKE_INSTALL_RPATH ${NETCDF_LIBRARY_DIRS})
 
     # check if netcdf supports parallel calls
-    file(STRINGS "${_netcdf_meta_dir}/netcdf_meta.h" _netcdf_lines REGEX "#define[ \t]+NC_HAS_PARALLEL[ \t]")
+    file(STRINGS "${NETCDF_netcdf_INCLUDEDIR}/netcdf_meta.h" _netcdf_lines REGEX "#define[ \t]+NC_HAS_PARALLEL[ \t]")
     string(REGEX REPLACE ".*NC_HAS_PARALLEL[ \t]*([0-1]+).*" "\\1" _netcdf_has_parallel "${_netcdf_lines}")
-    if(_netcdf_has_parallel)
+    if (_netcdf_has_parallel)
       add_definitions(-D__HAVE_NC_PARALLEL__)
       message(STATUS "Netcdf supports parallel ${_netcdf_has_parallel}")
     else()
-      message(STATUS "Netcdf does NOT support parallel ${_netcdf_has_parallel}")
+      message(STATUS "Netcdf does NOT supports parallel ${_netcdf_has_parallel}")
     endif()
+
 
   endif(${NETCDF_FOUND})
 endif(NOT ${NETCDF_FOUND})
