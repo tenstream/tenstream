@@ -7,7 +7,9 @@ if(RAYLI_DIR)
   #list(APPEND depends rayli)
 
   SET_SOURCE_FILES_PROPERTIES(f2c_rayli.F90 PROPERTIES COMPILE_DEFINITIONS HAVE_RAYLI)
-  include_directories(${RAYLI_DIR}/include)
+  if(EXISTS ${RAYLI_DIR}/include)
+    include_directories(${RAYLI_DIR}/include)
+  endif()
 
   add_executable(single_wedge_2_rayli "single_wedge_2_rayli.c" )
   target_link_libraries(single_wedge_2_rayli ${RAYLI_LIBS} ${EXTLIB})
