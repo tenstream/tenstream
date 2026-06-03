@@ -382,16 +382,29 @@ contains
     end subroutine
 
     subroutine write_grid()
+      integer(iintegers) :: p, q, Ndim2, Ndim3
+      real(ireals) :: x0, y0, z0
+
+      Ndim2 = size(edn, dim=2)
+      Ndim3 = size(edn, dim=3)
+      ! Surface height (flat geometry) from bottom level of local grid
+      z0 = xv(i0, zs + zm - 1, xs, ys)
+      ! Node origin: left/bottom edge of first local cell
+      x0 = real(solver%C_diff%xs, ireals) * solver%atm%dx
+      y0 = real(solver%C_diff%ys, ireals) * solver%atm%dy
+
       write (funit, *) '<Grid Name="GroundSubMesh'//toStr(solver%myid)//'">'
-      write (funit, *) '<Topology TopologyType="3DCORECTMesh" &
-        & NumberOfElements=" 2 ', size(edn, dim=3) + 1, size(edn, dim=2) + 1, '"/>'
-      write (funit, *) '<Geometry GeometryType="ORIGIN_DXDYDZ">'
-      write (funit, *) '<DataStructure Name="Origin" Dimensions="3" Format="XML">'
-      write (funit, *) xv([1, 2, 0], zs + zm - 1, xs, ys)! - [real(ireals) :: solver%atm%dx/2, solver%atm%dy/2, 0]
-      write (funit, *) '</DataStructure>'
-      write (funit, *) '<DataStructure Name="Spacing" Dimensions="3" Format="XML">'
-      write (funit, *) solver%atm%dx, solver%atm%dy, 0
-      write (funit, *) '</DataStructure>'
+      ! 2DSMesh with explicit XYZ nodes — unambiguous in both VisIt and ParaView
+      write (funit, *) '<Topology TopologyType="2DSMesh" NumberOfElements="', Ndim2 + 1, Ndim3 + 1, '"/>'
+      write (funit, *) '<Geometry GeometryType="XYZ">'
+      write (funit, *) '<DataItem Format="XML" Dimensions="', (Ndim2 + 1) * (Ndim3 + 1), 3, '">'
+      do q = 0, Ndim3
+        do p = 0, Ndim2
+          write (funit, *) x0 + real(p, ireals) * solver%atm%dx, &
+            & y0 + real(q, ireals) * solver%atm%dy, z0
+        end do
+      end do
+      write (funit, *) '</DataItem>'
       write (funit, *) '</Geometry>'
 
       ! write data attributes
@@ -399,7 +412,7 @@ contains
       if (present(edir)) then
         if (allocated(edir)) then
           write (funit, *) '<Attribute Center="Cell" Name="edir">'
-          write (funit, *) '<DataItem Format="XML" Dimensions="1 ', size(edir, dim=2), size(edir, dim=3), '">'
+          write (funit, *) '<DataItem Format="XML" Dimensions="', Ndim2, Ndim3, '">'
           write (funit, *) edir(size(edir, dim=1), :, :)
           write (funit, *) '</DataItem>', '</Attribute>'
         end if
@@ -408,7 +421,7 @@ contains
       ! edn
       if (allocated(edn)) then
         write (funit, *) '<Attribute Center="Cell" Name="edn">'
-        write (funit, *) '<DataItem Format="XML" Dimensions="1 ', size(edn, dim=2), size(edn, dim=3), '">'
+        write (funit, *) '<DataItem Format="XML" Dimensions="', Ndim2, Ndim3, '">'
         write (funit, *) edn(size(edn, dim=1), :, :)
         write (funit, *) '</DataItem>', '</Attribute>'
       end if
@@ -416,7 +429,7 @@ contains
       ! eup
       if (allocated(eup)) then
         write (funit, *) '<Attribute Center="Cell" Name="eup">'
-        write (funit, *) '<DataItem Format="XML" Dimensions="1 ', size(eup, dim=2), size(eup, dim=3), '">'
+        write (funit, *) '<DataItem Format="XML" Dimensions="', Ndim2, Ndim3, '">'
         write (funit, *) eup(size(eup, dim=1), :, :)
         write (funit, *) '</DataItem>', '</Attribute>'
       end if
