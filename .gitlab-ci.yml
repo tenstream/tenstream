@@ -195,7 +195,7 @@ implicit:alma-latest:
 explicit:alma-latest:
   extends: alma-latest
   variables:
-    PETSC_OPTIONS: "-solar_dir_explicit -solar_diff_explicit -thermal_diff_explicit -thermal_diff_pc_sor_omega .5 -solar_diff_pc_sor_omega .5"
+    PETSC_OPTIONS: "-solar_dir_explicit -solar_diff_explicit -thermal_diff_explicit"
 
 matshell:alma-latest:
   extends: alma-latest
