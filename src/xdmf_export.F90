@@ -387,8 +387,10 @@ contains
 
       Ndim2 = size(edn, dim=2)
       Ndim3 = size(edn, dim=3)
-      ! Surface height (flat geometry) from bottom level of local grid
-      z0 = xv(i0, zs + zm - 1, xs, ys)
+      ! Surface height from ground level (k=zs is surface, k=ze is top of atm)
+      ! Surface is at ze (k=ze, hhl=0); zs is the top of the local domain
+      ! Use C%xs/C%ys (non-ghost) — ghost cells have uninitialized hhl
+      z0 = xv(i0, zs + zm - 1, solver%C_diff%xs, solver%C_diff%ys)
       ! Node origin: left/bottom edge of first local cell
       x0 = real(solver%C_diff%xs, ireals) * solver%atm%dx
       y0 = real(solver%C_diff%ys, ireals) * solver%atm%dy
