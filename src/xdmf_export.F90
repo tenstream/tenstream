@@ -384,7 +384,7 @@ contains
     subroutine write_grid()
       write (funit, *) '<Grid Name="GroundSubMesh'//toStr(solver%myid)//'">'
       write (funit, *) '<Topology TopologyType="3DCORECTMesh" &
-        & NumberOfElements=" 1 ', size(edn, dim=3) + 1, size(edn, dim=2) + 1, '"/>'
+        & NumberOfElements=" 2 ', size(edn, dim=3) + 1, size(edn, dim=2) + 1, '"/>'
       write (funit, *) '<Geometry GeometryType="ORIGIN_DXDYDZ">'
       write (funit, *) '<DataStructure Name="Origin" Dimensions="3" Format="XML">'
       write (funit, *) xv([1, 2, 0], zs + zm - 1, xs, ys)! - [real(ireals) :: solver%atm%dx/2, solver%atm%dy/2, 0]
@@ -399,7 +399,7 @@ contains
       if (present(edir)) then
         if (allocated(edir)) then
           write (funit, *) '<Attribute Center="Cell" Name="edir">'
-          write (funit, *) '<DataItem Format="XML" Dimensions="', size(edir, dim=2), size(edir, dim=3), '">'
+          write (funit, *) '<DataItem Format="XML" Dimensions="1 ', size(edir, dim=2), size(edir, dim=3), '">'
           write (funit, *) edir(size(edir, dim=1), :, :)
           write (funit, *) '</DataItem>', '</Attribute>'
         end if
@@ -408,7 +408,7 @@ contains
       ! edn
       if (allocated(edn)) then
         write (funit, *) '<Attribute Center="Cell" Name="edn">'
-        write (funit, *) '<DataItem Format="XML" Dimensions="', size(edn, dim=2), size(edn, dim=3), '">'
+        write (funit, *) '<DataItem Format="XML" Dimensions="1 ', size(edn, dim=2), size(edn, dim=3), '">'
         write (funit, *) edn(size(edn, dim=1), :, :)
         write (funit, *) '</DataItem>', '</Attribute>'
       end if
@@ -416,7 +416,7 @@ contains
       ! eup
       if (allocated(eup)) then
         write (funit, *) '<Attribute Center="Cell" Name="eup">'
-        write (funit, *) '<DataItem Format="XML" Dimensions="', size(eup, dim=2), size(eup, dim=3), '">'
+        write (funit, *) '<DataItem Format="XML" Dimensions="1 ', size(eup, dim=2), size(eup, dim=3), '">'
         write (funit, *) eup(size(eup, dim=1), :, :)
         write (funit, *) '</DataItem>', '</Attribute>'
       end if
