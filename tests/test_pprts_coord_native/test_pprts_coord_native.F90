@@ -77,7 +77,7 @@ contains
     type(t_coord), allocatable :: C
     integer(iintegers), parameter :: Nz = 3, Nx = 10, Ny = 8, dof = 2
     integer(iintegers) :: null_rank
-    integer(iintegers) :: my_cells, total_cells
+    integer :: my_cells, total_cells
     integer(mpiint) :: east_nbr, west_nbr, north_nbr, south_nbr
     integer(mpiint) :: recv_from_east, recv_from_west
     integer(mpiint) :: recv_from_north, recv_from_south
@@ -110,10 +110,13 @@ contains
     @assertEqual(C%gye - C%gys + i1, C%gym)
 
     ! Total coverage: sum of (xm*ym) over all ranks must equal Nx*Ny
-    my_cells = C%xm * C%ym
+    ! Use default integer (always matches MPI_INTEGER) to avoid kind mismatch
+    ! when iintegers is int64 (PETSC_64_INTEGERS=1).
+    my_cells = int(C%xm * C%ym)
+    total_cells = 0
     call mpi_reduce(my_cells, total_cells, 1, MPI_INTEGER, MPI_SUM, 0_mpiint, comm, mpierr)
     if (myid == 0) then
-      @assertEqual(Nx * Ny, total_cells)
+      @assertEqual(int(Nx * Ny), total_cells)
     end if
 
     ! Neighbor consistency: if I say my east is rank E, then rank E says its west is me.
