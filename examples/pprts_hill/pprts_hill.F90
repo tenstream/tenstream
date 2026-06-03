@@ -137,8 +137,8 @@ contains
 
     do j = yStart, yStart + nyp - 1
       if (abs(j - int(real(sum(nyproc) - 1, ireals) / 2, iintegers)) .le. cld_width) then
-        icld(1) = nint(search_sorted_bisection(plev(:, 1, j), cld_bot))
-        icld(2) = nint(search_sorted_bisection(plev(:, 1, j), cld_top))
+        icld(1) = nint(search_sorted_bisection(plev(:, xStart, j), cld_bot))
+        icld(2) = nint(search_sorted_bisection(plev(:, xStart, j), cld_top))
 
         lwc(icld(1):icld(2), :, j) = cld_lwc
       end if

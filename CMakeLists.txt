@@ -519,7 +519,7 @@ if(NOT BUILD_SHARED_LIBS)
       add_custom_command(TARGET ${output_archive}
         PRE_BUILD ${output_archive}
         WORKING_DIRECTORY ${obj_folder}
-        COMMAND ${CMAKE_AR} x ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/lib${in_archive}.a)
+        COMMAND ${CMAKE_AR} x $<TARGET_FILE:${in_archive}>)
     ENDFOREACH()
 
     add_custom_command(TARGET ${output_archive}
