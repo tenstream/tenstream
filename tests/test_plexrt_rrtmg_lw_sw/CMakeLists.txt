@@ -47,7 +47,7 @@ add_library(
   ${PFUNIT_DIR}/include/driver.F90
   ${_test_sources}
   )
-add_dependencies( pfunit_${CDIR}_objs ${TENSTR_SINGLE_LIB} )
+add_dependencies( pfunit_${CDIR}_objs ${TENSTR_SINGLE_LIB} plexrt_examples_objs )
 
 add_executable( pfunit_${CDIR} $<TARGET_OBJECTS:pfunit_${CDIR}_objs> )
 target_link_libraries(
