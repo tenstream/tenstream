@@ -155,7 +155,7 @@ module m_pprts_base
     real(ireals) :: dir_ksp_residual_history(100) = -one
     real(ireals) :: diff_ksp_residual_history(100) = -one
 
-    integer(iintegers) :: Niter_dir = -1, Niter_diff = -1
+    integer(iintegers) :: Niter_dir = 0, Niter_diff = 0
 
     real(ireals) :: diff_sor_omega = -one  ! warm-start omega for adaptive SOR (-1 = unset)
   end type

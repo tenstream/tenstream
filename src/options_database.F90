@@ -61,10 +61,11 @@ contains
   !>   1. $HOME/.petscrc
   !>   2. .petscrc (current directory)
   !>   3. tenstream.options (current directory)
-  !>   4. command-line arguments
+  !>   4. PETSC_OPTIONS environment variable
+  !>   5. command-line arguments
   subroutine opts_init()
-    integer :: i, argc, home_status
-    character(VAL_LEN) :: arg, nxt, home_dir
+    integer :: i, argc, home_status, env_status
+    character(VAL_LEN) :: arg, nxt, home_dir, petsc_opts_env
     logical :: file_exists
 
     if (db_initialized) return
@@ -80,6 +81,11 @@ contains
 
     inquire (file='tenstream.options', exist=file_exists)
     if (file_exists) call opts_insert_file('tenstream.options')
+
+    call get_environment_variable('PETSC_OPTIONS', petsc_opts_env, status=env_status)
+    if (env_status == 0 .and. len_trim(petsc_opts_env) > 0) then
+      call opts_insert_string(trim(petsc_opts_env))
+    end if
 
     argc = command_argument_count()
     i = 1
