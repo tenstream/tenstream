@@ -3,6 +3,6 @@
 rm -f output.nc
 if [ ! -f input.nc ]
 then
-    python wetterstein_input.py
+    python3 wetterstein_input.py
 fi
 

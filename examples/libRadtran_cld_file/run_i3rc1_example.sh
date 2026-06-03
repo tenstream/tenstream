@@ -6,13 +6,13 @@ RUN="mpirun -np 8"
 TENSTREAM_SRC=$HOME/tenstream
 CLDFILE=${TENSTREAM_SRC}/examples/libRadtran_cld_file/i3rc_cloudfile.nc
 ATMFILE=${TENSTREAM_SRC}/examples/libRadtran_cld_file/afglus_100m.dat
-OUTDIR=${SCRATCH}
+OUTDIR=${SCRATCH:-.}
 
-BASE_OPT="-thermal no"
+BASE_OPT="-thermal no -specint ecckd"
 
-OUT=$OUTDIR/example_i3rc1_10str.nc
+OUT=${OUTDIR}/example_i3rc1_10str.nc
 OPT=$BASE_OPT
-[ ! -e $OUT ] && $RUN $BIN -cld $CLDFILE -atm_filename $ATMFILE -out $OUT $OPT
+[ ! -e $OUT ] && $RUN $BIN -wc $CLDFILE -atm_filename $ATMFILE -out $OUT $OPT
 
 # With RayLi MonteCarlo solver
 NUMTHREADS=10
