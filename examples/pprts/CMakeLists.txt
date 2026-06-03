@@ -14,6 +14,7 @@ add_dependencies(pprts_examples_objs ${TENSTR_LIBS})
 add_library(pprts_examples $<TARGET_OBJECTS:pprts_examples_objs>)
 target_link_libraries(pprts_examples ${TENSTR_SINGLE_LIB} ${EXTLIB})
 
+set(pprts_example_targets)
 foreach(_file ${exe_files})
   get_filename_component (_example_NAME ${_file} NAME   )
   get_filename_component (_example_WE   ${_file} NAME_WE)
@@ -24,4 +25,7 @@ foreach(_file ${exe_files})
 
   add_executable("${_example_WE}" EXCLUDE_FROM_ALL $<TARGET_OBJECTS:${_example_WE}_objs>)
   target_link_libraries("${_example_WE}" pprts_examples)
+  list(APPEND pprts_example_targets "${_example_WE}")
 endforeach()
+
+add_custom_target(examples DEPENDS ${pprts_example_targets})
