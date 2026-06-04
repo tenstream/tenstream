@@ -197,8 +197,9 @@ MESSAGE(STATUS "Using MPIEXEC: ${MPIEXEC}")
 option(WITH_PETSC "Enable PETSc solver backend (required for pprts, optional for optprop-only builds)" ON)
 
 include(FindPkgConfig)
+
+# --- PETSc detection (auto-downgrade to OFF with a warning if not found) ---
 if(WITH_PETSC)
-  # Locate PETSc via PETSC_INSTALL, env vars, or pkg-config
   if(NOT PETSC_INSTALL)
     if(NOT DEFINED ENV{PETSC_DIR})
       message(VERBOSE "Environment variable $PETSC_DIR is not set.
@@ -219,7 +220,32 @@ if(WITH_PETSC)
     message(STATUS "Added ${PETSC_INSTALL} to CMAKE_PREFIX_PATH: ${CMAKE_PREFIX_PATH}")
   endif()
 
-  pkg_search_module(PETSC REQUIRED PETSc)
+  pkg_search_module(PETSC PETSc)
+  if(NOT PETSC_FOUND)
+    set(WITH_PETSC OFF CACHE BOOL
+      "Enable PETSc solver backend (required for pprts, optional for optprop-only builds)" FORCE)
+    message(WARNING "PETSc NOT FOUND -- disabling PETSc support (WITH_PETSC=OFF). See details above.")
+    message(NOTICE
+  "---------------------------------------------------\
+\n                                                    \
+\n   PETSc NOT FOUND  --  disabling PETSc support     \
+\n                                                    \
+\n   The following features are NOT available:        \
+\n     * pprts KSP solver (3D radiative transfer)     \
+\n     * plexrt (unstructured-grid RT / ICON coupling)\
+\n                                                    \
+\n   To enable PETSc, either:                         \
+\n     export PETSC_DIR=... PETSC_ARCH=...            \
+\n     cmake -DPETSC_INSTALL=<petsc_prefix> ...       \
+\n                                                    \
+\n   Continuing with WITH_PETSC=OFF (nopetsc build)   \
+\n                                                    \
+\n----------------------------------------------------")
+  endif()
+endif()
+
+# --- PETSc configuration (only reached when WITH_PETSC is still ON after detection) ---
+if(WITH_PETSC)
   if(EXISTS ${PETSC_LIBDIR})
     set(PETSC_LDFLAGS "-L${PETSC_LIBDIR} ${PETSC_LDFLAGS}")
   endif()
