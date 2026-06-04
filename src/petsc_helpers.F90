@@ -21,7 +21,6 @@ module m_petsc_helpers
     gen_shared_scatter_ctx, &
     gen_shared_subcomm, &
     getVecPointer, restoreVecPointer, &
-    hegedus_trick, &
     is_local_vec, &
     petscGlobalVecToAll, &
     petscGlobalVecToZero, &
@@ -870,51 +869,6 @@ contains
 
     img = img * (c / real(2 * k + 1, ireals))**iter
 
-  end subroutine
-
-  subroutine hegedus_trick(ksp, b, x)
-    type(tksp), intent(in) :: ksp
-    type(tVec), intent(in) :: b
-    type(tVec), intent(inout) :: x
-
-    type(tDM) :: dm
-    character(len=default_str_len) :: prefix
-    type(tPC) :: prec
-    type(tMat) :: A, P
-    type(tVec) :: Ax0, z
-    real(ireals) :: znorm, norm
-    logical :: lhegedus, lflg
-    integer(mpiint) :: comm, myid, ierr
-
-    call KSPGetOptionsPrefix(ksp, prefix, ierr); call CHKERR(ierr)
-    lhegedus = .false.
-    call get_petsc_opt(prefix, "-use_hegedus", lhegedus, lflg, ierr); call CHKERR(ierr)
-
-    if (lhegedus) then
-      call KSPGetDM(ksp, dm, ierr); call CHKERR(ierr)
-
-      call DMGetGlobalVector(dm, Ax0, ierr); call CHKERR(ierr)
-      call DMGetGlobalVector(dm, z, ierr); call CHKERR(ierr)
-
-      call KSPGetPC(ksp, prec, ierr); call CHKERR(ierr)
-      call PCGetOperators(prec, A, P, ierr); call CHKERR(ierr)
-
-      call MatMult(A, x, Ax0, ierr); call CHKERR(ierr)
-      call MatMult(P, Ax0, z, ierr); call CHKERR(ierr)
-
-      call VecDot(z, Ax0, znorm, ierr); call CHKERR(ierr)
-      call VecDot(z, b, norm, ierr); call CHKERR(ierr)
-
-      if (znorm .gt. epsilon(znorm)) then
-        call PetscObjectGetComm(dm, comm, ierr); call CHKERR(ierr)
-        call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
-        if (myid .eq. 0 .and. ldebug) print *, 'hegedus_trick', norm, znorm, norm / znorm
-        call VecScale(x, norm / znorm, ierr); call CHKERR(ierr)
-      end if
-
-      call DMRestoreglobalVector(dm, Ax0, ierr); call CHKERR(ierr)
-      call DMRestoreglobalVector(dm, z, ierr); call CHKERR(ierr)
-    end if
   end subroutine
 
   subroutine gen_shared_subcomm(comm, subcomm, ierr)

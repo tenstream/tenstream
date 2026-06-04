@@ -95,7 +95,7 @@ module m_pprts
 
 #ifdef HAVE_PETSC
   use m_petsc_helpers, only: scatterZerotoPetscGlobal, &
-                             petscVecToF90, getVecPointer, restoreVecPointer, hegedus_trick
+                             petscVecToF90, getVecPointer, restoreVecPointer
 #endif
 
   use m_pprts_base, only: &
@@ -4238,7 +4238,6 @@ contains
       end if
     end if
 
-    call hegedus_trick(ksp, b, x)
     call KSPSolve(ksp, b, x, ierr); call CHKERR(ierr)
     call KSPGetIterationNumber(ksp, iter, ierr); call CHKERR(ierr)
     call KSPGetConvergedReason(ksp, reason, ierr); call CHKERR(ierr)
