@@ -34,12 +34,10 @@ if(ENABLE_RRTM)
   add_executable( "cwrapper_opp" "opp.c" )
   target_link_libraries( "cwrapper_opp" ${TENSTR_SINGLE_LIB} ${EXTLIB})
 
-  if(WITH_PETSC)
-    add_executable( "cwrapper_pprts" "pprts.c" )
-    target_link_libraries( "cwrapper_pprts" ${TENSTR_SINGLE_LIB} ${EXTLIB})
+  add_executable( "cwrapper_pprts" "pprts.c" )
+  target_link_libraries( "cwrapper_pprts" ${TENSTR_SINGLE_LIB} ${EXTLIB})
 
-    add_executable( "cwrapper_pprts_rrtmg" "pprts_rrtmg.c" )
-    target_link_libraries( "cwrapper_pprts_rrtmg" ${TENSTR_SINGLE_LIB} ${EXTLIB})
-  endif()
+  add_executable( "cwrapper_pprts_rrtmg" "pprts_rrtmg.c" )
+  target_link_libraries( "cwrapper_pprts_rrtmg" ${TENSTR_SINGLE_LIB} ${EXTLIB})
 
 endif()

@@ -19,7 +19,9 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#ifdef HAVE_PETSC
 #include <petscsys.h>
+#endif
 #include <mpi.h>
 #include <f2c_pprts.h>
 #include "f2c_solver_ids.h"
@@ -156,8 +158,10 @@ int main(int argc, char *argv[]) {
   int        numprocs, myid, fcomm;
 
   MPI_Init(&argc,&argv);
+#ifdef HAVE_PETSC
   PetscInitialize(&argc,&argv,(char*)0,help);
   PetscInitializeFortran();
+#endif
 
   MPI_Comm_size(MPI_COMM_WORLD, &numprocs);
   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
@@ -171,7 +175,9 @@ int main(int argc, char *argv[]) {
     slave(fcomm);
   }
 
+#ifdef HAVE_PETSC
   PetscFinalize();
+#endif
   MPI_Finalize();
   return(0);
 
