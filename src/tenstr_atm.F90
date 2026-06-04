@@ -23,8 +23,10 @@
 !!
 
 module m_tenstr_atm
+#ifdef HAVE_PETSC
 #include "petsc/finclude/petsc.h"
   use petsc
+#endif
 
   use m_tenstream_log, only: t_ts_log_event, ts_log_event_register, ts_log_begin, ts_log_end
 
@@ -166,7 +168,9 @@ contains
     character(len=*), intent(in), optional :: prefix
 
     integer(iintegers) :: icol
+#ifdef HAVE_PETSC
     PetscClassId :: cid
+#endif
     integer(mpiint) :: ierr
     logical :: lignore_bad_input, lflg
 
@@ -179,8 +183,10 @@ contains
     if (.not. allocated(logs)) then
       allocate (logs)
       call ts_log_event_register('setup_tenstr_atm', logs%setup_tenstr_atm, ierr); call CHKERR(ierr)
+#ifdef HAVE_PETSC
       call PetscClassIdRegister('dyn_atm_to_rrtmg', cid, ierr); call CHKERR(ierr)
       call PetscLogEventRegister('setup_tenstr_atm', cid, logs%setup_tenstr_atm%petsc_id, ierr); call CHKERR(ierr)
+#endif
     end if
 
     call ts_log_begin(logs%setup_tenstr_atm, ierr); call CHKERR(ierr)

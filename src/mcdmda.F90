@@ -123,9 +123,11 @@ module m_mcdmda
 contains
 
   subroutine solve_mcdmda(solver, edirTOA, solution, ierr, opt_buildings)
+#ifdef HAVE_PETSC
 #include "petsc/finclude/petsc.h"
     use petsc
     use m_petsc_helpers, only: getVecPointer, restoreVecPointer
+#endif
     class(t_solver), intent(in) :: solver
     real(ireals), intent(in) :: edirTOA
     type(t_state_container) :: solution
@@ -466,9 +468,11 @@ contains
     end subroutine
 
     subroutine get_result()
+#ifdef HAVE_PETSC
       type(tVec) :: ediff_local, edir_local
       real(ireals), pointer, dimension(:, :, :, :) :: xv_dir, xv_diff, xv_abso
       real(ireals), pointer, dimension(:) :: xv_dir1d, xv_diff1d, xv_abso1d
+#endif
       integer(iintegers) :: Nundersampled
 
       associate (&
@@ -479,6 +483,7 @@ contains
           & C_one_atm => solver%C_one_atm, &
           & C_one_atm1 => solver%C_one_atm1)
 
+#ifdef HAVE_PETSC
         xv_dir => null(); xv_dir1d => null()
         xv_diff => null(); xv_diff1d => null()
         xv_abso => null(); xv_abso1d => null()
@@ -532,6 +537,136 @@ contains
         call restoreVecPointer(C_one%da, solution%abso_petsc, xv_abso1d, xv_abso)
         call PetscObjectViewFromOptions(PetscObjectCast(solution%abso_petsc), PETSC_NULL_OBJECT, '-mcdmda_show_abso', ierr)
         call CHKERR(ierr)
+
+#else
+        ! nopetsc: ghost reduce using plain MPI, then copy interior to solution arrays
+        block
+          integer(mpiint) :: req(4), nreqs, nbr, ierr_mpi
+          integer(mpiint), parameter :: TAG_E = 81, TAG_N = 82
+          real(ireal_dp), allocatable :: sbuf_e(:, :, :), sbuf_n(:, :, :), rbuf(:, :, :)
+          integer(iintegers) :: dofD, dofF, nz, nx, ny
+
+          dofD = C_dir%dof
+          dofF = C_diff%dof
+          nz = C_one_atm1%ze - C_one_atm1%zs + 1
+          nx = C_one_atm%xe - C_one_atm%xs + 1
+          ny = C_one_atm%ye - C_one_atm%ys + 1
+
+          ! --- edir ghost reduce ---
+          if (solution%lsolar_rad) then
+            nreqs = 0
+            allocate (sbuf_e(0:dofD - 1, C_one_atm1%zs:C_one_atm1%ze, C_one_atm%ys:C_one_atm%ye))
+            allocate (sbuf_n(0:dofD - 1, C_one_atm1%zs:C_one_atm1%ze, C_one_atm%xs:C_one_atm%xe))
+
+            nbr = C_one_atm%neighbors(16)  ! east
+            if (nbr >= 0) then
+              sbuf_e = edir(:, C_one_atm1%zs:C_one_atm1%ze, C_one_atm%gxe, C_one_atm%ys:C_one_atm%ye)
+              nreqs = nreqs + 1
+              call MPI_Isend(sbuf_e, size(sbuf_e), MPI_REAL8, nbr, TAG_E, solver%comm, req(nreqs), ierr_mpi)
+              call CHKERR(int(ierr_mpi, mpiint))
+            end if
+            nbr = C_one_atm%neighbors(22)  ! north
+            if (nbr >= 0) then
+              sbuf_n = edir(:, C_one_atm1%zs:C_one_atm1%ze, C_one_atm%xs:C_one_atm%xe, C_one_atm%gye)
+              nreqs = nreqs + 1
+              call MPI_Isend(sbuf_n, size(sbuf_n), MPI_REAL8, nbr, TAG_N, solver%comm, req(nreqs), ierr_mpi)
+              call CHKERR(int(ierr_mpi, mpiint))
+            end if
+            nbr = C_one_atm%neighbors(10)  ! west — receives our east ghost
+            if (nbr >= 0) then
+              allocate (rbuf(0:dofD - 1, C_one_atm1%zs:C_one_atm1%ze, C_one_atm%ys:C_one_atm%ye))
+              call MPI_Recv(rbuf, size(rbuf), MPI_REAL8, nbr, TAG_E, solver%comm, MPI_STATUS_IGNORE, ierr_mpi)
+              call CHKERR(int(ierr_mpi, mpiint))
+              edir(:, C_one_atm1%zs:C_one_atm1%ze, C_one_atm%xs, C_one_atm%ys:C_one_atm%ye) = &
+                edir(:, C_one_atm1%zs:C_one_atm1%ze, C_one_atm%xs, C_one_atm%ys:C_one_atm%ye) + rbuf
+              deallocate (rbuf)
+            end if
+            nbr = C_one_atm%neighbors(4)  ! south — receives our north ghost
+            if (nbr >= 0) then
+              allocate (rbuf(0:dofD - 1, C_one_atm1%zs:C_one_atm1%ze, C_one_atm%xs:C_one_atm%xe))
+              call MPI_Recv(rbuf, size(rbuf), MPI_REAL8, nbr, TAG_N, solver%comm, MPI_STATUS_IGNORE, ierr_mpi)
+              call CHKERR(int(ierr_mpi, mpiint))
+              edir(:, C_one_atm1%zs:C_one_atm1%ze, C_one_atm%xs:C_one_atm%xe, C_one_atm%ys) = &
+                edir(:, C_one_atm1%zs:C_one_atm1%ze, C_one_atm%xs:C_one_atm%xe, C_one_atm%ys) + rbuf
+              deallocate (rbuf)
+            end if
+            call MPI_Waitall(nreqs, req(1:nreqs), MPI_STATUSES_IGNORE, ierr_mpi)
+            call CHKERR(int(ierr_mpi, mpiint))
+            deallocate (sbuf_e, sbuf_n)
+
+            solution%edir = 0
+            solution%edir(:, C_dir%zs + 1:, :, :) = real(edir(:, atmk(atm, C_one_atm1%zs + 1):C_one_atm1%ze, &
+                                                              C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye), ireals)
+            solution%edir(:, C_dir%zs, :, :) = real(edir(:, C_one_atm1%zs, &
+                                                         C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye), ireals)
+          end if
+
+          ! --- ediff ghost reduce ---
+          if (.not. solution%lsolar_rad) then
+            Nundersampled = count(Nediff .gt. 0_iintegers .and. Nediff .le. 10)
+            call CHKWARN(int(Nundersampled, mpiint), 'Found '//toStr(Nundersampled)//' fluxes that were certainly reacheable,'// &
+              & 'but were sampled crudely. This may lead to large biases in the results. Please consider using more photons!')
+            ediff = ediff * real(pi, kind(ediff)) / real(max(1_iintegers, Nediff), kind(ediff))
+          end if
+
+          nreqs = 0
+          allocate (sbuf_e(0:dofF - 1, C_one_atm1%zs:C_one_atm1%ze, C_one_atm%ys:C_one_atm%ye))
+          allocate (sbuf_n(0:dofF - 1, C_one_atm1%zs:C_one_atm1%ze, C_one_atm%xs:C_one_atm%xe))
+
+          nbr = C_one_atm%neighbors(16)
+          if (nbr >= 0) then
+            sbuf_e = ediff(:, C_one_atm1%zs:C_one_atm1%ze, C_one_atm%gxe, C_one_atm%ys:C_one_atm%ye)
+            nreqs = nreqs + 1
+            call MPI_Isend(sbuf_e, size(sbuf_e), MPI_REAL8, nbr, TAG_E + 10, solver%comm, req(nreqs), ierr_mpi)
+            call CHKERR(int(ierr_mpi, mpiint))
+          end if
+          nbr = C_one_atm%neighbors(22)
+          if (nbr >= 0) then
+            sbuf_n = ediff(:, C_one_atm1%zs:C_one_atm1%ze, C_one_atm%xs:C_one_atm%xe, C_one_atm%gye)
+            nreqs = nreqs + 1
+            call MPI_Isend(sbuf_n, size(sbuf_n), MPI_REAL8, nbr, TAG_N + 10, solver%comm, req(nreqs), ierr_mpi)
+            call CHKERR(int(ierr_mpi, mpiint))
+          end if
+          nbr = C_one_atm%neighbors(10)
+          if (nbr >= 0) then
+            allocate (rbuf(0:dofF - 1, C_one_atm1%zs:C_one_atm1%ze, C_one_atm%ys:C_one_atm%ye))
+            call MPI_Recv(rbuf, size(rbuf), MPI_REAL8, nbr, TAG_E + 10, solver%comm, MPI_STATUS_IGNORE, ierr_mpi)
+            call CHKERR(int(ierr_mpi, mpiint))
+            ediff(:, C_one_atm1%zs:C_one_atm1%ze, C_one_atm%xs, C_one_atm%ys:C_one_atm%ye) = &
+              ediff(:, C_one_atm1%zs:C_one_atm1%ze, C_one_atm%xs, C_one_atm%ys:C_one_atm%ye) + rbuf
+            deallocate (rbuf)
+          end if
+          nbr = C_one_atm%neighbors(4)
+          if (nbr >= 0) then
+            allocate (rbuf(0:dofF - 1, C_one_atm1%zs:C_one_atm1%ze, C_one_atm%xs:C_one_atm%xe))
+            call MPI_Recv(rbuf, size(rbuf), MPI_REAL8, nbr, TAG_N + 10, solver%comm, MPI_STATUS_IGNORE, ierr_mpi)
+            call CHKERR(int(ierr_mpi, mpiint))
+            ediff(:, C_one_atm1%zs:C_one_atm1%ze, C_one_atm%xs:C_one_atm%xe, C_one_atm%ys) = &
+              ediff(:, C_one_atm1%zs:C_one_atm1%ze, C_one_atm%xs:C_one_atm%xe, C_one_atm%ys) + rbuf
+            deallocate (rbuf)
+          end if
+          call MPI_Waitall(nreqs, req(1:nreqs), MPI_STATUSES_IGNORE, ierr_mpi)
+          call CHKERR(int(ierr_mpi, mpiint))
+          deallocate (sbuf_e, sbuf_n)
+
+          solution%ediff = 0
+          solution%ediff(:, C_diff%zs + 1:, :, :) = real(ediff(:, atmk(atm, C_one_atm1%zs + 1):C_one_atm1%ze, &
+                                                               C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye), ireals)
+          solution%ediff(:, C_diff%zs, :, :) = real(ediff(:, C_one_atm1%zs, &
+                                                          C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye), ireals)
+
+          ! --- abso: no ghost cells, direct copy ---
+          solution%abso = 0
+          if (.not. solution%lsolar_rad) then
+            abso = abso * pi * C_one%glob_xm * C_one%glob_ym / Nphotons_global
+          end if
+          solution%abso(i0, :, :, :) = real(abso(i0, atmk(atm, C_one_atm%zs):C_one_atm%ze, :, :) &
+            & / atm%dz(atmk(atm, C_one_atm%zs):C_one_atm%ze, :, :), ireals)
+          solution%abso(i0, C_one%zs, :, :) = real( &
+            & sum(abso(i0, :atmk(atm, C_one_atm%zs), :, :), dim=1) &
+            & / sum(atm%dz(:atmk(atm, C_one_atm%zs), :, :), dim=1), ireals)
+        end block
+#endif
 
       end associate
 

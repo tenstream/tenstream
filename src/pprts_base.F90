@@ -1,6 +1,8 @@
 module m_pprts_base
+#ifdef HAVE_PETSC
 #include "petsc/finclude/petsc.h"
   use petsc
+#endif
 
   use m_data_parameters, only: &
     & ireals, irealLUT, iintegers, mpiint, &
@@ -19,8 +21,10 @@ module m_pprts_base
     & rel_approx, &
     & toStr
 
+#ifdef HAVE_PETSC
   use m_petsc_helpers, only: &
     & getvecpointer, restorevecpointer, is_local_vec
+#endif
 
   use m_options_database, only: opts_has
   use m_optprop, only: t_optprop_cube
@@ -74,10 +78,12 @@ module m_pprts_base
     & t_solver_rayli, &
     & t_state_container, &
     & t_suninfo
+#ifdef HAVE_PETSC
   public :: &
     & interpolate_cell_values_to_vertices, &
     & prepare_solution_dm, &
     & set_dmda_cell_coordinates
+#endif
 
   type t_coord
     integer(iintegers) :: xs, xe                   ! local domain start and end indices
@@ -91,7 +97,9 @@ module m_pprts_base
     integer(iintegers) :: glob_xm, glob_ym, glob_zm ! global domain size
 
     integer(iintegers) :: dof, dim                 ! degrees of freedom of Petsc Domain, dimension of dmda
+#ifdef HAVE_PETSC
     type(tDM) :: da                      ! The Domain Decomposition Object
+#endif
     integer(mpiint) :: comm                    ! mpi communicatior for this DMDA
     integer(mpiint), allocatable :: neighbors(:)        ! all 3d neighbours((x=-1,y=-1,z=-1), (x=0,y=-1,z=-1) ...), i.e. 14 is one self
   end type
@@ -127,9 +135,11 @@ module m_pprts_base
     real(ireals), allocatable :: edir(:, :, :, :)   ! (0:dof-1, zs:ze, xs:xe, ys:ye)
     real(ireals), allocatable :: ediff(:, :, :, :)  ! (0:dof-1, zs:ze, xs:xe, ys:ye)
     real(ireals), allocatable :: abso(:, :, :, :)   ! (0:dof-1, zs:ze, xs:xe, ys:ye)
+#ifdef HAVE_PETSC
     type(tVec), allocatable :: edir_petsc   ! PETSc Vec wrapping edir's memory on C_dir DMDA
     type(tVec), allocatable :: ediff_petsc  ! PETSc Vec wrapping ediff's memory on C_diff DMDA
     type(tVec), allocatable :: abso_petsc   ! PETSc Vec wrapping abso's memory on C_one DMDA
+#endif
 
     logical :: lset = .false. ! initialized?
     logical :: lsolar_rad = .false. ! direct radiation calculated?
@@ -195,7 +205,9 @@ module m_pprts_base
   end type
 
   type t_mat_permute_info
+#ifdef HAVE_PETSC
     type(tIS) :: is ! col/row permutations
+#endif
     logical :: rev_x, rev_y, rev_z
     logical :: zlast, switch_xy
   end type
@@ -217,12 +229,14 @@ module m_pprts_base
     type(t_coord), allocatable :: Csrfc_one
     type(t_atmosphere), allocatable :: atm
     type(t_suninfo) :: sun
+#ifdef HAVE_PETSC
     type(tMat), allocatable :: Mdir, Mdiff, Mth
     type(tMat), allocatable :: Mdir_perm, Mdiff_perm, Mth_perm
     type(t_mat_permute_info), allocatable :: perm_dir, perm_diff ! col/row permutations
     type(tKSP), allocatable :: ksp_solar_dir
     type(tKSP), allocatable :: ksp_solar_diff
     type(tKSP), allocatable :: ksp_thermal_diff
+#endif
     class(t_optprop_cube), allocatable :: OPP
     class(t_optprop_cube), allocatable :: OPP1d
 
@@ -298,6 +312,7 @@ contains
     solution%ediff = zero
     allocate (solution%abso(0:C_one%dof - 1, C_one%zs:C_one%ze, C_one%xs:C_one%xe, C_one%ys:C_one%ye))
     solution%abso = zero
+#ifdef HAVE_PETSC
     if (solution%lsolar_rad) then
       allocate (solution%edir_petsc)
       call VecCreateMPIWithArray(C_dir%comm, i1, int(size(solution%edir), iintegers), PETSC_DETERMINE, &
@@ -312,10 +327,12 @@ contains
     call VecCreateMPIWithArray(C_one%comm, i1, int(size(solution%abso), iintegers), PETSC_DETERMINE, &
       & solution%abso, solution%abso_petsc, ierr); call CHKERR(ierr)
     call VecSetDM(solution%abso_petsc, C_one%da, ierr); call CHKERR(ierr)
+#endif
 
     solution%lset = .true.
   end subroutine
 
+#ifdef HAVE_PETSC
   subroutine prepare_solution_dm(edir_dm, ediff_dm, abso_dm, lsolar, lthermal, solution, uid)
     type(tDM), intent(in) :: edir_dm, ediff_dm, abso_dm
     logical, intent(in) :: lsolar, lthermal
@@ -348,10 +365,12 @@ contains
 
     solution%lset = .true.
   end subroutine
+#endif
   subroutine destroy_solution(solution)
     type(t_state_container), intent(inout) :: solution
     integer(mpiint) :: ierr
     if (solution%lset) then
+#ifdef HAVE_PETSC
       if (allocated(solution%edir_petsc)) then
         call VecDestroy(solution%edir_petsc, ierr); call CHKERR(ierr)
         deallocate (solution%edir_petsc)
@@ -364,6 +383,7 @@ contains
         call VecDestroy(solution%abso_petsc, ierr); call CHKERR(ierr)
         deallocate (solution%abso_petsc)
       end if
+#endif
       call deallocate_allocatable(solution%edir)
       call deallocate_allocatable(solution%ediff)
       call deallocate_allocatable(solution%abso)
@@ -401,12 +421,16 @@ contains
   subroutine setup_log_events(logs, solvername)
     type(t_solver_log_events), intent(inout) :: logs
     character(len=*), optional :: solvername
+#ifdef HAVE_PETSC
     PetscClassId :: cid
+#endif
     integer(mpiint) :: ierr
     character(len=default_str_len) :: s
 
     s = get_arg('pprts.', solvername)
+#ifdef HAVE_PETSC
     call PetscClassIdRegister(trim(s), cid, ierr); call CHKERR(ierr)
+#endif
 
     call reg(trim(s)//'set_optprop', logs%set_optprop)
     call reg(trim(s)//'setup_dir_src', logs%setup_dir_src)
@@ -443,7 +467,9 @@ contains
       character(len=*), intent(in) :: name
       type(t_ts_log_event), intent(inout) :: event
       call ts_log_event_register(name, event, ierr); call CHKERR(ierr)
+#ifdef HAVE_PETSC
       call PetscLogEventRegister(name, cid, event%petsc_id, ierr); call CHKERR(ierr)
+#endif
     end subroutine
   end subroutine
 
@@ -471,13 +497,25 @@ contains
 
     select case (solver_str)
     case ('2str')
+#ifdef HAVE_PETSC
       allocate (t_solver_2str :: pprts_solver)
+#else
+      call CHKERR(1_mpiint, '2str solver requires a PETSc build (cmake -DWITH_PETSC=ON)')
+#endif
 
     case ('disort')
+#ifdef HAVE_PETSC
       allocate (t_solver_disort :: pprts_solver)
+#else
+      call CHKERR(1_mpiint, 'disort solver requires a PETSc build (cmake -DWITH_PETSC=ON)')
+#endif
 
     case ('rayli')
+#ifdef HAVE_PETSC
       allocate (t_solver_rayli :: pprts_solver)
+#else
+      call CHKERR(1_mpiint, 'rayli solver requires a PETSc build (cmake -DWITH_PETSC=ON)')
+#endif
 
     case ('mcdmda')
       allocate (t_solver_mcdmda :: pprts_solver)
@@ -692,7 +730,9 @@ contains
     type(t_coord), allocatable, intent(inout) :: C
     integer(mpiint) :: ierr
     if (allocated(C)) then
+#ifdef HAVE_PETSC
       call DMDestroy(C%da, ierr); call CHKERR(ierr)
+#endif
       if (allocated(C%neighbors)) deallocate (C%neighbors)
       deallocate (C)
     end if
@@ -735,15 +775,19 @@ contains
     class(t_solver) :: solver
     logical, optional :: lfinalizepetsc
     logical :: lfinalize
+#ifdef HAVE_PETSC
     PetscBool :: lpetsc_is_initialized
+#endif
     integer(iintegers) :: uid
     integer(mpiint) :: ierr, comm_save
 
     comm_save = solver%comm
     if (solver%linitialized) then
+#ifdef HAVE_PETSC
       call deallocate_allocatable(solver%ksp_solar_dir)
       call deallocate_allocatable(solver%ksp_solar_diff)
       call deallocate_allocatable(solver%ksp_thermal_diff)
+#endif
 
       call deallocate_allocatable(solver%incSolar)
       call deallocate_allocatable(solver%b)
@@ -768,6 +812,7 @@ contains
         deallocate (solver%atm)
       end if
 
+#ifdef HAVE_PETSC
       if (allocated(solver%perm_dir)) then
         call ISDestroy(solver%perm_dir%is, ierr); call CHKERR(ierr)
         deallocate (solver%perm_dir)
@@ -776,6 +821,7 @@ contains
         call ISDestroy(solver%perm_diff%is, ierr); call CHKERR(ierr)
         deallocate (solver%perm_diff)
       end if
+#endif
 
       if (allocated(solver%OPP)) then
         call solver%OPP%destroy(ierr); call CHKERR(ierr)
@@ -814,22 +860,27 @@ contains
 
     if (lfinalize) call show_ts_log(comm_save)
 
+#ifdef HAVE_PETSC
     if (lfinalize) then
       call PetscInitialized(lpetsc_is_initialized, ierr); call CHKERR(ierr)
       if (lpetsc_is_initialized) call PetscFinalize(ierr); call CHKERR(ierr)
     end if
+#endif
   end subroutine
 
   subroutine destroy_matrices(solver)
     class(t_solver) :: solver
+#ifdef HAVE_PETSC
     call deallocate_allocatable(solver%Mdir)
     call deallocate_allocatable(solver%Mdiff)
     call deallocate_allocatable(solver%Mth)
     call deallocate_allocatable(solver%Mdir_perm)
     call deallocate_allocatable(solver%Mdiff_perm)
     call deallocate_allocatable(solver%Mth_perm)
+#endif
   end subroutine
 
+#ifdef HAVE_PETSC
   !> @brief define physical coordinates for DMDA to allow for geometric multigrid
   subroutine set_dmda_cell_coordinates(solver, atm, da, ierr)
     class(t_solver), intent(in) :: solver
@@ -879,7 +930,9 @@ contains
     call PetscObjectViewFromOptions(PetscObjectCast(coordinates), PetscObjectCast(da), "-pprts_show_coordinates", ierr)
     call CHKERR(ierr)
   end subroutine
+#endif
 
+#ifdef HAVE_PETSC
   !> @brief horizontally interpolate/average cell values onto vertices
   !> @details averages the 4 adjacent cell values onto a vertex.
   !>          C_cells should be a box stencil da
@@ -927,6 +980,7 @@ contains
     nullify (xc)
     call restoreVecPointer(C_verts%da, vert_vals, xv1d, xv)
   end subroutine
+#endif
 
   pure function atmk(atm, k) ! return vertical index value for DMDA grid on atmosphere grid
     integer(iintegers) :: atmk
@@ -936,764 +990,776 @@ contains
   end function
 
   !> @brief: determine tolerances for solvers
+#ifdef HAVE_PETSC
   subroutine determine_ksp_tolerances(C, unconstrained_fraction, rtol, atol, maxit, ksp)
     type(tKSP), intent(in), allocatable, optional :: ksp
-    type(t_coord), intent(in) :: C
-    real(ireals), intent(in) :: unconstrained_fraction
-    real(ireals), intent(out) :: rtol, atol
-    integer(iintegers), intent(out) :: maxit
-    real(ireals) :: rel_atol = 1e-4_ireals
-    integer(mpiint) :: myid, ierr
-    real(ireals) :: dtol
-    logical, parameter :: ldebug = .false.
+#else
+    subroutine determine_ksp_tolerances(C, unconstrained_fraction, rtol, atol, maxit)
+#endif
+      type(t_coord), intent(in) :: C
+      real(ireals), intent(in) :: unconstrained_fraction
+      real(ireals), intent(out) :: rtol, atol
+      integer(iintegers), intent(out) :: maxit
+      real(ireals) :: rel_atol = 1e-4_ireals
+      integer(mpiint) :: myid, ierr
+#ifdef HAVE_PETSC
+      real(ireals) :: dtol
+#endif
+      logical, parameter :: ldebug = .false.
 
-    integer(iintegers), parameter :: maxiter = 1000
+      integer(iintegers), parameter :: maxiter = 1000
 
-    if (present(ksp)) then
-      if (allocated(ksp)) then
-        call KSPGetTolerances(ksp, rtol, atol, dtol, maxit, ierr); call CHKERR(ierr)
-        if (ldebug) then
-          call mpi_comm_rank(C%comm, myid, ierr); call CHKERR(ierr)
-          if (myid .eq. 0) print *, cstr('Read tolerances from ksp', 'red'), rtol, atol, dtol, maxit
+#ifdef HAVE_PETSC
+      if (present(ksp)) then
+        if (allocated(ksp)) then
+          call KSPGetTolerances(ksp, rtol, atol, dtol, maxit, ierr); call CHKERR(ierr)
+          if (ldebug) then
+            call mpi_comm_rank(C%comm, myid, ierr); call CHKERR(ierr)
+            if (myid .eq. 0) print *, cstr('Read tolerances from ksp', 'red'), rtol, atol, dtol, maxit
+          end if
+          return
         end if
-        return
       end if
-    end if
+#endif
 
-    maxit = maxiter
-    rtol = 1e-5_ireals
-    atol = rel_atol * real(C%glob_xm * C%glob_ym * C%glob_zm, ireals) * unconstrained_fraction
-    atol = max(1e-8_ireals, atol)
+      maxit = maxiter
+      rtol = 1e-5_ireals
+      atol = rel_atol * real(C%glob_xm * C%glob_ym * C%glob_zm, ireals) * unconstrained_fraction
+      atol = max(1e-8_ireals, atol)
 
-    if (ldebug) then
-      call mpi_comm_rank(C%comm, myid, ierr); call CHKERR(ierr)
-      if (myid .eq. 0) &
-        print *, 'KSP ', &
-        & '-- tolerances:', rtol, atol, &
-        & ':: rel_atol', rel_atol, &
-        & ':: total dof', C%dof * C%glob_xm * C%glob_ym * C%glob_zm, &
-        & ':: unconstrained fraction', unconstrained_fraction
-    end if
-  end subroutine
-
-  !> @brief set solar incoming radiation at Top_of_Atmosphere
-  !> @details todo: in case we do not have periodic boundaries, we should shine light in from the side of the domain...
-  subroutine setup_incSolar(solver, edirTOA, incSolar)
-    class(t_solver), target, intent(in) :: solver
-    real(ireals), intent(in) :: edirTOA
-    real(ireals), target, contiguous, intent(inout) :: incSolar(:, :, :, :)
-
-    integer(mpiint) :: ierr
-    real(ireals) :: fac
-    integer(iintegers) :: i, j, src
-    logical, parameter :: ldebug = .false.
-    real(ireals), pointer :: x4d(:, :, :, :)
-
-    associate ( &
-        & atm => solver%atm, &
-        & sun => solver%sun, &
-        & C_dir => solver%C_dir)
-
-      fac = edirTOA * atm%dx * atm%dy / real(solver%dirtop%area_divider, ireals)
-
-      incSolar = zero
-      x4d => null()
-      x4d(0:C_dir%dof - 1, C_dir%zs:C_dir%ze, C_dir%xs:C_dir%xe, C_dir%ys:C_dir%ye) => incSolar
-
-      do j = C_dir%ys, C_dir%ye
-        do i = C_dir%xs, C_dir%xe
-          do src = 0, solver%dirtop%dof - 1
-            x4d(src, C_dir%zs, i, j) = fac
-          end do
-        end do
-      end do
-      nullify (x4d)
-
-      if (solver%myid .eq. 0 .and. ldebug) print *, solver%myid, 'Setup of IncSolar done', edirTOA, &
-        & '(', fac, ')'
-    end associate
-
-    call set_open_bc()
-
-  contains
-
-    subroutine set_open_bc()
-      logical :: lsun_north, lsun_east
-      integer(mpiint) :: ierr
-      integer(iintegers) :: i, j, k, src, ioff
-      type(tMat) :: A
-      type(tVec) :: b, local_incSolar, vIncSolar
-      type(tKSP) :: ksp
-      character(len=default_str_len) :: prefix
-      real(ireals), pointer :: xv_b(:)
-      real(ireals), pointer :: xg1d(:), xg4d(:, :, :, :)
-      real(ireals), pointer :: x1d(:), x4d(:, :, :, :)
-
-      xg1d => null()
-      xg4d => null()
-      x1d => null()
-      x4d => null()
-
-      if (solver%lopen_bc) then ! need to update side fluxes somewhere in the domain
-
-        associate ( &
-            & atm => solver%atm, &
-            & sun => solver%sun, &
-            & C_dir => solver%C_dir)
-
-          call DMGetLocalVector(C_dir%da, local_incSolar, ierr); call CHKERR(ierr)
-          call VecSet(local_incSolar, 0._ireals, ierr); call CHKERR(ierr)
-
-          call getVecPointer(C_dir%da, local_incSolar, x1d, x4d)
-
-          ! note here we copy the local parts directly, otherwise, with GlobalToLocal we would create TOA incoming energy
-          ! at the domain edges which leads to double counting later when doing the communication with add values
-          x4d(0:solver%dirtop%dof - 1, C_dir%zs, C_dir%xs:C_dir%xe, C_dir%ys:C_dir%ye) = &
-            & incSolar(0:solver%dirtop%dof - 1, C_dir%zs, C_dir%xs:C_dir%xe, C_dir%ys:C_dir%ye)
-
-          lsun_north = sun%yinc .eq. i0
-          lsun_east = sun%xinc .eq. i0
-
-          if (C_dir%xs .eq. i0 .or. &
-            & C_dir%ys .eq. i0 .or. &
-            & C_dir%xe + 1 .eq. C_dir%glob_xm .or. &
-            & C_dir%ye + 1 .eq. C_dir%glob_ym) then ! have an outer domain boundary
-
-            call MatCreate(PETSC_COMM_SELF, A, ierr); call CHKERR(ierr)
-            call MatSetSizes(A, PETSC_DECIDE, PETSC_DECIDE,&
-              & C_dir%dof * C_dir%zm, C_dir%dof * C_dir%zm, ierr); call CHKERR(ierr)
-
-            if (len_trim(solver%solvername) .gt. 0) then
-              prefix = trim(solver%solvername)//'_open_bc_'
-            else
-              prefix = 'open_bc_'
-            end if
-            call MatSetOptionsPrefix(A, prefix, ierr); call CHKERR(ierr)
-
-            call MatSetFromOptions(A, ierr); call CHKERR(ierr)
-            call MatSeqAIJSetPreallocation(A, C_dir%dof + i1, PETSC_NULL_INTEGER_ARRAY, ierr); call CHKERR(ierr)
-
-            call MatSetUp(A, ierr); call CHKERR(ierr)
-
-            call MatCreateVecs(A, b, PETSC_NULL_VEC, ierr); call CHKERR(ierr)
-
-            call KSPCreate(PETSC_COMM_SELF, ksp, ierr); call CHKERR(ierr)
-
-            if (C_dir%ys .eq. i0 .or. C_dir%ye + 1 .eq. C_dir%glob_ym) then ! we have open boundary in north/south
-              if (lsun_north) then
-                j = C_dir%ye
-              else
-                j = C_dir%ys
-              end if
-              do i = C_dir%xs, C_dir%xe
-
-                call single_column_solve(solver%OPP, C_dir, i, j, A, ksp, b)
-
-                call VecGetArrayRead(b, xv_b, ierr)
-                do k = C_dir%zs, C_dir%ze - 1
-                  do src = 0, solver%dirside%dof - 1
-                    ioff = solver%dirtop%dof + solver%dirside%dof + src
-                    x4d(ioff, k, i, j + 1 - sun%yinc) = fac * xv_b(i1 + k * C_dir%dof + ioff)
-                  end do
-                end do
-                call VecRestoreArrayRead(b, xv_b, ierr)
-              end do
-            end if
-
-            if (C_dir%xs .eq. i0 .or. C_dir%xe + 1 .eq. C_dir%glob_xm) then ! we have open boundary in east / west
-              if (lsun_east) then
-                i = C_dir%xe
-              else
-                i = C_dir%xs
-              end if
-              do j = C_dir%ys, C_dir%ye
-
-                call single_column_solve(solver%OPP, C_dir, i, j, A, ksp, b)
-
-                call VecGetArrayRead(b, xv_b, ierr)
-                do k = C_dir%zs, C_dir%ze - 1
-                  do src = 0, solver%dirside%dof - 1
-                    ioff = solver%dirtop%dof + src
-                    x4d(ioff, k, i + 1 - sun%xinc, j) = fac * xv_b(i1 + k * C_dir%dof + ioff)
-                  end do
-                end do
-                call VecRestoreArrayRead(b, xv_b, ierr)
-              end do
-            end if
-
-            call MatDestroy(A, ierr); call CHKERR(ierr)
-            call VecDestroy(b, ierr); call CHKERR(ierr)
-            call KSPDestroy(ksp, ierr); call CHKERR(ierr)
-          end if ! have an outer domain boundary
-
-          call restoreVecPointer(C_dir%da, local_incSolar, x1d, x4d)
-
-          ! scatter local (with side BCs) back to plain incSolar array via temp tVec
-          call DMCreateGlobalVector(C_dir%da, vIncSolar, ierr); call CHKERR(ierr)
-          call VecSet(vIncSolar, 0._ireals, ierr); call CHKERR(ierr)
-          call DMLocalToGlobalBegin(C_dir%da, local_incSolar, ADD_VALUES, vIncSolar, ierr); call CHKERR(ierr)
-          call DMLocalToGlobalEnd(C_dir%da, local_incSolar, ADD_VALUES, vIncSolar, ierr); call CHKERR(ierr)
-          call DMRestoreLocalVector(C_dir%da, local_incSolar, ierr); call CHKERR(ierr)
-
-          call getVecPointer(C_dir%da, vIncSolar, xg1d, xg4d)
-          incSolar = xg4d
-          call restoreVecPointer(C_dir%da, vIncSolar, xg1d, xg4d)
-          call VecDestroy(vIncSolar, ierr); call CHKERR(ierr)
-
-        end associate
-
+      if (ldebug) then
+        call mpi_comm_rank(C%comm, myid, ierr); call CHKERR(ierr)
+        if (myid .eq. 0) &
+          print *, 'KSP ', &
+          & '-- tolerances:', rtol, atol, &
+          & ':: rel_atol', rel_atol, &
+          & ':: total dof', C%dof * C%glob_xm * C%glob_ym * C%glob_zm, &
+          & ':: unconstrained fraction', unconstrained_fraction
       end if
     end subroutine
 
-    subroutine single_column_solve(OPP, C_dir, i, j, A, ksp, b)
-      class(t_optprop_cube), intent(in) :: OPP
-      type(t_coord), intent(in) :: C_dir
-      integer(iintegers), intent(in) :: i, j
-      type(tMat), intent(inout) :: A
-      type(tVec), intent(inout) :: b
-      type(tKSP), intent(inout) :: ksp
+    !> @brief set solar incoming radiation at Top_of_Atmosphere
+    !> @details todo: in case we do not have periodic boundaries, we should shine light in from the side of the domain...
+    subroutine setup_incSolar(solver, edirTOA, incSolar)
+      class(t_solver), target, intent(in) :: solver
+      real(ireals), intent(in) :: edirTOA
+      real(ireals), target, contiguous, intent(inout) :: incSolar(:, :, :, :)
 
       integer(mpiint) :: ierr
-      integer(iintegers) :: k, ak, src, dst, irow, icol, ioff, ioffsrc
-      real(ireals) :: dtau, v
-      real(irealLUT) :: lutcoeff(C_dir%dof**2)
-      real(ireals), target :: coeff(C_dir%dof**2)
-      real(ireals), pointer :: cdir2dir(:, :), xv_b(:)
-
-      call MatZeroEntries(A, ierr); call CHKERR(ierr)
-      do irow = 0, C_dir%dof * C_dir%zm - 1
-        call MatSetValue(A, irow, irow, -1._ireals, ADD_VALUES, ierr); call CHKERR(ierr)
-      end do
+      real(ireals) :: fac
+      integer(iintegers) :: i, j, src
+      logical, parameter :: ldebug = .false.
+      real(ireals), pointer :: x4d(:, :, :, :)
 
       associate ( &
           & atm => solver%atm, &
-          & sun => solver%sun)
+          & sun => solver%sun, &
+          & C_dir => solver%C_dir)
 
-        call VecGetArray(b, xv_b, ierr)
-        xv_b(:) = 0
-        do src = 1, solver%dirtop%dof
-          xv_b(src) = -1._ireals
-        end do
-        call VecRestoreArray(b, xv_b, ierr)
+        fac = edirTOA * atm%dx * atm%dy / real(solver%dirtop%area_divider, ireals)
 
-        do k = C_dir%zs, C_dir%ze - 1
-          ak = atmk(atm, k)
+        incSolar = zero
+        x4d => null()
+        x4d(0:C_dir%dof - 1, C_dir%zs:C_dir%ze, C_dir%xs:C_dir%xe, C_dir%ys:C_dir%ye) => incSolar
 
-          if (atm%l1d(atmk(atm, k))) then
-
+        do j = C_dir%ys, C_dir%ye
+          do i = C_dir%xs, C_dir%xe
             do src = 0, solver%dirtop%dof - 1
-              irow = (k + 1) * C_dir%dof + src
-              icol = (k) * C_dir%dof + src
-
-              dtau = atm%kabs(ak, i, j) * atm%dz(ak, i, j) / sun%costheta
-              v = exp(-dtau)
-              call MatSetValue(A, irow, icol, v, ADD_VALUES, ierr); call CHKERR(ierr)
+              x4d(src, C_dir%zs, i, j) = fac
             end do
-          else
-
-            call get_coeff( &
-              & OPP, &
-              & atm%kabs(ak, i, j), &
-              & atm%ksca(ak, i, j), &
-              & atm%g(ak, i, j), &
-              & atm%dz(ak, i, j), &
-              & atm%dx, &
-              & .true., &
-              & lutcoeff, &
-              & [real(sun%symmetry_phi, irealLUT), real(sun%theta, irealLUT)], &
-              & lswitch_east=sun%xinc .eq. 0, &
-              & lswitch_north=sun%yinc .eq. 0 &
-              & )
-            coeff = real(lutcoeff, ireals)
-            cdir2dir(0:C_dir%dof - 1, 0:C_dir%dof - 1) => coeff(:)
-            ! cdir2dir(0:C_dir%dof - 1, 0:C_dir%dof - 1) => solver%dir2dir(:, k, i, j)
-
-            do src = 0, solver%dirtop%dof - 1
-              icol = k * C_dir%dof + src
-              do dst = 0, solver%dirtop%dof - 1 ! top2bot
-                v = cdir2dir(src, dst)
-                irow = (k + 1) * C_dir%dof + dst
-                call MatSetValue(A, irow, icol, v, ADD_VALUES, ierr); call CHKERR(ierr)
-              end do
-
-              do dst = 0, solver%dirside%dof - 1 ! top2x
-                ioff = solver%dirtop%dof + dst
-                v = cdir2dir(src, ioff)
-                irow = k * C_dir%dof + ioff
-                call MatSetValue(A, irow, icol, v, ADD_VALUES, ierr); call CHKERR(ierr)
-              end do
-              do dst = 0, solver%dirside%dof - 1 ! top2y
-                ioff = solver%dirtop%dof + solver%dirside%dof + dst
-                v = cdir2dir(src, ioff)
-                irow = k * C_dir%dof + ioff
-                call MatSetValue(A, irow, icol, v, ADD_VALUES, ierr); call CHKERR(ierr)
-              end do
-            end do
-
-            do src = 0, solver%dirside%dof - 1
-              ioffsrc = solver%dirtop%dof + src
-              icol = k * C_dir%dof + ioffsrc
-              do dst = 0, solver%dirtop%dof - 1 ! side2bot
-                v = cdir2dir(ioffsrc, dst)
-                irow = (k + 1) * C_dir%dof + dst
-                call MatSetValue(A, irow, icol, v, ADD_VALUES, ierr); call CHKERR(ierr)
-              end do
-
-              do dst = 0, solver%dirside%dof - 1 ! side2x
-                ioff = solver%dirtop%dof + dst
-                v = cdir2dir(ioffsrc, ioff)
-                irow = k * C_dir%dof + ioff
-                call MatSetValue(A, irow, icol, v, ADD_VALUES, ierr); call CHKERR(ierr)
-              end do
-              do dst = 0, solver%dirside%dof - 1 ! side2y
-                ioff = solver%dirtop%dof + solver%dirside%dof + dst
-                v = cdir2dir(ioffsrc, ioff)
-                irow = k * C_dir%dof + ioff
-                call MatSetValue(A, irow, icol, v, ADD_VALUES, ierr); call CHKERR(ierr)
-              end do
-            end do
-
-            do src = 0, solver%dirside%dof - 1
-              ioffsrc = solver%dirtop%dof + solver%dirside%dof + src
-              icol = k * C_dir%dof + ioffsrc
-              do dst = 0, solver%dirtop%dof - 1 ! side2bot
-                v = cdir2dir(ioffsrc, dst)
-                irow = (k + 1) * C_dir%dof + dst
-                call MatSetValue(A, irow, icol, v, ADD_VALUES, ierr); call CHKERR(ierr)
-              end do
-
-              do dst = 0, solver%dirside%dof - 1 ! side2x
-                ioff = solver%dirtop%dof + dst
-                v = cdir2dir(ioffsrc, ioff)
-                irow = k * C_dir%dof + ioff
-                call MatSetValue(A, irow, icol, v, ADD_VALUES, ierr); call CHKERR(ierr)
-              end do
-              do dst = 0, solver%dirside%dof - 1 ! side2y
-                ioff = solver%dirtop%dof + solver%dirside%dof + dst
-                v = cdir2dir(ioffsrc, ioff)
-                irow = k * C_dir%dof + ioff
-                call MatSetValue(A, irow, icol, v, ADD_VALUES, ierr); call CHKERR(ierr)
-              end do
-            end do
-
-          end if
+          end do
         end do
-        call MatAssemblyBegin(A, MAT_FINAL_ASSEMBLY, ierr); call CHKERR(ierr)
-        call MatAssemblyEnd(A, MAT_FINAL_ASSEMBLY, ierr); call CHKERR(ierr)
+        nullify (x4d)
 
-        call KSPSetOperators(ksp, A, A, ierr); call CHKERR(ierr)
-        call KSPSolve(ksp, b, b, ierr); call CHKERR(ierr)
+        if (solver%myid .eq. 0 .and. ldebug) print *, solver%myid, 'Setup of IncSolar done', edirTOA, &
+          & '(', fac, ')'
       end associate
 
+#ifdef HAVE_PETSC
+      call set_open_bc()
+#endif
+
+    contains
+
+#ifdef HAVE_PETSC
+      subroutine set_open_bc()
+        logical :: lsun_north, lsun_east
+        integer(mpiint) :: ierr
+        integer(iintegers) :: i, j, k, src, ioff
+        type(tMat) :: A
+        type(tVec) :: b, local_incSolar, vIncSolar
+        type(tKSP) :: ksp
+        character(len=default_str_len) :: prefix
+        real(ireals), pointer :: xv_b(:)
+        real(ireals), pointer :: xg1d(:), xg4d(:, :, :, :)
+        real(ireals), pointer :: x1d(:), x4d(:, :, :, :)
+
+        xg1d => null()
+        xg4d => null()
+        x1d => null()
+        x4d => null()
+
+        if (solver%lopen_bc) then ! need to update side fluxes somewhere in the domain
+
+          associate ( &
+              & atm => solver%atm, &
+              & sun => solver%sun, &
+              & C_dir => solver%C_dir)
+
+            call DMGetLocalVector(C_dir%da, local_incSolar, ierr); call CHKERR(ierr)
+            call VecSet(local_incSolar, 0._ireals, ierr); call CHKERR(ierr)
+
+            call getVecPointer(C_dir%da, local_incSolar, x1d, x4d)
+
+            ! note here we copy the local parts directly, otherwise, with GlobalToLocal we would create TOA incoming energy
+            ! at the domain edges which leads to double counting later when doing the communication with add values
+            x4d(0:solver%dirtop%dof - 1, C_dir%zs, C_dir%xs:C_dir%xe, C_dir%ys:C_dir%ye) = &
+              & incSolar(0:solver%dirtop%dof - 1, C_dir%zs, C_dir%xs:C_dir%xe, C_dir%ys:C_dir%ye)
+
+            lsun_north = sun%yinc .eq. i0
+            lsun_east = sun%xinc .eq. i0
+
+            if (C_dir%xs .eq. i0 .or. &
+              & C_dir%ys .eq. i0 .or. &
+              & C_dir%xe + 1 .eq. C_dir%glob_xm .or. &
+              & C_dir%ye + 1 .eq. C_dir%glob_ym) then ! have an outer domain boundary
+
+              call MatCreate(PETSC_COMM_SELF, A, ierr); call CHKERR(ierr)
+              call MatSetSizes(A, PETSC_DECIDE, PETSC_DECIDE,&
+                & C_dir%dof * C_dir%zm, C_dir%dof * C_dir%zm, ierr); call CHKERR(ierr)
+
+              if (len_trim(solver%solvername) .gt. 0) then
+                prefix = trim(solver%solvername)//'_open_bc_'
+              else
+                prefix = 'open_bc_'
+              end if
+              call MatSetOptionsPrefix(A, prefix, ierr); call CHKERR(ierr)
+
+              call MatSetFromOptions(A, ierr); call CHKERR(ierr)
+              call MatSeqAIJSetPreallocation(A, C_dir%dof + i1, PETSC_NULL_INTEGER_ARRAY, ierr); call CHKERR(ierr)
+
+              call MatSetUp(A, ierr); call CHKERR(ierr)
+
+              call MatCreateVecs(A, b, PETSC_NULL_VEC, ierr); call CHKERR(ierr)
+
+              call KSPCreate(PETSC_COMM_SELF, ksp, ierr); call CHKERR(ierr)
+
+              if (C_dir%ys .eq. i0 .or. C_dir%ye + 1 .eq. C_dir%glob_ym) then ! we have open boundary in north/south
+                if (lsun_north) then
+                  j = C_dir%ye
+                else
+                  j = C_dir%ys
+                end if
+                do i = C_dir%xs, C_dir%xe
+
+                  call single_column_solve(solver%OPP, C_dir, i, j, A, ksp, b)
+
+                  call VecGetArrayRead(b, xv_b, ierr)
+                  do k = C_dir%zs, C_dir%ze - 1
+                    do src = 0, solver%dirside%dof - 1
+                      ioff = solver%dirtop%dof + solver%dirside%dof + src
+                      x4d(ioff, k, i, j + 1 - sun%yinc) = fac * xv_b(i1 + k * C_dir%dof + ioff)
+                    end do
+                  end do
+                  call VecRestoreArrayRead(b, xv_b, ierr)
+                end do
+              end if
+
+              if (C_dir%xs .eq. i0 .or. C_dir%xe + 1 .eq. C_dir%glob_xm) then ! we have open boundary in east / west
+                if (lsun_east) then
+                  i = C_dir%xe
+                else
+                  i = C_dir%xs
+                end if
+                do j = C_dir%ys, C_dir%ye
+
+                  call single_column_solve(solver%OPP, C_dir, i, j, A, ksp, b)
+
+                  call VecGetArrayRead(b, xv_b, ierr)
+                  do k = C_dir%zs, C_dir%ze - 1
+                    do src = 0, solver%dirside%dof - 1
+                      ioff = solver%dirtop%dof + src
+                      x4d(ioff, k, i + 1 - sun%xinc, j) = fac * xv_b(i1 + k * C_dir%dof + ioff)
+                    end do
+                  end do
+                  call VecRestoreArrayRead(b, xv_b, ierr)
+                end do
+              end if
+
+              call MatDestroy(A, ierr); call CHKERR(ierr)
+              call VecDestroy(b, ierr); call CHKERR(ierr)
+              call KSPDestroy(ksp, ierr); call CHKERR(ierr)
+            end if ! have an outer domain boundary
+
+            call restoreVecPointer(C_dir%da, local_incSolar, x1d, x4d)
+
+            ! scatter local (with side BCs) back to plain incSolar array via temp tVec
+            call DMCreateGlobalVector(C_dir%da, vIncSolar, ierr); call CHKERR(ierr)
+            call VecSet(vIncSolar, 0._ireals, ierr); call CHKERR(ierr)
+            call DMLocalToGlobalBegin(C_dir%da, local_incSolar, ADD_VALUES, vIncSolar, ierr); call CHKERR(ierr)
+            call DMLocalToGlobalEnd(C_dir%da, local_incSolar, ADD_VALUES, vIncSolar, ierr); call CHKERR(ierr)
+            call DMRestoreLocalVector(C_dir%da, local_incSolar, ierr); call CHKERR(ierr)
+
+            call getVecPointer(C_dir%da, vIncSolar, xg1d, xg4d)
+            incSolar = xg4d
+            call restoreVecPointer(C_dir%da, vIncSolar, xg1d, xg4d)
+            call VecDestroy(vIncSolar, ierr); call CHKERR(ierr)
+
+          end associate
+
+        end if
+      end subroutine
+
+      subroutine single_column_solve(OPP, C_dir, i, j, A, ksp, b)
+        class(t_optprop_cube), intent(in) :: OPP
+        type(t_coord), intent(in) :: C_dir
+        integer(iintegers), intent(in) :: i, j
+        type(tMat), intent(inout) :: A
+        type(tVec), intent(inout) :: b
+        type(tKSP), intent(inout) :: ksp
+
+        integer(mpiint) :: ierr
+        integer(iintegers) :: k, ak, src, dst, irow, icol, ioff, ioffsrc
+        real(ireals) :: dtau, v
+        real(irealLUT) :: lutcoeff(C_dir%dof**2)
+        real(ireals), target :: coeff(C_dir%dof**2)
+        real(ireals), pointer :: cdir2dir(:, :), xv_b(:)
+
+        call MatZeroEntries(A, ierr); call CHKERR(ierr)
+        do irow = 0, C_dir%dof * C_dir%zm - 1
+          call MatSetValue(A, irow, irow, -1._ireals, ADD_VALUES, ierr); call CHKERR(ierr)
+        end do
+
+        associate ( &
+            & atm => solver%atm, &
+            & sun => solver%sun)
+
+          call VecGetArray(b, xv_b, ierr)
+          xv_b(:) = 0
+          do src = 1, solver%dirtop%dof
+            xv_b(src) = -1._ireals
+          end do
+          call VecRestoreArray(b, xv_b, ierr)
+
+          do k = C_dir%zs, C_dir%ze - 1
+            ak = atmk(atm, k)
+
+            if (atm%l1d(atmk(atm, k))) then
+
+              do src = 0, solver%dirtop%dof - 1
+                irow = (k + 1) * C_dir%dof + src
+                icol = (k) * C_dir%dof + src
+
+                dtau = atm%kabs(ak, i, j) * atm%dz(ak, i, j) / sun%costheta
+                v = exp(-dtau)
+                call MatSetValue(A, irow, icol, v, ADD_VALUES, ierr); call CHKERR(ierr)
+              end do
+            else
+
+              call get_coeff( &
+                & OPP, &
+                & atm%kabs(ak, i, j), &
+                & atm%ksca(ak, i, j), &
+                & atm%g(ak, i, j), &
+                & atm%dz(ak, i, j), &
+                & atm%dx, &
+                & .true., &
+                & lutcoeff, &
+                & [real(sun%symmetry_phi, irealLUT), real(sun%theta, irealLUT)], &
+                & lswitch_east=sun%xinc .eq. 0, &
+                & lswitch_north=sun%yinc .eq. 0 &
+                & )
+              coeff = real(lutcoeff, ireals)
+              cdir2dir(0:C_dir%dof - 1, 0:C_dir%dof - 1) => coeff(:)
+              ! cdir2dir(0:C_dir%dof - 1, 0:C_dir%dof - 1) => solver%dir2dir(:, k, i, j)
+
+              do src = 0, solver%dirtop%dof - 1
+                icol = k * C_dir%dof + src
+                do dst = 0, solver%dirtop%dof - 1 ! top2bot
+                  v = cdir2dir(src, dst)
+                  irow = (k + 1) * C_dir%dof + dst
+                  call MatSetValue(A, irow, icol, v, ADD_VALUES, ierr); call CHKERR(ierr)
+                end do
+
+                do dst = 0, solver%dirside%dof - 1 ! top2x
+                  ioff = solver%dirtop%dof + dst
+                  v = cdir2dir(src, ioff)
+                  irow = k * C_dir%dof + ioff
+                  call MatSetValue(A, irow, icol, v, ADD_VALUES, ierr); call CHKERR(ierr)
+                end do
+                do dst = 0, solver%dirside%dof - 1 ! top2y
+                  ioff = solver%dirtop%dof + solver%dirside%dof + dst
+                  v = cdir2dir(src, ioff)
+                  irow = k * C_dir%dof + ioff
+                  call MatSetValue(A, irow, icol, v, ADD_VALUES, ierr); call CHKERR(ierr)
+                end do
+              end do
+
+              do src = 0, solver%dirside%dof - 1
+                ioffsrc = solver%dirtop%dof + src
+                icol = k * C_dir%dof + ioffsrc
+                do dst = 0, solver%dirtop%dof - 1 ! side2bot
+                  v = cdir2dir(ioffsrc, dst)
+                  irow = (k + 1) * C_dir%dof + dst
+                  call MatSetValue(A, irow, icol, v, ADD_VALUES, ierr); call CHKERR(ierr)
+                end do
+
+                do dst = 0, solver%dirside%dof - 1 ! side2x
+                  ioff = solver%dirtop%dof + dst
+                  v = cdir2dir(ioffsrc, ioff)
+                  irow = k * C_dir%dof + ioff
+                  call MatSetValue(A, irow, icol, v, ADD_VALUES, ierr); call CHKERR(ierr)
+                end do
+                do dst = 0, solver%dirside%dof - 1 ! side2y
+                  ioff = solver%dirtop%dof + solver%dirside%dof + dst
+                  v = cdir2dir(ioffsrc, ioff)
+                  irow = k * C_dir%dof + ioff
+                  call MatSetValue(A, irow, icol, v, ADD_VALUES, ierr); call CHKERR(ierr)
+                end do
+              end do
+
+              do src = 0, solver%dirside%dof - 1
+                ioffsrc = solver%dirtop%dof + solver%dirside%dof + src
+                icol = k * C_dir%dof + ioffsrc
+                do dst = 0, solver%dirtop%dof - 1 ! side2bot
+                  v = cdir2dir(ioffsrc, dst)
+                  irow = (k + 1) * C_dir%dof + dst
+                  call MatSetValue(A, irow, icol, v, ADD_VALUES, ierr); call CHKERR(ierr)
+                end do
+
+                do dst = 0, solver%dirside%dof - 1 ! side2x
+                  ioff = solver%dirtop%dof + dst
+                  v = cdir2dir(ioffsrc, ioff)
+                  irow = k * C_dir%dof + ioff
+                  call MatSetValue(A, irow, icol, v, ADD_VALUES, ierr); call CHKERR(ierr)
+                end do
+                do dst = 0, solver%dirside%dof - 1 ! side2y
+                  ioff = solver%dirtop%dof + solver%dirside%dof + dst
+                  v = cdir2dir(ioffsrc, ioff)
+                  irow = k * C_dir%dof + ioff
+                  call MatSetValue(A, irow, icol, v, ADD_VALUES, ierr); call CHKERR(ierr)
+                end do
+              end do
+
+            end if
+          end do
+          call MatAssemblyBegin(A, MAT_FINAL_ASSEMBLY, ierr); call CHKERR(ierr)
+          call MatAssemblyEnd(A, MAT_FINAL_ASSEMBLY, ierr); call CHKERR(ierr)
+
+          call KSPSetOperators(ksp, A, A, ierr); call CHKERR(ierr)
+          call KSPSolve(ksp, b, b, ierr); call CHKERR(ierr)
+        end associate
+
+      end subroutine
+#endif
+
     end subroutine
 
-  end subroutine
+    function get_solution_uid(solutions, opt_solution_uid) result(uid)
+      type(t_state_container), allocatable :: solutions(:)
+      integer(iintegers), optional, intent(in) :: opt_solution_uid
+      integer(iintegers) :: uid
+      logical :: lflg1, lflg2
+      integer(mpiint) :: ierr
 
-  function get_solution_uid(solutions, opt_solution_uid) result(uid)
-    type(t_state_container), allocatable :: solutions(:)
-    integer(iintegers), optional, intent(in) :: opt_solution_uid
-    integer(iintegers) :: uid
-    logical :: lflg1, lflg2
-    integer(mpiint) :: ierr
+      uid = get_arg(0_iintegers, opt_solution_uid)
+      call get_petsc_opt('', '-override_solution_uid', uid, lflg1, ierr); call CHKERR(ierr)
+      call get_petsc_opt('', '-pprts_override_solution_uid', uid, lflg2, ierr); call CHKERR(ierr)
+      !if (lflg1 .or. lflg2) then
+      !  print *, 'Override solutions uid, returning '//toStr(uid)//' instead of '//toStr(get_arg(0_iintegers, opt_solution_uid))
+      !end if
 
-    uid = get_arg(0_iintegers, opt_solution_uid)
-    call get_petsc_opt('', '-override_solution_uid', uid, lflg1, ierr); call CHKERR(ierr)
-    call get_petsc_opt('', '-pprts_override_solution_uid', uid, lflg2, ierr); call CHKERR(ierr)
-    !if (lflg1 .or. lflg2) then
-    !  print *, 'Override solutions uid, returning '//toStr(uid)//' instead of '//toStr(get_arg(0_iintegers, opt_solution_uid))
-    !end if
-
-    if (.not. is_inrange(uid, lbound(solutions, 1, kind=iintegers), ubound(solutions, 1, kind=iintegers))) then
-      call CHKWARN(int(uid, mpiint), "uid ("//toStr(uid)//") is not in range of "// &
-        & "preallocated solutions container [ "//&
-        & toStr(lbound(solutions, 1))//", "//&
-        & toStr(ubound(solutions, 1))//" ]."//new_line('')// &
-        & "I will set it to 0 but this has some implications"//new_line('')// &
-        & "If you are not sure what you are doing, "// &
-        & "you can increase the size of the solutions container to fit all spectral bands")
-      uid = 0
-    end if
-  end function
-
-  !> @brief retrieve transport coefficients from optprop module
-  !> @detail this may get the coeffs from a LUT or ANN or whatever and return diff2diff or dir2diff or dir2dir coeffs
-  subroutine get_coeff(OPP, kabs, ksca, g, dz, dx, ldir, coeff, &
-                       angles, lswitch_east, lswitch_north, opt_vertices)
-    class(t_optprop_cube), intent(in) :: OPP
-    real(ireals), intent(in) :: kabs, ksca, g, dz, dx
-    logical, intent(in) :: ldir
-    real(irealLUT), intent(out) :: coeff(:)
-
-    real(irealLUT), intent(in), optional :: angles(2)
-    logical, intent(in), optional :: lswitch_east, lswitch_north
-    real(ireals), intent(in), optional :: opt_vertices(:)
-
-    logical, parameter :: lenable_cache = .false.
-    real(irealLUT), save :: coeff_cache(1000)
-    logical :: lcurrent
-
-    real(irealLUT) :: aspect_zx, tauz, w0
-    integer(mpiint) :: ierr
-
-    if (lenable_cache) then
-      call check_cache(lcurrent)
-      if (lcurrent) then
-        coeff = coeff_cache(1:size(coeff))
-        return
+      if (.not. is_inrange(uid, lbound(solutions, 1, kind=iintegers), ubound(solutions, 1, kind=iintegers))) then
+        call CHKWARN(int(uid, mpiint), "uid ("//toStr(uid)//") is not in range of "// &
+          & "preallocated solutions container [ "//&
+          & toStr(lbound(solutions, 1))//", "//&
+          & toStr(ubound(solutions, 1))//" ]."//new_line('')// &
+          & "I will set it to 0 but this has some implications"//new_line('')// &
+          & "If you are not sure what you are doing, "// &
+          & "you can increase the size of the solutions container to fit all spectral bands")
+        uid = 0
       end if
-    end if
+    end function
 
-    aspect_zx = real(dz / dx, irealLUT)
-    w0 = real(ksca / max(kabs + ksca, epsilon(kabs)), irealLUT)
-    tauz = real((kabs + ksca) * dz, irealLUT)
+    !> @brief retrieve transport coefficients from optprop module
+    !> @detail this may get the coeffs from a LUT or ANN or whatever and return diff2diff or dir2diff or dir2dir coeffs
+    subroutine get_coeff(OPP, kabs, ksca, g, dz, dx, ldir, coeff, &
+                         angles, lswitch_east, lswitch_north, opt_vertices)
+      class(t_optprop_cube), intent(in) :: OPP
+      real(ireals), intent(in) :: kabs, ksca, g, dz, dx
+      logical, intent(in) :: ldir
+      real(irealLUT), intent(out) :: coeff(:)
 
-    if (present(angles)) then
-      aspect_zx = max(OPP%dev%dirconfig%dims(3)%vrange(1), aspect_zx)
-      tauz = max(OPP%dev%dirconfig%dims(1)%vrange(1), &
-           & min(OPP%dev%dirconfig%dims(1)%vrange(2), tauz))
-      w0 = max(OPP%dev%dirconfig%dims(2)%vrange(1), &
-           & min(OPP%dev%dirconfig%dims(2)%vrange(2), w0))
-    else
-      aspect_zx = max(OPP%dev%diffconfig%dims(3)%vrange(1), aspect_zx)
-      tauz = max(OPP%dev%diffconfig%dims(1)%vrange(1), &
-           & min(OPP%dev%diffconfig%dims(1)%vrange(2), tauz))
-      w0 = max(OPP%dev%diffconfig%dims(2)%vrange(1), &
-           & min(OPP%dev%diffconfig%dims(2)%vrange(2), w0))
-    end if
-    !print *,'hit cache'//new_line(''),  &
-    !  & 'kabs', kabs,new_line(''), &
-    !  & 'ksca', ksca,new_line(''), &
-    !  & 'g',    g   ,new_line(''), &
-    !  & 'dz',   dz  ,new_line(''), &
-    !  & 'ldir', ldir
+      real(irealLUT), intent(in), optional :: angles(2)
+      logical, intent(in), optional :: lswitch_east, lswitch_north
+      real(ireals), intent(in), optional :: opt_vertices(:)
 
-    call OPP%get_coeff(tauz, w0, real(g, irealLUT), aspect_zx, ldir, coeff, ierr, &
-                       angles, lswitch_east, lswitch_north, opt_vertices); call CHKERR(ierr)
+      logical, parameter :: lenable_cache = .false.
+      real(irealLUT), save :: coeff_cache(1000)
+      logical :: lcurrent
 
-    if (lenable_cache) then
-      coeff_cache(1:size(coeff)) = coeff
-    end if
+      real(irealLUT) :: aspect_zx, tauz, w0
+      integer(mpiint) :: ierr
 
-  contains
-    subroutine check_cache(lcurrent)
-      logical, intent(out) :: lcurrent
-
-      logical, save :: lpresent_angles = .false.
-      logical, save :: c_ldir = .false., c_lswitch_east = .false., c_lswitch_north = .false.
-      real(ireals), save :: c_kabs = -1, c_ksca = -1, c_g = -1, c_dz = -1, c_vertices(24) = -1
-      real(irealLUT), save :: c_angles(2) = -1
-
-      real(ireals), parameter :: cache_limit = 1e-3 ! rel change cache limit
-      real(irealLUT), parameter :: cache_limit2 = cache_limit ! rel change cache limit
-
-      if (.not. lenable_cache) then
-        lcurrent = .false.
-        return
+      if (lenable_cache) then
+        call check_cache(lcurrent)
+        if (lcurrent) then
+          coeff = coeff_cache(1:size(coeff))
+          return
+        end if
       end if
 
-      if (.not. rel_approx(c_kabs, kabs, cache_limit)) goto 99
-      if (.not. rel_approx(c_ksca, ksca, cache_limit)) goto 99
-      if (.not. rel_approx(c_g, g, cache_limit)) goto 99
-      if (.not. rel_approx(c_dz, dz, cache_limit)) goto 99
-      if (lpresent_angles .neqv. present(angles)) goto 99
-
-      if (present(opt_vertices)) then
-        if (any(.not. rel_approx(c_vertices, opt_vertices, cache_limit))) goto 99
-      end if
+      aspect_zx = real(dz / dx, irealLUT)
+      w0 = real(ksca / max(kabs + ksca, epsilon(kabs)), irealLUT)
+      tauz = real((kabs + ksca) * dz, irealLUT)
 
       if (present(angles)) then
-        if (any(.not. rel_approx(c_angles, angles, cache_limit2))) goto 99
+        aspect_zx = max(OPP%dev%dirconfig%dims(3)%vrange(1), aspect_zx)
+        tauz = max(OPP%dev%dirconfig%dims(1)%vrange(1), &
+             & min(OPP%dev%dirconfig%dims(1)%vrange(2), tauz))
+        w0 = max(OPP%dev%dirconfig%dims(2)%vrange(1), &
+             & min(OPP%dev%dirconfig%dims(2)%vrange(2), w0))
+      else
+        aspect_zx = max(OPP%dev%diffconfig%dims(3)%vrange(1), aspect_zx)
+        tauz = max(OPP%dev%diffconfig%dims(1)%vrange(1), &
+             & min(OPP%dev%diffconfig%dims(1)%vrange(2), tauz))
+        w0 = max(OPP%dev%diffconfig%dims(2)%vrange(1), &
+             & min(OPP%dev%diffconfig%dims(2)%vrange(2), w0))
       end if
-
-      if (c_ldir .neqv. ldir) goto 99
-      if (present(lswitch_east)) then
-        if (c_lswitch_east .neqv. lswitch_east) goto 99
-      end if
-      if (present(lswitch_north)) then
-        if (c_lswitch_north .neqv. lswitch_north) goto 99
-      end if
-      lcurrent = .true.
       !print *,'hit cache'//new_line(''),  &
-      !  & 'kabs', c_kabs, kabs,new_line(''), &
-      !  & 'ksca', c_ksca, ksca,new_line(''), &
-      !  & 'g',    c_g   , g   ,new_line(''), &
-      !  & 'dz',   c_dz  , dz  ,new_line(''), &
-      !  & 'ldir', c_ldir, ldir
-      !call CHKERR(1_mpiint, 'DEBUG')
-      return
+      !  & 'kabs', kabs,new_line(''), &
+      !  & 'ksca', ksca,new_line(''), &
+      !  & 'g',    g   ,new_line(''), &
+      !  & 'dz',   dz  ,new_line(''), &
+      !  & 'ldir', ldir
 
-99    continue ! update sample pts and go on to compute them
-      !print *,'missed cache'//new_line(''),  &
-      !  & 'kabs', c_kabs, kabs,new_line(''), &
-      !  & 'ksca', c_ksca, ksca,new_line(''), &
-      !  & 'g',    c_g   , g   ,new_line(''), &
-      !  & 'dz',   c_dz  , dz  ,new_line(''), &
-      !  & 'ldir', c_ldir, ldir
+      call OPP%get_coeff(tauz, w0, real(g, irealLUT), aspect_zx, ldir, coeff, ierr, &
+                         angles, lswitch_east, lswitch_north, opt_vertices); call CHKERR(ierr)
 
-      lcurrent = .false.
-      c_kabs = kabs
-      c_ksca = ksca
-      c_g = g
-      c_dz = dz
-      c_ldir = ldir
-      lpresent_angles = present(angles)
-      if (present(angles)) c_angles = angles
-      if (present(opt_vertices)) c_vertices = opt_vertices
-      if (present(lswitch_east)) c_lswitch_east = lswitch_east
-      if (present(lswitch_north)) c_lswitch_north = lswitch_north
+      if (lenable_cache) then
+        coeff_cache(1:size(coeff)) = coeff
+      end if
 
+    contains
+      subroutine check_cache(lcurrent)
+        logical, intent(out) :: lcurrent
+
+        logical, save :: lpresent_angles = .false.
+        logical, save :: c_ldir = .false., c_lswitch_east = .false., c_lswitch_north = .false.
+        real(ireals), save :: c_kabs = -1, c_ksca = -1, c_g = -1, c_dz = -1, c_vertices(24) = -1
+        real(irealLUT), save :: c_angles(2) = -1
+
+        real(ireals), parameter :: cache_limit = 1e-3 ! rel change cache limit
+        real(irealLUT), parameter :: cache_limit2 = cache_limit ! rel change cache limit
+
+        if (.not. lenable_cache) then
+          lcurrent = .false.
+          return
+        end if
+
+        if (.not. rel_approx(c_kabs, kabs, cache_limit)) goto 99
+        if (.not. rel_approx(c_ksca, ksca, cache_limit)) goto 99
+        if (.not. rel_approx(c_g, g, cache_limit)) goto 99
+        if (.not. rel_approx(c_dz, dz, cache_limit)) goto 99
+        if (lpresent_angles .neqv. present(angles)) goto 99
+
+        if (present(opt_vertices)) then
+          if (any(.not. rel_approx(c_vertices, opt_vertices, cache_limit))) goto 99
+        end if
+
+        if (present(angles)) then
+          if (any(.not. rel_approx(c_angles, angles, cache_limit2))) goto 99
+        end if
+
+        if (c_ldir .neqv. ldir) goto 99
+        if (present(lswitch_east)) then
+          if (c_lswitch_east .neqv. lswitch_east) goto 99
+        end if
+        if (present(lswitch_north)) then
+          if (c_lswitch_north .neqv. lswitch_north) goto 99
+        end if
+        lcurrent = .true.
+        !print *,'hit cache'//new_line(''),  &
+        !  & 'kabs', c_kabs, kabs,new_line(''), &
+        !  & 'ksca', c_ksca, ksca,new_line(''), &
+        !  & 'g',    c_g   , g   ,new_line(''), &
+        !  & 'dz',   c_dz  , dz  ,new_line(''), &
+        !  & 'ldir', c_ldir, ldir
+        !call CHKERR(1_mpiint, 'DEBUG')
+        return
+
+99      continue ! update sample pts and go on to compute them
+        !print *,'missed cache'//new_line(''),  &
+        !  & 'kabs', c_kabs, kabs,new_line(''), &
+        !  & 'ksca', c_ksca, ksca,new_line(''), &
+        !  & 'g',    c_g   , g   ,new_line(''), &
+        !  & 'dz',   c_dz  , dz  ,new_line(''), &
+        !  & 'ldir', c_ldir, ldir
+
+        lcurrent = .false.
+        c_kabs = kabs
+        c_ksca = ksca
+        c_g = g
+        c_dz = dz
+        c_ldir = ldir
+        lpresent_angles = present(angles)
+        if (present(angles)) c_angles = angles
+        if (present(opt_vertices)) c_vertices = opt_vertices
+        if (present(lswitch_east)) c_lswitch_east = lswitch_east
+        if (present(lswitch_north)) c_lswitch_north = lswitch_north
+
+      end subroutine
     end subroutine
-  end subroutine
 
-  !> Forward halo fill (interior → ghost). Mirrors DMGlobalToLocal.
-  !> v is (1:dof, 1:zm, 1:gxm, 1:gym) in assumed-shape (1-based).
-  !> Interior: 2..gxm-1 (x), 2..gym-1 (y). Ghosts: 1 and gxm (x), 1 and gym (y).
-  subroutine halo_fill_5pt(comm, C, v, ierr)
-    use mpi
-    integer(mpiint), intent(in) :: comm
-    type(t_coord), intent(in) :: C
-    real(ireals), intent(inout) :: v(:, :, :, :)
-    integer(mpiint), intent(out) :: ierr
+    !> Forward halo fill (interior → ghost). Mirrors DMGlobalToLocal.
+    !> v is (1:dof, 1:zm, 1:gxm, 1:gym) in assumed-shape (1-based).
+    !> Interior: 2..gxm-1 (x), 2..gym-1 (y). Ghosts: 1 and gxm (x), 1 and gym (y).
+    subroutine halo_fill_5pt(comm, C, v, ierr)
+      use mpi
+      integer(mpiint), intent(in) :: comm
+      type(t_coord), intent(in) :: C
+      real(ireals), intent(inout) :: v(:, :, :, :)
+      integer(mpiint), intent(out) :: ierr
 
-    real(ireals), allocatable :: se(:, :, :), sw(:, :, :), sn(:, :, :), ss(:, :, :)
-    real(ireals), allocatable :: re(:, :, :), rw(:, :, :), rn(:, :, :), rs(:, :, :)
-    integer(mpiint) :: rqs(8), sts(MPI_STATUS_SIZE, 8)
-    integer(mpiint) :: nw, ne, ns, nn
-    integer(iintegers) :: gxm, gym
+      real(ireals), allocatable :: se(:, :, :), sw(:, :, :), sn(:, :, :), ss(:, :, :)
+      real(ireals), allocatable :: re(:, :, :), rw(:, :, :), rn(:, :, :), rs(:, :, :)
+      integer(mpiint) :: rqs(8), sts(MPI_STATUS_SIZE, 8)
+      integer(mpiint) :: nw, ne, ns, nn
+      integer(iintegers) :: gxm, gym
 
-    nw = int(C%neighbors(10), mpiint)
-    ne = int(C%neighbors(16), mpiint)
-    ns = int(C%neighbors(4), mpiint)
-    nn = int(C%neighbors(22), mpiint)
+      nw = int(C%neighbors(10), mpiint)
+      ne = int(C%neighbors(16), mpiint)
+      ns = int(C%neighbors(4), mpiint)
+      nn = int(C%neighbors(22), mpiint)
 
-    gxm = size(v, 3, kind=iintegers)
-    gym = size(v, 4, kind=iintegers)
+      gxm = size(v, 3, kind=iintegers)
+      gym = size(v, 4, kind=iintegers)
 
-    allocate (se(size(v, 1), size(v, 2), size(v, 4))); se = zero
-    allocate (sw(size(v, 1), size(v, 2), size(v, 4))); sw = zero
-    allocate (re(size(v, 1), size(v, 2), size(v, 4))); re = zero
-    allocate (rw(size(v, 1), size(v, 2), size(v, 4))); rw = zero
-    allocate (sn(size(v, 1), size(v, 2), size(v, 3) - 2)); sn = zero
-    allocate (ss(size(v, 1), size(v, 2), size(v, 3) - 2)); ss = zero
-    allocate (rn(size(v, 1), size(v, 2), size(v, 3) - 2)); rn = zero
-    allocate (rs(size(v, 1), size(v, 2), size(v, 3) - 2)); rs = zero
+      allocate (se(size(v, 1), size(v, 2), size(v, 4))); se = zero
+      allocate (sw(size(v, 1), size(v, 2), size(v, 4))); sw = zero
+      allocate (re(size(v, 1), size(v, 2), size(v, 4))); re = zero
+      allocate (rw(size(v, 1), size(v, 2), size(v, 4))); rw = zero
+      allocate (sn(size(v, 1), size(v, 2), size(v, 3) - 2)); sn = zero
+      allocate (ss(size(v, 1), size(v, 2), size(v, 3) - 2)); ss = zero
+      allocate (rn(size(v, 1), size(v, 2), size(v, 3) - 2)); rn = zero
+      allocate (rs(size(v, 1), size(v, 2), size(v, 3) - 2)); rs = zero
 
-    se = v(:, :, gxm - 1, :)
-    sw = v(:, :, 2, :)
-    sn = v(:, :, 2:gxm - 1, gym - 1)
-    ss = v(:, :, 2:gxm - 1, 2)
+      se = v(:, :, gxm - 1, :)
+      sw = v(:, :, 2, :)
+      sn = v(:, :, 2:gxm - 1, gym - 1)
+      ss = v(:, :, 2:gxm - 1, 2)
 
-    call MPI_Irecv(rw, size(rw, kind=mpiint), imp_ireals, nw, 16, comm, rqs(1), ierr)
-    call MPI_Irecv(re, size(re, kind=mpiint), imp_ireals, ne, 10, comm, rqs(2), ierr)
-    call MPI_Irecv(rs, size(rs, kind=mpiint), imp_ireals, ns, 22, comm, rqs(3), ierr)
-    call MPI_Irecv(rn, size(rn, kind=mpiint), imp_ireals, nn, 4, comm, rqs(4), ierr)
-    call MPI_Isend(se, size(se, kind=mpiint), imp_ireals, ne, 16, comm, rqs(5), ierr)
-    call MPI_Isend(sw, size(sw, kind=mpiint), imp_ireals, nw, 10, comm, rqs(6), ierr)
-    call MPI_Isend(sn, size(sn, kind=mpiint), imp_ireals, nn, 22, comm, rqs(7), ierr)
-    call MPI_Isend(ss, size(ss, kind=mpiint), imp_ireals, ns, 4, comm, rqs(8), ierr)
-    call MPI_Waitall(8_mpiint, rqs, sts, ierr)
+      call MPI_Irecv(rw, size(rw, kind=mpiint), imp_ireals, nw, 16, comm, rqs(1), ierr)
+      call MPI_Irecv(re, size(re, kind=mpiint), imp_ireals, ne, 10, comm, rqs(2), ierr)
+      call MPI_Irecv(rs, size(rs, kind=mpiint), imp_ireals, ns, 22, comm, rqs(3), ierr)
+      call MPI_Irecv(rn, size(rn, kind=mpiint), imp_ireals, nn, 4, comm, rqs(4), ierr)
+      call MPI_Isend(se, size(se, kind=mpiint), imp_ireals, ne, 16, comm, rqs(5), ierr)
+      call MPI_Isend(sw, size(sw, kind=mpiint), imp_ireals, nw, 10, comm, rqs(6), ierr)
+      call MPI_Isend(sn, size(sn, kind=mpiint), imp_ireals, nn, 22, comm, rqs(7), ierr)
+      call MPI_Isend(ss, size(ss, kind=mpiint), imp_ireals, ns, 4, comm, rqs(8), ierr)
+      call MPI_Waitall(8_mpiint, rqs, sts, ierr)
 
-    v(:, :, 1, :) = rw
-    v(:, :, gxm, :) = re
-    v(:, :, 2:gxm - 1, 1) = rs
-    v(:, :, 2:gxm - 1, gym) = rn
-  end subroutine
+      v(:, :, 1, :) = rw
+      v(:, :, gxm, :) = re
+      v(:, :, 2:gxm - 1, 1) = rs
+      v(:, :, 2:gxm - 1, gym) = rn
+    end subroutine
 
-  !> Reverse halo reduce (ghost → interior, ADD_VALUES). Mirrors DMLocalToGlobal(ADD_VALUES).
-  !> Sends ghost cell values to neighbors who add them onto their interior boundary cells,
-  !> then zeros own ghost cells.
-  subroutine halo_reduce_5pt(comm, C, v, ierr)
-    use mpi
-    integer(mpiint), intent(in) :: comm
-    type(t_coord), intent(in) :: C
-    real(ireals), intent(inout) :: v(:, :, :, :)
-    integer(mpiint), intent(out) :: ierr
+    !> Reverse halo reduce (ghost → interior, ADD_VALUES). Mirrors DMLocalToGlobal(ADD_VALUES).
+    !> Sends ghost cell values to neighbors who add them onto their interior boundary cells,
+    !> then zeros own ghost cells.
+    subroutine halo_reduce_5pt(comm, C, v, ierr)
+      use mpi
+      integer(mpiint), intent(in) :: comm
+      type(t_coord), intent(in) :: C
+      real(ireals), intent(inout) :: v(:, :, :, :)
+      integer(mpiint), intent(out) :: ierr
 
-    real(ireals), allocatable :: se(:, :, :), sw(:, :, :), sn(:, :, :), ss(:, :, :)
-    real(ireals), allocatable :: re(:, :, :), rw(:, :, :), rn(:, :, :), rs(:, :, :)
-    integer(mpiint) :: rqs(8), sts(MPI_STATUS_SIZE, 8)
-    integer(mpiint) :: nw, ne, ns, nn
-    integer(iintegers) :: gxm, gym
+      real(ireals), allocatable :: se(:, :, :), sw(:, :, :), sn(:, :, :), ss(:, :, :)
+      real(ireals), allocatable :: re(:, :, :), rw(:, :, :), rn(:, :, :), rs(:, :, :)
+      integer(mpiint) :: rqs(8), sts(MPI_STATUS_SIZE, 8)
+      integer(mpiint) :: nw, ne, ns, nn
+      integer(iintegers) :: gxm, gym
 
-    nw = int(C%neighbors(10), mpiint)
-    ne = int(C%neighbors(16), mpiint)
-    ns = int(C%neighbors(4), mpiint)
-    nn = int(C%neighbors(22), mpiint)
+      nw = int(C%neighbors(10), mpiint)
+      ne = int(C%neighbors(16), mpiint)
+      ns = int(C%neighbors(4), mpiint)
+      nn = int(C%neighbors(22), mpiint)
 
-    gxm = size(v, 3, kind=iintegers)
-    gym = size(v, 4, kind=iintegers)
+      gxm = size(v, 3, kind=iintegers)
+      gym = size(v, 4, kind=iintegers)
 
-    allocate (se(size(v, 1), size(v, 2), size(v, 4))); se = zero
-    allocate (sw(size(v, 1), size(v, 2), size(v, 4))); sw = zero
-    allocate (re(size(v, 1), size(v, 2), size(v, 4))); re = zero
-    allocate (rw(size(v, 1), size(v, 2), size(v, 4))); rw = zero
-    allocate (sn(size(v, 1), size(v, 2), size(v, 3) - 2)); sn = zero
-    allocate (ss(size(v, 1), size(v, 2), size(v, 3) - 2)); ss = zero
-    allocate (rn(size(v, 1), size(v, 2), size(v, 3) - 2)); rn = zero
-    allocate (rs(size(v, 1), size(v, 2), size(v, 3) - 2)); rs = zero
+      allocate (se(size(v, 1), size(v, 2), size(v, 4))); se = zero
+      allocate (sw(size(v, 1), size(v, 2), size(v, 4))); sw = zero
+      allocate (re(size(v, 1), size(v, 2), size(v, 4))); re = zero
+      allocate (rw(size(v, 1), size(v, 2), size(v, 4))); rw = zero
+      allocate (sn(size(v, 1), size(v, 2), size(v, 3) - 2)); sn = zero
+      allocate (ss(size(v, 1), size(v, 2), size(v, 3) - 2)); ss = zero
+      allocate (rn(size(v, 1), size(v, 2), size(v, 3) - 2)); rn = zero
+      allocate (rs(size(v, 1), size(v, 2), size(v, 3) - 2)); rs = zero
 
-    ! Send ghost cells to owners; use same tag scheme as halo_fill_5pt.
-    se = v(:, :, gxm, :)
-    sw = v(:, :, 1, :)
-    sn = v(:, :, 2:gxm - 1, gym)
-    ss = v(:, :, 2:gxm - 1, 1)
+      ! Send ghost cells to owners; use same tag scheme as halo_fill_5pt.
+      se = v(:, :, gxm, :)
+      sw = v(:, :, 1, :)
+      sn = v(:, :, 2:gxm - 1, gym)
+      ss = v(:, :, 2:gxm - 1, 1)
 
-    call MPI_Irecv(rw, size(rw, kind=mpiint), imp_ireals, nw, 16, comm, rqs(1), ierr)
-    call MPI_Irecv(re, size(re, kind=mpiint), imp_ireals, ne, 10, comm, rqs(2), ierr)
-    call MPI_Irecv(rs, size(rs, kind=mpiint), imp_ireals, ns, 22, comm, rqs(3), ierr)
-    call MPI_Irecv(rn, size(rn, kind=mpiint), imp_ireals, nn, 4, comm, rqs(4), ierr)
-    call MPI_Isend(se, size(se, kind=mpiint), imp_ireals, ne, 16, comm, rqs(5), ierr)
-    call MPI_Isend(sw, size(sw, kind=mpiint), imp_ireals, nw, 10, comm, rqs(6), ierr)
-    call MPI_Isend(sn, size(sn, kind=mpiint), imp_ireals, nn, 22, comm, rqs(7), ierr)
-    call MPI_Isend(ss, size(ss, kind=mpiint), imp_ireals, ns, 4, comm, rqs(8), ierr)
-    call MPI_Waitall(8_mpiint, rqs, sts, ierr)
+      call MPI_Irecv(rw, size(rw, kind=mpiint), imp_ireals, nw, 16, comm, rqs(1), ierr)
+      call MPI_Irecv(re, size(re, kind=mpiint), imp_ireals, ne, 10, comm, rqs(2), ierr)
+      call MPI_Irecv(rs, size(rs, kind=mpiint), imp_ireals, ns, 22, comm, rqs(3), ierr)
+      call MPI_Irecv(rn, size(rn, kind=mpiint), imp_ireals, nn, 4, comm, rqs(4), ierr)
+      call MPI_Isend(se, size(se, kind=mpiint), imp_ireals, ne, 16, comm, rqs(5), ierr)
+      call MPI_Isend(sw, size(sw, kind=mpiint), imp_ireals, nw, 10, comm, rqs(6), ierr)
+      call MPI_Isend(sn, size(sn, kind=mpiint), imp_ireals, nn, 22, comm, rqs(7), ierr)
+      call MPI_Isend(ss, size(ss, kind=mpiint), imp_ireals, ns, 4, comm, rqs(8), ierr)
+      call MPI_Waitall(8_mpiint, rqs, sts, ierr)
 
-    v(:, :, 2, :) = v(:, :, 2, :) + rw
-    v(:, :, gxm - 1, :) = v(:, :, gxm - 1, :) + re
-    v(:, :, 2:gxm - 1, 2) = v(:, :, 2:gxm - 1, 2) + rs
-    v(:, :, 2:gxm - 1, gym - 1) = v(:, :, 2:gxm - 1, gym - 1) + rn
+      v(:, :, 2, :) = v(:, :, 2, :) + rw
+      v(:, :, gxm - 1, :) = v(:, :, gxm - 1, :) + re
+      v(:, :, 2:gxm - 1, 2) = v(:, :, 2:gxm - 1, 2) + rs
+      v(:, :, 2:gxm - 1, gym - 1) = v(:, :, 2:gxm - 1, gym - 1) + rn
 
-    v(:, :, 1, :) = zero
-    v(:, :, gxm, :) = zero
-    v(:, :, 2:gxm - 1, 1) = zero
-    v(:, :, 2:gxm - 1, gym) = zero
-  end subroutine
+      v(:, :, 1, :) = zero
+      v(:, :, gxm, :) = zero
+      v(:, :, 2:gxm - 1, 1) = zero
+      v(:, :, 2:gxm - 1, gym) = zero
+    end subroutine
 
-  !> Separable box-blur convolution on a 2D surface array, pure-MPI version.
-  !> Replicates dmda_convolve_ediff_srfc from petsc_helpers.F90 without PETSc.
-  !> arr(dof, xm, ym) — local interior values (no ghost cells on input/output).
-  subroutine convolve_ediff_srfc(comm, C, kernel_width, arr)
-    use mpi
-    integer(mpiint), intent(in) :: comm
-    type(t_coord), intent(in) :: C
-    integer(iintegers), intent(in) :: kernel_width
-    real(ireals), intent(inout) :: arr(:, :, :)
-
-    integer(iintegers) :: dof, xm, ym, kw, idof
-    integer(mpiint) :: nw, ne, ns, nn, mpierr
-    integer(mpiint) :: rqs(4), sts(MPI_STATUS_SIZE, 4)
-    real(ireals), allocatable :: wg(:, :, :)
-    real(ireals), allocatable :: se(:, :, :), sw(:, :, :), sn(:, :, :), ss(:, :, :)
-    real(ireals), allocatable :: re(:, :, :), rw(:, :, :), rn(:, :, :), rs(:, :, :)
-
-    dof = size(arr, 1, kind=iintegers)
-    xm = size(arr, 2, kind=iintegers)
-    ym = size(arr, 3, kind=iintegers)
-    kw = kernel_width
-
-    nw = int(C%neighbors(10), mpiint)
-    ne = int(C%neighbors(16), mpiint)
-    ns = int(C%neighbors(4), mpiint)
-    nn = int(C%neighbors(22), mpiint)
-
-    ! Allocate extended array: kw ghost cells on each side in x and y.
-    ! Interior at wg(:, kw+1:kw+xm, kw+1:kw+ym).
-    allocate (wg(dof, xm + 2 * kw, ym + 2 * kw), source=zero)
-    wg(:, kw + 1:xm + kw, kw + 1:ym + kw) = arr
-
-    ! Pass 1: fill x-ghosts using periodic MPI exchange (interior y rows only).
-    allocate (se(dof, kw, ym)); allocate (re(dof, kw, ym)); re = zero
-    allocate (sw(dof, kw, ym)); allocate (rw(dof, kw, ym)); rw = zero
-    se = wg(:, xm + 1:xm + kw, kw + 1:ym + kw)
-    sw = wg(:, kw + 1:2 * kw, kw + 1:ym + kw)
-    call MPI_Irecv(rw, size(rw, kind=mpiint), imp_ireals, nw, 16, comm, rqs(1), mpierr)
-    call MPI_Irecv(re, size(re, kind=mpiint), imp_ireals, ne, 10, comm, rqs(2), mpierr)
-    call MPI_Isend(se, size(se, kind=mpiint), imp_ireals, ne, 16, comm, rqs(3), mpierr)
-    call MPI_Isend(sw, size(sw, kind=mpiint), imp_ireals, nw, 10, comm, rqs(4), mpierr)
-    call MPI_Waitall(4_mpiint, rqs, sts, mpierr)
-    wg(:, 1:kw, kw + 1:ym + kw) = rw
-    wg(:, xm + kw + 1:xm + 2 * kw, kw + 1:ym + kw) = re
-    deallocate (se, sw, re, rw)
-
-    ! Pass 2: fill y-ghosts including corner positions (full x with x-ghosts now populated).
-    allocate (sn(dof, xm + 2 * kw, kw)); allocate (rn(dof, xm + 2 * kw, kw)); rn = zero
-    allocate (ss(dof, xm + 2 * kw, kw)); allocate (rs(dof, xm + 2 * kw, kw)); rs = zero
-    sn = wg(:, :, ym + 1:ym + kw)
-    ss = wg(:, :, kw + 1:2 * kw)
-    call MPI_Irecv(rs, size(rs, kind=mpiint), imp_ireals, ns, 22, comm, rqs(1), mpierr)
-    call MPI_Irecv(rn, size(rn, kind=mpiint), imp_ireals, nn, 4, comm, rqs(2), mpierr)
-    call MPI_Isend(sn, size(sn, kind=mpiint), imp_ireals, nn, 22, comm, rqs(3), mpierr)
-    call MPI_Isend(ss, size(ss, kind=mpiint), imp_ireals, ns, 4, comm, rqs(4), mpierr)
-    call MPI_Waitall(4_mpiint, rqs, sts, mpierr)
-    wg(:, :, 1:kw) = rs
-    wg(:, :, ym + kw + 1:ym + 2 * kw) = rn
-    deallocate (sn, ss, rn, rs)
-
-    do idof = 1, dof
-      call box_filter(wg(idof, :, :), kw)
-    end do
-
-    arr = wg(:, kw + 1:xm + kw, kw + 1:ym + kw)
-
-  contains
-
-    subroutine box_filter(im, kernel_width)
-      real(ireals), intent(inout) :: im(:, :)
+    !> Separable box-blur convolution on a 2D surface array, pure-MPI version.
+    !> Replicates dmda_convolve_ediff_srfc from petsc_helpers.F90 without PETSc.
+    !> arr(dof, xm, ym) — local interior values (no ghost cells on input/output).
+    subroutine convolve_ediff_srfc(comm, C, kernel_width, arr)
+      use mpi
+      integer(mpiint), intent(in) :: comm
+      type(t_coord), intent(in) :: C
       integer(iintegers), intent(in) :: kernel_width
+      real(ireals), intent(inout) :: arr(:, :, :)
 
-      real(ireals), dimension(size(im, 1), size(im, 2)) :: tmp
-      real(ireals), dimension(size(im, 2), size(im, 1)) :: tmp_T, im_T
-      integer(iintegers), parameter :: iter = 1
+      integer(iintegers) :: dof, xm, ym, kw, idof
+      integer(mpiint) :: nw, ne, ns, nn, mpierr
+      integer(mpiint) :: rqs(4), sts(MPI_STATUS_SIZE, 4)
+      real(ireals), allocatable :: wg(:, :, :)
+      real(ireals), allocatable :: se(:, :, :), sw(:, :, :), sn(:, :, :), ss(:, :, :)
+      real(ireals), allocatable :: re(:, :, :), rw(:, :, :), rn(:, :, :), rs(:, :, :)
 
-      im_T = transpose(im)
-      call box_blur_1d(im_T, kernel_width, iter, tmp_T)
-      tmp = transpose(tmp_T)
-      call box_blur_1d(tmp, kernel_width, iter, im)
-    end subroutine
+      dof = size(arr, 1, kind=iintegers)
+      xm = size(arr, 2, kind=iintegers)
+      ym = size(arr, 3, kind=iintegers)
+      kw = kernel_width
 
-    subroutine box_blur_1d(im, k, iter, img)
-      real(ireals), intent(in) :: im(:, :)
-      real(ireals), dimension(size(im, 1), size(im, 2)), intent(out) :: img
-      integer(iintegers), intent(in) :: k, iter
+      nw = int(C%neighbors(10), mpiint)
+      ne = int(C%neighbors(16), mpiint)
+      ns = int(C%neighbors(4), mpiint)
+      nn = int(C%neighbors(22), mpiint)
 
-      real(ireals), dimension(size(im, 1), size(im, 2)) :: tmp
-      integer(iintegers) :: inc, l, r, ki, x, i, lb, ub
+      ! Allocate extended array: kw ghost cells on each side in x and y.
+      ! Interior at wg(:, kw+1:kw+xm, kw+1:kw+ym).
+      allocate (wg(dof, xm + 2 * kw, ym + 2 * kw), source=zero)
+      wg(:, kw + 1:xm + kw, kw + 1:ym + kw) = arr
 
-      img = im
+      ! Pass 1: fill x-ghosts using periodic MPI exchange (interior y rows only).
+      allocate (se(dof, kw, ym)); allocate (re(dof, kw, ym)); re = zero
+      allocate (sw(dof, kw, ym)); allocate (rw(dof, kw, ym)); rw = zero
+      se = wg(:, xm + 1:xm + kw, kw + 1:ym + kw)
+      sw = wg(:, kw + 1:2 * kw, kw + 1:ym + kw)
+      call MPI_Irecv(rw, size(rw, kind=mpiint), imp_ireals, nw, 16, comm, rqs(1), mpierr)
+      call MPI_Irecv(re, size(re, kind=mpiint), imp_ireals, ne, 10, comm, rqs(2), mpierr)
+      call MPI_Isend(se, size(se, kind=mpiint), imp_ireals, ne, 16, comm, rqs(3), mpierr)
+      call MPI_Isend(sw, size(sw, kind=mpiint), imp_ireals, nw, 10, comm, rqs(4), mpierr)
+      call MPI_Waitall(4_mpiint, rqs, sts, mpierr)
+      wg(:, 1:kw, kw + 1:ym + kw) = rw
+      wg(:, xm + kw + 1:xm + 2 * kw, kw + 1:ym + kw) = re
+      deallocate (se, sw, re, rw)
 
-      do x = 1, iter
-        lb = 1
-        ub = size(img, 2)
-        tmp(:, lb) = img(:, lb)
-        inc = -1
-        l = lb
-        do ki = 1, k
-          l = l + inc
-          if (l .eq. lb - 1) then; l = lb; inc = 1; end if
-          if (l .eq. ub + 1) then; l = ub; inc = -1; end if
-          tmp(:, lb) = tmp(:, lb) + img(:, l)
-        end do
-        r = lb
-        inc = 1
-        do ki = 1, k
-          r = r + inc
-          if (r .eq. ub + 1) then; r = ub; inc = -1; end if
-          if (r .eq. lb - 1) then; r = lb; inc = 1; end if
-          tmp(:, lb) = tmp(:, lb) + img(:, r)
-        end do
-        do i = lb + 1, ub
-          l = i - 1
+      ! Pass 2: fill y-ghosts including corner positions (full x with x-ghosts now populated).
+      allocate (sn(dof, xm + 2 * kw, kw)); allocate (rn(dof, xm + 2 * kw, kw)); rn = zero
+      allocate (ss(dof, xm + 2 * kw, kw)); allocate (rs(dof, xm + 2 * kw, kw)); rs = zero
+      sn = wg(:, :, ym + 1:ym + kw)
+      ss = wg(:, :, kw + 1:2 * kw)
+      call MPI_Irecv(rs, size(rs, kind=mpiint), imp_ireals, ns, 22, comm, rqs(1), mpierr)
+      call MPI_Irecv(rn, size(rn, kind=mpiint), imp_ireals, nn, 4, comm, rqs(2), mpierr)
+      call MPI_Isend(sn, size(sn, kind=mpiint), imp_ireals, nn, 22, comm, rqs(3), mpierr)
+      call MPI_Isend(ss, size(ss, kind=mpiint), imp_ireals, ns, 4, comm, rqs(4), mpierr)
+      call MPI_Waitall(4_mpiint, rqs, sts, mpierr)
+      wg(:, :, 1:kw) = rs
+      wg(:, :, ym + kw + 1:ym + 2 * kw) = rn
+      deallocate (sn, ss, rn, rs)
+
+      do idof = 1, dof
+        call box_filter(wg(idof, :, :), kw)
+      end do
+
+      arr = wg(:, kw + 1:xm + kw, kw + 1:ym + kw)
+
+    contains
+
+      subroutine box_filter(im, kernel_width)
+        real(ireals), intent(inout) :: im(:, :)
+        integer(iintegers), intent(in) :: kernel_width
+
+        real(ireals), dimension(size(im, 1), size(im, 2)) :: tmp
+        real(ireals), dimension(size(im, 2), size(im, 1)) :: tmp_T, im_T
+        integer(iintegers), parameter :: iter = 1
+
+        im_T = transpose(im)
+        call box_blur_1d(im_T, kernel_width, iter, tmp_T)
+        tmp = transpose(tmp_T)
+        call box_blur_1d(tmp, kernel_width, iter, im)
+      end subroutine
+
+      subroutine box_blur_1d(im, k, iter, img)
+        real(ireals), intent(in) :: im(:, :)
+        real(ireals), dimension(size(im, 1), size(im, 2)), intent(out) :: img
+        integer(iintegers), intent(in) :: k, iter
+
+        real(ireals), dimension(size(im, 1), size(im, 2)) :: tmp
+        integer(iintegers) :: inc, l, r, ki, x, i, lb, ub
+
+        img = im
+
+        do x = 1, iter
+          lb = 1
+          ub = size(img, 2)
+          tmp(:, lb) = img(:, lb)
           inc = -1
+          l = lb
           do ki = 1, k
             l = l + inc
             if (l .eq. lb - 1) then; l = lb; inc = 1; end if
             if (l .eq. ub + 1) then; l = ub; inc = -1; end if
+            tmp(:, lb) = tmp(:, lb) + img(:, l)
           end do
-          r = i
+          r = lb
           inc = 1
           do ki = 1, k
             r = r + inc
             if (r .eq. ub + 1) then; r = ub; inc = -1; end if
             if (r .eq. lb - 1) then; r = lb; inc = 1; end if
+            tmp(:, lb) = tmp(:, lb) + img(:, r)
           end do
-          tmp(:, i) = tmp(:, i - 1) + img(:, r) - img(:, l)
+          do i = lb + 1, ub
+            l = i - 1
+            inc = -1
+            do ki = 1, k
+              l = l + inc
+              if (l .eq. lb - 1) then; l = lb; inc = 1; end if
+              if (l .eq. ub + 1) then; l = ub; inc = -1; end if
+            end do
+            r = i
+            inc = 1
+            do ki = 1, k
+              r = r + inc
+              if (r .eq. ub + 1) then; r = ub; inc = -1; end if
+              if (r .eq. lb - 1) then; r = lb; inc = 1; end if
+            end do
+            tmp(:, i) = tmp(:, i - 1) + img(:, r) - img(:, l)
+          end do
+          img = tmp
         end do
-        img = tmp
-      end do
 
-      img = img * (1.0_ireals / real(2 * k + 1, ireals))**iter
+        img = img * (1.0_ireals / real(2 * k + 1, ireals))**iter
+      end subroutine
+
     end subroutine
 
-  end subroutine
-
-end module
+    end module
