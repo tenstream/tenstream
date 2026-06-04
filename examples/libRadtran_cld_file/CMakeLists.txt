@@ -13,4 +13,5 @@ foreach(_file ${files})
 
   add_executable("ex_${_example_WE}" EXCLUDE_FROM_ALL $<TARGET_OBJECTS:ex_${_example_WE}_objs>)
   target_link_libraries("ex_${_example_WE}" ${TENSTR_SINGLE_LIB} ${EXTLIB})
+  add_dependencies(examples "ex_${_example_WE}")
 endforeach()

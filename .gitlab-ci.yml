@@ -38,7 +38,7 @@ variables:
     - cmake -DCMAKE_BUILD_TYPE="$BUILD_TYPE" -DCTEST_MPIRUN_FLAGS="$MPIRUN_FLAGS" -DMPIEXEC="$MPIEXEC" ${CMAKE_OPTS} .. || exit 1
     - echo -e "\e[0Ksection_end:`date +%s`:cmake\r\e[0K"
     - echo -e "\e[0Ksection_start:`date +%s`:make[collapsed=true]\r\e[0KRun make"
-    - make all -j || make all || exit 2
+    - make all examples -j || make all examples || exit 2
     - echo -e "\e[0Ksection_end:`date +%s`:make\r\e[0K"
     - echo -e "\e[0Ksection_start:`date +%s`:dlLUT[collapsed=true]\r\e[0KDownloading LUTs"
     - if [ ! -z "$LUT_TARGET" ]; then make $LUT_TARGET || exit 3; fi
@@ -219,7 +219,7 @@ ubuntu-nopetsc:
     - cmake -DCMAKE_BUILD_TYPE="$BUILD_TYPE" -DWITH_PETSC=OFF -DCTEST_MPIRUN_FLAGS="$MPIRUN_FLAGS" -DMPIEXEC="$MPIEXEC" ${CMAKE_OPTS} .. || exit 1
     - echo -e "\e[0Ksection_end:`date +%s`:cmake\r\e[0K"
     - echo -e "\e[0Ksection_start:`date +%s`:make[collapsed=true]\r\e[0KRun make"
-    - make all -j || make all || exit 2
+    - make all examples -j || make all examples || exit 2
     - echo -e "\e[0Ksection_end:`date +%s`:make\r\e[0K"
     - echo -e "\e[0Ksection_start:`date +%s`:dlLUT[collapsed=true]\r\e[0KDownloading LUTs"
     - if [ ! -z "$LUT_TARGET" ]; then make $LUT_TARGET || exit 3; fi

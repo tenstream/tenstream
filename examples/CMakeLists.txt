@@ -19,6 +19,8 @@ set(PETSC_ONLY_EXAMPLES
   wetterstein_ts
 )
 
+add_custom_target(examples)
+
 subdirlist(subdirs ${CMAKE_CURRENT_SOURCE_DIR})
 
 foreach(subdir ${subdirs})

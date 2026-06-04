@@ -28,4 +28,4 @@ foreach(_file ${exe_files})
   list(APPEND pprts_example_targets "${_example_WE}")
 endforeach()
 
-add_custom_target(examples DEPENDS ${pprts_example_targets})
+add_dependencies(examples ${pprts_example_targets})

@@ -28,4 +28,5 @@ foreach(_file ${exe_files})
 
   add_executable("${_example_WE}" EXCLUDE_FROM_ALL $<TARGET_OBJECTS:${_example_WE}_objs>)
   target_link_libraries("${_example_WE}" plexrt_examples)
+  add_dependencies(examples "${_example_WE}")
 endforeach()
