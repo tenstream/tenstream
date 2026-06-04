@@ -156,8 +156,9 @@ contains
 #endif
     integer(mpiint), intent(in) :: comm
     integer(mpiint) :: dtsize, ierr, myid, numnodes, mpierr
-    logical :: lmpi_is_initialized, lallsame
+    logical :: lmpi_is_initialized
 #ifdef HAVE_PETSC
+    logical :: lallsame
     PetscBool :: lpetsc_is_initialized
     PetscInt :: petsc_iint_check
     PetscReal :: petsc_ireal_check
@@ -289,17 +290,16 @@ contains
     call mpi_initialized(lmpi_is_initialized, mpierr)
     if (.not. lmpi_is_initialized) return ! if we dont even have mpi, petsc cant live either
 
+    if (lfinalize_petsc) then
 #ifdef HAVE_PETSC
-    call PetscInitialized(lpetsc_is_initialized, mpierr)
-    if (mpierr .ne. 0) call mpi_abort(comm, mpierr, ierr)
-
-    if (lpetsc_is_initialized) then
-      if (lfinalize_petsc) then
+      call PetscInitialized(lpetsc_is_initialized, mpierr)
+      if (mpierr .ne. 0) call mpi_abort(comm, mpierr, ierr)
+      if (lpetsc_is_initialized) then
         call PetscFinalize(mpierr)
         if (mpierr .ne. 0) call mpi_abort(comm, mpierr, ierr)
       end if
-    end if
 #endif
+    end if
 
     if (lfinalize_mpi) then
       if (lmpi_is_initialized) call MPI_Finalize(mpierr)
@@ -308,6 +308,7 @@ contains
   end subroutine
 
 !duplicate of helper function. otherwise get circular dependency
+#ifdef HAVE_PETSC
   function mpi_logical_all_same(comm, lval) result(lsame)
     integer(mpiint), intent(in) :: comm
     logical :: lsame
@@ -330,4 +331,5 @@ contains
       lsame = .true.
     end if
   end function
+#endif
 end module

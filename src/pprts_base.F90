@@ -291,7 +291,9 @@ contains
     logical, intent(in) :: lsolar, lthermal
     type(t_state_container), intent(inout) :: solution
     integer(iintegers), optional, intent(in) :: uid
+#ifdef HAVE_PETSC
     integer(mpiint) :: ierr
+#endif
 
     if (solution%lset) call CHKERR(1_mpiint, 'solution has already been prepared before')
 
@@ -368,7 +370,9 @@ contains
 #endif
   subroutine destroy_solution(solution)
     type(t_state_container), intent(inout) :: solution
+#ifdef HAVE_PETSC
     integer(mpiint) :: ierr
+#endif
     if (solution%lset) then
 #ifdef HAVE_PETSC
       if (allocated(solution%edir_petsc)) then
@@ -716,7 +720,9 @@ contains
 
   subroutine destroy_coord(C)
     type(t_coord), allocatable, intent(inout) :: C
+#ifdef HAVE_PETSC
     integer(mpiint) :: ierr
+#endif
     if (allocated(C)) then
 #ifdef HAVE_PETSC
       call DMDestroy(C%da, ierr); call CHKERR(ierr)
@@ -1033,7 +1039,9 @@ contains
       real(ireals), intent(in) :: edirTOA
       real(ireals), target, contiguous, intent(inout) :: incSolar(:, :, :, :)
 
+#ifdef HAVE_PETSC
       integer(mpiint) :: ierr
+#endif
       real(ireals) :: fac
       integer(iintegers) :: i, j, src
       logical, parameter :: ldebug = .false.

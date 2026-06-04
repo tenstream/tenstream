@@ -109,7 +109,6 @@ module m_f2c_pprts
   type(tDM) :: dm2d, dm2d_dist
   type(tPetscSF) :: migration_sf
 #endif
-  real(ireals) :: sundir(3)
 
   logical, parameter :: ldebug = .false.
 
@@ -458,7 +457,9 @@ contains
   subroutine pprts_f2c_destroy(ifinalizepetsc) bind(c)
     integer(c_int), value, intent(in) :: ifinalizepetsc
     logical :: lfinalizepetsc
+#ifdef HAVE_PETSC
     integer(mpiint) :: ierr
+#endif
     lfinalizepetsc = ifinalizepetsc .ne. 0
     if (allocated(pprts_solver)) then
       call destroy_pprts(pprts_solver, lfinalizepetsc=lfinalizepetsc)

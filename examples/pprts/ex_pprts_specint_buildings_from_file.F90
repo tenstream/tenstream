@@ -28,7 +28,7 @@ program main
 
   character(len=10*default_str_len) :: rayli_options
   character(len=default_str_len) :: groups(2), specint
-  logical :: lflg, lverbose, lrayli_opts, lsolar, lthermal, lfile_exists, lhave_outfile, lbuildings
+  logical :: lflg, lverbose, lrayli_opts, lsolar, lthermal, lfile_exists, lhave_outfile
   integer(mpiint) :: cid, comm, myid, numnodes, ierr
   integer(iintegers) :: k
 

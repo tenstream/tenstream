@@ -3123,7 +3123,10 @@ contains
       logical, intent(out) :: lset
       integer(mpiint), intent(out) :: ierr
 
-      character(len=default_str_len) :: full_opt_name, color, raw_
+      character(len=default_str_len) :: full_opt_name, color
+      #:if basetype not in ('PetscBool', 'logical', 'character')
+        character(len=default_str_len) :: raw_
+      #:endif
       character(len=default_str_len), save :: last_options_call
       integer(mpiint) :: myid
       logical :: lshow

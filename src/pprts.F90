@@ -227,7 +227,6 @@ contains
     integer(iintegers), optional, intent(in) :: collapseindex !< @param[in]    collapseindex if given, the upper n layers will be reduce to 1d and no individual output will be given for them
     character(len=*), optional, intent(in) :: solvername      !< @param[in] primarily for logging purposes, name will be prefix to logging stages
 
-    integer(iintegers) :: k, i, j
     logical :: lview, luse_ann, lflg
 #ifdef HAVE_PETSC
     PetscBool :: lpetsc_is_initialized
@@ -3877,7 +3876,7 @@ contains
       type(t_coord), intent(in) :: coord
       integer(iintegers) :: i, j, k, l, iside, ak
       integer(iintegers) :: zoff, xoff, yoff
-      real(ireals) :: Ax, Ay, Az, fac
+      real(ireals) :: Ax, Ay, Az
       zoff = 1 - coord%zs; xoff = 1 - coord%xs; yoff = 1 - coord%ys
       associate (atm => solver%atm)
         ! Top faces: flat geometry Az = dx*dy
@@ -3921,7 +3920,7 @@ contains
       type(t_coord), intent(in) :: C
       integer(iintegers) :: iside, src, i, j, k, ak
       integer(iintegers) :: zoff, xoff, yoff
-      real(ireals) :: Az, Ax, Ay, fac
+      real(ireals) :: Az, Ax, Ay
       zoff = 1 - C%zs; xoff = 1 - C%xs; yoff = 1 - C%ys
       associate (atm => solver%atm)
         ! Top faces
@@ -3968,8 +3967,8 @@ contains
     real(ireals), intent(in), optional :: time
 
     character(default_str_len) :: vecname
-    real(ireals) :: inf_norm
 #ifdef HAVE_PETSC
+    real(ireals) :: inf_norm
     type(tVec) :: abso_old
 #endif
     integer(mpiint) :: ierr
@@ -5139,7 +5138,7 @@ contains
 
     integer(iintegers) :: idof, isrc, msrc, src
     integer(iintegers) :: i, j, k, xinc, yinc, ak
-    real(ireals) :: cdiv, Volume, Az, dtau
+    real(ireals) :: cdiv, dtau
     logical :: by_coeff_divergence, ldirect_absorption_only, lflg
     integer(mpiint) :: ierr
 
