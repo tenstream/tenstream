@@ -1,8 +1,6 @@
 module m_tenstream_log
-#ifdef HAVE_PETSC
 #include "petsc/finclude/petsc.h"
   use petsc
-#endif
   use mpi
   use m_data_parameters, only: mpiint, default_str_len
 
@@ -25,16 +23,12 @@ module m_tenstream_log
   integer, parameter :: MAX_STAGES = 64
 
   type t_ts_log_event
-#ifdef HAVE_PETSC
     PetscLogEvent :: petsc_id = -1
-#endif
     integer :: ts_id = -1
   end type
 
   type t_ts_log_stage
-#ifdef HAVE_PETSC
     PetscLogStage :: petsc_id = -1
-#endif
     integer :: ts_id = -1
   end type
 
@@ -120,11 +114,9 @@ contains
     integer(mpiint), intent(out) :: ierr
     integer :: id
     ierr = 0
-#ifdef HAVE_PETSC
     if (event%petsc_id >= 0) then
       call PetscLogEventBegin(event%petsc_id, ierr)
     end if
-#endif
     id = event%ts_id
     if (id < 1 .or. id > n_events) return
     event_tstart(id) = MPI_Wtime()
@@ -137,11 +129,9 @@ contains
     integer :: id, s
     real(8) :: dt
     ierr = 0
-#ifdef HAVE_PETSC
     if (event%petsc_id >= 0) then
       call PetscLogEventEnd(event%petsc_id, ierr)
     end if
-#endif
     id = event%ts_id
     if (id < 1 .or. id > n_events) return
     dt = MPI_Wtime() - event_tstart(id)
@@ -160,9 +150,7 @@ contains
     type(t_ts_log_stage), intent(in) :: stage
     integer(mpiint), intent(out) :: ierr
     ierr = 0
-#ifdef HAVE_PETSC
     call PetscLogStagePush(stage%petsc_id, ierr)
-#endif
     if (stage%ts_id >= 2 .and. stage%ts_id <= n_stages) then
       current_stage = stage%ts_id
       stage_tstart(current_stage) = MPI_Wtime()
@@ -173,9 +161,7 @@ contains
     integer(mpiint), intent(out) :: ierr
     real(8) :: t
     ierr = 0
-#ifdef HAVE_PETSC
     call PetscLogStagePop(ierr)
-#endif
     if (current_stage >= 2 .and. current_stage <= n_stages) then
       t = MPI_Wtime()
       stage_accum(current_stage) = stage_accum(current_stage) + t - stage_tstart(current_stage)

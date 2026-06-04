@@ -89,7 +89,7 @@ module m_plex_rt
   use m_plex2rayli, only: rayli_wrapper
   use m_schwarzschild, only: B_eff
   use m_netcdfio, only: ncwrite
-  use m_petsc_helpers, only: hegedus_trick, print_vec_min_mean_max
+  use m_petsc_helpers, only: print_vec_min_mean_max
   use m_eddington, only: eddington_coeff_ec
 
   implicit none
@@ -2424,7 +2424,6 @@ contains
       call VecDuplicate(b, x, ierr); call CHKERR(ierr)
     end if
 
-    call hegedus_trick(ksp, b, x)
     call KSPSolve(ksp, b, x, ierr); call CHKERR(ierr)
 
     call KSPGetIterationNumber(ksp, ksp_iter, ierr); call CHKERR(ierr)

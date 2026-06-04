@@ -1,5 +1,4 @@
 module m_petsc_helpers
-#ifdef HAVE_PETSC
 #include "petsc/finclude/petsc.h"
   use petsc
 
@@ -1005,5 +1004,4 @@ contains
     call PetscObjectGetName(v, vecname, ierr); call CHKERR(ierr)
     if (myid .eq. 0) print *, trim(label)//' ( '//trim(vecname)//' ) min mean max ', mmm
   end subroutine
-#endif
 end module

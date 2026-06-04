@@ -39,10 +39,8 @@ module m_helper_functions
   use m_options_database, only: opts_has, opts_get_raw, opts_get_logical, opts_get_string, opts_insert_string
 
   use mpi
-#ifdef HAVE_PETSC
 #include "petsc/finclude/petsc.h"
   use petsc
-#endif
 
   implicit none
 
@@ -318,9 +316,7 @@ module m_helper_functions
   interface toStr
     module procedure toStr_character
     module procedure ltoa
-#ifdef HAVE_PETSC
     module procedure lptoa
-#endif
     #:for basetype,dtype in [&
       ('integer', 'INT32'  ), &
       ('integer', 'INT64'  ), &
@@ -464,9 +460,7 @@ module m_helper_functions
       ]
       module procedure get_petsc_opt_${basetype}$
     #:endfor
-#ifdef HAVE_PETSC
     module procedure get_petsc_opt_PetscBool
-#endif
     #:for basetype,dtype,petscfunc in [   &
       ('integer'  , 'iintegers', 'PetscOptionsGetInt' ), &
       ('real'     , 'ireals'   , 'PetscOptionsGetReal'), &
@@ -686,7 +680,6 @@ module m_helper_functions
   end interface
 
   interface deallocate_allocatable
-#ifdef HAVE_PETSC
     #:for basetype,dtype,destructor in [ &
       ('type'      , 'tVec'   , 'call VecDestroy(obj, ierr); call CHKERR(ierr);'), &
       ('type'      , 'tDM'    , 'call DMDestroy (obj, ierr); call CHKERR(ierr);'), &
@@ -695,7 +688,6 @@ module m_helper_functions
       ('type'      , 'tIS'    , 'call ISDestroy (obj, ierr); call CHKERR(ierr);')]
       module procedure deallocate_allocatable_${basetype}$_${dtype}$_0d
     #:endfor
-#endif
     #:for basetype,dtype,destructor in [ &
       ('logical'   , None     , None                                            ), &
       ('integer'   , 'INT32'  , None                                            ), &
@@ -726,14 +718,9 @@ contains
   subroutine insert_petsc_opt(str, ierr)
     character(len=*), intent(in) :: str
     integer(mpiint), intent(out), optional :: ierr
-#ifdef HAVE_PETSC
     integer(mpiint) :: ierr_
     call PetscOptionsInsertString(PETSC_NULL_OPTIONS, trim(str), ierr_)
     if (present(ierr)) ierr = ierr_
-#else
-    call opts_insert_string(trim(str))
-    if (present(ierr)) ierr = 0
-#endif
   end subroutine insert_petsc_opt
 
   #:for basetype,dtype in [&
@@ -962,7 +949,6 @@ contains
     end if
   end function
 
-#ifdef HAVE_PETSC
   elemental function lptoa(l) result(res)
     character(len=1) :: res
     PetscBool, intent(in) :: l
@@ -972,7 +958,6 @@ contains
       res = 'F'
     end if
   end function
-#endif
 
   #:for basetype, dtype, fmt in [&
     ('integer', 'INT32'  , "'(I0)'"), &
@@ -2437,22 +2422,16 @@ contains
   end subroutine
 
   function get_mem_footprint(comm)
-#ifdef HAVE_PETSC
 #include "petsc/finclude/petscsys.h"
     use petsc
-#endif
     integer(mpiint), intent(in) :: comm
     real(ireals) :: get_mem_footprint
     integer(mpiint) :: ierr
-#ifdef HAVE_PETSC
     PetscLogDouble :: memory_footprint
-#endif
     get_mem_footprint = zero
     call mpi_barrier(comm, ierr)
-#ifdef HAVE_PETSC
     call PetscMemoryGetCurrentUsage(memory_footprint, ierr); call CHKERR(ierr)
     get_mem_footprint = real(memory_footprint / 1024./1024./1024., ireals)
-#endif
   end function
 
   function reverse_1d_real32(inp) result(rev)
@@ -2824,17 +2803,14 @@ contains
       & Nx_local, Ny_local, &
       & xStart, yStart, &
       & nxproc, nyproc, ierr)
-#ifdef HAVE_PETSC
 #include "petsc/finclude/petsc.h"
     use petsc
-#endif
     integer(mpiint), intent(in) :: comm
     integer(iintegers), intent(in) :: Nx_global, Ny_global
     integer(iintegers), intent(out) :: Nx_local, Ny_local
     integer(iintegers), intent(out) :: xStart, yStart
     integer(iintegers), allocatable, intent(inout) :: nxproc(:), nyproc(:)
     integer(mpiint), intent(out) :: ierr
-#ifdef HAVE_PETSC
     type(tDM) :: dm
     DMBoundaryType :: b_x, b_y, b_z
     DMDAStencilType :: stenciltype
@@ -2865,52 +2841,8 @@ contains
     nxproc = lx
     nyproc = ly
     call DMDestroy(dm, ierr); call CHKERR(ierr)
-#else
-    integer(mpiint) :: cart_comm, myid, nproc, nproc_x, nproc_y, xi, yi
-    integer(mpiint) :: dims(2), coords(2)
-    logical :: periods(2)
-    integer(iintegers) :: xi_loc, yi_loc, nx_loc, ny_loc
-
-    ierr = 0
-    call mpi_comm_size(comm, nproc, ierr); call CHKERR(ierr)
-    call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
-
-    dims = 0_mpiint
-    call MPI_Dims_create(nproc, 2_mpiint, dims, ierr); call CHKERR(ierr)
-    nproc_x = dims(1)
-    nproc_y = dims(2)
-
-    periods = .true.
-    call MPI_Cart_create(comm, 2_mpiint, dims, periods, .false., cart_comm, ierr); call CHKERR(ierr)
-    call MPI_Cart_get(cart_comm, 2_mpiint, dims, periods, coords, ierr); call CHKERR(ierr)
-
-    xi = coords(1)
-    yi = coords(2)
-
-    ! Even-split decomposition matching setup_coord_native
-    xStart = int(int(xi, iintegers) * Nx_global / int(nproc_x, iintegers), iintegers)
-    Nx_local = int((int(xi, iintegers) + 1_iintegers) * Nx_global / int(nproc_x, iintegers), iintegers) - xStart
-    yStart = int(int(yi, iintegers) * Ny_global / int(nproc_y, iintegers), iintegers)
-    Ny_local = int((int(yi, iintegers) + 1_iintegers) * Ny_global / int(nproc_y, iintegers), iintegers) - yStart
-
-    allocate (nxproc(nproc_x))
-    allocate (nyproc(nproc_y))
-    do xi_loc = 0_iintegers, int(nproc_x, iintegers) - 1_iintegers
-      nx_loc = int(xi_loc + 1_iintegers, iintegers) * Nx_global / int(nproc_x, iintegers) - &
-               int(xi_loc, iintegers) * Nx_global / int(nproc_x, iintegers)
-      nxproc(xi_loc + 1_iintegers) = nx_loc
-    end do
-    do yi_loc = 0_iintegers, int(nproc_y, iintegers) - 1_iintegers
-      ny_loc = int(yi_loc + 1_iintegers, iintegers) * Ny_global / int(nproc_y, iintegers) - &
-               int(yi_loc, iintegers) * Ny_global / int(nproc_y, iintegers)
-      nyproc(yi_loc + 1_iintegers) = ny_loc
-    end do
-
-    call MPI_Comm_free(cart_comm, ierr); call CHKERR(ierr)
-#endif
   end subroutine
 
-#ifdef HAVE_PETSC
   #:for basetype,dtype,destructor,optdef in [ &
     ('type'      , 'tVec'   , 'call VecDestroy(obj, ierr)   ; call CHKERR(ierr);', 'integer(mpiint) :: ierr'), &
     ('type'      , 'tDM'    , 'call DMDestroy (obj, ierr)   ; call CHKERR(ierr);', 'integer(mpiint) :: ierr'), &
@@ -2926,7 +2858,6 @@ contains
       end if
     end subroutine
   #:endfor
-#endif
   #:for basetype,dtype,destructor,optdef in [ &
     ('logical'   , None     , None                                            , None), &
     ('integer'   , 'INT32'  , None                                            , None), &
@@ -3114,7 +3045,6 @@ contains
     ]
     #:set dKIND = '' if dtype == None else '('+dtype+')'
     #:if (basetype == 'PetscBool')
-#ifdef HAVE_PETSC
     #:endif
 
     subroutine get_petsc_opt_${basetype}$ (prefix, option_name, optval, lset, ierr)
@@ -3172,7 +3102,6 @@ contains
     end subroutine
 
     #:if (basetype == 'PetscBool')
-#endif
     #:endif
   #:endfor
 
