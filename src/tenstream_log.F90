@@ -283,17 +283,20 @@ contains
         write (sfmt, '(a,i0,a)') '--- Stage ', s - 1, ': '//trim(stage_names(s))//' ---'
         write (*, '(a)') trim(sfmt)
       end if
-      write (*, '(a)') repeat('-', 80)
-      write (*, '(a40,a7,3a12)') 'Event', 'Count', 'Min', 'Mean', 'Max'
-      write (*, '(a)') repeat('-', 80)
+      write (*, '(a)') repeat('-', 95)
+      write (*, '(a40,a7,3a10,a8,a8)') 'Event', 'Count', 'Min', 'Mean', 'Max', '%Stage', '%Total'
+      write (*, '(a)') repeat('-', 95)
       do i = 1, ne
         if (sc_global((s - 1) * ne + i) == 0) cycle
-        write (*, '(a40,i7,3f12.4)') &
-          trim(event_names(i)), sc_global((s - 1) * ne + i), &
-          st_min((s - 1) * ne + i), st_mean((s - 1) * ne + i), &
-          st_max((s - 1) * ne + i)
+        associate (t => st_max((s - 1) * ne + i))
+          write (*, '(a40,i7,3f10.4,f7.1,a1,f7.1,a1)') &
+            trim(event_names(i)), sc_global((s - 1) * ne + i), &
+            st_min((s - 1) * ne + i), st_mean((s - 1) * ne + i), t, &
+            merge(100.0d0 * t / stage_total_max(s), 0.0d0, stage_total_max(s) > 0.0d0), '%', &
+            100.0d0 * t / grand_max, '%'
+        end associate
       end do
-      write (*, '(a)') repeat('-', 80)
+      write (*, '(a)') repeat('-', 95)
     end do
 
   end subroutine
