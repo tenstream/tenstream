@@ -73,15 +73,24 @@ module m_data_parameters
 
   integer :: mpiint_dummy
 
+#ifdef HAVE_PETSC
+  integer, parameter :: iintegers = PETSC_IINTEGERS_KIND
+  integer, parameter :: ireals = PETSC_IREALS_KIND
+#else
+#if TENSTREAM_IINTEGERS_BITS == 64
+  integer, parameter :: iintegers = int64
+#else
+  integer, parameter :: iintegers = int32
+#endif
+#if TENSTREAM_IREALS_BITS == 64
+  integer, parameter :: ireals = real64
+#else
+  integer, parameter :: ireals = real32
+#endif
+#endif
+
   integer, parameter :: &
     default_str_len = 512, &
-#ifdef HAVE_PETSC
-    iintegers = PETSC_IINTEGERS_KIND, &
-    ireals = PETSC_IREALS_KIND, &
-#else
-    iintegers = int32, &
-    ireals = real64, &
-#endif
     irealLUT = real32, &
     ireal_params = real64, &
     ireal_dp = real64, &

@@ -196,6 +196,13 @@ MESSAGE(STATUS "Using MPIEXEC: ${MPIEXEC}")
 
 option(WITH_PETSC "Enable PETSc solver backend (required for pprts, optional for optprop-only builds)" ON)
 
+# Floating-point and integer precision for ireals/iintegers.
+# Ignored when WITH_PETSC=ON -- precision is then dictated by the PETSc build.
+set(TENSTREAM_IREALS_BITS    "32" CACHE STRING "ireals precision when PETSc absent (32 or 64)")
+set_property(CACHE TENSTREAM_IREALS_BITS    PROPERTY STRINGS "32" "64")
+set(TENSTREAM_IINTEGERS_BITS "32" CACHE STRING "iintegers precision when PETSc absent (32 or 64)")
+set_property(CACHE TENSTREAM_IINTEGERS_BITS PROPERTY STRINGS "32" "64")
+
 include(FindPkgConfig)
 
 # --- PETSc detection (auto-downgrade to OFF with a warning if not found) ---
@@ -299,6 +306,9 @@ if(WITH_PETSC)
   endif()
 else()
   message(STATUS "WITH_PETSC=OFF: PETSc DMDA/PLEX solver disabled; examples/gas-optics compile but error at runtime if solver is invoked")
+  message(STATUS "  ireals=${TENSTREAM_IREALS_BITS}-bit  iintegers=${TENSTREAM_IINTEGERS_BITS}-bit  (set via TENSTREAM_IREALS_BITS / TENSTREAM_IINTEGERS_BITS)")
+  add_compile_definitions(TENSTREAM_IREALS_BITS=${TENSTREAM_IREALS_BITS})
+  add_compile_definitions(TENSTREAM_IINTEGERS_BITS=${TENSTREAM_IINTEGERS_BITS})
   # PLEXRT uses tDM/tVec in its public API so it remains PETSc-only
   set(ENABLE_PLEXRT    OFF CACHE BOOL "PLEXRT requires PETSc"    FORCE)
 endif()

@@ -108,6 +108,7 @@ module m_f2c_pprts
   class(t_plex_solver), allocatable :: plex_solver
   type(tDM) :: dm2d, dm2d_dist
   type(tPetscSF) :: migration_sf
+  real(ireals) :: sundir(3)
 #endif
 
   logical, parameter :: ldebug = .false.

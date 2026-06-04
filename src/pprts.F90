@@ -645,7 +645,7 @@ contains
       real(ireals) :: pprts_1d_height
       real(ireals) :: N1dlayers, N1dlayers_max
       logical :: lflg
-      integer(iintegers) :: count3d, countall
+      integer(iintegers) :: count3d, countall, k
 
       if (.not. allocated(solver%atm%l1d)) then
         allocate (solver%atm%l1d(solver%C_one_atm%zs:solver%C_one_atm%ze))
