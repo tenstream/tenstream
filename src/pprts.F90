@@ -2892,13 +2892,9 @@ contains
 
       solution%lchanged = .true.
       solution%lWm2_dir = .false.
-#ifdef HAVE_PETSC
       call PetscObjectSetName(solution%edir_petsc, 'debug_edir', ierr); call CHKERR(ierr)
-#endif
-#ifdef HAVE_PETSC
       call PetscObjectViewFromOptions(PetscObjectCast(solution%edir_petsc), PetscObjectCast(PETSC_NULL_VEC), "-show_debug_edir", ierr)
       call CHKERR(ierr)
-#endif
       call VecDestroy(incSolar_petsc, ierr); call CHKERR(ierr)
     end subroutine
 #endif
@@ -4499,10 +4495,8 @@ contains
     call MatAssemblyBegin(A, MAT_FINAL_ASSEMBLY, ierr); call CHKERR(ierr)
     call MatAssemblyEnd(A, MAT_FINAL_ASSEMBLY, ierr); call CHKERR(ierr)
 
-#ifdef HAVE_PETSC
     call PetscObjectViewFromOptions(PetscObjectCast(A), PETSC_NULL_OBJECT, "-show_Mdir", ierr)
     call CHKERR(ierr)
-#endif
   contains
 
     subroutine set_pprts_coeff(solver, C, A, k, i, j)
@@ -5147,12 +5141,6 @@ contains
     real(ireals) :: cdiv, Volume, Az, dtau
     logical :: by_coeff_divergence, ldirect_absorption_only, lflg
     integer(mpiint) :: ierr
-#ifdef HAVE_PETSC
-    real(ireals), pointer :: xediff_nca(:, :, :, :) => null()
-    real(ireals), pointer :: xediff_nca1d(:) => null()
-    real(ireals), pointer :: xabso_nca(:, :, :, :) => null()
-    real(ireals), pointer :: xabso_nca1d(:) => null()
-#endif
 
     dir2dir => null()
     dir2diff => null()
@@ -5174,15 +5162,7 @@ contains
 
       if ((solution%lsolar_rad .eqv. .false.) .and. lcalc_nca) then
         call scale_flx(solver, solution, lWm2=.true.)
-#ifdef HAVE_PETSC
-        call getVecPointer(C_diff%da, solution%ediff_petsc, xediff_nca1d, xediff_nca)
-        call getVecPointer(C_one%da, solution%abso_petsc, xabso_nca1d, xabso_nca)
-        call nca_wrapper(solver, xediff_nca, xabso_nca)
-        call restoreVecPointer(C_diff%da, solution%ediff_petsc, xediff_nca1d, xediff_nca)
-        call restoreVecPointer(C_one%da, solution%abso_petsc, xabso_nca1d, xabso_nca)
-#else
         call nca_wrapper(solver, solution%ediff, solution%abso)
-#endif
         return
       end if
 
@@ -5533,9 +5513,7 @@ contains
     call MatAssemblyBegin(A, MAT_FINAL_ASSEMBLY, ierr); call CHKERR(ierr)
     call MatAssemblyEnd(A, MAT_FINAL_ASSEMBLY, ierr); call CHKERR(ierr)
 
-#ifdef HAVE_PETSC
     call PetscObjectViewFromOptions(PetscObjectCast(A), PETSC_NULL_OBJECT, "-show_Mdiff", ierr); call CHKERR(ierr)
-#endif
   contains
     subroutine set_pprts_coeff(solver, C, A, k, i, j, ierr)
       class(t_solver) :: solver
