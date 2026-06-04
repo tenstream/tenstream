@@ -26,7 +26,9 @@
 #include <f2c_pprts.h>
 #include "f2c_solver_ids.h"
 
+#ifdef HAVE_PETSC
 static char help[] = "This is the C wrapper interface to the pprts solver environment.\n\n";
+#endif
 
 int collapseindex = 1;
 
