@@ -19,8 +19,10 @@
 
 module m_f2c_pprts_rrtm
 
+#ifdef HAVE_PETSC
 #include "petsc/finclude/petsc.h"
   use petsc
+#endif
 
   use iso_c_binding
 

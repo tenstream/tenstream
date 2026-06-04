@@ -273,9 +273,8 @@ if(WITH_PETSC)
   endif()
 else()
   message(STATUS "WITH_PETSC=OFF: PETSc DMDA/PLEX solver disabled; examples/gas-optics compile but error at runtime if solver is invoked")
-  # PLEXRT and C_WRAPPER are compile-time PETSc-only (they use tDM/tVec types in their public API)
+  # PLEXRT uses tDM/tVec in its public API so it remains PETSc-only
   set(ENABLE_PLEXRT    OFF CACHE BOOL "PLEXRT requires PETSc"    FORCE)
-  set(ENABLE_C_WRAPPER OFF CACHE BOOL "C_WRAPPER requires PETSc" FORCE)
 endif()
 
 # NetCDF
