@@ -101,6 +101,8 @@ module m_pprts
   use m_pprts_base, only: &
     & allocate_pprts_solver_from_commandline, &
     & atmk, &
+    & compress_solution, &
+    & decompress_solution, &
     & destroy_pprts, &
     & destroy_solution, &
     & determine_ksp_tolerances, &
@@ -459,6 +461,9 @@ contains
 
       call get_petsc_opt("", "-pprts_open_bc", solver%lopen_bc, lflg, ierr); call CHKERR(ierr)
       call get_petsc_opt(solver%prefix, "-pprts_open_bc", solver%lopen_bc, lflg, ierr); call CHKERR(ierr)
+
+      call get_petsc_opt("", "-pprts_compress_solutions", solver%lcompress_solutions, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt(solver%prefix, "-pprts_compress_solutions", solver%lcompress_solutions, lflg, ierr); call CHKERR(ierr)
 
       lview = ldebug
       call get_petsc_opt(solver%prefix, "-pprts_solver_view", lview, lflg, ierr); call CHKERR(ierr)
@@ -2529,12 +2534,18 @@ contains
         if (linitial_guess_from_last_uid) then
           last_uid = get_solution_uid(solver%solutions, uid - 1)
           if (solver%solutions(last_uid)%lset) then
+            if (solver%lcompress_solutions .and. solver%solutions(last_uid)%lcompressed) then
+              call decompress_solution(solver%C_dir, solver%C_diff, solver%solutions(last_uid), ierr); call CHKERR(ierr)
+            end if
             if (solver%solutions(last_uid)%lsolar_rad) then
               solution%edir = solver%solutions(last_uid)%edir
               solution%lWm2_dir = solver%solutions(last_uid)%lWm2_dir
             end if
             solution%ediff = solver%solutions(last_uid)%ediff
             solution%lWm2_diff = solver%solutions(last_uid)%lWm2_diff
+            if (solver%lcompress_solutions) then
+              call compress_solution(solver%solutions(last_uid), ierr); call CHKERR(ierr)
+            end if
           end if
         end if
 
@@ -2561,6 +2572,11 @@ contains
           call prepare_solution(solver%C_dir, solver%C_diff, solver%C_one, &
                                 lsolar=derived_lsolar, lthermal=lthermal, solution=solution, uid=uid)
         end if
+      end if
+
+      ! Decompress current solution if it was compressed after a previous solve
+      if (solver%lcompress_solutions .and. solution%lcompressed) then
+        call decompress_solution(solver%C_dir, solver%C_diff, solution, ierr); call CHKERR(ierr)
       end if
 
       if ((solution%lthermal_rad .eqv. .false.) .and. (solution%lsolar_rad .eqv. .false.)) then ! nothing else to do
@@ -2632,6 +2648,10 @@ contains
 99    continue ! this is the quick exit final call where we clean up before the end of the routine
 
       call restore_solution(solver, solution, opt_solution_time)
+
+      if (solver%lcompress_solutions) then
+        call compress_solution(solution, ierr); call CHKERR(ierr)
+      end if
 
     end associate
   end subroutine
@@ -5785,6 +5805,10 @@ contains
     uid = get_solution_uid(solver%solutions, opt_solution_uid)
 
     associate (solution => solver%solutions(uid))
+      if (solver%lcompress_solutions .and. solution%lcompressed) then
+        call decompress_solution(solver%C_dir, solver%C_diff, solution, ierr); call CHKERR(ierr)
+      end if
+
       if (solution%lsolar_rad) then
         call dump_arr4d(solver, solver%C_dir, solution%edir, '-pprts_show_edir', 'edir', ierr); call CHKERR(ierr)
       end if

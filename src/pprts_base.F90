@@ -4,6 +4,8 @@ module m_pprts_base
   use petsc
 #endif
 
+  use iso_fortran_env, only: int16, int32, real32
+
   use m_data_parameters, only: &
     & ireals, irealLUT, iintegers, mpiint, &
     & imp_ireals, &
@@ -42,7 +44,9 @@ module m_pprts_base
   public :: &
     & allocate_pprts_solver_from_commandline, &
     & atmk, &
+    & compress_solution, &
     & convolve_ediff_srfc, &
+    & decompress_solution, &
     & destroy_pprts, &
     & destroy_solution, &
     & determine_ksp_tolerances, &
@@ -140,6 +144,10 @@ module m_pprts_base
     type(tVec), allocatable :: ediff_petsc  ! PETSc Vec wrapping ediff's memory on C_diff DMDA
     type(tVec), allocatable :: abso_petsc   ! PETSc Vec wrapping abso's memory on C_one DMDA
 #endif
+
+    integer(int16), allocatable :: edir_bf16(:, :, :, :)   ! bfloat16 compressed edir
+    integer(int16), allocatable :: ediff_bf16(:, :, :, :)  ! bfloat16 compressed ediff
+    logical :: lcompressed = .false.  ! .true. when edir/ediff are stored in bf16
 
     logical :: lset = .false. ! initialized?
     logical :: lsolar_rad = .false. ! direct radiation calculated?
@@ -253,6 +261,7 @@ module m_pprts_base
     real(ireals), allocatable :: abso_scalevec(:, :, :, :)
 
     logical :: linitialized = .false.
+    logical :: lcompress_solutions = .false.  ! store solutions as bfloat16 when not in use
     type(t_solver_log_events) :: logs
     type(t_pprts_shell_ctx) :: shell_ctx
     type(t_state_container), allocatable :: solutions(:)
@@ -391,11 +400,107 @@ contains
       call deallocate_allocatable(solution%edir)
       call deallocate_allocatable(solution%ediff)
       call deallocate_allocatable(solution%abso)
+      if (allocated(solution%edir_bf16)) deallocate (solution%edir_bf16)
+      if (allocated(solution%ediff_bf16)) deallocate (solution%ediff_bf16)
+      solution%lcompressed = .false.
       solution%lsolar_rad = .false.
       solution%lthermal_rad = .false.
       solution%lset = .false.
     end if
   end subroutine
+  elemental function real_to_bf16(v) result(b)
+    real(real32), intent(in) :: v
+    integer(int16) :: b
+    integer(int32) :: top16
+    top16 = ishft(transfer(v, 0_int32), -16)
+    b = int(top16 - merge(65536_int32, 0_int32, top16 >= 32768_int32), int16)
+  end function
+
+  elemental function bf16_to_real(b) result(v)
+    integer(int16), intent(in) :: b
+    real(real32) :: v
+    v = transfer(ishft(int(b, int32) + merge(65536_int32, 0_int32, b < 0_int16), 16), 0._real32)
+  end function
+
+  subroutine compress_solution(solution, ierr)
+    type(t_state_container), intent(inout) :: solution
+    integer(mpiint), intent(out) :: ierr
+    ierr = 0
+    if (.not. solution%lset .or. solution%lcompressed) return
+
+    if (allocated(solution%edir)) then
+#ifdef HAVE_PETSC
+      if (allocated(solution%edir_petsc)) then
+        call VecDestroy(solution%edir_petsc, ierr); call CHKERR(ierr)
+        deallocate (solution%edir_petsc)
+      end if
+#endif
+      allocate (solution%edir_bf16( &
+                lbound(solution%edir, 1):ubound(solution%edir, 1), &
+                lbound(solution%edir, 2):ubound(solution%edir, 2), &
+                lbound(solution%edir, 3):ubound(solution%edir, 3), &
+                lbound(solution%edir, 4):ubound(solution%edir, 4)))
+      solution%edir_bf16 = real_to_bf16(real(solution%edir, real32))
+      deallocate (solution%edir)
+    end if
+
+#ifdef HAVE_PETSC
+    if (allocated(solution%ediff_petsc)) then
+      call VecDestroy(solution%ediff_petsc, ierr); call CHKERR(ierr)
+      deallocate (solution%ediff_petsc)
+    end if
+#endif
+    allocate (solution%ediff_bf16( &
+              lbound(solution%ediff, 1):ubound(solution%ediff, 1), &
+              lbound(solution%ediff, 2):ubound(solution%ediff, 2), &
+              lbound(solution%ediff, 3):ubound(solution%ediff, 3), &
+              lbound(solution%ediff, 4):ubound(solution%ediff, 4)))
+    solution%ediff_bf16 = real_to_bf16(real(solution%ediff, real32))
+    deallocate (solution%ediff)
+
+    solution%lcompressed = .true.
+  end subroutine
+
+  subroutine decompress_solution(C_dir, C_diff, solution, ierr)
+    type(t_coord), intent(in) :: C_dir, C_diff
+    type(t_state_container), intent(inout) :: solution
+    integer(mpiint), intent(out) :: ierr
+    ierr = 0
+    if (.not. solution%lset .or. .not. solution%lcompressed) return
+
+    if (allocated(solution%edir_bf16)) then
+      allocate (solution%edir( &
+                lbound(solution%edir_bf16, 1):ubound(solution%edir_bf16, 1), &
+                lbound(solution%edir_bf16, 2):ubound(solution%edir_bf16, 2), &
+                lbound(solution%edir_bf16, 3):ubound(solution%edir_bf16, 3), &
+                lbound(solution%edir_bf16, 4):ubound(solution%edir_bf16, 4)))
+      solution%edir = real(bf16_to_real(solution%edir_bf16), ireals)
+      deallocate (solution%edir_bf16)
+#ifdef HAVE_PETSC
+      allocate (solution%edir_petsc)
+      call VecCreateMPIWithArray(C_dir%comm, i1, int(size(solution%edir), iintegers), PETSC_DETERMINE, &
+        & solution%edir, solution%edir_petsc, ierr); call CHKERR(ierr)
+      call VecSetDM(solution%edir_petsc, C_dir%da, ierr); call CHKERR(ierr)
+#endif
+    end if
+
+    allocate (solution%ediff( &
+              lbound(solution%ediff_bf16, 1):ubound(solution%ediff_bf16, 1), &
+              lbound(solution%ediff_bf16, 2):ubound(solution%ediff_bf16, 2), &
+              lbound(solution%ediff_bf16, 3):ubound(solution%ediff_bf16, 3), &
+              lbound(solution%ediff_bf16, 4):ubound(solution%ediff_bf16, 4)))
+    solution%ediff = real(bf16_to_real(solution%ediff_bf16), ireals)
+    deallocate (solution%ediff_bf16)
+#ifdef HAVE_PETSC
+    allocate (solution%ediff_petsc)
+    call VecCreateMPIWithArray(C_diff%comm, i1, int(size(solution%ediff), iintegers), PETSC_DETERMINE, &
+      & solution%ediff, solution%ediff_petsc, ierr); call CHKERR(ierr)
+    call VecSetDM(solution%ediff_petsc, C_diff%da, ierr); call CHKERR(ierr)
+#endif
+
+    solution%lcompressed = .false.
+  end subroutine
+
   subroutine print_solution(solution)
     type(t_state_container), intent(inout) :: solution
     character(len=30) :: header
