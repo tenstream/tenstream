@@ -37,6 +37,7 @@ program main
   B0 = 100
   call get_petsc_opt('', "-B0", B0, lflg, ierr); call CHKERR(ierr)
 
+  outfile = 'unset'
   call get_petsc_opt('', '-out', outfile, lflg, ierr); call CHKERR(ierr)
   if (.not. lflg) stop 'need to supply a output filename... please call with -out <fname_of_output_file.h5>'
 

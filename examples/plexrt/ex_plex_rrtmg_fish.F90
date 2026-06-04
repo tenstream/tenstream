@@ -100,9 +100,11 @@ program main
   lsolar = .true.
   call get_petsc_opt('', '-solar', lsolar, lflg, ierr); call CHKERR(ierr)
 
+  atm_filename = 'unset'
   call get_petsc_opt('', '-atm', atm_filename, lflg, ierr); call CHKERR(ierr)
   if (.not. lflg) call CHKERR(1_mpiint, 'need to supply a atm filename... please call with -atm <fname_of_atm_file.dat>')
 
+  outfile = 'unset'
   call get_petsc_opt('', '-out', outfile, lflg, ierr); call CHKERR(ierr)
   if (.not. lflg) stop 'need to supply a output filename... please call with -out <fname_of_output_file.h5>'
 

@@ -32,6 +32,7 @@ program main
   call init_mpi_data_parameters(mpi_comm_world)
   call read_commandline_options(mpi_comm_world)
 
+  outfile = 'unset'
   call get_petsc_opt('', '-out', outfile, lflg, ierr); call CHKERR(ierr)
   if (.not. lflg) call CHKERR(1_mpiint, 'need to supply a output filename... please call with -out <output.nc>')
 

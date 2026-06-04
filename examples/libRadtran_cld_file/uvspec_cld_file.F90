@@ -801,6 +801,7 @@ program main
       & ' -wc <water_cloud_file.nc> or -ic <ice_cloud_file.nc>')
   end if
 
+  outfile = 'unset'
   call get_petsc_opt('', '-out', outfile, lflg, ierr); call CHKERR(ierr)
   if (.not. lflg) call CHKERR(1_mpiint, 'need to supply a output filename... please call with -out <output.nc>')
 

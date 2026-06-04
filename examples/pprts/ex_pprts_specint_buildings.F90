@@ -53,6 +53,7 @@ program main
   call CHKERR(ierr, 'background atmosphere file: `'//trim(atm_filename)//&
     & '` does not exist! Please provide a path with option -atm <atmfile>')
 
+  outfile = 'unset'
   call get_petsc_opt('', '-out', outfile, lhave_outfile, ierr); call CHKERR(ierr)
 !  if(.not.lflg) call CHKERR(1_mpiint, 'need to supply a output filename... please call with -out <output.nc>')
 

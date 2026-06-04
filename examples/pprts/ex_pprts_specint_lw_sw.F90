@@ -73,6 +73,7 @@ program main
   vreice = 60
   call get_petsc_opt('', "-reice", vreice, lflg, ierr); call CHKERR(ierr)
 
+  outfile = 'unset'
   call get_petsc_opt('', '-out', outfile, lhave_outfile, ierr); call CHKERR(ierr)
   ! if(.not.lhave_outfile) call CHKERR(1_mpiint, 'need to supply a output filename... please call with -out <output.nc>')
 

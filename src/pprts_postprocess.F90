@@ -49,6 +49,11 @@ contains
     logical :: lflg
     integer(mpiint) :: myid, ierr
 
+    radius = 0
+    call get_petsc_opt(solver%prefix, "-pprts_smooth_srfc_flx", radius, lflg, ierr); call CHKERR(ierr)
+
+    if (.not. lflg) return
+
     if (log_smooth%ts_id < 0) then
       call ts_log_event_register('pprts_smooth_surface_fluxes', log_smooth, ierr)
       call CHKERR(ierr)
@@ -56,26 +61,20 @@ contains
     call ts_log_begin(log_smooth, ierr); call CHKERR(ierr)
     call mpi_comm_rank(solver%comm, myid, ierr); call CHKERR(ierr)
 
-    radius = 0
-    call get_petsc_opt(solver%prefix, "-pprts_smooth_srfc_flx", radius, lflg, ierr); call CHKERR(ierr)
+    if (radius .lt. zero) then
+      call imp_allreduce_mean(solver%comm, edn(ubound(edn, 1), :, :), mflx_dn); edn(ubound(edn, 1), :, :) = mflx_dn
+      call imp_allreduce_mean(solver%comm, eup(ubound(eup, 1), :, :), mflx_up); eup(ubound(eup, 1), :, :) = mflx_up
+      if (ldebug .and. myid .eq. 0) &
+        print *, 'Smoothing diffuse srfc fluxes over the entire domain '// &
+        'mean downward flx', mflx_dn, 'up', mflx_up
 
-    if (lflg) then
+    else
 
-      if (radius .lt. zero) then
-        call imp_allreduce_mean(solver%comm, edn(ubound(edn, 1), :, :), mflx_dn); edn(ubound(edn, 1), :, :) = mflx_dn
-        call imp_allreduce_mean(solver%comm, eup(ubound(eup, 1), :, :), mflx_up); eup(ubound(eup, 1), :, :) = mflx_up
-        if (ldebug .and. myid .eq. 0) &
-          print *, 'Smoothing diffuse srfc fluxes over the entire domain '// &
-          'mean downward flx', mflx_dn, 'up', mflx_up
-
-      else
-
-        call find_iter_and_kernelwidth(solver, radius, Niter, kernel_width)
-        do i = 1, Niter
-          call convolve_ediff_srfc(solver%comm, solver%C_diff, kernel_width, edn(ubound(edn, 1):ubound(edn, 1), :, :))
-          call convolve_ediff_srfc(solver%comm, solver%C_diff, kernel_width, eup(ubound(eup, 1):ubound(eup, 1), :, :))
-        end do
-      end if
+      call find_iter_and_kernelwidth(solver, radius, Niter, kernel_width)
+      do i = 1, Niter
+        call convolve_ediff_srfc(solver%comm, solver%C_diff, kernel_width, edn(ubound(edn, 1):ubound(edn, 1), :, :))
+        call convolve_ediff_srfc(solver%comm, solver%C_diff, kernel_width, eup(ubound(eup, 1):ubound(eup, 1), :, :))
+      end do
     end if
     call ts_log_end(log_smooth, ierr); call CHKERR(ierr)
   end subroutine

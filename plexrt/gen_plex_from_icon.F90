@@ -41,6 +41,7 @@ contains
     call init_mpi_data_parameters(comm)
     call mpi_comm_rank(comm, myid, ierr)
 
+    gridfile = 'unset'
     call get_petsc_opt(PETSC_NULL_CHARACTER, '-grid', gridfile, lflg, ierr); call CHKERR(ierr)
     if (.not. lflg) then
       print *, 'Please specify a grid file with option:'
@@ -48,6 +49,7 @@ contains
       call CHKERR(1_mpiint, 'Required Option missing')
     end if
 
+    datafile = 'unset'
     call get_petsc_opt(PETSC_NULL_CHARACTER, '-data', datafile, lflg, ierr); call CHKERR(ierr)
     if (.not. lflg) then
       print *, 'Please specify a data file with option:'

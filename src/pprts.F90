@@ -2243,6 +2243,7 @@ contains
           character(len=default_str_len) :: fname, groups(2)
           real(ireals), allocatable :: alb3d(:, :, :), galb(:, :, :)
           logical :: lflg2
+          fname = 'unset'
           call get_petsc_opt(solver%prefix, '-pprts_view_albedo', fname, lflg2, ierr); call CHKERR(ierr)
           if (lflg2) then
             associate (C => solver%Csrfc_one)
@@ -6486,6 +6487,7 @@ contains
     logical :: lflg
     integer(iintegers) :: idof
 
+    fname = 'unset'
     call get_petsc_opt(solver%prefix, trim(opt_name), fname, lflg, ierr); call CHKERR(ierr)
     if (.not. lflg) return
 

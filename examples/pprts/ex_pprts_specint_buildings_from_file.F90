@@ -63,6 +63,7 @@ program main
   call CHKERR(ierr, 'buildings file: `'//trim(buildings_filename)//&
     & '` does not exist! Please provide a path with option -buildings <buildings_file>')
 
+  outfile = 'unset'
   call get_petsc_opt('', '-out', outfile, lhave_outfile, ierr); call CHKERR(ierr)
 !  if(.not.lflg) call CHKERR(1_mpiint, 'need to supply a output filename... please call with -out <output.nc>')
 

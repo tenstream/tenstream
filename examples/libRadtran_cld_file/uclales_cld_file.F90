@@ -459,6 +459,7 @@ program main
   specint = 'no default set'
   call get_petsc_opt('', '-specint', specint, lflg, ierr); call CHKERR(ierr)
 
+  cldfile = 'unset'
   call get_petsc_opt('', '-cld', cldfile, lflg, ierr); call CHKERR(ierr)
   if (.not. lflg) call CHKERR(1_mpiint, 'need to supply a cloud filename... please call with -cld <libRadtran_cloud_file.nc>')
 
