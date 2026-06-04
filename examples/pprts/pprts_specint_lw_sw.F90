@@ -216,7 +216,7 @@ contains
                          nxproc=nxproc, nyproc=nyproc, &
                          icollapse=icollapse, &
                          opt_time=real(k, ireals))
-      sundir = spherical_2_cartesian(phi0 + .1 * k, theta0 - .1 * k)
+      sundir = spherical_2_cartesian(phi0 + .1_ireals * real(k, ireals), theta0 - .1_ireals * real(k, ireals))
       if (allocated(edir)) then
         print *, 'surface :: ', meanval(edir(nlev, :, :)), &
           & meanval(edn(nlev, :, :)), meanval(eup(nlev, :, :)), meanval(abso(nlev - 1, :, :))

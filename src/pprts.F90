@@ -710,7 +710,7 @@ contains
             & ' while the global max(N1D_layers) is'//toStr(N1dlayers_max)// &
             & ' here (rank='//toStr(solver%myid)//') we have N1D_layers='//tostr(N1dlayers))
         end if
-        solver%atm%l1d(solver%C_one_atm%zs:solver%C_one_atm%zs + N1dlayers_max - 1) = .true.
+        solver%atm%l1d(solver%C_one_atm%zs:solver%C_one_atm%zs + nint(N1dlayers_max, iintegers) - 1) = .true.
       end if
 
       call imp_allreduce_sum(solver%comm, count(.not. solver%atm%l1d, kind=iintegers), count3d)
@@ -3490,11 +3490,11 @@ contains
                         residual = c(src, dst) * enhance_diffusion
                         do dst_side = 1, solver%diffside%dof / 2
                           idof = solver%difftop%dof + dst_side
-                          c(src, idof) = c(src, idof) + residual / solver%diffside%dof
+                          c(src, idof) = c(src, idof) + residual / real(solver%diffside%dof, ireals)
                           !print *,'redistributing diffuse flux:',i,j,k, idof, residual, solver%diffside%dof
 
                           idof = solver%difftop%dof + solver%diffside%dof + dst_side
-                          c(src, idof) = c(src, idof) + residual / solver%diffside%dof
+                          c(src, idof) = c(src, idof) + residual / real(solver%diffside%dof, ireals)
                           !print *,'redistributing diffuse flux:',i,j,k, idof, residual, solver%diffside%dof
                         end do
                         c(src, dst) = c(src, dst) - residual
@@ -3506,11 +3506,11 @@ contains
                         residual = c(src, dst) * enhance_diffusion
                         do dst_side = solver%diffside%dof / 2 + 1, solver%diffside%dof
                           idof = solver%difftop%dof + dst_side
-                          c(src, idof) = c(src, idof) + residual / solver%diffside%dof
+                          c(src, idof) = c(src, idof) + residual / real(solver%diffside%dof, ireals)
                           !print *,'redistributing diffuse flux:',i,j,k, idof, residual, solver%diffside%dof
 
                           idof = solver%difftop%dof + solver%diffside%dof + dst_side
-                          c(src, idof) = c(src, idof) + residual / solver%diffside%dof
+                          c(src, idof) = c(src, idof) + residual / real(solver%diffside%dof, ireals)
                           !print *,'redistributing diffuse flux:',i,j,k, idof, residual, solver%diffside%dof
                         end do
                         c(src, dst) = c(src, dst) - residual
@@ -5206,7 +5206,7 @@ contains
                     & atm%dx, &
                     & .true., &
                     & dir2dir_lut, &
-                    & [real(irealLUT) :: sun%symmetry_phi, sun%theta], &
+                    & [real(sun%symmetry_phi, irealLUT), real(sun%theta, irealLUT)], &
                     & lswitch_east=xinc .eq. 0, lswitch_north=yinc .eq. 0 &
                     & )
                   src = 0
