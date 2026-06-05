@@ -10,13 +10,17 @@ OUTDIR=${SCRATCH:-.}
 
 BASE_OPT="-thermal no -specint ecckd $@"
 
-OUT=${OUTDIR}/example_i3rc1_10str.nc
+OUT=${OUTDIR}/example_i3rc1.nc
 OPT=$BASE_OPT
-[ ! -e $OUT ] && $RUN $BIN -wc $CLDFILE -atm_filename $ATMFILE -out $OUT $OPT
+if [ ! -e $OUT ]; then
+  $RUN $BIN -wc $CLDFILE -atm_filename $ATMFILE -out $OUT $OPT
+else
+  echo "Skipping simulation because output already exists: $OUT"
+fi
 
-# With RayLi MonteCarlo solver
-NUMTHREADS=10
-RUN="mpirun -np 1 --cpus-per-rank $NUMTHREADS"
-OUT=$OUTDIR/example_i3rc1_rayli.nc
-OPT="$BASE_OPT -solver rayli -rayli_cyclic_bc -rayli_nthreads $NUMTHREADS"
-[ ! -e $OUT ] && $RUN $BIN -wc $CLDFILE -atm_filename $ATMFILE -out $OUT $OPT
+## With RayLi MonteCarlo solver
+#NUMTHREADS=10
+#RUN="mpirun -np 1 --cpus-per-rank $NUMTHREADS"
+#OUT=$OUTDIR/example_i3rc1_rayli.nc
+#OPT="$BASE_OPT -solver rayli -rayli_cyclic_bc -rayli_nthreads $NUMTHREADS"
+#[ ! -e $OUT ] && $RUN $BIN -wc $CLDFILE -atm_filename $ATMFILE -out $OUT $OPT
