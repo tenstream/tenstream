@@ -1,6 +1,8 @@
 module m_example_uvspec_cld_file
+#ifdef HAVE_PETSC
 #include "petsc/finclude/petsc.h"
   use petsc
+#endif
   use mpi
   use m_pprts_base, only: t_solver, allocate_pprts_solver_from_commandline
   use m_pprts, only: gather_all_toZero, pprts_get_result_toZero
@@ -29,6 +31,7 @@ module m_example_uvspec_cld_file
     & spherical_2_cartesian
   use m_netcdfio, only: ncload, ncwrite, get_global_attribute, set_global_attribute, set_attribute
 
+#ifdef HAVE_PETSC
   use m_petsc_helpers, only: getvecpointer, restorevecpointer
 
   use m_icon_plex_utils, only: create_2d_regular_plex, dmplex_2D_to_3D, &
@@ -42,6 +45,7 @@ module m_example_uvspec_cld_file
   use m_plex_rt, only: init_plex_rt_solver
 
   use m_plexrt_rrtmg, only: plexrt_rrtmg, destroy_plexrt_rrtmg
+#endif
 
   use m_tenstream_interpolation, only: interp_1d
   use m_search, only: find_real_location
@@ -510,6 +514,7 @@ contains
     call destroy_tenstr_atm(atm)
   end subroutine
 
+#ifdef HAVE_PETSC
   subroutine example_uvspec_cld_file_with_plexrt(comm, &
                                                  cldfile, atm_filename, outfile, &
                                                  albedo_th, albedo_sol, &
@@ -761,12 +766,11 @@ contains
       end if
     end subroutine
   end subroutine
+#endif
 
 end module
 
 program main
-#include "petsc/finclude/petsc.h"
-  use petsc
   use mpi
   use m_data_parameters, only: mpiint, share_dir
   use m_helper_functions, only: get_petsc_opt
@@ -840,6 +844,7 @@ program main
   call get_petsc_opt('', "-use_plexrt", luse_plexrt, lflg, ierr); call CHKERR(ierr)
 
   if (luse_plexrt) then
+#ifdef HAVE_PETSC
     call CHKERR(int(scene_shift_x, mpiint), 'not supported option')
     call CHKERR(int(scene_shift_y, mpiint), 'not supported option')
     call CHKERR(int(scene_shift_it - 1, mpiint), 'not supported option')
@@ -847,6 +852,9 @@ program main
     call example_uvspec_cld_file_with_plexrt(&
       & mpi_comm_world, wcfile, atm_filename, outfile, &
       & zero, Ag, lsolar, lthermal, phi0, theta0, Tsrfc, dTdz)
+#else
+    call CHKERR(1_mpiint, '-use_plexrt requires a PETSc build')
+#endif
   else
     call example_uvspec_cld_file_pprts(&
       & specint, &

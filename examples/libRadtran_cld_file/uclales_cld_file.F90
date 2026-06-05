@@ -1,6 +1,8 @@
 module m_example_uclales_cld_file
+#ifdef HAVE_PETSC
 #include "petsc/finclude/petsc.h"
   use petsc
+#endif
   use mpi
   use m_pprts_base, only: t_solver, allocate_pprts_solver_from_commandline
   use m_pprts, only: gather_all_toZero
@@ -37,6 +39,7 @@ module m_example_uclales_cld_file
 
   use m_netcdfio, only: ncload, ncwrite, get_global_attribute, list_global_attributes, get_dim_info
 
+#ifdef HAVE_PETSC
   use m_petsc_helpers, only: getvecpointer, restorevecpointer
 
   use m_icon_plex_utils, only: create_2d_regular_plex, dmplex_2D_to_3D, &
@@ -50,6 +53,7 @@ module m_example_uclales_cld_file
   use m_plex_rt, only: init_plex_rt_solver
 
   use m_plexrt_rrtmg, only: plexrt_rrtmg, destroy_plexrt_rrtmg
+#endif
 
   use m_tenstream_interpolation, only: interp_1d
   use m_search, only: find_real_location
@@ -435,8 +439,6 @@ contains
 end module
 
 program main
-#include "petsc/finclude/petsc.h"
-  use petsc
   use mpi
   use m_data_parameters, only: mpiint, share_dir
   use m_helper_functions, only: get_petsc_opt

@@ -14,7 +14,6 @@ endmacro()
 set(PETSC_ONLY_EXAMPLES
   geometric_coeffs_dir2diff_hacks
   geometric_coeffs_num_intervals
-  libRadtran_cld_file
   plexrt
   wetterstein_ts
 )
