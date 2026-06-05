@@ -1,3 +1,5 @@
 -skip_load_LUT no
 -LUT_mockup
 -max_solution_time 60
+-solar_diff_ksp_rtol 1e-4
+-solar_diff_ksp_monitor
