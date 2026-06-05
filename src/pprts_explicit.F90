@@ -481,9 +481,12 @@ contains
     logical :: lskip_residual, lmonitor_residual, lconverged_atol, lconverged_rtol, lflg
     logical :: laccept_incomplete_solve, lconverged_reason
 
-    logical :: lomega_set, ladaptive_omega
+    logical :: lomega_set, ladaptive_omega, lomega_frozen
     real(ireals) :: omega, omega_adaptive, omega_increment, omega_min, omega_max
     real(ireals) :: omega_dir, omega_step, omega_save, log_rate, log_rate_prev
+    real(ireals) :: best_residual_solve
+    integer(iintegers) :: iter_at_best
+    integer(iintegers), parameter :: stagnation_window = 50
 
     x0 => null()
     xg => null()
@@ -535,6 +538,9 @@ contains
         omega_adaptive = solution%diff_sor_omega ! warm-start from previous solve for this g-point
       end if
       omega_save = omega_adaptive
+      best_residual_solve = huge(best_residual_solve)
+      iter_at_best = 1
+      lomega_frozen = .false.
 
       lcomplete_initial_run = .true.
       call get_petsc_opt(prefix, "-ksp_complete_initial_run", lcomplete_initial_run, lflg, ierr); call CHKERR(ierr)
@@ -584,7 +590,7 @@ contains
 
       sorloop: do iter = 1, maxiter
         do isub = 1, sub_iter
-          if (approx(omega_adaptive, 1._ireals)) then
+          if (approx(omega_adaptive, 1._ireals) .and. .not. ladaptive_omega) then
             if (modulo(iter + isub, 2) .eq. 0) then
               call explicit_ediff_forward_sweep(&
                 & solver, &
@@ -668,19 +674,34 @@ contains
             exit sorloop
           end if
 
+          if (residual(iter) .lt. best_residual_solve) then
+            best_residual_solve = residual(iter)
+            iter_at_best = iter
+          end if
+
           if (ladaptive_omega .and. iter .ge. 3) then
-            if (residual(iter) .gt. zero .and. residual(iter - 2) .gt. zero) then
-              log_rate = 0.5_ireals * log(residual(iter) / residual(iter - 2))
-              if (log_rate .lt. log_rate_prev) then
-                omega_step = min(omega_step * 1.3_ireals, omega_max - omega_min)
-              else
-                omega_dir = -omega_dir
-                omega_step = max(omega_step * 0.5_ireals, 0.01_ireals)
-              end if
-              log_rate_prev = log_rate
-              omega_adaptive = min(max(omega_adaptive + omega_dir * omega_step, omega_min), omega_max)
+            ! Stagnation guard: if no new best for stagnation_window iters while omega > 1,
+            ! freeze omega at omega_min for the rest of the solve to escape a limit cycle
+            if (.not. lomega_frozen &
+              & .and. omega_adaptive .gt. omega_min &
+              & .and. (iter - iter_at_best) .gt. stagnation_window) then
+              omega_adaptive = omega_min
               omega_save = omega_adaptive
-              if (residual(iter) .lt. 10 * atol) omega_adaptive = 1._ireals
+              lomega_frozen = .true.
+            end if
+            if (.not. lomega_frozen) then
+              if (residual(iter) .gt. zero .and. residual(iter - 2) .gt. zero) then
+                log_rate = 0.5_ireals * log(residual(iter) / residual(iter - 2))
+                if (log_rate .lt. log_rate_prev) then
+                  omega_step = min(omega_step * 1.3_ireals, omega_max - omega_min)
+                else
+                  omega_dir = -omega_dir
+                  omega_step = max(omega_step * 0.5_ireals, 0.01_ireals)
+                end if
+                log_rate_prev = log_rate
+                omega_adaptive = min(max(omega_adaptive + omega_dir * omega_step, omega_min), omega_max)
+                omega_save = omega_adaptive
+              end if
             end if
           end if
 
