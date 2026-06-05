@@ -879,6 +879,7 @@ contains
     integer(iintegers) :: idst, isrc, src, dst
     real(ireals), pointer :: v(:, :) ! dim(src, dst)
     integer(iintegers) :: msrc, mdst
+    real(ireals) :: sigma
 
     x0 => null()
     xb => null()
@@ -903,11 +904,11 @@ contains
         end do
       end if
 
-      ! forward sweep through v0
-      do k = dz(1), dz(2), dz(3)
-        if (atm%l1d(atmk(atm, k))) then
-          do j = dy(1), dy(2), dy(3)
-            do i = dx(1), dx(2), dx(3)
+      ! forward sweep through v0 (column-oriented: j outer, i middle, k inner)
+      do j = dy(1), dy(2), dy(3)
+        do i = dx(1), dx(2), dx(3)
+          do k = dz(1), dz(2), dz(3)
+            if (atm%l1d(atmk(atm, k))) then
               do idst = 0, solver%difftop%dof - 1
                 if (solver%difftop%is_inward(i1 + idst)) then ! edn
                   x0(idst, k + i1, i, j) = xb(idst, k + 1, i, j) + &
@@ -919,84 +920,83 @@ contains
                     & x0(inv_dof(idst), k, i, j) * atm%a12(atmk(atm, k), i, j)
                 end if
               end do
-            end do
-          end do
-        else
-          do j = dy(1), dy(2), dy(3)
-            do i = dx(1), dx(2), dx(3)
+            else
 
               v(0:C%dof - 1, 0:C%dof - 1) => coeffs(1:C%dof**2, k - C%zs + 1, i - C%xs + 1, j - C%ys + 1)
 
               dst = 0
               do idst = 0, solver%difftop%dof - 1
                 mdst = merge(k + 1, k, solver%difftop%is_inward(i1 + idst))
-                x0(dst, mdst, i, j) = xb(dst, mdst, i, j)
+                sigma = 0
                 src = 0
                 do isrc = 0, solver%difftop%dof - 1
                   msrc = merge(k, k + 1, solver%difftop%is_inward(i1 + isrc))
-                  x0(dst, mdst, i, j) = x0(dst, mdst, i, j) + x0(src, msrc, i, j) * v(src, dst)
+                  sigma = sigma + x0(src, msrc, i, j) * v(src, dst)
                   src = src + 1
                 end do
                 do isrc = 0, solver%diffside%dof - 1
                   msrc = merge(i, i + 1, solver%diffside%is_inward(i1 + isrc))
-                  x0(dst, mdst, i, j) = x0(dst, mdst, i, j) + x0(src, k, msrc, j) * v(src, dst)
+                  sigma = sigma + x0(src, k, msrc, j) * v(src, dst)
                   src = src + 1
                 end do
                 do isrc = 0, solver%diffside%dof - 1
                   msrc = merge(j, j + 1, solver%diffside%is_inward(i1 + isrc))
-                  x0(dst, mdst, i, j) = x0(dst, mdst, i, j) + x0(src, k, i, msrc) * v(src, dst)
+                  sigma = sigma + x0(src, k, i, msrc) * v(src, dst)
                   src = src + 1
                 end do
+                x0(dst, mdst, i, j) = xb(dst, mdst, i, j) + sigma
                 dst = dst + 1
               end do
 
               do idst = 0, solver%diffside%dof - 1
                 mdst = merge(i + 1, i, solver%diffside%is_inward(i1 + idst))
-                x0(dst, k, mdst, j) = xb(dst, k, mdst, j)
+                sigma = 0
                 src = 0
                 do isrc = 0, solver%difftop%dof - 1
                   msrc = merge(k, k + 1, solver%difftop%is_inward(i1 + isrc))
-                  x0(dst, k, mdst, j) = x0(dst, k, mdst, j) + x0(src, msrc, i, j) * v(src, dst)
+                  sigma = sigma + x0(src, msrc, i, j) * v(src, dst)
                   src = src + 1
                 end do
                 do isrc = 0, solver%diffside%dof - 1
                   msrc = merge(i, i + 1, solver%diffside%is_inward(i1 + isrc))
-                  x0(dst, k, mdst, j) = x0(dst, k, mdst, j) + x0(src, k, msrc, j) * v(src, dst)
+                  sigma = sigma + x0(src, k, msrc, j) * v(src, dst)
                   src = src + 1
                 end do
                 do isrc = 0, solver%diffside%dof - 1
                   msrc = merge(j, j + 1, solver%diffside%is_inward(i1 + isrc))
-                  x0(dst, k, mdst, j) = x0(dst, k, mdst, j) + x0(src, k, i, msrc) * v(src, dst)
+                  sigma = sigma + x0(src, k, i, msrc) * v(src, dst)
                   src = src + 1
                 end do
+                x0(dst, k, mdst, j) = xb(dst, k, mdst, j) + sigma
                 dst = dst + 1
               end do
 
               do idst = 0, solver%diffside%dof - 1
                 mdst = merge(j + 1, j, solver%diffside%is_inward(i1 + idst))
-                x0(dst, k, i, mdst) = xb(dst, k, i, mdst)
+                sigma = 0
                 src = 0
                 do isrc = 0, solver%difftop%dof - 1
                   msrc = merge(k, k + 1, solver%difftop%is_inward(i1 + isrc))
-                  x0(dst, k, i, mdst) = x0(dst, k, i, mdst) + x0(src, msrc, i, j) * v(src, dst)
+                  sigma = sigma + x0(src, msrc, i, j) * v(src, dst)
                   src = src + 1
                 end do
                 do isrc = 0, solver%diffside%dof - 1
                   msrc = merge(i, i + 1, solver%diffside%is_inward(i1 + isrc))
-                  x0(dst, k, i, mdst) = x0(dst, k, i, mdst) + x0(src, k, msrc, j) * v(src, dst)
+                  sigma = sigma + x0(src, k, msrc, j) * v(src, dst)
                   src = src + 1
                 end do
                 do isrc = 0, solver%diffside%dof - 1
                   msrc = merge(j, j + 1, solver%diffside%is_inward(i1 + isrc))
-                  x0(dst, k, i, mdst) = x0(dst, k, i, mdst) + x0(src, k, i, msrc) * v(src, dst)
+                  sigma = sigma + x0(src, k, i, msrc) * v(src, dst)
                   src = src + 1
                 end do
+                x0(dst, k, i, mdst) = xb(dst, k, i, mdst) + sigma
                 dst = dst + 1
               end do
 
-            end do
+            end if
           end do
-        end if
+        end do
       end do
 
       if (dz(3) .gt. 0) then ! if going from top to bottom, we do it here
