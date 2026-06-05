@@ -590,44 +590,24 @@ contains
 
       sorloop: do iter = 1, maxiter
         do isub = 1, sub_iter
-          if (approx(omega_adaptive, 1._ireals) .and. .not. ladaptive_omega) then
-            if (modulo(iter + isub, 2) .eq. 0) then
-              call explicit_ediff_forward_sweep(&
-                & solver, &
-                & solver%diff2diff, &
-                & dx=[C%xs, C%xe, i1], &
-                & dy=[C%ys, C%ye, i1], &
-                & dz=[C%zs, C%ze - 1, i1], &
-                & b=lvb, x=v0)
-            else
-              call explicit_ediff_forward_sweep(&
-                & solver, &
-                & solver%diff2diff, &
-                & dx=[C%xe, C%xs, -i1], &
-                & dy=[C%ye, C%ys, -i1], &
-                & dz=[C%ze - 1, C%zs, -i1], &
-                & b=lvb, x=v0)
-            end if
+          if (modulo(iter + isub, 2) .eq. 0) then
+            call explicit_ediff_sor_sweep(&
+              & solver, &
+              & solver%diff2diff, &
+              & dx=[C%xs, C%xe, i1], &
+              & dy=[C%ys, C%ye, i1], &
+              & dz=[C%zs, C%ze - 1, i1], &
+              & omega=omega_adaptive, &
+              & b=lvb, x=v0)
           else
-            if (modulo(iter + isub, 2) .eq. 0) then
-              call explicit_ediff_sor_sweep(&
-                & solver, &
-                & solver%diff2diff, &
-                & dx=[C%xs, C%xe, i1], &
-                & dy=[C%ys, C%ye, i1], &
-                & dz=[C%zs, C%ze - 1, i1], &
-                & omega=omega_adaptive, &
-                & b=lvb, x=v0)
-            else
-              call explicit_ediff_sor_sweep(&
-                & solver, &
-                & solver%diff2diff, &
-                & dx=[C%xe, C%xs, -i1], &
-                & dy=[C%ye, C%ys, -i1], &
-                & dz=[C%ze - 1, C%zs, -i1], &
-                & omega=omega_adaptive, &
-                & b=lvb, x=v0)
-            end if
+            call explicit_ediff_sor_sweep(&
+              & solver, &
+              & solver%diff2diff, &
+              & dx=[C%xe, C%xs, -i1], &
+              & dy=[C%ye, C%ys, -i1], &
+              & dz=[C%ze - 1, C%zs, -i1], &
+              & omega=omega_adaptive, &
+              & b=lvb, x=v0)
           end if
         end do
 
@@ -866,173 +846,6 @@ contains
     end associate
     ierr = 0
   end subroutine
-
-  subroutine explicit_ediff_forward_sweep(solver, coeffs, dx, dy, dz, b, x)
-    class(t_solver), intent(inout) :: solver
-    real(ireals), target, intent(in) :: coeffs(:, :, :, :)
-    integer(iintegers), dimension(3), intent(in) :: dx, dy, dz ! start, end, increment for each dimension
-    real(ireals), target, contiguous, intent(in) :: b(:, :, :, :)
-    real(ireals), target, contiguous, intent(inout) :: x(:, :, :, :)
-
-    real(ireals), pointer, dimension(:, :, :, :) :: x0, xb
-    integer(iintegers) :: k, i, j
-    integer(iintegers) :: idst, isrc, src, dst
-    real(ireals), pointer :: v(:, :) ! dim(src, dst)
-    integer(iintegers) :: msrc, mdst
-    real(ireals) :: sigma
-
-    x0 => null()
-    xb => null()
-
-    associate ( &
-        & atm => solver%atm, &
-        & C => solver%C_diff)
-
-      x0(0:C%dof - 1, C%zs:C%ze, C%gxs:C%gxe, C%gys:C%gye) => x
-      xb(0:C%dof - 1, C%zs:C%ze, C%gxs:C%gxe, C%gys:C%gye) => b
-
-      if (dz(3) .lt. 0) then ! if going from bottom to top, we do it here at the beginning
-        do j = dy(1), dy(2), dy(3)
-          do i = dx(1), dx(2), dx(3)
-            do idst = 0, solver%difftop%dof - 1
-              if (.not. solver%difftop%is_inward(i1 + idst)) then ! Eup
-                x0(idst, C%ze, i, j) = xb(idst, C%ze, i, j) + &
-                  & x0(inv_dof(idst), C%ze, i, j) * atm%albedo(i, j)
-              end if
-            end do
-          end do
-        end do
-      end if
-
-      ! forward sweep through v0 (column-oriented: j outer, i middle, k inner)
-      do j = dy(1), dy(2), dy(3)
-        do i = dx(1), dx(2), dx(3)
-          do k = dz(1), dz(2), dz(3)
-            if (atm%l1d(atmk(atm, k))) then
-              do idst = 0, solver%difftop%dof - 1
-                if (solver%difftop%is_inward(i1 + idst)) then ! edn
-                  x0(idst, k + i1, i, j) = xb(idst, k + 1, i, j) + &
-                    & x0(idst, k, i, j) * atm%a11(atmk(atm, k), i, j) + &
-                    & x0(inv_dof(idst), k + i1, i, j) * atm%a12(atmk(atm, k), i, j)
-                else ! eup
-                  x0(idst, k, i, j) = xb(idst, k, i, j) + &
-                    & x0(idst, k + i1, i, j) * atm%a11(atmk(atm, k), i, j) + &
-                    & x0(inv_dof(idst), k, i, j) * atm%a12(atmk(atm, k), i, j)
-                end if
-              end do
-            else
-
-              v(0:C%dof - 1, 0:C%dof - 1) => coeffs(1:C%dof**2, k - C%zs + 1, i - C%xs + 1, j - C%ys + 1)
-
-              dst = 0
-              do idst = 0, solver%difftop%dof - 1
-                mdst = merge(k + 1, k, solver%difftop%is_inward(i1 + idst))
-                sigma = 0
-                src = 0
-                do isrc = 0, solver%difftop%dof - 1
-                  msrc = merge(k, k + 1, solver%difftop%is_inward(i1 + isrc))
-                  sigma = sigma + x0(src, msrc, i, j) * v(src, dst)
-                  src = src + 1
-                end do
-                do isrc = 0, solver%diffside%dof - 1
-                  msrc = merge(i, i + 1, solver%diffside%is_inward(i1 + isrc))
-                  sigma = sigma + x0(src, k, msrc, j) * v(src, dst)
-                  src = src + 1
-                end do
-                do isrc = 0, solver%diffside%dof - 1
-                  msrc = merge(j, j + 1, solver%diffside%is_inward(i1 + isrc))
-                  sigma = sigma + x0(src, k, i, msrc) * v(src, dst)
-                  src = src + 1
-                end do
-                x0(dst, mdst, i, j) = xb(dst, mdst, i, j) + sigma
-                dst = dst + 1
-              end do
-
-              do idst = 0, solver%diffside%dof - 1
-                mdst = merge(i + 1, i, solver%diffside%is_inward(i1 + idst))
-                sigma = 0
-                src = 0
-                do isrc = 0, solver%difftop%dof - 1
-                  msrc = merge(k, k + 1, solver%difftop%is_inward(i1 + isrc))
-                  sigma = sigma + x0(src, msrc, i, j) * v(src, dst)
-                  src = src + 1
-                end do
-                do isrc = 0, solver%diffside%dof - 1
-                  msrc = merge(i, i + 1, solver%diffside%is_inward(i1 + isrc))
-                  sigma = sigma + x0(src, k, msrc, j) * v(src, dst)
-                  src = src + 1
-                end do
-                do isrc = 0, solver%diffside%dof - 1
-                  msrc = merge(j, j + 1, solver%diffside%is_inward(i1 + isrc))
-                  sigma = sigma + x0(src, k, i, msrc) * v(src, dst)
-                  src = src + 1
-                end do
-                x0(dst, k, mdst, j) = xb(dst, k, mdst, j) + sigma
-                dst = dst + 1
-              end do
-
-              do idst = 0, solver%diffside%dof - 1
-                mdst = merge(j + 1, j, solver%diffside%is_inward(i1 + idst))
-                sigma = 0
-                src = 0
-                do isrc = 0, solver%difftop%dof - 1
-                  msrc = merge(k, k + 1, solver%difftop%is_inward(i1 + isrc))
-                  sigma = sigma + x0(src, msrc, i, j) * v(src, dst)
-                  src = src + 1
-                end do
-                do isrc = 0, solver%diffside%dof - 1
-                  msrc = merge(i, i + 1, solver%diffside%is_inward(i1 + isrc))
-                  sigma = sigma + x0(src, k, msrc, j) * v(src, dst)
-                  src = src + 1
-                end do
-                do isrc = 0, solver%diffside%dof - 1
-                  msrc = merge(j, j + 1, solver%diffside%is_inward(i1 + isrc))
-                  sigma = sigma + x0(src, k, i, msrc) * v(src, dst)
-                  src = src + 1
-                end do
-                x0(dst, k, i, mdst) = xb(dst, k, i, mdst) + sigma
-                dst = dst + 1
-              end do
-
-            end if
-          end do
-        end do
-      end do
-
-      if (dz(3) .gt. 0) then ! if going from top to bottom, we do it here
-        do j = dy(1), dy(2), dy(3)
-          do i = dx(1), dx(2), dx(3)
-            do idst = 0, solver%difftop%dof - 1
-              if (.not. solver%difftop%is_inward(i1 + idst)) then ! Eup
-                x0(idst, C%ze, i, j) = xb(idst, C%ze, i, j) + &
-                  & x0(inv_dof(idst), C%ze, i, j) * atm%albedo(i, j)
-              end if
-            end do
-          end do
-        end do
-      end if
-
-      nullify (xb, x0)
-    end associate
-
-  contains
-
-    pure function inv_dof(dof) ! returns the dof that is the same stream but the opposite direction
-      integer(iintegers), intent(in) :: dof
-      integer(iintegers) :: inv_dof, inc
-      if (solver%difftop%is_inward(1)) then ! starting with downward streams
-        inc = 1
-      else
-        inc = -1
-      end if
-      if (solver%difftop%is_inward(i1 + dof)) then ! downward stream
-        inv_dof = dof + inc
-      else
-        inv_dof = dof - inc
-      end if
-    end function
-  end subroutine
-
   subroutine explicit_ediff_sor_sweep(solver, coeffs, dx, dy, dz, omega, b, x)
     class(t_solver), intent(inout) :: solver
     real(ireals), target, intent(in) :: coeffs(:, :, :, :)
