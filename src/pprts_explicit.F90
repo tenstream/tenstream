@@ -1040,17 +1040,17 @@ contains
     gxm = size(v, 3, kind=iintegers)
     gym = size(v, 4, kind=iintegers)
 
-    allocate (se(size(v, 1), size(v, 2), size(v, 4))); se = zero
-    allocate (sw(size(v, 1), size(v, 2), size(v, 4))); sw = zero
-    allocate (re(size(v, 1), size(v, 2), size(v, 4))); re = zero
-    allocate (rw(size(v, 1), size(v, 2), size(v, 4))); rw = zero
+    allocate (se(size(v, 1), size(v, 2), size(v, 4) - 2)); se = zero
+    allocate (sw(size(v, 1), size(v, 2), size(v, 4) - 2)); sw = zero
+    allocate (re(size(v, 1), size(v, 2), size(v, 4) - 2)); re = zero
+    allocate (rw(size(v, 1), size(v, 2), size(v, 4) - 2)); rw = zero
     allocate (sn(size(v, 1), size(v, 2), size(v, 3) - 2)); sn = zero
     allocate (ss(size(v, 1), size(v, 2), size(v, 3) - 2)); ss = zero
     allocate (rn(size(v, 1), size(v, 2), size(v, 3) - 2)); rn = zero
     allocate (rs(size(v, 1), size(v, 2), size(v, 3) - 2)); rs = zero
 
-    se = v(:, :, gxm - 1, :)     ! east interior edge
-    sw = v(:, :, 2, :)            ! west interior edge
+    se = v(:, :, gxm - 1, 2:gym - 1) ! east interior edge, interior y only
+    sw = v(:, :, 2, 2:gym - 1)        ! west interior edge, interior y only
     sn = v(:, :, 2:gxm - 1, gym - 1) ! north interior edge
     ss = v(:, :, 2:gxm - 1, 2)       ! south interior edge
 
@@ -1066,8 +1066,8 @@ contains
     call MPI_Isend(ss, size(ss, kind=mpiint), imp_ireals, ns, 4, comm, rqs(8), ierr)
     call MPI_Waitall(8_mpiint, rqs, sts, ierr)
 
-    v(:, :, 1, :) = rw
-    v(:, :, gxm, :) = re
+    v(:, :, 1, 2:gym - 1) = rw
+    v(:, :, gxm, 2:gym - 1) = re
     v(:, :, 2:gxm - 1, 1) = rs
     v(:, :, 2:gxm - 1, gym) = rn
   end subroutine
