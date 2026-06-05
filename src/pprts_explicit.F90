@@ -860,7 +860,6 @@ contains
     real(ireals), pointer :: v(:, :) ! dim(src, dst)
     integer(iintegers) :: msrc, mdst
 
-    real(ireals), parameter :: diag = 1
     real(ireals) :: sigma
 
     x0 => null()
@@ -926,7 +925,7 @@ contains
                   sigma = sigma + x0(src, k, i, msrc) * v(src, dst)
                   src = src + 1
                 end do
-                x0(dst, mdst, i, j) = (one - omega) * x0(dst, mdst, i, j) + (omega / diag) * (xb(dst, mdst, i, j) + sigma)
+                x0(dst, mdst, i, j) = (one - omega) * x0(dst, mdst, i, j) + omega * (xb(dst, mdst, i, j) + sigma)
                 dst = dst + 1
               end do
 
@@ -949,7 +948,7 @@ contains
                   sigma = sigma + x0(src, k, i, msrc) * v(src, dst)
                   src = src + 1
                 end do
-                x0(dst, k, mdst, j) = (one - omega) * x0(dst, k, mdst, j) + (omega / diag) * (xb(dst, k, mdst, j) + sigma)
+                x0(dst, k, mdst, j) = (one - omega) * x0(dst, k, mdst, j) + omega * (xb(dst, k, mdst, j) + sigma)
                 dst = dst + 1
               end do
 
@@ -972,7 +971,7 @@ contains
                   sigma = sigma + x0(src, k, i, msrc) * v(src, dst)
                   src = src + 1
                 end do
-                x0(dst, k, i, mdst) = (one - omega) * x0(dst, k, i, mdst) + (omega / diag) * (xb(dst, k, i, mdst) + sigma)
+                x0(dst, k, i, mdst) = (one - omega) * x0(dst, k, i, mdst) + omega * (xb(dst, k, i, mdst) + sigma)
                 dst = dst + 1
               end do
 
