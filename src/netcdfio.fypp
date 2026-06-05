@@ -287,24 +287,30 @@ contains
         end if
 
         if (.not. file_exists) then
-!          ncerr = nf90_create(trim(fname), NF90_NETCDF4, ncid); call nccheck(ncerr); ierr = ierr + ncerr
-          ncerr = nf90_create( &
-            & path=trim(fname), &
-            & cmode=ior(NF90_NOCLOBBER, ior(NF90_NETCDF4, NF90_MPIIO)), &
-            & comm=comm, &
-            & info=MPI_INFO_NULL, &
-            & ncid=ncid)
+          if (present(comm)) then
+            ncerr = nf90_create( &
+              & path=trim(fname), &
+              & cmode=ior(NF90_NOCLOBBER, ior(NF90_NETCDF4, NF90_MPIIO)), &
+              & comm=comm, &
+              & info=MPI_INFO_NULL, &
+              & ncid=ncid)
+          else
+            ncerr = nf90_create(trim(fname), ior(NF90_NOCLOBBER, NF90_NETCDF4), ncid)
+          end if
           call nccheck(ncerr)
           ierr = ierr + ncerr
           if (lverbose) print *, 'create new file ', trim(fname), ' ::', ncerr
         else
-!          ncerr = nf90_open(path=trim(fname), mode=NF90_WRITE, ncid=ncid); call nccheck(ncerr); ierr = ierr + ncerr
-          ncerr = nf90_open( &
-            & path=trim(fname), &
-            & mode=NF90_WRITE, &
-            & comm=comm, &
-            & info=MPI_INFO_NULL, &
-            & ncid=ncid)
+          if (present(comm)) then
+            ncerr = nf90_open( &
+              & path=trim(fname), &
+              & mode=NF90_WRITE, &
+              & comm=comm, &
+              & info=MPI_INFO_NULL, &
+              & ncid=ncid)
+          else
+            ncerr = nf90_open(path=trim(fname), mode=NF90_WRITE, ncid=ncid)
+          end if
           call nccheck(ncerr)
           ierr = ierr + ncerr
           if (lverbose) print *, 'opened file  read/write: ', trim(fname), ' ::', ncerr
