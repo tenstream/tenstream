@@ -110,7 +110,7 @@ module m_tenstr_atm
     real(ireals), allocatable :: cfrac(:, :)   ! cloud fraction
 
     real(ireals), allocatable :: opt_tau(:, :, :) ! optional optical properties: tau, w0, g dim (Nlay_dynamics, Ncol, Nbands(solar or thermal))
-    real(ireals), allocatable :: opt_w0(:, :, :) ! will be added to the rrtmg optical properties
+    real(ireals), allocatable :: opt_w0(:, :, :) ! will be added to the optical properties
     real(ireals), allocatable :: opt_g(:, :, :) ! if only tau is allocated, assume it is absorption only
 
     real(ireals), allocatable :: tskin(:) ! skin temperature   [K] dim(ncol)
@@ -127,10 +127,10 @@ module m_tenstr_atm
     integer(iintegers) :: d_ke, d_ke1
   end type
 
-  type t_rrtmg_dyn_atm_log_events
+  type t_dyn_atm_log_events
     type(t_ts_log_event) :: setup_tenstr_atm
   end type
-  type(t_rrtmg_dyn_atm_log_events), allocatable :: logs
+  type(t_dyn_atm_log_events), allocatable :: logs
 contains
 
   subroutine setup_tenstr_atm(comm, lTOA_to_srfc, atm_filename, d_plev, d_tlev, atm, &
@@ -184,7 +184,7 @@ contains
       allocate (logs)
       call ts_log_event_register('setup_tenstr_atm', logs%setup_tenstr_atm, ierr); call CHKERR(ierr)
 #ifdef HAVE_PETSC
-      call PetscClassIdRegister('dyn_atm_to_rrtmg', cid, ierr); call CHKERR(ierr)
+      call PetscClassIdRegister('tenstr_atm', cid, ierr); call CHKERR(ierr)
       call PetscLogEventRegister('setup_tenstr_atm', cid, logs%setup_tenstr_atm%petsc_id, ierr); call CHKERR(ierr)
 #endif
     end if
@@ -192,9 +192,9 @@ contains
     call ts_log_begin(logs%setup_tenstr_atm, ierr); call CHKERR(ierr)
 
     lignore_bad_input = .false.
-    call get_petsc_opt('', '-pprts_rrtmg_ignore_bad_input', lignore_bad_input, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', '-pprts_ignore_bad_input', lignore_bad_input, lflg, ierr); call CHKERR(ierr)
     if (present(prefix)) then
-      call get_petsc_opt(prefix, '-pprts_rrtmg_ignore_bad_input', lignore_bad_input, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt(prefix, '-pprts_ignore_bad_input', lignore_bad_input, lflg, ierr); call CHKERR(ierr)
     end if
 
     if (.not. allocated(atm%bg_atm)) then
@@ -203,11 +203,11 @@ contains
       if (lignore_bad_input) then
         call CHKWARN(ierr, 'bad input in bg_atmosphere file.'//new_line('')// &
           & 'If you know what you are doing, you can skip the check with '// &
-          & '-'//trim(get_arg('', prefix))//'pprts_rrtmg_ignore_bad_input')
+          & '-'//trim(get_arg('', prefix))//'pprts_ignore_bad_input')
       else
         call CHKERR(ierr, 'bad input in bg_atmosphere file.'//new_line('')// &
           & 'If you know what you are doing, you can skip the check with '// &
-          & '-'//trim(get_arg('', prefix))//'pprts_rrtmg_ignore_bad_input')
+          & '-'//trim(get_arg('', prefix))//'pprts_ignore_bad_input')
       end if
     end if
 
@@ -235,11 +235,11 @@ contains
       if (lignore_bad_input) then
         call CHKWARN(ierr, 'bad input from dynamics grid, column: '//toStr(icol)//new_line('')// &
           & 'If you know what you are doing, you can skip the check with '// &
-          & '-'//trim(get_arg('', prefix))//'pprts_rrtmg_ignore_bad_input')
+          & '-'//trim(get_arg('', prefix))//'pprts_ignore_bad_input')
       else
         call CHKERR(ierr, 'bad input from dynamics grid, column: '//toStr(icol)//new_line('')// &
           & 'If you know what you are doing, you can skip the check with '// &
-          & '-'//trim(get_arg('', prefix))//'pprts_rrtmg_ignore_bad_input')
+          & '-'//trim(get_arg('', prefix))//'pprts_ignore_bad_input')
       end if
     end do
 
@@ -552,7 +552,7 @@ contains
               & level of dynamics grid -- this suggests the dynamics grid is way &
               & off hydrostatic balance... please check', icol, &
               atm%plev(ke1 - atm_ke + 1, icol), atm%plev(atm%d_ke1, icol), atm%plev(:, icol)
-            call CHKWARN(1_mpiint, 'error in rrtm_lw merging grids')
+            call CHKWARN(1_mpiint, 'error in lw merging grids')
           end if
 
           ! And also Tlev has to be present always
@@ -742,7 +742,7 @@ contains
 
     lerr = minval(tlev) .lt. 159
     if (lerr) then
-      print *, 'Temperature is very low -- are you sure RRTMG can handle that?', minval(tlev)
+      print *, 'Temperature is very low -- not sure we can handle that?', minval(tlev)
       do k = lbound(tlev, 1), ubound(tlev, 1)
         print *, 'lev', k, 'T', tlev(k)
       end do
@@ -751,7 +751,7 @@ contains
 
     lerr = maxval(tlev) .gt. 400
     if (lerr) then
-      print *, 'Temperature is very high -- are you sure RRTMG can handle that?', maxval(tlev)
+      print *, 'Temperature is very high -- not sure we can handle that?', maxval(tlev)
       do k = lbound(tlev, 1), ubound(tlev, 1)
         print *, 'lev', k, 'T', tlev(k)
       end do
@@ -769,7 +769,7 @@ contains
     end if
 
     if (ierr .gt. 0) then
-      print *, 'Found wonky input to pprts_rrtm_lw -- please check! -- you should probably abort now.'
+      print *, 'Found wonky input to tenstr_atm -- please check! -- you should probably abort now.'
     end if
   end subroutine
 
