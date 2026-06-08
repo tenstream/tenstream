@@ -486,7 +486,7 @@ contains
       character(len=*), intent(in) :: dumpstring, varname
       character(len=default_str_len) :: fname, vname, dimnames(3)
       logical :: lflg
-      integer(mpiint) :: ierr
+      integer(mpiint) :: ierr, nranks
       integer :: local_shape(3), global_shape(3), startp(3)
 
       fname = varname
@@ -504,17 +504,27 @@ contains
       startp = [integer :: 1, int(C%xs) + 1, int(C%ys) + 1]
       dimnames = [character(len=default_str_len) :: 'nz', 'nx', 'ny']
 
-      call ncwrite( &
-        & comm=comm, &
-        & groups=[character(len=default_str_len) :: fname, vname], &
-        & arr=var, &
-        & ierr=ierr, &
-        & arr_shape=global_shape, &
-        & dimnames=dimnames, &
-        & startp=startp, &
-        & countp=local_shape, &
-        & deflate_lvl=0, &
-        & verbose=.false.)
+      call mpi_comm_size(comm, nranks, ierr); call CHKERR(ierr)
+      if (nranks > 1) then
+        call ncwrite( &
+          & comm=comm, &
+          & groups=[character(len=default_str_len) :: fname, vname], &
+          & arr=var, &
+          & ierr=ierr, &
+          & arr_shape=global_shape, &
+          & dimnames=dimnames, &
+          & startp=startp, &
+          & countp=local_shape, &
+          & deflate_lvl=0, &
+          & verbose=.false.)
+      else
+        call ncwrite( &
+          & groups=[character(len=default_str_len) :: fname, vname], &
+          & arr=var, &
+          & ierr=ierr, &
+          & deflate_lvl=0, &
+          & verbose=.false.)
+      end if
       call CHKERR(ierr)
     end subroutine
 
