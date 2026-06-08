@@ -744,7 +744,10 @@ contains
     if (present(nxproc) .and. present(nyproc)) then
       nxp = size(nxproc, kind=iintegers)
       nyp = size(nyproc, kind=iintegers)
-      dims = int([nxp, nyp], mpiint)
+      ! PETSc DMDA assigns ranks xi-fastest: rank = xi + yi*nxp.
+      ! MPI_Cart_create with dims=[nyp,nxp] (y first, x last) also gives rank = yi*nxp + xi
+      ! with the last dimension varying fastest (C row-major), matching PETSc.
+      dims = int([nyp, nxp], mpiint)
       ! When nxproc/nyproc are given, Nx/Ny are local sizes (PETSc convention);
       ! compute global from the distribution arrays.
       C%glob_xm = sum(nxproc)
@@ -753,11 +756,10 @@ contains
       call mpi_comm_size(icomm, nproc, ierr); call CHKERR(ierr)
       dims = 0_mpiint
       call MPI_Dims_create(nproc, 2_mpiint, dims, ierr); call CHKERR(ierr)
-      ! Reverse dim order to match PETSc DMDA: PETSc assigns procs to y first,
-      ! so fewer procs in x and more in y.
-      dims = int([dims(2), dims(1)], mpiint)
-      nxp = int(dims(1), iintegers)
-      nyp = int(dims(2), iintegers)
+      ! MPI_Dims_create returns factors in non-increasing order: dims(1) >= dims(2).
+      ! Interpret directly as [nyp, nxp]: more procs along y, fewer along x (matches PETSc DMDA).
+      nyp = int(dims(1), iintegers)
+      nxp = int(dims(2), iintegers)
       C%glob_xm = Nx
       C%glob_ym = Ny
     end if
@@ -766,8 +768,10 @@ contains
     call MPI_Cart_create(icomm, 2_mpiint, dims, periods, .false., cart_comm, ierr); call CHKERR(ierr)
     call MPI_Cart_get(cart_comm, 2_mpiint, dims, periods, coords, ierr); call CHKERR(ierr)
 
-    xi = int(coords(1), iintegers)
-    yi = int(coords(2), iintegers)
+    ! dims = [nyp, nxp]: first dim = y, last dim = x (fastest, C row-major).
+    ! This gives rank = yi*nxp + xi = xi + yi*nxp, matching PETSc DMDA xi-fastest ordering.
+    yi = int(coords(1), iintegers)
+    xi = int(coords(2), iintegers)
 
     ! z: never decomposed — full column on every rank
     C%zs = i0
@@ -812,8 +816,8 @@ contains
     C%neighbors = int(MPI_PROC_NULL, mpiint)
     C%neighbors(13) = int(myid, mpiint)
 
-    call MPI_Cart_shift(cart_comm, 0_mpiint, 1_mpiint, rank_west, rank_east, ierr); call CHKERR(ierr)
-    call MPI_Cart_shift(cart_comm, 1_mpiint, 1_mpiint, rank_south, rank_north, ierr); call CHKERR(ierr)
+    call MPI_Cart_shift(cart_comm, 1_mpiint, 1_mpiint, rank_west, rank_east, ierr); call CHKERR(ierr)   ! dim 1 = x
+    call MPI_Cart_shift(cart_comm, 0_mpiint, 1_mpiint, rank_south, rank_north, ierr); call CHKERR(ierr) ! dim 0 = y
 
     C%neighbors(10) = int(rank_west, mpiint)
     C%neighbors(16) = int(rank_east, mpiint)

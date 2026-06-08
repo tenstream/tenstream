@@ -2877,15 +2877,17 @@ contains
 
     dims = 0_mpiint
     call MPI_Dims_create(nproc, 2_mpiint, dims, ierr); call CHKERR(ierr)
-    nproc_x = dims(1)
-    nproc_y = dims(2)
+    ! dims(1) >= dims(2): interpret as [nyp, nxp] matching PETSc DMDA xi-fastest ordering.
+    nproc_y = dims(1)
+    nproc_x = dims(2)
 
     periods = .true.
     call MPI_Cart_create(comm, 2_mpiint, dims, periods, .false., cart_comm, ierr); call CHKERR(ierr)
     call MPI_Cart_get(cart_comm, 2_mpiint, dims, periods, coords, ierr); call CHKERR(ierr)
 
-    xi = coords(1)
-    yi = coords(2)
+    ! dims = [nyp, nxp]: yi = coords(1), xi = coords(2) — xi-fastest, matches PETSc DMDA.
+    yi = coords(1)
+    xi = coords(2)
 
     ! Even-split decomposition matching setup_coord_native
     xStart = int(int(xi, iintegers) * Nx_global / int(nproc_x, iintegers), iintegers)

@@ -84,9 +84,8 @@ subroutine test_tenstream_ex1(this)
   ! Corner and center ranks (0,4,8) always keep the same relative neighbors.
   if (any(orig_id .eq. [0, 4, 8])) &
     @assertEqual(neighbors_orig, neighbors_reorder, 'neighbors have to stay the same in the middle and for the corners')
-#ifdef HAVE_PETSC
-    ! PETSc DMDA uses column-major rank numbering — these values are DMDA-specific.
-    if(orig_id .eq. 1) then
+  ! Column-major rank numbering (rank = xi + yi*nxp, xi fastest):
+  if (orig_id .eq. 1) then
     @assertEqual([0, 7, 2, 4], neighbors_orig)
     @assertEqual([5, 0, 4, 6], neighbors_reorder)
   end if
@@ -100,6 +99,5 @@ subroutine test_tenstream_ex1(this)
     @assertEqual([5, 0, 4, 6], neighbors_orig)
     @assertEqual([0, 7, 2, 4], neighbors_reorder)
   end if
-#endif
 
 end subroutine
