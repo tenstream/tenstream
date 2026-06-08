@@ -23,7 +23,6 @@ module m_specint_pprts
 #ifdef HAVE_PETSC
 #include "petsc/finclude/petsc.h"
   use petsc
-  use m_petsc_helpers, only: f90vectopetsc
 #endif
   use mpi
 
@@ -481,30 +480,6 @@ contains
 
     end subroutine
 
-#ifdef HAVE_PETSC
-    subroutine dump_variable(var, C, dumpstring, varname)
-      real(ireals), intent(in) :: var(:, :, :)
-      type(t_coord), intent(in) :: C
-      character(len=*), intent(in) :: dumpstring, varname
-      character(len=default_str_len) :: vname
-      logical :: lflg
-      type(tVec) :: dumpvec
-
-      call opts_has(trim(solver%prefix), trim(dumpstring), lflg)
-      if (lflg) then
-        vname = trim(varname)
-        if (present(opt_time)) vname = trim(vname)//'.t'//trim(adjustl(toStr(opt_time)))
-        if (.not. lsolar .or. .not. lthermal) vname = trim(vname)//'.sol'//toStr(lsolar)//'.th'//toStr(lthermal)
-        call DMGetGlobalVector(C%da, dumpvec, ierr); call CHKERR(ierr)
-        call PetscObjectSetName(dumpvec, trim(vname), ierr); call CHKERR(ierr)
-        call f90VecToPetsc(var, C%da, dumpvec)
-
-        call PetscObjectViewFromOptions(PetscObjectCast(dumpvec), PETSC_NULL_OBJECT, &
-                                        trim(dumpstring), ierr); call CHKERR(ierr)
-        call DMRestoreGlobalVector(C%da, dumpvec, ierr); call CHKERR(ierr)
-      end if
-    end subroutine
-#else
     subroutine dump_variable(var, C, dumpstring, varname)
       real(ireals), intent(in) :: var(:, :, :)
       type(t_coord), intent(in) :: C
@@ -542,7 +517,6 @@ contains
         & verbose=.false.)
       call CHKERR(ierr)
     end subroutine
-#endif
 
     subroutine dump_results()
       logical :: lflg
