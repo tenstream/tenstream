@@ -94,8 +94,7 @@ subroutine test_tenstream_ex1(this)
     ! Ranks 0, 4, 8 stay at the same spatial position after reordering.
     if (any(orig_id .eq. [0, 4, 8])) &
       @assertEqual(neighbors_orig, neighbors_reorder, '9-rank: diagonal corners keep same neighbors')
-
-    if (orig_id .eq. 0) then
+      if(orig_id .eq. 0) then
       @assertEqual([2, 6, 1, 3], neighbors_orig)
       @assertEqual([2, 6, 1, 3], neighbors_reorder)
     end if
@@ -122,8 +121,7 @@ subroutine test_tenstream_ex1(this)
     !
     if (any(orig_id .eq. [0, 5])) &
       @assertEqual(neighbors_orig, neighbors_reorder, '6-rank: diagonal corners keep same neighbors')
-
-    if (orig_id .eq. 0) then
+      if(orig_id .eq. 0) then
       @assertEqual([1, 4, 1, 2], neighbors_orig)
       @assertEqual([1, 4, 1, 2], neighbors_reorder)
     end if
