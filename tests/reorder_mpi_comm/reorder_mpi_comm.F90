@@ -113,11 +113,12 @@ subroutine test_tenstream_ex1(this)
       @assertEqual([0, 7, 2, 4], neighbors_reorder)
     end if
   else
-    ! 6 ranks, 2x3 grid (nxp=2, nyp=3):
+    ! 6 ranks, 2x3 grid (Nrank_x=2, Nrank_y=3):
     !   original (rank = xi*3 + yi):   reordered (rank = xi + yi*2):
-    !   1  3  5    (yi=1)                  4  5
-    !   0  2  4    (yi=0)                  2  3
-    !   xi: 0  1                           0  1
+    !   2  5    (yi=2)                  4  5
+    !   1  4    (yi=1)                  2  3
+    !   0  3    (yi=0)                  0  1
+    !   xi: 0  1
     !
     if (any(orig_id .eq. [0, 5])) &
       @assertEqual(neighbors_orig, neighbors_reorder, '6-rank: diagonal corners keep same neighbors')
