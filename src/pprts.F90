@@ -2420,26 +2420,34 @@ contains
     end subroutine
 #else
     subroutine local_optprop()
-      associate (C => solver%C_one_atm, Ca1 => solver%C_one_atm1)
-        call imp_bcast(solver%comm, local_albedo, 0_mpiint, ierr); call CHKERR(ierr)
+      call imp_bcast(solver%comm, local_albedo, 0_mpiint, ierr); call CHKERR(ierr)
 
-        if (lhave_kabs) then
-          call imp_bcast(solver%comm, global_kabs, 0_mpiint, ierr); call CHKERR(ierr)
-          local_kabs = global_kabs(1:, C%xs + 1:C%xe + 1, C%ys + 1:C%ye + 1)
-        end if
-        if (lhave_ksca) then
-          call imp_bcast(solver%comm, global_ksca, 0_mpiint, ierr); call CHKERR(ierr)
-          local_ksca = global_ksca(1:, C%xs + 1:C%xe + 1, C%ys + 1:C%ye + 1)
-        end if
-        if (lhave_g) then
-          call imp_bcast(solver%comm, global_g, 0_mpiint, ierr); call CHKERR(ierr)
-          local_g = global_g(1:, C%xs + 1:C%xe + 1, C%ys + 1:C%ye + 1)
-        end if
-        if (lhave_planck) then
-          call imp_bcast(solver%comm, global_planck, 0_mpiint, ierr); call CHKERR(ierr)
-          local_planck = global_planck(1:, Ca1%xs + 1:Ca1%xe + 1, Ca1%ys + 1:Ca1%ye + 1)
-        end if
-      end associate
+      ! On non-root ranks the global_* dummies are absent (the slave calling
+      ! convention passes no arrays). We must therefore never reference them
+      ! directly on a slave: only the root moves its data into the present,
+      ! local allocatable `gtmp`, and imp_bcast allocates gtmp on the receivers.
+      call bcast_and_slice(lhave_kabs, global_kabs, local_kabs, solver%C_one_atm)
+      call bcast_and_slice(lhave_ksca, global_ksca, local_ksca, solver%C_one_atm)
+      call bcast_and_slice(lhave_g, global_g, local_g, solver%C_one_atm)
+      call bcast_and_slice(lhave_planck, global_planck, local_planck, solver%C_one_atm1)
+    end subroutine
+
+    subroutine bcast_and_slice(lhave, global_arr, local_arr, C)
+      logical, intent(in) :: lhave
+      real(ireals), allocatable, intent(inout), optional :: global_arr(:, :, :)
+      real(ireals), allocatable, intent(out) :: local_arr(:, :, :)
+      type(t_coord), intent(in) :: C
+      real(ireals), allocatable :: gtmp(:, :, :)
+      integer(mpiint) :: lerr
+
+      if (.not. lhave) return
+
+      ! lhave .eqv. present(global_arr) on the root, so this only touches the
+      ! optional where it is guaranteed present.
+      if (solver%myid .eq. 0) call move_alloc(global_arr, gtmp)
+      call imp_bcast(solver%comm, gtmp, 0_mpiint, lerr); call CHKERR(lerr)
+      local_arr = gtmp(1:, C%xs + 1:C%xe + 1, C%ys + 1:C%ye + 1)
+      if (solver%myid .eq. 0) call move_alloc(gtmp, global_arr) ! restore for caller (intent inout)
     end subroutine
 #endif
     subroutine extend_arr(arr)
