@@ -75,6 +75,8 @@ maint/fprettify.sh -s
 
 Settings: 2-space indent, 192-char line length, whitespace level 3, strict indent, lowercase keywords.
 
+To prune unused `use` imports: `maint/remove_unused_imports.py <file.F90>`.
+
 ## Architecture
 
 ### Module naming convention
@@ -139,3 +141,8 @@ PETSc KSP solver options use prefixes `-dir_ksp_*` (direct) and `-diff_ksp_*` (d
 
 ## Supported Compilers
 GFortran, Intel (`ifort`/`ifx`), XLF IBM. The `FC` environment variable selects the config. Intel oneAPI uses `mpiifx`/`mpiicx`.
+
+## External Resources
+- Install instructions / quick tips: [TenStream Wiki](https://github.com/tenstream/tenstream/wiki)
+- CI pipeline (`.gitlab-ci.yml`) is a working reference for known-good build setups across compilers.
+- Method papers: [JQSRT 2015](http://dx.doi.org/10.1016/j.jqsrt.2015.05.003) (solver), [GMD 2016](http://dx.doi.org/10.5194/gmd-9-1413-2016) (LES coupling).
