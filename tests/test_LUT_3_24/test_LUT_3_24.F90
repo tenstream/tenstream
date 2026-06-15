@@ -1,15 +1,15 @@
 module test_LUT_3_24
-  use m_boxmc, only: t_boxmc, t_boxmc_3_24
-  use m_data_parameters, only: mpiint, iintegers, &
-                               ireals, irealLUT, ireal_dp, &
-                               init_mpi_data_parameters, i1, default_str_len
+  use m_boxmc, only: t_boxmc_3_24
+  use m_data_parameters, only: mpiint, iintegers, ireals, irealLUT, ireal_dp, init_mpi_data_parameters, default_str_len
   use m_optprop_LUT, only: t_optprop_LUT_3_24
   use m_tenstream_options, only: read_commandline_options
   use m_helper_functions, only: rmse
   use m_boxmc_geometry, only: setup_default_unit_cube_geometry
 
+#ifdef HAVE_PETSC
 #include "petsc/finclude/petsc.h"
   use petsc
+#endif
 
   use pfunit_mod
   implicit none
@@ -146,8 +146,10 @@ contains
 
     !if(myid.eq.0) print *,'Testing LUT coefficients against BOXMC with tolerances atol/rtol :: ',atol,rtol,' :: on ',numnodes,'ranks'
 
+#ifdef HAVE_PETSC
     PETSC_COMM_WORLD = comm
     call PetscInitialize(PETSC_NULL_CHARACTER, ierr)
+#endif
 
     call init_mpi_data_parameters(comm)
     call read_commandline_options(comm)
@@ -170,7 +172,9 @@ contains
   @after
   subroutine teardown(this)
     class(parameterized_test), intent(inout) :: this
+#ifdef HAVE_PETSC
     call PetscFinalize(ierr)
+#endif
   end subroutine teardown
 
   @test(npes=[2, 1], testParameters={getParameters() })

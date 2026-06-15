@@ -1,5 +1,4 @@
 module test_tenstr_atm
-  use iso_fortran_env, only: real32, real64
   use m_data_parameters, only: &
     init_mpi_data_parameters, &
     iintegers, ireals, mpiint, &
@@ -7,7 +6,7 @@ module test_tenstr_atm
 
   use m_helper_functions, only: linspace
 
-  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, reff_from_lwc_and_N
+  use m_tenstr_atm, only: t_tenstr_atm, setup_tenstr_atm, reff_from_lwc_and_N
   use m_search, only: search_sorted_bisection
 
   use pfunit_mod
@@ -27,7 +26,9 @@ contains
     ! Tidy up
     class(MpiTestMethod), intent(inout) :: this
     integer(mpiint) :: ierr
+#ifdef HAVE_PETSC
     call PetscFinalize(ierr)
+#endif
   end subroutine teardown
 
   @test(npes=[1, 2])

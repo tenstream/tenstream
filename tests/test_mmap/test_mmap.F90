@@ -1,6 +1,6 @@
 module test_mmap
   use m_data_parameters, only: irealLUT, iintegers, mpiint, init_mpi_data_parameters
-  use m_mmap, only: arr_to_mmap, munmap_mmap_ptr, arr_to_binary_datafile, binary_file_to_mmap, load_mmap_array
+  use m_mmap, only: arr_to_mmap, munmap_mmap_ptr, arr_to_binary_datafile, load_mmap_array
 
   use m_helper_functions, only: CHKERR
 

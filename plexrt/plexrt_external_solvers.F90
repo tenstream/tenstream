@@ -7,7 +7,7 @@ module m_plexrt_external_solvers
   use m_helper_functions, only: &
     & angle_between_two_vec, &
     & approx, &
-    & CHKERR, CHKWARN, &
+    & CHKERR, &
     & cstr, &
     & delta_scale, &
     & get_petsc_opt, &
@@ -21,12 +21,11 @@ module m_plexrt_external_solvers
                          get_consecutive_vertical_cell_idx, &
                          TOAFACE, INNERSIDEFACE, dmplex_set_new_section
 
-  use m_schwarzschild, only: schwarzschild, B_eff
+  use m_schwarzschild, only: schwarzschild
   use m_twostream, only: delta_eddington_twostream
   use m_tenstr_disort, only: default_flx_computation
 
   use m_plexrt_nca, only: plexrt_nca_init, plexrt_nca
-  use m_icon_plex_utils, only: dump_ownership, dmplex_2d_to_3d
 
   implicit none
 
@@ -78,10 +77,10 @@ contains
         call VecGetArrayRead(solver%kabs, xkabs, ierr); call CHKERR(ierr)
         call VecGetArrayRead(solver%albedo, xalbedo, ierr); call CHKERR(ierr)
         call VecGetArrayRead(solver%plck, xplck, ierr); call CHKERR(ierr)
-        call VecGetArray(solution%ediff, xediff, ierr); call CHKERR(ierr)
+        call VecGetArray(solution%ediff_petsc, xediff, ierr); call CHKERR(ierr)
 
         call DMGetLocalSection(plex%abso_dm, abso_section, ierr); call CHKERR(ierr)
-        call VecGetArray(solution%abso, xabso, ierr); call CHKERR(ierr)
+        call VecGetArray(solution%abso_petsc, xabso, ierr); call CHKERR(ierr)
 
         call ISGetIndices(boundary_ids, xitoa, ierr); call CHKERR(ierr)
         do i = 1, size(xitoa)
@@ -131,8 +130,8 @@ contains
         end do
         call ISRestoreIndices(boundary_ids, xitoa, ierr); call CHKERR(ierr)
 
-        call VecRestoreArray(solution%abso, xabso, ierr); call CHKERR(ierr)
-        call VecRestoreArray(solution%ediff, xediff, ierr); call CHKERR(ierr)
+        call VecRestoreArray(solution%abso_petsc, xabso, ierr); call CHKERR(ierr)
+        call VecRestoreArray(solution%ediff_petsc, xediff, ierr); call CHKERR(ierr)
         call VecRestoreArrayRead(solver%plck, xplck, ierr); call CHKERR(ierr)
         call VecRestoreArrayRead(solver%albedo, xalbedo, ierr); call CHKERR(ierr)
         call VecRestoreArrayRead(solver%kabs, xkabs, ierr); call CHKERR(ierr)
@@ -181,9 +180,9 @@ contains
     end if
 
     if (allocated(solution%edir)) then
-      call VecSet(solution%edir, zero, ierr); call CHKERR(ierr)
+      call VecSet(solution%edir_petsc, zero, ierr); call CHKERR(ierr)
     end if
-    call VecSet(solution%ediff, zero, ierr); call CHKERR(ierr)
+    call VecSet(solution%ediff_petsc, zero, ierr); call CHKERR(ierr)
 
     if (.not. lthermal .and. (lsolar .and. norm2(sundir) .le. zero)) then
       return
@@ -210,19 +209,19 @@ contains
       call VecGetArrayRead(plex%geomVec, xgeoms, ierr); call CHKERR(ierr)
 
       call DMGetLocalSection(plex%abso_dm, abso_section, ierr); call CHKERR(ierr)
-      call VecGetArray(solution%abso, xabso, ierr); call CHKERR(ierr)
+      call VecGetArray(solution%abso_petsc, xabso, ierr); call CHKERR(ierr)
 
       if (lthermal) then
         allocate (Blev(plex%Nlay + 1))
         call VecGetArrayRead(plck, xplck, ierr); call CHKERR(ierr)
       end if
 
-      call VecSet(solution%ediff, zero, ierr); call CHKERR(ierr)
-      call VecGetArray(solution%ediff, xediff, ierr); call CHKERR(ierr)
+      call VecSet(solution%ediff_petsc, zero, ierr); call CHKERR(ierr)
+      call VecGetArray(solution%ediff_petsc, xediff, ierr); call CHKERR(ierr)
       if (lsolar) then
         call DMGetLocalSection(plex%edir_dm, edir_section, ierr); call CHKERR(ierr)
-        call VecSet(solution%edir, zero, ierr); call CHKERR(ierr)
-        call VecGetArray(solution%edir, xedir, ierr); call CHKERR(ierr)
+        call VecSet(solution%edir_petsc, zero, ierr); call CHKERR(ierr)
+        call VecGetArray(solution%edir_petsc, xedir, ierr); call CHKERR(ierr)
       end if
 
       call ISGetIndices(boundary_ids, xitoa, ierr); call CHKERR(ierr)
@@ -317,8 +316,8 @@ contains
       end do
       call ISRestoreIndices(boundary_ids, xitoa, ierr); call CHKERR(ierr)
 
-      call VecRestoreArray(solution%abso, xabso, ierr); call CHKERR(ierr)
-      call VecRestoreArray(solution%ediff, xediff, ierr); call CHKERR(ierr)
+      call VecRestoreArray(solution%abso_petsc, xabso, ierr); call CHKERR(ierr)
+      call VecRestoreArray(solution%ediff_petsc, xediff, ierr); call CHKERR(ierr)
       call VecRestoreArrayRead(albedo, xalbedo, ierr); call CHKERR(ierr)
       call VecRestoreArrayRead(kabs, xkabs, ierr); call CHKERR(ierr)
       call VecRestoreArrayRead(ksca, xksca, ierr); call CHKERR(ierr)
@@ -326,7 +325,7 @@ contains
       call VecRestoreArrayRead(plex%geomVec, xgeoms, ierr); call CHKERR(ierr)
 
       if (lsolar) then
-        call VecRestoreArray(solution%edir, xedir, ierr); call CHKERR(ierr)
+        call VecRestoreArray(solution%edir_petsc, xedir, ierr); call CHKERR(ierr)
       end if
       if (lthermal) then
         call VecRestoreArrayRead(plck, xplck, ierr); call CHKERR(ierr)
@@ -380,9 +379,9 @@ contains
     call get_petsc_opt(PETSC_NULL_CHARACTER, "-disort_delta_scale", ldelta_scale, lflg, ierr); call CHKERR(ierr)
 
     if (solution%lsolar_rad) then
-      call VecSet(solution%edir, zero, ierr); call CHKERR(ierr)
+      call VecSet(solution%edir_petsc, zero, ierr); call CHKERR(ierr)
     end if
-    call VecSet(solution%ediff, zero, ierr); call CHKERR(ierr)
+    call VecSet(solution%ediff_petsc, zero, ierr); call CHKERR(ierr)
 
     if (solution%lsolar_rad .and. norm2(sundir) .le. zero) then
       return
@@ -421,12 +420,12 @@ contains
       call VecGetArrayRead(plex%geomVec, xgeoms, ierr); call CHKERR(ierr)
 
       call DMGetLocalSection(plex%abso_dm, abso_section, ierr); call CHKERR(ierr)
-      call VecGetArray(solution%abso, xabso, ierr); call CHKERR(ierr)
+      call VecGetArray(solution%abso_petsc, xabso, ierr); call CHKERR(ierr)
 
-      call VecGetArray(solution%ediff, xediff, ierr); call CHKERR(ierr)
+      call VecGetArray(solution%ediff_petsc, xediff, ierr); call CHKERR(ierr)
       if (lsolar) then
         call DMGetLocalSection(plex%edir_dm, edir_section, ierr); call CHKERR(ierr)
-        call VecGetArray(solution%edir, xedir, ierr); call CHKERR(ierr)
+        call VecGetArray(solution%edir_petsc, xedir, ierr); call CHKERR(ierr)
       end if
 
       if (lthermal) then
@@ -529,8 +528,8 @@ contains
       end do
       call ISRestoreIndices(boundary_ids, xitoa, ierr); call CHKERR(ierr)
 
-      call VecRestoreArray(solution%abso, xabso, ierr); call CHKERR(ierr)
-      call VecRestoreArray(solution%ediff, xediff, ierr); call CHKERR(ierr)
+      call VecRestoreArray(solution%abso_petsc, xabso, ierr); call CHKERR(ierr)
+      call VecRestoreArray(solution%ediff_petsc, xediff, ierr); call CHKERR(ierr)
       call VecRestoreArrayRead(albedo, xalbedo, ierr); call CHKERR(ierr)
       call VecRestoreArrayRead(kabs, xkabs, ierr); call CHKERR(ierr)
       call VecRestoreArrayRead(ksca, xksca, ierr); call CHKERR(ierr)
@@ -538,7 +537,7 @@ contains
       call VecRestoreArrayRead(plex%geomVec, xgeoms, ierr); call CHKERR(ierr)
 
       if (lsolar) then
-        call VecRestoreArray(solution%edir, xedir, ierr); call CHKERR(ierr)
+        call VecRestoreArray(solution%edir_petsc, xedir, ierr); call CHKERR(ierr)
       end if
       if (lthermal) then
         call VecRestoreArrayRead(plck, xplck, ierr); call CHKERR(ierr)
@@ -585,9 +584,9 @@ contains
 
     call VecGetArrayRead(solver%kabs, xkabs, ierr); call CHKERR(ierr)
     call VecGetArrayRead(solver%plck, xplck, ierr); call CHKERR(ierr)
-    call VecGetArrayRead(solution%ediff, xediff, ierr); call CHKERR(ierr)
+    call VecGetArrayRead(solution%ediff_petsc, xediff, ierr); call CHKERR(ierr)
     call VecGetArrayRead(solver%plex%geomVec, xgeoms, ierr); call CHKERR(ierr)
-    call VecGetArray(solution%abso, xabso, ierr); call CHKERR(ierr)
+    call VecGetArray(solution%abso_petsc, xabso, ierr); call CHKERR(ierr)
 
     call fill_nca_vec(solver%plex, lnca)
 
@@ -597,9 +596,9 @@ contains
 
     call VecRestoreArrayRead(solver%kabs, xkabs, ierr); call CHKERR(ierr)
     call VecRestoreArrayRead(solver%plck, xplck, ierr); call CHKERR(ierr)
-    call VecRestoreArrayRead(solution%ediff, xediff, ierr); call CHKERR(ierr)
+    call VecRestoreArrayRead(solution%ediff_petsc, xediff, ierr); call CHKERR(ierr)
     call VecRestoreArrayRead(solver%plex%geomVec, xgeoms, ierr); call CHKERR(ierr)
-    call VecRestoreArray(solution%abso, xabso, ierr); call CHKERR(ierr)
+    call VecRestoreArray(solution%abso_petsc, xabso, ierr); call CHKERR(ierr)
 
   contains
     subroutine compute_nca()

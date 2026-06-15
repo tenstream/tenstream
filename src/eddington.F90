@@ -18,8 +18,8 @@
 !-------------------------------------------------------------------------
 
 module m_eddington
-  use m_data_parameters, only: ireals, iintegers, zero, one, pi, irealeddington
-  use m_helper_functions, only: approx, delta_scale_optprop
+  use m_data_parameters, only: ireals, zero, one, irealeddington
+  use m_helper_functions, only: approx
 
 #ifdef _XLF
   use ieee_arithmetic

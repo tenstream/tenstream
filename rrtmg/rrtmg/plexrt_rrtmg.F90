@@ -38,9 +38,8 @@ module m_plexrt_rrtmg
   use petsc
 
   use mpi, only: mpi_comm_rank
-  use m_tenstr_parkind_sw, only: im => kind_im, rb => kind_rb
-  use m_data_parameters, only: iintegers, ireals, zero, one, i0, i1, i2, i9, &
-                               mpiint, pi, default_str_len
+  use m_data_parameters, only: iintegers, ireals, zero, one, i1, &
+                               mpiint
   use m_adaptive_spectral_integration, only: need_new_solution
   use m_helper_functions, only: &
       & CHKERR, CHKWARN, &
@@ -53,24 +52,28 @@ module m_plexrt_rrtmg
       & get_arg, &
       & delta_scale_optprop, &
       & is_inrange
-  use m_search, only: find_real_location
-  use m_tenstream_interpolation, only: interp_1d
 
-  use m_plex_grid, only: TOAFACE, get_inward_face_normal, compute_face_geometry
+  use m_options_database, only: opts_has
+  use m_plex_grid, only: TOAFACE, get_inward_face_normal
   use m_plex_rt_base, only: t_plex_solver
   use m_plex_rt, only: run_plex_rt_solver, &
                        destroy_plexrt_solver, plexrt_get_result
 
-  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, plkint, print_tenstr_atm, vert_integral_coeff
+  use m_tenstr_atm, only: t_tenstr_atm, print_tenstr_atm, vert_integral_coeff
   use m_optprop_rrtmg, only: optprop_rrtm_lw, optprop_rrtm_sw, get_spectral_bands
   use m_icon_plex_utils, only: Nz_Ncol_vec_to_celldm1, Nz_Ncol_vec_to_horizface1_dm
 
-  use m_netcdfIO, only: ncwrite
-
   use m_tenstr_disort, only: default_flx_computation
   use m_tenstr_rrtmg_base, only: t_rrtmg_log_events, setup_log_events
+  use m_tenstream_log, only: ts_log_stage_push, ts_log_stage_pop
 
   implicit none
+
+  interface
+    real function plkint(WVLLO, WVLHI, T)
+      real :: WVLLO, WVLHI, T
+    end function
+  end interface
 
   private
   public :: plexrt_rrtmg, destroy_plexrt_rrtmg
@@ -130,7 +133,7 @@ contains
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
     lrrtmg_only = .false. ! by default use normal tenstream solver
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-rrtmg_only", lrrtmg_only, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', "-rrtmg_only", lrrtmg_only, lflg, ierr); call CHKERR(ierr)
 
     ke1 = solver%plex%Nlay + 1
     call CHKERR(int(ke1 - size(atm%plev, dim=1), mpiint), 'Vertical Size of atm and plex solver dont match')
@@ -172,11 +175,11 @@ contains
     call allocate_optprop_vec(solver%plex%srfc_boundary_dm, solver%albedo)
 
     lskip_thermal = .false.
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-skip_thermal", lskip_thermal, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', "-skip_thermal", lskip_thermal, lflg, ierr); call CHKERR(ierr)
     if (lthermal .and. .not. lskip_thermal) then
       call allocate_optprop_vec(solver%plex%horizface1_dm, solver%plck)
 
-      call PetscLogStagePush(log_events%stage_rrtmg_thermal, ierr); call CHKERR(ierr)
+      call ts_log_stage_push(log_events%stage_rrtmg_thermal, ierr); call CHKERR(ierr)
       call compute_thermal(comm, solver, atm, &
                            Ncol, ke1, &
                            sundir, albedo_thermal, &
@@ -184,7 +187,7 @@ contains
                            opt_time=opt_time, &
                            thermal_albedo_2d=thermal_albedo_2d, &
                            lrrtmg_only=lrrtmg_only)
-      call PetscLogStagePop(ierr); call CHKERR(ierr) ! pop solver%logs%stage_rrtmg_thermal
+      call ts_log_stage_pop(ierr); call CHKERR(ierr) ! pop solver%logs%stage_rrtmg_thermal
 
       call dump_vec(edn(1:ke, :), '-plexrt_dump_thermal_Edn_1_ke')
       call dump_vec(edn(2:ke1, :), '-plexrt_dump_thermal_Edn_2_ke1')
@@ -199,9 +202,9 @@ contains
     if (lsolar) then
 
       lskip_solar = .false.
-      call get_petsc_opt(PETSC_NULL_CHARACTER, "-skip_solar", lskip_solar, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt('', "-skip_solar", lskip_solar, lflg, ierr); call CHKERR(ierr)
       if (.not. lskip_solar) then
-        call PetscLogStagePush(log_events%stage_rrtmg_solar, ierr); call CHKERR(ierr)
+        call ts_log_stage_push(log_events%stage_rrtmg_solar, ierr); call CHKERR(ierr)
         call compute_solar(comm, solver, atm, &
                            Ncol, ke1, &
                            sundir, albedo_solar, &
@@ -210,7 +213,7 @@ contains
                            solar_albedo_2d=solar_albedo_2d, &
                            lrrtmg_only=lrrtmg_only, &
                            opt_solar_constant=opt_solar_constant)
-        call PetscLogStagePop(ierr); call CHKERR(ierr) ! pop solver%logs%stage_rrtmg_solar
+        call ts_log_stage_pop(ierr); call CHKERR(ierr) ! pop solver%logs%stage_rrtmg_solar
       end if
 
       call dump_vec(edir(1:ke, :), '-plexrt_dump_Edir_1_ke')
@@ -258,12 +261,11 @@ contains
       logical, intent(in), optional :: lreverse
       type(tVec) :: vec
       logical :: lrev
-      PetscBool :: lflg
+      logical :: lflg
 
       lrev = get_arg(.false., lreverse)
 
-      lflg = .false.
-      call PetscOptionsHasName(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, vecshow_string, lflg, ierr); call CHKERR(ierr)
+      call opts_has('', vecshow_string, lflg)
       if (lflg) then
         if (.not. allocated(solver%plex%cell1_dm)) return
         call DMGetGlobalVector(solver%plex%cell1_dm, vec, ierr); call CHKERR(ierr)
@@ -527,11 +529,11 @@ contains
       real, dimension(size(edn, 1)) :: RFLDIR, RFLDN, FLUP, DFDT, UAVG
 
       ldisort_only = .false.
-      call get_petsc_opt(PETSC_NULL_CHARACTER, "-disort_only", ldisort_only, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt('', "-disort_only", ldisort_only, lflg, ierr); call CHKERR(ierr)
 
       if (ldisort_only) then
         nstreams = 16
-        call get_petsc_opt(PETSC_NULL_CHARACTER, "-disort_streams", nstreams, lflg, ierr); call CHKERR(ierr)
+        call get_petsc_opt('', "-disort_streams", nstreams, lflg, ierr); call CHKERR(ierr)
 
         mu0 = 0
         S0 = 0
@@ -849,17 +851,17 @@ contains
       real, dimension(size(edn, 1)) :: RFLDIR, RFLDN, FLUP, DFDT, UAVG
 
       ldisort_only = .false.
-      call get_petsc_opt(PETSC_NULL_CHARACTER, "-disort_only", ldisort_only, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt('', "-disort_only", ldisort_only, lflg, ierr); call CHKERR(ierr)
 
       ldelta_scale = .false.
-      call get_petsc_opt(PETSC_NULL_CHARACTER, "-disort_delta_scale", ldelta_scale, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt('', "-disort_delta_scale", ldelta_scale, lflg, ierr); call CHKERR(ierr)
 
       if (ldisort_only) then
         nstreams = 16
-        call get_petsc_opt(PETSC_NULL_CHARACTER, "-disort_streams", nstreams, lflg, ierr); call CHKERR(ierr)
+        call get_petsc_opt('', "-disort_streams", nstreams, lflg, ierr); call CHKERR(ierr)
 
         ldisort_verbose = .false.
-        call get_petsc_opt(PETSC_NULL_CHARACTER, "-disort_verbose", ldisort_verbose, lflg, ierr); call CHKERR(ierr)
+        call get_petsc_opt('', "-disort_verbose", ldisort_verbose, lflg, ierr); call CHKERR(ierr)
 
         col_tskin = 0
         col_temper = 0

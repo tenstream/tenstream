@@ -38,9 +38,6 @@ module m_examples_pprts_buildings
     & PPRTS_REAR_FACE, &
     & PPRTS_RIGHT_FACE
 
-  use m_xdmf_export, only: &
-    & xdmf_pprts_buildings
-
   use m_netcdfio, only: ncwrite
 
   implicit none
@@ -73,7 +70,7 @@ contains
     real(ireals), intent(in) :: phi0, theta0       ! sun azimuth(phi) and zenith(theta) angle
     real(ireals), intent(in) :: albedo, dtau, w0   ! surface albedo, vertically integrated optical depth and constant single scattering albedo
     real(ireals), allocatable, dimension(:, :, :), intent(out) :: gedir, gedn, geup, gabso ! global arrays on rank 0
-    type(t_pprts_buildings), allocatable, intent(inout) :: buildings
+    type(t_pprts_buildings), allocatable, intent(out) :: buildings
     character(len=*), intent(in), optional :: outfile ! output file to dump flux results
 
     real(ireals) :: dz1d(Nlay)

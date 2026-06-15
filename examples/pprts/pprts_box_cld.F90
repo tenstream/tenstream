@@ -9,8 +9,6 @@ module m_examples_pprts_box_cld
 
   use m_helper_functions, only: CHKERR, get_mem_footprint, spherical_2_cartesian, is_inrange, get_petsc_opt
 
-  use m_tenstream_options, only: read_commandline_options
-
   use mpi, only: MPI_COMM_WORLD
 
   implicit none

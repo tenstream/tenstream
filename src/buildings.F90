@@ -1,7 +1,4 @@
 module m_buildings
-#include "petsc/finclude/petsc.h"
-  use petsc
-
   use m_data_parameters, only: &
     & iintegers, &
     & ireals, &
@@ -88,24 +85,16 @@ module m_buildings
 contains
 
   subroutine init_buildings(buildings, da_sizes, Nfaces, ierr)
-    type(t_pprts_buildings), intent(inout), allocatable :: buildings
+    type(t_pprts_buildings), intent(out), allocatable :: buildings
     integer(iintegers), intent(in) :: da_sizes(:)
     integer(iintegers), intent(in) :: Nfaces
     integer(mpiint), intent(out) :: ierr
     ierr = 0
-    if (allocated(buildings)) then
-      ierr = int(size(buildings%iface) - Nfaces, mpiint)
-      call CHKERR(ierr, 'buildings struct already allocated with different size ', size(buildings%iface))
-      ierr = int(size(buildings%da_offsets) - size(da_sizes), mpiint)
-      call CHKERR(ierr, 'buildings struct already allocated with different size of da_offsets ', &
-        & size(buildings%da_offsets), size(da_sizes))
-    else
-      allocate (buildings)
-      allocate (buildings%iface_data)
-      allocate (buildings%iface_data%data(Nfaces))
-      allocate (buildings%da_offsets(size(da_sizes)))
-      allocate (buildings%albedo(Nfaces))
-    end if
+    allocate (buildings)
+    allocate (buildings%iface_data)
+    allocate (buildings%iface_data%data(Nfaces))
+    allocate (buildings%da_offsets(size(da_sizes)))
+    allocate (buildings%albedo(Nfaces))
     buildings%iface_data%data = -1_iintegers
     buildings%albedo = -1._ireals
 
@@ -122,23 +111,14 @@ contains
   !> \n       if l_copy_data is True, additional data arrays are also copied
   subroutine clone_buildings(buildings, buildings_clone, l_copy_data, ierr)
     type(t_pprts_buildings), intent(in) :: buildings
-    type(t_pprts_buildings), intent(inout), allocatable :: buildings_clone
+    type(t_pprts_buildings), intent(out), allocatable :: buildings_clone
     logical, intent(in) :: l_copy_data
     integer(mpiint), intent(out) :: ierr
     ierr = 0
 
-    if (allocated(buildings_clone)) then
-      ierr = int(size(buildings%iface) - size(buildings_clone%iface), mpiint)
-      call CHKERR(ierr, 'clone already allocated but with a non-matching size faces'//&
-        & '(orig:', size(buildings%iface), '.vs.clone:', size(buildings_clone%iface))
-      ierr = int(size(buildings%da_offsets) - size(buildings_clone%da_offsets), mpiint)
-      call CHKERR(ierr, 'clone already allocated but with a non-matching size offsets'//&
-        & ' ', size(buildings%da_offsets), ' vs ', size(buildings_clone%da_offsets))
-    else
-      allocate (buildings_clone)
-      if (allocated(buildings%da_offsets)) then
-        allocate (buildings_clone%da_offsets(size(buildings%da_offsets)), source=buildings%da_offsets)
-      end if
+    allocate (buildings_clone)
+    if (allocated(buildings%da_offsets)) then
+      allocate (buildings_clone%da_offsets(size(buildings%da_offsets)), source=buildings%da_offsets)
     end if
 
     associate (B => buildings, C => buildings_clone)
@@ -158,7 +138,7 @@ contains
   contains
     subroutine copy_var(var_in, var_clone) ! allocate with same size of if already allocated, check that size matches
       real(ireals), intent(in), allocatable :: var_in(:)
-      real(ireals), intent(inout), allocatable :: var_clone(:)
+      real(ireals), intent(out), allocatable :: var_clone(:)
       if (allocated(var_in)) then
         if (.not. allocated(var_clone)) then
           allocate (var_clone(size(var_in)))

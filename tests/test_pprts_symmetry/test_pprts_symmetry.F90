@@ -1,14 +1,17 @@
 module test_pprts_symmetry
 
-  use m_data_parameters, only: init_mpi_data_parameters, iintegers, ireals, irealLUT, zero, one, pi, mpiint
+  use m_data_parameters, only: init_mpi_data_parameters, iintegers, ireals, irealLUT, zero, one, mpiint
 
+#ifdef HAVE_PETSC
 #include "petsc/finclude/petsc.h"
   use petsc
+#endif
 
   use m_boxmc_geometry, only: setup_default_unit_cube_geometry
   use m_pprts_base, only: t_solver, t_solver_3_10, t_solver_8_10, destroy_pprts
   use m_pprts, only: init_pprts, set_optical_properties, &
-                     solve_pprts, set_angles, pprts_get_result_toZero
+                     solve_pprts, set_angles, &
+                     pprts_get_result_toZero
   use m_tenstream_options, only: read_commandline_options
   use m_helper_functions, only: &
     & CHKERR, &
@@ -217,7 +220,9 @@ contains
 
       call OPP%destroy(ierr); call CHKERR(ierr)
 
+#ifdef HAVE_PETSC
       call PetscFinalize(ierr)
+#endif
     end subroutine
     subroutine test_north_south_symmetry(OPP)
       class(t_optprop_cube) :: OPP
@@ -301,7 +306,9 @@ contains
 
       call OPP%destroy(ierr); call CHKERR(ierr)
 
+#ifdef HAVE_PETSC
       call PetscFinalize(ierr)
+#endif
     end subroutine
   end subroutine
 
@@ -377,7 +384,9 @@ contains
       deallocate (dir2diff)
       call OPP%destroy(ierr); call CHKERR(ierr)
 
+#ifdef HAVE_PETSC
       call PetscFinalize(ierr)
+#endif
     end subroutine
   end subroutine
 

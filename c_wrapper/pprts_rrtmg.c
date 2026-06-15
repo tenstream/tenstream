@@ -19,12 +19,16 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#ifdef HAVE_PETSC
 #include <petscsys.h>
+#endif
 #include <mpi.h>
 
 #include <f2c_pprts.h>
 
+#ifdef HAVE_PETSC
 static char help[] = "This is the C wrapper interface to the pprts solver calling the RRTMG routines.\n\n";
+#endif
 
 int main(int argc, char *argv[]) {
   int        numprocs, myid, fcomm;
@@ -48,8 +52,10 @@ int main(int argc, char *argv[]) {
   double *d_reice = malloc(Nx*Ny*Nz * sizeof(double));
 
   MPI_Init(&argc,&argv);
+#ifdef HAVE_PETSC
   PetscInitialize(&argc,&argv,(char*)0,help);
   PetscInitializeFortran();
+#endif
 
   MPI_Comm_size(MPI_COMM_WORLD, &numprocs);
   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
@@ -126,7 +132,9 @@ int main(int argc, char *argv[]) {
   int lfinalizepetsc = 0; // dont drop the Petsc environment if we called initialize here in the C program
   f2c_destroy_pprts_rrtmg(&lfinalizepetsc); // deletes the state of the pprts solver
 
+#ifdef HAVE_PETSC
   PetscFinalize(); // have to do it on our own...
+#endif
   MPI_Finalize();
   return(0);
 

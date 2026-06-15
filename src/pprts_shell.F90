@@ -327,28 +327,27 @@ contains
         call DMGlobalToLocal(C%da, x, INSERT_VALUES, lx, ierr); call CHKERR(ierr)
       end if
 
+      ! Keep pointers open for entire loop — pass plain arrays to explicit routines
+      call getVecPointer(C%da, x, xg1d, xg)
       call getVecPointer(C%da, lx, xx1d, xx)
       call getVecPointer(C%da, lb, xb1d, xb, readonly=.true.)
       xx(0:solver%dirtop%dof - 1, C%zs, C%xs:C%xe, C%ys:C%ye) = xb(0:solver%dirtop%dof - 1, C%zs, C%xs:C%xe, C%ys:C%ye)
-      call restoreVecPointer(C%da, lx, xx1d, xx)
-      call restoreVecPointer(C%da, lb, xb1d, xb, readonly=.true.)
 
       do i_its = 1, its
 
         do i_lits = 1, lits
-          call explicit_edir_forward_sweep(solver, solver%dir2dir, dx, dy, lb, lx)
+          call explicit_edir_forward_sweep(solver, solver%dir2dir, dx, dy, xb, xx)
         end do
 
-        call exchange_direct_boundary(solver, lsun_north, lsun_east, lx, ierr); call CHKERR(ierr)
+        call exchange_direct_boundary(solver, lsun_north, lsun_east, xx, ierr); call CHKERR(ierr)
 
-        ! update solution vec
-        call getVecPointer(C%da, x, xg1d, xg)
-        call getVecPointer(C%da, lx, xx1d, xx, readonly=.true.)
+        ! update global solution vec
         xg = xx(:, :, C%xs:C%xe, C%ys:C%ye)
-        call restoreVecPointer(C%da, x, xg1d, xg)
-        call restoreVecPointer(C%da, lx, xx1d, xx, readonly=.true.)
       end do
 
+      call restoreVecPointer(C%da, lb, xb1d, xb, readonly=.true.)
+      call restoreVecPointer(C%da, lx, xx1d, xx)
+      call restoreVecPointer(C%da, x, xg1d, xg)
       call DMRestoreLocalVector(C%da, lx, ierr); call CHKERR(ierr)
       call DMRestoreLocalVector(C%da, lb, ierr); call CHKERR(ierr)
     end associate
@@ -557,16 +556,15 @@ contains
     class(t_solver), pointer :: solver
     type(tVec) :: lb, lx
 
-    real(ireals), pointer, dimension(:, :, :, :) :: xx, xg
-    real(ireals), pointer, dimension(:) :: xx1d, xg1d
+    real(ireals), pointer, dimension(:, :, :, :) :: xx, xg, xb
+    real(ireals), pointer, dimension(:) :: xx1d, xg1d, xb1d
 
     integer(iintegers) :: i_its, i_lits
     logical :: lsweep_forward, lsweep_backward, lsweep_symmetric, lzero_initial_guess
 
-    xx => null()
-    xx1d => null()
-    xg => null()
-    xg1d => null()
+    xx => null(); xx1d => null()
+    xg => null(); xg1d => null()
+    xb => null(); xb1d => null()
 
     nullify (ctx_ptr)
     call MatShellGetContext(A, ctx_ptr, ierr); call CHKERR(ierr)
@@ -599,6 +597,11 @@ contains
         call DMGlobalToLocal(C%da, x, INSERT_VALUES, lx, ierr); call CHKERR(ierr)
       end if
 
+      ! Keep pointers open for entire loop — pass plain arrays to explicit routines
+      call getVecPointer(C%da, x, xg1d, xg)
+      call getVecPointer(C%da, lx, xx1d, xx)
+      call getVecPointer(C%da, lb, xb1d, xb, readonly=.true.)
+
       do i_its = 1, its
 
         do i_lits = 1, lits
@@ -610,7 +613,7 @@ contains
               & dy=[C%ys, C%ye, i1], &
               & dz=[C%zs, C%ze - 1, i1], &
               & omega=omega, &
-              & b=lb, x=lx)
+              & b=xb, x=xx)
           end if
           if (lsweep_backward .or. lsweep_symmetric) then
             call explicit_ediff_sor_sweep(&
@@ -620,22 +623,19 @@ contains
               & dy=[C%ye, C%ys, -i1], &
               & dz=[C%ze - 1, C%zs, -i1], &
               & omega=omega, &
-              & b=lb, x=lx)
+              & b=xb, x=xx)
           end if
         end do
 
-        call exchange_diffuse_boundary(solver, lx, ierr); call CHKERR(ierr)
+        call exchange_diffuse_boundary(solver, xx, ierr); call CHKERR(ierr)
 
-        call getVecPointer(C%da, x, xg1d, xg)
-        call getVecPointer(C%da, lx, xx1d, xx, readonly=.true.)
-
-        ! update solution vec
+        ! update global solution vec
         xg = xx(:, :, C%xs:C%xe, C%ys:C%ye)
-
-        call restoreVecPointer(C%da, x, xg1d, xg)
-        call restoreVecPointer(C%da, lx, xx1d, xx, readonly=.true.)
       end do
 
+      call restoreVecPointer(C%da, lb, xb1d, xb, readonly=.true.)
+      call restoreVecPointer(C%da, lx, xx1d, xx)
+      call restoreVecPointer(C%da, x, xg1d, xg)
       call DMRestoreLocalVector(C%da, lb, ierr); call CHKERR(ierr)
       call DMRestoreLocalVector(C%da, lx, ierr); call CHKERR(ierr)
     end associate

@@ -18,8 +18,6 @@
 !-------------------------------------------------------------------------
 
 module m_fu_ice
-#include "petsc/finclude/petsc.h"
-  use petsc
   use mpi
 
   use m_data_parameters, only: &
@@ -41,7 +39,6 @@ module m_fu_ice
 
   use m_tenstream_interpolation, only: interp_2d
   use m_search, only: find_real_location
-  use m_repwvl_base, only: t_repwvl_data
 
   implicit none
 

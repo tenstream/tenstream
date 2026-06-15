@@ -58,6 +58,7 @@ module m_tenstream_interpolation
   data permu4d(:, 16)/1, 1, 1, 1/
 
   logical, parameter :: ldebug = .false.
+  logical, parameter :: literative_interp = .true. ! use iterative (vs recursive) N-D interpolation
 
   real(irealLUT), parameter :: interpolation_lattice_snapping = max(1e-3_ireallut, epsilon(interpolation_lattice_snapping))
   real(irealLUT), parameter :: zero = 0, one = 1
@@ -306,7 +307,56 @@ contains
       end if
     end if
 
-    call interp_vec_bilinear_recursive(pti, db, db_offsets, Cres)
+    if (literative_interp) then
+      call interp_vec_bilinear_iterative(pti, db, db_offsets, Cres)
+    else
+      call interp_vec_bilinear_recursive(pti, db, db_offsets, Cres)
+    end if
+  end subroutine
+
+  pure subroutine interp_vec_bilinear_iterative(pti, db, db_offsets, Cres)
+    real(irealLUT), intent(in) :: pti(:)
+    real(irealLUT), intent(in) :: db(:, :)
+    integer(iintegers), intent(in) :: db_offsets(:)
+    real(irealLUT), intent(out) :: Cres(:)
+
+    integer(iintegers) :: N, Ninterp, b, d, ofs, ofs_base
+    real(irealLUT) :: w
+    integer(iintegers) :: ioff_lo(size(pti)), ioff_hi(size(pti))
+    real(irealLUT) :: wlo(size(pti)), whi(size(pti))
+
+    N = size(pti)
+    Ninterp = 0
+    ofs_base = 1
+
+    do d = 1, N
+      if (dim_needs_interpolation(pti(d))) then
+        Ninterp = Ninterp + 1
+        b = int(pti(d))
+        whi(Ninterp) = pti(d) - real(b, irealLUT)
+        wlo(Ninterp) = one - whi(Ninterp)
+        ioff_lo(Ninterp) = db_offsets(d) * (b - 1)
+        ioff_hi(Ninterp) = db_offsets(d) * b
+      else
+        ofs_base = ofs_base + db_offsets(d) * (nint(pti(d)) - 1)
+      end if
+    end do
+
+    Cres = zero
+    do b = 0, 2**Ninterp - 1
+      ofs = ofs_base
+      w = one
+      do d = 1, Ninterp
+        if (btest(b, d - 1)) then
+          ofs = ofs + ioff_hi(d)
+          w = w * whi(d)
+        else
+          ofs = ofs + ioff_lo(d)
+          w = w * wlo(d)
+        end if
+      end do
+      Cres = Cres + w * db(:, ofs)
+    end do
   end subroutine
 
   pure subroutine interp_vec_simplex_1d(pti, interp_dim, db, db_offsets, Cres)

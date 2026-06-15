@@ -128,6 +128,13 @@ if(BUILD_RAYLI)
     FetchContent_Populate(rayli)
     add_subdirectory(${rayli_SOURCE_DIR} ${rayli_BINARY_DIR})
   endif()
+  # GCC false-positive: Eigen move-assign in TriangularMesh.cpp triggers
+  # -Wmaybe-uninitialized on face_t::normal; suppress for rayli targets only
+  foreach(_rayli_tgt rayli_common rayli_c_wrapper)
+    if(TARGET ${_rayli_tgt})
+      target_compile_options(${_rayli_tgt} PRIVATE -Wno-maybe-uninitialized)
+    endif()
+  endforeach()
 
   set(RAYLI_LIBS rayli_c_wrapper rayli_common spdlog fmt CACHE INTERNAL "RAYLI Libraries")
   message(STATUS " Rayli Libraries => ${RAYLI_LIBS}")

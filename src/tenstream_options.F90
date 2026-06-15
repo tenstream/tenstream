@@ -24,9 +24,8 @@ module m_tenstream_options
     & zero, one, i0, default_str_len
   use m_optprop_parameters, only: lut_basename, stddev_atol, stddev_rtol
   use m_helper_functions, only: CHKERR, CHKWARN, get_petsc_opt
-
-#include "petsc/finclude/petsc.h"
-  use petsc
+  use m_options_database, only: opts_has
+  use mpi
 
   implicit none
 
@@ -65,11 +64,10 @@ contains
   subroutine read_commandline_options(comm)
     integer(mpiint), intent(in) :: comm
     logical :: lflg
-    PetscBool :: lflg_p
+    logical :: lflg_l
     integer(mpiint) :: ierr
     logical :: lshow_options
     logical :: ltenstr_view
-    logical :: file_exists
 
     integer(mpiint) :: myid, numnodes
     character(default_str_len) :: lut_basename_env
@@ -79,14 +77,9 @@ contains
     call MPI_COMM_RANK(comm, myid, ierr); call CHKERR(ierr)
     call MPI_Comm_size(comm, numnodes, ierr); call CHKERR(ierr)
 
-    inquire (file='tenstream.options', exist=file_exists)
-    if (file_exists) then
-      call PetscOptionsInsertFile(comm, PETSC_NULL_OPTIONS, 'tenstream.options', PETSC_FALSE, ierr); call CHKERR(ierr)
-    end if
-
     lshow_options = .false.
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-show_options", lshow_options, lflg, ierr); call CHKERR(ierr)
-    if (lflg .eqv. PETSC_FALSE) then
+    call get_petsc_opt('', "-show_options", lshow_options, lflg, ierr); call CHKERR(ierr)
+    if (.not. lflg) then
       if (lshow_options) then
         if (myid .eq. 0) call show_options()
         call mpi_barrier(comm, ierr)
@@ -95,29 +88,29 @@ contains
     end if
 
     options_max_solution_err = 5e3_ireals / real(3600 * 24, ireals)
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-max_solution_err", &
+    call get_petsc_opt('', "-max_solution_err", &
                        options_max_solution_err, lflg, ierr); call CHKERR(ierr)
 
     options_max_solution_time = 0
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-max_solution_time", &
+    call get_petsc_opt('', "-max_solution_time", &
                        options_max_solution_time, lflg, ierr); call CHKERR(ierr)
 
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-eddington", luse_eddington, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', "-eddington", luse_eddington, lflg, ierr); call CHKERR(ierr)
 
     twostr_ratio = 2._ireals
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-twostr_ratio", twostr_ratio, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', "-twostr_ratio", twostr_ratio, lflg, ierr); call CHKERR(ierr)
 
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-pert_xshift", pert_xshift, lflg, ierr); call CHKERR(ierr)
-    if (lflg .eqv. PETSC_FALSE) pert_xshift = 0
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-pert_yshift", pert_yshift, lflg, ierr); call CHKERR(ierr)
-    if (lflg .eqv. PETSC_FALSE) pert_yshift = 0
+    call get_petsc_opt('', "-pert_xshift", pert_xshift, lflg, ierr); call CHKERR(ierr)
+    if (.not. lflg) pert_xshift = 0
+    call get_petsc_opt('', "-pert_yshift", pert_yshift, lflg, ierr); call CHKERR(ierr)
+    if (.not. lflg) pert_yshift = 0
 
     call get_petsc_opt('', '-lut_basename', lut_basename, lflg, ierr); call CHKERR(ierr)
     call get_environment_variable("LUT_BASENAME", lut_basename_env, status=ierr)
     if (ierr .eq. 0) lut_basename = trim(lut_basename_env)
 
     lLUT_mockup = .false.
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-LUT_mockup", &
+    call get_petsc_opt('', "-LUT_mockup", &
                        lLUT_mockup, lflg, ierr); call CHKERR(ierr)
     if (lLUT_mockup) then
       call CHKWARN(1_mpiint, 'Using LUT_mockup, setting the LUT constraints to zero. Your results will be wrong!')
@@ -125,25 +118,24 @@ contains
       stddev_rtol = .5_ireallut
     end if
 
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-calc_nca", &
+    call get_petsc_opt('', "-calc_nca", &
                        lcalc_nca, lflg, ierr); call CHKERR(ierr)
 
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-topography", &
+    call get_petsc_opt('', "-topography", &
                        ltopography, lflg, ierr); call CHKERR(ierr)
 
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-skip_thermal", &
+    call get_petsc_opt('', "-skip_thermal", &
                        lskip_thermal, lflg, ierr); call CHKERR(ierr)
 
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-schwarzschild", &
+    call get_petsc_opt('', "-schwarzschild", &
                        lschwarzschild, lflg, ierr); call CHKERR(ierr)
 
     ltenstr_view = .false.
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-tenstr_view", &
+    call get_petsc_opt('', "-tenstr_view", &
                        ltenstr_view, lflg, ierr); call CHKERR(ierr)
 
-    call PetscOptionsHasName(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-                             "-twostr_only", lflg_p, ierr); call CHKERR(ierr)
-    if (lflg_p) call CHKERR(1_mpiint, 'Option -twostr_only is deprecated in favor of a distinct solver option, e.g. -solver 2str')
+    call opts_has('', '-twostr_only', lflg_l)
+    if (lflg_l) call CHKERR(1_mpiint, 'Option -twostr_only is deprecated in favor of a distinct solver option, e.g. -solver 2str')
 
     if (myid .eq. 0 .and. ltenstr_view) then
       print *, '********************************************************************'

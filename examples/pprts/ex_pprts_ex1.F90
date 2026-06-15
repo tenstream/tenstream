@@ -1,6 +1,5 @@
 program main
-#include "petsc/finclude/petsc.h"
-  use petsc
+  use mpi, only: MPI_COMM_WORLD
   use m_data_parameters, only: &
     & init_mpi_data_parameters, &
     & finalize_mpi, &
@@ -36,54 +35,54 @@ program main
   call init_mpi_data_parameters(mpi_comm_world)
 
   Nx = 3; Ny = 3; Nlay = 10
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-Nx", Nx, lflg, ierr); call CHKERR(ierr)
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-Ny", Ny, lflg, ierr); call CHKERR(ierr)
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-Nz", Nlay, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-Nx", Nx, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-Ny", Ny, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-Nz", Nlay, lflg, ierr); call CHKERR(ierr)
 
   dx = 100
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-dx", dx, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-dx", dx, lflg, ierr); call CHKERR(ierr)
   dy = dx
   dz = dx
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-dy", dy, lflg, ierr); call CHKERR(ierr)
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-dz", dz, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-dy", dy, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-dz", dz, lflg, ierr); call CHKERR(ierr)
 
   lthermal = .false.
   lsolar = .true.
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-thermal", lthermal, lflg, ierr); call CHKERR(ierr)
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-solar", lsolar, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-thermal", lthermal, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-solar", lsolar, lflg, ierr); call CHKERR(ierr)
 
   phi0 = 180
   theta0 = 0
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-phi", phi0, lflg, ierr); call CHKERR(ierr)
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-theta", theta0, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-phi", phi0, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-theta", theta0, lflg, ierr); call CHKERR(ierr)
 
   albedo = 0.1
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-Ag", albedo, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-Ag", albedo, lflg, ierr); call CHKERR(ierr)
 
   incSolar = 1
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-S0", incSolar, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-S0", incSolar, lflg, ierr); call CHKERR(ierr)
 
   Bplck = 100._ireals / pi
   Bplck_srfc = 100
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-B0", Bplck, lflg, ierr); call CHKERR(ierr)
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-Bs", Bplck_srfc, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-B0", Bplck, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-Bs", Bplck_srfc, lflg, ierr); call CHKERR(ierr)
 
   dtau_clearsky = 1; w0_clearsky = .5; g_clearsky = 0
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-dtau_clr", dtau_clearsky, lflg, ierr); call CHKERR(ierr)
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-w0_clr", w0_clearsky, lflg, ierr); call CHKERR(ierr)
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-g_clr", g_clearsky, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-dtau_clr", dtau_clearsky, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-w0_clr", w0_clearsky, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-g_clr", g_clearsky, lflg, ierr); call CHKERR(ierr)
 
   cld_layer_idx = [Nlay / 2 + 1, Nlay / 2 + 1]
   Ncld_idx = 2
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-cld_idx", cld_layer_idx, Ncld_idx, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-cld_idx", cld_layer_idx, Ncld_idx, lflg, ierr); call CHKERR(ierr)
 
   dtau_cloud = 1; w0_cloud = .99; g_cloud = .9
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-dtau_cld", dtau_cloud, lflg, ierr); call CHKERR(ierr)
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-w0_cld", w0_cloud, lflg, ierr); call CHKERR(ierr)
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-g_cld", g_cloud, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-dtau_cld", dtau_cloud, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-w0_cld", w0_cloud, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-g_cld", g_cloud, lflg, ierr); call CHKERR(ierr)
 
   lverbose = .true.
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-v", lverbose, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-v", lverbose, lflg, ierr); call CHKERR(ierr)
 
   call pprts_ex1( &
       & mpi_comm_world, &

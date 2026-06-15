@@ -25,6 +25,8 @@ module m_plex2rayli
 
   use m_buildings, only: t_plex_buildings
 
+  use m_tenstream_log, only: t_ts_log_event, ts_log_begin, ts_log_end
+
   use m_f2c_rayli, only: rfft_wedgeF90, rfft_wedge_thermalF90, rpt_img_wedgeF90
 
   implicit none
@@ -251,7 +253,7 @@ contains
     type(tVec), intent(in), optional :: plck
     type(tVec), intent(in), allocatable, optional :: plck_srfc
     real(ireals), intent(in), optional :: nr_photons
-    PetscLogEvent, intent(in), optional :: petsc_log
+    type(t_ts_log_event), intent(in), optional :: petsc_log
     type(t_plex_buildings), intent(in), optional :: opt_buildings
     integer(iintegers), intent(in), optional :: opt_Nthreads
 
@@ -334,9 +336,9 @@ contains
     end if
 
     if (solution%lsolar_rad) then
-      call VecSet(solution%edir, zero, ierr); call CHKERR(ierr)
+      call VecSet(solution%edir_petsc, zero, ierr); call CHKERR(ierr)
     end if
-    call VecSet(solution%ediff, zero, ierr); call CHKERR(ierr)
+    call VecSet(solution%ediff_petsc, zero, ierr); call CHKERR(ierr)
 
     if (solution%lsolar_rad) then
       if (norm2(sundir) .le. zero) then
@@ -438,7 +440,7 @@ contains
 
     if (lcall_solver) then
       if (present(petsc_log)) then
-        call PetscLogEventBegin(petsc_log, ierr); call CHKERR(ierr)
+        call ts_log_begin(petsc_log, ierr); call CHKERR(ierr)
       end if
 
       if (solution%lthermal_rad) then
@@ -458,7 +460,7 @@ contains
       end if
 
       if (present(petsc_log)) then
-        call PetscLogEventEnd(petsc_log, ierr); call CHKERR(ierr)
+        call ts_log_end(petsc_log, ierr); call CHKERR(ierr)
       end if
 
       call rayli_get_result(plex, &
@@ -504,7 +506,7 @@ contains
     call DMPlexGetDepthStratum(plex%dm, i2, fStart, fEnd, ierr); call CHKERR(ierr)
     if (solution%lsolar_rad) then
       call DMGetLocalSection(plex%edir_dm, edir_section, ierr); call CHKERR(ierr)
-      call VecGetArray(solution%edir, xedir, ierr); call CHKERR(ierr)
+      call VecGetArray(solution%edir_petsc, xedir, ierr); call CHKERR(ierr)
       do iface = fStart, fEnd - 1
 
         call PetscSectionGetOffset(edir_section, iface, voff, ierr); call CHKERR(ierr)
@@ -513,12 +515,12 @@ contains
           xedir(voff + idof) = real(flx_through_faces_edir(iface - fStart + 1), ireals)
         end do
       end do
-      call VecRestoreArray(solution%edir, xedir, ierr); call CHKERR(ierr)
+      call VecRestoreArray(solution%edir_petsc, xedir, ierr); call CHKERR(ierr)
     end if
 
     ! --------------------------- Diffuse Radiation -----------------
     call DMGetLocalSection(plex%ediff_dm, ediff_section, ierr); call CHKERR(ierr)
-    call VecGetArray(solution%ediff, xediff, ierr); call CHKERR(ierr)
+    call VecGetArray(solution%ediff_petsc, xediff, ierr); call CHKERR(ierr)
 
     call DMGetStratumIS(plex%geom_dm, 'DomainBoundary', &
                         TOAFACE, toa_ids, ierr); call CHKERR(ierr)
@@ -557,18 +559,18 @@ contains
         end if
       end do ! fields
     end do
-    call VecRestoreArray(solution%ediff, xediff, ierr); call CHKERR(ierr)
+    call VecRestoreArray(solution%ediff_petsc, xediff, ierr); call CHKERR(ierr)
 
     ! --------------------------- Absorption ------------------------
     call DMGetLocalSection(plex%abso_dm, abso_section, ierr); call CHKERR(ierr)
-    call VecGetArray(solution%abso, xabso, ierr); call CHKERR(ierr)
+    call VecGetArray(solution%abso_petsc, xabso, ierr); call CHKERR(ierr)
     call DMPlexGetHeightStratum(plex%abso_dm, i0, cStart, cEnd, ierr); call CHKERR(ierr) ! cells
     do icell = cStart, cEnd - 1
       call PetscSectionGetFieldOffset(geomSection, icell, i2, geom_offset, ierr); call CHKERR(ierr) ! cell volume
       call PetscSectionGetOffset(abso_section, icell, voff, ierr); call CHKERR(ierr)
       xabso(i1 + voff) = real(abso_in_cells(i1 + icell - cStart), ireals) / geoms(i1 + geom_offset)
     end do
-    call VecRestoreArray(solution%abso, xabso, ierr); call CHKERR(ierr)
+    call VecRestoreArray(solution%abso_petsc, xabso, ierr); call CHKERR(ierr)
     call VecRestoreArrayRead(plex%geomVec, geoms, ierr); call CHKERR(ierr)
   end subroutine
 

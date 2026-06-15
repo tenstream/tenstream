@@ -20,8 +20,16 @@
 !> \page Routines to call tenstream with optical properties from a representative wavelength approach
 
 module m_repwvl_base
+#ifdef HAVE_PETSC
 #include "petsc/finclude/petsc.h"
   use petsc
+#endif
+
+  use m_tenstream_log, only: &
+    & t_ts_log_event, &
+    & t_ts_log_stage, &
+    & ts_log_event_register, &
+    & ts_log_stage_register
 
   use m_data_parameters, only: &
     & default_str_len, &
@@ -69,13 +77,13 @@ module m_repwvl_base
   end type
 
   type t_repwvl_log_events
-    PetscLogStage :: stage_repwvl_solar
-    PetscLogStage :: stage_repwvl_thermal
-    PetscLogEvent :: repwvl_optprop
-    PetscLogEvent :: repwvl_optprop_dtau
-    PetscLogEvent :: repwvl_optprop_rayleigh
-    PetscLogEvent :: repwvl_optprop_mie
-    PetscLogEvent :: repwvl_optprop_fu_ice
+    type(t_ts_log_stage) :: stage_repwvl_solar
+    type(t_ts_log_stage) :: stage_repwvl_thermal
+    type(t_ts_log_event) :: repwvl_optprop
+    type(t_ts_log_event) :: repwvl_optprop_dtau
+    type(t_ts_log_event) :: repwvl_optprop_rayleigh
+    type(t_ts_log_event) :: repwvl_optprop_mie
+    type(t_ts_log_event) :: repwvl_optprop_fu_ice
   end type
   type(t_repwvl_log_events) :: repwvl_log_events
 
@@ -234,29 +242,45 @@ contains
     type(t_repwvl_log_events), intent(inout) :: logs
     character(len=*), optional :: solvername
     character(len=default_str_len) :: s
+#ifdef HAVE_PETSC
     PetscClassId :: cid
+#endif
     integer(mpiint) :: ierr
 
     s = get_arg('tenstr_repwvl.', solvername)
+#ifdef HAVE_PETSC
     call PetscClassIdRegister(trim(s), cid, ierr); call CHKERR(ierr)
+#endif
 
     call setup_stage(trim(s)//'repwvl_solar', logs%stage_repwvl_solar)
     call setup_stage(trim(s)//'repwvl_thermal', logs%stage_repwvl_thermal)
 
-    call PetscLogEventRegister(trim(s)//'repwvl_optprop', cid, logs%repwvl_optprop, ierr); call CHKERR(ierr)
-    call PetscLogEventRegister(trim(s)//'repwvl_optprop_dtau', cid, logs%repwvl_optprop_dtau, ierr); call CHKERR(ierr)
-    call PetscLogEventRegister(trim(s)//'repwvl_optprop_rayleigh', cid, logs%repwvl_optprop_rayleigh, ierr); call CHKERR(ierr)
-    call PetscLogEventRegister(trim(s)//'repwvl_optprop_mie', cid, logs%repwvl_optprop_mie, ierr); call CHKERR(ierr)
-    call PetscLogEventRegister(trim(s)//'repwvl_optprop_fu_ice', cid, logs%repwvl_optprop_fu_ice, ierr); call CHKERR(ierr)
+    call reg(trim(s)//'repwvl_optprop', logs%repwvl_optprop)
+    call reg(trim(s)//'repwvl_optprop_dtau', logs%repwvl_optprop_dtau)
+    call reg(trim(s)//'repwvl_optprop_rayleigh', logs%repwvl_optprop_rayleigh)
+    call reg(trim(s)//'repwvl_optprop_mie', logs%repwvl_optprop_mie)
+    call reg(trim(s)//'repwvl_optprop_fu_ice', logs%repwvl_optprop_fu_ice)
 
   contains
+    subroutine reg(name, event)
+      character(len=*), intent(in) :: name
+      type(t_ts_log_event), intent(inout) :: event
+      call ts_log_event_register(name, event, ierr); call CHKERR(ierr)
+#ifdef HAVE_PETSC
+      call PetscLogEventRegister(name, cid, event%petsc_id, ierr); call CHKERR(ierr)
+#endif
+    end subroutine
+
     subroutine setup_stage(stagename, logstage)
       character(len=*), intent(in) :: stagename
-      PetscLogStage, intent(inout) :: logstage
-      call PetscLogStageGetId(stagename, logstage, ierr); call CHKERR(ierr)
-      if (logstage .lt. 0_iintegers) then
-        call PetscLogStageRegister(stagename, logstage, ierr); call CHKERR(ierr)
+      type(t_ts_log_stage), intent(inout) :: logstage
+      call ts_log_stage_register(stagename, logstage, ierr); call CHKERR(ierr)
+#ifdef HAVE_PETSC
+      call PetscLogStageGetId(stagename, logstage%petsc_id, ierr); call CHKERR(ierr)
+      if (logstage%petsc_id .lt. 0_iintegers) then
+        call PetscLogStageRegister(stagename, logstage%petsc_id, ierr); call CHKERR(ierr)
       end if
+#endif
     end subroutine
   end subroutine
 end module

@@ -18,8 +18,10 @@
 !-------------------------------------------------------------------------
 
 module m_f2c_pprts
+#ifdef HAVE_PETSC
 #include "petsc/finclude/petsc.h"
   use petsc
+#endif
 
   use iso_c_binding
 
@@ -71,6 +73,7 @@ module m_f2c_pprts
   use m_pprts, only: init_pprts, set_global_optical_properties, solve_pprts, &
                      pprts_get_result_toZero
 
+#ifdef HAVE_PETSC
   use m_petsc_helpers, only: petscVecToF90, petscGlobalVecToZero, f90VecToPetsc
 
   use m_icon_plex_utils, only: create_2d_regular_plex, dmplex_2D_to_3D, &
@@ -83,6 +86,7 @@ module m_f2c_pprts
   use m_plex_rt, only: &
     init_plex_rt_solver, run_plex_rt_solver, plexrt_get_result, &
     destroy_plexrt_solver
+#endif
 
   use m_netcdfio, only: ncwrite
 
@@ -100,10 +104,12 @@ module m_f2c_pprts
     & pprts_f2c_OPP_destroy
 
   class(t_solver), allocatable :: pprts_solver
+#ifdef HAVE_PETSC
   class(t_plex_solver), allocatable :: plex_solver
   type(tDM) :: dm2d, dm2d_dist
   type(tPetscSF) :: migration_sf
   real(ireals) :: sundir(3)
+#endif
 
   logical, parameter :: ldebug = .false.
 
@@ -163,12 +169,14 @@ contains
           if (solver_id .ne. SOLVER_ID_PPRTS_8_18) ierr = 1
         end select
       end if
+#ifdef HAVE_PETSC
       if (allocated(plex_solver)) then
         select type (plex_solver)
         class is (t_plex_solver_rectilinear_5_8)
           if (solver_id .ne. SOLVER_ID_PLEXRT_RECTILINEAR_5_8) ierr = 1
         end select
       end if
+#endif
       if (ierr .ne. 0) call CHKERR(ierr, 'seems you changed the solver type id in between calls...'// &
                                    'you must destroy the solver first before you use a different kind of solver')
       return
@@ -265,8 +273,10 @@ contains
     case (SOLVER_ID_PPRTS_8_18)
       allocate (t_solver_8_18 :: pprts_solver); ierr = 0
       call init_pprts(comm, oNz, oNx, oNy, odx, ody, osundir, pprts_solver, dz1d=odz)
+#ifdef HAVE_PETSC
     case (SOLVER_ID_PLEXRT_RECTILINEAR_5_8); ierr = 0
       call plexrt_f2c_init(comm, osolver_id, oNx, oNy, oNz + 1, odx, ohhl, ophi0, otheta0)
+#endif
     end select
     call CHKERR(ierr, 'Could not find a suitable solver to allocate for solver_id: '//toStr(solver_id))
 
@@ -305,9 +315,11 @@ contains
       end if
     end if
 
+#ifdef HAVE_PETSC
     if (allocated(plex_solver)) then
       call plexrt_f2c_set_global_optprop(Nz, Nx, Ny, albedo, kabs, ksca, g, planck)
     end if
+#endif
   end subroutine
 
   subroutine pprts_f2c_solve(comm, edirTOA) bind(c)
@@ -329,6 +341,7 @@ contains
       lthermal = .not. lsolar
       call solve_pprts(pprts_solver, lthermal, lsolar, oedirTOA)
     end if
+#ifdef HAVE_PETSC
     if (allocated(plex_solver)) then
       lthermal = allocated(plex_solver%plck)
 
@@ -339,6 +352,7 @@ contains
         'sundir=', sundir
       call run_plex_rt_solver(plex_solver, lthermal=lthermal, lsolar=oedirTOA .gt. 0, sundir=sundir)
     end if
+#endif
   end subroutine
 
   subroutine pprts_f2c_get_result(Nz, Nx, Ny, res_edn, res_eup, res_abso, res_edir) bind(c)
@@ -367,10 +381,12 @@ contains
       end if
     end if
 
+#ifdef HAVE_PETSC
     if (allocated(plex_solver)) then
       call PetscObjectGetComm(plex_solver%plex%dm, comm, ierr); call CHKERR(ierr)
       call plex_solver_retrieve_and_average_results(comm, res_edn, res_eup, res_abso, res_edir)
     end if
+#endif
 
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
@@ -380,7 +396,7 @@ contains
       if (ldebug) print *, 'pprts_f2c_get_result result_eup  first column', res_eup(:, 1, 1)
       if (ldebug) print *, 'pprts_f2c_get_result rabso first column', res_abso(:, 1, 1)
       dump_fname(1) = ''
-      call get_petsc_opt(PETSC_NULL_CHARACTER, "-f2c_dump_result", dump_fname(1), lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt('', "-f2c_dump_result", dump_fname(1), lflg, ierr); call CHKERR(ierr)
       if (lflg) then
         dump_fname(2) = "edir"; call ncwrite(dump_fname, res_edir, ierr); call CHKERR(ierr)
         dump_fname(2) = "edn"; call ncwrite(dump_fname, res_edn, ierr); call CHKERR(ierr)
@@ -390,6 +406,7 @@ contains
     end if
 
   contains
+#ifdef HAVE_PETSC
     subroutine plex_solver_retrieve_and_average_results(comm, res_edn, res_eup, res_abso, res_edir)
       integer(mpiint), intent(in) :: comm
       real(c_float), intent(out), dimension(:, :, :) :: res_edn, res_eup, res_abso, res_edir
@@ -434,18 +451,22 @@ contains
       call VecDestroy(v_var, ierr); call CHKERR(ierr)
       call VecDestroy(r0var, ierr); call CHKERR(ierr)
     end subroutine
+#endif
 
   end subroutine
 
   subroutine pprts_f2c_destroy(ifinalizepetsc) bind(c)
     integer(c_int), value, intent(in) :: ifinalizepetsc
     logical :: lfinalizepetsc
+#ifdef HAVE_PETSC
     integer(mpiint) :: ierr
+#endif
     lfinalizepetsc = ifinalizepetsc .ne. 0
     if (allocated(pprts_solver)) then
       call destroy_pprts(pprts_solver, lfinalizepetsc=lfinalizepetsc)
       deallocate (pprts_solver)
     end if
+#ifdef HAVE_PETSC
     if (allocated(plex_solver)) then
       call PetscSFDestroy(migration_sf, ierr); call CHKERR(ierr)
       call DMDestroy(dm2d, ierr); call CHKERR(ierr)
@@ -453,9 +474,11 @@ contains
       call destroy_plexrt_solver(plex_solver, lfinalizepetsc=lfinalizepetsc)
       deallocate (plex_solver)
     end if
+#endif
   end subroutine
 
   ! --------------------- Start of PLEXRT Routines -------------------
+#ifdef HAVE_PETSC
   subroutine plexrt_f2c_init(comm, solver_id, &
                              Nx_global, Ny_global, Nlev, &
                              dx, hhl, phi0, theta0)
@@ -562,6 +585,7 @@ contains
       call PetscSectionDestroy(parCellSection, ierr); call CHKERR(ierr)
     end subroutine
   end subroutine
+#endif
 
   ! --------------------- OPP Routines -------------------------------
   subroutine pprts_f2c_OPP_init(comm, solver_id, opp_ptr, ierr) bind(c)

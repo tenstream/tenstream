@@ -1,6 +1,6 @@
 module m_LUT_param_phi
   use iso_fortran_env, only: real32, real64
-  use m_data_parameters, only: irealLUT, mpiint, ireal_dp, ireal_params, ireals
+  use m_data_parameters, only: mpiint, ireal_dp, ireal_params, ireals
   use m_data_parameters, only: pi => pi_ireal_params
   use m_helper_functions, only: angle_between_two_vec, rad2deg, approx, is_between, CHKERR, ftoa, solve_quadratic, &
                                 normalize_vec

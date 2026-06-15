@@ -33,72 +33,56 @@
 !!
 
 module m_pprts_rrtmg
-  use, intrinsic :: iso_c_binding
-
-#include "petsc/finclude/petsc.h"
-  use petsc
-
   use mpi, only: mpi_comm_rank
-  use m_tenstr_parkind_sw, only: im => kind_im, rb => kind_rb
+  use m_tenstr_parkind_sw, only: rb => kind_rb
   use m_tenstream_options, only: read_commandline_options
-  use m_data_parameters, only: init_mpi_data_parameters, &
-                               iintegers, ireals, zero, one, i0, i1, i2, i9, &
-                               mpiint, pi, default_str_len
-
+  use m_data_parameters, only: iintegers, ireals, zero, one, i1, mpiint, default_str_len
   use m_pprts_base, only: t_solver, destroy_pprts, atmk
-
-  use m_pprts, only: init_pprts, set_angles, set_optical_properties, solve_pprts, &
-                     pprts_get_result, pprts_get_result_toZero
-
-  use m_xdmf_export, only: &
-    & xdmf_pprts_buildings, &
-    & xdmf_pprts_srfc_flux
-
+  use m_pprts, only: init_pprts, set_angles, set_optical_properties, solve_pprts, pprts_get_result
   use m_adaptive_spectral_integration, only: need_new_solution
-
   use m_helper_functions, only: &
     & CHKERR, &
-    & cross_3d, &
     & deg2rad, &
     & get_arg, &
     & get_petsc_opt, &
-    & imp_allreduce_max, &
-    & imp_allreduce_mean, &
-    & imp_allreduce_min, &
     & ind_1d_to_nd, &
     & mpi_logical_all_same, &
     & reverse, &
     & toStr
-
-  use m_search, only: find_real_location
-  use m_petsc_helpers, only: dmda_convolve_ediff_srfc, &
-                             getvecpointer, restorevecpointer, f90vectopetsc
-
-  use m_netcdfIO, only: ncwrite
-
-  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, plkint, print_tenstr_atm, vert_integral_coeff
-
+  use m_options_database, only: opts_has
+  use m_tenstr_atm, only: t_tenstr_atm, print_tenstr_atm, vert_integral_coeff
   use m_optprop_rrtmg, only: optprop_rrtm_lw, optprop_rrtm_sw, get_spectral_bands
-
   use m_tenstr_disort, only: default_flx_computation
   use m_tenstr_rrtmg_base, only: t_rrtmg_log_events, setup_log_events
+  use m_tenstream_log, only: ts_log_stage_push, ts_log_stage_pop
+  use m_pprts_postprocess, only: smooth_surface_fluxes, slope_correction_fluxes
   use m_buildings, only: t_pprts_buildings, clone_buildings, destroy_buildings
   use m_boxmc_geometry, only: PPRTS_BOT_FACE
-
-  use m_pprts_external_solvers, only: destroy_rayli_info
-
   use m_tenstr_rrtmg_lw_init, only: rrtmg_lw_ini
   use m_tenstr_rrtmg_sw_init, only: rrtmg_sw_ini
+#ifdef HAVE_PETSC
+  use, intrinsic :: iso_c_binding
+#include "petsc/finclude/petsc.h"
+  use petsc
+  use m_xdmf_export, only: xdmf_pprts_buildings, xdmf_pprts_srfc_flux
+  use m_petsc_helpers, only: f90vectopetsc
+  use m_pprts_external_solvers, only: destroy_rayli_info
+#endif
 
   implicit none
 
+  interface
+    real function plkint(WVLLO, WVLHI, T)
+      real :: WVLLO, WVLHI, T
+    end function
+  end interface
+
   private
-  public :: pprts_rrtmg, destroy_pprts_rrtmg, smooth_surface_fluxes, slope_correction_fluxes
+  public :: pprts_rrtmg, destroy_pprts_rrtmg
 
-!  logical,parameter :: ldebug=.True.
   logical, parameter :: ldebug = .false.
-
   type(t_rrtmg_log_events) :: log_events
+
 contains
 
   subroutine init_pprts_rrtmg(comm, solver, dx, dy, dz, &
@@ -149,156 +133,6 @@ contains
 
     call rrtmg_lw_ini(1006._rb)
     call rrtmg_sw_ini(1006._rb)
-  end subroutine
-
-  subroutine smooth_surface_fluxes(solver, edn, eup)
-    class(t_solver), intent(inout) :: solver                       ! solver type (e.g. t_solver_8_10)
-    real(ireals), allocatable, dimension(:, :, :), intent(inout) :: edn, eup  ! [nlyr+1, local_nx, local_ny ]
-    integer(iintegers) :: i, kernel_width, Niter
-    real(ireals) :: radius, mflx_up, mflx_dn
-    logical :: lflg
-    integer(mpiint) :: myid, ierr
-
-    call PetscLogEventBegin(log_events%smooth_surface_fluxes, ierr); call CHKERR(ierr)
-    call mpi_comm_rank(solver%comm, myid, ierr); call CHKERR(ierr)
-
-    radius = 0
-    call get_petsc_opt(solver%prefix, "-pprts_smooth_srfc_flx", radius, lflg, ierr); call CHKERR(ierr)
-
-    if (lflg) then
-
-      if (radius .lt. zero) then
-        call imp_allreduce_mean(solver%comm, edn(ubound(edn, 1), :, :), mflx_dn); edn(ubound(edn, 1), :, :) = mflx_dn
-        call imp_allreduce_mean(solver%comm, eup(ubound(eup, 1), :, :), mflx_up); eup(ubound(eup, 1), :, :) = mflx_up
-        if (ldebug .and. myid .eq. 0) &
-          print *, 'Smoothing diffuse srfc fluxes over the entire domain '// &
-          'mean downward flx', mflx_dn, 'up', mflx_up
-
-      else
-
-        call find_iter_and_kernelwidth(solver, radius, Niter, kernel_width)
-        do i = 1, Niter
-          call dmda_convolve_ediff_srfc(solver%C_diff%da, kernel_width, edn(ubound(edn, 1):ubound(edn, 1), :, :))
-          call dmda_convolve_ediff_srfc(solver%C_diff%da, kernel_width, eup(ubound(eup, 1):ubound(eup, 1), :, :))
-        end do
-      end if
-    end if
-    call PetscLogEventEnd(log_events%smooth_surface_fluxes, ierr); call CHKERR(ierr)
-  end subroutine
-
-  subroutine find_iter_and_kernelwidth(solver, radius, Niter, kernel_width)
-    class(t_solver), intent(in) :: solver                       ! solver type (e.g. t_solver_8_10)
-    real(ireals), intent(in) :: radius
-    integer(iintegers), intent(out) :: kernel_width, Niter
-    integer(iintegers), parameter :: test_Ni = 500
-    integer(iintegers), parameter :: Ni_limit = 250
-    integer(iintegers) :: i, min_iter
-    real(ireals) :: test_k(test_Ni), residuals(test_Ni)
-    real(ireals) :: radius_in_pixel
-    integer(mpiint) :: myid, ierr
-
-    call mpi_comm_rank(solver%comm, myid, ierr); call CHKERR(ierr)
-
-    radius_in_pixel = radius / ((solver%atm%dx + solver%atm%dy) / 2)
-    ! Try a couple of number of iterations and determine optimal kernel_width
-    min_iter = 1
-    do i = 1, test_Ni
-      test_k(i) = (sqrt((12 * radius_in_pixel**2 + real(i, ireals)) / real(i, ireals) + 1) - 1) / 2
-      if (nint(test_k(i)) .ge. min(solver%C_diff%xm, solver%C_diff%ym)) min_iter = i + 1
-    end do
-    if (min_iter .gt. Ni_limit) &
-      call CHKERR(int(min_iter, mpiint), 'the smoothing iteration count would be larger than '// &
-                  toStr(Ni_limit)//'... this could become expensive, you can set the value higher but I'// &
-                  'suspect that you are trying something weird')
-    ! We want it
-    ! as close as possible to an integer
-    ! and as big as possible
-    ! but not bigger than the local domain size
-    ! or a certain max value
-    residuals = abs(test_k - nint(test_k))
-
-    Niter = min_iter - 1 + minloc(residuals(min_iter:test_Ni), dim=1)
-    kernel_width = nint(test_k(Niter))
-
-    call imp_allreduce_max(solver%comm, Niter, i); Niter = i
-    call imp_allreduce_min(solver%comm, kernel_width, i); kernel_width = i
-
-    if (kernel_width .eq. 0) Niter = 0
-
-    if (ldebug .and. myid .eq. 0) then
-      do i = 1, test_Ni
-        print *, 'iter', i, 'test_k', test_k(i), residuals(i)
-      end do
-      print *, 'Smoothing diffuse srfc fluxes with radius', solver%atm%dx, radius, radius_in_pixel, &
-        'Niter', Niter, 'kwidth', kernel_width
-    end if
-
-  end subroutine
-
-  subroutine slope_correction_fluxes(solver, edir)
-    class(t_solver), intent(inout) :: solver                         ! solver type (e.g. t_solver_8_10)
-    real(ireals), allocatable, dimension(:, :, :), intent(inout) :: edir ! [nlyr+1, local_nx, local_ny ]
-    logical :: lslope_correction, latm_correction, lflg
-    integer(mpiint) :: myid, ierr
-
-    real(ireals), pointer :: grad(:, :, :, :)
-    real(ireals), pointer :: grad_1d(:)
-    real(ireals) :: fac, n(3)
-    integer(iintegers) :: i, j, k
-
-    grad => null()
-    grad_1d => null()
-
-    call mpi_comm_rank(solver%comm, myid, ierr); call CHKERR(ierr)
-
-    lslope_correction = .false.
-    call get_petsc_opt(solver%prefix, "-pprts_slope_correction", lslope_correction, lflg, ierr); call CHKERR(ierr)
-
-    latm_correction = .false.
-    call get_petsc_opt(solver%prefix, "-pprts_atm_correction", latm_correction, lflg, ierr); call CHKERR(ierr)
-
-    associate ( &
-      atm => solver%atm, &
-      sun => solver%sun, &
-      C_dir => solver%C_dir, &
-      C_two1 => solver%C_two1)
-
-      call getVecPointer(C_two1%da, atm%hgrad, grad_1d, grad)
-
-      if (latm_correction) then
-        do j = C_two1%ys, C_two1%ye
-          do i = C_two1%xs, C_two1%xe
-            do k = C_two1%zs, C_two1%ze
-
-              n = cross_3d([one, zero, grad(i0, k, i, j)], [zero, one, grad(i1, k, i, j)])
-              n = n / norm2(n)
-
-              fac = dot_product(solver%sun%sundir, [zero, zero, one]) / dot_product(solver%sun%sundir, n)
-              edir(k - C_two1%zs + 1, i - C_two1%xs + 1, j - C_two1%ys + 1) = &
-                & edir(k - C_two1%zs + 1, i - C_two1%xs + 1, j - C_two1%ys + 1) * fac
-            end do
-          end do
-        end do
-      end if
-
-      if (lslope_correction) then
-        k = C_two1%ze
-        do j = C_two1%ys, C_two1%ye
-          do i = C_two1%xs, C_two1%xe
-
-            n = cross_3d([one, zero, grad(i0, k, i, j)], [zero, one, grad(i1, k, i, j)])
-            n = n / norm2(n)
-
-            fac = dot_product(solver%sun%sundir, n) / dot_product(solver%sun%sundir, [zero, zero, one])
-            fac = max(0._ireals, fac)
-            edir(k - C_two1%zs + 1, i - C_two1%xs + 1, j - C_two1%ys + 1) = &
-              & edir(k - C_two1%zs + 1, i - C_two1%xs + 1, j - C_two1%ys + 1) * fac
-          end do
-        end do
-      end if
-
-      call restoreVecPointer(C_two1%da, atm%hgrad, grad_1d, grad)
-    end associate
   end subroutine
 
   subroutine pprts_rrtmg(comm, solver, atm, ie, je,   &
@@ -439,7 +273,7 @@ contains
     lskip_thermal = .false.
     call get_petsc_opt(solver%prefix, "-skip_thermal", lskip_thermal, lflg, ierr); call CHKERR(ierr)
     if (lthermal .and. .not. lskip_thermal) then
-      call PetscLogStagePush(log_events%stage_rrtmg_thermal, ierr); call CHKERR(ierr)
+      call ts_log_stage_push(log_events%stage_rrtmg_thermal, ierr); call CHKERR(ierr)
       call compute_thermal(                           &
         & solver,                                     &
         & atm,                                        &
@@ -452,7 +286,7 @@ contains
         & opt_buildings=opt_buildings_thermal,  &
         & opt_tau=opt_tau_thermal         &
         & )
-      call PetscLogStagePop(ierr); call CHKERR(ierr) ! pop solver%logs%stage_rrtmg_thermal
+      call ts_log_stage_pop(ierr); call CHKERR(ierr) ! pop solver%logs%stage_rrtmg_thermal
     end if
 
     if (lsolar .and. .not. allocated(edir)) allocate (edir(solver%C_one1%zm, solver%C_one1%xm, solver%C_one1%ym))
@@ -462,7 +296,7 @@ contains
       lskip_solar = .false.
       call get_petsc_opt(solver%prefix, "-skip_solar", lskip_solar, lflg, ierr); call CHKERR(ierr)
       if (.not. lskip_solar) then
-        call PetscLogStagePush(log_events%stage_rrtmg_solar, ierr); call CHKERR(ierr)
+        call ts_log_stage_push(log_events%stage_rrtmg_solar, ierr); call CHKERR(ierr)
         call compute_solar(                          &
           & solver,                                  &
           & atm,                                     &
@@ -478,14 +312,16 @@ contains
           & opt_w0=opt_w0_solar,        &
           & opt_g=opt_g_solar          &
           & )
-        call PetscLogStagePop(ierr); call CHKERR(ierr) ! pop solver%logs%stage_rrtmg_solar
+        call ts_log_stage_pop(ierr); call CHKERR(ierr) ! pop solver%logs%stage_rrtmg_solar
       end if
     end if
 
     call smooth_surface_fluxes(solver, edn, eup)
     if (lsolar) call slope_correction_fluxes(solver, edir)
 
+#ifdef HAVE_PETSC
     call dump_results()
+#endif
 
     !if(myid.eq.0 .and. ldebug) then
     !  if(present(opt_time)) then
@@ -509,16 +345,16 @@ contains
     !endif
   contains
 
+#ifdef HAVE_PETSC
     subroutine dump_variable(var, dm, dumpstring, varname)
       real(ireals), intent(in) :: var(:, :, :)
       type(tDM), intent(in) :: dm
       character(len=*), intent(in) :: dumpstring, varname
       character(len=default_str_len) :: vname
-      PetscBool :: lflg
+      logical :: lflg
       type(tVec) :: dumpvec
 
-      call PetscOptionsHasName(PETSC_NULL_OPTIONS, solver%prefix, &
-                               trim(dumpstring), lflg, ierr); call CHKERR(ierr)
+      call opts_has(trim(solver%prefix), trim(dumpstring), lflg)
       if (lflg) then
         vname = trim(varname)
         if (present(opt_time)) vname = trim(vname)//'.t'//trim(adjustl(toStr(opt_time)))
@@ -575,6 +411,7 @@ contains
         end if
       end if
     end subroutine
+#endif
   end subroutine
 
   subroutine compute_thermal( &
@@ -1287,11 +1124,13 @@ contains
   subroutine destroy_pprts_rrtmg(solver, lfinalizepetsc)
     class(t_solver) :: solver
     logical, intent(in) :: lfinalizepetsc
+#ifdef HAVE_PETSC
     !TODO this should need to happen here. the reason we need this is in case that someone destroys petsc
     !     and then initializes tenstream again, this is not valid anymore. Anyway, it should really reside in the pprts_solver object but
     !     this currently would infer some serious refactoring to avoid cyclic dependencies because the part in pprt2plex2rayli brings in
     !     the plexrt deps. For now, live with it but one day, we need to sort this out.
     call destroy_rayli_info()
+#endif
 
     ! Tidy up the solver
     call destroy_pprts(solver, lfinalizepetsc=lfinalizepetsc)

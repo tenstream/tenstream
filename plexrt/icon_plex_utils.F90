@@ -3,8 +3,7 @@ module m_icon_plex_utils
 #include "petsc/finclude/petsc.h"
   use petsc
 
-  use m_data_parameters, only: ireals, ireal_dp, iintegers, mpiint, &
-                               i0, i1, i2, i3, i4, i5, zero, one, default_str_len, pi
+  use m_data_parameters, only: ireals, ireal_dp, iintegers, mpiint, i0, i1, i2, i3, i4, i5, zero, default_str_len, pi
 
   use m_helper_functions, only: &
     & CHKERR, CHKWARN, &

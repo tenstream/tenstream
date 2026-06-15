@@ -56,7 +56,7 @@ def interp_var(old_pressure_grid, var, new_pressure_grid):
    p_us = old_pressure_grid
 
    Nx, Ny, Nz = np.shape(new_pressure_grid)
-   new_var = np.zeros_like(new_pressure_grid) * np.NaN
+   new_var = np.zeros_like(new_pressure_grid) * np.nan
    for i in range(Nx):
      for j in range(Ny):
 

@@ -20,8 +20,10 @@
 !> \page Routines to call tenstream with optical properties from a ecrad
 
 module m_ecckd_pprts
+#ifdef HAVE_PETSC
 #include "petsc/finclude/petsc.h"
   use petsc
+#endif
 
   use m_helper_functions, only: &
     & CHKERR, &
@@ -33,7 +35,7 @@ module m_ecckd_pprts
 
   use m_data_parameters, only: &
     & iintegers, ireals, mpiint, &
-    & zero, one, default_str_len, &
+    & zero, one, &
     & i1, &
     & share_dir
 
@@ -43,12 +45,10 @@ module m_ecckd_pprts
   use m_pprts, only: &
     & init_pprts, &
     & pprts_get_result, &
-    & pprts_get_result_toZero, &
     & set_angles, &
     & set_optical_properties, &
     & solve_pprts
-
-  use m_dyn_atm_to_rrtmg, only: &
+  use m_tenstr_atm, only: &
     & planck, &
     & print_tenstr_atm, &
     & t_tenstr_atm
@@ -64,11 +64,13 @@ module m_ecckd_pprts
     & ecckd_populate_gas_info, &
     & t_ecckd_data
 
+  use m_tenstream_log, only: ts_log_begin, ts_log_end, ts_log_stage_push, ts_log_stage_pop
+
   use m_ecckd_optprop, only: ecckd_optprop, ecckd_planck
   use m_mie_tables, only: mie_tables_init, t_mie_table, destroy_mie_table
   use m_fu_ice, only: fu_ice_init, fu_muskatel_ice_data
 
-  use m_pprts_rrtmg, only: smooth_surface_fluxes, slope_correction_fluxes
+  use m_pprts_postprocess, only: smooth_surface_fluxes, slope_correction_fluxes
 
   implicit none
 
@@ -170,7 +172,7 @@ contains
     if (.not. solver%linitialized) call read_commandline_options(comm) ! so that tenstream.options file are read in
 
     pprts_icollapse = get_arg(i1, icollapse)
-    call get_petsc_opt(PETSC_NULL_CHARACTER, &
+    call get_petsc_opt('', &
                        "-pprts_collapse", pprts_icollapse, lflg, ierr); call CHKERR(ierr)
     if (pprts_icollapse .eq. -1) then
       if (ldebug .and. myid .eq. 0) print *, 'Collapsing background atmosphere', atm%atm_ke
@@ -218,7 +220,7 @@ contains
     abso = 0
 
     lprint_atm = ldebug
-    call get_petsc_opt(PETSC_NULL_CHARACTER, &
+    call get_petsc_opt('', &
                        "-ecckd_pprts_atm_view", lprint_atm, lflg, ierr); call CHKERR(ierr)
     if (lprint_atm .and. myid .eq. 0) then
       call print_tenstr_atm(atm)
@@ -227,10 +229,10 @@ contains
     if (get_arg(.false., lonly_initialize)) return
 
     lskip_thermal = .false.
-    call get_petsc_opt(PETSC_NULL_CHARACTER, &
+    call get_petsc_opt('', &
                        "-skip_thermal", lskip_thermal, lflg, ierr); call CHKERR(ierr)
     if (lthermal .and. .not. lskip_thermal) then
-      call PetscLogStagePush(ecckd_log_events%stage_ecckd_thermal, ierr); call CHKERR(ierr)
+      call ts_log_stage_push(ecckd_log_events%stage_ecckd_thermal, ierr); call CHKERR(ierr)
       call compute_thermal(                    &
         & comm,                                &
         & ecckd_data_thermal,                  &
@@ -244,7 +246,7 @@ contains
         & opt_buildings=opt_buildings_thermal, &
         & opt_tau=opt_tau_thermal              &
         & )
-      call PetscLogStagePop(ierr); call CHKERR(ierr) ! pop log_events%stage_ecckd_thermal
+      call ts_log_stage_pop(ierr); call CHKERR(ierr) ! pop log_events%stage_ecckd_thermal
     end if
 
     if (lsolar .and. .not. allocated(edir)) allocate (edir(solver%C_one1%zm, solver%C_one1%xm, solver%C_one1%ym))
@@ -252,10 +254,10 @@ contains
 
     if (lsolar) then
       lskip_solar = .false.
-      call get_petsc_opt(PETSC_NULL_CHARACTER, &
+      call get_petsc_opt('', &
                          "-skip_solar", lskip_solar, lflg, ierr); call CHKERR(ierr)
       if (.not. lskip_solar) then
-        call PetscLogStagePush(ecckd_log_events%stage_ecckd_solar, ierr); call CHKERR(ierr)
+        call ts_log_stage_push(ecckd_log_events%stage_ecckd_solar, ierr); call CHKERR(ierr)
         call compute_solar(                          &
           & comm,                                    &
           & ecckd_data_solar,                        &
@@ -272,7 +274,7 @@ contains
           & opt_w0=opt_w0_solar,        &
           & opt_g=opt_g_solar          &
           & )
-        call PetscLogStagePop(ierr); call CHKERR(ierr) ! pop log_events%stage_ecckd_solar
+        call ts_log_stage_pop(ierr); call CHKERR(ierr) ! pop log_events%stage_ecckd_solar
       end if
     end if
 
@@ -355,13 +357,13 @@ contains
 
     spectral_gpts = [integer(iintegers) :: 1, ecckd_data_thermal%n_g_pnt]
     argcnt = size(spectral_gpts)
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-ecckd_bands", spectral_gpts, argcnt, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', "-ecckd_bands", spectral_gpts, argcnt, lflg, ierr); call CHKERR(ierr)
     if (lflg) call CHKERR(int(argcnt - 2_iintegers, mpiint), "must provide 2 values for ecckd_bands, comma separated, no spaces")
     spectral_gpts = min(max(spectral_gpts, 1), ecckd_data_thermal%n_g_pnt)
 
     do ig = spectral_gpts(1), spectral_gpts(2)
       call spectral_integration_progress_report(comm, ecckd_data_thermal, ig, ierr); call CHKERR(ierr)
-      call PetscLogEventBegin(ecckd_log_events%ecckd_optprop, ierr); call CHKERR(ierr)
+      call ts_log_begin(ecckd_log_events%ecckd_optprop, ierr); call CHKERR(ierr)
 
       do j = 1, solver%C_one%ym
         do i = 1, solver%C_one%xm
@@ -412,7 +414,7 @@ contains
 
       call add_optional_optprop(solver%atm%dz, kabs=kabs, opt_tau=opt_tau)
 
-      call PetscLogEventEnd(ecckd_log_events%ecckd_optprop, ierr); call CHKERR(ierr)
+      call ts_log_end(ecckd_log_events%ecckd_optprop, ierr); call CHKERR(ierr)
 
       call set_optical_properties( &
         & solver,                  &
@@ -538,13 +540,13 @@ contains
 
     spectral_gpts = [integer(iintegers) :: 1, ecckd_data_solar%n_g_pnt]
     argcnt = size(spectral_gpts)
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-ecckd_bands", spectral_gpts, argcnt, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', "-ecckd_bands", spectral_gpts, argcnt, lflg, ierr); call CHKERR(ierr)
     if (lflg) call CHKERR(int(argcnt - 2_iintegers, mpiint), "must provide 2 values for ecckd_bands, comma separated, no spaces")
     spectral_gpts = min(max(spectral_gpts, 1), ecckd_data_solar%n_g_pnt)
 
     do ig = spectral_gpts(1), spectral_gpts(2)
       call spectral_integration_progress_report(comm, ecckd_data_solar, ig, ierr); call CHKERR(ierr)
-      call PetscLogEventBegin(ecckd_log_events%ecckd_optprop, ierr); call CHKERR(ierr)
+      call ts_log_begin(ecckd_log_events%ecckd_optprop, ierr); call CHKERR(ierr)
 
       do j = 1, solver%C_one%ym
         do i = 1, solver%C_one%xm
@@ -563,7 +565,7 @@ contains
       end do
 
       call add_optional_optprop(solver%atm%dz, kabs, ksca, kg, opt_tau, opt_w0, opt_g)
-      call PetscLogEventEnd(ecckd_log_events%ecckd_optprop, ierr); call CHKERR(ierr)
+      call ts_log_end(ecckd_log_events%ecckd_optprop, ierr); call CHKERR(ierr)
 
       edirTOA = ecckd_data_solar%solar_irradiance(ig)
       if (present(opt_solar_constant)) then
@@ -801,4 +803,5 @@ contains
       end do
     end subroutine
   end subroutine
+
 end module

@@ -42,11 +42,14 @@ set_source_files_properties(${PFUNIT_DIR}/include/driver.F90 PROPERTIES
   GENERATED 1
   COMPILE_FLAGS "${EXTRA_TESTDRIVER_COMPILE_FLAGS}")
 
-add_executable(
-  pfunit_${CDIR}
+add_library(
+  pfunit_${CDIR}_objs OBJECT
   ${PFUNIT_DIR}/include/driver.F90
   ${_test_sources}
   )
+add_dependencies( pfunit_${CDIR}_objs ${TENSTR_SINGLE_LIB} pprts_examples_objs )
+
+add_executable( pfunit_${CDIR} $<TARGET_OBJECTS:pfunit_${CDIR}_objs> )
 target_link_libraries(
   pfunit_${CDIR}
   ${PFUNIT_DIR}/lib/libpfunit.a

@@ -336,7 +336,6 @@
       ierr = 0
       if (.not. associated(self%last)) then
         ierr = 1
-        call CHKWARN(ierr, 'list not initialized')
         return
       end if
 

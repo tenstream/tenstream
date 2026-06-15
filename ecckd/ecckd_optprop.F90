@@ -36,8 +36,7 @@ module m_ecckd_optprop
     & delta_scale_optprop, &
     & toStr
 
-  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm
-  use m_fu_ice, only: fu_ice_optprop, fu_ice_data_solar, fu_ice_data_thermal
+  use m_tenstr_atm, only: t_tenstr_atm
   use m_rayleigh, only: rayleigh
 
   use m_ecckd_base, only: &
@@ -48,6 +47,8 @@ module m_ecckd_optprop
     & IConcDependenceRelativeLinear, &
     & t_ecckd_atm_gas, &
     & t_ecckd_data
+
+  use m_tenstream_log, only: ts_log_begin, ts_log_end
 
   use m_search, only: find_real_location
 
@@ -93,7 +94,7 @@ contains
 
     ! ecckd molecular absorption cross section
     if (lprofile) then
-      call PetscLogEventBegin(ecckd_log_events%ecckd_optprop_dtau, ierr); call CHKERR(ierr)
+      call ts_log_begin(ecckd_log_events%ecckd_optprop_dtau, ierr); call CHKERR(ierr)
     end if
 
     call ecckd_dtau(&
@@ -108,7 +109,7 @@ contains
 
     kabs = dtau / atm%dz(k, icol)
     if (lprofile) then
-      call PetscLogEventEnd(ecckd_log_events%ecckd_optprop_dtau, ierr); call CHKERR(ierr)
+      call ts_log_end(ecckd_log_events%ecckd_optprop_dtau, ierr); call CHKERR(ierr)
     end if
     if (ldebug) then
       if (kabs .lt. 0) call CHKERR(1_mpiint, 'kabs from ecckd negative!'//toStr(kabs))
@@ -116,7 +117,7 @@ contains
 
     ! ecckd molecular scattering cross section
     if (lprofile) then
-      call PetscLogEventBegin(ecckd_log_events%ecckd_optprop_rayleigh, ierr); call CHKERR(ierr)
+      call ts_log_begin(ecckd_log_events%ecckd_optprop_rayleigh, ierr); call CHKERR(ierr)
     end if
 
     ksca = 0
@@ -131,12 +132,12 @@ contains
     kg = 0                                             ! rayleigh has symmetric asymmetry parameter
 
     if (lprofile) then
-      call PetscLogEventEnd(ecckd_log_events%ecckd_optprop_rayleigh, ierr); call CHKERR(ierr)
+      call ts_log_end(ecckd_log_events%ecckd_optprop_rayleigh, ierr); call CHKERR(ierr)
     end if
 
     if (atm%lwc(k, icol) > 0) then
       if (lprofile) then
-        call PetscLogEventBegin(ecckd_log_events%ecckd_optprop_mie, ierr); call CHKERR(ierr)
+        call ts_log_begin(ecckd_log_events%ecckd_optprop_mie, ierr); call CHKERR(ierr)
       end if
 
       call get_liq_cld_optprop(ecckd_data, lsolar, igpt, &
@@ -150,14 +151,14 @@ contains
       ksca = ksca + qext_cld_l * w0_cld_l
 
       if (lprofile) then
-        call PetscLogEventEnd(ecckd_log_events%ecckd_optprop_mie, ierr); call CHKERR(ierr)
+        call ts_log_end(ecckd_log_events%ecckd_optprop_mie, ierr); call CHKERR(ierr)
       end if
     end if
 
     ! ecckd ice cloud
     if (atm%iwc(k, icol) > 0) then
       if (lprofile) then
-        call PetscLogEventBegin(ecckd_log_events%ecckd_optprop_fu_ice, ierr); call CHKERR(ierr)
+        call ts_log_begin(ecckd_log_events%ecckd_optprop_fu_ice, ierr); call CHKERR(ierr)
       end if
 
       call get_ice_cld_optprop(ecckd_data, lsolar, igpt, &
@@ -171,7 +172,7 @@ contains
       ksca = ksca + qext_cld_i * w0_cld_i
 
       if (lprofile) then
-        call PetscLogEventEnd(ecckd_log_events%ecckd_optprop_fu_ice, ierr); call CHKERR(ierr)
+        call ts_log_end(ecckd_log_events%ecckd_optprop_fu_ice, ierr); call CHKERR(ierr)
       end if
     end if
 

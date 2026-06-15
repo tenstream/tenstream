@@ -1,9 +1,9 @@
 module m_petsc_helpers
+#ifdef HAVE_PETSC
 #include "petsc/finclude/petsc.h"
   use petsc
 
-  use m_data_parameters, only: ireals, iintegers, mpiint, &
-                               zero, i0, i1, i2, i3, default_str_len, init_mpi_data_parameters
+  use m_data_parameters, only: ireals, iintegers, mpiint, zero, i0, i1, default_str_len, init_mpi_data_parameters
 
   use m_helper_functions, only: &
     & char_to_upper, &
@@ -21,7 +21,6 @@ module m_petsc_helpers
     gen_shared_scatter_ctx, &
     gen_shared_subcomm, &
     getVecPointer, restoreVecPointer, &
-    hegedus_trick, &
     is_local_vec, &
     petscGlobalVecToAll, &
     petscGlobalVecToZero, &
@@ -872,51 +871,6 @@ contains
 
   end subroutine
 
-  subroutine hegedus_trick(ksp, b, x)
-    type(tksp), intent(in) :: ksp
-    type(tVec), intent(in) :: b
-    type(tVec), intent(inout) :: x
-
-    type(tDM) :: dm
-    character(len=default_str_len) :: prefix
-    type(tPC) :: prec
-    type(tMat) :: A, P
-    type(tVec) :: Ax0, z
-    real(ireals) :: znorm, norm
-    logical :: lhegedus, lflg
-    integer(mpiint) :: comm, myid, ierr
-
-    call KSPGetOptionsPrefix(ksp, prefix, ierr); call CHKERR(ierr)
-    lhegedus = .false.
-    call get_petsc_opt(prefix, "-use_hegedus", lhegedus, lflg, ierr); call CHKERR(ierr)
-
-    if (lhegedus) then
-      call KSPGetDM(ksp, dm, ierr); call CHKERR(ierr)
-
-      call DMGetGlobalVector(dm, Ax0, ierr); call CHKERR(ierr)
-      call DMGetGlobalVector(dm, z, ierr); call CHKERR(ierr)
-
-      call KSPGetPC(ksp, prec, ierr); call CHKERR(ierr)
-      call PCGetOperators(prec, A, P, ierr); call CHKERR(ierr)
-
-      call MatMult(A, x, Ax0, ierr); call CHKERR(ierr)
-      call MatMult(P, Ax0, z, ierr); call CHKERR(ierr)
-
-      call VecDot(z, Ax0, znorm, ierr); call CHKERR(ierr)
-      call VecDot(z, b, norm, ierr); call CHKERR(ierr)
-
-      if (znorm .gt. epsilon(znorm)) then
-        call PetscObjectGetComm(dm, comm, ierr); call CHKERR(ierr)
-        call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
-        if (myid .eq. 0 .and. ldebug) print *, 'hegedus_trick', norm, znorm, norm / znorm
-        call VecScale(x, norm / znorm, ierr); call CHKERR(ierr)
-      end if
-
-      call DMRestoreglobalVector(dm, Ax0, ierr); call CHKERR(ierr)
-      call DMRestoreglobalVector(dm, z, ierr); call CHKERR(ierr)
-    end if
-  end subroutine
-
   subroutine gen_shared_subcomm(comm, subcomm, ierr)
     integer(mpiint), intent(in) :: comm
     integer(mpiint), intent(out) :: subcomm, ierr
@@ -1051,4 +1005,5 @@ contains
     call PetscObjectGetName(v, vecname, ierr); call CHKERR(ierr)
     if (myid .eq. 0) print *, trim(label)//' ( '//trim(vecname)//' ) min mean max ', mmm
   end subroutine
+#endif
 end module

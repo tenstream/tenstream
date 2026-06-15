@@ -150,18 +150,19 @@ OPT="\
 if $DRYRUN; then OPT="$OPT --stdout"; fi
 if $DIFF  ; then OPT="$OPT --diff"; fi
 
-count=0
-
+# Run fprettify with a fixed pool of NCPU workers.
+# As soon as any worker finishes, the next file is picked up.
+running=0
 for f in $FILES
 do
   (
   if $VERBOSE ; then echo "prettify => $f"; fi
   $PYTHON $BIN $OPT $f &> >(tee -a $ERRLOG)
   ) &
-  count=$(( $count + 1 ))
-  if [ $count -eq $NCPU ]; then
-    count=0
-    wait
+  running=$(( running + 1 ))
+  if [ $running -ge $NCPU ]; then
+    wait -n 2>/dev/null || true
+    running=$(( running - 1 ))
   fi
 done
 wait

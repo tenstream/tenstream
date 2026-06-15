@@ -3,7 +3,7 @@ module test_LUT_wedge_18_8
   use m_data_parameters, only: ireals, irealLUT, ireal_params, ireal_dp, &
                                iintegers, mpiint, &
                                init_mpi_data_parameters, default_str_len, &
-                               i1, i2, i3, i4, i5
+                               i1
   use m_optprop_base, only: find_op_dim_by_name
   use m_optprop_LUT, only: t_optprop_LUT_wedge_18_8, &
                            azimuth_from_param_phi, param_phi_from_azimuth
@@ -14,8 +14,10 @@ module test_LUT_wedge_18_8
   use m_search, only: find_real_location
   use m_boxmc_geometry, only: setup_default_wedge_geometry
 
+#ifdef HAVE_PETSC
 #include "petsc/finclude/petsc.h"
   use petsc
+#endif
 
   use pfunit_mod
   implicit none
@@ -57,8 +59,10 @@ contains
     if (myid .eq. 0) &
       print *, 'Testing LUT coefficients against BOXMC with tolerances atol/rtol ::', atol, rtol, ':: on', numnodes, 'ranks'
 
+#ifdef HAVE_PETSC
     PETSC_COMM_WORLD = comm
     call PetscInitialize(PETSC_NULL_CHARACTER, ierr)
+#endif
 
     call init_mpi_data_parameters(comm)
     call read_commandline_options(comm)
@@ -75,7 +79,9 @@ contains
     integer(mpiint) :: ierr
     call OPPLUT%destroy(ierr); call CHKERR(ierr)
     call OPP%destroy(ierr); call CHKERR(ierr)
+#ifdef HAVE_PETSC
     call PetscFinalize(ierr)
+#endif
   end subroutine teardown
 
   !@test(npes=[1])

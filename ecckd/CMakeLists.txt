@@ -6,20 +6,22 @@ set( files
   "ecckd_optprop.F90"
   )
 
+# PPRTS
 add_library( tenstr_ecckd_objs OBJECT ${files} )
 add_dependencies(tenstr_ecckd_objs
-  plexrt
-  pprts
   pprts_base
   pprts_rrtmg
   repwvl_pprts
   )
+if(ENABLE_PLEXRT)
+  add_dependencies(tenstr_ecckd_objs
+    plexrt
+    pprts
+    )
+endif()
 
-# PPRTS
-add_library( ecckd_pprts "ecckd_pprts.F90" $<TARGET_OBJECTS:tenstr_ecckd_objs> )
-
+add_library( ecckd_pprts $<TARGET_OBJECTS:tenstr_ecckd_objs> )
 TARGET_LINK_LIBRARIES( ecckd_pprts
-  pprts
   pprts_base
   tenstr_disort
   pprts_rrtmg

@@ -1,14 +1,15 @@
 module test_pprts_solution_vecscale
 
-  use m_data_parameters, only: init_mpi_data_parameters, iintegers, ireals, irealLUT, zero, one, pi, mpiint
+  use m_data_parameters, only: iintegers, ireals, one, mpiint
 
+#ifdef HAVE_PETSC
 #include "petsc/finclude/petsc.h"
   use petsc
+#endif
 
   use m_pprts_base, only: t_solver, t_solver_3_10, t_solver_8_10, t_solver_8_16, &
                           prepare_solution, print_solution, destroy_pprts
   use m_pprts, only: init_pprts, scale_flx
-  use m_tenstream_options, only: read_commandline_options
   use m_helper_functions, only: CHKERR
 
   use pfunit_mod
@@ -33,7 +34,9 @@ contains
     if (solver_3_10%linitialized) call destroy_pprts(solver_3_10, lfinalizepetsc=.false.)
     if (solver_8_10%linitialized) call destroy_pprts(solver_8_10, lfinalizepetsc=.false.)
     if (solver_8_16%linitialized) call destroy_pprts(solver_8_16, lfinalizepetsc=.false.)
+#ifdef HAVE_PETSC
     call PetscFinalize(ierr); call CHKERR(ierr)
+#endif
   end subroutine teardown
 
   @test(npes=[2, 1])
@@ -68,16 +71,19 @@ contains
       call init_pprts(comm, nv, nxp, nyp, dx, dy, sundir, solver, dz1d)
 
       associate (S => solver%solutions(uid))
-        call prepare_solution(solver%C_dir%da, solver%C_diff%da, solver%C_one%da, &
+        call prepare_solution(solver%C_dir, solver%C_diff, solver%C_one, &
                               lsolar=.true., lthermal=.false., solution=S, uid=uid)
-
-        call VecSet(S%edir, one, ierr); call CHKERR(ierr)
+        S%edir = one
         S%lWm2_dir = .true.
-        call VecSet(S%ediff, one, ierr); call CHKERR(ierr)
+        S%ediff = one
         S%lWm2_diff = .true.
-
-        call VecNorm(S%edir, NORM_2, target_dirnorm, ierr); call CHKERR(ierr)
-        call VecNorm(S%ediff, NORM_2, target_diffnorm, ierr); call CHKERR(ierr)
+#ifdef HAVE_PETSC
+        call VecNorm(S%edir_petsc, NORM_2, target_dirnorm, ierr); call CHKERR(ierr)
+        call VecNorm(S%ediff_petsc, NORM_2, target_diffnorm, ierr); call CHKERR(ierr)
+#else
+        target_dirnorm = norm2(S%edir)
+        target_diffnorm = norm2(S%ediff)
+#endif
 
         call print_solution(S)
 
@@ -89,8 +95,13 @@ contains
 
         call print_solution(S)
 
-        call VecNorm(S%edir, NORM_2, dirnorm, ierr); call CHKERR(ierr)
-        call VecNorm(S%ediff, NORM_2, diffnorm, ierr); call CHKERR(ierr)
+#ifdef HAVE_PETSC
+        call VecNorm(S%edir_petsc, NORM_2, dirnorm, ierr); call CHKERR(ierr)
+        call VecNorm(S%ediff_petsc, NORM_2, diffnorm, ierr); call CHKERR(ierr)
+#else
+        dirnorm = norm2(S%edir)
+        diffnorm = norm2(S%ediff)
+#endif
 
         @assertEqual(target_dirnorm, dirnorm, epsilon(dirnorm), 'direct radiation vec norm changed when scaling back and forth')
         @assertEqual(target_diffnorm, diffnorm, epsilon(diffnorm), 'diffuse radiation vec norm changed when scaling back and forth')

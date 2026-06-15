@@ -19,8 +19,10 @@
 
 module m_f2c_pprts_rrtm
 
+#ifdef HAVE_PETSC
 #include "petsc/finclude/petsc.h"
   use petsc
+#endif
 
   use iso_c_binding
 
@@ -32,7 +34,7 @@ module m_f2c_pprts_rrtm
 
   use m_pprts_base, only: t_solver_3_10
   use m_pprts_rrtmg, only: pprts_rrtmg, destroy_pprts_rrtmg
-  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, destroy_tenstr_atm
+  use m_tenstr_atm, only: t_tenstr_atm, setup_tenstr_atm, destroy_tenstr_atm
 
   implicit none
 

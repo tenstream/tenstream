@@ -1,13 +1,11 @@
 module m_example_pprts_repwvl_lw_sw
 
-#include "petsc/finclude/petsc.h"
-  use petsc
   use mpi
 
   ! Import datatype from the TenStream lib. Depending on how PETSC is
   ! compiled(single or double floats, or long ints), this will determine what
   ! the Tenstream uses.
-  use m_data_parameters, only: init_mpi_data_parameters, iintegers, ireals, mpiint, zero, one, default_str_len
+  use m_data_parameters, only: init_mpi_data_parameters, iintegers, ireals, mpiint
 
   use m_helper_functions, only: linspace, CHKERR, spherical_2_cartesian, meanval, get_petsc_opt
 
@@ -18,7 +16,7 @@ module m_example_pprts_repwvl_lw_sw
   ! main entry point for solver, and desctructor
   use m_repwvl_pprts, only: repwvl_pprts, repwvl_pprts_destroy
 
-  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, destroy_tenstr_atm
+  use m_tenstr_atm, only: t_tenstr_atm, setup_tenstr_atm, destroy_tenstr_atm
 
   implicit none
 
@@ -153,7 +151,7 @@ contains
     call allocate_pprts_solver_from_commandline(pprts_solver, '3_10', ierr); call CHKERR(ierr)
 
     iter = 1
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-iter", iter, lflg, ierr)
+    call get_petsc_opt('', "-iter", iter, lflg, ierr)
 
     do k = 1, iter
       call repwvl_pprts(comm, pprts_solver, atm, nxp, nyp, &

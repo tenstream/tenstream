@@ -10,27 +10,30 @@ program main
   real(ireals) :: Ag
   logical :: lthermal, lsolar
 
-  call PetscInitialize(PETSC_NULL_CHARACTER, ierr); call CHKERR(ierr)
+  call PetscInitialize('', ierr); call CHKERR(ierr)
   call init_mpi_data_parameters(PETSC_COMM_WORLD)
   call read_commandline_options(PETSC_COMM_WORLD)
   call mpi_comm_rank(PETSC_COMM_WORLD, myid, ierr); call CHKERR(ierr)
 
-  call get_petsc_opt(PETSC_NULL_CHARACTER, '-grid', gridfile, lflg, ierr); call CHKERR(ierr)
+  gridfile = 'unset'
+  call get_petsc_opt('', '-grid', gridfile, lflg, ierr); call CHKERR(ierr)
   if (.not. lflg) stop 'need to supply a grid filename... please call with -grid <fname_of_icon_gridfile.nc>'
 
-  call get_petsc_opt(PETSC_NULL_CHARACTER, '-data', icondatafile, lflg, ierr); call CHKERR(ierr)
+  icondatafile = 'unset'
+  call get_petsc_opt('', '-data', icondatafile, lflg, ierr); call CHKERR(ierr)
   if (.not. lflg) stop 'need to supply a icondata filename... please call with -data <fname_of_icondatafile.nc>'
 
-  call get_petsc_opt(PETSC_NULL_CHARACTER, '-out', outfile, lflg, ierr); call CHKERR(ierr)
+  outfile = 'unset'
+  call get_petsc_opt('', '-out', outfile, lflg, ierr); call CHKERR(ierr)
   if (.not. lflg) stop 'need to supply a output filename... please call with -out <fname_of_output_file.h5>'
 
   Ag = .1
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-Ag", Ag, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-Ag", Ag, lflg, ierr); call CHKERR(ierr)
 
   lsolar = .true.
   lthermal = .true.
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-solar", lsolar, lflg, ierr); call CHKERR(ierr)
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-thermal", lthermal, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-solar", lsolar, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-thermal", lthermal, lflg, ierr); call CHKERR(ierr)
 
   default_options = ''
   default_options = trim(default_options)//' -show_plex hdf5:'//trim(outfile)

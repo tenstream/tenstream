@@ -10,7 +10,7 @@
 module m_plexrt_nca
 #include "petsc/finclude/petsc.h"
   use petsc
-  use m_helper_functions, only: CHKERR, CHKWARN, imp_bcast, get_petsc_opt
+  use m_helper_functions, only: CHKERR, imp_bcast, get_petsc_opt
   use m_data_parameters, only: ireals, iintegers, mpiint, default_str_len, pi
   use m_netcdfio, only: ncload
   implicit none

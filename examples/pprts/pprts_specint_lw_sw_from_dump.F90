@@ -1,13 +1,10 @@
 module m_example_pprts_specint_lw_sw_from_dump
-
-#include "petsc/finclude/petsc.h"
-  use petsc
   use mpi
 
   ! Import datatype from the TenStream lib. Depending on how PETSC is
   ! compiled(single or double floats, or long ints), this will determine what
   ! the Tenstream uses.
-  use m_data_parameters, only: init_mpi_data_parameters, iintegers, ireals, mpiint, zero, one, default_str_len, pi
+  use m_data_parameters, only: init_mpi_data_parameters, iintegers, ireals, mpiint, default_str_len
 
   use m_helper_functions, only: &
     & CHKERR, &
@@ -21,14 +18,12 @@ module m_example_pprts_specint_lw_sw_from_dump
 
   ! Import specific solver type: 3_10 for example uses 3 streams direct, 10 streams for diffuse radiation
   use m_pprts_base, only: t_solver, allocate_pprts_solver_from_commandline
-  use m_pprts, only: gather_all_toZero
 
   ! main entry point for solver, and desctructor
   use m_specint_pprts, only: specint_pprts, specint_pprts_destroy, load_input_dump
 
-  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, destroy_tenstr_atm, abso2hr, print_tenstr_atm
+  use m_tenstr_atm, only: t_tenstr_atm, destroy_tenstr_atm, abso2hr, print_tenstr_atm
 
-  use m_petsc_helpers, only: getvecpointer, restorevecpointer
   use m_netcdfio, only: ncwrite, set_attribute
 
   use m_buildings, only: t_pprts_buildings
@@ -96,11 +91,11 @@ contains
 !
     call allocate_pprts_solver_from_commandline(pprts_solver, '3_10', ierr); call CHKERR(ierr)
 
-    call get_petsc_opt(PETSC_NULL_CHARACTER, '-solar', lsolar, lflg, ierr); call CHKERR(ierr)
-    call get_petsc_opt(PETSC_NULL_CHARACTER, '-thermal', lthermal, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', '-solar', lsolar, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', '-thermal', lthermal, lflg, ierr); call CHKERR(ierr)
 
     icollapse = 1
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-icollapse", icollapse, lflg, ierr)
+    call get_petsc_opt('', "-icollapse", icollapse, lflg, ierr)
 
     if (.not. allocated(opt_time)) then
       allocate (opt_time)
@@ -114,10 +109,10 @@ contains
     end if
 
     Niter = 1
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-iter", Niter, lflg, ierr)
+    call get_petsc_opt('', "-iter", Niter, lflg, ierr)
 
     dt = 60 ! sec
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-dt", dt, lflg, ierr)
+    call get_petsc_opt('', "-dt", dt, lflg, ierr)
 
     do kiter = 1, Niter
       call specint_pprts( &

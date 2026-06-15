@@ -21,7 +21,6 @@ program main
 
   use mpi, only: MPI_COMM_WORLD
   use m_data_parameters, only: mpiint, init_mpi_data_parameters, finalize_mpi
-  use m_helper_functions, only: CHKERR
   use m_optprop_LUT, only: t_optprop_LUT, &
                            t_optprop_LUT_1_2, &
                            t_optprop_LUT_3_6, &

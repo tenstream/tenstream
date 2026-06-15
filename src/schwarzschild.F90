@@ -24,7 +24,7 @@ module m_schwarzschild
 #define isnan ieee_is_nan
 #endif
 
-  use m_data_parameters, only: ireals, iintegers, zero, one, pi, EXP_MINVAL
+  use m_data_parameters, only: ireals, iintegers, zero, one, pi
   use m_helper_functions, only: get_arg, expm1
   implicit none
 

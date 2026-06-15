@@ -19,9 +19,8 @@
 
 module m_optprop_LUT
   use iso_fortran_env, only: int64
-
-#include "petsc/finclude/petsc.h"
-  use petsc
+  use iso_c_binding, only: c_sizeof
+  use mpi
 
   use m_helper_functions, only: &
     & approx,                    &
@@ -31,14 +30,9 @@ module m_optprop_LUT
     & get_arg,                   &
     & get_petsc_opt,             &
     & imp_bcast,                 &
-    & ind_1d_to_nd,              &
     & ind_nd_to_1d,              &
-    & linspace,                  &
-    & mpi_logical_and,           &
     & mpi_logical_or,            &
-    & ndarray_offsets,           &
     & rad2deg, deg2rad,          &
-    & rel_approx,                &
     & toStr,                     &
     & triangle_area_by_vertices
 
@@ -46,8 +40,8 @@ module m_optprop_LUT
 
   use m_data_parameters, only: iintegers, mpiint, &
                                ireals, ireal_dp, irealLUT, ireal_params, &
-                               one, zero, i0, i1, i2, i3, i10, nil, inil, &
-                               imp_iinteger, imp_ireals, imp_irealLUT, imp_logical, &
+                               one, zero, i1, &
+                               imp_iinteger, imp_irealLUT, imp_logical, &
                                default_str_len
 
   use m_optprop_parameters, only: &
@@ -57,10 +51,10 @@ module m_optprop_LUT
     LUT_max_create_jobtime, &
     LUT_MAX_DIM, &
     delta_scale_truncate, &
-    stddev_atol, stddev_rtol, &
+    stddev_atol, &
     wedge_sphere_radius
 
-  use m_boxmc, only: t_boxmc, &
+  use m_boxmc, only: &
     & t_boxmc_1_2, &
     & t_boxmc_3_6, &
     & t_boxmc_3_10, &
@@ -74,7 +68,7 @@ module m_optprop_LUT
     & t_boxmc_wedge_5_8, &
     & t_boxmc_wedge_18_8
 
-  use m_tenstream_interpolation, only: interp_4d, interp_vec_simplex_nd
+  use m_tenstream_interpolation, only: interp_vec_simplex_nd
   use m_netcdfio
 
   use m_mmap, only: arr_to_mmap, munmap_mmap_ptr
@@ -302,15 +296,15 @@ contains
     call OPP%set_parameter_space()
 
     load_diffuse_LUT_first = .false.
-    call get_petsc_opt(PETSC_NULL_CHARACTER, '-load_diffuse_LUT_first', load_diffuse_LUT_first, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', '-load_diffuse_LUT_first', load_diffuse_LUT_first, lflg, ierr); call CHKERR(ierr)
 
     lskip_load_LUT = get_arg(.true., skip_load_LUT)
-    call get_petsc_opt(PETSC_NULL_CHARACTER, '-skip_load_LUT', lskip_load_LUT, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', '-skip_load_LUT', lskip_load_LUT, lflg, ierr); call CHKERR(ierr)
 
     lskip_load_LUT_dir = lskip_load_LUT
     lskip_load_LUT_diff = lskip_load_LUT
-    call get_petsc_opt(PETSC_NULL_CHARACTER, '-skip_load_LUT_dir', lskip_load_LUT_dir, lflg, ierr); call CHKERR(ierr)
-    call get_petsc_opt(PETSC_NULL_CHARACTER, '-skip_load_LUT_diff', lskip_load_LUT_diff, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', '-skip_load_LUT_dir', lskip_load_LUT_dir, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', '-skip_load_LUT_diff', lskip_load_LUT_diff, lflg, ierr); call CHKERR(ierr)
 
     if ((.not. lskip_load_LUT_dir .or. .not. lskip_load_LUT_diff) .and. myid .eq. 0) &
       & print *, 'loading and checking LUT`s from netCDF', &
@@ -331,7 +325,7 @@ contains
     if (ldebug .and. myid .eq. 0) print *, 'Initializing LUT`s... finished'
 
     lshow_LUT = ldebug
-    call get_petsc_opt(PETSC_NULL_CHARACTER, '-LUT_view', lshow_LUT, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', '-LUT_view', lshow_LUT, lflg, ierr); call CHKERR(ierr)
     if (lshow_LUT .and. myid .eq. 0) call print_configs(OPP)
   end subroutine
 
@@ -344,19 +338,19 @@ contains
       deallocate (OPP%bmc)
     end if
     if (allocated(OPP%Tdir)) then
-      if (luse_memory_map) then
+      if (luse_memory_map .and. associated(OPP%Tdir%c)) then
         call munmap_mmap_ptr(OPP%Tdir%c, ierr); call CHKERR(ierr)
       end if
       deallocate (OPP%Tdir)
     end if
     if (allocated(OPP%Sdir)) then
-      if (luse_memory_map) then
+      if (luse_memory_map .and. associated(OPP%Sdir%c)) then
         call munmap_mmap_ptr(OPP%Sdir%c, ierr); call CHKERR(ierr)
       end if
       deallocate (OPP%Sdir)
     end if
     if (allocated(OPP%Sdiff)) then
-      if (luse_memory_map) then
+      if (luse_memory_map .and. associated(OPP%Sdiff%c)) then
         call munmap_mmap_ptr(OPP%Sdiff%c, ierr); call CHKERR(ierr)
       end if
       deallocate (OPP%Sdiff)
@@ -1353,31 +1347,37 @@ contains
       if (associated(OPP%Sdiff%c)) then
         call arr_to_mmap(comm, trim(OPP%Sdiff%table_name_c(1))//'.Sdiff.mmap', mmap_ptr, ierr, OPP%Sdiff%c)
         deallocate (OPP%Sdiff%c)
+        call explain_missing_mmap_file(trim(OPP%Sdiff%base_table_name_c(1))//'.Sdiff.mmap', ierr)
       else
         call arr_to_mmap(comm, trim(OPP%Sdiff%table_name_c(1))//'.Sdiff.mmap', mmap_ptr, ierr)
+        if (ierr .ne. 0) mmap_ptr => null()
+        ierr = 0
       end if
       OPP%Sdiff%c => mmap_ptr
-      call explain_missing_mmap_file(trim(OPP%Sdiff%base_table_name_c(1))//'.Sdiff.mmap', ierr)
 
       mmap_ptr => null()
       if (associated(OPP%Sdir%c)) then
         call arr_to_mmap(comm, trim(OPP%Sdir%table_name_c(1))//'.Sdir.mmap', mmap_ptr, ierr, OPP%Sdir%c)
         deallocate (OPP%Sdir%c)
+        call explain_missing_mmap_file(trim(OPP%Sdir%base_table_name_c(1))//'.Sdir.mmap', ierr)
       else
         call arr_to_mmap(comm, trim(OPP%Sdir%table_name_c(1))//'.Sdir.mmap', mmap_ptr, ierr)
+        if (ierr .ne. 0) mmap_ptr => null()
+        ierr = 0
       end if
       OPP%Sdir%c => mmap_ptr
-      call explain_missing_mmap_file(trim(OPP%Sdir%base_table_name_c(1))//'.Sdir.mmap', ierr)
 
       mmap_ptr => null()
       if (associated(OPP%Tdir%c)) then
         call arr_to_mmap(comm, trim(OPP%Tdir%table_name_c(1))//'.Tdir.mmap', mmap_ptr, ierr, OPP%Tdir%c)
         deallocate (OPP%Tdir%c)
+        call explain_missing_mmap_file(trim(OPP%Sdir%base_table_name_c(1))//'.Tdir.mmap', ierr)
       else
         call arr_to_mmap(comm, trim(OPP%Tdir%table_name_c(1))//'.Tdir.mmap', mmap_ptr, ierr)
+        if (ierr .ne. 0) mmap_ptr => null()
+        ierr = 0
       end if
       OPP%Tdir%c => mmap_ptr
-      call explain_missing_mmap_file(trim(OPP%Sdir%base_table_name_c(1))//'.Tdir.mmap', ierr)
 
     else
       if (myid .eq. 0) then
@@ -1440,9 +1440,10 @@ contains
 
     call MPI_Comm_rank(MPI_COMM_WORLD, myid, ierr); call CHKERR(ierr)
     if (myid .eq. 0) then
-      print *, 'Diffuse LUT config:'
+      print *, 'Diffuse LUT config: '//trim(gen_lut_basename('_diffuse_'//toStr(OPP%diff_streams), OPP%diffconfig))
       call print_op_config(OPP%diffconfig)
-      print *, 'Direct LUT config:'
+      print *, 'Direct LUT config: '//&
+              & trim(gen_lut_basename('_direct_'//toStr(OPP%dir_streams)//'_'//toStr(OPP%diff_streams), OPP%dirconfig))
       call print_op_config(OPP%dirconfig)
       print *, '----------------------'
     end if
@@ -1469,6 +1470,9 @@ contains
     do kdim = 1, size(sample_pts)
       pti_buffer(kdim) = find_real_location(OPP%dirconfig%dims(kdim)%v, sample_pts(kdim))
     end do
+
+    if (.not. associated(OPP%Tdir%c)) &
+      call CHKERR(1_mpiint, 'LUT Tdir data not loaded — mmap4 file missing at init. Download or generate the LUT first.')
 
     select case (interp_mode)
     case (1)
@@ -1522,6 +1526,9 @@ contains
       pti_buffer(kdim) = find_real_location(OPP%dirconfig%dims(kdim)%v, sample_pts(kdim))
     end do
 
+    if (.not. associated(OPP%Sdir%c)) &
+      call CHKERR(1_mpiint, 'LUT Sdir data not loaded — mmap4 file missing at init. Download or generate the LUT first.')
+
     select case (interp_mode)
     case (1)
       ! Nearest neighbour
@@ -1573,6 +1580,9 @@ contains
     end do
     !print *,'LUT_get_diff2diff sample', sample_pts, 'idx', pti_buffer(1:size(sample_pts)), &
     !  & 'i1d', ind_nd_to_1d(OPP%diffconfig%offsets, nint(pti_buffer(1:size(sample_pts)), kind=iintegers))
+
+    if (.not. associated(OPP%Sdiff%c)) &
+      call CHKERR(1_mpiint, 'LUT Sdiff data not loaded — mmap4 file missing at init. Download or generate the LUT first.')
 
     select case (interp_mode)
     case (1)

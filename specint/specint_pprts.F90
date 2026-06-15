@@ -20,8 +20,10 @@
 !> \page Routines to call tenstream with optical properties from different spectral integration approaches
 
 module m_specint_pprts
+#ifdef HAVE_PETSC
 #include "petsc/finclude/petsc.h"
   use petsc
+#endif
   use mpi
 
   use m_helper_functions, only: &
@@ -38,15 +40,17 @@ module m_specint_pprts
     & ind_1d_to_nd, &
     & toStr
 
+  use m_options_database, only: opts_has
+
   use m_data_parameters, only: &
     & iintegers, ireals, mpiint, &
     & imp_iinteger, &
     & imp_ireals, &
     & default_str_len
 
-  use m_pprts_base, only: t_solver
+  use m_pprts_base, only: t_coord, t_solver
 
-  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm
+  use m_tenstr_atm, only: t_tenstr_atm
 
   use m_buildings, only: &
     & check_buildings_consistency, &
@@ -61,8 +65,6 @@ module m_specint_pprts
   use m_xdmf_export, only: &
     & xdmf_pprts_buildings, &
     & xdmf_pprts_srfc_flux
-
-  use m_petsc_helpers, only: f90vectopetsc
 
   use m_netcdfio, only: &
     & get_dim_info, &
@@ -478,28 +480,42 @@ contains
 
     end subroutine
 
-    subroutine dump_variable(var, dm, dumpstring, varname)
+    subroutine dump_variable(var, C, dumpstring, varname)
       real(ireals), intent(in) :: var(:, :, :)
-      type(tDM), intent(in) :: dm
+      type(t_coord), intent(in) :: C
       character(len=*), intent(in) :: dumpstring, varname
-      character(len=default_str_len) :: vname
-      PetscBool :: lflg
-      type(tVec) :: dumpvec
+      character(len=default_str_len) :: fname, vname, dimnames(3)
+      logical :: lflg
+      integer(mpiint) :: ierr
+      integer :: local_shape(3), global_shape(3), startp(3)
 
-      call PetscOptionsHasName(PETSC_NULL_OPTIONS, solver%prefix, &
-                               trim(dumpstring), lflg, ierr); call CHKERR(ierr)
-      if (lflg) then
-        vname = trim(varname)
-        if (present(opt_time)) vname = trim(vname)//'.t'//trim(adjustl(toStr(opt_time)))
-        if (.not. lsolar .or. .not. lthermal) vname = trim(vname)//'.sol'//toStr(lsolar)//'.th'//toStr(lthermal)
-        call DMGetGlobalVector(dm, dumpvec, ierr); call CHKERR(ierr)
-        call PetscObjectSetName(dumpvec, trim(vname), ierr); call CHKERR(ierr)
-        call f90VecToPetsc(var, dm, dumpvec)
+      fname = varname
+      call get_petsc_opt(trim(solver%prefix), trim(dumpstring), fname, lflg, ierr); call CHKERR(ierr)
+      if (.not. lflg) return
+      if (len_trim(fname) == 0) fname = varname
 
-        call PetscObjectViewFromOptions(PetscObjectCast(dumpvec), PETSC_NULL_OBJECT, &
-                                        trim(dumpstring), ierr); call CHKERR(ierr)
-        call DMRestoreGlobalVector(dm, dumpvec, ierr); call CHKERR(ierr)
-      end if
+      vname = trim(varname)
+      if (present(opt_time)) vname = trim(vname)//'.t'//trim(adjustl(toStr(opt_time)))
+      if (.not. lsolar .or. .not. lthermal) vname = trim(vname)//'.sol'//toStr(lsolar)//'.th'//toStr(lthermal)
+      fname = trim(fname)//'.nc'
+
+      local_shape = [integer :: size(var, 1), size(var, 2), size(var, 3)]
+      global_shape = [integer :: size(var, 1), int(C%glob_xm), int(C%glob_ym)]
+      startp = [integer :: 1, int(C%xs) + 1, int(C%ys) + 1]
+      dimnames = [character(len=default_str_len) :: 'nz', 'nx', 'ny']
+
+      call ncwrite( &
+        & comm=comm, &
+        & groups=[character(len=default_str_len) :: fname, vname], &
+        & arr=var, &
+        & ierr=ierr, &
+        & arr_shape=global_shape, &
+        & dimnames=dimnames, &
+        & startp=startp, &
+        & countp=local_shape, &
+        & deflate_lvl=0, &
+        & verbose=.false.)
+      call CHKERR(ierr)
     end subroutine
 
     subroutine dump_results()
@@ -510,11 +526,11 @@ contains
       if (get_arg(.false., lonly_initialize)) return
 
       if (lsolar) then
-        call dump_variable(edir, solver%C_one1%da, "-specint_dump_edir", "edir")
+        call dump_variable(edir, solver%C_one1, "-specint_dump_edir", "edir")
       end if
-      call dump_variable(edn, solver%C_one1%da, "-specint_dump_edn", "edn")
-      call dump_variable(eup, solver%C_one1%da, "-specint_dump_eup", "eup")
-      call dump_variable(abso, solver%C_one%da, "-specint_dump_abso", "abso")
+      call dump_variable(edn, solver%C_one1, "-specint_dump_edn", "edn")
+      call dump_variable(eup, solver%C_one1, "-specint_dump_eup", "eup")
+      call dump_variable(abso, solver%C_one, "-specint_dump_abso", "abso")
 
       fname = ''
       if (lsolar .and. present(opt_buildings_solar)) then
@@ -1192,4 +1208,5 @@ contains
     end subroutine
 
   end subroutine
+
 end module

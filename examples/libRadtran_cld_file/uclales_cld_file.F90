@@ -1,6 +1,8 @@
 module m_example_uclales_cld_file
+#ifdef HAVE_PETSC
 #include "petsc/finclude/petsc.h"
   use petsc
+#endif
   use mpi
   use m_pprts_base, only: t_solver, allocate_pprts_solver_from_commandline
   use m_pprts, only: gather_all_toZero
@@ -15,7 +17,7 @@ module m_example_uclales_cld_file
   ! main entry point for solver, and desctructor
   use m_specint_pprts, only: specint_pprts, specint_pprts_destroy
 
-  use m_dyn_atm_to_rrtmg, only: &
+  use m_tenstr_atm, only: &
     & destroy_tenstr_atm, &
     & print_tenstr_atm, &
     & reff_from_lwc_and_N, &
@@ -37,6 +39,7 @@ module m_example_uclales_cld_file
 
   use m_netcdfio, only: ncload, ncwrite, get_global_attribute, list_global_attributes, get_dim_info
 
+#ifdef HAVE_PETSC
   use m_petsc_helpers, only: getvecpointer, restorevecpointer
 
   use m_icon_plex_utils, only: create_2d_regular_plex, dmplex_2D_to_3D, &
@@ -50,6 +53,7 @@ module m_example_uclales_cld_file
   use m_plex_rt, only: init_plex_rt_solver
 
   use m_plexrt_rrtmg, only: plexrt_rrtmg, destroy_plexrt_rrtmg
+#endif
 
   use m_tenstream_interpolation, only: interp_1d
   use m_search, only: find_real_location
@@ -98,8 +102,8 @@ contains
       Ny = size(dimy)
       dx = dimx(2) - dimx(1)
       dy = dimy(2) - dimy(1)
-      call get_petsc_opt(PETSC_NULL_CHARACTER, "-dx", dx, lflg, ierr); call CHKERR(ierr)
-      call get_petsc_opt(PETSC_NULL_CHARACTER, "-dy", dy, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt('', "-dx", dx, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt('', "-dy", dy, lflg, ierr); call CHKERR(ierr)
       print *, 'Timesteps: ', size(time), 'Nx', size(dimx), 'Ny', size(dimy), 'Nz', size(zlev), 'dx', dx, 'dy', dy
     end if
     call imp_bcast(comm, time, 0_mpiint, ierr); call CHKERR(ierr)
@@ -223,7 +227,7 @@ contains
     sundir = spherical_2_cartesian(phi0, theta0)
 
     tod_offset = 0
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-tod_offset", tod_offset, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', "-tod_offset", tod_offset, lflg, ierr); call CHKERR(ierr)
 
     if (lflg) then
       timeofday = modulo(time / 86400._ireals + tod_offset, 1._ireals)
@@ -293,7 +297,6 @@ contains
     real(ireals), intent(in) :: phi0, theta0 ! Sun's angles, azimuth phi(0=North, 90=East), zenith(0 high sun, 80=low sun)
     integer(iintegers), intent(in) :: tstart, tend, tinc
 
-    real(ireals), pointer :: z(:, :, :, :), z1d(:) ! dim Nz+1
     character(len=default_str_len) :: groups(3), dimnames(3)
 
     real(ireals), allocatable, dimension(:, :, :) :: edir, edn, eup, abso ! [nlev_merged(-1), nxp, nyp]
@@ -313,9 +316,6 @@ contains
     real(ireals), allocatable, dimension(:, :, :, :) :: plev, tlev, qv, ql, reliq ! dim(Nz(+1),Nx,Ny)
 
     integer(iintegers) :: it
-
-    z => null()
-    z1d => null()
 
     call mpi_comm_rank(comm, myid, ierr)
 
@@ -417,16 +417,16 @@ contains
             groups(2) = 'abso'; call ncwrite(groups, gabso, ierr, dimnames=dimnames); call CHKERR(ierr)
 
             print *, 'dumping z coords'
-            call getVecPointer(Ca1%da, pprts_solver%atm%hhl, z1d, z)
             dimnames(1) = 'nlev'
-            groups(2) = 'zlev'; call ncwrite(groups, z(0, Ca1%zs:Ca1%ze, Ca1%xs, Ca1%ys), ierr, dimnames=dimnames(1:1))
+            groups(2) = 'zlev'; call ncwrite(groups, pprts_solver%atm%hhl(0, Ca1%zs:Ca1%ze, Ca1%xs, Ca1%ys), &
+ & ierr, dimnames=dimnames(1:1))
             call CHKERR(ierr)
             dimnames(1) = 'nlay'
             groups(2) = 'zlay'; call ncwrite(groups, &
- & (z(0, Ca1%zs:Ca1%ze - 1, Ca1%xs, Ca1%ys) + z(0, Ca1%zs + 1:Ca1%ze, Ca1%xs, Ca1%ys))*.5_ireals, &
+ & (pprts_solver%atm%hhl(0, Ca1%zs:Ca1%ze - 1, Ca1%xs, Ca1%ys) + &
+ &  pprts_solver%atm%hhl(0, Ca1%zs + 1:Ca1%ze, Ca1%xs, Ca1%ys))*.5_ireals, &
  & ierr, dimnames=dimnames(1:1))
             call CHKERR(ierr)
-            call restoreVecPointer(Ca1%da, pprts_solver%atm%hhl, z1d, z)
           end if
 
         end associate
@@ -439,8 +439,6 @@ contains
 end module
 
 program main
-#include "petsc/finclude/petsc.h"
-  use petsc
   use mpi
   use m_data_parameters, only: mpiint, share_dir
   use m_helper_functions, only: get_petsc_opt
@@ -461,41 +459,42 @@ program main
   call mpi_comm_rank(mpi_comm_world, myid, ierr)
 
   specint = 'no default set'
-  call get_petsc_opt(PETSC_NULL_CHARACTER, '-specint', specint, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', '-specint', specint, lflg, ierr); call CHKERR(ierr)
 
-  call get_petsc_opt(PETSC_NULL_CHARACTER, '-cld', cldfile, lflg, ierr); call CHKERR(ierr)
+  cldfile = 'unset'
+  call get_petsc_opt('', '-cld', cldfile, lflg, ierr); call CHKERR(ierr)
   if (.not. lflg) call CHKERR(1_mpiint, 'need to supply a cloud filename... please call with -cld <libRadtran_cloud_file.nc>')
 
   outfile = ''
-  call get_petsc_opt(PETSC_NULL_CHARACTER, '-out', outfile, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', '-out', outfile, lflg, ierr); call CHKERR(ierr)
 
   atm_filename = share_dir//'tenstream_default.atm'
-  call get_petsc_opt(PETSC_NULL_CHARACTER, '-atm', atm_filename, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', '-atm', atm_filename, lflg, ierr); call CHKERR(ierr)
 
   Ag = .1
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-Ag", Ag, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-Ag", Ag, lflg, ierr); call CHKERR(ierr)
 
   lsolar = .true.
   lthermal = .true.
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-solar", lsolar, lflg, ierr); call CHKERR(ierr)
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-thermal", lthermal, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-solar", lsolar, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-thermal", lthermal, lflg, ierr); call CHKERR(ierr)
 
   phi0 = 270
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-phi", phi0, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-phi", phi0, lflg, ierr); call CHKERR(ierr)
   theta0 = 60
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-theta", theta0, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-theta", theta0, lflg, ierr); call CHKERR(ierr)
 
   Tsrfc = 288
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-Tsrfc", Tsrfc, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-Tsrfc", Tsrfc, lflg, ierr); call CHKERR(ierr)
   dTdz = -6.5_ireals * 1e-3_ireals
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-dTdz", dTdz, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-dTdz", dTdz, lflg, ierr); call CHKERR(ierr)
 
   tstart = 800
   tend = 900
   tinc = 1
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-tstart", tstart, lflg, ierr); call CHKERR(ierr)
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-tend", tend, lflg, ierr); call CHKERR(ierr)
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-tinc", tinc, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-tstart", tstart, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-tend", tend, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-tinc", tinc, lflg, ierr); call CHKERR(ierr)
 
   call example_uclales_cld_file_pprts(&
     & specint, &

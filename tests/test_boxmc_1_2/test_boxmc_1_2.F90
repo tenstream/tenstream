@@ -1,13 +1,8 @@
 module test_boxmc_1_2
-  use m_boxmc, only: t_boxmc, t_boxmc_1_2
-  use m_data_parameters, only: &
-    mpiint, iintegers, ireals, ireal_dp, &
-    one, zero, i1, default_str_len, &
-    init_mpi_data_parameters
-  use m_helper_functions, only: toStr, cstr, colored_str_by_range, deg2rad
-  use m_optprop_parameters, only: stddev_atol
+  use m_boxmc, only: t_boxmc_1_2
+  use m_data_parameters, only: mpiint, iintegers, ireals, ireal_dp, one, zero, default_str_len, init_mpi_data_parameters
+  use m_helper_functions, only: colored_str_by_range, deg2rad
   use m_boxmc_geometry, only: setup_default_unit_cube_geometry
-  use m_eddington, only: eddington_coeff_zdun, eddington_coeff_bm, eddington_coeff_ec
 
   use pfunit_mod
   implicit none

@@ -20,8 +20,10 @@
 !> \page Routines to call tenstream with optical properties from a representative wavelength approach
 
 module m_repwvl_pprts
+#ifdef HAVE_PETSC
 #include "petsc/finclude/petsc.h"
   use petsc
+#endif
 
   use m_helper_functions, only: &
     & CHKERR, &
@@ -33,7 +35,7 @@ module m_repwvl_pprts
 
   use m_data_parameters, only: &
     & iintegers, ireals, mpiint, &
-    & zero, one, default_str_len, &
+    & zero, &
     & i1
 
   use m_tenstream_options, only: read_commandline_options
@@ -47,7 +49,7 @@ module m_repwvl_pprts
     & set_optical_properties, &
     & solve_pprts
 
-  use m_dyn_atm_to_rrtmg, only: &
+  use m_tenstr_atm, only: &
     & planck, &
     & print_tenstr_atm, &
     & t_tenstr_atm
@@ -58,11 +60,12 @@ module m_repwvl_pprts
     & t_pprts_buildings
 
   use m_repwvl_base, only: repwvl_init, t_repwvl_data, repwvl_log_events
+  use m_tenstream_log, only: ts_log_begin, ts_log_end, ts_log_stage_push, ts_log_stage_pop
   use m_repwvl_optprop, only: repwvl_optprop, check_fu_table_consistency
   use m_mie_tables, only: mie_tables_init, t_mie_table, destroy_mie_table
   use m_fu_ice, only: fu_ice_init
 
-  use m_pprts_rrtmg, only: smooth_surface_fluxes, slope_correction_fluxes
+  use m_pprts_postprocess, only: smooth_surface_fluxes, slope_correction_fluxes
 
   implicit none
 
@@ -170,7 +173,7 @@ contains
     if (.not. solver%linitialized) call read_commandline_options(comm) ! so that tenstream.options file are read in
 
     pprts_icollapse = get_arg(i1, icollapse)
-    call get_petsc_opt(PETSC_NULL_CHARACTER, &
+    call get_petsc_opt('', &
                        "-pprts_collapse", pprts_icollapse, lflg, ierr); call CHKERR(ierr)
     if (pprts_icollapse .eq. -1) then
       if (ldebug .and. myid .eq. 0) print *, 'Collapsing background atmosphere', atm%atm_ke
@@ -213,7 +216,7 @@ contains
     abso = 0
 
     lprint_atm = ldebug
-    call get_petsc_opt(PETSC_NULL_CHARACTER, &
+    call get_petsc_opt('', &
                        "-repwvl_pprts_atm_view", lprint_atm, lflg, ierr); call CHKERR(ierr)
     if (lprint_atm .and. myid .eq. 0) then
       call print_tenstr_atm(atm)
@@ -222,10 +225,10 @@ contains
     if (get_arg(.false., lonly_initialize)) return
 
     lskip_thermal = .false.
-    call get_petsc_opt(PETSC_NULL_CHARACTER, &
+    call get_petsc_opt('', &
                        "-skip_thermal", lskip_thermal, lflg, ierr); call CHKERR(ierr)
     if (lthermal .and. .not. lskip_thermal) then
-      call PetscLogStagePush(repwvl_log_events%stage_repwvl_thermal, ierr); call CHKERR(ierr)
+      call ts_log_stage_push(repwvl_log_events%stage_repwvl_thermal, ierr); call CHKERR(ierr)
       call compute_thermal(                    &
         & comm,                                &
         & repwvl_data_thermal,                 &
@@ -240,7 +243,7 @@ contains
         & opt_buildings=opt_buildings_thermal, &
         & opt_tau=opt_tau_thermal              &
         & )
-      call PetscLogStagePop(ierr); call CHKERR(ierr) ! pop log_events%stage_repwvl_thermal
+      call ts_log_stage_pop(ierr); call CHKERR(ierr) ! pop log_events%stage_repwvl_thermal
     end if
 
     if (lsolar .and. .not. allocated(edir)) allocate (edir(solver%C_one1%zm, solver%C_one1%xm, solver%C_one1%ym))
@@ -248,10 +251,10 @@ contains
 
     if (lsolar) then
       lskip_solar = .false.
-      call get_petsc_opt(PETSC_NULL_CHARACTER, &
+      call get_petsc_opt('', &
                          "-skip_solar", lskip_solar, lflg, ierr); call CHKERR(ierr)
       if (.not. lskip_solar) then
-        call PetscLogStagePush(repwvl_log_events%stage_repwvl_solar, ierr); call CHKERR(ierr)
+        call ts_log_stage_push(repwvl_log_events%stage_repwvl_solar, ierr); call CHKERR(ierr)
         call compute_solar(                          &
           & comm,                                    &
           & repwvl_data_solar,                       &
@@ -269,7 +272,7 @@ contains
           & opt_w0=opt_w0_solar,        &
           & opt_g=opt_g_solar          &
           & )
-        call PetscLogStagePop(ierr); call CHKERR(ierr) ! pop log_events%stage_repwvl_solar
+        call ts_log_stage_pop(ierr); call CHKERR(ierr) ! pop log_events%stage_repwvl_solar
       end if
     end if
 
@@ -363,7 +366,7 @@ contains
     end do
 
     argcnt = size(spectral_bands)
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-repwvl_bands", spectral_bands, argcnt, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', "-repwvl_bands", spectral_bands, argcnt, lflg, ierr); call CHKERR(ierr)
     if (lflg) then
       spectral_bands = min(max(spectral_bands, 1), size(repwvl_data_thermal%wvls))
       do iwvl = 1, argcnt
@@ -382,7 +385,7 @@ contains
           & ' ('//toStr(repwvl_data_thermal%wvls(iwvl))//' nm,  wgt='//toStr(repwvl_data_thermal%wgts(iwvl))//')'
       end if
 
-      call PetscLogEventBegin(repwvl_log_events%repwvl_optprop, ierr); call CHKERR(ierr)
+      call ts_log_begin(repwvl_log_events%repwvl_optprop, ierr); call CHKERR(ierr)
 
       do j = 1, solver%C_one%ym
         do i = 1, solver%C_one%xm
@@ -422,7 +425,7 @@ contains
         end do
       end if
 
-      call PetscLogEventEnd(repwvl_log_events%repwvl_optprop, ierr); call CHKERR(ierr)
+      call ts_log_end(repwvl_log_events%repwvl_optprop, ierr); call CHKERR(ierr)
 
       call set_optical_properties( &
         & solver,                  &
@@ -560,7 +563,7 @@ contains
     end do
 
     argcnt = size(spectral_bands)
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-repwvl_bands", spectral_bands, argcnt, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', "-repwvl_bands", spectral_bands, argcnt, lflg, ierr); call CHKERR(ierr)
     if (lflg) then
       spectral_bands = min(max(spectral_bands, 1), size(repwvl_data_solar%wvls))
       do iwvl = 1, argcnt
@@ -579,7 +582,7 @@ contains
           & ' ('//toStr(repwvl_data_solar%wvls(iwvl))//' nm,  wgt='//toStr(repwvl_data_solar%wgts(iwvl))//')'
       end if
 
-      call PetscLogEventBegin(repwvl_log_events%repwvl_optprop, ierr); call CHKERR(ierr)
+      call ts_log_begin(repwvl_log_events%repwvl_optprop, ierr); call CHKERR(ierr)
 
       do j = 1, solver%C_one%ym
         do i = 1, solver%C_one%xm
@@ -598,7 +601,7 @@ contains
       end do
 
       !call add_optional_optprop(tau, w0, g, opt_tau, opt_w0, opt_g)
-      call PetscLogEventEnd(repwvl_log_events%repwvl_optprop, ierr); call CHKERR(ierr)
+      call ts_log_end(repwvl_log_events%repwvl_optprop, ierr); call CHKERR(ierr)
 
       edirTOA = repwvl_data_solar%wgts(iwvl)
       if (present(opt_solar_constant)) then

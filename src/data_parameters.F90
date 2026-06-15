@@ -18,10 +18,9 @@
 !-------------------------------------------------------------------------
 
 module m_data_parameters
-#include <petsc/finclude/petsc.h>
-  use petsc
-
   use iso_fortran_env, only: int32, int64, real32, real64, real128
+  use mpi
+  use m_options_database, only: opts_init
   use ieee_arithmetic, only: ieee_support_nan, ieee_quiet_nan, ieee_value, &
     & ieee_support_inf, ieee_positive_inf, ieee_negative_inf
   implicit none
@@ -73,14 +72,26 @@ module m_data_parameters
     share_dir
 
   integer :: mpiint_dummy
-  PetscInt :: petscint_dummy
-  PetscReal :: petscreal_dummy
+
+#ifdef HAVE_PETSC
+  integer, parameter :: iintegers = PETSC_IINTEGERS_KIND
+  integer, parameter :: ireals = PETSC_IREALS_KIND
+#else
+#if TENSTREAM_IINTEGERS_BITS == 64
+  integer, parameter :: iintegers = int64
+#else
+  integer, parameter :: iintegers = int32
+#endif
+#if TENSTREAM_IREALS_BITS == 64
+  integer, parameter :: ireals = real64
+#else
+  integer, parameter :: ireals = real32
+#endif
+#endif
 
   integer, parameter :: &
     default_str_len = 512, &
-    iintegers = kind(petscint_dummy), &
     irealLUT = real32, &
-    ireals = kind(petscreal_dummy), &
     ireal_params = real64, &
     ireal_dp = real64, &
     ireal128 = real128, &
@@ -148,11 +159,19 @@ module m_data_parameters
 
 contains
   subroutine init_mpi_data_parameters(comm)
+#ifdef HAVE_PETSC
+#include <petsc/finclude/petsc.h>
+    use petsc
+#endif
     integer(mpiint), intent(in) :: comm
     integer(mpiint) :: dtsize, ierr, myid, numnodes, mpierr
-    logical :: lmpi_is_initialized, lallsame
+    logical :: lmpi_is_initialized
+#ifdef HAVE_PETSC
+    logical :: lallsame
     PetscBool :: lpetsc_is_initialized
-    logical :: file_exists
+    PetscInt :: petsc_iint_check
+    PetscReal :: petsc_ireal_check
+#endif
 
     call mpi_initialized(lmpi_is_initialized, mpierr)
     if (mpierr .ne. 0) call mpi_abort(comm, mpierr, ierr)
@@ -236,6 +255,16 @@ contains
       nan = real(-99999, kind(nan))
     end select
 
+#ifdef HAVE_PETSC
+    if (kind(petsc_iint_check) /= iintegers) then
+      print *, 'FATAL: iintegers kind mismatch with PetscInt — check PETSc build configuration'
+      call mpi_abort(comm, 1_mpiint, ierr)
+    end if
+    if (kind(petsc_ireal_check) /= ireals) then
+      print *, 'FATAL: ireals kind mismatch with PetscReal — check PETSc build configuration'
+      call mpi_abort(comm, 1_mpiint, ierr)
+    end if
+
     call PetscInitialized(lpetsc_is_initialized, mpierr)
     if (mpierr .ne. 0) call mpi_abort(comm, mpierr, ierr)
 
@@ -248,34 +277,37 @@ contains
     PETSC_COMM_WORLD = comm
     if (.not. lpetsc_is_initialized) then
       call PetscInitialize(PETSC_NULL_CHARACTER, mpierr)
-
-      inquire (file='tenstream.options', exist=file_exists)
-      if (file_exists) then
-        call PetscOptionsInsertFile(comm, PETSC_NULL_OPTIONS, 'tenstream.options', PETSC_TRUE, mpierr)
-        if (mpierr .ne. 0) call mpi_abort(comm, mpierr, ierr)
-      end if
       if (mpierr .ne. 0) call mpi_abort(comm, mpierr, ierr)
     end if
+#endif
+    call opts_init()
   end subroutine
 
   subroutine finalize_mpi(comm, lfinalize_mpi, lfinalize_petsc)
+#ifdef HAVE_PETSC
+#include <petsc/finclude/petsc.h>
+    use petsc
+#endif
     integer(mpiint), intent(in) :: comm
     logical, intent(in) :: lfinalize_mpi, lfinalize_petsc
     integer(mpiint) :: ierr, mpierr
     logical :: lmpi_is_initialized
+#ifdef HAVE_PETSC
     PetscBool :: lpetsc_is_initialized
+#endif
 
     call mpi_initialized(lmpi_is_initialized, mpierr)
     if (.not. lmpi_is_initialized) return ! if we dont even have mpi, petsc cant live either
 
-    call PetscInitialized(lpetsc_is_initialized, mpierr)
-    if (mpierr .ne. 0) call mpi_abort(comm, mpierr, ierr)
-
-    if (lpetsc_is_initialized) then
-      if (lfinalize_petsc) then
+    if (lfinalize_petsc) then
+#ifdef HAVE_PETSC
+      call PetscInitialized(lpetsc_is_initialized, mpierr)
+      if (mpierr .ne. 0) call mpi_abort(comm, mpierr, ierr)
+      if (lpetsc_is_initialized) then
         call PetscFinalize(mpierr)
         if (mpierr .ne. 0) call mpi_abort(comm, mpierr, ierr)
       end if
+#endif
     end if
 
     if (lfinalize_mpi) then
@@ -285,6 +317,7 @@ contains
   end subroutine
 
 !duplicate of helper function. otherwise get circular dependency
+#ifdef HAVE_PETSC
   function mpi_logical_all_same(comm, lval) result(lsame)
     integer(mpiint), intent(in) :: comm
     logical :: lsame
@@ -307,4 +340,5 @@ contains
       lsame = .true.
     end if
   end function
+#endif
 end module

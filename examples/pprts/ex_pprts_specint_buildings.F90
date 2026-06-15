@@ -1,6 +1,8 @@
 program main
+#ifdef HAVE_PETSC
 #include "petsc/finclude/petsc.h"
   use petsc
+#endif
   use mpi, only: MPI_COMM_WORLD
 
   use m_data_parameters, only: &
@@ -38,10 +40,10 @@ program main
   call read_commandline_options(comm)
 
   specint = 'no_default_set'
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-specint", specint, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-specint", specint, lflg, ierr); call CHKERR(ierr)
 
   atm_filename = share_dir//'tenstream_default.atm'
-  call get_petsc_opt(PETSC_NULL_CHARACTER, '-atm', atm_filename, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', '-atm', atm_filename, lflg, ierr); call CHKERR(ierr)
   inquire (file=trim(atm_filename), exist=lfile_exists)
   if (.not. lfile_exists) then
     ierr = 1
@@ -51,56 +53,57 @@ program main
   call CHKERR(ierr, 'background atmosphere file: `'//trim(atm_filename)//&
     & '` does not exist! Please provide a path with option -atm <atmfile>')
 
-  call get_petsc_opt(PETSC_NULL_CHARACTER, '-out', outfile, lhave_outfile, ierr); call CHKERR(ierr)
+  outfile = 'unset'
+  call get_petsc_opt('', '-out', outfile, lhave_outfile, ierr); call CHKERR(ierr)
 !  if(.not.lflg) call CHKERR(1_mpiint, 'need to supply a output filename... please call with -out <output.nc>')
 
   lsolar = .true.
-  call get_petsc_opt(PETSC_NULL_CHARACTER, '-solar', lsolar, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', '-solar', lsolar, lflg, ierr); call CHKERR(ierr)
 
   lthermal = .true.
-  call get_petsc_opt(PETSC_NULL_CHARACTER, '-thermal', lthermal, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', '-thermal', lthermal, lflg, ierr); call CHKERR(ierr)
 
   Nx = 5; Ny = 5; Nlay = 6
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-Nx", Nx, lflg, ierr); call CHKERR(ierr)
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-Ny", Ny, lflg, ierr); call CHKERR(ierr)
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-Nz", Nlay, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-Nx", Nx, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-Ny", Ny, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-Nz", Nlay, lflg, ierr); call CHKERR(ierr)
   icollapse = -1
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-icollapse", icollapse, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-icollapse", icollapse, lflg, ierr); call CHKERR(ierr)
 
   lbuildings = .true.
-  call get_petsc_opt(PETSC_NULL_CHARACTER, '-buildings', &
+  call get_petsc_opt('', '-buildings', &
                      lbuildings, lflg, ierr); call CHKERR(ierr)
 
   buildings_albedo = .1_ireals
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-BAg", buildings_albedo, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-BAg", buildings_albedo, lflg, ierr); call CHKERR(ierr)
 
   buildings_temp = 300
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-Btemp", buildings_temp, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-Btemp", buildings_temp, lflg, ierr); call CHKERR(ierr)
 
   dx = 100
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-dx", dx, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-dx", dx, lflg, ierr); call CHKERR(ierr)
   dy = dx
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-dy", dy, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-dy", dy, lflg, ierr); call CHKERR(ierr)
 
   phi0 = 180._ireals
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-phi", phi0, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-phi", phi0, lflg, ierr); call CHKERR(ierr)
   theta0 = 0._ireals
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-theta", theta0, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-theta", theta0, lflg, ierr); call CHKERR(ierr)
 
   Ag_solar = 0.15_ireals
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-Ag_solar", Ag_solar, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-Ag_solar", Ag_solar, lflg, ierr); call CHKERR(ierr)
 
   Ag_thermal = 0.05_ireals
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-Ag_thermal", Ag_thermal, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-Ag_thermal", Ag_thermal, lflg, ierr); call CHKERR(ierr)
 
   skin_temp = 300_ireals
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-tskin", skin_temp, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-tskin", skin_temp, lflg, ierr); call CHKERR(ierr)
 
   lverbose = .true.
-  call get_petsc_opt(PETSC_NULL_CHARACTER, '-verbose', lverbose, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', '-verbose', lverbose, lflg, ierr); call CHKERR(ierr)
 
   lrayli_opts = .false.
-  call get_petsc_opt(PETSC_NULL_CHARACTER, '-rayli_opts', lrayli_opts, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', '-rayli_opts', lrayli_opts, lflg, ierr); call CHKERR(ierr)
 
   if (lrayli_opts) then
     rayli_options = ''
@@ -118,7 +121,9 @@ program main
     rayli_options = trim(rayli_options)//' -visit_view_up 0.1878717450780742,0.5879401184069877,0.7867849925925738'
 
     if (lverbose) print *, 'Adding rayli Petsc Options:', trim(rayli_options)
+#ifdef HAVE_PETSC
     call PetscOptionsInsertString(PETSC_NULL_OPTIONS, trim(rayli_options), ierr); call CHKERR(ierr)
+#endif
   end if
 
   if (lbuildings) then

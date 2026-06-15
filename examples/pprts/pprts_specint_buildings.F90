@@ -1,8 +1,5 @@
 module m_examples_pprts_specint_buildings
 
-#include "petsc/finclude/petsc.h"
-  use petsc
-
   use m_data_parameters, only: &
     & init_mpi_data_parameters, &
     & iintegers, ireals, mpiint, &
@@ -27,7 +24,7 @@ module m_examples_pprts_specint_buildings
   use m_specint_pprts, only: specint_pprts, specint_pprts_destroy
 
   ! tenstr_atm holds info about tracer and merges dynamics grid vars with background grids
-  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, destroy_tenstr_atm
+  use m_tenstr_atm, only: t_tenstr_atm, setup_tenstr_atm, destroy_tenstr_atm
 
   use m_buildings, only: &
     & t_pprts_buildings, &

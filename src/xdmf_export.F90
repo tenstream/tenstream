@@ -1,22 +1,20 @@
 module m_xdmf_export
-#include "petsc/finclude/petsc.h"
-  use petsc
-
   use m_data_parameters, only: &
     & iintegers, &
     & ireals, &
     & mpiint, &
-    & default_str_len
+    & default_str_len, &
+    & i0, i1, i2
 
   use m_helper_functions, only: &
     & CHKERR, &
     & CHKWARN, &
     & toStr, &
-    & ind_1d_to_nd, ind_nd_to_1d, ndarray_offsets, &
+    & ind_1d_to_nd, &
     & get_arg
 
   use m_pprts_base, only: &
-    & set_dmda_cell_coordinates, &
+    & atmk, &
     & t_solver
 
   use m_buildings, only: &
@@ -49,11 +47,9 @@ contains
     integer(mpiint), intent(out) :: ierr
     logical, optional, intent(in) :: verbose
 
-    type(tDM) :: coordDA
-    type(tVec) :: coordinates
-    real(ireals), pointer, dimension(:, :, :, :) :: xv
-    real(ireals), pointer, dimension(:) :: xv1d
+    real(ireals), allocatable :: xv(:, :, :, :)
     integer(iintegers) :: zs, zm, xs, xm, ys, ym
+    integer(iintegers) :: k, i, j
 
     integer(iintegers) :: m, idx(4), l, n
     real(ireals) :: verts(3, 4)
@@ -63,9 +59,6 @@ contains
     logical :: file_exists
     integer(mpiint) :: irank, numnodes
     integer(mpiint) :: iter
-
-    xv => null()
-    xv1d => null()
 
     ierr = 0
 
@@ -95,17 +88,19 @@ contains
 
     call mpi_comm_size(solver%comm, numnodes, ierr); call CHKERR(ierr)
 
-    associate (C => solver%C_diff)
-      call DMGetCoordinateDM(C%da, coordDA, ierr); call CHKERR(ierr)
-      call DMDAGetGhostCorners(coordDA, zs, xs, ys, zm, xm, ym, ierr); call CHKERR(ierr)
-
-      call DMGetCoordinatesLocal(C%da, coordinates, ierr); call CHKERR(ierr)
-      if (coordinates .eq. PETSC_NULL_VEC) then
-        call set_dmda_cell_coordinates(solver, solver%atm, C%da, ierr)
-        call DMGetCoordinatesLocal(C%da, coordinates, ierr); call CHKERR(ierr)
-      end if
-      call VecGetArray(coordinates, xv1d, ierr); call CHKERR(ierr)
-      xv(0:2, zs:zs + zm - 1, xs:xs + xm - 1, ys:ys + ym - 1) => xv1d
+    associate (C => solver%C_diff, atm => solver%atm)
+      allocate (xv(i0:i2, C%zs:C%ze, C%gxs:C%gxe, C%gys:C%gye))
+      do j = C%gys, C%gye
+        do i = C%gxs, C%gxe
+          do k = C%zs, C%ze
+            xv(i0, k, i, j) = atm%hhl(i0, atmk(atm, k), i, j)
+            xv(i1, k, i, j) = (real(i, ireals) + 0.5_ireals) * atm%dx
+            xv(i2, k, i, j) = (real(j, ireals) + 0.5_ireals) * atm%dy
+          end do
+        end do
+      end do
+      zs = lbound(xv, 2); xs = lbound(xv, 3); ys = lbound(xv, 4)
+      zm = size(xv, 2); xm = size(xv, 3); ym = size(xv, 4)
     end associate
 
     do irank = 0, numnodes - 1
@@ -289,20 +284,15 @@ contains
     real(ireals), allocatable, dimension(:, :, :), intent(in), optional :: edir
     logical, optional, intent(in) :: verbose
 
-    type(tDM) :: coordDA
-    type(tVec) :: coordinates
-    real(ireals), pointer, dimension(:, :, :, :) :: xv
-    real(ireals), pointer, dimension(:) :: xv1d
+    real(ireals), allocatable :: xv(:, :, :, :)
     integer(iintegers) :: zs, zm, xs, xm, ys, ym
+    integer(iintegers) :: k, i, j
 
     character(len=default_str_len) :: fname
     integer :: funit
     logical :: file_exists
     integer(mpiint) :: irank, numnodes
     integer(mpiint) :: iter
-
-    xv => null()
-    xv1d => null()
 
     ierr = 0
 
@@ -332,17 +322,19 @@ contains
 
     call mpi_comm_size(solver%comm, numnodes, ierr); call CHKERR(ierr)
 
-    associate (C => solver%C_diff)
-      call DMGetCoordinateDM(C%da, coordDA, ierr); call CHKERR(ierr)
-      call DMDAGetGhostCorners(coordDA, zs, xs, ys, zm, xm, ym, ierr); call CHKERR(ierr)
-
-      call DMGetCoordinatesLocal(C%da, coordinates, ierr); call CHKERR(ierr)
-      if (coordinates .eq. PETSC_NULL_VEC) then
-        call set_dmda_cell_coordinates(solver, solver%atm, C%da, ierr)
-        call DMGetCoordinatesLocal(C%da, coordinates, ierr); call CHKERR(ierr)
-      end if
-      call VecGetArray(coordinates, xv1d, ierr); call CHKERR(ierr)
-      xv(0:2, zs:zs + zm - 1, xs:xs + xm - 1, ys:ys + ym - 1) => xv1d
+    associate (C => solver%C_diff, atm => solver%atm)
+      allocate (xv(i0:i2, C%zs:C%ze, C%gxs:C%gxe, C%gys:C%gye))
+      do j = C%gys, C%gye
+        do i = C%gxs, C%gxe
+          do k = C%zs, C%ze
+            xv(i0, k, i, j) = atm%hhl(i0, atmk(atm, k), i, j)
+            xv(i1, k, i, j) = (real(i, ireals) + 0.5_ireals) * atm%dx
+            xv(i2, k, i, j) = (real(j, ireals) + 0.5_ireals) * atm%dy
+          end do
+        end do
+      end do
+      zs = lbound(xv, 2); xs = lbound(xv, 3); ys = lbound(xv, 4)
+      zm = size(xv, 2); xm = size(xv, 3); ym = size(xv, 4)
     end associate
 
     do irank = 0, numnodes - 1
@@ -390,16 +382,31 @@ contains
     end subroutine
 
     subroutine write_grid()
+      integer(iintegers) :: p, q, Ndim2, Ndim3
+      real(ireals) :: x0, y0, z0
+
+      Ndim2 = size(edn, dim=2)
+      Ndim3 = size(edn, dim=3)
+      ! Surface height from ground level (k=zs is surface, k=ze is top of atm)
+      ! Surface is at ze (k=ze, hhl=0); zs is the top of the local domain
+      ! Use C%xs/C%ys (non-ghost) — ghost cells have uninitialized hhl
+      z0 = xv(i0, zs + zm - 1, solver%C_diff%xs, solver%C_diff%ys)
+      ! Building vertices use (i-0.5)*dx convention (cell centre - dx); match that
+      x0 = (real(solver%C_diff%xs, ireals) - 0.5_ireals) * solver%atm%dx
+      y0 = (real(solver%C_diff%ys, ireals) - 0.5_ireals) * solver%atm%dy
+
       write (funit, *) '<Grid Name="GroundSubMesh'//toStr(solver%myid)//'">'
-      write (funit, *) '<Topology TopologyType="3DCORECTMesh" &
-        & NumberOfElements=" 1 ', size(edn, dim=3) + 1, size(edn, dim=2) + 1, '"/>'
-      write (funit, *) '<Geometry GeometryType="ORIGIN_DXDYDZ">'
-      write (funit, *) '<DataStructure Name="Origin" Dimensions="3" Format="XML">'
-      write (funit, *) xv([1, 2, 0], zs + zm - 1, xs, ys)! - [real(ireals) :: solver%atm%dx/2, solver%atm%dy/2, 0]
-      write (funit, *) '</DataStructure>'
-      write (funit, *) '<DataStructure Name="Spacing" Dimensions="3" Format="XML">'
-      write (funit, *) solver%atm%dx, solver%atm%dy, 0
-      write (funit, *) '</DataStructure>'
+      ! 2DSMesh with explicit XYZ nodes — unambiguous in both VisIt and ParaView
+      write (funit, *) '<Topology TopologyType="2DSMesh" NumberOfElements="', Ndim2 + 1, Ndim3 + 1, '"/>'
+      write (funit, *) '<Geometry GeometryType="XYZ">'
+      write (funit, *) '<DataItem Format="XML" Dimensions="', (Ndim2 + 1) * (Ndim3 + 1), 3, '">'
+      do q = 0, Ndim3
+        do p = 0, Ndim2
+          write (funit, *) x0 + real(p, ireals) * solver%atm%dx, &
+            & y0 + real(q, ireals) * solver%atm%dy, z0
+        end do
+      end do
+      write (funit, *) '</DataItem>'
       write (funit, *) '</Geometry>'
 
       ! write data attributes
@@ -407,7 +414,7 @@ contains
       if (present(edir)) then
         if (allocated(edir)) then
           write (funit, *) '<Attribute Center="Cell" Name="edir">'
-          write (funit, *) '<DataItem Format="XML" Dimensions="', size(edir, dim=2), size(edir, dim=3), '">'
+          write (funit, *) '<DataItem Format="XML" Dimensions="', Ndim2, Ndim3, '">'
           write (funit, *) edir(size(edir, dim=1), :, :)
           write (funit, *) '</DataItem>', '</Attribute>'
         end if
@@ -416,7 +423,7 @@ contains
       ! edn
       if (allocated(edn)) then
         write (funit, *) '<Attribute Center="Cell" Name="edn">'
-        write (funit, *) '<DataItem Format="XML" Dimensions="', size(edn, dim=2), size(edn, dim=3), '">'
+        write (funit, *) '<DataItem Format="XML" Dimensions="', Ndim2, Ndim3, '">'
         write (funit, *) edn(size(edn, dim=1), :, :)
         write (funit, *) '</DataItem>', '</Attribute>'
       end if
@@ -424,7 +431,7 @@ contains
       ! eup
       if (allocated(eup)) then
         write (funit, *) '<Attribute Center="Cell" Name="eup">'
-        write (funit, *) '<DataItem Format="XML" Dimensions="', size(eup, dim=2), size(eup, dim=3), '">'
+        write (funit, *) '<DataItem Format="XML" Dimensions="', Ndim2, Ndim3, '">'
         write (funit, *) eup(size(eup, dim=1), :, :)
         write (funit, *) '</DataItem>', '</Attribute>'
       end if

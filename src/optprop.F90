@@ -18,9 +18,6 @@
 !-------------------------------------------------------------------------
 
 module m_optprop
-#include "petsc/finclude/petsc.h"
-  use petsc
-
 #ifdef _XLF
   use ieee_arithmetic
 #define isnan ieee_is_nan
@@ -39,7 +36,7 @@ module m_optprop
     & rmse, &
     & swap, &
     & toStr
-  use m_data_parameters, only: ireals, ireal_dp, irealLUT, ireal_params, iintegers, one, zero, i0, i1, inil, mpiint
+  use m_data_parameters, only: ireals, ireal_dp, irealLUT, ireal_params, iintegers, one, zero, mpiint
   use m_optprop_base, only: t_optprop_base, t_op_config, find_op_dim_by_name
   use m_optprop_LUT, only: &
     & t_optprop_LUT, &
@@ -596,9 +593,9 @@ contains
     end if
 
     if (.not. lset) then
-      call get_petsc_opt(PETSC_NULL_CHARACTER, "-bmc_online", compute_coeff_online, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt('', "-bmc_online", compute_coeff_online, lflg, ierr); call CHKERR(ierr)
       if (present(opt_vertices)) then
-        call get_petsc_opt(PETSC_NULL_CHARACTER, "-bmc_default_unit_cube_reference", bmc_default_unit_cube_reference, lflg, ierr)
+        call get_petsc_opt('', "-bmc_default_unit_cube_reference", bmc_default_unit_cube_reference, lflg, ierr)
         call CHKERR(ierr)
       end if
       lset = .true.

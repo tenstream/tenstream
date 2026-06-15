@@ -3,11 +3,12 @@ module test_ANN
   use m_data_parameters, only: init_mpi_data_parameters, &
     & ireals, irealLUT, iintegers, mpiint, default_str_len
   use m_helper_functions, only: CHKERR, colored_str_by_range
-  use m_netcdfio, only: ncwrite
   use m_optprop, only: t_optprop_3_10, t_optprop_3_10_ann
 
+#ifdef HAVE_PETSC
 #include "petsc/finclude/petsc.h"
   use petsc
+#endif
 
   use pfunit_mod
   implicit none
@@ -25,10 +26,12 @@ contains
   @after
   subroutine teardown(this)
     class(MpiTestMethod), intent(inout) :: this
+#ifdef HAVE_PETSC
     PetscBool :: lpetsc_is_initialized
     integer(mpiint) :: ierr
     call PetscInitialized(lpetsc_is_initialized, ierr)
     if (lpetsc_is_initialized) call PetscFinalize(ierr)
+#endif
   end subroutine teardown
 
   @test(npes=[1])

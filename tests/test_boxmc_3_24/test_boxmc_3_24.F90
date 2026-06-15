@@ -1,11 +1,7 @@
 module test_boxmc_3_24
-  use m_boxmc, only: t_boxmc, t_boxmc_3_24
-  use m_data_parameters, only: &
-    mpiint, iintegers, ireals, ireal_dp, &
-    one, zero, i1, default_str_len, &
-    init_mpi_data_parameters
-  use m_helper_functions, only: toStr, cstr, colored_str_by_range, deg2rad
-  use m_optprop_parameters, only: stddev_atol
+  use m_boxmc, only: t_boxmc_3_24
+  use m_data_parameters, only: mpiint, iintegers, ireals, ireal_dp, one, zero, default_str_len, init_mpi_data_parameters
+  use m_helper_functions, only: cstr, colored_str_by_range
   use m_boxmc_geometry, only: setup_default_unit_cube_geometry
 
   use pfunit_mod

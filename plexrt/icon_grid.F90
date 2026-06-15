@@ -7,7 +7,7 @@ module m_icon_grid
   use m_data_parameters, only: ireals, iintegers, mpiint, default_str_len, &
                                i0, i1, i2
 
-  use m_helper_functions, only: get_arg, imp_bcast, chkerr, unique, cumsum
+  use m_helper_functions, only: imp_bcast, chkerr, unique, cumsum
 
   implicit none
 

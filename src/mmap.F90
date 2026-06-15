@@ -1,5 +1,5 @@
 module m_mmap
-  use iso_fortran_env, only: real32, int8, int16, int32, int64
+  use iso_fortran_env, only: real32, int8, int16, int32
   use iso_c_binding
 
   use m_data_parameters, only: iintegers, irealLUT, mpiint
@@ -7,8 +7,8 @@ module m_mmap
   use m_netcdfIO, only: acquire_file_lock, release_file_lock
 
   use m_c_syscall_wrappers, only: c_sysconf, c_mmap, c_munmap, &
-                                  c_open, c_close, c_lockf, &
-                                  MAP_NORESERVE, MAP_PRIVATE, PROT_READ, SC_PAGESIZE, O_RDONLY
+    & c_open, c_close, &
+    & MAP_NORESERVE, MAP_PRIVATE, PROT_READ, SC_PAGESIZE, O_RDONLY
 
   implicit none
 
@@ -91,6 +91,13 @@ contains
     header(3) = bytesize
     header(4) = size(arr, dim=1)
     header(5) = size(arr, dim=2)
+
+    ! Skip writing if the file already exists — avoids acquiring a lock in read-only dirs.
+    inquire (file=trim(fname), exist=lexists)
+    if (lexists) then
+      ierr = 0
+      return
+    end if
 
     call acquire_file_lock(fname, flock_unit, ierr); call CHKERR(ierr)
     ierr = 0

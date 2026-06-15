@@ -50,11 +50,16 @@ contains
   subroutine error_growth_tracking(this)
     class(MpiTestMethod), intent(inout) :: this
 
-    type(t_solver_3_10) :: solver_3_10
-    type(t_solver_8_16) :: solver_8_16
+    type(t_solver_3_10), allocatable :: solver_3_10
+    type(t_solver_8_16), allocatable :: solver_8_16
 
+    allocate (solver_3_10)
     call this_test(solver_3_10)
+    deallocate (solver_3_10)
+
+    allocate (solver_8_16)
     call this_test(solver_8_16)
+    deallocate (solver_8_16)
 
   contains
     subroutine this_test(solver)

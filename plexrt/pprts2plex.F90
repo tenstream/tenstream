@@ -3,7 +3,7 @@ module m_pprts2plex
   use petsc
 
   use m_data_parameters, only: ireals, iintegers, mpiint, &
-    & one, i0
+    & one
 
   use m_helper_functions, only: CHKWARN, CHKERR, approx, toStr, &
     & is_inrange, &

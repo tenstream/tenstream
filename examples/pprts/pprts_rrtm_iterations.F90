@@ -1,13 +1,11 @@
 module m_example_pprts_rrtm_iterations
 
-#include "petsc/finclude/petsc.h"
-  use petsc
   use mpi
 
   ! Import datatype from the TenStream lib. Depending on how PETSC is
   ! compiled(single or double floats, or long ints), this will determine what
   ! the Tenstream uses.
-  use m_data_parameters, only: init_mpi_data_parameters, iintegers, ireals, mpiint, zero, one, default_str_len
+  use m_data_parameters, only: init_mpi_data_parameters, iintegers, ireals, mpiint, default_str_len
 
   use m_helper_functions, only: linspace, CHKERR, meanval, spherical_2_cartesian, get_petsc_opt
   use m_search, only: search_sorted_bisection
@@ -18,8 +16,8 @@ module m_example_pprts_rrtm_iterations
   ! main entry point for solver, and desctructor
   use m_pprts_rrtmg, only: pprts_rrtmg, destroy_pprts_rrtmg
 
-  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, &
-                                destroy_tenstr_atm, print_tenstr_atm
+  use m_tenstr_atm, only: t_tenstr_atm, setup_tenstr_atm, &
+                          destroy_tenstr_atm, print_tenstr_atm
 
   implicit none
 
@@ -82,8 +80,8 @@ contains
     call MPI_COMM_RANK(comm, myid, ierr)
 
     lverbose = .true.
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-v", lverbose, lflg, ierr); call CHKERR(ierr)
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "--verbose", lverbose, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', "-v", lverbose, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', "--verbose", lverbose, lflg, ierr); call CHKERR(ierr)
 
     if (myid .eq. 0 .and. lverbose) print *, 'Running rrtm_lw_sw example with grid size:', nxp, nyp, nzp
 
@@ -126,11 +124,11 @@ contains
     icld(2) = nint(search_sorted_bisection(plev(:, 1, 1), 700._ireals))
 
     lwc0 = 1e-2
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-lwc", lwc0, lflg, ierr)
+    call get_petsc_opt('', "-lwc", lwc0, lflg, ierr)
     lwc(icld(1):icld(2), :, :) = lwc0
 
     lrandom_lwc = .false.
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-random_lwc", lrandom_lwc, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', "-random_lwc", lrandom_lwc, lflg, ierr); call CHKERR(ierr)
     if (lrandom_lwc) then
       call random_number(lwc(icld(1):icld(2), :, :))
       lwc(icld(1):icld(2), :, :) = lwc(icld(1):icld(2), :, :) * lwc0
@@ -147,26 +145,26 @@ contains
     preliq(1:size(reliq, 1), 1:size(reliq, 2) * size(reliq, 3)) => reliq
 
     atm_filename = 'afglus_100m.dat'
-    call get_petsc_opt(PETSC_NULL_CHARACTER, '-atm_filename', &
+    call get_petsc_opt('', '-atm_filename', &
                        atm_filename, lflg, ierr); call CHKERR(ierr)
 
     phi0 = 180
     theta0 = 0
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-phi0", phi0, lflg, ierr); call CHKERR(ierr)
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-theta0", theta0, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', "-phi0", phi0, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', "-theta0", theta0, lflg, ierr); call CHKERR(ierr)
 
     lsolar = .true.
     lthermal = .true.
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-solar", lsolar, lflg, ierr); call CHKERR(ierr)
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-thermal", lthermal, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', "-solar", lsolar, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', "-thermal", lthermal, lflg, ierr); call CHKERR(ierr)
 
     call allocate_pprts_solver_from_commandline(pprts_solver, '3_10', ierr); call CHKERR(ierr)
 
     solve_iterations = 1
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-solve_iterations", &
+    call get_petsc_opt('', "-solve_iterations", &
                        solve_iterations, lflg, ierr); call CHKERR(ierr)
     solve_iterations_scale = 0
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-solve_iterations_scale", &
+    call get_petsc_opt('', "-solve_iterations_scale", &
                        solve_iterations_scale, lflg, ierr); call CHKERR(ierr)
 
     do iter = 1, solve_iterations

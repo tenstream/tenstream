@@ -20,9 +20,7 @@
 module m_mcdmda
   use iso_fortran_env, only: int64, output_unit
   use iso_c_binding, only: c_backspace
-
-#include "petsc/finclude/petsc.h"
-  use petsc
+  use mpi
 
   use m_data_parameters, only: ireals, iintegers, ireal_dp, &
                                mpiint, imp_iinteger, imp_int8, &
@@ -64,8 +62,6 @@ module m_mcdmda
     & t_solver_mcdmda, &
     & t_state_container
 
-  use m_petsc_helpers, only: getVecPointer, restoreVecPointer
-
   use m_buildings, only: t_pprts_buildings
 
   use m_boxmc_geometry, only: &
@@ -103,12 +99,18 @@ module m_mcdmda
   end type
 
   type :: t_photon_queue
-    type(t_distributed_photon), allocatable :: photons(:)
-    type(t_list_int64) :: ready ! linked list for read_to_go photon indices
-    type(t_list_int64) :: empty ! linked_list of empty slots in this queue
-    type(t_list_int64) :: sending ! linked_list of sending slots in this queue
-    integer(mpiint) :: owner ! owner is the owning rank, i.e. myid or the neighbor id
-    integer(iintegers) :: queue_index ! is the STATUS integer, i.e. one of PQ_SELF, PQ_NORTH etc.
+    ! send side: outgoing MPI_Isend photons
+    type(t_distributed_photon), allocatable :: send_photons(:)
+    type(t_list_int64) :: send_empty  ! free send slots
+    type(t_list_int64) :: sending     ! MPI_Isend in progress
+
+    ! recv side: received photons waiting to be processed
+    type(t_distributed_photon), allocatable :: recv_photons(:)
+    type(t_list_int64) :: recv_empty  ! free recv slots
+    type(t_list_int64) :: ready       ! received, ready to run
+
+    integer(mpiint) :: owner
+    integer(iintegers) :: queue_index
   end type
 
   logical, parameter :: ldebug = .false.
@@ -121,6 +123,11 @@ module m_mcdmda
 contains
 
   subroutine solve_mcdmda(solver, edirTOA, solution, ierr, opt_buildings)
+#ifdef HAVE_PETSC
+#include "petsc/finclude/petsc.h"
+    use petsc
+    use m_petsc_helpers, only: getVecPointer, restoreVecPointer
+#endif
     class(t_solver), intent(in) :: solver
     real(ireals), intent(in) :: edirTOA
     type(t_state_container) :: solution
@@ -225,7 +232,7 @@ contains
 
       call fill_buildings_idx(solver, opt_buildings, buildings_idx)
 
-      call setup_photon_queue(pqueues(PQ_SELF), Nphotons_local, myid, PQ_SELF)
+      call setup_photon_queue(pqueues(PQ_SELF), Nphotons_local, myid, PQ_SELF, opt_Nsend=0_int64)
       call setup_photon_queue(pqueues(PQ_NORTH), Nqueuesize, C%neighbors(22), PQ_NORTH)
       call setup_photon_queue(pqueues(PQ_EAST), Nqueuesize, C%neighbors(16), PQ_EAST)
       call setup_photon_queue(pqueues(PQ_SOUTH), Nqueuesize, C%neighbors(4), PQ_SOUTH)
@@ -461,108 +468,210 @@ contains
     end subroutine
 
     subroutine get_result()
+#ifdef HAVE_PETSC
       type(tVec) :: ediff_local, edir_local
       real(ireals), pointer, dimension(:, :, :, :) :: xv_dir, xv_diff, xv_abso
       real(ireals), pointer, dimension(:) :: xv_dir1d, xv_diff1d, xv_abso1d
+#endif
       integer(iintegers) :: Nundersampled
 
-      xv_dir => null()
-      xv_dir1d => null()
-      xv_diff => null()
-      xv_diff1d => null()
-      xv_abso => null()
-      xv_abso1d => null()
-
       associate (&
-          & atm => solver%atm,&
+          & atm => solver%atm, &
           & C_one => solver%C_one, &
           & C_dir => solver%C_dir, &
           & C_diff => solver%C_diff, &
-          & C_one_atm => solver%C_one_atm,&
+          & C_one_atm => solver%C_one_atm, &
           & C_one_atm1 => solver%C_one_atm1)
 
+#ifdef HAVE_PETSC
+        xv_dir => null(); xv_dir1d => null()
+        xv_diff => null(); xv_diff1d => null()
+        xv_abso => null(); xv_abso1d => null()
+
         if (solution%lsolar_rad) then
-          ! handle edir
           call DMGetLocalVector(C_dir%da, edir_local, ierr); call CHKERR(ierr)
           call VecSet(edir_local, 0._ireals, ierr); call CHKERR(ierr)
-
           call getVecPointer(C_dir%da, edir_local, xv_dir1d, xv_dir)
-
-          xv_dir(:, C_dir%zs + 1:, :, :) = real(&
-            & edir(:, atmk(atm, C_one_atm1%zs + 1):C_one_atm1%ze, :, :), &
-            & kind(xv_dir))
+          xv_dir(:, C_dir%zs + 1:, :, :) = real(edir(:, atmk(atm, C_one_atm1%zs + 1):C_one_atm1%ze, :, :), kind(xv_dir))
           xv_dir(:, C_dir%zs, :, :) = real(edir(:, C_one_atm1%zs, :, :), kind(xv_dir))
-
           call restoreVecPointer(C_dir%da, edir_local, xv_dir1d, xv_dir)
-
-          call VecSet(solution%edir, 0._ireals, ierr); call CHKERR(ierr)
-          call DMLocalToGlobalBegin(C_dir%da, edir_local, ADD_VALUES, solution%edir, ierr); call CHKERR(ierr)
-          call DMLocalToGlobalEnd(C_dir%da, edir_local, ADD_VALUES, solution%edir, ierr); call CHKERR(ierr)
+          call VecSet(solution%edir_petsc, 0._ireals, ierr); call CHKERR(ierr)
+          call DMLocalToGlobalBegin(C_dir%da, edir_local, ADD_VALUES, solution%edir_petsc, ierr); call CHKERR(ierr)
+          call DMLocalToGlobalEnd(C_dir%da, edir_local, ADD_VALUES, solution%edir_petsc, ierr); call CHKERR(ierr)
           call DMRestoreLocalVector(C_dir%da, edir_local, ierr); call CHKERR(ierr)
-
-          call PetscObjectSetName(solution%edir, 'edir', ierr); call CHKERR(ierr)
-          call PetscObjectViewFromOptions(PetscObjectCast(solution%edir), PETSC_NULL_OBJECT, '-mcdmda_show_edir', ierr)
+          call PetscObjectSetName(solution%edir_petsc, 'edir', ierr); call CHKERR(ierr)
+          call PetscObjectViewFromOptions(PetscObjectCast(solution%edir_petsc), PETSC_NULL_OBJECT, '-mcdmda_show_edir', ierr)
           call CHKERR(ierr)
         end if
 
-        ! handle normalization of ediff
         call DMGetLocalVector(C_diff%da, ediff_local, ierr); call CHKERR(ierr)
         call VecSet(ediff_local, zero, ierr); call CHKERR(ierr)
-
         call getVecPointer(C_diff%da, ediff_local, xv_diff1d, xv_diff)
-
         if (.not. solution%lsolar_rad) then
           Nundersampled = count(Nediff .gt. 0_iintegers .and. Nediff .le. 10)
           call CHKWARN(int(Nundersampled, mpiint), 'Found '//toStr(Nundersampled)//' fluxes that were certainly reacheable,'// &
             & 'but were sampled crudely. This may lead to large biases in the results. Please consider using more photons!')
-
           ediff = ediff * real(pi, kind(ediff)) / real(max(1_iintegers, Nediff), kind(ediff))
         end if
-
-        xv_diff(:, C_diff%zs + 1:, :, :) = real(&
-          & ediff(:, atmk(atm, C_one_atm1%zs + 1):C_one_atm1%ze, :, :), &
-          & kind(xv_diff))
+        xv_diff(:, C_diff%zs + 1:, :, :) = real(ediff(:, atmk(atm, C_one_atm1%zs + 1):C_one_atm1%ze, :, :), kind(xv_diff))
         xv_diff(:, C_diff%zs, :, :) = real(ediff(:, C_one_atm1%zs, :, :), kind(xv_diff))
-
         call restoreVecPointer(C_diff%da, ediff_local, xv_diff1d, xv_diff)
-
-        call VecSet(solution%ediff, 0._ireals, ierr); call CHKERR(ierr)
-        call DMLocalToGlobalBegin(C_diff%da, ediff_local, ADD_VALUES, solution%ediff, ierr); call CHKERR(ierr)
-        call DMLocalToGlobalEnd(C_diff%da, ediff_local, ADD_VALUES, solution%ediff, ierr); call CHKERR(ierr)
+        call VecSet(solution%ediff_petsc, 0._ireals, ierr); call CHKERR(ierr)
+        call DMLocalToGlobalBegin(C_diff%da, ediff_local, ADD_VALUES, solution%ediff_petsc, ierr); call CHKERR(ierr)
+        call DMLocalToGlobalEnd(C_diff%da, ediff_local, ADD_VALUES, solution%ediff_petsc, ierr); call CHKERR(ierr)
         call DMRestoreLocalVector(C_diff%da, ediff_local, ierr); call CHKERR(ierr)
-
-        call PetscObjectSetName(solution%ediff, 'ediff', ierr); call CHKERR(ierr)
-        call PetscObjectViewFromOptions(PetscObjectCast(solution%ediff), PETSC_NULL_OBJECT, '-mcdmda_show_ediff', ierr)
+        call PetscObjectSetName(solution%ediff_petsc, 'ediff', ierr); call CHKERR(ierr)
+        call PetscObjectViewFromOptions(PetscObjectCast(solution%ediff_petsc), PETSC_NULL_OBJECT, '-mcdmda_show_ediff', ierr)
         call CHKERR(ierr)
 
-        ! absorption
-        call VecSet(solution%abso, 0._ireals, ierr); call CHKERR(ierr)
-        call getVecPointer(C_one%da, solution%abso, xv_abso1d, xv_abso)
-
+        call VecSet(solution%abso_petsc, 0._ireals, ierr); call CHKERR(ierr)
+        call getVecPointer(C_one%da, solution%abso_petsc, xv_abso1d, xv_abso)
         if (.not. solution%lsolar_rad) then
           abso = abso * pi * C_one%glob_xm * C_one%glob_ym / Nphotons_global
         end if
-
-        xv_abso(i0, :, :, :) = real(&
-          & abso(i0, atmk(atm, C_one_atm%zs):C_one_atm%ze, :, :) &
-          & / atm%dz(atmk(atm, C_one_atm%zs):C_one_atm%ze, :, :), &
-          & kind(xv_abso))
-
-        ! eventually collapsed entry at the top
+        xv_abso(i0, :, :, :) = real(abso(i0, atmk(atm, C_one_atm%zs):C_one_atm%ze, :, :) &
+          & / atm%dz(atmk(atm, C_one_atm%zs):C_one_atm%ze, :, :), kind(xv_abso))
         xv_abso(i0, C_one%zs, :, :) = real( &
           & sum(abso(i0, :atmk(atm, C_one_atm%zs), :, :), dim=1) &
           & / sum(atm%dz(:atmk(atm, C_one_atm%zs), :, :), dim=1), kind(xv_abso))
+        call restoreVecPointer(C_one%da, solution%abso_petsc, xv_abso1d, xv_abso)
+        call PetscObjectViewFromOptions(PetscObjectCast(solution%abso_petsc), PETSC_NULL_OBJECT, '-mcdmda_show_abso', ierr)
+        call CHKERR(ierr)
 
-        call restoreVecPointer(C_one%da, solution%abso, xv_abso1d, xv_abso)
+#else
+        ! nopetsc: ghost reduce using plain MPI, then copy interior to solution arrays
+        block
+          integer(mpiint) :: req(4), nreqs, nbr, ierr_mpi
+          integer(mpiint), parameter :: TAG_E = 81, TAG_N = 82
+          real(ireal_dp), allocatable :: sbuf_e(:, :, :), sbuf_n(:, :, :), rbuf(:, :, :)
+          integer(iintegers) :: dofD, dofF, nz, nx, ny
+
+          dofD = C_dir%dof
+          dofF = C_diff%dof
+          nz = C_one_atm1%ze - C_one_atm1%zs + 1
+          nx = C_one_atm%xe - C_one_atm%xs + 1
+          ny = C_one_atm%ye - C_one_atm%ys + 1
+
+          ! --- edir ghost reduce ---
+          if (solution%lsolar_rad) then
+            nreqs = 0
+            allocate (sbuf_e(0:dofD - 1, C_one_atm1%zs:C_one_atm1%ze, C_one_atm%ys:C_one_atm%ye))
+            allocate (sbuf_n(0:dofD - 1, C_one_atm1%zs:C_one_atm1%ze, C_one_atm%xs:C_one_atm%xe))
+
+            nbr = C_one_atm%neighbors(16)  ! east
+            if (nbr >= 0) then
+              sbuf_e = edir(:, C_one_atm1%zs:C_one_atm1%ze, C_one_atm%gxe, C_one_atm%ys:C_one_atm%ye)
+              nreqs = nreqs + 1
+              call MPI_Isend(sbuf_e, size(sbuf_e), MPI_REAL8, nbr, TAG_E, solver%comm, req(nreqs), ierr_mpi)
+              call CHKERR(int(ierr_mpi, mpiint))
+            end if
+            nbr = C_one_atm%neighbors(22)  ! north
+            if (nbr >= 0) then
+              sbuf_n = edir(:, C_one_atm1%zs:C_one_atm1%ze, C_one_atm%xs:C_one_atm%xe, C_one_atm%gye)
+              nreqs = nreqs + 1
+              call MPI_Isend(sbuf_n, size(sbuf_n), MPI_REAL8, nbr, TAG_N, solver%comm, req(nreqs), ierr_mpi)
+              call CHKERR(int(ierr_mpi, mpiint))
+            end if
+            nbr = C_one_atm%neighbors(10)  ! west — receives our east ghost
+            if (nbr >= 0) then
+              allocate (rbuf(0:dofD - 1, C_one_atm1%zs:C_one_atm1%ze, C_one_atm%ys:C_one_atm%ye))
+              call MPI_Recv(rbuf, size(rbuf), MPI_REAL8, nbr, TAG_E, solver%comm, MPI_STATUS_IGNORE, ierr_mpi)
+              call CHKERR(int(ierr_mpi, mpiint))
+              edir(:, C_one_atm1%zs:C_one_atm1%ze, C_one_atm%xs, C_one_atm%ys:C_one_atm%ye) = &
+                edir(:, C_one_atm1%zs:C_one_atm1%ze, C_one_atm%xs, C_one_atm%ys:C_one_atm%ye) + rbuf
+              deallocate (rbuf)
+            end if
+            nbr = C_one_atm%neighbors(4)  ! south — receives our north ghost
+            if (nbr >= 0) then
+              allocate (rbuf(0:dofD - 1, C_one_atm1%zs:C_one_atm1%ze, C_one_atm%xs:C_one_atm%xe))
+              call MPI_Recv(rbuf, size(rbuf), MPI_REAL8, nbr, TAG_N, solver%comm, MPI_STATUS_IGNORE, ierr_mpi)
+              call CHKERR(int(ierr_mpi, mpiint))
+              edir(:, C_one_atm1%zs:C_one_atm1%ze, C_one_atm%xs:C_one_atm%xe, C_one_atm%ys) = &
+                edir(:, C_one_atm1%zs:C_one_atm1%ze, C_one_atm%xs:C_one_atm%xe, C_one_atm%ys) + rbuf
+              deallocate (rbuf)
+            end if
+            call MPI_Waitall(nreqs, req(1:nreqs), MPI_STATUSES_IGNORE, ierr_mpi)
+            call CHKERR(int(ierr_mpi, mpiint))
+            deallocate (sbuf_e, sbuf_n)
+
+            solution%edir = 0
+            solution%edir(:, C_dir%zs + 1:, :, :) = real(edir(:, atmk(atm, C_one_atm1%zs + 1):C_one_atm1%ze, &
+                                                              C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye), ireals)
+            solution%edir(:, C_dir%zs, :, :) = real(edir(:, C_one_atm1%zs, &
+                                                         C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye), ireals)
+          end if
+
+          ! --- ediff ghost reduce ---
+          if (.not. solution%lsolar_rad) then
+            Nundersampled = count(Nediff .gt. 0_iintegers .and. Nediff .le. 10)
+            call CHKWARN(int(Nundersampled, mpiint), 'Found '//toStr(Nundersampled)//' fluxes that were certainly reacheable,'// &
+              & 'but were sampled crudely. This may lead to large biases in the results. Please consider using more photons!')
+            ediff = ediff * real(pi, kind(ediff)) / real(max(1_iintegers, Nediff), kind(ediff))
+          end if
+
+          nreqs = 0
+          allocate (sbuf_e(0:dofF - 1, C_one_atm1%zs:C_one_atm1%ze, C_one_atm%ys:C_one_atm%ye))
+          allocate (sbuf_n(0:dofF - 1, C_one_atm1%zs:C_one_atm1%ze, C_one_atm%xs:C_one_atm%xe))
+
+          nbr = C_one_atm%neighbors(16)
+          if (nbr >= 0) then
+            sbuf_e = ediff(:, C_one_atm1%zs:C_one_atm1%ze, C_one_atm%gxe, C_one_atm%ys:C_one_atm%ye)
+            nreqs = nreqs + 1
+            call MPI_Isend(sbuf_e, size(sbuf_e), MPI_REAL8, nbr, TAG_E + 10, solver%comm, req(nreqs), ierr_mpi)
+            call CHKERR(int(ierr_mpi, mpiint))
+          end if
+          nbr = C_one_atm%neighbors(22)
+          if (nbr >= 0) then
+            sbuf_n = ediff(:, C_one_atm1%zs:C_one_atm1%ze, C_one_atm%xs:C_one_atm%xe, C_one_atm%gye)
+            nreqs = nreqs + 1
+            call MPI_Isend(sbuf_n, size(sbuf_n), MPI_REAL8, nbr, TAG_N + 10, solver%comm, req(nreqs), ierr_mpi)
+            call CHKERR(int(ierr_mpi, mpiint))
+          end if
+          nbr = C_one_atm%neighbors(10)
+          if (nbr >= 0) then
+            allocate (rbuf(0:dofF - 1, C_one_atm1%zs:C_one_atm1%ze, C_one_atm%ys:C_one_atm%ye))
+            call MPI_Recv(rbuf, size(rbuf), MPI_REAL8, nbr, TAG_E + 10, solver%comm, MPI_STATUS_IGNORE, ierr_mpi)
+            call CHKERR(int(ierr_mpi, mpiint))
+            ediff(:, C_one_atm1%zs:C_one_atm1%ze, C_one_atm%xs, C_one_atm%ys:C_one_atm%ye) = &
+              ediff(:, C_one_atm1%zs:C_one_atm1%ze, C_one_atm%xs, C_one_atm%ys:C_one_atm%ye) + rbuf
+            deallocate (rbuf)
+          end if
+          nbr = C_one_atm%neighbors(4)
+          if (nbr >= 0) then
+            allocate (rbuf(0:dofF - 1, C_one_atm1%zs:C_one_atm1%ze, C_one_atm%xs:C_one_atm%xe))
+            call MPI_Recv(rbuf, size(rbuf), MPI_REAL8, nbr, TAG_N + 10, solver%comm, MPI_STATUS_IGNORE, ierr_mpi)
+            call CHKERR(int(ierr_mpi, mpiint))
+            ediff(:, C_one_atm1%zs:C_one_atm1%ze, C_one_atm%xs:C_one_atm%xe, C_one_atm%ys) = &
+              ediff(:, C_one_atm1%zs:C_one_atm1%ze, C_one_atm%xs:C_one_atm%xe, C_one_atm%ys) + rbuf
+            deallocate (rbuf)
+          end if
+          call MPI_Waitall(nreqs, req(1:nreqs), MPI_STATUSES_IGNORE, ierr_mpi)
+          call CHKERR(int(ierr_mpi, mpiint))
+          deallocate (sbuf_e, sbuf_n)
+
+          solution%ediff = 0
+          solution%ediff(:, C_diff%zs + 1:, :, :) = real(ediff(:, atmk(atm, C_one_atm1%zs + 1):C_one_atm1%ze, &
+                                                               C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye), ireals)
+          solution%ediff(:, C_diff%zs, :, :) = real(ediff(:, C_one_atm1%zs, &
+                                                          C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye), ireals)
+
+          ! --- abso: no ghost cells, direct copy ---
+          solution%abso = 0
+          if (.not. solution%lsolar_rad) then
+            abso = abso * pi * C_one%glob_xm * C_one%glob_ym / Nphotons_global
+          end if
+          solution%abso(i0, :, :, :) = real(abso(i0, atmk(atm, C_one_atm%zs):C_one_atm%ze, :, :) &
+            & / atm%dz(atmk(atm, C_one_atm%zs):C_one_atm%ze, :, :), ireals)
+          solution%abso(i0, C_one%zs, :, :) = real( &
+            & sum(abso(i0, :atmk(atm, C_one_atm%zs), :, :), dim=1) &
+            & / sum(atm%dz(:atmk(atm, C_one_atm%zs), :, :), dim=1), ireals)
+        end block
+#endif
+
       end associate
 
-      call PetscObjectViewFromOptions(PetscObjectCast(solution%abso), PETSC_NULL_OBJECT, '-mcdmda_show_abso', ierr)
-      call CHKERR(ierr)
-
-      !Rayli solver returns fluxes as [W]
       solution%lWm2_dir = .true.
       solution%lWm2_diff = .true.
-      ! and mark solution that it is up to date (to prevent absoprtion computations)
       solution%lchanged = .false.
     end subroutine
 
@@ -621,10 +730,12 @@ contains
     type(t_photon_queue), intent(inout) :: pq
     integer(mpiint), intent(out) :: ierr
     ierr = 0
-    if (allocated(pq%photons)) deallocate (pq%photons)
-    call pq%ready%finalize()
-    call pq%empty%finalize()
+    if (allocated(pq%send_photons)) deallocate (pq%send_photons)
+    if (allocated(pq%recv_photons)) deallocate (pq%recv_photons)
+    call pq%send_empty%finalize()
     call pq%sending%finalize()
+    call pq%recv_empty%finalize()
+    call pq%ready%finalize()
   end subroutine
 
   subroutine run_photon_queue(solver, bmc, bmc_1_2, &
@@ -654,7 +765,7 @@ contains
     end if
 
     Nphotmax = get_arg(huge(Nphotmax), limit_number_photons)
-    Nphotmax = min(size(pqueues(ipq)%photons, kind=int64), Nphotmax)
+    Nphotmax = min(size(pqueues(ipq)%recv_photons, kind=int64), Nphotmax)
 
     killed_photons = 0
     started_photons = 0
@@ -715,7 +826,7 @@ contains
 
     call mpi_comm_rank(solver%comm, myid, ierr); call CHKERR(ierr)
 
-    associate (p => pqueues(ipq)%photons(iphoton)%p)
+    associate (p => pqueues(ipq)%recv_photons(iphoton)%p)
 
       if (ldebug_tracing) print *, myid, cstr('Start of run_photon :: QUEUE:', 'pink'), id2name(ipq), 'iphoton', iphoton
       if (ldebug_tracing) call print_photon(p)
@@ -770,13 +881,13 @@ contains
         end if
 
       end do move
-      call pqueues(ipq)%empty%add(iphoton)
+      call pqueues(ipq)%recv_empty%add(iphoton)
     end associate
 
   contains
 
     subroutine scatter_photon_in_cell()
-      associate (p => pqueues(ipq)%photons(iphoton)%p)
+      associate (p => pqueues(ipq)%recv_photons(iphoton)%p)
         call scatter_photon(p, real(solver%atm%g(p%k, p%i, p%j), ireal_dp))
         p%tau_travel = tau(R())
         if (ldebug_tracing) print *, myid, cstr('********************* SCATTERING', 'peach'), p%k, p%i, p%j
@@ -790,7 +901,7 @@ contains
       real(ireal_dp) :: Btop, Bbot, B1, B2, dz, tauabs, tm1
       real(ireal_dp) :: vertices(24)
 
-      associate (p => pqueues(ipq)%photons(iphoton)%p)
+      associate (p => pqueues(ipq)%recv_photons(iphoton)%p)
 
         dz = solver%atm%dz(p%k, p%i, p%j)
         call setup_default_unit_cube_geometry( &
@@ -840,7 +951,7 @@ contains
 
       lexit_cell = .false.
 
-      associate (p => pqueues(ipq)%photons(iphoton)%p)
+      associate (p => pqueues(ipq)%recv_photons(iphoton)%p)
         ! p%src_side - side where it is coming from, i.e. where it starts,
         ! .e.g if flying down, i.e. entering from top, it will be PPRTS_TOP_FACE
         bidx = buildings_idx(p%src_side, p%k, p%i, p%j)
@@ -896,7 +1007,7 @@ contains
 
       lexit_domain = .false.
 
-      associate (p => pqueues(ipq)%photons(iphoton)%p)
+      associate (p => pqueues(ipq)%recv_photons(iphoton)%p)
 
         call update_flx(solver, p, p%k, p%i, p%j, edir, ediff, Nediff)
 
@@ -1175,12 +1286,13 @@ contains
           p%loc(1) = p%loc(1) * solver%atm%dx
           p%loc(2) = p%loc(2) * solver%atm%dy
 
-          call pqueue_add_photon(pqueue, p, 0_mpiint, ip, ierr); call CHKERR(ierr)
+          call pqueue%recv_empty%pop(ip, ierr); call CHKERR(ierr)
+          pqueue%recv_photons(ip)%p = p
           call pqueue%ready%add(ip)
 
           if (ldebug_tracing) then
             print *, 'Prepared Photon', i, j, ': iphoton', ip, Nphotons
-            call print_photon(pqueue%photons(ip)%p)
+            call print_photon(pqueue%recv_photons(ip)%p)
           end if
         end do
       end do
@@ -1232,14 +1344,11 @@ contains
     !print *,'plot(', x,',',y,',"o") #',ip
   end subroutine
 
-  subroutine find_empty_entry_in_pqueue(pqueue, emptyid, ierr)
+  subroutine find_empty_send_slot(pqueue, emptyid, ierr)
     type(t_photon_queue), intent(inout) :: pqueue
     integer(int64), intent(out) :: emptyid
     integer(mpiint), intent(out) :: ierr
-    call pqueue%empty%pop(emptyid, ierr)
-    if (ierr .ne. 0) then
-      call print_pqueue(pqueue)
-    end if
+    call pqueue%send_empty%pop(emptyid, ierr)
   end subroutine
 
   subroutine print_pqueue(pq, list_queue)
@@ -1247,15 +1356,17 @@ contains
     logical, intent(in), optional :: list_queue
     if (get_arg(.false., list_queue)) then
       print *, 'PQUEUE:', pq%owner, '::', pq%queue_index, 'name ', cstr(trim(id2name(pq%queue_index)), 'blue')
-      print *, 'empty:'
-      call pq%empty%view()
-      print *, 'ready:'
-      call pq%ready%view()
+      print *, 'send_empty:'
+      call pq%send_empty%view()
       print *, 'sending:'
       call pq%sending%view()
+      print *, 'recv_empty:'
+      call pq%recv_empty%view()
+      print *, 'ready:'
+      call pq%ready%view()
     else
       print *, pq%owner, cstr(id2name(pq%queue_index), 'blue'), &
-        & '  '//'empty', pq%empty%len(), &
+        & '  send_empty', pq%send_empty%len(), &
         & '  '//cstr('ready '//toStr(pq%ready%len()), 'green'), &
         & '  '//cstr('send  '//toStr(pq%sending%len()), 'peach')
     end if
@@ -1268,34 +1379,38 @@ contains
     integer(int64), intent(out) :: ind
     integer(mpiint), intent(out) :: ierr
 
-    call find_empty_entry_in_pqueue(pqueue, ind, ierr)
+    call find_empty_send_slot(pqueue, ind, ierr)
     if (ierr .ne. 0) then
       call finalize_msgs_blocking(pqueue)
-      call find_empty_entry_in_pqueue(pqueue, ind, ierr)
-      call CHKERR(ierr, 'Could not find an empty slot in neighbor queue ', pqueue%queue_index)
+      call find_empty_send_slot(pqueue, ind, ierr)
+      call CHKERR(ierr, 'Could not find an empty send slot in neighbor queue ', pqueue%queue_index)
     end if
 
-    ! Put photon to send queue to neighbor
-    pqueue%photons(ind)%p = p
-    pqueue%photons(ind)%request = request
+    pqueue%send_photons(ind)%p = p
+    pqueue%send_photons(ind)%request = request
   end subroutine
 
-  subroutine setup_photon_queue(pq, N, owner, queue_index)
+  subroutine setup_photon_queue(pq, Nrecv, owner, queue_index, opt_Nsend)
     type(t_photon_queue), intent(inout) :: pq
-    integer(int64), intent(in) :: N
+    integer(int64), intent(in) :: Nrecv
     integer(mpiint), intent(in) :: owner
     integer(iintegers), intent(in) :: queue_index
-    integer(int64) :: i
+    integer(int64), intent(in), optional :: opt_Nsend
+    integer(int64) :: i, Nsend
 
-    if (allocated(pq%photons)) then
+    Nsend = get_arg(Nrecv, opt_Nsend)
+    if (allocated(pq%recv_photons) .or. allocated(pq%send_photons)) then
       call CHKERR(1_mpiint, 'photon queue already allocated')
-    else
-      allocate (pq%photons(N))
     end if
+    allocate (pq%recv_photons(Nrecv))
+    if (Nsend > 0) allocate (pq%send_photons(Nsend))
     pq%owner = owner
     pq%queue_index = queue_index
-    do i = 1, N
-      call pq%empty%add(i)
+    do i = 1, Nrecv
+      call pq%recv_empty%add(i)
+    end do
+    do i = 1, Nsend
+      call pq%send_empty%add(i)
     end do
   end subroutine
 
@@ -1315,7 +1430,7 @@ contains
     call pqueue_add_photon(pqueue, p_in, 0_mpiint, iphoton, ierr); call CHKERR(ierr)
     call pqueue%sending%add(iphoton)
 
-    associate (p => pqueue%photons(iphoton)%p)
+    associate (p => pqueue%send_photons(iphoton)%p)
 
       if (ldebug_tracing) then
         select case (pqueue%queue_index)
@@ -1352,7 +1467,7 @@ contains
       ! asynchronous SEND starts here
       tag = int(pqueue%queue_index, kind(tag))
       call mpi_isend(p, 1_mpiint, imp_t_photon, &
-                     pqueue%owner, tag, solver%comm, pqueue%photons(iphoton)%request, ierr); call CHKERR(ierr, 'mpi isend failed')
+                     pqueue%owner, tag, solver%comm, pqueue%send_photons(iphoton)%request, ierr); call CHKERR(ierr, 'mpi isend failed')
       !call mpi_send(p, 1_mpiint, imp_t_photon, &
       !  pqueue%owner, tag, solver%comm, ierr); call CHKERR(ierr, 'mpi isend failed')
 
@@ -1379,9 +1494,9 @@ contains
       integer(mpiint) :: stat(mpi_status_size), ierr
       logical :: lcomm_finished
 
-      call mpi_test(pqueue%photons(iphoton)%request, lcomm_finished, stat, ierr); call CHKERR(ierr)
+      call mpi_test(pqueue%send_photons(iphoton)%request, lcomm_finished, stat, ierr); call CHKERR(ierr)
       if (lcomm_finished) then
-        call pqueue%empty%add(iphoton)
+        call pqueue%send_empty%add(iphoton)
         call pqueue%sending%del_node(node, ierr); call CHKERR(ierr)
         if (ldebug_tracing) then
           print *, 'Finalized Sending a photon:', iphoton
@@ -1435,14 +1550,14 @@ contains
       integer(mpiint) :: stat(mpi_status_size), ierr
       logical :: lcomm_finished
 
-      call mpi_test(pqueue%photons(iphoton)%request, lcomm_finished, stat, ierr); call CHKERR(ierr)
+      call mpi_test(pqueue%send_photons(iphoton)%request, lcomm_finished, stat, ierr); call CHKERR(ierr)
       if (lcomm_finished) then
-        call pqueue%empty%add(iphoton)
+        call pqueue%send_empty%add(iphoton)
         call pqueue%sending%del_node(node, ierr); call CHKERR(ierr)
         cnt_finished_msgs = cnt_finished_msgs + 1
         if (ldebug_tracing) then
           print *, 'Finalized Sending a photon:', iphoton
-          call print_photon(pqueue%photons(iphoton)%p)
+          call print_photon(pqueue%send_photons(iphoton)%p)
         end if
       end if
       return
@@ -1466,40 +1581,35 @@ contains
     ! receive all messages that we can get
     do
       call mpi_iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, solver%comm, lgot_msg, mpi_status, ierr); call CHKERR(ierr)
-      if (lgot_msg) then
-        tag = mpi_status(MPI_TAG)
-        select case (tag)
-        case (PQ_WEST) ! was sent towards WEST, i.e. it arrives EAST
-          ipq = PQ_EAST
-        case (PQ_EAST)
-          ipq = PQ_WEST
-        case (PQ_SOUTH)
-          ipq = PQ_NORTH
-        case (PQ_NORTH)
-          ipq = PQ_SOUTH
-        case default
-          call CHKERR(1_mpiint, 'received unexpected message with tag '//toStr(tag))
-        end select
-        if (mpi_status(MPI_SOURCE) .ne. pqueues(ipq)%owner) call CHKERR(1_mpiint, 'Something unexpected happened')
+      if (.not. lgot_msg) exit
 
-        call find_empty_entry_in_pqueue(pqueues(ipq), iphoton, ierr)
-        if (ierr .ne. 0) then
-          call finalize_msgs_blocking(pqueues(ipq))
-          call find_empty_entry_in_pqueue(pqueues(ipq), iphoton, ierr)
-          call CHKERR(ierr, 'no space in queue to receive a msg')
-        end if
+      tag = mpi_status(MPI_TAG)
+      select case (tag)
+      case (PQ_WEST) ! was sent towards WEST, i.e. it arrives EAST
+        ipq = PQ_EAST
+      case (PQ_EAST)
+        ipq = PQ_WEST
+      case (PQ_SOUTH)
+        ipq = PQ_NORTH
+      case (PQ_NORTH)
+        ipq = PQ_SOUTH
+      case default
+        call CHKERR(1_mpiint, 'received unexpected message with tag '//toStr(tag))
+      end select
+      if (mpi_status(MPI_SOURCE) .ne. pqueues(ipq)%owner) call CHKERR(1_mpiint, 'Something unexpected happened')
 
-        call mpi_recv(pqueues(ipq)%photons(iphoton)%p, 1_mpiint, imp_t_photon, &
-                      mpi_status(MPI_SOURCE), mpi_status(MPI_TAG), solver%comm, mpi_status, ierr); call CHKERR(ierr)
+      ! recv pool full? defer — message stays buffered, pick up after run_photon_queue drains ready
+      if (pqueues(ipq)%recv_empty%len() == 0) exit
+      call pqueues(ipq)%recv_empty%pop(iphoton, ierr); call CHKERR(ierr)
 
-        call pqueues(ipq)%ready%add(iphoton)
+      call mpi_recv(pqueues(ipq)%recv_photons(iphoton)%p, 1_mpiint, imp_t_photon, &
+                    mpi_status(MPI_SOURCE), mpi_status(MPI_TAG), solver%comm, mpi_status, ierr); call CHKERR(ierr)
 
-        if (ldebug_tracing) then
-          print *, myid, 'Got Message from rank:', mpi_status(MPI_SOURCE), 'Receiving ipq ', id2name(ipq)
-          call print_photon(pqueues(ipq)%photons(iphoton)%p)
-        end if
-      else
-        exit
+      call pqueues(ipq)%ready%add(iphoton)
+
+      if (ldebug_tracing) then
+        print *, myid, 'Got Message from rank:', mpi_status(MPI_SOURCE), 'Receiving ipq ', id2name(ipq)
+        call print_photon(pqueues(ipq)%recv_photons(iphoton)%p)
       end if
     end do
 

@@ -1,5 +1,8 @@
 -skip_load_LUT
--solver 2str
+-solver 3_10
+-solar_dir_explicit
+-solar_diff_explicit
+-thermal_diff_explicit
 -pprts_slope_correction
 -pprts_set_ksca 0
 -pprts_set_kabs 0

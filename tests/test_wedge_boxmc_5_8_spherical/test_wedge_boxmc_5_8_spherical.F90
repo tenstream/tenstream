@@ -1,12 +1,8 @@
 module test_wedge_boxmc_5_8_spherical
-  use m_boxmc, only: t_boxmc, t_boxmc_wedge_5_8
-  use m_data_parameters, only: &
-    mpiint, iintegers, ireals, ireal_dp, &
-    one, zero, i1, default_str_len, &
-    init_mpi_data_parameters
-  use m_optprop_parameters, only: stddev_atol
-  use m_helper_functions, only: itoa, triangle_area_by_vertices
-  use m_boxmc_geometry, only: setup_default_unit_wedge_geometry, setup_default_wedge_geometry
+  use m_boxmc, only: t_boxmc_wedge_5_8
+  use m_data_parameters, only: mpiint, iintegers, ireals, ireal_dp, one, zero, default_str_len, init_mpi_data_parameters
+  use m_helper_functions, only: triangle_area_by_vertices
+  use m_boxmc_geometry, only: setup_default_wedge_geometry
 
   use pfunit_mod
   implicit none
@@ -53,7 +49,9 @@ contains
     class(MpiTestMethod), intent(inout) :: this
     integer(mpiint) :: ierr
     myid = this%getProcessRank()
+#ifdef HAVE_PETSC
     call PetscFinalize(ierr)
+#endif
     if (myid .eq. 0) print *, 'Finishing boxmc tests module'
   end subroutine teardown
 

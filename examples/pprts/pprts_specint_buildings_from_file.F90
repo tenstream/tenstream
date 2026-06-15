@@ -1,8 +1,5 @@
 module m_examples_pprts_specint_buildings_from_file
 
-#include "petsc/finclude/petsc.h"
-  use petsc
-
   use m_data_parameters, only: &
     & init_mpi_data_parameters, &
     & iintegers, ireals, mpiint, &
@@ -31,7 +28,7 @@ module m_examples_pprts_specint_buildings_from_file
   use m_specint_pprts, only: specint_pprts, specint_pprts_destroy
 
   ! tenstr_atm holds info about tracer and merges dynamics grid vars with background grids
-  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, destroy_tenstr_atm
+  use m_tenstr_atm, only: t_tenstr_atm, setup_tenstr_atm, destroy_tenstr_atm
 
   use m_buildings, only: &
     & t_pprts_buildings, &
@@ -291,7 +288,7 @@ contains
           end do
         end do
 
-        call get_petsc_opt(PETSC_NULL_CHARACTER, "-override_buildings_albedo", v, lflg, ierr); call CHKERR(ierr)
+        call get_petsc_opt('', "-override_buildings_albedo", v, lflg, ierr); call CHKERR(ierr)
         if (lflg) buildings_solar%albedo(:) = v
 
         call clone_buildings(&
@@ -314,7 +311,7 @@ contains
             end do
           end do
         end do
-        call get_petsc_opt(PETSC_NULL_CHARACTER, "-override_buildings_temperature", v, lflg, ierr); call CHKERR(ierr)
+        call get_petsc_opt('', "-override_buildings_temperature", v, lflg, ierr); call CHKERR(ierr)
         if (lflg) buildings_thermal%temp(:) = v
 
         call check_buildings_consistency(buildings_solar, C1%zm, C1%xm, C1%ym, ierr); call CHKERR(ierr)

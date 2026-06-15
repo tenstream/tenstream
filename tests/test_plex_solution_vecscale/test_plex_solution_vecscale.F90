@@ -27,7 +27,7 @@ module test_plex_solution_vecscale
 
   use m_icon_plex_utils, only: create_2d_fish_plex, dmplex_2D_to_3D
 
-  use m_pprts_base, only: t_state_container, prepare_solution, destroy_solution
+  use m_pprts_base, only: t_state_container, prepare_solution_dm, destroy_solution
 
   use pfunit_mod
   implicit none
@@ -76,15 +76,15 @@ contains
     call allocate_plexrt_solver_from_commandline(solver, '5_8')
     call init_plex_rt_solver(plex, solver)
 
-    call prepare_solution(solver%plex%edir_dm, solver%plex%ediff_dm, solver%plex%abso_dm, &
+    call prepare_solution_dm(solver%plex%edir_dm, solver%plex%ediff_dm, solver%plex%abso_dm, &
       & lsolar=.true., lthermal=.false., solution=solution)
 
     print *, 'Testing Scalevec Direct'
-    call init_and_scalevecs(solution, one, solution%edir, solution%lWm2_dir)
+    call init_and_scalevecs(solution, one, solution%edir_petsc, solution%lWm2_dir)
     print *, 'Testing Scalevec Diffuse'
-    call init_and_scalevecs(solution, one, solution%ediff, solution%lWm2_diff)
+    call init_and_scalevecs(solution, one, solution%ediff_petsc, solution%lWm2_diff)
 
-    call PetscObjectViewFromOptions(PetscObjectCast(solution%edir), PETSC_NULL_OBJECT, '-show_solution_edir_vec1', ierr)
+    call PetscObjectViewFromOptions(PetscObjectCast(solution%edir_petsc), PETSC_NULL_OBJECT, '-show_solution_edir_vec1', ierr)
     call CHKERR(ierr)
 
   contains

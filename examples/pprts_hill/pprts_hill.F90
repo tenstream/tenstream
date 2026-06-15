@@ -1,28 +1,26 @@
 module m_example_pprts_rrtmg_hill
 
-#include "petsc/finclude/petsc.h"
-  use petsc
   use mpi
 
   ! Import datatype from the TenStream lib. Depending on how PETSC is
   ! compiled(single or double floats, or long ints), this will determine what
   ! the Tenstream uses.
-  use m_data_parameters, only: init_mpi_data_parameters, iintegers, ireals, mpiint, zero, one, i1, default_str_len
+  use m_data_parameters, only: init_mpi_data_parameters, iintegers, ireals, mpiint, i1, default_str_len
 
-  use m_helper_functions, only: reverse, linspace, CHKERR, meanval, itoa, spherical_2_cartesian, get_petsc_opt
+  use m_helper_functions, only: reverse, linspace, CHKERR, meanval, spherical_2_cartesian, get_petsc_opt
 
   use m_search, only: search_sorted_bisection
 
   ! Import specific solver type: 3_10 for example uses 3 streams direct, 10 streams for diffuse radiation
-  use m_pprts_base, only: t_solver, allocate_pprts_solver_from_commandline
+  use m_pprts_base, only: t_solver, t_coord, allocate_pprts_solver_from_commandline
   use m_netcdfIO, only: ncwrite, set_global_attribute
-  use m_petsc_helpers, only: getvecpointer, restorevecpointer, petscGlobalVecToZero, petscVecToF90, f90VecToPetsc
+  use m_pprts, only: gather_all_toZero
 
   ! main entry point for solver, and desctructor
   use m_specint_pprts, only: specint_pprts, specint_pprts_destroy
 
-  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, &
-                                destroy_tenstr_atm, print_tenstr_atm
+  use m_tenstr_atm, only: t_tenstr_atm, setup_tenstr_atm, &
+                          destroy_tenstr_atm, print_tenstr_atm
 
   implicit none
 
@@ -32,7 +30,7 @@ contains
     integer(iintegers), intent(in) :: jglob, ny_glob
     real(ireals), intent(in) :: hill_dP, hill_shape
     !dP = hill_dP / (1._ireals + ((real(jglob, ireals) - (real(ny_glob, ireals) - 1._ireals) / 2._ireals) / hill_shape)**2)
-    dP = hill_dP / (1._ireals + ((real(jglob, ireals) - 1 * (real(ny_glob, ireals) - 1._ireals) / 1._ireals) / hill_shape)**2)
+    dP = hill_dP / (1._ireals + ((real(jglob, ireals) - 1 * (real(ny_glob, ireals) - 1._ireals) / 2._ireals) / hill_shape)**2)
   end function
 
   subroutine example_pprts_rrtmg_hill(&
@@ -99,11 +97,6 @@ contains
     real(ireals) :: cld_bot, cld_top
     logical :: lflg
     character(len=default_str_len) :: outpath(2)
-    real(ireals), pointer :: hhl(:, :, :, :), hhl1d(:)
-
-    hhl => null()
-    hhl1d => null()
-
     call MPI_COMM_SIZE(comm, numnodes, ierr)
     call MPI_COMM_RANK(comm, myid, ierr)
 
@@ -113,9 +106,9 @@ contains
     ! Start with a dynamics grid ranging from 1000 hPa up to 250 hPa and a
     ! Temperature difference of 60K
     hill_dP = 100 ! [hPa]
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-hill_dP", hill_dP, lflg, ierr)
+    call get_petsc_opt('', "-hill_dP", hill_dP, lflg, ierr)
     hill_shape = 10
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-hill_shape", hill_shape, lflg, ierr) ! the bigger the flatter
+    call get_petsc_opt('', "-hill_shape", hill_shape, lflg, ierr) ! the bigger the flatter
 
     do j = yStart, yStart + nyp - 1
       dp = hill_pressure_deficiency(j, sum(nyproc), hill_dP, hill_shape) &
@@ -134,18 +127,18 @@ contains
 
     icld = -1
     cld_lwc = 0e-2
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-lwc", cld_lwc, lflg, ierr)
+    call get_petsc_opt('', "-lwc", cld_lwc, lflg, ierr)
     cld_width = 5
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-cld_width", cld_width, lflg, ierr)
+    call get_petsc_opt('', "-cld_width", cld_width, lflg, ierr)
     cld_bot = 750._ireals
     cld_top = 700._ireals
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-cld_bot", cld_bot, lflg, ierr)
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-cld_top", cld_top, lflg, ierr)
+    call get_petsc_opt('', "-cld_bot", cld_bot, lflg, ierr)
+    call get_petsc_opt('', "-cld_top", cld_top, lflg, ierr)
 
     do j = yStart, yStart + nyp - 1
       if (abs(j - int(real(sum(nyproc) - 1, ireals) / 2, iintegers)) .le. cld_width) then
-        icld(1) = nint(search_sorted_bisection(plev(:, 1, j), cld_bot))
-        icld(2) = nint(search_sorted_bisection(plev(:, 1, j), cld_top))
+        icld(1) = nint(search_sorted_bisection(plev(:, xStart, j), cld_bot))
+        icld(2) = nint(search_sorted_bisection(plev(:, xStart, j), cld_top))
 
         lwc(icld(1):icld(2), :, j) = cld_lwc
       end if
@@ -158,18 +151,18 @@ contains
     preliq(1:size(reliq, 1), 1:size(reliq, 2) * size(reliq, 3)) => reliq
 
     atm_filename = 'share/atm.dat'
-    call get_petsc_opt(PETSC_NULL_CHARACTER, '-atm', &
+    call get_petsc_opt('', '-atm', &
                        atm_filename, lflg, ierr); call CHKERR(ierr)
 
     phi0 = 180
     theta0 = 20
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-phi0", phi0, lflg, ierr); call CHKERR(ierr)
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-theta0", theta0, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', "-phi0", phi0, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', "-theta0", theta0, lflg, ierr); call CHKERR(ierr)
 
     lsolar = .true.
     lthermal = .true.
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-solar", lsolar, lflg, ierr); call CHKERR(ierr)
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-thermal", lthermal, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', "-solar", lsolar, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', "-thermal", lthermal, lflg, ierr); call CHKERR(ierr)
 
     call allocate_pprts_solver_from_commandline(pprts_solver, '3_10', ierr); call CHKERR(ierr)
 
@@ -228,7 +221,7 @@ contains
     end if
 
     outpath(1) = 'out_pprts_hill.nc'
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-out", outpath(1), lflg, ierr)
+    call get_petsc_opt('', "-out", outpath(1), lflg, ierr)
 
     associate (&
         & C => pprts_solver%C_one,     &
@@ -237,50 +230,49 @@ contains
         & Ca1 => pprts_solver%C_one_atm1_box, &
         & Cs => pprts_solver%Csrfc_one)
 
-      call dump_vec(Ca%da, pprts_solver%atm%dz, 'dz', [character(len=default_str_len) :: 'ke', 'nx', 'ny'])
+      call dump_field(Ca, reshape(pprts_solver%atm%dz, [Ca%zm, Ca%xm, Ca%ym]), &
+        & 'dz', [character(len=default_str_len) :: 'ke', 'nx', 'ny'])
 
       patm(Ca1%zs:Ca1%ze, Ca1%xs:Ca1%xe, Ca1%ys:Ca1%ye) => atm%plev
-      call dump_vec(Ca1%da, reverse(patm), 'p_lev', [character(len=default_str_len) :: 'ke1', 'nx', 'ny'])
+      call dump_field(Ca1, reverse(patm), 'p_lev', [character(len=default_str_len) :: 'ke1', 'nx', 'ny'])
 
       patm(Ca1%zs:Ca1%ze, Ca1%xs:Ca1%xe, Ca1%ys:Ca1%ye) => atm%tlev
-      call dump_vec(Ca1%da, reverse(patm), 't_lev', [character(len=default_str_len) :: 'ke1', 'nx', 'ny'])
+      call dump_field(Ca1, reverse(patm), 't_lev', [character(len=default_str_len) :: 'ke1', 'nx', 'ny'])
 
       patm(Ca%zs:Ca%ze, Ca%xs:Ca%xe, Ca%ys:Ca%ye) => atm%tlay
-      call dump_vec(Ca%da, reverse(patm), 't_lay', [character(len=default_str_len) :: 'ke', 'nx', 'ny'])
+      call dump_field(Ca, reverse(patm), 't_lay', [character(len=default_str_len) :: 'ke', 'nx', 'ny'])
 
       patm(Ca%zs:Ca%ze, Ca%xs:Ca%xe, Ca%ys:Ca%ye) => atm%o3_lay
-      call dump_vec(Ca%da, reverse(patm), 'o3_lay', [character(len=default_str_len) :: 'ke', 'nx', 'ny'])
+      call dump_field(Ca, reverse(patm), 'o3_lay', [character(len=default_str_len) :: 'ke', 'nx', 'ny'])
 
       patm(Ca%zs:Ca%ze, Ca%xs:Ca%xe, Ca%ys:Ca%ye) => atm%o2_lay
-      call dump_vec(Ca%da, reverse(patm), 'o2_lay', [character(len=default_str_len) :: 'ke', 'nx', 'ny'])
+      call dump_field(Ca, reverse(patm), 'o2_lay', [character(len=default_str_len) :: 'ke', 'nx', 'ny'])
 
       patm(Ca%zs:Ca%ze, Ca%xs:Ca%xe, Ca%ys:Ca%ye) => atm%h2o_lay
-      call dump_vec(Ca%da, reverse(patm), 'h2o_lay', [character(len=default_str_len) :: 'ke', 'nx', 'ny'])
+      call dump_field(Ca, reverse(patm), 'h2o_lay', [character(len=default_str_len) :: 'ke', 'nx', 'ny'])
 
       patm(Ca%zs:Ca%ze, Ca%xs:Ca%xe, Ca%ys:Ca%ye) => atm%co2_lay
-      call dump_vec(Ca%da, reverse(patm), 'co2_lay', [character(len=default_str_len) :: 'ke', 'nx', 'ny'])
+      call dump_field(Ca, reverse(patm), 'co2_lay', [character(len=default_str_len) :: 'ke', 'nx', 'ny'])
 
       patm(Ca%zs:Ca%ze, Ca%xs:Ca%xe, Ca%ys:Ca%ye) => atm%n2o_lay
-      call dump_vec(Ca%da, reverse(patm), 'no2_lay', [character(len=default_str_len) :: 'ke', 'nx', 'ny'])
+      call dump_field(Ca, reverse(patm), 'no2_lay', [character(len=default_str_len) :: 'ke', 'nx', 'ny'])
 
       patm(Ca%zs:Ca%ze, Ca%xs:Ca%xe, Ca%ys:Ca%ye) => atm%lwc
-      call dump_vec(Ca%da, reverse(patm), 'lwc', [character(len=default_str_len) :: 'ke', 'nx', 'ny'])
+      call dump_field(Ca, reverse(patm), 'lwc', [character(len=default_str_len) :: 'ke', 'nx', 'ny'])
 
       patm(Ca%zs:Ca%ze, Ca%xs:Ca%xe, Ca%ys:Ca%ye) => atm%reliq
-      call dump_vec(Ca%da, reverse(patm), 'reliq', [character(len=default_str_len) :: 'ke', 'nx', 'ny'])
+      call dump_field(Ca, reverse(patm), 'reliq', [character(len=default_str_len) :: 'ke', 'nx', 'ny'])
 
       if (allocated(edir)) &
-        & call dump_vec(C1%da, edir, 'edir', [character(len=default_str_len) :: 'ke1', 'nx', 'ny'])
-      call dump_vec(C1%da, edn, 'edn', [character(len=default_str_len) :: 'ke1', 'nx', 'ny'])
-      call dump_vec(C1%da, eup, 'eup', [character(len=default_str_len) :: 'ke1', 'nx', 'ny'])
-      call dump_vec(C%da, abso, 'abso', [character(len=default_str_len) :: 'ke', 'nx', 'ny'])
+        & call dump_field(C1, edir, 'edir', [character(len=default_str_len) :: 'ke1', 'nx', 'ny'])
+      call dump_field(C1, edn, 'edn', [character(len=default_str_len) :: 'ke1', 'nx', 'ny'])
+      call dump_field(C1, eup, 'eup', [character(len=default_str_len) :: 'ke1', 'nx', 'ny'])
+      call dump_field(C, abso, 'abso', [character(len=default_str_len) :: 'ke', 'nx', 'ny'])
 
-      call getVecPointer(Ca1%da, pprts_solver%atm%hhl, hhl1d, hhl)
-      call dump_vec(Ca1%da, hhl(0, Ca1%zs:Ca1%ze, Ca1%xs:Ca1%xe, Ca1%ys:Ca1%ye), 'hhl', &
+      call dump_field(Ca1, pprts_solver%atm%hhl(0, Ca1%zs:Ca1%ze, Ca1%xs:Ca1%xe, Ca1%ys:Ca1%ye), 'hhl', &
         & [character(len=default_str_len) :: 'ke1', 'nx', 'ny'])
-      call dump_vec_2d(Cs%da, hhl(0, Ca1%ze, Ca1%xs:Ca1%xe, Ca1%ys:Ca1%ye), 'hsurf', &
+      call dump_vec_2d(Cs, pprts_solver%atm%hhl(0, Ca1%ze, Ca1%xs:Ca1%xe, Ca1%ys:Ca1%ye), 'hsurf', &
         & [character(len=default_str_len) :: 'nx', 'ny'])
-      call restoreVecPointer(Ca1%da, pprts_solver%atm%hhl, hhl1d, hhl)
 
       if (myid .eq. 0) then
         call set_global_attribute(outpath(1), 'Nx', C%glob_xm, ierr); call CHKERR(ierr)
@@ -299,60 +291,43 @@ contains
     call specint_pprts_destroy(specint, pprts_solver, lfinalizepetsc=.true., ierr=ierr); call CHKERR(ierr)
     call destroy_tenstr_atm(atm)
   contains
-    subroutine dump_vec_2d(dm, arr, varname, dimnames)
-      type(tDM), intent(in) :: dm
-      real(ireals), intent(in) :: arr(:, :)
-      character(len=*), intent(in) :: varname
-      character(len=*), intent(in) :: dimnames(:)
-
-      type(tVec) :: gvec, lVec
-      real(ireals), allocatable :: larr(:, :)
-      integer(mpiint) :: ierr
-
-      call DMGetGlobalVector(dm, gvec, ierr); call CHKERR(ierr)
-      call f90VecToPetsc(arr, dm, gvec)
-      call petscGlobalVecToZero(gvec, dm, lVec)
-      if (myid .eq. 0) then
-        call petscVecToF90(lVec, dm, larr, only_on_rank0=.true.)
-
-        outpath(2) = trim(varname)
-        call ncwrite(outpath, larr, ierr, dimnames=dimnames); call CHKERR(ierr)
-      end if
-      call VecDestroy(lVec, ierr); call CHKERR(ierr)
-
-      call DMRestoreGlobalVector(dm, gvec, ierr); call CHKERR(ierr)
-    end subroutine
-    subroutine dump_vec(dm, arr, varname, dimnames)
-      type(tDM), intent(in) :: dm
+    subroutine dump_field(C, arr, varname, dimnames)
+      type(t_coord), intent(in) :: C
       real(ireals), intent(in) :: arr(:, :, :)
       character(len=*), intent(in) :: varname
       character(len=*), intent(in) :: dimnames(:)
 
-      type(tVec) :: gvec, lVec
       real(ireals), allocatable :: larr(:, :, :)
-      integer(mpiint) :: ierr
+      integer(mpiint) :: ierr_local
 
-      call DMGetGlobalVector(dm, gvec, ierr); call CHKERR(ierr)
-      call f90VecToPetsc(arr, dm, gvec)
-      call petscGlobalVecToZero(gvec, dm, lVec)
+      call gather_all_toZero(C, arr, larr)
       if (myid .eq. 0) then
-        call petscVecToF90(lVec, dm, larr, only_on_rank0=.true.)
-
         outpath(2) = trim(varname)
-        call ncwrite(outpath, larr, ierr, dimnames=dimnames); call CHKERR(ierr)
+        call ncwrite(outpath, larr, ierr_local, dimnames=dimnames); call CHKERR(ierr_local)
       end if
-      call VecDestroy(lVec, ierr); call CHKERR(ierr)
+    end subroutine
 
-      call DMRestoreGlobalVector(dm, gvec, ierr); call CHKERR(ierr)
+    subroutine dump_vec_2d(C, arr, varname, dimnames)
+      type(t_coord), intent(in) :: C
+      real(ireals), intent(in) :: arr(:, :)
+      character(len=*), intent(in) :: varname
+      character(len=*), intent(in) :: dimnames(:)
+
+      real(ireals), allocatable :: larr3d(:, :, :)
+      integer(mpiint) :: ierr_local
+
+      call gather_all_toZero(C, reshape(arr, [1, size(arr, 1), size(arr, 2)]), larr3d)
+      if (myid .eq. 0) then
+        outpath(2) = trim(varname)
+        call ncwrite(outpath, larr3d(1, :, :), ierr_local, dimnames=dimnames); call CHKERR(ierr_local)
+      end if
     end subroutine
   end subroutine
 end module
 
 program main
-#include "petsc/finclude/petsc.h"
-  use petsc
   use mpi
-  use m_data_parameters, only: iintegers, mpiint, ireals, default_str_len
+  use m_data_parameters, only: init_mpi_data_parameters, iintegers, mpiint, ireals, default_str_len
   use m_helper_functions, only: domain_decompose_2d_petsc, CHKERR, get_petsc_opt
   use m_example_pprts_rrtmg_hill, only: example_pprts_rrtmg_hill
 
@@ -367,27 +342,26 @@ program main
 
   call mpi_init(ierr)
   call mpi_comm_rank(mpi_comm_world, myid, ierr)
-
-  call PetscInitialize(PETSC_NULL_CHARACTER, ierr); call CHKERR(ierr)
+  call init_mpi_data_parameters(mpi_comm_world)
 
   specint = 'no_default_set'
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-specint", specint, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-specint", specint, lflg, ierr); call CHKERR(ierr)
 
   Nx = 3; Ny = 32; Nz = 10
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-Nx", Nx, lflg, ierr); call CHKERR(ierr)
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-Ny", Ny, lflg, ierr); call CHKERR(ierr)
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-Nz", Nz, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-Nx", Nx, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-Ny", Ny, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-Nz", Nz, lflg, ierr); call CHKERR(ierr)
 
   dx = 500
   dy = dx
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-dx", dx, lflg, ierr); call CHKERR(ierr)
-  call get_petsc_opt(PETSC_NULL_CHARACTER, "-dy", dy, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-dx", dx, lflg, ierr); call CHKERR(ierr)
+  call get_petsc_opt('', "-dy", dy, lflg, ierr); call CHKERR(ierr)
 
   Ag_solar = 0.12
   Ag_thermal = 0
-  call get_petsc_opt(PETSC_NULL_CHARACTER, &
+  call get_petsc_opt('', &
     & "-Ag_thermal", Ag_thermal, lflg, ierr); call CHKERR(ierr)
-  call get_petsc_opt(PETSC_NULL_CHARACTER, &
+  call get_petsc_opt('', &
     & "-Ag_solar", Ag_solar, lflg, ierr); call CHKERR(ierr)
 
   call domain_decompose_2d_petsc(mpi_comm_world, Nx, Ny, &

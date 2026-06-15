@@ -23,8 +23,13 @@
 !! or may also use the rrtmg solver to compute radiative fluxes
 
 module m_optprop_rrtmg
+#ifdef HAVE_PETSC
 #include "petsc/finclude/petsc.h"
   use petsc
+#endif
+
+  use m_tenstream_log, only: t_ts_log_event, ts_log_begin, ts_log_end
+
   use m_tenstr_parkind_sw, only: im => kind_im, rb => kind_rb
   use m_tenstr_rrtmg_lw_init, only: rrtmg_lw_ini
   use m_tenstr_parrrtm, only: nbndlw
@@ -66,7 +71,7 @@ contains
     real(ireals), dimension(:, :, :), intent(out), optional :: opt_tau_f ! [nlay, ncol, ngptlw]
     real(ireals), dimension(:, :), intent(out), optional :: opt_lwuflx, opt_lwdflx, opt_lwhr ! [nlay+1, ncol]
     real(ireals), dimension(:, :), intent(in), optional :: opt_cldfr ! [ncol, nlay]
-    PetscLogEvent, intent(in), optional :: log_event
+    type(t_ts_log_event), intent(in), optional :: log_event
 
     real(rb), dimension(ncol_in, nlay_in) :: play, cldfr
 
@@ -88,7 +93,7 @@ contains
     integer(mpiint) :: ierr
 
     if (present(log_event)) then
-      call PetscLogEventBegin(log_event, ierr); call CHKERR(ierr)
+      call ts_log_begin(log_event, ierr); call CHKERR(ierr)
     end if
 
     ! copy from TenStream to RRTM precision:
@@ -164,7 +169,7 @@ contains
     end if
 
     if (present(log_event)) then
-      call PetscLogEventEnd(log_event, ierr); call CHKERR(ierr)
+      call ts_log_end(log_event, ierr); call CHKERR(ierr)
     end if
   end subroutine
 
@@ -193,7 +198,7 @@ contains
     real(ireals), dimension(:, :), intent(out), optional :: opt_swdirflx, opt_swuflx, opt_swdflx ! [nlay+1, ncol]
     real(ireals), dimension(:, :), intent(out), optional :: opt_swhr ! [nlay, ncol]
     real(ireals), dimension(:, :, :), intent(out), optional :: opt_tau_f, opt_w0_f, opt_g_f ! [nlay, ncol, ngptsw]
-    PetscLogEvent, intent(in), optional :: log_event
+    type(t_ts_log_event), intent(in), optional :: log_event
 
     real(rb), dimension(ncol_in, nlay_in) :: play, cldfr
 
@@ -218,7 +223,7 @@ contains
     integer(mpiint) :: ierr
 
     if (present(log_event)) then
-      call PetscLogEventBegin(log_event, ierr); call CHKERR(ierr)
+      call ts_log_begin(log_event, ierr); call CHKERR(ierr)
     end if
 
     if (present(opt_solar_constant)) then
@@ -324,7 +329,7 @@ contains
     end if
 
     if (present(log_event)) then
-      call PetscLogEventEnd(log_event, ierr); call CHKERR(ierr)
+      call ts_log_end(log_event, ierr); call CHKERR(ierr)
     end if
   end subroutine
 
@@ -368,7 +373,7 @@ contains
     argcnt = 2
     spectral_bands = [min_band, max_band]
 
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-rrtmg_bands", spectral_bands, argcnt, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', "-rrtmg_bands", spectral_bands, argcnt, lflg, ierr); call CHKERR(ierr)
     if (lflg) call CHKERR(int(argcnt - 2_iintegers, mpiint), "must provide 2 values for rrtmg_bands, comma separated, no spaces")
     if (spectral_bands(1) .gt. spectral_bands(2)) &
       & call CHKERR(1_mpiint, 'first value of rrtmg_bands('// &

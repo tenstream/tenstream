@@ -1,13 +1,14 @@
 module m_example_pprts_specint_lw_sw
-
+#ifdef HAVE_PETSC
 #include "petsc/finclude/petsc.h"
   use petsc
+#endif
   use mpi
 
   ! Import datatype from the TenStream lib. Depending on how PETSC is
   ! compiled(single or double floats, or long ints), this will determine what
   ! the Tenstream uses.
-  use m_data_parameters, only: init_mpi_data_parameters, iintegers, ireals, mpiint, zero, one, default_str_len
+  use m_data_parameters, only: init_mpi_data_parameters, iintegers, ireals, mpiint, default_str_len
 
   use m_helper_functions, only: linspace, CHKERR, spherical_2_cartesian, meanval, get_petsc_opt
 
@@ -18,9 +19,8 @@ module m_example_pprts_specint_lw_sw
   ! main entry point for solver, and desctructor
   use m_specint_pprts, only: specint_pprts, specint_pprts_destroy
 
-  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, destroy_tenstr_atm, abso2hr
+  use m_tenstr_atm, only: t_tenstr_atm, setup_tenstr_atm, destroy_tenstr_atm, abso2hr
 
-  use m_petsc_helpers, only: getvecpointer, restorevecpointer
   use m_netcdfio, only: ncwrite
 
   implicit none
@@ -119,27 +119,27 @@ contains
     ! gases to the TenStream solver... this will then be interpolated from the
     ! background profile (read from `atm_filename`)
     h2ovmr = .007
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-h2o", vmr, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', "-h2o", vmr, lflg, ierr); call CHKERR(ierr)
     if (lflg) h2ovmr = vmr
 
     o3vmr = 3e-8
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-o3", vmr, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', "-o3", vmr, lflg, ierr); call CHKERR(ierr)
     if (lflg) o3vmr = vmr
 
     co2vmr = 400e-6
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-co2", vmr, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', "-co2", vmr, lflg, ierr); call CHKERR(ierr)
     if (lflg) co2vmr = vmr
 
     ch4vmr = 1.7e-6
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-ch4", vmr, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', "-ch4", vmr, lflg, ierr); call CHKERR(ierr)
     if (lflg) ch4vmr = vmr
 
     n2ovmr = 3.2e-7
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-n2o", vmr, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', "-n2o", vmr, lflg, ierr); call CHKERR(ierr)
     if (lflg) n2ovmr = vmr
 
     o2vmr = .2
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-o2", vmr, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', "-o2", vmr, lflg, ierr); call CHKERR(ierr)
     if (lflg) o2vmr = vmr
 
     ! define a cloud, with liquid water content and effective radius 10 micron
@@ -202,10 +202,10 @@ contains
     call allocate_pprts_solver_from_commandline(pprts_solver, '3_10', ierr); call CHKERR(ierr)
 
     icollapse = 1
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-icollapse", icollapse, lflg, ierr)
+    call get_petsc_opt('', "-icollapse", icollapse, lflg, ierr)
 
     iter = 1
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-iter", iter, lflg, ierr)
+    call get_petsc_opt('', "-iter", iter, lflg, ierr)
 
     do k = 1, iter
       call specint_pprts(specint, comm, pprts_solver, atm, nxp, nyp, &
@@ -216,7 +216,7 @@ contains
                          nxproc=nxproc, nyproc=nyproc, &
                          icollapse=icollapse, &
                          opt_time=real(k, ireals))
-      sundir = spherical_2_cartesian(phi0 + .1 * k, theta0 - .1 * k)
+      sundir = spherical_2_cartesian(phi0 + .1_ireals * real(k, ireals), theta0 - .1_ireals * real(k, ireals))
       if (allocated(edir)) then
         print *, 'surface :: ', meanval(edir(nlev, :, :)), &
           & meanval(edn(nlev, :, :)), meanval(eup(nlev, :, :)), meanval(abso(nlev - 1, :, :))
@@ -281,22 +281,24 @@ contains
       groups(2) = 'abso'; call ncwrite(groups, gabso, ierr, dimnames=dimnames); call CHKERR(ierr)
 
       print *, 'dumping z coords'
-      associate (Ca1 => pprts_solver%C_one_atm1_box)
-        call getVecPointer(Ca1%da, pprts_solver%atm%hhl, z1d, z)
-        dimnames(1) = 'nlev'
-        groups(2) = 'zlev'
-        call ncwrite(groups, z(0, Ca1%zs:Ca1%ze, Ca1%xs, Ca1%ys), ierr, dimnames=dimnames(1:1))
-        call CHKERR(ierr)
-        dimnames(1) = 'nlay'
-        groups(2) = 'zlay'
-        call ncwrite(groups, &
-                     & (z(0, Ca1%zs:Ca1%ze - 1, Ca1%xs, Ca1%ys) &
-                     & + z(0, Ca1%zs + 1:Ca1%ze, Ca1%xs, Ca1%ys) &
-                     & )*.5_ireals, &
-                     & ierr, dimnames=dimnames(1:1))
-        call CHKERR(ierr)
-        call restoreVecPointer(Ca1%da, pprts_solver%atm%hhl, z1d, z)
-      end associate
+#ifdef HAVE_PETSC
+      if (allocated(pprts_solver%atm%hhl)) then
+        associate (Ca1 => pprts_solver%C_one_atm1_box, hhl => pprts_solver%atm%hhl)
+          dimnames(1) = 'nlev'
+          groups(2) = 'zlev'
+          call ncwrite(groups, hhl(0, Ca1%zs:Ca1%ze, Ca1%xs, Ca1%ys), ierr, dimnames=dimnames(1:1))
+          call CHKERR(ierr)
+          dimnames(1) = 'nlay'
+          groups(2) = 'zlay'
+          call ncwrite(groups, &
+                       & (hhl(0, Ca1%zs:Ca1%ze - 1, Ca1%xs, Ca1%ys) &
+                       & + hhl(0, Ca1%zs + 1:Ca1%ze, Ca1%xs, Ca1%ys) &
+                       & )*.5_ireals, &
+                       & ierr, dimnames=dimnames(1:1))
+          call CHKERR(ierr)
+        end associate
+      end if
+#endif
     end if
 
     ! Tidy up

@@ -5,8 +5,6 @@ module m_wetterstein
 
   use m_data_parameters, only: init_mpi_data_parameters, iintegers, ireals, mpiint, default_str_len
 
-  use m_tenstream_options, only: read_commandline_options
-
   use m_helper_functions, only: &
     & CHKERR, &
     & domain_decompose_2d_petsc, &
@@ -25,8 +23,7 @@ module m_wetterstein
 
   use m_pprts_rrtmg, only: pprts_rrtmg, destroy_pprts_rrtmg
   use m_pprts_base, only: t_solver, allocate_pprts_solver_from_commandline
-  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm
-  use m_pprts, only: gather_all_toZero
+  use m_tenstr_atm, only: t_tenstr_atm, setup_tenstr_atm
 
   implicit none
 
@@ -61,7 +58,6 @@ contains
     real(ireals), allocatable, dimension(:, :, :) :: edir, edn, eup, abso ! nlyr(+1), global_nx, global_ny
     !real(ireals),allocatable, dimension(:,:,:) :: gedir, gedn, geup, gabso ! global arrays which we will dump to netcdf
     real(ireals), pointer, dimension(:, :, :) :: patm
-    real(ireals), pointer :: hhl(:, :, :, :), hhl1d(:)
 
     character(len=default_str_len) :: nc_path(2) ! [ filename, varname ]
 
@@ -71,9 +67,6 @@ contains
 
     logical, parameter :: lthermal = .false., lsolar = .true.
     logical, parameter :: ldebug = .true.
-
-    hhl => null()
-    hhl1d => null()
 
     call init_mpi_data_parameters(comm)
     call mpi_comm_size(comm, numnodes, ierr)
@@ -199,10 +192,8 @@ contains
       call dump_vec(C1%da, eup, 'eup')
       call dump_vec(C%da, abso, 'abso')
 
-      call getVecPointer(Ca1%da, solver%atm%hhl, hhl1d, hhl)
-      call dump_vec(Ca1%da, hhl(0, Ca1%zs:Ca1%ze, Ca1%xs:Ca1%xe, Ca1%ys:Ca1%ye), 'hhl')
-      call dump_vec_2d(Cs%da, hhl(0, Ca1%ze, Ca1%xs:Ca1%xe, Ca1%ys:Ca1%ye), 'h_srfc')
-      call restoreVecPointer(Ca1%da, solver%atm%hhl, hhl1d, hhl)
+      call dump_vec(Ca1%da, solver%atm%hhl(0, Ca1%zs:Ca1%ze, Ca1%xs:Ca1%xe, Ca1%ys:Ca1%ye), 'hhl')
+      call dump_vec_2d(Cs%da, solver%atm%hhl(0, Ca1%ze, Ca1%xs:Ca1%xe, Ca1%ys:Ca1%ye), 'h_srfc')
 
       call dump_vec_2d(Cs%da, edir(size(edir, 1), :, :), 'edir_srfc')
       call dump_vec_2d(Cs%da, edn(size(edn, 1), :, :), 'edn_srfc')
@@ -298,29 +289,29 @@ program main
   call init_mpi_data_parameters(MPI_COMM_WORLD)
 
   input_filename = 'input.nc'
-  call get_petsc_opt(PETSC_NULL_CHARACTER, '-inp', &
+  call get_petsc_opt('', '-inp', &
                      input_filename, lflg, ierr); call CHKERR(ierr)
 
   output_filename = 'output.nc'
-  call get_petsc_opt(PETSC_NULL_CHARACTER, '-out', &
+  call get_petsc_opt('', '-out', &
                      output_filename, lflg, ierr); call CHKERR(ierr)
 
   atm_filename = 'afglus_100m.dat'
-  call get_petsc_opt(PETSC_NULL_CHARACTER, '-atm', &
+  call get_petsc_opt('', '-atm', &
                      atm_filename, lflg, ierr); call CHKERR(ierr)
 
   phi0 = 180
   theta0 = 40
-  call get_petsc_opt(PETSC_NULL_CHARACTER, '-phi', &
+  call get_petsc_opt('', '-phi', &
     & phi0, lflg, ierr); call CHKERR(ierr)
-  call get_petsc_opt(PETSC_NULL_CHARACTER, '-theta', &
+  call get_petsc_opt('', '-theta', &
     & theta0, lflg, ierr); call CHKERR(ierr)
 
   albedo_sol = 0.2
   albedo_th = 0.05
-  call get_petsc_opt(PETSC_NULL_CHARACTER, '-albedo_sol', &
+  call get_petsc_opt('', '-albedo_sol', &
     & albedo_sol, lflg, ierr); call CHKERR(ierr)
-  call get_petsc_opt(PETSC_NULL_CHARACTER, '-albedo_th', &
+  call get_petsc_opt('', '-albedo_th', &
     & albedo_th, lflg, ierr); call CHKERR(ierr)
 
   call ex_wetterstein( &

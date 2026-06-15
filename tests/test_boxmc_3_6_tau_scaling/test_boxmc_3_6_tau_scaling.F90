@@ -1,12 +1,7 @@
 module test_boxmc_3_6_tau_scaling
-  use m_boxmc, only: t_boxmc, t_boxmc_3_6
-  use m_data_parameters, only: &
-    mpiint, iintegers, ireals, ireal_dp, &
-    one, zero, i1, default_str_len, &
-    init_mpi_data_parameters
-  use m_optprop_parameters, only: stddev_atol
+  use m_boxmc, only: t_boxmc_3_6
+  use m_data_parameters, only: mpiint, iintegers, ireals, ireal_dp, one, zero, default_str_len, init_mpi_data_parameters
   use m_boxmc_geometry, only: setup_default_unit_cube_geometry
-  use m_helper_functions, only: itoa
 
   use pfunit_mod
   implicit none

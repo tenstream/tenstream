@@ -1,1 +1,4 @@
 tests/*/gmon.out
+external/petsc
+external/fprettify
+.fprettify.errlog

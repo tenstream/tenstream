@@ -38,7 +38,7 @@ variables:
     - cmake -DCMAKE_BUILD_TYPE="$BUILD_TYPE" -DCTEST_MPIRUN_FLAGS="$MPIRUN_FLAGS" -DMPIEXEC="$MPIEXEC" ${CMAKE_OPTS} .. || exit 1
     - echo -e "\e[0Ksection_end:`date +%s`:cmake\r\e[0K"
     - echo -e "\e[0Ksection_start:`date +%s`:make[collapsed=true]\r\e[0KRun make"
-    - make all -j || make all || exit 2
+    - make all examples -j || make all examples || exit 2
     - echo -e "\e[0Ksection_end:`date +%s`:make\r\e[0K"
     - echo -e "\e[0Ksection_start:`date +%s`:dlLUT[collapsed=true]\r\e[0KDownloading LUTs"
     - if [ ! -z "$LUT_TARGET" ]; then make $LUT_TARGET || exit 3; fi
@@ -195,12 +195,54 @@ implicit:alma-latest:
 explicit:alma-latest:
   extends: alma-latest
   variables:
-    PETSC_OPTIONS: "-solar_dir_explicit -solar_diff_explicit -thermal_diff_explicit -thermal_diff_pc_sor_omega .5 -solar_diff_pc_sor_omega .5"
+    PETSC_OPTIONS: "-solar_dir_explicit -solar_diff_explicit -thermal_diff_explicit"
 
 matshell:alma-latest:
   extends: alma-latest
   variables:
     PETSC_OPTIONS: "-solar_diff_shell -solar_diff_pc_type sor -thermal_diff_shell -thermal_diff_pc_type sor"
+
+ubuntu-nopetsc:
+  stage: build_docker
+  needs: ["check_fprettify:pre"]
+  image: ubuntu:latest
+  tags:
+    - docker.physik.lmu.de
+  before_script:
+    - echo -e "\e[0Ksection_start:`date +%s`:apt_install[collapsed=true]\r\e[0KInstall APT packages"
+    - apt-get -qq update
+    - apt-get -qq install -fy build-essential cmake gfortran git python3 openmpi-bin libopenmpi-dev libhdf5-dev libnetcdff-dev libopenblas-dev curl pkg-config
+    - echo -e "\e[0Ksection_end:`date +%s`:apt_install\r\e[0K"
+  script:
+    - echo -e "\e[0Ksection_start:`date +%s`:cmake[collapsed=true]\r\e[0KRun cmake"
+    - mkdir -p build && cd build
+    - cmake -DCMAKE_BUILD_TYPE="$BUILD_TYPE" -DWITH_PETSC=OFF -DCTEST_MPIRUN_FLAGS="$MPIRUN_FLAGS" -DMPIEXEC="$MPIEXEC" ${CMAKE_OPTS} .. || exit 1
+    - echo -e "\e[0Ksection_end:`date +%s`:cmake\r\e[0K"
+    - echo -e "\e[0Ksection_start:`date +%s`:make[collapsed=true]\r\e[0KRun make"
+    - make all examples -j || make all examples || exit 2
+    - echo -e "\e[0Ksection_end:`date +%s`:make\r\e[0K"
+    - echo -e "\e[0Ksection_start:`date +%s`:dlLUT[collapsed=true]\r\e[0KDownloading LUTs"
+    - if [ ! -z "$LUT_TARGET" ]; then make $LUT_TARGET || exit 3; fi
+    - echo -e "\e[0Ksection_end:`date +%s`:dlLUT\r\e[0K"
+    - echo -e "\e[0Ksection_start:`date +%s`:test[collapsed=true]\r\e[0KRun ctest"
+    - CMD="ctest --output-on-failure $CTEST_ARGS"
+    - echo $CMD
+    - $CMD &> >(tee $CI_PROJECT_DIR/test.log) || exit 4
+    - echo -e "\e[0Ksection_end:`date +%s`:test\r\e[0K"
+  retry: 1
+  variables:
+    CTEST_ARGS: "-E ${TEST_FILTER_WITH_COMMON_LUTS}"
+    BUILD_TYPE: RELEASE
+    MPIEXEC: "mpirun"
+    MPIRUN_FLAGS: "--allow-run-as-root;--oversubscribe"
+    CMAKE_OPTS: "-DENABLE_PFUNIT=ON -DENABLE_RRTM=ON -DENABLE_ECCKD=ON -DENABLE_SPECINT=ON"
+    CC: mpicc
+    FC: mpif90
+    CXX: mpicxx
+    LUT_TARGET: 'download_common_luts'
+  artifacts:
+    paths:
+      - test.log
 
 #intel-icc:
 #  stage: build_docker

@@ -27,27 +27,20 @@ module m_optprop_base
     preset_g4, &
     preset_g6, &
     preset_param_phi6, &
-    preset_param_phi11, &
     preset_param_phi19, &
     preset_param_theta4, &
     preset_param_theta13, &
-    preset_aspect5, &
     preset_aspect7, &
-    preset_aspect11, &
     preset_aspect13, &
-    preset_aspect17, &
     preset_aspect18, &
     preset_aspect23, &
-    preset_aspect90, &
     preset_w010, &
     preset_w020, &
     preset_w021, &
-    preset_w050, &
     preset_w0100, &
     preset_tau15, &
     preset_tau20, &
     preset_tau31, &
-    preset_tau50, &
     preset_tau100
 
   implicit none

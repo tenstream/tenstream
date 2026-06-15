@@ -48,6 +48,10 @@ project (tenstream
   VERSION 1.0 )
 enable_testing()
 
+# Restrict dep scanner to project files -- prevents OOM when PETSc headers are
+# transitively scanned in parallel (they are passed via CMAKE_Fortran_FLAGS).
+set(CMAKE_DEPENDS_IN_PROJECT_ONLY ON)
+
 set(CTEST_CMAKE_GENERATOR "Unix Makefiles")
 set(CMAKE_C_STANDARD 99)
 
@@ -56,7 +60,7 @@ set(PythonCompat_FIND_VERSION 3)
 find_package(PythonCompat REQUIRED)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-if(CMAKE_Fortran_COMPILER_VERSION VERSION_GREATER 10)
+if(CMAKE_Fortran_COMPILER_ID STREQUAL "GNU" AND CMAKE_Fortran_COMPILER_VERSION VERSION_GREATER 10)
   set(CMAKE_Fortran_FLAGS  "${CMAKE_Fortran_FLAGS} -fallow-argument-mismatch -std=legacy")
 endif()
 
@@ -190,59 +194,123 @@ endif()
 set(MPIEXEC_NUMPROC_FLAG -n CACHE STRING "options to set number of MPI tasks/nodes")
 MESSAGE(STATUS "Using MPIEXEC: ${MPIEXEC}")
 
-# Petsc
-if(NOT PETSC_INSTALL)
-  if(NOT DEFINED ENV{PETSC_DIR})
-    message(VERBOSE "Environment variable $PETSC_DIR is not set.
-                     Either export $PETSC_DIR and $PETSC_ARCH or supply -DPETSC_INSTALL=<path_to_petsc>
-                     Ignore this warning in case that you are using pkg-config to find PETSc")
-  else()
-    message(STATUS "Using environment vars to find PETSc: PETSC_DIR=$ENV{PETSC_DIR} PETSC_ARCH=$ENV{PETSC_ARCH}")
-    set(PETSC_INSTALL "$ENV{PETSC_DIR}/$ENV{PETSC_ARCH}"
-      CACHE STRING "Path to PETSc Installation, usually $PETSC_DIR/$PETSC_ARCH")
-    MESSAGE(STATUS "Using PETSC ${PETSC_INSTALL} ")
-    if(NOT EXISTS "${PETSC_INSTALL}" )
-      message(FATAL "Directory ${PETSC_INSTALL} does not exist!")
-    endif()
-  endif(NOT DEFINED ENV{PETSC_DIR})
-endif()
-if(PETSC_INSTALL)
-  set(CMAKE_PREFIX_PATH ${PETSC_INSTALL} ${CMAKE_PREFIX_PATH})
-  message(STATUS "Added ${PETSC_INSTALL} to CMAKE_PREFIX_PATH: ${CMAKE_PREFIX_PATH}")
-endif(PETSC_INSTALL)
+option(WITH_PETSC "Enable PETSc solver backend (required for pprts, optional for optprop-only builds)" ON)
+
+# Floating-point and integer precision for ireals/iintegers.
+# Ignored when WITH_PETSC=ON -- precision is then dictated by the PETSc build.
+set(TENSTREAM_IREALS_BITS    "32" CACHE STRING "ireals precision when PETSc absent (32 or 64)")
+set_property(CACHE TENSTREAM_IREALS_BITS    PROPERTY STRINGS "32" "64")
+set(TENSTREAM_IINTEGERS_BITS "32" CACHE STRING "iintegers precision when PETSc absent (32 or 64)")
+set_property(CACHE TENSTREAM_IINTEGERS_BITS PROPERTY STRINGS "32" "64")
 
 include(FindPkgConfig)
-pkg_search_module(PETSC REQUIRED PETSc)
-if(EXISTS ${PETSC_LIBDIR})
-  set (PETSC_LDFLAGS "-L${PETSC_LIBDIR} ${PETSC_LDFLAGS}")
-endif()
-message(STATUS "PETSC_INCLUDEDIR     : ${PETSC_INCLUDEDIR}    ")
-message(STATUS "PETSC_INCLUDE_DIRS   : ${PETSC_INCLUDE_DIRS}  ")
-message(STATUS "PETSC_LIBDIR         : ${PETSC_LIBDIR}        ")
-message(STATUS "PETSC_LINK_LIBRARIES : ${PETSC_LINK_LIBRARIES}")
-message(STATUS "PETSC_LDFLAGS        : ${PETSC_LDFLAGS}       ")
-list (APPEND EXTLIB ${PETSC_LINK_LIBRARIES} ${PETSC_LDFLAGS})
-list (APPEND CMAKE_INSTALL_RPATH ${PETSC_LIBDIR})
 
-# the cmake dependency scanner gets trapped in an infinite loop when we add petsc headers as includedirs.
-# instead we provide them as compiler flags
-#include_directories(${PETSC_INCLUDEDIR} ${PETSC_INCLUDE_DIRS})
-set(PETSC_CFLAGS "${INCLUDE_FLAG}${PETSC_INCLUDEDIR}")
-foreach(dir ${PETSC_INCLUDE_DIRS})
-  set(PETSC_CFLAGS "${INCLUDE_FLAG}${dir} ${PETSC_CFLAGS}")
-endforeach()
-message(STATUS "PETSC_CFLAGS         : ${PETSC_CFLAGS}")
-set(CMAKE_C_FLAGS               "${PETSC_CFLAGS} ${CMAKE_C_FLAGS}" )
-set(CMAKE_Fortran_FLAGS         "${PETSC_CFLAGS} ${CMAKE_Fortran_FLAGS}" )
+# --- PETSc detection (auto-downgrade to OFF with a warning if not found) ---
+if(WITH_PETSC)
+  if(NOT PETSC_INSTALL)
+    if(NOT DEFINED ENV{PETSC_DIR})
+      message(VERBOSE "Environment variable $PETSC_DIR is not set.
+                       Either export $PETSC_DIR and $PETSC_ARCH or supply -DPETSC_INSTALL=<path_to_petsc>
+                       Ignore this warning in case that you are using pkg-config to find PETSc")
+    else()
+      message(STATUS "Using environment vars to find PETSc: PETSC_DIR=$ENV{PETSC_DIR} PETSC_ARCH=$ENV{PETSC_ARCH}")
+      set(PETSC_INSTALL "$ENV{PETSC_DIR}/$ENV{PETSC_ARCH}"
+        CACHE STRING "Path to PETSc Installation, usually $PETSC_DIR/$PETSC_ARCH")
+      MESSAGE(STATUS "Using PETSC ${PETSC_INSTALL} ")
+      if(NOT EXISTS "${PETSC_INSTALL}")
+        message(FATAL "Directory ${PETSC_INSTALL} does not exist!")
+      endif()
+    endif()
+  endif()
+  if(PETSC_INSTALL)
+    set(CMAKE_PREFIX_PATH ${PETSC_INSTALL} ${CMAKE_PREFIX_PATH})
+    message(STATUS "Added ${PETSC_INSTALL} to CMAKE_PREFIX_PATH: ${CMAKE_PREFIX_PATH}")
+  endif()
 
-if(PETSC_STATIC_LIBS)
-  message(STATUS "PETSC_STATIC_LIBS         : ${PETSC_STATIC_LIBS}")
-  message(STATUS "PETSC_STATIC_LIBRARIES    : ${PETSC_STATIC_LIBRARIES}")
-  message(STATUS "PETSC_STATIC_LDFLAGS      : ${PETSC_STATIC_LDFLAGS}")
-  list (APPEND EXTLIB ${PETSC_STATIC_LDFLAGS} ${PETSC_STATIC_LIBS} ${PETSC_STATIC_LIBRARIES})
+  pkg_search_module(PETSC PETSc)
+  if(NOT PETSC_FOUND)
+    set(WITH_PETSC OFF CACHE BOOL
+      "Enable PETSc solver backend (required for pprts, optional for optprop-only builds)" FORCE)
+    message(WARNING "PETSc NOT FOUND -- disabling PETSc support (WITH_PETSC=OFF). See details above.")
+    message(NOTICE
+  "---------------------------------------------------\
+\n                                                    \
+\n   PETSc NOT FOUND  --  disabling PETSc support     \
+\n                                                    \
+\n   The following features are NOT available:        \
+\n     * pprts KSP solver (3D radiative transfer)     \
+\n     * plexrt (unstructured-grid RT / ICON coupling)\
+\n                                                    \
+\n   To enable PETSc, either:                         \
+\n     export PETSC_DIR=... PETSC_ARCH=...            \
+\n     cmake -DPETSC_INSTALL=<petsc_prefix> ...       \
+\n                                                    \
+\n   Continuing with WITH_PETSC=OFF (nopetsc build)   \
+\n                                                    \
+\n----------------------------------------------------")
+  endif()
 endif()
-if(PETSC_VERSION VERSION_GREATER_EQUAL "3.16.99")
-  add_definitions(-DPETSC_DMPlexDistributeSetDefault)
+
+# --- PETSc configuration (only reached when WITH_PETSC is still ON after detection) ---
+if(WITH_PETSC)
+  if(EXISTS ${PETSC_LIBDIR})
+    set(PETSC_LDFLAGS "-L${PETSC_LIBDIR} ${PETSC_LDFLAGS}")
+  endif()
+  message(STATUS "PETSC_INCLUDEDIR     : ${PETSC_INCLUDEDIR}    ")
+  message(STATUS "PETSC_INCLUDE_DIRS   : ${PETSC_INCLUDE_DIRS}  ")
+  message(STATUS "PETSC_LIBDIR         : ${PETSC_LIBDIR}        ")
+  message(STATUS "PETSC_LINK_LIBRARIES : ${PETSC_LINK_LIBRARIES}")
+  message(STATUS "PETSC_LDFLAGS        : ${PETSC_LDFLAGS}       ")
+  list(APPEND EXTLIB ${PETSC_LINK_LIBRARIES} ${PETSC_LDFLAGS})
+  list(APPEND CMAKE_INSTALL_RPATH ${PETSC_LIBDIR})
+
+  add_compile_definitions(HAVE_PETSC)
+  message(STATUS "WITH_PETSC=ON: PETSc solver backend enabled (-DHAVE_PETSC)")
+
+  # Detect PETSc scalar precision and index width from petscconf.h
+  file(READ "${PETSC_INCLUDEDIR}/petscconf.h" _petscconf_content)
+  if(_petscconf_content MATCHES "PETSC_USE_REAL_SINGLE")
+    add_compile_definitions(PETSC_IREALS_KIND=4)
+    message(STATUS "PETSc scalar: single precision (PETSC_IREALS_KIND=4)")
+  else()
+    add_compile_definitions(PETSC_IREALS_KIND=8)
+    message(STATUS "PETSc scalar: double precision (PETSC_IREALS_KIND=8)")
+  endif()
+  if(_petscconf_content MATCHES "PETSC_USE_64BIT_INDICES")
+    add_compile_definitions(PETSC_IINTEGERS_KIND=8)
+    message(STATUS "PETSc indices: 64-bit (PETSC_IINTEGERS_KIND=8)")
+  else()
+    add_compile_definitions(PETSC_IINTEGERS_KIND=4)
+    message(STATUS "PETSc indices: 32-bit (PETSC_IINTEGERS_KIND=4)")
+  endif()
+  unset(_petscconf_content)
+
+  # Add PETSc include dirs as compiler flags (the cmake dependency scanner gets
+  # trapped in an infinite loop when petsc headers are added via include_directories)
+  set(PETSC_CFLAGS "${INCLUDE_FLAG}${PETSC_INCLUDEDIR}")
+  foreach(dir ${PETSC_INCLUDE_DIRS})
+    set(PETSC_CFLAGS "${INCLUDE_FLAG}${dir} ${PETSC_CFLAGS}")
+  endforeach()
+  message(STATUS "PETSC_CFLAGS         : ${PETSC_CFLAGS}")
+  set(CMAKE_C_FLAGS       "${PETSC_CFLAGS} ${CMAKE_C_FLAGS}")
+  set(CMAKE_Fortran_FLAGS "${PETSC_CFLAGS} ${CMAKE_Fortran_FLAGS}")
+
+  if(PETSC_STATIC_LIBS)
+    message(STATUS "PETSC_STATIC_LIBS         : ${PETSC_STATIC_LIBS}")
+    message(STATUS "PETSC_STATIC_LIBRARIES    : ${PETSC_STATIC_LIBRARIES}")
+    message(STATUS "PETSC_STATIC_LDFLAGS      : ${PETSC_STATIC_LDFLAGS}")
+    list(APPEND EXTLIB ${PETSC_STATIC_LDFLAGS} ${PETSC_STATIC_LIBS} ${PETSC_STATIC_LIBRARIES})
+  endif()
+  if(PETSC_VERSION VERSION_GREATER_EQUAL "3.16.99")
+    add_definitions(-DPETSC_DMPlexDistributeSetDefault)
+  endif()
+else()
+  message(STATUS "WITH_PETSC=OFF: PETSc DMDA/PLEX solver disabled; examples/gas-optics compile but error at runtime if solver is invoked")
+  message(STATUS "  ireals=${TENSTREAM_IREALS_BITS}-bit  iintegers=${TENSTREAM_IINTEGERS_BITS}-bit  (set via TENSTREAM_IREALS_BITS / TENSTREAM_IINTEGERS_BITS)")
+  add_compile_definitions(TENSTREAM_IREALS_BITS=${TENSTREAM_IREALS_BITS})
+  add_compile_definitions(TENSTREAM_IINTEGERS_BITS=${TENSTREAM_IINTEGERS_BITS})
+  # PLEXRT uses tDM/tVec in its public API so it remains PETSc-only
+  set(ENABLE_PLEXRT    OFF CACHE BOOL "PLEXRT requires PETSc"    FORCE)
 endif()
 
 # NetCDF
@@ -276,11 +344,17 @@ if(NOT ${NETCDF_FOUND})
     #include_directories(${NETCDF_netcdf-fortran_INCLUDEDIR}  ${NETCDF_netcdf_INCLUDEDIR})
     set(CMAKE_C_FLAGS        "${INCLUDE_FLAG}${NETCDF_netcdf_INCLUDEDIR} ${CMAKE_C_FLAGS}" )
     set(CMAKE_Fortran_FLAGS  "${INCLUDE_FLAG}${NETCDF_netcdf-fortran_INCLUDEDIR} ${CMAKE_Fortran_FLAGS}" )
-    list (APPEND EXTLIB
+    # NetCDF pkg-config on some systems (Ubuntu 25 / netcdf 4.9.3) embeds CMake
+    # imported-target names like -lHDF5::HDF5 in its LDFLAGS.  CMake 4.x rejects
+    # those as unknown targets.  Filter them out; the real libraries are already
+    # pulled in via find_package(HDF5) and find_package(CURL) below.
+    set(_netcdf_all_flags
       ${NETCDF_LDFLAGS}
       ${NETCDF_LDFLAGS_OTHER}
       ${NETCDF_STATIC_LDFLAGS}
       ${NETCDF_STATIC_LDFLAGS_OTHER})
+    list(FILTER _netcdf_all_flags EXCLUDE REGEX "::")
+    list(APPEND EXTLIB ${_netcdf_all_flags})
     list (APPEND CMAKE_INSTALL_RPATH ${NETCDF_LIBRARY_DIRS})
 
     # check if netcdf supports parallel calls
@@ -311,7 +385,7 @@ if(${HDF5_FOUND})
   set(CMAKE_C_FLAGS        "${INCLUDE_FLAG}${HDF5_INCLUDE_DIR} ${CMAKE_C_FLAGS}" )
   set(CMAKE_Fortran_FLAGS  "${INCLUDE_FLAG}${HDF5_INCLUDE_DIR} ${CMAKE_Fortran_FLAGS}" )
   link_directories("${HDF5_BUILD_DIR}/lib")
-  list (APPEND ${EXTLIB} ${HDF5_C_LIBRARY} ${HDF5_LIBRARIES})
+  list (APPEND EXTLIB ${HDF5_C_LIBRARY} ${HDF5_LIBRARIES})
   list (APPEND CMAKE_INSTALL_RPATH ${HDF5_BUILD_DIR}/lib ${HDF5_LIBRARY_DIRS})
 else(${HDF5_FOUND})
   message(WARNING "CMake could not find your HDF5 install, you may need to add the hdf5 libraries in config/<loc>.cmake by hand." )
@@ -422,6 +496,8 @@ add_subdirectory(misc)
 
 if(ENABLE_PLEXRT)
   add_subdirectory (plexrt)
+else()
+  add_library(plexrt INTERFACE)
 endif(ENABLE_PLEXRT)
 
 set(TENSTR_LIBS
@@ -444,6 +520,9 @@ if(ENABLE_RRTM)
 endif()
 if(ENABLE_REPWVL)
   list(APPEND TENSTR_LIBS repwvl_pprts)
+  if(ENABLE_PLEXRT)
+    list(APPEND TENSTR_LIBS repwvl_plexrt)
+  endif()
 endif()
 if(ENABLE_ECCKD)
   list(APPEND TENSTR_LIBS ecckd_pprts)
@@ -478,7 +557,7 @@ if(NOT BUILD_SHARED_LIBS)
       add_custom_command(TARGET ${output_archive}
         PRE_BUILD ${output_archive}
         WORKING_DIRECTORY ${obj_folder}
-        COMMAND ${CMAKE_AR} x ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/lib${in_archive}.a)
+        COMMAND ${CMAKE_AR} x $<TARGET_FILE:${in_archive}>)
     ENDFOREACH()
 
     add_custom_command(TARGET ${output_archive}

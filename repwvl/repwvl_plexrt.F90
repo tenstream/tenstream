@@ -25,7 +25,7 @@ module m_repwvl_plexrt
 
   use m_data_parameters, only: &
     & iintegers, ireals, mpiint, &
-    & zero, one, default_str_len
+    & zero, one
 
   use m_helper_functions, only: &
     & CHKERR, &
@@ -34,16 +34,15 @@ module m_repwvl_plexrt
     & is_inrange, &
     & toStr
 
-  use m_tenstream_options, only: read_commandline_options
-
-  use m_dyn_atm_to_rrtmg, only: &
+  use m_tenstr_atm, only: &
     & planck, &
     & print_tenstr_atm, &
     & t_tenstr_atm
 
   use m_repwvl_base, only: repwvl_init, t_repwvl_data, repwvl_log_events
+  use m_tenstream_log, only: ts_log_begin, ts_log_end, ts_log_stage_push, ts_log_stage_pop
   use m_repwvl_optprop, only: repwvl_optprop, check_fu_table_consistency
-  use m_mie_tables, only: mie_tables_init, t_mie_table, destroy_mie_table
+  use m_mie_tables, only: mie_tables_init, t_mie_table
   use m_fu_ice, only: fu_ice_init
 
   use m_plex_grid, only: TOAFACE
@@ -177,11 +176,11 @@ contains
     call allocate_optprop_vec(solver%plex%srfc_boundary_dm, solver%albedo)
 
     lskip_thermal = .false.
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-skip_thermal", lskip_thermal, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', "-skip_thermal", lskip_thermal, lflg, ierr); call CHKERR(ierr)
     if (lthermal .and. .not. lskip_thermal) then
       call allocate_optprop_vec(solver%plex%horizface1_dm, solver%plck)
 
-      call PetscLogStagePush(repwvl_log_events%stage_repwvl_thermal, ierr); call CHKERR(ierr)
+      call ts_log_stage_push(repwvl_log_events%stage_repwvl_thermal, ierr); call CHKERR(ierr)
       call compute_thermal(comm, solver, &
                            & repwvl_data_thermal, &
                            & repwvl_mie_table, atm, &
@@ -191,7 +190,7 @@ contains
                            & ierr, &
                            & opt_time=opt_time, &
                            & thermal_albedo_2d=thermal_albedo_2d); call CHKERR(ierr)
-      call PetscLogStagePop(ierr); call CHKERR(ierr) ! pop solver%logs%stage_repwvl_thermal
+      call ts_log_stage_pop(ierr); call CHKERR(ierr) ! pop solver%logs%stage_repwvl_thermal
     end if
 
     if (lsolar .and. .not. allocated(edir)) allocate (edir(ke1, Ncol))
@@ -200,9 +199,9 @@ contains
     if (lsolar) then
 
       lskip_solar = .false.
-      call get_petsc_opt(PETSC_NULL_CHARACTER, "-skip_solar", lskip_solar, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt('', "-skip_solar", lskip_solar, lflg, ierr); call CHKERR(ierr)
       if (.not. lskip_solar) then
-        call PetscLogStagePush(repwvl_log_events%stage_repwvl_solar, ierr); call CHKERR(ierr)
+        call ts_log_stage_push(repwvl_log_events%stage_repwvl_solar, ierr); call CHKERR(ierr)
         call compute_solar(comm, solver, &
                            & repwvl_data_solar, &
                            & repwvl_mie_table, atm, &
@@ -213,7 +212,7 @@ contains
                            & opt_time=opt_time, &
                            & solar_albedo_2d=solar_albedo_2d, &
                            & opt_solar_constant=opt_solar_constant); call CHKERR(ierr)
-        call PetscLogStagePop(ierr); call CHKERR(ierr) ! pop solver%logs%stage_repwvl_solar
+        call ts_log_stage_pop(ierr); call CHKERR(ierr) ! pop solver%logs%stage_repwvl_solar
       end if
     end if
   end subroutine
@@ -264,7 +263,7 @@ contains
 
     spectral_bands = [integer(iintegers) :: 1, size(repwvl_data%wvls)]
     argcnt = size(spectral_bands)
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-repwvl_bands", spectral_bands, argcnt, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', "-repwvl_bands", spectral_bands, argcnt, lflg, ierr); call CHKERR(ierr)
     if (lflg) call CHKERR(int(argcnt - 2_iintegers, mpiint), "must provide 2 values for repwvl_bands, comma separated, no spaces")
     spectral_bands = min(max(spectral_bands, 1), size(repwvl_data%wvls))
 
@@ -275,7 +274,7 @@ contains
           & ' ('//toStr(repwvl_data%wvls(iwvl))//' nm,  wgt='//toStr(repwvl_data%wgts(iwvl))//')'
       end if
 
-      call PetscLogEventBegin(repwvl_log_events%repwvl_optprop, ierr); call CHKERR(ierr)
+      call ts_log_begin(repwvl_log_events%repwvl_optprop, ierr); call CHKERR(ierr)
       do i = 1, Ncol
         do k = 1, ke
           call repwvl_optprop(&
@@ -299,7 +298,7 @@ contains
                         & * 1e-9_ireals
         end do
       end if
-      call PetscLogEventEnd(repwvl_log_events%repwvl_optprop, ierr); call CHKERR(ierr)
+      call ts_log_end(repwvl_log_events%repwvl_optprop, ierr); call CHKERR(ierr)
 
       call VecGetArray(solver%albedo, xalbedo, ierr); call CHKERR(ierr)
       if (present(thermal_albedo_2d)) then
@@ -381,7 +380,7 @@ contains
 
     spectral_bands = [integer(iintegers) :: 1, size(repwvl_data%wvls)]
     argcnt = size(spectral_bands)
-    call get_petsc_opt(PETSC_NULL_CHARACTER, "-repwvl_bands", spectral_bands, argcnt, lflg, ierr); call CHKERR(ierr)
+    call get_petsc_opt('', "-repwvl_bands", spectral_bands, argcnt, lflg, ierr); call CHKERR(ierr)
     if (lflg) call CHKERR(int(argcnt - 2_iintegers, mpiint), "must provide 2 values for repwvl_bands, comma separated, no spaces")
     spectral_bands = min(max(spectral_bands, 1), size(repwvl_data%wvls))
 
@@ -398,7 +397,7 @@ contains
       end if
       rescaled_sundir = sundir / norm2(sundir) * edirTOA
 
-      call PetscLogEventBegin(repwvl_log_events%repwvl_optprop, ierr); call CHKERR(ierr)
+      call ts_log_begin(repwvl_log_events%repwvl_optprop, ierr); call CHKERR(ierr)
       do i = 1, Ncol
         do k = 1, ke
           call repwvl_optprop(&
@@ -410,7 +409,7 @@ contains
             & ierr); call CHKERR(ierr)
         end do
       end do
-      call PetscLogEventEnd(repwvl_log_events%repwvl_optprop, ierr); call CHKERR(ierr)
+      call ts_log_end(repwvl_log_events%repwvl_optprop, ierr); call CHKERR(ierr)
 
       call VecGetArray(solver%albedo, xalbedo, ierr); call CHKERR(ierr)
       if (present(solar_albedo_2d)) then
