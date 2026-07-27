@@ -1467,7 +1467,8 @@ contains
       ! asynchronous SEND starts here
       tag = int(pqueue%queue_index, kind(tag))
       call mpi_isend(p, 1_mpiint, imp_t_photon, &
-                     pqueue%owner, tag, solver%comm, pqueue%send_photons(iphoton)%request, ierr); call CHKERR(ierr, 'mpi isend failed')
+                     pqueue%owner, tag, solver%comm, pqueue%send_photons(iphoton)%request, ierr)
+      call CHKERR(ierr, 'mpi isend failed')
       !call mpi_send(p, 1_mpiint, imp_t_photon, &
       !  pqueue%owner, tag, solver%comm, ierr); call CHKERR(ierr, 'mpi isend failed')
 
