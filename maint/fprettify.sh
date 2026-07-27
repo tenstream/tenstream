@@ -140,7 +140,7 @@ fi
 
 OPT="\
   --indent 2 \
-  --line-length 192 \
+  --line-length 132 \
   --whitespace 3 \
   --strict-indent \
   --enable-decl \

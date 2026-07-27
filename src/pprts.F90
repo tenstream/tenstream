@@ -2921,7 +2921,8 @@ contains
       solution%lchanged = .true.
       solution%lWm2_dir = .false.
       call PetscObjectSetName(solution%edir_petsc, 'debug_edir', ierr); call CHKERR(ierr)
-      call PetscObjectViewFromOptions(PetscObjectCast(solution%edir_petsc), PetscObjectCast(PETSC_NULL_VEC), "-show_debug_edir", ierr)
+      call PetscObjectViewFromOptions( &
+        & PetscObjectCast(solution%edir_petsc), PetscObjectCast(PETSC_NULL_VEC), "-show_debug_edir", ierr)
       call CHKERR(ierr)
       call VecDestroy(incSolar_petsc, ierr); call CHKERR(ierr)
     end subroutine
@@ -5243,11 +5244,13 @@ contains
                     src = src + 1
                   end do
                   do isrc = 0, solver%dirside%dof - 1
-                    solution%abso(i0, k, i, j) = solution%abso(i0, k, i, j) + ledir(src, k, i + 1 - xinc, j) * (one - sum(pdir2dir(src, :)))
+                    solution%abso(i0, k, i, j) = solution%abso(i0, k, i, j) &
+                      & + ledir(src, k, i + 1 - xinc, j) * (one - sum(pdir2dir(src, :)))
                     src = src + 1
                   end do
                   do isrc = 0, solver%dirside%dof - 1
-                    solution%abso(i0, k, i, j) = solution%abso(i0, k, i, j) + ledir(src, k, i, j + i1 - yinc) * (one - sum(pdir2dir(src, :)))
+                    solution%abso(i0, k, i, j) = solution%abso(i0, k, i, j) &
+                      & + ledir(src, k, i, j + i1 - yinc) * (one - sum(pdir2dir(src, :)))
                     src = src + 1
                   end do
                 end if
@@ -5267,14 +5270,17 @@ contains
             do k = C_one%zs, C_one%ze
               if (solution%lsolar_rad) then
                 do isrc = i0, solver%dirtop%dof - 1
-                  solution%abso(i0, k, i, j) = solution%abso(i0, k, i, j) + solution%edir(isrc, k, i, j) - solution%edir(isrc, k + i1, i, j)
+                  solution%abso(i0, k, i, j) = solution%abso(i0, k, i, j) &
+                    & + solution%edir(isrc, k, i, j) - solution%edir(isrc, k + i1, i, j)
                 end do
               end if
               do isrc = 0, solver%difftop%dof - 1
                 if (solver%difftop%is_inward(i1 + isrc)) then
-                  solution%abso(i0, k, i, j) = solution%abso(i0, k, i, j) + (solution%ediff(isrc, k, i, j) - solution%ediff(isrc, k + 1, i, j))
+                  solution%abso(i0, k, i, j) = solution%abso(i0, k, i, j) &
+                    & + (solution%ediff(isrc, k, i, j) - solution%ediff(isrc, k + 1, i, j))
                 else
-                  solution%abso(i0, k, i, j) = solution%abso(i0, k, i, j) + (solution%ediff(isrc, k + 1, i, j) - solution%ediff(isrc, k, i, j))
+                  solution%abso(i0, k, i, j) = solution%abso(i0, k, i, j) &
+                    & + (solution%ediff(isrc, k + 1, i, j) - solution%ediff(isrc, k, i, j))
                 end if
               end do
             end do
@@ -5416,11 +5422,13 @@ contains
                     src = src + 1
                   end do
                   do isrc = 0, solver%dirside%dof - 1
-                    solution%abso(i0, k, i, j) = solution%abso(i0, k, i, j) + (ledir(src, k, i + 1 - xinc, j) - ledir(src, k, i + xinc, j))
+                    solution%abso(i0, k, i, j) = solution%abso(i0, k, i, j) &
+                      & + (ledir(src, k, i + 1 - xinc, j) - ledir(src, k, i + xinc, j))
                     src = src + 1
                   end do
                   do isrc = 0, solver%dirside%dof - 1
-                    solution%abso(i0, k, i, j) = solution%abso(i0, k, i, j) + (ledir(src, k, i, j + i1 - yinc) - ledir(src, k, i, j + yinc))
+                    solution%abso(i0, k, i, j) = solution%abso(i0, k, i, j) &
+                      & + (ledir(src, k, i, j + i1 - yinc) - ledir(src, k, i, j + yinc))
                     src = src + 1
                   end do
                 end if

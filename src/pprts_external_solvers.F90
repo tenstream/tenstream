@@ -397,13 +397,16 @@ contains
                 & nr_photons=Nphotons_r, petsc_log=solver%logs%rayli_tracing)
             end if
 
-            call PetscObjectViewFromOptions(PetscObjectCast(plex_solution%edir_petsc), PETSC_NULL_OBJECT, '-show_plex_rayli_edir', ierr)
+            call PetscObjectViewFromOptions( &
+              & PetscObjectCast(plex_solution%edir_petsc), PETSC_NULL_OBJECT, '-show_plex_rayli_edir', ierr)
             call CHKERR(ierr)
           end if
 
-          call PetscObjectViewFromOptions(PetscObjectCast(plex_solution%ediff_petsc), PETSC_NULL_OBJECT, '-show_plex_rayli_ediff', ierr)
+          call PetscObjectViewFromOptions( &
+            & PetscObjectCast(plex_solution%ediff_petsc), PETSC_NULL_OBJECT, '-show_plex_rayli_ediff', ierr)
           call CHKERR(ierr)
-          call PetscObjectViewFromOptions(PetscObjectCast(plex_solution%abso_petsc), PETSC_NULL_OBJECT, '-show_plex_rayli_abso', ierr)
+          call PetscObjectViewFromOptions( &
+            & PetscObjectCast(plex_solution%abso_petsc), PETSC_NULL_OBJECT, '-show_plex_rayli_abso', ierr)
           call CHKERR(ierr)
 
           do isub = 0, subnumnodes - 1 ! send finalize msg to all others to stop waiting
