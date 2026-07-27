@@ -2711,7 +2711,8 @@ contains
           associate (C => solver%C_dir)
             allocate (b_arr(0:C%dof - 1, C%zs:C%ze, C%xs:C%xe, C%ys:C%ye)); b_arr = zero
             call setup_incSolar(solver, edirTOA, b_arr)
-            call VecCreateMPIWithArray(C%comm, i1, int(size(b_arr), iintegers), PETSC_DETERMINE, b_arr, b_gvec, ierr); call CHKERR(ierr)
+            call VecCreateMPIWithArray(C%comm, i1, int(size(b_arr), iintegers), PETSC_DETERMINE, b_arr, b_gvec, ierr)
+            call CHKERR(ierr)
             call VecSetDM(b_gvec, C%da, ierr); call CHKERR(ierr)
             call DMGetLocalVector(C%da, lb_vec, ierr); call CHKERR(ierr)
             call DMGlobalToLocal(C%da, b_gvec, INSERT_VALUES, lb_vec, ierr); call CHKERR(ierr)

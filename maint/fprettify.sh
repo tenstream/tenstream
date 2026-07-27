@@ -26,10 +26,7 @@ touch $ERRLOG
 PYTHON=$(which "python3")
 BIN=$PROJECT_ROOT/external/fprettify/fprettify.py
 if [[ ! -e $BIN ]]; then
-  git clone https://github.com/fortran-lang/fprettify.git $(dirname $BIN)
-  sed -i 's#COMMENT_LINE_STR = r"^!"#COMMENT_LINE_STR = r"^!|^@"#' $(dirname $BIN)/fprettify/fparse_utils.py
-  sed -i 's#+ "USE(#+ r"USE(#' $(dirname $BIN)/fprettify/__init__.py
-  sed -i 's#compile("\s*#compile(r"\s*#' $(dirname $BIN)/fprettify/__init__.py
+  git clone https://gitlab.com/jakubfabian/ts_fprettify.git $(dirname $BIN)
 fi
 DIFF=false
 DRYRUN=false
