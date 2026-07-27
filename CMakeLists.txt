@@ -205,6 +205,31 @@ set_property(CACHE TENSTREAM_IINTEGERS_BITS PROPERTY STRINGS "32" "64")
 
 include(FindPkgConfig)
 
+# Some find_package() CONFIG-mode packages (e.g. HDF5's own hdf5-config.cmake)
+# populate their "_LIBRARIES" variables with CMake imported *target names*
+# (e.g. "hdf5-shared") instead of plain paths/linker flags. Those target names
+# are meaningless outside of the CMake build itself and must not leak into a
+# generated .pc file. This resolves each entry of <in_list> to a real path
+# (dropping any target it can't resolve) and stores the flat, space-separated
+# result in <out_var>.
+function(tenstream_resolve_libs_for_pc in_list out_var)
+  set(_resolved "")
+  foreach(_lib ${${in_list}})
+    if(TARGET ${_lib})
+      get_target_property(_lib_loc ${_lib} LOCATION)
+      if(_lib_loc)
+        list(APPEND _resolved "${_lib_loc}")
+      else()
+        message(WARNING "pkg-config: dropping unresolved CMake target '${_lib}' (no LOCATION)")
+      endif()
+    else()
+      list(APPEND _resolved "${_lib}")
+    endif()
+  endforeach()
+  string(REPLACE ";" " " _resolved_str "${_resolved}")
+  set(${out_var} "${_resolved_str}" PARENT_SCOPE)
+endfunction()
+
 # --- PETSc detection (auto-downgrade to OFF with a warning if not found) ---
 if(WITH_PETSC)
   if(NOT PETSC_INSTALL)
@@ -393,11 +418,17 @@ endif(${HDF5_FOUND})
 
 
 # Add Lapack
+# tenstream calls SGBSV/DGBSV directly (src/twostream.F90), so LAPACK is a
+# genuine, unconditional link-time requirement for anyone linking -ltenstream
+# -- not merely a private/internal build detail. LAPACK_LDFLAGS is exposed on
+# the public "Libs:" line of the generated .pc file for that reason.
 option(AUTODETECT_LAPACK "Let CMAKE try to find LAPACK" ON)
+set(LAPACK_LDFLAGS "")
 if(AUTODETECT_LAPACK)
   find_package( LAPACK )
   if(${LAPACK_FOUND})
     list (APPEND EXTLIB "${LAPACK_LIBRARIES}")
+    tenstream_resolve_libs_for_pc(LAPACK_LIBRARIES LAPACK_LDFLAGS)
   endif(${LAPACK_FOUND})
 endif(AUTODETECT_LAPACK)
 
@@ -705,7 +736,7 @@ endif(DOXYGEN_FOUND)
 #endforeach()
 
 # create pkg-config files
-string(REPLACE ";" " " EXTLIB_SPLIT "${EXTLIB}")
+tenstream_resolve_libs_for_pc(EXTLIB EXTLIB_SPLIT)
 #set(pc_req_public "PETSc netcdf-fortran lapack") # would be nice but we dont want to fail if a lib is not in the PKG_CONFIG_PATH
 #set(pc_req_private "")
 CONFIGURE_FILE("pkgconfig/tenstream.pc.in" "lib/pkgconfig/tenstream.pc" @ONLY)
