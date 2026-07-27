@@ -376,8 +376,9 @@ if(NOT ${NETCDF_FOUND})
     set(_netcdf_all_flags
       ${NETCDF_LDFLAGS}
       ${NETCDF_LDFLAGS_OTHER}
-      ${NETCDF_STATIC_LDFLAGS}
-      ${NETCDF_STATIC_LDFLAGS_OTHER})
+      #${NETCDF_STATIC_LDFLAGS}
+      #${NETCDF_STATIC_LDFLAGS_OTHER}
+    )
     list(FILTER _netcdf_all_flags EXCLUDE REGEX "::")
     list(APPEND EXTLIB ${_netcdf_all_flags})
     list (APPEND CMAKE_INSTALL_RPATH ${NETCDF_LIBRARY_DIRS})
