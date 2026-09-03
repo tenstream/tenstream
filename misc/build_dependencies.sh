@@ -128,7 +128,7 @@ function install_netcdf() {
   cd $ARCHIVE_DIR
   export LD_LIBRARY_PATH=${PREFIX}/lib:${PREFIX}/lib64:${LD_LIBRARY_PATH:-}
   export PATH=${PREFIX}/bin:${PATH:-}
-  CC=$CC FC=$FC F90=$FC CXX=$CXX CPPFLAGS=-I$PREFIX/include LDFLAGS="-L$PREFIX/lib -L$PREFIX/lib64" ./configure --prefix=$PREFIX $OPTS
+  CC=$CC FC=$FC F90=$FC CXX=$CXX CPPFLAGS=-I$PREFIX/include LDFLAGS="-L$PREFIX/lib -L$PREFIX/lib64 -Wl,-rpath,$PREFIX/lib -Wl,-rpath,$PREFIX/lib64" ./configure --prefix=$PREFIX $OPTS
   make -j install
   echo "Installed NetCDF lib $FILE into $PREFIX -- CC $CC FC $FC CXX $CXX"
 }
