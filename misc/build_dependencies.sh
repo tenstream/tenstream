@@ -133,7 +133,11 @@ function install_netcdf() {
   echo "Installed NetCDF lib $FILE into $PREFIX -- CC $CC FC $FC CXX $CXX"
 }
 
-install_netcdf "netcdf-c/archive/refs/tags/v4.10.1.tar.gz"       "$PETSC_DIR/$PETSC_ARCH/" "--disable-dap --enable-parallel-tests  --disable-libxml2 --disable-byterange"
+# MPICH-derived MPIs (MPICH, Intel MPI) provide MPI_{Comm,Info}_f2c as macros in mpi.h rather
+# than as library symbols, so the autoconf link probe misses them and netcdf-c >=4.10.0 then
+# aborts with "MPI_Comm_f2c unavailable on a 64-bit system". Override the probe -- the macros
+# are correct, and on OpenMPI the real symbols exist anyway. See Unidata/netcdf-c#3414.
+install_netcdf "netcdf-c/archive/refs/tags/v4.10.1.tar.gz"       "$PETSC_DIR/$PETSC_ARCH/" "--disable-dap --enable-parallel-tests  --disable-libxml2 --disable-byterange ac_cv_func_MPI_Comm_f2c=yes ac_cv_func_MPI_Info_f2c=yes"
 install_netcdf "netcdf-fortran/archive/refs/tags/v4.6.4.tar.gz" "$PETSC_DIR/$PETSC_ARCH/" "--enable-parallel-tests"
 install_netcdf "netcdf-cxx4/archive/refs/tags/v4.3.1.tar.gz"    "$PETSC_DIR/$PETSC_ARCH/" "--enable-parallel-tests --disable-filter-testing"
 
