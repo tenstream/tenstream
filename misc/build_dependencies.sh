@@ -17,7 +17,7 @@ if [[ "x$PETSC_ARCH" == x"debug"* ]]; then
 fi
 
 if [[ -z ${PETSC_OPTS} ]]; then
-  PETSC_OPTS="--download-hdf5 --download-szlib --download-zlib --download-fblaslapack=1"
+  PETSC_OPTS="--download-hdf5 --download-zlib --download-fblaslapack=1"
 fi
 
 echo ""
@@ -128,14 +128,18 @@ function install_netcdf() {
   cd $ARCHIVE_DIR
   export LD_LIBRARY_PATH=${PREFIX}/lib:${PREFIX}/lib64:${LD_LIBRARY_PATH:-}
   export PATH=${PREFIX}/bin:${PATH:-}
-  CC=$CC FC=$FC F90=$FC CXX=$CXX CPPFLAGS=-I$PREFIX/include LDFLAGS="-L$PREFIX/lib -L$PREFIX/lib64" ./configure --prefix=$PREFIX $OPTS
+  CC=$CC FC=$FC F90=$FC CXX=$CXX CPPFLAGS=-I$PREFIX/include LDFLAGS="-L$PREFIX/lib -L$PREFIX/lib64 -Wl,-rpath,$PREFIX/lib -Wl,-rpath,$PREFIX/lib64" ./configure --prefix=$PREFIX $OPTS
   make -j install
   echo "Installed NetCDF lib $FILE into $PREFIX -- CC $CC FC $FC CXX $CXX"
 }
 
-install_netcdf "netcdf-c/archive/refs/tags/v4.9.2.tar.gz"       "$PETSC_DIR/$PETSC_ARCH/" "--disable-dap --enable-parallel-tests  --disable-libxml2 --disable-byterange"
-install_netcdf "netcdf-fortran/archive/refs/tags/v4.6.1.tar.gz" "$PETSC_DIR/$PETSC_ARCH/" "--enable-parallel-tests"
-install_netcdf "netcdf-cxx4/archive/refs/tags/v4.3.1.tar.gz"    "$PETSC_DIR/$PETSC_ARCH/" "--enable-parallel-tests"
+# MPICH-derived MPIs (MPICH, Intel MPI) provide MPI_{Comm,Info}_f2c as macros in mpi.h rather
+# than as library symbols, so the autoconf link probe misses them and netcdf-c >=4.10.0 then
+# aborts with "MPI_Comm_f2c unavailable on a 64-bit system". Override the probe -- the macros
+# are correct, and on OpenMPI the real symbols exist anyway. See Unidata/netcdf-c#3414.
+install_netcdf "netcdf-c/archive/refs/tags/v4.10.1.tar.gz"       "$PETSC_DIR/$PETSC_ARCH/" "--disable-dap --enable-parallel-tests  --disable-libxml2 --disable-byterange ac_cv_func_MPI_Comm_f2c=yes ac_cv_func_MPI_Info_f2c=yes"
+install_netcdf "netcdf-fortran/archive/refs/tags/v4.6.4.tar.gz" "$PETSC_DIR/$PETSC_ARCH/" "--enable-parallel-tests"
+install_netcdf "netcdf-cxx4/archive/refs/tags/v4.3.1.tar.gz"    "$PETSC_DIR/$PETSC_ARCH/" "--enable-parallel-tests --disable-filter-testing"
 
 printf "\n** Make sure to export PETSC_DIR and PETSC_ARCH before cmake'ing TenStream, i.e. set \n\
   \n\
