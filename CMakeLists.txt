@@ -151,46 +151,71 @@ else()
 endif()
 
 ## Set MPI Stuff
-option(AUTODETECT_MPI "Let CMAKE try to find MPI variables" OFF)
-if(AUTODETECT_MPI)
-  find_package( MPI REQUIRED )
+#
+# TenStream is normally configured with an MPI compiler wrapper as
+# CMAKE_Fortran_COMPILER (mpif90, mpiifx, Cray ftn, ...), which already
+# provides mpi.mod and the MPI libraries. When a plain compiler is used
+# instead -- e.g. when TenStream is embedded in a host build system that
+# drives gfortran directly -- the build used to die with
+#
+#   Fatal Error: Cannot open module file 'mpi.mod'
+#
+# AUTODETECT_MPI controls what happens then:
+#   AUTO (default)  probe the Fortran compiler; only call find_package(MPI)
+#                   if it does not provide MPI on its own
+#   ON              always call find_package(MPI)
+#   OFF             never; the compiler is assumed to be an MPI wrapper
+#
+# Note that PETSc is built against one specific MPI. If CMake has to discover
+# an MPI by itself there is no guarantee it finds the same one, so we warn
+# when PETSc was configured with a different compiler driver.
+set(AUTODETECT_MPI "AUTO" CACHE STRING
+  "Find MPI with find_package(): ON, OFF, or AUTO (only when the Fortran compiler is not an MPI wrapper)")
+set_property(CACHE AUTODETECT_MPI PROPERTY STRINGS AUTO ON OFF)
 
-  add_definitions(${MPI_C_COMPILE_FLAGS})
-  #include_directories(${MPI_C_INCLUDE_PATH})
-  set(CMAKE_C_FLAGS "${INCLUDE_FLAG}${MPI_C_INCLUDE_PATH} ${CMAKE_C_FLAGS}" )
-  list (APPEND EXTLIB "${MPI_C_LIBRARIES}" )
+set(TENSTREAM_MPI_VIA_FIND_PACKAGE FALSE)
+if(AUTODETECT_MPI STREQUAL "AUTO")
+  include(CheckFortranSourceCompiles)
+  check_fortran_source_compiles("
+      program tenstream_mpi_probe
+      use mpi
+      implicit none
+      integer :: ierr
+      call mpi_init(ierr)
+      end program
+    " TENSTREAM_FC_PROVIDES_MPI SRC_EXT F90)
+  if(NOT TENSTREAM_FC_PROVIDES_MPI)
+    message(STATUS "${CMAKE_Fortran_COMPILER} does not provide mpi.mod on its own -- falling back to find_package(MPI)")
+    set(TENSTREAM_MPI_VIA_FIND_PACKAGE TRUE)
+  endif()
+elseif(AUTODETECT_MPI)
+  set(TENSTREAM_MPI_VIA_FIND_PACKAGE TRUE)
+endif()
 
-  add_definitions(${MPI_CXX_COMPILE_FLAGS})
-  #include_directories(${MPI_CXX_INCLUDE_PATH})
-  set(CMAKE_CXX_FLAGS "${INCLUDE_FLAG}${MPI_CXX_INCLUDE_PATH} ${CMAKE_C_FLAGS}" )
-  list (APPEND EXTLIB "${MPI_CXX_LIBRARIES}" )
+if(TENSTREAM_MPI_VIA_FIND_PACKAGE)
+  find_package(MPI REQUIRED COMPONENTS C Fortran)
 
-  if(${MPI_Fortran_FOUND})
-    add_definitions(${MPI_Fortran_COMPILE_FLAGS})
-    #include_directories(${MPI_Fortran_INCLUDE_PATH})
-    set(CMAKE_Fortran_FLAGS "${INCLUDE_FLAG}${MPI_Fortran_INCLUDE_PATH} ${CMAKE_C_FLAGS}" )
-    link_directories(${MPI_Fortran_LIBRARIES})
-    list (APPEND EXTLIB "${MPI_Fortran_LIBRARIES}" )
-  else(${MPI_Fortran_FOUND})
-    message(FATAL "!!!!!!! Fotran MPI MISSING")
-  endif(${MPI_Fortran_FOUND})
+  # The imported targets carry include dirs, compile options and link libs as
+  # usage requirements; link_libraries() here attaches them to every target
+  # created in this directory and below. This replaces the previous approach of
+  # splicing MPI paths into the global CMAKE_*_FLAGS, which applied the C
+  # include path to the Fortran compiler and never applied MPI_Fortran's own.
+  link_libraries(MPI::MPI_Fortran MPI::MPI_C)
+  if(TARGET MPI::MPI_CXX)
+    link_libraries(MPI::MPI_CXX)
+  endif()
 
-  set( CMAKE_EXE_LINKER_FLAGS
-    ${CMAKE_EXE_LINKER_FLAGS}
-    ${MPI_CXX_LINK_FLAGS}
-    ${MPI_Fortran_LIBRARIES}
-    ${MPI_C_LIBRARIES}
-    )
-  string (REPLACE ";" " " CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}")
+  # ... and into EXTLIB so they end up in the generated pkg-config file.
+  list(APPEND EXTLIB ${MPI_Fortran_LIBRARIES} ${MPI_C_LIBRARIES})
+  foreach(_mpilib ${MPI_Fortran_LIBRARIES} ${MPI_C_LIBRARIES})
+    if(IS_ABSOLUTE "${_mpilib}")
+      get_filename_component(_mpilibdir "${_mpilib}" DIRECTORY)
+      list(APPEND CMAKE_INSTALL_RPATH "${_mpilibdir}")
+    endif()
+  endforeach()
+  message(STATUS "MPI Fortran libraries: ${MPI_Fortran_LIBRARIES}")
+endif()
 
-  list (APPEND CMAKE_INSTALL_RPATH
-    ${MPI_C_LIBRARY_DIRS}
-    ${MPI_CXX_LIBRARY_DIRS}
-    ${MPI_Fortran_LIBRARY_DIRS})
-
-  #include_directories(${ITAPS_INCLUDES})
-else(AUTODETECT_MPI)
-endif(AUTODETECT_MPI)
 set(MPIEXEC mpirun CACHE STRING "Command to run MPI programs, e.g. used to run tests")
 if(DEFINED USER_MPIEXEC)
   set(MPIEXEC ${USER_MPIEXEC})
@@ -295,6 +320,24 @@ if(WITH_PETSC)
 
   add_compile_definitions(HAVE_PETSC)
   message(STATUS "WITH_PETSC=ON: PETSc solver backend enabled (-DHAVE_PETSC)")
+
+  # PETSc is built against exactly one MPI. If we had to discover an MPI
+  # ourselves rather than inheriting it from an MPI compiler wrapper, there is
+  # nothing tying the two together -- mixing two MPIs gives link errors at best
+  # and silent corruption at worst. Compare against the driver PETSc recorded.
+  if(TENSTREAM_MPI_VIA_FIND_PACKAGE AND EXISTS "${PETSC_INSTALL}/lib/petsc/conf/petscvariables")
+    file(STRINGS "${PETSC_INSTALL}/lib/petsc/conf/petscvariables" _petsc_fc REGEX "^FC = ")
+    string(REGEX REPLACE "^FC = +" "" _petsc_fc "${_petsc_fc}")
+    get_filename_component(_petsc_fc_name "${_petsc_fc}" NAME)
+    get_filename_component(_our_fc_name "${CMAKE_Fortran_COMPILER}" NAME)
+    if(_petsc_fc_name AND NOT _petsc_fc_name STREQUAL _our_fc_name)
+      message(WARNING
+        "PETSc was configured with FC=${_petsc_fc}, but this build uses "
+        "${CMAKE_Fortran_COMPILER} plus a separately discovered MPI "
+        "(${MPI_Fortran_LIBRARIES}). Make sure both refer to the same MPI "
+        "installation, or configure with the same compiler wrapper PETSc used.")
+    endif()
+  endif()
 
   # Detect PETSc scalar precision and index width from petscconf.h
   file(READ "${PETSC_INCLUDEDIR}/petscconf.h" _petscconf_content)
