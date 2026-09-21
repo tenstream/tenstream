@@ -138,9 +138,16 @@ contains
   !> Mirrors PetscOptionsInsertString. Overwrites existing keys.
   subroutine opts_insert_string(str)
     character(len=*), intent(in) :: str
-    integer :: i, argc, sp
-    character(VAL_LEN) :: tokens(256)
+    integer :: i, argc, sp, max_tokens
+    character(VAL_LEN), allocatable :: tokens(:)
     character(VAL_LEN) :: work, tok
+
+    ! Allocatable rather than a fixed-size local: a `character(VAL_LEN) ::
+    ! tokens(256)` is 1MB, which gfortran silently moves from the stack into
+    ! static storage, making this routine non-reentrant. The bound is exact --
+    ! every token needs at least one character plus one separator.
+    max_tokens = max(1, (len_trim(str) + 1) / 2)
+    allocate (tokens(max_tokens))
 
     work = adjustl(str)
     argc = 0
@@ -154,6 +161,10 @@ contains
         work = adjustl(work(sp + 1:))
       end if
       if (len_trim(tok) == 0) cycle
+      if (argc >= max_tokens) then
+        write (error_unit, '(A)') 'opts_db: too many tokens in options string, ignoring the rest'
+        exit
+      end if
       argc = argc + 1
       tokens(argc) = tok
     end do

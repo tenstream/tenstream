@@ -300,6 +300,10 @@ module m_helper_functions
     #:endfor
   end interface
 
+  ! Note: no binding to C's expm1l() here. `ireals`/`irealLUT` are never quad
+  ! precision, so it would be dead code, and on targets where the compiler maps
+  ! c_long_double onto c_double (e.g. gfortran on arm64-darwin) -- or does not
+  ! support it at all (c_long_double < 0) -- it makes this generic ambiguous.
   interface expm1
     real(c_double) function expm1(x) bind(C)
       import :: c_double
@@ -308,10 +312,6 @@ module m_helper_functions
     real(c_float) function expm1f(x) bind(C)
       import :: c_float
       real(c_float), value, intent(in) :: x
-    end function
-    real(c_long_double) function expm1l(x) bind(C)
-      import :: c_long_double
-      real(c_long_double), value, intent(in) :: x
     end function
   end interface
 

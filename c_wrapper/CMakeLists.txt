@@ -18,14 +18,16 @@ file(COPY ./
   DESTINATION ${CMAKE_BINARY_DIR}/include/
   FILES_MATCHING PATTERN "*.h" )
 
-add_executable( "cwrapper_opp" "opp.c" )
-target_link_libraries( "cwrapper_opp" ${TENSTR_SINGLE_LIB} ${EXTLIB})
+if(ENABLE_EXAMPLES)
+  add_executable( "cwrapper_opp" "opp.c" )
+  target_link_libraries( "cwrapper_opp" ${TENSTR_SINGLE_LIB} ${EXTLIB})
 
-add_executable( "cwrapper_pprts" "pprts.c" )
-target_link_libraries( "cwrapper_pprts" ${TENSTR_SINGLE_LIB} ${EXTLIB})
+  add_executable( "cwrapper_pprts" "pprts.c" )
+  target_link_libraries( "cwrapper_pprts" ${TENSTR_SINGLE_LIB} ${EXTLIB})
 
-add_executable( "cwrapper_set_optprop" "set_global_optprop.c" )
-target_link_libraries( "cwrapper_set_optprop" ${TENSTR_SINGLE_LIB} ${EXTLIB})
+  add_executable( "cwrapper_set_optprop" "set_global_optprop.c" )
+  target_link_libraries( "cwrapper_set_optprop" ${TENSTR_SINGLE_LIB} ${EXTLIB})
+endif()
 
 # RRTM gas-optics C wrapper -- only when the RRTM module is enabled.
 if(ENABLE_RRTM)
@@ -42,7 +44,9 @@ if(ENABLE_RRTM)
     target_link_libraries( f2c_pprts_rrtm plexrt )
   endif()
 
-  add_executable( "cwrapper_pprts_rrtmg" "pprts_rrtmg.c" )
-  target_link_libraries( "cwrapper_pprts_rrtmg" ${TENSTR_SINGLE_LIB} ${EXTLIB})
+  if(ENABLE_EXAMPLES)
+    add_executable( "cwrapper_pprts_rrtmg" "pprts_rrtmg.c" )
+    target_link_libraries( "cwrapper_pprts_rrtmg" ${TENSTR_SINGLE_LIB} ${EXTLIB})
+  endif()
 
 endif()

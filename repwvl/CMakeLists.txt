@@ -43,7 +43,7 @@ if(ENABLE_PLEXRT)
     ${EXTLIB} ${USERLIB} ${LIBS})
 endif()
 
-if(WITH_PETSC)
+if(WITH_PETSC AND ENABLE_EXAMPLES)
   add_executable(compute_repwvl_training_data "compute_repwvl_training_data.F90" )
   target_link_libraries( compute_repwvl_training_data ${TENSTR_SINGLE_LIB} ${EXTLIB})
 endif()

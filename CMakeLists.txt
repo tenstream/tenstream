@@ -46,7 +46,11 @@ project (tenstream
   HOMEPAGE_URL https://gitlab.com/jakubfabian/tenstream.git
   DESCRIPTION  "Library to solve Radiative Transer for participating media"
   VERSION 1.0 )
-enable_testing()
+
+# Defines the standard BUILD_TESTING option (default ON) and calls
+# enable_testing() only when it is set, so a library-only build can be
+# configured with -DBUILD_TESTING=OFF.
+include(CTest)
 
 # Restrict dep scanner to project files -- prevents OOM when PETSc headers are
 # transitively scanned in parallel (they are passed via CMAKE_Fortran_FLAGS).
@@ -147,46 +151,71 @@ else()
 endif()
 
 ## Set MPI Stuff
-option(AUTODETECT_MPI "Let CMAKE try to find MPI variables" OFF)
-if(AUTODETECT_MPI)
-  find_package( MPI REQUIRED )
+#
+# TenStream is normally configured with an MPI compiler wrapper as
+# CMAKE_Fortran_COMPILER (mpif90, mpiifx, Cray ftn, ...), which already
+# provides mpi.mod and the MPI libraries. When a plain compiler is used
+# instead -- e.g. when TenStream is embedded in a host build system that
+# drives gfortran directly -- the build used to die with
+#
+#   Fatal Error: Cannot open module file 'mpi.mod'
+#
+# AUTODETECT_MPI controls what happens then:
+#   AUTO (default)  probe the Fortran compiler; only call find_package(MPI)
+#                   if it does not provide MPI on its own
+#   ON              always call find_package(MPI)
+#   OFF             never; the compiler is assumed to be an MPI wrapper
+#
+# Note that PETSc is built against one specific MPI. If CMake has to discover
+# an MPI by itself there is no guarantee it finds the same one, so we warn
+# when PETSc was configured with a different compiler driver.
+set(AUTODETECT_MPI "AUTO" CACHE STRING
+  "Find MPI with find_package(): ON, OFF, or AUTO (only when the Fortran compiler is not an MPI wrapper)")
+set_property(CACHE AUTODETECT_MPI PROPERTY STRINGS AUTO ON OFF)
 
-  add_definitions(${MPI_C_COMPILE_FLAGS})
-  #include_directories(${MPI_C_INCLUDE_PATH})
-  set(CMAKE_C_FLAGS "${INCLUDE_FLAG}${MPI_C_INCLUDE_PATH} ${CMAKE_C_FLAGS}" )
-  list (APPEND EXTLIB "${MPI_C_LIBRARIES}" )
+set(TENSTREAM_MPI_VIA_FIND_PACKAGE FALSE)
+if(AUTODETECT_MPI STREQUAL "AUTO")
+  include(CheckFortranSourceCompiles)
+  check_fortran_source_compiles("
+      program tenstream_mpi_probe
+      use mpi
+      implicit none
+      integer :: ierr
+      call mpi_init(ierr)
+      end program
+    " TENSTREAM_FC_PROVIDES_MPI SRC_EXT F90)
+  if(NOT TENSTREAM_FC_PROVIDES_MPI)
+    message(STATUS "${CMAKE_Fortran_COMPILER} does not provide mpi.mod on its own -- falling back to find_package(MPI)")
+    set(TENSTREAM_MPI_VIA_FIND_PACKAGE TRUE)
+  endif()
+elseif(AUTODETECT_MPI)
+  set(TENSTREAM_MPI_VIA_FIND_PACKAGE TRUE)
+endif()
 
-  add_definitions(${MPI_CXX_COMPILE_FLAGS})
-  #include_directories(${MPI_CXX_INCLUDE_PATH})
-  set(CMAKE_CXX_FLAGS "${INCLUDE_FLAG}${MPI_CXX_INCLUDE_PATH} ${CMAKE_C_FLAGS}" )
-  list (APPEND EXTLIB "${MPI_CXX_LIBRARIES}" )
+if(TENSTREAM_MPI_VIA_FIND_PACKAGE)
+  find_package(MPI REQUIRED COMPONENTS C Fortran)
 
-  if(${MPI_Fortran_FOUND})
-    add_definitions(${MPI_Fortran_COMPILE_FLAGS})
-    #include_directories(${MPI_Fortran_INCLUDE_PATH})
-    set(CMAKE_Fortran_FLAGS "${INCLUDE_FLAG}${MPI_Fortran_INCLUDE_PATH} ${CMAKE_C_FLAGS}" )
-    link_directories(${MPI_Fortran_LIBRARIES})
-    list (APPEND EXTLIB "${MPI_Fortran_LIBRARIES}" )
-  else(${MPI_Fortran_FOUND})
-    message(FATAL "!!!!!!! Fotran MPI MISSING")
-  endif(${MPI_Fortran_FOUND})
+  # The imported targets carry include dirs, compile options and link libs as
+  # usage requirements; link_libraries() here attaches them to every target
+  # created in this directory and below. This replaces the previous approach of
+  # splicing MPI paths into the global CMAKE_*_FLAGS, which applied the C
+  # include path to the Fortran compiler and never applied MPI_Fortran's own.
+  link_libraries(MPI::MPI_Fortran MPI::MPI_C)
+  if(TARGET MPI::MPI_CXX)
+    link_libraries(MPI::MPI_CXX)
+  endif()
 
-  set( CMAKE_EXE_LINKER_FLAGS
-    ${CMAKE_EXE_LINKER_FLAGS}
-    ${MPI_CXX_LINK_FLAGS}
-    ${MPI_Fortran_LIBRARIES}
-    ${MPI_C_LIBRARIES}
-    )
-  string (REPLACE ";" " " CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}")
+  # ... and into EXTLIB so they end up in the generated pkg-config file.
+  list(APPEND EXTLIB ${MPI_Fortran_LIBRARIES} ${MPI_C_LIBRARIES})
+  foreach(_mpilib ${MPI_Fortran_LIBRARIES} ${MPI_C_LIBRARIES})
+    if(IS_ABSOLUTE "${_mpilib}")
+      get_filename_component(_mpilibdir "${_mpilib}" DIRECTORY)
+      list(APPEND CMAKE_INSTALL_RPATH "${_mpilibdir}")
+    endif()
+  endforeach()
+  message(STATUS "MPI Fortran libraries: ${MPI_Fortran_LIBRARIES}")
+endif()
 
-  list (APPEND CMAKE_INSTALL_RPATH
-    ${MPI_C_LIBRARY_DIRS}
-    ${MPI_CXX_LIBRARY_DIRS}
-    ${MPI_Fortran_LIBRARY_DIRS})
-
-  #include_directories(${ITAPS_INCLUDES})
-else(AUTODETECT_MPI)
-endif(AUTODETECT_MPI)
 set(MPIEXEC mpirun CACHE STRING "Command to run MPI programs, e.g. used to run tests")
 if(DEFINED USER_MPIEXEC)
   set(MPIEXEC ${USER_MPIEXEC})
@@ -291,6 +320,24 @@ if(WITH_PETSC)
 
   add_compile_definitions(HAVE_PETSC)
   message(STATUS "WITH_PETSC=ON: PETSc solver backend enabled (-DHAVE_PETSC)")
+
+  # PETSc is built against exactly one MPI. If we had to discover an MPI
+  # ourselves rather than inheriting it from an MPI compiler wrapper, there is
+  # nothing tying the two together -- mixing two MPIs gives link errors at best
+  # and silent corruption at worst. Compare against the driver PETSc recorded.
+  if(TENSTREAM_MPI_VIA_FIND_PACKAGE AND EXISTS "${PETSC_INSTALL}/lib/petsc/conf/petscvariables")
+    file(STRINGS "${PETSC_INSTALL}/lib/petsc/conf/petscvariables" _petsc_fc REGEX "^FC = ")
+    string(REGEX REPLACE "^FC = +" "" _petsc_fc "${_petsc_fc}")
+    get_filename_component(_petsc_fc_name "${_petsc_fc}" NAME)
+    get_filename_component(_our_fc_name "${CMAKE_Fortran_COMPILER}" NAME)
+    if(_petsc_fc_name AND NOT _petsc_fc_name STREQUAL _our_fc_name)
+      message(WARNING
+        "PETSc was configured with FC=${_petsc_fc}, but this build uses "
+        "${CMAKE_Fortran_COMPILER} plus a separately discovered MPI "
+        "(${MPI_Fortran_LIBRARIES}). Make sure both refer to the same MPI "
+        "installation, or configure with the same compiler wrapper PETSc used.")
+    endif()
+  endif()
 
   # Detect PETSc scalar precision and index width from petscconf.h
   file(READ "${PETSC_INCLUDEDIR}/petscconf.h" _petscconf_content)
@@ -499,8 +546,8 @@ endif()
 
 option(ENABLE_C_WRAPPER "Enable creation of C Wrapper " ON)
 option(ENABLE_ECCKD "Enable ECCKD" ON)
-option(ENABLE_EXAMPLES "Enable compilation of EXAMPLES" ON)
-option(ENABLE_PFUNIT "Enable pfUnit testing Framework" ON)
+option(ENABLE_EXAMPLES "Enable compilation of EXAMPLES and standalone tools (createLUT, C wrapper demos, ...)" ON)
+option(ENABLE_PFUNIT "Enable pfUnit testing Framework" ${BUILD_TESTING})
 option(ENABLE_PLEXRT "Enable PLEXRT, Radiative transfer on wedges" ON)
 option(ENABLE_REPWVL "Enable use of REPWVL" ON)
 option(ENABLE_RRTM "Enable use of RRTM" ON)
@@ -584,18 +631,32 @@ if(NOT BUILD_SHARED_LIBS)
 
     add_library(${output_archive} STATIC ${output_archive_dummy_file})
 
+    # Each input archive is unpacked into its OWN directory. Several of the
+    # component libs contain objects with identical basenames -- e.g. both
+    # rrtm_sw and rrtm_lw build mcica_random_numbers.f90.o and parkind.f90.o --
+    # and unpacking them all into one flat directory made the later `ar x`
+    # overwrite the earlier object, so those symbols were silently missing from
+    # libtenstream.a (e.g. m_tenstr_mersennetwister_sw).
+    add_custom_command(TARGET ${output_archive}
+      PRE_BUILD
+      COMMAND ${CMAKE_COMMAND} -E remove_directory ${obj_folder})
+
     FOREACH(in_archive ${list_of_input_archives})
       message(STATUS "Adding static lib: ${in_archive}")
       add_custom_command(TARGET ${output_archive}
-        PRE_BUILD ${output_archive}
-        WORKING_DIRECTORY ${obj_folder}
-        COMMAND ${CMAKE_AR} x $<TARGET_FILE:${in_archive}>)
+        PRE_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${obj_folder}/${in_archive}
+        COMMAND ${CMAKE_COMMAND} -E chdir ${obj_folder}/${in_archive}
+                ${CMAKE_AR} x $<TARGET_FILE:${in_archive}>)
     ENDFOREACH()
 
     add_custom_command(TARGET ${output_archive}
       POST_BUILD
-      WORKING_DIRECTORY ${obj_folder}
-      COMMAND ${CMAKE_AR} -qc ${FULL_OUTPUT_PATH} *.o)
+      COMMAND ${CMAKE_COMMAND}
+              -DAR=${CMAKE_AR}
+              -DOBJ_DIR=${obj_folder}
+              -DOUTPUT=${FULL_OUTPUT_PATH}
+              -P ${CMAKE_SOURCE_DIR}/cmake/combine_archives.cmake)
   endfunction(combine_archives)
 
 
@@ -637,39 +698,43 @@ if(ENABLE_C_WRAPPER)
 endif(ENABLE_C_WRAPPER)
 
 
+# Developer convenience target to generate a `tags` file.
+# Deliberately NOT part of ALL: tag generation must never be able to break an
+# otherwise successful build. Run `make tags` explicitly if you want it.
+# We also require a ctags that understands `-R`; the BSD ctags shipped with
+# macOS does not, so we simply skip the target there.
 find_program(CTAGS_PATH ctags)
 if(CTAGS_PATH)
-    message(STATUS "Found ctags: ${CTAGS_PATH}")
+    execute_process(COMMAND ${CTAGS_PATH} --version
+        OUTPUT_VARIABLE CTAGS_VERSION
+        ERROR_QUIET
+        OUTPUT_STRIP_TRAILING_WHITESPACE)
 
-    execute_process(COMMAND ctags --help
-        COMMAND grep "langmap"
-        OUTPUT_VARIABLE CTAGS_LANGMAP)
-    if(CTAGS_LANGMAP STREQUAL "")
-      set(CTAGS_LANGMAP "")
-    else()
+    if(CTAGS_VERSION MATCHES "Universal Ctags|Exuberant Ctags")
+      message(STATUS "Found ctags: ${CTAGS_PATH}")
       set(CTAGS_LANGMAP "--langmap=Fortran:.fypp.f.for.ftn.f77.f90.f95.F.FOR.FTN.F77.F90.F95")
-    endif()
-    message(STATUS "ctags supports langmap?: ${CTAGS_LANGMAP}")
 
-    set_source_files_properties( tags PROPERTIES GENERATED true)
-    add_custom_target(tags ALL
-      COMMAND ctags -R
-      ${CTAGS_LANGMAP}
-      ${CMAKE_CURRENT_BINARY_DIR}/external
-      ${CMAKE_CURRENT_SOURCE_DIR}/c_wrapper
-      ${CMAKE_CURRENT_SOURCE_DIR}/disort
-      ${CMAKE_CURRENT_SOURCE_DIR}/examples
-      ${CMAKE_CURRENT_SOURCE_DIR}/plexrt
-      ${CMAKE_CURRENT_SOURCE_DIR}/python
-      ${CMAKE_CURRENT_SOURCE_DIR}/rayli_wrapper
-      ${CMAKE_CURRENT_SOURCE_DIR}/rrtmg
-      ${CMAKE_CURRENT_SOURCE_DIR}/repwvl
-      ${CMAKE_CURRENT_SOURCE_DIR}/specint
-      ${CMAKE_CURRENT_SOURCE_DIR}/src
-      ${CMAKE_CURRENT_SOURCE_DIR}/tests
-      WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-        COMMENT "Creating ctags" VERBATIM
-        )
+      add_custom_target(tags
+        COMMAND ${CTAGS_PATH} -R
+        ${CTAGS_LANGMAP}
+        ${CMAKE_CURRENT_BINARY_DIR}/external
+        ${CMAKE_CURRENT_SOURCE_DIR}/c_wrapper
+        ${CMAKE_CURRENT_SOURCE_DIR}/disort
+        ${CMAKE_CURRENT_SOURCE_DIR}/examples
+        ${CMAKE_CURRENT_SOURCE_DIR}/plexrt
+        ${CMAKE_CURRENT_SOURCE_DIR}/python
+        ${CMAKE_CURRENT_SOURCE_DIR}/rayli_wrapper
+        ${CMAKE_CURRENT_SOURCE_DIR}/rrtmg
+        ${CMAKE_CURRENT_SOURCE_DIR}/repwvl
+        ${CMAKE_CURRENT_SOURCE_DIR}/specint
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+          COMMENT "Creating ctags" VERBATIM
+          )
+    else()
+      message(STATUS "Found ctags (${CTAGS_PATH}) but it is neither Universal nor Exuberant ctags -- skipping `tags` target")
+    endif()
 endif(CTAGS_PATH)
 
 option(ENABLE_PYTHON "Enable creation of Python Interfaces via f2py" OFF)
@@ -738,6 +803,28 @@ endif(DOXYGEN_FOUND)
 
 # create pkg-config files
 tenstream_resolve_libs_for_pc(EXTLIB EXTLIB_SPLIT)
+
+# libtenstream.a carries unresolved references into the Fortran runtime
+# (libgfortran for I/O and string intrinsics, libquadmath/libgcc for the
+# REAL128 helpers __addtf3/__multf3/__subtf3 emitted by the generic
+# interfaces in m_helper_functions). An application whose final link is
+# driven by a C compiler does not pull those in by itself, so
+# `pkg-config --static --libs tenstream` has to name them explicitly.
+# CMake already knows the exact set -- it is what the Fortran driver would
+# have added implicitly.
+set(FORTRAN_RUNTIME_LDFLAGS "")
+foreach(_dir ${CMAKE_Fortran_IMPLICIT_LINK_DIRECTORIES})
+  string(APPEND FORTRAN_RUNTIME_LDFLAGS " -L${_dir}")
+endforeach()
+foreach(_lib ${CMAKE_Fortran_IMPLICIT_LINK_LIBRARIES})
+  if(IS_ABSOLUTE "${_lib}")
+    string(APPEND FORTRAN_RUNTIME_LDFLAGS " ${_lib}")
+  else()
+    string(APPEND FORTRAN_RUNTIME_LDFLAGS " -l${_lib}")
+  endif()
+endforeach()
+string(STRIP "${FORTRAN_RUNTIME_LDFLAGS}" FORTRAN_RUNTIME_LDFLAGS)
+message(STATUS "Fortran runtime ldflags for pkg-config: ${FORTRAN_RUNTIME_LDFLAGS}")
 #set(pc_req_public "PETSc netcdf-fortran lapack") # would be nice but we dont want to fail if a lib is not in the PKG_CONFIG_PATH
 #set(pc_req_private "")
 CONFIGURE_FILE("pkgconfig/tenstream.pc.in" "lib/pkgconfig/tenstream.pc" @ONLY)

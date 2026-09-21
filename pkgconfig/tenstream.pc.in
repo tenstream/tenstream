@@ -18,4 +18,4 @@ Requires: @pc_req_public@
 Requires.private: @pc_req_private@
 Cflags:   -I${includedir}
 Libs: -L${libdir} -ltenstream @LAPACK_LDFLAGS@
-Libs.private: -L${libdir} -ltenstream @EXTLIB_SPLIT@
+Libs.private: -L${libdir} -ltenstream @EXTLIB_SPLIT@ @FORTRAN_RUNTIME_LDFLAGS@

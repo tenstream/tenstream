@@ -20,8 +20,10 @@ add_library( tenstr_disort ${disort_sources} )
 target_link_libraries( tenstr_disort pprts_base ${EXTLIB} ${USERLIB} ${LIBS})
 
 
-add_executable( ex_disort_tenstr ex_disort_tenstr.F90 )
-target_link_libraries( ex_disort_tenstr tenstr_disort ${EXTLIB} ${USERLIB} ${LIBS})
+if(ENABLE_EXAMPLES)
+  add_executable( ex_disort_tenstr ex_disort_tenstr.F90 )
+  target_link_libraries( ex_disort_tenstr tenstr_disort ${EXTLIB} ${USERLIB} ${LIBS})
+endif()
 
 
 # Official DISORT tests
@@ -29,11 +31,13 @@ set( disort_test_sources
   disotest.f90
   )
 
-add_executable( disort_tests ${disort_test_sources} )
-target_link_libraries( disort_tests tenstr_disort ${EXTLIB} ${USERLIB} ${LIBS})
+if(BUILD_TESTING)
+  add_executable( disort_tests ${disort_test_sources} )
+  target_link_libraries( disort_tests tenstr_disort ${EXTLIB} ${USERLIB} ${LIBS})
 
-add_test(disort_tests
-  ${MPIEXEC} ${CTEST_MPIRUN_FLAGS} ${MPIEXEC_NUMPROC_FLAG} 1 ${PROJECT_BINARY_DIR}/bin/disort_tests)
+  add_test(disort_tests
+    ${MPIEXEC} ${CTEST_MPIRUN_FLAGS} ${MPIEXEC_NUMPROC_FLAG} 1 ${PROJECT_BINARY_DIR}/bin/disort_tests)
+endif()
 
 # Ignore Warnings for disort files
 if (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
