@@ -546,7 +546,7 @@ endif()
 
 option(ENABLE_C_WRAPPER "Enable creation of C Wrapper " ON)
 option(ENABLE_ECCKD "Enable ECCKD" ON)
-option(ENABLE_EXAMPLES "Enable compilation of EXAMPLES" ON)
+option(ENABLE_EXAMPLES "Enable compilation of EXAMPLES and standalone tools (createLUT, C wrapper demos, ...)" ON)
 option(ENABLE_PFUNIT "Enable pfUnit testing Framework" ${BUILD_TESTING})
 option(ENABLE_PLEXRT "Enable PLEXRT, Radiative transfer on wedges" ON)
 option(ENABLE_REPWVL "Enable use of REPWVL" ON)
