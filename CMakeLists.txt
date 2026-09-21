@@ -637,39 +637,43 @@ if(ENABLE_C_WRAPPER)
 endif(ENABLE_C_WRAPPER)
 
 
+# Developer convenience target to generate a `tags` file.
+# Deliberately NOT part of ALL: tag generation must never be able to break an
+# otherwise successful build. Run `make tags` explicitly if you want it.
+# We also require a ctags that understands `-R`; the BSD ctags shipped with
+# macOS does not, so we simply skip the target there.
 find_program(CTAGS_PATH ctags)
 if(CTAGS_PATH)
-    message(STATUS "Found ctags: ${CTAGS_PATH}")
+    execute_process(COMMAND ${CTAGS_PATH} --version
+        OUTPUT_VARIABLE CTAGS_VERSION
+        ERROR_QUIET
+        OUTPUT_STRIP_TRAILING_WHITESPACE)
 
-    execute_process(COMMAND ctags --help
-        COMMAND grep "langmap"
-        OUTPUT_VARIABLE CTAGS_LANGMAP)
-    if(CTAGS_LANGMAP STREQUAL "")
-      set(CTAGS_LANGMAP "")
-    else()
+    if(CTAGS_VERSION MATCHES "Universal Ctags|Exuberant Ctags")
+      message(STATUS "Found ctags: ${CTAGS_PATH}")
       set(CTAGS_LANGMAP "--langmap=Fortran:.fypp.f.for.ftn.f77.f90.f95.F.FOR.FTN.F77.F90.F95")
-    endif()
-    message(STATUS "ctags supports langmap?: ${CTAGS_LANGMAP}")
 
-    set_source_files_properties( tags PROPERTIES GENERATED true)
-    add_custom_target(tags ALL
-      COMMAND ctags -R
-      ${CTAGS_LANGMAP}
-      ${CMAKE_CURRENT_BINARY_DIR}/external
-      ${CMAKE_CURRENT_SOURCE_DIR}/c_wrapper
-      ${CMAKE_CURRENT_SOURCE_DIR}/disort
-      ${CMAKE_CURRENT_SOURCE_DIR}/examples
-      ${CMAKE_CURRENT_SOURCE_DIR}/plexrt
-      ${CMAKE_CURRENT_SOURCE_DIR}/python
-      ${CMAKE_CURRENT_SOURCE_DIR}/rayli_wrapper
-      ${CMAKE_CURRENT_SOURCE_DIR}/rrtmg
-      ${CMAKE_CURRENT_SOURCE_DIR}/repwvl
-      ${CMAKE_CURRENT_SOURCE_DIR}/specint
-      ${CMAKE_CURRENT_SOURCE_DIR}/src
-      ${CMAKE_CURRENT_SOURCE_DIR}/tests
-      WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-        COMMENT "Creating ctags" VERBATIM
-        )
+      add_custom_target(tags
+        COMMAND ${CTAGS_PATH} -R
+        ${CTAGS_LANGMAP}
+        ${CMAKE_CURRENT_BINARY_DIR}/external
+        ${CMAKE_CURRENT_SOURCE_DIR}/c_wrapper
+        ${CMAKE_CURRENT_SOURCE_DIR}/disort
+        ${CMAKE_CURRENT_SOURCE_DIR}/examples
+        ${CMAKE_CURRENT_SOURCE_DIR}/plexrt
+        ${CMAKE_CURRENT_SOURCE_DIR}/python
+        ${CMAKE_CURRENT_SOURCE_DIR}/rayli_wrapper
+        ${CMAKE_CURRENT_SOURCE_DIR}/rrtmg
+        ${CMAKE_CURRENT_SOURCE_DIR}/repwvl
+        ${CMAKE_CURRENT_SOURCE_DIR}/specint
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+          COMMENT "Creating ctags" VERBATIM
+          )
+    else()
+      message(STATUS "Found ctags (${CTAGS_PATH}) but it is neither Universal nor Exuberant ctags -- skipping `tags` target")
+    endif()
 endif(CTAGS_PATH)
 
 option(ENABLE_PYTHON "Enable creation of Python Interfaces via f2py" OFF)
