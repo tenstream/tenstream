@@ -46,7 +46,11 @@ project (tenstream
   HOMEPAGE_URL https://gitlab.com/jakubfabian/tenstream.git
   DESCRIPTION  "Library to solve Radiative Transer for participating media"
   VERSION 1.0 )
-enable_testing()
+
+# Defines the standard BUILD_TESTING option (default ON) and calls
+# enable_testing() only when it is set, so a library-only build can be
+# configured with -DBUILD_TESTING=OFF.
+include(CTest)
 
 # Restrict dep scanner to project files -- prevents OOM when PETSc headers are
 # transitively scanned in parallel (they are passed via CMAKE_Fortran_FLAGS).
@@ -500,7 +504,7 @@ endif()
 option(ENABLE_C_WRAPPER "Enable creation of C Wrapper " ON)
 option(ENABLE_ECCKD "Enable ECCKD" ON)
 option(ENABLE_EXAMPLES "Enable compilation of EXAMPLES" ON)
-option(ENABLE_PFUNIT "Enable pfUnit testing Framework" ON)
+option(ENABLE_PFUNIT "Enable pfUnit testing Framework" ${BUILD_TESTING})
 option(ENABLE_PLEXRT "Enable PLEXRT, Radiative transfer on wedges" ON)
 option(ENABLE_REPWVL "Enable use of REPWVL" ON)
 option(ENABLE_RRTM "Enable use of RRTM" ON)
