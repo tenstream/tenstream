@@ -588,18 +588,32 @@ if(NOT BUILD_SHARED_LIBS)
 
     add_library(${output_archive} STATIC ${output_archive_dummy_file})
 
+    # Each input archive is unpacked into its OWN directory. Several of the
+    # component libs contain objects with identical basenames -- e.g. both
+    # rrtm_sw and rrtm_lw build mcica_random_numbers.f90.o and parkind.f90.o --
+    # and unpacking them all into one flat directory made the later `ar x`
+    # overwrite the earlier object, so those symbols were silently missing from
+    # libtenstream.a (e.g. m_tenstr_mersennetwister_sw).
+    add_custom_command(TARGET ${output_archive}
+      PRE_BUILD
+      COMMAND ${CMAKE_COMMAND} -E remove_directory ${obj_folder})
+
     FOREACH(in_archive ${list_of_input_archives})
       message(STATUS "Adding static lib: ${in_archive}")
       add_custom_command(TARGET ${output_archive}
-        PRE_BUILD ${output_archive}
-        WORKING_DIRECTORY ${obj_folder}
-        COMMAND ${CMAKE_AR} x $<TARGET_FILE:${in_archive}>)
+        PRE_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${obj_folder}/${in_archive}
+        COMMAND ${CMAKE_COMMAND} -E chdir ${obj_folder}/${in_archive}
+                ${CMAKE_AR} x $<TARGET_FILE:${in_archive}>)
     ENDFOREACH()
 
     add_custom_command(TARGET ${output_archive}
       POST_BUILD
-      WORKING_DIRECTORY ${obj_folder}
-      COMMAND ${CMAKE_AR} -qc ${FULL_OUTPUT_PATH} *.o)
+      COMMAND ${CMAKE_COMMAND}
+              -DAR=${CMAKE_AR}
+              -DOBJ_DIR=${obj_folder}
+              -DOUTPUT=${FULL_OUTPUT_PATH}
+              -P ${CMAKE_SOURCE_DIR}/cmake/combine_archives.cmake)
   endfunction(combine_archives)
 
 
