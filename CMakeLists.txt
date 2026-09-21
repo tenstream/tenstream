@@ -746,6 +746,28 @@ endif(DOXYGEN_FOUND)
 
 # create pkg-config files
 tenstream_resolve_libs_for_pc(EXTLIB EXTLIB_SPLIT)
+
+# libtenstream.a carries unresolved references into the Fortran runtime
+# (libgfortran for I/O and string intrinsics, libquadmath/libgcc for the
+# REAL128 helpers __addtf3/__multf3/__subtf3 emitted by the generic
+# interfaces in m_helper_functions). An application whose final link is
+# driven by a C compiler does not pull those in by itself, so
+# `pkg-config --static --libs tenstream` has to name them explicitly.
+# CMake already knows the exact set -- it is what the Fortran driver would
+# have added implicitly.
+set(FORTRAN_RUNTIME_LDFLAGS "")
+foreach(_dir ${CMAKE_Fortran_IMPLICIT_LINK_DIRECTORIES})
+  string(APPEND FORTRAN_RUNTIME_LDFLAGS " -L${_dir}")
+endforeach()
+foreach(_lib ${CMAKE_Fortran_IMPLICIT_LINK_LIBRARIES})
+  if(IS_ABSOLUTE "${_lib}")
+    string(APPEND FORTRAN_RUNTIME_LDFLAGS " ${_lib}")
+  else()
+    string(APPEND FORTRAN_RUNTIME_LDFLAGS " -l${_lib}")
+  endif()
+endforeach()
+string(STRIP "${FORTRAN_RUNTIME_LDFLAGS}" FORTRAN_RUNTIME_LDFLAGS)
+message(STATUS "Fortran runtime ldflags for pkg-config: ${FORTRAN_RUNTIME_LDFLAGS}")
 #set(pc_req_public "PETSc netcdf-fortran lapack") # would be nice but we dont want to fail if a lib is not in the PKG_CONFIG_PATH
 #set(pc_req_private "")
 CONFIGURE_FILE("pkgconfig/tenstream.pc.in" "lib/pkgconfig/tenstream.pc" @ONLY)
