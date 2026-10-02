@@ -16,21 +16,45 @@ check_fprettify:pre:
     - maint/fprettify.sh -d
 
 
+# PETSc + NetCDF are restored from the cache (see .petsc_cache) and only rebuilt if
+# their configuration changed or the cached build is older than PETSC_CACHE_MAX_AGE_DAYS.
+# Run a pipeline with PETSC_CACHE_REBUILD=1 to force a fresh build.
 .template_build_PETSC: &template_build_PETSC
     - export PETSC_DIR=$(readlink -f $PETSC_DIR)
     - echo -e "\e[0Ksection_start:`date +%s`:petsc[collapsed=true]\r\e[0KBuild PETSc"
-    - misc/build_dependencies.sh "${PETSC_DIR}" "${PETSC_ARCH}" "${PETSC_PRECISION}" "${PETSC_DEBUGGING}" "${PETSC_64_INTEGERS}" "${PETSC_OPTS}"
+    - misc/ci_build_dependencies_cached.sh
     - echo -e "\e[0Ksection_end:`date +%s`:petsc\r\e[0K"
+
+workflow:
+  rules:
+    - if: $CI_COMMIT_REF_NAME == "master"
+      variables:
+        PETSC_BRANCH: release
+    - when: always
+      variables:
+        PETSC_BRANCH: main
+
+.petsc_cache: &petsc_cache
+  key: petsc-v1-${PETSC_CACHE_NAME}-${PETSC_BRANCH}
+  paths:
+    - petsc/
+  when: always
+
+.lut_cache: &lut_cache
+  key: tenstream-luts-v1
+  paths:
+    - build/share/
+  when: always
 
 variables:
   DEBIAN_FRONTEND: noninteractive
+  PETSC_CACHE_MAX_AGE_DAYS: 7
   TEST_FILTER_WITH_COMMON_LUTS: 'boxmc|LUT|test_pprts_symmetry|test_plexrt_fish|test_plexrt_rayli|test_plexrt_rrtmg_lw_sw'
   TEST_FILTER_WITHOUT_LUTS: 'boxmc|LUT|test_pprts_symmetry|test_rrtm_lw_Bsrfc|test_rrtm_lw_sw|test_pprts_specint|test_plexrt_fish|test_plexrt_rrtmg_lw_sw|test_pprts_absorption_by_coeff_divergence|test_plexrt_rayli'
 
 # Build Stage
 .build:default:
   script:
-    - if [ "$CI_COMMIT_REF_NAME" = "master" ]; then export PETSC_BRANCH=release; else export PETSC_BRANCH=main; fi
     - export PETSC_DIR=$(readlink -f $PETSC_DIR)
     - if [ ! -z "$MODULES" ]; then module load $MODULES || exit 1; module list; fi
     - echo -e "\e[0Ksection_start:`date +%s`:cmake[collapsed=true]\r\e[0KRun cmake"
@@ -49,9 +73,12 @@ variables:
     - $CMD &> >(tee $CI_PROJECT_DIR/test.log) || exit 4
     - echo -e "\e[0Ksection_end:`date +%s`:test\r\e[0K"
   retry: 1
+  cache:
+    - *petsc_cache
   variables:
     PETSC_DIR: petsc
     PETSC_ARCH: default
+    PETSC_CACHE_NAME: ${CI_JOB_NAME}
     CTEST_ARGS: "-E 'boxmc|LUT'"
     BUILD_TYPE: RELEASE
     MPIEXEC: "mpirun"
@@ -63,9 +90,6 @@ variables:
   artifacts:
     paths:
       - ${PETSC_DIR}/configure.log
-      - ${PETSC_DIR}/include
-      - ${PETSC_DIR}/default/include
-      - ${PETSC_DIR}/default/lib
       - test.log
 
 ubuntu-latest:
@@ -151,6 +175,9 @@ debian-stable:
     - apt-get -qq install -fy build-essential cmake gfortran git python3 openmpi-bin libopenmpi-dev libopenblas-dev curl pkg-config
     - echo -e "\e[0Ksection_end:`date +%s`:apt_install\r\e[0K"
     - *template_build_PETSC
+  cache:
+    - *petsc_cache
+    - *lut_cache
   tags:
     - docker.physik.lmu.de
   variables:
@@ -175,6 +202,9 @@ alma-latest:
     - dnf -y install gcc gcc-c++ gcc-gfortran make cmake git python3 openmpi openmpi-devel openblas-devel curl pkgconf-pkg-config which diffutils m4
     - echo -e "\e[0Ksection_end:`date +%s`:dnf_install\r\e[0K"
     - *template_build_PETSC
+  cache:
+    - *petsc_cache
+    - *lut_cache
   tags:
     - docker.physik.lmu.de
   variables:
@@ -186,6 +216,7 @@ alma-latest:
     BUILD_TYPE: RELEASE
     CMAKE_OPTS: '-DCMAKE_Fortran_FLAGS=--std=legacy -DENABLE_PFUNIT=ON'
     LUT_TARGET: 'download_common_luts'
+    PETSC_CACHE_NAME: alma-latest # shared with the implicit/explicit/matshell variants below
 
 implicit:alma-latest:
   extends: alma-latest
@@ -213,6 +244,8 @@ ubuntu-nopetsc:
     - apt-get -qq update
     - apt-get -qq install -fy build-essential cmake gfortran git python3 openmpi-bin libopenmpi-dev libhdf5-dev libnetcdff-dev libopenblas-dev curl pkg-config
     - echo -e "\e[0Ksection_end:`date +%s`:apt_install\r\e[0K"
+  cache:
+    - *lut_cache
   script:
     - echo -e "\e[0Ksection_start:`date +%s`:cmake[collapsed=true]\r\e[0KRun cmake"
     - mkdir -p build && cd build
