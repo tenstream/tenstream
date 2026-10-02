@@ -731,9 +731,10 @@ contains
     call PetscOptionsInsertString(PETSC_NULL_OPTIONS, trim(str), ierr_)
     if (present(ierr)) ierr = ierr_
 #else
-    call opts_insert_string(trim(str))
     if (present(ierr)) ierr = 0
 #endif
+    ! tenstream options are read through get_petsc_opt, i.e. from our own database, also if we have PETSc
+    call opts_insert_string(trim(str))
   end subroutine insert_petsc_opt
 
   #:for basetype,dtype in [&

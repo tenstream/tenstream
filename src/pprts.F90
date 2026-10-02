@@ -109,6 +109,7 @@ module m_pprts
     & get_coeff, &
     & get_solution_uid, &
     & halo_fill_5pt, &
+    & halo_fill_edir, &
     & halo_reduce_5pt, &
     & prepare_solution, &
     & setup_coord_native, &
@@ -459,8 +460,18 @@ contains
       if (.not. approx(dx, dy)) &
         call CHKERR(1_mpiint, 'dx and dy currently have to be the same '//toStr(dx)//' vs '//toStr(dy))
 
+      ! -pprts_open_bc opens both, the x and the y boundaries, -pprts_open_bc_x and -pprts_open_bc_y set them individually
       call get_petsc_opt("", "-pprts_open_bc", solver%lopen_bc, lflg, ierr); call CHKERR(ierr)
       call get_petsc_opt(solver%prefix, "-pprts_open_bc", solver%lopen_bc, lflg, ierr); call CHKERR(ierr)
+      solver%lopen_bc_x = solver%lopen_bc
+      solver%lopen_bc_y = solver%lopen_bc
+      call get_petsc_opt("", "-pprts_open_bc_x", solver%lopen_bc_x, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt(solver%prefix, "-pprts_open_bc_x", solver%lopen_bc_x, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt("", "-pprts_open_bc_y", solver%lopen_bc_y, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt(solver%prefix, "-pprts_open_bc_y", solver%lopen_bc_y, lflg, ierr); call CHKERR(ierr)
+      solver%lopen_bc = solver%lopen_bc_x .or. solver%lopen_bc_y
+      call get_petsc_opt("", "-pprts_open_bc_2d", solver%lopen_bc_2d, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt(solver%prefix, "-pprts_open_bc_2d", solver%lopen_bc_2d, lflg, ierr); call CHKERR(ierr)
 
       call get_petsc_opt("", "-pprts_compress_solutions", solver%lcompress_solutions, lflg, ierr); call CHKERR(ierr)
       call get_petsc_opt(solver%prefix, "-pprts_compress_solutions", solver%lcompress_solutions, lflg, ierr); call CHKERR(ierr)
@@ -473,7 +484,7 @@ contains
         print *, 'Solver dirside:', solver%dirside%is_inward, ':', solver%dirside%dof, ':', solver%dirside%area_divider
         print *, 'Solver difftop:', solver%difftop%is_inward, ':', solver%difftop%dof, ':', solver%difftop%area_divider
         print *, 'Solver diffside:', solver%diffside%is_inward, ':', solver%diffside%dof, ':', solver%diffside%area_divider
-        print *, 'Solver open boundary conditions? ', solver%lopen_bc
+        print *, 'Solver open boundary conditions? x:', solver%lopen_bc_x, 'y:', solver%lopen_bc_y, '2d:', solver%lopen_bc_2d
       end if
 
 #ifdef HAVE_PETSC
@@ -603,14 +614,14 @@ contains
             solver%atm%hhl = solver%atm%hhl - global_max_height
             call halo_fill_5pt(solver%comm, C, solver%atm%hhl, ierr); call CHKERR(ierr)
             if (solver%lopen_bc) then
-              if (C%xs .eq. 0) &
+              if (solver%lopen_bc_x .and. C%xs .eq. 0) &
                 solver%atm%hhl(i0, :, C%xs - i1, C%ys:C%ye) = solver%atm%hhl(i0, :, C%xs, C%ys:C%ye)
-              if (C%xe + i1 .eq. C%glob_xm) &
+              if (solver%lopen_bc_x .and. C%xe + i1 .eq. C%glob_xm) &
                 solver%atm%hhl(i0, :, C%xe + i1, C%ys:C%ye) = solver%atm%hhl(i0, :, C%xe, C%ys:C%ye)
-              if (C%ys .eq. 0) &
+              if (solver%lopen_bc_y .and. C%ys .eq. 0) &
                 solver%atm%hhl(i0, :, C%xs - i1:C%xe + i1, C%ys - i1) = &
                 solver%atm%hhl(i0, :, C%xs - i1:C%xe + i1, C%ys)
-              if (C%ye + i1 .eq. C%glob_ym) &
+              if (solver%lopen_bc_y .and. C%ye + i1 .eq. C%glob_ym) &
                 solver%atm%hhl(i0, :, C%xs - i1:C%xe + i1, C%ye + i1) = &
                 solver%atm%hhl(i0, :, C%xs - i1:C%xe + i1, C%ye)
             end if
@@ -2719,11 +2730,24 @@ contains
             call VecDestroy(b_gvec, ierr); call CHKERR(ierr)
             deallocate (b_arr)
             call getVecPointer(C%da, lb_vec, lb_1d, lb_4d)
+            if (allocated(solution%edir_open_bc_x)) deallocate (solution%edir_open_bc_x)
+            if (allocated(solution%edir_open_bc_y)) deallocate (solution%edir_open_bc_y)
             call DMGetLocalVector(C%da, v0_vec, ierr); call CHKERR(ierr)
             call DMGlobalToLocal(C%da, solution%edir_petsc, INSERT_VALUES, v0_vec, ierr); call CHKERR(ierr)
             call getVecPointer(C%da, v0_vec, v0_1d, v0_4d)
             call getVecPointer(C%da, solution%edir_petsc, vedir_1d, vedir_4d)
             call explicit_edir(solver, prefix, edirTOA, vedir_4d, lb_4d, v0_4d, solution, ierr); call CHKERR(ierr)
+            ! keep the flux through the east/north open boundary, it lives on a ghost face and is not part of edir.
+            ! If the sun is in the east/north, this is the inflow boundary condition, otherwise it is the outflow of the edge cells,
+            ! which a periodic halo exchange would replace with the opposite inflow
+            if (solver%lopen_bc) then
+              if (solver%lopen_bc_x .and. C%xe + 1 .eq. C%glob_xm) then
+                allocate (solution%edir_open_bc_x(0:C%dof - 1, C%zs:C%ze, C%ys:C%ye), source=v0_4d(:, :, C%xe + 1, C%ys:C%ye))
+              end if
+              if (solver%lopen_bc_y .and. C%ye + 1 .eq. C%glob_ym) then
+                allocate (solution%edir_open_bc_y(0:C%dof - 1, C%zs:C%ze, C%xs:C%xe), source=v0_4d(:, :, C%xs:C%xe, C%ye + 1))
+              end if
+            end if
             call restoreVecPointer(C%da, solution%edir_petsc, vedir_1d, vedir_4d)
             call restoreVecPointer(C%da, v0_vec, v0_1d, v0_4d)
             call restoreVecPointer(C%da, lb_vec, lb_1d, lb_4d)
@@ -2740,9 +2764,26 @@ contains
             allocate (lb_arr(0:C%dof - 1, C%zs:C%ze, C%gxs:C%gxe, C%gys:C%gye)); lb_arr = zero
             lb_arr(:, :, C%xs:C%xe, C%ys:C%ye) = b_arr
             deallocate (b_arr)
+            if (allocated(solution%edir_open_bc_x)) deallocate (solution%edir_open_bc_x)
+            if (allocated(solution%edir_open_bc_y)) deallocate (solution%edir_open_bc_y)
+            if (solver%lopen_bc) then
+              ! the inflow through the east/north edge is set on the periodic image and has to be brought to the ghost face
+              call halo_fill_5pt(solver%comm, C, lb_arr, ierr); call CHKERR(ierr)
+            end if
             allocate (v0_arr(0:C%dof - 1, C%zs:C%ze, C%gxs:C%gxe, C%gys:C%gye)); v0_arr = zero
             v0_arr(:, :, C%xs:C%xe, C%ys:C%ye) = solution%edir
             call explicit_edir(solver, prefix, edirTOA, solution%edir, lb_arr, v0_arr, solution, ierr); call CHKERR(ierr)
+            ! keep the flux through the east/north open boundary, it lives on a ghost face and is not part of edir.
+            ! If the sun is in the east/north, this is the inflow boundary condition, otherwise it is the outflow of the edge cells,
+            ! which a periodic halo exchange would replace with the opposite inflow
+            if (solver%lopen_bc) then
+              if (solver%lopen_bc_x .and. C%xe + 1 .eq. C%glob_xm) then
+                allocate (solution%edir_open_bc_x(0:C%dof - 1, C%zs:C%ze, C%ys:C%ye), source=v0_arr(:, :, C%xe + 1, C%ys:C%ye))
+              end if
+              if (solver%lopen_bc_y .and. C%ye + 1 .eq. C%glob_ym) then
+                allocate (solution%edir_open_bc_y(0:C%dof - 1, C%zs:C%ze, C%xs:C%xe), source=v0_arr(:, :, C%xs:C%xe, C%ye + 1))
+              end if
+            end if
             deallocate (lb_arr, v0_arr)
           end associate
         end block
@@ -4662,7 +4703,7 @@ contains
       if (solution%lsolar_rad) then
         allocate (local_edir(0:C_dir%dof - 1, C_dir%zs:C_dir%ze, C_dir%gxs:C_dir%gxe, C_dir%gys:C_dir%gye), source=0._ireals)
         local_edir(:, :, C_dir%xs:C_dir%xe, C_dir%ys:C_dir%ye) = solution%edir
-        call halo_fill_5pt(solver%comm, C_dir, local_edir, ierr); call CHKERR(ierr)
+        call halo_fill_edir(solver, solution, local_edir, ierr); call CHKERR(ierr)
         call set_solar_source(local_edir)
       end if
 
@@ -5214,7 +5255,7 @@ contains
         if (solution%lsolar_rad) then
           allocate (ledir(0:C_dir%dof - 1, C_dir%zs:C_dir%ze, C_dir%gxs:C_dir%gxe, C_dir%gys:C_dir%gye), source=0._ireals)
           ledir(:, :, C_dir%xs:C_dir%xe, C_dir%ys:C_dir%ye) = solution%edir
-          call halo_fill_5pt(solver%comm, C_dir, ledir, ierr); call CHKERR(ierr)
+          call halo_fill_edir(solver, solution, ledir, ierr); call CHKERR(ierr)
           do j = C_one%ys, C_one%ye
             do i = C_one%xs, C_one%xe
               do k = C_one%zs, C_one%ze
@@ -5296,7 +5337,7 @@ contains
       if (solution%lsolar_rad) then
         allocate (ledir(0:C_dir%dof - 1, C_dir%zs:C_dir%ze, C_dir%gxs:C_dir%gxe, C_dir%gys:C_dir%gye), source=0._ireals)
         ledir(:, :, C_dir%xs:C_dir%xe, C_dir%ys:C_dir%ye) = solution%edir
-        call halo_fill_5pt(solver%comm, C_dir, ledir, ierr); call CHKERR(ierr)
+        call halo_fill_edir(solver, solution, ledir, ierr); call CHKERR(ierr)
       end if
 
       allocate (lediff(0:C_diff%dof - 1, C_diff%zs:C_diff%ze, C_diff%gxs:C_diff%gxe, C_diff%gys:C_diff%gye), source=0._ireals)
@@ -6017,6 +6058,39 @@ contains
       end if
     end subroutine
 
+    !> with open boundaries, the east/north ghost faces do not hold the periodic neighbor but the radiation that enters the domain
+    !> the inflow is stored in [W], convert it with the scaling of the adjacent edge cells
+    subroutine fill_open_bc_inflow(ledir)
+      real(ireals), intent(inout) :: ledir(0:, solver%C_dir%zs:, solver%C_dir%gxs:, solver%C_dir%gys:)
+
+      if (.not. solver%lopen_bc) return
+
+      associate ( &
+          & solution => solver%solutions(uid), &
+          & C => solver%C_dir, &
+          & dtop => solver%dirtop%dof, &
+          & dside => solver%dirside%dof)
+
+        if (solution%lWm2_dir .and. .not. allocated(solver%dir_scalevec_W_to_Wm2)) &
+          & call CHKERR(1_mpiint, 'expected the dir flux scaling vector to be allocated')
+
+        if (allocated(solution%edir_open_bc_x)) then
+          ledir(dtop:dtop + dside - 1, :, C%xe + 1, C%ys:C%ye) = solution%edir_open_bc_x(dtop:dtop + dside - 1, :, :)
+          if (solution%lWm2_dir) then
+            ledir(dtop:dtop + dside - 1, :, C%xe + 1, C%ys:C%ye) = ledir(dtop:dtop + dside - 1, :, C%xe + 1, C%ys:C%ye) &
+              & * solver%dir_scalevec_W_to_Wm2(dtop + 1:dtop + dside, :, C%xm, :)
+          end if
+        end if
+        if (allocated(solution%edir_open_bc_y)) then
+          ledir(dtop + dside:C%dof - 1, :, C%xs:C%xe, C%ye + 1) = solution%edir_open_bc_y(dtop + dside:C%dof - 1, :, :)
+          if (solution%lWm2_dir) then
+            ledir(dtop + dside:C%dof - 1, :, C%xs:C%xe, C%ye + 1) = ledir(dtop + dside:C%dof - 1, :, C%xs:C%xe, C%ye + 1) &
+              & * solver%dir_scalevec_W_to_Wm2(dtop + dside + 1:C%dof, :, :, C%ym)
+          end if
+        end if
+      end associate
+    end subroutine
+
     subroutine fill_buildings_arr
       integer(iintegers) :: m, idx(4), dof_offset, idof
       integer(iintegers) :: adj_i, adj_j
@@ -6040,6 +6114,7 @@ contains
           ledir = zero
           ledir(:, :, C_d%xs:C_d%xe, C_d%ys:C_d%ye) = solution%edir
           call halo_fill_5pt(solver%comm, C_d, ledir, ierr); call CHKERR(ierr)
+          call fill_open_bc_inflow(ledir)
           ledir = ledir * solver%sun%mu
 
           do m = 1, size(B%iface)

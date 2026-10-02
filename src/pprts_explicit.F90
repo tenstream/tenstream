@@ -165,6 +165,9 @@ contains
       ! warm-start ghost from previous solution before the iteration loop
       call exchange_direct_boundary(solver, lsun_north, lsun_east, v0, ierr); call CHKERR(ierr)
 
+      ! 2D open boundaries iterate on the inflow, start with the inflow of the single column solves
+      if (solver%lopen_bc .and. solver%lopen_bc_2d) call set_open_bc_inflow(solver, lb, v0)
+
       do iter = 1, maxiter
 
         call explicit_edir_forward_sweep(solver, solver%dir2dir, dx, dy, lb, v0)
@@ -259,7 +262,7 @@ contains
       dofstart = solver%dirtop%dof
       dofend = -1 + solver%dirtop%dof + solver%dirside%dof
       if (lsun_east) then
-        if (solver%lopen_bc .and. C%xs .eq. i0) then
+        if (solver%lopen_bc_x .and. C%xs .eq. i0) then
           mpi_send_bfr_x = 0
         else
           mpi_send_bfr_x = x0(dofstart:dofend, :, C%xs, C%ys:C%ye)
@@ -267,7 +270,7 @@ contains
         neigh_s = int(C%neighbors(10), mpiint) ! neigh west
         neigh_r = int(C%neighbors(16), mpiint) ! neigh east
       else
-        if (solver%lopen_bc .and. C%xe + 1 .eq. C%glob_xm) then
+        if (solver%lopen_bc_x .and. C%xe + 1 .eq. C%glob_xm) then
           mpi_send_bfr_x = 0
         else
           mpi_send_bfr_x = x0(dofstart:dofend, :, C%xe + 1, C%ys:C%ye)
@@ -284,7 +287,7 @@ contains
       dofstart = solver%dirtop%dof + solver%dirside%dof
       dofend = -1 + solver%dirtop%dof + solver%dirside%dof * 2
       if (lsun_north) then
-        if (solver%lopen_bc .and. C%ys .eq. i0) then
+        if (solver%lopen_bc_y .and. C%ys .eq. i0) then
           mpi_send_bfr_y = 0
         else
           mpi_send_bfr_y = x0(dofstart:dofend, :, C%xs:C%xe, C%ys)
@@ -292,7 +295,7 @@ contains
         neigh_s = int(C%neighbors(4), mpiint) ! neigh south
         neigh_r = int(C%neighbors(22), mpiint) ! neigh north
       else
-        if (solver%lopen_bc .and. C%ye + 1 .eq. C%glob_ym) then
+        if (solver%lopen_bc_y .and. C%ye + 1 .eq. C%glob_ym) then
           mpi_send_bfr_y = 0
         else
           mpi_send_bfr_y = x0(dofstart:dofend, :, C%xs:C%xe, C%ye + 1)
@@ -309,22 +312,80 @@ contains
 
       dofstart = solver%dirtop%dof
       dofend = -1 + solver%dirtop%dof + solver%dirside%dof
+      ! with open boundaries, the inflow face at the domain edge holds the boundary condition, dont overwrite it
+      ! or, with -pprts_open_bc_2d, the inflow of an edge cell is its own outflow, i.e. zero gradient across the edge
       if (lsun_east) then
-        x0(dofstart:dofend, :, C%xe + 1, C%ys:C%ye) = mpi_recv_bfr_x
+        if (.not. (solver%lopen_bc_x .and. C%xe + 1 .eq. C%glob_xm)) then
+          x0(dofstart:dofend, :, C%xe + 1, C%ys:C%ye) = mpi_recv_bfr_x
+        else if (solver%lopen_bc_2d) then
+          x0(dofstart:dofend, :, C%xe + 1, C%ys:C%ye) = x0(dofstart:dofend, :, C%xe, C%ys:C%ye)
+        end if
       else
-        x0(dofstart:dofend, :, C%xs, C%ys:C%ye) = mpi_recv_bfr_x
+        if (.not. (solver%lopen_bc_x .and. C%xs .eq. i0)) then
+          x0(dofstart:dofend, :, C%xs, C%ys:C%ye) = mpi_recv_bfr_x
+        else if (solver%lopen_bc_2d) then
+          x0(dofstart:dofend, :, C%xs, C%ys:C%ye) = x0(dofstart:dofend, :, C%xs + 1, C%ys:C%ye)
+        end if
       end if
 
       dofstart = solver%dirtop%dof + solver%dirside%dof
       dofend = -1 + solver%dirtop%dof + solver%dirside%dof * 2
       if (lsun_north) then
-        x0(dofstart:dofend, :, C%xs:C%xe, C%ye + 1) = mpi_recv_bfr_y
+        if (.not. (solver%lopen_bc_y .and. C%ye + 1 .eq. C%glob_ym)) then
+          x0(dofstart:dofend, :, C%xs:C%xe, C%ye + 1) = mpi_recv_bfr_y
+        else if (solver%lopen_bc_2d) then
+          x0(dofstart:dofend, :, C%xs:C%xe, C%ye + 1) = x0(dofstart:dofend, :, C%xs:C%xe, C%ye)
+        end if
       else
-        x0(dofstart:dofend, :, C%xs:C%xe, C%ys) = mpi_recv_bfr_y
+        if (.not. (solver%lopen_bc_y .and. C%ys .eq. i0)) then
+          x0(dofstart:dofend, :, C%xs:C%xe, C%ys) = mpi_recv_bfr_y
+        else if (solver%lopen_bc_2d) then
+          x0(dofstart:dofend, :, C%xs:C%xe, C%ys) = x0(dofstart:dofend, :, C%xs:C%xe, C%ys + 1)
+        end if
       end if
       nullify (x0)
     end associate
     ierr = 0
+  end subroutine
+
+  !> @brief copy the inflow at the sunward open domain edges from the source term b into x
+  subroutine set_open_bc_inflow(solver, b, x)
+    class(t_solver), intent(in) :: solver
+    real(ireals), target, contiguous, intent(in) :: b(:, :, :, :)
+    real(ireals), target, contiguous, intent(inout) :: x(:, :, :, :)
+
+    real(ireals), pointer :: x0(:, :, :, :), xb(:, :, :, :)
+    logical :: lsun_north, lsun_east
+
+    associate ( &
+        & C => solver%C_dir, &
+        & xinc => solver%sun%xinc, &
+        & yinc => solver%sun%yinc)
+
+      x0(0:C%dof - 1, C%zs:C%ze, C%gxs:C%gxe, C%gys:C%gye) => x
+      xb(0:C%dof - 1, C%zs:C%ze, C%gxs:C%gxe, C%gys:C%gye) => b
+
+      lsun_north = yinc .eq. i0
+      lsun_east = xinc .eq. i0
+
+      if (solver%lopen_bc_y .and. lsun_north .and. C%ye + 1 .eq. C%glob_ym) then
+        x0(solver%dirtop%dof + solver%dirside%dof:C%dof - 1, :, C%xs:C%xe, C%ye + 1) = &
+          & xb(solver%dirtop%dof + solver%dirside%dof:C%dof - 1, :, C%xs:C%xe, C%ye + 1)
+      end if
+      if (solver%lopen_bc_y .and. .not. lsun_north .and. C%ys .eq. i0) then
+        x0(solver%dirtop%dof + solver%dirside%dof:C%dof - 1, :, C%xs:C%xe, C%ys) = &
+          & xb(solver%dirtop%dof + solver%dirside%dof:C%dof - 1, :, C%xs:C%xe, C%ys)
+      end if
+      if (solver%lopen_bc_x .and. lsun_east .and. C%xe + 1 .eq. C%glob_xm) then
+        x0(solver%dirtop%dof:solver%dirtop%dof + solver%dirside%dof - 1, :, C%xe + 1, C%ys:C%ye) = &
+          & xb(solver%dirtop%dof:solver%dirtop%dof + solver%dirside%dof - 1, :, C%xe + 1, C%ys:C%ye)
+      end if
+      if (solver%lopen_bc_x .and. .not. lsun_east .and. C%xs .eq. i0) then
+        x0(solver%dirtop%dof:solver%dirtop%dof + solver%dirside%dof - 1, :, C%xs, C%ys:C%ye) = &
+          & xb(solver%dirtop%dof:solver%dirtop%dof + solver%dirside%dof - 1, :, C%xs, C%ys:C%ye)
+      end if
+      nullify (x0, xb)
+    end associate
   end subroutine
 
   subroutine explicit_edir_forward_sweep(solver, coeffs, dx, dy, b, x)
@@ -339,7 +400,6 @@ contains
     integer(iintegers) :: i, j, k
     integer(iintegers) :: idst, isrc, src, dst
     real(ireals), pointer :: v(:, :) ! dim(src, dst)
-    logical :: lsun_north, lsun_east
 
     x0 => null()
     xb => null()
@@ -355,27 +415,7 @@ contains
 
       x0(0:solver%dirtop%dof - 1, C%zs, C%xs:C%xe, C%ys:C%ye) = xb(0:solver%dirtop%dof - 1, C%zs, C%xs:C%xe, C%ys:C%ye)
 
-      if (solver%lopen_bc) then
-        lsun_north = yinc .eq. i0
-        lsun_east = xinc .eq. i0
-
-        if (lsun_north .and. C%ye + 1 .eq. C%glob_ym) then
-          x0(solver%dirtop%dof + solver%dirside%dof:C%dof - 1, :, C%xs:C%xe, C%ye + 1) = &
-            & xb(solver%dirtop%dof + solver%dirside%dof:C%dof - 1, :, C%xs:C%xe, C%ye + 1)
-        end if
-        if (.not. lsun_north .and. C%ys .eq. i0) then
-          x0(solver%dirtop%dof + solver%dirside%dof:C%dof - 1, :, C%xs:C%xe, C%ys) = &
-            & xb(solver%dirtop%dof + solver%dirside%dof:C%dof - 1, :, C%xs:C%xe, C%ys)
-        end if
-        if (lsun_east .and. C%xe + 1 .eq. C%glob_xm) then
-          x0(solver%dirtop%dof:solver%dirtop%dof + solver%dirside%dof - 1, :, C%xe + 1, C%ys:C%ye) = &
-            & xb(solver%dirtop%dof:solver%dirtop%dof + solver%dirside%dof - 1, :, C%xe + 1, C%ys:C%ye)
-        end if
-        if (.not. lsun_east .and. C%xs .eq. i0) then
-          x0(solver%dirtop%dof:solver%dirtop%dof + solver%dirside%dof - 1, :, C%xs, C%ys:C%ye) = &
-            & xb(solver%dirtop%dof:solver%dirtop%dof + solver%dirside%dof - 1, :, C%xs, C%ys:C%ye)
-        end if
-      end if
+      if (solver%lopen_bc .and. .not. solver%lopen_bc_2d) call set_open_bc_inflow(solver, b, x)
       nullify (xb)
 
       ! forward sweep through x
