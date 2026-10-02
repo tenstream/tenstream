@@ -482,7 +482,7 @@ contains
     logical :: laccept_incomplete_solve, lconverged_reason
 
     logical :: lomega_set, ladaptive_omega, lomega_frozen
-    real(ireals) :: omega, omega_adaptive, omega_increment, omega_min, omega_max
+    real(ireals) :: omega, omega_adaptive, omega_increment, omega_min, omega_max, omega_stagnation
     real(ireals) :: omega_dir, omega_step, omega_save, log_rate, log_rate_prev
     real(ireals) :: best_residual_solve
     integer(iintegers) :: iter_at_best
@@ -531,6 +531,8 @@ contains
       call get_petsc_opt(prefix, "-pc_sor_omega_min", omega_min, lflg, ierr); call CHKERR(ierr)
       omega_max = 1.25_ireals
       call get_petsc_opt(prefix, "-pc_sor_omega_max", omega_max, lflg, ierr); call CHKERR(ierr)
+      omega_stagnation = 0.5_ireals
+      call get_petsc_opt(prefix, "-pc_sor_omega_stagnation", omega_stagnation, lflg, ierr); call CHKERR(ierr)
       omega_dir = 1._ireals
       omega_step = omega_increment * 0.5_ireals
       log_rate_prev = 0._ireals
@@ -661,11 +663,11 @@ contains
 
           if (ladaptive_omega .and. iter .ge. 3) then
             ! Stagnation guard: if no new best for stagnation_window iters while omega > 1,
-            ! freeze omega at omega_min for the rest of the solve to escape a limit cycle
+            ! under-relax (omega < 1) for the rest of the solve to escape a limit cycle
             if (.not. lomega_frozen &
               & .and. omega_adaptive .gt. omega_min &
               & .and. (iter - iter_at_best) .gt. stagnation_window) then
-              omega_adaptive = omega_min
+              omega_adaptive = omega_stagnation
               omega_save = omega_adaptive
               lomega_frozen = .true.
             end if
