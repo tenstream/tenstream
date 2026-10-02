@@ -54,6 +54,7 @@ module m_pprts_base
     & get_solution_uid, &
     & halo_fill_5pt, &
     & halo_fill_edir, &
+    & halo_fill_ediff, &
     & halo_reduce_5pt, &
     & prepare_solution, &
     & print_solution, &
@@ -146,6 +147,9 @@ module m_pprts_base
     ! it is the inflow boundary condition if the sun is in the east/north and the outflow of the edge cells otherwise
     real(ireals), allocatable :: edir_open_bc_x(:, :, :) ! (0:dof-1, zs:ze, ys:ye) flux through the east domain edge
     real(ireals), allocatable :: edir_open_bc_y(:, :, :) ! (0:dof-1, zs:ze, xs:xe) flux through the north domain edge
+    ! same for the diffuse fluxes [W], these hold the inflow as well as the outflow of the edge cells
+    real(ireals), allocatable :: ediff_open_bc_x(:, :, :) ! (0:dof-1, zs:ze, ys:ye) flux through the east domain edge
+    real(ireals), allocatable :: ediff_open_bc_y(:, :, :) ! (0:dof-1, zs:ze, xs:xe) flux through the north domain edge
 #ifdef HAVE_PETSC
     type(tVec), allocatable :: edir_petsc   ! PETSc Vec wrapping edir's memory on C_dir DMDA
     type(tVec), allocatable :: ediff_petsc  ! PETSc Vec wrapping ediff's memory on C_diff DMDA
@@ -417,6 +421,8 @@ contains
       call deallocate_allocatable(solution%abso)
       if (allocated(solution%edir_open_bc_x)) deallocate (solution%edir_open_bc_x)
       if (allocated(solution%edir_open_bc_y)) deallocate (solution%edir_open_bc_y)
+      if (allocated(solution%ediff_open_bc_x)) deallocate (solution%ediff_open_bc_x)
+      if (allocated(solution%ediff_open_bc_y)) deallocate (solution%ediff_open_bc_y)
       if (allocated(solution%edir_bf16)) deallocate (solution%edir_bf16)
       if (allocated(solution%ediff_bf16)) deallocate (solution%ediff_bf16)
       solution%lcompressed = .false.
@@ -1555,6 +1561,42 @@ contains
         end if
         if (allocated(solution%edir_open_bc_y)) then
           x(dtop + dside:C%dof - 1, :, C%xs:C%xe, C%ye + 1) = solution%edir_open_bc_y(dtop + dside:C%dof - 1, :, :)
+        end if
+      end associate
+    end subroutine
+
+    !> @brief halo fill for diffuse radiation, i.e. halo_fill_5pt plus the fluxes through the open domain boundaries
+    !> @details v is dim(0:dof-1, zs:ze, gxs:gxe, gys:gye) with the owned part set to solution%ediff
+    !> the edge fluxes are stored in [W], if the solution is in [W/m2] convert them with the scaling of the adjacent edge cells
+    subroutine halo_fill_ediff(solver, solution, v, ierr)
+      class(t_solver), intent(in) :: solver
+      type(t_state_container), intent(in) :: solution
+      real(ireals), target, contiguous, intent(inout) :: v(:, :, :, :)
+      integer(mpiint), intent(out) :: ierr
+
+      real(ireals), pointer :: x(:, :, :, :)
+
+      call halo_fill_5pt(solver%comm, solver%C_diff, v, ierr); call CHKERR(ierr)
+      if (.not. solver%lopen_bc) return
+
+      if (solution%lWm2_diff .and. .not. allocated(solver%diff_scalevec_W_to_Wm2)) &
+        & call CHKERR(1_mpiint, 'expected the diff flux scaling vector to be allocated')
+
+      associate (C => solver%C_diff, dtop => solver%difftop%dof, dside => solver%diffside%dof)
+        x(0:C%dof - 1, C%zs:C%ze, C%gxs:C%gxe, C%gys:C%gye) => v
+        if (allocated(solution%ediff_open_bc_x)) then
+          x(dtop:dtop + dside - 1, :, C%xe + 1, C%ys:C%ye) = solution%ediff_open_bc_x(dtop:dtop + dside - 1, :, :)
+          if (solution%lWm2_diff) then
+            x(dtop:dtop + dside - 1, :, C%xe + 1, C%ys:C%ye) = x(dtop:dtop + dside - 1, :, C%xe + 1, C%ys:C%ye) &
+              & * solver%diff_scalevec_W_to_Wm2(dtop + 1:dtop + dside, :, C%xm, :)
+          end if
+        end if
+        if (allocated(solution%ediff_open_bc_y)) then
+          x(dtop + dside:C%dof - 1, :, C%xs:C%xe, C%ye + 1) = solution%ediff_open_bc_y(dtop + dside:C%dof - 1, :, :)
+          if (solution%lWm2_diff) then
+            x(dtop + dside:C%dof - 1, :, C%xs:C%xe, C%ye + 1) = x(dtop + dside:C%dof - 1, :, C%xs:C%xe, C%ye + 1) &
+              & * solver%diff_scalevec_W_to_Wm2(dtop + dside + 1:C%dof, :, :, C%ym)
+          end if
         end if
       end associate
     end subroutine

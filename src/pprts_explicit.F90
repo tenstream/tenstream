@@ -624,6 +624,7 @@ contains
       v0(:, :, C%xs:C%xe, C%ys:C%ye) = vediff
       ! warm-start ghost from previous solution
       call fill_ghost(solver%comm, C, v0, ierr); call CHKERR(ierr)
+      call set_open_bc_diffuse(solver, v0)
 
       allocate (lvb(0:C%dof - 1, C%zs:C%ze, C%gxs:C%gxe, C%gys:C%gye)); lvb = zero
       lvb(:, :, C%xs:C%xe, C%ys:C%ye) = vb
@@ -745,6 +746,17 @@ contains
 
       ! update solution vec
       xg = x0(:, :, C%xs:C%xe, C%ys:C%ye)
+
+      ! keep the fluxes through the east/north open boundary, they live on a ghost face and are not part of ediff.
+      ! A periodic halo exchange would replace them with the fluxes through the opposite edge
+      if (allocated(solution%ediff_open_bc_x)) deallocate (solution%ediff_open_bc_x)
+      if (allocated(solution%ediff_open_bc_y)) deallocate (solution%ediff_open_bc_y)
+      if (solver%lopen_bc_x .and. C%xe + 1 .eq. C%glob_xm) then
+        allocate (solution%ediff_open_bc_x(0:C%dof - 1, C%zs:C%ze, C%ys:C%ye), source=x0(:, :, C%xe + 1, C%ys:C%ye))
+      end if
+      if (solver%lopen_bc_y .and. C%ye + 1 .eq. C%glob_ym) then
+        allocate (solution%ediff_open_bc_y(0:C%dof - 1, C%zs:C%ze, C%xs:C%xe), source=x0(:, :, C%xs:C%xe, C%ye + 1))
+      end if
 
       nullify (xg, x0)
       deallocate (v0, lvb)
@@ -886,8 +898,51 @@ contains
 
       nullify (x0)
     end associate
+
+    call set_open_bc_diffuse(solver, v0)
     ierr = 0
   end subroutine
+
+  !> @brief open boundaries for diffuse radiation: zero gradient across the domain edges
+  !> @details what enters an edge cell through the domain edge is what leaves this cell in the same direction,
+  !> i.e. the edge columns continue outwards but they do see their neighbours along the edge
+  subroutine set_open_bc_diffuse(solver, v0)
+    class(t_solver), intent(in) :: solver
+    real(ireals), target, contiguous, intent(inout) :: v0(:, :, :, :)
+
+    real(ireals), pointer :: x0(:, :, :, :)
+    integer(iintegers) :: idof, dof
+
+    if (.not. solver%lopen_bc) return
+
+    associate (C => solver%C_diff)
+      x0(0:C%dof - 1, C%zs:C%ze, C%gxs:C%gxe, C%gys:C%gye) => v0
+
+      if (solver%lopen_bc_x) then
+        do idof = i0, solver%diffside%dof - 1
+          dof = solver%difftop%dof + idof
+          if (solver%diffside%is_inward(i1 + idof)) then ! to the right, enters at the west edge
+            if (C%xs .eq. i0) x0(dof, :, C%xs, C%ys:C%ye) = x0(dof, :, C%xs + 1, C%ys:C%ye)
+          else ! leftward, enters at the east edge
+            if (C%xe + 1 .eq. C%glob_xm) x0(dof, :, C%xe + 1, C%ys:C%ye) = x0(dof, :, C%xe, C%ys:C%ye)
+          end if
+        end do
+      end if
+
+      if (solver%lopen_bc_y) then
+        do idof = i0, solver%diffside%dof - 1
+          dof = solver%difftop%dof + solver%diffside%dof + idof
+          if (solver%diffside%is_inward(i1 + idof)) then ! forward, enters at the south edge
+            if (C%ys .eq. i0) x0(dof, :, C%xs:C%xe, C%ys) = x0(dof, :, C%xs:C%xe, C%ys + 1)
+          else ! backward, enters at the north edge
+            if (C%ye + 1 .eq. C%glob_ym) x0(dof, :, C%xs:C%xe, C%ye + 1) = x0(dof, :, C%xs:C%xe, C%ye)
+          end if
+        end do
+      end if
+      nullify (x0)
+    end associate
+  end subroutine
+
   subroutine explicit_ediff_sor_sweep(solver, coeffs, dx, dy, dz, omega, b, x)
     class(t_solver), intent(inout) :: solver
     real(ireals), target, intent(in) :: coeffs(:, :, :, :)
