@@ -58,6 +58,10 @@ module test_pprts_open_bc_scenes
     real(ireals) :: w0 = 0, g = 0                ! single scattering albedo and asymmetry parameter
     real(ireals) :: kabs_scale = 1
     logical :: lopen_bc = .true.
+    logical :: lopen_x = .true., lopen_y = .true. ! if lopen_bc, which of the boundaries are open
+    logical :: lthermal = .false.                ! thermal instead of solar radiation
+    integer(iintegers) :: ivar = 1, jvar = 1     ! set to 0 to have no variations of the scene along x or y
+    integer(iintegers) :: pad = 0                ! embed the scene in a larger domain, edge columns continue outwards
     logical :: l2d = .false.                     ! -pprts_open_bc_2d, i.e. zero gradient inflow instead of single column solves
     logical :: lheterogeneous = .true.           ! each column gets its own absorption profile, otherwise homogeneous
     logical :: lslabs = .true.                   ! put opaque slabs into some of the edge columns
@@ -86,7 +90,7 @@ contains
   @after
   subroutine teardown(this)
     class(MpiTestMethod), intent(inout) :: this
-    call set_open_bc_option(.false., .false.)
+    call set_open_bc_option(.false., .false., .false.)
     call finalize_mpi(&
       & this%getMpiCommunicator(), &
       & lfinalize_mpi=.false., &
@@ -99,26 +103,44 @@ contains
     integer(iintegers), intent(in) :: k, i, j
     real(ireals) :: kabs
     kabs = cfg%kabs_scale * tau_clearsky / sum(cfg%dz)
-    if (cfg%lheterogeneous) kabs = kabs * (one + real(modulo(3 * i + 5 * j + k, 4_iintegers), ireals) / 2)
+    if (cfg%lheterogeneous) kabs = kabs * (one + real(modulo(3 * i * cfg%ivar + 5 * j * cfg%jvar + k, 4_iintegers), ireals) / 2)
+  end function
+
+  ! planck emission [W/m2] at level k (1..Nz+1) of the global column i,j, the surface is warmer than the air above
+  pure function scene_planck(cfg, k, i, j) result(planck)
+    type(t_cfg), intent(in) :: cfg
+    integer(iintegers), intent(in) :: k, i, j
+    real(ireals) :: planck
+    planck = 100 + 20 * real(k, ireals)
+    if (cfg%lheterogeneous) planck = planck + 15 * real(modulo(i * cfg%ivar + 2 * j * cfg%jvar, 3_iintegers), ireals)
+    if (k .gt. Nz + 1) planck = planck + 30
   end function
 
   ! does the global column i,j carry a slab?
-  ! Slabs sit on all four edges, in two of the four corners, and one edge column next to a slab is always free
+  ! Slabs sit on all four edges, in two of the four corners, and one edge column next to a slab is always free.
+  ! If the scene must not vary along x or y, the slab is a bar across the domain
   pure function scene_has_slab(cfg, i, j) result(lslab)
     type(t_cfg), intent(in) :: cfg
     integer(iintegers), intent(in) :: i, j
     logical :: lslab
     lslab = .false.
     if (.not. cfg%lslabs) return
-    lslab = (i .eq. 1 .and. j .eq. 1) &
-      & .or. (i .eq. cfg%Nx .and. j .eq. cfg%Ny) &
-      & .or. (i .eq. 1 .and. j .eq. cfg%Ny - 1) &
-      & .or. (i .eq. cfg%Nx .and. j .eq. 2) &
-      & .or. (i .eq. 3 .and. j .eq. 1) &
-      & .or. (i .eq. cfg%Nx - 2 .and. j .eq. cfg%Ny)
+    if (cfg%ivar .eq. 0 .and. cfg%jvar .eq. 0) return
+    if (cfg%ivar .eq. 0) then
+      lslab = j .eq. 2
+    else if (cfg%jvar .eq. 0) then
+      lslab = i .eq. 3
+    else
+      lslab = (i .eq. 1 .and. j .eq. 1) &
+        & .or. (i .eq. cfg%Nx .and. j .eq. cfg%Ny) &
+        & .or. (i .eq. 1 .and. j .eq. cfg%Ny - 1) &
+        & .or. (i .eq. cfg%Nx .and. j .eq. 2) &
+        & .or. (i .eq. 3 .and. j .eq. 1) &
+        & .or. (i .eq. cfg%Nx - 2 .and. j .eq. cfg%Ny)
+    end if
   end function
 
-  ! global column that provides the properties for the local column i,j (indices start at 1)
+  ! column of the scene that provides the properties for the global column i,j of the domain (indices start at 1)
   pure subroutine source_column(cfg, i, j, isrc, jsrc)
     type(t_cfg), intent(in) :: cfg
     integer(iintegers), intent(in) :: i, j
@@ -126,19 +148,19 @@ contains
     if (cfg%icol .gt. 0) then
       isrc = cfg%icol
       jsrc = cfg%jcol
-    else
-      isrc = i
-      jsrc = j
+    else ! in the padding, the edge columns continue outwards
+      isrc = min(max(i - cfg%pad, 1_iintegers), cfg%Nx)
+      jsrc = min(max(j - cfg%pad, 1_iintegers), cfg%Ny)
     end if
   end subroutine
 
   ! always set all of the options, they stay in the options database
-  subroutine set_open_bc_option(lopen_bc, l2d)
-    logical, intent(in) :: lopen_bc, l2d
+  subroutine set_open_bc_option(lopen_x, lopen_y, l2d)
+    logical, intent(in) :: lopen_x, lopen_y, l2d
     integer(mpiint) :: ierr
-    call insert_petsc_opt('-pprts_open_bc '//merge('yes', 'no ', lopen_bc), ierr); call CHKERR(ierr)
-    call insert_petsc_opt('-pprts_open_bc_x '//merge('yes', 'no ', lopen_bc), ierr); call CHKERR(ierr)
-    call insert_petsc_opt('-pprts_open_bc_y '//merge('yes', 'no ', lopen_bc), ierr); call CHKERR(ierr)
+    call insert_petsc_opt('-pprts_open_bc '//merge('yes', 'no ', lopen_x .and. lopen_y), ierr); call CHKERR(ierr)
+    call insert_petsc_opt('-pprts_open_bc_x '//merge('yes', 'no ', lopen_x), ierr); call CHKERR(ierr)
+    call insert_petsc_opt('-pprts_open_bc_y '//merge('yes', 'no ', lopen_y), ierr); call CHKERR(ierr)
     call insert_petsc_opt('-pprts_open_bc_2d '//merge('yes', 'no ', l2d), ierr); call CHKERR(ierr)
   end subroutine
 
@@ -146,20 +168,24 @@ contains
     integer(mpiint), intent(in) :: comm
     type(t_cfg), intent(in) :: cfg
     class(t_solver), allocatable, intent(inout) :: solver
+    logical :: lx, ly
     integer(mpiint) :: ierr
 
-    call set_open_bc_option(cfg%lopen_bc, cfg%l2d)
+    lx = cfg%lopen_bc .and. cfg%lopen_x
+    ly = cfg%lopen_bc .and. cfg%lopen_y
+    call set_open_bc_option(lx, ly, cfg%l2d)
     call allocate_pprts_solver_from_commandline(solver, trim(cfg%solvername), ierr); call CHKERR(ierr)
 
     if (allocated(cfg%nxproc)) then
       call init_pprts(comm, Nz, cfg%Nx, cfg%Ny, dx, dx, spherical_2_cartesian(cfg%phi0, cfg%theta0), solver, &
         & dz1d=cfg%dz, nxproc=cfg%nxproc, nyproc=cfg%nyproc)
     else
-      call init_pprts(comm, Nz, cfg%Nx, cfg%Ny, dx, dx, spherical_2_cartesian(cfg%phi0, cfg%theta0), solver, dz1d=cfg%dz)
+      call init_pprts(comm, Nz, cfg%Nx + 2 * cfg%pad, cfg%Ny + 2 * cfg%pad, dx, dx, &
+        & spherical_2_cartesian(cfg%phi0, cfg%theta0), solver, dz1d=cfg%dz)
     end if
-    if (cfg%lopen_bc .neqv. solver%lopen_bc) loption_mismatch = .true.
-    if (cfg%lopen_bc .neqv. solver%lopen_bc_x) loption_mismatch = .true.
-    if (cfg%lopen_bc .neqv. solver%lopen_bc_y) loption_mismatch = .true.
+    if ((lx .or. ly) .neqv. solver%lopen_bc) loption_mismatch = .true.
+    if (lx .neqv. solver%lopen_bc_x) loption_mismatch = .true.
+    if (ly .neqv. solver%lopen_bc_y) loption_mismatch = .true.
     if (cfg%l2d .neqv. solver%lopen_bc_2d) loption_mismatch = .true.
   end subroutine
 
@@ -172,19 +198,21 @@ contains
     type(t_res), intent(out), optional :: res_again ! results gathered a second time from the same solution
 
     type(t_pprts_buildings), allocatable :: buildings
-    real(ireals), allocatable, dimension(:, :, :) :: kabs, ksca, g
+    real(ireals), allocatable, dimension(:, :, :) :: kabs, ksca, g, planck
+    real(ireals), allocatable, dimension(:, :) :: planck_srfc
     integer(iintegers) :: Nfaces, m, i, j, k, isrc, jsrc, faceid
     logical :: lbuildings
     integer(mpiint) :: ierr
 
     ! if there are slabs anywhere in the domain, has to be the same on all ranks
-    lbuildings = cfg%lslabs
+    lbuildings = cfg%lslabs .and. .not. cfg%lthermal .and. (cfg%ivar .ne. 0 .or. cfg%jvar .ne. 0)
     if (cfg%icol .gt. 0) lbuildings = scene_has_slab(cfg, cfg%icol, cfg%jcol)
 
     associate (C => solver%C_one)
       allocate (kabs(C%zm, C%xm, C%ym))
       allocate (ksca(C%zm, C%xm, C%ym))
       allocate (g(C%zm, C%xm, C%ym), source=cfg%g)
+      if (cfg%lthermal) allocate (planck(C%zm + 1, C%xm, C%ym), planck_srfc(C%xm, C%ym))
 
       Nfaces = 0
       do j = C%ys, C%ye
@@ -193,7 +221,13 @@ contains
           do k = 1, Nz
             kabs(k, i - C%xs + 1, j - C%ys + 1) = scene_kabs(cfg, k, isrc, jsrc)
           end do
-          if (scene_has_slab(cfg, isrc, jsrc)) Nfaces = Nfaces + 6 * (kslab_bot - kslab_top + 1)
+          if (cfg%lthermal) then
+            do k = 1, Nz + 1
+              planck(k, i - C%xs + 1, j - C%ys + 1) = scene_planck(cfg, k, isrc, jsrc)
+            end do
+            planck_srfc(i - C%xs + 1, j - C%ys + 1) = scene_planck(cfg, Nz + 2, isrc, jsrc)
+          end if
+          if (lbuildings .and. scene_has_slab(cfg, isrc, jsrc)) Nfaces = Nfaces + 6 * (kslab_bot - kslab_top + 1)
         end do
       end do
       ksca = kabs * cfg%w0 / (one - cfg%w0)
@@ -218,15 +252,25 @@ contains
       end if
     end associate
 
-    call set_optical_properties(solver, cfg%albedo, kabs, ksca, g)
-    if (lbuildings) then
-      call solve_pprts(solver, lthermal=.false., lsolar=.true., edirTOA=cfg%edirTOA, opt_buildings=buildings)
+    if (cfg%lthermal) then
+      call set_optical_properties(solver, cfg%albedo, kabs, ksca, g, planck, planck_srfc)
+      call solve_pprts(solver, lthermal=.true., lsolar=.false., edirTOA=cfg%edirTOA)
+      call pprts_get_result_toZero(solver, res%edn, res%eup, res%abso)
+      if (present(res_again)) call pprts_get_result_toZero(solver, res_again%edn, res_again%eup, res_again%abso)
     else
-      call solve_pprts(solver, lthermal=.false., lsolar=.true., edirTOA=cfg%edirTOA)
+      call set_optical_properties(solver, cfg%albedo, kabs, ksca, g)
+      if (lbuildings) then
+        call solve_pprts(solver, lthermal=.false., lsolar=.true., edirTOA=cfg%edirTOA, opt_buildings=buildings)
+      else
+        call solve_pprts(solver, lthermal=.false., lsolar=.true., edirTOA=cfg%edirTOA)
+      end if
+      call pprts_get_result_toZero(solver, res%edn, res%eup, res%abso, res%edir)
+      if (present(res_again)) call pprts_get_result_toZero(solver, res_again%edn, res_again%eup, res_again%abso, res_again%edir)
     end if
 
-    call pprts_get_result_toZero(solver, res%edn, res%eup, res%abso, res%edir)
-    if (present(res_again)) call pprts_get_result_toZero(solver, res_again%edn, res_again%eup, res_again%abso, res_again%edir)
+    if (cfg%pad .gt. 0) then ! cut out the scene
+      call cut(res%edn); call cut(res%eup); call cut(res%abso); call cut(res%edir)
+    end if
 
     allocate (res%l1d(Nz))
     res%l1d = solver%atm%l1d
@@ -235,6 +279,14 @@ contains
     if (lbuildings) then
       call destroy_buildings(buildings, ierr); call CHKERR(ierr)
     end if
+  contains
+    subroutine cut(arr)
+      real(ireals), allocatable, intent(inout) :: arr(:, :, :)
+      real(ireals), allocatable :: tmp(:, :, :)
+      if (.not. allocated(arr)) return
+      allocate (tmp, source=arr(:, cfg%pad + 1:cfg%pad + cfg%Nx, cfg%pad + 1:cfg%pad + cfg%Ny))
+      call move_alloc(tmp, arr)
+    end subroutine
   end subroutine
 
   ! solve the scene with a fresh solver
@@ -613,9 +665,11 @@ contains
 
     type(t_cfg) :: cfg
     type(t_res) :: res
-    real(ireals), dimension(Nz + 1, Nx, Ny, size(phis), 0:Nlayouts) :: edir
+    real(ireals), dimension(Nz + 1, Nx, Ny, size(phis), 0:Nlayouts) :: edir, edn, eup
     real(ireals), dimension(Nz, Nx, Ny, size(phis), 0:Nlayouts) :: abso
     real(ireals) :: eps, eps_abso
+    ! the diffuse solver iterates differently for each decomposition, results agree up to its convergence criteria
+    real(ireals), parameter :: eps_diff = 1e-1_ireals
     integer(iintegers) :: iphi, ilayout
     character(len=:), allocatable :: msg
     integer(mpiint) :: comm, myid, numnodes
@@ -627,7 +681,14 @@ contains
     tol_scale = get_tol_scale(l2d)
 
     edir = -one
+    edn = -one
+    eup = -one
     abso = -one
+
+    ! with scattering and a reflecting surface, to also cover the diffuse open boundaries
+    cfg%w0 = .5_ireals
+    cfg%g = .5_ireals
+    cfg%albedo = .2_ireals
 
     do ilayout = 0, Nlayouts
       cfg%Nx = Nx
@@ -665,6 +726,8 @@ contains
         cfg%phi0 = phis(iphi)
         call solve_scene(comm, cfg, res)
         if (allocated(res%edir)) edir(:, :, :, iphi, ilayout) = res%edir
+        if (allocated(res%edn)) edn(:, :, :, iphi, ilayout) = res%edn
+        if (allocated(res%eup)) eup(:, :, :, iphi, ilayout) = res%eup
         if (allocated(res%abso)) abso(:, :, :, iphi, ilayout) = res%abso
       end do
     end do
@@ -675,16 +738,22 @@ contains
     eps = cfg%edirTOA * 1e-5_ireals * tol_scale
     do iphi = 1, size(phis)
       @assertTrue(all(edir(:, :, :, iphi, 0) .ge. zero), 'missing or negative edir')
+      @assertTrue(all(edn(:, :, :, iphi, 0) .ge. zero), 'missing or negative edn')
+      @assertTrue(maxval(eup(:, :, :, iphi, 0)) .gt. 10._ireals, 'expected upwelling diffuse radiation')
       @assertTrue(all(abso(:, :, :, iphi, 0) .ge. zero), 'missing or negative absorption')
       ! the slabs have to cast shadows, i.e. the scene is not trivial
       @assertTrue(minval(edir(Nz + 1, :, :, iphi, 0)) .lt. maxval(edir(Nz + 1, :, :, iphi, 0)) * .5_ireals, 'expected shadows')
 
-      eps_abso = maxval(abso(:, :, :, iphi, 0)) * 1e-4_ireals * tol_scale
+      eps_abso = maxval(abso(:, :, :, iphi, 0)) * 1e-3_ireals
       do ilayout = 1, Nlayouts
         msg = 'phi0 '//toStr(phis(iphi))//' layout '//toStr(ilayout)//' on '//toStr(numnodes)//' ranks'
         print *, msg, ' max diff edir', maxval(abs(edir(:, :, :, iphi, ilayout) - edir(:, :, :, iphi, 0))), &
           & 'abso', maxval(abs(abso(:, :, :, iphi, ilayout) - abso(:, :, :, iphi, 0))), 'eps_abso', eps_abso
         @assertEqual(edir(:, :, :, iphi, 0), edir(:, :, :, iphi, ilayout), eps, 'edir depends on the domain decomposition, '//msg)
+        print *, msg, ' max diff edn', maxval(abs(edn(:, :, :, iphi, ilayout) - edn(:, :, :, iphi, 0))), &
+          & 'eup', maxval(abs(eup(:, :, :, iphi, ilayout) - eup(:, :, :, iphi, 0)))
+        @assertEqual(edn(:, :, :, iphi, 0), edn(:, :, :, iphi, ilayout), eps_diff, 'edn depends on the domain decomposition, '//msg)
+        @assertEqual(eup(:, :, :, iphi, 0), eup(:, :, :, iphi, ilayout), eps_diff, 'eup depends on the domain decomposition, '//msg)
 @assertEqual(abso(:, :, :, iphi, 0), abso(:, :, :, iphi, ilayout), eps_abso, 'absorption depends on the domain decomposition, '//msg)
       end do
     end do
@@ -776,6 +845,181 @@ contains
 @assertEqual(reused(1)%edir, reused(Nsteps)%edir, cfgs(1)%edirTOA * 1e-5_ireals * tol_scale, 'edir differs after returning to the first configuration')
   end subroutine
 
+  ! Open boundaries for diffuse radiation: what enters an edge cell through the domain edge is what leaves it in that direction.
+  ! If the scene does not vary along x, neither does the radiation field and periodic boundaries in x are exact.
+  ! Opening the x boundaries then must not change anything, no matter how the scene looks like along y. Same for y.
+  ! This holds for direct, diffuse and thermal radiation and for the absorption
+  subroutine check_open_bc_along_invariant_direction_matches_periodic(this, l2d)
+    class(MpiTestMethod), intent(inout) :: this
+    logical, intent(in) :: l2d ! use -pprts_open_bc_2d
+
+    real(ireals), parameter :: phis(6) = [real(ireals) :: 20, 110, 200, 290, 0, 90]
+    integer(iintegers), parameter :: Ncases = 2 * (size(phis) + 1) ! per direction: solar for each sun azimuth, plus thermal
+
+    type(t_cfg) :: cfg, cfgs(Ncases)
+    type(t_res) :: open (Ncases), periodic(Ncases)
+    real(ireals) :: eps, eps_abso, variation
+    integer(iintegers) :: icase, idir, iphi
+    character(len=:), allocatable :: msg
+    integer(mpiint) :: comm, myid
+
+    comm = this%getMpiCommunicator()
+    myid = this%getProcessRank()
+
+    cfg%l2d = l2d
+    cfg%kabs_scale = 3
+    cfg%w0 = .7_ireals
+    cfg%g = .5_ireals
+    cfg%albedo = .3_ireals
+
+    icase = 0
+    do idir = 1, 2
+      do iphi = 1, size(phis) + 1
+        icase = icase + 1
+        cfgs(icase) = cfg
+        if (idir .eq. 1) then ! no variations along x, open in x
+          cfgs(icase)%ivar = 0
+          cfgs(icase)%lopen_y = .false.
+        else
+          cfgs(icase)%jvar = 0
+          cfgs(icase)%lopen_x = .false.
+        end if
+        if (iphi .le. size(phis)) then
+          cfgs(icase)%phi0 = phis(iphi)
+        else
+          cfgs(icase)%lthermal = .true.
+        end if
+      end do
+    end do
+
+    do icase = 1, Ncases
+      cfg = cfgs(icase)
+      call solve_scene(comm, cfg, open (icase))
+      cfg%lopen_bc = .false.
+      call solve_scene(comm, cfg, periodic(icase))
+    end do
+
+    @assertFalse(loption_mismatch, 'solver did not pick up the -pprts_open_bc options')
+    if (myid .ne. 0) return
+
+    do icase = 1, Ncases
+      associate (c => cfgs(icase), o => open (icase), p => periodic(icase))
+        msg = 'open '//merge('x', 'y', c%lopen_x)//merge(' thermal', ' solar  ', c%lthermal)//' phi0 '//toStr(c%phi0)
+
+        ! the direct inflow from single column solves does not know about the neighbours along the edge,
+        ! i.e. it only gives the invariant solution if the sun is aligned with the grid
+        if (.not. l2d .and. .not. c%lthermal .and. modulo(nint(c%phi0), 90) .ne. 0) cycle
+
+        @assertTrue(allocated(o%edn) .and. allocated(o%eup) .and. allocated(o%abso), 'missing results, '//msg)
+        @assertTrue(allocated(p%edn) .and. allocated(p%eup) .and. allocated(p%abso), 'missing results, '//msg)
+     @assertTrue(all(ieee_is_finite(o%edn)) .and. all(ieee_is_finite(o%eup)) .and. all(ieee_is_finite(o%abso)), 'not finite, '//msg)
+
+        ! the diffuse radiation field has to be substantial and has to vary along the edge, otherwise this test is void
+        @assertTrue(minval(p%eup(1, :, :)) .gt. 10._ireals, 'expected upwelling diffuse radiation at the top of the domain, '//msg)
+        if (c%lopen_x) then
+          variation = maxval(maxval(p%eup(Nz + 1, :, :), dim=1) - minval(p%eup(Nz + 1, :, :), dim=1))
+          @assertEqual(zero, variation, 1e-1_ireals, 'expected no variations along x in the periodic solution, '//msg)
+          variation = maxval(maxval(p%eup(:, 1, :), dim=2) - minval(p%eup(:, 1, :), dim=2))
+        else
+          variation = maxval(maxval(p%eup(Nz + 1, :, :), dim=2) - minval(p%eup(Nz + 1, :, :), dim=2))
+          @assertEqual(zero, variation, 1e-1_ireals, 'expected no variations along y in the periodic solution, '//msg)
+          variation = maxval(maxval(p%eup(:, :, 1), dim=2) - minval(p%eup(:, :, 1), dim=2))
+        end if
+        @assertTrue(variation .gt. one, 'expected the upwelling radiation to vary along the open edge, '//msg)
+
+        eps = 1e-1_ireals
+        eps_abso = maxval(abs(p%abso)) * 1e-3_ireals
+        print *, msg, ' max diff open vs periodic: edn', maxval(abs(o%edn - p%edn)), 'eup', maxval(abs(o%eup - p%eup)), &
+          & 'abso', maxval(abs(o%abso - p%abso)), 'eps_abso', eps_abso, 'variation along the edge', variation
+
+        if (.not. c%lthermal) then
+          @assertEqual(p%edir, o%edir, eps, 'edir changed by opening the boundaries along the invariant direction, '//msg)
+        end if
+        @assertEqual(p%edn, o%edn, eps, 'edn changed by opening the boundaries along the invariant direction, '//msg)
+        @assertEqual(p%eup, o%eup, eps, 'eup changed by opening the boundaries along the invariant direction, '//msg)
+        @assertEqual(p%abso, o%abso, eps_abso, 'absorption changed by opening the boundaries along the invariant direction, '//msg)
+      end associate
+    end do
+  end subroutine
+
+  ! Diffuse radiation travels in all directions. Other than for direct radiation, the zero gradient condition is therefore
+  ! only an approximation to a scene whose edge columns continue outwards forever.
+  ! It has to be much closer to that than periodic boundaries though. Pin the quality of the approximation
+  subroutine check_open_bc_diffuse_is_close_to_embedded_domain(this, l2d)
+    class(MpiTestMethod), intent(inout) :: this
+    logical, intent(in) :: l2d ! use -pprts_open_bc_2d
+
+    real(ireals), parameter :: phis(4) = [real(ireals) :: 20, 110, 200, 290]
+    integer(iintegers), parameter :: Ncases = size(phis) + 1 ! solar for each sun azimuth, plus thermal
+    integer(iintegers), parameter :: pad = 8
+
+    type(t_cfg) :: cfg, cfgs(Ncases)
+    type(t_res) :: open (Ncases), periodic(Ncases), embedded(Ncases)
+    real(ireals) :: err_open, err_periodic, rmse_open, rmse_periodic
+    integer(iintegers) :: icase
+    character(len=:), allocatable :: msg
+    integer(mpiint) :: comm, myid
+
+    comm = this%getMpiCommunicator()
+    myid = this%getProcessRank()
+
+    cfg%l2d = l2d
+    cfg%kabs_scale = 3
+    cfg%w0 = .7_ireals
+    cfg%g = .5_ireals
+    cfg%albedo = .3_ireals
+
+    do icase = 1, Ncases
+      cfgs(icase) = cfg
+      if (icase .le. size(phis)) then
+        cfgs(icase)%phi0 = phis(icase)
+      else
+        cfgs(icase)%lthermal = .true.
+      end if
+    end do
+
+    do icase = 1, Ncases
+      cfg = cfgs(icase)
+      call solve_scene(comm, cfg, open (icase))
+      cfg%lopen_bc = .false.
+      call solve_scene(comm, cfg, periodic(icase))
+      cfg%pad = pad
+      call solve_scene(comm, cfg, embedded(icase))
+    end do
+
+    @assertFalse(loption_mismatch, 'solver did not pick up the -pprts_open_bc options')
+    if (myid .ne. 0) return
+
+    do icase = 1, Ncases
+      associate (c => cfgs(icase), o => open (icase), p => periodic(icase), e => embedded(icase))
+        msg = merge('thermal', 'solar  ', c%lthermal)//' phi0 '//toStr(c%phi0)
+        @assertTrue(allocated(o%edn) .and. allocated(p%edn) .and. allocated(e%edn), 'missing results, '//msg)
+        @assertTrue(all(shape(o%edn) .eq. shape(e%edn)), 'embedded result has the wrong shape, '//msg)
+     @assertTrue(all(ieee_is_finite(o%edn)) .and. all(ieee_is_finite(o%eup)) .and. all(ieee_is_finite(o%abso)), 'not finite, '//msg)
+
+        err_open = max(maxval(abs(o%edn - e%edn)), maxval(abs(o%eup - e%eup)))
+        err_periodic = max(maxval(abs(p%edn - e%edn)), maxval(abs(p%eup - e%eup)))
+        rmse_open = sqrt((sum((o%edn - e%edn)**2) + sum((o%eup - e%eup)**2)) / real(2 * size(e%edn), ireals))
+        rmse_periodic = sqrt((sum((p%edn - e%edn)**2) + sum((p%eup - e%eup)**2)) / real(2 * size(e%edn), ireals))
+        print *, msg, ' diffuse fluxes vs embedded: max err open', err_open, 'periodic', err_periodic, &
+          & 'rmse open', rmse_open, 'periodic', rmse_periodic, 'mean eup', sum(e%eup) / real(size(e%eup), ireals)
+
+        @assertTrue(rmse_periodic .gt. one, 'expected periodic boundaries to differ from the embedded domain, '//msg)
+@assertTrue(rmse_open .lt. rmse_periodic * .5_ireals, 'open bc diffuse fluxes are not closer to the embedded domain than periodic ones, '//msg)
+@assertTrue(err_open .lt. err_periodic, 'open bc diffuse fluxes locally differ more from the embedded domain than periodic ones, '//msg)
+
+        ! the absorption of the edge cells needs the fluxes through the domain edges
+        rmse_open = sqrt(sum((o%abso - e%abso)**2) / real(size(e%abso), ireals))
+        rmse_periodic = sqrt(sum((p%abso - e%abso)**2) / real(size(e%abso), ireals))
+        print *, msg, ' absorption vs embedded: rmse open', rmse_open, 'periodic', rmse_periodic, &
+          & 'max err open', maxval(abs(o%abso - e%abso)), 'periodic', maxval(abs(p%abso - e%abso))
+        ! with the inflow from single column solves, the absorption of direct radiation is further off
+@assertTrue(rmse_open .lt. rmse_periodic * merge(.5_ireals, .75_ireals, l2d), 'open bc absorption is not closer to the embedded domain than periodic one, '//msg)
+@assertTrue(maxval(abs(o%abso - e%abso)) .lt. maxval(abs(p%abso - e%abso)), 'open bc absorption locally differs more from the embedded domain than periodic one, '//msg)
+      end associate
+    end do
+  end subroutine
+
   @test(npes=[4, 2, 1])
   subroutine test_open_bc_edge_columns_match_replicated_column(this)
     class(MpiTestMethod), intent(inout) :: this
@@ -834,5 +1078,29 @@ contains
   subroutine test_open_bc_solver_reuse_matches_fresh_solver_2d(this)
     class(MpiTestMethod), intent(inout) :: this
     call check_open_bc_solver_reuse_matches_fresh_solver(this, l2d=.true.)
+  end subroutine
+
+  @test(npes=[4, 2, 1])
+  subroutine test_open_bc_along_invariant_direction_matches_periodic(this)
+    class(MpiTestMethod), intent(inout) :: this
+    call check_open_bc_along_invariant_direction_matches_periodic(this, l2d=.false.)
+  end subroutine
+
+  @test(npes=[4, 2, 1])
+  subroutine test_open_bc_along_invariant_direction_matches_periodic_2d(this)
+    class(MpiTestMethod), intent(inout) :: this
+    call check_open_bc_along_invariant_direction_matches_periodic(this, l2d=.true.)
+  end subroutine
+
+  @test(npes=[4, 2, 1])
+  subroutine test_open_bc_diffuse_is_close_to_embedded_domain(this)
+    class(MpiTestMethod), intent(inout) :: this
+    call check_open_bc_diffuse_is_close_to_embedded_domain(this, l2d=.false.)
+  end subroutine
+
+  @test(npes=[4, 2, 1])
+  subroutine test_open_bc_diffuse_is_close_to_embedded_domain_2d(this)
+    class(MpiTestMethod), intent(inout) :: this
+    call check_open_bc_diffuse_is_close_to_embedded_domain(this, l2d=.true.)
   end subroutine
 end module

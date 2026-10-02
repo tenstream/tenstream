@@ -1,3 +1,4 @@
 -skip_load_LUT
 -solar_dir_explicit
 -solar_diff_explicit
+-thermal_diff_explicit

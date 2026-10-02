@@ -110,6 +110,7 @@ module m_pprts
     & get_solution_uid, &
     & halo_fill_5pt, &
     & halo_fill_edir, &
+    & halo_fill_ediff, &
     & halo_reduce_5pt, &
     & prepare_solution, &
     & setup_coord_native, &
@@ -2842,6 +2843,8 @@ contains
       if (lexplicit_diff) then
         call explicit_ediff(solver, prefix, solver%b, solution%ediff, solution, ierr); call CHKERR(ierr)
       else
+        if (solver%lopen_bc) call CHKERR(1_mpiint, 'open boundaries for diffuse radiation need the explicit solver, '// &
+          & 'use -'//trim(prefix)//'explicit')
 #ifdef HAVE_PETSC
         if (solution%lsolar_rad) then
           call ediff(solver%Mdiff, solver%Mdiff_perm, solver%ksp_solar_diff, prefix)
@@ -5342,7 +5345,7 @@ contains
 
       allocate (lediff(0:C_diff%dof - 1, C_diff%zs:C_diff%ze, C_diff%gxs:C_diff%gxe, C_diff%gys:C_diff%gye), source=0._ireals)
       lediff(:, :, C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye) = solution%ediff
-      call halo_fill_5pt(solver%comm, C_diff, lediff, ierr); call CHKERR(ierr)
+      call halo_fill_ediff(solver, solution, lediff, ierr); call CHKERR(ierr)
 
       if (by_coeff_divergence) then
 
@@ -6199,7 +6202,7 @@ contains
         allocate (lediff(0:C_f%dof - 1, C_f%zs:C_f%ze, C_f%gxs:C_f%gxe, C_f%gys:C_f%gye))
         lediff = zero
         lediff(:, :, C_f%xs:C_f%xe, C_f%ys:C_f%ye) = solution%ediff
-        call halo_fill_5pt(solver%comm, C_f, lediff, ierr); call CHKERR(ierr)
+        call halo_fill_ediff(solver, solution, lediff, ierr); call CHKERR(ierr)
         if (solution%lsolar_rad) lediff = lediff * solver%sun%mu
 
         do m = 1, size(B%iface)
