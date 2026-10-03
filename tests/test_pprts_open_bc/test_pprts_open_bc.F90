@@ -64,6 +64,15 @@ module test_pprts_open_bc
   ! and an even wider one to check that the result does not depend on the width of the surroundings
   integer(iintegers), parameter :: Npad_wide = 24
 
+  ! crater on a distorted mesh: the surface pressure drops towards the domain edges, i.e. the terrain following layers
+  ! get thinner and the surface rises. The pressure deficit [hPa] at the rim again differs on all four edges
+  real(ireals), parameter :: p_srfc = 1000, scale_height = 8000 ! [hPa], [m]
+  real(ireals), parameter :: dP_west = 24, dP_east = 12, dP_south = 18, dP_north = 6
+  real(ireals), parameter :: dP_per_cell = 6 ! about 50m per 100m, keeps the slopes below 30 degrees
+  real(ireals), parameter :: max_slope = 30  ! [deg]
+  ! the transport on distorted cells spreads the radiation further, the surroundings have to be wider
+  integer(iintegers), parameter :: Npad_distorted = 24, Npad_distorted_wide = 32
+
   ! sun azimuths, four that are grid aligned and all four diagonal quadrants
   real(ireals), parameter :: phis(8) = [real(ireals) :: 0, 90, 180, 270, 45, 135, 225, 315]
 
@@ -318,6 +327,148 @@ contains
 
     call destroy_buildings(buildings, ierr); call CHKERR(ierr)
     call destroy_pprts(solver, lfinalizepetsc=.false.)
+  end subroutine
+
+  ! surface pressure deficit [hPa] of the crater on the distorted mesh, i,j are global indices starting at 1.
+  ! Outside of the crater domain, the terrain continues with the deficit of the nearest edge column
+  pure function crater_pressure_deficit(i, j) result(dP)
+    integer(iintegers), intent(in) :: i, j
+    real(ireals) :: dP
+    integer(iintegers) :: ic, jc
+    ic = min(max(i, 1_iintegers), Ncrater)
+    jc = min(max(j, 1_iintegers), Ncrater)
+    dP = zero
+    dP = max(dP, dP_west - dP_per_cell * real(ic - 1, ireals))
+    dP = max(dP, dP_east - dP_per_cell * real(Ncrater - ic, ireals))
+    dP = max(dP, dP_south - dP_per_cell * real(jc - 1, ireals))
+    dP = max(dP, dP_north - dP_per_cell * real(Ncrater - jc, ireals))
+  end function
+
+  ! layer thicknesses [m] of a column with terrain following pressure levels in a isothermal atmosphere,
+  ! the top of the domain is at the same height and pressure everywhere
+  pure function crater_dz(i, j) result(dz1d)
+    integer(iintegers), intent(in) :: i, j
+    real(ireals) :: dz1d(Nz)
+    real(ireals) :: ptop, ps, plev(Nz + 1)
+    integer(iintegers) :: k
+    ptop = p_srfc * exp(-dz * real(Nz, ireals) / scale_height)
+    ps = p_srfc - crater_pressure_deficit(i, j)
+    do k = 1, Nz + 1
+      plev(k) = ptop + (ps - ptop) * real(k - 1, ireals) / real(Nz, ireals)
+    end do
+    do k = 1, Nz
+      dz1d(k) = scale_height * log(plev(k + 1) / plev(k))
+    end do
+  end function
+
+  ! surface elevation [m] above the crater floor
+  pure function crater_surface_height(i, j) result(h)
+    integer(iintegers), intent(in) :: i, j
+    real(ireals) :: h
+    h = dz * real(Nz, ireals) - sum(crater_dz(i, j))
+  end function
+
+  ! solve for direct radiation in the crater on the distorted mesh (-pprts_geometric_coeffs),
+  ! surrounded by <pad> columns of terrain that continues the rim outwards.
+  ! Results are on the terrain following levels/layers and cut to the crater domain, only on rank 0
+  !   edir (Nz+1, Ncrater, Ncrater), abso (Nz, Ncrater, Ncrater)
+  subroutine solve_crater_distorted(comm, phi0, lopen_bc, pad, edir, abso, l2d, lflat, w0, lthermal, edn, eup)
+    integer(mpiint), intent(in) :: comm
+    real(ireals), intent(in) :: phi0
+    logical, intent(in) :: lopen_bc
+    integer(iintegers), intent(in) :: pad
+    real(ireals), allocatable, dimension(:, :, :), intent(out) :: edir, abso
+    logical, intent(in), optional :: l2d
+    logical, intent(in), optional :: lflat ! no pressure deficit, i.e. a regular mesh
+    real(ireals), intent(in), optional :: w0 ! single scattering albedo, if given, the surface albedo is .2
+    logical, intent(in), optional :: lthermal ! thermal instead of solar radiation
+    real(ireals), allocatable, dimension(:, :, :), intent(out), optional :: edn, eup ! diffuse fluxes, only on rank 0
+
+    class(t_solver), allocatable :: solver
+    real(ireals), allocatable, dimension(:, :, :) :: kabs, ksca, g, dz3d, planck
+    real(ireals), allocatable, dimension(:, :, :) :: gedn, geup, gabso, gedir
+    real(ireals), allocatable, dimension(:, :) :: planck_srfc
+    real(ireals) :: lw0, lalbedo
+    logical :: lthrm
+    real(ireals) :: dz1d(Nz)
+    integer(iintegers) :: Nglob, i, j, k, xs, xm, ys, ym
+    logical :: l2, lf
+    integer(mpiint) :: ierr
+
+    l2 = .false.
+    if (present(l2d)) l2 = l2d
+    lf = .false.
+    if (present(lflat)) lf = lflat
+    call set_bc_options(lopen_bc, lopen_bc, l2)
+    call insert_petsc_opt('-pprts_geometric_coeffs yes', ierr); call CHKERR(ierr)
+
+    Nglob = Ncrater + 2 * pad
+    dz1d = dz
+
+    ! dz3d has to have the shape of the local domain, ask a solver on a regular mesh for the domain decomposition
+    call allocate_pprts_solver_from_commandline(solver, '3_10', ierr); call CHKERR(ierr)
+    call init_pprts(comm, Nz, Nglob, Nglob, dx, dy, spherical_2_cartesian(phi0, theta0), solver, dz1d=dz1d)
+    xs = solver%C_one%xs; xm = solver%C_one%xm
+    ys = solver%C_one%ys; ym = solver%C_one%ym
+    call destroy_pprts(solver, lfinalizepetsc=.false.)
+    deallocate (solver)
+
+    allocate (dz3d(Nz, xm, ym))
+    do j = 1, ym
+      do i = 1, xm
+        if (lf) then
+          dz3d(:, i, j) = dz
+        else
+          dz3d(:, i, j) = crater_dz(xs + i - pad, ys + j - pad)
+        end if
+      end do
+    end do
+
+    call allocate_pprts_solver_from_commandline(solver, '3_10', ierr); call CHKERR(ierr)
+    call init_pprts(comm, Nz, Nglob, Nglob, dx, dy, spherical_2_cartesian(phi0, theta0), solver, dz3d=dz3d)
+    call check_bc_options(solver, lopen_bc, lopen_bc, l2)
+    if (solver%C_one%xs .ne. xs .or. solver%C_one%xm .ne. xm .or. solver%C_one%ys .ne. ys .or. solver%C_one%ym .ne. ym) &
+      & call CHKERR(1_mpiint, 'domain decomposition changed between two solver initializations')
+
+    lw0 = zero
+    lalbedo = albedo
+    if (present(w0)) then
+      lw0 = w0
+      lalbedo = .2_ireals
+    end if
+    lthrm = .false.
+    if (present(lthermal)) lthrm = lthermal
+
+    allocate (kabs(Nz, xm, ym), source=kabs_clearsky * (one - lw0) * 10)
+    allocate (ksca(Nz, xm, ym), source=kabs_clearsky * lw0 * 10)
+    if (.not. present(w0)) kabs = kabs_clearsky
+    allocate (g(Nz, xm, ym), source=.5_ireals)
+
+    if (lthrm) then
+      allocate (planck(Nz + 1, xm, ym), planck_srfc(xm, ym))
+      do j = 1, ym
+        do i = 1, xm
+          planck(:, i, j) = 100 + 20*[(real(k, ireals), k=1, Nz + 1)]
+          planck_srfc(i, j) = 300
+        end do
+      end do
+      call set_optical_properties(solver, lalbedo, kabs, ksca, g, planck, planck_srfc)
+      call solve_pprts(solver, lthermal=.true., lsolar=.false., edirTOA=incSolar)
+      call pprts_get_result_toZero(solver, gedn, geup, gabso)
+    else
+      call set_optical_properties(solver, lalbedo, kabs, ksca, g)
+      call solve_pprts(solver, lthermal=.false., lsolar=.true., edirTOA=incSolar)
+      call pprts_get_result_toZero(solver, gedn, geup, gabso, gedir)
+    end if
+    if (allocated(gabso)) then
+      if (allocated(gedir)) allocate (edir, source=gedir(:, pad + 1:pad + Ncrater, pad + 1:pad + Ncrater))
+      allocate (abso, source=gabso(:, pad + 1:pad + Ncrater, pad + 1:pad + Ncrater))
+      if (present(edn)) allocate (edn, source=gedn(:, pad + 1:pad + Ncrater, pad + 1:pad + Ncrater))
+      if (present(eup)) allocate (eup, source=geup(:, pad + 1:pad + Ncrater, pad + 1:pad + Ncrater))
+    end if
+
+    call destroy_pprts(solver, lfinalizepetsc=.false.)
+    call insert_petsc_opt('-pprts_geometric_coeffs no', ierr); call CHKERR(ierr)
   end subroutine
 
   ! Note on the structure of the tests:
@@ -839,6 +990,217 @@ contains
             end do
           end do
         end do
+      end do
+    end do
+  end subroutine
+
+  ! Same idea as the crater made of buildings but now the terrain is part of the mesh:
+  ! the surface pressure drops towards the domain edges, the layers follow the terrain and the cells are distorted.
+  ! The open bc solution has to match the one where the crater is put in the middle of a much larger periodic domain,
+  ! in which the terrain continues outwards with the height of the edge columns.
+  @test(npes=[4, 2, 1])
+  subroutine test_open_bc_crater_distorted_matches_embedded(this)
+    class(MpiTestMethod), intent(inout) :: this
+
+    real(ireals), parameter :: eps = incSolar * 1e-3_ireals
+    ! bounds on the deviations of the inflow from single column solves for suns that are not aligned with the grid
+    real(ireals), parameter :: diag_max_diff = incSolar*.25_ireals
+    real(ireals), parameter :: diag_mean_diff = incSolar * 2e-2_ireals
+
+    real(ireals), allocatable, dimension(:, :, :) :: edir, abso
+    real(ireals), dimension(Nz + 1, Ncrater, Ncrater, size(phis)) :: edir_open, edir_open_2d, edir_embedded, edir_embedded_wide
+    real(ireals), dimension(Nz + 1, Ncrater, Ncrater, size(phis)) :: edir_periodic, edir_flat
+    real(ireals), dimension(Nz, Ncrater, Ncrater, size(phis)) :: abso_open, abso_open_2d, abso_embedded
+    real(ireals) :: h(0:Ncrater + 1, 0:Ncrater + 1), slope, steepest, eps_abso, max_diff, mean_diff, max_diff_periodic
+    integer(iintegers) :: iphi, i, j, Nsensitive
+    integer(mpiint) :: comm, myid
+
+    comm = this%getMpiCommunicator()
+    myid = this%getProcessRank()
+
+    edir_open = -one; edir_open_2d = -one; edir_embedded = -one; edir_embedded_wide = -one
+    edir_periodic = -one; edir_flat = -one
+    abso_open = -one; abso_open_2d = -one; abso_embedded = -one
+
+    do iphi = 1, size(phis)
+      call solve_crater_distorted(comm, phis(iphi), lopen_bc=.true., pad=0_iintegers, edir=edir, abso=abso, l2d=.true.)
+      if (allocated(edir)) edir_open_2d(:, :, :, iphi) = edir
+      if (allocated(abso)) abso_open_2d(:, :, :, iphi) = abso
+      call solve_crater_distorted(comm, phis(iphi), lopen_bc=.true., pad=0_iintegers, edir=edir, abso=abso, l2d=.false.)
+      if (allocated(edir)) edir_open(:, :, :, iphi) = edir
+      if (allocated(abso)) abso_open(:, :, :, iphi) = abso
+      call solve_crater_distorted(comm, phis(iphi), lopen_bc=.false., pad=Npad_distorted, edir=edir, abso=abso)
+      if (allocated(edir)) edir_embedded(:, :, :, iphi) = edir
+      if (allocated(abso)) abso_embedded(:, :, :, iphi) = abso
+      call solve_crater_distorted(comm, phis(iphi), lopen_bc=.false., pad=Npad_distorted_wide, edir=edir, abso=abso)
+      if (allocated(edir)) edir_embedded_wide(:, :, :, iphi) = edir
+      call solve_crater_distorted(comm, phis(iphi), lopen_bc=.false., pad=0_iintegers, edir=edir, abso=abso)
+      if (allocated(edir)) edir_periodic(:, :, :, iphi) = edir
+      call solve_crater_distorted(comm, phis(iphi), lopen_bc=.false., pad=Npad_distorted, edir=edir, abso=abso, lflat=.true.)
+      if (allocated(edir)) edir_flat(:, :, :, iphi) = edir
+    end do
+
+    @assertFalse(loption_mismatch, 'solver did not pick up the -pprts_open_bc options')
+    if (myid .ne. 0) return
+
+    ! the terrain: has to be a crater with a rim that is not periodic and slopes of at most 30 degrees
+    do j = 0, Ncrater + 1
+      do i = 0, Ncrater + 1
+        h(i, j) = crater_surface_height(i, j)
+      end do
+    end do
+    print *, 'crater surface height [m] on the distorted mesh'
+    do j = Ncrater, 1, -1
+      print '(*(i4))', (nint(h(i, j)), i=1, Ncrater)
+    end do
+    steepest = zero
+    do j = 1, Ncrater
+      do i = 1, Ncrater
+        slope = max(abs(h(i + 1, j) - h(i, j)), abs(h(i, j) - h(i - 1, j)), abs(h(i, j + 1) - h(i, j)), abs(h(i, j) - h(i, j &
+                                                                                                                        - 1))) / dx
+        steepest = max(steepest, slope)
+      end do
+    end do
+    print *, 'steepest slope [deg]', atan(steepest) * 180 / acos(-one)
+    @assertTrue(steepest .le. tan(deg2rad(max_slope)), 'slopes of the crater must not exceed 30 degrees')
+    @assertTrue(steepest .gt. tan(deg2rad(max_slope / 2)), 'expected a crater with substantial slopes')
+    @assertEqual(zero, minval(h(1:Ncrater, 1:Ncrater)), 1e-3_ireals, 'expected a flat crater floor at zero height')
+@assertTrue(abs(h(1, Ncrater / 2) - h(Ncrater, Ncrater / 2)) .gt. dz * .5_ireals, 'expected the west and east rim to differ in height')
+@assertTrue(abs(h(Ncrater / 2, 1) - h(Ncrater / 2, Ncrater)) .gt. dz * .5_ireals, 'expected the south and north rim to differ in height')
+
+    do iphi = 1, size(phis)
+      print *, 'phi0', phis(iphi), 'edir at the surface: open 2D | embedded | periodic | flat'
+      do j = Ncrater, 1, -1
+        print '(*(i4))', &
+          & (int(edir_open_2d(Nz + 1, i, j, iphi)), i=1, Ncrater), -1, &
+          & (int(edir_embedded(Nz + 1, i, j, iphi)), i=1, Ncrater), -1, &
+          & (int(edir_periodic(Nz + 1, i, j, iphi)), i=1, Ncrater), -1, &
+          & (int(edir_flat(Nz + 1, i, j, iphi)), i=1, Ncrater)
+      end do
+    end do
+
+    @assertTrue(all(ieee_is_finite(edir_open)), 'open bc edir is not finite')
+    @assertTrue(all(ieee_is_finite(edir_open_2d)), '2D open bc edir is not finite')
+    @assertTrue(all(ieee_is_finite(abso_open_2d)), '2D open bc absorption is not finite')
+    @assertTrue(all(edir_open .ge. zero), 'missing or negative open bc edir')
+    @assertTrue(all(edir_open_2d .ge. zero), 'missing or negative 2D open bc edir')
+    @assertTrue(all(edir_embedded .ge. zero), 'missing or negative embedded edir')
+    @assertTrue(all(edir_embedded_wide .ge. zero), 'missing or negative embedded edir of the wider padding')
+    @assertTrue(all(edir_periodic .ge. zero), 'missing or negative periodic edir')
+    @assertTrue(all(edir_flat .ge. zero), 'missing or negative edir on the regular mesh')
+    @assertTrue(all(abso_open .ge. zero), 'missing or negative open bc absorption')
+    @assertTrue(all(abso_open_2d .ge. zero), 'missing or negative 2D open bc absorption')
+    @assertTrue(all(abso_embedded .ge. zero), 'missing or negative embedded absorption')
+
+    Nsensitive = 0
+    do iphi = 1, size(phis)
+      ! the embedded crater is only a valid reference if the padding is wide enough
+@assertEqual(edir_embedded(:, :, :, iphi), edir_embedded_wide(:, :, :, iphi), eps, 'embedded crater edir depends on the width of the padding, phi0 '//toStr(phis(iphi)))
+
+      ! the terrain has to matter, otherwise this test is void
+      max_diff = maxval(abs(edir_embedded(Nz + 1, :, :, iphi) - edir_flat(Nz + 1, :, :, iphi)))
+      print *, 'phi0', phis(iphi), 'max surface edir difference between the crater and a regular mesh', max_diff
+@assertTrue(max_diff .gt. incSolar * 5e-2_ireals, 'expected the terrain to change the surface irradiance, phi0 '//toStr(phis(iphi)))
+
+      max_diff_periodic = maxval(abs(edir_periodic(:, :, :, iphi) - edir_embedded(:, :, :, iphi)))
+      if (max_diff_periodic .gt. incSolar * 1e-2_ireals) Nsensitive = Nsensitive + 1
+
+      ! with the 2D inflow the solution has to match the embedded crater for all sun angles
+      max_diff = maxval(abs(edir_open_2d(:, :, :, iphi) - edir_embedded(:, :, :, iphi)))
+      print *, 'phi0', phis(iphi), 'max edir difference to the embedded crater: periodic', max_diff_periodic, '2D open bc', &
+        max_diff, &
+        & 'open bc', maxval(abs(edir_open(:, :, :, iphi) - edir_embedded(:, :, :, iphi))), &
+        & 'mean', sum(abs(edir_open(:, :, :, iphi) - edir_embedded(:, :, :, iphi))) / real(size(edir_open(:, :, :, iphi)), ireals)
+      eps_abso = maxval(abso_embedded(:, :, :, iphi)) * 1e-3_ireals
+@assertEqual(edir_embedded(:, :, :, iphi), edir_open_2d(:, :, :, iphi), eps, '2D open bc edir differs from the embedded crater, phi0 '//toStr(phis(iphi)))
+@assertEqual(abso_embedded(:, :, :, iphi), abso_open_2d(:, :, :, iphi), eps_abso, '2D open bc absorption differs from the embedded crater, phi0 '//toStr(phis(iphi)))
+
+      ! the inflow from single column solves does not know about the neighbours along the edge,
+      ! if the sun is not aligned with the grid we can only expect to roughly match the embedded crater
+      if (modulo(nint(phis(iphi)), 90) .eq. 0) then
+@assertEqual(edir_embedded(:, :, :, iphi), edir_open(:, :, :, iphi), eps, 'open bc edir differs from the embedded crater, phi0 '//toStr(phis(iphi)))
+@assertEqual(abso_embedded(:, :, :, iphi), abso_open(:, :, :, iphi), eps_abso, 'open bc absorption differs from the embedded crater, phi0 '//toStr(phis(iphi)))
+      else
+        max_diff = maxval(abs(edir_open(:, :, :, iphi) - edir_embedded(:, :, :, iphi)))
+        mean_diff = sum(abs(edir_open(:, :, :, iphi) - edir_embedded(:, :, :, iphi))) / real(size(edir_open(:, :, :, iphi)), ireals)
+@assertTrue(max_diff .lt. diag_max_diff, 'open bc edir locally differs too much from the embedded crater, phi0 '//toStr(phis(iphi)))
+      @assertTrue(mean_diff .lt. diag_mean_diff, 'open bc edir differs too much from the embedded crater, phi0 '//toStr(phis(iphi)))
+      end if
+    end do
+@assertTrue(Nsensitive .ge. size(phis) / 2, 'expected periodic boundaries to differ from the embedded crater for most azimuths')
+  end subroutine
+
+  ! Diffuse radiation on the distorted crater: the zero gradient condition of the diffuse open boundaries copies the
+  ! distorted edge cells, i.e. it is only an approximation of the crater embedded in the larger domain.
+  ! It has to be much closer to that than periodic boundaries though. Pin the quality of the approximation
+  @test(npes=[4, 2, 1])
+  subroutine test_open_bc_diffuse_distorted_close_to_embedded(this)
+    class(MpiTestMethod), intent(inout) :: this
+
+    real(ireals), parameter :: case_phis(3) = [real(ireals) :: 0, 45, 270] ! the 4th case is thermal
+    integer(iintegers), parameter :: Ncases = size(case_phis) + 1
+    character(len=*), parameter :: names(3) = ['edn ', 'eup ', 'abso']
+
+    real(ireals), allocatable, dimension(:, :, :) :: edir, abso, edn, eup
+    real(ireals), dimension(Nz + 1, Ncrater, Ncrater, 3, Ncases) :: r_edn, r_eup ! open, embedded, periodic
+    real(ireals), dimension(Nz, Ncrater, Ncrater, 3, Ncases) :: r_abso
+    real(ireals) :: rmse(2, 3), maxerr(2, 3), phi
+    integer(iintegers) :: icase, imode, iq
+    logical :: lthrm
+    character(len=:), allocatable :: msg
+    integer(mpiint) :: comm, myid
+
+    comm = this%getMpiCommunicator()
+    myid = this%getProcessRank()
+    r_edn = -one; r_eup = -one; r_abso = -huge(one)
+
+    do icase = 1, Ncases
+      lthrm = icase .gt. size(case_phis)
+      phi = zero
+      if (.not. lthrm) phi = case_phis(icase)
+      do imode = 1, 3
+        select case (imode)
+        case (1)
+          call solve_crater_distorted(comm, phi, .true., 0_iintegers, edir, abso, l2d=.true., w0=.8_ireals, lthermal=lthrm, &
+            & edn=edn, eup=eup)
+        case (2)
+          call solve_crater_distorted(comm, phi, .false., Npad_distorted, edir, abso, w0=.8_ireals, lthermal=lthrm, &
+                                      edn=edn, eup=eup)
+        case default
+          call solve_crater_distorted(comm, phi, .false., 0_iintegers, edir, abso, w0=.8_ireals, lthermal=lthrm, edn=edn, eup=eup)
+        end select
+        if (allocated(edn)) r_edn(:, :, :, imode, icase) = edn
+        if (allocated(eup)) r_eup(:, :, :, imode, icase) = eup
+        if (allocated(abso)) r_abso(:, :, :, imode, icase) = abso
+      end do
+    end do
+
+    @assertFalse(loption_mismatch, 'solver did not pick up the -pprts_open_bc options')
+    if (myid .ne. 0) return
+
+    do icase = 1, Ncases
+      lthrm = icase .gt. size(case_phis)
+      msg = merge('thermal', 'solar  ', lthrm)
+      if (.not. lthrm) msg = msg//' phi0 '//toStr(case_phis(icase))
+      @assertTrue(all(r_edn(:, :, :, :, icase) .ge. zero), 'missing or negative edn, '//msg)
+      @assertTrue(all(r_eup(:, :, :, :, icase) .ge. zero), 'missing or negative eup, '//msg)
+      @assertTrue(all(ieee_is_finite(r_abso(:, :, :, :, icase))), 'missing absorption, '//msg)
+      do imode = 1, 2 ! open and periodic vs embedded
+        associate (m => merge(1_iintegers, 3_iintegers, imode .eq. 1))
+          rmse(imode, 1) = sqrt(sum((r_edn(:, :, :, m, icase) - r_edn(:, :, :, 2, icase))**2) / size(r_edn(:, :, :, 2, icase)))
+          rmse(imode, 2) = sqrt(sum((r_eup(:, :, :, m, icase) - r_eup(:, :, :, 2, icase))**2) / size(r_eup(:, :, :, 2, icase)))
+          rmse(imode, 3) = sqrt(sum((r_abso(:, :, :, m, icase) - r_abso(:, :, :, 2, icase))**2) / size(r_abso(:, :, :, 2, icase)))
+          maxerr(imode, 1) = maxval(abs(r_edn(:, :, :, m, icase) - r_edn(:, :, :, 2, icase)))
+          maxerr(imode, 2) = maxval(abs(r_eup(:, :, :, m, icase) - r_eup(:, :, :, 2, icase)))
+          maxerr(imode, 3) = maxval(abs(r_abso(:, :, :, m, icase) - r_abso(:, :, :, 2, icase)))
+        end associate
+      end do
+      do iq = 1, 3
+        print *, msg, ' ', names(iq), ' vs embedded crater: rmse open', rmse(1, iq), 'periodic', rmse(2, iq), &
+          & 'max open', maxerr(1, iq), 'periodic', maxerr(2, iq)
+        @assertTrue(rmse(2, iq) .gt. zero, 'expected periodic boundaries to differ from the embedded crater, '//msg//' '//names(iq))
+@assertTrue(rmse(1, iq) .lt. rmse(2, iq) * .5_ireals, 'open bc '//trim(names(iq))//' is not much closer to the embedded crater than periodic, '//msg)
+@assertTrue(maxerr(1, iq) .lt. maxerr(2, iq) * .5_ireals, 'open bc '//trim(names(iq))//' locally differs too much from the embedded crater, '//msg)
       end do
     end do
   end subroutine

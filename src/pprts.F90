@@ -736,30 +736,46 @@ contains
 
     end subroutine
 
+    !> @brief heights of the cell vertices, relative to the top of the domain
+    !> @details a vertex is shared by the four adjacent cells, its height is the mean of their heights.
+    !> With open boundaries, the edge columns continue outwards
     subroutine determine_vertex_heights()
       if (allocated(solver%atm%vert_heights)) return
       block
-        integer(iintegers) :: k, i, j, ci, cj
-        real(ireals) :: height
+        integer(iintegers) :: k, i, j
+        real(ireals), allocatable :: hcell(:, :, :, :) ! (0:0, zs:ze, gxs:gxe, gys:gye) height of the cell levels
         associate ( &
           & atm => solver%atm, &
           & Catm1 => solver%C_one_atm1_box, &
           & Cd => solver%C_dir)
-          allocate (atm%vert_heights( &
-            & i0:i0, &
-            & Catm1%zs:Catm1%ze, &
-            & Cd%gxs:Cd%gxe, &
-            & Cd%gys:Cd%gye), source=0._ireals)
-          do j = Cd%gys, Cd%gye
-            do i = Cd%gxs, Cd%gxe
-              ci = max(Cd%xs, min(Cd%xe, i))
-              cj = max(Cd%ys, min(Cd%ye, j))
-              height = 0._ireals
-              atm%vert_heights(i0, Catm1%zs, i, j) = height
+
+          allocate (hcell(i0:i0, Catm1%zs:Catm1%ze, Cd%gxs:Cd%gxe, Cd%gys:Cd%gye), source=0._ireals)
+          do j = Cd%ys, Cd%ye
+            do i = Cd%xs, Cd%xe
               do k = Catm1%zs, Catm1%ze - 1
-                height = height - atm%dz(k, ci, cj)
-                atm%vert_heights(i0, k + 1, i, j) = height
+                hcell(i0, k + 1, i, j) = hcell(i0, k, i, j) - atm%dz(k, i, j)
               end do
+            end do
+          end do
+          ! the second halo exchange brings the corners, i.e. the diagonal neighbours
+          call halo_fill_5pt(solver%comm, Cd, hcell, ierr); call CHKERR(ierr)
+          call halo_fill_5pt(solver%comm, Cd, hcell, ierr); call CHKERR(ierr)
+          if (solver%lopen_bc_x) then
+            if (Cd%xs .eq. i0) hcell(:, :, Cd%xs - 1, :) = hcell(:, :, Cd%xs, :)
+            if (Cd%xe + 1 .eq. Cd%glob_xm) hcell(:, :, Cd%xe + 1, :) = hcell(:, :, Cd%xe, :)
+          end if
+          if (solver%lopen_bc_y) then
+            if (Cd%ys .eq. i0) hcell(:, :, :, Cd%ys - 1) = hcell(:, :, :, Cd%ys)
+            if (Cd%ye + 1 .eq. Cd%glob_ym) hcell(:, :, :, Cd%ye + 1) = hcell(:, :, :, Cd%ye)
+          end if
+
+          ! vertex i,j is the lower left corner of cell i,j
+          allocate (atm%vert_heights(i0:i0, Catm1%zs:Catm1%ze, Cd%gxs:Cd%gxe, Cd%gys:Cd%gye), source=0._ireals)
+          do j = Cd%ys, Cd%ye + 1
+            do i = Cd%xs, Cd%xe + 1
+              atm%vert_heights(i0, :, i, j) = ( &
+                & hcell(i0, :, i - 1, j - 1) + hcell(i0, :, i, j - 1) + &
+                & hcell(i0, :, i - 1, j) + hcell(i0, :, i, j)) / 4._ireals
             end do
           end do
         end associate
@@ -2694,6 +2710,7 @@ contains
     ! Populate transport coeffs
     if (solution%lsolar_rad) then
       call alloc_coeff_dir2dir(solver, solver%dir2dir, opt_buildings)
+      call alloc_coeff_dir2dir_ghost(solver)
       call alloc_coeff_dir2diff(solver, solver%dir2diff)
     end if
     call alloc_coeff_diff2diff(solver, solver%diff2diff, opt_buildings)
@@ -3257,6 +3274,120 @@ contains
       end associate
     end subroutine
 
+  end subroutine
+
+  !> @brief direct transport coeffs of the ghost cells just outside of the sunward open domain edges
+  !> @details the ghost cells continue the edge columns outwards, i.e. same optical properties, layer thickness and buildings.
+  !> Their vertices are the ones of the outer face of the edge cell, i.e. they keep the slope along the edge
+  !> but are not distorted across it. Copying the edge cells instead would not continue the terrain but its slope.
+  subroutine alloc_coeff_dir2dir_ghost(solver)
+    class(t_solver), intent(inout) :: solver
+
+    real(irealLUT), allocatable :: v(:)
+    real(ireals) :: hs(2, 2, 2), vertices(24)
+    logical :: lgeometric_coeffs, ltop_bottom_faces_planar, ltop_bottom_planes_parallel
+    integer(iintegers) :: k, i, j, iedge, jedge
+
+    if (allocated(solver%dir2dir_ghost_x)) deallocate (solver%dir2dir_ghost_x)
+    if (allocated(solver%dir2dir_ghost_y)) deallocate (solver%dir2dir_ghost_y)
+    if (allocated(solver%dir2dir_ghost_corner)) deallocate (solver%dir2dir_ghost_corner)
+    if (.not. solver%lopen_bc) return
+
+    associate (atm => solver%atm, sun => solver%sun, C => solver%C_dir)
+
+      call read_cmd_line_opts_get_coeffs(solver%prefix, lgeometric_coeffs, ltop_bottom_faces_planar, ltop_bottom_planes_parallel)
+      allocate (v(1:C%dof**2))
+
+      iedge = -1
+      if (solver%lopen_bc_x) then
+        if (sun%xinc .eq. i1 .and. C%xs .eq. i0) iedge = C%xs
+        if (sun%xinc .eq. i0 .and. C%xe + 1 .eq. C%glob_xm) iedge = C%xe
+      end if
+      if (iedge .ge. 0) then
+        allocate (solver%dir2dir_ghost_x(1:C%dof**2, C%zs:C%ze - 1, C%ys:C%ye), source=zero)
+        do j = C%ys, C%ye
+          do k = C%zs, C%ze - 1
+            call ghost_coeff(1_iintegers, k, iedge, j, solver%dir2dir_ghost_x(:, k, j))
+          end do
+        end do
+      end if
+
+      jedge = -1
+      if (solver%lopen_bc_y) then
+        if (sun%yinc .eq. i1 .and. C%ys .eq. i0) jedge = C%ys
+        if (sun%yinc .eq. i0 .and. C%ye + 1 .eq. C%glob_ym) jedge = C%ye
+      end if
+      if (jedge .ge. 0) then
+        allocate (solver%dir2dir_ghost_y(1:C%dof**2, C%zs:C%ze - 1, C%xs:C%xe), source=zero)
+        do i = C%xs, C%xe
+          do k = C%zs, C%ze - 1
+            call ghost_coeff(2_iintegers, k, i, jedge, solver%dir2dir_ghost_y(:, k, i))
+          end do
+        end do
+      end if
+
+      ! the corner, continues the corner column in both directions, i.e. a regular box
+      if (iedge .ge. 0 .and. jedge .ge. 0) then
+        allocate (solver%dir2dir_ghost_corner(1:C%dof**2, C%zs:C%ze - 1), source=zero)
+        do k = C%zs, C%ze - 1
+          call ghost_coeff(3_iintegers, k, iedge, jedge, solver%dir2dir_ghost_corner(:, k))
+        end do
+      end if
+    end associate
+
+  contains
+
+    subroutine ghost_coeff(idir, k, i, j, coeff)
+      integer(iintegers), intent(in) :: idir ! 1: ghost outside of the x edge, 2: y edge, 3: corner
+      integer(iintegers), intent(in) :: k, i, j ! edge cell
+      real(ireals), intent(out) :: coeff(:)
+      integer(iintegers) :: ak, iface, jface, m
+
+      coeff = zero
+      associate (atm => solver%atm, sun => solver%sun)
+        ak = atmk(atm, k)
+        if (atm%l1d(ak)) return
+        ! buildings block the edge cell, they continue outwards as well
+        if (all(solver%dir2dir(:, k, i, j) .eq. zero)) return
+
+        call setup_default_unit_cube_geometry(atm%dx, atm%dy, -one, vertices)
+        if (idir .eq. 1) then
+          iface = merge(i, i + 1, sun%xinc .eq. i1) ! outer face of the edge cell
+          do m = 1, 2
+            hs(:, m, :) = atm%vert_heights(i0, atmk(atm, k):atmk(atm, k + 1), iface, j:j + 1)
+          end do
+        else if (idir .eq. 2) then
+          jface = merge(j, j + 1, sun%yinc .eq. i1)
+          do m = 1, 2
+            hs(:, :, m) = atm%vert_heights(i0, atmk(atm, k):atmk(atm, k + 1), i:i + 1, jface)
+          end do
+        else
+          hs(1, :, :) = atm%dz(ak, i, j)
+          hs(2, :, :) = zero
+        end if
+        call init_vertices(hs, atm%dz(ak, i, j), ltop_bottom_faces_planar, ltop_bottom_planes_parallel, vertices)
+
+        if (lgeometric_coeffs) then
+          vertices(3:24:3) = vertices(3:24:3) - minval(vertices(3:24:3))
+          call dir2dir3_geometric_coeffs(vertices, sun%sundir, atm%kabs(ak, i, j) + atm%ksca(ak, i, j), coeff)
+        else
+          call get_coeff( &
+            & solver%OPP, &
+            & atm%kabs(ak, i, j), &
+            & atm%ksca(ak, i, j), &
+            & atm%g(ak, i, j), &
+            & atm%dz(ak, i, j), &
+            & atm%dx, &
+            & .true., &
+            & v, &
+            & [real(sun%symmetry_phi, irealLUT), real(sun%theta, irealLUT)], &
+            & lswitch_east=sun%xinc .eq. 0, lswitch_north=sun%yinc .eq. 0, &
+            & opt_vertices=vertices &
+            & )
+          coeff = real(v, ireals)
+        end if
+      end associate
+    end subroutine
   end subroutine
 
   subroutine alloc_coeff_dir2diff(solver, coeffs)

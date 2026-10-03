@@ -252,8 +252,9 @@ contains
     associate ( &
         & C => solver%C_dir)
 
-      allocate (mpi_send_bfr_x(solver%dirside%dof, C%zm, C%ys:C%ye), mpi_recv_bfr_x(solver%dirside%dof, C%zm, C%ys:C%ye))
-      allocate (mpi_send_bfr_y(solver%dirside%dof, C%zm, C%xs:C%xe), mpi_recv_bfr_y(solver%dirside%dof, C%zm, C%xs:C%xe))
+      ! including the ghost rows/columns, with open boundaries they hold the ghost cells outside of the sunward edges
+      allocate (mpi_send_bfr_x(solver%dirside%dof, C%zm, C%gys:C%gye), mpi_recv_bfr_x(solver%dirside%dof, C%zm, C%gys:C%gye))
+      allocate (mpi_send_bfr_y(solver%dirside%dof, C%zm, C%gxs:C%gxe), mpi_recv_bfr_y(solver%dirside%dof, C%zm, C%gxs:C%gxe))
 
       x0(0:C%dof - 1, C%zs:C%ze, C%gxs:C%gxe, C%gys:C%gye) => x
 
@@ -265,7 +266,7 @@ contains
         if (solver%lopen_bc_x .and. C%xs .eq. i0) then
           mpi_send_bfr_x = 0
         else
-          mpi_send_bfr_x = x0(dofstart:dofend, :, C%xs, C%ys:C%ye)
+          mpi_send_bfr_x = x0(dofstart:dofend, :, C%xs, C%gys:C%gye)
         end if
         neigh_s = int(C%neighbors(10), mpiint) ! neigh west
         neigh_r = int(C%neighbors(16), mpiint) ! neigh east
@@ -273,7 +274,7 @@ contains
         if (solver%lopen_bc_x .and. C%xe + 1 .eq. C%glob_xm) then
           mpi_send_bfr_x = 0
         else
-          mpi_send_bfr_x = x0(dofstart:dofend, :, C%xe + 1, C%ys:C%ye)
+          mpi_send_bfr_x = x0(dofstart:dofend, :, C%xe + 1, C%gys:C%gye)
         end if
         neigh_s = int(C%neighbors(16), mpiint) ! neigh east
         neigh_r = int(C%neighbors(10), mpiint) ! neigh west
@@ -290,7 +291,7 @@ contains
         if (solver%lopen_bc_y .and. C%ys .eq. i0) then
           mpi_send_bfr_y = 0
         else
-          mpi_send_bfr_y = x0(dofstart:dofend, :, C%xs:C%xe, C%ys)
+          mpi_send_bfr_y = x0(dofstart:dofend, :, C%gxs:C%gxe, C%ys)
         end if
         neigh_s = int(C%neighbors(4), mpiint) ! neigh south
         neigh_r = int(C%neighbors(22), mpiint) ! neigh north
@@ -298,7 +299,7 @@ contains
         if (solver%lopen_bc_y .and. C%ye + 1 .eq. C%glob_ym) then
           mpi_send_bfr_y = 0
         else
-          mpi_send_bfr_y = x0(dofstart:dofend, :, C%xs:C%xe, C%ye + 1)
+          mpi_send_bfr_y = x0(dofstart:dofend, :, C%gxs:C%gxe, C%ye + 1)
         end if
         neigh_s = int(C%neighbors(22), mpiint) ! neigh north
         neigh_r = int(C%neighbors(4), mpiint) ! neigh south
@@ -312,19 +313,15 @@ contains
 
       dofstart = solver%dirtop%dof
       dofend = -1 + solver%dirtop%dof + solver%dirside%dof
-      ! with open boundaries, the inflow face at the domain edge holds the boundary condition, dont overwrite it
-      ! or, with -pprts_open_bc_2d, the inflow of an edge cell is its own outflow, i.e. zero gradient across the edge
+      ! with open boundaries, the inflow face at the domain edge holds the boundary condition, dont overwrite it.
+      ! With -pprts_open_bc_2d, the ghost cells outside of the domain edge set it in the sweep
       if (lsun_east) then
         if (.not. (solver%lopen_bc_x .and. C%xe + 1 .eq. C%glob_xm)) then
-          x0(dofstart:dofend, :, C%xe + 1, C%ys:C%ye) = mpi_recv_bfr_x
-        else if (solver%lopen_bc_2d) then
-          x0(dofstart:dofend, :, C%xe + 1, C%ys:C%ye) = x0(dofstart:dofend, :, C%xe, C%ys:C%ye)
+          x0(dofstart:dofend, :, C%xe + 1, C%gys:C%gye) = mpi_recv_bfr_x
         end if
       else
         if (.not. (solver%lopen_bc_x .and. C%xs .eq. i0)) then
-          x0(dofstart:dofend, :, C%xs, C%ys:C%ye) = mpi_recv_bfr_x
-        else if (solver%lopen_bc_2d) then
-          x0(dofstart:dofend, :, C%xs, C%ys:C%ye) = x0(dofstart:dofend, :, C%xs + 1, C%ys:C%ye)
+          x0(dofstart:dofend, :, C%xs, C%gys:C%gye) = mpi_recv_bfr_x
         end if
       end if
 
@@ -332,15 +329,11 @@ contains
       dofend = -1 + solver%dirtop%dof + solver%dirside%dof * 2
       if (lsun_north) then
         if (.not. (solver%lopen_bc_y .and. C%ye + 1 .eq. C%glob_ym)) then
-          x0(dofstart:dofend, :, C%xs:C%xe, C%ye + 1) = mpi_recv_bfr_y
-        else if (solver%lopen_bc_2d) then
-          x0(dofstart:dofend, :, C%xs:C%xe, C%ye + 1) = x0(dofstart:dofend, :, C%xs:C%xe, C%ye)
+          x0(dofstart:dofend, :, C%gxs:C%gxe, C%ye + 1) = mpi_recv_bfr_y
         end if
       else
         if (.not. (solver%lopen_bc_y .and. C%ys .eq. i0)) then
-          x0(dofstart:dofend, :, C%xs:C%xe, C%ys) = mpi_recv_bfr_y
-        else if (solver%lopen_bc_2d) then
-          x0(dofstart:dofend, :, C%xs:C%xe, C%ys) = x0(dofstart:dofend, :, C%xs:C%xe, C%ys + 1)
+          x0(dofstart:dofend, :, C%gxs:C%gxe, C%ys) = mpi_recv_bfr_y
         end if
       end if
       nullify (x0)
@@ -400,6 +393,8 @@ contains
     integer(iintegers) :: i, j, k
     integer(iintegers) :: idst, isrc, src, dst
     real(ireals), pointer :: v(:, :) ! dim(src, dst)
+    logical :: lghost_x, lghost_y, lghost_corner
+    integer(iintegers) :: ig, jg, ie, je
 
     x0 => null()
     xb => null()
@@ -418,9 +413,34 @@ contains
       if (solver%lopen_bc .and. .not. solver%lopen_bc_2d) call set_open_bc_inflow(solver, b, x)
       nullify (xb)
 
+      ! ghost cells outside of the sunward open domain edges
+      lghost_x = solver%lopen_bc_2d .and. allocated(solver%dir2dir_ghost_x)
+      lghost_y = solver%lopen_bc_2d .and. allocated(solver%dir2dir_ghost_y)
+      ig = merge(C%xs - 1, C%xe + 1, xinc .eq. i1) ! ghost column
+      jg = merge(C%ys - 1, C%ye + 1, yinc .eq. i1) ! ghost row
+      ie = merge(C%xs, C%xe, xinc .eq. i1) ! edge column next to it
+      je = merge(C%ys, C%ye, yinc .eq. i1)
+      lghost_corner = solver%lopen_bc_2d .and. allocated(solver%dir2dir_ghost_corner)
+      if (lghost_x) x0(0:solver%dirtop%dof - 1, C%zs, ig, C%ys:C%ye) = x0(0:solver%dirtop%dof - 1, C%zs, ie, C%ys:C%ye)
+      if (lghost_y) x0(0:solver%dirtop%dof - 1, C%zs, C%xs:C%xe, jg) = x0(0:solver%dirtop%dof - 1, C%zs, C%xs:C%xe, je)
+      if (lghost_corner) x0(0:solver%dirtop%dof - 1, C%zs, ig, jg) = x0(0:solver%dirtop%dof - 1, C%zs, ie, je)
+
       ! forward sweep through x
       do k = C%zs, C%ze - 1
         if (atm%l1d(atmk(atm, k))) then
+          if (lghost_x) then
+            do j = C%ys, C%ye
+              x0(0:solver%dirtop%dof - 1, k + i1, ig, j) = x0(0:solver%dirtop%dof - 1, k, ig, j) * atm%a33(atmk(atm, k), ie, j)
+            end do
+          end if
+          if (lghost_y) then
+            do i = C%xs, C%xe
+              x0(0:solver%dirtop%dof - 1, k + i1, i, jg) = x0(0:solver%dirtop%dof - 1, k, i, jg) * atm%a33(atmk(atm, k), i, je)
+            end do
+          end if
+          if (lghost_corner) then
+            x0(0:solver%dirtop%dof - 1, k + i1, ig, jg) = x0(0:solver%dirtop%dof - 1, k, ig, jg) * atm%a33(atmk(atm, k), ie, je)
+          end if
           do j = dy(1), dy(2), dy(3)
             do i = dx(1), dx(2), dx(3)
 
@@ -430,6 +450,22 @@ contains
             end do
           end do
         else
+          ! the ghost cells: zero gradient across the domain edge, i.e. what enters a ghost cell from the outside
+          ! is what leaves it towards the domain. Along the edge, they see their neighbours,
+          ! in the sunward corner of the domain this is the corner ghost cell
+          if (lghost_corner) then
+            call ghost_cell(solver, solver%dir2dir_ghost_corner(:, k), x0, k, ig, jg, ig + xinc, jg + yinc)
+          end if
+          if (lghost_x) then
+            do j = dy(1), dy(2), dy(3)
+              call ghost_cell(solver, solver%dir2dir_ghost_x(:, k, j), x0, k, ig, j, ig + xinc, j + 1 - yinc)
+            end do
+          end if
+          if (lghost_y) then
+            do i = dx(1), dx(2), dx(3)
+              call ghost_cell(solver, solver%dir2dir_ghost_y(:, k, i), x0, k, i, jg, i + 1 - xinc, jg + yinc)
+            end do
+          end if
           do j = dy(1), dy(2), dy(3)
             do i = dx(1), dx(2), dx(3)
 
@@ -496,6 +532,80 @@ contains
       end do
       nullify (x0)
     end associate
+
+  end subroutine
+
+  !> @brief transport through a ghost cell i,j of the explicit direct sweep
+  !> @details side inflow is read from faces ix (x) and iy (y). If a face is also the outflow face of the ghost cell
+  !> (zero gradient across a domain edge), inflow and outflow are equal and we solve for them directly
+  subroutine ghost_cell(solver, coeff, x0, k, i, j, ix, iy)
+    class(t_solver), intent(in) :: solver
+    real(ireals), intent(in) :: coeff(:)
+    real(ireals), intent(inout) :: x0(0:, solver%C_dir%zs:, solver%C_dir%gxs:, solver%C_dir%gys:)
+    integer(iintegers), intent(in) :: k, i, j, ix, iy
+
+    real(ireals) :: c(solver%C_dir%dof, solver%C_dir%dof) ! dim(src, dst)
+    real(ireals) :: xin(solver%C_dir%dof), xout(solver%C_dir%dof)
+    real(ireals), allocatable :: A(:, :), rhs(:)
+    logical :: lself(solver%C_dir%dof)
+    integer(iintegers), allocatable :: idx(:)
+    integer(iintegers) :: ntop, nside, dof, xinc, yinc, n, m, p, q
+
+    ntop = solver%dirtop%dof
+    nside = solver%dirside%dof
+    dof = solver%C_dir%dof
+    xinc = solver%sun%xinc
+    yinc = solver%sun%yinc
+    c = reshape(coeff, [dof, dof])
+
+    lself = .false.
+    lself(ntop + 1:ntop + nside) = ix .eq. i + xinc
+    lself(ntop + nside + 1:dof) = iy .eq. j + yinc
+
+    xin(1:ntop) = x0(0:ntop - 1, k, i, j)
+    xin(ntop + 1:ntop + nside) = x0(ntop:ntop + nside - 1, k, ix, j)
+    xin(ntop + nside + 1:dof) = x0(ntop + nside:dof - 1, k, i, iy)
+
+    if (any(lself)) then
+      ! outflow of the self coupled streams: (I - C_ss^T) o_s = C_ns^T x_n
+      idx = pack([(m, m=1, dof)], lself)
+      n = size(idx)
+      allocate (A(n, n), rhs(n))
+      do p = 1, n
+        rhs(p) = zero
+        do m = 1, dof
+          if (.not. lself(m)) rhs(p) = rhs(p) + xin(m) * c(m, idx(p))
+        end do
+        do q = 1, n
+          A(p, q) = -c(idx(q), idx(p))
+        end do
+        A(p, p) = A(p, p) + one
+      end do
+      call solve_small(A, rhs)
+      xin(idx) = rhs
+    end if
+
+    xout = matmul(xin, c)
+    x0(0:ntop - 1, k + i1, i, j) = xout(1:ntop)
+    x0(ntop:ntop + nside - 1, k, i + xinc, j) = xout(ntop + 1:ntop + nside)
+    x0(ntop + nside:dof - 1, k, i, j + yinc) = xout(ntop + nside + 1:dof)
+  contains
+    !> gaussian elimination, the system is diagonally dominant
+    subroutine solve_small(A, b)
+      real(ireals), intent(inout) :: A(:, :), b(:)
+      integer(iintegers) :: r, s
+      real(ireals) :: f
+      do r = 1, size(b)
+        do s = r + 1, size(b)
+          f = A(s, r) / A(r, r)
+          A(s, r:) = A(s, r:) - f * A(r, r:)
+          b(s) = b(s) - f * b(r)
+        end do
+      end do
+      do r = size(b), 1, -1
+        b(r) = (b(r) - dot_product(A(r, r + 1:), b(r + 1:))) / A(r, r)
+      end do
+    end subroutine
   end subroutine
 
   subroutine explicit_ediff(solver, prefix, vb, vediff, solution, ierr)

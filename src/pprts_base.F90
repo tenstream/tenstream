@@ -269,6 +269,11 @@ module m_pprts_base
 
     type(t_dof) :: difftop, diffside, dirtop, dirside
     real(ireals), allocatable, dimension(:, :, :, :) :: dir2dir, dir2diff, diff2diff
+    ! open boundaries: direct transport coeffs of the ghost cells outside of the sunward domain edges,
+    ! regular (undistorted) boxes that continue the edge columns, (1:dof**2, zs:ze-1, ys:ye) and (1:dof**2, zs:ze-1, xs:xe)
+    real(ireals), allocatable, dimension(:, :, :) :: dir2dir_ghost_x, dir2dir_ghost_y
+    ! and of the ghost cell in the sunward corner of the domain, a regular box (1:dof**2, zs:ze-1)
+    real(ireals), allocatable, dimension(:, :) :: dir2dir_ghost_corner
 
     logical :: lenable_solutions_err_estimates = .true.  ! if enabled, we can save and load solutions.... just pass an unique identifer to solve()... beware, this may use lots of memory
     real(ireals), allocatable :: incSolar(:, :, :, :)         ! (0:dof-1, zs:ze, xs:xe, ys:ye) on C_dir
@@ -959,6 +964,9 @@ contains
       end if
 
       call deallocate_allocatable(solver%dir2dir)
+      if (allocated(solver%dir2dir_ghost_x)) deallocate (solver%dir2dir_ghost_x)
+      if (allocated(solver%dir2dir_ghost_y)) deallocate (solver%dir2dir_ghost_y)
+      if (allocated(solver%dir2dir_ghost_corner)) deallocate (solver%dir2dir_ghost_corner)
       call deallocate_allocatable(solver%dir2diff)
       call deallocate_allocatable(solver%diff2diff)
 
@@ -1244,7 +1252,7 @@ contains
                 j = C_dir%ys
               end if
               do i = C_dir%xs, C_dir%xe
-                call single_column_solve(solver%OPP, C_dir, i, j, xcol)
+                call single_column_solve(solver%OPP, C_dir, i, j, 2_iintegers, xcol)
                 do k = C_dir%zs, C_dir%ze - 1
                   do src = 0, solver%dirside%dof - 1
                     ioff = solver%dirtop%dof + solver%dirside%dof + src
@@ -1262,7 +1270,7 @@ contains
                 i = C_dir%xs
               end if
               do j = C_dir%ys, C_dir%ye
-                call single_column_solve(solver%OPP, C_dir, i, j, xcol)
+                call single_column_solve(solver%OPP, C_dir, i, j, 1_iintegers, xcol)
                 do k = C_dir%zs, C_dir%ze - 1
                   do src = 0, solver%dirside%dof - 1
                     ioff = solver%dirtop%dof + src
@@ -1283,10 +1291,11 @@ contains
       end subroutine
 
       !> @brief direct radiation in a single column with periodic boundaries onto itself, for unit incoming flux on each top stream
-      subroutine single_column_solve(OPP, C_dir, i, j, xcol)
+      subroutine single_column_solve(OPP, C_dir, i, j, iedge_dir, xcol)
         class(t_optprop_cube), intent(in) :: OPP
         type(t_coord), intent(in) :: C_dir
         integer(iintegers), intent(in) :: i, j
+        integer(iintegers), intent(in) :: iedge_dir ! 1: column at the x edge, 2: at the y edge
         real(ireals), intent(out) :: xcol(0:, C_dir%zs:)
 
         integer(iintegers) :: k, ak, src, dst, ntop, nside
@@ -1317,8 +1326,13 @@ contains
 
             else
 
-              if (allocated(solver%dir2dir)) then
-                ! use the coeffs of the solver, they know about buildings in the edge column and about distorted cells
+              if (iedge_dir .eq. 1 .and. allocated(solver%dir2dir_ghost_x)) then
+                ! the column outside of the domain is a regular box that continues the edge column, including its buildings
+                coeff = solver%dir2dir_ghost_x(:, k, j)
+              else if (iedge_dir .eq. 2 .and. allocated(solver%dir2dir_ghost_y)) then
+                coeff = solver%dir2dir_ghost_y(:, k, i)
+              else if (allocated(solver%dir2dir)) then
+                ! use the coeffs of the solver, they know about buildings in the edge column
                 coeff = solver%dir2dir(:, k, i, j)
               else
                 call get_coeff( &
