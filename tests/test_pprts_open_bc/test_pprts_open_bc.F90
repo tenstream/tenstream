@@ -1130,8 +1130,9 @@ contains
 @assertTrue(Nsensitive .ge. size(phis) / 2, 'expected periodic boundaries to differ from the embedded crater for most azimuths')
   end subroutine
 
-  ! Diffuse radiation on the distorted crater: the zero gradient condition of the diffuse open boundaries copies the
-  ! distorted edge cells, i.e. it is only an approximation of the crater embedded in the larger domain.
+  ! Diffuse radiation on the distorted crater: the ghost cells outside of the domain edges continue the edge columns,
+  ! beyond them the radiation field is assumed to not change anymore (zero gradient) and they use the sources of the edge cells.
+  ! I.e. this is only an approximation of the crater embedded in the larger domain.
   ! It has to be much closer to that than periodic boundaries though. Pin the quality of the approximation
   @test(npes=[4, 2, 1])
   subroutine test_open_bc_diffuse_distorted_close_to_embedded(this)
@@ -1199,8 +1200,8 @@ contains
         print *, msg, ' ', names(iq), ' vs embedded crater: rmse open', rmse(1, iq), 'periodic', rmse(2, iq), &
           & 'max open', maxerr(1, iq), 'periodic', maxerr(2, iq)
         @assertTrue(rmse(2, iq) .gt. zero, 'expected periodic boundaries to differ from the embedded crater, '//msg//' '//names(iq))
-@assertTrue(rmse(1, iq) .lt. rmse(2, iq) * .5_ireals, 'open bc '//trim(names(iq))//' is not much closer to the embedded crater than periodic, '//msg)
-@assertTrue(maxerr(1, iq) .lt. maxerr(2, iq) * .5_ireals, 'open bc '//trim(names(iq))//' locally differs too much from the embedded crater, '//msg)
+@assertTrue(rmse(1, iq) .lt. rmse(2, iq) * .2_ireals, 'open bc '//trim(names(iq))//' is not much closer to the embedded crater than periodic, '//msg)
+@assertTrue(maxerr(1, iq) .lt. maxerr(2, iq) * .2_ireals, 'open bc '//trim(names(iq))//' locally differs too much from the embedded crater, '//msg)
       end do
     end do
   end subroutine

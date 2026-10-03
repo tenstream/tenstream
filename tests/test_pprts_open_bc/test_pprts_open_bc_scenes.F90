@@ -942,8 +942,9 @@ contains
     end do
   end subroutine
 
-  ! Diffuse radiation travels in all directions. Other than for direct radiation, the zero gradient condition is therefore
-  ! only an approximation to a scene whose edge columns continue outwards forever.
+  ! Diffuse radiation travels in all directions. Other than for direct radiation, the open boundaries are therefore
+  ! only an approximation to a scene whose edge columns continue outwards forever: with -pprts_open_bc_2d a layer of
+  ! ghost cells continues the edge columns and beyond them we assume zero gradient, otherwise zero gradient right at the edge.
   ! It has to be much closer to that than periodic boundaries though. Pin the quality of the approximation
   subroutine check_open_bc_diffuse_is_close_to_embedded_domain(this, l2d)
     class(MpiTestMethod), intent(inout) :: this
@@ -1005,7 +1006,7 @@ contains
           & 'rmse open', rmse_open, 'periodic', rmse_periodic, 'mean eup', sum(e%eup) / real(size(e%eup), ireals)
 
         @assertTrue(rmse_periodic .gt. one, 'expected periodic boundaries to differ from the embedded domain, '//msg)
-@assertTrue(rmse_open .lt. rmse_periodic * .5_ireals, 'open bc diffuse fluxes are not closer to the embedded domain than periodic ones, '//msg)
+@assertTrue(rmse_open .lt. rmse_periodic * merge(.2_ireals, .5_ireals, l2d), 'open bc diffuse fluxes are not closer to the embedded domain than periodic ones, '//msg)
 @assertTrue(err_open .lt. err_periodic, 'open bc diffuse fluxes locally differ more from the embedded domain than periodic ones, '//msg)
 
         ! the absorption of the edge cells needs the fluxes through the domain edges
@@ -1014,7 +1015,7 @@ contains
         print *, msg, ' absorption vs embedded: rmse open', rmse_open, 'periodic', rmse_periodic, &
           & 'max err open', maxval(abs(o%abso - e%abso)), 'periodic', maxval(abs(p%abso - e%abso))
         ! with the inflow from single column solves, the absorption of direct radiation is further off
-@assertTrue(rmse_open .lt. rmse_periodic * merge(.5_ireals, .75_ireals, l2d), 'open bc absorption is not closer to the embedded domain than periodic one, '//msg)
+@assertTrue(rmse_open .lt. rmse_periodic * merge(.25_ireals, .75_ireals, l2d), 'open bc absorption is not closer to the embedded domain than periodic one, '//msg)
 @assertTrue(maxval(abs(o%abso - e%abso)) .lt. maxval(abs(p%abso - e%abso)), 'open bc absorption locally differs more from the embedded domain than periodic one, '//msg)
       end associate
     end do

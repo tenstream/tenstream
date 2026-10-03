@@ -111,6 +111,7 @@ module m_pprts
     & halo_fill_5pt, &
     & halo_fill_edir, &
     & halo_fill_ediff, &
+    & deallocate_diff2diff_ghost, &
     & halo_reduce_5pt, &
     & prepare_solution, &
     & setup_coord_native, &
@@ -2714,6 +2715,7 @@ contains
       call alloc_coeff_dir2diff(solver, solver%dir2diff)
     end if
     call alloc_coeff_diff2diff(solver, solver%diff2diff, opt_buildings)
+    call alloc_coeff_diff2diff_ghost(solver, opt_buildings)
 
     ! --------- scale from [W/m**2] to [W] -----------------
     call scale_flx(solver, solution, lWm2=.false.)
@@ -3386,6 +3388,116 @@ contains
             & )
           coeff = real(v, ireals)
         end if
+      end associate
+    end subroutine
+  end subroutine
+
+  !> @brief diffuse transport coeffs of the ghost cells just outside of all open domain edges and corners
+  !> @details same as for direct radiation, see alloc_coeff_dir2dir_ghost, but diffuse radiation enters the domain everywhere.
+  !> Edge cells with buildings continue outwards with their coefficients
+  subroutine alloc_coeff_diff2diff_ghost(solver, opt_buildings)
+    class(t_solver), intent(inout) :: solver
+    type(t_pprts_buildings), optional, intent(in) :: opt_buildings
+
+    real(irealLUT), allocatable :: v(:)
+    real(ireals) :: hs(2, 2, 2), vertices(24)
+    logical :: lgeometric_coeffs, ltop_bottom_faces_planar, ltop_bottom_planes_parallel
+    logical, allocatable :: lbuilding(:, :, :)
+    integer(iintegers) :: k, i, j, m, idx(4)
+    logical :: lw, le, ls, ln
+
+    call deallocate_diff2diff_ghost(solver)
+    if (.not. (solver%lopen_bc .and. solver%lopen_bc_2d)) return
+
+    associate (atm => solver%atm, C => solver%C_diff)
+
+      call read_cmd_line_opts_get_coeffs(solver%prefix, lgeometric_coeffs, ltop_bottom_faces_planar, ltop_bottom_planes_parallel)
+      allocate (v(1:C%dof**2))
+
+      allocate (lbuilding(C%zs:C%ze - 1, C%xs:C%xe, C%ys:C%ye), source=.false.)
+      if (present(opt_buildings)) then
+        do m = 1, size(opt_buildings%iface)
+          call ind_1d_to_nd(opt_buildings%da_offsets, opt_buildings%iface(m), idx)
+          lbuilding(idx(2) - 1 + C%zs, idx(3) - 1 + C%xs, idx(4) - 1 + C%ys) = .true.
+        end do
+      end if
+
+      lw = solver%lopen_bc_x .and. C%xs .eq. i0
+      le = solver%lopen_bc_x .and. C%xe + 1 .eq. C%glob_xm
+      ls = solver%lopen_bc_y .and. C%ys .eq. i0
+      ln = solver%lopen_bc_y .and. C%ye + 1 .eq. C%glob_ym
+
+      if (lw) allocate (solver%diff2diff_ghost_w(1:C%dof**2, C%zs:C%ze - 1, C%ys:C%ye), source=zero)
+      if (le) allocate (solver%diff2diff_ghost_e(1:C%dof**2, C%zs:C%ze - 1, C%ys:C%ye), source=zero)
+      if (ls) allocate (solver%diff2diff_ghost_s(1:C%dof**2, C%zs:C%ze - 1, C%xs:C%xe), source=zero)
+      if (ln) allocate (solver%diff2diff_ghost_n(1:C%dof**2, C%zs:C%ze - 1, C%xs:C%xe), source=zero)
+      if (lw .and. ls) allocate (solver%diff2diff_ghost_sw(1:C%dof**2, C%zs:C%ze - 1), source=zero)
+      if (le .and. ls) allocate (solver%diff2diff_ghost_se(1:C%dof**2, C%zs:C%ze - 1), source=zero)
+      if (lw .and. ln) allocate (solver%diff2diff_ghost_nw(1:C%dof**2, C%zs:C%ze - 1), source=zero)
+      if (le .and. ln) allocate (solver%diff2diff_ghost_ne(1:C%dof**2, C%zs:C%ze - 1), source=zero)
+
+      do k = C%zs, C%ze - 1
+        do j = C%ys, C%ye
+          if (lw) call ghost_coeff(1_iintegers, C%xs, k, C%xs, j, solver%diff2diff_ghost_w(:, k, j))
+          if (le) call ghost_coeff(1_iintegers, C%xe + 1, k, C%xe, j, solver%diff2diff_ghost_e(:, k, j))
+        end do
+        do i = C%xs, C%xe
+          if (ls) call ghost_coeff(2_iintegers, C%ys, k, i, C%ys, solver%diff2diff_ghost_s(:, k, i))
+          if (ln) call ghost_coeff(2_iintegers, C%ye + 1, k, i, C%ye, solver%diff2diff_ghost_n(:, k, i))
+        end do
+        if (lw .and. ls) call ghost_coeff(3_iintegers, -1_iintegers, k, C%xs, C%ys, solver%diff2diff_ghost_sw(:, k))
+        if (le .and. ls) call ghost_coeff(3_iintegers, -1_iintegers, k, C%xe, C%ys, solver%diff2diff_ghost_se(:, k))
+        if (lw .and. ln) call ghost_coeff(3_iintegers, -1_iintegers, k, C%xs, C%ye, solver%diff2diff_ghost_nw(:, k))
+        if (le .and. ln) call ghost_coeff(3_iintegers, -1_iintegers, k, C%xe, C%ye, solver%diff2diff_ghost_ne(:, k))
+      end do
+    end associate
+
+  contains
+
+    subroutine ghost_coeff(idir, iface, k, i, j, coeff)
+      integer(iintegers), intent(in) :: idir ! 1: ghost outside of an x edge, 2: y edge, 3: corner
+      integer(iintegers), intent(in) :: iface ! the outer face of the edge cell (x or y index)
+      integer(iintegers), intent(in) :: k, i, j ! edge cell
+      real(ireals), intent(out) :: coeff(:)
+      integer(iintegers) :: ak, n
+
+      coeff = zero
+      associate (atm => solver%atm)
+        ak = atmk(atm, k)
+        if (atm%l1d(ak)) return
+        if (lbuilding(k, i, j)) then
+          coeff = solver%diff2diff(:, k, i, j)
+          return
+        end if
+
+        call setup_default_unit_cube_geometry(atm%dx, atm%dy, -one, vertices)
+        select case (idir)
+        case (1)
+          do n = 1, 2
+            hs(:, n, :) = atm%vert_heights(i0, ak:atmk(atm, k + 1), iface, j:j + 1)
+          end do
+        case (2)
+          do n = 1, 2
+            hs(:, :, n) = atm%vert_heights(i0, ak:atmk(atm, k + 1), i:i + 1, iface)
+          end do
+        case default
+          hs(1, :, :) = atm%dz(ak, i, j)
+          hs(2, :, :) = zero
+        end select
+        call init_vertices(hs, atm%dz(ak, i, j), ltop_bottom_faces_planar, ltop_bottom_planes_parallel, vertices)
+
+        call get_coeff( &
+          & solver%OPP, &
+          & atm%kabs(ak, i, j), &
+          & atm%ksca(ak, i, j), &
+          & atm%g(ak, i, j), &
+          & atm%dz(ak, i, j), &
+          & atm%dx, &
+          & .false., &
+          & v, &
+          & opt_vertices=vertices &
+          & )
+        coeff = real(v, ireals)
       end associate
     end subroutine
   end subroutine

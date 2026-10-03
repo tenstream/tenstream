@@ -55,6 +55,7 @@ module m_pprts_base
     & halo_fill_5pt, &
     & halo_fill_edir, &
     & halo_fill_ediff, &
+    & deallocate_diff2diff_ghost, &
     & halo_reduce_5pt, &
     & prepare_solution, &
     & print_solution, &
@@ -274,6 +275,10 @@ module m_pprts_base
     real(ireals), allocatable, dimension(:, :, :) :: dir2dir_ghost_x, dir2dir_ghost_y
     ! and of the ghost cell in the sunward corner of the domain, a regular box (1:dof**2, zs:ze-1)
     real(ireals), allocatable, dimension(:, :) :: dir2dir_ghost_corner
+    ! and the diffuse transport coeffs of the ghost cells outside of all open domain edges and corners,
+    ! (1:dof**2, zs:ze-1, ys:ye) at the west/east edges, (1:dof**2, zs:ze-1, xs:xe) south/north, (1:dof**2, zs:ze-1) corners
+    real(ireals), allocatable, dimension(:, :, :) :: diff2diff_ghost_w, diff2diff_ghost_e, diff2diff_ghost_s, diff2diff_ghost_n
+    real(ireals), allocatable, dimension(:, :) :: diff2diff_ghost_sw, diff2diff_ghost_se, diff2diff_ghost_nw, diff2diff_ghost_ne
 
     logical :: lenable_solutions_err_estimates = .true.  ! if enabled, we can save and load solutions.... just pass an unique identifer to solve()... beware, this may use lots of memory
     real(ireals), allocatable :: incSolar(:, :, :, :)         ! (0:dof-1, zs:ze, xs:xe, ys:ye) on C_dir
@@ -967,6 +972,7 @@ contains
       if (allocated(solver%dir2dir_ghost_x)) deallocate (solver%dir2dir_ghost_x)
       if (allocated(solver%dir2dir_ghost_y)) deallocate (solver%dir2dir_ghost_y)
       if (allocated(solver%dir2dir_ghost_corner)) deallocate (solver%dir2dir_ghost_corner)
+      call deallocate_diff2diff_ghost(solver)
       call deallocate_allocatable(solver%dir2diff)
       call deallocate_allocatable(solver%diff2diff)
 
@@ -1577,6 +1583,18 @@ contains
           x(dtop + dside:C%dof - 1, :, C%xs:C%xe, C%ye + 1) = solution%edir_open_bc_y(dtop + dside:C%dof - 1, :, :)
         end if
       end associate
+    end subroutine
+
+    subroutine deallocate_diff2diff_ghost(solver)
+      class(t_solver), intent(inout) :: solver
+      if (allocated(solver%diff2diff_ghost_w)) deallocate (solver%diff2diff_ghost_w)
+      if (allocated(solver%diff2diff_ghost_e)) deallocate (solver%diff2diff_ghost_e)
+      if (allocated(solver%diff2diff_ghost_s)) deallocate (solver%diff2diff_ghost_s)
+      if (allocated(solver%diff2diff_ghost_n)) deallocate (solver%diff2diff_ghost_n)
+      if (allocated(solver%diff2diff_ghost_sw)) deallocate (solver%diff2diff_ghost_sw)
+      if (allocated(solver%diff2diff_ghost_se)) deallocate (solver%diff2diff_ghost_se)
+      if (allocated(solver%diff2diff_ghost_nw)) deallocate (solver%diff2diff_ghost_nw)
+      if (allocated(solver%diff2diff_ghost_ne)) deallocate (solver%diff2diff_ghost_ne)
     end subroutine
 
     !> @brief halo fill for diffuse radiation, i.e. halo_fill_5pt plus the fluxes through the open domain boundaries
