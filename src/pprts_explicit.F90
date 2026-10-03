@@ -741,6 +741,8 @@ contains
 
       sorloop: do iter = 1, maxiter
         do isub = 1, sub_iter
+          ! ghost cells outside of the open domain edges, they feed the domain
+          if (solver%lopen_bc .and. solver%lopen_bc_2d) call diffuse_ghost_sweep(solver, lvb, v0)
           if (modulo(iter + isub, 2) .eq. 0) then
             call explicit_ediff_sor_sweep(&
               & solver, &
@@ -891,20 +893,27 @@ contains
     real(ireals), allocatable :: mpi_recv_bfr_e(:, :, :), mpi_recv_bfr_n(:, :, :)
     real(ireals), allocatable :: mpi_recv_bfr_w(:, :, :), mpi_recv_bfr_s(:, :, :)
 
+    logical :: lopen_w, lopen_e, lopen_s, lopen_n
+
     x0 => null()
 
     associate ( &
         & C => solver%C_diff)
 
+      lopen_w = solver%lopen_bc_x .and. C%xs .eq. i0
+      lopen_e = solver%lopen_bc_x .and. C%xe + 1 .eq. C%glob_xm
+      lopen_s = solver%lopen_bc_y .and. C%ys .eq. i0
+      lopen_n = solver%lopen_bc_y .and. C%ye + 1 .eq. C%glob_ym
+
       allocate ( &
-        & mpi_send_bfr_e(solver%diffside%dof / 2, C%zs:C%ze, C%ys:C%ye), &
-        & mpi_send_bfr_w(solver%diffside%dof / 2, C%zs:C%ze, C%ys:C%ye), &
-        & mpi_send_bfr_n(solver%diffside%dof / 2, C%zs:C%ze, C%xs:C%xe), &
-        & mpi_send_bfr_s(solver%diffside%dof / 2, C%zs:C%ze, C%xs:C%xe), &
-        & mpi_recv_bfr_e(solver%diffside%dof / 2, C%zs:C%ze, C%ys:C%ye), &
-        & mpi_recv_bfr_w(solver%diffside%dof / 2, C%zs:C%ze, C%ys:C%ye), &
-        & mpi_recv_bfr_n(solver%diffside%dof / 2, C%zs:C%ze, C%xs:C%xe), &
-        & mpi_recv_bfr_s(solver%diffside%dof / 2, C%zs:C%ze, C%xs:C%xe) &
+        & mpi_send_bfr_e(solver%diffside%dof / 2, C%zs:C%ze, C%gys:C%gye), &
+        & mpi_send_bfr_w(solver%diffside%dof / 2, C%zs:C%ze, C%gys:C%gye), &
+        & mpi_send_bfr_n(solver%diffside%dof / 2, C%zs:C%ze, C%gxs:C%gxe), &
+        & mpi_send_bfr_s(solver%diffside%dof / 2, C%zs:C%ze, C%gxs:C%gxe), &
+        & mpi_recv_bfr_e(solver%diffside%dof / 2, C%zs:C%ze, C%gys:C%gye), &
+        & mpi_recv_bfr_w(solver%diffside%dof / 2, C%zs:C%ze, C%gys:C%gye), &
+        & mpi_recv_bfr_n(solver%diffside%dof / 2, C%zs:C%ze, C%gxs:C%gxe), &
+        & mpi_recv_bfr_s(solver%diffside%dof / 2, C%zs:C%ze, C%gxs:C%gxe) &
         & )
       mpi_recv_bfr_e = zero; mpi_recv_bfr_w = zero
       mpi_recv_bfr_n = zero; mpi_recv_bfr_s = zero
@@ -928,7 +937,7 @@ contains
 
       ! Boundary exchanges
       ! x direction scatters, east/west boundary
-      do j = C%ys, C%ye
+      do j = C%gys, C%gye
         do k = C%zs, C%ze
           d1 = 1; d2 = 1
           do idof = i0, solver%diffside%dof - 1
@@ -949,7 +958,7 @@ contains
         & imp_ireals, neigh_e, tag_e, solver%comm, requests(6), ierr); call CHKERR(ierr)
 
       ! y direction scatters, south/north boundary
-      do i = C%xs, C%xe
+      do i = C%gxs, C%gxe
         do k = C%zs, C%ze
           d1 = 1; d2 = 1
           do idof = i0, solver%diffside%dof - 1
@@ -972,32 +981,33 @@ contains
       call MPI_Waitall(8_mpiint, requests, statuses, ierr); call CHKERR(ierr)
 
       ! receive buffers
-      do j = C%ys, C%ye
+      do j = C%gys, C%gye
         do k = C%zs, C%ze
           d1 = 1; d2 = 1
           do idof = i0, solver%diffside%dof - 1
             dof = solver%difftop%dof + idof
+            ! the inflow at open domain edges is set by the open boundary condition
             if (solver%diffside%is_inward(i1 + idof)) then ! to the right
-              x0(dof, k, C%xs, j) = mpi_recv_bfr_w(d1, k, j)
+              if (.not. lopen_w) x0(dof, k, C%xs, j) = mpi_recv_bfr_w(d1, k, j)
               d1 = d1 + 1
             else ! leftward
-              x0(dof, k, C%xe + 1, j) = mpi_recv_bfr_e(d2, k, j)
+              if (.not. lopen_e) x0(dof, k, C%xe + 1, j) = mpi_recv_bfr_e(d2, k, j)
               d2 = d2 + 1
             end if
           end do
         end do
       end do
 
-      do i = C%xs, C%xe
+      do i = C%gxs, C%gxe
         do k = C%zs, C%ze
           d1 = 1; d2 = 1
           do idof = i0, solver%diffside%dof - 1
             dof = solver%difftop%dof + solver%diffside%dof + idof
             if (solver%diffside%is_inward(i1 + idof)) then
-              x0(dof, k, i, C%ys) = mpi_recv_bfr_s(d1, k, i)
+              if (.not. lopen_s) x0(dof, k, i, C%ys) = mpi_recv_bfr_s(d1, k, i)
               d1 = d1 + 1
             else
-              x0(dof, k, i, C%ye + 1) = mpi_recv_bfr_n(d2, k, i)
+              if (.not. lopen_n) x0(dof, k, i, C%ye + 1) = mpi_recv_bfr_n(d2, k, i)
               d2 = d2 + 1
             end if
           end do
@@ -1011,7 +1021,7 @@ contains
     ierr = 0
   end subroutine
 
-  !> @brief open boundaries for diffuse radiation: zero gradient across the domain edges
+  !> @brief open boundaries for diffuse radiation without ghost cells (-pprts_open_bc_2d no): zero gradient across the domain edges
   !> @details what enters an edge cell through the domain edge is what leaves this cell in the same direction,
   !> i.e. the edge columns continue outwards but they do see their neighbours along the edge
   subroutine set_open_bc_diffuse(solver, v0)
@@ -1022,6 +1032,7 @@ contains
     integer(iintegers) :: idof, dof
 
     if (.not. solver%lopen_bc) return
+    if (solver%lopen_bc_2d) return ! the ghost cells set the inflow, see diffuse_ghost_sweep
 
     associate (C => solver%C_diff)
       x0(0:C%dof - 1, C%zs:C%ze, C%gxs:C%gxe, C%gys:C%gye) => v0
@@ -1050,6 +1061,228 @@ contains
       nullify (x0)
     end associate
   end subroutine
+
+  !> @brief one pass through the diffuse ghost cells outside of all open domain edges and corners
+  !> @details the ghost cells continue the edge columns outwards (see alloc_coeff_diff2diff_ghost) and use the sources
+  !> of the edge cells. Across the domain edge, zero gradient: what enters a ghost cell from the outside is what it emits
+  !> in the same direction towards the domain. Along the edge, ghost cells see their neighbours,
+  !> at the corners the corner ghost cells.
+  subroutine diffuse_ghost_sweep(solver, b, x)
+    class(t_solver), intent(in) :: solver
+    real(ireals), target, contiguous, intent(in) :: b(:, :, :, :)
+    real(ireals), target, contiguous, intent(inout) :: x(:, :, :, :)
+
+    real(ireals), pointer :: x0(:, :, :, :), xb(:, :, :, :)
+    integer(iintegers) :: i, j
+
+    associate (C => solver%C_diff)
+      x0(0:C%dof - 1, C%zs:C%ze, C%gxs:C%gxe, C%gys:C%gye) => x
+      xb(0:C%dof - 1, C%zs:C%ze, C%gxs:C%gxe, C%gys:C%gye) => b
+
+      if (allocated(solver%diff2diff_ghost_w)) then
+        do j = C%ys, C%ye
+          call diffuse_ghost_column(solver, x0, xb, solver%diff2diff_ghost_w(:, :, j), C%xs - 1, j, i1, i0, 1_iintegers, &
+                                    0_iintegers)
+        end do
+      end if
+      if (allocated(solver%diff2diff_ghost_e)) then
+        do j = C%ys, C%ye
+          call diffuse_ghost_column(solver, x0, xb, solver%diff2diff_ghost_e(:, :, j), C%xe + 1, j, -i1, i0, 2_iintegers, &
+                                    0_iintegers)
+        end do
+      end if
+      if (allocated(solver%diff2diff_ghost_s)) then
+        do i = C%xs, C%xe
+          call diffuse_ghost_column(solver, x0, xb, solver%diff2diff_ghost_s(:, :, i), i, C%ys - 1, i0, i1, 0_iintegers, &
+                                    1_iintegers)
+        end do
+      end if
+      if (allocated(solver%diff2diff_ghost_n)) then
+        do i = C%xs, C%xe
+          call diffuse_ghost_column(solver, x0, xb, solver%diff2diff_ghost_n(:, :, i), i, C%ye + 1, i0, -i1, 0_iintegers, &
+                                    2_iintegers)
+        end do
+      end if
+      if (allocated(solver%diff2diff_ghost_sw)) &
+        & call diffuse_ghost_column(solver, x0, xb, solver%diff2diff_ghost_sw, C%xs - 1, C%ys - 1, i1, i1, 1_iintegers, 1_iintegers)
+      if (allocated(solver%diff2diff_ghost_se)) &
+       & call diffuse_ghost_column(solver, x0, xb, solver%diff2diff_ghost_se, C%xe + 1, C%ys - 1, -i1, i1, 2_iintegers, 1_iintegers)
+      if (allocated(solver%diff2diff_ghost_nw)) &
+       & call diffuse_ghost_column(solver, x0, xb, solver%diff2diff_ghost_nw, C%xs - 1, C%ye + 1, i1, -i1, 1_iintegers, 2_iintegers)
+      if (allocated(solver%diff2diff_ghost_ne)) &
+      & call diffuse_ghost_column(solver, x0, xb, solver%diff2diff_ghost_ne, C%xe + 1, C%ye + 1, -i1, -i1, 2_iintegers, 2_iintegers)
+      nullify (x0, xb)
+    end associate
+
+  end subroutine
+
+  !> @brief diffuse ghost column i,j, (di,dj) points to the edge column,
+  !> outer = 1: the outer face is the low face, 2: the high face, 0: none
+  subroutine diffuse_ghost_column(solver, x0, xb, coeffs, i, j, di, dj, outer_x, outer_y)
+    class(t_solver), intent(in) :: solver
+    real(ireals), intent(inout) :: x0(0:, solver%C_diff%zs:, solver%C_diff%gxs:, solver%C_diff%gys:)
+    real(ireals), intent(in) :: xb(0:, solver%C_diff%zs:, solver%C_diff%gxs:, solver%C_diff%gys:)
+    real(ireals), intent(in) :: coeffs(:, solver%C_diff%zs:)
+    integer(iintegers), intent(in) :: i, j, di, dj, outer_x, outer_y
+    integer(iintegers) :: k, idof
+
+    associate (C => solver%C_diff, atm => solver%atm)
+      do idof = 0, solver%difftop%dof - 1
+        if (solver%difftop%is_inward(i1 + idof)) x0(idof, C%zs, i, j) = x0(idof, C%zs, i + di, j + dj)
+      end do
+      do k = C%zs, C%ze - 1
+        call diffuse_ghost_cell(solver, x0, xb, coeffs(:, k), k, i, j, di, dj, outer_x, outer_y)
+      end do
+      do idof = 0, solver%difftop%dof - 1
+        if (.not. solver%difftop%is_inward(i1 + idof)) then
+          x0(idof, C%ze, i, j) = xb(idof, C%ze, i + di, j + dj) + x0(diff_inv_dof(solver, idof), C%ze, i, j) * atm%albedo(i + &
+                                                                                                                         di, j + dj)
+        end if
+      end do
+      do k = C%ze - 1, C%zs, -1
+        call diffuse_ghost_cell(solver, x0, xb, coeffs(:, k), k, i, j, di, dj, outer_x, outer_y)
+      end do
+    end associate
+  end subroutine
+
+  !> @brief diffuse ghost cell, see diffuse_ghost_column
+  subroutine diffuse_ghost_cell(solver, x0, xb, coeff, k, i, j, di, dj, outer_x, outer_y)
+    class(t_solver), intent(in) :: solver
+    real(ireals), intent(inout) :: x0(0:, solver%C_diff%zs:, solver%C_diff%gxs:, solver%C_diff%gys:)
+    real(ireals), intent(in) :: xb(0:, solver%C_diff%zs:, solver%C_diff%gxs:, solver%C_diff%gys:)
+    real(ireals), intent(in) :: coeff(:)
+    integer(iintegers), intent(in) :: k, i, j, di, dj, outer_x, outer_y
+
+    integer(iintegers) :: d, s, n, p, q, r, ntop, nside, ndof, ak
+    integer(iintegers), allocatable, dimension(:) :: kin, iin, jin, kout, iout, jout, idx
+    logical, allocatable :: lself(:)
+    real(ireals), allocatable :: c(:, :), xin(:), xout(:), A(:, :), rhs(:)
+    real(ireals) :: f
+
+    ntop = solver%difftop%dof
+    nside = solver%diffside%dof
+    ndof = solver%C_diff%dof
+    ak = atmk(solver%atm, k)
+
+    if (solver%atm%l1d(ak)) then
+      do d = 0, ntop - 1
+        if (solver%difftop%is_inward(i1 + d)) then
+          x0(d, k + 1, i, j) = xb(d, k + 1, i + di, j + dj) &
+            & + x0(d, k, i, j) * solver%atm%a11(ak, i + di, j + dj) &
+            & + x0(diff_inv_dof(solver, d), k + 1, i, j) * solver%atm%a12(ak, i + di, j + dj)
+        else
+          x0(d, k, i, j) = xb(d, k, i + di, j + dj) &
+            & + x0(d, k + 1, i, j) * solver%atm%a11(ak, i + di, j + dj) &
+            & + x0(diff_inv_dof(solver, d), k, i, j) * solver%atm%a12(ak, i + di, j + dj)
+        end if
+      end do
+      return
+    end if
+
+    ! where each stream enters and leaves the ghost cell
+    allocate (kin(0:ndof - 1), source=k)
+    allocate (kout(0:ndof - 1), source=k)
+    allocate (iin(0:ndof - 1), source=i)
+    allocate (iout(0:ndof - 1), source=i)
+    allocate (jin(0:ndof - 1), source=j)
+    allocate (jout(0:ndof - 1), source=j)
+    allocate (lself(0:ndof - 1), source=.false.)
+    do d = 0, ntop - 1
+      if (solver%difftop%is_inward(i1 + d)) then
+        kout(d) = k + 1
+      else
+        kin(d) = k + 1
+      end if
+    end do
+    do s = 0, nside - 1
+      d = ntop + s
+      if (solver%diffside%is_inward(i1 + s)) then ! to the right
+        iout(d) = i + 1
+        lself(d) = outer_x .eq. 1
+      else
+        iin(d) = i + 1
+        lself(d) = outer_x .eq. 2
+      end if
+      d = ntop + nside + s
+      if (solver%diffside%is_inward(i1 + s)) then ! forward
+        jout(d) = j + 1
+        lself(d) = outer_y .eq. 1
+      else
+        jin(d) = j + 1
+        lself(d) = outer_y .eq. 2
+      end if
+    end do
+
+    allocate (c(0:ndof - 1, 0:ndof - 1), xin(0:ndof - 1), xout(0:ndof - 1))
+    c = reshape(coeff, [ndof, ndof]) ! dim(src, dst)
+    xin = zero
+    do d = 0, ndof - 1
+      if (.not. lself(d)) xin(d) = x0(d, kin(d), iin(d), jin(d))
+    end do
+
+    ! streams that enter through the outer faces are equal to the ones that leave towards the domain
+    n = count(lself)
+    if (n .gt. 0) then
+      allocate (idx(n), A(n, n), rhs(n))
+      p = 0
+      do d = 0, ndof - 1
+        if (lself(d)) then
+          p = p + 1
+          idx(p) = d
+        end if
+      end do
+      do p = 1, n
+        rhs(p) = xb(idx(p), kout(idx(p)), iout(idx(p)) + di, jout(idx(p)) + dj)
+        do d = 0, ndof - 1
+          if (.not. lself(d)) rhs(p) = rhs(p) + xin(d) * c(d, idx(p))
+        end do
+        do q = 1, n
+          A(p, q) = -c(idx(q), idx(p))
+        end do
+        A(p, p) = A(p, p) + one
+      end do
+      do r = 1, n ! gaussian elimination, the system is diagonally dominant
+        do q = r + 1, n
+          f = A(q, r) / A(r, r)
+          A(q, r:n) = A(q, r:n) - f * A(r, r:n)
+          rhs(q) = rhs(q) - f * rhs(r)
+        end do
+      end do
+      do r = n, 1, -1
+        do q = r + 1, n
+          rhs(r) = rhs(r) - A(r, q) * rhs(q)
+        end do
+        rhs(r) = rhs(r) / A(r, r)
+      end do
+      do p = 1, n
+        xin(idx(p)) = rhs(p)
+      end do
+    end if
+
+    xout = matmul(xin, c)
+    do d = 0, ndof - 1
+      ! what leaves through the outer face on the high side has no place in the array and is not needed
+      if (iout(d) .gt. solver%C_diff%gxe .or. jout(d) .gt. solver%C_diff%gye) cycle
+      x0(d, kout(d), iout(d), jout(d)) = xb(d, kout(d), iout(d) + di, jout(d) + dj) + xout(d)
+    end do
+  end subroutine
+
+  !> @brief returns the diffuse dof that is the same stream but the opposite direction
+  pure function diff_inv_dof(solver, dof) result(inv_dof)
+    class(t_solver), intent(in) :: solver
+    integer(iintegers), intent(in) :: dof
+    integer(iintegers) :: inv_dof, inc
+    if (solver%difftop%is_inward(1)) then ! starting with downward streams
+      inc = 1
+    else
+      inc = -1
+    end if
+    if (solver%difftop%is_inward(i1 + dof)) then ! downward stream
+      inv_dof = dof + inc
+    else
+      inv_dof = dof - inc
+    end if
+  end function
 
   subroutine explicit_ediff_sor_sweep(solver, coeffs, dx, dy, dz, omega, b, x)
     class(t_solver), intent(inout) :: solver
