@@ -1,5 +1,4 @@
 module m_mmap
-  use iso_fortran_env, only: real32, int8, int16, int32
   use iso_c_binding
 
   use m_data_parameters, only: iintegers, irealLUT, mpiint
@@ -21,45 +20,6 @@ module m_mmap
 
 contains
 
-  elemental function swap_endianness(realin) result(realout)
-    real(real32), intent(in) :: realin
-    real(real32) :: realout
-    integer :: i_element
-    integer :: i_element_br
-    i_element = transfer(realin, 0)
-    i_element_br = i_element
-    ! reverse order of 4 bytes in 32 bit integer space:
-    call mvbits(i_element, 24, 8, i_element_br, 0)
-    call mvbits(i_element, 16, 8, i_element_br, 8)
-    call mvbits(i_element, 8, 8, i_element_br, 16)
-    call mvbits(i_element, 0, 8, i_element_br, 24)
-    realout = transfer(i_element_br, 0.0)
-  end function
-
-  logical function get_system_endianness() result(littleendian)
-    character(4) :: bytes !may not work on some processors
-
-    bytes = transfer(1_int32, bytes)
-    littleendian = .not. (ichar(bytes(4:4)) == 1)
-  end function
-
-  logical function binary_io_is_little_endian() result(littleendian)
-    integer(int8) :: byte1, byte2
-    integer(int16) :: twobytes
-
-    integer :: funit
-
-    twobytes = 1_int16
-
-    open (newunit=funit, status='scratch', form='unformatted')
-    write (funit) twobytes
-    rewind (funit)
-    read (funit) byte1, byte2
-    close (funit)
-
-    littleendian = .not. (byte1 == 0 .and. byte2 == 1)
-  end function
-
   subroutine arr_to_binary_datafile_2d(arr, fname, ierr)
     real(irealLUT), dimension(:, :), intent(in) :: arr
     character(len=*), intent(in) :: fname
@@ -73,7 +33,6 @@ contains
     integer(c_long) :: c_pagesize
 
     integer(c_size_t) :: size_of_inp_arr, bytesize, dtype_size
-    logical :: IO_is_little_endian, SYS_is_little_endian
 
     dtype_size = c_sizeof(arr(1, 1))
     bytesize_header = c_sizeof(bytesize_header)
@@ -105,23 +64,15 @@ contains
     if (lexists) then
       call release_file_lock(flock_unit, ierr); call CHKERR(ierr)
       return
-      open (newunit=funit, file=trim(fname), form='unformatted', access='stream', status='replace')
+      open (newunit=funit, file=trim(fname), form='unformatted', access='stream', status='replace', convert='native')
     else
-      open (newunit=funit, file=trim(fname), form='unformatted', access='stream', status='new')
+      open (newunit=funit, file=trim(fname), form='unformatted', access='stream', status='new', convert='native')
     end if
 
-    ! Using TenStream in WRF needs to cope with binary data written with non native endianness.
-    ! This comes from compiler option: -fconvert=big-endian
-    IO_is_little_endian = binary_io_is_little_endian()
-    SYS_is_little_endian = get_system_endianness()
-
-    print *, 'ENDIANNESS little?', IO_is_little_endian, SYS_is_little_endian
-    ! Note: I currently dont have a big endian system available to test it. So this may actually not work.
-    if (IO_is_little_endian .eqv. SYS_is_little_endian) then
-      write (unit=funit) header, arr
-    else
-      write (unit=funit) header, swap_endianness(arr)
-    end if
+    ! The unit is opened with convert='native', so the header and data are written in the byte order of the machine,
+    ! independent of compiler options of the host model (e.g. WRF compiles with -fconvert=big-endian),
+    ! which is what binary_file_to_mmap and the mmap of the data block expect.
+    write (unit=funit) header, arr
     close (funit)
     call release_file_lock(flock_unit, ierr); call CHKERR(ierr)
   end subroutine
@@ -157,7 +108,7 @@ contains
 
     allocate (header(c_pagesize / bytesize_header))
 
-    open (newunit=funit, file=trim(fname), form='unformatted', access='stream', status='old')
+    open (newunit=funit, file=trim(fname), form='unformatted', access='stream', status='old', convert='native')
     read (unit=funit) header
     close (funit)
     dtype_size = header(1)
