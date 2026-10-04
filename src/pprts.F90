@@ -4188,39 +4188,20 @@ contains
 #endif
 
     subroutine gen_scale_dir_flx_vec_arr(solver, v, coord)
-      ! face areas from the vertex heights, i.e. sloped top faces in terrain following coordinates,
-      ! same as gen_scale_dir_flx_vec
       class(t_solver) :: solver
       real(ireals), intent(inout) :: v(:, :, :, :)
       type(t_coord), intent(in) :: coord
       integer(iintegers) :: i, j, k, l, iside, ak
       integer(iintegers) :: zoff, xoff, yoff
       real(ireals) :: Ax, Ay, Az
-      real(ireals) :: vertices(24)
       zoff = 1 - coord%zs; xoff = 1 - coord%xs; yoff = 1 - coord%ys
-
-      call setup_default_unit_cube_geometry(solver%atm%dx, solver%atm%dy, one, vertices)
-
-      associate ( &
-         & atm => solver%atm, &
-         & A => vertices(1:3), &
-         & B => vertices(4:6), &
-         & C => vertices(7:9), &
-         & D => vertices(10:12), &
-         & E => vertices(13:15), &
-         & F => vertices(16:18), &
-         & G => vertices(19:21))
-        ! Top faces
+      associate (atm => solver%atm)
+        ! Top faces: flat geometry Az = dx*dy
         do j = coord%ys, coord%ye
           do i = coord%xs, coord%xe
             do k = coord%zs, coord%ze
               ak = atmk(atm, k)
-              A(3) = atm%vert_heights(i0, ak, i, j)
-              B(3) = atm%vert_heights(i0, ak, i + 1, j)
-              C(3) = atm%vert_heights(i0, ak, i, j + 1)
-              D(3) = atm%vert_heights(i0, ak, i + 1, j + 1)
-              Az = (triangle_area_by_vertices(A, B, D) + triangle_area_by_vertices(A, D, C)) &
-                & / real(solver%dirtop%area_divider, ireals)
+              Az = atm%dx * atm%dy / real(solver%dirtop%area_divider, ireals)
               do iside = 0, solver%dirtop%dof - 1
                 v(iside + 1, k + zoff, i + xoff, j + yoff) = Az
               end do
@@ -4232,21 +4213,12 @@ contains
           do i = coord%xs, coord%xe
             do k = coord%zs, coord%ze - 1
               ak = atmk(atm, k)
-              A(3) = atm%vert_heights(i0, ak + 1, i, j)
-              B(3) = atm%vert_heights(i0, ak + 1, i + 1, j)
-              C(3) = atm%vert_heights(i0, ak + 1, i, j + 1)
-              E(3) = atm%vert_heights(i0, ak, i, j)
-              F(3) = atm%vert_heights(i0, ak, i + 1, j)
-              G(3) = atm%vert_heights(i0, ak, i, j + 1)
-
-              Ax = (triangle_area_by_vertices(A, B, F) + triangle_area_by_vertices(A, F, E)) &
-                & / real(solver%dirside%area_divider, ireals)
+              Ax = atm%dy * atm%dz(ak, i, j) / real(solver%dirside%area_divider, ireals)
               do iside = 0, solver%dirside%dof - 1
                 l = solver%dirtop%dof + iside
                 v(l + 1, k + zoff, i + xoff, j + yoff) = Ax
               end do
-              Ay = (triangle_area_by_vertices(A, C, G) + triangle_area_by_vertices(A, G, E)) &
-                & / real(solver%dirside%area_divider, ireals)
+              Ay = atm%dx * atm%dz(ak, i, j) / real(solver%dirside%area_divider, ireals)
               do iside = 0, solver%dirside%dof - 1
                 l = solver%dirtop%dof + solver%dirside%dof + iside
                 v(l + 1, k + zoff, i + xoff, j + yoff) = Ay
