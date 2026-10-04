@@ -1620,14 +1620,14 @@ contains
           x(dtop:dtop + dside - 1, :, C%xe + 1, C%ys:C%ye) = solution%ediff_open_bc_x(dtop:dtop + dside - 1, :, :)
           if (solution%lWm2_diff) then
             x(dtop:dtop + dside - 1, :, C%xe + 1, C%ys:C%ye) = x(dtop:dtop + dside - 1, :, C%xe + 1, C%ys:C%ye) &
-              & * solver%diff_scalevec_W_to_Wm2(dtop + 1:dtop + dside, :, C%xm, :)
+                                                              & * solver%diff_scalevec_W_to_Wm2(dtop + 1:dtop + dside, :, C%xm, :)
           end if
         end if
         if (allocated(solution%ediff_open_bc_y)) then
           x(dtop + dside:C%dof - 1, :, C%xs:C%xe, C%ye + 1) = solution%ediff_open_bc_y(dtop + dside:C%dof - 1, :, :)
           if (solution%lWm2_diff) then
             x(dtop + dside:C%dof - 1, :, C%xs:C%xe, C%ye + 1) = x(dtop + dside:C%dof - 1, :, C%xs:C%xe, C%ye + 1) &
-              & * solver%diff_scalevec_W_to_Wm2(dtop + dside + 1:C%dof, :, :, C%ym)
+                                                               & * solver%diff_scalevec_W_to_Wm2(dtop + dside + 1:C%dof, :, :, C%ym)
           end if
         end if
       end associate
