@@ -540,15 +540,16 @@ contains
           end do
 
           do iphi = 1, size(phis)
-         msg = 'solver '//trim(solvers(isolver))//' dz '//toStr(idz)//' theta0 '//toStr(thetas(itheta))//' phi0 '//toStr(phis(iphi))
+            msg = 'solver '//trim(solvers(isolver))//' dz '//toStr(idz)// &
+                & ' theta0 '//toStr(thetas(itheta))//' phi0 '//toStr(phis(iphi))
             associate ( &
                 & eo => edir_open(:, :, :, iphi, itheta, idz, isolver), &
                 & ep => edir_periodic(:, :, :, iphi, itheta, idz, isolver), &
                 & ao => abso_open(:, :, :, iphi, itheta, idz, isolver), &
                 & ap => abso_periodic(:, :, :, iphi, itheta, idz, isolver))
 
-              print *, msg, ' edir 1D', edir_1d, 'open min', minval(minval(eo, dim=3), dim=2), 'max', maxval(maxval(eo, &
-                                                                                                                    dim=3), dim=2)
+              print *, msg, ' edir 1D', edir_1d, 'open min', minval(minval(eo, dim=3), dim=2), &
+                   & 'max', maxval(maxval(eo, dim=3), dim=2)
 
               @assertTrue(all(ieee_is_finite(eo)), 'open bc edir is not finite, '//msg)
               @assertTrue(all(ieee_is_finite(ao)), 'open bc absorption is not finite, '//msg)

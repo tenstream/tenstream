@@ -1137,8 +1137,8 @@ contains
       end do
       do idof = 0, solver%difftop%dof - 1
         if (.not. solver%difftop%is_inward(i1 + idof)) then
-          x0(idof, C%ze, i, j) = xb(idof, C%ze, i + di, j + dj) + x0(diff_inv_dof(solver, idof), C%ze, i, j) * atm%albedo(i + &
-                                                                                                                         di, j + dj)
+          x0(idof, C%ze, i, j) = xb(idof, C%ze, i + di, j + dj) &
+                             & + x0(diff_inv_dof(solver, idof), C%ze, i, j) * atm%albedo(i + di, j + dj)
         end if
       end do
       do k = C%ze - 1, C%zs, -1

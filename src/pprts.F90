@@ -6323,14 +6323,16 @@ contains
         if (allocated(solution%edir_open_bc_x)) then
           ledir(dtop:dtop + dside - 1, :, C%xe + 1, C%ys:C%ye) = solution%edir_open_bc_x(dtop:dtop + dside - 1, :, :)
           if (solution%lWm2_dir) then
-            ledir(dtop:dtop + dside - 1, :, C%xe + 1, C%ys:C%ye) = ledir(dtop:dtop + dside - 1, :, C%xe + 1, C%ys:C%ye) &
+            ledir(dtop:dtop + dside - 1, :, C%xe + 1, C%ys:C%ye) = &
+              & ledir(dtop:dtop + dside - 1, :, C%xe + 1, C%ys:C%ye) &
               & * solver%dir_scalevec_W_to_Wm2(dtop + 1:dtop + dside, :, C%xm, :)
           end if
         end if
         if (allocated(solution%edir_open_bc_y)) then
           ledir(dtop + dside:C%dof - 1, :, C%xs:C%xe, C%ye + 1) = solution%edir_open_bc_y(dtop + dside:C%dof - 1, :, :)
           if (solution%lWm2_dir) then
-            ledir(dtop + dside:C%dof - 1, :, C%xs:C%xe, C%ye + 1) = ledir(dtop + dside:C%dof - 1, :, C%xs:C%xe, C%ye + 1) &
+            ledir(dtop + dside:C%dof - 1, :, C%xs:C%xe, C%ye + 1) = &
+              & ledir(dtop + dside:C%dof - 1, :, C%xs:C%xe, C%ye + 1) &
               & * solver%dir_scalevec_W_to_Wm2(dtop + dside + 1:C%dof, :, :, C%ym)
           end if
         end if
