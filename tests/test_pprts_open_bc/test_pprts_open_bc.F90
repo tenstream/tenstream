@@ -102,6 +102,9 @@ contains
   subroutine set_bc_options(lopen_x, lopen_y, l2d)
     logical, intent(in) :: lopen_x, lopen_y, l2d
     integer(mpiint) :: ierr
+    ! open boundaries are only supported by the explicit solvers,
+    ! override any settings from the environment, e.g. PETSC_OPTIONS in the CI implicit job
+    call insert_petsc_opt('-solar_dir_explicit -solar_diff_explicit -thermal_diff_explicit', ierr); call CHKERR(ierr)
     call insert_petsc_opt('-pprts_open_bc '//merge('yes', 'no ', lopen_x .and. lopen_y), ierr); call CHKERR(ierr)
     call insert_petsc_opt('-pprts_open_bc_x '//merge('yes', 'no ', lopen_x), ierr); call CHKERR(ierr)
     call insert_petsc_opt('-pprts_open_bc_y '//merge('yes', 'no ', lopen_y), ierr); call CHKERR(ierr)
