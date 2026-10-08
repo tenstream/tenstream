@@ -53,8 +53,6 @@ module m_ecckd_base
 
   use m_netcdfIO, only: ncload, get_global_attribute
 
-  use iso_fortran_env, only: real64
-
   use m_mie_tables, only: t_mie_table, mie_optprop
   use m_fu_ice, only: t_fu_muskatel_ice_data, fu_ice_optprop
 
@@ -469,7 +467,7 @@ contains
 
     integer(iintegers) :: ireff, igpt, iwvnr
     real(ireals) :: reff, wgt, wvl_lo, wvl_hi, wvl, gpt_qext, gpt_w0, gpt_g, qext, w0, g
-    real(real64) :: acc(5)
+    real(ireals) :: acc(5)
     logical :: lthick
     ierr = 0
 
@@ -538,34 +536,33 @@ contains
     type(t_ecckd_data), intent(in) :: ecckd_data
     integer(iintegers), intent(in) :: iwvnr, igpt
     real(ireals) :: wgt
-    real(real64), parameter :: c2 = 1.4387769_real64 ! second radiation constant [cm K]
-    real(real64) :: nu, T
+    real(ireals), parameter :: c2 = 1.4387769_ireals ! second radiation constant [cm K]
+    real(ireals) :: nu, T
 
     if (allocated(ecckd_data%solar_irradiance)) then
-      T = 5777._real64
+      T = 5777._ireals
     else
-      T = 273.15_real64
+      T = 273.15_ireals
     end if
-    nu = .5_real64 * (real(ecckd_data%wavenumber1(iwvnr), real64) + real(ecckd_data%wavenumber2(iwvnr), real64))
-    wgt = real(real(ecckd_data%gpoint_fraction(iwvnr, igpt), real64) &
-      & * nu**3 / (exp(c2 * nu / T) - 1._real64), ireals)
+    nu = .5_ireals * (ecckd_data%wavenumber1(iwvnr) + ecckd_data%wavenumber2(iwvnr))
+    wgt = ecckd_data%gpoint_fraction(iwvnr, igpt) * nu**3 / (exp(c2 * nu / T) - 1._ireals)
   end function
 
   !> Accumulate delta-Eddington scaled optical properties of one spectral interval
   !> acc = [sum(wgt), sum(wgt*ext), sum(wgt*ext*w0), sum(wgt*ext*w0*g), sum(wgt*R_inf)]
   subroutine cloud_gpt_average_add(acc, wgt, qext, w0, g)
-    real(real64), intent(inout) :: acc(:)
+    real(ireals), intent(inout) :: acc(:)
     real(ireals), intent(in) :: wgt, qext, w0, g
-    real(real64) :: f, ext_s, w0_s, g_s, rinf
+    real(ireals) :: f, ext_s, w0_s, g_s, rinf
 
-    f = real(g, real64)**2
-    ext_s = real(qext, real64) * (1._real64 - real(w0, real64) * f)
-    w0_s = real(w0, real64) * (1._real64 - f) / max(1._real64 - real(w0, real64) * f, tiny(f))
-    g_s = real(g, real64) / (1._real64 + real(g, real64))
+    f = g**2
+    ext_s = qext * (1._ireals - w0 * f)
+    w0_s = w0 * (1._ireals - f) / max(1._ireals - w0 * f, tiny(f))
+    g_s = g / (1._ireals + g)
 
     ! infinite-medium reflectance, Eqs. 17 and 18 of Edwards and Slingo (1996)
-    rinf = sqrt(max(0._real64, 1._real64 - w0_s) / max(1._real64 - w0_s * g_s, tiny(f)))
-    rinf = (1._real64 - rinf) / (1._real64 + rinf)
+    rinf = sqrt(max(0._ireals, 1._ireals - w0_s) / max(1._ireals - w0_s * g_s, tiny(f)))
+    rinf = (1._ireals - rinf) / (1._ireals + rinf)
 
     acc(1) = acc(1) + wgt
     acc(2) = acc(2) + wgt * ext_s
@@ -581,10 +578,10 @@ contains
   !> Averaging is done on delta-Eddington scaled quantities; the results are transformed back to unscaled
   !> quantities because the solver applies delta scaling to the combined optical properties.
   subroutine cloud_gpt_average_finalize(acc, lthick, qext, w0, g)
-    real(real64), intent(in) :: acc(:)
+    real(ireals), intent(in) :: acc(:)
     logical, intent(in) :: lthick
     real(ireals), intent(out) :: qext, w0, g
-    real(real64) :: ext_s, w0_s, g_s, rinf, f, w0_u
+    real(ireals) :: ext_s, w0_s, g_s, rinf, f
 
     if (acc(1) .le. 0 .or. acc(2) .le. 0) then
       qext = 0; w0 = 0; g = 0
@@ -601,17 +598,16 @@ contains
 
     if (lthick) then
       rinf = acc(5) / acc(1)
-      w0_s = 4._real64 * rinf / ((1._real64 + rinf)**2 - g_s * (1._real64 - rinf)**2)
+      w0_s = 4._ireals * rinf / ((1._ireals + rinf)**2 - g_s * (1._ireals - rinf)**2)
     end if
-    w0_s = min(max(w0_s, 0._real64), 1._real64)
+    w0_s = min(max(w0_s, 0._ireals), 1._ireals)
 
     ! inverse delta-Eddington scaling with f = g**2
-    g_s = min(g_s, .5_real64 - epsilon(g_s))
-    g = real(g_s / (1._real64 - g_s), ireals)
-    f = real(g, real64)**2
-    w0_u = w0_s / (1._real64 - f + w0_s * f)
-    w0 = real(w0_u, ireals)
-    qext = real(ext_s / (1._real64 - w0_u * f), ireals)
+    g_s = min(g_s, .5_ireals - epsilon(g_s))
+    g = g_s / (1._ireals - g_s)
+    f = g**2
+    w0 = w0_s / (1._ireals - f + w0_s * f)
+    qext = ext_s / (1._ireals - w0 * f)
   end subroutine
 
   subroutine init_mie_table(general_mie_table, ecckd_data, ierr)
@@ -621,7 +617,7 @@ contains
 
     integer(iintegers) :: ireff, igpt, iwvnr
     real(ireals) :: reff, wgt, wvl_lo, wvl_hi, wvl, gpt_qext, gpt_w0, gpt_g, qext, w0, g
-    real(real64) :: acc(5)
+    real(ireals) :: acc(5)
     logical :: lthick
     ierr = 0
 
