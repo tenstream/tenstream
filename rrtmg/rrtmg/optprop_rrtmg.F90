@@ -51,6 +51,12 @@ module m_optprop_rrtmg
   logical, parameter :: ldebug = .false.
   logical, save :: linit_rrtmg_lw = .false.
 
+  ! valid ranges of effective radii in RRTMG, values outside abort the RRTMG cloud property routines
+  real(ireals), parameter :: rrtmg_reliq_min = 2.5_ireals   ! liqflg=1, liquid effective radius [micron]
+  real(ireals), parameter :: rrtmg_reliq_max = 60._ireals
+  real(ireals), parameter :: rrtmg_reice_min = 5._ireals    ! iceflg=3, ice generalized effective size [micron]
+  real(ireals), parameter :: rrtmg_reice_max = 140._ireals
+
 contains
   subroutine optprop_rrtm_lw(ncol_in, nlay_in, &
                              albedo, plev, tlev, tlay, tsrfc, &
@@ -76,6 +82,7 @@ contains
     real(rb), dimension(ncol_in, nlay_in) :: play, cldfr
 
     real(rb), dimension(nbndlw, ncol_in, nlay_in) :: taucld
+    real(rb), dimension(ncol_in, nlay_in) :: reliq_rb, reice_rb
     real(rb), dimension(ncol_in, nlay_in, nbndlw) :: tauaer
     real(rb), dimension(ncol_in, nbndlw) :: emis
 
@@ -99,6 +106,9 @@ contains
     ! copy from TenStream to RRTM precision:
     ncol = int(ncol_in, kind=im)
     nlay = int(nlay_in, kind=im)
+
+    reliq_rb = real(clamp_effective_radius(lwp, reliq, rrtmg_reliq_min, rrtmg_reliq_max), rb)
+    reice_rb = real(clamp_effective_radius(iwp, reice, rrtmg_reice_min, rrtmg_reice_max), rb)
 
     ! Take average pressure and temperature as mean values for voxels --
     ! should probably use log interpolation for pressure...
@@ -146,7 +156,7 @@ contains
          real(ch4vmr, rb), real(n2ovmr, rb), real(o2vmr, rb), &
          cfc11vmr, cfc12vmr, cfc22vmr, ccl4vmr, emis, &
          inflglw, iceflglw, liqflglw, cldfr, taucld, &
-         real(iwp, rb), real(lwp, rb), real(reice, rb), real(reliq, rb), &
+         real(iwp, rb), real(lwp, rb), reice_rb, reliq_rb, &
          tauaer, &
          lwuflx, lwdflx, lwhr, lwuflxc, lwdflxc, lwhrc, &
          tau, Bfrac, loptprop_only=.false., tenstr_tau_f=opt_tau_f)
@@ -162,7 +172,7 @@ contains
          real(ch4vmr, rb), real(n2ovmr, rb), real(o2vmr, rb), &
          cfc11vmr, cfc12vmr, cfc22vmr, ccl4vmr, emis, &
          inflglw, iceflglw, liqflglw, cldfr, taucld, &
-         real(iwp, rb), real(lwp, rb), real(reice, rb), real(reliq, rb), &
+         real(iwp, rb), real(lwp, rb), reice_rb, reliq_rb, &
          tauaer, &
          lwuflx, lwdflx, lwhr, lwuflxc, lwdflxc, lwhrc, &
          tau, Bfrac, loptprop_only=.true., tenstr_tau_f=opt_tau_f)
@@ -203,6 +213,7 @@ contains
     real(rb), dimension(ncol_in, nlay_in) :: play, cldfr
 
     real(rb), dimension(nbndsw, ncol_in, nlay_in) :: taucld, ssacld, asmcld, fsfcld
+    real(rb), dimension(ncol_in, nlay_in) :: reliq_rb, reice_rb
     real(rb), dimension(ncol_in, nlay_in, nbndsw) :: tauaer, ssaaer, asmaer
     real(rb), dimension(ncol_in, nlay_in, naerec) :: ecaer
 
@@ -235,6 +246,9 @@ contains
     ! copy from TenStream to RRTM precision:
     ncol = int(ncol_in, kind=im)
     nlay = int(nlay_in, kind=im)
+
+    reliq_rb = real(clamp_effective_radius(lwp, reliq, rrtmg_reliq_min, rrtmg_reliq_max), rb)
+    reice_rb = real(clamp_effective_radius(iwp, reice, rrtmg_reice_min, rrtmg_reice_max), rb)
 
     ! Take average pressure and temperature as mean values for voxels --
     ! Todo: should we use log interpolation for pressure...?
@@ -284,7 +298,7 @@ contains
          coszen, adjes, dyofyr, solar_const, &
          inflgsw, iceflgsw, liqflgsw, cldfr, &
          taucld, ssacld, asmcld, fsfcld, &
-         real(iwp, rb), real(lwp, rb), real(reice, rb), real(reliq, rb), &
+         real(iwp, rb), real(lwp, rb), reice_rb, reliq_rb, &
          tauaer, ssaaer, asmaer, ecaer, &
          swuflx, swdflx, swhr, swuflxc, swdflxc, swhrc, &
          tau, w0, g, loptprop_only=.false., &
@@ -321,7 +335,7 @@ contains
          coszen, adjes, dyofyr, solar_const, &
          inflgsw, iceflgsw, liqflgsw, cldfr, &
          taucld, ssacld, asmcld, fsfcld, &
-         real(iwp, rb), real(lwp, rb), real(reice, rb), real(reliq, rb), &
+         real(iwp, rb), real(lwp, rb), reice_rb, reliq_rb, &
          tauaer, ssaaer, asmaer, ecaer, &
          swuflx, swdflx, swhr, swuflxc, swdflxc, swhrc, &
          tau, w0, g, loptprop_only=.true., &
@@ -336,6 +350,17 @@ contains
   ! Compute direct radiation from lambert beers law.
   ! This is good to split the edn flx which rrtmg returns into a direct component and a diffuse component
   ! ordering of tau and flx here start from surface and go up to TOA
+  !> limit effective radius to the valid range of the RRTMG parameterization where there is cloud water
+  elemental function clamp_effective_radius(water_path, reff, reff_min, reff_max) result(r)
+    real(ireals), intent(in) :: water_path, reff, reff_min, reff_max
+    real(ireals) :: r
+    if (water_path .gt. 0) then
+      r = min(max(reff, reff_min), reff_max)
+    else
+      r = reff
+    end if
+  end function
+
   subroutine Edir_lambert_beer(theta0, E0, dtau, edir)
     real(ireals), intent(in) :: theta0     ! solar angle [deg]
     real(ireals), intent(in) :: E0(:)      ! solar incident irradiance at TOA dim(nbands)
