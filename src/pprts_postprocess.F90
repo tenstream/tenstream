@@ -166,7 +166,9 @@ contains
               n = cross_3d([one, zero, grad(i0, k, i, j)], [zero, one, grad(i1, k, i, j)])
               n = n / norm2(n)
 
-              fac = dot_product(solver%sun%sundir, [zero, zero, one]) / dot_product(solver%sun%sundir, n)
+              ! edir is the flux through the tilted level per horizontal area, i.e. E0 (s.n) / n_z,
+              ! convert to the irradiance on a horizontal plane, E0 s_z
+              fac = dot_product(solver%sun%sundir, [zero, zero, one]) * n(3) / dot_product(solver%sun%sundir, n)
               edir(k - C_two1%zs + 1, i - C_two1%xs + 1, j - C_two1%ys + 1) = &
                 & edir(k - C_two1%zs + 1, i - C_two1%xs + 1, j - C_two1%ys + 1) * fac
             end do

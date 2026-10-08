@@ -109,6 +109,9 @@ module m_pprts
     & get_coeff, &
     & get_solution_uid, &
     & halo_fill_5pt, &
+    & halo_fill_edir, &
+    & halo_fill_ediff, &
+    & deallocate_diff2diff_ghost, &
     & halo_reduce_5pt, &
     & prepare_solution, &
     & setup_coord_native, &
@@ -459,8 +462,18 @@ contains
       if (.not. approx(dx, dy)) &
         call CHKERR(1_mpiint, 'dx and dy currently have to be the same '//toStr(dx)//' vs '//toStr(dy))
 
+      ! -pprts_open_bc opens both, the x and the y boundaries, -pprts_open_bc_x and -pprts_open_bc_y set them individually
       call get_petsc_opt("", "-pprts_open_bc", solver%lopen_bc, lflg, ierr); call CHKERR(ierr)
       call get_petsc_opt(solver%prefix, "-pprts_open_bc", solver%lopen_bc, lflg, ierr); call CHKERR(ierr)
+      solver%lopen_bc_x = solver%lopen_bc
+      solver%lopen_bc_y = solver%lopen_bc
+      call get_petsc_opt("", "-pprts_open_bc_x", solver%lopen_bc_x, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt(solver%prefix, "-pprts_open_bc_x", solver%lopen_bc_x, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt("", "-pprts_open_bc_y", solver%lopen_bc_y, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt(solver%prefix, "-pprts_open_bc_y", solver%lopen_bc_y, lflg, ierr); call CHKERR(ierr)
+      solver%lopen_bc = solver%lopen_bc_x .or. solver%lopen_bc_y
+      call get_petsc_opt("", "-pprts_open_bc_2d", solver%lopen_bc_2d, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt(solver%prefix, "-pprts_open_bc_2d", solver%lopen_bc_2d, lflg, ierr); call CHKERR(ierr)
 
       call get_petsc_opt("", "-pprts_compress_solutions", solver%lcompress_solutions, lflg, ierr); call CHKERR(ierr)
       call get_petsc_opt(solver%prefix, "-pprts_compress_solutions", solver%lcompress_solutions, lflg, ierr); call CHKERR(ierr)
@@ -473,7 +486,7 @@ contains
         print *, 'Solver dirside:', solver%dirside%is_inward, ':', solver%dirside%dof, ':', solver%dirside%area_divider
         print *, 'Solver difftop:', solver%difftop%is_inward, ':', solver%difftop%dof, ':', solver%difftop%area_divider
         print *, 'Solver diffside:', solver%diffside%is_inward, ':', solver%diffside%dof, ':', solver%diffside%area_divider
-        print *, 'Solver open boundary conditions? ', solver%lopen_bc
+        print *, 'Solver open boundary conditions? x:', solver%lopen_bc_x, 'y:', solver%lopen_bc_y, '2d:', solver%lopen_bc_2d
       end if
 
 #ifdef HAVE_PETSC
@@ -603,14 +616,14 @@ contains
             solver%atm%hhl = solver%atm%hhl - global_max_height
             call halo_fill_5pt(solver%comm, C, solver%atm%hhl, ierr); call CHKERR(ierr)
             if (solver%lopen_bc) then
-              if (C%xs .eq. 0) &
+              if (solver%lopen_bc_x .and. C%xs .eq. 0) &
                 solver%atm%hhl(i0, :, C%xs - i1, C%ys:C%ye) = solver%atm%hhl(i0, :, C%xs, C%ys:C%ye)
-              if (C%xe + i1 .eq. C%glob_xm) &
+              if (solver%lopen_bc_x .and. C%xe + i1 .eq. C%glob_xm) &
                 solver%atm%hhl(i0, :, C%xe + i1, C%ys:C%ye) = solver%atm%hhl(i0, :, C%xe, C%ys:C%ye)
-              if (C%ys .eq. 0) &
+              if (solver%lopen_bc_y .and. C%ys .eq. 0) &
                 solver%atm%hhl(i0, :, C%xs - i1:C%xe + i1, C%ys - i1) = &
                 solver%atm%hhl(i0, :, C%xs - i1:C%xe + i1, C%ys)
-              if (C%ye + i1 .eq. C%glob_ym) &
+              if (solver%lopen_bc_y .and. C%ye + i1 .eq. C%glob_ym) &
                 solver%atm%hhl(i0, :, C%xs - i1:C%xe + i1, C%ye + i1) = &
                 solver%atm%hhl(i0, :, C%xs - i1:C%xe + i1, C%ye)
             end if
@@ -724,30 +737,46 @@ contains
 
     end subroutine
 
+    !> @brief heights of the cell vertices, relative to the top of the domain
+    !> @details a vertex is shared by the four adjacent cells, its height is the mean of their heights.
+    !> With open boundaries, the edge columns continue outwards
     subroutine determine_vertex_heights()
       if (allocated(solver%atm%vert_heights)) return
       block
-        integer(iintegers) :: k, i, j, ci, cj
-        real(ireals) :: height
+        integer(iintegers) :: k, i, j
+        real(ireals), allocatable :: hcell(:, :, :, :) ! (0:0, zs:ze, gxs:gxe, gys:gye) height of the cell levels
         associate ( &
           & atm => solver%atm, &
           & Catm1 => solver%C_one_atm1_box, &
           & Cd => solver%C_dir)
-          allocate (atm%vert_heights( &
-            & i0:i0, &
-            & Catm1%zs:Catm1%ze, &
-            & Cd%gxs:Cd%gxe, &
-            & Cd%gys:Cd%gye), source=0._ireals)
-          do j = Cd%gys, Cd%gye
-            do i = Cd%gxs, Cd%gxe
-              ci = max(Cd%xs, min(Cd%xe, i))
-              cj = max(Cd%ys, min(Cd%ye, j))
-              height = 0._ireals
-              atm%vert_heights(i0, Catm1%zs, i, j) = height
+
+          allocate (hcell(i0:i0, Catm1%zs:Catm1%ze, Cd%gxs:Cd%gxe, Cd%gys:Cd%gye), source=0._ireals)
+          do j = Cd%ys, Cd%ye
+            do i = Cd%xs, Cd%xe
               do k = Catm1%zs, Catm1%ze - 1
-                height = height - atm%dz(k, ci, cj)
-                atm%vert_heights(i0, k + 1, i, j) = height
+                hcell(i0, k + 1, i, j) = hcell(i0, k, i, j) - atm%dz(k, i, j)
               end do
+            end do
+          end do
+          ! the second halo exchange brings the corners, i.e. the diagonal neighbours
+          call halo_fill_5pt(solver%comm, Cd, hcell, ierr); call CHKERR(ierr)
+          call halo_fill_5pt(solver%comm, Cd, hcell, ierr); call CHKERR(ierr)
+          if (solver%lopen_bc_x) then
+            if (Cd%xs .eq. i0) hcell(:, :, Cd%xs - 1, :) = hcell(:, :, Cd%xs, :)
+            if (Cd%xe + 1 .eq. Cd%glob_xm) hcell(:, :, Cd%xe + 1, :) = hcell(:, :, Cd%xe, :)
+          end if
+          if (solver%lopen_bc_y) then
+            if (Cd%ys .eq. i0) hcell(:, :, :, Cd%ys - 1) = hcell(:, :, :, Cd%ys)
+            if (Cd%ye + 1 .eq. Cd%glob_ym) hcell(:, :, :, Cd%ye + 1) = hcell(:, :, :, Cd%ye)
+          end if
+
+          ! vertex i,j is the lower left corner of cell i,j
+          allocate (atm%vert_heights(i0:i0, Catm1%zs:Catm1%ze, Cd%gxs:Cd%gxe, Cd%gys:Cd%gye), source=0._ireals)
+          do j = Cd%ys, Cd%ye + 1
+            do i = Cd%xs, Cd%xe + 1
+              atm%vert_heights(i0, :, i, j) = ( &
+                & hcell(i0, :, i - 1, j - 1) + hcell(i0, :, i, j - 1) + &
+                & hcell(i0, :, i - 1, j) + hcell(i0, :, i, j)) / 4._ireals
             end do
           end do
         end associate
@@ -2682,9 +2711,11 @@ contains
     ! Populate transport coeffs
     if (solution%lsolar_rad) then
       call alloc_coeff_dir2dir(solver, solver%dir2dir, opt_buildings)
+      call alloc_coeff_dir2dir_ghost(solver)
       call alloc_coeff_dir2diff(solver, solver%dir2diff)
     end if
     call alloc_coeff_diff2diff(solver, solver%diff2diff, opt_buildings)
+    call alloc_coeff_diff2diff_ghost(solver, opt_buildings)
 
     ! --------- scale from [W/m**2] to [W] -----------------
     call scale_flx(solver, solution, lWm2=.false.)
@@ -2719,11 +2750,24 @@ contains
             call VecDestroy(b_gvec, ierr); call CHKERR(ierr)
             deallocate (b_arr)
             call getVecPointer(C%da, lb_vec, lb_1d, lb_4d)
+            if (allocated(solution%edir_open_bc_x)) deallocate (solution%edir_open_bc_x)
+            if (allocated(solution%edir_open_bc_y)) deallocate (solution%edir_open_bc_y)
             call DMGetLocalVector(C%da, v0_vec, ierr); call CHKERR(ierr)
             call DMGlobalToLocal(C%da, solution%edir_petsc, INSERT_VALUES, v0_vec, ierr); call CHKERR(ierr)
             call getVecPointer(C%da, v0_vec, v0_1d, v0_4d)
             call getVecPointer(C%da, solution%edir_petsc, vedir_1d, vedir_4d)
             call explicit_edir(solver, prefix, edirTOA, vedir_4d, lb_4d, v0_4d, solution, ierr); call CHKERR(ierr)
+            ! keep the flux through the east/north open boundary, it lives on a ghost face and is not part of edir.
+            ! If the sun is in the east/north, this is the inflow boundary condition, otherwise it is the outflow of the edge cells,
+            ! which a periodic halo exchange would replace with the opposite inflow
+            if (solver%lopen_bc) then
+              if (solver%lopen_bc_x .and. C%xe + 1 .eq. C%glob_xm) then
+                allocate (solution%edir_open_bc_x(0:C%dof - 1, C%zs:C%ze, C%ys:C%ye), source=v0_4d(:, :, C%xe + 1, C%ys:C%ye))
+              end if
+              if (solver%lopen_bc_y .and. C%ye + 1 .eq. C%glob_ym) then
+                allocate (solution%edir_open_bc_y(0:C%dof - 1, C%zs:C%ze, C%xs:C%xe), source=v0_4d(:, :, C%xs:C%xe, C%ye + 1))
+              end if
+            end if
             call restoreVecPointer(C%da, solution%edir_petsc, vedir_1d, vedir_4d)
             call restoreVecPointer(C%da, v0_vec, v0_1d, v0_4d)
             call restoreVecPointer(C%da, lb_vec, lb_1d, lb_4d)
@@ -2740,9 +2784,26 @@ contains
             allocate (lb_arr(0:C%dof - 1, C%zs:C%ze, C%gxs:C%gxe, C%gys:C%gye)); lb_arr = zero
             lb_arr(:, :, C%xs:C%xe, C%ys:C%ye) = b_arr
             deallocate (b_arr)
+            if (allocated(solution%edir_open_bc_x)) deallocate (solution%edir_open_bc_x)
+            if (allocated(solution%edir_open_bc_y)) deallocate (solution%edir_open_bc_y)
+            if (solver%lopen_bc) then
+              ! the inflow through the east/north edge is set on the periodic image and has to be brought to the ghost face
+              call halo_fill_5pt(solver%comm, C, lb_arr, ierr); call CHKERR(ierr)
+            end if
             allocate (v0_arr(0:C%dof - 1, C%zs:C%ze, C%gxs:C%gxe, C%gys:C%gye)); v0_arr = zero
             v0_arr(:, :, C%xs:C%xe, C%ys:C%ye) = solution%edir
             call explicit_edir(solver, prefix, edirTOA, solution%edir, lb_arr, v0_arr, solution, ierr); call CHKERR(ierr)
+            ! keep the flux through the east/north open boundary, it lives on a ghost face and is not part of edir.
+            ! If the sun is in the east/north, this is the inflow boundary condition, otherwise it is the outflow of the edge cells,
+            ! which a periodic halo exchange would replace with the opposite inflow
+            if (solver%lopen_bc) then
+              if (solver%lopen_bc_x .and. C%xe + 1 .eq. C%glob_xm) then
+                allocate (solution%edir_open_bc_x(0:C%dof - 1, C%zs:C%ze, C%ys:C%ye), source=v0_arr(:, :, C%xe + 1, C%ys:C%ye))
+              end if
+              if (solver%lopen_bc_y .and. C%ye + 1 .eq. C%glob_ym) then
+                allocate (solution%edir_open_bc_y(0:C%dof - 1, C%zs:C%ze, C%xs:C%xe), source=v0_arr(:, :, C%xs:C%xe, C%ye + 1))
+              end if
+            end if
             deallocate (lb_arr, v0_arr)
           end associate
         end block
@@ -2801,6 +2862,8 @@ contains
       if (lexplicit_diff) then
         call explicit_ediff(solver, prefix, solver%b, solution%ediff, solution, ierr); call CHKERR(ierr)
       else
+        if (solver%lopen_bc) call CHKERR(1_mpiint, 'open boundaries for diffuse radiation need the explicit solver, '// &
+          & 'use -'//trim(prefix)//'explicit')
 #ifdef HAVE_PETSC
         if (solution%lsolar_rad) then
           call ediff(solver%Mdiff, solver%Mdiff_perm, solver%ksp_solar_diff, prefix)
@@ -3213,6 +3276,230 @@ contains
       end associate
     end subroutine
 
+  end subroutine
+
+  !> @brief direct transport coeffs of the ghost cells just outside of the sunward open domain edges
+  !> @details the ghost cells continue the edge columns outwards, i.e. same optical properties, layer thickness and buildings.
+  !> Their vertices are the ones of the outer face of the edge cell, i.e. they keep the slope along the edge
+  !> but are not distorted across it. Copying the edge cells instead would not continue the terrain but its slope.
+  subroutine alloc_coeff_dir2dir_ghost(solver)
+    class(t_solver), intent(inout) :: solver
+
+    real(irealLUT), allocatable :: v(:)
+    real(ireals) :: hs(2, 2, 2), vertices(24)
+    logical :: lgeometric_coeffs, ltop_bottom_faces_planar, ltop_bottom_planes_parallel
+    integer(iintegers) :: k, i, j, iedge, jedge
+
+    if (allocated(solver%dir2dir_ghost_x)) deallocate (solver%dir2dir_ghost_x)
+    if (allocated(solver%dir2dir_ghost_y)) deallocate (solver%dir2dir_ghost_y)
+    if (allocated(solver%dir2dir_ghost_corner)) deallocate (solver%dir2dir_ghost_corner)
+    if (.not. solver%lopen_bc) return
+
+    associate (atm => solver%atm, sun => solver%sun, C => solver%C_dir)
+
+      call read_cmd_line_opts_get_coeffs(solver%prefix, lgeometric_coeffs, ltop_bottom_faces_planar, ltop_bottom_planes_parallel)
+      allocate (v(1:C%dof**2))
+
+      iedge = -1
+      if (solver%lopen_bc_x) then
+        if (sun%xinc .eq. i1 .and. C%xs .eq. i0) iedge = C%xs
+        if (sun%xinc .eq. i0 .and. C%xe + 1 .eq. C%glob_xm) iedge = C%xe
+      end if
+      if (iedge .ge. 0) then
+        allocate (solver%dir2dir_ghost_x(1:C%dof**2, C%zs:C%ze - 1, C%ys:C%ye), source=zero)
+        do j = C%ys, C%ye
+          do k = C%zs, C%ze - 1
+            call ghost_coeff(1_iintegers, k, iedge, j, solver%dir2dir_ghost_x(:, k, j))
+          end do
+        end do
+      end if
+
+      jedge = -1
+      if (solver%lopen_bc_y) then
+        if (sun%yinc .eq. i1 .and. C%ys .eq. i0) jedge = C%ys
+        if (sun%yinc .eq. i0 .and. C%ye + 1 .eq. C%glob_ym) jedge = C%ye
+      end if
+      if (jedge .ge. 0) then
+        allocate (solver%dir2dir_ghost_y(1:C%dof**2, C%zs:C%ze - 1, C%xs:C%xe), source=zero)
+        do i = C%xs, C%xe
+          do k = C%zs, C%ze - 1
+            call ghost_coeff(2_iintegers, k, i, jedge, solver%dir2dir_ghost_y(:, k, i))
+          end do
+        end do
+      end if
+
+      ! the corner, continues the corner column in both directions, i.e. a regular box
+      if (iedge .ge. 0 .and. jedge .ge. 0) then
+        allocate (solver%dir2dir_ghost_corner(1:C%dof**2, C%zs:C%ze - 1), source=zero)
+        do k = C%zs, C%ze - 1
+          call ghost_coeff(3_iintegers, k, iedge, jedge, solver%dir2dir_ghost_corner(:, k))
+        end do
+      end if
+    end associate
+
+  contains
+
+    subroutine ghost_coeff(idir, k, i, j, coeff)
+      integer(iintegers), intent(in) :: idir ! 1: ghost outside of the x edge, 2: y edge, 3: corner
+      integer(iintegers), intent(in) :: k, i, j ! edge cell
+      real(ireals), intent(out) :: coeff(:)
+      integer(iintegers) :: ak, iface, jface, m
+
+      coeff = zero
+      associate (atm => solver%atm, sun => solver%sun)
+        ak = atmk(atm, k)
+        if (atm%l1d(ak)) return
+        ! buildings block the edge cell, they continue outwards as well
+        if (all(solver%dir2dir(:, k, i, j) .eq. zero)) return
+
+        call setup_default_unit_cube_geometry(atm%dx, atm%dy, -one, vertices)
+        if (idir .eq. 1) then
+          iface = merge(i, i + 1, sun%xinc .eq. i1) ! outer face of the edge cell
+          do m = 1, 2
+            hs(:, m, :) = atm%vert_heights(i0, atmk(atm, k):atmk(atm, k + 1), iface, j:j + 1)
+          end do
+        else if (idir .eq. 2) then
+          jface = merge(j, j + 1, sun%yinc .eq. i1)
+          do m = 1, 2
+            hs(:, :, m) = atm%vert_heights(i0, atmk(atm, k):atmk(atm, k + 1), i:i + 1, jface)
+          end do
+        else
+          hs(1, :, :) = atm%dz(ak, i, j)
+          hs(2, :, :) = zero
+        end if
+        call init_vertices(hs, atm%dz(ak, i, j), ltop_bottom_faces_planar, ltop_bottom_planes_parallel, vertices)
+
+        if (lgeometric_coeffs) then
+          vertices(3:24:3) = vertices(3:24:3) - minval(vertices(3:24:3))
+          call dir2dir3_geometric_coeffs(vertices, sun%sundir, atm%kabs(ak, i, j) + atm%ksca(ak, i, j), coeff)
+        else
+          call get_coeff( &
+            & solver%OPP, &
+            & atm%kabs(ak, i, j), &
+            & atm%ksca(ak, i, j), &
+            & atm%g(ak, i, j), &
+            & atm%dz(ak, i, j), &
+            & atm%dx, &
+            & .true., &
+            & v, &
+            & [real(sun%symmetry_phi, irealLUT), real(sun%theta, irealLUT)], &
+            & lswitch_east=sun%xinc .eq. 0, lswitch_north=sun%yinc .eq. 0, &
+            & opt_vertices=vertices &
+            & )
+          coeff = real(v, ireals)
+        end if
+      end associate
+    end subroutine
+  end subroutine
+
+  !> @brief diffuse transport coeffs of the ghost cells just outside of all open domain edges and corners
+  !> @details same as for direct radiation, see alloc_coeff_dir2dir_ghost, but diffuse radiation enters the domain everywhere.
+  !> Edge cells with buildings continue outwards with their coefficients
+  subroutine alloc_coeff_diff2diff_ghost(solver, opt_buildings)
+    class(t_solver), intent(inout) :: solver
+    type(t_pprts_buildings), optional, intent(in) :: opt_buildings
+
+    real(irealLUT), allocatable :: v(:)
+    real(ireals) :: hs(2, 2, 2), vertices(24)
+    logical :: lgeometric_coeffs, ltop_bottom_faces_planar, ltop_bottom_planes_parallel
+    logical, allocatable :: lbuilding(:, :, :)
+    integer(iintegers) :: k, i, j, m, idx(4)
+    logical :: lw, le, ls, ln
+
+    call deallocate_diff2diff_ghost(solver)
+    if (.not. (solver%lopen_bc .and. solver%lopen_bc_2d)) return
+
+    associate (atm => solver%atm, C => solver%C_diff)
+
+      call read_cmd_line_opts_get_coeffs(solver%prefix, lgeometric_coeffs, ltop_bottom_faces_planar, ltop_bottom_planes_parallel)
+      allocate (v(1:C%dof**2))
+
+      allocate (lbuilding(C%zs:C%ze - 1, C%xs:C%xe, C%ys:C%ye), source=.false.)
+      if (present(opt_buildings)) then
+        do m = 1, size(opt_buildings%iface)
+          call ind_1d_to_nd(opt_buildings%da_offsets, opt_buildings%iface(m), idx)
+          lbuilding(idx(2) - 1 + C%zs, idx(3) - 1 + C%xs, idx(4) - 1 + C%ys) = .true.
+        end do
+      end if
+
+      lw = solver%lopen_bc_x .and. C%xs .eq. i0
+      le = solver%lopen_bc_x .and. C%xe + 1 .eq. C%glob_xm
+      ls = solver%lopen_bc_y .and. C%ys .eq. i0
+      ln = solver%lopen_bc_y .and. C%ye + 1 .eq. C%glob_ym
+
+      if (lw) allocate (solver%diff2diff_ghost_w(1:C%dof**2, C%zs:C%ze - 1, C%ys:C%ye), source=zero)
+      if (le) allocate (solver%diff2diff_ghost_e(1:C%dof**2, C%zs:C%ze - 1, C%ys:C%ye), source=zero)
+      if (ls) allocate (solver%diff2diff_ghost_s(1:C%dof**2, C%zs:C%ze - 1, C%xs:C%xe), source=zero)
+      if (ln) allocate (solver%diff2diff_ghost_n(1:C%dof**2, C%zs:C%ze - 1, C%xs:C%xe), source=zero)
+      if (lw .and. ls) allocate (solver%diff2diff_ghost_sw(1:C%dof**2, C%zs:C%ze - 1), source=zero)
+      if (le .and. ls) allocate (solver%diff2diff_ghost_se(1:C%dof**2, C%zs:C%ze - 1), source=zero)
+      if (lw .and. ln) allocate (solver%diff2diff_ghost_nw(1:C%dof**2, C%zs:C%ze - 1), source=zero)
+      if (le .and. ln) allocate (solver%diff2diff_ghost_ne(1:C%dof**2, C%zs:C%ze - 1), source=zero)
+
+      do k = C%zs, C%ze - 1
+        do j = C%ys, C%ye
+          if (lw) call ghost_coeff(1_iintegers, C%xs, k, C%xs, j, solver%diff2diff_ghost_w(:, k, j))
+          if (le) call ghost_coeff(1_iintegers, C%xe + 1, k, C%xe, j, solver%diff2diff_ghost_e(:, k, j))
+        end do
+        do i = C%xs, C%xe
+          if (ls) call ghost_coeff(2_iintegers, C%ys, k, i, C%ys, solver%diff2diff_ghost_s(:, k, i))
+          if (ln) call ghost_coeff(2_iintegers, C%ye + 1, k, i, C%ye, solver%diff2diff_ghost_n(:, k, i))
+        end do
+        if (lw .and. ls) call ghost_coeff(3_iintegers, -1_iintegers, k, C%xs, C%ys, solver%diff2diff_ghost_sw(:, k))
+        if (le .and. ls) call ghost_coeff(3_iintegers, -1_iintegers, k, C%xe, C%ys, solver%diff2diff_ghost_se(:, k))
+        if (lw .and. ln) call ghost_coeff(3_iintegers, -1_iintegers, k, C%xs, C%ye, solver%diff2diff_ghost_nw(:, k))
+        if (le .and. ln) call ghost_coeff(3_iintegers, -1_iintegers, k, C%xe, C%ye, solver%diff2diff_ghost_ne(:, k))
+      end do
+    end associate
+
+  contains
+
+    subroutine ghost_coeff(idir, iface, k, i, j, coeff)
+      integer(iintegers), intent(in) :: idir ! 1: ghost outside of an x edge, 2: y edge, 3: corner
+      integer(iintegers), intent(in) :: iface ! the outer face of the edge cell (x or y index)
+      integer(iintegers), intent(in) :: k, i, j ! edge cell
+      real(ireals), intent(out) :: coeff(:)
+      integer(iintegers) :: ak, n
+
+      coeff = zero
+      associate (atm => solver%atm)
+        ak = atmk(atm, k)
+        if (atm%l1d(ak)) return
+        if (lbuilding(k, i, j)) then
+          coeff = solver%diff2diff(:, k, i, j)
+          return
+        end if
+
+        call setup_default_unit_cube_geometry(atm%dx, atm%dy, -one, vertices)
+        select case (idir)
+        case (1)
+          do n = 1, 2
+            hs(:, n, :) = atm%vert_heights(i0, ak:atmk(atm, k + 1), iface, j:j + 1)
+          end do
+        case (2)
+          do n = 1, 2
+            hs(:, :, n) = atm%vert_heights(i0, ak:atmk(atm, k + 1), i:i + 1, iface)
+          end do
+        case default
+          hs(1, :, :) = atm%dz(ak, i, j)
+          hs(2, :, :) = zero
+        end select
+        call init_vertices(hs, atm%dz(ak, i, j), ltop_bottom_faces_planar, ltop_bottom_planes_parallel, vertices)
+
+        call get_coeff( &
+          & solver%OPP, &
+          & atm%kabs(ak, i, j), &
+          & atm%ksca(ak, i, j), &
+          & atm%g(ak, i, j), &
+          & atm%dz(ak, i, j), &
+          & atm%dx, &
+          & .false., &
+          & v, &
+          & opt_vertices=vertices &
+          & )
+        coeff = real(v, ireals)
+      end associate
+    end subroutine
   end subroutine
 
   subroutine alloc_coeff_dir2diff(solver, coeffs)
@@ -4662,7 +4949,7 @@ contains
       if (solution%lsolar_rad) then
         allocate (local_edir(0:C_dir%dof - 1, C_dir%zs:C_dir%ze, C_dir%gxs:C_dir%gxe, C_dir%gys:C_dir%gye), source=0._ireals)
         local_edir(:, :, C_dir%xs:C_dir%xe, C_dir%ys:C_dir%ye) = solution%edir
-        call halo_fill_5pt(solver%comm, C_dir, local_edir, ierr); call CHKERR(ierr)
+        call halo_fill_edir(solver, solution, local_edir, ierr); call CHKERR(ierr)
         call set_solar_source(local_edir)
       end if
 
@@ -5214,7 +5501,7 @@ contains
         if (solution%lsolar_rad) then
           allocate (ledir(0:C_dir%dof - 1, C_dir%zs:C_dir%ze, C_dir%gxs:C_dir%gxe, C_dir%gys:C_dir%gye), source=0._ireals)
           ledir(:, :, C_dir%xs:C_dir%xe, C_dir%ys:C_dir%ye) = solution%edir
-          call halo_fill_5pt(solver%comm, C_dir, ledir, ierr); call CHKERR(ierr)
+          call halo_fill_edir(solver, solution, ledir, ierr); call CHKERR(ierr)
           do j = C_one%ys, C_one%ye
             do i = C_one%xs, C_one%xe
               do k = C_one%zs, C_one%ze
@@ -5296,12 +5583,12 @@ contains
       if (solution%lsolar_rad) then
         allocate (ledir(0:C_dir%dof - 1, C_dir%zs:C_dir%ze, C_dir%gxs:C_dir%gxe, C_dir%gys:C_dir%gye), source=0._ireals)
         ledir(:, :, C_dir%xs:C_dir%xe, C_dir%ys:C_dir%ye) = solution%edir
-        call halo_fill_5pt(solver%comm, C_dir, ledir, ierr); call CHKERR(ierr)
+        call halo_fill_edir(solver, solution, ledir, ierr); call CHKERR(ierr)
       end if
 
       allocate (lediff(0:C_diff%dof - 1, C_diff%zs:C_diff%ze, C_diff%gxs:C_diff%gxe, C_diff%gys:C_diff%gye), source=0._ireals)
       lediff(:, :, C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye) = solution%ediff
-      call halo_fill_5pt(solver%comm, C_diff, lediff, ierr); call CHKERR(ierr)
+      call halo_fill_ediff(solver, solution, lediff, ierr); call CHKERR(ierr)
 
       if (by_coeff_divergence) then
 
@@ -6017,6 +6304,41 @@ contains
       end if
     end subroutine
 
+    !> with open boundaries, the east/north ghost faces do not hold the periodic neighbor but the radiation that enters the domain
+    !> the inflow is stored in [W], convert it with the scaling of the adjacent edge cells
+    subroutine fill_open_bc_inflow(ledir)
+      real(ireals), intent(inout) :: ledir(0:, solver%C_dir%zs:, solver%C_dir%gxs:, solver%C_dir%gys:)
+
+      if (.not. solver%lopen_bc) return
+
+      associate ( &
+          & solution => solver%solutions(uid), &
+          & C => solver%C_dir, &
+          & dtop => solver%dirtop%dof, &
+          & dside => solver%dirside%dof)
+
+        if (solution%lWm2_dir .and. .not. allocated(solver%dir_scalevec_W_to_Wm2)) &
+          & call CHKERR(1_mpiint, 'expected the dir flux scaling vector to be allocated')
+
+        if (allocated(solution%edir_open_bc_x)) then
+          ledir(dtop:dtop + dside - 1, :, C%xe + 1, C%ys:C%ye) = solution%edir_open_bc_x(dtop:dtop + dside - 1, :, :)
+          if (solution%lWm2_dir) then
+            ledir(dtop:dtop + dside - 1, :, C%xe + 1, C%ys:C%ye) = &
+              & ledir(dtop:dtop + dside - 1, :, C%xe + 1, C%ys:C%ye) &
+              & * solver%dir_scalevec_W_to_Wm2(dtop + 1:dtop + dside, :, C%xm, :)
+          end if
+        end if
+        if (allocated(solution%edir_open_bc_y)) then
+          ledir(dtop + dside:C%dof - 1, :, C%xs:C%xe, C%ye + 1) = solution%edir_open_bc_y(dtop + dside:C%dof - 1, :, :)
+          if (solution%lWm2_dir) then
+            ledir(dtop + dside:C%dof - 1, :, C%xs:C%xe, C%ye + 1) = &
+              & ledir(dtop + dside:C%dof - 1, :, C%xs:C%xe, C%ye + 1) &
+              & * solver%dir_scalevec_W_to_Wm2(dtop + dside + 1:C%dof, :, :, C%ym)
+          end if
+        end if
+      end associate
+    end subroutine
+
     subroutine fill_buildings_arr
       integer(iintegers) :: m, idx(4), dof_offset, idof
       integer(iintegers) :: adj_i, adj_j
@@ -6040,6 +6362,7 @@ contains
           ledir = zero
           ledir(:, :, C_d%xs:C_d%xe, C_d%ys:C_d%ye) = solution%edir
           call halo_fill_5pt(solver%comm, C_d, ledir, ierr); call CHKERR(ierr)
+          call fill_open_bc_inflow(ledir)
           ledir = ledir * solver%sun%mu
 
           do m = 1, size(B%iface)
@@ -6124,7 +6447,7 @@ contains
         allocate (lediff(0:C_f%dof - 1, C_f%zs:C_f%ze, C_f%gxs:C_f%gxe, C_f%gys:C_f%gye))
         lediff = zero
         lediff(:, :, C_f%xs:C_f%xe, C_f%ys:C_f%ye) = solution%ediff
-        call halo_fill_5pt(solver%comm, C_f, lediff, ierr); call CHKERR(ierr)
+        call halo_fill_ediff(solver, solution, lediff, ierr); call CHKERR(ierr)
         if (solution%lsolar_rad) lediff = lediff * solver%sun%mu
 
         do m = 1, size(B%iface)

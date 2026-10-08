@@ -33,6 +33,11 @@ set(PLEXRT_ONLY_TESTS
   test_plexrt_rrtmg_lw_sw
 )
 
+# Tests that need the RayLi MonteCarlo solver
+set(RAYLI_ONLY_TESTS
+  test_pprts_distorted_mesh
+)
+
 subdirlist(subdirs ${CMAKE_CURRENT_SOURCE_DIR})
 
 foreach(subdir ${subdirs})
@@ -40,6 +45,8 @@ foreach(subdir ${subdirs})
     message(STATUS "Skipping test ${subdir} (requires WITH_PETSC=ON)")
   elseif(NOT ENABLE_PLEXRT AND ${subdir} IN_LIST PLEXRT_ONLY_TESTS)
     message(STATUS "Skipping test ${subdir} (requires ENABLE_PLEXRT=ON)")
+  elseif(NOT (WITH_PETSC AND ENABLE_PLEXRT AND BUILD_RAYLI) AND ${subdir} IN_LIST RAYLI_ONLY_TESTS)
+    message(STATUS "Skipping test ${subdir} (requires WITH_PETSC, ENABLE_PLEXRT and BUILD_RAYLI)")
   else()
     add_subdirectory(${subdir})
   endif()

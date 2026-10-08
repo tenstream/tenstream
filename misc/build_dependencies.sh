@@ -58,7 +58,7 @@ if [ -e "$PETSC_DIR" ]
 then
   echo "Using PETSC_DIR: $PETSC_DIR"
 else
-  git clone $PETSC_URL -b $PETSC_BRANCH $PETSC_DIR
+  git clone ${PETSC_CLONE_OPTS:-} $PETSC_URL -b $PETSC_BRANCH $PETSC_DIR
 fi
 
 
