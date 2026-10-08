@@ -1,33 +1,22 @@
-PP="debug_gcc"
-PP="prod_single_gcc"
+#!/bin/bash
+# Run the ICON example (ex_plex_rrtmg_icon) on the grid and data in this directory.
+# Usage: BUILD=<tenstream build dir> [TYPE=...] [GRID=...] [DATA=...] [ATM=...] [OUT=...] [SRUN=...] ./run.sh
+# TYPE is one of: rrtmg twostream disort plexrt twostreamvsrayli plexrtvsrayli rayli
 
-#GRID=$1
-#DATA=$2
-#ATM=$3
-TYPE="rrtmg"
-TYPE="twostream"
-TYPE="disort"
-TYPE="plexrt"
-TYPE="twostreamvsrayli"
-TYPE="plexrtvsrayli"
-TYPE="rayli"
+[ "x$TYPE" == 'x' ] && TYPE="plexrt"
 
-TENSTREAM=$HOME/tenstream/
-WDIR=$TENSTREAM/misc/plex_from_icon/
+WDIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+TENSTREAM=$(cd "$WDIR/../../.." && pwd)
+[ "x$BUILD" == 'x' ] && BUILD="$TENSTREAM/build"
 
 [ "x$GRID" == 'x' ] && GRID="$WDIR/grid.ifc_ham_55km-diam_0626m.nc"
 [ "x$DATA" == 'x' ] && DATA="$WDIR/icon_input.nc"
-#[ "x$DATA" == 'x' ] && DATA="$WDIR/1246_1m_DOM01_ML_20130505T130000Z.nc"
 [ "x$ATM"  == 'x' ] && ATM="$WDIR/afglus.dat"
 
-module purge
-module load Modules petsc/$PP
+BIN=$BUILD/bin/ex_plex_rrtmg_icon
+make -j -C $BUILD ex_plex_rrtmg_icon || exit
 
-BIN=$TENSTREAM/$PP/bin/ex_plex_ex4
-#make -C $PETSC_DIR && \
-make -j -C $TENSTREAM/$PP ex_plex_ex4 || exit
-
-OUT=$HOME/scratch/plex_from_icon/out_${TYPE}
+[ "x$OUT" == 'x' ] && OUT=$WDIR/out/out_${TYPE}
 mkdir -p $(dirname $OUT)
 cd $WDIR
 
@@ -65,7 +54,7 @@ fi
 
 rm -f $OUT.*
 
-MPIOPT="mpirun -wdir $WDIR"
-SRUN="salloc -p ws -C GPU -N 1 -n $NP -c $NC --mem=30G --time=08:00:00 bash -c "
-$SRUN "$MPIOPT $BIN -grid $GRID -data $DATA -atm_filename $ATM -out $OUT.h5 $BASEOPT $SOLVER $DEBUG | tee $OUT.log"
+MPIOPT="mpirun -n $NP -wdir $WDIR"
+# on a cluster, e.g.: SRUN="salloc -N 1 -n $NP -c $NC --mem=30G --time=08:00:00"
+$SRUN bash -c "$MPIOPT $BIN -grid $GRID -data $DATA -atm $ATM -out $OUT.h5 $BASEOPT $SOLVER $DEBUG | tee $OUT.log"
 [ -e $OUT.h5 ] && petsc_gen_xdmf.py $OUT.h5
