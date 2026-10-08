@@ -53,6 +53,8 @@ module m_ecckd_base
 
   use m_netcdfIO, only: ncload, get_global_attribute
 
+  use iso_fortran_env, only: real64
+
   use m_mie_tables, only: t_mie_table, mie_optprop
   use m_fu_ice, only: t_fu_muskatel_ice_data, fu_ice_optprop
 
@@ -467,9 +469,13 @@ contains
 
     integer(iintegers) :: ireff, igpt, iwvnr
     real(ireals) :: reff, wgt, wvl_lo, wvl_hi, wvl, gpt_qext, gpt_w0, gpt_g, qext, w0, g
+    real(real64) :: acc(5)
+    logical :: lthick
     ierr = 0
 
     if (allocated(ecckd_data%fu_ice_table)) return
+
+    call get_cloud_spectral_averaging_option(lthick, ierr); call CHKERR(ierr)
     allocate (ecckd_data%fu_ice_table)
 
     allocate (ecckd_data%fu_ice_table%reff(size(general_fu_ice_table%reff)))
@@ -484,13 +490,10 @@ contains
 
       do igpt = 1, size(ecckd_data%gpoint_fraction, dim=2)
 
-        gpt_qext = 0
-        gpt_w0 = 0
-        gpt_g = 0
+        acc = 0
 
         do iwvnr = 1, size(ecckd_data%gpoint_fraction, dim=1)
-          wgt = ecckd_data%gpoint_fraction(iwvnr, igpt)
-          if (wgt .gt. 0) then
+          if (ecckd_data%gpoint_fraction(iwvnr, igpt) .gt. 0) then
             wvl_lo = 1e7_ireals / ecckd_data%wavenumber2(iwvnr)
             wvl_hi = 1e7_ireals / ecckd_data%wavenumber1(iwvnr)
             wvl = (wvl_lo + wvl_hi)*.5
@@ -501,11 +504,12 @@ contains
               & reff, &
               & qext, w0, g, ierr); call CHKERR(ierr)
 
-            gpt_qext = gpt_qext + wgt * qext
-            gpt_w0 = gpt_w0 + wgt * w0
-            gpt_g = gpt_g + wgt * g
+            wgt = cloud_spectral_weight(ecckd_data, iwvnr, igpt)
+            call cloud_gpt_average_add(acc, wgt, qext, w0, g)
           end if
         end do
+
+        call cloud_gpt_average_finalize(acc, lthick, gpt_qext, gpt_w0, gpt_g)
 
         ecckd_data%fu_ice_table%qext(ireff, igpt) = real(gpt_qext, irealLUT)
         ecckd_data%fu_ice_table%w0(ireff, igpt) = real(gpt_w0, irealLUT)
@@ -515,6 +519,101 @@ contains
 
   end subroutine
 
+  !> Read option how the single scattering albedo of clouds is averaged onto g-points
+  !> default is thick averaging (Edwards and Slingo, 1996) as in ecRad (Hogan and Bozzo, 2018)
+  subroutine get_cloud_spectral_averaging_option(lthick, ierr)
+    logical, intent(out) :: lthick
+    integer(mpiint), intent(out) :: ierr
+    logical :: lthin, lflg
+    lthin = .false.
+    call get_petsc_opt('', '-ecckd_cloud_thin_averaging', lthin, lflg, ierr); call CHKERR(ierr)
+    lthick = .not. lthin
+  end subroutine
+
+  !> Spectral weight of a wavenumber interval within a g-point:
+  !> g-point fraction times a reference spectrum, i.e. a Planck function at 5777 K for solar
+  !> and 273.15 K for thermal g-points (as in ecRad, radiation_spectral_definition::calc_mapping).
+  !> All intervals have the same width, hence the Planck function per wavenumber is sufficient.
+  function cloud_spectral_weight(ecckd_data, iwvnr, igpt) result(wgt)
+    type(t_ecckd_data), intent(in) :: ecckd_data
+    integer(iintegers), intent(in) :: iwvnr, igpt
+    real(ireals) :: wgt
+    real(real64), parameter :: c2 = 1.4387769_real64 ! second radiation constant [cm K]
+    real(real64) :: nu, T
+
+    if (allocated(ecckd_data%solar_irradiance)) then
+      T = 5777._real64
+    else
+      T = 273.15_real64
+    end if
+    nu = .5_real64 * (real(ecckd_data%wavenumber1(iwvnr), real64) + real(ecckd_data%wavenumber2(iwvnr), real64))
+    wgt = real(real(ecckd_data%gpoint_fraction(iwvnr, igpt), real64) &
+      & * nu**3 / (exp(c2 * nu / T) - 1._real64), ireals)
+  end function
+
+  !> Accumulate delta-Eddington scaled optical properties of one spectral interval
+  !> acc = [sum(wgt), sum(wgt*ext), sum(wgt*ext*w0), sum(wgt*ext*w0*g), sum(wgt*R_inf)]
+  subroutine cloud_gpt_average_add(acc, wgt, qext, w0, g)
+    real(real64), intent(inout) :: acc(:)
+    real(ireals), intent(in) :: wgt, qext, w0, g
+    real(real64) :: f, ext_s, w0_s, g_s, rinf
+
+    f = real(g, real64)**2
+    ext_s = real(qext, real64) * (1._real64 - real(w0, real64) * f)
+    w0_s = real(w0, real64) * (1._real64 - f) / max(1._real64 - real(w0, real64) * f, tiny(f))
+    g_s = real(g, real64) / (1._real64 + real(g, real64))
+
+    ! infinite-medium reflectance, Eqs. 17 and 18 of Edwards and Slingo (1996)
+    rinf = sqrt(max(0._real64, 1._real64 - w0_s) / max(1._real64 - w0_s * g_s, tiny(f)))
+    rinf = (1._real64 - rinf) / (1._real64 + rinf)
+
+    acc(1) = acc(1) + wgt
+    acc(2) = acc(2) + wgt * ext_s
+    acc(3) = acc(3) + wgt * ext_s * w0_s
+    acc(4) = acc(4) + wgt * ext_s * w0_s * g_s
+    acc(5) = acc(5) + wgt * rinf
+  end subroutine
+
+  !> Average accumulated optical properties onto a g-point:
+  !> extinction is averaged linearly, the asymmetry parameter weighted with the scattering coefficient
+  !> and the single scattering albedo weighted with extinction (thin averaging) or
+  !> derived from the averaged infinite-medium reflectance (thick averaging, Eq. 19 of Edwards and Slingo, 1996).
+  !> Averaging is done on delta-Eddington scaled quantities; the results are transformed back to unscaled
+  !> quantities because the solver applies delta scaling to the combined optical properties.
+  subroutine cloud_gpt_average_finalize(acc, lthick, qext, w0, g)
+    real(real64), intent(in) :: acc(:)
+    logical, intent(in) :: lthick
+    real(ireals), intent(out) :: qext, w0, g
+    real(real64) :: ext_s, w0_s, g_s, rinf, f, w0_u
+
+    if (acc(1) .le. 0 .or. acc(2) .le. 0) then
+      qext = 0; w0 = 0; g = 0
+      return
+    end if
+
+    ext_s = acc(2) / acc(1)
+    w0_s = acc(3) / acc(2)
+    if (acc(3) .gt. 0) then
+      g_s = acc(4) / acc(3)
+    else
+      g_s = 0
+    end if
+
+    if (lthick) then
+      rinf = acc(5) / acc(1)
+      w0_s = 4._real64 * rinf / ((1._real64 + rinf)**2 - g_s * (1._real64 - rinf)**2)
+    end if
+    w0_s = min(max(w0_s, 0._real64), 1._real64)
+
+    ! inverse delta-Eddington scaling with f = g**2
+    g_s = min(g_s, .5_real64 - epsilon(g_s))
+    g = real(g_s / (1._real64 - g_s), ireals)
+    f = real(g, real64)**2
+    w0_u = w0_s / (1._real64 - f + w0_s * f)
+    w0 = real(w0_u, ireals)
+    qext = real(ext_s / (1._real64 - w0_u * f), ireals)
+  end subroutine
+
   subroutine init_mie_table(general_mie_table, ecckd_data, ierr)
     type(t_mie_table), intent(in) :: general_mie_table
     type(t_ecckd_data), target, intent(inout) :: ecckd_data
@@ -522,9 +621,13 @@ contains
 
     integer(iintegers) :: ireff, igpt, iwvnr
     real(ireals) :: reff, wgt, wvl_lo, wvl_hi, wvl, gpt_qext, gpt_w0, gpt_g, qext, w0, g
+    real(real64) :: acc(5)
+    logical :: lthick
     ierr = 0
 
     if (allocated(ecckd_data%mie_table)) return
+
+    call get_cloud_spectral_averaging_option(lthick, ierr); call CHKERR(ierr)
     allocate (ecckd_data%mie_table)
 
     allocate (ecckd_data%mie_table%reff(size(general_mie_table%reff)))
@@ -539,13 +642,10 @@ contains
 
       do igpt = 1, size(ecckd_data%gpoint_fraction, dim=2)
 
-        gpt_qext = 0
-        gpt_w0 = 0
-        gpt_g = 0
+        acc = 0
 
         do iwvnr = 1, size(ecckd_data%gpoint_fraction, dim=1)
-          wgt = ecckd_data%gpoint_fraction(iwvnr, igpt)
-          if (wgt .gt. 0) then
+          if (ecckd_data%gpoint_fraction(iwvnr, igpt) .gt. 0) then
             wvl_lo = 1e7_ireals / ecckd_data%wavenumber2(iwvnr)
             wvl_hi = 1e7_ireals / ecckd_data%wavenumber1(iwvnr)
             wvl = (wvl_lo + wvl_hi)*.5
@@ -556,11 +656,12 @@ contains
               & reff, &
               & qext, w0, g, ierr); call CHKERR(ierr)
 
-            gpt_qext = gpt_qext + wgt * qext
-            gpt_w0 = gpt_w0 + wgt * w0
-            gpt_g = gpt_g + wgt * g
+            wgt = cloud_spectral_weight(ecckd_data, iwvnr, igpt)
+            call cloud_gpt_average_add(acc, wgt, qext, w0, g)
           end if
         end do
+
+        call cloud_gpt_average_finalize(acc, lthick, gpt_qext, gpt_w0, gpt_g)
 
         ecckd_data%mie_table%qext(ireff, igpt) = real(gpt_qext, irealLUT)
         ecckd_data%mie_table%w0(ireff, igpt) = real(gpt_w0, irealLUT)
