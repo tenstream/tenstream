@@ -892,7 +892,7 @@ contains
 
     ostart(1:2) = [integer :: int(xStart) + 1, int(yStart) + 1]
     ocount(1:2) = [integer :: int(Nx_local), int(Ny_local)]
-    call load_input_atm_var2d('atm.tksin', atm%tskin, ierr)!; call CHKERR(ierr)
+    call load_input_atm_var2d('atm.tskin', atm%tskin, ierr)!; call CHKERR(ierr)
 
     call load_buildings_info(&
       & comm, inpfile, 'solar', &
