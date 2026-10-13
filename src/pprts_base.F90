@@ -1311,6 +1311,7 @@ contains
         real(ireals), pointer :: cdir2dir(:, :)
         real(ireals) :: M(C_dir%dof - solver%dirtop%dof, C_dir%dof - solver%dirtop%dof)
         real(ireals) :: rhs(C_dir%dof - solver%dirtop%dof)
+        logical :: lsingular
 
         associate ( &
             & atm => solver%atm, &
@@ -1367,27 +1368,42 @@ contains
                 M(dst, dst) = M(dst, dst) + one
                 rhs(dst) = dot_product(cdir2dir(0:ntop - 1, ntop + dst - 1), xcol(0:ntop - 1, k))
               end do
-              call solve_dense(M, rhs)
-              xcol(ntop:C_dir%dof - 1, k) = rhs
+              call solve_dense(M, rhs, lsingular)
+              if (lsingular) then
+                ! sun close to the horizon and a nearly transparent layer: what leaves through a side comes in again
+                ! unattenuated at the opposite one, i.e. the horizontal beam never reaches the bottom of the layer.
+                ! Treat the layer as 1D instead, the direct flux at such low sun is negligible anyway.
+                dtau = (atm%kabs(ak, i, j) + atm%ksca(ak, i, j)) * atm%dz(ak, i, j) / max(sun%costheta, epsilon(dtau))
+                xcol(ntop:C_dir%dof - 1, k) = zero
+                xcol(0:ntop - 1, k + 1) = xcol(0:ntop - 1, k) * exp(-dtau)
+              else
+                xcol(ntop:C_dir%dof - 1, k) = rhs
 
-              do dst = 0, ntop - 1 ! top2bot and side2bot
-                xcol(dst, k + 1) = dot_product(cdir2dir(:, dst), xcol(:, k))
-              end do
+                do dst = 0, ntop - 1 ! top2bot and side2bot
+                  xcol(dst, k + 1) = dot_product(cdir2dir(:, dst), xcol(:, k))
+                end do
+              end if
             end if
           end do
         end associate
       end subroutine
 
       !> @brief solve A x = b by gaussian elimination with partial pivoting, solution is returned in b
-      subroutine solve_dense(A, b)
+      !> @details lsingular is set if a pivot is negligible compared to the O(1) entries of A, b is then undefined
+      subroutine solve_dense(A, b, lsingular)
         real(ireals), intent(inout) :: A(:, :), b(:)
+        logical, intent(out) :: lsingular
         integer(iintegers) :: n, p, r, ipiv
         real(ireals) :: f, tmp(size(b)), tmpb
 
+        lsingular = .false.
         n = size(b, kind=iintegers)
         do p = 1, n
           ipiv = p - 1 + maxloc(abs(A(p:n, p)), dim=1, kind=iintegers)
-          if (abs(A(ipiv, p)) .le. tiny(f)) call CHKERR(1_mpiint, 'singular matrix in open bc single column solve')
+          if (abs(A(ipiv, p)) .le. 100 * epsilon(f)) then
+            lsingular = .true.
+            return
+          end if
           if (ipiv .ne. p) then
             tmp = A(p, :); A(p, :) = A(ipiv, :); A(ipiv, :) = tmp
             tmpb = b(p); b(p) = b(ipiv); b(ipiv) = tmpb
