@@ -756,10 +756,13 @@ contains
       call fill_ghost(solver%comm, C, lvb, ierr); call CHKERR(ierr)
 
       ! -<prefix>ksp_type bcgs: BiCGStab, any other type (e.g. one meant for the PETSc solvers): SOR
-      ! -<prefix>initial_ksp_type: the same, but only for the first solve of a solution, i.e. without a previous one
+      ! -<prefix>initial_ksp_type: the same, but only for the first solve of a solution, i.e. without a previous one.
+      ! The first solve is done with BiCGStab unless -<prefix>ksp_type is set,
+      ! warm restarts with loose tolerances are cheaper with SOR
       ksp_type = 'richardson'
       call get_petsc_opt(prefix, "-ksp_type", ksp_type, lflg, ierr); call CHKERR(ierr)
       if (solution%diff_ksp_residual_history(1) .lt. 0) then
+        if (.not. lflg) ksp_type = 'bcgs'
         call get_petsc_opt(prefix, "-initial_ksp_type", ksp_type, lflg, ierr); call CHKERR(ierr)
       end if
       if (trim(ksp_type) .eq. 'bcgs') then
@@ -1352,7 +1355,8 @@ contains
   !> The residual c - (1 - G) x = phi(x) - x is the SOR update, convergence is checked relative to the initial one.
   !> Vectors carry the same ghost cells as x; inner products run over the owned entries and over the ghost cells at
   !> open domain edges, which hold unknowns that no other rank owns. Needs six additional diffuse vectors.
-  !> Options: -<prefix>ksp_type bcgs (or -<prefix>initial_ksp_type bcgs for the first solve only),
+  !> Used for the first solve of a solution by default (unless -<prefix>ksp_type is set) and with -<prefix>ksp_type bcgs;
+  !> -<prefix>initial_ksp_type richardson keeps SOR for the first solve as well.
   !> -<prefix>pc_sor_its (default 2), -<prefix>pc_sor_omega (default 1)
   !> One iteration costs 2 * pc_sor_its SOR sweeps, plus pc_sor_its for the initial residual.
   subroutine explicit_ediff_bicgstab(solver, prefix, b, x, rtol, atol, maxiter, &

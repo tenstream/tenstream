@@ -233,7 +233,7 @@ matshell:alma-latest:
   variables:
     PETSC_OPTIONS: "-solar_diff_shell -solar_diff_pc_type sor -thermal_diff_shell -thermal_diff_pc_type sor"
 
-# explicit diffuse solver with BiCGStab instead of SOR
+# explicit diffuse solver with BiCGStab for all solves, by default only the first solve uses BiCGStab
 bcgs:alma-latest:
   extends: alma-latest
   variables:
@@ -283,11 +283,12 @@ ubuntu-nopetsc:
     paths:
       - test.log
 
-# without PETSc, the options are read from the PETSC_OPTIONS environment variable as well
-bcgs:ubuntu-nopetsc:
+# explicit diffuse solver with SOR also for the first solve.
+# Without PETSc, the options are read from the PETSC_OPTIONS environment variable as well
+sor:ubuntu-nopetsc:
   extends: ubuntu-nopetsc
   variables:
-    PETSC_OPTIONS: "-solar_diff_ksp_type bcgs -thermal_diff_ksp_type bcgs"
+    PETSC_OPTIONS: "-solar_diff_ksp_type richardson -thermal_diff_ksp_type richardson"
 
 #intel-icc:
 #  stage: build_docker
