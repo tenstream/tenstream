@@ -23,6 +23,8 @@ module m_pprts_explicit
 
   use m_data_parameters, only: &
     & default_str_len, &
+    & imp_real_dp, &
+    & ireal_dp, &
     & i0, i1, &
     & iintegers, mpiint, &
     & ireals, imp_ireals, &
@@ -1375,7 +1377,7 @@ contains
     real(ireals), allocatable, dimension(:, :, :, :) :: r, rhat, p, v, t, b0
     real(ireals) :: alpha, beta, omg, rho, rho_old, omega_pc
     real(ireals) :: rnorm, rnorm0
-    real(kind(1d0)) :: dots(3)
+    real(ireal_dp) :: dots(3)
     integer(iintegers) :: iter, pc_its, nhist
     integer(iintegers) :: ilo, ihi, jlo, jhi ! range of the ghosted arrays that enters inner products
     logical :: lflg, lconverged
@@ -1527,19 +1529,19 @@ contains
     function local_dots(a1, b1, a2, b2, a3, b3) result(d)
       real(ireals), contiguous, intent(in) :: a1(:, :, :, :), b1(:, :, :, :)
       real(ireals), contiguous, intent(in), optional :: a2(:, :, :, :), b2(:, :, :, :), a3(:, :, :, :), b3(:, :, :, :)
-      real(kind(1d0)), allocatable :: d(:)
+      real(ireal_dp), allocatable :: d(:)
       integer(iintegers) :: n, k, i, j, l
       n = 1
       if (present(a2)) n = 2
       if (present(a3)) n = 3
-      allocate (d(n), source=0d0)
+      allocate (d(n), source=0._ireal_dp)
       do j = jlo, jhi
         do i = ilo, ihi
           do k = 1, size(a1, 2)
             do l = 1, size(a1, 1)
-              d(1) = d(1) + real(a1(l, k, i, j), kind(1d0)) * b1(l, k, i, j)
-              if (n .ge. 2) d(2) = d(2) + real(a2(l, k, i, j), kind(1d0)) * b2(l, k, i, j)
-              if (n .ge. 3) d(3) = d(3) + real(a3(l, k, i, j), kind(1d0)) * b3(l, k, i, j)
+              d(1) = d(1) + real(a1(l, k, i, j), ireal_dp) * b1(l, k, i, j)
+              if (n .ge. 2) d(2) = d(2) + real(a2(l, k, i, j), ireal_dp) * b2(l, k, i, j)
+              if (n .ge. 3) d(3) = d(3) + real(a3(l, k, i, j), ireal_dp) * b3(l, k, i, j)
             end do
           end do
         end do
@@ -1547,8 +1549,8 @@ contains
     end function
 
     subroutine allreduce_dots(d)
-      real(kind(1d0)), intent(inout) :: d(:)
-      call MPI_Allreduce(MPI_IN_PLACE, d, size(d, kind=mpiint), MPI_DOUBLE_PRECISION, MPI_SUM, solver%comm, ierr)
+      real(ireal_dp), intent(inout) :: d(:)
+      call MPI_Allreduce(MPI_IN_PLACE, d, size(d, kind=mpiint), imp_real_dp, MPI_SUM, solver%comm, ierr)
       call CHKERR(ierr)
     end subroutine
   end subroutine
