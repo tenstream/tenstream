@@ -181,7 +181,7 @@ contains
         if (.not. lskip_residual) then
           xg(0:C%dof - 1, C%zs:C%ze, C%xs:C%xe, C%ys:C%ye) => vedir
           x0(0:C%dof - 1, C%zs:C%ze, C%gxs:C%gxe, C%gys:C%gye) => v0
-          residual(iter) = max(tiny(one), norm2(xg - x0(:, :, C%xs:C%xe, C%ys:C%ye)))
+          residual(iter) = max(tiny(one), norm2_diff(xg, x0(:, :, C%xs:C%xe, C%ys:C%ye)))
           xg = x0(:, :, C%xs:C%xe, C%ys:C%ye)
           nullify (xg, x0)
 
@@ -807,7 +807,7 @@ contains
           xg(0:C%dof - 1, C%zs:C%ze, C%xs:C%xe, C%ys:C%ye) => vediff
           x0(0:C%dof - 1, C%zs:C%ze, C%gxs:C%gxe, C%gys:C%gye) => v0
 
-          residual(iter) = norm2(xg - x0(:, :, C%xs:C%xe, C%ys:C%ye))
+          residual(iter) = norm2_diff(xg, x0(:, :, C%xs:C%xe, C%ys:C%ye))
 
           call imp_allreduce_mean(solver%comm, residual(iter), residual_mean)
           residual(iter) = residual_mean
@@ -1331,6 +1331,26 @@ contains
       x0(d, kout(d), iout(d), jout(d)) = xb(d, kout(d), iout(d) + di, jout(d) + dj) + xout(d)
     end do
   end subroutine
+
+  !> @brief 2-norm of a - b, accumulated in double precision:
+  !> in single precision, a sum stagnates once it is 2**24 times larger than the terms, i.e. for large domains
+  pure function norm2_diff(a, b) result(r)
+    real(ireals), intent(in) :: a(:, :, :, :), b(:, :, :, :)
+    real(ireals) :: r
+    real(ireal_dp) :: s
+    integer(iintegers) :: l, k, i, j
+    s = 0
+    do j = 1, size(a, 4)
+      do i = 1, size(a, 3)
+        do k = 1, size(a, 2)
+          do l = 1, size(a, 1)
+            s = s + (real(a(l, k, i, j), ireal_dp) - b(l, k, i, j))**2
+          end do
+        end do
+      end do
+    end do
+    r = real(sqrt(s), ireals)
+  end function
 
   !> @brief returns the diffuse dof that is the same stream but the opposite direction
   pure function diff_inv_dof(solver, dof) result(inv_dof)
