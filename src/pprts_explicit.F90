@@ -637,6 +637,10 @@ contains
     real(ireals) :: best_residual_solve
     integer(iintegers) :: iter_at_best
     integer(iintegers), parameter :: stagnation_window = 50
+    logical :: ldivergence_guard
+    real(ireals) :: divergence_factor, omega_diverged
+    integer(iintegers) :: ndivergences
+    integer(iintegers), parameter :: max_divergences = 4
 
     x0 => null()
     xg => null()
@@ -683,6 +687,13 @@ contains
       call get_petsc_opt(prefix, "-pc_sor_omega_max", omega_max, lflg, ierr); call CHKERR(ierr)
       omega_stagnation = 0.5_ireals
       call get_petsc_opt(prefix, "-pc_sor_omega_stagnation", omega_stagnation, lflg, ierr); call CHKERR(ierr)
+      ldivergence_guard = .true.
+      call get_petsc_opt(prefix, "-pc_sor_divergence_guard", ldivergence_guard, lflg, ierr); call CHKERR(ierr)
+      divergence_factor = 1e2_ireals
+      call get_petsc_opt(prefix, "-pc_sor_divergence_factor", divergence_factor, lflg, ierr); call CHKERR(ierr)
+      omega_diverged = 0.8_ireals
+      call get_petsc_opt(prefix, "-pc_sor_omega_diverged", omega_diverged, lflg, ierr); call CHKERR(ierr)
+      ndivergences = 0
       omega_dir = 1._ireals
       omega_step = omega_increment * 0.5_ireals
       log_rate_prev = 0._ireals
@@ -774,12 +785,40 @@ contains
           x0(0:C%dof - 1, C%zs:C%ze, C%gxs:C%gxe, C%gys:C%gye) => v0
 
           residual(iter) = norm2(xg - x0(:, :, C%xs:C%xe, C%ys:C%ye))
-          xg = x0(:, :, C%xs:C%xe, C%ys:C%ye)
-
-          nullify (xg, x0)
 
           call imp_allreduce_mean(solver%comm, residual(iter), residual_mean)
           residual(iter) = residual_mean
+
+          ! Divergence guard: the iterate before this sweep is still in vediff, i.e. we can restore it without extra memory.
+          ! If the update blew up (non-finite or far above the best update so far), go back one iteration and continue
+          ! with a fixed, under-relaxed omega; if it diverges again, halve omega. The negated comparison is also true for NaN.
+          if (ldivergence_guard .and. iter .ge. 2) then
+            if (.not. (residual(iter) .le. divergence_factor * best_residual_solve)) then
+              ndivergences = ndivergences + 1
+              if (ndivergences .gt. max_divergences) then
+                call CHKERR(1_mpiint, trim(prefix)//' diverged '//toStr(ndivergences)//' times, last omega '// &
+                  & toStr(omega_adaptive)//' (switch off the guard with -'//trim(prefix)//'pc_sor_divergence_guard 0)')
+              end if
+              x0(:, :, C%xs:C%xe, C%ys:C%ye) = xg
+              omega_adaptive = min(omega_adaptive, omega_diverged) * 0.5_ireals**(ndivergences - 1)
+              omega_save = omega_adaptive
+              lomega_frozen = .true.
+              if (solver%myid .eq. 0 .and. lmonitor_residual) then
+                print *, trim(prefix), ' iter ', toStr(iter), ' diverged (residual', residual(iter), &
+                  & '), restored previous iterate, continue with fixed omega', omega_adaptive
+              end if
+              residual(iter) = residual(iter - 1)
+              residual_mean = residual(iter)
+              nullify (xg, x0)
+              call exchange_diffuse_boundary(solver, v0, ierr); call CHKERR(ierr)
+              xg(0:C%dof - 1, C%zs:C%ze, C%xs:C%xe, C%ys:C%ye) => vediff
+              x0(0:C%dof - 1, C%zs:C%ze, C%gxs:C%gxe, C%gys:C%gye) => v0
+            end if
+          end if
+
+          xg = x0(:, :, C%xs:C%xe, C%ys:C%ye)
+
+          nullify (xg, x0)
 
           if (residual(1) .le. sqrt(tiny(residual))) then
             rel_residual = 0
