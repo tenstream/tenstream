@@ -1337,9 +1337,12 @@ contains
     integer(iintegers) :: k, i, j
     integer(iintegers) :: idst, isrc, src, dst
     real(ireals), pointer :: v(:, :) ! dim(src, dst)
-    integer(iintegers) :: msrc, mdst
+    integer(iintegers) :: mdst
 
     real(ireals) :: sigma
+    integer(iintegers) :: ntop, nside
+    integer(iintegers), allocatable :: soff(:) ! offset (0 or 1) of the incoming face of each stream along its axis
+    real(ireals), allocatable :: xin(:)        ! incoming streams of a box
 
     x0 => null()
     xb => null()
@@ -1350,6 +1353,17 @@ contains
 
       x0(0:C%dof - 1, C%zs:C%ze, C%gxs:C%gxe, C%gys:C%gye) => x
       xb(0:C%dof - 1, C%zs:C%ze, C%gxs:C%gxe, C%gys:C%gye) => b
+
+      ntop = solver%difftop%dof
+      nside = solver%diffside%dof
+      allocate (soff(0:C%dof - 1), xin(0:C%dof - 1))
+      do isrc = 0, ntop - 1
+        soff(isrc) = merge(0_iintegers, 1_iintegers, solver%difftop%is_inward(i1 + isrc))
+      end do
+      do isrc = 0, nside - 1
+        soff(ntop + isrc) = merge(0_iintegers, 1_iintegers, solver%diffside%is_inward(i1 + isrc))
+        soff(ntop + nside + isrc) = soff(ntop + isrc)
+      end do
 
       if (dz(3) .lt. 0) then ! if going from bottom to top, we do it here at the beginning
         do j = dy(1), dy(2), dy(3)
@@ -1384,74 +1398,32 @@ contains
 
               v(0:C%dof - 1, 0:C%dof - 1) => coeffs(1:C%dof**2, k - C%zs + 1, i - C%xs + 1, j - C%ys + 1)
 
-              dst = 0
-              do idst = 0, solver%difftop%dof - 1
-                mdst = merge(k + 1, k, solver%difftop%is_inward(i1 + idst))
-                sigma = 0
-                src = 0
-                do isrc = 0, solver%difftop%dof - 1
-                  msrc = merge(k, k + 1, solver%difftop%is_inward(i1 + isrc))
-                  sigma = sigma + x0(src, msrc, i, j) * v(src, dst)
-                  src = src + 1
-                end do
-                do isrc = 0, solver%diffside%dof - 1
-                  msrc = merge(i, i + 1, solver%diffside%is_inward(i1 + isrc))
-                  sigma = sigma + x0(src, k, msrc, j) * v(src, dst)
-                  src = src + 1
-                end do
-                do isrc = 0, solver%diffside%dof - 1
-                  msrc = merge(j, j + 1, solver%diffside%is_inward(i1 + isrc))
-                  sigma = sigma + x0(src, k, i, msrc) * v(src, dst)
-                  src = src + 1
-                end do
+              ! gather the incoming streams of the box into a contiguous vector; sources (incoming faces) and
+              ! destinations (outgoing faces) never share a memory location, so this is identical to updating in place
+              do src = 0, ntop - 1
+                xin(src) = x0(src, k + soff(src), i, j)
+              end do
+              do src = ntop, ntop + nside - 1
+                xin(src) = x0(src, k, i + soff(src), j)
+              end do
+              do src = ntop + nside, C%dof - 1
+                xin(src) = x0(src, k, i, j + soff(src))
+              end do
+
+              do dst = 0, ntop - 1
+                mdst = k + 1 - soff(dst)
+                sigma = dot_product(xin, v(:, dst))
                 x0(dst, mdst, i, j) = (one - omega) * x0(dst, mdst, i, j) + omega * (xb(dst, mdst, i, j) + sigma)
-                dst = dst + 1
               end do
-
-              do idst = 0, solver%diffside%dof - 1
-                mdst = merge(i + 1, i, solver%diffside%is_inward(i1 + idst))
-                sigma = 0
-                src = 0
-                do isrc = 0, solver%difftop%dof - 1
-                  msrc = merge(k, k + 1, solver%difftop%is_inward(i1 + isrc))
-                  sigma = sigma + x0(src, msrc, i, j) * v(src, dst)
-                  src = src + 1
-                end do
-                do isrc = 0, solver%diffside%dof - 1
-                  msrc = merge(i, i + 1, solver%diffside%is_inward(i1 + isrc))
-                  sigma = sigma + x0(src, k, msrc, j) * v(src, dst)
-                  src = src + 1
-                end do
-                do isrc = 0, solver%diffside%dof - 1
-                  msrc = merge(j, j + 1, solver%diffside%is_inward(i1 + isrc))
-                  sigma = sigma + x0(src, k, i, msrc) * v(src, dst)
-                  src = src + 1
-                end do
+              do dst = ntop, ntop + nside - 1
+                mdst = i + 1 - soff(dst)
+                sigma = dot_product(xin, v(:, dst))
                 x0(dst, k, mdst, j) = (one - omega) * x0(dst, k, mdst, j) + omega * (xb(dst, k, mdst, j) + sigma)
-                dst = dst + 1
               end do
-
-              do idst = 0, solver%diffside%dof - 1
-                mdst = merge(j + 1, j, solver%diffside%is_inward(i1 + idst))
-                sigma = 0
-                src = 0
-                do isrc = 0, solver%difftop%dof - 1
-                  msrc = merge(k, k + 1, solver%difftop%is_inward(i1 + isrc))
-                  sigma = sigma + x0(src, msrc, i, j) * v(src, dst)
-                  src = src + 1
-                end do
-                do isrc = 0, solver%diffside%dof - 1
-                  msrc = merge(i, i + 1, solver%diffside%is_inward(i1 + isrc))
-                  sigma = sigma + x0(src, k, msrc, j) * v(src, dst)
-                  src = src + 1
-                end do
-                do isrc = 0, solver%diffside%dof - 1
-                  msrc = merge(j, j + 1, solver%diffside%is_inward(i1 + isrc))
-                  sigma = sigma + x0(src, k, i, msrc) * v(src, dst)
-                  src = src + 1
-                end do
+              do dst = ntop + nside, C%dof - 1
+                mdst = j + 1 - soff(dst)
+                sigma = dot_product(xin, v(:, dst))
                 x0(dst, k, i, mdst) = (one - omega) * x0(dst, k, i, mdst) + omega * (xb(dst, k, i, mdst) + sigma)
-                dst = dst + 1
               end do
 
             end if ! endif l1d
