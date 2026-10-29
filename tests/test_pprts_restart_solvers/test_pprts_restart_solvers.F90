@@ -34,7 +34,7 @@ module test_pprts_restart_solvers
   real(ireals), parameter :: incSolar = 1000
   real(ireals), parameter :: albedo = .2_ireals
   real(ireals), parameter :: rtol_restart = 1e-2_ireals
-  integer(iintegers), parameter :: pc_sor_its = 2
+  integer(iintegers), parameter :: pc_sor_its = 8 ! default of -solar_diff_pc_sor_its
 
   ! results of one configuration: iterations and wall time of both calls, fluxes on rank 0
   type t_result

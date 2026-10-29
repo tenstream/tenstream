@@ -4,6 +4,7 @@ module test_buildings
   use m_helper_functions, only: &
     & CHKERR, &
     & deg2rad, &
+    & insert_petsc_opt, &
     & ind_1d_to_nd
 
   use m_buildings, only: &
@@ -298,6 +299,10 @@ contains
     Ag = 0
     dtau = 0
     w0 = 0
+
+    ! the building emission has to arrive at the top face up to atol,
+    ! i.e. converge the diffuse solver well below the default tolerances
+    call insert_petsc_opt('-thermal_diff_ksp_atol 1e-8 -thermal_diff_ksp_rtol 1e-8')
 
     call ex_pprts_buildings(comm, lverbose,       &
       & lthermal, lsolar, Nx, Ny, Nlay, icollapse,&
