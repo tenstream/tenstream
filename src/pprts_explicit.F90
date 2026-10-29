@@ -1379,7 +1379,7 @@ contains
   !> open domain edges, which hold unknowns that no other rank owns. Needs six additional diffuse vectors.
   !> Used for the first solve of a solution by default (unless -<prefix>ksp_type is set) and with -<prefix>ksp_type bcgs;
   !> -<prefix>initial_ksp_type richardson keeps SOR for the first solve as well.
-  !> -<prefix>pc_sor_its (default 2), -<prefix>pc_sor_omega (default 1)
+  !> -<prefix>pc_sor_its (default 8), -<prefix>pc_sor_omega (default 1)
   !> One iteration costs 2 * pc_sor_its SOR sweeps, plus pc_sor_its for the initial residual.
   subroutine explicit_ediff_bicgstab(solver, prefix, b, x, rtol, atol, maxiter, &
       & lmonitor_residual, lconverged_reason, laccept_incomplete_solve, solution, niter, ierr)
@@ -1403,7 +1403,7 @@ contains
     logical :: lflg, lconverged
 
     ierr = 0
-    pc_its = 2
+    pc_its = 8
     call get_petsc_opt(prefix, "-pc_sor_its", pc_its, lflg, ierr); call CHKERR(ierr)
     omega_pc = 1
     call get_petsc_opt(prefix, "-pc_sor_omega", omega_pc, lflg, ierr); call CHKERR(ierr)
