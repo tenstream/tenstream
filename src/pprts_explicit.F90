@@ -22,6 +22,9 @@ module m_pprts_explicit
   use mpi
 
   use m_data_parameters, only: &
+    & default_str_len, &
+    & imp_real_dp, &
+    & ireal_dp, &
     & i0, i1, &
     & iintegers, mpiint, &
     & ireals, imp_ireals, &
@@ -178,7 +181,7 @@ contains
         if (.not. lskip_residual) then
           xg(0:C%dof - 1, C%zs:C%ze, C%xs:C%xe, C%ys:C%ye) => vedir
           x0(0:C%dof - 1, C%zs:C%ze, C%gxs:C%gxe, C%gys:C%gye) => v0
-          residual(iter) = max(tiny(one), norm2(xg - x0(:, :, C%xs:C%xe, C%ys:C%ye)))
+          residual(iter) = max(tiny(one), norm2_diff(xg, x0(:, :, C%xs:C%xe, C%ys:C%ye)))
           xg = x0(:, :, C%xs:C%xe, C%ys:C%ye)
           nullify (xg, x0)
 
@@ -637,6 +640,12 @@ contains
     real(ireals) :: best_residual_solve
     integer(iintegers) :: iter_at_best
     integer(iintegers), parameter :: stagnation_window = 50
+    logical :: ldivergence_guard
+    real(ireals) :: divergence_factor, omega_diverged
+    integer(iintegers) :: ndivergences
+    integer(iintegers), parameter :: max_divergences = 4
+    character(len=default_str_len) :: ksp_type
+    integer(iintegers) :: niter_bcgs
 
     x0 => null()
     xg => null()
@@ -683,6 +692,13 @@ contains
       call get_petsc_opt(prefix, "-pc_sor_omega_max", omega_max, lflg, ierr); call CHKERR(ierr)
       omega_stagnation = 0.5_ireals
       call get_petsc_opt(prefix, "-pc_sor_omega_stagnation", omega_stagnation, lflg, ierr); call CHKERR(ierr)
+      ldivergence_guard = .true.
+      call get_petsc_opt(prefix, "-pc_sor_divergence_guard", ldivergence_guard, lflg, ierr); call CHKERR(ierr)
+      divergence_factor = 1e2_ireals
+      call get_petsc_opt(prefix, "-pc_sor_divergence_factor", divergence_factor, lflg, ierr); call CHKERR(ierr)
+      omega_diverged = 0.8_ireals
+      call get_petsc_opt(prefix, "-pc_sor_omega_diverged", omega_diverged, lflg, ierr); call CHKERR(ierr)
+      ndivergences = 0
       omega_dir = 1._ireals
       omega_step = omega_increment * 0.5_ireals
       log_rate_prev = 0._ireals
@@ -741,7 +757,25 @@ contains
       ! RHS ghost cells are used by the sweep for incoming diffuse at boundaries
       call fill_ghost(solver%comm, C, lvb, ierr); call CHKERR(ierr)
 
+      ! -<prefix>ksp_type bcgs: BiCGStab, any other type (e.g. one meant for the PETSc solvers): SOR
+      ! -<prefix>initial_ksp_type: the same, but only for the first solve of a solution, i.e. without a previous one.
+      ! The first solve is done with BiCGStab unless -<prefix>ksp_type is set,
+      ! warm restarts with loose tolerances are cheaper with SOR
+      ksp_type = 'richardson'
+      call get_petsc_opt(prefix, "-ksp_type", ksp_type, lflg, ierr); call CHKERR(ierr)
+      if (solution%diff_ksp_residual_history(1) .lt. 0) then
+        if (.not. lflg) ksp_type = 'bcgs'
+        call get_petsc_opt(prefix, "-initial_ksp_type", ksp_type, lflg, ierr); call CHKERR(ierr)
+      end if
+      if (trim(ksp_type) .eq. 'bcgs') then
+        call explicit_ediff_bicgstab(solver, prefix, lvb, v0, rtol, atol, maxiter, &
+          & lmonitor_residual, lconverged_reason, laccept_incomplete_solve, solution, niter_bcgs, ierr)
+        call CHKERR(ierr)
+        solution%Niter_diff = niter_bcgs
+      end if
+
       sorloop: do iter = 1, maxiter
+        if (trim(ksp_type) .eq. 'bcgs') exit sorloop
         do isub = 1, sub_iter
           ! ghost cells outside of the open domain edges, they feed the domain
           if (solver%lopen_bc .and. solver%lopen_bc_2d) call diffuse_ghost_sweep(solver, lvb, v0)
@@ -773,13 +807,41 @@ contains
           xg(0:C%dof - 1, C%zs:C%ze, C%xs:C%xe, C%ys:C%ye) => vediff
           x0(0:C%dof - 1, C%zs:C%ze, C%gxs:C%gxe, C%gys:C%gye) => v0
 
-          residual(iter) = norm2(xg - x0(:, :, C%xs:C%xe, C%ys:C%ye))
-          xg = x0(:, :, C%xs:C%xe, C%ys:C%ye)
-
-          nullify (xg, x0)
+          residual(iter) = norm2_diff(xg, x0(:, :, C%xs:C%xe, C%ys:C%ye))
 
           call imp_allreduce_mean(solver%comm, residual(iter), residual_mean)
           residual(iter) = residual_mean
+
+          ! Divergence guard: the iterate before this sweep is still in vediff, i.e. we can restore it without extra memory.
+          ! If the update blew up (non-finite or far above the best update so far), go back one iteration and continue
+          ! with a fixed, under-relaxed omega; if it diverges again, halve omega. The negated comparison is also true for NaN.
+          if (ldivergence_guard .and. iter .ge. 2) then
+            if (.not. (residual(iter) .le. divergence_factor * best_residual_solve)) then
+              ndivergences = ndivergences + 1
+              if (ndivergences .gt. max_divergences) then
+                call CHKERR(1_mpiint, trim(prefix)//' diverged '//toStr(ndivergences)//' times, last omega '// &
+                  & toStr(omega_adaptive)//' (switch off the guard with -'//trim(prefix)//'pc_sor_divergence_guard 0)')
+              end if
+              x0(:, :, C%xs:C%xe, C%ys:C%ye) = xg
+              omega_adaptive = min(omega_adaptive, omega_diverged) * 0.5_ireals**(ndivergences - 1)
+              omega_save = omega_adaptive
+              lomega_frozen = .true.
+              if (solver%myid .eq. 0 .and. lmonitor_residual) then
+                print *, trim(prefix), ' iter ', toStr(iter), ' diverged (residual', residual(iter), &
+                  & '), restored previous iterate, continue with fixed omega', omega_adaptive
+              end if
+              residual(iter) = residual(iter - 1)
+              residual_mean = residual(iter)
+              nullify (xg, x0)
+              call exchange_diffuse_boundary(solver, v0, ierr); call CHKERR(ierr)
+              xg(0:C%dof - 1, C%zs:C%ze, C%xs:C%xe, C%ys:C%ye) => vediff
+              x0(0:C%dof - 1, C%zs:C%ze, C%gxs:C%gxe, C%gys:C%gye) => v0
+            end if
+          end if
+
+          xg = x0(:, :, C%xs:C%xe, C%ys:C%ye)
+
+          nullify (xg, x0)
 
           if (residual(1) .le. sqrt(tiny(residual))) then
             rel_residual = 0
@@ -850,6 +912,7 @@ contains
           end if
         end if
       end do sorloop
+      if (trim(ksp_type) .ne. 'bcgs') solution%Niter_diff = min(iter, maxiter)
 
       if (ladaptive_omega) solution%diff_sor_omega = omega_save
 
@@ -1269,6 +1332,26 @@ contains
     end do
   end subroutine
 
+  !> @brief 2-norm of a - b, accumulated in double precision:
+  !> in single precision, a sum stagnates once it is 2**24 times larger than the terms, i.e. for large domains
+  pure function norm2_diff(a, b) result(r)
+    real(ireals), intent(in) :: a(:, :, :, :), b(:, :, :, :)
+    real(ireals) :: r
+    real(ireal_dp) :: s
+    integer(iintegers) :: l, k, i, j
+    s = 0
+    do j = 1, size(a, 4)
+      do i = 1, size(a, 3)
+        do k = 1, size(a, 2)
+          do l = 1, size(a, 1)
+            s = s + (real(a(l, k, i, j), ireal_dp) - b(l, k, i, j))**2
+          end do
+        end do
+      end do
+    end do
+    r = real(sqrt(s), ireals)
+  end function
+
   !> @brief returns the diffuse dof that is the same stream but the opposite direction
   pure function diff_inv_dof(solver, dof) result(inv_dof)
     class(t_solver), intent(in) :: solver
@@ -1286,6 +1369,212 @@ contains
     end if
   end function
 
+  !> @brief BiCGStab acceleration of the SOR iteration for the diffuse system
+  !> @details One SOR iteration (ghost columns at open boundaries, pc_sor_its sweeps with alternating directions and
+  !> fixed omega, halo exchange and zero gradient open boundaries) is an affine map phi(x) = G x + c; its fixed point,
+  !> the SOR solution, solves (1 - G) x = c, which we solve with BiCGStab, i.e. BiCGStab left-preconditioned with SOR.
+  !> The operator reuses the SOR code, so all boundary conditions are the same as for the SOR solver.
+  !> The residual c - (1 - G) x = phi(x) - x is the SOR update, convergence is checked relative to the initial one.
+  !> Vectors carry the same ghost cells as x; inner products run over the owned entries and over the ghost cells at
+  !> open domain edges, which hold unknowns that no other rank owns. Needs six additional diffuse vectors.
+  !> Used for the first solve of a solution by default (unless -<prefix>ksp_type is set) and with -<prefix>ksp_type bcgs;
+  !> -<prefix>initial_ksp_type richardson keeps SOR for the first solve as well.
+  !> -<prefix>pc_sor_its (default 8), -<prefix>pc_sor_omega (default 1)
+  !> One iteration costs 2 * pc_sor_its SOR sweeps, plus pc_sor_its for the initial residual.
+  subroutine explicit_ediff_bicgstab(solver, prefix, b, x, rtol, atol, maxiter, &
+      & lmonitor_residual, lconverged_reason, laccept_incomplete_solve, solution, niter, ierr)
+    class(t_solver), intent(inout) :: solver
+    character(len=*), intent(in) :: prefix
+    real(ireals), contiguous, intent(in) :: b(:, :, :, :)
+    real(ireals), contiguous, intent(inout) :: x(:, :, :, :)
+    real(ireals), intent(in) :: rtol, atol
+    integer(iintegers), intent(in) :: maxiter
+    logical, intent(in) :: lmonitor_residual, lconverged_reason, laccept_incomplete_solve
+    type(t_state_container), intent(inout) :: solution
+    integer(iintegers), intent(out) :: niter
+    integer(mpiint), intent(out) :: ierr
+
+    real(ireals), allocatable, dimension(:, :, :, :) :: r, rhat, p, v, t, b0
+    real(ireals) :: alpha, beta, omg, rho, rho_old, omega_pc
+    real(ireals) :: rnorm, rnorm0
+    real(ireal_dp) :: dots(3)
+    integer(iintegers) :: iter, pc_its, nhist
+    integer(iintegers) :: ilo, ihi, jlo, jhi ! range of the ghosted arrays that enters inner products
+    logical :: lflg, lconverged
+
+    ierr = 0
+    pc_its = 8
+    call get_petsc_opt(prefix, "-pc_sor_its", pc_its, lflg, ierr); call CHKERR(ierr)
+    omega_pc = 1
+    call get_petsc_opt(prefix, "-pc_sor_omega", omega_pc, lflg, ierr); call CHKERR(ierr)
+    nhist = size(solution%diff_ksp_residual_history, kind=iintegers)
+
+    associate (C => solver%C_diff)
+      ilo = 2; ihi = size(x, 3) - 1
+      jlo = 2; jhi = size(x, 4) - 1
+      if (solver%lopen_bc_x .and. C%xs .eq. i0) ilo = 1
+      if (solver%lopen_bc_x .and. C%xe + 1 .eq. C%glob_xm) ihi = size(x, 3)
+      if (solver%lopen_bc_y .and. C%ys .eq. i0) jlo = 1
+      if (solver%lopen_bc_y .and. C%ye + 1 .eq. C%glob_ym) jhi = size(x, 4)
+    end associate
+
+    allocate (r, rhat, p, v, t, mold=x)
+    allocate (b0, mold=x); b0 = zero
+
+    ! r = phi(x) - x
+    r = x
+    call sor_iteration(b, r)
+    r = r - x
+    rhat = r
+    p = zero
+    v = zero
+    alpha = one
+    omg = one
+    rho_old = one
+
+    dots(1:2) = local_dots(r, r, rhat, r)
+    call allreduce_dots(dots(1:2))
+    rnorm0 = real(sqrt(dots(1)), ireals)
+    rnorm = rnorm0
+    rho = real(dots(2), ireals)
+    lconverged = rnorm0 .lt. atol .or. rnorm0 .le. sqrt(tiny(rnorm0))
+
+    if (solver%myid .eq. 0 .and. lmonitor_residual) then
+      print *, trim(prefix), ' bcgs iter 0 residual', rnorm0, ' pc_sor_its', pc_its, ' omega', omega_pc
+    end if
+
+    iter = 0
+    do while (.not. lconverged)
+      iter = iter + 1
+      if (iter .gt. maxiter) then
+        if (.not. laccept_incomplete_solve) call CHKERR(int(iter, mpiint), trim(prefix)//" bcgs did not converge")
+        exit
+      end if
+
+      if (abs(rho) .le. tiny(rho)) then ! breakdown: restart with the current residual as shadow residual
+        rhat = r
+        p = zero
+        v = zero
+        dots(1:1) = local_dots(r, r)
+        call allreduce_dots(dots(1:1))
+        rho = real(dots(1), ireals)
+        alpha = one; omg = one; rho_old = one
+        if (solver%myid .eq. 0 .and. lmonitor_residual) print *, trim(prefix), ' bcgs iter', iter, ' restart'
+      end if
+
+      beta = (rho / rho_old) * (alpha / omg)
+      p = r + beta * (p - omg * v)
+      call matmult(p, v)
+
+      dots(1:1) = local_dots(rhat, v)
+      call allreduce_dots(dots(1:1))
+      alpha = rho / real(dots(1), ireals)
+
+      x = x + alpha * p
+      r = r - alpha * v ! r holds s from here on
+      call matmult(r, t)
+
+      dots = local_dots(t, r, t, t, r, r)
+      call allreduce_dots(dots)
+      rnorm = real(sqrt(dots(3)), ireals)
+      if (dots(2) .gt. 0) then
+        omg = real(dots(1) / dots(2), ireals)
+      else
+        omg = zero
+      end if
+
+      if (rnorm .lt. atol .or. rnorm / rnorm0 .lt. rtol .or. omg .eq. zero) then ! s is small enough, x is done
+        lconverged = .true.
+      else
+        x = x + omg * r
+        r = r - omg * t
+        rho_old = rho
+        dots(1:2) = local_dots(r, r, rhat, r)
+        call allreduce_dots(dots(1:2))
+        rnorm = real(sqrt(dots(1)), ireals)
+        rho = real(dots(2), ireals)
+        lconverged = rnorm .lt. atol .or. rnorm / rnorm0 .lt. rtol
+      end if
+
+      solution%diff_ksp_residual_history(min(nhist, iter)) = rnorm
+      if (solver%myid .eq. 0 .and. lmonitor_residual) then
+        print *, trim(prefix), ' bcgs iter ', toStr(iter), ' residual', rnorm, 'rel res', rnorm / rnorm0
+      end if
+      if (.not. (rnorm .eq. rnorm)) call CHKERR(1_mpiint, trim(prefix)//' bcgs residual is NaN')
+    end do
+
+    if (solver%myid .eq. 0 .and. lconverged_reason .and. lconverged) then
+      if (rnorm .lt. atol) then
+        print *, trim(prefix)//' solve converged due to CONVERGED_ATOL iterations', iter
+      else
+        print *, trim(prefix)//' solve converged due to CONVERGED_RTOL iterations', iter
+      end if
+    end if
+    niter = min(iter, maxiter)
+
+  contains
+
+    !> y = (1 - G) xin = xin - phi_0(xin), with phi_0 the SOR iteration without source
+    subroutine matmult(xin, y)
+      real(ireals), contiguous, intent(in) :: xin(:, :, :, :)
+      real(ireals), contiguous, intent(inout) :: y(:, :, :, :)
+      y = xin
+      call sor_iteration(b0, y)
+      y = xin - y
+    end subroutine
+
+    !> one SOR iteration in place, as in the loop of explicit_ediff, but with fixed omega
+    subroutine sor_iteration(bb, xx)
+      real(ireals), contiguous, intent(in) :: bb(:, :, :, :)
+      real(ireals), contiguous, intent(inout) :: xx(:, :, :, :)
+      integer(iintegers) :: isweep
+      associate (C => solver%C_diff)
+        do isweep = 1, pc_its
+          if (solver%lopen_bc .and. solver%lopen_bc_2d) call diffuse_ghost_sweep(solver, bb, xx)
+          if (modulo(isweep, 2_iintegers) .eq. 1) then
+            call explicit_ediff_sor_sweep(solver, solver%diff2diff, &
+              & dx=[C%xs, C%xe, i1], dy=[C%ys, C%ye, i1], dz=[C%zs, C%ze - 1, i1], &
+              & omega=omega_pc, b=bb, x=xx)
+          else
+            call explicit_ediff_sor_sweep(solver, solver%diff2diff, &
+              & dx=[C%xe, C%xs, -i1], dy=[C%ye, C%ys, -i1], dz=[C%ze - 1, C%zs, -i1], &
+              & omega=omega_pc, b=bb, x=xx)
+          end if
+          call exchange_diffuse_boundary(solver, xx, ierr); call CHKERR(ierr)
+        end do
+      end associate
+    end subroutine
+
+    !> local parts of inner products of pairs of vectors, accumulated in double precision
+    function local_dots(a1, b1, a2, b2, a3, b3) result(d)
+      real(ireals), contiguous, intent(in) :: a1(:, :, :, :), b1(:, :, :, :)
+      real(ireals), contiguous, intent(in), optional :: a2(:, :, :, :), b2(:, :, :, :), a3(:, :, :, :), b3(:, :, :, :)
+      real(ireal_dp), allocatable :: d(:)
+      integer(iintegers) :: n, k, i, j, l
+      n = 1
+      if (present(a2)) n = 2
+      if (present(a3)) n = 3
+      allocate (d(n), source=0._ireal_dp)
+      do j = jlo, jhi
+        do i = ilo, ihi
+          do k = 1, size(a1, 2)
+            do l = 1, size(a1, 1)
+              d(1) = d(1) + real(a1(l, k, i, j), ireal_dp) * b1(l, k, i, j)
+              if (n .ge. 2) d(2) = d(2) + real(a2(l, k, i, j), ireal_dp) * b2(l, k, i, j)
+              if (n .ge. 3) d(3) = d(3) + real(a3(l, k, i, j), ireal_dp) * b3(l, k, i, j)
+            end do
+          end do
+        end do
+      end do
+    end function
+
+    subroutine allreduce_dots(d)
+      real(ireal_dp), intent(inout) :: d(:)
+      call MPI_Allreduce(MPI_IN_PLACE, d, size(d, kind=mpiint), imp_real_dp, MPI_SUM, solver%comm, ierr)
+      call CHKERR(ierr)
+    end subroutine
+  end subroutine
+
   subroutine explicit_ediff_sor_sweep(solver, coeffs, dx, dy, dz, omega, b, x)
     class(t_solver), intent(inout) :: solver
     real(ireals), target, intent(in) :: coeffs(:, :, :, :)
@@ -1298,9 +1587,12 @@ contains
     integer(iintegers) :: k, i, j
     integer(iintegers) :: idst, isrc, src, dst
     real(ireals), pointer :: v(:, :) ! dim(src, dst)
-    integer(iintegers) :: msrc, mdst
+    integer(iintegers) :: mdst
 
     real(ireals) :: sigma
+    integer(iintegers) :: ntop, nside
+    integer(iintegers), allocatable :: soff(:) ! offset (0 or 1) of the incoming face of each stream along its axis
+    real(ireals), allocatable :: xin(:)        ! incoming streams of a box
 
     x0 => null()
     xb => null()
@@ -1311,6 +1603,17 @@ contains
 
       x0(0:C%dof - 1, C%zs:C%ze, C%gxs:C%gxe, C%gys:C%gye) => x
       xb(0:C%dof - 1, C%zs:C%ze, C%gxs:C%gxe, C%gys:C%gye) => b
+
+      ntop = solver%difftop%dof
+      nside = solver%diffside%dof
+      allocate (soff(0:C%dof - 1), xin(0:C%dof - 1))
+      do isrc = 0, ntop - 1
+        soff(isrc) = merge(0_iintegers, 1_iintegers, solver%difftop%is_inward(i1 + isrc))
+      end do
+      do isrc = 0, nside - 1
+        soff(ntop + isrc) = merge(0_iintegers, 1_iintegers, solver%diffside%is_inward(i1 + isrc))
+        soff(ntop + nside + isrc) = soff(ntop + isrc)
+      end do
 
       if (dz(3) .lt. 0) then ! if going from bottom to top, we do it here at the beginning
         do j = dy(1), dy(2), dy(3)
@@ -1345,74 +1648,32 @@ contains
 
               v(0:C%dof - 1, 0:C%dof - 1) => coeffs(1:C%dof**2, k - C%zs + 1, i - C%xs + 1, j - C%ys + 1)
 
-              dst = 0
-              do idst = 0, solver%difftop%dof - 1
-                mdst = merge(k + 1, k, solver%difftop%is_inward(i1 + idst))
-                sigma = 0
-                src = 0
-                do isrc = 0, solver%difftop%dof - 1
-                  msrc = merge(k, k + 1, solver%difftop%is_inward(i1 + isrc))
-                  sigma = sigma + x0(src, msrc, i, j) * v(src, dst)
-                  src = src + 1
-                end do
-                do isrc = 0, solver%diffside%dof - 1
-                  msrc = merge(i, i + 1, solver%diffside%is_inward(i1 + isrc))
-                  sigma = sigma + x0(src, k, msrc, j) * v(src, dst)
-                  src = src + 1
-                end do
-                do isrc = 0, solver%diffside%dof - 1
-                  msrc = merge(j, j + 1, solver%diffside%is_inward(i1 + isrc))
-                  sigma = sigma + x0(src, k, i, msrc) * v(src, dst)
-                  src = src + 1
-                end do
+              ! gather the incoming streams of the box into a contiguous vector; sources (incoming faces) and
+              ! destinations (outgoing faces) never share a memory location, so this is identical to updating in place
+              do src = 0, ntop - 1
+                xin(src) = x0(src, k + soff(src), i, j)
+              end do
+              do src = ntop, ntop + nside - 1
+                xin(src) = x0(src, k, i + soff(src), j)
+              end do
+              do src = ntop + nside, C%dof - 1
+                xin(src) = x0(src, k, i, j + soff(src))
+              end do
+
+              do dst = 0, ntop - 1
+                mdst = k + 1 - soff(dst)
+                sigma = dot_product(xin, v(:, dst))
                 x0(dst, mdst, i, j) = (one - omega) * x0(dst, mdst, i, j) + omega * (xb(dst, mdst, i, j) + sigma)
-                dst = dst + 1
               end do
-
-              do idst = 0, solver%diffside%dof - 1
-                mdst = merge(i + 1, i, solver%diffside%is_inward(i1 + idst))
-                sigma = 0
-                src = 0
-                do isrc = 0, solver%difftop%dof - 1
-                  msrc = merge(k, k + 1, solver%difftop%is_inward(i1 + isrc))
-                  sigma = sigma + x0(src, msrc, i, j) * v(src, dst)
-                  src = src + 1
-                end do
-                do isrc = 0, solver%diffside%dof - 1
-                  msrc = merge(i, i + 1, solver%diffside%is_inward(i1 + isrc))
-                  sigma = sigma + x0(src, k, msrc, j) * v(src, dst)
-                  src = src + 1
-                end do
-                do isrc = 0, solver%diffside%dof - 1
-                  msrc = merge(j, j + 1, solver%diffside%is_inward(i1 + isrc))
-                  sigma = sigma + x0(src, k, i, msrc) * v(src, dst)
-                  src = src + 1
-                end do
+              do dst = ntop, ntop + nside - 1
+                mdst = i + 1 - soff(dst)
+                sigma = dot_product(xin, v(:, dst))
                 x0(dst, k, mdst, j) = (one - omega) * x0(dst, k, mdst, j) + omega * (xb(dst, k, mdst, j) + sigma)
-                dst = dst + 1
               end do
-
-              do idst = 0, solver%diffside%dof - 1
-                mdst = merge(j + 1, j, solver%diffside%is_inward(i1 + idst))
-                sigma = 0
-                src = 0
-                do isrc = 0, solver%difftop%dof - 1
-                  msrc = merge(k, k + 1, solver%difftop%is_inward(i1 + isrc))
-                  sigma = sigma + x0(src, msrc, i, j) * v(src, dst)
-                  src = src + 1
-                end do
-                do isrc = 0, solver%diffside%dof - 1
-                  msrc = merge(i, i + 1, solver%diffside%is_inward(i1 + isrc))
-                  sigma = sigma + x0(src, k, msrc, j) * v(src, dst)
-                  src = src + 1
-                end do
-                do isrc = 0, solver%diffside%dof - 1
-                  msrc = merge(j, j + 1, solver%diffside%is_inward(i1 + isrc))
-                  sigma = sigma + x0(src, k, i, msrc) * v(src, dst)
-                  src = src + 1
-                end do
+              do dst = ntop + nside, C%dof - 1
+                mdst = j + 1 - soff(dst)
+                sigma = dot_product(xin, v(:, dst))
                 x0(dst, k, i, mdst) = (one - omega) * x0(dst, k, i, mdst) + omega * (xb(dst, k, i, mdst) + sigma)
-                dst = dst + 1
               end do
 
             end if ! endif l1d

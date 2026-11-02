@@ -973,6 +973,90 @@ contains
     end if
   end function
 
+  !> @brief liquid effective radius as in ecRad/IFS, liquid_effective_radius.F90 with NRADLP=2:
+  !> Martin et al. (1994) with the rain adjustment of Wood (2000, eq. 19)
+  !> @details water contents are grid box means, i.e. in-cloud for a cloud fraction of one
+  pure elemental function reliq_ecrad(p, T, q_liq, q_rain, lland, ccn_land, ccn_sea) result(re)
+    real(ireals), intent(in) :: p       ! pressure                       [Pa]
+    real(ireals), intent(in) :: T       ! temperature                    [K]
+    real(ireals), intent(in) :: q_liq   ! cloud liquid water mixing ratio [kg/kg]
+    real(ireals), intent(in) :: q_rain  ! rain water mixing ratio         [kg/kg]
+    logical, intent(in) :: lland        ! land or sea, determines CCN and spectral dispersion
+    real(ireals), intent(in), optional :: ccn_land, ccn_sea ! CCN concentration, defaults 900 and 50 as in ecRad
+    real(ireals) :: re                  ! effective radius               [micron]
+
+    real(ireals), parameter :: min_re = 4, max_re = 30, eps = 1e-12_ireals
+    real(ireals) :: ccn, dispersion, ntot_cm3, ratio, rho_gm3, lwc, rwc, rain_ratio, wood_factor, re_cubed
+
+    if (lland) then
+      ccn = 900
+      if (present(ccn_land)) ccn = ccn_land
+      dispersion = 0.69_ireals
+      ntot_cm3 = -2.10e-04_ireals * ccn * ccn + 0.568_ireals * ccn - 27.9_ireals
+    else
+      ccn = 50
+      if (present(ccn_sea)) ccn = ccn_sea
+      dispersion = 0.77_ireals
+      ntot_cm3 = -1.15e-03_ireals * ccn * ccn + 0.963_ireals * ccn + 5.30_ireals
+    end if
+    ratio = (0.222_ireals / dispersion)**0.333_ireals
+
+    if (q_liq + q_rain .le. 0) then
+      re = min_re
+      return
+    end if
+
+    rho_gm3 = 1000 * p / (real(R_DRY_AIR, ireals) * T)
+    lwc = rho_gm3 * q_liq
+    rwc = rho_gm3 * q_rain
+    if (lwc .gt. eps) then
+      rain_ratio = rwc / lwc
+      wood_factor = ((1 + rain_ratio)**0.666_ireals) / (1 + 0.2_ireals * ratio * rain_ratio)
+    else
+      wood_factor = 1
+    end if
+    re_cubed = (3 * (lwc + rwc)) / (4 * pi * ntot_cm3 * dispersion)
+    if (re_cubed .gt. eps) then
+      re = max(min_re, min(max_re, wood_factor * 100 * exp(0.333_ireals * log(re_cubed))))
+    else
+      re = min_re
+    end if
+  end function
+
+  !> @brief ice effective radius as in ecRad/IFS, ice_effective_radius.F90 with NRADIP=3:
+  !> Sun and Rikus (1999), revised by Sun (2001), as function of temperature and ice + snow water content
+  !> @details water contents are grid box means, i.e. in-cloud for a cloud fraction of one
+  pure elemental function reice_ecrad(p, T, q_ice, q_snow, coslat, min_diameter) result(re)
+    real(ireals), intent(in) :: p       ! pressure                     [Pa]
+    real(ireals), intent(in) :: T       ! temperature                  [K]
+    real(ireals), intent(in) :: q_ice   ! cloud ice mixing ratio       [kg/kg]
+    real(ireals), intent(in) :: q_snow  ! snow mixing ratio            [kg/kg]
+    real(ireals), intent(in) :: coslat  ! cos(latitude), the minimum ice size is smaller at the poles (NMINICE=1)
+    real(ireals), intent(in), optional :: min_diameter ! minimum effective diameter at the equator, default 60 [micron]
+    real(ireals) :: re                  ! effective radius             [micron]
+
+    real(ireals), parameter :: re2de = 0.64952_ireals ! converts effective diameter to radius
+    real(ireals), parameter :: max_diameter = 155, T0 = 273.15_ireals
+    real(ireals) :: mind, rho_gm3, iwc, aiwc, biwc, diameter
+
+    if (q_ice + q_snow .le. 0) then
+      re = 80 * re2de
+      return
+    end if
+
+    mind = 60
+    if (present(min_diameter)) mind = min_diameter
+    mind = 20 + (mind - 20) * coslat
+
+    rho_gm3 = 1000 * p / (real(R_DRY_AIR, ireals) * T)
+    iwc = rho_gm3 * (q_ice + q_snow)
+    aiwc = 45.8966_ireals * iwc**0.2214_ireals
+    biwc = 0.7957_ireals * iwc**0.2535_ireals
+    diameter = (1.2351_ireals + 0.0105_ireals * (T - T0)) * (aiwc + biwc * (T - 83.15_ireals))
+    diameter = min(max(diameter, mind), max_diameter)
+    re = diameter * re2de
+  end function
+
   ! convert e.g. from lwc [g/kg] to lwp[g/m2] with: lwp = lwc * vert_integral_coeff(p0, p1, T)
   elemental function vert_integral_coeff(p0, p1) result(c)
     real(ireals), intent(in) :: p0, p1 ! pressure at bottom/top of layer [hPa]
