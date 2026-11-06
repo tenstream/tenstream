@@ -294,6 +294,7 @@ contains
         & solver, bmc, bmc_1_2, &
         & pqueues, PQ_SELF, &
         & edir, ediff, Nediff, abso, &
+        & lthermal=.not. solution%lsolar_rad, &
         & started_photons=ip, &
         & killed_photons=kp, &
         & limit_number_photons=Nbatchsize, &
@@ -313,7 +314,8 @@ contains
           & solver, bmc, bmc_1_2, &
           & pqueues, PQ_NORTH, &
           & edir, ediff, Nediff, abso, &
-          & started_photons=ip, &
+          & lthermal=.not. solution%lsolar_rad, &
+        & started_photons=ip, &
           & killed_photons=kp, &
           & opt_buildings=opt_buildings, &
           & buildings_idx=buildings_idx)
@@ -327,7 +329,8 @@ contains
           & solver, bmc, bmc_1_2, &
           & pqueues, PQ_EAST, &
           & edir, ediff, Nediff, abso, &
-          & started_photons=ip, &
+          & lthermal=.not. solution%lsolar_rad, &
+        & started_photons=ip, &
           & killed_photons=kp, &
           & opt_buildings=opt_buildings, &
           & buildings_idx=buildings_idx)
@@ -341,7 +344,8 @@ contains
           & solver, bmc, bmc_1_2, &
           & pqueues, PQ_SOUTH, &
           & edir, ediff, Nediff, abso, &
-          & started_photons=ip, &
+          & lthermal=.not. solution%lsolar_rad, &
+        & started_photons=ip, &
           & killed_photons=kp, &
           & opt_buildings=opt_buildings, &
           & buildings_idx=buildings_idx)
@@ -355,7 +359,8 @@ contains
           & solver, bmc, bmc_1_2, &
           & pqueues, PQ_WEST, &
           & edir, ediff, Nediff, abso, &
-          & started_photons=ip, &
+          & lthermal=.not. solution%lsolar_rad, &
+        & started_photons=ip, &
           & killed_photons=kp, &
           & opt_buildings=opt_buildings, &
           & buildings_idx=buildings_idx)
@@ -741,6 +746,7 @@ contains
   subroutine run_photon_queue(solver, bmc, bmc_1_2, &
       & pqueues, ipq, &
       & edir, ediff, Nediff, abso, &
+      & lthermal, &
       & started_photons, killed_photons, &
       & limit_number_photons, &
       & opt_buildings, buildings_idx)
@@ -751,6 +757,7 @@ contains
     integer(iintegers), intent(in) :: ipq
     real(ireal_dp), allocatable, dimension(:, :, :, :), intent(inout) :: edir, ediff, abso
     integer(iintegers), allocatable, dimension(:, :, :, :), intent(inout) :: Nediff
+    logical, intent(in) :: lthermal ! thermal or solar computation, note that planck may be allocated in solar runs too
     integer(int64), intent(out) :: started_photons
     integer(int64), intent(out) :: killed_photons
     integer(int64), optional, intent(in) :: limit_number_photons
@@ -790,6 +797,7 @@ contains
         & ediff, &
         & Nediff, &
         & abso, &
+        & lthermal, &
         & lkilled_photon, &
         & opt_buildings=opt_buildings, &
         & buildings_idx=buildings_idx)
@@ -805,6 +813,7 @@ contains
 
   subroutine run_photon(solver, bmc, bmc_1_2, pqueues, ipq, iphoton, &
       & edir, ediff, Nediff, abso, &
+      & lthermal, &
       & lkilled_photon, &
       & opt_buildings, buildings_idx)
     class(t_solver), intent(in) :: solver
@@ -819,7 +828,8 @@ contains
     type(t_pprts_buildings), intent(in), optional :: opt_buildings
     integer(iintegers), allocatable, dimension(:, :, :, :), intent(in) :: buildings_idx
 
-    logical :: lexit_cell, lthermal, lexit_domain
+    logical, intent(in) :: lthermal
+    logical :: lexit_cell, lexit_domain
     integer(mpiint) :: myid, ierr
 
     lkilled_photon = .false.
@@ -831,8 +841,6 @@ contains
       if (ldebug_tracing) print *, myid, cstr('Start of run_photon :: QUEUE:', 'pink'), id2name(ipq), 'iphoton', iphoton
       if (ldebug_tracing) call print_photon(p)
       call check_if_photon_is_in_domain(solver%C_one_atm, p)
-
-      lthermal = allocated(solver%atm%planck)
 
       if (p%src_side .eq. PPRTS_TOP_FACE) then ! started at the top of the box, lets increment TOA downward flux
         if (p%direct) then
