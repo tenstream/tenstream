@@ -30,13 +30,15 @@ module m_optprop
     & CHKERR, CHKWARN, &
     & cstr, &
     & deg2rad, &
+    & get_arg, &
     & get_petsc_opt, &
     & is_inrange, &
     & rad2deg, &
     & rmse, &
     & swap, &
     & toStr
-  use m_data_parameters, only: ireals, ireal_dp, irealLUT, ireal_params, iintegers, one, zero, mpiint
+  use m_data_parameters, only: ireals, ireal_dp, irealLUT, ireal_params, iintegers, one, zero, mpiint, &
+    & imp_iinteger, imp_irealLUT, imp_real_dp
   use m_optprop_base, only: t_optprop_base, t_op_config, find_op_dim_by_name
   use m_optprop_LUT, only: &
     & t_optprop_LUT, &
@@ -85,11 +87,36 @@ module m_optprop
     OPP_1D_RETCODE, &
     OPP_TINYASPECT_RETCODE
 
+  !> @brief one entry of the cache for online (-bmc_online) boxmc coefficients
+  type t_bmc_cache_entry
+    logical :: langles, ldir, lswitch_east, lswitch_north
+    real(irealLUT) :: inp(6) ! tauz, w0, g, aspect_zx, phi, theta
+    real(ireals), allocatable :: vertices(:) ! with heights relative to the lowest vertex, unallocated if not given
+    integer(iintegers) :: nC = 0 ! number of coefficients
+    real(irealLUT), allocatable :: C(:)
+  end type
+
+  !> @brief cache for online boxmc coefficients, exact matches on the inputs only
+  !> @details if ldefer is set, cache misses are only recorded in the pending list and the caller gets the LUT coefficients.
+  !>          The pending entries are then computed collectively with bmc_cache_resolve
+  type t_bmc_cache
+    type(t_bmc_cache_entry), allocatable :: e(:), pending(:)
+    integer(iintegers) :: N = 0, Npending = 0, hits = 0, misses = 0, Nresolved = 0
+    logical :: ldefer = .false.
+  end type
+
+  ! tolerances for online boxmc computations (-bmc_online_atol, -bmc_online_rtol)
+  real(ireals) :: bmc_online_atol = 1e-3_ireals, bmc_online_rtol = 5e-1_ireals
+  ! length of a serialized cache key, see bmc_entry_pack
+  integer(iintegers), parameter :: bmc_cache_reclen = 36
+
   type, abstract :: t_optprop
     logical :: optprop_debug = ldebug_optprop
     class(t_optprop_LUT), allocatable :: LUT
     class(t_optprop_ANN), allocatable :: ANN
     class(t_optprop_base), pointer :: dev
+    ! pointer so that it can be filled through intent(in) OPP objects
+    type(t_bmc_cache), pointer :: bmc_cache => null()
   contains
     procedure :: init
     procedure :: get_coeff_bmc
@@ -100,6 +127,8 @@ module m_optprop
   type, abstract, extends(t_optprop) :: t_optprop_cube
   contains
     procedure :: get_coeff => get_coeff_cube
+    procedure :: bmc_cache_defer
+    procedure :: bmc_cache_resolve
     procedure :: dir2dir_coeff_symmetry => dir2dir_coeff_symmetry_none
     procedure :: dir2diff_coeff_symmetry => dir2diff_coeff_symmetry_none
     procedure :: diff2diff_coeff_symmetry => diff2diff_coeff_symmetry
@@ -236,11 +265,23 @@ contains
       OPP%dev => OPP%ANN
     end if
 
+    if (.not. associated(OPP%bmc_cache)) allocate (OPP%bmc_cache)
   end subroutine
   subroutine destroy(OPP, ierr)
     class(t_optprop) :: OPP
     integer(mpiint), intent(out) :: ierr
+    logical :: lview, lflg
     ierr = 0
+    if (associated(OPP%bmc_cache)) then
+      lview = .false.
+      call get_petsc_opt('', "-bmc_online_cache_view", lview, lflg, ierr); call CHKERR(ierr)
+      if (lview .and. OPP%bmc_cache%hits + OPP%bmc_cache%misses .gt. 0) then
+        print *, 'bmc_online cache: entries '//toStr(OPP%bmc_cache%N)// &
+          & ' hits '//toStr(OPP%bmc_cache%hits)//' misses '//toStr(OPP%bmc_cache%misses)// &
+          & ' collectively resolved '//toStr(OPP%bmc_cache%Nresolved)
+      end if
+      deallocate (OPP%bmc_cache)
+    end if
     if (allocated(OPP%LUT)) then
       call OPP%LUT%destroy(ierr); call CHKERR(ierr)
       deallocate (OPP%LUT)
@@ -558,8 +599,12 @@ contains
     real(ireals), intent(in), optional :: opt_vertices(:)
 
     logical, save :: compute_coeff_online = .false., lset = .false., bmc_default_unit_cube_reference = .false.
-    logical :: lflg
+    logical, save :: lbmc_cache = .true.
+    logical :: lflg, lsw_east, lsw_north
+    type(t_bmc_cache_entry) :: key
+    integer(iintegers) :: ientry
     real(ireals) :: vertices(24)
+    real(ireals), allocatable :: mirrored_vertices(:)
     real(irealLUT), allocatable :: Clut(:), Cbmc(:), Cbmc2(:)
     real(irealLUT) :: save_aspect_zx
     ierr = 0
@@ -594,6 +639,9 @@ contains
 
     if (.not. lset) then
       call get_petsc_opt('', "-bmc_online", compute_coeff_online, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt('', "-bmc_online_cache", lbmc_cache, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt('', "-bmc_online_atol", bmc_online_atol, lflg, ierr); call CHKERR(ierr)
+      call get_petsc_opt('', "-bmc_online_rtol", bmc_online_rtol, lflg, ierr); call CHKERR(ierr)
       if (present(opt_vertices)) then
         call get_petsc_opt('', "-bmc_default_unit_cube_reference", bmc_default_unit_cube_reference, lflg, ierr)
         call CHKERR(ierr)
@@ -602,17 +650,59 @@ contains
     end if
 
     if (compute_coeff_online) then
+      lsw_east = get_arg(.false., lswitch_east) .and. present(angles)
+      lsw_north = get_arg(.false., lswitch_north) .and. present(angles)
+
+      call make_key(key)
+
+      if (lbmc_cache .and. associated(OPP%bmc_cache)) then
+        associate (cache => OPP%bmc_cache)
+          ientry = bmc_cache_find(cache%e, cache%N, key)
+          if (ientry .gt. 0) then
+            C = cache%e(ientry)%C
+            cache%hits = cache%hits + 1
+            return
+          end if
+          if (cache%ldefer .and. .not. bmc_default_unit_cube_reference) then
+            ! only record the miss, C keeps the LUT coefficients until bmc_cache_resolve is called
+            if (bmc_cache_find(cache%pending, cache%Npending, key) .eq. 0) &
+              & call bmc_cache_append(cache%pending, cache%Npending, key)
+            return
+          end if
+        end associate
+      end if
+
+      if (.not. bmc_default_unit_cube_reference) then
+        call bmc_cache_compute(OPP, key, mpi_comm_self)
+        C = key%C
+        if (lbmc_cache .and. associated(OPP%bmc_cache)) then
+          call bmc_cache_append(OPP%bmc_cache%e, OPP%bmc_cache%N, key)
+          OPP%bmc_cache%misses = OPP%bmc_cache%misses + 1
+        end if
+        return
+      end if
+
+      ! debug comparison of the LUT against boxmc in a regular and the distorted cube
       allocate (Clut(size(C)), Cbmc(size(C)))
       Clut = C
 
+      ! boxmc is called with the azimuth folded into [0,90] (symmetry_phi),
+      ! i.e. we compute the coefficients in a mirrored world and have to mirror the geometry before
+      ! and the coefficients afterwards, the same as is done for the LUT lookup
       if (.not. present(opt_vertices) .or. bmc_default_unit_cube_reference) then
         call setup_default_unit_cube_geometry(one, one, real(aspect_zx, ireals), vertices)
-        call get_coeff_bmc(OPP, vertices, real(tauz, ireals), real(w0, ireals), real(g, ireals), dir, Cbmc, angles)
+        call get_coeff_bmc(OPP, vertices, real(tauz, ireals), real(w0, ireals), real(g, ireals), dir, Cbmc, angles, &
+          & inp_atol=real(bmc_online_atol, irealLUT), inp_rtol=real(bmc_online_rtol, irealLUT))
+        call apply_coeff_symmetry(Cbmc)
         C = Cbmc
       end if
       if (present(opt_vertices)) then
         allocate (Cbmc2(size(C)))
-        call get_coeff_bmc(OPP, opt_vertices, real(tauz, ireals), real(w0, ireals), real(g, ireals), dir, Cbmc2, angles)
+        mirrored_vertices = opt_vertices
+        call mirror_cube_vertices(mirrored_vertices, lsw_east, lsw_north)
+        call get_coeff_bmc(OPP, mirrored_vertices, real(tauz, ireals), real(w0, ireals), real(g, ireals), dir, Cbmc2, angles, &
+          & inp_atol=real(bmc_online_atol, irealLUT), inp_rtol=real(bmc_online_rtol, irealLUT))
+        call apply_coeff_symmetry(Cbmc2)
         C = Cbmc2
         if (bmc_default_unit_cube_reference) then
           if (present(angles)) then
@@ -638,21 +728,319 @@ contains
           end if
         end if
       end if
+
+    end if
+
+  contains
+
+    subroutine apply_coeff_symmetry(Cx)
+      real(irealLUT), intent(inout) :: Cx(:)
+      if (.not. present(angles)) return
+      if (dir) then
+        call OPP%dir2dir_coeff_symmetry(Cx, lsw_east, lsw_north)
+      else
+        call OPP%dir2diff_coeff_symmetry(Cx, lsw_east, lsw_north)
+      end if
+    end subroutine
+
+    !> @brief copy of the vertices with heights relative to the lowest vertex
+    function cache_vertices() result(v)
+      real(ireals), allocatable :: v(:)
+      v = opt_vertices
+      v(3:size(v):3) = v(3:size(v):3) - minval(v(3:size(v):3))
+    end function
+
+    function bmc_cache_inp() result(inp)
+      real(irealLUT) :: inp(6)
+      inp = [tauz, w0, g, aspect_zx, -999._ireallut, -999._ireallut]
+      if (present(angles)) inp(5:6) = angles(1:2)
+    end function
+
+    subroutine make_key(e)
+      type(t_bmc_cache_entry), intent(out) :: e
+      e%langles = present(angles)
+      e%ldir = dir
+      e%lswitch_east = lsw_east
+      e%lswitch_north = lsw_north
+      e%inp = bmc_cache_inp()
+      if (present(opt_vertices)) then
+        if (size(opt_vertices) .ne. 24) call CHKERR(1_mpiint, &
+                                                    'bmc_online expects 24 cube vertex coords, got '//toStr(size(opt_vertices)))
+        e%vertices = cache_vertices()
+      end if
+      e%nC = size(C, kind=iintegers)
+    end subroutine
+  end subroutine
+
+  !> @brief compare the keys of two cache entries (not the coefficients)
+  logical function bmc_entries_match(a, b) result(lmatch)
+    type(t_bmc_cache_entry), intent(in) :: a, b
+    lmatch = .false.
+    if (a%langles .neqv. b%langles) return
+    if (a%ldir .neqv. b%ldir) return
+    if (a%lswitch_east .neqv. b%lswitch_east) return
+    if (a%lswitch_north .neqv. b%lswitch_north) return
+    if (a%nC .ne. b%nC) return
+    if (any(a%inp .ne. b%inp)) return
+    if (allocated(a%vertices) .neqv. allocated(b%vertices)) return
+    if (allocated(a%vertices)) then
+      if (size(a%vertices) .ne. size(b%vertices)) return
+      if (any(a%vertices .ne. b%vertices)) return
+    end if
+    lmatch = .true.
+  end function
+
+  !> @brief index of key in entries(1:N), 0 if not found
+  integer(iintegers) function bmc_cache_find(entries, N, key) result(idx)
+    type(t_bmc_cache_entry), allocatable, intent(in) :: entries(:)
+    integer(iintegers), intent(in) :: N
+    type(t_bmc_cache_entry), intent(in) :: key
+    do idx = 1, N
+      if (bmc_entries_match(entries(idx), key)) return
+    end do
+    idx = 0
+  end function
+
+  subroutine bmc_cache_append(entries, N, e)
+    type(t_bmc_cache_entry), allocatable, intent(inout) :: entries(:)
+    integer(iintegers), intent(inout) :: N
+    type(t_bmc_cache_entry), intent(in) :: e
+    type(t_bmc_cache_entry), allocatable :: tmp(:)
+    if (.not. allocated(entries)) allocate (entries(16))
+    if (N .ge. size(entries)) then
+      allocate (tmp(2 * size(entries)))
+      tmp(1:N) = entries(1:N)
+      call move_alloc(tmp, entries)
+    end if
+    N = N + 1
+    entries(N) = e
+  end subroutine
+
+  !> @brief compute the coefficients of a cache entry with boxmc, photons are distributed over comm
+  !> @details boxmc is called with the azimuth folded into [0,90] (symmetry_phi),
+  !>          i.e. we compute the coefficients in a mirrored world and have to mirror the geometry before
+  !>          and the coefficients afterwards, the same as is done for the LUT lookup.
+  !>          Only the first rank of comm is guaranteed to hold the result.
+  subroutine bmc_cache_compute(OPP, e, comm)
+    class(t_optprop_cube) :: OPP
+    type(t_bmc_cache_entry), intent(inout) :: e
+    integer(mpiint), intent(in) :: comm
+    real(ireals) :: vertices(24)
+    real(irealLUT) :: angles(2)
+
+    if (allocated(e%vertices)) then
+      vertices = e%vertices
+      call mirror_cube_vertices(vertices, e%lswitch_east, e%lswitch_north)
+    else
+      call setup_default_unit_cube_geometry(one, one, real(e%inp(4), ireals), vertices)
+    end if
+
+    if (allocated(e%C)) deallocate (e%C)
+    allocate (e%C(e%nC))
+    if (e%langles) then
+      angles = e%inp(5:6)
+      call get_coeff_bmc(OPP, vertices, real(e%inp(1), ireals), real(e%inp(2), ireals), real(e%inp(3), ireals), &
+        & e%ldir, e%C, angles, &
+        & inp_atol=real(bmc_online_atol, irealLUT), inp_rtol=real(bmc_online_rtol, irealLUT), comm=comm)
+      if (e%ldir) then
+        call OPP%dir2dir_coeff_symmetry(e%C, e%lswitch_east, e%lswitch_north)
+      else
+        call OPP%dir2diff_coeff_symmetry(e%C, e%lswitch_east, e%lswitch_north)
+      end if
+    else
+      call get_coeff_bmc(OPP, vertices, real(e%inp(1), ireals), real(e%inp(2), ireals), real(e%inp(3), ireals), &
+        & e%ldir, e%C, &
+        & inp_atol=real(bmc_online_atol, irealLUT), inp_rtol=real(bmc_online_rtol, irealLUT), comm=comm)
     end if
   end subroutine
 
-  subroutine get_coeff_bmc(OPP, vertices, tauz, w0, g, dir, C, angles)
+  pure subroutine bmc_entry_pack(e, rec)
+    type(t_bmc_cache_entry), intent(in) :: e
+    real(ireal_dp), intent(out) :: rec(bmc_cache_reclen)
+    rec = 0
+    rec(1:4) = merge(1._ireal_dp, 0._ireal_dp, [e%langles, e%ldir, e%lswitch_east, e%lswitch_north])
+    rec(5:10) = real(e%inp, ireal_dp)
+    if (allocated(e%vertices)) then
+      rec(11) = 24
+      rec(12:35) = real(e%vertices, ireal_dp)
+    end if
+    rec(36) = real(e%nC, ireal_dp)
+  end subroutine
+
+  pure subroutine bmc_entry_unpack(rec, e)
+    real(ireal_dp), intent(in) :: rec(bmc_cache_reclen)
+    type(t_bmc_cache_entry), intent(out) :: e
+    e%langles = rec(1) .gt. .5_ireal_dp
+    e%ldir = rec(2) .gt. .5_ireal_dp
+    e%lswitch_east = rec(3) .gt. .5_ireal_dp
+    e%lswitch_north = rec(4) .gt. .5_ireal_dp
+    e%inp = real(rec(5:10), irealLUT)
+    if (rec(11) .gt. .5_ireal_dp) e%vertices = real(rec(12:35), ireals)
+    e%nC = nint(rec(36), iintegers)
+  end subroutine
+
+  !> @brief switch the online boxmc cache into deferred mode, i.e. cache misses are only recorded
+  !> @details returns true if deferred mode is active, the caller then has to compute the coefficients,
+  !>          call bmc_cache_resolve (collective on comm) and compute the coefficients again (which are then all cache hits)
+  !>          Deactivate with -bmc_online_cache_collective false
+  logical function bmc_cache_defer(OPP) result(ldefer)
+    class(t_optprop_cube) :: OPP
+    logical :: lonline, lcache, lcollective, lreference, lflg
+    integer(mpiint) :: ierr
+    ldefer = .false.
+    if (.not. associated(OPP%bmc_cache)) return
+    lonline = .false.
+    call get_petsc_opt('', "-bmc_online", lonline, lflg, ierr); call CHKERR(ierr)
+    lcache = .true.
+    call get_petsc_opt('', "-bmc_online_cache", lcache, lflg, ierr); call CHKERR(ierr)
+    lcollective = .true.
+    call get_petsc_opt('', "-bmc_online_cache_collective", lcollective, lflg, ierr); call CHKERR(ierr)
+    lreference = .false.
+    call get_petsc_opt('', "-bmc_default_unit_cube_reference", lreference, lflg, ierr); call CHKERR(ierr)
+    ldefer = lonline .and. lcache .and. lcollective .and. .not. lreference
+    OPP%bmc_cache%ldefer = ldefer
+  end function
+
+  !> @brief compute all pending (deferred) cache entries of all ranks in comm, collective on comm
+  !> @details 1) the unique set of pending keys is merged in a binary tree to rank 0 (log2(nranks) steps)
+  !>          and broadcast to all ranks, i.e. memory and message sizes scale with the number of unique keys,
+  !>          not with the number of ranks.
+  !>          2) each key is computed by boxmc with the photons distributed over all ranks of comm
+  !>          (no communication during tracing, boxmc reduces the results to the first rank).
+  !>          3) the results are shared with a single allreduce of size Nunique * nC and inserted into the caches of all ranks.
+  subroutine bmc_cache_resolve(OPP, comm)
+    class(t_optprop_cube) :: OPP
+    integer(mpiint), intent(in) :: comm
+
+    real(ireal_dp), allocatable :: recs(:, :), other(:, :)
+    real(irealLUT), allocatable :: results(:, :)
+    type(t_bmc_cache_entry), allocatable :: uniq(:)
+    type(t_bmc_cache_entry) :: e
+    integer(iintegers) :: Nuniq, Nother, i, maxC
+    integer(mpiint) :: myid, nranks, step, partner, ierr
+    integer(mpiint) :: stat(MPI_STATUS_SIZE)
+
+    if (.not. associated(OPP%bmc_cache)) return
+    call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+    call mpi_comm_size(comm, nranks, ierr); call CHKERR(ierr)
+
+    associate (cache => OPP%bmc_cache)
+      cache%ldefer = .false.
+
+      ! local unique keys
+      Nuniq = 0
+      do i = 1, cache%Npending
+        call bmc_cache_append(uniq, Nuniq, cache%pending(i))
+      end do
+      cache%Npending = 0
+      if (allocated(cache%pending)) deallocate (cache%pending)
+
+      ! binary tree merge towards rank 0
+      step = 1
+      do while (step .lt. nranks)
+        if (modulo(myid, 2 * step) .eq. step) then
+          partner = myid - step
+          call pack_all(uniq, Nuniq, recs)
+          call mpi_send(Nuniq, 1_mpiint, imp_iinteger, partner, 0_mpiint, comm, ierr); call CHKERR(ierr)
+          call mpi_send(recs, int(size(recs), mpiint), imp_real_dp, partner, 1_mpiint, comm, ierr); call CHKERR(ierr)
+          exit
+        else if (modulo(myid, 2 * step) .eq. 0 .and. myid + step .lt. nranks) then
+          partner = myid + step
+          call mpi_recv(Nother, 1_mpiint, imp_iinteger, partner, 0_mpiint, comm, stat, ierr); call CHKERR(ierr)
+          allocate (other(bmc_cache_reclen, Nother))
+          call mpi_recv(other, int(size(other), mpiint), imp_real_dp, partner, 1_mpiint, comm, stat, ierr); call CHKERR(ierr)
+          do i = 1, Nother
+            call bmc_entry_unpack(other(:, i), e)
+            if (bmc_cache_find(uniq, Nuniq, e) .eq. 0) call bmc_cache_append(uniq, Nuniq, e)
+          end do
+          deallocate (other)
+        end if
+        step = step * 2
+      end do
+
+      ! broadcast the unique keys from rank 0
+      call mpi_bcast(Nuniq, 1_mpiint, imp_iinteger, 0_mpiint, comm, ierr); call CHKERR(ierr)
+      if (Nuniq .eq. 0) return
+      if (myid .eq. 0) then
+        call pack_all(uniq, Nuniq, recs)
+      else
+        if (allocated(recs)) deallocate (recs)
+        allocate (recs(bmc_cache_reclen, Nuniq))
+      end if
+      call mpi_bcast(recs, int(size(recs), mpiint), imp_real_dp, 0_mpiint, comm, ierr); call CHKERR(ierr)
+      if (allocated(uniq)) deallocate (uniq)
+      allocate (uniq(Nuniq))
+      do i = 1, Nuniq
+        call bmc_entry_unpack(recs(:, i), uniq(i))
+      end do
+
+      ! compute each key with the photons distributed over all ranks of comm,
+      ! this way also the expensive (e.g. optically thick) keys are spread over all ranks
+      maxC = maxval(uniq(:)%nC)
+      allocate (results(maxC, Nuniq))
+      results = 0
+      do i = 1, Nuniq
+        call bmc_cache_compute(OPP, uniq(i), comm)
+        if (myid .eq. 0) results(1:uniq(i)%nC, i) = uniq(i)%C
+      end do
+
+      call mpi_allreduce(MPI_IN_PLACE, results, int(size(results), mpiint), imp_irealLUT, MPI_SUM, comm, ierr); call CHKERR(ierr)
+
+      do i = 1, Nuniq
+        if (bmc_cache_find(cache%e, cache%N, uniq(i)) .gt. 0) cycle
+        uniq(i)%C = results(1:uniq(i)%nC, i)
+        call bmc_cache_append(cache%e, cache%N, uniq(i))
+      end do
+      cache%Nresolved = cache%Nresolved + Nuniq
+    end associate
+
+  contains
+    subroutine pack_all(entries, N, r)
+      type(t_bmc_cache_entry), allocatable, intent(in) :: entries(:)
+      integer(iintegers), intent(in) :: N
+      real(ireal_dp), allocatable, intent(inout) :: r(:, :)
+      integer(iintegers) :: j
+      if (allocated(r)) deallocate (r)
+      allocate (r(bmc_cache_reclen, N))
+      do j = 1, N
+        call bmc_entry_pack(entries(j), r(:, j))
+      end do
+    end subroutine
+  end subroutine
+
+  !> @brief mirror the heights of a regular cube (vertex order as in setup_default_unit_cube_geometry) in x and/or y
+  pure subroutine mirror_cube_vertices(v, lswitch_east, lswitch_north)
+    real(ireals), intent(inout) :: v(:)
+    logical, intent(in) :: lswitch_east, lswitch_north
+    if (lswitch_east) then
+      call swap(v(3), v(6)); call swap(v(9), v(12))
+      call swap(v(15), v(18)); call swap(v(21), v(24))
+    end if
+    if (lswitch_north) then
+      call swap(v(3), v(9)); call swap(v(6), v(12))
+      call swap(v(15), v(21)); call swap(v(18), v(24))
+    end if
+  end subroutine
+
+  subroutine get_coeff_bmc(OPP, vertices, tauz, w0, g, dir, C, angles, inp_atol, inp_rtol, comm)
     class(t_optprop) :: OPP
     real(ireals), intent(in) :: tauz, w0, g, vertices(:)
     logical, intent(in) :: dir
     real(irealLUT), intent(out) :: C(:)
     real(irealLUT), intent(in), optional :: angles(2)
+    real(irealLUT), intent(in), optional :: inp_atol, inp_rtol
+    integer(mpiint), intent(in), optional :: comm ! photons are distributed over comm, default: mpi_comm_self
+    integer(mpiint) :: bmc_comm
 
     real(irealLUT) :: S_diff(OPP%dev%diff_streams), T_dir(OPP%dev%dir_streams)
     real(irealLUT) :: S_tol(OPP%dev%diff_streams), T_tol(OPP%dev%dir_streams)
     integer(iintegers) :: isrc
 
-    real(irealLUT), parameter :: atol = 1e-3_ireallut, rtol = 5e-1_ireallut
+    real(irealLUT) :: atol, rtol
+
+    atol = get_arg(1e-3_ireallut, inp_atol)
+    rtol = get_arg(5e-1_ireallut, inp_rtol)
+    bmc_comm = get_arg(mpi_comm_self, comm)
 
     if (present(angles)) then
       do isrc = 1, OPP%dev%dir_streams
@@ -664,7 +1052,7 @@ contains
                                  .true., &
                                  real(angles(1), irealLUT), &
                                  real(angles(2), irealLUT), &
-                                 mpi_comm_self, &
+                                 bmc_comm, &
                                  S_diff, T_dir, S_tol, T_tol, &
                                  inp_atol=real(atol, irealLUT), inp_rtol=real(rtol, irealLUT))
         if (dir) then !dir2dir
@@ -693,7 +1081,7 @@ contains
                                  real(g, irealLUT), &
                                  .false., &
                                  0._ireallut, 0._ireallut, &
-                                 mpi_comm_self, &
+                                 bmc_comm, &
                                  S_diff, T_dir, S_tol, T_tol, &
                                  inp_atol=real(atol, irealLUT), inp_rtol=real(rtol, irealLUT))
         C(isrc:OPP%dev%diff_streams**2:OPP%dev%diff_streams) = S_diff

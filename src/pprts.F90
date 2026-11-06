@@ -2709,13 +2709,13 @@ contains
     character(len=default_str_len) :: prefix
 
     ! Populate transport coeffs
-    if (solution%lsolar_rad) then
-      call alloc_coeff_dir2dir(solver, solver%dir2dir, opt_buildings)
-      call alloc_coeff_dir2dir_ghost(solver)
-      call alloc_coeff_dir2diff(solver, solver%dir2diff)
+    if (solver%OPP%bmc_cache_defer()) then
+      ! online boxmc coefficients: first pass only records the cache misses,
+      ! then compute them collectively and populate again from the cache
+      call populate_coeffs()
+      call solver%OPP%bmc_cache_resolve(solver%comm)
     end if
-    call alloc_coeff_diff2diff(solver, solver%diff2diff, opt_buildings)
-    call alloc_coeff_diff2diff_ghost(solver, opt_buildings)
+    call populate_coeffs()
 
     ! --------- scale from [W/m**2] to [W] -----------------
     call scale_flx(solver, solution, lWm2=.false.)
@@ -2882,6 +2882,15 @@ contains
     call ts_log_end(solver%logs%compute_Ediff, ierr)
 
   contains
+    subroutine populate_coeffs()
+      if (solution%lsolar_rad) then
+        call alloc_coeff_dir2dir(solver, solver%dir2dir, opt_buildings)
+        call alloc_coeff_dir2dir_ghost(solver)
+        call alloc_coeff_dir2diff(solver, solver%dir2diff)
+      end if
+      call alloc_coeff_diff2diff(solver, solver%diff2diff, opt_buildings)
+      call alloc_coeff_diff2diff_ghost(solver, opt_buildings)
+    end subroutine
 
 #ifdef HAVE_PETSC
     subroutine edir(prefix)
