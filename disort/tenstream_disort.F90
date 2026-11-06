@@ -39,7 +39,7 @@ contains
     real, dimension(:), intent(in), optional :: Blev ! Planck values at levels, if present wvnm(2) will be ignored
     real, intent(in), optional :: Bskin ! Planck values at srfc, if present wvnm(2) will be ignored
 
-    integer :: nlyr, ntau, nstr, nmom, numu
+    integer :: nlyr, ntau, nstr, nmom, numu, imom
 
     real, allocatable :: utau(:)
     real, allocatable :: pmom(:,:)
@@ -162,9 +162,10 @@ contains
         allocate( rhoq(nstr/2,0:nstr/2,0:(nstr-1)) )
         allocate( rhou(nstr/2,0:nstr/2,0:(nstr-1)) )
 
-        pmom(0,:) = 1
-        pmom(1,:) = gasym
-        pmom(2:nmom,:) = 0
+        ! Henyey-Greenstein phase function, Legendre moments are g**l
+        do imom = 0, nmom
+          pmom(imom,:) = gasym**imom
+        enddo
 
         usrtau=.False.
         utau = 0
