@@ -610,7 +610,7 @@ contains
         call scatter_photon(p, g)
       end do move
 
-      if (ldir) call refill_direct_stream(p, initial_dir)
+      if (ldir) call refill_direct_stream(bmc, p, initial_dir)
 
       std_Sdiff%inc = 0
       std_Sdir%inc = 0
@@ -694,18 +694,49 @@ contains
   end subroutine
 
   !> @brief in a ``postprocessing`` step put scattered direct radiation back into dir2dir streams
-  subroutine refill_direct_stream(p, initial_dir)
+  !> @details photons that leave the box within a cone of half angle direct_cone_deg around the
+  !> solar direction are counted as direct radiation (-bmc_direct_cone_deg).
+  !> The direct streams of the solver only transport radiation downwind, i.e. we only refill photons
+  !> that leave through a face that is reachable for unscattered direct radiation.
+  !> For cubes, the faces are sides 1/2 (top/bot), 3/4 (x) and 5/6 (y)
+  subroutine refill_direct_stream(bmc, p, initial_dir)
+    class(t_boxmc), intent(in) :: bmc
     type(t_photon), intent(inout) :: p
     real(ireal_dp), intent(in) :: initial_dir(3)
 
     real(ireal_dp) :: angle
+    integer :: iaxis
+
+    if (delta_scale_truncate .ge. 1) return
+    if (p%direct) return
 
     angle = dot_product(initial_dir, p%dir)
+    if (angle .le. delta_scale_truncate) return
 
-    if (angle .gt. delta_scale_truncate) then
-      p%direct = .true.
-      !print *,'delta scaling photon initial', initial_dir,'dir',p%dir,'angle',angle,'cos', (acos(angle))*180/pi64
-    end if
+    select type (bmc)
+    class is (t_boxmc_wedge_5_5)
+      call CHKERR(1_mpiint, '-bmc_direct_cone_deg is not implemented for wedges')
+    class is (t_boxmc_wedge_5_8)
+      call CHKERR(1_mpiint, '-bmc_direct_cone_deg is not implemented for wedges')
+    class is (t_boxmc_wedge_18_8)
+      call CHKERR(1_mpiint, '-bmc_direct_cone_deg is not implemented for wedges')
+    end select
+
+    select case (p%side)
+    case (1, 2)
+      iaxis = 3
+    case (3, 4)
+      iaxis = 1
+    case (5, 6)
+      iaxis = 2
+    case default
+      call CHKERR(1_mpiint, 'refill_direct_stream: unexpected exit side '//toStr(p%side))
+    end select
+
+    ! upwind faces (or faces parallel to the sun) can not be reached by direct radiation
+    if (p%dir(iaxis) * initial_dir(iaxis) .le. 0) return
+
+    p%direct = .true.
   end subroutine
 
   !> @brief return equally distributed random number in [-1,1]

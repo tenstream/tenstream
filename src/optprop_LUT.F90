@@ -51,6 +51,7 @@ module m_optprop_LUT
     LUT_max_create_jobtime, &
     LUT_MAX_DIM, &
     delta_scale_truncate, &
+    direct_cone_deg, &
     stddev_atol, &
     wedge_sphere_radius
 
@@ -370,7 +371,11 @@ contains
     do k = 1, size(config%dims)
       lutname = trim(lutname)//'.'//trim(config%dims(k)%dimname)//toStr(config%dims(k)%N)
     end do
-    lutname = trim(lutname)//'.ds'//toStr(int(delta_scale_truncate * 1000))
+    if (direct_cone_deg .gt. 0) then
+      lutname = trim(lutname)//'.dscone'//toStr(nint(direct_cone_deg * 100, iintegers)) ! cone half angle in 1/100 degrees
+    else
+      lutname = trim(lutname)//'.ds'//toStr(int(delta_scale_truncate * 1000))
+    end if
   end function
 
   subroutine load_table_from_netcdf(table, istat)

@@ -22,8 +22,8 @@ module m_tenstream_options
   use m_data_parameters, only: init_mpi_data_parameters, &
     & ireals, irealLUT, iintegers, mpiint, &
     & zero, one, i0, default_str_len
-  use m_optprop_parameters, only: lut_basename, stddev_atol, stddev_rtol
-  use m_helper_functions, only: CHKERR, CHKWARN, get_petsc_opt
+  use m_optprop_parameters, only: lut_basename, stddev_atol, stddev_rtol, direct_cone_deg, delta_scale_truncate
+  use m_helper_functions, only: CHKERR, CHKWARN, get_petsc_opt, toStr, deg2rad
   use m_options_database, only: opts_has
   use mpi
 
@@ -58,6 +58,7 @@ contains
     print *, '-max_solution_err [W] :: if max error of solution is estimated below this value, skip calculation                 '
     print *, '-max_solution_time[s] :: if last update of solution is older, update irrespective of estimated error              '
     print *, '-lut_basename         :: path to LUT table files -- default is local dir                                          '
+    print *, '-bmc_direct_cone_deg  :: boxmc: count radiation within this cone half angle around the sun as direct (default 0)  '
     print *, '------------------------------------------------------------------------------------------------------------------'
     print *, '------------------------------------------------------------------------------------------------------------------'
   end subroutine
@@ -71,6 +72,7 @@ contains
 
     integer(mpiint) :: myid, numnodes
     character(default_str_len) :: lut_basename_env
+    real(ireals) :: cone_deg
 
     call init_mpi_data_parameters(comm)
 
@@ -117,6 +119,14 @@ contains
       stddev_atol = .1_ireallut
       stddev_rtol = .5_ireallut
     end if
+
+    cone_deg = 0
+    call get_petsc_opt('', "-bmc_direct_cone_deg", cone_deg, lflg, ierr); call CHKERR(ierr)
+    if (cone_deg .lt. 0 .or. cone_deg .ge. 90) &
+      & call CHKERR(1_mpiint, '-bmc_direct_cone_deg has to be in [0, 90) but found '//toStr(cone_deg))
+    direct_cone_deg = real(cone_deg, kind(direct_cone_deg))
+    delta_scale_truncate = real(cos(deg2rad(cone_deg)), kind(delta_scale_truncate))
+    if (cone_deg .le. 0) delta_scale_truncate = 1
 
     call get_petsc_opt('', "-calc_nca", &
                        lcalc_nca, lflg, ierr); call CHKERR(ierr)

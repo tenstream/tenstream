@@ -267,12 +267,12 @@ module m_optprop_parameters
   logical, parameter :: ldebug_optprop = .true.
 #endif
 
-  ! Treat direct2diffuse radiation in a cone around solar angle as direct
-  ! radiation.
-!      real(irealLUT),parameter :: delta_scale_truncate=.9848_irealLUT ! .9848 = 10 degrees delta scaling
-!      real(irealLUT),parameter :: delta_scale_truncate=.9962_irealLUT ! .9962 = 5 degrees delta scaling
-  real(irealLUT), parameter :: delta_scale_truncate = 1.0_ireallut   !1.     = 0 degrees delta scaling
-!      real(irealLUT),parameter :: delta_scale_truncate=.8660_irealLUT ! .8660 = 30 degrees delta scaling
+  ! Treat direct2diffuse radiation in a cone around solar angle as direct radiation.
+  ! direct_cone_deg is the half opening angle of the cone in degrees, set with option -bmc_direct_cone_deg
+  ! delta_scale_truncate = cos(direct_cone_deg), i.e. 1 = 0 degrees = no cone
+  ! Both are set in m_tenstream_options::read_commandline_options, change them only through there
+  real(irealLUT) :: direct_cone_deg = 0._ireallut
+  real(irealLUT) :: delta_scale_truncate = 1.0_ireallut
 
   ! spherical correction for wedge computations,
   ! this is tuned towards earth radius and average dx = 1000m sized elements
