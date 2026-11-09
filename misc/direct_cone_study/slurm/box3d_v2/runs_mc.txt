@@ -1,0 +1,9 @@
+mc_sza0_r1 -thermal no -pprts_force_zenith 0 -cld_k 6,15 -cld_tau 10 -cld_w0 .995 -cld_g .9 -solver mcdmda -pprts_delta_scale false -mcdmda_photons_per_px 30000 -mcdmda_queue_waittime 1800
+mc_sza0_r2 -thermal no -pprts_force_zenith 0 -cld_k 6,15 -cld_tau 10 -cld_w0 .995 -cld_g .9 -solver mcdmda -pprts_delta_scale false -mcdmda_photons_per_px 30000 -mcdmda_queue_waittime 1800
+mc_sza0_r3 -thermal no -pprts_force_zenith 0 -cld_k 6,15 -cld_tau 10 -cld_w0 .995 -cld_g .9 -solver mcdmda -pprts_delta_scale false -mcdmda_photons_per_px 30000 -mcdmda_queue_waittime 1800
+mc_sza30_r1 -thermal no -pprts_force_zenith 30 -cld_k 6,15 -cld_tau 10 -cld_w0 .995 -cld_g .9 -solver mcdmda -pprts_delta_scale false -mcdmda_photons_per_px 30000 -mcdmda_queue_waittime 1800
+mc_sza30_r2 -thermal no -pprts_force_zenith 30 -cld_k 6,15 -cld_tau 10 -cld_w0 .995 -cld_g .9 -solver mcdmda -pprts_delta_scale false -mcdmda_photons_per_px 30000 -mcdmda_queue_waittime 1800
+mc_sza30_r3 -thermal no -pprts_force_zenith 30 -cld_k 6,15 -cld_tau 10 -cld_w0 .995 -cld_g .9 -solver mcdmda -pprts_delta_scale false -mcdmda_photons_per_px 30000 -mcdmda_queue_waittime 1800
+mc_sza60_r1 -thermal no -pprts_force_zenith 60 -cld_k 6,15 -cld_tau 10 -cld_w0 .995 -cld_g .9 -solver mcdmda -pprts_delta_scale false -mcdmda_photons_per_px 30000 -mcdmda_queue_waittime 1800
+mc_sza60_r2 -thermal no -pprts_force_zenith 60 -cld_k 6,15 -cld_tau 10 -cld_w0 .995 -cld_g .9 -solver mcdmda -pprts_delta_scale false -mcdmda_photons_per_px 30000 -mcdmda_queue_waittime 1800
+mc_sza60_r3 -thermal no -pprts_force_zenith 60 -cld_k 6,15 -cld_tau 10 -cld_w0 .995 -cld_g .9 -solver mcdmda -pprts_delta_scale false -mcdmda_photons_per_px 30000 -mcdmda_queue_waittime 1800
