@@ -397,7 +397,8 @@ contains
                        ret_S_out, ret_T_out, &
                        ret_S_tol, ret_T_tol, &
                        inp_atol, inp_rtol, inp_tau_scaling, &
-                       inp_check_tol_dir, inp_check_tol_diff)
+                       inp_check_tol_dir, inp_check_tol_diff, &
+                       inp_ldiff2dir)
     class(t_boxmc) :: bmc             !< @param[in] bmc Raytracer Type - determines number of streams
     real(ireal_dp), intent(in) :: op_bg(3)        !< @param[in] op_bg optical properties have to be given as [kabs,ksca,g]
     real(ireal_dp), intent(in) :: phi0            !< @param[in] phi0 solar azimuth angle
@@ -415,6 +416,9 @@ contains
     !< @param[in] inp_tau_scaling if given, determines a roulette factor which may be used to enhance unlikely paths, e.g. to force diffuse radiation computations for low optical thicknesses
     real(ireal_dp), intent(in), optional :: inp_tau_scaling
     logical, intent(in), optional :: inp_check_tol_dir, inp_check_tol_diff ! default: True, adhere to the tolerance checks for direct or diffuse tolerances
+    !< @param[in] inp_ldiff2dir if given and true, photons of diffuse sources that scatter into the direct cone
+    !< (-bmc_direct_cone_deg around the sun direction phi0, theta0) are counted as direct radiation, default: false
+    logical, intent(in), optional :: inp_ldiff2dir
 
     real(irealbmc) :: S_out(bmc%diff_streams)
     real(irealbmc) :: T_out(bmc%dir_streams)
@@ -424,7 +428,7 @@ contains
     real(kind(ret_S_OUT)) :: retnorm
 
     real(ireal_dp) :: atol, rtol, tau_scaling
-    logical :: check_tol_dir, check_tol_diff
+    logical :: check_tol_dir, check_tol_diff, ldiff2dir
 
     type(stddev) :: std_Sdir, std_Sdiff
 
@@ -441,11 +445,12 @@ contains
     tau_scaling = get_arg(1._ireal_dp, inp_tau_scaling)
     check_tol_dir = get_arg(.true., inp_check_tol_dir)
     check_tol_diff = get_arg(.true., inp_check_tol_diff)
+    ldiff2dir = get_arg(.false., inp_ldiff2dir) .and. (.not. ldir)
 
     call init_stddev(std_Sdir, bmc%dir_streams, atol, rtol)
     call init_stddev(std_Sdiff, bmc%diff_streams, atol, rtol)
 
-    if (.not. ldir) std_Sdir%active = .false.
+    if (.not. (ldir .or. ldiff2dir)) std_Sdir%active = .false.
     if (.not. check_tol_dir) std_Sdir%active = .false.
     if (.not. check_tol_diff) std_Sdiff%active = .false.
 
@@ -463,7 +468,7 @@ contains
                      real(phi0, kind=ireal_dp), &
                      real(theta0, kind=ireal_dp), &
                      Nphotons, tau_scaling, &
-                     std_Sdir, std_Sdiff)
+                     std_Sdir, std_Sdiff, ldiff2dir)
 
     T_out = std_Sdir%mean
     S_out = std_Sdiff%mean
@@ -558,7 +563,7 @@ contains
 
   subroutine run_photons(bmc, comm, src, kabs, ksca, g, vertices, &
                          ldir, phi0, theta0, Nphotons, tau_scaling, &
-                         std_Sdir, std_Sdiff)
+                         std_Sdir, std_Sdiff, ldiff2dir)
     class(t_boxmc), intent(inout) :: bmc
     integer(mpiint), intent(in) :: comm
     integer(iintegers), intent(in) :: src
@@ -566,6 +571,7 @@ contains
     logical, intent(in) :: ldir
     integer(iintegers) :: Nphotons
     type(stddev), intent(inout) :: std_Sdir, std_Sdiff
+    logical, intent(in) :: ldiff2dir ! diffuse photons that scattered into the direct cone become direct
 
     type(t_photon) :: p
     real(ireal_dp) :: theta, initial_dir(3)
@@ -610,7 +616,11 @@ contains
         call scatter_photon(p, g)
       end do move
 
-      if (ldir) call refill_direct_stream(bmc, p, initial_dir)
+      if (ldir) then
+        call refill_direct_stream(bmc, p, initial_dir)
+      else if (ldiff2dir .and. p%scattercnt .gt. 0) then
+        call refill_direct_stream(bmc, p, initial_dir)
+      end if
 
       std_Sdiff%inc = 0
       std_Sdir%inc = 0
@@ -621,7 +631,7 @@ contains
         call bmc%update_diff_stream(vertices, p, std_Sdiff%inc)
       end if
 
-      if (ldir) call std_update(std_Sdir, k, numnodes)
+      if (ldir .or. ldiff2dir) call std_update(std_Sdir, k, numnodes)
       call std_update(std_Sdiff, k, numnodes)
     end do ! k photons
     Nphotons = k

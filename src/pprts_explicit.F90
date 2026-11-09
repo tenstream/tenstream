@@ -397,6 +397,7 @@ contains
     integer(iintegers) :: idst, isrc, src, dst
     real(ireals), pointer :: v(:, :) ! dim(src, dst)
     logical :: lghost_x, lghost_y, lghost_corner
+    logical :: lvsrc ! direct volume source of the coupled direct/diffuse solve (-pprts_diff2dir)
     integer(iintegers) :: ig, jg, ie, je
 
     x0 => null()
@@ -410,6 +411,7 @@ contains
 
       x0(0:C%dof - 1, C%zs:C%ze, C%gxs:C%gxe, C%gys:C%gye) => x
       xb(0:C%dof - 1, C%zs:C%ze, C%gxs:C%gxe, C%gys:C%gye) => b
+      lvsrc = allocated(solver%dir_vsrc)
 
       x0(0:solver%dirtop%dof - 1, C%zs, C%xs:C%xe, C%ys:C%ye) = xb(0:solver%dirtop%dof - 1, C%zs, C%xs:C%xe, C%ys:C%ye)
 
@@ -477,6 +479,7 @@ contains
               dst = 0
               do idst = 0, solver%dirtop%dof - 1
                 x0(dst, k + i1, i, j) = 0
+                if (lvsrc) x0(dst, k + i1, i, j) = solver%dir_vsrc(dst, k + i1, i, j)
                 src = 0
                 do isrc = 0, solver%dirtop%dof - 1
                   x0(dst, k + i1, i, j) = x0(dst, k + i1, i, j) + x0(src, k, i, j) * v(src, dst)
@@ -495,6 +498,7 @@ contains
 
               do idst = 0, solver%dirside%dof - 1
                 x0(dst, k, i + xinc, j) = 0
+                if (lvsrc) x0(dst, k, i + xinc, j) = solver%dir_vsrc(dst, k, i + xinc, j)
                 src = 0
                 do isrc = 0, solver%dirtop%dof - 1
                   x0(dst, k, i + xinc, j) = x0(dst, k, i + xinc, j) + x0(src, k, i, j) * v(src, dst)
@@ -513,6 +517,7 @@ contains
 
               do idst = 0, solver%dirside%dof - 1
                 x0(dst, k, i, j + yinc) = 0
+                if (lvsrc) x0(dst, k, i, j + yinc) = solver%dir_vsrc(dst, k, i, j + yinc)
                 src = 0
                 do isrc = 0, solver%dirtop%dof - 1
                   x0(dst, k, i, j + yinc) = x0(dst, k, i, j + yinc) + x0(src, k, i, j) * v(src, dst)

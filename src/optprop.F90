@@ -127,6 +127,7 @@ module m_optprop
   type, abstract, extends(t_optprop) :: t_optprop_cube
   contains
     procedure :: get_coeff => get_coeff_cube
+    procedure :: get_coeff_diff_cone => get_coeff_cube_diff_cone
     procedure :: bmc_cache_defer
     procedure :: bmc_cache_resolve
     procedure :: dir2dir_coeff_symmetry => dir2dir_coeff_symmetry_none
@@ -772,6 +773,69 @@ contains
     end subroutine
   end subroutine
 
+  !> @brief coefficients of diffuse sources for the coupled direct/diffuse solve (-pprts_diff2dir)
+  !> @details diffuse photons that scatter into the cone (-bmc_direct_cone_deg) around the sun direction and leave the
+  !>          box through a downwind face are counted as direct radiation.
+  !>          Only available with online boxmc coefficients (-bmc_online).
+  !>          The coefficients depend on the sun direction, which is given unfolded, i.e. without azimuth symmetry,
+  !>          as [phi, theta] in the boxmc convention (phi = azimuth of the direction of travel, 0 = towards north)
+  !>          C(1:ndiff**2) are the diff2diff coeffs, C(ndiff**2+1:) the diff2dir coeffs, both with the src index fastest
+  subroutine get_coeff_cube_diff_cone(OPP, tauz, w0, g, aspect_zx, angles, C, ierr, opt_vertices)
+    class(t_optprop_cube) :: OPP
+    real(irealLUT), intent(in) :: tauz, w0, g, aspect_zx
+    real(irealLUT), intent(in) :: angles(:)
+    real(irealLUT), intent(out) :: C(:)
+    integer(mpiint), intent(out) :: ierr
+    real(ireals), intent(in), optional :: opt_vertices(:)
+
+    type(t_bmc_cache_entry) :: key
+    integer(iintegers) :: ientry, nexpected
+    logical :: lonline, lflg
+
+    ierr = 0
+    lonline = .false.
+    call get_petsc_opt('', "-bmc_online", lonline, lflg, ierr); call CHKERR(ierr)
+    if (.not. lonline) call CHKERR(1_mpiint, 'diffuse to direct coefficients are only available with -bmc_online')
+    nexpected = OPP%dev%diff_streams**2 + OPP%dev%dir_streams * OPP%dev%diff_streams
+    if (size(C, kind=iintegers) .ne. nexpected) &
+      & call CHKERR(1_mpiint, 'get_coeff_diff_cone: expected size(C) = '//toStr(nexpected)//' but found '//toStr(size(C)))
+
+    key%langles = .true.
+    key%ldir = .false.
+    key%lswitch_east = .false.
+    key%lswitch_north = .false.
+    key%inp = [tauz, w0, g, aspect_zx, angles(1), angles(2)]
+    if (present(opt_vertices)) then
+      key%vertices = opt_vertices
+      key%vertices(3:24:3) = key%vertices(3:24:3) - minval(key%vertices(3:24:3))
+    end if
+    key%nC = nexpected
+
+    if (associated(OPP%bmc_cache)) then
+      associate (cache => OPP%bmc_cache)
+        ientry = bmc_cache_find(cache%e, cache%N, key)
+        if (ientry .gt. 0) then
+          C = cache%e(ientry)%C
+          cache%hits = cache%hits + 1
+          return
+        end if
+        if (cache%ldefer) then
+          if (bmc_cache_find(cache%pending, cache%Npending, key) .eq. 0) &
+            & call bmc_cache_append(cache%pending, cache%Npending, key)
+          C = 0
+          return
+        end if
+      end associate
+    end if
+
+    call bmc_cache_compute(OPP, key, mpi_comm_self)
+    C = key%C
+    if (associated(OPP%bmc_cache)) then
+      call bmc_cache_append(OPP%bmc_cache%e, OPP%bmc_cache%N, key)
+      OPP%bmc_cache%misses = OPP%bmc_cache%misses + 1
+    end if
+  end subroutine
+
   !> @brief compare the keys of two cache entries (not the coefficients)
   logical function bmc_entries_match(a, b) result(lmatch)
     type(t_bmc_cache_entry), intent(in) :: a, b
@@ -837,7 +901,15 @@ contains
 
     if (allocated(e%C)) deallocate (e%C)
     allocate (e%C(e%nC))
-    if (e%langles) then
+    if (e%langles .and. (.not. e%ldir) .and. &
+      & e%nC .eq. OPP%dev%diff_streams**2 + OPP%dev%dir_streams * OPP%dev%diff_streams) then
+      ! diffuse sources with diff2dir coupling, see get_coeff_cube_diff_cone, no azimuth symmetry
+      angles = e%inp(5:6)
+      call get_coeff_bmc(OPP, vertices, real(e%inp(1), ireals), real(e%inp(2), ireals), real(e%inp(3), ireals), &
+        & e%ldir, e%C, angles, &
+        & inp_atol=real(bmc_online_atol, irealLUT), inp_rtol=real(bmc_online_rtol, irealLUT), comm=comm, &
+        & ldiff2dir=.true.)
+    else if (e%langles) then
       angles = e%inp(5:6)
       call get_coeff_bmc(OPP, vertices, real(e%inp(1), ireals), real(e%inp(2), ireals), real(e%inp(3), ireals), &
         & e%ldir, e%C, angles, &
@@ -1022,7 +1094,7 @@ contains
     end if
   end subroutine
 
-  subroutine get_coeff_bmc(OPP, vertices, tauz, w0, g, dir, C, angles, inp_atol, inp_rtol, comm)
+  subroutine get_coeff_bmc(OPP, vertices, tauz, w0, g, dir, C, angles, inp_atol, inp_rtol, comm, ldiff2dir)
     class(t_optprop) :: OPP
     real(ireals), intent(in) :: tauz, w0, g, vertices(:)
     logical, intent(in) :: dir
@@ -1030,7 +1102,11 @@ contains
     real(irealLUT), intent(in), optional :: angles(2)
     real(irealLUT), intent(in), optional :: inp_atol, inp_rtol
     integer(mpiint), intent(in), optional :: comm ! photons are distributed over comm, default: mpi_comm_self
+    ! diffuse sources with the sun direction given in angles, photons that scatter into the direct cone become direct
+    ! C(1:ndiff**2) = diff2diff, C(ndiff**2+1:) = diff2dir, see get_coeff_cube_diff_cone
+    logical, intent(in), optional :: ldiff2dir
     integer(mpiint) :: bmc_comm
+    integer(iintegers) :: nd2
 
     real(irealLUT) :: S_diff(OPP%dev%diff_streams), T_dir(OPP%dev%dir_streams)
     real(irealLUT) :: S_tol(OPP%dev%diff_streams), T_tol(OPP%dev%dir_streams)
@@ -1042,7 +1118,26 @@ contains
     rtol = get_arg(5e-1_ireallut, inp_rtol)
     bmc_comm = get_arg(mpi_comm_self, comm)
 
-    if (present(angles)) then
+    if (get_arg(.false., ldiff2dir)) then
+      if (.not. present(angles)) call CHKERR(1_mpiint, 'get_coeff_bmc: ldiff2dir needs the sun angles')
+      nd2 = OPP%dev%diff_streams**2
+      do isrc = 1, OPP%dev%diff_streams
+        call OPP%dev%bmc_wrapper(isrc, &
+                                 real(vertices, ireal_dp), &
+                                 real(tauz, irealLUT), &
+                                 real(w0, irealLUT), &
+                                 real(g, irealLUT), &
+                                 .false., &
+                                 real(angles(1), irealLUT), &
+                                 real(angles(2), irealLUT), &
+                                 bmc_comm, &
+                                 S_diff, T_dir, S_tol, T_tol, &
+                                 inp_atol=real(atol, irealLUT), inp_rtol=real(rtol, irealLUT), &
+                                 inp_ldiff2dir=.true.)
+        C(isrc:nd2:OPP%dev%diff_streams) = S_diff
+        C(nd2 + isrc:nd2 + OPP%dev%dir_streams * OPP%dev%diff_streams:OPP%dev%diff_streams) = T_dir
+      end do
+    else if (present(angles)) then
       do isrc = 1, OPP%dev%dir_streams
         call OPP%dev%bmc_wrapper(isrc, &
                                  real(vertices, ireal_dp), &

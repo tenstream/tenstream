@@ -270,6 +270,9 @@ module m_pprts_base
 
     type(t_dof) :: difftop, diffside, dirtop, dirside
     real(ireals), allocatable, dimension(:, :, :, :) :: dir2dir, dir2diff, diff2diff
+    ! coupled direct/diffuse solve (-pprts_diff2dir): diffuse radiation that is scattered into the direct cone
+    ! diff2dir: coeffs (diff src fastest, dir dst), dir_vsrc: resulting direct source, ghost-extended C_dir layout
+    real(ireals), allocatable, dimension(:, :, :, :) :: diff2dir, dir_vsrc
     ! open boundaries: direct transport coeffs of the ghost cells outside of the sunward domain edges,
     ! regular (undistorted) boxes that continue the edge columns, (1:dof**2, zs:ze-1, ys:ye) and (1:dof**2, zs:ze-1, xs:xe)
     real(ireals), allocatable, dimension(:, :, :) :: dir2dir_ghost_x, dir2dir_ghost_y
@@ -975,6 +978,8 @@ contains
       call deallocate_diff2diff_ghost(solver)
       call deallocate_allocatable(solver%dir2diff)
       call deallocate_allocatable(solver%diff2diff)
+      call deallocate_allocatable(solver%diff2dir)
+      call deallocate_allocatable(solver%dir_vsrc)
 
       call destroy_coord(solver%C_dir)
       call destroy_coord(solver%C_diff)

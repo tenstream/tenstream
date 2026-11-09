@@ -545,7 +545,7 @@ contains
   end subroutine
 
   subroutine bmc_wrapper(OPP, src, vertices, tauz, w0, g, dir, phi, theta, comm, &
-                         S_diff, T_dir, S_tol, T_tol, inp_atol, inp_rtol)
+                         S_diff, T_dir, S_tol, T_tol, inp_atol, inp_rtol, inp_ldiff2dir)
     class(t_optprop_base), intent(in) :: OPP
     integer(iintegers), intent(in) :: src
     logical, intent(in) :: dir
@@ -556,6 +556,7 @@ contains
     real(irealLUT), intent(out) :: S_diff(OPP%diff_streams), T_dir(OPP%dir_streams)
     real(irealLUT), intent(out) :: S_tol(OPP%diff_streams), T_tol(OPP%dir_streams)
     real(irealLUT), intent(in), optional :: inp_atol, inp_rtol
+    logical, intent(in), optional :: inp_ldiff2dir ! diffuse photons that scatter into the direct cone become direct
     real(ireals) :: rS_diff(OPP%diff_streams), rT_dir(OPP%dir_streams)
     real(ireals) :: rS_tol(OPP%diff_streams), rT_tol(OPP%dir_streams)
 
@@ -592,7 +593,7 @@ contains
                            vertices, &
                            rS_diff, rT_dir, &
                            rS_tol, rT_tol, &
-                           inp_atol=atol, inp_rtol=rtol)
+                           inp_atol=atol, inp_rtol=rtol, inp_ldiff2dir=inp_ldiff2dir)
 
     S_diff = real(rS_diff, irealLUT)
     T_dir = real(rT_dir, irealLUT)

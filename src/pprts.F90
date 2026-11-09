@@ -2702,11 +2702,17 @@ contains
 
     logical :: lflg, lskip_diffuse_solve
     logical :: lexplicit_dir, lexplicit_diff
+    logical :: lcoupled ! coupled direct/diffuse solve, -pprts_diff2dir
     real(ireals) :: b_norm, rtol, atol
     integer(iintegers) :: maxit
     integer(mpiint) :: ierr
 
     character(len=default_str_len) :: prefix
+
+    lcoupled = .false.
+    if (solution%lsolar_rad) then
+      call get_petsc_opt(solver%prefix, "-pprts_diff2dir", lcoupled, lflg, ierr); call CHKERR(ierr)
+    end if
 
     ! Populate transport coeffs
     if (solver%OPP%bmc_cache_defer()) then
@@ -2720,168 +2726,219 @@ contains
     ! --------- scale from [W/m**2] to [W] -----------------
     call scale_flx(solver, solution, lWm2=.false.)
 
-    ! ---------------------------- Edir  -------------------
-    if (solution%lsolar_rad) then
-      call ts_log_begin(solver%logs%compute_Edir, ierr)
-      prefix = "solar_dir_"
-      if (len_trim(solver%prefix) .gt. 0) prefix = trim(solver%prefix)//prefix
+    ! ---------------------------- Edir, Ediff --------------
+    if (.not. lcoupled .and. allocated(solver%dir_vsrc)) deallocate (solver%dir_vsrc)
 
-      lexplicit_dir = .true.
-      call get_petsc_opt(prefix, "-explicit", lexplicit_dir, lflg, ierr); call CHKERR(ierr)
-      if (lexplicit_dir) then
-#ifdef HAVE_PETSC
-        block
-          real(ireals), allocatable, target :: b_arr(:, :, :, :)
-          real(ireals), pointer :: vedir_1d(:), vedir_4d(:, :, :, :)
-          real(ireals), pointer :: lb_1d(:), lb_4d(:, :, :, :)
-          real(ireals), pointer :: v0_1d(:), v0_4d(:, :, :, :)
-          type(tVec) :: b_gvec, lb_vec, v0_vec
-          vedir_1d => null(); vedir_4d => null()
-          lb_1d => null(); lb_4d => null()
-          v0_1d => null(); v0_4d => null()
-          associate (C => solver%C_dir)
-            allocate (b_arr(0:C%dof - 1, C%zs:C%ze, C%xs:C%xe, C%ys:C%ye)); b_arr = zero
-            call setup_incSolar(solver, edirTOA, b_arr)
-            call VecCreateMPIWithArray(C%comm, i1, int(size(b_arr), iintegers), PETSC_DETERMINE, b_arr, b_gvec, ierr)
-            call CHKERR(ierr)
-            call VecSetDM(b_gvec, C%da, ierr); call CHKERR(ierr)
-            call DMGetLocalVector(C%da, lb_vec, ierr); call CHKERR(ierr)
-            call DMGlobalToLocal(C%da, b_gvec, INSERT_VALUES, lb_vec, ierr); call CHKERR(ierr)
-            call VecDestroy(b_gvec, ierr); call CHKERR(ierr)
-            deallocate (b_arr)
-            call getVecPointer(C%da, lb_vec, lb_1d, lb_4d)
-            if (allocated(solution%edir_open_bc_x)) deallocate (solution%edir_open_bc_x)
-            if (allocated(solution%edir_open_bc_y)) deallocate (solution%edir_open_bc_y)
-            call DMGetLocalVector(C%da, v0_vec, ierr); call CHKERR(ierr)
-            call DMGlobalToLocal(C%da, solution%edir_petsc, INSERT_VALUES, v0_vec, ierr); call CHKERR(ierr)
-            call getVecPointer(C%da, v0_vec, v0_1d, v0_4d)
-            call getVecPointer(C%da, solution%edir_petsc, vedir_1d, vedir_4d)
-            call explicit_edir(solver, prefix, edirTOA, vedir_4d, lb_4d, v0_4d, solution, ierr); call CHKERR(ierr)
-            ! keep the flux through the east/north open boundary, it lives on a ghost face and is not part of edir.
-            ! If the sun is in the east/north, this is the inflow boundary condition, otherwise it is the outflow of the edge cells,
-            ! which a periodic halo exchange would replace with the opposite inflow
-            if (solver%lopen_bc) then
-              if (solver%lopen_bc_x .and. C%xe + 1 .eq. C%glob_xm) then
-                allocate (solution%edir_open_bc_x(0:C%dof - 1, C%zs:C%ze, C%ys:C%ye), source=v0_4d(:, :, C%xe + 1, C%ys:C%ye))
-              end if
-              if (solver%lopen_bc_y .and. C%ye + 1 .eq. C%glob_ym) then
-                allocate (solution%edir_open_bc_y(0:C%dof - 1, C%zs:C%ze, C%xs:C%xe), source=v0_4d(:, :, C%xs:C%xe, C%ye + 1))
-              end if
-            end if
-            call restoreVecPointer(C%da, solution%edir_petsc, vedir_1d, vedir_4d)
-            call restoreVecPointer(C%da, v0_vec, v0_1d, v0_4d)
-            call restoreVecPointer(C%da, lb_vec, lb_1d, lb_4d)
-            call DMRestoreLocalVector(C%da, v0_vec, ierr); call CHKERR(ierr)
-            call DMRestoreLocalVector(C%da, lb_vec, ierr); call CHKERR(ierr)
-          end associate
-        end block
-#else
-        block
-          real(ireals), allocatable, target :: b_arr(:, :, :, :), lb_arr(:, :, :, :), v0_arr(:, :, :, :)
-          associate (C => solver%C_dir)
-            allocate (b_arr(0:C%dof - 1, C%zs:C%ze, C%xs:C%xe, C%ys:C%ye)); b_arr = zero
-            call setup_incSolar(solver, edirTOA, b_arr)
-            allocate (lb_arr(0:C%dof - 1, C%zs:C%ze, C%gxs:C%gxe, C%gys:C%gye)); lb_arr = zero
-            lb_arr(:, :, C%xs:C%xe, C%ys:C%ye) = b_arr
-            deallocate (b_arr)
-            if (allocated(solution%edir_open_bc_x)) deallocate (solution%edir_open_bc_x)
-            if (allocated(solution%edir_open_bc_y)) deallocate (solution%edir_open_bc_y)
-            if (solver%lopen_bc) then
-              ! the inflow through the east/north edge is set on the periodic image and has to be brought to the ghost face
-              call halo_fill_5pt(solver%comm, C, lb_arr, ierr); call CHKERR(ierr)
-            end if
-            allocate (v0_arr(0:C%dof - 1, C%zs:C%ze, C%gxs:C%gxe, C%gys:C%gye)); v0_arr = zero
-            v0_arr(:, :, C%xs:C%xe, C%ys:C%ye) = solution%edir
-            call explicit_edir(solver, prefix, edirTOA, solution%edir, lb_arr, v0_arr, solution, ierr); call CHKERR(ierr)
-            ! keep the flux through the east/north open boundary, it lives on a ghost face and is not part of edir.
-            ! If the sun is in the east/north, this is the inflow boundary condition, otherwise it is the outflow of the edge cells,
-            ! which a periodic halo exchange would replace with the opposite inflow
-            if (solver%lopen_bc) then
-              if (solver%lopen_bc_x .and. C%xe + 1 .eq. C%glob_xm) then
-                allocate (solution%edir_open_bc_x(0:C%dof - 1, C%zs:C%ze, C%ys:C%ye), source=v0_arr(:, :, C%xe + 1, C%ys:C%ye))
-              end if
-              if (solver%lopen_bc_y .and. C%ye + 1 .eq. C%glob_ym) then
-                allocate (solution%edir_open_bc_y(0:C%dof - 1, C%zs:C%ze, C%xs:C%xe), source=v0_arr(:, :, C%xs:C%xe, C%ye + 1))
-              end if
-            end if
-            deallocate (lb_arr, v0_arr)
-          end associate
-        end block
-#endif
-      else
-#ifdef HAVE_PETSC
-        call edir(prefix)
-#else
-        call CHKERR(1_mpiint, 'KSP edir requires PETSc -- use -solar_dir_explicit')
-#endif
-      end if
-      call ts_log_end(solver%logs%compute_Edir, ierr)
-    end if
+    call solve_direct()
+    call solve_diffuse()
 
-    ! ---------------------------- Source Term -------------
-    call ts_log_begin(solver%logs%compute_Ediff, ierr); call CHKERR(ierr)
-    call setup_b(solver, solution, solver%b, opt_buildings)
-
-#ifdef HAVE_PETSC
-    if (solution%lsolar_rad) then
-      call determine_ksp_tolerances(solver%C_diff, solver%atm%unconstrained_fraction, rtol, atol, maxit, solver%ksp_solar_diff)
-    else
-      call determine_ksp_tolerances(solver%C_diff, solver%atm%unconstrained_fraction, rtol, atol, maxit, solver%ksp_thermal_diff)
-    end if
-#else
-    call determine_ksp_tolerances(solver%C_diff, solver%atm%unconstrained_fraction, rtol, atol, maxit)
-#endif
-
-    ! ---------------------------- Ediff -------------------
-    b_norm = sum(abs(solver%b))
-    call mpi_allreduce(MPI_IN_PLACE, b_norm, 1_mpiint, imp_ireals, MPI_SUM, solver%comm, ierr); call CHKERR(ierr)
-    lskip_diffuse_solve = b_norm .lt. atol
-    call get_petsc_opt(solver%prefix, "-skip_diffuse_solve", lskip_diffuse_solve, lflg, ierr); call CHKERR(ierr)
-
-    if (lskip_diffuse_solve) then
-      if (ldebug) &
-        & call CHKWARN(1_mpiint, 'Skipping diffuse solver :: b_norm='//toStr(b_norm))
-      solution%ediff = solver%b
-      solution%Niter_diff = i0
-      solution%diff_ksp_residual_history = atol
-    else
-
-      if (solution%lsolar_rad) then
-        prefix = "solar_diff_"
-      else
-        prefix = "thermal_diff_"
-      end if
-      if (len_trim(solver%prefix) .gt. 0) prefix = trim(solver%prefix)//prefix
-
-#ifdef HAVE_PETSC
-      lexplicit_diff = .false.
-#else
-      lexplicit_diff = .true.
-#endif
-      call get_petsc_opt(prefix, "-explicit", lexplicit_diff, lflg, ierr); call CHKERR(ierr)
-      if (lexplicit_diff) then
-        call explicit_ediff(solver, prefix, solver%b, solution%ediff, solution, ierr); call CHKERR(ierr)
-      else
-        if (solver%lopen_bc) call CHKERR(1_mpiint, 'open boundaries for diffuse radiation need the explicit solver, '// &
-          & 'use -'//trim(prefix)//'explicit')
-#ifdef HAVE_PETSC
-        if (solution%lsolar_rad) then
-          call ediff(solver%Mdiff, solver%Mdiff_perm, solver%ksp_solar_diff, prefix)
-        else
-          call ediff(solver%Mth, solver%Mth_perm, solver%ksp_thermal_diff, prefix)
-        end if
-#else
-        call CHKERR(1_mpiint, 'KSP ediff solver requires PETSC')
-#endif
-      end if
-    end if
+    if (lcoupled) call coupled_iterations()
 
     solution%lchanged = .true.
     solution%lWm2_diff = .false. !Tenstream solver returns fluxes as [W]
 
-    call ts_log_end(solver%logs%compute_Ediff, ierr)
-
   contains
+    !> @brief solve for the direct radiation, uses solver%dir_vsrc as volume source if allocated
+    subroutine solve_direct()
+      ! ---------------------------- Edir  -------------------
+      if (solution%lsolar_rad) then
+        call ts_log_begin(solver%logs%compute_Edir, ierr)
+        prefix = "solar_dir_"
+        if (len_trim(solver%prefix) .gt. 0) prefix = trim(solver%prefix)//prefix
+
+        lexplicit_dir = .true.
+        call get_petsc_opt(prefix, "-explicit", lexplicit_dir, lflg, ierr); call CHKERR(ierr)
+        if (lexplicit_dir) then
+#ifdef HAVE_PETSC
+          block
+            real(ireals), allocatable, target :: b_arr(:, :, :, :)
+            real(ireals), pointer :: vedir_1d(:), vedir_4d(:, :, :, :)
+            real(ireals), pointer :: lb_1d(:), lb_4d(:, :, :, :)
+            real(ireals), pointer :: v0_1d(:), v0_4d(:, :, :, :)
+            type(tVec) :: b_gvec, lb_vec, v0_vec
+            vedir_1d => null(); vedir_4d => null()
+            lb_1d => null(); lb_4d => null()
+            v0_1d => null(); v0_4d => null()
+            associate (C => solver%C_dir)
+              allocate (b_arr(0:C%dof - 1, C%zs:C%ze, C%xs:C%xe, C%ys:C%ye)); b_arr = zero
+              call setup_incSolar(solver, edirTOA, b_arr)
+              call VecCreateMPIWithArray(C%comm, i1, int(size(b_arr), iintegers), PETSC_DETERMINE, b_arr, b_gvec, ierr)
+              call CHKERR(ierr)
+              call VecSetDM(b_gvec, C%da, ierr); call CHKERR(ierr)
+              call DMGetLocalVector(C%da, lb_vec, ierr); call CHKERR(ierr)
+              call DMGlobalToLocal(C%da, b_gvec, INSERT_VALUES, lb_vec, ierr); call CHKERR(ierr)
+              call VecDestroy(b_gvec, ierr); call CHKERR(ierr)
+              deallocate (b_arr)
+              call getVecPointer(C%da, lb_vec, lb_1d, lb_4d)
+              if (allocated(solution%edir_open_bc_x)) deallocate (solution%edir_open_bc_x)
+              if (allocated(solution%edir_open_bc_y)) deallocate (solution%edir_open_bc_y)
+              call DMGetLocalVector(C%da, v0_vec, ierr); call CHKERR(ierr)
+              call DMGlobalToLocal(C%da, solution%edir_petsc, INSERT_VALUES, v0_vec, ierr); call CHKERR(ierr)
+              call getVecPointer(C%da, v0_vec, v0_1d, v0_4d)
+              call getVecPointer(C%da, solution%edir_petsc, vedir_1d, vedir_4d)
+              call explicit_edir(solver, prefix, edirTOA, vedir_4d, lb_4d, v0_4d, solution, ierr); call CHKERR(ierr)
+              ! keep the flux through the east/north open boundary, it lives on a ghost face and is not part of edir.
+              ! If the sun is in the east/north, this is the inflow boundary condition, otherwise it is the outflow of the edge cells,
+              ! which a periodic halo exchange would replace with the opposite inflow
+              if (solver%lopen_bc) then
+                if (solver%lopen_bc_x .and. C%xe + 1 .eq. C%glob_xm) then
+                  allocate (solution%edir_open_bc_x(0:C%dof - 1, C%zs:C%ze, C%ys:C%ye), source=v0_4d(:, :, C%xe + 1, C%ys:C%ye))
+                end if
+                if (solver%lopen_bc_y .and. C%ye + 1 .eq. C%glob_ym) then
+                  allocate (solution%edir_open_bc_y(0:C%dof - 1, C%zs:C%ze, C%xs:C%xe), source=v0_4d(:, :, C%xs:C%xe, C%ye + 1))
+                end if
+              end if
+              call restoreVecPointer(C%da, solution%edir_petsc, vedir_1d, vedir_4d)
+              call restoreVecPointer(C%da, v0_vec, v0_1d, v0_4d)
+              call restoreVecPointer(C%da, lb_vec, lb_1d, lb_4d)
+              call DMRestoreLocalVector(C%da, v0_vec, ierr); call CHKERR(ierr)
+              call DMRestoreLocalVector(C%da, lb_vec, ierr); call CHKERR(ierr)
+            end associate
+          end block
+#else
+          block
+            real(ireals), allocatable, target :: b_arr(:, :, :, :), lb_arr(:, :, :, :), v0_arr(:, :, :, :)
+            associate (C => solver%C_dir)
+              allocate (b_arr(0:C%dof - 1, C%zs:C%ze, C%xs:C%xe, C%ys:C%ye)); b_arr = zero
+              call setup_incSolar(solver, edirTOA, b_arr)
+              allocate (lb_arr(0:C%dof - 1, C%zs:C%ze, C%gxs:C%gxe, C%gys:C%gye)); lb_arr = zero
+              lb_arr(:, :, C%xs:C%xe, C%ys:C%ye) = b_arr
+              deallocate (b_arr)
+              if (allocated(solution%edir_open_bc_x)) deallocate (solution%edir_open_bc_x)
+              if (allocated(solution%edir_open_bc_y)) deallocate (solution%edir_open_bc_y)
+              if (solver%lopen_bc) then
+                ! the inflow through the east/north edge is set on the periodic image and has to be brought to the ghost face
+                call halo_fill_5pt(solver%comm, C, lb_arr, ierr); call CHKERR(ierr)
+              end if
+              allocate (v0_arr(0:C%dof - 1, C%zs:C%ze, C%gxs:C%gxe, C%gys:C%gye)); v0_arr = zero
+              v0_arr(:, :, C%xs:C%xe, C%ys:C%ye) = solution%edir
+              call explicit_edir(solver, prefix, edirTOA, solution%edir, lb_arr, v0_arr, solution, ierr); call CHKERR(ierr)
+              ! keep the flux through the east/north open boundary, it lives on a ghost face and is not part of edir.
+              ! If the sun is in the east/north, this is the inflow boundary condition, otherwise it is the outflow of the edge cells,
+              ! which a periodic halo exchange would replace with the opposite inflow
+              if (solver%lopen_bc) then
+                if (solver%lopen_bc_x .and. C%xe + 1 .eq. C%glob_xm) then
+                  allocate (solution%edir_open_bc_x(0:C%dof - 1, C%zs:C%ze, C%ys:C%ye), source=v0_arr(:, :, C%xe + 1, C%ys:C%ye))
+                end if
+                if (solver%lopen_bc_y .and. C%ye + 1 .eq. C%glob_ym) then
+                  allocate (solution%edir_open_bc_y(0:C%dof - 1, C%zs:C%ze, C%xs:C%xe), source=v0_arr(:, :, C%xs:C%xe, C%ye + 1))
+                end if
+              end if
+              deallocate (lb_arr, v0_arr)
+            end associate
+          end block
+#endif
+        else
+#ifdef HAVE_PETSC
+          if (allocated(solver%dir_vsrc)) &
+            & call CHKERR(1_mpiint, '-pprts_diff2dir needs the explicit direct solver, use -solar_dir_explicit')
+          call edir(prefix)
+#else
+          call CHKERR(1_mpiint, 'KSP edir requires PETSc -- use -solar_dir_explicit')
+#endif
+        end if
+        call ts_log_end(solver%logs%compute_Edir, ierr)
+      end if
+
+    end subroutine
+
+    !> @brief setup the diffuse source term and solve for the diffuse radiation
+    subroutine solve_diffuse()
+      ! ---------------------------- Source Term -------------
+      call ts_log_begin(solver%logs%compute_Ediff, ierr); call CHKERR(ierr)
+      call setup_b(solver, solution, solver%b, opt_buildings)
+
+#ifdef HAVE_PETSC
+      if (solution%lsolar_rad) then
+        call determine_ksp_tolerances(solver%C_diff, solver%atm%unconstrained_fraction, rtol, atol, maxit, solver%ksp_solar_diff)
+      else
+        call determine_ksp_tolerances(solver%C_diff, solver%atm%unconstrained_fraction, rtol, atol, maxit, solver%ksp_thermal_diff)
+      end if
+#else
+      call determine_ksp_tolerances(solver%C_diff, solver%atm%unconstrained_fraction, rtol, atol, maxit)
+#endif
+
+      ! ---------------------------- Ediff -------------------
+      b_norm = sum(abs(solver%b))
+      call mpi_allreduce(MPI_IN_PLACE, b_norm, 1_mpiint, imp_ireals, MPI_SUM, solver%comm, ierr); call CHKERR(ierr)
+      lskip_diffuse_solve = b_norm .lt. atol
+      call get_petsc_opt(solver%prefix, "-skip_diffuse_solve", lskip_diffuse_solve, lflg, ierr); call CHKERR(ierr)
+
+      if (lskip_diffuse_solve) then
+        if (ldebug) &
+          & call CHKWARN(1_mpiint, 'Skipping diffuse solver :: b_norm='//toStr(b_norm))
+        solution%ediff = solver%b
+        solution%Niter_diff = i0
+        solution%diff_ksp_residual_history = atol
+      else
+
+        if (solution%lsolar_rad) then
+          prefix = "solar_diff_"
+        else
+          prefix = "thermal_diff_"
+        end if
+        if (len_trim(solver%prefix) .gt. 0) prefix = trim(solver%prefix)//prefix
+
+#ifdef HAVE_PETSC
+        lexplicit_diff = .false.
+#else
+        lexplicit_diff = .true.
+#endif
+        call get_petsc_opt(prefix, "-explicit", lexplicit_diff, lflg, ierr); call CHKERR(ierr)
+        if (lexplicit_diff) then
+          call explicit_ediff(solver, prefix, solver%b, solution%ediff, solution, ierr); call CHKERR(ierr)
+        else
+          if (solver%lopen_bc) call CHKERR(1_mpiint, 'open boundaries for diffuse radiation need the explicit solver, '// &
+            & 'use -'//trim(prefix)//'explicit')
+#ifdef HAVE_PETSC
+          if (solution%lsolar_rad) then
+            call ediff(solver%Mdiff, solver%Mdiff_perm, solver%ksp_solar_diff, prefix)
+          else
+            call ediff(solver%Mth, solver%Mth_perm, solver%ksp_thermal_diff, prefix)
+          end if
+#else
+          call CHKERR(1_mpiint, 'KSP ediff solver requires PETSC')
+#endif
+        end if
+      end if
+      call ts_log_end(solver%logs%compute_Ediff, ierr)
+    end subroutine
+
+    !> @brief coupled direct/diffuse solve (-pprts_diff2dir)
+    !> @details diffuse radiation that is scattered into the direct cone (-bmc_direct_cone_deg) is a source for the direct
+    !>          radiation, which in turn is a source for the diffuse radiation.
+    !>          We iterate (block Gauss-Seidel) until the direct radiation does not change anymore.
+    !>          Options: -pprts_diff2dir_max_it <int> (default 50), -pprts_diff2dir_rtol <real> (default 1e-4),
+    !>          -pprts_diff2dir_monitor
+    subroutine coupled_iterations()
+      real(ireals), allocatable :: edir_old(:, :, :, :)
+      real(ireals) :: nrm(2), coupled_rtol
+      integer(iintegers) :: iter, coupled_max_it
+      logical :: lmonitor
+
+      coupled_max_it = 50
+      call get_petsc_opt(solver%prefix, "-pprts_diff2dir_max_it", coupled_max_it, lflg, ierr); call CHKERR(ierr)
+      coupled_rtol = 1e-4_ireals
+      call get_petsc_opt(solver%prefix, "-pprts_diff2dir_rtol", coupled_rtol, lflg, ierr); call CHKERR(ierr)
+      lmonitor = .false.
+      call get_petsc_opt(solver%prefix, "-pprts_diff2dir_monitor", lmonitor, lflg, ierr); call CHKERR(ierr)
+
+      do iter = 1, coupled_max_it
+        edir_old = solution%edir
+        call compute_dir_vsrc(solver, solution)
+        call solve_direct()
+        call solve_diffuse()
+        nrm(1) = sum(abs(solution%edir - edir_old))
+        nrm(2) = sum(abs(solution%edir))
+        call mpi_allreduce(MPI_IN_PLACE, nrm, 2_mpiint, imp_ireals, MPI_SUM, solver%comm, ierr); call CHKERR(ierr)
+        if (lmonitor .and. solver%myid .eq. 0) &
+          & print *, 'pprts_diff2dir iter '//toStr(iter)//' rel. change of edir', nrm(1) / max(nrm(2), tiny(nrm))
+        if (nrm(1) .le. coupled_rtol * nrm(2)) exit
+      end do
+      if (iter .gt. coupled_max_it .and. solver%myid .eq. 0) &
+        & call CHKWARN(1_mpiint, 'pprts_diff2dir: coupled iteration did not converge in '//toStr(coupled_max_it)//' iterations')
+    end subroutine
+
     subroutine populate_coeffs()
       if (solution%lsolar_rad) then
         call alloc_coeff_dir2dir(solver, solver%dir2dir, opt_buildings)
@@ -2889,6 +2946,13 @@ contains
         call alloc_coeff_dir2diff(solver, solver%dir2diff)
       end if
       call alloc_coeff_diff2diff(solver, solver%diff2diff, opt_buildings)
+      if (lcoupled) then
+        if (present(opt_buildings)) call CHKERR(1_mpiint, '-pprts_diff2dir is not implemented for buildings')
+        if (solver%lopen_bc) call CHKERR(1_mpiint, '-pprts_diff2dir is not implemented for open boundaries')
+        call alloc_coeff_diff_cone(solver)
+      else if (allocated(solver%diff2dir)) then
+        deallocate (solver%diff2dir)
+      end if
       call alloc_coeff_diff2diff_ghost(solver, opt_buildings)
     end subroutine
 
@@ -3974,6 +4038,120 @@ contains
       end associate
     end subroutine
 
+  end subroutine
+
+  !> @brief diffuse coefficients for the coupled direct/diffuse solve (-pprts_diff2dir)
+  !> @details overwrites diff2diff of the 3D boxes with sun dependent coefficients, i.e. without the radiation that is
+  !>          scattered into the direct cone (-bmc_direct_cone_deg), and sets diff2dir, the fraction that goes from the
+  !>          diffuse streams into the direct streams of the box. Needs -bmc_online.
+  subroutine alloc_coeff_diff_cone(solver)
+    class(t_solver), intent(inout) :: solver
+    real(ireals) :: vertices(24), hs(2, 2, 2)
+    real(irealLUT), allocatable :: v(:)
+    real(irealLUT) :: tauz, w0, aspect_zx, angles(2)
+    real(ireals) :: kabs, ksca
+    integer(iintegers) :: k, i, j, ak, nd2
+    integer(mpiint) :: ierr
+    logical :: lgeometric_coeffs, ltop_bottom_faces_planar, ltop_bottom_planes_parallel
+
+    associate (atm => solver%atm, sun => solver%sun, C_dir => solver%C_dir, C_diff => solver%C_diff)
+      nd2 = C_diff%dof**2
+      if (.not. allocated(solver%diff2dir)) &
+        & allocate (solver%diff2dir(1:C_dir%dof * C_diff%dof, C_diff%zs:C_diff%ze - 1, C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye))
+      solver%diff2dir = zero
+      allocate (v(nd2 + C_dir%dof * C_diff%dof))
+
+      call read_cmd_line_opts_get_coeffs(solver%prefix, lgeometric_coeffs, ltop_bottom_faces_planar, ltop_bottom_planes_parallel)
+      call setup_default_unit_cube_geometry(atm%dx, atm%dy, -one, vertices)
+
+      ! boxmc convention: azimuth of the direction of travel, i.e. opposite to the sun azimuth, no symmetry folding
+      angles = [real(modulo(sun%phi + 180._ireals, 360._ireals), irealLUT), real(sun%theta, irealLUT)]
+
+      do k = C_diff%zs, C_diff%ze - 1
+        ak = atmk(atm, k)
+        if (atm%l1d(ak)) cycle
+        do j = C_diff%ys, C_diff%ye
+          do i = C_diff%xs, C_diff%xe
+            hs = atm%vert_heights(i0, ak:atmk(atm, k + 1), i:i + 1, j:j + 1)
+            call init_vertices(hs, atm%dz(ak, i, j), ltop_bottom_faces_planar, ltop_bottom_planes_parallel, vertices)
+            kabs = atm%kabs(ak, i, j)
+            ksca = atm%ksca(ak, i, j)
+            aspect_zx = max(solver%OPP%dev%diffconfig%dims(3)%vrange(1), real(atm%dz(ak, i, j) / atm%dx, irealLUT))
+            w0 = real(ksca / max(kabs + ksca, epsilon(kabs)), irealLUT)
+            w0 = max(solver%OPP%dev%diffconfig%dims(2)%vrange(1), min(solver%OPP%dev%diffconfig%dims(2)%vrange(2), w0))
+            tauz = real((kabs + ksca) * atm%dz(ak, i, j), irealLUT)
+            tauz = max(solver%OPP%dev%diffconfig%dims(1)%vrange(1), min(solver%OPP%dev%diffconfig%dims(1)%vrange(2), tauz))
+            call solver%OPP%get_coeff_diff_cone(tauz, w0, real(atm%g(ak, i, j), irealLUT), aspect_zx, angles, v, ierr, &
+              & opt_vertices=vertices); call CHKERR(ierr)
+            solver%diff2diff(:, k, i, j) = real(v(1:nd2), ireals)
+            solver%diff2dir(:, k, i, j) = real(v(nd2 + 1:), ireals)
+          end do
+        end do
+      end do
+    end associate
+  end subroutine
+
+  !> @brief direct source of the coupled direct/diffuse solve (-pprts_diff2dir)
+  !> @details diffuse radiation entering a box that is scattered into the direct cone and leaves through a downwind face.
+  !>          Every direct face gets its source from its upwind box only, i.e. solver%dir_vsrc lives in the ghost extended
+  !>          direct layout and the owner of the box writes it (also into ghost faces), the same as the explicit sweep does.
+  subroutine compute_dir_vsrc(solver, solution)
+    class(t_solver), target, intent(inout) :: solver
+    type(t_state_container), intent(in) :: solution
+    real(ireals), allocatable :: lediff(:, :, :, :)
+    real(ireals), pointer :: c(:, :) ! dim(diff src, dir dst)
+    integer(iintegers) :: k, i, j, isrc, src, idst, dst, ks, is, js, kd, id, jd
+    integer(mpiint) :: ierr
+    real(ireals) :: ein
+
+    associate (atm => solver%atm, sun => solver%sun, C_dir => solver%C_dir, C_diff => solver%C_diff)
+      if (.not. allocated(solver%dir_vsrc)) &
+        & allocate (solver%dir_vsrc(0:C_dir%dof - 1, C_dir%zs:C_dir%ze, C_dir%gxs:C_dir%gxe, C_dir%gys:C_dir%gye))
+      solver%dir_vsrc = zero
+
+      allocate (lediff(0:C_diff%dof - 1, C_diff%zs:C_diff%ze, C_diff%gxs:C_diff%gxe, C_diff%gys:C_diff%gye), source=zero)
+      lediff(:, :, C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye) = solution%ediff
+      call halo_fill_ediff(solver, solution, lediff, ierr); call CHKERR(ierr)
+
+      do j = C_diff%ys, C_diff%ye
+        do i = C_diff%xs, C_diff%xe
+          do k = C_diff%zs, C_diff%ze - 1
+            if (atm%l1d(atmk(atm, k))) cycle
+            c(0:C_diff%dof - 1, 0:C_dir%dof - 1) => solver%diff2dir(:, k, i, j)
+            src = 0
+            do isrc = 1, C_diff%dof
+              ! position of the incoming diffuse stream, same as the columns in set_diff_coeff
+              ks = k; is = i; js = j
+              if (isrc .le. solver%difftop%dof) then
+                if (.not. solver%difftop%is_inward(isrc)) ks = k + 1
+              else if (isrc .le. solver%difftop%dof + solver%diffside%dof) then
+                if (.not. solver%diffside%is_inward(isrc - solver%difftop%dof)) is = i + 1
+              else
+                if (.not. solver%diffside%is_inward(isrc - solver%difftop%dof - solver%diffside%dof)) js = j + 1
+              end if
+              ein = lediff(src, ks, is, js)
+              if (ein .gt. zero) then
+                dst = 0
+                do idst = 1, C_dir%dof
+                  ! position of the outgoing direct stream, same as the rows in set_dir_coeff
+                  kd = k; id = i; jd = j
+                  if (idst .le. solver%dirtop%dof) then
+                    kd = k + 1
+                  else if (idst .le. solver%dirtop%dof + solver%dirside%dof) then
+                    id = i + sun%xinc
+                  else
+                    jd = j + sun%yinc
+                  end if
+                  solver%dir_vsrc(dst, kd, id, jd) = solver%dir_vsrc(dst, kd, id, jd) + ein * c(src, dst)
+                  dst = dst + 1
+                end do
+              end if
+              src = src + 1
+            end do
+          end do
+        end do
+      end do
+    end associate
   end subroutine
 
   !> @brief renormalize fluxes with the size of a face(sides or lid)
@@ -5459,6 +5637,8 @@ contains
     real(ireals), pointer :: dir2dir(:, :)
     real(ireals), pointer :: dir2diff(:, :)
     real(ireals), pointer :: diff2diff(:, :)
+    real(ireals), pointer :: pdiff2dir(:, :)
+    logical :: ldiff2dir
     real(irealLUT), target :: dir2dir_lut(solver%C_dir%dof**2)
     real(irealLUT), pointer :: pdir2dir(:, :)
 
@@ -5587,6 +5767,8 @@ contains
       end select
 
       by_coeff_divergence = .true.
+      ldiff2dir = solution%lsolar_rad .and. allocated(solver%diff2dir)
+      pdiff2dir => null()
       call get_petsc_opt(solver%prefix, "-absorption_by_coeff_divergence", by_coeff_divergence, lflg, ierr); call CHKERR(ierr)
 
       if (solution%lsolar_rad) then
@@ -5640,22 +5822,27 @@ contains
             do k = C_one%zs, C_one%ze
               if (.not. atm%l1d(atmk(atm, k))) then
                 diff2diff(0:C_diff%dof - 1, 0:C_diff%dof - 1) => solver%diff2diff(1:C_diff%dof**2, k, i, j)
+                ! coupled direct/diffuse solve: diffuse radiation that goes into the direct streams is not absorbed
+                if (ldiff2dir) pdiff2dir(0:C_diff%dof - 1, 0:C_dir%dof - 1) => solver%diff2dir(:, k, i, j)
                 idof = 0
                 do isrc = 0, solver%difftop%dof - 1
                   msrc = merge(k, k + 1, solver%difftop%is_inward(i1 + isrc))
                   cdiv = one - sum(diff2diff(idof, :))
+                  if (ldiff2dir) cdiv = cdiv - sum(pdiff2dir(idof, :))
                   solution%abso(i0, k, i, j) = solution%abso(i0, k, i, j) + lediff(idof, msrc, i, j) * cdiv
                   idof = idof + 1
                 end do
                 do isrc = 0, solver%diffside%dof - 1
                   msrc = merge(i, i + 1, solver%diffside%is_inward(i1 + isrc))
                   cdiv = one - sum(diff2diff(idof, :))
+                  if (ldiff2dir) cdiv = cdiv - sum(pdiff2dir(idof, :))
                   solution%abso(i0, k, i, j) = solution%abso(i0, k, i, j) + lediff(idof, k, msrc, j) * cdiv
                   idof = idof + 1
                 end do
                 do isrc = 0, solver%diffside%dof - 1
                   msrc = merge(j, j + 1, solver%diffside%is_inward(i1 + isrc))
                   cdiv = one - sum(diff2diff(idof, :))
+                  if (ldiff2dir) cdiv = cdiv - sum(pdiff2dir(idof, :))
                   solution%abso(i0, k, i, j) = solution%abso(i0, k, i, j) + lediff(idof, k, i, msrc) * cdiv
                   idof = idof + 1
                 end do
