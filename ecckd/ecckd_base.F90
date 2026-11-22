@@ -466,7 +466,7 @@ contains
     integer(mpiint), intent(out) :: ierr
 
     integer(iintegers) :: ireff, igpt, iwvnr
-    real(ireals) :: reff, wgt, wvl_lo, wvl_hi, wvl, gpt_qext, gpt_w0, gpt_g, qext, w0, g
+    real(ireals) :: reff, wgt, wvl, gpt_qext, gpt_w0, gpt_g, qext, w0, g
     real(ireals) :: acc(5)
     logical :: lthick
     ierr = 0
@@ -492,9 +492,8 @@ contains
 
         do iwvnr = 1, size(ecckd_data%gpoint_fraction, dim=1)
           if (ecckd_data%gpoint_fraction(iwvnr, igpt) .gt. 0) then
-            wvl_lo = 1e7_ireals / ecckd_data%wavenumber2(iwvnr)
-            wvl_hi = 1e7_ireals / ecckd_data%wavenumber1(iwvnr)
-            wvl = (wvl_lo + wvl_hi)*.5
+            ! wavelength [nm] at the interval center wavenumber, finite also if wavenumber1 == 0
+            wvl = 2e7_ireals / (ecckd_data%wavenumber1(iwvnr) + ecckd_data%wavenumber2(iwvnr))
 
             call fu_ice_optprop(&
               & general_fu_ice_table, &
@@ -616,7 +615,7 @@ contains
     integer(mpiint), intent(out) :: ierr
 
     integer(iintegers) :: ireff, igpt, iwvnr
-    real(ireals) :: reff, wgt, wvl_lo, wvl_hi, wvl, gpt_qext, gpt_w0, gpt_g, qext, w0, g
+    real(ireals) :: reff, wgt, wvl, gpt_qext, gpt_w0, gpt_g, qext, w0, g
     real(ireals) :: acc(5)
     logical :: lthick
     ierr = 0
@@ -642,9 +641,8 @@ contains
 
         do iwvnr = 1, size(ecckd_data%gpoint_fraction, dim=1)
           if (ecckd_data%gpoint_fraction(iwvnr, igpt) .gt. 0) then
-            wvl_lo = 1e7_ireals / ecckd_data%wavenumber2(iwvnr)
-            wvl_hi = 1e7_ireals / ecckd_data%wavenumber1(iwvnr)
-            wvl = (wvl_lo + wvl_hi)*.5
+            ! wavelength [nm] at the interval center wavenumber, finite also if wavenumber1 == 0
+            wvl = 2e7_ireals / (ecckd_data%wavenumber1(iwvnr) + ecckd_data%wavenumber2(iwvnr))
 
             call mie_optprop(&
               & general_mie_table, &
